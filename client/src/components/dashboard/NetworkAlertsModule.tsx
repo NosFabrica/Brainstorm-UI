@@ -18,7 +18,7 @@ import { fetchProfileMap } from "@/services/nostr";
 import { unfollowUser, muteUser, reportUser } from "@/services/socialActions";
 import { npubFromPubkey } from "@/lib/shareId";
 import { computeNewAlerts, markAlertsSeen } from "@/lib/networkAlertsSeen";
-import { ignoredAlertMap, ignoreAlert, unignoreAlert, ignoreMany, unignoreMany, hydrateIgnoredFromNostr, hasEscalated, actedAlertSet, markActed } from "@/lib/networkAlertsIgnored";
+import { ignoredAlertMap, ignoreAlert, unignoreAlert, ignoreMany, unignoreMany, hydrateIgnoredFromNostr, backfillIgnoredBaselines, hasEscalated, actedAlertSet, markActed } from "@/lib/networkAlertsIgnored";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 type PendingAction = { pubkey: string; name: string; action: "unfollow" | "mute" };
@@ -58,7 +58,7 @@ function isWidelyMuted(e: NetworkAlertEntry): boolean {
  * Returns `dismissed`/`ignored` sets (so callers filter their own lists),
  * `actionsFor(pubkey, name)` to wire a row, and `dialogs` to render once.
  */
-export function useAlertActions(observer: string) {
+export function useAlertActions(observer: string, current?: { pubkey: string; verifiedReporterCount: number }[]) {
   const { toast } = useToast();
   // Persisted so an unfollow/mute/report hides the account on every surface
   // (dashboard + /alerts) and across reloads, not just in this hook instance.
@@ -73,6 +73,18 @@ export function useAlertActions(observer: string) {
     void hydrateIgnoredFromNostr(observer).then((merged) => { if (live) setIgnored(merged); }).catch(() => {});
     return () => { live = false; };
   }, [observer]);
+
+  // One-time repair for entries stored before escalation baselines existed: they
+  // would otherwise stay hidden at any report count, which would make the
+  // "they'll show up again" promise beside the Ignore button a lie. Guarded so it
+  // only writes when there's genuinely something to fix — persist() publishes.
+  const currentSig = (current ?? []).map((e) => `${e.pubkey}:${e.verifiedReporterCount}`).join(",");
+  useEffect(() => {
+    if (!observer || !current?.length) return;
+    const repaired = backfillIgnoredBaselines(observer, current);
+    if (repaired) setIgnored(repaired);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [observer, currentSig]);
 
   const [pending, setPending] = useState<PendingAction | null>(null);
   const [busy, setBusy] = useState(false);
@@ -102,7 +114,7 @@ export function useAlertActions(observer: string) {
       // The main barrier to using Ignore is fear that it does something public —
       // so the toast leads with what it does NOT do.
       title: `Ignored ${name}`,
-      description: "Hidden from your alerts \u2014 we'll only raise it again if the reports climb sharply. Nothing was published.",
+      description: "Hidden from your alerts. Nothing was reported, muted, or shared \u2014 and they'll show up again if a lot more people report them.",
       duration: 6000,
       action: (
         <ToastAction altText="Undo ignore" onClick={() => setIgnored(unignoreAlert(observer, pubkey))}>
@@ -126,7 +138,7 @@ export function useAlertActions(observer: string) {
     setIgnored(unignoreAlert(observer, pubkey));
     toast({
       title: `Un-ignored ${name}`,
-      description: "Back in your alerts. Nothing was published.",
+      description: "Back in your alerts. Nothing was reported, muted, or shared.",
       duration: 6000,
       action: (
         <ToastAction altText="Undo un-ignore" onClick={() => setIgnored(ignoreAlert(observer, pubkey, baseline))}>
@@ -143,7 +155,7 @@ export function useAlertActions(observer: string) {
     setIgnored(unignoreMany(observer, pubkeys));
     toast({
       title: `Un-ignored ${pubkeys.length} ${pubkeys.length === 1 ? "account" : "accounts"}${scopeLabel ? ` in ${scopeLabel}` : ""}`,
-      description: "Back in your alerts. Nothing was published.",
+      description: "Back in your alerts. Nothing was reported, muted, or shared.",
       duration: 8000,
       action: (
         <ToastAction altText="Undo un-ignore all" onClick={() => setIgnored(ignoreMany(observer, restore))}>
@@ -164,7 +176,7 @@ export function useAlertActions(observer: string) {
     const keys = items.map((i) => i.pubkey);
     toast({
       title: `Ignored ${items.length} ${items.length === 1 ? "account" : "accounts"}${scopeLabel ? ` in ${scopeLabel}` : ""}`,
-      description: "Hidden from your alerts — we'll only raise them again if the reports climb sharply. Nothing was published.",
+      description: "Hidden from your alerts. Nothing was reported, muted, or shared — and they'll show up again if a lot more people report them.",
       duration: 8000,
       action: (
         <ToastAction altText="Undo ignore all" onClick={() => setIgnored(unignoreMany(observer, keys))}>
@@ -364,7 +376,7 @@ export function NetworkAlertsModule({ observer, enabled, onEmptyChange }: {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [observer, flaggedSig, !!data]);
 
-  const { isHidden, isEscalated, ignoredBaseline, actionsFor, dialogs } = useAlertActions(observer);
+  const { isHidden, isEscalated, ignoredBaseline, actionsFor, dialogs } = useAlertActions(observer, flagged);
 
   // New-first within each section so a freshly-flagged account jumps to the top
   // (and carries the NEW tag) instead of hiding mid-list or in extended.

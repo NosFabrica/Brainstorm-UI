@@ -111,6 +111,40 @@ export function unignoreMany(observer: string, pubkeys: string[]): Map<string, n
   return persist(observer, load(observer).filter((e) => !drop.has(e.pubkey)));
 }
 
+/**
+ * Give a baseline to entries that never had one.
+ *
+ * Entries written by the older storage format carry `atReports: null`, and
+ * `hasEscalated` returns false for those — so they stay hidden at ANY report
+ * count, forever. That makes the promise we show next to the Ignore button
+ * ("they'll show up again if a lot more people report them") false for anyone
+ * who ignored an account before the baseline existed. Rather than soften the
+ * copy, adopt today's count as their baseline the first time we see them again,
+ * which is the same thing ignoring them now would have recorded.
+ *
+ * Returns the updated map, or null when there was nothing to fix — persist()
+ * publishes, so the caller must not write on every render. Entries missing from
+ * `current` keep their null and get picked up whenever they next appear.
+ */
+export function backfillIgnoredBaselines(
+  observer: string,
+  current: { pubkey: string; verifiedReporterCount: number }[],
+): Map<string, number | null> | null {
+  if (!observer) return null;
+  const list = load(observer);
+  if (!list.some((e) => e.atReports == null)) return null;
+  const counts = new Map(current.map((e) => [e.pubkey, e.verifiedReporterCount]));
+  let changed = false;
+  const next = list.map((e) => {
+    if (e.atReports != null) return e;
+    const at = counts.get(e.pubkey);
+    if (typeof at !== "number") return e;
+    changed = true;
+    return { ...e, atReports: at };
+  });
+  return changed ? persist(observer, next) : null;
+}
+
 // ---------------------------------------------------------------------------
 // "Acted-on" store — accounts the user unfollowed / muted / reported. Unlike
 // ignore (a reversible local dismiss), these are real actions, so the account

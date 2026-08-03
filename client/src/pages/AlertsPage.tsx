@@ -56,7 +56,7 @@ export default function AlertsPage() {
   const profiles: Map<string, ProfileLite> = profilesQuery.data ?? new Map();
   const nameFor = (pk: string) => profiles.get(pk)?.display_name || profiles.get(pk)?.name || `${npubFromPubkey(pk).slice(0, 12)}…`;
 
-  const { dismissed, ignored, isEscalated, ignoredBaseline, actionsFor, ignoreBatch, handleUnignore, unignoreBatch, dialogs } = useAlertActions(observer);
+  const { dismissed, ignored, isEscalated, ignoredBaseline, actionsFor, ignoreBatch, handleUnignore, unignoreBatch, dialogs } = useAlertActions(observer, flagged);
   // Seeded from `?scope=`, defaulting to your follows. The dashboard's extended
   // footnote has always linked to /alerts?scope=extended, but nothing read the
   // param, so that deliberate step silently landed on the wrong list. Read-on-
@@ -225,9 +225,18 @@ export default function AlertsPage() {
                 first-timer facing 55 alerts saw "Ignore all" with no explanation,
                 which is exactly the person who needs the reassurance before they
                 dare touch a safety control. */}
+            {/* Plain words, and nothing here that isn't literally true.
+                The old line said "nothing is published, it syncs to your
+                account" — two claims that contradict each other, since syncing
+                IS a publish (an encrypted note only you can read, but a note).
+                On a safety control, being caught in a small inaccuracy costs
+                more than the reassurance was worth, so the sync fact moved to
+                the Settings card where it's a feature rather than a defence.
+                "Climb sharply" was vaguer than the rule; "a lot more people" is
+                plain and stays true for both halves of it (double, or +5). */}
             <p className="mt-2 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
-              Ignoring only changes what you see — nothing is published, it syncs to your
-              account, and anyone whose reports climb sharply comes back.
+              Ignoring just hides them from your alerts. It doesn't report them, mute them,
+              or tell anyone. If a lot more people report them, they'll show up again.
             </p>
           </div>
         )}
@@ -296,9 +305,9 @@ export default function AlertsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle>Ignore {rows.length} accounts?</AlertDialogTitle>
             <AlertDialogDescription>
-              This batch includes accounts you follow. Ignoring only changes what you
-              see here — nothing is published, it syncs to your account, and any account
-              re-surfaces on its own if its reports climb sharply. You can undo right after.
+              This batch includes accounts you follow. Ignoring just hides them from your
+              alerts — it doesn't report them, mute them, or tell anyone, and they'll show
+              up again if a lot more people report them. You can undo right after.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

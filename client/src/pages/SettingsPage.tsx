@@ -59,7 +59,7 @@ import {
   AlertTriangle,
   IdCard,
   SlidersHorizontal,
-  EyeOff,
+  ShieldAlert,
   ChevronRight,
 } from "lucide-react";
 import { ignoredAlertMap } from "@/lib/networkAlertsIgnored";
@@ -1166,33 +1166,37 @@ export default function SettingsPage() {
     </div>
   );
 
-  // Second door to the ignored list. The list itself lives on /alerts (one
-  // implementation, not two) — this exists because "things I've hidden" is
-  // something people look for in Settings alongside muted/blocked, not in a
-  // triage screen they only open when something is wrong.
+  // Settings' door to the whole Network Alerts surface, not just one slice of it.
+  // It opens /alerts, which has three tabs, so labelling it "Ignored accounts"
+  // described a third of where it goes. The subtitle names all three so this
+  // reads as a map — which also gives extended reach a findable trail now that
+  // it's off the dashboard entirely.
   //
-  // The count is the raw persisted ignore list, which is what "your ignore list"
-  // means here. The Ignored TAB counts what's currently hidden, so an account
-  // that escalated back shows there under its own scope instead — the two can
-  // differ by design, hence the deliberately different wording.
+  // Only the ignored count is shown, because it's the only free one: it's a
+  // localStorage read, whereas follows/extended need the ~10s /networkAlerts
+  // call, and firing that from Settings to fill in a subtitle would make the
+  // page slow for numbers nobody came here for. It's also the one people
+  // actually arrive hunting for. Counting the raw persisted list (the Ignored
+  // TAB counts what's currently hidden, which differs once something escalates)
+  // — hence "on your ignore list" rather than repeating the tab's wording.
   const ignoredListCount = useMemo(() => (pubkey ? ignoredAlertMap(pubkey).size : 0), [pubkey]);
-  const ignoredAccountsCard = (
+  const networkAlertsCard = (
     <button
       type="button"
-      onClick={() => navigate("/alerts?scope=ignored")}
+      onClick={() => navigate("/alerts")}
       className="w-full flex items-center justify-between gap-3 rounded-2xl bg-white/70 dark:bg-slate-900/70 border border-brand-accent/15 px-5 py-4 text-left hover:border-brand-accent/30 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-      data-testid="button-ignored-accounts"
+      data-testid="button-network-alerts"
     >
       <div className="flex items-center gap-3 min-w-0">
         <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800/60 flex items-center justify-center shrink-0">
-          <EyeOff className="h-4 w-4 text-brand-deep" />
+          <ShieldAlert className="h-4 w-4 text-brand-deep" />
         </div>
         <div className="min-w-0">
-          <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Ignored accounts</h2>
-          <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-ignored-count">
+          <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Network Alerts</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-network-alerts-summary">
             {ignoredListCount === 0
-              ? "Nothing ignored yet. Accounts you hide from Network Alerts appear here."
-              : `${ignoredListCount} on your ignore list — review or put any of them back.`}
+              ? "Accounts people you trust have reported — the people you follow, your wider network, and anything you've ignored."
+              : `Accounts people you trust have reported — the people you follow, your wider network, and ${ignoredListCount} you've ignored, saved to your account.`}
           </p>
         </div>
       </div>
@@ -1549,7 +1553,7 @@ export default function SettingsPage() {
             <div className="space-y-6" data-testid="tab-content-trust">
               {presetsCard}
               <BrainstormAssistantCard variant="settings" lastCalculated={lastCalculated} />
-              {ignoredAccountsCard}
+              {networkAlertsCard}
               {advancedSection}
             </div>
           )}
