@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ShieldAlert, ShieldCheck, VolumeX, UserMinus, ArrowRight, Loader2, ChevronDown, Eye, EyeOff, Flag, AlertTriangle, X } from "lucide-react";
+import { ShieldAlert, ShieldCheck, VolumeX, UserMinus, ArrowRight, Loader2, ChevronDown, EyeOff, Flag, AlertTriangle, X } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -298,8 +298,9 @@ export function NetworkAlertsModule({ observer, enabled, onEmptyChange }: {
   const data = q.data?.data;
 
   const flagged = useMemo(() => selectFlaggedAlerts(data), [data]);
+  // Follows only. Accounts at 2+ hops are still fetched (the /alerts page reads
+  // the same query from cache) but this card never renders or counts them.
   const direct = useMemo(() => flagged.filter((e) => e.hops <= 1), [flagged]);
-  const extended = useMemo(() => flagged.filter((e) => e.hops >= 2), [flagged]);
 
   // Resolve names/avatars for every flagged account (batched).
   const flaggedPubkeys = useMemo(() => flagged.map((e) => e.pubkey), [flagged]);
@@ -330,18 +331,18 @@ export function NetworkAlertsModule({ observer, enabled, onEmptyChange }: {
   const newFirst = (arr: NetworkAlertEntry[]) =>
     [...arr].sort((a, b) => (newSet.has(b.pubkey) ? 1 : 0) - (newSet.has(a.pubkey) ? 1 : 0));
   const visibleDirect = newFirst(direct.filter((e) => !isHidden(e.pubkey, e.verifiedReporterCount)));
-  // Extended reach renders as a single count, not a queue — but it must still
-  // respect ignores, or the number links through to an empty /alerts page.
-  const extendedCount = extended.filter((e) => !isHidden(e.pubkey, e.verifiedReporterCount)).length;
   const newCount = visibleDirect.filter((e) => newSet.has(e.pubkey)).length;
   const flaggedCount = visibleDirect.length;
 
   const nameFor = (pk: string) => profiles.get(pk)?.display_name || profiles.get(pk)?.name || `${npubFromPubkey(pk).slice(0, 12)}…`;
 
-  // `isEmpty` stays "nothing at all, anywhere" on purpose: it governs whether the
-  // whole card may disappear, and the dismiss below is only safe to persist
-  // because a real alert always forces it back. Don't narrow it to follows.
-  const isEmpty = enabled && !q.isLoading && !q.isError && visibleDirect.length === 0 && extendedCount === 0;
+  // "Nothing needs you" = none of YOUR FOLLOWS are flagged. Extended reach is
+  // deliberately not part of this: it can't put the card into a state the user
+  // has to deal with, and it can't keep the card on screen after they've
+  // dismissed the all-clear. The dismiss stays safe to persist for the reason it
+  // always was — the moment one of your follows is flagged this goes false and
+  // the card comes back regardless.
+  const isEmpty = enabled && !q.isLoading && !q.isError && visibleDirect.length === 0;
 
   // User can minimize the card to a slim one-row bar; the choice is remembered
   // per account. Collapsing also tells the dashboard to give "Your Network" the
@@ -397,26 +398,22 @@ export function NetworkAlertsModule({ observer, enabled, onEmptyChange }: {
     }),
   });
 
-  // Extended reach is a FACT about your neighbourhood, not a queue — strangers
-  // you don't follow can't be meaningfully triaged. So it reads as a footnote in
-  // both states (all-clear and has-alerts) and is styled as ambient context:
-  // muted grey, an eye rather than a warning triangle, and "we're watching"
-  // rather than a bare count, so it says Brainstorm is handling it instead of
-  // handing the user 100 strangers to deal with.
-  const extendedFootnote = extendedCount > 0 ? (
+  // The quiet door to /alerts, shown in every state. Deliberately carries NO
+  // COUNT: this is the dashboard, and any number attached to "flagged" reads as
+  // a queue you're behind on, however gently it's styled. Extended reach — the
+  // accounts you don't follow — doesn't appear on this card at all any more. It
+  // lives on /alerts behind its own tab, where the count belongs to someone who
+  // went looking for it rather than someone who just opened their dashboard.
+  const manageLink = (
     <button
       type="button"
-      onClick={() => navigate("/alerts?scope=extended")}
-      className="flex w-full items-center gap-2 rounded-lg px-1 py-1 text-left text-slate-500 transition-colors hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-      data-testid="network-alerts-extended-stat"
+      onClick={() => navigate("/alerts")}
+      className="mt-1 self-start text-[11px] font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
+      data-testid="network-alerts-view-all"
     >
-      <Eye className="h-3.5 w-3.5 shrink-0" />
-      <span className="text-xs">
-        <span className="font-semibold tabular-nums">{extendedCount}</span> flagged further out — we're watching
-      </span>
-      <ArrowRight className="ml-auto h-3 w-3 shrink-0" />
+      Manage alerts →
     </button>
-  ) : null;
+  );
 
   // ---- states -------------------------------------------------------------
   const header = (
@@ -504,32 +501,25 @@ export function NetworkAlertsModule({ observer, enabled, onEmptyChange }: {
            were. And "Your network looks clean" is scoped to "Everyone you follow"
            for the same reason: extended reach IS your network at 2 hops, so the
            old wording flatly contradicted the footnote sitting under it. */
-        <div className="flex flex-col gap-1.5">
+        <div className="flex flex-col">
           <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400" data-testid="network-alerts-clear">
             <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-500" />
             <span>
-              <span className="font-semibold text-slate-700 dark:text-slate-300">Everyone you follow looks clean.</span>
-              {extendedCount === 0 && " We're watching in the background."}
+              <span className="font-semibold text-slate-700 dark:text-slate-300">Everyone you follow looks clean.</span>{" "}
+              We're watching in the background.
             </span>
-            {/* The dismiss only does anything when there's nothing else to show —
-                `isEmpty` (and so the card-level hide it drives) still requires
-                extended to be empty too. With a footnote present the card stays
-                either way, so the X would be a control that visibly does
-                nothing. Don't render it. */}
-            {extendedCount === 0 && (
-              <button
-                type="button"
-                onClick={dismissClear}
-                aria-label="Hide the all-clear"
-                title="Hide this. It comes back the moment something is flagged."
-                className="ml-auto shrink-0 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-                data-testid="network-alerts-clear-dismiss"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            )}
+            <button
+              type="button"
+              onClick={dismissClear}
+              aria-label="Hide the all-clear"
+              title="Hide this. It comes back the moment something is flagged."
+              className="ml-auto shrink-0 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+              data-testid="network-alerts-clear-dismiss"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
           </div>
-          {extendedFootnote}
+          {manageLink}
         </div>
       ) : (
         <>
@@ -542,20 +532,11 @@ export function NetworkAlertsModule({ observer, enabled, onEmptyChange }: {
             </div>
           )}
 
-          {extendedFootnote}
-
           {/* "Manage" rather than "View all flagged accounts": /alerts now opens
               on your follows, and the dashboard already lists every one of them
               above — so the promise of a bigger list was false. What the page
               actually adds is search, sort, bulk ignore and the ignored list. */}
-          <button
-            type="button"
-            onClick={() => navigate("/alerts")}
-            className="mt-1 self-start text-[11px] font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
-            data-testid="network-alerts-view-all"
-          >
-            Manage alerts →
-          </button>
+          {manageLink}
         </>
       ))}
 
