@@ -130,7 +130,11 @@ function RequireAuth({ component: Component }: { component: ComponentType }) {
       location && location.startsWith("/") && location !== "/login"
         ? `?next=${encodeURIComponent(location)}`
         : "";
-    return <Redirect to={`/login${next}`} />;
+    // `replace`, not push: pushing leaves the gated URL in history, so pressing
+    // Back returns to it, RequireAuth fires again and shoves you forward to
+    // /login — a trap you can't reverse out of. Replacing means Back skips
+    // straight past to wherever you actually came from.
+    return <Redirect to={`/login${next}`} replace />;
   }
   return <Component />;
 }
