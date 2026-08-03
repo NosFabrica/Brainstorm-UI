@@ -262,6 +262,41 @@ describe("LocalSigner silent unlock", () => {
   });
 });
 
+describe("LocalSigner Unlock cache probe", () => {
+  it("reports that the cache opens without keeping the key", async () => {
+    const { pubkey, unlockCache, envelope } = await keyFixture();
+    const signer = new LocalSigner(pubkey, { envelope }, { unlockCache });
+
+    expect(await signer.probeUnlockCache()).toBe(true);
+    expect(signer.unlocked).toBe(false);
+  });
+
+  it("reports a stale cache without discarding it — a probe is a question", async () => {
+    const { pubkey, unlockCache, ncryptsec, envelope } = await keyFixture();
+    const signer = new LocalSigner(pubkey, { ncryptsec, envelope }, { unlockCache });
+    unlockCache.wipe();
+
+    expect(await signer.probeUnlockCache()).toBe(false);
+    expect(signer.data.envelope).toBe(envelope);
+  });
+
+  it("says no where there is no cache to open, and never prompts", async () => {
+    const { pubkey, unlockCache, ncryptsec } = await keyFixture();
+    const requestPassword = fakePrompt();
+    const signer = new LocalSigner(pubkey, { ncryptsec }, { unlockCache, requestPassword });
+
+    expect(await signer.probeUnlockCache()).toBe(false);
+    expect(requestPassword).not.toHaveBeenCalled();
+  });
+
+  it("says yes for a Signer that is already unlocked", async () => {
+    const { secretKey, unlockCache } = await keyFixture();
+    const signer = LocalSigner.fromKey(secretKey, { unlockCache });
+
+    expect(await signer.probeUnlockCache()).toBe(true);
+  });
+});
+
 describe("LocalSigner concurrency", () => {
   it("shares one in-flight unlock, so two callers produce one password request", async () => {
     const { pubkey, unlockCache, ncryptsec } = await keyFixture();

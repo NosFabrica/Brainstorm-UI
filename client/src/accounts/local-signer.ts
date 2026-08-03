@@ -203,6 +203,22 @@ export class LocalSigner implements ISigner {
     }
   }
 
+  /**
+   * Whether the Unlock cache still opens this key — asked *about* an Account
+   * nobody has chosen, so the key is decrypted and discarded, and a failure
+   * leaves the envelope alone. Only a real unlock may drop an at-rest form.
+   */
+  async probeUnlockCache(): Promise<boolean> {
+    if (this.inner) return true;
+    if (!this.data.envelope || !this.unlockCache.isSupported()) return false;
+    try {
+      await this.unlockCache.decrypt(this.data.envelope, this.pubkey);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   private async doUnlock(password?: string): Promise<void> {
     if (this.inner) return;
     if (await this.fromCache()) return;

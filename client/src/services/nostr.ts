@@ -63,8 +63,14 @@ import {
   signingFailure,
   type PublishOutcome,
 } from "@/accounts/signing";
-import { adoptAccount, extensionAccount, localAccount, releaseActiveAccount } from "@/accounts/login";
-import type { AccountMetadata, BrainstormAccount } from "@/accounts/metadata";
+import {
+  activateAccount,
+  adoptAccount,
+  extensionAccount,
+  localAccount,
+  releaseActiveAccount,
+} from "@/accounts/login";
+import { isRemembered, type AccountMetadata, type BrainstormAccount } from "@/accounts/metadata";
 import { activePubkey, rememberProfile } from "@/accounts/display";
 import { queryClient } from "@/lib/queryClient";
 import { extractAdminFlag } from "@/lib/jwt";
@@ -252,8 +258,15 @@ function hasAnyStoredKey(): boolean {
   }
 }
 
-/** True when an in-app–created account's key is persisted locally ("stay signed in"). */
+/**
+ * True when the signed-in account's key is kept in this browser ("stay signed
+ * in") — what the backup nags are about. The Account answers now that several can
+ * be held at once: the v1 keys are a single slot, so they'd report an extension
+ * user's browser as holding a key because someone else's key is still in it.
+ */
 export function hasPersistentKey(): boolean {
+  const account = activeAccount();
+  if (account) return account instanceof LocalAccount && isRemembered(account);
   try {
     return !!(localStorage.getItem(SK_ENC_KEY) || localStorage.getItem(SK_PERSIST_KEY));
   } catch {
@@ -1260,10 +1273,8 @@ function refusedBySigner(err: unknown): boolean {
  */
 async function signIn(account: BrainstormAccount, metadata: AccountMetadata): Promise<NostrUser> {
   const token = await sessions.authenticate(account);
-  // Signing in still *replaces* the previous identity, keys and all, as v1's did:
-  // until the picker lands (ticket 11) nothing could show or remove an Account
-  // that piled up here.
-  releaseActiveAccount();
+  // The previous Account stays: signing in adds an identity rather than replacing
+  // one, which is what the login picker lists. Sign-out is what lets one go.
   adoptAccount(account, { ...metadata, npub: nip19.npubEncode(account.pubkey) });
 
   // v1 shadow: the backup nags and the onboarding cards still read these
@@ -1362,6 +1373,18 @@ export async function handleLogin(): Promise<NostrUser> {
       `Your extension couldn't sign you in${msg ? `: ${msg}` : ""}. Try again, or use your key.`
     );
   }
+}
+
+/**
+ * Sign in as an Account this device already holds — what a login-picker row does.
+ * The Session comes first: an Account whose Signer refuses must not leave the app
+ * switched to an identity it can't use. A declined unlock travels back out
+ * untouched, because a deliberate no is not a failed sign-in.
+ */
+export async function signInWithAccount(account: BrainstormAccount): Promise<NostrUser> {
+  const token = await sessions.ensureSession(account);
+  activateAccount(account);
+  return completeLogin(account, token);
 }
 
 /**

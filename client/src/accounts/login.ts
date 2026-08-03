@@ -11,7 +11,12 @@ import { ExtensionAccount } from "applesauce-accounts/accounts";
 import { accountManager } from "@/accounts";
 import { LocalAccount } from "./local-account";
 import type { LocalSignerOptions } from "./local-signer";
-import { updateMetadata, type AccountMetadata, type BrainstormAccount } from "./metadata";
+import {
+  getMetadata,
+  updateMetadata,
+  type AccountMetadata,
+  type BrainstormAccount,
+} from "./metadata";
 
 declare global {
   interface Window {
@@ -72,23 +77,52 @@ export function localAccount(
   return LocalAccount.fromKey(key, { ...options, requirePersistable: false });
 }
 
-/** Hold this Account, and make it the one that signs. */
+/**
+ * Hold this Account, and make it the one that signs.
+ *
+ * One row per identity per Signer: signing in again with the same extension, or
+ * re-pasting the same key, replaces what this device already held rather than
+ * leaving the picker with two rows carrying the same face and the same badge —
+ * the indistinguishable pair that grouping exists to prevent. What the old row
+ * knew about itself comes across; its Session doesn't, since the new one has
+ * just authenticated.
+ */
 export function adoptAccount(account: BrainstormAccount, metadata: AccountMetadata): void {
+  let carried: Partial<AccountMetadata> = {};
+  for (const held of [...accountManager.accounts]) {
+    if (held === account || held.pubkey !== account.pubkey || held.type !== account.type) continue;
+    const { session, remembered, ...rest } = getMetadata(held as BrainstormAccount);
+    carried = rest;
+    forgetAccount(held as BrainstormAccount);
+  }
+
   // metadata first: adding is what triggers a save, and one save is enough
-  updateMetadata(account, metadata);
+  updateMetadata(account, { ...carried, ...metadata });
   accountManager.addAccount(account);
   accountManager.setActive(account);
 }
 
+/** Make an Account this device already holds the one that signs — the picker's act. */
+export function activateAccount(account: BrainstormAccount): void {
+  accountManager.setActive(account);
+}
+
 /**
- * Sign out: the Active Account leaves this device, keys and all. Removing rather
- * than deactivating is what v1's sign-out did — it deleted the key — and the
- * in-memory copy goes with it, so nothing can still sign as an identity this
- * browser no longer holds.
+ * Let an Account go: it leaves this device, keys and all, and the in-memory copy
+ * goes with it — nothing may still sign as an identity this browser no longer
+ * holds.
+ */
+export function forgetAccount(account: BrainstormAccount): void {
+  accountManager.removeAccount(account);
+  if (account instanceof LocalAccount) account.signer.lock();
+}
+
+/**
+ * Sign out. Removing rather than deactivating is what v1's sign-out did — it
+ * deleted the key — and until the switcher offers Sign out and Remove as separate
+ * acts (ticket 15) it stays the only way an Account leaves this device.
  */
 export function releaseActiveAccount(): void {
   const account = accountManager.active;
-  if (!account) return;
-  accountManager.removeAccount(account);
-  if (account instanceof LocalAccount) account.signer.lock();
+  if (account) forgetAccount(account);
 }

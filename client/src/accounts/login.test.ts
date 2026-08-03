@@ -1,13 +1,17 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it } from "vitest";
+import { ExtensionAccount } from "applesauce-accounts/accounts";
+import { ExtensionSigner } from "applesauce-signers";
 import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
 
 import { accountManager } from "@/accounts";
 import { LocalAccount } from "./local-account";
 import { getMetadata } from "./metadata";
 import {
+  activateAccount,
   adoptAccount,
   extensionAccount,
+  forgetAccount,
   localAccount,
   releaseActiveAccount,
   waitForExtension,
@@ -105,6 +109,31 @@ describe("adopting and releasing", () => {
     expect(getMetadata(account).npub).toBe("npub1test");
   });
 
+  it("replaces the row this device already held for the same identity and signer", async () => {
+    const key = generateSecretKey();
+    const first = await localAccount(key, { unlockCache: createFakeUnlockCache() });
+    adoptAccount(first, { remembered: true, createdInApp: true, backedUp: true });
+    const again = await localAccount(key, { unlockCache: createFakeUnlockCache() });
+
+    adoptAccount(again, { remembered: true });
+
+    expect(accountManager.accounts).toEqual([again]);
+    // what the replaced row knew about itself is not lost with it
+    expect(getMetadata(again).createdInApp).toBe(true);
+    expect(getMetadata(again).backedUp).toBe(true);
+  });
+
+  it("keeps a second signer for the same identity — that is a real pair of rows", async () => {
+    const key = generateSecretKey();
+    const held = await localAccount(key, { unlockCache: createFakeUnlockCache() });
+    adoptAccount(held, { remembered: true });
+    const extension = new ExtensionAccount(held.pubkey, new ExtensionSigner());
+
+    adoptAccount(extension as unknown as LocalAccount, { remembered: true });
+
+    expect(accountManager.accounts).toHaveLength(2);
+  });
+
   it("keeps the session an account was authenticated with", async () => {
     const account = await localAccount(generateSecretKey(), {
       unlockCache: createFakeUnlockCache(),
@@ -128,5 +157,30 @@ describe("adopting and releasing", () => {
 
   it("is a no-op when nobody is signed in", () => {
     expect(() => releaseActiveAccount()).not.toThrow();
+  });
+
+  it("hands signing to an account this device already holds", async () => {
+    const first = await adopted();
+    const second = await adopted();
+
+    activateAccount(first);
+
+    expect(accountManager.active).toBe(first);
+    expect(accountManager.accounts).toContain(second);
+  });
+
+  it("forgets a chosen account without touching the one that signs", async () => {
+    const signedIn = await adopted();
+    const other = await localAccount(generateSecretKey(), {
+      unlockCache: createFakeUnlockCache(),
+    });
+    adoptAccount(other, { remembered: true });
+    activateAccount(signedIn);
+
+    forgetAccount(other);
+
+    expect(accountManager.accounts).not.toContain(other);
+    expect(other.locked).toBe(true);
+    expect(accountManager.active).toBe(signedIn);
   });
 });

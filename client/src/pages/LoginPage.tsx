@@ -9,6 +9,8 @@ import {
 } from "lucide-react";
 import { handleLogin, LoginError, type LoginErrorCode } from "@/services/nostr";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { useLoginPicker } from "@/hooks/useLoginPicker";
+import { LoginPicker } from "@/components/LoginPicker";
 import { LoginFailureModal } from "@/components/LoginFailureModal";
 import { CreateAccountModal } from "@/components/CreateAccountModal";
 import { decodeShareId } from "@/lib/shareId";
@@ -58,6 +60,8 @@ export default function LoginPage() {
   const [failureMessage, setFailureMessage] = useState("");
 
   const signedIn = useActiveAccountDisplay();
+  const { identities, recheckExtension } = useLoginPicker();
+  const hasAccounts = identities.length > 0;
   const nextPath = getNextPath();
   const inviterPubkey = getInviterPubkey();
 
@@ -193,7 +197,26 @@ export default function LoginPage() {
             </div>
           )}
 
-          <div className="space-y-4">
+          <LoginPicker
+            identities={identities}
+            onSignedIn={routeAfterLogin}
+            onUseKey={openNsec}
+            onRecheckExtension={recheckExtension}
+          />
+
+          {/* With accounts on the device the sign-in options stop being the way in
+              and become the way to add one more. */}
+          {hasAccounts && (
+            <div className="my-8 flex items-center gap-4" aria-hidden="true">
+              <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+              <span className="text-xs font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+                Add another account
+              </span>
+              <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+            </div>
+          )}
+
+          <div className={hasAccounts ? "space-y-4" : "mt-6 space-y-4"}>
             <button
               onClick={onLogin}
               disabled={loading}
