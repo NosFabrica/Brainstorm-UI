@@ -68,6 +68,7 @@ import { FEATURES } from "@/config/featureFlags";
 import { SiGithub } from "react-icons/si";
 import type { NostrEvent } from "applesauce-core/helpers";
 import { logout, signNip85, signNip85Deactivation, publishToRelays, getNip85RelayUrl, hasStoredSecretKey } from "@/services/nostr";
+import { isUnlockCancelled } from "@/accounts/local-signer";
 import { isNip85Activated, markNip85Activated, clearNip85Activated } from "@/lib/nip85Activation";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { downloadAccountBackup } from "@/lib/accountBackup";
@@ -250,7 +251,9 @@ export default function SettingsPage() {
       setBackupConfirm("");
       toast({ title: "Backup saved", description: "Saved to your password manager where supported — keep the file too." });
     } catch (err) {
-      toast({ variant: "destructive", title: "Couldn't create your backup", description: keyAccessMessage(err) });
+      const message = keyAccessMessage(err);
+      if (message)
+        toast({ variant: "destructive", title: "Couldn't create your backup", description: message });
     } finally {
       setBackupBusy(false);
     }
@@ -266,7 +269,9 @@ export default function SettingsPage() {
       setSecretNsec(await revealSecretKey());
       setShowSecret(true);
     } catch (err) {
-      toast({ variant: "destructive", title: "Couldn't reach your key", description: keyAccessMessage(err) });
+      const message = keyAccessMessage(err);
+      if (message)
+        toast({ variant: "destructive", title: "Couldn't reach your key", description: message });
     } finally {
       setRevealBusy(false);
     }
@@ -337,9 +342,10 @@ export default function SettingsPage() {
     let signedEvent: NostrEvent;
     try {
       signedEvent = await signNip85(taPubkey, nip85Relay);
-    } catch {
+    } catch (err) {
       setRepublishState("idle");
-      toast({ title: "Signing cancelled", description: "The event was not signed.", duration: 3000 });
+      if (!isUnlockCancelled(err))
+        toast({ title: "Signing cancelled", description: "The event was not signed.", duration: 3000 });
       return;
     }
 
@@ -370,9 +376,10 @@ export default function SettingsPage() {
     let signedEvent: NostrEvent;
     try {
       signedEvent = await signNip85Deactivation();
-    } catch {
+    } catch (err) {
       setDeactivateState("idle");
-      toast({ title: "Signing cancelled", description: "The event was not signed.", duration: 3000 });
+      if (!isUnlockCancelled(err))
+        toast({ title: "Signing cancelled", description: "The event was not signed.", duration: 3000 });
       return;
     }
 

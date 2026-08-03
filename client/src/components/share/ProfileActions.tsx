@@ -47,6 +47,7 @@ export function ProfileActions({
     setBusy("follow");
     const res = following ? await unfollowUser(targetPubkey) : await followUser(targetPubkey);
     setBusy(null);
+    if (res.cancelled) return;
     if (res.success) {
       setFollowing((v) => !v);
       toast({ title: following ? "Unfollowed" : "Following" });
@@ -59,6 +60,7 @@ export function ProfileActions({
     setBusy("mute");
     const res = muted ? await unmuteUser(targetPubkey) : await muteUser(targetPubkey);
     setBusy(null);
+    if (res.cancelled) return;
     if (res.success) {
       setMuted((v) => !v);
       toast({ title: muted ? "Unmuted" : "Muted" });
@@ -69,6 +71,7 @@ export function ProfileActions({
 
   const submitReport = async (reason: string) => {
     const res = await reportUser(targetPubkey, reason);
+    if (res.cancelled) return;
     if (res.success) {
       setReported(true);
       toast({ title: "Reported", description: "This lowers their standing in your Web of Trust." });

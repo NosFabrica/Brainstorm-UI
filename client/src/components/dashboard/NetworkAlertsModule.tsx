@@ -141,6 +141,7 @@ export function useAlertActions(observer: string) {
     const res = action === "unfollow" ? await unfollowUser(pubkey) : await muteUser(pubkey);
     setBusy(false);
     setPending(null);
+    if (res.cancelled) return;
     if (res.success) {
       setDismissed(markActed(observer, pubkey));
       toast({ title: action === "unfollow" ? `Unfollowed ${name}` : `Muted ${name}`, duration: 4000 });
@@ -156,6 +157,7 @@ export function useAlertActions(observer: string) {
     const res = await reportUser(pubkey, reportType, reportNote);
     setReporting(false);
     setReportTarget(null);
+    if (res.cancelled) return;
     if (res.success) {
       setDismissed(markActed(observer, pubkey));
       toast({ title: `Reported ${name}`, description: "Your report was published to Nostr.", duration: 4000 });

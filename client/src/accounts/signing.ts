@@ -11,6 +11,7 @@ import type { EventTemplate } from "applesauce-accounts";
 
 import { accountManager } from "@/accounts";
 import { LocalAccount } from "./local-account";
+import { isUnlockCancelled } from "./local-signer";
 import type { BrainstormAccount } from "./metadata";
 
 /** Thrown where an event must be signed and no Account is active. */
@@ -23,6 +24,28 @@ export class NoSignerError extends Error {
 
 /** What a caller builds: the signer stamps `pubkey`, `id` and `sig` itself. */
 export type UnsignedTemplate = Omit<EventTemplate, "created_at"> & { created_at?: number };
+
+/**
+ * What every publish path reports. `cancelled` is the one case a caller must not
+ * dress up as a failure: the user was asked to unlock and said no, so there is
+ * nothing to tell them they don't already know.
+ */
+export type PublishOutcome = {
+  success: boolean;
+  error?: string;
+  cancelled?: boolean;
+  /** Nobody asked for this publish and the Account is Locked, so it waits for a later load. */
+  deferred?: boolean;
+  relay?: string;
+  accepted?: number;
+  total?: number;
+};
+
+/** Turn a thrown signing error into an outcome, keeping a deliberate cancel silent. */
+export function signingFailure(error: unknown, fallback = "Signing failed"): PublishOutcome {
+  if (isUnlockCancelled(error)) return { success: false, cancelled: true };
+  return { success: false, error: error instanceof Error ? error.message : fallback };
+}
 
 /** The Account every user-published event is signed by, or undefined when signed out. */
 export function activeAccount(): BrainstormAccount | undefined {
@@ -52,7 +75,10 @@ export async function encryptToSelf(
 ): Promise<string | null> {
   try {
     return (await account.nip44?.encrypt(account.pubkey, plaintext)) ?? null;
-  } catch {
+  } catch (error) {
+    // "They declined to unlock" is not "this key can't encrypt" — let the caller
+    // abandon the action instead of reporting that the encryption failed.
+    if (isUnlockCancelled(error)) throw error;
     return null;
   }
 }
@@ -64,7 +90,8 @@ export async function decryptFromSelf(
 ): Promise<string | null> {
   try {
     return (await account.nip44?.decrypt(account.pubkey, ciphertext)) ?? null;
-  } catch {
+  } catch (error) {
+    if (isUnlockCancelled(error)) throw error;
     return null;
   }
 }

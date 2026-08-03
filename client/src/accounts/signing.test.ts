@@ -6,6 +6,7 @@ import { generateSecretKey, getPublicKey, verifyEvent } from "nostr-tools/pure";
 
 import { LocalAccount } from "./local-account";
 import type { BrainstormAccount } from "./metadata";
+import { isUnlockCancelled, UnlockCancelled } from "./local-signer";
 import {
   activeAccount,
   canSignSilently,
@@ -14,8 +15,9 @@ import {
   NoSignerError,
   requireActiveAccount,
   signAs,
+  signingFailure,
 } from "./signing";
-import { createFakeUnlockCache, LOW_LOGN, PASSWORD } from "./test-fakes";
+import { createFakeUnlockCache, fakePrompt, LOW_LOGN, PASSWORD } from "./test-fakes";
 
 /** An Account that signs without asking — an extension or a bunker. */
 class AlwaysSignableAccount extends BaseAccount<PrivateKeySigner, never, any> {
@@ -33,7 +35,7 @@ function signableAccount(): BrainstormAccount {
 }
 
 /** A local Account with both at-rest forms, Locked until something unlocks it. */
-async function lockedLocalAccount(requestPassword = vi.fn(async () => PASSWORD)) {
+async function lockedLocalAccount(requestPassword = fakePrompt()) {
   const unlockCache = createFakeUnlockCache();
   const account = await LocalAccount.fromKey(generateSecretKey(), {
     password: PASSWORD,
@@ -131,6 +133,42 @@ describe("encrypting to self", () => {
     const account = signableAccount();
 
     await expect(decryptFromSelf(account, "not ciphertext")).resolves.toBeNull();
+  });
+});
+
+describe("a deliberate cancel", () => {
+  it("reaches the caller as a cancel, not as a signing failure", async () => {
+    const { account, unlockCache } = await lockedLocalAccount(
+      vi.fn(async () => {
+        throw new UnlockCancelled();
+      }),
+    );
+    unlockCache.wipe(); // only the Recovery password is left, so the prompt runs
+
+    const error = await signAs(account, { kind: 1, tags: [], content: "hi" }).catch((e) => e);
+
+    expect(isUnlockCancelled(error)).toBe(true);
+  });
+
+  it("becomes an outcome with no error message, so nothing can be toasted", () => {
+    expect(signingFailure(new UnlockCancelled())).toEqual({ success: false, cancelled: true });
+    expect(signingFailure(new Error("relay exploded"))).toEqual({
+      success: false,
+      error: "relay exploded",
+    });
+  });
+
+  // Swallowing it here would report "couldn't encrypt" for a choice the user made.
+  it("comes back out of encrypt-to-self rather than reading as unreadable", async () => {
+    const { account, unlockCache } = await lockedLocalAccount(
+      vi.fn(async () => {
+        throw new UnlockCancelled();
+      }),
+    );
+    unlockCache.wipe();
+
+    await expect(encryptToSelf(account, "the ignored list")).rejects.toBeInstanceOf(UnlockCancelled);
+    await expect(decryptFromSelf(account, "whatever")).rejects.toBeInstanceOf(UnlockCancelled);
   });
 });
 

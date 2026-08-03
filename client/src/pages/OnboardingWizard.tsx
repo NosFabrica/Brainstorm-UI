@@ -70,6 +70,7 @@ export default function OnboardingWizard() {
     void (async () => {
       try {
         const res = await followPubkeys(pks);
+        if (res.cancelled) return;
         if (!res.success) {
           toast({ variant: "destructive", title: "Couldn't save your follows", description: res.error || "Try again from your dashboard." });
           return;
@@ -102,7 +103,9 @@ export default function OnboardingWizard() {
       if (pk) localStorage.setItem(`brainstorm_backup_done:${pk}`, "true");
       toast({ title: "Backup saved", description: "Keep that file safe — it's the only way back into your account." });
     } catch (err) {
-      toast({ variant: "destructive", title: "Couldn't create your backup", description: keyAccessMessage(err) });
+      const message = keyAccessMessage(err);
+      if (message)
+        toast({ variant: "destructive", title: "Couldn't create your backup", description: message });
       return;
     } finally {
       setBackupBusy(false);

@@ -2391,6 +2391,8 @@ export default function ProfilePage() {
                             onMouseLeave={() => setFollowHovered(false)}
                             onClick={async () => {
                               const result = following ? await social.unfollow(hexPubkey) : await social.follow(hexPubkey);
+                              // A declined unlock is a deliberate no — say nothing.
+                              if (result.cancelled) { setFollowHovered(false); return; }
                               if (result.success) {
                                 toast({ title: following ? "Unfollowed" : "Followed", description: following ? "Removed from your contact list" : "Added to your contact list" });
                               } else {
@@ -2449,6 +2451,7 @@ export default function ProfilePage() {
                                 className="cursor-pointer"
                                 onClick={async () => {
                                   const result = muted ? await social.unmute(hexPubkey) : await social.mute(hexPubkey);
+                                  if (result.cancelled) return;
                                   if (result.success) {
                                     toast({ title: muted ? "Unmuted" : "Muted", description: muted ? "Removed from your mute list" : "Added to your mute list" });
                                   } else {
@@ -2469,6 +2472,7 @@ export default function ProfilePage() {
                                 const snapshot = myReport;
                                 setMyReport(null); // optimistic: chip + menu flip instantly
                                 const result = await social.unreport(hexPubkey);
+                                if (result.cancelled) { setMyReport(snapshot); return; }
                                 if (result.success) {
                                   toast({ title: "Report removed", description: "Trust scores may take a little while to reflect this." });
                                 } else {
@@ -3327,6 +3331,7 @@ export default function ProfilePage() {
               disabled={social.isPending("report", hexPubkey) || social.isAnyPending}
               onClick={async () => {
                 const result = await social.report(hexPubkey, reportReason);
+                if (result.cancelled) return;
                 if (result.success) {
                   // Show the "you reported this" state immediately — the dialog's
                   // own spinner already covered the publish; don't wait on a relay refetch.

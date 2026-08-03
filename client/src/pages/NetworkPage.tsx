@@ -905,6 +905,7 @@ export default function NetworkPage() {
   const handleSocialFollow = useCallback(
     async (pk: string) => {
       const result = await social.follow(pk);
+      if (result.cancelled) return result;
       if (result.success)
         toast({ title: "Followed", description: "Added to your contact list" });
       else
@@ -921,6 +922,7 @@ export default function NetworkPage() {
   const handleSocialUnfollow = useCallback(
     async (pk: string) => {
       const result = await social.unfollow(pk);
+      if (result.cancelled) return result;
       if (result.success)
         toast({
           title: "Unfollowed",
@@ -940,6 +942,7 @@ export default function NetworkPage() {
   const handleSocialMute = useCallback(
     async (pk: string) => {
       const result = await social.mute(pk);
+      if (result.cancelled) return result;
       if (result.success)
         toast({ title: "Muted", description: "Added to your mute list" });
       else
@@ -956,6 +959,7 @@ export default function NetworkPage() {
   const handleSocialUnmute = useCallback(
     async (pk: string) => {
       const result = await social.unmute(pk);
+      if (result.cancelled) return result;
       if (result.success)
         toast({ title: "Unmuted", description: "Removed from your mute list" });
       else

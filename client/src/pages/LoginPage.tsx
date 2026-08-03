@@ -26,6 +26,14 @@ function getNextPath(): string {
   return "/";
 }
 
+function wantsKeyForm(): boolean {
+  try {
+    return new URLSearchParams(window.location.search).get("key") === "1";
+  } catch {
+    return false;
+  }
+}
+
 // The inviter's hex pubkey when arriving via someone's invite link
 // (?invite=npub… or a pending invite stored when viewing their share page). New
 // accounts created here auto-follow them so they start connected.
@@ -53,12 +61,22 @@ export default function LoginPage() {
   const nextPath = getNextPath();
   const inviterPubkey = getInviterPubkey();
 
+  // `?key=1` asks for the key form directly — where someone arrives from the
+  // Unlock modal's "sign in with your key", the account they can't open is still
+  // the active one, so the signed-in bounce below has to stand aside.
+  const keyRequested = useRef(wantsKeyForm());
+
   // Mount-only: signing in *here* routes through the handlers below (a new
   // account goes to the wizard, not to `next`), so this must not fire the moment
   // the created account becomes active.
   const signedInOnArrival = useRef(signedIn !== null);
   useEffect(() => {
+    if (keyRequested.current) {
+      openNsec();
+      return;
+    }
     if (signedInOnArrival.current) navigate(nextPath, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate, nextPath]);
 
   // Returning users (extension/nsec) land where they intended (home, or ?next=) —

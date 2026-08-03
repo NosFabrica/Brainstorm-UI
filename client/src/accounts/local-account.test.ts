@@ -5,7 +5,7 @@ import { SignerMismatchError } from "applesauce-accounts";
 
 import { LocalAccount } from "./local-account";
 import { LocalSigner, NoUnlockPathError } from "./local-signer";
-import { createFakeUnlockCache, keyFixture, LOW_LOGN, PASSWORD } from "./test-fakes";
+import { createFakeUnlockCache, fakePrompt, keyFixture, LOW_LOGN, PASSWORD } from "./test-fakes";
 
 describe("LocalAccount serialisation", () => {
   it("round-trips all four Signer states, keeping id and metadata", async () => {
@@ -53,7 +53,7 @@ describe("LocalAccount serialisation", () => {
 describe("LocalAccount operations", () => {
   it("unlocks lazily on the first operation and caches the key", async () => {
     const { pubkey, unlockCache, ncryptsec } = await keyFixture();
-    const requestPassword = vi.fn(async () => PASSWORD);
+    const requestPassword = fakePrompt();
     const account = new LocalAccount(
       pubkey,
       new LocalSigner(pubkey, { ncryptsec }, { unlockCache, requestPassword }),
@@ -69,7 +69,7 @@ describe("LocalAccount operations", () => {
 
   it("asks for the password once when two signs race", async () => {
     const { pubkey, unlockCache, ncryptsec } = await keyFixture();
-    const requestPassword = vi.fn(async () => PASSWORD);
+    const requestPassword = fakePrompt();
     const account = new LocalAccount(
       pubkey,
       new LocalSigner(pubkey, { ncryptsec }, { unlockCache, requestPassword }),

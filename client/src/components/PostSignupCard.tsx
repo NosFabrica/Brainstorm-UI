@@ -122,7 +122,9 @@ export function PostSignupCard() {
       setConfirm("");
       toast({ title: "Backup saved", description: "Saved to your password manager where supported — keep the file too." });
     } catch (err) {
-      toast({ variant: "destructive", title: "Couldn't create your backup", description: keyAccessMessage(err) });
+      const message = keyAccessMessage(err);
+      if (message)
+        toast({ variant: "destructive", title: "Couldn't create your backup", description: message });
     } finally {
       setBusy(false);
     }
@@ -147,7 +149,9 @@ export function PostSignupCard() {
       setConfirm("");
       toast({ title: "Key downloaded", description: "Store it safely — that file is your account. Never share it." });
     } catch (err) {
-      toast({ variant: "destructive", title: "Couldn't reach your key", description: keyAccessMessage(err) });
+      const message = keyAccessMessage(err);
+      if (message)
+        toast({ variant: "destructive", title: "Couldn't reach your key", description: message });
     } finally {
       setBusy(false);
     }

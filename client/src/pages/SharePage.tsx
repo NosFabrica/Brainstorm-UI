@@ -164,6 +164,7 @@ export default function SharePage() {
     setPrefsError(null);
     const res = await publishProfilePrefs(draft);
     setSavingPrefs(false);
+    if (res.cancelled) return;
     if (res.success) {
       clearProfilePrefsDraft(pubkey);
       setEditing(false);

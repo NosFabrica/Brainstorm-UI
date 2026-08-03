@@ -52,6 +52,7 @@ import { PovAutoDefault } from "@/components/PovBadge";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { CommandPalette } from "@/components/CommandPalette";
 import { MobileSearchOverlay } from "@/components/MobileSearchOverlay";
+import { UnlockModal } from "@/components/UnlockModal";
 import { ensureUnlocked } from "@/services/nostr";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import type { ComponentType } from "react";
@@ -203,6 +204,7 @@ function App() {
       <QueryClientProvider client={queryClient}>
         <TooltipProvider delayDuration={300} skipDelayDuration={100}>
           <Toaster />
+          <UnlockModal />
           <PovAutoDefault />
           <MobileTabBar />
           <CommandPalette />

@@ -15,6 +15,7 @@ import { initialsFor } from "@/lib/profileDefaults";
 import { hasSessionToken } from "@/services/api";
 import { useActiveAccount } from "applesauce-react/hooks";
 import { signAs } from "@/accounts/signing";
+import { isUnlockCancelled } from "@/accounts/local-signer";
 import { signEventWithEphemeralKey, getVerifiedProfileLud16, PROFILE_RELAYS } from "@/services/nostr";
 import {
   lnurlpFromAddress,
@@ -127,7 +128,10 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
               account,
               buildZapRequest({ recipientPubkey, amountMsat, lnurl: params.lnurlUrl, relays, comment: commentText }),
             );
-          } catch {
+          } catch (e) {
+            // They declined to unlock: abandon the zap rather than quietly sending
+            // an anonymous one they didn't ask for.
+            if (isUnlockCancelled(e)) { setStep("compose"); return; }
             // Signer rejected → still send it, anonymously, so it appears on nostr.
             signedZapRequest = anonZap();
           }

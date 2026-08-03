@@ -7,6 +7,7 @@
  * backup triggered straight after a page load threw "no key available".
  */
 import { LocalAccount } from "./local-account";
+import { isUnlockCancelled } from "./local-signer";
 import type { BrainstormAccount } from "./metadata";
 import { activeAccount } from "./signing";
 
@@ -48,7 +49,12 @@ export async function revealSecretKey(
 /**
  * Why reaching the key failed, in words the User can act on. An Account whose key
  * lives elsewhere will never produce one, so "try again" would be a lie.
+ *
+ * **Null where the User declined to unlock**: they chose not to, so there is
+ * nothing to tell them. The nullable return is deliberate — it makes every caller
+ * handle the cancel to compile.
  */
-export function keyAccessMessage(error: unknown): string {
+export function keyAccessMessage(error: unknown): string | null {
+  if (isUnlockCancelled(error)) return null;
   return error instanceof NoLocalKeyError ? error.message : "Please try again.";
 }

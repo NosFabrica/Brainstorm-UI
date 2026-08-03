@@ -60,6 +60,8 @@ import {
   encryptToSelf,
   requireActiveAccount,
   signAs,
+  signingFailure,
+  type PublishOutcome,
 } from "@/accounts/signing";
 import { adoptAccount, extensionAccount, localAccount, releaseActiveAccount } from "@/accounts/login";
 import type { AccountMetadata, BrainstormAccount } from "@/accounts/metadata";
@@ -702,9 +704,13 @@ export async function fetchAssistantPointer(
 
 export async function publishAssistantPointer(
   pointer: AssistantPointer,
-): Promise<{ success: boolean; error?: string }> {
+  { background = false }: { background?: boolean } = {},
+): Promise<PublishOutcome> {
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
+  // The self-heal on app load is nobody's request, so a Locked Account that can't
+  // open silently is left alone and syncs its pointer on a later load.
+  if (background && !(await canSignSilently(account))) return { success: false, deferred: true };
 
   try {
     const signed = await signAs(account, {
@@ -718,7 +724,7 @@ export async function publishAssistantPointer(
     });
     return await publishToRelays(signed);
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Failed to sign" };
+    return signingFailure(err, "Failed to sign");
   }
 }
 
@@ -761,9 +767,7 @@ export async function fetchProfilePrefs(
 
 /** Publish (sign + relay) the logged-in user's profile-prefs as a kind-30078
  *  event under their own key. */
-export async function publishProfilePrefs(
-  prefs: unknown,
-): Promise<{ success: boolean; error?: string }> {
+export async function publishProfilePrefs(prefs: unknown): Promise<PublishOutcome> {
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
   try {
@@ -774,7 +778,7 @@ export async function publishProfilePrefs(
     });
     return await publishToRelays(signed);
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Failed to sign" };
+    return signingFailure(err, "Failed to sign");
   }
 }
 
@@ -793,6 +797,10 @@ export const SCORE_JOURNAL_D_TAG = "brainstorm.world/score-journal";
 export async function fetchAlertPrefs(timeoutMs = 6000, dTag: string = ALERT_PREFS_D_TAG): Promise<Record<string, unknown> | null> {
   const account = activeAccount();
   if (!account) return null;
+  // These hydrate on page load, so decrypting must never raise the unlock modal:
+  // a Locked Account that can't open silently keeps its local copy and syncs on a
+  // later load, exactly as background publishing defers.
+  if (!(await canSignSilently(account))) return null;
   try {
     const relays = loadOutboxRelayListFromDb(account.pubkey, PROFILE_RELAYS);
     const newest = await new Promise<any | null>((resolve) => {
@@ -821,12 +829,19 @@ export async function fetchAlertPrefs(timeoutMs = 6000, dTag: string = ALERT_PRE
 }
 
 /** Encrypt + publish the logged-in user's alert prefs as a kind-30078 event. */
-export async function publishAlertPrefs(prefs: unknown, dTag: string = ALERT_PREFS_D_TAG): Promise<{ success: boolean; error?: string }> {
+export async function publishAlertPrefs(
+  prefs: unknown,
+  dTag: string = ALERT_PREFS_D_TAG,
+  { background = false }: { background?: boolean } = {},
+): Promise<PublishOutcome> {
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
-  const ciphertext = await encryptToSelf(account, JSON.stringify(prefs));
-  if (!ciphertext) return { success: false, error: "Could not encrypt" };
+  // App-data writes that ride along with a page load are nobody's request, so a
+  // Locked Account that can't open silently syncs on a later load instead.
+  if (background && !(await canSignSilently(account))) return { success: false, deferred: true };
   try {
+    const ciphertext = await encryptToSelf(account, JSON.stringify(prefs));
+    if (!ciphertext) return { success: false, error: "Could not encrypt" };
     const signed = await signAs(account, {
       kind: 30078,
       tags: [["d", dTag]],
@@ -834,7 +849,7 @@ export async function publishAlertPrefs(prefs: unknown, dTag: string = ALERT_PRE
     });
     return await publishToRelays(signed);
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Failed to sign" };
+    return signingFailure(err, "Failed to sign");
   }
 }
 
@@ -1506,7 +1521,7 @@ const initialSetupFlag = (pubkey: string) => `brainstorm_initial_setup_done:${pu
 async function signAndPublish(
   template: { kind: number; tags: string[][]; content: string },
   expectedKind: number,
-): Promise<{ success: boolean; error?: string; relay?: string; accepted?: number; total?: number }> {
+): Promise<PublishOutcome> {
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
   try {
@@ -1516,7 +1531,7 @@ async function signAndPublish(
     }
     return await publishToRelays(signed);
   } catch (e) {
-    return { success: false, error: e instanceof Error ? e.message : "Signing failed" };
+    return signingFailure(e);
   }
 }
 
@@ -1532,10 +1547,11 @@ const PROFILE_PUBLISH_BACKOFF_MS = [800, 2000];
 export async function publishProfile(
   content: Record<string, unknown>,
   tags: string[][] = [],
-): Promise<{ success: boolean; error?: string }> {
+): Promise<PublishOutcome> {
   const template = { kind: 0, tags, content: JSON.stringify(content) };
   let res = await signAndPublish(template, 0);
   for (let attempt = 0; attempt < PROFILE_PUBLISH_BACKOFF_MS.length; attempt++) {
+    if (res.cancelled) break; // they declined to unlock — don't ask again
     if ((res.accepted ?? (res.success ? 1 : 0)) >= 2) break; // broad enough
     await new Promise((r) => setTimeout(r, PROFILE_PUBLISH_BACKOFF_MS[attempt]));
     res = await signAndPublish(template, 0);
@@ -1550,13 +1566,13 @@ export async function publishProfile(
     // so other clients can locate this kind-0. Best-effort.
     void publishRelayList(PROFILE_RELAYS).catch(() => {});
   }
-  return { success: res.success, error: res.error };
+  return { success: res.success, error: res.error, cancelled: res.cancelled };
 }
 
 /** Publish a NIP-65 relay list (kind 10002). */
 export async function publishRelayList(
   relays: string[],
-): Promise<{ success: boolean; error?: string }> {
+): Promise<PublishOutcome> {
   const tags = relays.filter(Boolean).map((r) => ["r", r]);
   return signAndPublish({ kind: 10002, tags, content: "" }, 10002);
 }

@@ -526,6 +526,7 @@ export default function UserPanelPage() {
   const handleFollowLookedUp = async () => {
     if (!lookedUpUser) return;
     const result = await socialActions.follow(lookedUpUser.pubkey);
+    if (result.cancelled) return;
     if (result.success) {
       toast({ title: "Followed!", description: `You are now following ${lookedUpUser.displayName || lookedUpUser.npub.slice(0, 16) + "..."}` });
     } else {

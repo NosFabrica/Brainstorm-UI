@@ -16,7 +16,7 @@ import {
   SessionDeferredError,
   type SessionTransport,
 } from "./session";
-import { createFakeUnlockCache, LOW_LOGN, PASSWORD } from "./test-fakes";
+import { createFakeUnlockCache, fakePrompt, LOW_LOGN, PASSWORD } from "./test-fakes";
 
 function base64url(value: unknown): string {
   return btoa(JSON.stringify(value)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -72,7 +72,7 @@ function signableAccount(): BrainstormAccount {
 }
 
 /** A Local Account holding both at-rest forms, Locked until something unlocks it. */
-async function localAccount(requestPassword = vi.fn(async () => PASSWORD)) {
+async function localAccount(requestPassword = fakePrompt()) {
   const unlockCache = createFakeUnlockCache();
   const secretKey = generateSecretKey();
   const account = await LocalAccount.fromKey(secretKey, {

@@ -112,6 +112,10 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
     if (!pks.length || busy) return;
     setBusy(true);
     const res = await followPubkeys(pks);
+    if (res.cancelled) {
+      setBusy(false);
+      return;
+    }
     if (!res.success) {
       setBusy(false);
       toast({ variant: "destructive", title: "Couldn't save your follows", description: res.error || "Please try again." });

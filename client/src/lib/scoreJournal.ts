@@ -77,7 +77,8 @@ export function recordScore(pubkey: string, calculatedAtMs: number, score: numbe
   if (!pubkey || !Number.isFinite(calculatedAtMs) || !Number.isFinite(score)) return existing;
   if (existing.some((e) => e.t === calculatedAtMs)) return existing;
   const next = persist(pubkey, [{ t: calculatedAtMs, score, preset }, ...existing]);
-  void publishAlertPrefs({ entries: next }, SCORE_JOURNAL_D_TAG).catch(() => {});
+  // Called from an effect as score history loads, so it must never prompt.
+  void publishAlertPrefs({ entries: next }, SCORE_JOURNAL_D_TAG, { background: true }).catch(() => {});
   return next;
 }
 

@@ -41,7 +41,7 @@ export function AutoPublishAssistant() {
     if (!taPubkey) return; // not scored yet — nothing for the bot to speak
 
     fired.current = true;
-    void ensureAssistantPublished({ follow: false }).catch(() => { /* retries next load */ });
+    void ensureAssistantPublished({ follow: false, background: true }).catch(() => { /* retries next load */ });
   }, [pk, history.isSuccess, history.data]);
 
   return null;

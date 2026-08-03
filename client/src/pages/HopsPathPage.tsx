@@ -437,6 +437,7 @@ function NodeFollow({ pubkey, name, alreadyFollowing }: { pubkey: string; name: 
     setBusy(true);
     const res = await followUser(pubkey);
     setBusy(false);
+    if (res.cancelled) return;
     if (res.success) {
       setJustFollowed(true);
       toast({ title: `Following ${name}` });
@@ -482,6 +483,7 @@ function NodeReport({ pubkey, name, emphasize }: { pubkey: string; name: string;
     const res = await reportUser(pubkey, reason);
     setBusy(false);
     setOpen(false);
+    if (res.cancelled) return;
     if (res.success) {
       setDone(true);
       toast({ title: `Reported ${name}`, description: "Their score drops in your Web of Trust — accounts trusted only through them lose trust too." });

@@ -26,13 +26,76 @@ export class NoUnlockPathError extends Error {
 }
 
 /**
+ * The user declined to unlock. A deliberate no, not a failure: every signing call
+ * site swallows it silently rather than reporting that something went wrong.
+ */
+export class UnlockCancelled extends Error {
+  constructor(message = "Unlock cancelled") {
+    super(message);
+    this.name = "UnlockCancelled";
+  }
+}
+
+/** Whether this is a deliberate cancel. Name-based, so it survives a module reload. */
+export function isUnlockCancelled(error: unknown): boolean {
+  return error instanceof UnlockCancelled || (error as { name?: string })?.name === "UnlockCancelled";
+}
+
+/**
+ * Why an attempt at the Backup failed. The distinction is load-bearing: telling
+ * someone their correct password is wrong is the worst failure here, and a
+ * ncryptsec minted above this browser's memory ceiling fails identically.
+ */
+export type UnlockFailure = "wrong-password" | "unusable-backup";
+
+export type UnlockAttemptResult = { ok: true } | { ok: false; reason: UnlockFailure };
+
+/** Thrown when a Recovery password handed straight in doesn't open the Backup. */
+export class RecoveryPasswordError extends Error {
+  constructor(readonly reason: UnlockFailure) {
+    super(
+      reason === "unusable-backup"
+        ? "This backup needs more memory than this browser allows"
+        : "That is not the recovery password for this account",
+    );
+    this.name = "RecoveryPasswordError";
+  }
+}
+
+/**
+ * Which kind of failure a Backup decrypt threw. @noble's scrypt refuses a work
+ * factor above its memory ceiling with a maxmem throw, and a bad password fails
+ * on the cipher's tag — indistinguishable unless we look at the message. Ticket 13
+ * owns reading `logn` before we even try.
+ */
+export function unlockFailureOf(error: unknown): UnlockFailure {
+  const message = error instanceof Error ? error.message : String(error);
+  return /maxmem|memory/i.test(message) ? "unusable-backup" : "wrong-password";
+}
+
+/**
  * The two at-rest forms of a key. Both optional, and all four combinations are
  * real — see ADR 0001. `ncryptsec` is the Backup: canonical and portable.
  * `envelope` is the Unlock cache: device-bound, and only saves a password.
  */
 export type LocalSignerData = { ncryptsec?: string; envelope?: string };
 
-export type RecoveryPasswordPrompt = (signer: LocalSigner) => Promise<string>;
+export type RecoveryPasswordRequest = {
+  signer: LocalSigner;
+  /**
+   * Try one password. Blocks the main thread for 0.1–1.2s while scrypt runs, so
+   * whoever calls this paints its pending state first — see `UnlockModal`.
+   */
+  attempt(password: string): Promise<UnlockAttemptResult>;
+};
+
+/**
+ * Asks the user for the Recovery password, retrying as often as they like:
+ * resolves once an attempt has unlocked the Signer, and throws `UnlockCancelled`
+ * when they give up. Retry policy lives here rather than in the Signer because
+ * "how many times do we ask" is a question about the person, not the key.
+ */
+export type RecoveryPasswordPrompt = (request: RecoveryPasswordRequest) => Promise<void>;
 
 export type LocalSignerOptions = {
   unlockCache?: UnlockCache;
@@ -141,14 +204,37 @@ export class LocalSigner implements ISigner {
 
     if (!this.data.ncryptsec) throw new NoUnlockPathError();
 
-    const recovery = password ?? (await this.prompt());
-    this.inner = new PrivateKeySigner(decryptSecretKeyNip49(this.data.ncryptsec, recovery));
+    if (password !== undefined) {
+      const result = this.tryBackup(password);
+      if (!result.ok) throw new RecoveryPasswordError(result.reason);
+      return;
+    }
+
+    await this.prompt();
+    // A prompt that returns without unlocking would leave the caller signing with
+    // nothing at all, so treat it as terminal rather than trusting it.
+    if (!this.inner) throw new NoUnlockPathError("The recovery password prompt returned locked");
   }
 
-  private prompt(): Promise<string> {
+  /**
+   * One decrypt attempt against the Backup, keeping the key when it opens.
+   * Synchronous by nature: scrypt blocks the main thread, and @noble's async
+   * variant doesn't help — its yield is a microtask that never reaches the event
+   * loop, so no spinner can animate through it.
+   */
+  private tryBackup(password: string): UnlockAttemptResult {
+    try {
+      this.inner = new PrivateKeySigner(decryptSecretKeyNip49(this.data.ncryptsec!, password));
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, reason: unlockFailureOf(error) };
+    }
+  }
+
+  private prompt(): Promise<void> {
     const request = this.requestPassword ?? installedPrompt;
     if (!request) throw new NoUnlockPathError("No recovery password prompt is installed");
-    return request(this);
+    return request({ signer: this, attempt: async (password) => this.tryBackup(password) });
   }
 
   /** Write the Unlock cache for this device. Best-effort — its absence costs convenience. */

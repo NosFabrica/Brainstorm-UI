@@ -66,7 +66,11 @@ function load(observer: string): IgnoredEntry[] {
   }
 }
 
-function persist(observer: string, entries: IgnoredEntry[]): Map<string, number | null> {
+function persist(
+  observer: string,
+  entries: IgnoredEntry[],
+  { background = false }: { background?: boolean } = {},
+): Map<string, number | null> {
   const byKey = new Map<string, IgnoredEntry>();
   for (const e of entries) byKey.set(e.pubkey, e);
   const next = Array.from(byKey.values());
@@ -77,7 +81,8 @@ function persist(observer: string, entries: IgnoredEntry[]): Map<string, number 
       // ignore (private mode / SSR)
     }
   }
-  void publishAlertPrefs({ entries: next }).catch(() => {});
+  // `background` mirrors the load-time merge below: it must never prompt.
+  void publishAlertPrefs({ entries: next }, undefined, { background }).catch(() => {});
   return new Map(next.map((e) => [e.pubkey, e.atReports]));
 }
 
@@ -153,5 +158,5 @@ export async function hydrateIgnoredFromNostr(observer: string): Promise<Map<str
   for (const e of local) merged.set(e.pubkey, e);
   const list = Array.from(merged.values());
   if (list.length === local.length) return new Map(local.map((e) => [e.pubkey, e.atReports]));
-  return persist(observer, list);
+  return persist(observer, list, { background: true });
 }

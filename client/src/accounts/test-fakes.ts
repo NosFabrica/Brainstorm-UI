@@ -3,10 +3,12 @@
  * `crypto.subtle`, so the real Unlock cache is unavailable — this stands in for
  * it, and the storage seam keeps a test off `localStorage` entirely.
  */
+import { vi } from "vitest";
 import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import { encrypt as encryptSecretKeyNip49 } from "nostr-tools/nip49";
 import { npubEncode } from "nostr-tools/nip19";
 
+import { UnlockCancelled, type RecoveryPasswordRequest } from "./local-signer";
 import { createMemoryStorage, type StorageSeam } from "./persist";
 import type { UnlockCache } from "./unlock-cache";
 
@@ -46,6 +48,20 @@ export function createFakeUnlockCache(): FakeUnlockCache {
       envelopes.clear();
     },
   };
+}
+
+/**
+ * A Recovery password prompt that tries each password in turn and gives up when
+ * they run out — as a User who cancels does. Defaults to the right one, first go.
+ */
+export function fakePrompt(...passwords: string[]) {
+  const answers = passwords.length ? passwords : [PASSWORD];
+  return vi.fn(async ({ attempt }: RecoveryPasswordRequest) => {
+    for (const password of answers) {
+      if ((await attempt(password)).ok) return;
+    }
+    throw new UnlockCancelled();
+  });
 }
 
 export function createTestStorage(): StorageSeam {

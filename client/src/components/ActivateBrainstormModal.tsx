@@ -10,6 +10,7 @@ import { BrainLogo } from "@/components/BrainLogo";
 import { ChevronDown, Check, Loader2, ExternalLink, AlertCircle, FileSignature, HeartHandshake, Rocket } from "lucide-react";
 import type { NostrEvent } from "applesauce-core/helpers";
 import { publishToRelays, signNip85, getNip85RelayUrl, fetchTrustProviderList } from "@/services/nostr";
+import { isUnlockCancelled } from "@/accounts/local-signer";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { markNip85Activated } from "@/lib/nip85Activation";
 
@@ -77,6 +78,12 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
     try {
       signedEvent = await signNip85(serviceKey, nip85Relay);
     } catch (err: any) {
+      // A declined unlock never shows as an error; an extension refusal keeps the
+      // "cancelled" note it always had.
+      if (isUnlockCancelled(err)) {
+        setActivateState("idle");
+        return;
+      }
       setActivateState("cancelled");
       setTimeout(() => setActivateState("idle"), 3000);
       return;

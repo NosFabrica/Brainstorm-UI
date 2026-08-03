@@ -187,6 +187,10 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
     const tags = [...mergeTags.filter((t) => t[0] !== "i"), ...identityTags];
 
     const res = await publishProfile(content, tags);
+    if (res.cancelled) {
+      setState("idle");
+      return;
+    }
     if (res.success) {
       // Seed the profile page's kind-0 cache so your own /profile/:npub shows the
       // new info immediately (it otherwise serves a 5-min-stale cached copy).

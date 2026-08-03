@@ -1,5 +1,5 @@
 import { pool, PROFILE_RELAYS, publishToRelays, loadOutboxRelayListFromDb } from "./nostr";
-import { activeAccount, signAs } from "@/accounts/signing";
+import { activeAccount, signAs, signingFailure, type PublishOutcome } from "@/accounts/signing";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import { apiClient, hasSessionToken } from "./api";
 import { loadKnownFollowList, recordFollowList, knownFollowCount, countFollows } from "@/lib/followStore";
@@ -149,7 +149,7 @@ async function publishContactList(
   account: BrainstormAccount,
   base: NostrEvent | null,
   newTags: string[][],
-): Promise<{ success: boolean; error?: string }> {
+): Promise<PublishOutcome> {
   try {
     const signed = await signAs(account, {
       kind: 3,
@@ -165,12 +165,12 @@ async function publishContactList(
       await ingestFollowList(signed);
     }
     return res;
-  } catch (e: any) {
-    return { success: false, error: e?.message || "Signing failed" };
+  } catch (e) {
+    return signingFailure(e);
   }
 }
 
-export async function followUser(targetPubkey: string, cachedContactList?: NostrEvent | null): Promise<{ success: boolean; error?: string }> {
+export async function followUser(targetPubkey: string, cachedContactList?: NostrEvent | null): Promise<PublishOutcome> {
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
   if (account.pubkey === targetPubkey) return { success: false, error: "Cannot follow yourself" };
@@ -188,7 +188,7 @@ export async function followUser(targetPubkey: string, cachedContactList?: Nostr
   return publishContactList(account, base, newTags);
 }
 
-export async function unfollowUser(targetPubkey: string, cachedContactList?: NostrEvent | null): Promise<{ success: boolean; error?: string }> {
+export async function unfollowUser(targetPubkey: string, cachedContactList?: NostrEvent | null): Promise<PublishOutcome> {
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
 
@@ -210,7 +210,7 @@ export async function unfollowUser(targetPubkey: string, cachedContactList?: Nos
  * authoritative base (empty for a brand-new account) and never shrinks an
  * existing list.
  */
-export async function followPubkeys(targetPubkeys: string[]): Promise<{ success: boolean; error?: string }> {
+export async function followPubkeys(targetPubkeys: string[]): Promise<PublishOutcome> {
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
   const wanted = targetPubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk) && pk !== account.pubkey);
@@ -230,7 +230,7 @@ export async function followPubkeys(targetPubkeys: string[]): Promise<{ success:
   return publishContactList(account, base, newTags);
 }
 
-export async function muteUser(targetPubkey: string, cachedMuteList?: NostrEvent | null): Promise<{ success: boolean; error?: string }> {
+export async function muteUser(targetPubkey: string, cachedMuteList?: NostrEvent | null): Promise<PublishOutcome> {
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
   if (account.pubkey === targetPubkey) return { success: false, error: "Cannot mute yourself" };
@@ -250,12 +250,12 @@ export async function muteUser(targetPubkey: string, cachedMuteList?: NostrEvent
       content: current.content || "",
     });
     return await publishToRelays(signed);
-  } catch (e: any) {
-    return { success: false, error: e?.message || "Signing failed" };
+  } catch (e) {
+    return signingFailure(e);
   }
 }
 
-export async function unmuteUser(targetPubkey: string, cachedMuteList?: NostrEvent | null): Promise<{ success: boolean; error?: string }> {
+export async function unmuteUser(targetPubkey: string, cachedMuteList?: NostrEvent | null): Promise<PublishOutcome> {
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
 
@@ -274,12 +274,12 @@ export async function unmuteUser(targetPubkey: string, cachedMuteList?: NostrEve
       content: current.content || "",
     });
     return await publishToRelays(signed);
-  } catch (e: any) {
-    return { success: false, error: e?.message || "Signing failed" };
+  } catch (e) {
+    return signingFailure(e);
   }
 }
 
-export async function reportUser(targetPubkey: string, reason: string, note?: string): Promise<{ success: boolean; error?: string }> {
+export async function reportUser(targetPubkey: string, reason: string, note?: string): Promise<PublishOutcome> {
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
   if (account.pubkey === targetPubkey) return { success: false, error: "Cannot report yourself" };
@@ -293,8 +293,8 @@ export async function reportUser(targetPubkey: string, reason: string, note?: st
       content: (note ?? "").trim(),
     });
     return await publishToRelays(signed);
-  } catch (e: any) {
-    return { success: false, error: e?.message || "Signing failed" };
+  } catch (e) {
+    return signingFailure(e);
   }
 }
 
@@ -347,7 +347,7 @@ export async function fetchMyReport(targetPubkey: string, timeoutMs = 8000): Pro
  * report(s) targeting `targetPubkey`. The deletion propagates to relays; the
  * trust-score effect may lag until the backend re-ingests it (surfaced in copy).
  */
-export async function unreportUser(targetPubkey: string): Promise<{ success: boolean; error?: string }> {
+export async function unreportUser(targetPubkey: string): Promise<PublishOutcome> {
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
   const mine = await fetchMyReport(targetPubkey);
@@ -359,7 +359,7 @@ export async function unreportUser(targetPubkey: string): Promise<{ success: boo
       content: "",
     });
     return await publishToRelays(signed);
-  } catch (e: any) {
-    return { success: false, error: e?.message || "Signing failed" };
+  } catch (e) {
+    return signingFailure(e);
   }
 }

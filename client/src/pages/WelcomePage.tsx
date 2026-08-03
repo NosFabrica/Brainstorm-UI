@@ -44,6 +44,7 @@ export default function WelcomePage() {
     void (async () => {
       try {
         const res = await followPubkeys(pks);
+        if (res.cancelled) return;
         if (!res.success) {
           toast({ variant: "destructive", title: "Couldn't save your follows", description: res.error || "Try again from your dashboard." });
           return;

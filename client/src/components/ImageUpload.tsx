@@ -1,6 +1,7 @@
 import { useState, useRef, useCallback, type ReactNode } from "react";
 import { Upload, X, Loader2, ImageIcon, Camera } from "lucide-react";
 import { activeAccount, signAs } from "@/accounts/signing";
+import { isUnlockCancelled } from "@/accounts/local-signer";
 
 interface ImageUploadProps {
   value?: string;
@@ -123,7 +124,11 @@ async function uploadImage(blob: Blob): Promise<string> {
   // returning 500s under test even with valid NIP-98 auth). Both are signed.
   try {
     return await uploadToBlossom(blob);
-  } catch { /* try the fallback host */ }
+  } catch (e) {
+    // Both hosts want their own signed auth event, so a declined unlock has to
+    // stop here — falling through would ask the same question a second time.
+    if (isUnlockCancelled(e)) throw e;
+  }
 
   try {
     return await uploadToNostrBuild(blob);
@@ -161,7 +166,8 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
       const url = await uploadImage(compressed);
       onChange(url);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Upload failed");
+      // A declined unlock is a deliberate no — leave the field as it was.
+      if (!isUnlockCancelled(err)) setError(err instanceof Error ? err.message : "Upload failed");
     } finally {
       setUploading(false);
     }

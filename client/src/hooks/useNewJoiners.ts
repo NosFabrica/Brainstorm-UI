@@ -68,7 +68,8 @@ export function useNewJoiners() {
       if (!pk || !pks.length) return;
       setBusy(true);
       try {
-        await followPubkeys(pks);
+        const res = await followPubkeys(pks);
+        if (res.cancelled) return;
         settle(pks);
         if (!demo) void triggerScoringAndAnchor(pk); // refresh the sender's Web of Trust
       } finally {

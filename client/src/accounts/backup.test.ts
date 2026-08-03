@@ -10,15 +10,15 @@ import {
 import { decode } from "nostr-tools/nip19";
 
 import { LocalAccount } from "./local-account";
-import { LocalSigner } from "./local-signer";
+import { LocalSigner, UnlockCancelled } from "./local-signer";
 import type { BrainstormAccount } from "./metadata";
-import { mintBackup, NoLocalKeyError, revealSecretKey } from "./backup";
-import { createFakeUnlockCache, LOW_LOGN, PASSWORD } from "./test-fakes";
+import { keyAccessMessage, mintBackup, NoLocalKeyError, revealSecretKey } from "./backup";
+import { createFakeUnlockCache, fakePrompt, LOW_LOGN, PASSWORD } from "./test-fakes";
 
 const NEW_PASSWORD = "a second recovery password";
 
 /** A Locked local Account with both at-rest forms, as a reload leaves one. */
-async function lockedAccount(requestPassword = vi.fn(async () => PASSWORD)) {
+async function lockedAccount(requestPassword = fakePrompt()) {
   const unlockCache = createFakeUnlockCache();
   const secretKey = generateSecretKey();
   const account = await LocalAccount.fromKey(secretKey, {
@@ -124,7 +124,7 @@ describe("a Backup-only account", () => {
       new LocalSigner(
         pubkey,
         { ncryptsec: encryptSecretKeyNip49(secretKey, PASSWORD, LOW_LOGN) },
-        { unlockCache, requestPassword: async () => PASSWORD },
+        { unlockCache, requestPassword: fakePrompt() },
       ),
     );
 
@@ -133,5 +133,16 @@ describe("a Backup-only account", () => {
     ).resolves.toBeTruthy();
     expect(account.locked).toBe(false);
     expect(account.signer.data.envelope).toBeDefined();
+  });
+});
+
+describe("why reaching the key failed", () => {
+  it("has nothing to say about a deliberate cancel", () => {
+    expect(keyAccessMessage(new UnlockCancelled())).toBeNull();
+  });
+
+  it("still explains an account whose key lives elsewhere, and anything else", () => {
+    expect(keyAccessMessage(new NoLocalKeyError())).toMatch(/isn't stored here/);
+    expect(keyAccessMessage(new Error("who knows"))).toBe("Please try again.");
   });
 });
