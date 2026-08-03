@@ -6,6 +6,7 @@ import { KeyRound, Trash2 } from "lucide-react";
 import { installUnlockPrompt, unlockPrompt$ } from "@/accounts/unlock-request";
 import type { UnlockFailure } from "@/accounts/local-signer";
 import { logout } from "@/services/nostr";
+import { afterPaint } from "@/lib/afterPaint";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -31,15 +32,6 @@ const FAILURE_COPY: Record<UnlockFailure, string> = {
 /** `npub1abcd…wxyz` — enough to tell two of your own Accounts apart. */
 function shortNpub(npub: string): string {
   return npub.length > 20 ? `${npub.slice(0, 12)}…${npub.slice(-6)}` : npub;
-}
-
-/**
- * Yield long enough for the browser to paint. Two frames, because a rAF callback
- * runs *before* the paint of its own frame.
- */
-function afterPaint(): Promise<void> {
-  if (typeof requestAnimationFrame !== "function") return Promise.resolve();
-  return new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
 }
 
 /**

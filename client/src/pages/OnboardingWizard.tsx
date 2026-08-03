@@ -1,14 +1,14 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
-import { Loader2, ArrowRight, Check, Download } from "lucide-react";
+import { Loader2, ArrowRight } from "lucide-react";
 import { Wordmark } from "@/components/Wordmark";
 import { ImageUpload } from "@/components/ImageUpload";
 import { FollowPicker } from "@/components/FollowPicker";
+import { OnboardingBackupStep } from "@/components/OnboardingBackupStep";
 import { publishProfile, triggerScoringAndAnchor } from "@/services/nostr";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { followPubkeys } from "@/services/socialActions";
-import { downloadAccountBackup } from "@/lib/accountBackup";
-import { keyAccessMessage } from "@/accounts/backup";
+import { canBackUp } from "@/accounts/backup";
 import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC, initialsFor } from "@/lib/profileDefaults";
 import { useToast } from "@/hooks/use-toast";
 
@@ -24,8 +24,8 @@ const STEPS: { key: Step; label: string }[] = [
  * skippable) → follow people (required — turns on scoring) → back up (skippable).
  * Profile comes BEFORE follow so the avatar is in the kind-0 before the first
  * follow others see. Anything skipped is recovered by the home-page
- * PostSignupCard. Mostly orchestration over ImageUpload, FollowPicker,
- * publishProfile, and downloadAccountBackup.
+ * PostSignupCard and then the recurring reminder — the backup step being last is
+ * what makes that chain load-bearing.
  */
 export default function OnboardingWizard() {
   const [, navigate] = useLocation();
@@ -40,8 +40,21 @@ export default function OnboardingWizard() {
     return "/";
   }, []);
 
+  const finish = () => {
+    toast({ title: "You're all set!", description: "Your trust network is calculating — explore while it works." });
+    navigate(returnPath, { replace: true });
+  };
+
+  // An Account whose key lives in an extension or a bunker has nothing to back
+  // up, so it is never shown a step asking it to.
+  const [backupOffered] = useState(() => canBackUp());
+  const steps = useMemo(
+    () => (backupOffered ? STEPS : STEPS.filter((s) => s.key !== "backup")),
+    [backupOffered],
+  );
+
   const [step, setStep] = useState<Step>("profile");
-  const stepIndex = STEPS.findIndex((s) => s.key === step);
+  const stepIndex = steps.findIndex((s) => s.key === step);
 
   // --- Profile step (prefilled with the name entered at signup) ---
   const [name, setName] = useState(() => user?.displayName || "");
@@ -78,39 +91,8 @@ export default function OnboardingWizard() {
         if (user?.pubkey) await triggerScoringAndAnchor(user.pubkey);
       } catch { /* the status chip reflects the outcome */ }
     })();
-    setStep("backup");
-  };
-
-  // --- Backup step ---
-  const [pass, setPass] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const mismatch = confirm.length > 0 && pass !== confirm;
-  const canBackup = pass.length >= 8 && pass === confirm;
-  /** Reaching the key waits for the account to unlock — the button says so. */
-  const [backupBusy, setBackupBusy] = useState(false);
-
-  const finish = () => {
-    toast({ title: "You're all set!", description: "Your trust network is calculating — explore while it works." });
-    navigate(returnPath, { replace: true });
-  };
-
-  const handleDownloadBackup = async () => {
-    if (!canBackup || backupBusy) return;
-    setBackupBusy(true);
-    try {
-      await downloadAccountBackup(pass);
-      const pk = user?.pubkey;
-      if (pk) localStorage.setItem(`brainstorm_backup_done:${pk}`, "true");
-      toast({ title: "Backup saved", description: "Keep that file safe — it's the only way back into your account." });
-    } catch (err) {
-      const message = keyAccessMessage(err);
-      if (message)
-        toast({ variant: "destructive", title: "Couldn't create your backup", description: message });
-      return;
-    } finally {
-      setBackupBusy(false);
-    }
-    finish();
+    if (backupOffered) setStep("backup");
+    else finish();
   };
 
   if (!user) {
@@ -136,7 +118,7 @@ export default function OnboardingWizard() {
           </button>
         </div>
         <div className="mx-auto max-w-xl px-4 sm:px-6 pb-3 flex items-center gap-2" data-testid="onboarding-progress">
-          {STEPS.map((s, i) => (
+          {steps.map((s, i) => (
             <div key={s.key} className={`h-1.5 flex-1 rounded-full transition-colors ${i <= stepIndex ? "bg-brand-primary" : "bg-slate-200 dark:bg-slate-700"}`} />
           ))}
         </div>
@@ -145,7 +127,7 @@ export default function OnboardingWizard() {
       <main className="mx-auto max-w-xl px-4 sm:px-6 py-8">
         <div className="flex items-center gap-2.5 mb-3">
           <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-brand-accent uppercase">
-            Step {stepIndex + 1} of {STEPS.length}
+            Step {stepIndex + 1} of {steps.length}
           </span>
           <div className="h-px w-10 bg-brand-accent/40" />
         </div>
@@ -245,56 +227,7 @@ export default function OnboardingWizard() {
         )}
 
         {step === "backup" && (
-          <div data-testid="onboarding-step-backup">
-            <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-[1.08]" style={{ fontFamily: "var(--font-display)" }}>
-              Back up your account.
-            </h1>
-            <p className="mt-4 text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-              Your account lives in this browser. Save an encrypted backup file so you can sign back in anywhere — no one can reset it for you.
-            </p>
-
-            <div className="mt-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-3">
-              <input
-                type="password"
-                value={pass}
-                onChange={(e) => setPass(e.target.value)}
-                placeholder="Password — at least 8 characters"
-                autoComplete="new-password"
-                className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
-                data-testid="onboarding-backup-password"
-              />
-              <input
-                type="password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                placeholder="Confirm password"
-                autoComplete="new-password"
-                className="w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
-                data-testid="onboarding-backup-confirm"
-              />
-              {mismatch && <p className="text-xs font-medium text-red-600 dark:text-red-400">Passwords don't match.</p>}
-              <button
-                type="button"
-                onClick={handleDownloadBackup}
-                disabled={!canBackup || backupBusy}
-                className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold py-3 shadow-lg shadow-brand-primary/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                data-testid="onboarding-backup-download"
-              >
-                {backupBusy ? (
-                  <><Loader2 className="h-4 w-4 animate-spin" /> Preparing backup…</>
-                ) : (
-                  <><Download className="h-4 w-4" /> Download backup &amp; finish</>
-                )}
-              </button>
-            </div>
-
-            <div className="mt-6 flex items-center justify-between gap-3">
-              <button type="button" onClick={finish} className="text-sm font-semibold text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300" data-testid="onboarding-backup-skip">
-                Skip for now
-              </button>
-              <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400"><Check className="h-3.5 w-3.5" /> Scores are calculating</span>
-            </div>
-          </div>
+          <OnboardingBackupStep pubkey={user.pubkey} onSkip={finish} onFinish={finish} />
         )}
       </main>
     </div>

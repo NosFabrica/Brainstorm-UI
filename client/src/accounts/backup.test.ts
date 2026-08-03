@@ -12,7 +12,17 @@ import { decode } from "nostr-tools/nip19";
 import { LocalAccount } from "./local-account";
 import { LocalSigner, UnlockCancelled } from "./local-signer";
 import type { BrainstormAccount } from "./metadata";
-import { keyAccessMessage, mintBackup, NoLocalKeyError, revealSecretKey } from "./backup";
+import {
+  canBackUp,
+  heldBackup,
+  keyAccessMessage,
+  keyReachableWithoutPassword,
+  mintBackup,
+  NoLocalKeyError,
+  revealSecretKey,
+  setRecoveryPassword,
+  verifyRecoveryPassword,
+} from "./backup";
 import { createFakeUnlockCache, fakePrompt, LOW_LOGN, PASSWORD } from "./test-fakes";
 
 const NEW_PASSWORD = "a second recovery password";
@@ -133,6 +143,123 @@ describe("a Backup-only account", () => {
     ).resolves.toBeTruthy();
     expect(account.locked).toBe(false);
     expect(account.signer.data.envelope).toBeDefined();
+  });
+});
+
+describe("checking the Recovery password", () => {
+  it("accepts the password the Backup was minted under", async () => {
+    const { account } = await lockedAccount();
+
+    await expect(verifyRecoveryPassword(PASSWORD, { account })).resolves.toEqual({ ok: true });
+  });
+
+  // The rehearsal the onboarding step exists for: a typo made at signup surfaces
+  // here, while the key is still unlocked and a new password can be set.
+  it("rejects a typo, and checking one leaves the account exactly as it was", async () => {
+    const { account } = await lockedAccount();
+    const stored = account.signer.data.ncryptsec;
+
+    await expect(verifyRecoveryPassword("hunter2hunter2", { account })).resolves.toEqual({
+      ok: false,
+      reason: "wrong-password",
+    });
+    expect(account.locked).toBe(true);
+    expect(account.signer.data.ncryptsec).toBe(stored);
+  });
+
+  it("refuses an account whose key isn't ours to reach", async () => {
+    await expect(verifyRecoveryPassword(PASSWORD, { account: foreignAccount() })).rejects.toThrow(
+      NoLocalKeyError,
+    );
+  });
+});
+
+describe("setting a new Recovery password", () => {
+  it("re-mints the stored Backup so the new password is the one that opens it", async () => {
+    const { account, secretKey } = await lockedAccount();
+    const stored = account.signer.data.ncryptsec;
+
+    await setRecoveryPassword(NEW_PASSWORD, { account, logn: LOW_LOGN });
+
+    const reminted = account.signer.data.ncryptsec!;
+    expect(reminted).not.toBe(stored);
+    expect(decryptSecretKeyNip49(reminted, NEW_PASSWORD)).toEqual(secretKey);
+    await expect(verifyRecoveryPassword(NEW_PASSWORD, { account })).resolves.toEqual({ ok: true });
+  });
+
+  it("unlocks on the way through, so a forgotten password is fixable from a cold boot", async () => {
+    const { account, requestPassword } = await lockedAccount();
+    expect(account.locked).toBe(true);
+
+    await setRecoveryPassword(NEW_PASSWORD, { account, logn: LOW_LOGN });
+
+    expect(account.locked).toBe(false);
+    expect(requestPassword).not.toHaveBeenCalled(); // the Unlock cache answered
+  });
+
+  it("refuses an account whose key isn't ours to reach", async () => {
+    await expect(setRecoveryPassword(NEW_PASSWORD, { account: foreignAccount() })).rejects.toThrow(
+      NoLocalKeyError,
+    );
+  });
+});
+
+describe("the Backup an account already holds", () => {
+  it("hands back the stored ncryptsec without minting a second one", async () => {
+    const { account } = await lockedAccount();
+
+    expect(heldBackup({ account })).toBe(account.signer.data.ncryptsec);
+  });
+
+  it("is nothing when the account has never had a Recovery password", async () => {
+    const unlockCache = createFakeUnlockCache();
+    const account = await LocalAccount.fromKey(generateSecretKey(), { unlockCache });
+
+    expect(heldBackup({ account })).toBeUndefined();
+  });
+
+  it("is nothing for an account whose key lives elsewhere, rather than a throw", () => {
+    expect(heldBackup({ account: foreignAccount() })).toBeUndefined();
+    expect(canBackUp({ account: foreignAccount() })).toBe(false);
+  });
+
+  it("knows a local account can be backed up", async () => {
+    const { account } = await lockedAccount();
+
+    expect(canBackUp({ account })).toBe(true);
+  });
+});
+
+describe("whether a forgotten password can still be replaced", () => {
+  it("can, while the key is unlocked in memory — the moment right after signup", async () => {
+    const unlockCache = createFakeUnlockCache();
+    unlockCache.supported = false; // no cache to fall back on
+    const account = await LocalAccount.fromKey(generateSecretKey(), {
+      password: PASSWORD,
+      logn: LOW_LOGN,
+      unlockCache,
+    });
+
+    await expect(keyReachableWithoutPassword({ account })).resolves.toBe(true);
+  });
+
+  it("can, when the Unlock cache still opens it after a reload", async () => {
+    const { account } = await lockedAccount();
+
+    await expect(keyReachableWithoutPassword({ account })).resolves.toBe(true);
+  });
+
+  // Locked, with only the Backup left: asking for a new password would mean
+  // asking for the old one first, which is the one they just said they'd lost.
+  it("cannot, once only the Recovery password would open it", async () => {
+    const { account, unlockCache } = await lockedAccount();
+    unlockCache.wipe();
+
+    await expect(keyReachableWithoutPassword({ account })).resolves.toBe(false);
+  });
+
+  it("cannot for an account whose key lives elsewhere", async () => {
+    await expect(keyReachableWithoutPassword({ account: foreignAccount() })).resolves.toBe(false);
   });
 });
 

@@ -6,9 +6,14 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { Loader2, Check, AlertCircle, ArrowRight } from "lucide-react";
+import { Check, AlertCircle, ArrowRight } from "lucide-react";
 import { createAccount, triggerScoringAndAnchor, type NostrUser } from "@/services/nostr";
 import { followPubkeys } from "@/services/socialActions";
+import { afterPaint } from "@/lib/afterPaint";
+import { MIN_RECOVERY_PASSWORD_LENGTH } from "@/accounts/backup";
+
+const inputClass =
+  "w-full h-11 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-4 text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-accent focus:ring-2 focus:ring-brand-accent/25 outline-none transition-all disabled:opacity-60";
 
 interface CreateAccountModalProps {
   open: boolean;
@@ -21,21 +26,35 @@ interface CreateAccountModalProps {
 type CreateState = "idle" | "creating" | "success" | "error";
 
 /**
- * Express account creation — one screen: pick a display name → "Create account".
- * Generates a keypair client-side, logs in, and fires the background first-run
- * setup. Visually matched to LoginFailureModal (the "Sign in with your key" flow)
- * so the sign-in and sign-up surfaces read as one system. Crypto stays hidden:
- * the user is "creating an account," not "generating a key."
+ * Express account creation — one screen: display name + Recovery password →
+ * "Create account". Generates a keypair client-side, encrypts it under that
+ * password, logs in, and fires the background first-run setup. Visually matched
+ * to LoginFailureModal (the "Sign in with your key" flow) so the sign-in and
+ * sign-up surfaces read as one system. Crypto stays hidden: the user is
+ * "creating an account," not "generating a key."
+ *
+ * The password is the account's only at-rest protection and cannot be reset, so
+ * the confirm field is mandatory and there is no strength meter — a weak password
+ * is cheap here (there is no server to attack), a typo is unrecoverable.
+ *
+ * The password copy is provisional and deliberately minimal. It must not claim
+ * the key never leaves this device: the encrypted key is *built* to travel — it
+ * is the Backup. What never leaves is the plaintext key and the password itself,
+ * which is why nobody can reset one.
  */
 export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubkey }: CreateAccountModalProps) {
   const [name, setName] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
   const [state, setState] = useState<CreateState>("idle");
   const [error, setError] = useState("");
   const [createdUser, setCreatedUser] = useState<NostrUser | null>(null);
 
   const busy = state === "creating";
   const trimmed = name.trim();
-  const canSubmit = trimmed.length >= 1 && trimmed.length <= 50 && !busy;
+  const mismatch = confirm.length > 0 && password !== confirm;
+  const passwordReady = password.length >= MIN_RECOVERY_PASSWORD_LENGTH && password === confirm;
+  const canSubmit = trimmed.length >= 1 && trimmed.length <= 50 && passwordReady && !busy;
 
   const handleClose = (nextOpen: boolean) => {
     if (busy) return; // never close mid-creation
@@ -43,6 +62,8 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
       setState("idle");
       setError("");
       setName("");
+      setPassword("");
+      setConfirm("");
       setCreatedUser(null);
     }
     onOpenChange(nextOpen);
@@ -53,8 +74,11 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
     if (!canSubmit) return;
     setState("creating");
     setError("");
+    // Encrypting the new key blocks the main thread for up to a second on a
+    // phone, so "Setting up your account…" has to be on screen before it starts.
+    await afterPaint();
     try {
-      const user = await createAccount(trimmed, { inviterPubkey });
+      const user = await createAccount(trimmed, { inviterPubkey, password });
       // The one follow the user explicitly opted into by using an invite link.
       // Published here (not just preselected in onboarding) so the invite promise
       // — "join and you're connected to them" — always holds, even if the invitee
@@ -102,7 +126,7 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
             >
               {state === "success"
                 ? "Your account is ready — we're setting up your trust network in the background."
-                : "Pick a name to get started. No email, no password."}
+                : "Pick a name to get started. No email required."}
             </DialogDescription>
           </DialogHeader>
         </div>
@@ -127,6 +151,8 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
             </button>
           </div>
         ) : (
+          // `username` on the name field is what pairs the password with an entry
+          // outside Chromium, where form markup is the only capture there is.
           <form onSubmit={handleSubmit} className="px-5 sm:px-6 pb-5 sm:pb-6 pt-2">
             <label
               htmlFor="create-display-name"
@@ -136,17 +162,66 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
             </label>
             <input
               id="create-display-name"
+              name="display-name"
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               maxLength={50}
               autoFocus
               disabled={busy}
+              autoComplete="username"
               placeholder="e.g. Alex Mercer"
-              className="w-full h-11 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-4 text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-accent focus:ring-2 focus:ring-brand-accent/25 outline-none transition-all disabled:opacity-60"
+              className={inputClass}
               data-testid="input-create-display-name"
             />
             <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">You can change this anytime.</p>
+
+            <label
+              htmlFor="create-password"
+              className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5 mt-4"
+            >
+              Recovery password
+            </label>
+            <input
+              id="create-password"
+              name="recovery-password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              disabled={busy}
+              autoComplete="new-password"
+              placeholder="At least 8 characters"
+              className={inputClass}
+              data-testid="input-create-password"
+            />
+            <input
+              id="create-password-confirm"
+              name="recovery-password-confirm"
+              type="password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              disabled={busy}
+              autoComplete="new-password"
+              placeholder="Confirm password"
+              aria-label="Confirm recovery password"
+              className={`${inputClass} mt-2`}
+              data-testid="input-create-confirm"
+            />
+            {mismatch ? (
+              <p
+                className="mt-1.5 text-xs font-medium text-red-600 dark:text-red-400"
+                data-testid="text-create-mismatch"
+              >
+                Passwords don't match.
+              </p>
+            ) : (
+              <p
+                className="mt-1.5 text-xs text-slate-400 dark:text-slate-500"
+                data-testid="text-create-password-hint"
+              >
+                Unlocks your key. There's no reset — save it in your password manager.
+              </p>
+            )}
 
             {state === "error" && (
               <div
@@ -165,9 +240,9 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
               data-testid="button-create-submit"
             >
               {busy ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" /> Setting up your account…
-                </>
+                // No spinner: encrypting the key blocks the thread, so an
+                // animation would visibly stall — as UnlockModal's doesn't.
+                <>Setting up your account…</>
               ) : (
                 <>
                   Create account <ArrowRight className="h-4 w-4" />
@@ -176,7 +251,7 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
             </button>
 
             <p className="mt-3 text-center text-[11px] text-slate-400 dark:text-slate-500">
-              Free · no email · no download required
+              Free · no email · takes a minute
             </p>
           </form>
         )}

@@ -1,4 +1,4 @@
-import { mintBackup, revealSecretKey } from "@/accounts/backup";
+import { heldBackup, mintBackup, revealSecretKey } from "@/accounts/backup";
 import { activeDisplay } from "@/accounts/display";
 
 /**
@@ -92,16 +92,31 @@ function downloadTextFile(content: string, name: string): void {
 }
 
 /**
+ * The Backup this account already holds, as a credential. No minting: where the
+ * password has just been checked *against* the stored ncryptsec, that ciphertext
+ * is the artefact, and a re-mint would only cost another derivation.
+ */
+export function heldBackupCredential(): BackupCredential | null {
+  const ncryptsec = heldBackup();
+  return ncryptsec ? { npub: activeDisplay()?.npub ?? "", ncryptsec } : null;
+}
+
+/** Write a credential out as the backup `.txt`. */
+export function downloadBackupFile(credential: BackupCredential): void {
+  downloadTextFile(
+    buildAccountBackupFileContent(credential.ncryptsec, credential.npub),
+    backupFileName("brainstorm-account-backup"),
+  );
+}
+
+/**
  * Download the encrypted backup file, and hand back the credential it was built
  * from so a caller that also stores it in the password manager doesn't mint a
  * second one — minting costs a NIP-49 derivation, and two of them would differ.
  */
 export async function downloadAccountBackup(password: string): Promise<BackupCredential> {
   const credential = await getEncryptedBackupCredential(password);
-  downloadTextFile(
-    buildAccountBackupFileContent(credential.ncryptsec, credential.npub),
-    backupFileName("brainstorm-account-backup"),
-  );
+  downloadBackupFile(credential);
   return credential;
 }
 

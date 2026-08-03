@@ -51,6 +51,15 @@ export class LocalAccount extends BaseAccount<LocalSigner, LocalSignerData, Acco
     return this.operation(() => this.signer.revealNsec());
   }
 
+  /**
+   * Move this Account onto a new Recovery password, re-minting its stored Backup.
+   * Unlocks on the way through — everywhere but the moment right after signup that
+   * means producing the *old* password first.
+   */
+  setRecoveryPassword(password: string, logn?: number): Promise<void> {
+    return this.operation(() => this.signer.setRecoveryPassword(password, logn));
+  }
+
   protected async operation<T>(operation: () => Promise<T>): Promise<T> {
     if (!this.signer.unlocked) await this.unlock();
     return super.operation(operation);

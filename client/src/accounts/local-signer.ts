@@ -292,6 +292,23 @@ export class LocalSigner implements ISigner {
     return nsecEncode(this.inner!.key);
   }
 
+  /**
+   * Whether `password` opens this Account's Backup — a check, not an unlock:
+   * nothing is kept and nothing is dropped, so a wrong answer costs the User only
+   * the scrypt run. Blocks the main thread as long as any other attempt does.
+   */
+  verifyRecoveryPassword(password: string): UnlockAttemptResult {
+    if (!this.data.ncryptsec) {
+      throw new NoUnlockPathError("This account has no backup to check a password against");
+    }
+    try {
+      decryptSecretKeyNip49(this.data.ncryptsec, password);
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, reason: unlockFailureOf(error) };
+    }
+  }
+
   /** Drop the in-memory key. The at-rest forms are untouched. */
   lock(): void {
     this.inner = null;

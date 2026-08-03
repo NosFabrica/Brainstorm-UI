@@ -1725,15 +1725,20 @@ export async function runInitialSetup(
  * via the existing challenge/verify flow, persist the key locally so the user
  * stays signed in, and fire-and-forget the first-run setup. Mirrors
  * `loginWithNsec` but with a generated key.
+ *
+ * `password` is the Recovery password chosen at signup — it mints the Backup, so
+ * the account is portable from birth rather than device-bound until someone
+ * remembers to back it up. Minting blocks the main thread for up to a second, so
+ * the caller paints its pending state first.
  */
 export async function createAccount(
   displayName: string,
-  opts: { inviterPubkey?: string } = {},
+  opts: { inviterPubkey?: string; password?: string } = {},
 ): Promise<NostrUser> {
   const name = displayName.trim();
   const sk = generateSecretKey();
   const pubkey = getPublicKey(sk);
-  const account = await localAccount(sk);
+  const account = await localAccount(sk, { password: opts.password });
 
   await storeSecretKey(sk, { persistent: true }); // v1 shadow, until ticket 17 retires it
   let user: NostrUser;

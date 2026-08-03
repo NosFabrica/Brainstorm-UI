@@ -371,6 +371,33 @@ describe("LocalSigner cache and Backup", () => {
     expect(restored.unlocked).toBe(true);
   });
 
+  it("checks a Recovery password against the Backup without unlocking", async () => {
+    const { pubkey, unlockCache, ncryptsec } = await keyFixture();
+    const signer = new LocalSigner(pubkey, { ncryptsec }, { unlockCache });
+
+    expect(signer.verifyRecoveryPassword(PASSWORD)).toEqual({ ok: true });
+    expect(signer.unlocked).toBe(false);
+  });
+
+  it("reports a wrong password as wrong, and leaves an unlocked key alone", async () => {
+    const { pubkey, unlockCache, ncryptsec, envelope } = await keyFixture();
+    const signer = new LocalSigner(pubkey, { ncryptsec, envelope }, { unlockCache });
+    await signer.unlock();
+
+    expect(signer.verifyRecoveryPassword("not the password")).toEqual({
+      ok: false,
+      reason: "wrong-password",
+    });
+    expect(signer.unlocked).toBe(true);
+  });
+
+  it("refuses to check a password when there is no Backup to check it against", async () => {
+    const { pubkey, unlockCache, envelope } = await keyFixture();
+    const signer = new LocalSigner(pubkey, { envelope }, { unlockCache });
+
+    expect(() => signer.verifyRecoveryPassword(PASSWORD)).toThrow(NoUnlockPathError);
+  });
+
   it("locks by dropping the in-memory key", async () => {
     const { pubkey, unlockCache, envelope } = await keyFixture();
     const signer = new LocalSigner(pubkey, { envelope }, { unlockCache });

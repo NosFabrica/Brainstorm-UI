@@ -3,8 +3,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildAccountBackupFileContent,
   downloadAccountBackup,
+  downloadBackupFile,
   downloadRawKeyBackup,
   getEncryptedBackupCredential,
+  heldBackupCredential,
 } from "./accountBackup";
 
 const NPUB = "npub1lira";
@@ -13,11 +15,13 @@ const NSEC = "nsec1qqqqq";
 
 const mintBackup = vi.fn(async () => NCRYPTSEC);
 const revealSecretKey = vi.fn(async () => NSEC);
+const heldBackup = vi.fn((): string | undefined => NCRYPTSEC);
 const activeDisplay = vi.fn(() => ({ npub: NPUB, displayName: "Lira Flint" }));
 
 vi.mock("@/accounts/backup", () => ({
   mintBackup: (...args: unknown[]) => mintBackup(...(args as [])),
   revealSecretKey: (...args: unknown[]) => revealSecretKey(...(args as [])),
+  heldBackup: () => heldBackup(),
 }));
 vi.mock("@/accounts/display", () => ({ activeDisplay: () => activeDisplay() }));
 
@@ -28,6 +32,7 @@ beforeEach(() => {
   downloads = [];
   mintBackup.mockClear();
   revealSecretKey.mockClear();
+  heldBackup.mockClear();
   // jsdom implements neither, so they are assigned rather than spied on.
   URL.createObjectURL = () => "blob:fake";
   URL.revokeObjectURL = () => {};
@@ -72,6 +77,26 @@ describe("downloading the encrypted backup", () => {
 
     await expect(downloadAccountBackup("hunter2hunter2")).rejects.toThrow("locked");
     expect(downloads).toHaveLength(0);
+  });
+});
+
+describe("the Backup the account already holds", () => {
+  it("pairs the stored ncryptsec with the npub, minting nothing", () => {
+    expect(heldBackupCredential()).toEqual({ npub: NPUB, ncryptsec: NCRYPTSEC });
+    expect(mintBackup).not.toHaveBeenCalled();
+  });
+
+  it("is nothing when the account has no Backup yet", () => {
+    heldBackup.mockReturnValueOnce(undefined);
+
+    expect(heldBackupCredential()).toBeNull();
+  });
+
+  it("downloads that credential as the file, without a second derivation", () => {
+    downloadBackupFile({ npub: NPUB, ncryptsec: NCRYPTSEC });
+
+    expect(downloads[0]).toBe("brainstorm-account-backup-lira-flint.txt");
+    expect(mintBackup).not.toHaveBeenCalled();
   });
 });
 
