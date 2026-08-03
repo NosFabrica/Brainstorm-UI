@@ -8,6 +8,7 @@ import type { NostrEvent } from "applesauce-core/helpers/event";
 import type { EventTemplate } from "applesauce-accounts";
 
 import { extractAdminFlag } from "@/lib/jwt";
+import { withTabLock } from "./cross-tab";
 import { getMetadata, updateMetadata, type BrainstormAccount } from "./metadata";
 import { canSignSilently } from "./signing";
 
@@ -84,7 +85,15 @@ export type Sessions = {
   clearSession(account: BrainstormAccount): void;
 };
 
-export function createSessions(transport: SessionTransport): Sessions {
+export type SessionsOptions = {
+  /** Serialises the exchange across tabs. Injected so tests don't need Web Locks. */
+  lock?: typeof withTabLock;
+};
+
+export function createSessions(
+  transport: SessionTransport,
+  { lock = withTabLock }: SessionsOptions = {},
+): Sessions {
   /** Two 401s for one Account share a single exchange, so signers prompt once. */
   const inFlight = new Map<string, Promise<string>>();
 
@@ -115,8 +124,14 @@ export function createSessions(transport: SessionTransport): Sessions {
     const pending = inFlight.get(account.id);
     if (pending) return pending;
 
+    // Across tabs, `inFlight` can't help — the lock does. Whoever waited adopts
+    // the token that arrived while they waited, so only one signer prompt fires.
+    const before = getSessionToken(account);
     // A failure leaves the keys and every other Account alone — it costs a Session, not an identity.
-    const attempt = exchange(account).finally(() => inFlight.delete(account.id));
+    const attempt = lock(`brainstorm:session:${account.id}`, async () => {
+      const arrived = getSessionToken(account);
+      return arrived && arrived !== before ? arrived : exchange(account);
+    }).finally(() => inFlight.delete(account.id));
     inFlight.set(account.id, attempt);
     return attempt;
   }

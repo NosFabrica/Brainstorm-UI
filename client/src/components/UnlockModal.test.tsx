@@ -136,10 +136,14 @@ describe("the unlock modal", () => {
     expect(screen.getByTestId("text-unlock-npub")).toHaveTextContent(/^npub1/);
   });
 
-  it("says the unlock lasts for this visit, so nobody expects to be asked again", async () => {
+  // "in this tab" is load-bearing: a tab that followed another tab's switch
+  // arrives Locked, so a promise about the whole visit would be one we break.
+  it("says the unlock lasts for this tab's visit, so nobody expects to be asked again", async () => {
     await raise(async () => ({ ok: true }));
 
-    expect(screen.getByTestId("modal-unlock")).toHaveTextContent(/rest of this visit/i);
+    expect(screen.getByTestId("modal-unlock")).toHaveTextContent(
+      /in this tab for the rest of your visit/i,
+    );
   });
 });
 

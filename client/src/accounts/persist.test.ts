@@ -156,6 +156,50 @@ describe("account persistence", () => {
   });
 });
 
+describe("adopting one Account, for a tab that started before it existed", () => {
+  it("restores just that entry, leaving what this tab already holds alone", async () => {
+    const storage = createTestStorage();
+    const unlockCache = createFakeUnlockCache();
+    const writer = createManager({ storage, unlockCache });
+    const { account: held } = await addAccount(writer.manager, unlockCache, {
+      remembered: true,
+      password: PASSWORD,
+    });
+
+    // a second tab, started when only `held` existed
+    const reader = createManager({ storage, unlockCache });
+    const { account: added } = await addAccount(writer.manager, unlockCache, {
+      remembered: true,
+      password: PASSWORD,
+    });
+
+    const adopted = reader.persistence.adopt(added.id);
+
+    expect(adopted?.id).toBe(added.id);
+    expect(reader.manager.accounts.map((a) => a.id).sort()).toEqual([held.id, added.id].sort());
+  });
+
+  it("hands back the one it already holds rather than a second copy", async () => {
+    const storage = createTestStorage();
+    const unlockCache = createFakeUnlockCache();
+    const { manager, persistence } = createManager({ storage, unlockCache });
+    const { account } = await addAccount(manager, unlockCache, {
+      remembered: true,
+      password: PASSWORD,
+    });
+
+    expect(persistence.adopt(account.id)).toBe(account);
+    expect(manager.accounts).toHaveLength(1);
+  });
+
+  it("has nothing to offer for an id the blob never held", () => {
+    const storage = createTestStorage();
+    const { persistence } = createManager({ storage, unlockCache: createFakeUnlockCache() });
+
+    expect(persistence.adopt("not-in-the-blob")).toBeNull();
+  });
+});
+
 describe("the plaintext fence — this test must never be deleted", () => {
   it("never writes a raw key, in either storage, in any Signer state", async () => {
     const storage = createTestStorage();

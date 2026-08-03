@@ -9,7 +9,7 @@ import { AccountManager, BaseAccount, type IAccount } from "applesauce-accounts"
 import { map, merge, of, startWith, switchMap, type Observable } from "rxjs";
 
 import { LocalAccount } from "./local-account";
-import { isRemembered, type AccountMetadata } from "./metadata";
+import { isRemembered, type AccountMetadata, type BrainstormAccount } from "./metadata";
 
 export const ACCOUNTS_KEY = "brainstorm_accounts_v2";
 export const QUARANTINE_KEY = `${ACCOUNTS_KEY}.quarantine`;
@@ -99,6 +99,12 @@ export type Persistence = {
   save(): void;
   /** Subscribe to accounts, their metadata, their key material and the Active Account. */
   start(): () => void;
+  /**
+   * Restore one Remembered Account by id, for a tab that started before it
+   * existed. One entry, not the whole blob: re-loading everything would
+   * duplicate what this tab already holds.
+   */
+  adopt(id: string): BrainstormAccount | null;
 };
 
 export function createPersistence(
@@ -142,6 +148,21 @@ export function createPersistence(
     if (original !== null) store.setItem(BACKUP_KEY, original);
   }
 
+  /** Deserialise one entry into the manager, or park it. */
+  function restore(store: StorageLike, entry: unknown, remembered: boolean): BrainstormAccount | null {
+    try {
+      const account = AccountManager.deserialize([...manager.types.values()], entry as any);
+      // an entry that doesn't say takes `remembered` from where it was found
+      account.metadata = { remembered, ...(account.metadata ?? {}) };
+      manager.addAccount(account);
+      lastGood.set(account.id, account.toJSON());
+      return account as BrainstormAccount;
+    } catch {
+      quarantine(store, entry);
+      return null;
+    }
+  }
+
   function loadFrom(store: StorageLike, remembered: boolean): void {
     takeBackup(store);
     const raw = store.getItem(ACCOUNTS_KEY);
@@ -159,18 +180,18 @@ export function createPersistence(
       return;
     }
 
-    for (const entry of entries) {
-      // per entry, because one unknown type must not cost us the other identities
-      try {
-        const account = AccountManager.deserialize([...manager.types.values()], entry);
-        // an entry that doesn't say takes `remembered` from where it was found
-        account.metadata = { remembered, ...(account.metadata ?? {}) };
-        manager.addAccount(account);
-        lastGood.set(account.id, account.toJSON());
-      } catch {
-        quarantine(store, entry);
-      }
-    }
+    // per entry, because one unknown type must not cost us the other identities
+    for (const entry of entries) restore(store, entry, remembered);
+  }
+
+  function adopt(id: string): BrainstormAccount | null {
+    const held = manager.getAccount(id);
+    if (held) return held as BrainstormAccount;
+
+    const entries = readJSON(storage.device, ACCOUNTS_KEY);
+    if (!Array.isArray(entries)) return null;
+    const entry = entries.find((e) => (e as { id?: string })?.id === id);
+    return entry ? restore(storage.device, entry, true) : null;
   }
 
   function serialise(account: IAccount<any, any, AccountMetadata>): unknown {
@@ -249,5 +270,5 @@ export function createPersistence(
     return () => sub.unsubscribe();
   }
 
-  return { load, save, start };
+  return { load, save, start, adopt };
 }

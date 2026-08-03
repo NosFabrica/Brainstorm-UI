@@ -143,6 +143,65 @@ describe("authenticate", () => {
   });
 });
 
+/**
+ * A lock as another tab's would be: whoever asks second waits, and while they
+ * wait the winner's `session-updated` message lands on their Account.
+ */
+function queuedLock() {
+  const waiting: (() => void)[] = [];
+  const lock = async <T,>(_name: string, task: () => Promise<T>): Promise<T> => {
+    if (waiting.length) await new Promise<void>((resolve) => waiting.push(resolve));
+    else waiting.push(() => {});
+    return task();
+  };
+  return { lock, release: () => waiting.slice(1).forEach((resume) => resume()) };
+}
+
+describe("serialising the exchange across tabs", () => {
+  it("adopts the token that arrived while it waited, so nobody is prompted twice", async () => {
+    const transport = createFakeTransport();
+    const { lock, release } = queuedLock();
+    const sessions = createSessions(transport, { lock });
+    const account = signableAccount();
+
+    const first = await sessions.authenticate(account);
+    // the other tab's authenticate, blocked behind the lock
+    const second = sessions.authenticate(account);
+    // ...while its `session-updated` message arrives
+    updateMetadata(account, { session: { token: "the-other-tab's-token", isAdmin: false } });
+    release();
+
+    expect(await second).toBe("the-other-tab's-token");
+    expect(await second).not.toBe(first);
+    expect(transport.challenges).toHaveLength(1);
+  });
+
+  it("mints one anyway when nothing arrived — a lock is not a session", async () => {
+    const transport = createFakeTransport();
+    const { lock, release } = queuedLock();
+    const sessions = createSessions(transport, { lock });
+    const account = signableAccount();
+    await sessions.authenticate(account);
+
+    const second = sessions.authenticate(account);
+    release();
+
+    await second;
+    expect(transport.challenges).toHaveLength(2);
+  });
+
+  it("does not adopt the stale token it started with", async () => {
+    const transport = createFakeTransport();
+    const sessions = createSessions(transport);
+    const account = signableAccount();
+    const stale = await sessions.authenticate(account);
+
+    const fresh = await sessions.authenticate(account);
+
+    expect(fresh).not.toBe(stale);
+  });
+});
+
 describe("sessions are per Account", () => {
   it("gives two Accounts independent sessions and never crosses the tokens", async () => {
     const transport = createFakeTransport();

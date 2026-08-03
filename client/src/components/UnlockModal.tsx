@@ -119,7 +119,7 @@ export function UnlockModal() {
               <DialogTitle>Unlock your account</DialogTitle>
               <DialogDescription>
                 Enter your recovery password to continue. We'll only ask once — it stays unlocked
-                for the rest of this visit.
+                in this tab for the rest of your visit.
               </DialogDescription>
             </DialogHeader>
 
