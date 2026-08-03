@@ -8,6 +8,7 @@ import { publishProfile, triggerScoringAndAnchor } from "@/services/nostr";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { followPubkeys } from "@/services/socialActions";
 import { downloadAccountBackup } from "@/lib/accountBackup";
+import { keyAccessMessage } from "@/accounts/backup";
 import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC, initialsFor } from "@/lib/profileDefaults";
 import { useToast } from "@/hooks/use-toast";
 
@@ -84,22 +85,27 @@ export default function OnboardingWizard() {
   const [confirm, setConfirm] = useState("");
   const mismatch = confirm.length > 0 && pass !== confirm;
   const canBackup = pass.length >= 8 && pass === confirm;
+  /** Reaching the key waits for the account to unlock — the button says so. */
+  const [backupBusy, setBackupBusy] = useState(false);
 
   const finish = () => {
     toast({ title: "You're all set!", description: "Your trust network is calculating — explore while it works." });
     navigate(returnPath, { replace: true });
   };
 
-  const handleDownloadBackup = () => {
-    if (!canBackup) return;
+  const handleDownloadBackup = async () => {
+    if (!canBackup || backupBusy) return;
+    setBackupBusy(true);
     try {
-      downloadAccountBackup(pass);
+      await downloadAccountBackup(pass);
       const pk = user?.pubkey;
       if (pk) localStorage.setItem(`brainstorm_backup_done:${pk}`, "true");
       toast({ title: "Backup saved", description: "Keep that file safe — it's the only way back into your account." });
-    } catch {
-      toast({ variant: "destructive", title: "Couldn't create your backup", description: "Please try again." });
+    } catch (err) {
+      toast({ variant: "destructive", title: "Couldn't create your backup", description: keyAccessMessage(err) });
       return;
+    } finally {
+      setBackupBusy(false);
     }
     finish();
   };
@@ -267,11 +273,15 @@ export default function OnboardingWizard() {
               <button
                 type="button"
                 onClick={handleDownloadBackup}
-                disabled={!canBackup}
+                disabled={!canBackup || backupBusy}
                 className="w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold py-3 shadow-lg shadow-brand-primary/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                 data-testid="onboarding-backup-download"
               >
-                <Download className="h-4 w-4" /> Download backup &amp; finish
+                {backupBusy ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Preparing backup…</>
+                ) : (
+                  <><Download className="h-4 w-4" /> Download backup &amp; finish</>
+                )}
               </button>
             </div>
 

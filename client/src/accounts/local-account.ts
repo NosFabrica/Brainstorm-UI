@@ -41,6 +41,16 @@ export class LocalAccount extends BaseAccount<LocalSigner, LocalSignerData, Acco
     return this.signer.unlockSilently();
   }
 
+  /** A Backup under `password`. Unlocks on the way through, like any other operation. */
+  mintBackup(password: string, logn?: number): Promise<string> {
+    return this.operation(() => this.signer.mintBackup(password, logn));
+  }
+
+  /** This Account's key as a raw `nsec…`. Unlocks on the way through. */
+  revealNsec(): Promise<string> {
+    return this.operation(() => this.signer.revealNsec());
+  }
+
   protected async operation<T>(operation: () => Promise<T>): Promise<T> {
     if (!this.signer.unlocked) await this.unlock();
     return super.operation(operation);

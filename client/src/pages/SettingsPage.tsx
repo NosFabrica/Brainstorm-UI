@@ -67,10 +67,11 @@ import { copyToClipboard } from "@/lib/clipboard";
 import { FEATURES } from "@/config/featureFlags";
 import { SiGithub } from "react-icons/si";
 import type { NostrEvent } from "applesauce-core/helpers";
-import { logout, signNip85, signNip85Deactivation, publishToRelays, getNip85RelayUrl, hasStoredSecretKey, exportNsec } from "@/services/nostr";
+import { logout, signNip85, signNip85Deactivation, publishToRelays, getNip85RelayUrl, hasStoredSecretKey } from "@/services/nostr";
 import { isNip85Activated, markNip85Activated, clearNip85Activated } from "@/lib/nip85Activation";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { downloadAccountBackup, getEncryptedBackupCredential } from "@/lib/accountBackup";
+import { downloadAccountBackup } from "@/lib/accountBackup";
+import { keyAccessMessage, revealSecretKey } from "@/accounts/backup";
 import { storePasswordCredential } from "@/lib/credentialManager";
 import { CodeBlock } from "@/components/CodeBlock";
 import { apiClient, isAuthRedirecting } from "@/services/api";
@@ -229,37 +230,45 @@ export default function SettingsPage() {
 
   const backupMismatch = backupConfirm.length > 0 && backupPass !== backupConfirm;
   const canBackup = backupPass.length >= 8 && backupPass === backupConfirm;
-  const handleBackupDownload = () => {
-    if (!canBackup) return;
+  /** Reaching the key waits for the account to unlock — the button says so. */
+  const [backupBusy, setBackupBusy] = useState(false);
+  const handleBackupDownload = async () => {
+    if (!canBackup || backupBusy) return;
+    setBackupBusy(true);
     try {
-      downloadAccountBackup(backupPass);
+      // One mint feeds both the file and the password-manager credential.
+      const { npub, ncryptsec } = await downloadAccountBackup(backupPass);
       try {
         if (backupFlag) localStorage.setItem(backupFlag, "true");
       } catch {}
       // Stash the encrypted key in the browser password manager (Chromium
       // best-effort): username = npub, password = ncryptsec. Don't block on it.
-      try {
-        const { npub, ncryptsec } = getEncryptedBackupCredential(backupPass);
-        if (npub && ncryptsec) void storePasswordCredential(npub, ncryptsec, npub);
-      } catch {}
+      if (npub && ncryptsec) void storePasswordCredential(npub, ncryptsec, npub);
       setBackedUp(true);
       setBackupMode(false);
       setBackupPass("");
       setBackupConfirm("");
       toast({ title: "Backup saved", description: "Saved to your password manager where supported — keep the file too." });
-    } catch {
-      // no-op; user can retry
+    } catch (err) {
+      toast({ variant: "destructive", title: "Couldn't create your backup", description: keyAccessMessage(err) });
+    } finally {
+      setBackupBusy(false);
     }
   };
 
   const [showSecret, setShowSecret] = useState(false);
   const [secretNsec, setSecretNsec] = useState("");
-  const handleRevealSecret = () => {
+  const [revealBusy, setRevealBusy] = useState(false);
+  const handleRevealSecret = async () => {
+    if (revealBusy) return;
+    setRevealBusy(true);
     try {
-      setSecretNsec(exportNsec());
+      setSecretNsec(await revealSecretKey());
       setShowSecret(true);
-    } catch {
-      // no key available; ignore
+    } catch (err) {
+      toast({ variant: "destructive", title: "Couldn't reach your key", description: keyAccessMessage(err) });
+    } finally {
+      setRevealBusy(false);
     }
   };
 
@@ -523,11 +532,15 @@ export default function SettingsPage() {
                   <button
                     type="button"
                     onClick={handleBackupDownload}
-                    disabled={!canBackup}
+                    disabled={!canBackup || backupBusy}
                     className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold px-4 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     data-testid="button-account-download-backup"
                   >
-                    <Download className="h-4 w-4" /> Download backup
+                    {backupBusy ? (
+                      <><Loader2 className="h-4 w-4 animate-spin" /> Preparing backup…</>
+                    ) : (
+                      <><Download className="h-4 w-4" /> Download backup</>
+                    )}
                   </button>
                   <button
                     type="button"
@@ -592,10 +605,15 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={handleRevealSecret}
-                  className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-brand-deep transition-colors"
+                  disabled={revealBusy}
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-brand-deep disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   data-testid="button-account-reveal-secret"
                 >
-                  <Key className="h-4 w-4" /> Show recovery key
+                  {revealBusy ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" /> Unlocking…</>
+                  ) : (
+                    <><Key className="h-4 w-4" /> Show recovery key</>
+                  )}
                 </button>
                 <InfoHint label="About your recovery key">This is the password-equivalent for your account (your "nsec"). Anyone with it has full control — never share it.</InfoHint>
               </div>

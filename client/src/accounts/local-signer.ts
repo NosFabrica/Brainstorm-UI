@@ -1,6 +1,7 @@
 import { PrivateKeySigner, type ISigner } from "applesauce-signers";
 import type { EventTemplate } from "applesauce-core/helpers/event";
 import { getPublicKey } from "nostr-tools/pure";
+import { nsecEncode } from "nostr-tools/nip19";
 import {
   encrypt as encryptSecretKeyNip49,
   decrypt as decryptSecretKeyNip49,
@@ -166,6 +167,22 @@ export class LocalSigner implements ISigner {
     if (!this.inner) throw new Error("Unlock before setting a recovery password");
     this.data.ncryptsec = encryptSecretKeyNip49(this.inner.key, password, logn);
     this.changed$.next();
+  }
+
+  /**
+   * A Backup under `password`, minted without touching the stored one — the file
+   * the user downloads is a copy, so a second download under a second password
+   * doesn't silently move the Account onto it.
+   */
+  async mintBackup(password: string, logn: number = BACKUP_LOGN): Promise<string> {
+    await this.unlock();
+    return encryptSecretKeyNip49(this.inner!.key, password, logn);
+  }
+
+  /** The key as a raw `nsec…`, for a deliberate reveal. Never written to disk. */
+  async revealNsec(): Promise<string> {
+    await this.unlock();
+    return nsecEncode(this.inner!.key);
   }
 
   /** Drop the in-memory key. The at-rest forms are untouched. */

@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { X, Download, Check, ArrowRight, Users } from "lucide-react";
+import { X, Download, Check, ArrowRight, Users, Loader2 } from "lucide-react";
 import { hasPersistentKey } from "@/services/nostr";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { knownFollowCount } from "@/lib/followStore";
-import { downloadAccountBackup, downloadRawKeyBackup, getEncryptedBackupCredential } from "@/lib/accountBackup";
+import { downloadAccountBackup, downloadRawKeyBackup } from "@/lib/accountBackup";
+import { keyAccessMessage } from "@/accounts/backup";
 import { storePasswordCredential } from "@/lib/credentialManager";
 import { useToast } from "@/hooks/use-toast";
 
@@ -57,6 +58,8 @@ export function PostSignupCard() {
   const [backupMode, setBackupMode] = useState(false);
   const [pass, setPass] = useState("");
   const [confirm, setConfirm] = useState("");
+  /** Reaching the key can take a moment (unlock, then encrypt) — don't look dead. */
+  const [busy, setBusy] = useState(false);
   const { toast } = useToast();
   const [backedUp, setBackedUp] = useState(() => {
     try {
@@ -99,48 +102,54 @@ export function PostSignupCard() {
 
   const mismatch = confirm.length > 0 && pass !== confirm;
   const canBackup = pass.length >= 8 && pass === confirm;
-  const handleDownload = () => {
-    if (!canBackup) return;
+  const handleDownload = async () => {
+    if (!canBackup || busy) return;
+    setBusy(true);
     try {
-      downloadAccountBackup(pass);
+      // Getting at the key waits for the account to unlock, so both the file and
+      // the credential come from this one mint.
+      const { npub, ncryptsec } = await downloadAccountBackup(pass);
       try {
         if (backupFlag) localStorage.setItem(backupFlag, "true");
       } catch {}
       // Also stash the encrypted key in the browser password manager (Chromium
       // best-effort) so it syncs and autofills the login key field on return.
       // username = npub, password = ncryptsec. Never block on the result.
-      try {
-        const { npub, ncryptsec } = getEncryptedBackupCredential(pass);
-        if (npub && ncryptsec) void storePasswordCredential(npub, ncryptsec, npub);
-      } catch {}
+      if (npub && ncryptsec) void storePasswordCredential(npub, ncryptsec, npub);
       setBackedUp(true);
       setBackupMode(false);
       setPass("");
       setConfirm("");
       toast({ title: "Backup saved", description: "Saved to your password manager where supported — keep the file too." });
-    } catch {
-      // no-op; user can retry
+    } catch (err) {
+      toast({ variant: "destructive", title: "Couldn't create your backup", description: keyAccessMessage(err) });
+    } finally {
+      setBusy(false);
     }
   };
 
   // Lower-friction recovery: download the raw key with no password, so a
   // forgotten encryption password can't permanently lock the user out. Gated by
   // a blunt confirm because the file IS the account (anyone with it has control).
-  const handleDownloadRaw = () => {
+  const handleDownloadRaw = async () => {
+    if (busy) return;
     const ok = window.confirm(
       "This downloads your account key WITHOUT a password.\n\nThe file is your account — anyone who gets it has full control. Store it somewhere only you can reach, and never with your encrypted backup.\n\nDownload the unprotected key?",
     );
     if (!ok) return;
+    setBusy(true);
     try {
-      downloadRawKeyBackup();
+      await downloadRawKeyBackup();
       try { if (backupFlag) localStorage.setItem(backupFlag, "true"); } catch {}
       setBackedUp(true);
       setBackupMode(false);
       setPass("");
       setConfirm("");
       toast({ title: "Key downloaded", description: "Store it safely — that file is your account. Never share it." });
-    } catch {
-      // no-op; user can retry
+    } catch (err) {
+      toast({ variant: "destructive", title: "Couldn't reach your key", description: keyAccessMessage(err) });
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -372,16 +381,21 @@ export function PostSignupCard() {
                 <button
                   type="button"
                   onClick={handleDownload}
-                  disabled={!canBackup}
+                  disabled={!canBackup || busy}
                   className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold py-2.5 shadow-lg shadow-brand-primary/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                   data-testid="button-download-backup"
                 >
-                  <Download className="h-4 w-4" /> Download backup
+                  {busy ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" /> Preparing backup…</>
+                  ) : (
+                    <><Download className="h-4 w-4" /> Download backup</>
+                  )}
                 </button>
                 <button
                   type="button"
                   onClick={handleDownloadRaw}
-                  className="mt-2 w-full text-center text-[12px] font-medium text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                  disabled={busy}
+                  className="mt-2 w-full text-center text-[12px] font-medium text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   data-testid="button-download-raw-key"
                 >
                   Or download your key without a password

@@ -1,4 +1,4 @@
-import { exportEncryptedKey, exportNsec } from "@/services/nostr";
+import { mintBackup, revealSecretKey } from "@/accounts/backup";
 import { activeDisplay } from "@/accounts/display";
 
 /**
@@ -46,20 +46,19 @@ export function buildAccountBackupFileContent(ncryptsec: string, npub: string): 
   ].join("\n");
 }
 
+export type BackupCredential = { npub: string; ncryptsec: string };
+
 /**
- * Encrypt the stored key with `password`, build the readable backup file, and
- * trigger a local download. All client-side; nothing is sent to a server.
- * Throws if no key is available (callers wrap in try/catch).
+ * The (npub, ncryptsec) pair the backup is made of: what goes in the file, and
+ * what the password manager stores (username=npub, password=ncryptsec).
+ *
+ * Async because minting waits for the Account to unlock; rejects when this
+ * Account keeps its key elsewhere.
  */
-/**
- * The (npub, ncryptsec) pair for the encrypted backup, derived from `password`.
- * Single source of truth for both the downloadable file and the password-manager
- * credential we store (username=npub, password=ncryptsec). Throws if no key.
- */
-export function getEncryptedBackupCredential(password: string): { npub: string; ncryptsec: string } {
+export async function getEncryptedBackupCredential(password: string): Promise<BackupCredential> {
   return {
     npub: activeDisplay()?.npub ?? "",
-    ncryptsec: exportEncryptedKey(password),
+    ncryptsec: await mintBackup(password),
   };
 }
 
@@ -79,20 +78,31 @@ function backupFileName(base: string): string {
   return slug ? `${base}-${slug}.txt` : `${base}.txt`;
 }
 
-export function downloadAccountBackup(password: string): boolean {
-  const { npub, ncryptsec } = getEncryptedBackupCredential(password);
-  const content = buildAccountBackupFileContent(ncryptsec, npub);
-
+/** Trigger a local download of `content`. All client-side; nothing reaches a server. */
+function downloadTextFile(content: string, name: string): void {
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = backupFileName("brainstorm-account-backup");
+  a.download = name;
   document.body.appendChild(a);
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
-  return true;
+}
+
+/**
+ * Download the encrypted backup file, and hand back the credential it was built
+ * from so a caller that also stores it in the password manager doesn't mint a
+ * second one — minting costs a NIP-49 derivation, and two of them would differ.
+ */
+export async function downloadAccountBackup(password: string): Promise<BackupCredential> {
+  const credential = await getEncryptedBackupCredential(password);
+  downloadTextFile(
+    buildAccountBackupFileContent(credential.ncryptsec, credential.npub),
+    backupFileName("brainstorm-account-backup"),
+  );
+  return credential;
 }
 
 /**
@@ -137,21 +147,13 @@ export function buildRawKeyBackupFileContent(nsec: string, npub: string): string
  * Export the raw nsec to a downloadable `.txt` — a no-password recovery option so
  * a forgotten encryption password can't permanently lock a user out. Less safe
  * than the encrypted backup (the file is the key); the UI must warn accordingly.
- * Client-side only; throws if no key is available.
+ * Client-side only; rejects if the key can't be reached.
  */
-export function downloadRawKeyBackup(): boolean {
-  const nsec = exportNsec();
+export async function downloadRawKeyBackup(): Promise<void> {
+  const nsec = await revealSecretKey();
   const npub = activeDisplay()?.npub ?? "";
-  const content = buildRawKeyBackupFileContent(nsec, npub);
-
-  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = backupFileName("brainstorm-account-key");
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-  return true;
+  downloadTextFile(
+    buildRawKeyBackupFileContent(nsec, npub),
+    backupFileName("brainstorm-account-key"),
+  );
 }

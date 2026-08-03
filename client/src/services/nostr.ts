@@ -1,5 +1,5 @@
 import { nip19, finalizeEvent, getPublicKey, generateSecretKey, verifyEvent } from "nostr-tools";
-import { encrypt as encryptSecretKeyNip49, decrypt as decryptSecretKeyNip49 } from "nostr-tools/nip49";
+import { decrypt as decryptSecretKeyNip49 } from "nostr-tools/nip49";
 import { RelayPool } from "applesauce-relay";
 import { env } from "@/lib/runtimeEnv";
 import { isVaultSupported, encryptSecret, decryptSecret } from "@/lib/skVault";
@@ -103,29 +103,6 @@ export class LoginError extends Error {
 // login/create) or by `ensureUnlocked` (silent async decrypt on cold boot).
 let memSk: Uint8Array | null = null;
 let unlockPromise: Promise<void> | null = null;
-
-/**
- * Synchronous read of the raw secret key, for the backup/export paths that still
- * hold it (ticket 07). Returns the in-memory copy if present; otherwise the two
- * PLAINTEXT sources safe to read synchronously — the ephemeral session key and
- * the legacy plaintext persist key. The ENCRYPTED persistent key (`SK_ENC_KEY`)
- * cannot be read here (decryption is async) — call `await ensureUnlocked()`
- * first. Signing no longer comes through here at all: it goes to the Account.
- */
-function getStoredSecretKey(): Uint8Array | null {
-  if (memSk) return memSk;
-  try {
-    const hex =
-      sessionStorage.getItem(SK_STORAGE_KEY) || localStorage.getItem(SK_PERSIST_KEY);
-    if (hex) {
-      memSk = hexToBytes(hex);
-      return memSk;
-    }
-  } catch {
-    /* ignore */
-  }
-  return null;
-}
 
 /**
  * Populate `memSk` from persisted storage, decrypting the encrypted envelope if
@@ -1743,23 +1720,6 @@ export async function createAccount(
   // Don't block the UI on relay/scoring work.
   void runInitialSetup(pubkey, { name }, { inviterPubkey: opts.inviterPubkey }).catch(() => {});
   return user;
-}
-
-/** Encrypt the stored secret key with a passphrase (NIP-49) for an optional backup. */
-export function exportEncryptedKey(password: string): string {
-  const sk = getStoredSecretKey();
-  if (!sk) throw new Error("No account key available to back up.");
-  return encryptSecretKeyNip49(sk, password);
-}
-
-/**
- * Encode the stored secret key as a raw `nsec…` for an explicit, in-app reveal
- * (advanced users only). Runs entirely client-side; never written to disk.
- */
-export function exportNsec(): string {
-  const sk = getStoredSecretKey();
-  if (!sk) throw new Error("No account key available.");
-  return nip19.nsecEncode(sk);
 }
 
 export async function signNip85(
