@@ -1,6 +1,11 @@
 {
   "version": 1,
   "skills": {
+    "applesauce": {
+      "source": "applesauce.build",
+      "sourceType": "well-known",
+      "computedHash": "c0755f2d089abc66dba4ac120aa8b63f95230e34a2b0ab3d9d3bedf3d6bc5048"
+    },
     "ask-matt": {
       "source": "mattpocock/skills",
       "sourceType": "github",
