@@ -161,7 +161,8 @@ export function HeroSceneRotator({
           }}
           className={cn(
             "absolute inset-0 h-full w-full object-cover select-none transition-opacity ease-in-out",
-            reduced ? "duration-0" : "duration-[2000ms]",
+            // Explicit property: tailwindcss-animate also claims `duration-*`.
+            reduced ? "duration-0" : "[transition-duration:2000ms]",
             i === index ? "opacity-100" : "opacity-0",
           )}
         />

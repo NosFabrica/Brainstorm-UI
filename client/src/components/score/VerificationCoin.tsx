@@ -1,5 +1,6 @@
-import { TIER_THRESHOLDS, TRUST_TIER_COLORS } from "@/services/trustThreshold";
+import { TRUST_TIER_COLORS } from "@/services/trustThreshold";
 import type { ScorePov } from "@/components/score/TrustScorePov";
+import { tierForScore01, type VerificationTier } from "@/lib/verificationTier";
 
 /**
  * VerificationCoin — the sitewide, label-less Verification Score badge.
@@ -16,16 +17,6 @@ import type { ScorePov } from "@/components/score/TrustScorePov";
  * explainer/modal, never on the coin. Reused everywhere (profile avatar corner,
  * search rows, note cards, lists) so it's recognizable by shape alone.
  */
-
-export type VerificationTier = "high" | "trusted" | "neutral" | "low" | "unverified";
-
-export function tierForScore01(score01: number): VerificationTier {
-  if (score01 >= TIER_THRESHOLDS.high) return "high";
-  if (score01 >= TIER_THRESHOLDS.medium_high) return "trusted";
-  if (score01 >= TIER_THRESHOLDS.medium) return "neutral";
-  if (score01 >= 0.02) return "low";
-  return "unverified";
-}
 
 // Personalized flavor: solid tier hue, white number. The lowest tier stays
 // gently COLORED (indigo-tinted), never pure grey — grey is reserved for global,

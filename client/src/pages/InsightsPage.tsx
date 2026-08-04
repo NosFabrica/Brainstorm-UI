@@ -5,7 +5,8 @@ import { ArrowLeft, Clock, Gauge, ShieldCheck, RefreshCw, CheckCircle2, Loader2,
 import { AppHeader } from "@/components/AppHeader";
 import { Card } from "@/components/ui/card";
 import { PresetBadge } from "@/components/PresetBadge";
-import { VerificationCoin, tierForScore01, type VerificationTier } from "@/components/score/VerificationCoin";
+import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { tierForScore01, type VerificationTier } from "@/lib/verificationTier";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
