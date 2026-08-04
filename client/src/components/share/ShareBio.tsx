@@ -37,7 +37,7 @@ function PlainMention({ name }: { name: string }) {
         } catch { /* ignore — leave as plain text on failure */ }
         setBusy(false);
       }}
-      className="font-medium text-[#3730a3] hover:underline disabled:opacity-60"
+      className="font-medium text-brand-link hover:underline disabled:opacity-60"
     >
       @{name}
     </button>
@@ -57,7 +57,7 @@ export function ShareBio({ text, profiles }: { text: string; profiles?: Map<stri
         if (!part) return null;
         if (/^https?:\/\//i.test(part)) {
           return (
-            <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="break-all text-indigo-600 hover:underline">
+            <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="break-all text-brand-primary hover:underline">
               {part.replace(/^https?:\/\//, "").replace(/\/$/, "")}
             </a>
           );
@@ -73,7 +73,7 @@ export function ShareBio({ text, profiles }: { text: string; profiles?: Map<stri
               key={i}
               type="button"
               onClick={(e) => { e.stopPropagation(); requestNav({ kind: "profile", target: bech32, label: name || bech32.slice(0, 12) + "…", picture: prof?.picture }); }}
-              className="font-medium text-[#3730a3] hover:underline"
+              className="font-medium text-brand-link hover:underline"
               data-testid="bio-mention"
             >
               {label}
@@ -86,7 +86,7 @@ export function ShareBio({ text, profiles }: { text: string; profiles?: Map<stri
               key={i}
               type="button"
               onClick={(e) => { e.stopPropagation(); requestNav({ kind: "hashtag", target: part, label: part }); }}
-              className="font-medium text-[#3730a3] hover:underline"
+              className="font-medium text-brand-link hover:underline"
               data-testid="bio-hashtag"
             >
               {part}

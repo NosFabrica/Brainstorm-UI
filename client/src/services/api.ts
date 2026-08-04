@@ -282,6 +282,33 @@ export interface ShortestPath {
   maxHops: number;
 }
 
+/** One account in the observer's network, with its verified trust signals. */
+export interface NetworkAlertEntry {
+  pubkey: string;
+  influence: number;
+  /** 1 = direct follow, 2 = extended network. */
+  hops: number;
+  verifiedFollowerCount: number;
+  verifiedMuterCount: number;
+  verifiedReporterCount: number;
+  /** Reporter count at/above which the account is treated as flagged. */
+  reporterThreshold: number;
+}
+
+/** `data` payload of `/networkAlerts`. */
+export interface NetworkAlertsData {
+  observerPubkey: string;
+  directFollows: NetworkAlertEntry[];
+  extendedNetwork: NetworkAlertEntry[];
+  directFollowsTruncated: boolean;
+  extendedNetworkTruncated: boolean;
+}
+
+/** True when an account's verified reporters meet/exceed its flag threshold. */
+export function isFlaggedAlert(e: NetworkAlertEntry): boolean {
+  return e.reporterThreshold > 0 && e.verifiedReporterCount >= e.reporterThreshold;
+}
+
 export const apiClient = {
   async getAuthChallenge(pubkey: string): Promise<string> {
     const response = await fetch(`${getBrainstormApi()}/authChallenge/${pubkey}`);
@@ -515,6 +542,33 @@ export const apiClient = {
     });
     if (!response.ok) {
       throw new Error(`Failed to fetch user overview (${response.status})`);
+    }
+    return await response.json();
+  },
+
+  /**
+   * Network Alerts (David's `/networkAlerts`, brainstorm_server): for the given
+   * observer, the trust signals on the people IN their network — direct follows
+   * (hops=1) and the extended network (hops=2). Each entry carries verified
+   * follower/muter/reporter counts and the reporter threshold; an account is
+   * "flagged" when `verifiedReporterCount >= reporterThreshold`. Reads from
+   * neo4j, so it's SLOW for populated observers (~10s until PR #59 precomputes
+   * verifiedFollowers) — always load it async and off the page's critical path.
+   * Accepts hex or npub; returns the hex `observerPubkey`.
+   */
+  async getNetworkAlerts(
+    observer: string,
+    opts?: { limit?: number },
+  ): Promise<{ code: number; message: string | null; data: NetworkAlertsData }> {
+    const params = new URLSearchParams({ observer });
+    params.set("limit", String(opts?.limit ?? 100));
+    const url = `${getBrainstormApi()}/networkAlerts?${params.toString()}`;
+    const response = await optionalAuthFetch(url, {
+      // Generous timeout: this endpoint is ~10s for real observers today.
+      signal: AbortSignal.timeout(45000),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to fetch network alerts (${response.status})`);
     }
     return await response.json();
   },

@@ -5,9 +5,18 @@ export type ActivePov = "nosfabrica" | "mywot";
 const STORAGE_KEY = "brainstorm_active_pov";
 const EVENT_NAME = "brainstorm-pov-changed";
 
+// Per-account (or "anon") so a second account on the same browser keeps its own
+// perspective instead of inheriting the previous account's. Pubkey read from the
+// stored session directly to avoid a service import cycle.
+function scopedKey(): string {
+  let who = "anon";
+  try { who = JSON.parse(localStorage.getItem("nostr_user") || "{}")?.pubkey || "anon"; } catch {}
+  return `${STORAGE_KEY}:${who}`;
+}
+
 function readStored(): ActivePov | null {
   try {
-    const v = localStorage.getItem(STORAGE_KEY);
+    const v = localStorage.getItem(scopedKey());
     return v === "nosfabrica" || v === "mywot" ? v : null;
   } catch {
     return null;
@@ -24,7 +33,7 @@ export function hasStoredPov(): boolean {
 
 export function setActivePov(pov: ActivePov): void {
   try {
-    localStorage.setItem(STORAGE_KEY, pov);
+    localStorage.setItem(scopedKey(), pov);
     window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: pov }));
   } catch {}
 }
@@ -42,7 +51,7 @@ export function useActivePov(): [ActivePov, (p: ActivePov) => void] {
       }
     };
     const onStorage = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEY) setPov(getActivePov());
+      if (e.key === scopedKey()) setPov(getActivePov());
     };
     window.addEventListener(EVENT_NAME, onCustom);
     window.addEventListener("storage", onStorage);

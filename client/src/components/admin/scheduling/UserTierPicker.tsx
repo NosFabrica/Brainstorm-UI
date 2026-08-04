@@ -63,7 +63,7 @@ export function UserTierPicker({
     <span className="inline-flex items-center gap-1">
       <select
         aria-label="Scheduling tier"
-        className="h-8 rounded border px-1 text-xs"
+        className="h-8 rounded border px-1 text-xs dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
         value={value != null ? String(value) : ""}
         disabled={busy}
         onChange={(e) => handleChange(Number(e.target.value))}
@@ -72,7 +72,7 @@ export function UserTierPicker({
           <option key={p.id} value={p.id}>{p.name}</option>
         ))}
       </select>
-      {busy && <Loader2 className="h-3 w-3 animate-spin text-slate-400" />}
+      {busy && <Loader2 className="h-3 w-3 animate-spin text-slate-400 dark:text-slate-500" />}
     </span>
   );
 }

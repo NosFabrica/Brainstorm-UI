@@ -1,0 +1,15 @@
+{
+  "name": "Brainstorm — Web of Trust for Nostr",
+  "short_name": "Brainstorm",
+  "description": "Build trust scores from your own connections — not an algorithm. The decentralized Web of Trust layer for Nostr.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#0a0e18",
+  "icons": [
+    { "src": "/favicon.svg", "type": "image/svg+xml", "sizes": "any", "purpose": "any" },
+    { "src": "/favicon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any" },
+    { "src": "/apple-touch-icon.png", "type": "image/png", "sizes": "180x180", "purpose": "any" }
+  ]
+}

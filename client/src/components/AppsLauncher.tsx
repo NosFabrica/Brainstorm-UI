@@ -2,30 +2,8 @@ import { useState } from "react";
 import { useLocation } from "wouter";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import {
-  LayoutGrid,
-  Search,
-  Home,
-  Users,
-} from "lucide-react";
+import { LayoutGrid } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
-import { CommunitiesIcon, MusicLibraryIcon } from "@/components/brainstormAppIcons";
-
-const RankingIcon = ({ className }: { className?: string }) => (
-  <svg
-    xmlns="http://www.w3.org/2000/svg"
-    width="24"
-    height="24"
-    viewBox="0 0 24 24"
-    fill="none"
-    className={className}
-  >
-    <path d="M12 7.37012L14.33 12.0401L19 12.8201L15.5 16.3201L16.67 21.3801L12 18.6201L7.32999 21.3801L8.5 16.3201L5 12.8201L9.66998 12.0401L12 7.37012Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square" />
-    <path d="M6 9V2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square" />
-    <path d="M18 9V2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square" />
-    <path d="M12 4V2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="square" />
-  </svg>
-);
 
 import { FEATURES } from "@/config/featureFlags";
 
@@ -39,17 +17,21 @@ export type AppKey =
   | "admin"
   | "reviews"
   | "communities"
-  | "music";
+  | "music"
+  | "events";
 
 interface AppTile {
   key: AppKey;
   label: string;
   path: string;
-  icon: React.ComponentType<{ className?: string }>;
+  /** Lucide/React icon component (interface tiles). */
+  icon?: React.ComponentType<{ className?: string }>;
+  /** Sub-brand SVG served from /public (product-family tiles). */
+  iconSrc?: string;
   disabled?: boolean;
   disabledTitle?: string;
   comingSoon?: boolean;
-  tone?: "default" | "special" | "admin";
+  tone?: "default" | "special" | "admin" | "product";
 }
 
 interface AppsLauncherProps {
@@ -66,24 +48,19 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
   const [open, setOpen] = useState(false);
   const isLight = variant === "light";
 
+  // The Brainstorm apps grid holds the product family only. The interface
+  // destinations (Search / Dashboard / Network) live in the account menu.
   const tiles: AppTile[] = [
-    { key: "dashboard", label: "Dashboard", path: "/dashboard", icon: Home },
-    { key: "home", label: "Search", path: "/", icon: Search, tone: "special" },
-    {
-      key: "network",
-      label: "Network",
-      path: "/network",
-      icon: Users,
-      // Always accessible — the NetworkPage shows its own "being calculated"
-      // screen (with Back to Dashboard) until scores are ready, so there's no
-      // need to gate the tile (and gating it disagreed across surfaces).
-    },
     ...(FEATURES.agentSuite
       ? [{ key: "agentsuite" as const, label: "Agent Suite", path: "/agentsuite", icon: AgentIcon, tone: "special" as const }]
       : []),
-    { key: "reviews", label: "Signal", path: "/", icon: RankingIcon, comingSoon: true },
-    { key: "communities", label: "Communities", path: "/", icon: CommunitiesIcon, comingSoon: true },
-    { key: "music", label: "Music", path: "/", icon: MusicLibraryIcon, comingSoon: true },
+    // Product family (Design System v1.0, p.12) — Signal · Communities · Music ·
+    // Events. Product icons read in Aurora Cyan (distinct from the purple
+    // toolbar/interface icons), even while coming soon.
+    { key: "reviews", label: "Signal", path: "/", iconSrc: "/brand/sub-brands/signal.svg", comingSoon: true, tone: "product" },
+    { key: "communities", label: "Communities", path: "/", iconSrc: "/brand/sub-brands/communities.svg", comingSoon: true, tone: "product" },
+    { key: "music", label: "Music", path: "/", iconSrc: "/brand/sub-brands/music.svg", comingSoon: true, tone: "product" },
+    { key: "events", label: "Events", path: "/", iconSrc: "/brand/sub-brands/events.svg", comingSoon: true, tone: "product" },
   ];
 
   return (
@@ -94,7 +71,7 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
           size="icon"
           className={
             (isLight
-              ? "text-slate-500 no-default-hover-elevate no-default-active-elevate hover:text-indigo-600 hover:bg-slate-900/5 rounded-xl "
+              ? "text-slate-500 dark:text-slate-400 no-default-hover-elevate no-default-active-elevate hover:text-brand-primary hover:bg-slate-900/5 dark:hover:bg-white/10 rounded-xl "
               : "text-slate-300 no-default-hover-elevate no-default-active-elevate hover:text-white hover:bg-white/10 rounded-xl ") +
             (className ?? "")
           }
@@ -108,16 +85,16 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
       <PopoverContent
         align="end"
         sideOffset={8}
-        className="w-72 p-3 bg-white/95 backdrop-blur-xl border-indigo-500/20 shadow-xl"
+        className="w-60 p-3 bg-white dark:bg-slate-900 border-slate-200/80 dark:border-slate-800 shadow-[0_12px_40px_rgba(0,0,0,0.18)]"
         data-testid="panel-apps-launcher"
       >
         <p
-          className="px-1 pb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400"
+          className="px-1 pb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400 dark:text-slate-500"
           data-testid="text-apps-launcher-heading"
         >
           Brainstorm apps
         </p>
-        <div className="grid grid-cols-3 gap-1">
+        <div className="grid grid-cols-2 gap-1.5">
           {tiles.map((tile) => {
             const Icon = tile.icon;
             const isActive = active === tile.key;
@@ -140,49 +117,63 @@ export function AppsLauncher({ user, calcDone = false, active, className, varian
                   navigate(tile.path);
                 }}
                 className={
-                  "relative flex flex-col items-center justify-center gap-1.5 rounded-xl p-2.5 text-center transition-colors " +
+                  "relative flex flex-col items-center justify-center gap-1.5 rounded-xl p-2.5 text-center transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50 " +
                   (tile.comingSoon
                     ? "cursor-default "
                     : tile.disabled
                       ? "opacity-40 cursor-not-allowed "
-                      : "cursor-pointer hover:bg-indigo-50 ") +
-                  (isActive && !inactive ? "bg-indigo-50/70 " : "")
+                      : "cursor-pointer hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10 ") +
+                  (isActive && !inactive ? "bg-brand-primary/10 dark:bg-brand-primary/15 ring-1 ring-inset ring-brand-primary/20 dark:ring-brand-primary/20 " : "")
                 }
                 data-testid={`app-tile-${tile.key}`}
               >
                 <span
                   className={
                     "h-10 w-10 rounded-xl flex items-center justify-center " +
-                    (tile.comingSoon
-                      ? "bg-slate-400/[0.07] border border-slate-300/40 "
-                      : "bg-gradient-to-br from-indigo-500/10 to-indigo-500/[0.04] " +
-                        (tile.tone === "special"
-                          ? "border border-indigo-500/30 animate-pulse-glow"
-                          : "border border-indigo-500/10"))
+                    (tile.tone === "product"
+                      ? "bg-brand-accent/[0.08] border border-brand-accent/20 "
+                      : tile.comingSoon
+                        ? "bg-slate-400/[0.07] dark:bg-slate-500/[0.12] border border-slate-300/40 dark:border-slate-700/40 "
+                        : "bg-gradient-to-br from-brand-primary/10 to-brand-primary/[0.04] " +
+                          (tile.tone === "special"
+                            ? "border border-brand-primary/[0.3] animate-pulse-glow"
+                            : "border border-brand-primary/10"))
                   }
                 >
-                  <Icon
-                    className={
-                      "h-5 w-5 " +
-                      (tile.comingSoon
-                        ? "text-slate-400"
-                        : tile.tone === "admin"
-                          ? "text-amber-600"
-                          : "text-indigo-600")
-                    }
-                  />
+                  {tile.iconSrc ? (
+                    <img
+                      src={tile.iconSrc}
+                      alt=""
+                      aria-hidden="true"
+                      draggable={false}
+                      className="max-h-5 w-auto max-w-[26px] select-none object-contain"
+                    />
+                  ) : Icon ? (
+                    <Icon
+                      className={
+                        "h-5 w-5 " +
+                        (tile.tone === "product"
+                          ? "text-brand-accent"
+                          : tile.comingSoon
+                            ? "text-slate-400 dark:text-slate-500"
+                            : tile.tone === "admin"
+                              ? "text-amber-600"
+                              : "text-brand-primary")
+                      }
+                    />
+                  ) : null}
                 </span>
                 <span
                   className={
                     "text-[11px] font-medium leading-tight " +
-                    (tile.comingSoon ? "text-slate-400" : "text-slate-700")
+                    (tile.comingSoon ? "text-slate-400 dark:text-slate-500" : "text-slate-700 dark:text-slate-300")
                   }
                 >
                   {tile.label}
                 </span>
                 {tile.comingSoon && (
                   <span
-                    className="text-[8px] font-semibold uppercase tracking-[0.12em] text-slate-400/80 leading-none"
+                    className="text-[8px] font-semibold uppercase tracking-[0.12em] text-slate-400/80 dark:text-slate-500/80 leading-none"
                     data-testid={`text-soon-${tile.key}`}
                   >
                     Soon

@@ -20,7 +20,9 @@ import {
   Check,
   SlidersHorizontal,
   UserPlus,
+  FileQuestion,
 } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { decodeShareId, npubFromPubkey, nostrUriFor, eventPath } from "@/lib/shareId";
 import { copyToClipboard } from "@/lib/clipboard";
 import { fetchProfileForShare, fetchRecentByKinds, fetchLiveStreams, fetchEventsByIds, fetchAddressableEvents, fetchProfileMap, fetchExternalIdentities, fetchOutboxRelayList, fetchProfilePrefs, publishProfilePrefs, hasLocalSecretKey, PROFILE_RELAYS } from "@/services/nostr";
@@ -753,7 +755,7 @@ export default function SharePage() {
           href={normalizeUrl(profile.website)}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 transition-colors hover:bg-slate-100 hover:text-[#6366f1]"
+          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand-primary"
           title={profile.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}
           aria-label="Website"
           data-testid="share-website"
@@ -788,7 +790,7 @@ export default function SharePage() {
   // (filling the dead space across from the avatar) while the Follow/⋯ actions
   // drop to their own full-width row so the primary button can stretch.
   const followsYouChip = loggedIn && rel.enabled && !isOwner && !rel.loading && rel.followsYou ? (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500" data-testid="share-follows-you">
+    <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400" data-testid="share-follows-you">
       <UserPlus className="h-3 w-3" /> Follows you
     </span>
   ) : null;
@@ -834,14 +836,14 @@ export default function SharePage() {
     <ShareShell onShare={() => setShareOpen(true)}>
       <ShareNavProvider>
       {/* Identity hero */}
-      <div className="rounded-2xl bg-white border border-slate-200 shadow-sm overflow-hidden" data-testid="share-hero">
+      <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden" data-testid="share-hero">
         <div className="relative w-full h-24 sm:h-28">
           {profile.banner ? (
             <img src={profile.banner} alt="" className="absolute inset-0 w-full h-full object-cover" />
           ) : (
             <div className={`absolute inset-0 ${DEFAULT_BANNER_CLASS}`}>
               <img src={DEFAULT_BANNER_SRC} alt="" aria-hidden className="absolute inset-0 w-full h-full object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-br from-[#7c86ff]/30 via-[#5b63d9]/20 to-[#333286]/40 mix-blend-multiply" />
+              <div className="absolute inset-0 bg-gradient-to-br from-brand-accent/30 via-brand-accent-hover/20 to-brand-deep/40 mix-blend-multiply" />
             </div>
           )}
         </div>
@@ -851,7 +853,7 @@ export default function SharePage() {
               profile to a pictureless one, hiding the fallback. */}
           <div className="flex items-end justify-between gap-3">
             <div className="relative inline-block">
-              <Avatar key={pubkey} className="h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white shadow-lg bg-white">
+              <Avatar key={pubkey} className="h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white shadow-lg bg-white dark:bg-slate-900">
                 {profile.picture ? <AvatarImage src={profile.picture} alt={displayName} className="object-cover" /> : null}
                 <AvatarFallback className="overflow-hidden rounded-full">
                   <DefaultAvatarImg flagged={isFlagged} />
@@ -876,26 +878,26 @@ export default function SharePage() {
           <div className="mt-2.5 md:flex md:gap-6 md:items-start">
             <div className="md:flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap">
-            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="share-name">
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="share-name">
               {displayName}
             </h1>
             {profile.nip05 && (
-              <span className="inline-flex items-center gap-1 text-sm text-[#3730a3] font-medium">
+              <span className="inline-flex items-center gap-1 text-sm text-brand-link font-medium">
                 <BadgeCheck className="h-4 w-4" /> {profile.nip05.replace(/^_@/, "")}
               </span>
             )}
           </div>
           {/* NIP-38 status — a live "now" line under the name (general + now-playing). */}
-          {!isHidden("status") && status.general && <p className="mt-1 text-sm text-slate-600 leading-snug" data-testid="share-status">{status.general}</p>}
-          {!isHidden("status") && status.music && <p className="mt-0.5 text-xs text-slate-500" data-testid="share-status-music">♪ {status.music}</p>}
+          {!isHidden("status") && status.general && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 leading-snug" data-testid="share-status">{status.general}</p>}
+          {!isHidden("status") && status.music && <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400" data-testid="share-status-music">♪ {status.music}</p>}
           {/* npub — subtle + copyable so logged-out visitors can verify identity. */}
           {npub && (
             <div className="flex items-center gap-1.5 mt-1" data-testid="share-npub">
-              <code className="text-xs text-slate-400 font-mono truncate max-w-[170px] sm:max-w-[300px]">{npub}</code>
+              <code className="text-xs text-slate-400 dark:text-slate-500 font-mono truncate max-w-[170px] sm:max-w-[300px]">{npub}</code>
               <button
                 type="button"
                 onClick={async () => { if (await copyToClipboard(npub)) { setNpubCopied(true); setTimeout(() => setNpubCopied(false), 1500); } }}
-                className="p-0.5 text-slate-400 hover:text-indigo-500 transition-colors shrink-0"
+                className="p-0.5 text-slate-400 dark:text-slate-500 hover:text-brand-primary transition-colors shrink-0"
                 title="Copy npub"
                 data-testid="share-copy-npub"
               >
@@ -916,7 +918,7 @@ export default function SharePage() {
           {roleLabels.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1.5" data-testid="share-roles">
               {roleLabels.map((label) => (
-                <span key={label} className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-[#333286]/5 border border-[#7c86ff]/30 text-xs font-semibold text-[#333286]">
+                <span key={label} className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-brand-deep/5 border border-brand-accent/30 text-xs font-semibold text-brand-deep">
                   {label}
                 </span>
               ))}
@@ -924,7 +926,7 @@ export default function SharePage() {
           )}
 
           {!isHidden("bio") && profile.about && (
-            <p className="mt-2 text-sm text-slate-600 leading-snug line-clamp-2" data-testid="share-bio">
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-snug line-clamp-2" data-testid="share-bio">
               <ShareBio text={profile.about} profiles={noteProfiles} />
             </p>
           )}
@@ -953,7 +955,7 @@ export default function SharePage() {
               count links to its full list. */}
           <div className="mt-2.5 space-y-1.5" data-testid="share-stats">
             <div className="space-y-1.5">
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-500">
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-xs text-slate-500 dark:text-slate-400">
                 {(followingTotal != null || verifiedFollowing != null) && (
                   <Stat
                     verified={verifiedFollowing}
@@ -1008,7 +1010,7 @@ export default function SharePage() {
 
           {/* Tenure / presence — Google-knowledge-panel "at a glance" line. */}
           {!isHidden("tenure") && (memberSinceYear || relayCount > 0) && (
-            <p className="mt-2 text-[11px] text-slate-400" data-testid="share-tenure">
+            <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500" data-testid="share-tenure">
               {memberSinceYear && <>On Nostr since {memberSinceYear}</>}
               {memberSinceYear && relayCount > 0 && " · "}
               {relayCount > 0 && <>Active on {relayCount} relay{relayCount === 1 ? "" : "s"}</>}
@@ -1020,7 +1022,7 @@ export default function SharePage() {
               connection). Logged-in relationship actions live under the WoT card
               (loggedInActions), not here. */}
           {!loggedIn && (
-            <div className="mt-4 w-full rounded-2xl border border-[#7c86ff]/25 bg-gradient-to-br from-[#333286]/[0.05] to-[#7c86ff]/[0.08] p-4 sm:p-5 shadow-sm" data-testid="share-invite-panel">
+            <div className="mt-4 w-full rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.05] to-brand-accent/[0.08] p-4 sm:p-5 shadow-sm" data-testid="share-invite-panel">
               <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
                 {/* Personal connection + value */}
                 <div className="flex items-start gap-3 min-w-0 flex-1">
@@ -1028,11 +1030,11 @@ export default function SharePage() {
                     <img src={profile.picture} alt="" className="hidden sm:block h-12 w-12 rounded-full object-cover ring-2 ring-white shadow shrink-0" />
                   )}
                   <div className="min-w-0">
-                    <div className="text-[11px] font-mono font-bold tracking-[0.2em] text-[#4338ca] uppercase">Join Brainstorm</div>
-                    <h3 className="mt-0.5 text-lg font-bold text-slate-900 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }}>
+                    <div className="text-[11px] font-mono font-bold tracking-[0.2em] text-brand-link dark:text-brand-link uppercase">Join Brainstorm</div>
+                    <h3 className="mt-0.5 text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }}>
                       Connect with {displayName}
                     </h3>
-                    <p className="mt-1 text-sm text-slate-600 leading-relaxed">
+                    <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
                       Real humans, not bots — join the web of trust you own and you're instantly connected to {displayName}.
                     </p>
                   </div>
@@ -1041,19 +1043,19 @@ export default function SharePage() {
                 <div className="shrink-0 sm:text-right">
                   <Link
                     href={`/login?invite=${npub}&next=${encodeURIComponent(`/p/${npub}`)}`}
-                    className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 h-11 px-5 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold shadow-sm transition-colors whitespace-nowrap"
+                    className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 h-11 px-5 rounded-lg bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold shadow-sm transition-colors whitespace-nowrap"
                     data-testid="share-wot-cta"
                   >
                     Join free <ArrowRight className="h-4 w-4" />
                   </Link>
-                  <div className="mt-2 text-xs text-slate-400 text-center sm:text-right">Free · no email · a minute</div>
+                  <div className="mt-2 text-xs text-slate-400 dark:text-slate-500 text-center sm:text-right">Free · no email · a minute</div>
                 </div>
               </div>
             </div>
           )}
 
           {foundViaRelays && (
-            <p className="mt-2.5 inline-flex items-center gap-1.5 text-xs text-slate-400">
+            <p className="mt-2.5 inline-flex items-center gap-1.5 text-xs text-slate-400 dark:text-slate-500">
               <Wifi className="h-3.5 w-3.5" /> Fetched live from relays — not yet indexed by Brainstorm.
             </p>
           )}
@@ -1065,7 +1067,7 @@ export default function SharePage() {
       {/* Content teasers */}
       <div className="mt-5 flex flex-col gap-5">
         {hasContent && (
-          <p className="text-xs text-slate-400 px-1" data-testid="share-teaser-caption">
+          <p className="text-xs text-slate-400 dark:text-slate-500 px-1" data-testid="share-teaser-caption">
             A few highlights — open the full profile in an app to see everything.
           </p>
         )}
@@ -1087,7 +1089,7 @@ export default function SharePage() {
                 <EventRow key={ev.id} event={ev} href={eventPath({ id: ev.id, pubkey }, relayHints)} />
               ))}
               {calendarEvents.upcoming.length > 0 && calendarEvents.past.length > 0 && (
-                <p className="px-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400" data-testid="share-events-past-label">Past events</p>
+                <p className="px-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500" data-testid="share-events-past-label">Past events</p>
               )}
               {calendarEvents.past.map((ev) => (
                 <EventRow key={ev.id} event={ev} past href={eventPath({ id: ev.id, pubkey }, relayHints)} />
@@ -1113,7 +1115,7 @@ export default function SharePage() {
           <ContentTeaserBlock icon={<MessageSquare className="h-4 w-4" />} title="Latest notes" onViewAll={scrollToOpenIn} testId="share-block-notes" className={orderClass("notes")}>
             <div className="space-y-4">
               {noteEvents.map((ev) => (
-                <div key={ev.id} className="pb-4 border-b border-slate-100 last:border-0 last:pb-0">
+                <div key={ev.id} className="pb-4 border-b border-slate-100 dark:border-slate-800/60 last:border-0 last:pb-0">
                   <ShareNoteCard event={ev} profiles={noteProfiles} eventsById={eventsById} addrByCoord={addrByCoord} href={eventPath(ev, relayHints)} />
                 </div>
               ))}
@@ -1128,7 +1130,7 @@ export default function SharePage() {
                 <Link
                   key={photo.url}
                   href={eventPath({ id: photo.id, pubkey: photo.pubkey }, relayHints)}
-                  className="group relative block aspect-square overflow-hidden rounded-xl border border-slate-200"
+                  className="group relative block aspect-square overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800"
                   data-testid="share-photo-tile"
                 >
                   <img
@@ -1148,7 +1150,7 @@ export default function SharePage() {
           <ContentTeaserBlock icon={<VideoIcon className="h-4 w-4" />} title="Videos" onViewAll={scrollToOpenIn} testId="share-block-videos" className={orderClass("videos")}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {videos.map((v) => (
-                <div key={v.id} className="rounded-xl overflow-hidden border border-slate-200 bg-black">
+                <div key={v.id} className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-black">
                   <Link
                     href={eventPath({ id: v.id, pubkey }, relayHints)}
                     className="group relative block aspect-video bg-slate-900"
@@ -1161,11 +1163,11 @@ export default function SharePage() {
                     ) : null}
                     <div className="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-black/20 transition-colors">
                       <span className="h-12 w-12 rounded-full bg-white/90 group-hover:bg-white flex items-center justify-center shadow-lg transition-all group-hover:scale-105">
-                        <Play className="h-5 w-5 text-[#333286] ml-0.5" />
+                        <Play className="h-5 w-5 text-brand-deep ml-0.5" />
                       </span>
                     </div>
                   </Link>
-                  {v.title && <p className="px-3 py-2 text-xs font-semibold text-slate-700 truncate bg-white">{v.title}</p>}
+                  {v.title && <p className="px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 truncate bg-white dark:bg-slate-900">{v.title}</p>}
                 </div>
               ))}
             </div>
@@ -1205,7 +1207,7 @@ export default function SharePage() {
                       alt=""
                       loading="lazy"
                       onError={(e) => { if (!e.currentTarget.src.includes("live-default")) e.currentTarget.src = liveDefault; }}
-                      className="h-14 w-14 shrink-0 rounded-lg bg-slate-100 object-cover"
+                      className="h-14 w-14 shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800 object-cover"
                     />
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2">
@@ -1214,14 +1216,14 @@ export default function SharePage() {
                             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" /> Live
                           </span>
                         )}
-                        <p className="truncate text-sm font-semibold text-slate-900">{s.title}</p>
+                        <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{s.title}</p>
                       </div>
-                      <p className={`mt-0.5 truncate text-xs ${isLive ? "font-semibold text-red-600" : "text-slate-500"}`}>{isLive ? "Watch live →" : s.timing}</p>
+                      <p className={`mt-0.5 truncate text-xs ${isLive ? "font-semibold text-red-600" : "text-slate-500 dark:text-slate-400"}`}>{isLive ? "Watch live →" : s.timing}</p>
                     </div>
                   </>
                 );
                 return (
-                  <Link key={s.id} href={eventPath({ id: s.id, pubkey: s.authorPubkey }, ["wss://relay.zap.stream", "wss://relay.nostr.band"])} className={`flex items-center gap-3 rounded-xl border bg-white p-3 transition-colors hover:border-slate-300 ${isLive ? "border-red-200" : "border-slate-200"}`} data-testid="share-live-row">{body}</Link>
+                  <Link key={s.id} href={eventPath({ id: s.id, pubkey: s.authorPubkey }, ["wss://relay.zap.stream", "wss://relay.nostr.band"])} className={`flex items-center gap-3 rounded-xl border bg-white dark:bg-slate-900 p-3 transition-colors hover:border-slate-300 dark:hover:border-slate-700 ${isLive ? "border-red-200" : "border-slate-200 dark:border-slate-800"}`} data-testid="share-live-row">{body}</Link>
                 );
               })}
             </div>
@@ -1229,7 +1231,11 @@ export default function SharePage() {
         )}
 
         {!profileLoading && !hasContent && (
-          <p className="text-center text-sm text-slate-400 py-6" data-testid="share-empty">No public content found for this profile yet.</p>
+          <EmptyState
+            icon={FileQuestion}
+            title="Nothing public yet"
+            description="This profile hasn't shared any public posts, media, or details we can show here."
+          />
         )}
       </div>
 
@@ -1239,15 +1245,15 @@ export default function SharePage() {
       </section>
 
       {/* Learn more (Brainstorm public resources) + funnel */}
-      <section className="mt-6 rounded-2xl bg-gradient-to-br from-[#333286]/[0.04] to-[#7c86ff]/[0.06] border border-[#7c86ff]/20 p-5 text-center" data-testid="share-learn-more">
-        <h3 className="text-base font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>New to Brainstorm?</h3>
-        <p className="mt-1 text-sm text-slate-600 max-w-md mx-auto">Brainstorm scores reputation from real human connections — no algorithm. See how it works:</p>
+      <section className="mt-6 rounded-2xl bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] border border-brand-accent/20 p-5 text-center" data-testid="share-learn-more">
+        <h3 className="text-base font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>New to Brainstorm?</h3>
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 max-w-md mx-auto">Brainstorm scores reputation from real human connections — no algorithm. See how it works:</p>
         <div className="mt-3 flex flex-wrap justify-center gap-2">
-          <a href="/what-is-wot" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-3.5 py-2 rounded-full bg-white border border-[#7c86ff]/30 text-xs font-semibold text-[#333286] hover:border-[#7c86ff]/60 transition-colors" data-testid="link-what-is-wot">What is a Web of Trust?</a>
-          <a href="/about" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-3.5 py-2 rounded-full bg-white border border-[#7c86ff]/30 text-xs font-semibold text-[#333286] hover:border-[#7c86ff]/60 transition-colors" data-testid="link-about">About Brainstorm</a>
+          <a href="/what-is-wot" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-3.5 py-2 rounded-full bg-white dark:bg-slate-900 border border-brand-accent/30 text-xs font-semibold text-brand-deep hover:border-brand-accent/60 transition-colors" data-testid="link-what-is-wot">What is a Web of Trust?</a>
+          <a href="/about" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-3.5 py-2 rounded-full bg-white dark:bg-slate-900 border border-brand-accent/30 text-xs font-semibold text-brand-deep hover:border-brand-accent/60 transition-colors" data-testid="link-about">About Brainstorm</a>
         </div>
         {!loggedIn && (
-          <Link href={`/login?invite=${npub}`} className="mt-4 inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold transition-colors" data-testid="share-get-started">
+          <Link href={`/login?invite=${npub}`} className="mt-4 inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold transition-colors" data-testid="share-get-started">
             Create your free account <ArrowRight className="h-4 w-4" />
           </Link>
         )}
@@ -1255,8 +1261,8 @@ export default function SharePage() {
 
       {/* Footer */}
       <div className="mt-6 mb-2 text-center">
-        <p className="text-xs text-slate-400">
-          Shared via <Link href="/" className="font-semibold text-[#333286] hover:underline">Brainstorm</Link> — trust, made visible.
+        <p className="text-xs text-slate-400 dark:text-slate-500">
+          Shared via <Link href="/" className="font-semibold text-brand-deep hover:underline">Brainstorm</Link> — trust, made visible.
         </p>
       </div>
 
@@ -1264,10 +1270,10 @@ export default function SharePage() {
       {!loggedIn && (
         <>
           <div className="h-20 sm:hidden" aria-hidden />
-          <div className="fixed bottom-0 inset-x-0 z-40 sm:hidden border-t border-slate-200 bg-white/95 backdrop-blur px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-2px_12px_rgba(0,0,0,0.06)]" data-testid="share-invite-sticky">
+          <div className="fixed bottom-[var(--bs-bottom-chrome,0px)] inset-x-0 z-40 sm:hidden border-t border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] shadow-[0_-2px_12px_rgba(0,0,0,0.06)]" data-testid="share-invite-sticky">
             <Link
               href={`/login?invite=${npub}&next=${encodeURIComponent(`/p/${npub}`)}`}
-              className="w-full inline-flex items-center justify-center gap-1.5 h-12 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold shadow-sm transition-colors"
+              className="w-full inline-flex items-center justify-center gap-1.5 h-12 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold shadow-sm transition-colors"
               data-testid="share-wot-cta-sticky"
             >
               Join free — connect with {displayName.split(" ")[0] || displayName} <ArrowRight className="h-4 w-4" />
@@ -1291,7 +1297,7 @@ export default function SharePage() {
         <button
           type="button"
           onClick={startCustomize}
-          className="fixed bottom-4 right-4 z-40 inline-flex items-center gap-1.5 rounded-full bg-[#6366f1] px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-[#4f46e5]"
+          className="fixed bottom-[calc(1rem+var(--bs-bottom-chrome,0px))] right-4 z-40 inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-brand-primary-hover"
           data-testid="customize-open"
         >
           <SlidersHorizontal className="h-4 w-4" /> Customize
@@ -1307,11 +1313,11 @@ export default function SharePage() {
 
 function ShareShell({ children, onShare }: { children: React.ReactNode; onShare?: () => void }) {
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans flex flex-col">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col">
       <PublicPageHeader
         maxWidthClass="max-w-4xl"
         actions={onShare ? (
-          <button type="button" onClick={onShare} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold transition-colors" data-testid="share-open-modal">
+          <button type="button" onClick={onShare} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold transition-colors" data-testid="share-open-modal">
             Share
           </button>
         ) : undefined}
@@ -1323,12 +1329,12 @@ function ShareShell({ children, onShare }: { children: React.ReactNode; onShare?
 
 function NotFoundCard({ rawId }: { rawId: string }) {
   return (
-    <div className="rounded-2xl bg-white border border-slate-200 shadow-sm p-8 text-center" data-testid="share-not-found">
-      <h1 className="text-xl font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Profile not found</h1>
-      <p className="mt-2 text-sm text-slate-500">
+    <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm p-8 text-center" data-testid="share-not-found">
+      <h1 className="text-xl font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Profile not found</h1>
+      <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
         "{rawId.slice(0, 24)}{rawId.length > 24 ? "…" : ""}" isn't a valid profile link. Share links look like <span className="font-mono">/p/npub1…</span>.
       </p>
-      <Link href="/" className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-[#3730a3] hover:underline">Go to Brainstorm <ArrowRight className="h-4 w-4" /></Link>
+      <Link href="/" className="mt-4 inline-flex items-center gap-1 text-sm font-semibold text-brand-link hover:underline">Go to Brainstorm <ArrowRight className="h-4 w-4" /></Link>
     </div>
   );
 }

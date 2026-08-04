@@ -16,11 +16,11 @@ export function WavlakeTrackCard({ url }: { url: string }) {
 
   if (loading || !track) {
     return (
-      <div className="mt-2 flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-2.5" data-testid="wavlake-loading">
-        <div className="h-12 w-12 shrink-0 animate-pulse rounded-lg bg-slate-100" />
+      <div className="mt-2 flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-2.5" data-testid="wavlake-loading">
+        <div className="h-12 w-12 shrink-0 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800" />
         <div className="min-w-0 flex-1 space-y-1.5">
-          <div className="h-3 w-1/3 animate-pulse rounded bg-slate-100" />
-          <div className="h-2.5 w-1/4 animate-pulse rounded bg-slate-100" />
+          <div className="h-3 w-1/3 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
+          <div className="h-2.5 w-1/4 animate-pulse rounded bg-slate-100 dark:bg-slate-800" />
         </div>
       </div>
     );

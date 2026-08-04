@@ -286,17 +286,19 @@ export async function unmuteUser(targetPubkey: string, cachedMuteList?: NostrEve
   }
 }
 
-export async function reportUser(targetPubkey: string, reason: string): Promise<{ success: boolean; error?: string }> {
+export async function reportUser(targetPubkey: string, reason: string, note?: string): Promise<{ success: boolean; error?: string }> {
   const user = getCurrentUser();
   if (!user?.pubkey) return { success: false, error: "Not logged in" };
   if (user.pubkey === targetPubkey) return { success: false, error: "Cannot report yourself" };
 
+  // NIP-56: the report `reason` is the machine-readable type on the p-tag; any
+  // free-text the reporter adds goes in `content`.
   const event: Record<string, unknown> = {
     kind: 1984,
     tags: [
       ["p", targetPubkey, reason],
     ],
-    content: "",
+    content: (note ?? "").trim(),
     created_at: Math.floor(Date.now() / 1000),
     pubkey: user.pubkey,
   };

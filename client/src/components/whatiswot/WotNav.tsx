@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import type { NostrUser } from '@/services/nostr';
-import { BrainLogo } from '@/components/BrainLogo';
+import { Wordmark } from '@/components/Wordmark';
 import { AppHeader } from '@/components/AppHeader';
 import { SignInButton } from '@/components/SignInButton';
 import { NormalModeIcon, TechModeIcon } from '@/components/WotIcons';
@@ -31,13 +31,13 @@ export function WotNav({ user, mode, setMode, onLogout, calcDone, setLocation }:
   }, []);
 
   const modeToggle = (
-    <div className="flex items-center gap-1 bg-slate-900/80 rounded-full p-1 border border-slate-800">
+    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-900/80 rounded-full p-1 border border-slate-200 dark:border-slate-800">
       <button
         onClick={() => setMode('normal')}
         className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5 ${
           mode === 'normal'
-            ? 'bg-indigo-600 text-white'
-            : 'text-slate-400 hover:text-white'
+            ? 'bg-brand-primary text-white'
+            : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
         }`}
         data-testid="toggle-normal"
       >
@@ -48,8 +48,8 @@ export function WotNav({ user, mode, setMode, onLogout, calcDone, setLocation }:
         onClick={() => setMode('power')}
         className={`px-4 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5 ${
           mode === 'power'
-            ? 'bg-indigo-600 text-white'
-            : 'text-slate-400 hover:text-white'
+            ? 'bg-brand-primary text-white'
+            : 'text-slate-500 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
         }`}
         data-testid="toggle-power"
       >
@@ -69,7 +69,7 @@ export function WotNav({ user, mode, setMode, onLogout, calcDone, setLocation }:
       />
       {/* Mobile-only row: on desktop the toggle lives inline in the header */}
       {!isDesktop && (
-        <div className="border-b border-slate-800/50 backdrop-blur-sm bg-slate-950/80">
+        <div className="border-b border-slate-200 dark:border-slate-800/50 backdrop-blur-sm bg-white/70 dark:bg-slate-950/80">
           <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3">
             <div className="flex items-center justify-center">
               {modeToggle}
@@ -79,28 +79,23 @@ export function WotNav({ user, mode, setMode, onLogout, calcDone, setLocation }:
       )}
     </>
   ) : (
-    <nav className="bg-slate-950/80 border-b border-slate-800/50 backdrop-blur-sm sticky top-0 z-50">
+    <nav className="sticky top-0 z-40 backdrop-blur-md" data-testid="nav-wot-signed-out">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
         <div className="flex items-center justify-between gap-3">
           <button
             type="button"
-            className="flex items-center gap-2 cursor-pointer min-w-0"
+            className="flex shrink-0 items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/[0.5]"
             onClick={() => setLocation('/')}
-            data-testid="button-app-brand"
+            aria-label="Brainstorm home"
+            data-testid="text-logo"
           >
-            <BrainLogo size={28} clickable className="text-indigo-500 shrink-0" />
-            <span
-              className="text-lg sm:text-xl font-bold tracking-tight text-white"
-              style={{ fontFamily: "var(--font-display)" }}
-              data-testid="text-logo"
-            >
-              Brainstorm
-            </span>
+            <Wordmark height={26} className="shrink-0 dark:hidden" />
+            <Wordmark height={26} variant="white" className="hidden shrink-0 dark:block" />
           </button>
           <div className="flex items-center gap-2 sm:gap-4">
             {/* Inline on desktop; mobile shows it on the row below */}
             {isDesktop && <div className="flex items-center">{modeToggle}</div>}
-            <SignInButton variant="ghost" data-testid="button-sign-in" />
+            <SignInButton variant="primary" label="Sign in" className="!rounded-full sm:px-5" data-testid="button-sign-in" />
           </div>
         </div>
         {/* Mobile-only row: on desktop the toggle lives inline above */}

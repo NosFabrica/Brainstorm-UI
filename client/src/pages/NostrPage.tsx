@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { SupportedClientsGrid } from "@/components/SupportedClientsGrid";
 import { useLocation } from "wouter";
 import {
   Plane,
@@ -13,6 +14,8 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
+import { Card } from "@/components/ui/card";
+import { tone as getTone } from "@/lib/tones";
 
 type Benefit = {
   icon: typeof Fingerprint;
@@ -81,6 +84,7 @@ const RESOURCES: { name: string; note: string; href: string }[] = [
 export default function NostrPage() {
   const [, navigate] = useLocation();
   const [showWeeds, setShowWeeds] = useState(false);
+  const accent = getTone("accent");
 
   return (
     <InfoPageLayout testId="page-nostr">
@@ -89,20 +93,20 @@ export default function NostrPage() {
           {/* Editorial hero */}
           <header className="max-w-3xl" data-testid="section-nostr-header">
             <div className="flex items-center gap-2.5 mb-5">
-              <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-[#7c86ff] uppercase">
+              <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-brand-accent uppercase">
                 Built on Nostr
               </span>
-              <div className="h-px w-12 bg-[#7c86ff]/40" />
+              <div className="h-px w-12 bg-brand-accent/40" />
             </div>
             <h1
-              className="text-4xl sm:text-5xl font-bold text-slate-900 tracking-tight leading-[1.08]"
+              className="text-4xl sm:text-5xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-[1.08]"
               style={{ fontFamily: "var(--font-display)" }}
               data-testid="text-nostr-title"
             >
-              Brainstorm runs on <span className="text-[#333286]">Nostr</span>.
+              Brainstorm runs on <span className="text-brand-link">Nostr</span>.
             </h1>
             <p
-              className="mt-5 text-lg text-slate-600 leading-relaxed max-w-2xl"
+              className="mt-5 text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl"
               data-testid="text-nostr-subtitle"
             >
               You don't need to know what that means to use Brainstorm. But if you're curious about the
@@ -112,29 +116,29 @@ export default function NostrPage() {
 
           {/* Plain-language intro */}
           <section
-            className="rounded-2xl border border-[#7c86ff]/25 bg-[#7c86ff]/[0.05] p-6 sm:p-10"
+            className="rounded-2xl border border-brand-accent/25 bg-brand-accent/[0.05] p-6 sm:p-10"
             data-testid="section-nostr-plain"
           >
             <div className="flex items-center gap-2.5 mb-5">
-              <div className="h-9 w-9 rounded-xl bg-white border border-[#7c86ff]/25 flex items-center justify-center shrink-0">
-                <Plane className="h-[18px] w-[18px] text-[#333286]" />
+              <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-brand-accent/25 flex items-center justify-center shrink-0">
+                <Plane className="h-[18px] w-[18px] text-brand-deep" />
               </div>
-              <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-[#7c86ff] uppercase">
+              <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-brand-accent uppercase">
                 The simple version
               </span>
             </div>
             <div className="space-y-4 max-w-2xl">
-              <p className="text-lg text-slate-700 leading-relaxed">
+              <p className="text-lg text-slate-700 dark:text-slate-200 leading-relaxed">
                 Think about your passport. It's yours, and it proves who you are at any border. You can fly
                 any airline to get where you're going — no single airline owns your identity or decides
                 whether you're allowed to travel.
               </p>
-              <p className="text-[15px] text-slate-600 leading-relaxed">
+              <p className="text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">
                 Nostr brings that same idea to the internet. On most platforms today, your profile, your posts,
                 and your followers live inside one company's app — and they're stuck there. With Nostr, they
                 belong to you, like a passport you carry from app to app — and everything comes along.
               </p>
-              <p className="text-[15px] text-slate-500 leading-relaxed">
+              <p className="text-[15px] text-slate-500 dark:text-slate-400 leading-relaxed">
                 That's really all you need to know to get started. Everything below is for the curious.
               </p>
             </div>
@@ -144,46 +148,46 @@ export default function NostrPage() {
           <section data-testid="section-nostr-benefits">
             <div className="flex items-center gap-2.5 mb-7">
               <h2
-                className="text-2xl font-bold text-slate-900 tracking-tight"
+                className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 What that means for you
               </h2>
-              <div className="h-px flex-1 bg-slate-100" />
+              <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
             </div>
             <div className="grid sm:grid-cols-3 gap-4">
               {BENEFITS.map((b) => {
                 const Icon = b.icon;
                 return (
-                  <div
+                  <Card
                     key={b.title}
-                    className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6 sm:p-7"
+                    className="p-6 sm:p-7"
                     data-testid={`card-benefit-${b.title.toLowerCase().replace(/[^a-z]+/g, "-").replace(/(^-|-$)/g, "")}`}
                   >
-                    <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center mb-4">
-                      <Icon className="h-5 w-5 text-[#333286]" />
+                    <div className={`h-10 w-10 rounded-xl ${accent.bg} border ${accent.border} flex items-center justify-center mb-4`}>
+                      <Icon className={`h-5 w-5 ${accent.icon}`} />
                     </div>
-                    <h3 className="text-base font-bold text-slate-900 tracking-tight mb-1.5">{b.title}</h3>
-                    <p className="text-[14px] text-slate-600 leading-relaxed">{b.body}</p>
-                  </div>
+                    <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight mb-1.5">{b.title}</h3>
+                    <p className="text-[14px] text-slate-600 dark:text-slate-300 leading-relaxed">{b.body}</p>
+                  </Card>
                 );
               })}
             </div>
           </section>
 
           {/* Get into the weeds — progressive depth */}
-          <section
-            className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6 sm:p-8"
+          <Card
+            className="p-6 sm:p-8"
             data-testid="section-nostr-weeds"
           >
             <div className="max-w-2xl">
               <h2
-                className="text-xl font-bold text-slate-900 tracking-tight"
+                className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 How it actually works
               </h2>
-              <p className="mt-2 text-[15px] text-slate-600 leading-relaxed">
+              <p className="mt-2 text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">
                 Most people never need this part. But if you like knowing what's under the hood, there are
                 really just three ideas to grasp.
               </p>
@@ -192,7 +196,7 @@ export default function NostrPage() {
             <button
               type="button"
               onClick={() => setShowWeeds((v) => !v)}
-              className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-[#333286] hover:text-[#7c86ff] transition-colors"
+              className="mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-deep hover:text-brand-accent transition-colors"
               data-testid="button-into-the-weeds"
               aria-expanded={showWeeds}
               aria-controls="nostr-weeds-panel"
@@ -204,7 +208,7 @@ export default function NostrPage() {
             {showWeeds && (
               <div
                 id="nostr-weeds-panel"
-                className="mt-6 divide-y divide-slate-100 rounded-xl border border-slate-200 overflow-hidden"
+                className="mt-6 divide-y divide-slate-100 dark:divide-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden"
                 data-testid="panel-nostr-weeds"
               >
                 {CONCEPTS.map((c) => {
@@ -212,30 +216,44 @@ export default function NostrPage() {
                   return (
                     <div
                       key={c.term}
-                      className="flex flex-col sm:flex-row gap-3 sm:gap-5 p-5 sm:p-6 bg-slate-50/60"
+                      className="flex flex-col sm:flex-row gap-3 sm:gap-5 p-5 sm:p-6 bg-slate-50/60 dark:bg-slate-900/60"
                       data-testid={`concept-${c.term.toLowerCase()}`}
                     >
                       <div className="flex items-center gap-3 sm:flex-col sm:items-start shrink-0 sm:w-28">
-                        <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center">
-                          <Icon className="h-5 w-5 text-[#333286]" />
+                        <div className={`h-10 w-10 rounded-xl ${accent.bg} border ${accent.border} flex items-center justify-center`}>
+                          <Icon className={`h-5 w-5 ${accent.icon}`} />
                         </div>
-                        <h3 className="text-base font-bold text-slate-900 tracking-tight sm:mt-2">{c.term}</h3>
+                        <h3 className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight sm:mt-2">{c.term}</h3>
                       </div>
-                      <p className="min-w-0 text-[14px] text-slate-600 leading-relaxed">{c.body}</p>
+                      <p className="min-w-0 text-[14px] text-slate-600 dark:text-slate-300 leading-relaxed">{c.body}</p>
                     </div>
                   );
                 })}
               </div>
             )}
+          </Card>
+
+          {/* Get an app — the practical next step after "what is Nostr". Brainstorm
+              is a trust + search layer, not a client, so pointing at real apps is
+              part of the answer rather than a competitor plug. Mirrors the
+              "Open in a Nostr app" picker used on share pages. */}
+          <section data-testid="section-nostr-apps">
+            <div className="flex items-center gap-2.5 mb-5">
+              <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-slate-400 dark:text-slate-500 uppercase">
+                Get a Nostr app
+              </span>
+              <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
+            </div>
+            <SupportedClientsGrid testIdPrefix="nostr-app" />
           </section>
 
           {/* Learn more — outbound resources */}
           <section data-testid="section-nostr-resources">
             <div className="flex items-center gap-2.5 mb-5">
-              <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-slate-400 uppercase">
+              <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-slate-400 dark:text-slate-500 uppercase">
                 Want to go further
               </span>
-              <div className="h-px flex-1 bg-slate-100" />
+              <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {RESOURCES.map((r) => (
@@ -244,14 +262,14 @@ export default function NostrPage() {
                   href={r.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3.5 hover:border-[#7c86ff]/40 hover:shadow-sm transition-all"
+                  className="group flex items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3.5 hover:border-brand-accent/40 hover:shadow-sm transition-all"
                   data-testid={`resource-${r.name.toLowerCase().replace(/[^a-z]+/g, "-").replace(/(^-|-$)/g, "")}`}
                 >
                   <div>
-                    <p className="text-sm font-bold text-slate-900">{r.name}</p>
-                    <p className="text-xs text-slate-500">{r.note}</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{r.name}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{r.note}</p>
                   </div>
-                  <ExternalLink className="h-4 w-4 text-slate-300 group-hover:text-[#7c86ff] shrink-0 transition-colors" />
+                  <ExternalLink className="h-4 w-4 text-slate-300 dark:text-slate-600 group-hover:text-brand-accent shrink-0 transition-colors" />
                 </a>
               ))}
             </div>
@@ -260,19 +278,19 @@ export default function NostrPage() {
           {/* Cross-link */}
           <button
             onClick={() => navigate("/how-search-works")}
-            className="group w-full text-left rounded-2xl border border-slate-200 bg-white hover:border-[#7c86ff]/40 hover:shadow-sm transition-all p-6 flex items-center justify-between gap-4"
+            className="group w-full text-left rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-brand-accent/40 hover:shadow-sm transition-all p-6 flex items-center justify-between gap-4"
             data-testid="link-to-how-search-works"
           >
             <div>
-              <p className="text-[11px] font-mono font-semibold tracking-[0.2em] text-[#7c86ff] uppercase mb-1.5">
+              <p className="text-[11px] font-mono font-semibold tracking-[0.2em] text-brand-accent uppercase mb-1.5">
                 Keep reading
               </p>
-              <p className="text-base font-semibold text-slate-900">
+              <p className="text-base font-semibold text-slate-900 dark:text-slate-100">
                 Curious how Brainstorm turns all this into trustworthy search?
               </p>
-              <p className="text-sm text-slate-500 mt-0.5">See How Search Works</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">See How Search Works</p>
             </div>
-            <ArrowRight className="h-5 w-5 text-[#7c86ff] shrink-0 group-hover:translate-x-1 transition-transform" />
+            <ArrowRight className="h-5 w-5 text-brand-accent shrink-0 group-hover:translate-x-1 transition-transform" />
           </button>
         </div>
       </div>

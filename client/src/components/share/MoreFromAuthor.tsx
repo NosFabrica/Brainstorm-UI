@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchEventsByFilter, fetchProfileMap, PROFILE_RELAYS } from "@/services/nostr";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { eventPath } from "@/lib/shareId";
-import { mentionPubkeysFromContent, type MinimalEvent } from "@/lib/noteRefs";
+import { collectRefs, type MinimalEvent } from "@/lib/noteRefs";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -56,11 +56,11 @@ export function MoreFromAuthor({
     return pick.sort((a, b) => b.created_at - a.created_at).slice(0, 4);
   }, [q.data, excludeId]);
 
-  // Resolve any @-mentioned pubkeys in these notes so they render as names, not
-  // raw npubs (the author themselves is already in the map below).
+  // Resolve every referenced pubkey (@-mentions AND reply targets) so notes
+  // render mentions as names and the "Replying to @…" line resolves too — not
+  // raw npubs. The author themselves is already in the map below.
   const mentionPks = useMemo(() => {
-    const set = new Set<string>();
-    for (const n of notes) mentionPubkeysFromContent(n.content || "").forEach((pk) => set.add(pk));
+    const set = new Set<string>(collectRefs(notes).pubkeys);
     set.delete(pubkey);
     return Array.from(set);
   }, [notes, pubkey]);
@@ -84,10 +84,10 @@ export function MoreFromAuthor({
 
   return (
     <section className="mt-8" data-testid="more-from-author">
-      <h2 className="text-sm font-bold text-slate-900 mb-3">More from {authorName}</h2>
+      <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 mb-3">More from {authorName}</h2>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
         {notes.map((n) => (
-          <EmbeddedNoteCard key={n.id} event={n} author={author} profiles={profiles} href={eventPath(n, relayHints)} />
+          <EmbeddedNoteCard key={n.id} event={n} author={author} profiles={profiles} href={eventPath(n, relayHints)} showReplyContext />
         ))}
       </div>
     </section>

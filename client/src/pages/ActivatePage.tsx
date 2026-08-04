@@ -75,17 +75,17 @@ export default function ActivatePage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-      <header className="border-b border-slate-200 bg-white/80 backdrop-blur">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 dark:from-slate-950 to-white dark:to-slate-900">
+      <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
         <div className="mx-auto max-w-xl flex items-center justify-between px-4 sm:px-6 h-14">
           <div className="flex items-center gap-2">
-            <BrainLogo size={26} className="text-indigo-500" />
-            <span className="text-lg font-bold text-indigo-500 font-brand">Brainstorm</span>
+            <BrainLogo size={26} className="text-brand-primary" />
+            <span className="text-lg font-bold text-brand-primary font-brand">Brainstorm</span>
           </div>
           <button
             type="button"
             onClick={() => { markSeen(); navigate("/", { replace: true }); }}
-            className="text-sm font-semibold text-slate-400 hover:text-slate-600"
+            className="text-sm font-semibold text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
             data-testid="activate-skip"
           >
             Skip — just let me search
@@ -96,31 +96,31 @@ export default function ActivatePage() {
       <main className="mx-auto max-w-xl px-4 sm:px-6 py-8 sm:py-12">
         {/* Editorial header */}
         <div className="flex items-center gap-2.5 mb-5">
-          <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-[#7c86ff] uppercase">Welcome to Brainstorm</span>
-          <div className="h-px w-12 bg-[#7c86ff]/40" />
+          <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-brand-accent uppercase">Welcome to Brainstorm</span>
+          <div className="h-px w-12 bg-brand-accent/40" />
         </div>
-        <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight leading-[1.08]" style={{ fontFamily: "var(--font-display)" }}>
-          Your network's already here. <span className="text-[#333286]">Let's score it.</span>
+        <h1 className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-[1.08]" style={{ fontFamily: "var(--font-display)" }}>
+          Your network's already here. <span className="text-brand-link">Let's score it.</span>
         </h1>
-        <p className="mt-4 text-lg text-slate-600 leading-relaxed">
+        <p className="mt-4 text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
           Brainstorm reads the people you already follow and scores how trusted they are — so you can
           search by trust, explore your network, and see who's actually real.
         </p>
 
         {/* Identity recap */}
-        <div className="mt-6 flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="activate-identity">
-          <Avatar className="h-12 w-12 rounded-full bg-white border border-slate-200">
+        <div className="mt-6 flex items-center gap-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm" data-testid="activate-identity">
+          <Avatar className="h-12 w-12 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
             {picture ? <AvatarImage src={picture} alt={name} className="object-cover" /> : null}
-            <AvatarFallback className="rounded-full bg-indigo-100 text-indigo-700 font-bold">{initialsFor(name)}</AvatarFallback>
+            <AvatarFallback className="rounded-full bg-brand-primary/15 text-brand-primary font-bold">{initialsFor(name)}</AvatarFallback>
           </Avatar>
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
-              <span className="text-base font-bold text-slate-900 truncate">{name}</span>
+              <span className="text-base font-bold text-slate-900 dark:text-slate-100 truncate">{name}</span>
               {prof?.nip05 && <BadgeCheck className="h-4 w-4 text-sky-500 shrink-0" />}
             </div>
-            <p className="text-sm text-slate-500">
-              <span className="font-semibold text-slate-700">{followingCount}</span> following
-              {followersCount ? <> · <span className="font-semibold text-slate-700">{followersCount}</span> followers</> : null}
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              <span className="font-semibold text-slate-700 dark:text-slate-200">{followingCount}</span> following
+              {followersCount ? <> · <span className="font-semibold text-slate-700 dark:text-slate-200">{followersCount}</span> followers</> : null}
             </p>
           </div>
           <span className="ml-auto text-[11px] font-bold uppercase tracking-wide text-emerald-600 bg-emerald-50 border border-emerald-100 rounded-full px-2.5 py-1 shrink-0">Found you</span>
@@ -129,9 +129,9 @@ export default function ActivatePage() {
         {/* What you unlock */}
         <div className="mt-4 grid grid-cols-3 gap-2">
           {VALUE.map((v) => (
-            <div key={v.label} className="flex flex-col items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2 py-3 text-center">
-              <span className="h-8 w-8 rounded-lg bg-[#7c86ff]/10 border border-[#7c86ff]/20 text-[#333286] flex items-center justify-center">{v.icon}</span>
-              <span className="text-[11px] font-semibold text-slate-600 leading-tight">{v.label}</span>
+            <div key={v.label} className="flex flex-col items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 py-3 text-center">
+              <span className="h-8 w-8 rounded-lg bg-brand-accent/10 border border-brand-accent/20 text-brand-deep flex items-center justify-center">{v.icon}</span>
+              <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 leading-tight">{v.label}</span>
             </div>
           ))}
         </div>
@@ -141,12 +141,12 @@ export default function ActivatePage() {
           type="button"
           onClick={calc}
           disabled={!pubkey}
-          className="mt-6 w-full h-12 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] disabled:opacity-50 text-white font-semibold text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
+          className="mt-6 w-full h-12 rounded-xl bg-brand-primary hover:bg-brand-primary-hover disabled:opacity-50 text-white font-semibold text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
           data-testid="activate-calculate"
         >
           Calculate my Web of Trust <ArrowRight className="h-4 w-4" />
         </button>
-        <p className="mt-2 text-center text-xs text-slate-400">
+        <p className="mt-2 text-center text-xs text-slate-400 dark:text-slate-500">
           We read your existing follows — nothing to set up. This can take a few minutes; you can search while it runs.
         </p>
       </main>

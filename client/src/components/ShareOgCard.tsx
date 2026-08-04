@@ -1,5 +1,4 @@
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { BrainLogo } from "@/components/BrainLogo";
 import { BadgeCheck } from "lucide-react";
 import { initialsFor } from "@/lib/profileDefaults";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
@@ -29,18 +28,15 @@ export function ShareOgCard({
 
   return (
     <div
-      className="relative w-full aspect-[1200/630] rounded-xl overflow-hidden bg-white border border-[#7c86ff]/20"
+      className="relative w-full aspect-[1200/630] rounded-xl overflow-hidden bg-white border border-brand-accent/20"
       style={{ containerType: "inline-size" }}
     >
       {/* Clean surface — a faint brand wash in one corner, no decorative shapes. */}
-      <div className="absolute inset-0 bg-gradient-to-br from-white via-white to-[#7c86ff]/[0.08]" />
+      <div className="absolute inset-0 bg-gradient-to-br from-white via-white to-brand-accent/[0.08]" />
       <div className="relative h-full w-full flex flex-col justify-between p-[5%]">
         {/* Eyebrow: wordmark + context label */}
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <BrainLogo size={22} className="text-indigo-500" />
-            <span className="text-[3.2cqw] font-bold tracking-tight text-indigo-500 font-brand">Brainstorm</span>
-          </div>
+          <img src="/brand/wordmark.svg" alt="Brainstorm" draggable={false} className="h-[5cqw] w-auto select-none" />
           <span className="text-[2.4cqw] font-bold uppercase tracking-[0.18em] text-slate-400">Web of Trust</span>
         </div>
 
@@ -48,14 +44,14 @@ export function ShareOgCard({
         <div className="flex items-center gap-[4%]">
           <Avatar className="h-[26cqw] w-[26cqw] rounded-2xl border-2 border-white shadow-lg bg-white">
             {picture ? <AvatarImage src={picture} alt={displayName} className="object-cover" /> : null}
-            <AvatarFallback className="rounded-2xl bg-indigo-100 text-indigo-700 font-bold text-[8cqw]" style={{ fontFamily: "var(--font-display)" }}>
+            <AvatarFallback className="rounded-2xl bg-brand-primary/15 text-brand-primary font-bold text-[8cqw]" style={{ fontFamily: "var(--font-display)" }}>
               {initialsFor(displayName)}
             </AvatarFallback>
           </Avatar>
           <div className="min-w-0">
             <div className="text-[6.5cqw] font-bold leading-tight truncate text-slate-900" style={{ fontFamily: "var(--font-display)" }}>{displayName}</div>
             {nip05 && (
-              <div className="flex items-center gap-1 text-[3.4cqw] text-[#3730a3] font-medium mt-[0.6cqw]">
+              <div className="flex items-center gap-1 text-[3.4cqw] text-brand-link font-medium mt-[0.6cqw]">
                 <BadgeCheck className="h-[3.4cqw] w-[3.4cqw]" /> {nip05.replace(/^_@/, "")}
               </div>
             )}

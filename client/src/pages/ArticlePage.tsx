@@ -1,9 +1,11 @@
 import { useMemo, useState } from "react";
 import { useRoute, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import ReactMarkdown from "react-markdown";
+import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
+import { VideoEmbed, videoEmbedFor } from "@/components/share/VideoEmbed";
+import { LinkChip } from "@/components/share/LinkPreview";
 import { nip19 } from "nostr-tools";
 import { ArrowLeft, ArrowRight, BadgeCheck, Smartphone, Loader2, FileText } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -17,8 +19,37 @@ import { useShareMeta } from "@/hooks/useShareMeta";
 import { EventThread } from "@/components/share/EventThread";
 import { OpenInApp } from "@/components/share/OpenInApp";
 import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
+import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { BrainLogo } from "@/components/BrainLogo";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
+
+const IMG_RE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?.*)?$/i;
+const VID_RE = /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i;
+
+/**
+ * Custom Markdown renderers so a long-form body reads like a top-tier client,
+ * not a wall of raw links: a hosted-video URL becomes an inline player, a bare
+ * media URL becomes an inline image / <video>, any other bare URL becomes a
+ * tidy favicon chip, and a genuinely-labelled link keeps its text but styled.
+ * (Full og-image/title/description previews for arbitrary links await the
+ * /api/unfurl proxy — see LinkPreview.tsx.)
+ */
+const mdComponents: Components = {
+  a({ href, children }) {
+    const url = typeof href === "string" ? href : "";
+    const text = Array.isArray(children) ? children.map((c) => (typeof c === "string" ? c : "")).join("") : String(children ?? "");
+    const bare = !!url && text.trim() === url.trim(); // an autolinked bare URL, not [label](url)
+    if (url && videoEmbedFor(url)) return <VideoEmbed url={url} />;
+    if (url && bare && VID_RE.test(url)) {
+      return <video src={url} controls playsInline preload="metadata" className="my-3 block w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-900" />;
+    }
+    if (url && bare && IMG_RE.test(url)) {
+      return <img src={url} alt="" loading="lazy" className="my-3 block max-h-[34rem] w-full rounded-xl border border-slate-200 dark:border-slate-800 object-contain" />;
+    }
+    if (url && bare) return <LinkChip url={url} />;
+    return <a href={url || undefined} target="_blank" rel="noopener noreferrer" className="font-medium text-brand-link underline decoration-brand-link/40 underline-offset-2 hover:decoration-brand-link">{children}</a>;
+  },
+};
 
 type AddressPointer = { kind: number; pubkey: string; identifier: string; relays?: string[] };
 
@@ -108,11 +139,11 @@ export default function ArticlePage() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 dark:from-slate-950 to-white dark:to-slate-900">
       <PublicPageHeader
         maxWidthClass="max-w-3xl"
         actions={authorNpub ? (
-          <Link href={`/p/${authorNpub}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#3730a3] hover:underline">
+          <Link href={`/p/${authorNpub}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-link hover:underline">
             <ArrowLeft className="h-4 w-4" /> Profile
           </Link>
         ) : undefined}
@@ -121,59 +152,62 @@ export default function ArticlePage() {
       <main className="mx-auto max-w-3xl px-4 sm:px-6 py-6 sm:py-10">
         {!ptr ? (
           <div className="text-center py-20">
-            <FileText className="h-10 w-10 text-slate-300 mx-auto" />
-            <p className="mt-3 text-slate-600 font-medium">That article link isn’t valid.</p>
-            <Link href="/" className="mt-3 inline-block text-sm font-semibold text-[#3730a3] hover:underline">Go to Brainstorm →</Link>
+            <FileText className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto" />
+            <p className="mt-3 text-slate-600 dark:text-slate-300 font-medium">That article link isn’t valid.</p>
+            <Link href="/" className="mt-3 inline-block text-sm font-semibold text-brand-link hover:underline">Go to Brainstorm →</Link>
           </div>
         ) : articleQuery.isLoading ? (
-          <div className="flex items-center justify-center py-24 text-slate-400">
+          <div className="flex items-center justify-center py-24 text-slate-400 dark:text-slate-500">
             <Loader2 className="h-6 w-6 animate-spin" />
           </div>
         ) : !ev ? (
           <div className="text-center py-20">
-            <FileText className="h-10 w-10 text-slate-300 mx-auto" />
-            <p className="mt-3 text-slate-600 font-medium">We couldn’t find this article on the relays.</p>
+            <FileText className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto" />
+            <p className="mt-3 text-slate-600 dark:text-slate-300 font-medium">We couldn’t find this article on the relays.</p>
             <button
               type="button"
               onClick={() => openArticleInApp(naddr)}
-              className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] px-4 py-2 text-sm font-semibold text-white"
+              className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover px-4 py-2 text-sm font-semibold text-white"
             >
               <Smartphone className="h-4 w-4" /> Try opening in an app
             </button>
           </div>
         ) : (
+          <ShareNavProvider>
           <article>
             {image && (
-              <img src={image} alt="" className="w-full max-h-80 object-cover rounded-2xl border border-slate-200" />
+              <img src={image} alt="" className="w-full max-h-80 object-cover rounded-2xl border border-slate-200 dark:border-slate-800" />
             )}
-            <h1 className="mt-5 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900" style={{ fontFamily: "var(--font-display)" }}>
+            <h1 className="mt-5 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
               {title}
             </h1>
-            {summary && <p className="mt-2 text-lg text-slate-500 leading-snug">{summary}</p>}
+            {summary && <p className="mt-2 text-lg text-slate-500 dark:text-slate-400 leading-snug">{summary}</p>}
 
             {/* Author + trust + date */}
-            <div className="mt-4 flex items-center gap-3 border-b border-slate-100 pb-5">
+            <div className="mt-4 flex items-center gap-3 border-b border-slate-100 dark:border-slate-800/60 pb-5">
               <Link href={authorNpub ? `/p/${authorNpub}` : "#"} className="flex items-center gap-2.5 min-w-0 hover:opacity-80">
-                <Avatar className="h-10 w-10 rounded-full bg-white border border-slate-200">
-                  {profile.picture ? <AvatarImage src={profile.picture} alt={authorName} className="object-cover" /> : null}
-                  <AvatarFallback className="rounded-full bg-indigo-100 text-indigo-700 text-sm font-bold">{initialsFor(authorName)}</AvatarFallback>
-                </Avatar>
+                <span className="relative shrink-0">
+                  <Avatar className="h-11 w-11 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                    {profile.picture ? <AvatarImage src={profile.picture} alt={authorName} className="object-cover" /> : null}
+                    <AvatarFallback className="rounded-full bg-brand-primary/15 text-brand-primary text-sm font-bold">{initialsFor(authorName)}</AvatarFallback>
+                  </Avatar>
+                  {typeof score01 === "number" && Number.isFinite(score01) && (
+                    <VerificationCoin score01={score01} pov="global" size={20} className="absolute -bottom-1 -right-1 ring-2 ring-white dark:ring-slate-900 rounded-full" />
+                  )}
+                </span>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-bold text-slate-900 truncate">{authorName}</span>
+                    <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{authorName}</span>
                     {profile.nip05 && <BadgeCheck className="h-4 w-4 text-sky-500 shrink-0" />}
                   </div>
-                  <span className="text-xs text-slate-400">{publishedAgo(ev)}</span>
+                  <span className="text-xs text-slate-400 dark:text-slate-500">{publishedAgo(ev)}</span>
                 </div>
               </Link>
-              {typeof score01 === "number" && Number.isFinite(score01) && (
-                <VerificationCoin score01={score01} pov="global" size={24} className="ml-auto" />
-              )}
             </div>
 
             {/* Full article body — Brainstorm is the reading destination. */}
-            <div className="mt-6 prose prose-slate max-w-none prose-headings:font-bold prose-a:text-[#3730a3] prose-img:rounded-xl" data-testid="article-body">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]}>
+            <div className="mt-6 prose prose-slate dark:prose-invert max-w-none prose-headings:font-bold prose-a:text-brand-link prose-img:rounded-xl" data-testid="article-body">
+              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={mdComponents}>
                 {ev.content || ""}
               </ReactMarkdown>
             </div>
@@ -186,24 +220,26 @@ export default function ArticlePage() {
             {/* More from this author — keep readers inside Brainstorm. */}
             {ptr?.pubkey && <MoreFromAuthor pubkey={ptr.pubkey} authorName={authorName} author={profile} relayHints={ptr?.relays ?? []} excludeId={ev?.id} />}
 
-            {/* WoT signup funnel — hidden when the thread's own signup gate is showing. */}
-            {!threadGated && (
-            <div className="mt-6 rounded-2xl border border-[#7c86ff]/25 bg-gradient-to-br from-[#333286]/[0.04] to-[#7c86ff]/[0.06] p-5 text-center" data-testid="article-funnel">
-              <p className="text-base font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Who can you trust online?</p>
-              <p className="mt-1 text-sm text-slate-600 max-w-md mx-auto">
-                Brainstorm scores reputation from real human connections — no algorithm. See <span className="font-bold text-slate-900">{firstName}</span> and everyone else through your own Web of Trust.
+            {/* WoT signup funnel — hidden when the thread's own signup gate is
+                showing, and hidden from SIGNED-IN users (it sells them what they
+                already have). */}
+            {!threadGated && !loggedIn && (
+            <div className="mt-6 rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] p-5 text-center" data-testid="article-funnel">
+              <p className="text-base font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Who can you trust online?</p>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 max-w-md mx-auto">
+                Brainstorm scores reputation from real human connections — no algorithm. See <span className="font-bold text-slate-900 dark:text-slate-100">{firstName}</span> and everyone else through your own Web of Trust.
               </p>
               <Link
                 href={loggedIn ? (authorNpub ? `/p/${authorNpub}?pov=mywot` : "/") : funnelLoginHref}
-                className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] px-5 py-2.5 text-sm font-semibold text-white transition-colors"
+                className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover px-5 py-2.5 text-sm font-semibold text-white transition-colors"
                 data-testid="article-cta"
               >
                 {loggedIn ? "See it through your Web of Trust" : "Create your free account"} <ArrowRight className="h-4 w-4" />
               </Link>
-              {!loggedIn && <p className="mt-2 text-[11px] text-slate-400">Free, takes a minute — no email required</p>}
+              {!loggedIn && <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">Free, takes a minute — no email required</p>}
               {!loggedIn && (
-                <p className="mt-2 text-xs text-slate-500">
-                  Already part of the network? <Link href={funnelLoginHref} className="font-semibold text-[#3730a3] hover:underline" data-testid="article-funnel-signin">Sign in →</Link>
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
+                  Already part of the network? <Link href={funnelLoginHref} className="font-semibold text-brand-link hover:underline" data-testid="article-funnel-signin">Sign in →</Link>
                 </p>
               )}
             </div>
@@ -212,11 +248,12 @@ export default function ArticlePage() {
             {/* Secondary escape hatch — open in a Nostr client to read/zap. */}
             <OpenInApp entity={{ kind: "article", bech32: naddr, uri: `nostr:${naddr}` }} className="mt-6" />
           </article>
+          </ShareNavProvider>
         )}
 
         <div className="mt-10 text-center">
-          <p className="text-xs text-slate-400">
-            Read on <Link href="/" className="font-semibold text-[#333286] hover:underline">Brainstorm</Link> — trust, made visible.
+          <p className="text-xs text-slate-400 dark:text-slate-500">
+            Read on <Link href="/" className="font-semibold text-brand-deep hover:underline">Brainstorm</Link> — trust, made visible.
           </p>
         </div>
       </main>

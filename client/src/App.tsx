@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 import { Switch, Route, Redirect, useLocation } from "wouter";
 import { stopAllMedia } from "@/lib/audioPlayer";
 import { queryClient } from "./lib/queryClient";
@@ -12,6 +12,9 @@ import { AutoPublishAssistant } from "@/components/AutoPublishAssistant";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
 import DashboardPage from "@/pages/DashboardPage";
+import AlertsPage from "@/pages/AlertsPage";
+import ReadingPage from "@/pages/ReadingPage";
+import InsightsPage from "@/pages/InsightsPage";
 import SettingsPage from "@/pages/SettingsPage";
 import WhatIsWotPage from "@/pages/WhatIsWotPage";
 import OnboardingPage from "@/pages/OnboardingPage";
@@ -24,6 +27,7 @@ import ArticlePage from "@/pages/ArticlePage";
 import EventPage from "@/pages/EventPage";
 import WelcomePage from "@/pages/WelcomePage";
 import OnboardingWizard from "@/pages/OnboardingWizard";
+import HeroLab from "@/pages/HeroLab";
 import ActivatePage from "@/pages/ActivatePage";
 import { ScoringStatusBar } from "@/components/ScoringStatusBar";
 import FaqPage from "@/pages/FaqPage";
@@ -43,15 +47,52 @@ import UserPanelPage from "@/pages/UserPanelPage";
 import LoginPage from "@/pages/LoginPage";
 import { FEATURES } from "@/config/featureFlags";
 import { PovAutoDefault } from "@/components/PovBadge";
-import { MobileMenuHost } from "@/components/MobileMenuHost";
+import { MobileTabBar } from "@/components/MobileTabBar";
+import { CommandPalette } from "@/components/CommandPalette";
+import { MobileSearchOverlay } from "@/components/MobileSearchOverlay";
 import { getCurrentUser, ensureUnlocked } from "@/services/nostr";
 import type { ComponentType } from "react";
 
+/**
+ * Land every route change at the top of the page.
+ *
+ * A plain `useEffect` + `window.scrollTo(0, 0)` looked right but lost three races,
+ * which is why pages were still opening part-scrolled:
+ *
+ *  1. The browser's own scroll restoration (`history.scrollRestoration` defaults
+ *     to "auto") re-applies the previous offset, sometimes AFTER our effect ran.
+ *     Setting it to "manual" stops the browser competing with us.
+ *  2. These pages fetch their content, so at effect time the document is still
+ *     short — scrolling to 0 is a no-op — and then content arrives, the page grows
+ *     and the old offset is back. A post-paint rAF pass catches that.
+ *  3. Depending on the surface, the scroller is `window`, `documentElement` or
+ *     `body` (notably in an iOS standalone PWA), so reset all three.
+ */
 function ScrollToTop() {
   const [location] = useLocation();
+
   useEffect(() => {
-    window.scrollTo(0, 0);
+    try {
+      if ("scrollRestoration" in window.history) window.history.scrollRestoration = "manual";
+    } catch { /* ignore */ }
+  }, []);
+
+  useLayoutEffect(() => {
+    const toTop = () => {
+      try {
+        window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
+      } catch {
+        window.scrollTo(0, 0);
+      }
+      if (document.documentElement) document.documentElement.scrollTop = 0;
+      if (document.body) document.body.scrollTop = 0;
+    };
+    toTop();
+    // Again after paint, so late-arriving content can't restore the old offset.
+    const raf = requestAnimationFrame(toTop);
+    return () => cancelAnimationFrame(raf);
   }, [location]);
+
   return null;
 }
 
@@ -89,7 +130,11 @@ function RequireAuth({ component: Component }: { component: ComponentType }) {
       location && location.startsWith("/") && location !== "/login"
         ? `?next=${encodeURIComponent(location)}`
         : "";
-    return <Redirect to={`/login${next}`} />;
+    // `replace`, not push: pushing leaves the gated URL in history, so pressing
+    // Back returns to it, RequireAuth fires again and shoves you forward to
+    // /login — a trap you can't reverse out of. Replacing means Back skips
+    // straight past to wherever you actually came from.
+    return <Redirect to={`/login${next}`} replace />;
   }
   return <Component />;
 }
@@ -104,6 +149,9 @@ function Router() {
         <Route path="/login" component={LoginPage} />
         <Route path="/onboarding">{() => <RequireAuth component={OnboardingPage} />}</Route>
         <Route path="/dashboard">{() => <RequireAuth component={DashboardPage} />}</Route>
+        <Route path="/alerts">{() => <RequireAuth component={AlertsPage} />}</Route>
+        <Route path="/reading">{() => <RequireAuth component={ReadingPage} />}</Route>
+        <Route path="/insights">{() => <RequireAuth component={InsightsPage} />}</Route>
         <Route path="/search" component={SearchRedirect} />
         {/* Advanced/analytics profile — members only; /p/:id is the public profile. */}
         <Route path="/profile/:npub">{() => <RequireAuth component={ProfilePage} />}</Route>
@@ -113,6 +161,7 @@ function Router() {
         <Route path="/a/:id" component={ArticlePage} />
       <Route path="/e/:id" component={EventPage} />
         <Route path="/t/:tag" component={HashtagPage} />
+        <Route path="/hero-lab" component={HeroLab} />
         <Route path="/welcome" component={WelcomePage} />
         <Route path="/setup">{() => <RequireAuth component={OnboardingWizard} />}</Route>
         <Route path="/activate" component={ActivatePage} />
@@ -152,7 +201,9 @@ function App() {
       <TooltipProvider delayDuration={300} skipDelayDuration={100}>
         <Toaster />
         <PovAutoDefault />
-        <MobileMenuHost />
+        <MobileTabBar />
+        <CommandPalette />
+        <MobileSearchOverlay />
         <ScoringStatusBar />
         <AutoScoreReturning />
         <AutoActivateBrainstorm />

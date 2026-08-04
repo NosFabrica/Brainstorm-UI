@@ -2,7 +2,7 @@ import { useState, useEffect, type ReactNode } from "react";
 import { useLocation } from "wouter";
 import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
 import { isAuthRedirecting } from "@/services/api";
-import { BrainLogo } from "@/components/BrainLogo";
+import { Wordmark } from "@/components/Wordmark";
 import { SignInButton } from "@/components/SignInButton";
 import { AppHeader } from "@/components/AppHeader";
 import { type AppKey } from "@/components/AppsLauncher";
@@ -37,7 +37,7 @@ export function InfoPageLayout({ children, testId, active }: InfoPageLayoutProps
 
   return (
     <div
-      className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden"
+      className="min-h-screen bg-[#F8FAFC] dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-primary/[0.3] flex flex-col relative overflow-hidden"
       data-testid={testId}
     >
       <PageBackground />
@@ -45,16 +45,22 @@ export function InfoPageLayout({ children, testId, active }: InfoPageLayoutProps
       {user ? (
         <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active={active} />
       ) : (
-        <nav className="bg-slate-950 border-b border-white/10 sticky top-0 z-50">
+        <nav className="sticky top-0 z-40 backdrop-blur-md" data-testid="nav-info-signed-out">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 cursor-pointer" onClick={() => navigate("/")}>
-                <BrainLogo size={28} clickable className="text-indigo-500" />
-                <h1 className="text-lg sm:text-xl font-bold tracking-tight text-white" style={{ fontFamily: "var(--font-display)" }} data-testid="text-logo">
-                  Brainstorm
-                </h1>
-              </div>
-              <SignInButton variant="ghost" data-testid="button-sign-in" />
+              {/* Handwritten wordmark — gradient on light, white on dark; matches
+                  the signed-in AppHeader on these same app-chrome pages. */}
+              <button
+                type="button"
+                className="flex shrink-0 items-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
+                onClick={() => navigate("/")}
+                aria-label="Brainstorm home"
+                data-testid="text-logo"
+              >
+                <Wordmark height={26} className="shrink-0 dark:hidden" />
+                <Wordmark height={26} variant="white" className="hidden shrink-0 dark:block" />
+              </button>
+              <SignInButton variant="primary" label="Sign in" className="!rounded-full sm:px-5" data-testid="button-sign-in" />
             </div>
           </div>
         </nav>

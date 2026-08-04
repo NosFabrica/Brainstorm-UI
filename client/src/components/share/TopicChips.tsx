@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { useShareNav } from "@/components/share/ShareNavContext";
 
-const CHIP_CLS = "shrink-0 whitespace-nowrap rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-semibold text-[#3730a3]";
+const CHIP_CLS = "shrink-0 whitespace-nowrap rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 text-xs font-semibold text-brand-link";
 const GAP_PX = 6; // gap-1.5
 
 /**
@@ -41,7 +41,7 @@ export function TopicChips({ topics }: { topics: string[] }) {
 
   return (
     <div className="mt-2.5 flex items-center gap-1.5 overflow-hidden" data-testid="share-topics">
-      <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Posts about</span>
+      <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Posts about</span>
       <div ref={areaRef} className="relative min-w-0 flex-1">
         {/* Invisible full-width copy used only to measure how many chips fit. */}
         <div ref={ghostRef} aria-hidden className="pointer-events-none invisible absolute left-0 top-0 flex flex-nowrap items-center gap-1.5">
@@ -55,7 +55,7 @@ export function TopicChips({ topics }: { topics: string[] }) {
               key={t}
               type="button"
               onClick={() => requestNav({ kind: "hashtag", target: `#${t}`, label: `#${t}` })}
-              className={`${CHIP_CLS} transition-colors hover:bg-slate-200`}
+              className={`${CHIP_CLS} transition-colors hover:bg-slate-200 dark:hover:bg-slate-700`}
               data-testid="share-topic-chip"
             >
               #{t}

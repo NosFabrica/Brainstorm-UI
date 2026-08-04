@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { copyToClipboard } from "@/lib/clipboard";
 import { AppHeader } from "@/components/AppHeader";
+import { CalculatingNotice } from "@/components/CalculatingNotice";
 import { GlossBackground } from "@/components/GlossBackground";
 import { PageHeader } from "@/components/PageHeader";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
@@ -1096,38 +1097,54 @@ export default function NetworkPage() {
 
   if (!calcDone && !grapeRankLoading) {
     return (
+      // Same page shell tokens as the real view below. The old gate hardcoded
+      // bg-slate-950 + text-white with NO light variant, so a light-mode user got a
+      // black full-screen page. It also returned before the header rendered, which
+      // left "Back to Dashboard" as the only way out — and the dashboard is itself
+      // a waiting screen, so a new user just bounced between two of them.
       <div
-        className="min-h-screen bg-slate-950 flex flex-col items-center justify-center px-4"
+        className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col"
         data-testid="page-network-gate"
       >
-        <div className="max-w-md w-full text-center">
-          <div className="mb-6 flex justify-center">
-            <BrainLogo size={64} className="text-indigo-400 animate-pulse" />
-          </div>
-          <h1
-            className="text-2xl font-bold text-white mb-3"
-            data-testid="text-network-gate-title"
-          >
-            Your network is being calculated
+        <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="network" />
+        {/* Top-aligned on a phone (where the viewport is mostly filled anyway), but
+            vertically centred from sm: up — on a tall desktop window a short block
+            pinned to the top left the page looking truncated rather than composed.
+            pb-24 offsets the optical weight of the header so it centres on the eye,
+            not the box. */}
+        <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-start px-4 py-10 sm:justify-center sm:px-6 sm:pb-24">
+          <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl" style={{ fontFamily: "var(--font-display)" }} data-testid="text-network-gate-title">
+            Your network is being mapped
           </h1>
-          <p
-            className="text-slate-400 mb-8 text-sm leading-relaxed"
-            data-testid="text-network-gate-description"
-          >
-            We're crunching the numbers on your social graph. Once the
-            calculation completes, you'll be able to explore your full network
-            here.
+          <p className="mt-1.5 text-sm leading-relaxed text-slate-500 dark:text-slate-400" data-testid="text-network-gate-description">
+            Trust tiers, extended reach and network health all need your scores. They'll
+            appear here as soon as the first calculation lands.
           </p>
-          <button
-            type="button"
-            className="inline-flex items-center gap-2 px-6 py-2.5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold transition-colors"
-            onClick={() => navigate("/dashboard")}
-            data-testid="button-back-to-dashboard"
-          >
-            <Home className="h-4 w-4" />
-            Back to Dashboard
-          </button>
-        </div>
+          <div className="mt-5">
+            {/* The one shared way the app states this — same component the dashboard
+                uses, so the wait looks like one product rather than three screens. */}
+            <CalculatingNotice standalone className="" searchHint>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => navigate("/")}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-brand-primary px-3.5 text-xs font-semibold text-white transition-colors hover:bg-brand-primary-hover"
+                  data-testid="button-network-gate-search"
+                >
+                  <SearchIcon className="h-3.5 w-3.5" /> Search Brainstorm
+                </button>
+                <button
+                  type="button"
+                  onClick={() => navigate("/dashboard")}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+                  data-testid="button-back-to-dashboard"
+                >
+                  <Home className="h-3.5 w-3.5" /> Dashboard
+                </button>
+              </div>
+            </CalculatingNotice>
+          </div>
+        </main>
       </div>
     );
   }
@@ -1136,7 +1153,7 @@ export default function NetworkPage() {
 
   return (
     <div
-      className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden"
+      className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-primary/[0.3] flex flex-col relative overflow-hidden"
       data-testid="page-network"
     >
       <GlossBackground />
@@ -1154,34 +1171,34 @@ export default function NetworkPage() {
             className="text-left relative z-10 mb-8 pt-2"
             data-testid="section-network-header"
           >
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100%] h-[100%] bg-indigo-500/5 blur-[60px] rounded-full pointer-events-none" />
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100%] h-[100%] bg-brand-primary/5 blur-[60px] rounded-full pointer-events-none" />
             <PageHeader
               kicker="Network Explorer"
-              title={<>Your <span className="text-[#333286]">Network</span></>}
+              title={<>Your <span className="text-brand-link">Network</span></>}
               subtitle="Browse and manage your social graph connections."
               testId="section-network-header"
             />
           </div>
 
           <Card
-            className="bg-white border-slate-200 shadow-sm overflow-hidden rounded-xl relative"
+            className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none overflow-hidden rounded-xl relative"
             data-testid="card-network-filters"
           >
-            <CardHeader className="relative bg-slate-50 border-b border-slate-200 py-4 px-5">
+            <CardHeader className="relative bg-slate-50 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 py-4 px-5">
               {/* Title row — shared across mobile and desktop */}
               <div className="flex items-center justify-between gap-3 pr-20 sm:pr-0">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="p-2 rounded-lg bg-white border border-slate-100 shadow-sm text-indigo-800 ring-1 ring-slate-100 shrink-0">
+                  <div className="p-2 rounded-lg bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm dark:shadow-none text-brand-primary dark:text-brand-link ring-1 ring-slate-100 dark:ring-slate-800/60 shrink-0">
                     <Filter className="h-4 w-4" />
                   </div>
-                  <div className="bg-white/50 backdrop-blur-sm px-4 py-2 rounded-2xl border border-slate-100 shadow-sm min-w-0">
+                  <div className="bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm px-4 py-2 rounded-2xl border border-slate-100 dark:border-slate-800/60 shadow-sm min-w-0">
                     <CardTitle
-                      className="text-sm font-bold text-slate-800 tracking-tight"
+                      className="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-tight"
                       style={{ fontFamily: "var(--font-display)" }}
                     >
                       Network Filters
                     </CardTitle>
-                    <CardDescription className="text-slate-500 text-xs font-medium uppercase tracking-wide">
+                    <CardDescription className="text-slate-500 dark:text-slate-400 text-xs font-medium uppercase tracking-wide">
                       Social Graph
                     </CardDescription>
                   </div>
@@ -1198,17 +1215,17 @@ export default function NetworkPage() {
                         setVerifiedOnly(checked);
                         setCurrentPage(1);
                       }}
-                      className="data-[state=checked]:bg-indigo-600"
+                      className="data-[state=checked]:bg-brand-primary"
                       data-testid="switch-verified-only"
                     />
                     <span
-                      className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-indigo-700" : "text-slate-400"}`}
+                      className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-brand-primary dark:text-brand-link" : "text-slate-400 dark:text-slate-500"}`}
                     >
                       Verified
                     </span>
                   </label>
                   <div
-                    className="px-2 py-1 rounded-full bg-indigo-500/10 text-xs font-bold text-indigo-900 border border-indigo-500/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0"
+                    className="px-2 py-1 rounded-full bg-brand-primary/10 text-xs font-bold text-brand-primary dark:text-brand-link border border-brand-primary/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0"
                     data-testid="badge-nostr-network"
                   >
                     <img
@@ -1224,7 +1241,7 @@ export default function NetworkPage() {
 
               {/* Mobile: NOSTR badge pinned to top-right corner */}
               <div
-                className="sm:hidden absolute top-4 right-5 px-2 py-1 rounded-full bg-indigo-500/10 text-xs font-bold text-indigo-900 border border-indigo-500/20 uppercase tracking-wider flex items-center gap-1.5"
+                className="sm:hidden absolute top-4 right-5 px-2 py-1 rounded-full bg-brand-primary/10 text-xs font-bold text-brand-primary dark:text-brand-link border border-brand-primary/20 uppercase tracking-wider flex items-center gap-1.5"
                 data-testid="badge-nostr-network-mobile"
               >
                 <img
@@ -1239,22 +1256,22 @@ export default function NetworkPage() {
               {/* Mobile: Verified toggle — full-width settings-style row */}
               <div className="sm:hidden mt-3">
                 <label
-                  className="flex items-center justify-between gap-3 cursor-pointer select-none px-3 py-2.5 rounded-xl bg-indigo-50/70 border border-indigo-100"
+                  className="flex items-center justify-between gap-3 cursor-pointer select-none px-3 py-2.5 rounded-xl bg-brand-primary/10 dark:bg-brand-primary/10 border border-brand-primary/15 dark:border-brand-primary/25"
                   data-testid="toggle-verified-only-mobile"
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
                     <div
-                      className={`p-1.5 rounded-lg shrink-0 transition-colors ${verifiedOnly ? "bg-indigo-100 text-indigo-700" : "bg-slate-100 text-slate-400"}`}
+                      className={`p-1.5 rounded-lg shrink-0 transition-colors ${verifiedOnly ? "bg-brand-primary/15 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link" : "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500"}`}
                     >
                       <ShieldCheck className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
                       <div
-                        className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-indigo-700" : "text-slate-600"}`}
+                        className={`text-xs font-semibold transition-colors ${verifiedOnly ? "text-brand-primary dark:text-brand-link" : "text-slate-600 dark:text-slate-300"}`}
                       >
                         Verified
                       </div>
-                      <div className="text-[10px] text-slate-400 leading-tight">
+                      <div className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
                         Show only WoT-verified accounts
                       </div>
                     </div>
@@ -1265,18 +1282,18 @@ export default function NetworkPage() {
                       setVerifiedOnly(checked);
                       setCurrentPage(1);
                     }}
-                    className="data-[state=checked]:bg-indigo-600 shrink-0"
+                    className="data-[state=checked]:bg-brand-primary shrink-0"
                     data-testid="switch-verified-only-mobile"
                   />
                 </label>
               </div>
             </CardHeader>
 
-            <CardContent className="p-3 sm:p-5 bg-white/60 space-y-2 sm:space-y-3">
+            <CardContent className="p-3 sm:p-5 bg-white/60 dark:bg-slate-900/60 space-y-2 sm:space-y-3">
               {/* Mobile dropdowns — hidden on sm+ */}
               <div className="sm:hidden flex gap-2">
                 <div className="flex-1 min-w-0">
-                  <label className="flex items-center gap-1 text-[10px] font-semibold text-indigo-400 uppercase tracking-wider mb-1">
+                  <label className="flex items-center gap-1 text-[10px] font-semibold text-brand-link uppercase tracking-wider mb-1">
                     <Network className="h-3 w-3" />
                     Graph
                   </label>
@@ -1286,7 +1303,7 @@ export default function NetworkPage() {
                       setActiveGroup(e.target.value as GroupKey);
                       setCurrentPage(1);
                     }}
-                    className="w-full rounded-lg border border-slate-200 bg-white/90 text-slate-700 text-xs font-medium px-2.5 py-2 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 shadow-sm"
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 text-slate-700 dark:text-slate-200 text-xs font-medium px-2.5 py-2 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 shadow-sm"
                     data-testid="select-group-filter-mobile"
                   >
                     {(
@@ -1311,7 +1328,7 @@ export default function NetworkPage() {
                   </select>
                 </div>
                 <div className="flex-1 min-w-0">
-                  <label className="flex items-center gap-1 text-[10px] font-semibold text-indigo-400 uppercase tracking-wider mb-1">
+                  <label className="flex items-center gap-1 text-[10px] font-semibold text-brand-link uppercase tracking-wider mb-1">
                     <ShieldCheck className="h-3 w-3" />
                     Trust
                   </label>
@@ -1321,7 +1338,7 @@ export default function NetworkPage() {
                       setTrustFilter(e.target.value as TrustTier);
                       setCurrentPage(1);
                     }}
-                    className="w-full rounded-lg border border-slate-200 bg-white/90 text-slate-700 text-xs font-medium px-2.5 py-2 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/20 shadow-sm"
+                    className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 text-slate-700 dark:text-slate-200 text-xs font-medium px-2.5 py-2 focus:outline-none focus:border-brand-primary focus:ring-1 focus:ring-brand-primary/20 shadow-sm"
                     data-testid="select-trust-filter-mobile"
                   >
                     <option value="all">All</option>
@@ -1340,10 +1357,10 @@ export default function NetworkPage() {
               {/* Desktop pill rows — hidden on mobile */}
               <div>
                 <div
-                  className="hidden sm:flex sm:flex-wrap items-center gap-1.5 sm:gap-2"
+                  className="hidden sm:flex sm:flex-wrap items-center gap-1.5"
                   data-testid="row-group-filters-graph"
                 >
-                  <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider self-center shrink-0 pr-2 mr-1 border-r border-slate-200/60">
+                  <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider self-center shrink-0 pr-2 mr-1 border-r border-slate-200/60 dark:border-slate-800">
                     Graph
                   </span>
                   {(
@@ -1374,10 +1391,10 @@ export default function NetworkPage() {
                               setActiveGroup(group.key);
                               setCurrentPage(1);
                             }}
-                            className={`flex items-center justify-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
+                            className={`flex items-center justify-center gap-1 px-2 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all shrink-0 ${
                               isActive
-                                ? "bg-indigo-800 text-white border border-indigo-800"
-                                : "bg-white/60 border border-slate-200/60 text-slate-600 hover:bg-white hover:border-slate-300"
+                                ? "bg-brand-primary text-white border border-brand-primary"
+                                : "bg-white/60 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-white dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
                             }`}
                             data-testid={`button-filter-${group.key}`}
                           >
@@ -1398,11 +1415,11 @@ export default function NetworkPage() {
                         </TooltipTrigger>
                         <TooltipContent
                           side="bottom"
-                          className={`bg-white backdrop-blur-xl border border-slate-300 text-slate-700 shadow-lg px-2.5 py-1.5 max-w-[220px] border-l-2 ${group.tooltipAccent}`}
+                          className={`bg-white dark:bg-slate-900 backdrop-blur-xl border border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-200 shadow-lg px-2.5 py-1.5 max-w-[220px] border-l-2 ${group.tooltipAccent}`}
                         >
                           <p className="text-xs font-medium">{group.tooltip}</p>
                           {showVerified && totalCount !== count && (
-                            <p className="text-[11px] text-slate-500 mt-0.5">
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
                               {count} verified of {totalCount} total
                             </p>
                           )}
@@ -1413,13 +1430,13 @@ export default function NetworkPage() {
                 </div>
               </div>
 
-              <div className="hidden sm:block border-t border-slate-200/60 my-0.5" />
+              <div className="hidden sm:block border-t border-slate-200/60 dark:border-slate-800 my-0.5" />
 
               <div
                 className="hidden sm:flex sm:flex-wrap gap-1.5 sm:gap-2"
                 data-testid="row-trust-filters"
               >
-                <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider self-center mr-1 shrink-0 pr-2 border-r border-slate-200/60">
+                <span className="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider self-center mr-1 shrink-0 pr-2 border-r border-slate-200/60 dark:border-slate-800">
                   Trust
                 </span>
                 {(
@@ -1452,7 +1469,7 @@ export default function NetworkPage() {
                       key: "neutral" as TrustTier,
                       label: "Neutral",
                       shortLabel: "Neutral",
-                      icon: "text-indigo-400",
+                      icon: "text-brand-link",
                       ringFill: 0.37,
                       tooltip: "Average trust score",
                     },
@@ -1497,10 +1514,10 @@ export default function NetworkPage() {
                             isActive
                               ? tier.key === "flagged"
                                 ? "bg-red-600 text-white border border-red-600"
-                                : "bg-indigo-800 text-white border border-indigo-800"
+                                : "bg-brand-primary text-white border border-brand-primary"
                               : tier.key === "flagged"
-                                ? "bg-white/60 border border-red-200 text-red-500 hover:bg-red-50 hover:border-red-300"
-                                : "bg-white/60 border border-slate-200/60 text-slate-500 hover:bg-white hover:border-slate-300"
+                                ? "bg-white/60 dark:bg-slate-900/60 border border-red-200 dark:border-red-500/25 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 hover:border-red-300 dark:hover:border-red-500/40"
+                                : "bg-white/60 dark:bg-slate-900/60 border border-slate-200/60 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-700"
                           }`}
                           data-testid={`button-trust-filter-${tier.key}`}
                         >
@@ -1558,7 +1575,7 @@ export default function NetworkPage() {
                       </TooltipTrigger>
                       <TooltipContent
                         side="bottom"
-                        className={`bg-white backdrop-blur-xl border border-slate-300 border-l-2 ${tier.key === "flagged" ? "border-l-red-400" : "border-l-indigo-400"} text-slate-700 shadow-lg px-2.5 py-1.5`}
+                        className={`bg-white dark:bg-slate-900 backdrop-blur-xl border border-slate-300 dark:border-slate-700 border-l-2 ${tier.key === "flagged" ? "border-l-red-400" : "border-l-brand-primary"} text-slate-700 dark:text-slate-200 shadow-lg px-2.5 py-1.5`}
                       >
                         <p className="text-xs font-medium">{tier.tooltip}</p>
                       </TooltipContent>
@@ -1569,12 +1586,12 @@ export default function NetworkPage() {
 
               <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 sm:gap-3">
                 <div className="relative group/input flex-1">
-                  <div className="absolute -inset-0.5 bg-gradient-to-r from-indigo-500 to-indigo-800 rounded-lg opacity-20 group-hover/input:opacity-50 blur transition duration-500" />
+                  <div className="absolute -inset-0.5 bg-gradient-to-r from-brand-primary to-brand-primary rounded-lg opacity-20 group-hover/input:opacity-50 blur transition duration-500" />
                   <div className="relative flex items-center">
                     {searchLoading ? (
-                      <Loader2 className="absolute left-3 h-4 w-4 text-indigo-500 z-10 animate-spin" />
+                      <Loader2 className="absolute left-3 h-4 w-4 text-brand-primary z-10 animate-spin" />
                     ) : (
-                      <SearchIcon className="absolute left-3 h-4 w-4 text-slate-400 z-10" />
+                      <SearchIcon className="absolute left-3 h-4 w-4 text-slate-400 dark:text-slate-500 z-10" />
                     )}
                     <Input
                       placeholder={
@@ -1582,7 +1599,7 @@ export default function NetworkPage() {
                           ? "Loading your network…"
                           : "Search by name or npub..."
                       }
-                      className={`relative bg-white/90 backdrop-blur-sm border-indigo-500/30 shadow-[0_0_10px_rgba(99,102,241,0.05)] text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 rounded-lg transition-all text-sm shadow-sm pl-9 ${searchFilter ? "pr-9" : ""} ${isLoading || searchLoading ? "cursor-wait opacity-70" : ""}`}
+                      className={`relative bg-white/90 dark:bg-slate-900/90 backdrop-blur-sm border-brand-primary/[0.3] shadow-[0_0_10px_rgb(var(--brand-primary)/0.05)] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-primary focus:ring-2 focus:ring-brand-primary/20 rounded-lg transition-all text-sm shadow-sm pl-9 ${searchFilter ? "pr-9" : ""} ${isLoading || searchLoading ? "cursor-wait opacity-70" : ""}`}
                       value={searchFilter}
                       onChange={(e) => {
                         setSearchFilter(e.target.value);
@@ -1599,7 +1616,7 @@ export default function NetworkPage() {
                           setSearchFilter("");
                           setCurrentPage(1);
                         }}
-                        className="absolute right-2 z-10 p-1 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
+                        className="absolute right-2 z-10 p-1 rounded-md text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                         aria-label="Clear search"
                         data-testid="button-clear-network-search"
                       >
@@ -1609,7 +1626,7 @@ export default function NetworkPage() {
                   </div>
                   {searchFilter.trim().length >= 2 && searchLoading && (
                     <p
-                      className="mt-1 ml-1 text-[11px] text-indigo-500/80 flex items-center gap-1.5"
+                      className="mt-1 ml-1 text-[11px] text-brand-primary/80 flex items-center gap-1.5"
                       role="status"
                       aria-live="polite"
                       data-testid="text-network-search-loading"
@@ -1622,7 +1639,7 @@ export default function NetworkPage() {
                 <div className="flex items-center gap-2 self-end sm:self-auto">
                   <button
                     type="button"
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/80 border border-slate-200/60 text-xs font-medium text-slate-600 hover:border-indigo-300 hover:text-indigo-700 transition-colors shrink-0"
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-brand-primary/25 dark:hover:border-brand-primary/[0.4] hover:text-brand-primary dark:hover:text-brand-link transition-colors shrink-0"
                     onClick={() => {
                       setSortDirection((d) => (d === "desc" ? "asc" : "desc"));
                       setCurrentPage(1);
@@ -1633,12 +1650,12 @@ export default function NetworkPage() {
                     <span>Trust {sortDirection === "desc" ? "↓" : "↑"}</span>
                   </button>
                   <div
-                    className="flex items-center bg-white/80 border border-slate-200/60 rounded-lg p-0.5 shrink-0"
+                    className="flex items-center bg-white/80 dark:bg-slate-900/80 border border-slate-200/60 dark:border-slate-800 rounded-lg p-0.5 shrink-0"
                     data-testid="row-view-toggle"
                   >
                     <button
                       type="button"
-                      className={`p-1.5 rounded-md transition-colors ${viewMode === "grid" ? "bg-indigo-800 text-white" : "text-slate-400"}`}
+                      className={`p-1.5 rounded-md transition-colors ${viewMode === "grid" ? "bg-brand-primary text-white" : "text-slate-400 dark:text-slate-500"}`}
                       onClick={() => setViewMode("grid")}
                       data-testid="button-view-grid"
                     >
@@ -1646,7 +1663,7 @@ export default function NetworkPage() {
                     </button>
                     <button
                       type="button"
-                      className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-indigo-800 text-white" : "text-slate-400"}`}
+                      className={`p-1.5 rounded-md transition-colors ${viewMode === "list" ? "bg-brand-primary text-white" : "text-slate-400 dark:text-slate-500"}`}
                       onClick={() => setViewMode("list")}
                       data-testid="button-view-list"
                     >
@@ -1667,34 +1684,34 @@ export default function NetworkPage() {
               {Array.from({ length: 6 }).map((_, i) => (
                 <div
                   key={i}
-                  className="bg-white/80 backdrop-blur-sm border border-slate-200/60 rounded-xl p-4 animate-pulse"
+                  className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm border border-slate-200/60 dark:border-slate-800 rounded-xl p-4 animate-pulse"
                   data-testid={`skeleton-card-${i}`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className="h-8 w-8 rounded-full bg-slate-200" />
+                    <div className="h-8 w-8 rounded-full bg-slate-200 dark:bg-slate-700" />
                     <div className="flex-1 space-y-2">
-                      <div className="h-3 bg-slate-200 rounded w-24" />
-                      <div className="h-2 bg-slate-100 rounded w-32" />
+                      <div className="h-3 bg-slate-200 dark:bg-slate-700 rounded w-24" />
+                      <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded w-32" />
                     </div>
                   </div>
                   <div className="mt-3 flex gap-1">
-                    <div className="h-4 bg-slate-100 rounded w-14" />
-                    <div className="h-4 bg-slate-100 rounded w-16" />
+                    <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-14" />
+                    <div className="h-4 bg-slate-100 dark:bg-slate-800 rounded w-16" />
                   </div>
                 </div>
               ))}
             </div>
           ) : visiblePubkeys.length === 0 ? (
             <Card
-              className="bg-white border-slate-200 shadow-xl rounded-xl overflow-hidden"
+              className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-xl dark:shadow-none rounded-xl overflow-hidden"
               data-testid="card-network-empty"
             >
               <div className="p-8 flex flex-col items-center text-center">
-                <div className="h-14 w-14 rounded-2xl border border-slate-200 bg-slate-50 text-indigo-800 flex items-center justify-center mb-4">
+                <div className="h-14 w-14 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-brand-primary dark:text-brand-link flex items-center justify-center mb-4">
                   <Users className="h-6 w-6" />
                 </div>
                 <h3
-                  className="text-lg font-bold text-slate-900 tracking-tight"
+                  className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight"
                   style={{ fontFamily: "var(--font-display)" }}
                   data-testid="text-network-empty-title"
                 >
@@ -1703,7 +1720,7 @@ export default function NetworkPage() {
                     : "No contacts yet"}
                 </h3>
                 <p
-                  className="mt-2 text-sm text-slate-600 leading-relaxed max-w-md"
+                  className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-md"
                   data-testid="text-network-empty-body"
                 >
                   {searchFilter || trustFilter !== "all"
@@ -1769,7 +1786,7 @@ export default function NetworkPage() {
                       className="flex items-center justify-between gap-4 pt-4"
                       data-testid="row-pagination"
                     >
-                      <span className="text-xs text-slate-500">
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
                         {visiblePubkeyPage.startIdx + 1}&ndash;
                         {visiblePubkeyPage.nextItemStart} of{" "}
                         {visiblePubkeyPage.totalItems}
@@ -1791,7 +1808,7 @@ export default function NetworkPage() {
                             Previous
                           </Button>
                           <span
-                            className="text-xs font-medium text-slate-600 tabular-nums px-2"
+                            className="text-xs font-medium text-slate-600 dark:text-slate-300 tabular-nums px-2"
                             data-testid="text-page-indicator"
                           >
                             {visiblePubkeyPage.safePage} /{" "}
@@ -1860,7 +1877,7 @@ export default function NetworkPage() {
           20%, 80% { opacity: 0.45; transform: translateY(-6px); }
         }
       `}</style>
-      <Footer />
+      <Footer minimal />
     </div>
   );
 }

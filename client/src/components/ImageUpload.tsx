@@ -243,8 +243,8 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
           role="button"
           tabIndex={0}
           aria-label={isSquare ? "Upload profile photo" : "Upload banner"}
-          className={`relative group ${containerClass} overflow-hidden cursor-pointer transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/50 ${
-            dragOver ? "ring-2 ring-[#7c86ff]/60" : ""
+          className={`relative group ${containerClass} overflow-hidden cursor-pointer transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50 ${
+            dragOver ? "ring-2 ring-brand-accent/60" : ""
           }`}
           onClick={() => !uploading && inputRef.current?.click()}
           onKeyDown={(e) => {
@@ -284,8 +284,8 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
       <div
         className={`${containerClass} border border-dashed cursor-pointer transition-all duration-200 flex flex-col items-center justify-center gap-1 ${
           dragOver
-            ? "border-[#7c86ff] bg-[#7c86ff]/10"
-            : "border-white/15 hover:border-[#7c86ff]/40 hover:bg-white/[0.03]"
+            ? "border-brand-accent bg-brand-accent/10"
+            : "border-white/15 hover:border-brand-accent/40 hover:bg-white/[0.03]"
         }`}
         onClick={() => !uploading && inputRef.current?.click()}
         onDrop={handleDrop}
@@ -294,11 +294,11 @@ export function ImageUpload({ value, onChange, onRemove, aspect = "square", labe
         data-testid={`upload-${aspect}`}
       >
         {uploading ? (
-          <Loader2 className="h-4 w-4 text-[#7c86ff] animate-spin" />
+          <Loader2 className="h-4 w-4 text-brand-accent animate-spin" />
         ) : (
           <>
-            <ImageIcon className="h-4 w-4 text-slate-500" />
-            <span className="text-[9px] text-slate-500 text-center leading-tight">
+            <ImageIcon className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+            <span className="text-[9px] text-slate-500 dark:text-slate-400 text-center leading-tight">
               {isSquare ? "Upload" : "Upload banner"}
             </span>
           </>

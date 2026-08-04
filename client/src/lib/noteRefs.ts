@@ -141,6 +141,29 @@ export function analyzeNote(ev: MinimalEvent): NoteAnalysis {
 }
 
 /**
+ * The thread ancestry of a reply (NIP-10): the conversation `root` and the
+ * immediate `parent` it replies to. Handles marked tags (`root`/`reply`) and the
+ * legacy positional convention (first e = root, last e = parent); `mention`
+ * e-tags are ignored. Returns {} when the note isn't a reply. When a note replies
+ * straight to the root, parentId === rootId.
+ */
+export function replyRefs(ev: MinimalEvent): { rootId?: string; parentId?: string } {
+  const eTags = (ev.tags || []).filter((t) => t[0] === "e" && t[1]);
+  const threadTags = eTags.filter((t) => (t[3] || "") !== "mention");
+  if (threadTags.length === 0) return {};
+  const marked = threadTags.filter((t) => t[3] === "root" || t[3] === "reply");
+  if (marked.length > 0) {
+    const rootId = threadTags.find((t) => t[3] === "root")?.[1];
+    const replyId = threadTags.find((t) => t[3] === "reply")?.[1];
+    // A direct reply to the root carries only a `root` marker → root is the parent.
+    return { rootId, parentId: replyId || rootId };
+  }
+  // Legacy positional: first e-tag is the root, last is the immediate parent.
+  const ids = threadTags.map((t) => t[1]);
+  return { rootId: ids[0], parentId: ids[ids.length - 1] };
+}
+
+/**
  * Collect every referenced pubkey + event id across a batch of notes, so the
  * share page can resolve profiles + quoted events in two batched relay queries.
  */

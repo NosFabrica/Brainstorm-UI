@@ -15,6 +15,9 @@ import { useSelfHistory } from "@/hooks/useSelf";
  *
  * Renders nothing; mount once at the app root.
  */
+/** Per-account marker: this account has had its one automatic scoring kick. */
+const AUTO_KICK_KEY = (pk: string) => `brainstorm_auto_score_kicked:${pk}`;
+
 export function AutoScoreReturning() {
   const user = getCurrentUser();
   const pk = hasSessionToken() ? user?.pubkey : undefined;
@@ -39,7 +42,25 @@ export function AutoScoreReturning() {
     if (createdInApp || recentlyTriggered) return; // first-timer / just-triggered
     if (knownFollowCount(pk) < 1) return; // no follows → the home-page nudge handles it
 
+    // At most ONE automatic kick per account, ever.
+    //
+    // `scored` is the only durable guard, and it reads ta_pubkey — which stays null
+    // if the Trusted Assertions publish never lands. When that happens the other
+    // guard (recentlyTriggered) expires after 30 minutes, so EVERY app open past
+    // that window silently enqueued another full network recalculation: the calc
+    // ran, the "ready" nudge fired again, and dismissing it only lasted until the
+    // next launch. Reported from an iOS PWA as the app re-announcing "your Web of
+    // Trust is ready" on every open.
+    //
+    // An automatic retry loop is the wrong response to scoring not producing a
+    // result anyway — it burns queue capacity for every affected user at once. One
+    // attempt, then leave it to the explicit (and now confirmed) Recalculate.
+    let alreadyKicked = false;
+    try { alreadyKicked = localStorage.getItem(AUTO_KICK_KEY(pk)) === "true"; } catch { /* ignore */ }
+    if (alreadyKicked) return;
+
     fired.current = true;
+    try { localStorage.setItem(AUTO_KICK_KEY(pk), "true"); } catch { /* ignore */ }
     void triggerScoringAndAnchor(pk);
   }, [pk, history.isSuccess, history.data]);
 

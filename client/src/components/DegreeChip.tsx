@@ -49,8 +49,8 @@ export function DegreeChip({
     : "Not reachable through the people you follow.";
 
   const bold = variant === "bold";
-  const numCls = bold ? "font-bold text-slate-900 tabular-nums" : "font-semibold text-slate-700";
-  const labelCls = bold ? "text-slate-500 ml-1" : "";
+  const numCls = bold ? "font-bold text-slate-900 dark:text-slate-100 tabular-nums" : "font-semibold text-slate-700 dark:text-slate-200";
+  const labelCls = bold ? "text-slate-500 dark:text-slate-400 ml-1" : "";
 
   return (
     <Tooltip>
@@ -70,8 +70,8 @@ export function DegreeChip({
           )}
         </Link>
       </TooltipTrigger>
-      <TooltipContent side="top" className="max-w-[240px] bg-white/95 backdrop-blur border border-slate-200 shadow-lg">
-        <p className="text-xs leading-relaxed text-slate-600">{tip}</p>
+      <TooltipContent side="top" className="max-w-[240px] bg-white/95 dark:bg-slate-900/95 backdrop-blur border border-slate-200 dark:border-slate-800 shadow-lg">
+        <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300">{tip}</p>
       </TooltipContent>
     </Tooltip>
   );

@@ -9,47 +9,65 @@
   --elevate-1: rgba(0,0,0, .03);
   --elevate-2: rgba(0,0,0, .08);
 
-  --background: 220 20% 97%;
-  --foreground: 224 71% 4%;
-  --border: 220 13% 91%;
+  --background: 80 8% 95%;
+  --foreground: 223 41% 7%;
+  --border: 204 7% 85%;
   --card: 0 0% 100%;
-  --card-foreground: 224 71% 4%;
-  --card-border: 220 13% 91%;
+  --card-foreground: 223 41% 7%;
+  --card-border: 204 7% 85%;
   --sidebar: 0 0% 98%;
-  --sidebar-foreground: 224 71% 4%;
-  --sidebar-border: 220 13% 91%;
-  --sidebar-primary: 239 84% 67%;
+  --sidebar-foreground: 223 41% 7%;
+  --sidebar-border: 204 7% 85%;
+  --sidebar-primary: 258 100% 61%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 220 14% 96%;
-  --sidebar-accent-foreground: 224 71% 4%;
-  --sidebar-ring: 239 84% 67%;
+  --sidebar-accent: 80 6% 94%;
+  --sidebar-accent-foreground: 223 41% 7%;
+  --sidebar-ring: 258 100% 61%;
   --popover: 0 0% 100%;
-  --popover-foreground: 224 71% 4%;
-  --popover-border: 220 13% 91%;
-  --primary: 239 84% 67%;
+  --popover-foreground: 223 41% 7%;
+  --popover-border: 204 7% 85%;
+  --primary: 258 100% 61%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 220 14% 96%;
-  --secondary-foreground: 224 71% 4%;
-  --muted: 220 14% 96%;
-  --muted-foreground: 220 9% 46%;
-  --accent: 262 83% 58%;
+  --secondary: 80 6% 94%;
+  --secondary-foreground: 223 41% 7%;
+  --muted: 80 6% 94%;
+  --muted-foreground: 216 11% 45%;
+  --accent: 258 100% 61%;   /* Aurora Purple #7237ff (was violet-600) */
   --accent-foreground: 0 0% 100%;
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
-  --input: 220 13% 91%;
-  --ring: 239 84% 67%;
-  --chart-1: 239 84% 67%;
+  --input: 204 7% 85%;
+  --ring: 258 100% 61%;
+  --chart-1: 258 100% 61%;
   --chart-2: 160 84% 39%;
   --chart-3: 30 96% 55%;
   --chart-4: 280 87% 65%;
   --chart-5: 340 82% 52%;
 
-  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  /* Headings use the neutral workhorse (Inter) for a calm, corporate hierarchy. */
-  --font-display: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  /* Brand signature — reserved for the top-level page title and the logo wordmark only. */
-  --font-brand: 'Space Grotesk', 'Inter', sans-serif;
-  --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  /* Brand palette — the single source of truth for the app's brand colors.
+     RGB channels (exact to the legacy hex; consumed via
+     rgb(var(--brand-*) / <alpha-value>) in tailwind.config.ts so `/opacity`
+     works). Reskin = change these values here; a `.dark` override set is added
+     in the dark-mode phase. Codemod replaced ~1k hardcoded hex with the
+     `brand-*` Tailwind utilities that read these. */
+  /* Canonical palette (guidelines p5): Aurora Purple, Aurora Cyan, Ink, White.
+     `*-hover` and `--brand-deep` are SANCTIONED SUPPORTING SHADES (derived depth/
+     hover steps of the accents, designer-approved) — not new brand colours.
+     Don't add other off-palette hues. Policy: docs/design-system.md. */
+  --brand-primary: 114 55 255;        /* Aurora Purple #7237ff — primary buttons, wordmark */
+  --brand-primary-hover: 97 47 217;   /* #612fd9 — Aurora Purple hover (supporting) */
+  --brand-accent: 19 210 229;         /* Aurora Cyan #13d2e5 — kickers, accent lines, chips */
+  --brand-accent-hover: 40 126 137;   /* #287e89 — Aurora Cyan hover (supporting) */
+  --brand-deep: 43 23 79;             /* #2b174f — dark tint of Aurora Purple (supporting) */
+  --brand-link: 114 55 255;           /* Aurora Purple #7237ff — links */
+
+  /* Brand typography (Design System v1.0): Figtree for interface content,
+     IBM Plex Mono for technical info / metadata. */
+  --font-sans: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Figtree', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  /* Brand signature — top-level page title + logo wordmark. */
+  --font-brand: 'Figtree', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'IBM Plex Mono', 'SF Mono', 'Fira Code', monospace;
   --radius: 0.75rem;
 
   --shadow-2xs: 0 1px 2px 0 rgb(0 0 0 / 0.03);
@@ -87,40 +105,46 @@
   --elevate-1: rgba(255,255,255, .04);
   --elevate-2: rgba(255,255,255, .09);
 
-  --background: 240 10% 3.9%;
-  --foreground: 0 0% 98%;
-  --border: 240 3.7% 15.9%;
-  --card: 240 10% 3.9%;
-  --card-foreground: 0 0% 98%;
-  --card-border: 240 3.7% 15.9%;
+  --background: 223 41% 7%;
+  --foreground: 80 8% 95%;
+  --border: 214 22% 21%;
+  --card: 219 33% 12%;
+  --card-foreground: 80 8% 95%;
+  --card-border: 214 22% 21%;
   --sidebar: 240 5.9% 10%;
   --sidebar-foreground: 240 4.8% 95.9%;
-  --sidebar-border: 240 3.7% 15.9%;
-  --sidebar-primary: 262 83% 58%;
+  --sidebar-border: 214 22% 21%;
+  --sidebar-primary: 258 100% 61%;
   --sidebar-primary-foreground: 0 0% 100%;
-  --sidebar-accent: 240 3.7% 15.9%;
+  --sidebar-accent: 214 22% 21%;
   --sidebar-accent-foreground: 240 4.8% 95.9%;
-  --sidebar-ring: 262 83% 58%;
-  --popover: 240 10% 3.9%;
+  --sidebar-ring: 258 100% 61%;
+  --popover: 223 41% 7%;
   --popover-foreground: 0 0% 98%;
-  --popover-border: 240 3.7% 15.9%;
-  --primary: 262 83% 58%;
+  --popover-border: 214 22% 21%;
+  --primary: 258 100% 61%;
   --primary-foreground: 0 0% 100%;
-  --secondary: 240 3.7% 15.9%;
+  --secondary: 214 22% 21%;
   --secondary-foreground: 0 0% 98%;
-  --muted: 240 3.7% 15.9%;
+  --muted: 214 22% 21%;
   --muted-foreground: 240 5% 64.9%;
-  --accent: 262 83% 58%;
+  --accent: 258 100% 61%;   /* Aurora Purple #7237ff (was violet-600) */
   --accent-foreground: 0 0% 100%;
   --destructive: 0 62.8% 30.6%;
   --destructive-foreground: 0 0% 98%;
-  --input: 240 3.7% 15.9%;
-  --ring: 262 83% 58%;
-  --chart-1: 262 83% 65%;
+  --input: 214 22% 21%;
+  --ring: 258 100% 61%;
+  --chart-1: 258 100% 68%;
   --chart-2: 160 60% 45%;
   --chart-3: 30 80% 55%;
   --chart-4: 280 65% 60%;
   --chart-5: 340 75% 55%;
+
+  /* Brand palette — dark overrides. The bright brand fills (Aurora Purple/Cyan)
+     already pop on dark, so only the dark-toned accents that are used as text/
+     borders need to lighten for legibility on the Ink background. */
+  --brand-deep: 185 165 255;   /* light Aurora violet — was Deep Violet (too dark on dark) */
+  --brand-link: 167 139 250;   /* lighter Aurora Purple for readable links on dark */
 
   --shadow-2xs: 0 1px 2px 0 rgb(0 0 0 / 0.2);
   --shadow-xs: 0 1px 2px 0 rgb(0 0 0 / 0.3);
@@ -153,13 +177,18 @@
   }
   body {
     @apply font-sans antialiased bg-background text-foreground;
+    /* Design System v1.0: Medium (500) is the default text weight; hierarchy
+       comes from scale, emphasis from weight (explicit font-semibold/bold). */
+    font-weight: 500;
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
   }
 
-  body:has(footer.bg-slate-950),
-  body:has(footer[data-footer-dark="true"]) {
+  /* Match the overscroll/safe-area gap to the footer. The footer is theme-aware
+     (light in light mode, ink in dark), so only paint the body near-black in
+     dark mode — in light mode the body keeps its light default. */
+  .dark body:has(footer[data-footer-dark="true"]) {
     background: #020617;
   }
 
@@ -168,7 +197,7 @@
     @apply tracking-tight;
   }
 
-  /* Opt back into the Space Grotesk brand signature — hero page titles + logo wordmark. */
+  /* The brand display face (Figtree via --font-brand) — hero page titles. */
   .font-brand {
     font-family: var(--font-brand);
   }
@@ -218,15 +247,9 @@
     background-color: rgba(10, 10, 10, 0.7);
   }
 
+  /* Aurora gradient text — always Aurora Purple → Aurora Cyan (guidelines p5). */
   .gradient-text {
-    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #a855f7 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-  }
-
-  .gradient-text-warm {
-    background: linear-gradient(135deg, #6366f1 0%, #ec4899 100%);
+    background: linear-gradient(135deg, #7237ff 0%, #13d2e5 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -249,6 +272,32 @@
 
   .glow-sm {
     box-shadow: 0 0 20px -5px hsl(var(--primary) / 0.3);
+  }
+
+  /* Canonical interaction utilities (consistency sweep): one Aurora-Cyan focus
+     ring + one hover-lift, to replace scattered focus-visible tokens,
+     transition-all, and one-off hover shadows. */
+  .focus-ring-brand {
+    outline: none;
+  }
+  .focus-ring-brand:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px rgb(var(--brand-accent) / 0.55);
+  }
+  .interactive-lift {
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+  }
+  .interactive-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 28px -8px rgba(0, 0, 0, 0.25);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .interactive-lift {
+      transition: none;
+    }
+    .interactive-lift:hover {
+      transform: none;
+    }
   }
 
   input[type="search"]::-webkit-search-cancel-button {
@@ -518,6 +567,63 @@
 }
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+/*
+ * No scrollbars on the member-facing app. The OS trough (especially macOS with
+ * "always show scroll bars") reads as chrome competing with the content, and
+ * these surfaces are short enough that the scroll affordance isn't load-bearing.
+ * Scrolling itself is untouched — wheel, trackpad, keyboard and touch all work.
+ */
+html,
+body,
+* {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+*::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+
+/*
+ * Admin is the exception: its tables scroll horizontally across many columns,
+ * where the scrollbar is the only cue that more columns exist and how far along
+ * you are — ScrollableTable even mirrors a second one above the table. AdminPage
+ * puts `admin-scrollbars` on <html> while mounted (see its useEffect), which is
+ * what re-enables them here — including the window scrollbar, which lives on
+ * <html> and so can't be reached by a selector scoped inside the page.
+ */
+html.admin-scrollbars,
+html.admin-scrollbars body,
+html.admin-scrollbars * {
+  scrollbar-width: thin;
+  -ms-overflow-style: auto;
+  scrollbar-color: rgb(148 163 184 / 0.4) transparent;
+}
+html.admin-scrollbars *::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+html.admin-scrollbars *::-webkit-scrollbar-track {
+  background: transparent;
+}
+html.admin-scrollbars *::-webkit-scrollbar-thumb {
+  background-color: rgb(148 163 184 / 0.35);
+  border: 3px solid transparent;
+  border-radius: 9999px;
+  background-clip: content-box;
+}
+html.admin-scrollbars *::-webkit-scrollbar-thumb:hover {
+  background-color: rgb(148 163 184 / 0.6);
+}
+html.admin-scrollbars.dark *,
+html.dark.admin-scrollbars * {
+  scrollbar-color: rgb(100 116 139 / 0.45) transparent;
+}
+html.admin-scrollbars.dark *::-webkit-scrollbar-thumb,
+html.dark.admin-scrollbars *::-webkit-scrollbar-thumb {
+  background-color: rgb(100 116 139 / 0.4);
 }
 
 /*

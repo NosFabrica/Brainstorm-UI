@@ -1,6 +1,5 @@
 import { useLocation } from 'wouter';
 import { ArrowRight, Shield, Users, Zap } from 'lucide-react';
-import { ComputingBackground } from '@/components/ComputingBackground';
 import { Footer } from '@/components/Footer';
 
 const steps = [
@@ -37,7 +36,13 @@ export default function OnboardingPage() {
         }
       `}</style>
 
-      <ComputingBackground variant="dark" />
+      {/* Human-Signals photography (people, nodes baked in) behind an Ink scrim —
+          people before technology, per the brand. */}
+      <div className="absolute inset-0 z-0" aria-hidden="true">
+        <img src="/brand/hero.jpg" alt="" draggable={false} className="absolute inset-0 h-full w-full object-cover select-none" />
+        <div className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/85 to-slate-950/55" />
+        <div className="absolute inset-0 bg-brand-primary/10 mix-blend-overlay" />
+      </div>
 
       <div className="flex-1 flex items-center justify-center p-4 sm:p-6 relative">
         <div
@@ -49,12 +54,12 @@ export default function OnboardingPage() {
             style={{ animation: 'fadeInUp 0.5s ease-out 0.1s both' }}
           >
             <h1
-              className="font-brand text-3xl sm:text-4xl lg:text-5xl font-bold bg-gradient-to-r from-white via-indigo-200 to-indigo-300 bg-clip-text text-transparent leading-tight"
+              className="text-3xl sm:text-4xl lg:text-5xl font-semibold text-white leading-tight"
               data-testid="text-onboarding-title"
             >
               Get Started with Brainstorm
             </h1>
-            <p className="text-slate-400 mt-3 text-base sm:text-lg max-w-lg mx-auto">
+            <p className="text-slate-300 mt-3 text-base sm:text-lg max-w-lg mx-auto">
               Three steps to your personalized Web of Trust
             </p>
           </div>
@@ -63,16 +68,16 @@ export default function OnboardingPage() {
             {steps.map((step, i) => (
               <div
                 key={i}
-                className="relative bg-slate-900/70 backdrop-blur-xl border border-slate-700/50 rounded-xl p-5 sm:p-6 shadow-lg ring-1 ring-indigo-500/5 flex items-start gap-4"
+                className="relative bg-slate-900/70 backdrop-blur-xl border border-slate-700/50 rounded-xl p-5 sm:p-6 shadow-lg ring-1 ring-brand-primary/5 flex items-start gap-4"
                 style={{ animation: `fadeInUp 0.5s ease-out ${0.2 + i * 0.1}s both` }}
                 data-testid={`card-onboarding-step-${i}`}
               >
-                <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-indigo-600/20 border border-indigo-500/20 flex items-center justify-center">
-                  <step.icon className="w-5 h-5 text-indigo-400" />
+                <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-brand-primary/20 border border-brand-primary/20 flex items-center justify-center">
+                  <step.icon className="w-5 h-5 text-brand-link" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 mb-1">
-                    <span className="text-xs font-mono text-indigo-400/60">0{i + 1}</span>
+                    <span className="text-xs font-mono text-brand-link">0{i + 1}</span>
                     <h3 className="text-base font-semibold text-white">{step.title}</h3>
                   </div>
                   <p className="text-sm text-slate-400 leading-relaxed">{step.description}</p>
@@ -87,7 +92,7 @@ export default function OnboardingPage() {
           >
             <button
               onClick={() => setLocation('/')}
-              className="px-6 py-3 text-base font-medium text-white bg-indigo-600 hover:bg-indigo-100 hover:text-indigo-900 rounded-lg transition-all duration-300 inline-flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
+              className="px-6 py-3 text-base font-medium text-white bg-brand-primary hover:bg-brand-primary/15 hover:text-brand-primary rounded-lg transition-all duration-300 inline-flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98]"
               data-testid="button-onboarding-signin"
             >
               Sign In with Nostr
@@ -95,7 +100,7 @@ export default function OnboardingPage() {
             </button>
             <button
               onClick={() => setLocation('/what-is-wot')}
-              className="px-5 py-3 text-sm font-medium text-slate-400 hover:text-indigo-300 bg-slate-800/50 hover:bg-slate-700/70 border border-slate-700/50 hover:border-indigo-500/30 rounded-lg transition-all duration-300 cursor-pointer"
+              className="px-5 py-3 text-sm font-medium text-slate-400 hover:text-brand-link bg-slate-800/50 hover:bg-slate-700/70 border border-slate-700/50 hover:border-brand-primary/[0.3] rounded-lg transition-all duration-300 cursor-pointer"
               data-testid="button-onboarding-learn"
             >
               Learn about Web of Trust

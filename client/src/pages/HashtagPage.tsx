@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams, Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Hash, ShieldCheck, Share2, Check, ExternalLink } from "lucide-react";
+import { ArrowLeft, Hash, ShieldCheck, Share2, Check, ExternalLink, Info } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { PageHeader } from "@/components/PageHeader";
@@ -10,7 +10,7 @@ import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { searchContentByHashtag, rankHashtagEvents, type SortMode } from "@/lib/contentSearch";
 import { fetchProfileMap } from "@/services/nostr";
-import { getActivePreset, type TrustPreset } from "@/services/trustThreshold";
+import { getActivePreset, presetDisplayLabel, presetDescription, type TrustPreset } from "@/services/trustThreshold";
 import { eventPath } from "@/lib/shareId";
 import { mentionPubkeysFromContent, type MinimalEvent } from "@/lib/noteRefs";
 
@@ -33,11 +33,18 @@ const STRICTNESS_FLOOR: Record<TrustPreset, number> = {
   strict: 0.15,
 };
 
-const PRESETS: { key: TrustPreset; label: string }[] = [
-  { key: "relax", label: "Relax" },
-  { key: "default", label: "Default" },
-  { key: "strict", label: "Strict" },
-];
+// User-facing labels describe the WIDTH of the trust filter, not dev jargon —
+// Labels come from the shared preset vocabulary, NOT a local rename. This filter
+// seeds from the same global preset as Settings' Trust Perspective, so calling the
+// identical values Wide/Balanced/Strict here (as an earlier cut did) meant a user
+// who chose "Relax" in Settings arrived to find "Wide" selected — one setting
+// wearing two names. Settings' descriptions ride along as tooltips.
+const PRESETS: { key: TrustPreset; label: string; hint: string }[] = (
+  ["relax", "default", "strict"] as const
+).map((key) => ({ key, label: presetDisplayLabel(key), hint: presetDescription(key) }));
+const MIN_RESULTS = 5;
+// Next-wider preset for the auto-widen fallback (strict → default → relax → none).
+const WIDER: Record<TrustPreset, TrustPreset | null> = { strict: "default", default: "relax", relax: null };
 
 /** Set/reset the document title + OG meta for shareable previews. */
 function useHashtagMeta(tag: string) {
@@ -63,18 +70,22 @@ function useHashtagMeta(tag: string) {
 
 /** Segmented pill control (tabs style), matching the rest of the app. */
 function Segmented<T extends string>({ value, options, onChange, testId }: {
-  value: T; options: { key: T; label: string }[]; onChange: (v: T) => void; testId?: string;
+  value: T; options: { key: T; label: string; hint?: string }[]; onChange: (v: T) => void; testId?: string;
 }) {
   return (
-    <div className="inline-flex rounded-full bg-slate-100 p-0.5" data-testid={testId}>
+    <div className="inline-flex rounded-full bg-slate-100 dark:bg-slate-800 p-0.5" data-testid={testId}>
       {options.map((o) => (
         <button
           key={o.key}
           type="button"
           onClick={() => onChange(o.key)}
           aria-pressed={value === o.key}
+          // The row is too tight for Settings' descriptions inline, so they ride
+          // along as the tooltip/label instead of being dropped entirely.
+          title={o.hint ? `${o.label} — ${o.hint}` : undefined}
+          aria-label={o.hint ? `${o.label} — ${o.hint}` : undefined}
           className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-            value === o.key ? "bg-white text-[#3730a3] shadow-sm" : "text-slate-500 hover:text-slate-700"
+            value === o.key ? "bg-white dark:bg-slate-900 text-brand-link shadow-sm" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
           }`}
           data-testid={`${testId}-${o.key}`}
         >
@@ -104,13 +115,21 @@ export default function HashtagPage() {
 
   const candidates = contentQuery.data?.events ?? [];
   const scores = useMemo(() => contentQuery.data?.scores ?? new Map<string, number>(), [contentQuery.data]);
-  const candidateCount = contentQuery.data?.candidateCount ?? 0;
 
   // Page-local filter + sort: strictness (threshold) and Top/Latest re-apply instantly.
-  const events = useMemo(
-    () => rankHashtagEvents(candidates, scores, STRICTNESS_FLOOR[preset], sort),
-    [candidates, scores, preset, sort],
-  );
+  // Auto-widen: a near-empty page is a worse first impression than a slightly
+  // looser one, so if the selected strictness returns too few we fall to the
+  // next-wider preset until we clear a small floor (or hit the widest). Results
+  // widen; the selected chip stays put, and a note explains what happened.
+  const { events, widened } = useMemo(() => {
+    let p = preset;
+    let evs = rankHashtagEvents(candidates, scores, STRICTNESS_FLOOR[p], sort);
+    while (evs.length < MIN_RESULTS && WIDER[p]) {
+      p = WIDER[p]!;
+      evs = rankHashtagEvents(candidates, scores, STRICTNESS_FLOOR[p], sort);
+    }
+    return { events: evs, widened: p !== preset };
+  }, [candidates, scores, preset, sort]);
   const voiceCount = useMemo(() => new Set(events.map((e) => e.pubkey)).size, [events]);
 
   // Related topics: hashtags co-occurring in the trusted results.
@@ -160,14 +179,14 @@ export default function HashtagPage() {
 
   return (
     <ShareNavProvider>
-      <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans flex flex-col">
+      <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col">
         <PublicPageHeader
           maxWidthClass="max-w-2xl"
           actions={
             <button
               type="button"
               onClick={onShare}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm font-semibold text-slate-700 transition-colors hover:border-slate-300 hover:bg-slate-50"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200 transition-colors hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-900"
               data-testid="hashtag-share"
             >
               {copied ? <><Check className="h-4 w-4 text-emerald-600" /> Copied</> : <><Share2 className="h-4 w-4" /> Share</>}
@@ -178,20 +197,20 @@ export default function HashtagPage() {
         <main className="w-full max-w-2xl mx-auto px-4 sm:px-6 py-8 flex-1" data-testid="hashtag-page">
           <PageHeader
             kicker="Topic"
-            title={<><Hash className="inline-block h-7 w-7 -mt-1 text-[#7c86ff]" />{tag}</>}
+            title={<><Hash className="inline-block h-7 w-7 -mt-1 text-brand-accent" />{tag}</>}
             subtitle="Trusted notes and articles on this topic — ranked by Web of Trust, spam filtered out."
           />
 
           {/* Related topics */}
           {relatedTopics.length > 0 && (
             <div className="mt-6 flex flex-wrap items-center gap-2" data-testid="hashtag-related">
-              <span className="text-[11px] font-mono font-semibold uppercase tracking-[0.2em] text-[#7c86ff]">Related</span>
+              <span className="text-[11px] font-mono font-semibold uppercase tracking-[0.2em] text-brand-accent">Related</span>
               {relatedTopics.map((t) => (
                 <button
                   key={t}
                   type="button"
                   onClick={() => navigate(`/t/${encodeURIComponent(t)}`)}
-                  className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600 transition-colors hover:bg-slate-200"
+                  className="rounded-full bg-slate-100 dark:bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-600 dark:text-slate-300 transition-colors hover:bg-slate-200 dark:hover:bg-slate-700"
                   data-testid={`hashtag-related-${t}`}
                 >
                   #{t}
@@ -201,13 +220,13 @@ export default function HashtagPage() {
           )}
 
           {/* Controls: sort + strictness + count */}
-          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4" data-testid="hashtag-controls">
+          <div className="mt-6 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-4" data-testid="hashtag-controls">
             <div className="flex flex-wrap items-center gap-2">
               <Segmented value={sort} options={SORTS} onChange={setSort} testId="hashtag-sort" />
               <Segmented value={preset} options={PRESETS} onChange={setPreset} testId="hashtag-strictness" />
             </div>
             {!loading && (
-              <p className="text-xs text-slate-400" data-testid="hashtag-count">
+              <p className="text-xs text-slate-400 dark:text-slate-500" data-testid="hashtag-count">
                 {events.length} trusted post{events.length !== 1 ? "s" : ""} · {voiceCount} voice{voiceCount !== 1 ? "s" : ""}
               </p>
             )}
@@ -216,51 +235,55 @@ export default function HashtagPage() {
           <div className="mt-6 space-y-4">
             {loading ? (
               Array.from({ length: 4 }).map((_, i) => (
-                <div key={i} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm" data-testid="hashtag-skeleton">
+                <div key={i} className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm" data-testid="hashtag-skeleton">
                   <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-full bg-slate-100 animate-pulse" />
-                    <div className="h-3 w-32 rounded bg-slate-100 animate-pulse" />
+                    <div className="h-9 w-9 rounded-full bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                    <div className="h-3 w-32 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
                   </div>
-                  <div className="mt-3 h-3 w-full rounded bg-slate-100 animate-pulse" />
-                  <div className="mt-2 h-3 w-3/4 rounded bg-slate-100 animate-pulse" />
+                  <div className="mt-3 h-3 w-full rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
+                  <div className="mt-2 h-3 w-3/4 rounded bg-slate-100 dark:bg-slate-800 animate-pulse" />
                 </div>
               ))
             ) : events.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200 bg-white px-6 py-12 text-center shadow-sm" data-testid="hashtag-empty">
-                <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 text-[#333286]">
+              <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-6 py-12 text-center shadow-sm" data-testid="hashtag-empty">
+                <div className="mx-auto mb-3 flex h-11 w-11 items-center justify-center rounded-xl bg-brand-accent/10 border border-brand-accent/20 text-brand-deep">
                   <ShieldCheck className="h-5 w-5" />
                 </div>
-                <p className="text-sm font-semibold text-slate-900">
-                  {candidateCount > 0 && preset !== "relax" ? `Nothing at this strictness for #${tag}` : `No trusted content for #${tag} yet`}
+                {/* Auto-widen has already fallen to the widest filter before we
+                    reach here, so an empty page means genuinely nothing trusted —
+                    the old "loosen the filter" prompt would be a dead end. */}
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  No trusted posts on #{tag} yet
                 </p>
-                <p className="mt-1 text-sm text-slate-500">
-                  {candidateCount > 0 && preset !== "relax"
-                    ? "Try loosening the trust filter to Relax to see more."
-                    : "We only show posts from accounts with Web-of-Trust standing, so spam doesn't make the cut."}
+                <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+                  We only show posts from accounts with Web-of-Trust standing, so spam doesn't make the cut. Check back as your network grows.
                 </p>
-                {candidateCount > 0 && preset !== "relax" && (
-                  <button type="button" onClick={() => setPreset("relax")} className="mt-3 inline-flex items-center gap-1.5 rounded-lg bg-[#6366f1] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#4f46e5]" data-testid="hashtag-relax">
-                    Loosen to Relax
-                  </button>
-                )}
               </div>
             ) : (
-              events.map((ev) =>
+              <>
+              {widened && (
+                <div className="mb-3 flex items-start gap-2 rounded-xl border border-brand-accent/25 bg-brand-accent/[0.06] px-3 py-2 text-xs text-slate-600 dark:text-slate-300" data-testid="hashtag-widened">
+                  <Info className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-accent" />
+                  <span>Few highly-trusted posts on <span className="font-semibold">#{tag}</span> yet — showing wider results so there's something to read.</span>
+                </div>
+              )}
+              {events.map((ev) =>
                 ev.kind === 30023 ? (
                   <EmbeddedArticleCard key={ev.id} event={ev as MinimalEvent} author={profiles.get(ev.pubkey)} />
                 ) : (
-                  <div key={ev.id} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div key={ev.id} className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
                     <ShareNoteCard event={ev as MinimalEvent} profiles={profiles} eventsById={EMPTY} href={eventPath(ev)} showAuthor authorScore={scores.get(ev.pubkey)} />
                   </div>
                 ),
-              )
+              )}
+              </>
             )}
           </div>
 
           {/* Cross-client: no universal hashtag deep-link, so link the clients that have one. */}
           {!loading && events.length > 0 && (
-            <div className="mt-10 border-t border-slate-200 pt-6" data-testid="hashtag-openin">
-              <p className="text-[11px] font-mono font-semibold uppercase tracking-[0.2em] text-slate-400">Explore #{tag} elsewhere</p>
+            <div className="mt-10 border-t border-slate-200 dark:border-slate-800 pt-6" data-testid="hashtag-openin">
+              <p className="text-[11px] font-mono font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Explore #{tag} elsewhere</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 {clientLinks.map((c) => (
                   <a
@@ -268,10 +291,10 @@ export default function HashtagPage() {
                     href={c.href}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3.5 py-2 text-sm font-semibold text-slate-700 transition-colors hover:border-[#7c86ff]/50"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 transition-colors hover:border-brand-accent/50"
                     data-testid={`hashtag-client-${c.name}`}
                   >
-                    {c.name} <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+                    {c.name} <ExternalLink className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
                   </a>
                 ))}
               </div>

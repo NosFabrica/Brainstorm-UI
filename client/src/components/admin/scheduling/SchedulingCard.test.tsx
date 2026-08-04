@@ -6,12 +6,14 @@ import { SchedulingCard } from "./SchedulingCard";
 
 // The enriched assigned-users list + AssignUsersDialog resolve kind-0 profiles
 // and search Nostr over relays — stub those so tests stay offline/deterministic.
+// Plain functions, not vi.fn(): the factory runs once, so afterEach's
+// restoreAllMocks would strip a vi.fn()'s implementation for every later test.
 vi.mock("@/services/nostr", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/nostr")>();
   return {
     ...actual,
-    fetchProfileMap: vi.fn().mockResolvedValue(new Map()),
-    searchNostrProfiles: vi.fn().mockResolvedValue([]),
+    fetchProfileMap: async () => new Map(),
+    searchNostrProfiles: async () => [],
   };
 });
 

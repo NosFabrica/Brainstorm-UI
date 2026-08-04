@@ -1,17 +1,19 @@
 import { useMemo, useState } from "react";
-import { useRoute, Redirect, Link } from "wouter";
+import { useRoute, Redirect, Link, useLocation } from "wouter";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { ArrowLeft, ChevronRight, Loader2, Users, BadgeCheck, SlidersHorizontal } from "lucide-react";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
-import { fetchProfileForShare, fetchProfileMap, fetchReportsForPubkey, type ReportMetadata } from "@/services/nostr";
+import { fetchProfileForShare, fetchProfileMap, fetchReportsForPubkey, logout, type ReportMetadata } from "@/services/nostr";
+import { AccountMenu } from "@/components/AccountMenu";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { REPORT_TYPE_BADGE_COLORS, formatReportTime } from "@/lib/reportMeta";
 import { apiClient, hasSessionToken } from "@/services/api";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "@/services/graphHelpers";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { BrainLogo } from "@/components/BrainLogo";
+import { Wordmark } from "@/components/Wordmark";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { InfoHint } from "@/components/InfoHint";
-import { TrustScoreModal, useScorePov, type ScorePov } from "@/components/score/TrustScorePov";
+import { TrustScoreModal, useScorePov, PovToggle, type ScorePov } from "@/components/score/TrustScorePov";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
 
 type ConnKind = "followed_by" | "following" | "muted_by" | "reported_by";
@@ -35,7 +37,10 @@ function cleanNip05(v?: string): string | undefined {
 const PAGE = 20;
 
 export default function ConnectionListPage() {
+  const [, navigate] = useLocation();
   const [, params] = useRoute("/p/:id/:type");
+  const [me, setMe] = useCurrentUser();
+  const handleLogout = () => { logout(); setMe(null); };
   const rawId = params?.id || "";
   const type = params?.type || "";
   const decoded = useMemo(() => decodeShareId(rawId), [rawId]);
@@ -130,8 +135,22 @@ export default function ConnectionListPage() {
   }, [reportsQuery.data]);
 
   // Guard rails — bad share id or unknown list type.
-  if (!decoded) return <Redirect to="/" />;
-  if (!cfg) return <Redirect to={`/p/${rawId}`} />;
+  // `replace`, never push. wouter's <Redirect> PUSHES by default, and these are
+  // guards that can fire transiently: on the first render after an in-app
+  // navigation `useRoute` hasn't matched yet, so `rawId` is empty, `decoded` is
+  // null, and this fired — shoving "/" into history BETWEEN the profile and this
+  // list. The page then rendered correctly, so nothing looked wrong until the
+  // user pressed Back and landed on the home page having lost their place.
+  // A guard redirect must only ever REPLACE the entry it rejects.
+  // Params not resolved yet is NOT a bad URL. `useRoute` can return null params
+  // on the first render after an in-app navigation, making `rawId` empty and
+  // `decoded` null — and redirecting on that rewrote history for a URL that was
+  // about to be perfectly valid, which is what sent people to the home page when
+  // they pressed Back. Wait for the route instead; only a rawId that genuinely
+  // fails to decode is a bad link.
+  if (!rawId) return null;
+  if (!decoded) return <Redirect to="/" replace />;
+  if (!cfg) return <Redirect to={`/p/${rawId}`} replace />;
 
   const subject = (subjectQuery.data ?? {}) as Record<string, string | undefined>;
   const subjectName =
@@ -141,50 +160,75 @@ export default function ConnectionListPage() {
 
   // "What does verified mean?" popover — POV-aware so it nudges the right next
   // step: sign in (logged out) → watch calculation (calculating) → tune it (yours).
-  const povLink = "font-medium text-[#6366f1] hover:text-[#4f46e5]";
+  const povLink = "font-medium text-brand-primary hover:text-brand-primary-hover";
   const currentPath = `/p/${rawId}/${type}`;
   const verifiedPopover = !signedIn ? (
     <>
-      <p><strong className="font-semibold text-slate-700">Verified</strong> means an account the Web of Trust vouches for — its score clears the threshold, so bots and unknown accounts don't count.</p>
-      <p className="mt-1.5">Right now you're seeing <strong className="font-semibold text-slate-700">Brainstorm's</strong> point of view. <Link href={`/login?next=${encodeURIComponent(currentPath)}`} className={povLink}>Sign in</Link> to switch to <em>your own</em> Web of Trust — once your scores are calculated.</p>
+      <p><strong className="font-semibold text-slate-700 dark:text-slate-200">Verified</strong> means an account the Web of Trust vouches for — its score clears the threshold, so bots and unknown accounts don't count.</p>
+      <p className="mt-1.5">Right now you're seeing <strong className="font-semibold text-slate-700 dark:text-slate-200">Brainstorm's</strong> point of view. <Link href={`/login?next=${encodeURIComponent(currentPath)}`} className={povLink}>Sign in</Link> to switch to <em>your own</em> Web of Trust — once your scores are calculated.</p>
       <Link href="/what-is-wot" className={`mt-2 inline-block ${povLink}`}>Learn how it works →</Link>
     </>
   ) : !calcDone ? (
     <>
-      <p><strong className="font-semibold text-slate-700">Verified</strong> means an account the Web of Trust vouches for — bots and unknown accounts don't count.</p>
-      <p className="mt-1.5">You're signed in, but <strong className="font-semibold text-slate-700">your scores are still being calculated</strong>. Until they're ready, this shows Brainstorm's point of view.</p>
+      <p><strong className="font-semibold text-slate-700 dark:text-slate-200">Verified</strong> means an account the Web of Trust vouches for — bots and unknown accounts don't count.</p>
+      <p className="mt-1.5">You're signed in, but <strong className="font-semibold text-slate-700 dark:text-slate-200">your scores are still being calculated</strong>. Until they're ready, this shows Brainstorm's point of view.</p>
       <Link href="/dashboard" className={`mt-1 inline-block ${povLink}`}>Check your dashboard →</Link>
       <Link href="/what-is-wot" className={`mt-2 block ${povLink}`}>Learn how it works →</Link>
     </>
   ) : (
     <>
-      <p><strong className="font-semibold text-slate-700">Verified</strong> means an account <em>your</em> Web of Trust vouches for — the accounts <strong className="font-semibold text-slate-700">you</strong> trust decide who counts.</p>
+      <p><strong className="font-semibold text-slate-700 dark:text-slate-200">Verified</strong> means an account <em>your</em> Web of Trust vouches for — the accounts <strong className="font-semibold text-slate-700 dark:text-slate-200">you</strong> trust decide who counts.</p>
       <p className="mt-1.5">You're seeing your own point of view. Tune the threshold in <Link href="/settings?tab=trust" className={povLink}>Settings</Link> — Relax, Default, or Strict.</p>
       <Link href="/what-is-wot" className={`mt-2 inline-block ${povLink}`}>Learn how it works →</Link>
     </>
   );
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans flex flex-col">
-      <header className="border-b border-slate-200/70 bg-white/70 backdrop-blur-sm sticky top-0 z-20">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col">
+      <header className="border-b border-slate-200/70 dark:border-slate-800/70 bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm sticky top-0 z-20">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
-          <Link href={`/p/${rawId}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-[#3730a3] hover:underline" data-testid="conn-back">
+          {/* Pops history rather than navigating to the profile. As a <Link> this
+              PUSHED a duplicate entry, so "Back" moved the user forward: the
+              stack became [profile, list, profile] and the browser's own Back
+              then returned to the list they'd just left. Do that across a few
+              profiles and the stack fills with duplicates — back-tapping
+              retraces the loop instead of retreating, and eventually overshoots
+              to wherever the session began.
+
+              A <button>, not an <a>: same shape AlertsPage / InsightsPage /
+              ReadingPage / ProfilePage already use for their back controls, and
+              it can't fall through to a full document navigation the way an
+              anchor does if the handler ever declines to preventDefault. Nobody
+              needs to open "Back" in a new tab. `navigate` is the cold-deep-link
+              fallback when there's no history to pop. */}
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) window.history.back();
+              else navigate(`/p/${rawId}`);
+            }}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-100 hover:text-slate-900 dark:hover:text-white transition-colors"
+            data-testid="conn-back"
+          >
             <ArrowLeft className="h-4 w-4" /> Back to {subjectName.split(" ")[0]}
-          </Link>
-          <Link href="/" className="ml-auto flex items-center gap-2" data-testid="conn-brand">
-            <BrainLogo size={22} className="text-indigo-500" />
-            <span className="text-base font-bold tracking-tight text-indigo-500 font-brand">Brainstorm</span>
-          </Link>
+          </button>
+          <div className="ml-auto flex items-center gap-3">
+            <Link href="/" className="flex items-center" data-testid="conn-brand">
+              <Wordmark height={24} className="dark:hidden" />
+              <Wordmark height={24} variant="white" className="hidden dark:block" />
+            </Link>
+            {me && <AccountMenu user={me} onLogout={handleLogout} />}
+          </div>
         </div>
       </header>
 
       <main className="flex-1 w-full max-w-2xl mx-auto px-4 sm:px-6 py-6">
         <div className="mb-5">
           <div className="flex items-center gap-2.5">
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[#7c86ff]/30 bg-[#333286]/5 text-[#333286]">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-brand-accent/30 bg-brand-deep/5 text-brand-deep">
               <Users className="h-4 w-4" />
             </span>
-            <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="conn-title">
+            <h1 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="conn-title">
               {cfg.title(subjectName)}
             </h1>
             {cfg.verifiedOnly && (
@@ -194,7 +238,7 @@ export default function ConnectionListPage() {
               type="button"
               onClick={() => setFiltersOpen((o) => !o)}
               aria-expanded={filtersOpen}
-              className={`ml-auto inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-colors ${filtersOpen || tierFilter !== "all" || sortOrder !== "desc" ? "border-indigo-300 bg-indigo-50 text-indigo-600" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
+              className={`ml-auto inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition-colors ${filtersOpen || tierFilter !== "all" || sortOrder !== "desc" ? "border-brand-primary/25 bg-brand-primary/10 text-brand-primary" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
               title="Filter & sort"
               data-testid="conn-filter-toggle"
             >
@@ -202,57 +246,75 @@ export default function ConnectionListPage() {
             </button>
           </div>
           {!loading && items.length > 0 && (
-            <p className="mt-1.5 text-sm text-slate-500" data-testid="conn-subtitle">{cfg.subtitle(subjectName)}</p>
+            <p className="mt-1.5 text-sm text-slate-500 dark:text-slate-400" data-testid="conn-subtitle">{cfg.subtitle(subjectName)}</p>
           )}
+          {/* The POV lens sits LEFT, in the primary reading path, on its own line
+              (both breakpoints) — it reframes every score and the tier buckets,
+              so it reads as the list's lens, not a right-rail utility like the
+              filter. Left-aligned = one clean content edge + better discovery. */}
+          <div className="mt-3">
+            <PovToggle canPersonalize={signedIn && calcDone} avatarUrl={me?.picture} className="shrink-0" />
+          </div>
 
           {filtersOpen && (
-            <div className="mt-3 rounded-xl border border-slate-200 bg-white p-3 shadow-sm space-y-2.5" data-testid="conn-filter-panel">
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mr-1">Trust level</span>
-                {([["all", "All"], ["high", "Highly Trusted"], ["medium_high", "Trusted"], ["medium", "Neutral"], ["medium_low", "Low"]] as const).map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setTierFilter(value)}
-                    className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${tierFilter === value ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
-                    data-testid={`conn-filter-${value}`}
-                  >
-                    {label}
-                  </button>
-                ))}
+            <div className="mt-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3 shadow-sm space-y-2.5" data-testid="conn-filter-panel">
+              {/* Five tier chips plus an inline label can't fit 390px, so they used
+                  to wrap onto a second (and ragged third) line. The label now sits
+                  above and the chips ride a single horizontally-scrollable line —
+                  the familiar mobile filter-chip pattern, and it can't re-wrap on a
+                  narrower phone. `-mx-3 px-3` bleeds the scroll area to the card
+                  edge so it reads as scrollable; from `sm:` up there's room, so it
+                  reverts to a plain wrapping row. Scrollbars are hidden app-wide. */}
+              <div>
+                <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Trust level</span>
+                <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+                  {([["all", "All"], ["high", "Highly Trusted"], ["medium_high", "Trusted"], ["medium", "Neutral"], ["medium_low", "Low"]] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setTierFilter(value)}
+                      className={`shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${tierFilter === value ? "border-brand-primary/25 bg-brand-primary/10 text-brand-primary" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
+                      data-testid={`conn-filter-${value}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 mr-1">Sort</span>
-                {([["desc", "Most trusted first"], ["asc", "Least trusted first"]] as const).map(([value, label]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setSortOrder(value)}
-                    className={`rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${sortOrder === value ? "border-indigo-300 bg-indigo-50 text-indigo-700" : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"}`}
-                    data-testid={`conn-sort-${value}`}
-                  >
-                    {label}
-                  </button>
-                ))}
+              <div>
+                <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Sort</span>
+                <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
+                  {([["desc", "Most trusted first"], ["asc", "Least trusted first"]] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setSortOrder(value)}
+                      className={`shrink-0 whitespace-nowrap rounded-full border px-2.5 py-1 text-xs font-semibold transition-colors ${sortOrder === value ? "border-brand-primary/25 bg-brand-primary/10 text-brand-primary" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800"}`}
+                      data-testid={`conn-sort-${value}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           )}
         </div>
 
-        <div className="rounded-2xl bg-white border border-slate-200 shadow-sm divide-y divide-slate-100 overflow-hidden">
+        <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm divide-y divide-slate-100 dark:divide-slate-800/60 overflow-hidden">
           {loading ? (
             Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="flex items-center gap-3 px-3 py-3 animate-pulse" data-testid="conn-skeleton">
-                <div className="w-9 h-9 rounded-full bg-slate-100 shrink-0" />
-                <div className="w-10 h-10 rounded-full bg-slate-100 shrink-0" />
+                <div className="w-9 h-9 rounded-full bg-slate-100 dark:bg-slate-800 shrink-0" />
+                <div className="w-10 h-10 rounded-full bg-slate-100 dark:bg-slate-800 shrink-0" />
                 <div className="flex-1 space-y-1.5">
-                  <div className="h-3 w-32 rounded bg-slate-100" />
-                  <div className="h-2.5 w-24 rounded bg-slate-100" />
+                  <div className="h-3 w-32 rounded bg-slate-100 dark:bg-slate-800" />
+                  <div className="h-2.5 w-24 rounded bg-slate-100 dark:bg-slate-800" />
                 </div>
               </div>
             ))
           ) : items.length === 0 ? (
-            <p className="px-4 py-10 text-center text-sm text-slate-400" data-testid="conn-empty">{cfg.empty}</p>
+            <p className="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500" data-testid="conn-empty">{cfg.empty}</p>
           ) : (
             items.map((entry) => {
               const pk = typeof entry === "string" ? entry : entry.pubkey;
@@ -267,18 +329,18 @@ export default function ConnectionListPage() {
                 <Link
                   key={pk}
                   href={rowNpub ? `/p/${rowNpub}` : "#"}
-                  className="group flex items-center gap-3.5 px-4 py-3 hover:bg-slate-50 transition-colors"
+                  className="group flex items-center gap-3.5 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
                   data-testid={`conn-row-${pk.slice(0, 8)}`}
                 >
                   <TrustAvatar picture={p?.picture} name={name} score={score} pov={scorePov} />
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-slate-900">{name}</p>
+                    <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
                     {handle ? (
-                      <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-500">
+                      <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-500 dark:text-slate-400">
                         <BadgeCheck className="h-3 w-3 shrink-0 text-sky-500" /><span className="truncate">{handle}</span>
                       </p>
                     ) : (
-                      rowNpub && <p className="mt-0.5 truncate font-mono text-xs text-slate-400">{rowNpub.slice(0, 16)}…</p>
+                      rowNpub && <p className="mt-0.5 truncate font-mono text-xs text-slate-400 dark:text-slate-500">{rowNpub.slice(0, 16)}…</p>
                     )}
                     {cfg.kind === "reported_by" && (() => {
                       const rm = reportMap.get(pk);
@@ -286,13 +348,13 @@ export default function ConnectionListPage() {
                       return (
                         <div className="mt-1 flex flex-wrap items-center gap-1.5" data-testid={`conn-report-${pk.slice(0, 8)}`}>
                           <span className={`inline-flex items-center rounded border px-1.5 py-px text-[10px] font-medium ${REPORT_TYPE_BADGE_COLORS[rm.reportType] || REPORT_TYPE_BADGE_COLORS.other}`}>{rm.reportType}</span>
-                          <span className="text-[10px] text-slate-400">{formatReportTime(rm.timestamp)}</span>
-                          {rm.reason && <span className="max-w-[160px] truncate text-[10px] italic text-slate-400" title={rm.reason}>"{rm.reason}"</span>}
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500">{formatReportTime(rm.timestamp)}</span>
+                          {rm.reason && <span className="max-w-[160px] truncate text-[10px] italic text-slate-400 dark:text-slate-500" title={rm.reason}>"{rm.reason}"</span>}
                         </div>
                       );
                     })()}
                   </div>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-slate-400" />
+                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 dark:text-slate-600 transition-colors group-hover:text-slate-400 dark:group-hover:text-slate-500" />
                 </Link>
               );
             })
@@ -304,7 +366,7 @@ export default function ConnectionListPage() {
             type="button"
             onClick={() => connQuery.fetchNextPage()}
             disabled={connQuery.isFetchingNextPage}
-            className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] disabled:opacity-50 text-white text-sm font-semibold py-2.5 transition-colors"
+            className="mt-4 w-full inline-flex items-center justify-center gap-2 rounded-xl bg-brand-primary hover:bg-brand-primary-hover disabled:opacity-50 text-white text-sm font-semibold py-2.5 transition-colors"
             data-testid="conn-load-more"
           >
             {connQuery.isFetchingNextPage ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
@@ -323,7 +385,7 @@ export default function ConnectionListPage() {
 function TrustAvatar({ picture, name, score, pov }: { picture?: string; name: string; score: number | null; pov: ScorePov }) {
   return (
     <div className="relative shrink-0">
-      <Avatar className="h-12 w-12 rounded-full bg-white" style={{ boxShadow: "0 0 0 1px #e2e8f0" }}>
+      <Avatar className="h-12 w-12 rounded-full bg-white dark:bg-slate-900" style={{ boxShadow: "0 0 0 1px #e2e8f0" }}>
         {picture ? <AvatarImage src={picture} alt={name} className="object-cover" /> : null}
         <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
       </Avatar>

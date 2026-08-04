@@ -56,17 +56,17 @@ export default function WelcomePage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 to-white">
-      <header className="border-b border-slate-200 bg-white/80 backdrop-blur">
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 dark:from-slate-950 to-white dark:to-slate-900">
+      <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
         <div className="mx-auto max-w-xl flex items-center justify-between px-4 sm:px-6 h-14">
           <div className="flex items-center gap-2">
-            <BrainLogo size={26} className="text-indigo-500" />
-            <span className="text-lg font-bold text-indigo-500 font-brand">Brainstorm</span>
+            <BrainLogo size={26} className="text-brand-primary" />
+            <span className="text-lg font-bold text-brand-primary font-brand">Brainstorm</span>
           </div>
           <button
             type="button"
             onClick={() => navigate("/", { replace: true })}
-            className="text-sm font-semibold text-slate-400 hover:text-slate-600"
+            className="text-sm font-semibold text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
             data-testid="welcome-skip"
           >
             Skip for now
@@ -76,18 +76,18 @@ export default function WelcomePage() {
 
       <main className="mx-auto max-w-xl px-4 sm:px-6 py-8">
         <div className="flex items-center gap-2.5 mb-5">
-          <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-[#7c86ff] uppercase">
+          <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-brand-accent uppercase">
             Build your network
           </span>
-          <div className="h-px w-12 bg-[#7c86ff]/40" />
+          <div className="h-px w-12 bg-brand-accent/40" />
         </div>
         <h1
-          className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight leading-[1.08]"
+          className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-[1.08]"
           style={{ fontFamily: "var(--font-display)" }}
         >
-          Follow a few accounts <span className="text-[#333286]">to begin</span>.
+          Follow a few accounts <span className="text-brand-link">to begin</span>.
         </h1>
-        <p className="mt-5 text-lg text-slate-600 leading-relaxed">
+        <p className="mt-5 text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
           Your Web of Trust is built from who you follow. Pick at least one account so Brainstorm can
           calculate your trust scores and personalize your results.
         </p>

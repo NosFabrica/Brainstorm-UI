@@ -12,6 +12,10 @@ import {
   Lock,
 } from "lucide-react";
 import { CommunitiesIcon, MusicLibraryIcon } from "@/components/brainstormAppIcons";
+import { Card } from "@/components/ui/card";
+import { Chip } from "@/components/ui/chip";
+import { tone as getTone, type NamedTone } from "@/lib/tones";
+import { cn } from "@/lib/utils";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { BrainLogo } from "@/components/BrainLogo";
 import heroVideo from "@assets/generated_videos/about_hero_real_connection.mp4";
@@ -133,23 +137,23 @@ export default function AboutPage() {
           {/* Left: copy — `contents` on mobile lets each piece reorder around the video */}
           <div className="contents lg:block lg:space-y-6 animate-fade-up lg:order-1">
             <div className="flex items-center gap-2.5 order-1">
-              <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-[#7c86ff] uppercase">
+              <span className="text-[11px] font-mono font-semibold tracking-[0.25em] text-brand-accent uppercase">
                 About Brainstorm
               </span>
-              <div className="h-px w-12 bg-[#7c86ff]/40" />
+              <div className="h-px w-12 bg-brand-accent/40" />
             </div>
 
             <div className="min-h-[150px] sm:min-h-[190px] order-2" key={slide} aria-live="polite">
               <h1
-                className="font-brand text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 tracking-tight animate-fade-up"
+                className="font-brand text-4xl sm:text-5xl lg:text-6xl font-bold text-slate-900 dark:text-slate-100 tracking-tight animate-fade-up"
                 data-testid="text-about-title"
               >
-                <span className="text-[#333286] block pb-1">
+                <span className="text-brand-deep dark:text-slate-100 block pb-1">
                   {active.title}
                 </span>
               </h1>
               <p
-                className="mt-4 text-base sm:text-lg text-slate-600 font-medium max-w-xl leading-relaxed animate-fade-up"
+                className="mt-4 text-base sm:text-lg text-slate-600 dark:text-slate-300 font-medium max-w-xl leading-relaxed animate-fade-up"
                 data-testid="text-about-subtitle"
               >
                 {active.sub}
@@ -159,7 +163,7 @@ export default function AboutPage() {
             <div className="flex flex-wrap items-center gap-3 order-4">
               <button
                 onClick={() => navigate("/")}
-                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-full transition-colors active:scale-[0.98] shadow-[0_4px_14px_rgba(99,102,241,0.25)]"
+                className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold text-white bg-brand-primary hover:bg-brand-primary rounded-full transition-colors active:scale-[0.98] shadow-[0_4px_14px_rgb(var(--brand-primary)/0.25)]"
                 data-testid="button-hero-search"
               >
                 <Search className="h-4 w-4" />
@@ -167,7 +171,7 @@ export default function AboutPage() {
               </button>
               <button
                 onClick={() => navigate("/how-search-works")}
-                className="inline-flex items-center gap-1.5 px-5 py-2.5 text-sm font-semibold text-slate-700 bg-white/80 border border-slate-200 hover:border-[#7c86ff]/40 hover:text-indigo-600 rounded-full transition-colors active:scale-[0.98]"
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 hover:border-brand-accent/40 hover:text-brand-primary rounded-full transition-colors active:scale-[0.98]"
                 data-testid="button-hero-learn"
               >
                 How it works
@@ -185,8 +189,8 @@ export default function AboutPage() {
                   aria-current={i === slide}
                   className={`h-1.5 rounded-full transition-all duration-300 ${
                     i === slide
-                      ? "w-7 bg-indigo-600"
-                      : "w-1.5 bg-slate-300 hover:bg-slate-400"
+                      ? "w-7 bg-brand-primary"
+                      : "w-1.5 bg-slate-300 dark:bg-slate-700 hover:bg-slate-400 dark:hover:bg-slate-600"
                   }`}
                   data-testid={`hero-dot-${i}`}
                 />
@@ -196,7 +200,7 @@ export default function AboutPage() {
 
           {/* Right: cinematic video — mobile order: between the slides copy and the CTAs */}
           <div className="order-3 lg:order-2 animate-fade-up">
-            <div className="group relative rounded-3xl overflow-hidden bg-slate-950 ring-1 ring-white/10 shadow-[0_24px_70px_-20px_rgba(51,50,134,0.45)] aspect-[16/10]">
+            <div className="group relative rounded-3xl overflow-hidden bg-slate-950 ring-1 ring-white/10 shadow-[0_24px_70px_-20px_rgb(var(--brand-deep)/0.45)] aspect-[16/10]">
               {HERO_SLIDES.map((s, i) => (
                 <video
                   key={s.title}
@@ -217,7 +221,7 @@ export default function AboutPage() {
                 />
               ))}
               {/* gentle vignette + brand wash */}
-              <div className="absolute inset-0 bg-gradient-to-tr from-[#333286]/30 via-transparent to-transparent pointer-events-none" />
+              <div className="absolute inset-0 bg-gradient-to-tr from-brand-deep/30 via-transparent to-transparent pointer-events-none" />
               <div className="absolute inset-0 ring-1 ring-inset ring-white/5 rounded-3xl pointer-events-none" />
 
               <button
@@ -237,26 +241,26 @@ export default function AboutPage() {
       {/* ============ MISSION ============ */}
       <section className="w-full max-w-5xl mx-auto px-4 sm:px-6 py-8 sm:py-12">
         <div
-          className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden"
+          className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm overflow-hidden"
           data-testid="card-about-mission"
         >
           <div className="p-6 sm:p-10 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center shrink-0">
-                <BrainLogo size={20} className="text-[#333286]" />
+              <div className="h-10 w-10 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center shrink-0">
+                <BrainLogo size={20} className="text-brand-deep" />
               </div>
               <h2
-                className="text-2xl font-bold text-slate-900 tracking-tight"
+                className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 Why Brainstorm
               </h2>
             </div>
-            <p className="text-[15px] sm:text-base text-slate-600 leading-relaxed max-w-3xl">
+            <p className="text-[15px] sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed max-w-3xl">
               The web used to be people. Now it's people, bots, and AI all talking at once, and it's
               getting harder to tell who's who.
             </p>
-            <p className="text-[15px] sm:text-base text-slate-600 leading-relaxed max-w-3xl">
+            <p className="text-[15px] sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed max-w-3xl">
               Brainstorm is search built for that world. Instead of guessing, it reads who real people
               actually trust. The accounts that matter rise, and the noise quietly fades.
             </p>
@@ -271,12 +275,12 @@ export default function AboutPage() {
       >
         <div className="max-w-2xl mb-8">
           <h2
-            className="text-3xl sm:text-4xl font-bold text-slate-900 tracking-tight"
+            className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight"
             style={{ fontFamily: "var(--font-display)" }}
           >
             The Brainstorm family
           </h2>
-          <p className="mt-3 text-base text-slate-600 leading-relaxed">
+          <p className="mt-3 text-base text-slate-600 dark:text-slate-300 leading-relaxed">
             One simple idea powers it all: real human trust. We're starting with search, with more on
             the way.
           </p>
@@ -286,48 +290,46 @@ export default function AboutPage() {
           {/* Search — live */}
           <button
             onClick={() => navigate("/")}
-            className="group text-left rounded-2xl bg-white border border-slate-200 shadow-sm hover:border-[#7c86ff]/50 hover:shadow-md transition-all p-5 sm:p-6 flex flex-col gap-3"
+            className="group text-left rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm hover:border-brand-accent/50 hover:shadow-md transition-all p-5 sm:p-6 flex flex-col gap-3"
             data-testid="card-family-search"
           >
             <div className="flex items-center justify-between">
-              <div className="h-11 w-11 rounded-xl bg-indigo-600 shadow-[0_4px_14px_rgba(99,102,241,0.3)] flex items-center justify-center">
+              <div className="h-11 w-11 rounded-xl bg-brand-primary shadow-[0_4px_14px_rgb(var(--brand-primary)/0.3)] flex items-center justify-center">
                 <Search className="h-5 w-5 text-white" />
               </div>
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-[10px] font-bold tracking-wide text-emerald-700 uppercase">
-                <span className="w-1 h-1 rounded-full bg-emerald-500" /> Live
-              </span>
+              <Chip tone="emerald" dot size="sm" className="font-bold uppercase tracking-wide">Live</Chip>
             </div>
-            <h3 className="text-lg font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>
+            <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
               Brainstorm Search
             </h3>
-            <p className="text-sm text-slate-600 leading-relaxed flex-1">
+            <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed flex-1">
               Find real people across millions of profiles. Search by name, bio, or handle.
             </p>
-            <span className="inline-flex items-center gap-1 text-sm font-semibold text-indigo-600 group-hover:gap-2 transition-all">
+            <span className="inline-flex items-center gap-1 text-sm font-semibold text-brand-primary group-hover:gap-2 transition-all">
               Open search <ArrowRight className="h-4 w-4" />
             </span>
           </button>
 
           {/* Vendors */}
           <ComingSoonCard
-            icon={<Store className="h-5 w-5 text-sky-600" />}
-            tint="bg-sky-50"
+            icon={Store}
+            tone="sky"
             title="Brainstorm Vendors"
             desc="Find sellers and services worth your money, vouched for by people you trust."
             testId="card-family-vendors"
           />
           {/* Communities */}
           <ComingSoonCard
-            icon={<CommunitiesIcon className="h-5 w-5 text-violet-600" />}
-            tint="bg-violet-50"
+            icon={CommunitiesIcon}
+            tone="violet"
             title="Brainstorm Communities"
             desc="Hang out in spaces full of people actually worth your time."
             testId="card-family-communities"
           />
           {/* Music */}
           <ComingSoonCard
-            icon={<MusicLibraryIcon className="h-5 w-5 text-fuchsia-600" />}
-            tint="bg-fuchsia-50"
+            icon={MusicLibraryIcon}
+            tone="fuchsia"
             title="Brainstorm Music"
             desc="Tunes worth a listen, picked by ears you trust instead of the charts."
             testId="card-family-music"
@@ -341,7 +343,7 @@ export default function AboutPage() {
         data-testid="section-about-themes"
       >
         <ThemeBand
-          icon={<ShieldCheck className="h-5 w-5 text-[#333286]" />}
+          icon={<ShieldCheck className="h-5 w-5 text-brand-deep" />}
           kicker="Trust over noise"
           title="The loudest voice doesn't win"
           desc="Bots can shout all day. Brainstorm only listens to real human signals, so one trusted friend still beats a thousand spammers."
@@ -352,7 +354,7 @@ export default function AboutPage() {
           testId="band-trust"
         />
         <ThemeBand
-          icon={<Globe className="h-5 w-5 text-[#333286]" />}
+          icon={<Globe className="h-5 w-5 text-brand-deep" />}
           kicker="For everyone"
           title="Jump in, no setup"
           desc="Just start searching. No account, no fuss. Sign in whenever you want results tuned to your own circle."
@@ -364,7 +366,7 @@ export default function AboutPage() {
           testId="band-everyone"
         />
         <ThemeBand
-          icon={<Lock className="h-5 w-5 text-[#333286]" />}
+          icon={<Lock className="h-5 w-5 text-brand-deep" />}
           kicker="Yours by design"
           title="Your account goes where you go"
           desc="Your profile and reputation belong to you, and follow you everywhere. No lock-in, nothing to manage. It just works."
@@ -379,16 +381,16 @@ export default function AboutPage() {
       {/* ============ PARENT ATTRIBUTION ============ */}
       <section className="w-full max-w-5xl mx-auto px-4 sm:px-6 pb-12 sm:pb-16">
         <div
-          className="rounded-2xl bg-white border border-slate-200 shadow-sm px-6 py-5 flex flex-col sm:flex-row items-center justify-center gap-2 text-center"
+          className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm px-6 py-5 flex flex-col sm:flex-row items-center justify-center gap-2 text-center"
           data-testid="about-parent-attribution"
         >
-          <p className="text-sm text-slate-500">
+          <p className="text-sm text-slate-500 dark:text-slate-400">
             Brainstorm is a{" "}
             <a
               href="https://nosfabrica.com/"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-0.5 font-semibold text-slate-700 hover:text-indigo-600 hover:underline transition-colors"
+              className="inline-flex items-center gap-0.5 font-semibold text-slate-700 dark:text-slate-200 hover:text-brand-primary hover:underline transition-colors"
               data-testid="link-about-nosfabrica"
             >
               NosFabrica
@@ -403,36 +405,32 @@ export default function AboutPage() {
 }
 
 function ComingSoonCard({
-  icon,
-  tint,
+  icon: Icon,
+  tone,
   title,
   desc,
   testId,
 }: {
-  icon: React.ReactNode;
-  tint: string;
+  icon: React.ComponentType<{ className?: string }>;
+  tone: NamedTone;
   title: string;
   desc: string;
   testId: string;
 }) {
+  const c = getTone(tone);
   return (
-    <div
-      className="rounded-2xl bg-white border border-slate-200 shadow-sm p-5 sm:p-6 flex flex-col gap-3"
-      data-testid={testId}
-    >
+    <Card className="p-5 sm:p-6 flex flex-col gap-3" data-testid={testId}>
       <div className="flex items-center justify-between">
-        <div className={`h-11 w-11 rounded-xl ${tint} border border-slate-100 flex items-center justify-center`}>
-          {icon}
+        <div className={cn("h-11 w-11 rounded-xl border flex items-center justify-center", c.bg, c.border)}>
+          <Icon className={cn("h-5 w-5", c.icon)} />
         </div>
-        <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-bold tracking-wide text-slate-500 uppercase">
-          Coming soon
-        </span>
+        <Chip tone="slate" size="sm" className="font-bold uppercase tracking-wide">Coming soon</Chip>
       </div>
-      <h3 className="text-lg font-bold text-slate-800" style={{ fontFamily: "var(--font-display)" }}>
+      <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>
         {title}
       </h3>
-      <p className="text-sm text-slate-500 leading-relaxed flex-1">{desc}</p>
-    </div>
+      <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed flex-1">{desc}</p>
+    </Card>
   );
 }
 
@@ -461,7 +459,7 @@ function ThemeBand({
 }) {
   return (
     <div
-      className="rounded-2xl border border-slate-200 bg-white shadow-sm overflow-hidden"
+      className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-sm dark:shadow-none overflow-hidden"
       data-testid={testId}
     >
       <div className="grid md:grid-cols-2 md:items-stretch">
@@ -478,7 +476,7 @@ function ThemeBand({
             className="absolute inset-0 h-full w-full object-cover"
             data-testid={`${testId}-image`}
           />
-          <div className="absolute inset-0 bg-gradient-to-tr from-[#333286]/30 via-transparent to-transparent pointer-events-none" />
+          <div className="absolute inset-0 bg-gradient-to-tr from-brand-deep/30 via-transparent to-transparent pointer-events-none" />
           <div className="absolute inset-0 ring-1 ring-inset ring-white/5 pointer-events-none" />
         </div>
 
@@ -489,21 +487,21 @@ function ThemeBand({
           }`}
         >
           <div className="flex items-center gap-2.5 mb-3">
-            <div className="h-9 w-9 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center shrink-0">
+            <div className="h-9 w-9 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center shrink-0">
               {icon}
             </div>
-            <p className="text-[11px] font-mono font-semibold tracking-[0.2em] text-[#7c86ff] uppercase">{kicker}</p>
+            <p className="text-[11px] font-mono font-semibold tracking-[0.2em] text-brand-accent uppercase">{kicker}</p>
           </div>
           <h3
-            className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight"
+            className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight"
             style={{ fontFamily: "var(--font-display)" }}
           >
             {title}
           </h3>
-          <p className="mt-3 text-[15px] sm:text-base text-slate-600 leading-relaxed">{desc}</p>
+          <p className="mt-3 text-[15px] sm:text-base text-slate-600 dark:text-slate-300 leading-relaxed">{desc}</p>
           <button
             onClick={onClick}
-            className="group mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-indigo-600 hover:text-indigo-700 transition-colors self-start"
+            className="group mt-5 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-primary dark:text-brand-link hover:text-brand-primary dark:hover:text-brand-link transition-colors self-start"
             data-testid={`${testId}-cta`}
           >
             {ctaLabel}

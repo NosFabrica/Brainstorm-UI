@@ -54,7 +54,7 @@ export function EmbeddedArticleCard({ event, author }: { event: MinimalEvent; au
 
   return (
     <div
-      className={`mt-2 overflow-hidden rounded-xl border border-slate-200 bg-slate-50/70 ${href ? "cursor-pointer hover:border-slate-300 transition-colors" : ""}`}
+      className={`mt-2 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 ${href ? "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700 transition-colors" : ""}`}
       data-testid="embedded-article"
       onClick={onCardClick}
     >
@@ -64,24 +64,24 @@ export function EmbeddedArticleCard({ event, author }: { event: MinimalEvent; au
           alt=""
           loading="lazy"
           onError={() => setImgBroken(true)}
-          className="h-40 w-full object-cover sm:h-auto sm:w-32 sm:self-stretch shrink-0 bg-slate-100"
+          className="h-40 w-full object-cover sm:h-auto sm:w-32 sm:self-stretch shrink-0 bg-slate-100 dark:bg-slate-800"
         />
 
         <div className="min-w-0 flex-1 p-3">
-          <p className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-indigo-500">
+          <p className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-brand-primary">
             <FileText className="h-3 w-3" /> Article
           </p>
-          <p className="text-sm font-bold text-slate-900 line-clamp-2 mt-0.5">{title}</p>
-          {summary && <p className="text-xs text-slate-500 line-clamp-2 mt-1">{summary}</p>}
+          <p className="text-sm font-bold text-slate-900 dark:text-slate-100 line-clamp-2 mt-0.5">{title}</p>
+          {summary && <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1">{summary}</p>}
 
-          <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500">
-            <Avatar className="h-4 w-4 rounded-full bg-white border border-slate-200">
+          <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+            <Avatar className="h-4 w-4 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
               {author?.picture ? <AvatarImage src={author.picture} alt={name} className="object-cover" /> : null}
               <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
             </Avatar>
-            <span className="font-medium text-slate-600 truncate">{name}</span>
+            <span className="font-medium text-slate-600 dark:text-slate-300 truncate">{name}</span>
             {author?.nip05 && <BadgeCheck className="h-3 w-3 text-sky-500 shrink-0" />}
-            {event.created_at ? <span className="text-slate-400 ml-auto shrink-0">{ago(event.created_at)}</span> : null}
+            {event.created_at ? <span className="text-slate-400 dark:text-slate-500 ml-auto shrink-0">{ago(event.created_at)}</span> : null}
           </div>
 
           {/* Read the full article on Brainstorm's on-site reader. */}
@@ -89,7 +89,7 @@ export function EmbeddedArticleCard({ event, author }: { event: MinimalEvent; au
             <div className="mt-2.5">
               <Link
                 href={`/a/${naddr}`}
-                className="inline-flex items-center gap-1 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] px-3 py-1.5 text-xs font-semibold text-white transition-colors"
+                className="inline-flex items-center gap-1 rounded-lg bg-brand-primary hover:bg-brand-primary-hover px-3 py-1.5 text-xs font-semibold text-white transition-colors"
                 data-testid="article-read"
               >
                 Read article <ArrowRight className="h-3.5 w-3.5" />

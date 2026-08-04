@@ -5,30 +5,37 @@ type PresetBadgeProps = {
   size?: "xs" | "sm";
   className?: string;
   testId?: string;
+  /**
+   * "quiet" drops the pill chrome (no background/border) and keeps just the
+   * colour dot + label. For dense lists where every row carries a preset, a
+   * column of filled pills reads as noise — reserve the pill for the ACTIVE one
+   * and let the historical rows sit quietly.
+   */
+  variant?: "pill" | "quiet";
 };
 
 const STYLES: Record<TrustPreset, { bg: string; text: string; border: string; dot: string }> = {
   relax: {
-    bg: "bg-emerald-50",
-    text: "text-emerald-700",
-    border: "border-emerald-200",
+    bg: "bg-emerald-50 dark:bg-emerald-500/10",
+    text: "text-emerald-700 dark:text-emerald-300",
+    border: "border-emerald-200 dark:border-emerald-500/25",
     dot: "bg-emerald-500",
   },
   default: {
-    bg: "bg-indigo-50",
-    text: "text-[#333286]",
-    border: "border-[#7c86ff]/30",
-    dot: "bg-[#7c86ff]",
+    bg: "bg-brand-primary/10 dark:bg-brand-primary/15",
+    text: "text-brand-deep",
+    border: "border-brand-accent/30",
+    dot: "bg-brand-accent",
   },
   strict: {
-    bg: "bg-amber-50",
-    text: "text-amber-700",
-    border: "border-amber-200",
+    bg: "bg-amber-50 dark:bg-amber-500/10",
+    text: "text-amber-700 dark:text-amber-300",
+    border: "border-amber-200 dark:border-amber-500/25",
     dot: "bg-amber-500",
   },
 };
 
-export function PresetBadge({ preset, size = "xs", className = "", testId }: PresetBadgeProps) {
+export function PresetBadge({ preset, size = "xs", className = "", testId, variant = "pill" }: PresetBadgeProps) {
   if (!preset) return null;
   const upper = preset.toUpperCase();
   if (upper !== "PERMISSIVE" && upper !== "DEFAULT" && upper !== "RESTRICTIVE") return null;
@@ -39,6 +46,18 @@ export function PresetBadge({ preset, size = "xs", className = "", testId }: Pre
     size === "sm"
       ? "px-2.5 py-1 text-[10px]"
       : "px-2 py-0.5 text-[9px]";
+
+  if (variant === "quiet") {
+    return (
+      <span
+        className={`inline-flex items-center gap-1 whitespace-nowrap text-[10px] font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500 ${className}`}
+        data-testid={testId}
+      >
+        <span className={`h-1.5 w-1.5 rounded-full ${style.dot}`} />
+        {label}
+      </span>
+    );
+  }
 
   return (
     <span

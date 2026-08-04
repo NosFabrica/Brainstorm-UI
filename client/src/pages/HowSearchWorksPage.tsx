@@ -17,6 +17,9 @@ import {
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { PageHeader } from "@/components/PageHeader";
 import { BrainLogo } from "@/components/BrainLogo";
+import { Card } from "@/components/ui/card";
+import { Chip } from "@/components/ui/chip";
+import { tone as getTone, type NamedTone } from "@/lib/tones";
 import trustedRecommendationImg from "@assets/generated_images/hsw_trusted_recommendation.webp";
 
 const BrainLogoIcon = ({ className }: { className?: string }) => <BrainLogo className={className} />;
@@ -127,15 +130,12 @@ const POWERED_BY: { name: string; note: string; href: string }[] = [
 
 function PipelineDiagram() {
   return (
-    <div
-      className="rounded-2xl border border-slate-200 bg-white shadow-sm p-5 sm:p-7"
-      data-testid="diagram-pipeline"
-    >
+    <Card className="p-5 sm:p-7" data-testid="diagram-pipeline">
       <div className="flex items-center gap-2 mb-5">
-        <span className="text-[10px] font-mono font-semibold tracking-[0.2em] text-[#7c86ff] uppercase">
+        <span className="text-[10px] font-mono font-semibold tracking-[0.2em] text-brand-accent uppercase">
           The pipeline
         </span>
-        <div className="h-px flex-1 bg-slate-100" />
+        <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
       </div>
       <div className="flex flex-col lg:flex-row lg:items-stretch">
         {PIPELINE.map((node, i) => {
@@ -145,25 +145,25 @@ function PipelineDiagram() {
             <div key={node.key} className="contents">
               <div
                 className={`flex-1 rounded-xl border p-4 flex flex-col items-center text-center gap-2 ${
-                  isEndpoint ? "border-slate-200 bg-slate-50" : "border-[#7c86ff]/25 bg-[#7c86ff]/[0.04]"
+                  isEndpoint ? "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900" : "border-brand-accent/25 bg-brand-accent/[0.04]"
                 }`}
                 data-testid={`node-pipeline-${node.key}`}
               >
                 <div
                   className={`h-10 w-10 rounded-lg flex items-center justify-center ${
-                    isEndpoint ? "bg-white border border-slate-200 text-slate-500" : "bg-white border border-[#7c86ff]/25 text-[#333286]"
+                    isEndpoint ? "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400" : "bg-white dark:bg-slate-900 border border-brand-accent/25 text-brand-deep dark:text-brand-link"
                   }`}
                 >
                   <Icon className="h-5 w-5" />
                 </div>
-                <span className="text-[9px] font-mono font-bold tracking-widest text-slate-400 uppercase">
+                <span className="text-[9px] font-mono font-bold tracking-widest text-slate-400 dark:text-slate-500 uppercase">
                   {node.step}
                 </span>
-                <p className="text-sm font-bold text-slate-900 leading-none">{node.label}</p>
-                <p className="text-[11px] text-slate-500 leading-tight">{node.sub}</p>
+                <p className="text-sm font-bold text-slate-900 dark:text-slate-100 leading-none">{node.label}</p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-tight">{node.sub}</p>
               </div>
               {i < PIPELINE.length - 1 && (
-                <div className="flex items-center justify-center text-slate-300 py-1 lg:py-0 lg:px-1">
+                <div className="flex items-center justify-center text-slate-300 dark:text-slate-600 py-1 lg:py-0 lg:px-1">
                   <ChevronRight className="hidden lg:block h-5 w-5" />
                   <ChevronDown className="lg:hidden h-4 w-4" />
                 </div>
@@ -172,7 +172,7 @@ function PipelineDiagram() {
           );
         })}
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -189,25 +189,23 @@ function TrustSignal({
   effect: string;
   fill: number;
 }) {
-  const toneStyles = {
-    up: { chip: "bg-emerald-50 text-emerald-700 border-emerald-200", bar: "bg-emerald-500", icon: "text-emerald-600 bg-emerald-50 border-emerald-200" },
-    down: { chip: "bg-rose-50 text-rose-700 border-rose-200", bar: "bg-rose-500", icon: "text-rose-600 bg-rose-50 border-rose-200" },
-    off: { chip: "bg-slate-100 text-slate-500 border-slate-200", bar: "bg-slate-300", icon: "text-slate-400 bg-slate-50 border-slate-200" },
-  }[tone];
+  const toneName: NamedTone = ({ up: "emerald", down: "rose", off: "slate" } as const)[tone];
+  const barCls = { up: "bg-emerald-500", down: "bg-rose-500", off: "bg-slate-300 dark:bg-slate-700" }[tone];
+  const t = getTone(toneName);
   return (
     <div className="flex items-center gap-3" data-testid={`signal-${tone}`}>
-      <div className={`h-9 w-9 rounded-lg border flex items-center justify-center shrink-0 ${toneStyles.icon}`}>
+      <div className={`h-9 w-9 rounded-lg border flex items-center justify-center shrink-0 ${t.bg} ${t.border} ${t.icon}`}>
         <Icon className="h-4 w-4" />
       </div>
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2 mb-1.5">
-          <p className="text-sm font-semibold text-slate-800 truncate">{title}</p>
-          <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full border whitespace-nowrap ${toneStyles.chip}`}>
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{title}</p>
+          <Chip tone={toneName} size="md">
             {effect}
-          </span>
+          </Chip>
         </div>
-        <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden">
-          <div className={`h-full rounded-full ${toneStyles.bar}`} style={{ width: `${fill}%` }} />
+        <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+          <div className={`h-full rounded-full ${barCls}`} style={{ width: `${fill}%` }} />
         </div>
       </div>
     </div>
@@ -226,14 +224,14 @@ export default function HowSearchWorksPage() {
           <PageHeader
             size="hero"
             kicker="Under the hood"
-            title={<>How Brainstorm finds the <span className="text-[#333286]">real people</span>.</>}
+            title={<>How Brainstorm finds the <span className="text-brand-link">real people</span>.</>}
             subtitle="Search is only half the job. The harder part is telling legitimate accounts apart from the spam, bots, and impersonators. Here's the pipeline that does both — from query to verified results."
             testId="section-hsw-header"
           />
 
           {/* Plain-language intro */}
           <section
-            className="rounded-2xl border border-[#7c86ff]/25 bg-[#7c86ff]/[0.05] overflow-hidden"
+            className="rounded-2xl border border-brand-accent/25 bg-brand-accent/[0.05] overflow-hidden"
             data-testid="section-hsw-plain"
           >
             <div className="grid md:grid-cols-2 md:items-stretch">
@@ -246,33 +244,33 @@ export default function HowSearchWorksPage() {
                   className="absolute inset-0 h-full w-full object-cover"
                   data-testid="section-hsw-plain-image"
                 />
-                <div className="absolute inset-0 bg-gradient-to-tl from-[#333286]/30 via-transparent to-transparent pointer-events-none" />
+                <div className="absolute inset-0 bg-gradient-to-tl from-brand-deep/30 via-transparent to-transparent pointer-events-none" />
                 <div className="absolute inset-0 ring-1 ring-inset ring-white/5 pointer-events-none" />
               </div>
 
               {/* Copy */}
               <div className="p-6 sm:p-10 flex flex-col justify-center md:order-1">
                 <div className="flex items-center gap-2.5 mb-4">
-                  <div className="h-9 w-9 rounded-xl bg-white border border-[#7c86ff]/25 flex items-center justify-center shrink-0">
-                    <PuzzleToyIcon className="h-4.5 w-4.5 text-[#333286]" />
+                  <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-brand-accent/25 flex items-center justify-center shrink-0">
+                    <PuzzleToyIcon className="h-4.5 w-4.5 text-brand-deep" />
                   </div>
-                  <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-[#7c86ff] uppercase">
+                  <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-brand-accent uppercase">
                     The simple version
                   </span>
                 </div>
                 <div className="space-y-4">
-                  <p className="text-lg text-slate-700 leading-relaxed">
+                  <p className="text-lg text-slate-700 dark:text-slate-200 leading-relaxed">
                     Imagine you've just moved to a new town and you need a good coffee shop. You wouldn't trust a
                     random flyer stapled to a pole — you'd ask the friends you trust where they go.
                     Brainstorm works the same way.
                   </p>
-                  <p className="text-[15px] text-slate-600 leading-relaxed">
+                  <p className="text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">
                     When you search, it quietly checks what the people you (and your wider community) already
                     trust have to say about each result. Real accounts that those people vouch for rise to the
                     top. Bots, scammers, and impersonators that no one trusts get pushed aside — no matter how
                     many of them there are.
                   </p>
-                  <p className="text-[15px] text-slate-500 leading-relaxed">
+                  <p className="text-[15px] text-slate-500 dark:text-slate-400 leading-relaxed">
                     That's the whole idea. Everything below is just a closer look at how it happens under the
                     hood.
                   </p>
@@ -286,18 +284,18 @@ export default function HowSearchWorksPage() {
 
           {/* Metrics strip */}
           <section
-            className="grid grid-cols-2 lg:grid-cols-4 gap-px rounded-2xl overflow-hidden border border-slate-200 bg-slate-200"
+            className="grid grid-cols-2 lg:grid-cols-4 gap-px rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-slate-200 dark:bg-slate-800"
             data-testid="section-hsw-metrics"
           >
             {METRICS.map((m) => (
-              <div key={m.label} className="bg-white p-5 sm:p-6" data-testid={`metric-${m.value}`}>
+              <div key={m.label} className="bg-white dark:bg-slate-900 p-5 sm:p-6" data-testid={`metric-${m.value}`}>
                 <p
-                  className="text-xl sm:text-2xl font-bold text-[#333286] tracking-tight"
+                  className="text-xl sm:text-2xl font-bold text-brand-deep tracking-tight"
                   style={{ fontFamily: "var(--font-display)" }}
                 >
                   {m.value}
                 </p>
-                <p className="mt-1 text-xs sm:text-[13px] text-slate-500 leading-snug">{m.label}</p>
+                <p className="mt-1 text-xs sm:text-[13px] text-slate-500 dark:text-slate-400 leading-snug">{m.label}</p>
               </div>
             ))}
           </section>
@@ -306,14 +304,14 @@ export default function HowSearchWorksPage() {
           <section data-testid="section-hsw-stages">
             <div className="flex items-center gap-2.5 mb-7">
               <h2
-                className="text-2xl font-bold text-slate-900 tracking-tight"
+                className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 The four stages
               </h2>
-              <div className="h-px flex-1 bg-slate-100" />
+              <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
             </div>
-            <div className="divide-y divide-slate-100 rounded-2xl border border-slate-200 bg-white shadow-sm">
+            <Card className="divide-y divide-slate-100 dark:divide-slate-800/60">
               {STAGES.map((stage) => {
                 const Icon = stage.icon;
                 return (
@@ -324,44 +322,41 @@ export default function HowSearchWorksPage() {
                   >
                     <div className="flex items-center gap-4 sm:flex-col sm:items-start sm:gap-3 shrink-0 sm:w-20">
                       <span
-                        className="text-3xl font-bold text-slate-200 tabular-nums leading-none"
+                        className="text-3xl font-bold text-slate-200 dark:text-slate-700 tabular-nums leading-none"
                         style={{ fontFamily: "var(--font-display)" }}
                       >
                         {stage.num}
                       </span>
-                      <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center">
-                        <Icon className="h-5 w-5 text-[#333286]" />
+                      <div className="h-10 w-10 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center">
+                        <Icon className="h-5 w-5 text-brand-deep" />
                       </div>
                     </div>
                     <div className="min-w-0">
-                      <h3 className="text-lg font-bold text-slate-900 tracking-tight mb-1.5">{stage.title}</h3>
-                      <p className="text-[15px] text-slate-600 leading-relaxed">{stage.body}</p>
-                      <p className="mt-3 inline-flex items-center text-[12px] font-mono text-slate-500 bg-slate-50 border border-slate-200 rounded-md px-2.5 py-1">
+                      <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight mb-1.5">{stage.title}</h3>
+                      <p className="text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">{stage.body}</p>
+                      <p className="mt-3 inline-flex items-center text-[12px] font-mono text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md px-2.5 py-1">
                         {stage.detail}
                       </p>
                     </div>
                   </div>
                 );
               })}
-            </div>
+            </Card>
           </section>
 
           {/* Trust-score visual */}
-          <section
-            className="rounded-2xl border border-slate-200 bg-white shadow-sm p-6 sm:p-8"
-            data-testid="section-hsw-trust"
-          >
+          <Card className="p-6 sm:p-8" data-testid="section-hsw-trust">
             <div className="flex items-center gap-3 mb-2">
-              <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center shrink-0">
-                <ShieldCheck className="h-5 w-5 text-[#333286]" />
+              <div className="h-10 w-10 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center shrink-0">
+                <ShieldCheck className="h-5 w-5 text-brand-deep" />
               </div>
-              <h2 className="text-xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+              <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
                 How a trust score moves
               </h2>
             </div>
-            <p className="text-[15px] text-slate-600 leading-relaxed mb-6 max-w-2xl">
-              Every profile starts unverified at <span className="font-semibold text-slate-800">0</span> and can
-              climb to <span className="font-semibold text-slate-800">100</span>. Only signals from already-verified
+            <p className="text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed mb-6 max-w-2xl">
+              Every profile starts unverified at <span className="font-semibold text-slate-800 dark:text-slate-200">0</span> and can
+              climb to <span className="font-semibold text-slate-800 dark:text-slate-200">100</span>. Only signals from already-verified
               accounts count — which is what makes the system resistant to manipulation.
             </p>
             <div className="space-y-5 max-w-2xl">
@@ -369,8 +364,8 @@ export default function HowSearchWorksPage() {
               <TrustSignal icon={Minus} tone="down" title="A verified account mutes or reports them" effect="Score falls" fill={28} />
               <TrustSignal icon={Ban} tone="off" title="An unverified account (score 0) acts" effect="Ignored" fill={4} />
             </div>
-            <div className="mt-7 rounded-xl bg-[#333286] px-5 py-4" data-testid="callout-spambots">
-              <p className="text-[15px] text-white/95 leading-relaxed font-medium">
+            <div className="mt-7 rounded-xl border border-brand-accent/25 bg-brand-accent/[0.06] px-5 py-4" data-testid="callout-spambots">
+              <p className="text-[15px] font-medium leading-relaxed text-[#0A0E18] dark:text-slate-100">
                 So it doesn't matter how many spambots are spun up — a thousand, a million. Without social proof
                 from verified accounts, every one of them carries zero weight.
               </p>
@@ -380,7 +375,7 @@ export default function HowSearchWorksPage() {
             <button
               type="button"
               onClick={() => setShowMechanics((v) => !v)}
-              className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-[#333286] hover:text-[#7c86ff] transition-colors"
+              className="mt-6 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-deep hover:text-brand-accent transition-colors"
               data-testid="button-dig-deeper"
               aria-expanded={showMechanics}
               aria-controls="hsw-mechanics-panel"
@@ -389,8 +384,8 @@ export default function HowSearchWorksPage() {
               {showMechanics ? "Hide the details" : "Dig deeper into the mechanics"}
             </button>
             {showMechanics && (
-              <div id="hsw-mechanics-panel" className="mt-4 rounded-xl bg-slate-50 border border-slate-200 p-5 space-y-3" data-testid="panel-mechanics">
-                <p className="text-[14px] text-slate-600 leading-relaxed">
+              <div id="hsw-mechanics-panel" className="mt-4 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 space-y-3" data-testid="panel-mechanics">
+                <p className="text-[14px] text-slate-600 dark:text-slate-300 leading-relaxed">
                   Brainstorm harnesses organic signals from your community to distinguish "legitimate" nostr
                   accounts from spam, impersonators, bots, and other bad actors seeking to weasel their way onto
                   the screen in front of your eyes. Currently we rely upon follows, mutes, and reports, processed
@@ -399,7 +394,7 @@ export default function HowSearchWorksPage() {
                     href="https://github.com/NosFabrica"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-0.5 font-semibold text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
+                    className="inline-flex items-center gap-0.5 font-semibold text-brand-primary hover:text-brand-primary hover:underline transition-colors"
                     data-testid="link-graperank"
                   >
                     GrapeRank
@@ -407,19 +402,19 @@ export default function HowSearchWorksPage() {
                   </a>{" "}
                   to come up with a verification score between 0 and 100.
                 </p>
-                <p className="text-[14px] text-slate-600 leading-relaxed">
+                <p className="text-[14px] text-slate-600 dark:text-slate-300 leading-relaxed">
                   When one profile (whose score is above 0) follows another, that profile's score gets a bump up,
                   leveling out at the max score of 100. Mutes and reports push a score down. But have no fear: if
                   an unverified account follows, mutes, or reports someone, that action is completely ignored by
                   virtue of having a verification score of 0.
                 </p>
-                <p className="text-[14px] text-slate-600 leading-relaxed">
+                <p className="text-[14px] text-slate-600 dark:text-slate-300 leading-relaxed">
                   Search itself is powered by{" "}
                   <a
                     href="https://vespa.ai/"
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-0.5 font-semibold text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
+                    className="inline-flex items-center gap-0.5 font-semibold text-brand-primary hover:text-brand-primary hover:underline transition-colors"
                     data-testid="link-vespa"
                   >
                     Vespa
@@ -430,15 +425,15 @@ export default function HowSearchWorksPage() {
                 </p>
               </div>
             )}
-          </section>
+          </Card>
 
           {/* Powered by */}
           <section data-testid="section-hsw-powered">
             <div className="flex items-center gap-2.5 mb-5">
-              <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-slate-400 uppercase">
+              <span className="text-[11px] font-mono font-semibold tracking-[0.2em] text-slate-400 dark:text-slate-500 uppercase">
                 Powered by
               </span>
-              <div className="h-px flex-1 bg-slate-100" />
+              <div className="h-px flex-1 bg-slate-100 dark:bg-slate-800" />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {POWERED_BY.map((tech) => (
@@ -447,14 +442,14 @@ export default function HowSearchWorksPage() {
                   href={tech.href}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3.5 hover:border-[#7c86ff]/40 hover:shadow-sm transition-all"
+                  className="group flex items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3.5 hover:border-brand-accent/40 hover:shadow-sm transition-all"
                   data-testid={`powered-${tech.name.toLowerCase()}`}
                 >
                   <div>
-                    <p className="text-sm font-bold text-slate-900">{tech.name}</p>
-                    <p className="text-xs text-slate-500">{tech.note}</p>
+                    <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{tech.name}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{tech.note}</p>
                   </div>
-                  <ExternalLink className="h-4 w-4 text-slate-300 group-hover:text-[#7c86ff] shrink-0 transition-colors" />
+                  <ExternalLink className="h-4 w-4 text-slate-300 dark:text-slate-600 group-hover:text-brand-accent shrink-0 transition-colors" />
                 </a>
               ))}
             </div>
@@ -463,19 +458,19 @@ export default function HowSearchWorksPage() {
           {/* Cross-link */}
           <button
             onClick={() => navigate("/personalization")}
-            className="group w-full text-left rounded-2xl border border-slate-200 bg-white hover:border-[#7c86ff]/40 hover:shadow-sm transition-all p-6 flex items-center justify-between gap-4"
+            className="group w-full text-left rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-brand-accent/40 hover:shadow-sm transition-all p-6 flex items-center justify-between gap-4"
             data-testid="link-to-personalization"
           >
             <div>
-              <p className="text-[11px] font-mono font-semibold tracking-[0.2em] text-[#7c86ff] uppercase mb-1.5">
+              <p className="text-[11px] font-mono font-semibold tracking-[0.2em] text-brand-accent uppercase mb-1.5">
                 Keep reading
               </p>
-              <p className="text-base font-semibold text-slate-900">
+              <p className="text-base font-semibold text-slate-900 dark:text-slate-100">
                 Curious how your point of view affects what you see?
               </p>
-              <p className="text-sm text-slate-500 mt-0.5">See How Personalization Works</p>
+              <p className="text-sm text-slate-500 dark:text-slate-400 mt-0.5">See How Personalization Works</p>
             </div>
-            <ArrowRight className="h-5 w-5 text-[#7c86ff] shrink-0 group-hover:translate-x-1 transition-transform" />
+            <ArrowRight className="h-5 w-5 text-brand-accent shrink-0 group-hover:translate-x-1 transition-transform" />
           </button>
         </div>
       </div>

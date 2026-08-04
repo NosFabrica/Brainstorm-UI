@@ -9,6 +9,15 @@ export default {
   safelist: [{ pattern: /^order-([1-9]|1[0-2])$/ }],
   theme: {
     extend: {
+      // Height-based variant for SHORT viewports — a phone in landscape (~390-440px
+      // tall) is 850-960px WIDE, so it receives every `sm:`/`md:` desktop style
+      // while having barely half the vertical room. Width variants can't tell it
+      // apart from a desktop window; height is the only honest signal. 560px sits
+      // above every phone landscape height and well below iPad landscape (744-820),
+      // so tablets and desktops are untouched.
+      screens: {
+        short: { raw: "(max-height: 560px)" },
+      },
       borderRadius: {
         lg: ".5625rem", /* 9px */
         md: ".375rem", /* 6px */
@@ -85,11 +94,45 @@ export default {
           busy: "rgb(239 68 68)",
           offline: "rgb(156 163 175)",
         },
+        // Brand palette — single source of truth in index.css (--brand-*).
+        // RGB channels keep these exact to the legacy hex while `<alpha-value>`
+        // preserves `/opacity` (e.g. bg-brand-accent/20). Reskin swaps the
+        // values in index.css; these mappings don't change.
+        brand: {
+          primary: "rgb(var(--brand-primary) / <alpha-value>)",
+          "primary-hover": "rgb(var(--brand-primary-hover) / <alpha-value>)",
+          accent: "rgb(var(--brand-accent) / <alpha-value>)",
+          "accent-hover": "rgb(var(--brand-accent-hover) / <alpha-value>)",
+          deep: "rgb(var(--brand-deep) / <alpha-value>)",
+          link: "rgb(var(--brand-link) / <alpha-value>)",
+        },
+        // Brand neutral ramp (Design System v1.0) — overrides Tailwind's default
+        // `slate` so every `*-slate-N` across the app adopts the brand greys
+        // without a per-usage codemod. Anchored on Balanced White (#F2F3F0),
+        // Secondary (#B5BAC3), Neutral Grey (#8C929E), #7F8794, #555D69, and
+        // Brainstorm Ink (#0A0E18); darks are blue-tinted to match Surface Blue
+        // (#151C2A) / Deep Blue (#10213A).
+        slate: {
+          50: "#f2f3f0",
+          100: "#e8eae7",
+          200: "#d6d9db",
+          300: "#b5bac3",
+          400: "#9aa1ac",
+          500: "#8c929e",
+          600: "#6b7480",
+          700: "#555d69",
+          800: "#2b3442",
+          900: "#151c2a",
+          950: "#0a0e18",
+        },
       },
       fontFamily: {
         sans: ["var(--font-sans)"],
         serif: ["var(--font-serif)"],
         mono: ["var(--font-mono)"],
+        // `font-display` utility (Figtree) so headings/titles stop re-applying
+        // the display face via inline style={{ fontFamily: "var(--font-display)" }}.
+        display: ["var(--font-display)"],
       },
       keyframes: {
         "accordion-down": {

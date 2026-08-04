@@ -48,13 +48,13 @@ export function ExternalIdentities({ identities }: { identities: ExternalIdentit
     <>
       {identities.map((id) => {
         const title = `${id.label}: ${id.identity}`;
-        const cls = "inline-flex items-center text-slate-400 transition-colors hover:text-[#3730a3]";
+        const cls = "inline-flex items-center text-slate-400 dark:text-slate-500 transition-colors hover:text-brand-link";
         return id.url ? (
           <a key={`${id.platform}:${id.identity}`} href={id.url} target="_blank" rel="noopener noreferrer" title={title} aria-label={title} className={cls} data-testid="profile-identity">
             <Glyph icon={id.icon} />
           </a>
         ) : (
-          <span key={`${id.platform}:${id.identity}`} title={title} aria-label={title} className="inline-flex items-center text-slate-400" data-testid="profile-identity">
+          <span key={`${id.platform}:${id.identity}`} title={title} aria-label={title} className="inline-flex items-center text-slate-400 dark:text-slate-500" data-testid="profile-identity">
             <Glyph icon={id.icon} />
           </span>
         );

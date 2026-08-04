@@ -18,9 +18,9 @@ export function ControlCard({ mode }: { mode: UserMode }) {
             className="mb-10 sm:mb-16"
           >
             <div 
-              className="relative bg-gradient-to-br from-indigo-500/15 via-slate-900/95 to-violet-500/15 border border-indigo-500/40 rounded-2xl p-6 backdrop-blur-md max-w-3xl mx-auto overflow-hidden"
+              className="relative bg-gradient-to-br from-brand-primary/15 via-slate-900/95 to-brand-accent/15 border border-brand-primary/[0.4] rounded-2xl p-6 backdrop-blur-md max-w-3xl mx-auto overflow-hidden"
               style={{ 
-                boxShadow: '0 12px 48px rgba(99, 102, 241, 0.25), 0 24px 80px rgba(139, 92, 246, 0.15), 0 0 0 1px rgba(99, 102, 241, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.07)'
+                boxShadow: '0 12px 48px rgb(var(--brand-primary)/0.25), 0 24px 80px rgba(139, 92, 246, 0.15), 0 0 0 1px rgb(var(--brand-primary)/0.12), inset 0 1px 0 rgba(255, 255, 255, 0.07)'
               }}
             >
               <div 
@@ -33,7 +33,7 @@ export function ControlCard({ mode }: { mode: UserMode }) {
               />
               <div className="absolute inset-0 bg-gradient-to-br from-slate-950/80 via-slate-950/60 to-slate-950/80" />
               <motion.div 
-                className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent rounded-full"
+                className="absolute top-0 left-1/2 -translate-x-1/2 w-32 h-1 bg-gradient-to-r from-transparent via-brand-primary to-transparent rounded-full"
                 initial={{ opacity: 0.4 }}
                 animate={{ opacity: (selectedTrustNode !== null || selectedFeature !== null) ? 1 : 0.4 }}
                 transition={{ duration: 0.3 }}
@@ -81,7 +81,7 @@ export function ControlCard({ mode }: { mode: UserMode }) {
                           <motion.div 
                             className={`${node.size} rounded-full overflow-hidden shadow-lg ${node.glow} transition-all relative`}
                             animate={{ 
-                              boxShadow: selectedTrustNode === i ? '0 0 25px rgba(99, 102, 241, 0.6)' : undefined
+                              boxShadow: selectedTrustNode === i ? '0 0 25px rgb(var(--brand-primary)/0.6)' : undefined
                             }}
                           >
                             <AnimatePresence mode="wait">
@@ -125,15 +125,15 @@ export function ControlCard({ mode }: { mode: UserMode }) {
                           animate={{ opacity: 1, scale: 1, y: 0 }}
                           exit={{ opacity: 0, scale: 0.9, y: -10 }}
                           transition={{ duration: 0.2, type: "spring", stiffness: 400, damping: 25 }}
-                          className="text-center max-w-sm px-4 py-2 bg-slate-800/95 backdrop-blur-sm rounded-lg border border-indigo-500/20"
+                          className="text-center max-w-sm px-4 py-2 bg-slate-800/95 backdrop-blur-sm rounded-lg border border-brand-primary/20"
                           style={{ 
-                            boxShadow: '0 0 15px rgba(99, 102, 241, 0.15)'
+                            boxShadow: '0 0 15px rgb(var(--brand-primary)/0.15)'
                           }}
                         >
                           <p className="text-xs text-slate-200 leading-relaxed">
                             {trustNodeInfo[selectedTrustNode].explanation}
                           </p>
-                          <p className="text-[10px] text-indigo-400 mt-1 font-medium">
+                          <p className="text-[10px] text-brand-primary mt-1 font-medium">
                             ✦ {trustNodeInfo[selectedTrustNode].insight}
                           </p>
                         </motion.div>
@@ -145,9 +145,9 @@ export function ControlCard({ mode }: { mode: UserMode }) {
                           exit={{ opacity: 0 }}
                           className="flex flex-col items-center gap-2"
                         >
-                          <KeyControlIcon className="w-6 h-6 text-indigo-400/60" />
+                          <KeyControlIcon className="w-6 h-6 text-brand-primary/60" />
                           <p className="text-[10px] text-slate-500">
-                            <span className="text-indigo-400/80 hidden sm:inline">Hover</span><span className="text-indigo-400/80 sm:hidden">Tap</span> to explore trust decay
+                            <span className="text-brand-primary/80 hidden sm:inline">Hover</span><span className="text-brand-primary/80 sm:hidden">Tap</span> to explore trust decay
                           </p>
                         </motion.div>
                       )}
@@ -210,9 +210,9 @@ export function ControlCard({ mode }: { mode: UserMode }) {
                           animate={{ opacity: 1, scale: 1 }}
                           exit={{ opacity: 0, scale: 0.95 }}
                           transition={{ duration: 0.2 }}
-                          className="text-center max-w-md px-4 py-2.5 bg-slate-800/95 backdrop-blur-sm rounded-lg border border-indigo-500/20"
+                          className="text-center max-w-md px-4 py-2.5 bg-slate-800/95 backdrop-blur-sm rounded-lg border border-brand-primary/20"
                           style={{ 
-                            boxShadow: '0 0 15px rgba(99, 102, 241, 0.15)'
+                            boxShadow: '0 0 15px rgb(var(--brand-primary)/0.15)'
                           }}
                         >
                           <p className="text-xs text-slate-200 leading-relaxed">
@@ -223,7 +223,7 @@ export function ControlCard({ mode }: { mode: UserMode }) {
                               { expanded: 'Edge weight between nodes i→j. Derived from explicit attestations (follows, endorsements) plus implicit behavioral signals.', insight: 'Weights stored as signed events on relays' },
                             ][selectedFormula].expanded}
                           </p>
-                          <p className="text-[10px] text-indigo-400 mt-1.5 font-medium">
+                          <p className="text-[10px] text-brand-primary mt-1.5 font-medium">
                             ✦ {[
                               { insight: 'Output range [0,1] normalized via softmax' },
                               { insight: 'Max path depth configurable (default: 6 hops)' },
@@ -240,9 +240,9 @@ export function ControlCard({ mode }: { mode: UserMode }) {
                           exit={{ opacity: 0 }}
                           className="flex flex-col items-center gap-2"
                         >
-                          <KeyControlIcon className="w-6 h-6 text-indigo-400/60" />
+                          <KeyControlIcon className="w-6 h-6 text-brand-primary/60" />
                           <p className="text-[10px] text-slate-500">
-                            <span className="text-indigo-400/80 hidden sm:inline">Hover</span><span className="text-indigo-400/80 sm:hidden">Tap</span> to explore the formula
+                            <span className="text-brand-primary/80 hidden sm:inline">Hover</span><span className="text-brand-primary/80 sm:hidden">Tap</span> to explore the formula
                           </p>
                         </motion.div>
                       )}
@@ -282,7 +282,7 @@ export function ControlCard({ mode }: { mode: UserMode }) {
                     key={i}
                     className={`flex flex-col items-center text-center cursor-pointer transition-all rounded-xl px-2 py-2 ${
                       selectedFeature === i 
-                        ? 'bg-indigo-500/15 border border-indigo-400/40' 
+                        ? 'bg-brand-primary/15 border border-brand-primary/[0.4]' 
                         : 'hover:bg-slate-800/40'
                     }`}
                     onMouseEnter={() => setSelectedFeature(i)}
@@ -298,7 +298,7 @@ export function ControlCard({ mode }: { mode: UserMode }) {
                       }}
                       transition={{ duration: 0.3 }}
                     >
-                      <item.Icon className={`w-4 h-4 mb-1 transition-colors ${selectedFeature === i ? 'text-indigo-300' : 'text-indigo-400'}`} />
+                      <item.Icon className={`w-4 h-4 mb-1 transition-colors ${selectedFeature === i ? 'text-brand-primary' : 'text-brand-primary'}`} />
                     </motion.div>
                     <span className={`text-[11px] font-medium transition-colors ${selectedFeature === i ? 'text-white' : 'text-slate-300'}`}>{item.label}</span>
                     <span className="text-[9px] text-slate-500 leading-tight mt-0.5">{item.desc}</span>
@@ -316,9 +316,9 @@ export function ControlCard({ mode }: { mode: UserMode }) {
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       exit={{ opacity: 0, scale: 0.9, y: -10 }}
                       transition={{ duration: 0.2, type: "spring", stiffness: 400, damping: 25 }}
-                      className="text-center max-w-sm px-4 py-2 bg-slate-800/95 backdrop-blur-sm rounded-lg border border-indigo-500/20"
+                      className="text-center max-w-sm px-4 py-2 bg-slate-800/95 backdrop-blur-sm rounded-lg border border-brand-primary/20"
                       style={{ 
-                        boxShadow: '0 0 15px rgba(99, 102, 241, 0.15)'
+                        boxShadow: '0 0 15px rgb(var(--brand-primary)/0.15)'
                       }}
                     >
                       <p className="text-xs text-slate-200 leading-relaxed">

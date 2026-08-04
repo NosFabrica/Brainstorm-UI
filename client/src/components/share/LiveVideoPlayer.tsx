@@ -71,7 +71,7 @@ export function LiveVideoPlayer({ src, poster, onError }: { src: string; poster?
           data-testid="live-play"
         >
           <span className="flex h-16 w-16 items-center justify-center rounded-full bg-white/95 shadow-lg transition-transform group-hover:scale-105">
-            {loading ? <Loader2 className="h-6 w-6 animate-spin text-[#3730a3]" /> : <Play className="h-7 w-7 translate-x-0.5 fill-current text-[#3730a3]" />}
+            {loading ? <Loader2 className="h-6 w-6 animate-spin text-brand-link" /> : <Play className="h-7 w-7 translate-x-0.5 fill-current text-brand-link" />}
           </span>
         </button>
       )}

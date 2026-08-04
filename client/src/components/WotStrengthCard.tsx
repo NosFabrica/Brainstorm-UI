@@ -48,8 +48,8 @@ export function WotStrengthCard({
     >
       <div className="flex items-center justify-between gap-1.5 mb-2">
         <span className="inline-flex items-center gap-1.5">
-          <BrainLogo size={15} className="text-indigo-500" />
-          <span className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Verification Score</span>
+          <BrainLogo size={15} className="text-brand-primary" />
+          <span className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Verification Score</span>
         </span>
         <PovTag pov={pov} />
       </div>
@@ -67,33 +67,33 @@ export function WotStrengthCard({
         const showPrimaryLabel = showSecondary && !!primaryLabel;
         return (
           <>
-            <div className="h-1.5 w-full rounded-full bg-slate-100 overflow-hidden mb-2">
+            <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden mb-2">
               <div className="h-full rounded-full" style={{ width: `${fillPct}%`, backgroundColor: tier.color }} />
             </div>
             {showPrimaryLabel ? (
               <div className="flex items-center justify-between gap-2" data-testid="wot-primary">
-                <span className="text-xs font-semibold text-slate-700">{primaryLabel}</span>
+                <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">{primaryLabel}</span>
                 <span className="inline-flex items-center gap-1.5">
                   <ShieldCheck className="h-4 w-4 shrink-0" style={{ color: tier.color }} />
                   <span className="text-sm font-bold" style={{ color: tier.color }}>{tier.name}</span>
-                  <span className="text-sm font-bold text-slate-900 tabular-nums">{pct}</span>
+                  <span className="text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">{pct}</span>
                 </span>
               </div>
             ) : (
               <div className="inline-flex items-center gap-1.5" data-testid="wot-primary">
                 <ShieldCheck className="h-4 w-4 shrink-0" style={{ color: tier.color }} />
                 <span className="text-sm font-bold" style={{ color: tier.color }}>{tier.name}</span>
-                <span className="text-sm font-bold text-slate-900 tabular-nums">{pct}</span>
+                <span className="text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">{pct}</span>
               </div>
             )}
             {showSecondary && (() => {
               const secTier = tierForScore(secondaryScore01!);
               return (
-                <div className="mt-2 pt-2 border-t border-slate-100 flex items-center justify-between text-xs" data-testid="wot-secondary">
-                  <span className="text-slate-500 font-medium">{secondaryLabel}</span>
+                <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-xs" data-testid="wot-secondary">
+                  <span className="text-slate-500 dark:text-slate-400 font-medium">{secondaryLabel}</span>
                   <span className="inline-flex items-center gap-1.5">
                     <span className="font-semibold" style={{ color: secTier.color }}>{secTier.name}</span>
-                    <span className="font-bold text-slate-700 tabular-nums">{secPct}</span>
+                    <span className="font-bold text-slate-700 dark:text-slate-200 tabular-nums">{secPct}</span>
                   </span>
                 </div>
               );
@@ -102,14 +102,14 @@ export function WotStrengthCard({
         );
       })() : (
         <>
-          <div className="h-1.5 w-full rounded-full bg-slate-100 mb-2.5" />
-          <p className="text-xs text-slate-400">Not yet scored by the network.</p>
+          <div className="h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 mb-2.5" />
+          <p className="text-xs text-slate-400 dark:text-slate-500">Not yet scored by the network.</p>
         </>
       )}
       {footer && (
         /* Actions manage their own clicks — don't let them bubble into the
            card's "open explainer" handler. */
-        <div className={`mt-3 pt-3 border-t ${pov === "personalized" ? "border-indigo-100" : "border-slate-100"}`} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+        <div className={`mt-3 pt-3 border-t ${pov === "personalized" ? "border-brand-primary/15 dark:border-brand-primary/20" : "border-slate-100 dark:border-slate-800/60"}`} onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
           {footer}
         </div>
       )}

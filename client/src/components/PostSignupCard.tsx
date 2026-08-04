@@ -6,7 +6,6 @@ import { knownFollowCount } from "@/lib/followStore";
 import { downloadAccountBackup, downloadRawKeyBackup, getEncryptedBackupCredential } from "@/lib/accountBackup";
 import { storePasswordCredential } from "@/lib/credentialManager";
 import { useToast } from "@/hooks/use-toast";
-import bgPhoto from "@assets/generated_images/signup_bg_abstract.webp";
 
 /** Profile icon (from supplied profile.svg), recolored via currentColor. */
 function ProfileIcon({ className }: { className?: string }) {
@@ -144,9 +143,12 @@ export function PostSignupCard() {
     }
   };
 
+  // Apple-style "material" tiles: soft translucent panel + hairline border +
+  // subtle frost + whisper of shadow, so they read as refined inset surfaces
+  // rather than stark white/dark blocks on the glass card.
   const tileBase =
-    "group relative w-full text-left rounded-2xl bg-white/80 border border-slate-200 p-4 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-[#7c86ff]/40";
-  const tileClickable = tileBase + " hover:border-[#7c86ff]/50 hover:shadow-md active:scale-[0.995]";
+    "group relative w-full text-left rounded-2xl bg-white/70 dark:bg-white/[0.07] backdrop-blur-sm border border-white/60 dark:border-white/[0.10] shadow-sm dark:shadow-none p-4 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40";
+  const tileClickable = tileBase + " hover:bg-white/85 dark:hover:bg-white/[0.11] hover:border-brand-accent/40 hover:shadow-md active:scale-[0.995]";
 
   // Returning user (own key) whose profile + backup are already theirs and just
   // hasn't built a Web of Trust yet → one focused nudge, no "Welcome / new
@@ -154,41 +156,41 @@ export function PostSignupCard() {
   if (returningNeedsFollow) {
     return (
       <div
-        className="relative w-full max-w-3xl mx-auto mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-[#7c86ff]/25 bg-gradient-to-br from-[#333286]/[0.04] to-[#7c86ff]/[0.06] shadow-sm"
+        className="relative w-full max-w-3xl mx-auto mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] shadow-sm dark:shadow-none"
         data-testid="card-returning-follow-nudge"
       >
         <div className="relative p-5 sm:p-6">
           <button
             type="button"
             onClick={handleDismiss}
-            className="absolute top-0 right-0 h-9 w-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            className="absolute top-0 right-0 h-9 w-9 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             aria-label="Dismiss"
             data-testid="button-returning-nudge-dismiss"
           >
             <X className="h-4 w-4" />
           </button>
           <div className="flex items-center gap-2.5 mb-2">
-            <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-[#4338ca] uppercase">Web of Trust</span>
+            <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link dark:text-brand-link uppercase">Web of Trust</span>
           </div>
-          <h3 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+          <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
             Switch on your trust scores
           </h3>
-          <p className="mt-1.5 text-[15px] text-slate-700 leading-relaxed max-w-xl">
+          <p className="mt-1.5 text-[15px] text-slate-700 dark:text-slate-200 leading-relaxed max-w-xl">
             Follow a few accounts and Brainstorm scores everyone through your own Web of Trust.
           </p>
           <button
             type="button"
             onClick={() => navigate("/welcome")}
-            className={`${tileClickable} mt-4 !border-[#7c86ff]/50 !bg-[#7c86ff]/[0.06]`}
+            className={`${tileClickable} mt-4 !border-brand-accent/50 !bg-brand-accent/[0.06]`}
             data-testid="tile-build-network"
           >
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 rounded-xl bg-[#6366f1] flex items-center justify-center text-white shrink-0">
+              <div className="h-10 w-10 rounded-xl bg-brand-primary flex items-center justify-center text-white shrink-0">
                 <Users className="h-5 w-5" />
               </div>
               <div className="min-w-0">
-                <div className="text-[15px] font-bold text-slate-900">Follow a few accounts</div>
-                <div className="text-[13px] font-semibold text-[#3730a3] inline-flex items-center gap-1">
+                <div className="text-[15px] font-bold text-slate-900 dark:text-slate-100">Follow a few accounts</div>
+                <div className="text-[13px] font-semibold text-brand-link dark:text-brand-link inline-flex items-center gap-1">
                   Turn on your trust scores
                   <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
@@ -203,51 +205,49 @@ export function PostSignupCard() {
   return (
     <>
       <div
-        className="relative w-full max-w-3xl mx-auto mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm"
+        className="relative w-full max-w-3xl mx-auto mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] shadow-sm dark:shadow-none"
         data-testid="card-post-signup"
       >
-        {/* Faded person photo + white wash so dark text stays readable */}
-        <img
-          src={bgPhoto}
-          alt=""
-          aria-hidden="true"
-          loading="lazy"
-          className="absolute inset-0 h-full w-full object-cover object-center"
-        />
-        <div className="absolute inset-0 bg-gradient-to-r from-white/95 via-white/85 to-white/60" />
-        <div className="absolute inset-0 bg-gradient-to-t from-white/70 via-transparent to-transparent" />
-
         <div className="relative z-10 p-5 sm:p-6">
           <button
             type="button"
             onClick={handleDismiss}
-            className="absolute top-0 right-0 h-9 w-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+            className="absolute top-0 right-0 h-9 w-9 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
             aria-label="Dismiss"
             data-testid="button-post-signup-dismiss"
           >
             <X className="h-4 w-4" />
           </button>
 
-          <div className="flex items-center gap-2.5 mb-3">
-            <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-[#4338ca] uppercase">
+          <div className="flex items-center gap-3 mb-3">
+            <span className="shrink-0 text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link dark:text-brand-link uppercase">
               Finish setting up
             </span>
-            <div className="h-px w-10 bg-[#4338ca]/40" />
+            <div className="flex flex-1 items-center gap-1.5" aria-hidden="true">
+              {[0, 1, 2].map((i) => (
+                <div
+                  key={i}
+                  className={`h-1 flex-1 rounded-full transition-colors duration-500 ${
+                    i < doneCount ? "bg-brand-primary dark:bg-brand-link" : "bg-slate-200/70 dark:bg-white/[0.12]"
+                  }`}
+                />
+              ))}
+            </div>
             <span
-              className="text-[11px] font-semibold text-slate-600 tabular-nums"
+              className="shrink-0 text-[11px] font-semibold text-slate-500 dark:text-slate-400 tabular-nums"
               data-testid="text-post-signup-progress"
             >
-              {doneCount} of 3 done
+              {doneCount} of 3
             </span>
           </div>
           <h3
-            className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight"
+            className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight"
             style={{ fontFamily: "var(--font-display)" }}
           >
-            Welcome to <span className="text-[#333286]">Brainstorm</span>
+            Welcome to <span className="text-brand-link">Brainstorm</span>
             {user.displayName ? `, ${user.displayName}` : ""}!
           </h3>
-          <p className="mt-1.5 text-[15px] text-slate-700 leading-relaxed max-w-xl">
+          <p className="mt-1.5 text-[15px] text-slate-700 dark:text-slate-200 leading-relaxed max-w-xl">
             Follow a few accounts to switch on your trust scores — then back up your account and add a
             photo so people recognize you.
           </p>
@@ -256,12 +256,12 @@ export function PostSignupCard() {
           {networkStarted ? (
             <div className={`${tileBase} mt-5`} data-testid="tile-network-done">
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
+                <div className="h-10 w-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
                   <Check className="h-5 w-5" />
                 </div>
                 <div>
-                  <div className="text-[15px] font-semibold text-slate-900">Network started</div>
-                  <div className="text-[13px] text-emerald-700">Your trust scores are calculating</div>
+                  <div className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">Network started</div>
+                  <div className="text-[13px] text-emerald-700 dark:text-emerald-300">Your trust scores are calculating</div>
                 </div>
               </div>
             </div>
@@ -269,16 +269,16 @@ export function PostSignupCard() {
             <button
               type="button"
               onClick={() => navigate("/welcome")}
-              className={`${tileClickable} mt-5 !border-[#7c86ff]/50 !bg-[#7c86ff]/[0.06]`}
+              className={`${tileClickable} mt-5 !border-brand-accent/50 !bg-brand-accent/[0.06]`}
               data-testid="tile-build-network"
             >
               <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-xl bg-[#6366f1] flex items-center justify-center text-white shrink-0">
+                <div className="h-10 w-10 rounded-xl bg-brand-primary flex items-center justify-center text-white shrink-0">
                   <Users className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-[15px] font-bold text-slate-900">Build your network</div>
-                  <div className="text-[13px] font-semibold text-[#3730a3] inline-flex items-center gap-1">
+                  <div className="text-[15px] font-bold text-slate-900 dark:text-slate-100">Build your network</div>
+                  <div className="text-[13px] font-semibold text-brand-link dark:text-brand-link inline-flex items-center gap-1">
                     Follow accounts to turn on trust scores
                     <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                   </div>
@@ -292,12 +292,12 @@ export function PostSignupCard() {
             {hasPhoto ? (
               <div className={tileBase} data-testid="tile-complete-profile-done">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
+                  <div className="h-10 w-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
                     <Check className="h-5 w-5" />
                   </div>
                   <div>
-                    <div className="text-[15px] font-semibold text-slate-900">Profile photo added</div>
-                    <div className="text-[13px] text-emerald-700">People can recognize you</div>
+                    <div className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">Profile photo added</div>
+                    <div className="text-[13px] text-emerald-700 dark:text-emerald-300">People can recognize you</div>
                   </div>
                 </div>
               </div>
@@ -309,12 +309,12 @@ export function PostSignupCard() {
                 data-testid="tile-complete-profile"
               >
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center text-[#333286] shrink-0">
+                  <div className="h-10 w-10 rounded-xl bg-white/70 dark:bg-white/[0.08] border border-white/70 dark:border-white/[0.12] flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0">
                     <ProfileIcon className="h-5 w-5" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-[15px] font-semibold text-slate-900">Complete your profile</div>
-                    <div className="text-[13px] font-semibold text-indigo-600 inline-flex items-center gap-1">
+                    <div className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">Complete your profile</div>
+                    <div className="text-[13px] font-semibold text-brand-link dark:text-brand-link inline-flex items-center gap-1">
                       Add a photo &amp; bio
                       <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                     </div>
@@ -327,24 +327,24 @@ export function PostSignupCard() {
             {backedUp ? (
               <div className={tileBase} data-testid="tile-backup-done">
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
+                  <div className="h-10 w-10 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 flex items-center justify-center text-emerald-600 dark:text-emerald-400 shrink-0">
                     <Check className="h-5 w-5" />
                   </div>
                   <div>
-                    <div className="text-[15px] font-semibold text-slate-900">Backed up</div>
-                    <div className="text-[13px] text-emerald-700">Backup file downloaded</div>
+                    <div className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">Backed up</div>
+                    <div className="text-[13px] text-emerald-700 dark:text-emerald-300">Backup file downloaded</div>
                   </div>
                 </div>
               </div>
             ) : backupMode ? (
               <div className={tileBase} data-testid="tile-backup-form">
                 <div className="flex items-center gap-2.5 mb-2.5">
-                  <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center text-[#333286] shrink-0">
+                  <div className="h-10 w-10 rounded-xl bg-white/70 dark:bg-white/[0.08] border border-white/70 dark:border-white/[0.12] flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0">
                     <BackupLockIcon className="h-5 w-5" />
                   </div>
-                  <span className="text-[15px] font-semibold text-slate-900">Back up your account</span>
+                  <span className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">Back up your account</span>
                 </div>
-                <p className="text-[12px] text-slate-500 mb-2">
+                <p className="text-[12px] text-slate-500 dark:text-slate-400 mb-2">
                   Choose a password to encrypt your backup file — keep it safe, no one can reset it.
                 </p>
                 <input
@@ -353,7 +353,7 @@ export function PostSignupCard() {
                   onChange={(e) => setPass(e.target.value)}
                   placeholder="Password — at least 8 characters"
                   autoComplete="new-password"
-                  className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#7c86ff] focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30"
+                  className="w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
                   data-testid="input-backup-password"
                 />
                 <input
@@ -362,17 +362,17 @@ export function PostSignupCard() {
                   onChange={(e) => setConfirm(e.target.value)}
                   placeholder="Confirm password"
                   autoComplete="new-password"
-                  className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-[#7c86ff] focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30"
+                  className="mt-2 w-full rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
                   data-testid="input-backup-confirm"
                 />
                 {mismatch && (
-                  <p className="mt-1.5 text-[12px] font-medium text-red-600" data-testid="text-backup-mismatch">Passwords don't match.</p>
+                  <p className="mt-1.5 text-[12px] font-medium text-red-600 dark:text-red-400" data-testid="text-backup-mismatch">Passwords don't match.</p>
                 )}
                 <button
                   type="button"
                   onClick={handleDownload}
                   disabled={!canBackup}
-                  className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] text-white text-sm font-semibold py-2.5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="mt-2 w-full inline-flex items-center justify-center gap-1.5 rounded-lg bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold py-2.5 shadow-lg shadow-brand-primary/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
                   data-testid="button-download-backup"
                 >
                   <Download className="h-4 w-4" /> Download backup
@@ -380,7 +380,7 @@ export function PostSignupCard() {
                 <button
                   type="button"
                   onClick={handleDownloadRaw}
-                  className="mt-2 w-full text-center text-[12px] font-medium text-slate-400 hover:text-slate-600 transition-colors"
+                  className="mt-2 w-full text-center text-[12px] font-medium text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
                   data-testid="button-download-raw-key"
                 >
                   Or download your key without a password
@@ -394,12 +394,12 @@ export function PostSignupCard() {
                 data-testid="tile-backup"
               >
                 <div className="flex items-center gap-3">
-                  <div className="h-10 w-10 rounded-xl bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center text-[#333286] shrink-0">
+                  <div className="h-10 w-10 rounded-xl bg-white/70 dark:bg-white/[0.08] border border-white/70 dark:border-white/[0.12] flex items-center justify-center text-slate-600 dark:text-slate-300 shrink-0">
                     <BackupLockIcon className="h-5 w-5" />
                   </div>
                   <div className="min-w-0">
-                    <div className="text-[15px] font-semibold text-slate-900">Back up your account</div>
-                    <div className="text-[13px] font-semibold text-indigo-600 inline-flex items-center gap-1">
+                    <div className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">Back up your account</div>
+                    <div className="text-[13px] font-semibold text-brand-link dark:text-brand-link inline-flex items-center gap-1">
                       Save a backup file
                       <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                     </div>

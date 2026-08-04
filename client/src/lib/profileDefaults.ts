@@ -19,7 +19,7 @@ export const DEFAULT_AVATAR_SRC = defaultAvatarSrc;
 export const DEFAULT_AVATAR_FLAGGED_SRC = defaultAvatarFlaggedSrc;
 
 /** Brand accent gradient — load-time fallback tint behind the default banner image. */
-export const DEFAULT_BANNER_CLASS = "bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]";
+export const DEFAULT_BANNER_CLASS = "bg-gradient-to-r from-brand-primary to-brand-accent";
 
 /** First letter (uppercased) of a display name, falling back to "U". */
 export function initialsFor(nameOrNpub?: string): string {

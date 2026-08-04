@@ -84,20 +84,20 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent
-        className="sm:max-w-[440px] rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-900/5 overflow-hidden p-0 [&>button]:text-slate-400 [&>button]:hover:text-slate-700 [&>button]:opacity-100 [&>button]:hover:bg-slate-100 [&>button]:rounded-md [&>button]:p-1 [&>button]:transition-colors"
+        className="sm:max-w-[440px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl shadow-slate-900/5 overflow-hidden p-0 [&>button]:text-slate-400 dark:[&>button]:text-slate-500 [&>button]:hover:text-slate-700 dark:[&>button]:hover:text-slate-200 [&>button]:opacity-100 [&>button]:hover:bg-slate-100 dark:[&>button]:hover:bg-slate-800 [&>button]:rounded-md [&>button]:p-1 [&>button]:transition-colors"
         data-testid="modal-create-account"
       >
         <div className="px-5 sm:px-6 pt-5 sm:pt-6 pb-2">
           <DialogHeader>
             <DialogTitle
-              className="text-base sm:text-lg font-bold text-slate-900 leading-tight tracking-tight"
+              className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 leading-tight tracking-tight"
               style={{ fontFamily: "var(--font-display)" }}
               data-testid="text-create-title"
             >
               {state === "success" ? "You're all set!" : "Let's set up your account"}
             </DialogTitle>
             <DialogDescription
-              className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed"
+              className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed"
               data-testid="text-create-subtitle"
             >
               {state === "success"
@@ -109,18 +109,18 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
 
         {state === "success" ? (
           <div className="px-5 sm:px-6 pb-5 sm:pb-6 pt-2" data-testid="status-create-success">
-            <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-emerald-50 border border-emerald-200 mb-4">
+            <div className="flex items-center gap-3 px-3 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 mb-4">
               <div className="h-9 w-9 rounded-full bg-emerald-500 flex items-center justify-center shrink-0">
                 <Check className="h-5 w-5 text-white" />
               </div>
-              <p className="text-sm font-semibold text-emerald-800">
+              <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
                 Welcome to Brainstorm{trimmed ? `, ${trimmed}` : ""}.
               </p>
             </div>
             <button
               type="button"
               onClick={() => createdUser && onCreated(createdUser)}
-              className="w-full h-11 sm:h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm tracking-wide shadow-sm transition-colors flex items-center justify-center gap-2"
+              className="w-full h-11 sm:h-12 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white font-semibold text-sm tracking-wide shadow-lg shadow-brand-primary/25 transition-all flex items-center justify-center gap-2"
               data-testid="button-create-get-started"
             >
               Get started <ArrowRight className="h-4 w-4" />
@@ -130,7 +130,7 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
           <form onSubmit={handleSubmit} className="px-5 sm:px-6 pb-5 sm:pb-6 pt-2">
             <label
               htmlFor="create-display-name"
-              className="block text-sm font-medium text-slate-700 mb-1.5"
+              className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5"
             >
               Display name
             </label>
@@ -143,14 +143,14 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
               autoFocus
               disabled={busy}
               placeholder="e.g. Alex Mercer"
-              className="w-full h-11 rounded-xl bg-white border border-slate-200 px-4 text-[15px] text-slate-900 placeholder:text-slate-400 focus:border-indigo-400 focus:ring-2 focus:ring-indigo-500/20 outline-none transition-all disabled:opacity-60"
+              className="w-full h-11 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-4 text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-accent focus:ring-2 focus:ring-brand-accent/25 outline-none transition-all disabled:opacity-60"
               data-testid="input-create-display-name"
             />
-            <p className="mt-1.5 text-xs text-slate-400">You can change this anytime.</p>
+            <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">You can change this anytime.</p>
 
             {state === "error" && (
               <div
-                className="mt-4 flex items-start gap-2 px-3 py-2.5 rounded-xl bg-red-50 border border-red-200 text-red-700"
+                className="mt-4 flex items-start gap-2 px-3 py-2.5 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25 text-red-700 dark:text-red-300"
                 data-testid="status-create-error"
               >
                 <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
@@ -161,7 +161,7 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
             <button
               type="submit"
               disabled={!canSubmit}
-              className="mt-5 w-full h-11 sm:h-12 rounded-xl bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm tracking-wide shadow-sm transition-colors flex items-center justify-center gap-2"
+              className="mt-5 w-full h-11 sm:h-12 rounded-xl bg-brand-primary hover:bg-brand-primary-hover disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-sm tracking-wide shadow-lg shadow-brand-primary/25 transition-all flex items-center justify-center gap-2"
               data-testid="button-create-submit"
             >
               {busy ? (
@@ -175,7 +175,7 @@ export function CreateAccountModal({ open, onOpenChange, onCreated, inviterPubke
               )}
             </button>
 
-            <p className="mt-3 text-center text-[11px] text-slate-400">
+            <p className="mt-3 text-center text-[11px] text-slate-400 dark:text-slate-500">
               Free · no email · no download required
             </p>
           </form>

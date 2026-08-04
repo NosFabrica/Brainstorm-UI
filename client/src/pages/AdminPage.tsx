@@ -8,7 +8,6 @@ import { nip19 } from "nostr-tools";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
-import { openMobileMenu } from "@/lib/mobileMenuStore";
 import { NostrHealthCard } from "@/components/admin/NostrHealthCard";
 import { ScrollableTable } from "@/components/admin/ScrollableTable";
 import { SchedulingCard } from "@/components/admin/scheduling/SchedulingCard";
@@ -17,6 +16,7 @@ import { UserTierPicker } from "@/components/admin/scheduling/UserTierPicker";
 import { ResyncControl } from "@/components/admin/ResyncControl";
 import type { SchedulingItem } from "@/services/api";
 import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
@@ -49,7 +49,6 @@ import {
 import {
   Home,
   Search,
-  Menu,
   LogOut,
   Settings as SettingsIcon,
   Users,
@@ -145,8 +144,8 @@ function LiveBadge({ updatedAt, boosting, isFetching }: { updatedAt: number; boo
     <span
       className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-semibold uppercase tracking-wider border ${
         boosting
-          ? "bg-amber-50 text-amber-700 border-amber-200"
-          : "bg-emerald-50 text-emerald-700 border-emerald-200"
+          ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/25"
+          : "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/25"
       }`}
       title={boosting ? "Refreshing more frequently after a recent trigger" : "Auto-refresh enabled"}
       data-testid="badge-live-updated"
@@ -297,19 +296,15 @@ function getUserHealth(status: string | null, taStatus: string | null, timesCalc
 
 function StatusBadge({ status }: { status: "connected" | "degraded" | "disconnected" }) {
   const config = {
-    connected: { bg: "bg-emerald-50", border: "border-emerald-200", text: "text-emerald-700", dot: "bg-emerald-500", ping: "bg-emerald-400", label: "Connected" },
-    degraded: { bg: "bg-amber-50", border: "border-amber-200", text: "text-amber-700", dot: "bg-amber-500", ping: "bg-amber-400", label: "Degraded" },
-    disconnected: { bg: "bg-red-50", border: "border-red-200", text: "text-red-700", dot: "bg-red-500", ping: "", label: "Not Connected" },
+    connected: { tone: "emerald" as const, label: "Connected" },
+    degraded: { tone: "amber" as const, label: "Degraded" },
+    disconnected: { tone: "red" as const, label: "Not Connected" },
   }[status];
 
   return (
-    <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full ${config.bg} border ${config.border}`} data-testid={`badge-status-${status}`}>
-      <span className="relative flex h-1 w-1">
-        {config.ping && <span className={`animate-ping absolute inline-flex h-full w-full rounded-full ${config.ping} opacity-75`} />}
-        <span className={`relative inline-flex rounded-full h-1 w-1 ${config.dot}`} />
-      </span>
-      <span className={`text-[8px] font-semibold uppercase tracking-wider ${config.text} whitespace-nowrap`}>{config.label}</span>
-    </span>
+    <Chip tone={config.tone} size="sm" dot className="uppercase tracking-wider font-semibold" data-testid={`badge-status-${status}`}>
+      {config.label}
+    </Chip>
   );
 }
 
@@ -462,11 +457,11 @@ function compareActivityWindows(activity: { updated_at: string; status?: string 
   };
 }
 
-function MiniSparkline({ data, timestamps, color = "#7c86ff", height = 22, width = 64, className, valueSuffix = "", valueLabel = "value" }: { data: number[]; timestamps?: number[]; color?: string; height?: number; width?: number; className?: string; valueSuffix?: string; valueLabel?: string }) {
+function MiniSparkline({ data, timestamps, color = "#13d2e5", height = 22, width = 64, className, valueSuffix = "", valueLabel = "value" }: { data: number[]; timestamps?: number[]; color?: string; height?: number; width?: number; className?: string; valueSuffix?: string; valueLabel?: string }) {
   if (!data || data.length < 2) {
     return (
       <div
-        className={`inline-flex items-center justify-center text-[8px] text-slate-300 ${className ?? ""}`}
+        className={`inline-flex items-center justify-center text-[8px] text-slate-300 dark:text-slate-600 ${className ?? ""}`}
         style={{ height, width }}
         title="No trend data available yet"
         data-testid="mini-sparkline-empty"
@@ -505,7 +500,7 @@ function MiniSparkline({ data, timestamps, color = "#7c86ff", height = 22, width
   );
 }
 
-function SparklineDetailsDialog({ open, onOpenChange, label, data, timestamps, color = "#7c86ff", valueLabel = "value", valueSuffix = "" }: {
+function SparklineDetailsDialog({ open, onOpenChange, label, data, timestamps, color = "#13d2e5", valueLabel = "value", valueSuffix = "" }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   label: string;
@@ -543,9 +538,9 @@ function SparklineDetailsDialog({ open, onOpenChange, label, data, timestamps, c
                 </LineChart>
               </ResponsiveContainer>
             </div>
-            <div className="max-h-56 overflow-auto rounded-md border border-slate-200">
+            <div className="max-h-56 overflow-auto rounded-md border border-slate-200 dark:border-slate-800">
               <table className="w-full text-xs">
-                <thead className="bg-slate-50 text-slate-500 sticky top-0">
+                <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 sticky top-0">
                   <tr>
                     <th className="text-left font-medium px-2 py-1.5">Time</th>
                     <th className="text-right font-medium px-2 py-1.5 capitalize">{valueLabel}</th>
@@ -553,9 +548,9 @@ function SparklineDetailsDialog({ open, onOpenChange, label, data, timestamps, c
                 </thead>
                 <tbody>
                   {rows.map((r, idx) => (
-                    <tr key={idx} className="border-t border-slate-100" data-testid={`row-sparkline-bucket-${idx}`}>
-                      <td className="px-2 py-1 text-slate-600">{formatTs(r.ts)}</td>
-                      <td className="px-2 py-1 text-right font-medium text-slate-900 tabular-nums">{r.v}{valueSuffix}</td>
+                    <tr key={idx} className="border-t border-slate-100 dark:border-slate-800/60" data-testid={`row-sparkline-bucket-${idx}`}>
+                      <td className="px-2 py-1 text-slate-600 dark:text-slate-300">{formatTs(r.ts)}</td>
+                      <td className="px-2 py-1 text-right font-medium text-slate-900 dark:text-slate-100 tabular-nums">{r.v}{valueSuffix}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -563,7 +558,7 @@ function SparklineDetailsDialog({ open, onOpenChange, label, data, timestamps, c
             </div>
           </>
         ) : (
-          <p className="text-sm text-slate-500" data-testid="text-sparkline-empty">No trend data available yet.</p>
+          <p className="text-sm text-slate-500 dark:text-slate-400" data-testid="text-sparkline-empty">No trend data available yet.</p>
         )}
       </DialogContent>
     </Dialog>
@@ -573,7 +568,7 @@ function SparklineDetailsDialog({ open, onOpenChange, label, data, timestamps, c
 function DeltaIndicator({ delta, suffix = "", inverted = false, label = "vs 24h ago", insufficient, insufficientLabel }: { delta: number | null; suffix?: string; inverted?: boolean; label?: string; insufficient?: boolean; insufficientLabel?: string }) {
   if (insufficient || delta === null || delta === undefined || Number.isNaN(delta)) {
     return (
-      <span className="text-[10px] font-medium text-slate-400 inline-flex items-center gap-0.5" title={insufficientLabel ?? "Not enough historical data yet to compute a trend"}>
+      <span className="text-[10px] font-medium text-slate-400 dark:text-slate-500 inline-flex items-center gap-0.5" title={insufficientLabel ?? "Not enough historical data yet to compute a trend"}>
         <Minus className="h-3 w-3" /> {insufficientLabel ?? "—"}
       </span>
     );
@@ -581,13 +576,13 @@ function DeltaIndicator({ delta, suffix = "", inverted = false, label = "vs 24h 
   const flat = delta === 0;
   const goodWhenUp = !inverted;
   const isGood = flat ? false : (delta > 0 ? goodWhenUp : !goodWhenUp);
-  const colorCls = flat ? "text-slate-400" : isGood ? "text-emerald-600" : "text-red-500";
+  const colorCls = flat ? "text-slate-400 dark:text-slate-500" : isGood ? "text-emerald-600" : "text-red-500";
   const Icon = flat ? Minus : delta > 0 ? ChevronUp : ChevronDown;
   const sign = delta > 0 ? "+" : "";
   return (
     <span className={`text-[10px] font-semibold inline-flex items-center gap-0.5 whitespace-nowrap ${colorCls}`}>
       <Icon className="h-3 w-3" />
-      {sign}{delta}{suffix} <span className="font-normal text-slate-400 ml-0.5">{label}</span>
+      {sign}{delta}{suffix} <span className="font-normal text-slate-400 dark:text-slate-500 ml-0.5">{label}</span>
     </span>
   );
 }
@@ -615,38 +610,38 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
   return (
     <>
     <div
-      className={`rounded-xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] px-3 py-3 group hover:shadow-[0_12px_24px_-8px_rgba(124,134,255,0.2)] hover:border-[#7c86ff]/40 hover:-translate-y-0.5 transition-all duration-300 relative z-0 hover:z-30 flex flex-col min-h-[120px] ${onClick ? "cursor-pointer" : ""}`}
+      className={`rounded-xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none px-3 py-3 group hover:shadow-[0_12px_24px_-8px_rgb(var(--brand-accent)/0.2)] hover:border-brand-accent/40 hover:-translate-y-0.5 transition-all duration-300 relative z-0 hover:z-30 flex flex-col min-h-[120px] ${onClick ? "cursor-pointer" : ""}`}
       data-testid={`kpi-${testIdSlug}`}
       title={tooltip}
       onClick={onClick}
     >
       <div className="absolute inset-0 overflow-hidden rounded-xl pointer-events-none">
-        <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+        <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-brand-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
       </div>
       <div className="flex items-start justify-between mb-2 relative">
-        <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-[#7c86ff]/10 to-[#333286]/10 border border-[#7c86ff]/15 flex items-center justify-center">
-          <Icon className="h-4 w-4 text-[#333286]" />
+        <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-brand-accent/10 to-brand-deep/10 border border-brand-accent/15 flex items-center justify-center">
+          <Icon className="h-4 w-4 text-brand-deep" />
         </div>
         {scope && (
-          <span className={`text-[7px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full ${scope === "system" ? "bg-indigo-50 text-indigo-600 border border-indigo-200" : "bg-slate-50 text-slate-500 border border-slate-200"}`}>
+          <Chip tone={scope === "system" ? "brand" : "slate"} size="sm" className="uppercase tracking-wider font-bold">
             {scope === "system" ? "System" : "Your graph"}
-          </span>
+          </Chip>
         )}
         {trend && !scope && (
-          <span className={`text-[10px] font-semibold flex items-center gap-0.5 ${trend.up ? "text-emerald-600" : "text-red-500"}`}>
+          <span className={`text-[10px] font-semibold flex items-center gap-0.5 ${trend.up ? "text-emerald-600 dark:text-emerald-400" : "text-red-500"}`}>
             {trend.up ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
             {trend.value}
           </span>
         )}
       </div>
       <div className="flex items-end justify-between gap-2 relative">
-        <p className={`text-xl font-bold tracking-tight ${unsupported ? "text-slate-300" : "text-slate-900"}`} style={{ fontFamily: "var(--font-display)" }}>{value}</p>
+        <p className={`text-xl font-bold tracking-tight ${unsupported ? "text-slate-300 dark:text-slate-600" : "text-slate-900 dark:text-slate-100"}`} style={{ fontFamily: "var(--font-display)" }}>{value}</p>
         {!unsupported && hasSparkline && (
           <div className="flex items-center gap-1">
             <MiniSparkline
               data={sparklineData ?? []}
               timestamps={sparklineTimestamps}
-              color={sparklineColor ?? "#7c86ff"}
+              color={sparklineColor ?? "#13d2e5"}
               height={22}
               width={64}
               valueLabel={sparklineValueLabel ?? "value"}
@@ -657,7 +652,7 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
                 type="button"
                 aria-label={`View ${label} trend details`}
                 title="View trend details"
-                className="p-1 rounded-md text-slate-400 hover:text-[#333286] hover:bg-[#7c86ff]/10 active:bg-[#7c86ff]/20 transition-colors touch-manipulation"
+                className="p-1 rounded-md text-slate-400 dark:text-slate-500 hover:text-brand-deep hover:bg-brand-accent/10 active:bg-brand-accent/20 transition-colors touch-manipulation"
                 onClick={(e) => {
                   e.stopPropagation();
                   setTrendOpen(true);
@@ -670,8 +665,8 @@ function KpiCard({ label, value, icon: Icon, trend, subtitle, unsupported, toolt
           </div>
         )}
       </div>
-      <p className="text-[11px] text-slate-500 mt-0.5 relative leading-tight">{label}</p>
-      {subtitle && <p className="text-[9px] text-slate-400 mt-0.5 relative">{subtitle}</p>}
+      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 relative leading-tight">{label}</p>
+      {subtitle && <p className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 relative">{subtitle}</p>}
       {deltaSlot && <div className="mt-1 relative" data-testid={`kpi-delta-${label.toLowerCase().replace(/\s+/g, "-")}`}>{deltaSlot}</div>}
       <div className="mt-auto pt-1.5 relative">
         {unsupported ? <StatusBadge status="disconnected" /> : <StatusBadge status="connected" />}
@@ -702,7 +697,7 @@ function SortHeader({ label, sortKey, currentSort, onSort }: {
   const active = currentSort.key === sortKey;
   return (
     <button
-      className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 hover:text-slate-800 transition-colors whitespace-nowrap"
+      className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors whitespace-nowrap"
       onClick={() => onSort(sortKey)}
       data-testid={`sort-${sortKey}`}
     >
@@ -720,7 +715,7 @@ function CopyButton({ text }: { text: string }) {
   const { toast } = useToast();
   return (
     <button
-      className="p-1 rounded hover:bg-slate-100 transition-colors"
+      className="p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
       onClick={(e) => {
         e.stopPropagation();
         copyToClipboard(text);
@@ -728,7 +723,7 @@ function CopyButton({ text }: { text: string }) {
       }}
       data-testid="button-copy-npub"
     >
-      <Copy className="h-3 w-3 text-slate-400 hover:text-slate-600" />
+      <Copy className="h-3 w-3 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300" />
     </button>
   );
 }
@@ -834,35 +829,34 @@ function FailureBreakdownCard({
   }
 
   return (
-    <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-red-50/30 backdrop-blur-xl border border-red-200/50 shadow-[0_0_15px_rgba(239,68,68,0.07)] overflow-hidden" data-testid="card-failure-breakdown">
-      <div className="h-1 w-full bg-gradient-to-r from-red-400 via-rose-500 to-red-400" />
-      <div className="px-5 py-4 border-b border-red-100 flex items-start justify-between gap-3">
+    <div className="rounded-2xl border border-red-200/70 dark:border-red-500/25 bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-failure-breakdown">
+      <div className="px-5 py-4 border-b border-red-100 dark:border-red-500/20 flex items-start justify-between gap-3">
         <div>
-          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2" style={{ fontFamily: "var(--font-display)" }}>
+          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2" style={{ fontFamily: "var(--font-display)" }}>
             <AlertTriangle className="h-4 w-4 text-red-500" /> Failure Breakdown
           </h3>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
             {totalFailures === 0
               ? "No failures in the current activity feed."
               : `${totalFailures} failed request${totalFailures === 1 ? "" : "s"} across ${groups.length} pattern${groups.length === 1 ? "" : "s"} — expand one to see who's affected and re-run them.`}
           </p>
         </div>
-        <span className={`text-xs font-bold tabular-nums px-2 py-1 rounded-full ${totalFailures === 0 ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`}>{totalFailures}</span>
+        <Chip tone={totalFailures === 0 ? "emerald" : "red"} className="px-2 py-1 font-bold tabular-nums">{totalFailures}</Chip>
       </div>
       <div className="p-5">
         {isError ? (
           <div className="flex flex-col items-center justify-center py-6 text-center">
             <XCircle className="h-8 w-8 text-red-400 mb-2" />
-            <p className="text-sm font-semibold text-slate-700">Couldn't load failure data</p>
-            <p className="text-[10px] text-slate-500 mt-1 max-w-md">{errorMessage || "The /admin/activity endpoint did not respond."}</p>
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Couldn't load failure data</p>
+            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 max-w-md">{errorMessage || "The /admin/activity endpoint did not respond."}</p>
           </div>
         ) : isLoading && totalFailures === 0 ? (
-          <div className="flex items-center justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-slate-300" /></div>
+          <div className="flex items-center justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-slate-300 dark:text-slate-600" /></div>
         ) : totalFailures === 0 ? (
           <div className="flex flex-col items-center justify-center py-6 text-center">
             <CheckCircle2 className="h-8 w-8 text-emerald-400 mb-2" />
-            <p className="text-sm font-semibold text-slate-700">No failures right now</p>
-            <p className="text-[10px] text-slate-400 mt-1">Every recent request has succeeded.</p>
+            <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">No failures right now</p>
+            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">Every recent request has succeeded.</p>
           </div>
         ) : (
           <ul className="space-y-2.5" data-testid="list-failure-breakdown">
@@ -872,23 +866,23 @@ function FailureBreakdownCard({
               const isOpen = expanded === g.key;
               const isRetrying = retrying === g.key;
               return (
-                <li key={g.key} className="rounded-lg border border-red-200 bg-white/70 p-3" data-testid="failure-breakdown-group">
+                <li key={g.key} className="rounded-lg border border-red-200 dark:border-red-500/25 bg-white/70 dark:bg-slate-900/70 p-3" data-testid="failure-breakdown-group">
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2 mb-1">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-red-700">{g.stage}</span>
-                        <span className="text-[9px] font-semibold text-red-700 bg-red-100 border border-red-200 px-1.5 py-0.5 rounded-full tabular-nums">{g.count}×</span>
-                        <span className="text-[9px] text-slate-500">{users.length} user{users.length === 1 ? "" : "s"} affected</span>
-                        <span className="text-[9px] text-slate-400 ml-auto">{timeAgo(g.latest.updated_at) || formatTimestamp(g.latest.updated_at)}</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 dark:text-red-300">{g.stage}</span>
+                        <span className="text-[9px] font-semibold text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-500/15 border border-red-200 dark:border-red-500/25 px-1.5 py-0.5 rounded-full tabular-nums">{g.count}×</span>
+                        <span className="text-[9px] text-slate-500 dark:text-slate-400">{users.length} user{users.length === 1 ? "" : "s"} affected</span>
+                        <span className="text-[9px] text-slate-400 dark:text-slate-500 ml-auto">{timeAgo(g.latest.updated_at) || formatTimestamp(g.latest.updated_at)}</span>
                       </div>
-                      <p className="text-[11px] text-slate-800 font-mono break-words leading-relaxed">{truncateError(errMsg, 220)}</p>
+                      <p className="text-[11px] text-slate-800 dark:text-slate-200 font-mono break-words leading-relaxed">{truncateError(errMsg, 220)}</p>
                       <div className="mt-2 flex flex-wrap items-center gap-2">
                         {users.length > 0 && (
                           <button
                             type="button"
                             onClick={() => setExpanded(isOpen ? null : g.key)}
-                            className="text-[10px] font-semibold text-slate-600 hover:text-slate-900 inline-flex items-center gap-1"
+                            className="text-[10px] font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 inline-flex items-center gap-1"
                             data-testid="failure-breakdown-toggle-users"
                           >
                             <ChevronDown className={`h-3 w-3 transition-transform ${isOpen ? "rotate-180" : ""}`} /> {isOpen ? "Hide" : "Show"} affected users
@@ -898,7 +892,7 @@ function FailureBreakdownCard({
                           <Button
                             size="sm"
                             variant="outline"
-                            className="h-6 text-[10px] gap-1 border-red-200 text-red-700 hover:bg-red-50"
+                            className="h-6 text-[10px] gap-1 border-red-200 dark:border-red-500/25 text-red-700 dark:text-red-300 hover:bg-red-50 dark:hover:bg-red-500/10"
                             disabled={isRetrying}
                             onClick={() => retryGroup(g.key, users)}
                             data-testid="failure-breakdown-retry-all"
@@ -908,14 +902,14 @@ function FailureBreakdownCard({
                         )}
                       </div>
                       {isOpen && (
-                        <ul className="mt-2 space-y-1 max-h-52 overflow-auto rounded-lg border border-slate-100 bg-white p-2">
+                        <ul className="mt-2 space-y-1 max-h-52 overflow-auto rounded-lg border border-slate-100 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-2">
                           {users.slice(0, 100).map((pk) => (
                             <li key={pk} className="flex items-center justify-between gap-2">
-                              <button type="button" onClick={() => onViewUser(pk)} className="font-mono text-[10px] text-[#333286] hover:text-[#7c86ff] truncate" title={pk}>{pk.slice(0, 16)}…{pk.slice(-6)}</button>
-                              <button type="button" onClick={() => onViewUser(pk)} className="text-[9px] text-slate-400 hover:text-[#333286] inline-flex items-center gap-1 shrink-0"><Eye className="h-3 w-3" /> view</button>
+                              <button type="button" onClick={() => onViewUser(pk)} className="font-mono text-[10px] text-brand-deep hover:text-brand-accent truncate" title={pk}>{pk.slice(0, 16)}…{pk.slice(-6)}</button>
+                              <button type="button" onClick={() => onViewUser(pk)} className="text-[9px] text-slate-400 dark:text-slate-500 hover:text-brand-deep inline-flex items-center gap-1 shrink-0"><Eye className="h-3 w-3" /> view</button>
                             </li>
                           ))}
-                          {users.length > 100 && <li className="text-[9px] text-slate-400 px-1">+ {users.length - 100} more</li>}
+                          {users.length > 100 && <li className="text-[9px] text-slate-400 dark:text-slate-500 px-1">+ {users.length - 100} more</li>}
                         </ul>
                       )}
                     </div>
@@ -938,31 +932,31 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
   });
 
   return (
-    <tr className="bg-gradient-to-r from-slate-50/80 to-indigo-50/30" data-testid={`row-user-detail-${pubkey.slice(0, 8)}`}>
+    <tr className="bg-gradient-to-r from-slate-50/80 to-brand-primary/10 dark:bg-none dark:bg-slate-900/40" data-testid={`row-user-detail-${pubkey.slice(0, 8)}`}>
       <td colSpan={12} className="px-5 py-4">
         <div className="space-y-4 text-[10px]">
           <div>
-            <p className="font-bold uppercase tracking-wider text-slate-500 text-[9px] mb-2">Identity</p>
+            <p className="font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 text-[9px] mb-2">Identity</p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-sm min-w-0">
-                <p className="text-[8px] text-slate-400 uppercase mb-0.5">Full Pubkey</p>
+              <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none min-w-0">
+                <p className="text-[8px] text-slate-400 dark:text-slate-500 uppercase mb-0.5">Full Pubkey</p>
                 <div className="flex items-center gap-1 min-w-0">
-                  <p className="font-mono text-slate-700 text-[9px] truncate">{pubkey}</p>
+                  <p className="font-mono text-slate-700 dark:text-slate-200 text-[9px] truncate">{pubkey}</p>
                   <CopyButton text={pubkey} />
                 </div>
               </div>
-              <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-sm min-w-0">
-                <p className="text-[8px] text-slate-400 uppercase mb-0.5">Nostr npub</p>
+              <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none min-w-0">
+                <p className="text-[8px] text-slate-400 dark:text-slate-500 uppercase mb-0.5">Nostr npub</p>
                 <div className="flex items-center gap-1 min-w-0">
-                  <p className="font-mono text-indigo-600 text-[9px] truncate">{npub}</p>
+                  <p className="font-mono text-brand-primary dark:text-brand-link text-[9px] truncate">{npub}</p>
                   <CopyButton text={npub} />
                 </div>
               </div>
               {taPubkey && (
-                <div className="p-2.5 rounded-xl bg-white border border-slate-200 shadow-sm min-w-0">
-                  <p className="text-[8px] text-slate-400 uppercase mb-0.5">TA Pubkey</p>
+                <div className="p-2.5 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none min-w-0">
+                  <p className="text-[8px] text-slate-400 dark:text-slate-500 uppercase mb-0.5">TA Pubkey</p>
                   <div className="flex items-center gap-1 min-w-0">
-                    <p className="font-mono text-emerald-600 text-[9px] truncate">{taPubkey}</p>
+                    <p className="font-mono text-emerald-600 dark:text-emerald-400 text-[9px] truncate">{taPubkey}</p>
                     <CopyButton text={taPubkey} />
                   </div>
                 </div>
@@ -970,48 +964,49 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
             </div>
           </div>
 
-          <div className="mt-2 p-4 rounded-xl bg-white border border-indigo-100 shadow-sm">
+          <div className="mt-2 p-4 rounded-xl bg-white dark:bg-slate-900 border border-brand-primary/15 dark:border-brand-primary/25 shadow-sm dark:shadow-none">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-[#333286]" />
-                <p className="font-bold text-xs text-slate-800" style={{ fontFamily: "var(--font-display)" }}>Calculation History</p>
+                <Clock className="h-4 w-4 text-brand-deep" />
+                <p className="font-bold text-xs text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>Calculation History</p>
                 {schedulingName && (
-                  <span
-                    className="text-[10px] font-medium text-violet-700 bg-violet-50 border border-violet-200 px-1.5 py-0.5 rounded-full"
+                  <Chip
+                    tone="violet"
+                    size="sm"
                     title="This user's current scheduling tier — how often scheduled runs recalculate them"
                   >
                     {schedulingName} schedule
-                  </span>
+                  </Chip>
                 )}
               </div>
               {historyQuery.data && historyQuery.data.total > 0 && (
-                <span className="text-[10px] font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{historyQuery.data.total} records</span>
+                <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">{historyQuery.data.total} records</span>
               )}
             </div>
             {historyQuery.isLoading ? (
               <div className="space-y-2">
-                <div className="h-5 w-full bg-slate-100 rounded animate-pulse" />
-                <div className="h-5 w-full bg-slate-100 rounded animate-pulse" />
-                <div className="h-5 w-full bg-slate-100 rounded animate-pulse" />
+                <div className="h-5 w-full bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+                <div className="h-5 w-full bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
+                <div className="h-5 w-full bg-slate-100 dark:bg-slate-800 rounded animate-pulse" />
               </div>
             ) : historyQuery.isError ? (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 border border-red-200">
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25">
                 <XCircle className="h-4 w-4 text-red-400 shrink-0" />
-                <p className="text-xs text-red-600">Failed to load calculation history</p>
+                <p className="text-xs text-red-600 dark:text-red-400">Failed to load calculation history</p>
               </div>
             ) : historyQuery.data && historyQuery.data.items.length > 0 ? (
-              <div className="overflow-x-auto max-h-80 overflow-y-auto rounded-lg border border-slate-200 shadow-sm">
+              <div className="overflow-x-auto max-h-80 overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-800 shadow-sm">
                 <table className="w-full text-left border-collapse">
                   <thead className="sticky top-0 z-10">
-                    <tr className="bg-slate-100 border-b-2 border-slate-200">
-                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">Date</th>
-                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600" title="What triggered this run">Source</th>
-                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">Status</th>
-                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">Algorithm</th>
-                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">TA Status</th>
-                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">Publication</th>
-                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600">Queue</th>
-                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600" title="Time from request to finished">Duration</th>
+                    <tr className="bg-slate-100 dark:bg-slate-800 border-b-2 border-slate-200 dark:border-slate-800">
+                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">Date</th>
+                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300" title="What triggered this run">Source</th>
+                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">Status</th>
+                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">Algorithm</th>
+                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">TA Status</th>
+                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">Publication</th>
+                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">Queue</th>
+                      <th className="px-3 py-2.5 text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300" title="Time from request to finished">Duration</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1029,9 +1024,9 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
                       const rowKey = item.private_id ?? idx;
                       return (
                         <Fragment key={rowKey}>
-                          <tr className={`border-b ${hasFail ? "border-red-200 bg-red-50/20" : idx % 2 === 0 ? "border-slate-100 bg-white" : "border-slate-100 bg-slate-50/40"} hover:bg-indigo-50/30 transition-colors`}>
+                          <tr className={`border-b ${hasFail ? "border-red-200 dark:border-red-500/25 bg-red-50/20 dark:bg-red-500/10" : idx % 2 === 0 ? "border-slate-100 dark:border-slate-800/60 bg-white dark:bg-slate-900" : "border-slate-100 dark:border-slate-800/60 bg-slate-50/40 dark:bg-slate-900/40"} hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10 transition-colors`}>
                             <td className="px-3 py-2.5 whitespace-nowrap">
-                              <span className="text-[11px] font-medium text-slate-700">{formatTimestamp(item.created_at)}</span>
+                              <span className="text-[11px] font-medium text-slate-700 dark:text-slate-200">{formatTimestamp(item.created_at)}</span>
                             </td>
                             <td className="px-3 py-2.5">
                               <TriggerSourceBadge value={item.trigger_source} />
@@ -1041,7 +1036,7 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
                                 <Tooltip>
                                   <TooltipTrigger asChild>
                                     <span
-                                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-50 text-red-700 border border-red-200 cursor-help"
+                                      className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-500/25 cursor-help"
                                       data-testid={`tooltip-history-error-status-${rowKey}`}
                                     >{item.status}</span>
                                   </TooltipTrigger>
@@ -1051,13 +1046,13 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
                                 </Tooltip>
                               ) : (
                                 <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                                  statusLower === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                                  "bg-slate-50 text-slate-600 border border-slate-200"
+                                  statusLower === "success" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/25" :
+                                  "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800"
                                 }`}>{item.status}</span>
                               )}
                             </td>
                             <td className="px-3 py-2.5">
-                              <span className="text-[11px] font-mono font-semibold text-[#333286]">{item.algorithm}</span>
+                              <span className="text-[11px] font-mono font-semibold text-brand-deep">{item.algorithm}</span>
                             </td>
                             <td className="px-3 py-2.5">
                               {item.ta_status ? (
@@ -1065,7 +1060,7 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <span
-                                        className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-50 text-red-700 border border-red-200 cursor-help"
+                                        className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-500/25 cursor-help"
                                         data-testid={`tooltip-history-error-ta-${rowKey}`}
                                       >{item.ta_status}</span>
                                     </TooltipTrigger>
@@ -1075,12 +1070,12 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
                                   </Tooltip>
                                 ) : (
                                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                                    taLower === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                                    "bg-slate-50 text-slate-600 border border-slate-200"
+                                    taLower === "success" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/25" :
+                                    "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800"
                                   }`}>{item.ta_status}</span>
                                 )
                               ) : (
-                                <span className="text-[11px] text-slate-300">—</span>
+                                <span className="text-[11px] text-slate-300 dark:text-slate-600">—</span>
                               )}
                             </td>
                             <td className="px-3 py-2.5">
@@ -1089,7 +1084,7 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
                                   <Tooltip>
                                     <TooltipTrigger asChild>
                                       <span
-                                        className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-50 text-red-700 border border-red-200 cursor-help"
+                                        className="inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-500/25 cursor-help"
                                         data-testid={`tooltip-history-error-pub-${rowKey}`}
                                       >{item.internal_publication_status}</span>
                                     </TooltipTrigger>
@@ -1099,39 +1094,39 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
                                   </Tooltip>
                                 ) : (
                                   <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                                    pubLower === "success" || pubLower === "published" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                                    pubLower === "pending" || pubLower === "in_progress" ? "bg-amber-50 text-amber-700 border border-amber-200" :
-                                    "bg-slate-50 text-slate-600 border border-slate-200"
+                                    pubLower === "success" || pubLower === "published" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/25" :
+                                    pubLower === "pending" || pubLower === "in_progress" ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-500/25" :
+                                    "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800"
                                   }`}>{item.internal_publication_status}</span>
                                 )
                               ) : (
-                                <span className="text-[11px] text-slate-300">—</span>
+                                <span className="text-[11px] text-slate-300 dark:text-slate-600">—</span>
                               )}
                             </td>
                             <td className="px-3 py-2.5">
-                              <span className="text-[11px] font-medium text-slate-600 tabular-nums">{item.how_many_others_with_priority > 0 ? item.how_many_others_with_priority : "—"}</span>
+                              <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300 tabular-nums">{item.how_many_others_with_priority > 0 ? item.how_many_others_with_priority : "—"}</span>
                             </td>
                             <td className="px-3 py-2.5">
-                              <span className="text-[11px] text-slate-600 tabular-nums">{formatLatencyMs(item.created_at, item.updated_at) ?? "—"}</span>
+                              <span className="text-[11px] text-slate-600 dark:text-slate-300 tabular-nums">{formatLatencyMs(item.created_at, item.updated_at) ?? "—"}</span>
                             </td>
                           </tr>
                           {hasFail && (() => {
                             const stage = pickFailureStage({ statusFailed, taFailed, pubFailed });
                             const stageInfo = stage ? FAILURE_STAGE_HINTS[stage] : null;
                             return (
-                              <tr className="border-b border-red-200 bg-red-50/60" data-testid={`row-history-error-${rowKey}`}>
+                              <tr className="border-b border-red-200 dark:border-red-500/25 bg-red-50/60 dark:bg-red-500/10" data-testid={`row-history-error-${rowKey}`}>
                                 <td colSpan={8} className="px-4 py-2">
                                   <div className="flex items-start gap-2">
                                     <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
                                     <div className="flex-1 space-y-1">
                                       {errorText ? (
-                                        <span className="block text-[11px] text-red-700 font-mono break-all">{errorText}</span>
+                                        <span className="block text-[11px] text-red-700 dark:text-red-300 font-mono break-all">{errorText}</span>
                                       ) : (
-                                        <span className="block text-[11px] text-red-600/80 italic">No error details captured — check server logs.</span>
+                                        <span className="block text-[11px] text-red-600/80 dark:text-red-400/80 italic">No error details captured — check server logs.</span>
                                       )}
                                       {stageInfo && (
                                         <p
-                                          className="text-slate-600 text-[11px] leading-snug"
+                                          className="text-slate-600 dark:text-slate-300 text-[11px] leading-snug"
                                           data-testid={`text-failure-hint-${rowKey}`}
                                         >
                                           <span className="font-semibold">Where to look · {stageInfo.label}:</span> {stageInfo.hint}
@@ -1151,9 +1146,9 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
                 </table>
               </div>
             ) : (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50 border border-slate-100">
-                <Clock className="h-4 w-4 text-slate-300" />
-                <p className="text-xs text-slate-400">No calculation history available</p>
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60">
+                <Clock className="h-4 w-4 text-slate-300 dark:text-slate-600" />
+                <p className="text-xs text-slate-400 dark:text-slate-500">No calculation history available</p>
               </div>
             )}
           </div>
@@ -1167,15 +1162,15 @@ function UserHistoryRow({ pubkey, npub, taPubkey, schedulingName }: { pubkey: st
 
 
 function ActivityStatusBadge({ value }: { value: string | null }) {
-  if (!value) return <span className="text-slate-300">—</span>;
+  if (!value) return <span className="text-slate-300 dark:text-slate-600">—</span>;
   const lower = value.toLowerCase();
   const colors = lower === "success" || lower === "done" || lower === "published"
-    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+    ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-200 dark:border-emerald-500/25"
     : lower === "failure" || lower === "failed" || lower === "error"
-    ? "bg-red-50 text-red-700 border-red-200"
+    ? "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border-red-200 dark:border-red-500/25"
     : lower === "pending" || lower === "queued" || lower === "in_progress"
-    ? "bg-amber-50 text-amber-700 border-amber-200"
-    : "bg-slate-50 text-slate-600 border-slate-200";
+    ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/25"
+    : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800";
   return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border ${colors}`} data-testid="badge-activity-status">{value}</span>;
 }
 
@@ -1183,17 +1178,17 @@ function ActivityStatusBadge({ value }: { value: string | null }) {
 // auto-scheduler, admin = admin action, periodic = cron). Colored distinctly
 // from the status badges so origin reads at a glance.
 function TriggerSourceBadge({ value }: { value: string | null }) {
-  if (!value) return <span className="text-slate-300">—</span>;
+  if (!value) return <span className="text-slate-300 dark:text-slate-600">—</span>;
   const lower = value.toLowerCase();
   const colors = lower === "scheduled"
-    ? "bg-violet-50 text-violet-700 border-violet-200"
+    ? "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link border-brand-primary/20 dark:border-brand-primary/25"
     : lower === "periodic"
-    ? "bg-sky-50 text-sky-700 border-sky-200"
+    ? "bg-sky-50 dark:bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-200 dark:border-sky-500/25"
     : lower === "admin"
-    ? "bg-amber-50 text-amber-700 border-amber-200"
+    ? "bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-500/25"
     : lower === "manual"
-    ? "bg-slate-50 text-slate-600 border-slate-200"
-    : "bg-slate-50 text-slate-600 border-slate-200";
+    ? "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800"
+    : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800";
   return <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium border capitalize ${colors}`} data-testid="badge-trigger-source">{value}</span>;
 }
 
@@ -1306,11 +1301,11 @@ function ConfirmRetriggerButton({
       onClick={handleClick}
       disabled={state === "running"}
       className={`text-[10px] font-semibold inline-flex items-center gap-1 transition-colors ${
-        state === "confirming" ? "text-amber-700 animate-pulse" :
-        state === "done" ? "text-emerald-700" :
-        state === "error" ? "text-red-700" :
-        state === "running" ? "text-slate-400" :
-        "text-red-700 hover:text-red-900"
+        state === "confirming" ? "text-amber-700 dark:text-amber-300 animate-pulse" :
+        state === "done" ? "text-emerald-700 dark:text-emerald-300" :
+        state === "error" ? "text-red-700 dark:text-red-300" :
+        state === "running" ? "text-slate-400 dark:text-slate-500" :
+        "text-red-700 dark:text-red-300 hover:text-red-900 dark:hover:text-red-200"
       } ${className}`}
       data-testid={testId}
     >
@@ -1345,18 +1340,18 @@ function FailureDetailCard({
     try { return new Date(d.endsWith("Z") ? d : d + "Z").toLocaleString(); } catch { return d; }
   };
   return (
-    <div className="rounded-lg border border-red-200 bg-red-50/70 p-3" data-testid={`failure-detail-${item.private_id ?? "x"}`}>
+    <div className="rounded-lg border border-red-200 dark:border-red-500/25 bg-red-50/70 dark:bg-red-500/10 p-3" data-testid={`failure-detail-${item.private_id ?? "x"}`}>
       <div className="flex items-start gap-2">
         <AlertTriangle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] font-bold text-red-800 uppercase tracking-wider">Failed at {stage}</span>
-            <span className="text-[10px] text-red-600/80">Request #{item.private_id}</span>
+            <span className="text-[11px] font-bold text-red-800 dark:text-red-300 uppercase tracking-wider">Failed at {stage}</span>
+            <span className="text-[10px] text-red-600/80 dark:text-red-400/80">Request #{item.private_id}</span>
           </div>
-          <p className="mt-1.5 text-[11px] text-red-900 font-mono break-words whitespace-pre-wrap leading-relaxed" data-testid={`failure-message-${item.private_id ?? "x"}`}>
+          <p className="mt-1.5 text-[11px] text-red-900 dark:text-red-300 font-mono break-words whitespace-pre-wrap leading-relaxed" data-testid={`failure-message-${item.private_id ?? "x"}`}>
             {errorText}
           </p>
-          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-red-700/80">
+          <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] text-red-700/80 dark:text-red-300/80">
             <span>Algorithm: <span className="font-mono">{item.algorithm || "—"}</span></span>
             <span>Created: {fmtFull(item.created_at)}</span>
             <span>Updated: {fmtFull(item.updated_at)}</span>
@@ -1364,33 +1359,33 @@ function FailureDetailCard({
           </div>
           {item.pubkey && (
             <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px]">
-              <span className="font-bold text-red-700/80 uppercase tracking-wider">User:</span>
+              <span className="font-bold text-red-700/80 dark:text-red-300/80 uppercase tracking-wider">User:</span>
               {onNavigateToUser ? (
                 <button
                   onClick={(e) => { e.stopPropagation(); onNavigateToUser(item.pubkey!); }}
-                  className="font-mono text-[#333286] hover:text-[#7c86ff] hover:underline break-all text-left"
+                  className="font-mono text-brand-deep hover:text-brand-accent hover:underline break-all text-left"
                   data-testid={`failure-pubkey-link-${item.private_id ?? "x"}`}
                 >
                   {item.pubkey}
                 </button>
               ) : (
-                <span className="font-mono text-slate-700 break-all">{item.pubkey}</span>
+                <span className="font-mono text-slate-700 dark:text-slate-200 break-all">{item.pubkey}</span>
               )}
               <CopyButton text={item.pubkey} />
             </div>
           )}
           {item.parameters && (
             <div className="mt-2 text-[10px]">
-              <span className="font-bold text-red-700/80 uppercase tracking-wider block mb-0.5">Parameters</span>
-              <p className="font-mono text-slate-700 bg-white/70 border border-red-100 rounded px-2 py-1.5 break-all whitespace-pre-wrap" data-testid={`failure-parameters-${item.private_id ?? "x"}`}>
+              <span className="font-bold text-red-700/80 dark:text-red-300/80 uppercase tracking-wider block mb-0.5">Parameters</span>
+              <p className="font-mono text-slate-700 dark:text-slate-200 bg-white/70 dark:bg-slate-900/70 border border-red-100 dark:border-red-500/20 rounded px-2 py-1.5 break-all whitespace-pre-wrap" data-testid={`failure-parameters-${item.private_id ?? "x"}`}>
                 {item.parameters}
               </p>
             </div>
           )}
           {item.count_values && (
             <div className="mt-2 text-[10px]">
-              <span className="font-bold text-red-700/80 uppercase tracking-wider block mb-0.5">Count Values</span>
-              <p className="font-mono text-slate-700 bg-white/70 border border-red-100 rounded px-2 py-1.5 break-all">
+              <span className="font-bold text-red-700/80 dark:text-red-300/80 uppercase tracking-wider block mb-0.5">Count Values</span>
+              <p className="font-mono text-slate-700 dark:text-slate-200 bg-white/70 dark:bg-slate-900/70 border border-red-100 dark:border-red-500/20 rounded px-2 py-1.5 break-all">
                 {item.count_values}
               </p>
             </div>
@@ -1402,12 +1397,12 @@ function FailureDetailCard({
                   onClick={onRetrigger}
                   disabled={retriggerState === "running" || isInPipeline}
                   className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-semibold transition-all border ${
-                    isInPipeline ? "text-slate-400 bg-white border-slate-200 cursor-not-allowed" :
-                    retriggerState === "confirming" ? "text-amber-800 bg-amber-50 border-amber-300 animate-pulse" :
-                    retriggerState === "done" ? "text-emerald-700 bg-emerald-50 border-emerald-300" :
-                    retriggerState === "error" ? "text-red-700 bg-red-100 border-red-300" :
-                    retriggerState === "running" ? "text-slate-500 bg-white border-slate-200" :
-                    "text-red-700 bg-white border-red-300 hover:bg-red-100"
+                    isInPipeline ? "text-slate-400 dark:text-slate-500 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 cursor-not-allowed" :
+                    retriggerState === "confirming" ? "text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border-amber-300 dark:border-amber-500/30 animate-pulse" :
+                    retriggerState === "done" ? "text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-500/10 border-emerald-300 dark:border-emerald-500/30" :
+                    retriggerState === "error" ? "text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-500/15 border-red-300 dark:border-red-500/30" :
+                    retriggerState === "running" ? "text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800" :
+                    "text-red-700 dark:text-red-300 bg-white dark:bg-slate-900 border-red-300 dark:border-red-500/30 hover:bg-red-100 dark:hover:bg-red-500/15"
                   }`}
                   data-testid={`failure-retrigger-${item.private_id}`}
                 >
@@ -1421,7 +1416,7 @@ function FailureDetailCard({
               {onViewDetail && (
                 <button
                   onClick={onViewDetail}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-semibold text-red-700 bg-white border border-red-200 hover:bg-red-50 transition-colors"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-semibold text-red-700 dark:text-red-300 bg-white dark:bg-slate-900 border border-red-200 dark:border-red-500/25 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
                   data-testid={`failure-view-detail-${item.private_id}`}
                 >
                   <Eye className="h-3 w-3" /> View Full Request
@@ -1437,40 +1432,40 @@ function FailureDetailCard({
 
 const pipelineRowStyles = {
   active: {
-    row: "bg-blue-50/50 border-l-[3px] border-l-blue-500 border-b border-b-blue-100/60",
-    hover: "hover:bg-blue-100/40",
-    expanded: "bg-blue-50/30",
-    expandedBorder: "border-blue-200/40",
+    row: "bg-blue-50/50 dark:bg-blue-500/10 border-l-[3px] border-l-blue-500 border-b border-b-blue-100/60 dark:border-b-blue-500/20",
+    hover: "hover:bg-blue-100/40 dark:hover:bg-blue-500/15",
+    expanded: "bg-blue-50/30 dark:bg-blue-500/5",
+    expandedBorder: "border-blue-200/40 dark:border-blue-500/25",
     label: "PROCESSING",
-    labelClass: "bg-blue-500/10 text-blue-700 border-blue-300/50",
+    labelClass: "bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-300/50 dark:border-blue-500/30",
     dot: "bg-blue-500",
     dotPulse: "bg-blue-400",
   },
   waiting: {
-    row: "bg-amber-50/40 border-l-[3px] border-l-amber-400 border-b border-b-amber-100/50",
-    hover: "hover:bg-amber-100/30",
-    expanded: "bg-amber-50/20",
-    expandedBorder: "border-amber-200/40",
+    row: "bg-amber-50/40 dark:bg-amber-500/10 border-l-[3px] border-l-amber-400 border-b border-b-amber-100/50 dark:border-b-amber-500/20",
+    hover: "hover:bg-amber-100/30 dark:hover:bg-amber-500/15",
+    expanded: "bg-amber-50/20 dark:bg-amber-500/5",
+    expandedBorder: "border-amber-200/40 dark:border-amber-500/25",
     label: "IN QUEUE",
-    labelClass: "bg-amber-500/10 text-amber-700 border-amber-300/50",
+    labelClass: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-300/50 dark:border-amber-500/30",
     dot: "bg-amber-500",
     dotPulse: "bg-amber-400",
   },
   failed: {
-    row: "bg-red-50/30 border-l-[3px] border-l-red-300 border-b border-b-red-100/40",
-    hover: "hover:bg-red-50/50",
-    expanded: "bg-red-50/20",
-    expandedBorder: "border-red-200/40",
+    row: "bg-red-50/30 dark:bg-red-500/10 border-l-[3px] border-l-red-300 border-b border-b-red-100/40 dark:border-b-red-500/20",
+    hover: "hover:bg-red-50/50 dark:hover:bg-red-500/15",
+    expanded: "bg-red-50/20 dark:bg-red-500/5",
+    expandedBorder: "border-red-200/40 dark:border-red-500/25",
     label: "",
     labelClass: "",
     dot: "",
     dotPulse: "",
   },
   complete: {
-    row: "border-l-[3px] border-l-transparent border-b border-b-slate-100/60",
-    hover: "hover:bg-indigo-50/30",
-    expanded: "bg-indigo-50/20",
-    expandedBorder: "border-indigo-100/60",
+    row: "border-l-[3px] border-l-transparent border-b border-b-slate-100/60 dark:border-b-slate-800/60",
+    hover: "hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10",
+    expanded: "bg-brand-primary/10 dark:bg-brand-primary/5",
+    expandedBorder: "border-brand-primary/15 dark:border-brand-primary/25",
     label: "",
     labelClass: "",
     dot: "",
@@ -1495,7 +1490,7 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
   const isInPipeline = pipeline === "active" || pipeline === "waiting";
   const isFailed = isItemFailed(item);
   const failureStage = getFailureStage(item);
-  const baseRowBg = pipeline === "complete" ? (idx % 2 === 0 ? "bg-white/40" : "bg-slate-50/30") : "";
+  const baseRowBg = pipeline === "complete" ? (idx % 2 === 0 ? "bg-white/40 dark:bg-slate-900/40" : "bg-slate-50/30 dark:bg-slate-900/30") : "";
 
   const handleRetrigger = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1521,7 +1516,7 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
   };
 
   const bulkOverlay = bulkStatus === "running" ? "ring-1 ring-amber-300 ring-inset" :
-    bulkStatus === "queued" ? "ring-1 ring-slate-200 ring-inset opacity-90" :
+    bulkStatus === "queued" ? "ring-1 ring-slate-200 dark:ring-slate-800 ring-inset opacity-90" :
     bulkStatus === "success" ? "ring-1 ring-emerald-300 ring-inset" :
     bulkStatus === "failed" ? "ring-1 ring-red-300 ring-inset" : "";
   return (
@@ -1541,14 +1536,14 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
               data-testid={`checkbox-activity-${item.private_id ?? idx}`}
             >
               {bulkStatus === "running" ? <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-500" /> :
-               bulkStatus === "success" ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> :
-               bulkStatus === "failed" ? <XCircle className="h-3.5 w-3.5 text-red-600" /> :
-               selected ? <CheckSquare className="h-3.5 w-3.5 text-[#333286]" /> :
-               <Square className={`h-3.5 w-3.5 ${item.pubkey ? "text-slate-400" : "text-slate-200"}`} />}
+               bulkStatus === "success" ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> :
+               bulkStatus === "failed" ? <XCircle className="h-3.5 w-3.5 text-red-600 dark:text-red-400" /> :
+               selected ? <CheckSquare className="h-3.5 w-3.5 text-brand-deep" /> :
+               <Square className={`h-3.5 w-3.5 ${item.pubkey ? "text-slate-400 dark:text-slate-500" : "text-slate-200"}`} />}
             </button>
           </td>
         )}
-        <td className="px-2 py-2 text-slate-500 whitespace-nowrap text-[10px]">
+        <td className="px-2 py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap text-[10px]">
           <div className="flex items-center gap-1.5">
             {isInPipeline && (
               <span className="relative flex h-2 w-2 shrink-0">
@@ -1559,8 +1554,8 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
             {fmtDate(item.created_at)}
           </div>
         </td>
-        <td className="px-2 py-2 text-slate-500 whitespace-nowrap text-[10px]">{fmtDate(item.updated_at)}</td>
-        <td className="px-2 py-2 text-slate-500 whitespace-nowrap text-[10px] tabular-nums">{formatLatencyMs(item.created_at, item.updated_at) ?? "—"}</td>
+        <td className="px-2 py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap text-[10px]">{fmtDate(item.updated_at)}</td>
+        <td className="px-2 py-2 text-slate-500 dark:text-slate-400 whitespace-nowrap text-[10px] tabular-nums">{formatLatencyMs(item.created_at, item.updated_at) ?? "—"}</td>
         <td className="px-2 py-2 text-[10px]">
           {item.pubkey ? (() => {
             let npub: string;
@@ -1577,16 +1572,16 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
                 >
                   <Avatar className="h-5 w-5 shrink-0">
                     {profile?.picture ? <AvatarImage src={profile.picture} alt={displayName || "User"} className="object-cover" /> : null}
-                    <AvatarFallback className="bg-slate-100 border border-slate-200 text-[8px] text-slate-400">
-                      {displayName?.charAt(0)?.toUpperCase() || <Users className="h-2.5 w-2.5 text-slate-300" />}
+                    <AvatarFallback className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-[8px] text-slate-400 dark:text-slate-500">
+                      {displayName?.charAt(0)?.toUpperCase() || <Users className="h-2.5 w-2.5 text-slate-300 dark:text-slate-600" />}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col min-w-0 leading-tight">
-                    <span className="text-[10px] font-medium text-[#333286] hover:text-[#7c86ff] truncate max-w-[120px]">
+                    <span className="text-[10px] font-medium text-brand-deep hover:text-brand-accent truncate max-w-[120px]">
                       {displayName || npubShort}
                     </span>
                     {displayName && (
-                      <span className="hidden sm:inline text-[8px] font-mono text-slate-400 truncate max-w-[120px]">
+                      <span className="hidden sm:inline text-[8px] font-mono text-slate-400 dark:text-slate-500 truncate max-w-[120px]">
                         {npubShort}
                       </span>
                     )}
@@ -1597,18 +1592,18 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
                 </span>
               </div>
             );
-          })() : <span className="font-mono text-slate-400">—</span>}
+          })() : <span className="font-mono text-slate-400 dark:text-slate-500">—</span>}
         </td>
         <td className="px-2 py-2">
           <TriggerSourceBadge value={item.trigger_source} />
           {schedulingName && (
-            <div className="text-[8px] font-medium text-violet-600 mt-0.5" title="This user's current scheduling tier">{schedulingName}</div>
+            <div className="text-[8px] font-medium text-brand-primary dark:text-brand-link mt-0.5" title="This user's current scheduling tier">{schedulingName}</div>
           )}
         </td>
         <td className="px-2 py-2"><ActivityStatusBadge value={item.status} /></td>
         <td className="px-2 py-2"><ActivityStatusBadge value={item.ta_status} /></td>
         <td className="px-2 py-2"><ActivityStatusBadge value={item.internal_publication_status} /></td>
-        <td className="px-2 py-2 font-mono text-slate-600 text-[10px]">{item.algorithm || "—"}</td>
+        <td className="px-2 py-2 font-mono text-slate-600 dark:text-slate-300 text-[10px]">{item.algorithm || "—"}</td>
         <td className="px-2 py-2 text-center text-[10px]" data-testid={`cell-queue-${item.private_id ?? idx}`}>
           {(() => {
             // In-flight rows show their live position in the platform
@@ -1618,17 +1613,17 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
             // the backend captured at run time, with 0 → "—".
             if (isInPipeline && queuePosition !== undefined) {
               if (queuePosition === "active") {
-                return <span className="font-semibold text-emerald-600">active</span>;
+                return <span className="font-semibold text-emerald-600 dark:text-emerald-400">active</span>;
               }
-              return <span className="font-semibold text-amber-600 tabular-nums">{queuePosition}</span>;
+              return <span className="font-semibold text-amber-600 dark:text-amber-400 tabular-nums">{queuePosition}</span>;
             }
             const depth = item.how_many_others_with_priority;
-            return <span className="text-slate-600">{depth > 0 ? depth : "—"}</span>;
+            return <span className="text-slate-600 dark:text-slate-300">{depth > 0 ? depth : "—"}</span>;
           })()}
         </td>
         <td className="px-2 py-2 text-[10px]">
           <div className="flex items-center gap-1.5">
-            <span className="font-mono text-slate-400">{item.private_id}</span>
+            <span className="font-mono text-slate-400 dark:text-slate-500">{item.private_id}</span>
             {isInPipeline && style.label && (
               <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-bold uppercase tracking-wider border ${style.labelClass}`}>
                 {style.label}
@@ -1642,12 +1637,12 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
               onClick={handleRetrigger}
               disabled={retriggerState === "running" || isInPipeline}
               className={`inline-flex items-center justify-center gap-1 px-2 py-1 rounded-md text-[10px] font-medium transition-all ${
-                isInPipeline ? "text-slate-300 cursor-not-allowed" :
-                retriggerState === "confirming" ? "text-amber-700 bg-amber-50 border border-amber-300 animate-pulse" :
-                retriggerState === "done" ? "text-emerald-600 bg-emerald-50 border border-emerald-200" :
-                retriggerState === "error" ? "text-red-500 bg-red-50 border border-red-200" :
-                retriggerState === "running" ? "text-slate-400" :
-                "text-[#333286] hover:bg-[#333286]/5 hover:text-[#7c86ff] border border-transparent hover:border-[#7c86ff]/20"
+                isInPipeline ? "text-slate-300 dark:text-slate-600 cursor-not-allowed" :
+                retriggerState === "confirming" ? "text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-500/10 border border-amber-300 dark:border-amber-500/30 animate-pulse" :
+                retriggerState === "done" ? "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25" :
+                retriggerState === "error" ? "text-red-500 dark:text-red-400 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25" :
+                retriggerState === "running" ? "text-slate-400 dark:text-slate-500" :
+                "text-brand-deep hover:bg-brand-deep/5 hover:text-brand-accent border border-transparent hover:border-brand-accent/20"
               }`}
               title={isInPipeline ? "Currently processing" : retriggerState === "confirming" ? "Click again to confirm" : "Re-trigger GrapeRank"}
               data-testid={`button-retrigger-${item.private_id}`}
@@ -1668,12 +1663,12 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
           onClick={() => setExpanded(true)}
           data-testid={`row-activity-failure-preview-${item.private_id ?? idx}`}
         >
-          <td colSpan={13} className="px-4 py-1.5 border-t border-red-100/50">
+          <td colSpan={13} className="px-4 py-1.5 border-t border-red-100/50 dark:border-red-500/20">
             <div className="flex items-start gap-2">
               <AlertTriangle className="h-3 w-3 text-red-500 shrink-0 mt-0.5" />
               <div className="min-w-0 flex-1">
-                <span className="text-[10px] font-bold text-red-700 uppercase tracking-wider mr-1.5">Failed at {failureStage ?? "Pipeline"}:</span>
-                <span className="text-[10px] text-red-800 font-mono break-words">{truncateError(extractErrorMessage(item), 160)}</span>
+                <span className="text-[10px] font-bold text-red-700 dark:text-red-300 uppercase tracking-wider mr-1.5">Failed at {failureStage ?? "Pipeline"}:</span>
+                <span className="text-[10px] text-red-800 dark:text-red-300 font-mono break-words">{truncateError(extractErrorMessage(item), 160)}</span>
                 <span className="ml-2 text-[9px] text-red-500/70 italic">Click for details</span>
               </div>
             </div>
@@ -1697,33 +1692,33 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-[11px]">
                   {item.pubkey && (
                     <div>
-                      <span className="font-bold text-slate-500 uppercase text-[10px]">Full Pubkey</span>
-                      <p className="text-slate-700 font-mono mt-0.5 break-all text-[9px]">{item.pubkey}</p>
+                      <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[10px]">Full Pubkey</span>
+                      <p className="text-slate-700 dark:text-slate-200 font-mono mt-0.5 break-all text-[9px]">{item.pubkey}</p>
                     </div>
                   )}
                   {item.error?.message && (
                     <div>
-                      <span className="font-bold text-slate-500 uppercase text-[10px]">Error</span>
-                      <p className="text-slate-700 font-mono mt-0.5 break-all">{item.error.message}</p>
+                      <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[10px]">Error</span>
+                      <p className="text-slate-700 dark:text-slate-200 font-mono mt-0.5 break-all">{item.error.message}</p>
                     </div>
                   )}
                   {item.count_values && (
                     <div>
-                      <span className="font-bold text-slate-500 uppercase text-[10px]">Count Values</span>
-                      <p className="text-slate-700 font-mono mt-0.5 break-all">{item.count_values}</p>
+                      <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[10px]">Count Values</span>
+                      <p className="text-slate-700 dark:text-slate-200 font-mono mt-0.5 break-all">{item.count_values}</p>
                     </div>
                   )}
                   {item.parameters && (
                     <div>
-                      <span className="font-bold text-slate-500 uppercase text-[10px]">Parameters</span>
-                      <p className="text-slate-700 font-mono mt-0.5 break-all">{item.parameters}</p>
+                      <span className="font-bold text-slate-500 dark:text-slate-400 uppercase text-[10px]">Parameters</span>
+                      <p className="text-slate-700 dark:text-slate-200 font-mono mt-0.5 break-all">{item.parameters}</p>
                     </div>
                   )}
                 </div>
                 <div className={`mt-3 pt-2 border-t ${style.expandedBorder} flex flex-wrap items-center gap-3`}>
                   <button
                     onClick={(e) => { e.stopPropagation(); onViewDetail(item); }}
-                    className="text-[10px] font-semibold text-[#333286] hover:text-[#7c86ff] transition-colors flex items-center gap-1 min-h-[28px]"
+                    className="text-[10px] font-semibold text-brand-deep hover:text-brand-accent transition-colors flex items-center gap-1 min-h-[28px]"
                     data-testid={`button-view-detail-${item.private_id}`}
                   >
                     <Eye className="h-3 w-3" />
@@ -1744,6 +1739,16 @@ export default function AdminPage() {
   const { toast } = useToast();
   const [user, setUser] = useState<NostrUser | null>(null);
   const [mobileTabDropdownOpen, setMobileTabDropdownOpen] = useState(false);
+
+  // Scrollbars are hidden app-wide (see index.css); admin opts back in while
+  // mounted. Its wide tables need the horizontal scrollbar to show there ARE
+  // more columns — ScrollableTable even mirrors one above the table. Set on
+  // <html> because the window scrollbar lives there, out of reach of any
+  // selector scoped inside the page.
+  useEffect(() => {
+    document.documentElement.classList.add("admin-scrollbars");
+    return () => document.documentElement.classList.remove("admin-scrollbars");
+  }, []);
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get("tab");
@@ -2620,7 +2625,7 @@ export default function AdminPage() {
   const configuredRelays = [PRIMARY_RELAY, ...PROFILE_RELAYS];
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-admin">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-primary/[0.3] flex flex-col relative overflow-hidden" data-testid="page-admin">
       <PageBackground />
 
       <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="admin" />
@@ -2631,32 +2636,31 @@ export default function AdminPage() {
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-2" data-testid="section-admin-header">
               <div className="flex flex-wrap items-center gap-2">
-                <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/70 border border-amber-500/20 shadow-sm backdrop-blur-sm w-fit">
-                  <div className="w-1 h-1 rounded-full bg-amber-500 shadow-[0_0_4px_rgba(245,158,11,0.6)]" />
-                  <p className="text-[9px] font-bold tracking-[0.15em] text-amber-700 uppercase">NosFabrica Admin</p>
-                </div>
+                <Chip tone="amber" size="sm" dot className="uppercase tracking-[0.15em] font-bold">
+                  NosFabrica Admin
+                </Chip>
               </div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
+              <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+                <span className="block pb-1">
                   Admin Dashboard
                 </span>
               </h1>
-              <p className="text-sm sm:text-base text-slate-600 font-medium">
+              <p className="text-sm sm:text-base text-slate-600 dark:text-slate-300 font-medium">
                 System overview and management for NosFabrica operators.
               </p>
             </div>
           </div>
 
           <div className="mb-2 flex items-center gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Current system state</span>
-            <span className="inline-flex items-center gap-1 text-[9px] text-emerald-600">
+            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Current system state</span>
+            <span className="inline-flex items-center gap-1 text-[9px] text-emerald-600 dark:text-emerald-400">
               <span className="relative flex h-1.5 w-1.5">
                 <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
               </span>
               live now
             </span>
-            <span className="text-[9px] text-slate-400">· mini-charts show the last 24h · window filters affect the charts below, not these</span>
+            <span className="text-[9px] text-slate-400 dark:text-slate-500">· mini-charts show the last 24h · window filters affect the charts below, not these</span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2.5" data-testid="section-kpi-strip">
             <KpiCard
@@ -2699,7 +2703,7 @@ export default function AdminPage() {
               scope="system"
               sparklineData={fixedTrends24h.totalSeries}
               sparklineTimestamps={fixedTrends24h.bucketTimestamps}
-              sparklineColor="#7c86ff"
+              sparklineColor="#13d2e5"
               sparklineValueLabel="calcs / hr"
             />
             <KpiCard
@@ -2731,7 +2735,7 @@ export default function AdminPage() {
           </div>
 
           <div className="hidden sm:block overflow-x-auto -mx-4 px-4 sm:mx-0 sm:px-0 scrollbar-hide">
-            <div className="flex gap-1 p-1 rounded-2xl bg-white/60 border border-[#7c86ff]/10 backdrop-blur-sm w-fit" data-testid="admin-tab-bar">
+            <div className="flex gap-1 p-1 rounded-2xl bg-white/60 dark:bg-slate-900/60 border border-brand-accent/10 backdrop-blur-sm w-fit" data-testid="admin-tab-bar">
               {tabs.map(tab => {
                 const Icon = tab.icon;
                 const active = activeTab === tab.key;
@@ -2741,8 +2745,8 @@ export default function AdminPage() {
                     onClick={() => { setActiveTab(tab.key); setUserPage(0); if (tab.key === "users") setKpiFilter(null); }}
                     className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-all duration-200 whitespace-nowrap ${
                       active
-                        ? "bg-gradient-to-r from-[#333286] to-[#7c86ff] text-white shadow-md"
-                        : "text-slate-500 hover:text-slate-800 hover:bg-white/80"
+                        ? "bg-brand-primary text-white shadow-md"
+                        : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/80 dark:hover:bg-slate-900/80"
                     }`}
                     data-testid={`tab-${tab.key}`}
                   >
@@ -2762,19 +2766,19 @@ export default function AdminPage() {
                 <div className="relative">
                   <button
                     onClick={() => setMobileTabOpen(!mobileTabOpen)}
-                    className="w-full flex items-center justify-between px-4 py-2.5 rounded-2xl bg-white/60 border border-[#7c86ff]/10 backdrop-blur-sm shadow-sm text-sm font-semibold text-slate-800"
+                    className="w-full flex items-center justify-between px-4 py-2.5 rounded-2xl bg-white/60 dark:bg-slate-900/60 border border-brand-accent/10 backdrop-blur-sm shadow-sm text-sm font-semibold text-slate-800 dark:text-slate-200"
                     data-testid="button-tab-mobile-trigger"
                   >
                     <span className="flex items-center gap-2">
-                      <ActiveIcon className="h-4 w-4 text-[#333286]" />
+                      <ActiveIcon className="h-4 w-4 text-brand-deep" />
                       {activeTabData?.label}
                     </span>
-                    <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${mobileTabOpen ? "rotate-180" : ""}`} />
+                    <ChevronDown className={`h-4 w-4 text-slate-400 dark:text-slate-500 transition-transform ${mobileTabOpen ? "rotate-180" : ""}`} />
                   </button>
                   {mobileTabOpen && (
                     <>
                       <div className="fixed inset-0 z-30" onClick={() => setMobileTabOpen(false)} />
-                      <div className="absolute top-full left-0 right-0 mt-1 z-40 rounded-xl bg-white border border-[#7c86ff]/15 shadow-lg overflow-hidden" data-testid="dropdown-tab-mobile">
+                      <div className="absolute top-full left-0 right-0 mt-1 z-40 rounded-xl bg-white dark:bg-slate-900 border border-brand-accent/15 shadow-lg overflow-hidden" data-testid="dropdown-tab-mobile">
                         {tabs.map(tab => {
                           const Icon = tab.icon;
                           const isActive = activeTab === tab.key;
@@ -2784,14 +2788,14 @@ export default function AdminPage() {
                               onClick={() => { setActiveTab(tab.key); setUserPage(0); if (tab.key === "users") setKpiFilter(null); setMobileTabOpen(false); }}
                               className={`w-full flex items-center gap-2.5 px-4 py-3 text-sm font-semibold transition-colors ${
                                 isActive
-                                  ? "bg-gradient-to-r from-[#333286]/10 to-[#7c86ff]/10 text-[#333286]"
-                                  : "text-slate-600 hover:bg-slate-50"
+                                  ? "bg-gradient-to-r from-brand-deep/10 to-brand-accent/10 text-brand-deep"
+                                  : "text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900"
                               }`}
                               data-testid={`tab-mobile-${tab.key}`}
                             >
-                              <Icon className={`h-4 w-4 ${isActive ? "text-[#333286]" : "text-slate-400"}`} />
+                              <Icon className={`h-4 w-4 ${isActive ? "text-brand-deep" : "text-slate-400 dark:text-slate-500"}`} />
                               {tab.label}
-                              {isActive && <CheckCircle2 className="h-3.5 w-3.5 ml-auto text-[#333286]" />}
+                              {isActive && <CheckCircle2 className="h-3.5 w-3.5 ml-auto text-brand-deep" />}
                             </button>
                           );
                         })}
@@ -2807,15 +2811,15 @@ export default function AdminPage() {
             <div className="space-y-6" data-testid="panel-overview">
               <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2" data-testid="trend-window-selector-row">
                 <div>
-                  <p className="text-[11px] uppercase tracking-wider font-bold text-slate-500">Trend window</p>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
+                  <p className="text-[11px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Trend window</p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">
                     All Overview sparklines, deltas, and charts use this window
                     {activityCoverage.count > 0 && ` · last ${activityCoverage.count} records`}
                     {activityCoverage.oldest ? ` since ${new Date(activityCoverage.oldest).toLocaleDateString()}` : ""}
                     {!trends.dataCoversWindow && trends.hasAnyActivity ? " · this range exceeds the loaded data" : ""}
                   </p>
                 </div>
-                <div className="inline-flex rounded-lg border-2 border-[#7c86ff]/40 bg-white shadow-sm p-1 self-start gap-0.5" role="tablist" aria-label="Trend window">
+                <div className="inline-flex rounded-lg border-2 border-brand-accent/40 bg-white dark:bg-slate-900 shadow-sm p-1 self-start gap-0.5" role="tablist" aria-label="Trend window">
                   {(["1h", "24h", "7d", "all"] as TrendWindow[]).map(w => (
                     <button
                       key={w}
@@ -2823,7 +2827,7 @@ export default function AdminPage() {
                       role="tab"
                       aria-selected={trendWindow === w}
                       onClick={() => setTrendWindow(w)}
-                      className={`cursor-pointer px-3.5 py-1.5 text-[12px] font-bold rounded-md transition-all active:scale-95 ${trendWindow === w ? "bg-gradient-to-r from-[#7c86ff] to-[#333286] text-white shadow-md ring-1 ring-[#7c86ff]/40" : "text-slate-600 bg-slate-50 hover:bg-[#7c86ff]/10 hover:text-[#333286] hover:shadow-sm"}`}
+                      className={`cursor-pointer px-3.5 py-1.5 text-[12px] font-bold rounded-md transition-all active:scale-95 ${trendWindow === w ? "bg-brand-primary text-white shadow-md ring-1 ring-brand-primary/[0.4]" : "text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900 hover:bg-brand-accent/10 hover:text-brand-deep hover:shadow-sm"}`}
                       data-testid={`button-trend-window-${w}`}
                     >
                       {w === "all" ? "All" : w}
@@ -2832,23 +2836,22 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-trend-strip">
-                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-                <div className="px-5 py-3 border-b border-[#7c86ff]/10 flex items-center justify-between gap-3">
+              <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-trend-strip">
+                <div className="px-5 py-3 border-b border-brand-accent/10 flex items-center justify-between gap-3">
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }} data-testid="text-trend-strip-title">{trends.cfg.longLabel}</h3>
-                    <p className="text-[11px] text-slate-500 mt-0.5">Calculation volume with failure-rate band {!trends.dataCoversWindow && trends.hasAnyActivity ? "· data may be partial" : ""}</p>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }} data-testid="text-trend-strip-title">{trends.cfg.longLabel}</h3>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Calculation volume with failure-rate band {!trends.dataCoversWindow && trends.hasAnyActivity ? "· data may be partial" : ""}</p>
                   </div>
-                  <div className="flex items-center gap-3 text-[10px] text-slate-500">
-                    <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-[#7c86ff]" /> {trends.cfg.bucketUnitLabel}</span>
+                  <div className="flex items-center gap-3 text-[10px] text-slate-500 dark:text-slate-400">
+                    <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-brand-accent" /> {trends.cfg.bucketUnitLabel}</span>
                     <span className="inline-flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-red-400" /> Failure rate</span>
                   </div>
                 </div>
                 <div className="px-3 py-3" style={{ height: 140 }}>
                   {overviewActivityQuery.isLoading && !trends.hasAnyActivity ? (
-                    <div className="h-full flex items-center justify-center"><Loader2 className="h-4 w-4 animate-spin text-slate-300" /></div>
+                    <div className="h-full flex items-center justify-center"><Loader2 className="h-4 w-4 animate-spin text-slate-300 dark:text-slate-600" /></div>
                   ) : !trends.hasAnyActivity ? (
-                    <div className="h-full flex items-center justify-center text-[11px] text-slate-400">No activity in the {trends.cfg.longLabel.toLowerCase()}</div>
+                    <div className="h-full flex items-center justify-center text-[11px] text-slate-400 dark:text-slate-500">No activity in the {trends.cfg.longLabel.toLowerCase()}</div>
                   ) : (
                     <ResponsiveContainer width="100%" height="100%">
                       <AreaChart data={trends.buckets.map(b => ({
@@ -2859,8 +2862,8 @@ export default function AdminPage() {
                       }))} margin={{ top: 6, right: 8, left: 0, bottom: 0 }}>
                         <defs>
                           <linearGradient id="totalGrad" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#7c86ff" stopOpacity={0.5} />
-                            <stop offset="100%" stopColor="#7c86ff" stopOpacity={0.05} />
+                            <stop offset="0%" stopColor="#13d2e5" stopOpacity={0.5} />
+                            <stop offset="100%" stopColor="#13d2e5" stopOpacity={0.05} />
                           </linearGradient>
                           <linearGradient id="failRateGrad" x1="0" y1="0" x2="0" y2="1">
                             <stop offset="0%" stopColor="#f87171" stopOpacity={0.35} />
@@ -2878,7 +2881,7 @@ export default function AdminPage() {
                           }}
                           formatter={(v: number, name: string) => name === "Failure rate" ? [`${v}%`, name] : [v, name]}
                         />
-                        <Area yAxisId="left" type="monotone" dataKey="total" name={trends.cfg.bucketUnitLabel} stroke="#7c86ff" strokeWidth={1.5} fill="url(#totalGrad)" />
+                        <Area yAxisId="left" type="monotone" dataKey="total" name={trends.cfg.bucketUnitLabel} stroke="#13d2e5" strokeWidth={1.5} fill="url(#totalGrad)" />
                         <Area yAxisId="right" type="monotone" dataKey="failureRate" name="Failure rate" stroke="#f87171" strokeWidth={1} fill="url(#failRateGrad)" />
                       </AreaChart>
                     </ResponsiveContainer>
@@ -2887,31 +2890,30 @@ export default function AdminPage() {
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-pipeline-health">
-                <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-emerald-600 to-emerald-400" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
+              <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-pipeline-health">
+                <div className="px-5 py-4 border-b border-brand-accent/10">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Pipeline Health</h3>
-                      <p className="text-xs text-slate-500 mt-0.5">Platform-wide GrapeRank calculation health from /admin/users</p>
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Pipeline Health</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Platform-wide GrapeRank calculation health from /admin/users</p>
                     </div>
                     <LiveBadge updatedAt={overviewUsersQuery.dataUpdatedAt} boosting={isBoostActive} isFetching={overviewUsersQuery.isFetching || overviewActivityQuery.isFetching} />
                   </div>
                 </div>
                 {overviewLoading && !pipelineMetrics ? (
                   <div className="p-8 flex items-center justify-center">
-                    <Loader2 className="h-5 w-5 animate-spin text-slate-300" />
+                    <Loader2 className="h-5 w-5 animate-spin text-slate-300 dark:text-slate-600" />
                   </div>
                 ) : pipelineMetrics ? (
                   <div className="p-5 space-y-5">
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Success Rate</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Success Rate</span>
                         <div className="flex items-center gap-2">
                           {trends.hasAnyActivity && (
                             <MiniSparkline data={trends.rateSeries} timestamps={trends.bucketTimestamps} color="#10b981" height={20} width={64} valueLabel="success rate" valueSuffix="%" />
                           )}
-                          <span className={`text-lg font-bold tabular-nums ${pipelineMetrics.successRate >= 80 ? "text-emerald-600" : pipelineMetrics.successRate >= 50 ? "text-amber-600" : "text-red-600"}`}>{pipelineMetrics.successRate}%</span>
+                          <span className={`text-lg font-bold tabular-nums ${pipelineMetrics.successRate >= 80 ? "text-emerald-600" : pipelineMetrics.successRate >= 50 ? "text-amber-600 dark:text-amber-400" : "text-red-600"}`}>{pipelineMetrics.successRate}%</span>
                         </div>
                       </div>
                       <div className="flex justify-end mb-1">
@@ -2922,49 +2924,49 @@ export default function AdminPage() {
                           label={trends.cfg.priorLabel}
                         />
                       </div>
-                      <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
+                      <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
                         <div className="h-full bg-emerald-500 transition-all duration-500" style={{ width: `${pipelineMetrics.total > 0 ? (pipelineMetrics.successCount / pipelineMetrics.total) * 100 : 0}%` }} />
                         <div className="h-full bg-red-400 transition-all duration-500" style={{ width: `${pipelineMetrics.total > 0 ? (pipelineMetrics.failedCount / pipelineMetrics.total) * 100 : 0}%` }} />
                         <div className="h-full bg-slate-300 transition-all duration-500" style={{ width: `${pipelineMetrics.total > 0 ? (pipelineMetrics.pendingCount / pipelineMetrics.total) * 100 : 0}%` }} />
                       </div>
                       <div className="flex items-center gap-4 mt-1.5">
-                        <span className="flex items-center gap-1 text-[10px] text-slate-500"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block" />{pipelineMetrics.successCount} success</span>
-                        <span className="flex items-center gap-1 text-[10px] text-slate-500"><span className="h-1.5 w-1.5 rounded-full bg-red-400 inline-block" />{pipelineMetrics.failedCount} failed</span>
-                        <span className="flex items-center gap-1 text-[10px] text-slate-500"><span className="h-1.5 w-1.5 rounded-full bg-slate-300 inline-block" />{pipelineMetrics.pendingCount} pending</span>
+                        <span className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block" />{pipelineMetrics.successCount} success</span>
+                        <span className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400"><span className="h-1.5 w-1.5 rounded-full bg-red-400 inline-block" />{pipelineMetrics.failedCount} failed</span>
+                        <span className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400"><span className="h-1.5 w-1.5 rounded-full bg-slate-300 inline-block" />{pipelineMetrics.pendingCount} pending</span>
                       </div>
                     </div>
 
-                    <div className="border-t border-slate-100 pt-4 grid grid-cols-2 gap-3">
-                      <div className="p-2.5 rounded-xl bg-white/60 border border-slate-100">
-                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Total Users</p>
-                        <p className="text-lg font-bold text-slate-900 tabular-nums mt-0.5">{formatNumber(pipelineMetrics.total)}</p>
+                    <div className="border-t border-slate-100 dark:border-slate-800/60 pt-4 grid grid-cols-2 gap-3">
+                      <div className="p-2.5 rounded-xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60">
+                        <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Total Users</p>
+                        <p className="text-lg font-bold text-slate-900 dark:text-slate-100 tabular-nums mt-0.5">{formatNumber(pipelineMetrics.total)}</p>
                       </div>
-                      <div className="p-2.5 rounded-xl bg-white/60 border border-slate-100">
-                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Total Calculations</p>
-                        <p className="text-lg font-bold text-slate-900 tabular-nums mt-0.5">{formatNumber(pipelineMetrics.totalCalcs)}</p>
+                      <div className="p-2.5 rounded-xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60">
+                        <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Total Calculations</p>
+                        <p className="text-lg font-bold text-slate-900 dark:text-slate-100 tabular-nums mt-0.5">{formatNumber(pipelineMetrics.totalCalcs)}</p>
                       </div>
-                      <div className="p-2.5 rounded-xl bg-white/60 border border-slate-100">
-                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Avg Calcs / User</p>
-                        <p className="text-lg font-bold text-slate-900 tabular-nums mt-0.5">{pipelineMetrics.avgCalcs}</p>
+                      <div className="p-2.5 rounded-xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60">
+                        <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Avg Calcs / User</p>
+                        <p className="text-lg font-bold text-slate-900 dark:text-slate-100 tabular-nums mt-0.5">{pipelineMetrics.avgCalcs}</p>
                       </div>
-                      <div className="p-2.5 rounded-xl bg-white/60 border border-slate-100">
-                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Never Calculated</p>
-                        <p className="text-lg font-bold text-slate-900 tabular-nums mt-0.5">{formatNumber(pipelineMetrics.neverCalc)}</p>
+                      <div className="p-2.5 rounded-xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60">
+                        <p className="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Never Calculated</p>
+                        <p className="text-lg font-bold text-slate-900 dark:text-slate-100 tabular-nums mt-0.5">{formatNumber(pipelineMetrics.neverCalc)}</p>
                       </div>
                     </div>
 
-                    <div className="border-t border-slate-100 pt-4">
+                    <div className="border-t border-slate-100 dark:border-slate-800/60 pt-4">
                       <div className="flex items-center justify-between mb-2">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Throughput · {trends.cfg.windowPhrase}</p>
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Throughput · {trends.cfg.windowPhrase}</p>
                         <DeltaIndicator
                           delta={trends.hasPriorWindow ? (trends.cmp.curTotal - trends.cmp.prevTotal) : null}
                           insufficient={!trends.hasPriorWindow}
                           label={trends.cfg.priorLabel}
                         />
                       </div>
-                      <div className="rounded-xl border border-slate-100 bg-white/60 px-2 pt-2 pb-1" style={{ height: 110 }} data-testid="chart-pipeline-throughput">
+                      <div className="rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/60 dark:bg-slate-900/60 px-2 pt-2 pb-1" style={{ height: 110 }} data-testid="chart-pipeline-throughput">
                         {!trends.hasAnyActivity ? (
-                          <div className="h-full flex items-center justify-center text-[11px] text-slate-400">No activity in {trends.cfg.windowPhrase}</div>
+                          <div className="h-full flex items-center justify-center text-[11px] text-slate-400 dark:text-slate-500">No activity in {trends.cfg.windowPhrase}</div>
                         ) : (
                           <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={trends.buckets.map(b => ({
@@ -2991,9 +2993,9 @@ export default function AdminPage() {
                     </div>
 
                     {pipelineMetrics.lastPlatformActivity && (
-                      <div className="border-t border-slate-100 pt-3 flex items-center justify-between">
-                        <span className="text-[10px] text-slate-500">Last platform activity</span>
-                        <span className="text-xs text-slate-600">{new Date(pipelineMetrics.lastPlatformActivity.endsWith("Z") ? pipelineMetrics.lastPlatformActivity : pipelineMetrics.lastPlatformActivity + "Z").toLocaleString()}</span>
+                      <div className="border-t border-slate-100 dark:border-slate-800/60 pt-3 flex items-center justify-between">
+                        <span className="text-[10px] text-slate-500 dark:text-slate-400">Last platform activity</span>
+                        <span className="text-xs text-slate-600 dark:text-slate-300">{new Date(pipelineMetrics.lastPlatformActivity.endsWith("Z") ? pipelineMetrics.lastPlatformActivity : pipelineMetrics.lastPlatformActivity + "Z").toLocaleString()}</span>
                       </div>
                     )}
                   </div>
@@ -3001,49 +3003,48 @@ export default function AdminPage() {
                   <div className="p-8 text-center text-xs text-red-400">Failed to load pipeline data</div>
                 ) : (
                   <div className="p-8 flex items-center justify-center">
-                    <Loader2 className="h-5 w-5 animate-spin text-slate-300" />
+                    <Loader2 className="h-5 w-5 animate-spin text-slate-300 dark:text-slate-600" />
                   </div>
                 )}
               </div>
 
-              <div className="self-start rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-ta-adoption">
-                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Trust Attestation & Throughput</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">TA adoption and recent calculation activity</p>
+              <div className="self-start rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-ta-adoption">
+                <div className="px-5 py-4 border-b border-brand-accent/10">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Trust Attestation & Throughput</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">TA adoption and recent calculation activity</p>
                 </div>
                 {overviewLoading && !pipelineMetrics ? (
                   <div className="p-8 flex items-center justify-center">
-                    <Loader2 className="h-5 w-5 animate-spin text-slate-300" />
+                    <Loader2 className="h-5 w-5 animate-spin text-slate-300 dark:text-slate-600" />
                   </div>
                 ) : pipelineMetrics ? (
                   <div className="p-5 space-y-5">
                     <div>
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">TA Success Rate</span>
-                        <span className={`text-lg font-bold tabular-nums ${pipelineMetrics.taAdoptionRate >= 80 ? "text-emerald-600" : pipelineMetrics.taAdoptionRate >= 50 ? "text-amber-600" : "text-red-600"}`}>{pipelineMetrics.taAdoptionRate}%</span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">TA Success Rate</span>
+                        <span className={`text-lg font-bold tabular-nums ${pipelineMetrics.taAdoptionRate >= 80 ? "text-emerald-600" : pipelineMetrics.taAdoptionRate >= 50 ? "text-amber-600 dark:text-amber-400" : "text-red-600"}`}>{pipelineMetrics.taAdoptionRate}%</span>
                       </div>
-                      <div className="w-full h-2.5 bg-slate-100 rounded-full overflow-hidden flex">
-                        <div className="h-full bg-indigo-500 transition-all duration-500" style={{ width: `${pipelineMetrics.total > 0 ? (pipelineMetrics.taSuccessCount / pipelineMetrics.total) * 100 : 0}%` }} />
+                      <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
+                        <div className="h-full bg-brand-primary transition-all duration-500" style={{ width: `${pipelineMetrics.total > 0 ? (pipelineMetrics.taSuccessCount / pipelineMetrics.total) * 100 : 0}%` }} />
                         <div className="h-full bg-red-400 transition-all duration-500" style={{ width: `${pipelineMetrics.total > 0 ? (pipelineMetrics.taFailedCount / pipelineMetrics.total) * 100 : 0}%` }} />
                       </div>
                       <div className="flex items-center gap-4 mt-1.5">
-                        <span className="flex items-center gap-1 text-[10px] text-slate-500"><span className="h-1.5 w-1.5 rounded-full bg-indigo-500 inline-block" />{pipelineMetrics.taSuccessCount} published</span>
-                        <span className="flex items-center gap-1 text-[10px] text-slate-500"><span className="h-1.5 w-1.5 rounded-full bg-red-400 inline-block" />{pipelineMetrics.taFailedCount} failed</span>
-                        <span className="flex items-center gap-1 text-[10px] text-slate-500"><span className="h-1.5 w-1.5 rounded-full bg-slate-200 inline-block" />{pipelineMetrics.withTaPubkey} with TA key</span>
+                        <span className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400"><span className="h-1.5 w-1.5 rounded-full bg-brand-primary inline-block" />{pipelineMetrics.taSuccessCount} published</span>
+                        <span className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400"><span className="h-1.5 w-1.5 rounded-full bg-red-400 inline-block" />{pipelineMetrics.taFailedCount} failed</span>
+                        <span className="flex items-center gap-1 text-[10px] text-slate-500 dark:text-slate-400"><span className="h-1.5 w-1.5 rounded-full bg-slate-200 dark:bg-slate-700 inline-block" />{pipelineMetrics.withTaPubkey} with TA key</span>
                       </div>
                     </div>
 
-                    <div className="border-t border-slate-100 pt-4">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Throughput · {trends.cfg.windowPhrase}</p>
+                    <div className="border-t border-slate-100 dark:border-slate-800/60 pt-4">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Throughput · {trends.cfg.windowPhrase}</p>
                       <div className="grid grid-cols-2 gap-3">
-                        <div className="p-2.5 rounded-xl bg-emerald-50/60 border border-emerald-100">
-                          <p className="text-[10px] font-semibold text-emerald-600">Successful</p>
-                          <p className="text-lg font-bold text-emerald-700 tabular-nums mt-0.5">{trends.cmp.curSuccess}</p>
+                        <div className="p-2.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-500/10 border border-emerald-100 dark:border-emerald-500/25">
+                          <p className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">Successful</p>
+                          <p className="text-lg font-bold text-emerald-700 dark:text-emerald-300 tabular-nums mt-0.5">{trends.cmp.curSuccess}</p>
                         </div>
-                        <div className="p-2.5 rounded-xl bg-red-50/60 border border-red-100">
-                          <p className="text-[10px] font-semibold text-red-600">Failed</p>
-                          <p className="text-lg font-bold text-red-700 tabular-nums mt-0.5">{trends.cmp.curFailed}</p>
+                        <div className="p-2.5 rounded-xl bg-red-50/60 dark:bg-red-500/10 border border-red-100 dark:border-red-500/25">
+                          <p className="text-[10px] font-semibold text-red-600 dark:text-red-400">Failed</p>
+                          <p className="text-lg font-bold text-red-700 dark:text-red-300 tabular-nums mt-0.5">{trends.cmp.curFailed}</p>
                         </div>
                       </div>
                     </div>
@@ -3052,24 +3053,24 @@ export default function AdminPage() {
                       (() => {
                         const [algo, count] = Object.entries(pipelineMetrics.algoCounts)[0];
                         return (
-                          <div className="border-t border-slate-100 pt-3 flex items-center justify-between" data-testid="row-algo-single">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Algorithm</span>
-                            <span className="text-xs text-slate-700"><span className="font-mono">{algo}</span> <span className="text-slate-400">· {count} user{count !== 1 ? "s" : ""}</span></span>
+                          <div className="border-t border-slate-100 dark:border-slate-800/60 pt-3 flex items-center justify-between" data-testid="row-algo-single">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Algorithm</span>
+                            <span className="text-xs text-slate-700 dark:text-slate-200"><span className="font-mono">{algo}</span> <span className="text-slate-400 dark:text-slate-500">· {count} user{count !== 1 ? "s" : ""}</span></span>
                           </div>
                         );
                       })()
                     ) : algoDistinct > 1 ? (
-                      <div className="border-t border-slate-100 pt-4" data-testid="section-algo-distribution">
-                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">Algorithm Distribution</p>
+                      <div className="border-t border-slate-100 dark:border-slate-800/60 pt-4" data-testid="section-algo-distribution">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2">Algorithm Distribution</p>
                         <div className="space-y-1.5">
                           {Object.entries(pipelineMetrics.algoCounts).sort((a, b) => b[1] - a[1]).map(([algo, count]) => (
                             <div key={algo} className="flex items-center justify-between">
-                              <span className="text-xs font-mono text-slate-600 truncate max-w-[180px]">{algo}</span>
+                              <span className="text-xs font-mono text-slate-600 dark:text-slate-300 truncate max-w-[180px]">{algo}</span>
                               <div className="flex items-center gap-2">
-                                <div className="w-20 h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                                  <div className="h-full bg-indigo-400 rounded-full" style={{ width: `${(count / pipelineMetrics.total) * 100}%` }} />
+                                <div className="w-20 h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                  <div className="h-full bg-brand-primary rounded-full" style={{ width: `${(count / pipelineMetrics.total) * 100}%` }} />
                                 </div>
-                                <span className="text-[10px] font-semibold text-slate-500 tabular-nums w-8 text-right">{count}</span>
+                                <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 tabular-nums w-8 text-right">{count}</span>
                               </div>
                             </div>
                           ))}
@@ -3079,7 +3080,7 @@ export default function AdminPage() {
                   </div>
                 ) : (
                   <div className="p-8 flex items-center justify-center">
-                    <Loader2 className="h-5 w-5 animate-spin text-slate-300" />
+                    <Loader2 className="h-5 w-5 animate-spin text-slate-300 dark:text-slate-600" />
                   </div>
                 )}
               </div>
@@ -3117,50 +3118,49 @@ export default function AdminPage() {
                 const totalFailures = failedItems.length;
                 const dataUnavailable = overviewActivityQuery.isError || (!overviewActivityQuery.isSuccess && !overviewActivityQuery.isLoading);
                 return (
-                  <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-red-50/30 backdrop-blur-xl border border-red-200/50 shadow-[0_0_15px_rgba(239,68,68,0.07)] overflow-hidden" data-testid="card-recent-failures">
-                    <div className="h-1 w-full bg-gradient-to-r from-red-400 via-rose-500 to-red-400" />
-                    <div className="px-5 py-4 border-b border-red-100">
+                  <div className="lg:col-span-2 rounded-2xl border border-red-200/70 dark:border-red-500/25 bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-recent-failures">
+                    <div className="px-5 py-4 border-b border-red-100 dark:border-red-500/20">
                       <div className="flex items-start justify-between gap-3">
                         <div>
-                          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2" style={{ fontFamily: "var(--font-display)" }}>
+                          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2" style={{ fontFamily: "var(--font-display)" }}>
                             <AlertTriangle className="h-4 w-4 text-red-500" />
                             Recent Failures
                           </h3>
-                          <p className="text-xs text-slate-500 mt-0.5">
+                          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                             {totalFailures === 0
                               ? `No failures in ${trends.cfg.windowPhrase}.`
                               : `${totalFailures} failed request${totalFailures === 1 ? "" : "s"} in ${trends.cfg.windowPhrase}, grouped into ${sortedGroups.length} pattern${sortedGroups.length === 1 ? "" : "s"}.`}
                           </p>
                         </div>
-                        <span className={`text-xs font-bold tabular-nums px-2 py-1 rounded-full ${totalFailures === 0 ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-red-50 text-red-700 border border-red-200"}`} data-testid="badge-failure-count">
+                        <Chip tone={totalFailures === 0 ? "emerald" : "red"} className="px-2 py-1 font-bold tabular-nums" data-testid="badge-failure-count">
                           {totalFailures}
-                        </span>
+                        </Chip>
                       </div>
                     </div>
                     <div className="p-5">
                       {overviewActivityQuery.isError ? (
                         <div className="flex flex-col items-center justify-center py-6 text-center" data-testid="failures-error-state">
                           <XCircle className="h-8 w-8 text-red-400 mb-2" />
-                          <p className="text-sm font-semibold text-slate-700">Couldn't load failure data</p>
-                          <p className="text-[10px] text-slate-500 mt-1 max-w-md">
+                          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Couldn't load failure data</p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 max-w-md">
                             {overviewActivityQuery.error instanceof Error ? overviewActivityQuery.error.message : "The /admin/activity endpoint did not respond. Failure status is unknown."}
                           </p>
                         </div>
                       ) : overviewLoading && totalFailures === 0 ? (
                         <div className="flex items-center justify-center py-6">
-                          <Loader2 className="h-5 w-5 animate-spin text-slate-300" />
+                          <Loader2 className="h-5 w-5 animate-spin text-slate-300 dark:text-slate-600" />
                         </div>
                       ) : dataUnavailable ? (
                         <div className="flex flex-col items-center justify-center py-6 text-center" data-testid="failures-unknown-state">
                           <AlertTriangle className="h-8 w-8 text-amber-400 mb-2" />
-                          <p className="text-sm font-semibold text-slate-700">Failure status unavailable</p>
-                          <p className="text-[10px] text-slate-400 mt-1">Activity data has not loaded yet.</p>
+                          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Failure status unavailable</p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">Activity data has not loaded yet.</p>
                         </div>
                       ) : totalFailures === 0 ? (
                         <div className="flex flex-col items-center justify-center py-6 text-center" data-testid="failures-empty-state">
                           <CheckCircle2 className="h-8 w-8 text-emerald-400 mb-2" />
-                          <p className="text-sm font-semibold text-slate-700">All recent requests succeeded</p>
-                          <p className="text-[10px] text-slate-400 mt-1">No errors found in the latest activity feed.</p>
+                          <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">All recent requests succeeded</p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">No errors found in the latest activity feed.</p>
                         </div>
                       ) : (
                         <ul className="space-y-2.5" data-testid="list-recent-failures">
@@ -3169,25 +3169,25 @@ export default function AdminPage() {
                             const errMsg = extractErrorMessage(g.latest);
                             const userCount = g.pubkeys.size;
                             return (
-                              <li key={idx} className="rounded-lg border border-red-200 bg-white/70 p-3" data-testid={`failure-group-${idx}`}>
+                              <li key={idx} className="rounded-lg border border-red-200 dark:border-red-500/25 bg-white/70 dark:bg-slate-900/70 p-3" data-testid={`failure-group-${idx}`}>
                                 <div className="flex items-start gap-2">
                                   <AlertTriangle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
                                   <div className="min-w-0 flex-1">
                                     <div className="flex flex-wrap items-center gap-2 mb-1">
-                                      <span className="text-[10px] font-bold uppercase tracking-wider text-red-700">{stage}</span>
+                                      <span className="text-[10px] font-bold uppercase tracking-wider text-red-700 dark:text-red-300">{stage}</span>
                                       {g.count > 1 && (
-                                        <span className="text-[9px] font-semibold text-red-700 bg-red-100 border border-red-200 px-1.5 py-0.5 rounded-full tabular-nums">
+                                        <span className="text-[9px] font-semibold text-red-700 dark:text-red-300 bg-red-100 dark:bg-red-500/15 border border-red-200 dark:border-red-500/25 px-1.5 py-0.5 rounded-full tabular-nums">
                                           {g.count}× occurrences
                                         </span>
                                       )}
                                       {userCount > 0 && (
-                                        <span className="text-[9px] text-slate-500">
+                                        <span className="text-[9px] text-slate-500 dark:text-slate-400">
                                           {userCount} user{userCount === 1 ? "" : "s"} affected
                                         </span>
                                       )}
-                                      <span className="text-[9px] text-slate-400 ml-auto">{timeAgo(g.latest.updated_at) || formatTimestamp(g.latest.updated_at)}</span>
+                                      <span className="text-[9px] text-slate-400 dark:text-slate-500 ml-auto">{timeAgo(g.latest.updated_at) || formatTimestamp(g.latest.updated_at)}</span>
                                     </div>
-                                    <p className="text-[11px] text-slate-800 font-mono break-words leading-relaxed">{truncateError(errMsg, 220)}</p>
+                                    <p className="text-[11px] text-slate-800 dark:text-slate-200 font-mono break-words leading-relaxed">{truncateError(errMsg, 220)}</p>
                                     <div className="mt-2 flex flex-wrap items-center gap-2">
                                       {g.latest.pubkey && (
                                         <button
@@ -3202,7 +3202,7 @@ export default function AdminPage() {
                                             setHighlightedPubkey(pk);
                                             setTimeout(() => setHighlightedPubkey(null), 2500);
                                           }}
-                                          className="text-[10px] font-semibold text-[#333286] hover:text-[#7c86ff] inline-flex items-center gap-1"
+                                          className="text-[10px] font-semibold text-brand-deep hover:text-brand-accent inline-flex items-center gap-1"
                                           data-testid={`failure-group-view-user-${idx}`}
                                         >
                                           <Eye className="h-3 w-3" /> View latest affected user
@@ -3240,11 +3240,10 @@ export default function AdminPage() {
                 );
               })()}
 
-              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-quick-stats">
-                <div className="h-1 w-full bg-gradient-to-r from-violet-400 via-fuchsia-500 to-violet-400" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>System Endpoints</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">API connectivity</p>
+              <div className="lg:col-span-2 rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-quick-stats">
+                <div className="px-5 py-4 border-b border-brand-accent/10">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>System Endpoints</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">API connectivity</p>
                 </div>
                 <div className="p-5">
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -3257,10 +3256,10 @@ export default function AdminPage() {
                         { endpoint: "/admin/users", label: "Admin Users", status: adminUsersQuery.isSuccess ? "connected" as const : adminUsersQuery.isError ? "disconnected" as const : "degraded" as const },
                         { endpoint: "/admin/activity", label: "Admin Activity", status: adminActivityQuery.isSuccess ? "connected" as const : adminActivityQuery.isError ? "disconnected" as const : adminActivityQuery.fetchStatus === "idle" && !adminActivityQuery.isError ? "connected" as const : "degraded" as const },
                       ].map(ep => (
-                        <div key={ep.endpoint} className="flex items-center justify-between gap-2 p-3 rounded-xl bg-white/50 border border-slate-100 min-w-0" data-testid={`endpoint-${ep.label.toLowerCase().replace(/\s+/g, "-")}`}>
+                        <div key={ep.endpoint} className="flex items-center justify-between gap-2 p-3 rounded-xl bg-white/50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/60 min-w-0" data-testid={`endpoint-${ep.label.toLowerCase().replace(/\s+/g, "-")}`}>
                           <div className="min-w-0 flex-1">
-                            <p className="text-xs font-semibold text-slate-800">{ep.label}</p>
-                            <p className="text-[10px] font-mono text-slate-400 truncate" title={`${baseUrl}${ep.endpoint}`}>{baseUrl}{ep.endpoint}</p>
+                            <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">{ep.label}</p>
+                            <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500 truncate" title={`${baseUrl}${ep.endpoint}`}>{baseUrl}{ep.endpoint}</p>
                           </div>
                           <StatusBadge status={ep.status} />
                         </div>
@@ -3275,17 +3274,16 @@ export default function AdminPage() {
 
           {activeTab === "users" && (
             <>
-            <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="panel-users">
-              <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-              <div className="px-3 sm:px-5 py-4 border-b border-[#7c86ff]/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="panel-users">
+              <div className="px-3 sm:px-5 py-4 border-b border-brand-accent/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>User Database</h3>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>User Database</h3>
                   <div className="flex items-center gap-3 mt-1">
-                    <span className="text-xs text-slate-500">{(activeNameSearch ? filteredUsersList.length : adminUsersTotal).toLocaleString()} users{activeNameSearch && userSearch.trim() ? " (filtered)" : ""}</span>
-                    <span className="text-[10px] text-slate-400">|</span>
-                    <span className="text-[10px] text-slate-400">Page {(userPage + 1)} of {totalPages}</span>
-                    <span className="text-[10px] text-slate-400">|</span>
-                    <span className="text-[10px] text-emerald-600 font-medium">Source: /admin/users</span>
+                    <span className="text-xs text-slate-500 dark:text-slate-400">{(activeNameSearch ? filteredUsersList.length : adminUsersTotal).toLocaleString()} users{activeNameSearch && userSearch.trim() ? " (filtered)" : ""}</span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500">|</span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500">Page {(userPage + 1)} of {totalPages}</span>
+                    <span className="text-[10px] text-slate-400 dark:text-slate-500">|</span>
+                    <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Source: /admin/users</span>
                   </div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -3295,13 +3293,13 @@ export default function AdminPage() {
                       placeholder="Search name, pubkey, npub..."
                       value={userSearch}
                       onChange={e => { setUserSearch(e.target.value); setUserPage(0); }}
-                      className="w-full px-3 py-1.5 pr-7 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
+                      className="w-full px-3 py-1.5 pr-7 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40"
                       data-testid="input-user-search"
                     />
                     {userSearch && (
                       <button
                         onClick={() => { setUserSearch(""); setDebouncedSearch(""); setUserPage(0); setHighlightedPubkey(null); setExpandedRows(new Set()); }}
-                        className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                        className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
                         data-testid="button-clear-search"
                       >
                         <XCircle className="h-3.5 w-3.5" />
@@ -3309,7 +3307,7 @@ export default function AdminPage() {
                     )}
                   </div>
                   <Select value={daysFilter.toString()} onValueChange={(val) => { setDaysFilter(parseInt(val, 10)); setUserPage(0); }}>
-                    <SelectTrigger className="w-28 h-8 text-xs rounded-xl border-slate-200" data-testid="select-days-filter">
+                    <SelectTrigger className="w-28 h-8 text-xs rounded-xl border-slate-200 dark:border-slate-800" data-testid="select-days-filter">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -3322,7 +3320,7 @@ export default function AdminPage() {
                     </SelectContent>
                   </Select>
                   <Select value={pageSize.toString()} onValueChange={handlePageSizeChange}>
-                    <SelectTrigger className="w-20 h-8 text-xs rounded-xl border-slate-200" data-testid="select-page-size">
+                    <SelectTrigger className="w-20 h-8 text-xs rounded-xl border-slate-200 dark:border-slate-800" data-testid="select-page-size">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -3347,20 +3345,20 @@ export default function AdminPage() {
                   <DialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-md overflow-hidden">
                     <DialogHeader>
                       <DialogTitle className="flex items-center gap-2">
-                        {lookupMode === "lookup" ? <Search className="h-5 w-5 text-[#333286]" /> : <UserPlus className="h-5 w-5 text-[#333286]" />}
+                        {lookupMode === "lookup" ? <Search className="h-5 w-5 text-brand-deep" /> : <UserPlus className="h-5 w-5 text-brand-deep" />}
                         {lookupMode === "lookup" ? "Lookup User" : "Onboard User"}
                       </DialogTitle>
-                      <DialogDescription className="text-sm text-slate-600 pt-1">
+                      <DialogDescription className="text-sm text-slate-600 dark:text-slate-300 pt-1">
                         {lookupMode === "lookup"
                           ? "Find a user by name, pubkey, or npub and jump to their row in the table."
                           : "Search Nostr by name to find and onboard a user into Brainstorm."}
                       </DialogDescription>
                     </DialogHeader>
 
-                    <div className="flex gap-1 p-1 rounded-xl bg-slate-100 border border-slate-200" data-testid="toggle-lookup-mode">
+                    <div className="flex gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800" data-testid="toggle-lookup-mode">
                       <button
                         onClick={() => { setLookupMode("lookup"); setLookupResult(null); setLookupError(null); setLookupNameResults([]); }}
-                        className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${lookupMode === "lookup" ? "bg-white text-[#333286] shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-700"}`}
+                        className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${lookupMode === "lookup" ? "bg-white dark:bg-slate-900 text-brand-deep shadow-sm border border-slate-200 dark:border-slate-800" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"}`}
                         data-testid="button-mode-lookup"
                       >
                         <Search className="h-3 w-3" />
@@ -3368,7 +3366,7 @@ export default function AdminPage() {
                       </button>
                       <button
                         onClick={() => { setLookupMode("onboard"); setLookupResult(null); setLookupError(null); }}
-                        className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${lookupMode === "onboard" ? "bg-white text-[#333286] shadow-sm border border-slate-200" : "text-slate-500 hover:text-slate-700"}`}
+                        className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${lookupMode === "onboard" ? "bg-white dark:bg-slate-900 text-brand-deep shadow-sm border border-slate-200 dark:border-slate-800" : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"}`}
                         data-testid="button-mode-onboard"
                       >
                         <UserPlus className="h-3 w-3" />
@@ -3385,7 +3383,7 @@ export default function AdminPage() {
                             value={lookupInput}
                             onChange={e => { setLookupInput(e.target.value); setLookupError(null); setLookupNameResults([]); }}
                             onKeyDown={e => { if (e.key === "Enter" && !lookupRunning) handleLookupPubkey(); }}
-                            className="flex-1 min-w-0 px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
+                            className="flex-1 min-w-0 px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40"
                             data-testid="input-lookup-pubkey"
                           />
                           <Button
@@ -3402,29 +3400,29 @@ export default function AdminPage() {
 
                         {lookupNameResults.length > 0 && (
                           <div className="space-y-1" data-testid="lookup-name-results">
-                            <p className="text-[10px] text-slate-500 font-medium">{lookupNameResults.length} user{lookupNameResults.length !== 1 ? "s" : ""} found</p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">{lookupNameResults.length} user{lookupNameResults.length !== 1 ? "s" : ""} found</p>
                             <div className="max-h-[200px] overflow-y-auto space-y-1 -mx-1 px-1">
                               {lookupNameResults.map(u => {
                                 const npub = nip19.npubEncode(u.pubkey);
                                 return (
                                   <div
                                     key={u.pubkey}
-                                    className="flex items-center gap-2.5 p-2 rounded-lg border border-slate-200 bg-white/80 hover:border-[#7c86ff]/30 hover:bg-indigo-50/10 transition-all cursor-pointer"
+                                    className="flex items-center gap-2.5 p-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 hover:border-brand-accent/30 hover:bg-brand-primary/10 transition-all cursor-pointer"
                                     onClick={() => jumpToUser(u.pubkey, u.name)}
                                     data-testid={`lookup-name-result-${u.pubkey.slice(0, 8)}`}
                                   >
                                     {u.picture ? (
-                                      <img src={u.picture} alt="" className="h-7 w-7 rounded-full object-cover shrink-0 border border-slate-200" />
+                                      <img src={u.picture} alt="" className="h-7 w-7 rounded-full object-cover shrink-0 border border-slate-200 dark:border-slate-800" />
                                     ) : (
-                                      <div className="h-7 w-7 rounded-full bg-gradient-to-br from-[#7c86ff]/20 to-[#333286]/20 flex items-center justify-center shrink-0">
-                                        <User className="h-3.5 w-3.5 text-[#333286]/60" />
+                                      <div className="h-7 w-7 rounded-full bg-gradient-to-br from-brand-accent/20 to-brand-deep/20 flex items-center justify-center shrink-0">
+                                        <User className="h-3.5 w-3.5 text-brand-deep/60" />
                                       </div>
                                     )}
                                     <div className="flex-1 min-w-0">
-                                      <p className="text-xs font-semibold text-slate-800 truncate">{u.name || "Unknown"}</p>
-                                      <p className="text-[10px] text-slate-400 font-mono truncate">{npub.slice(0, 20)}...{npub.slice(-6)}</p>
+                                      <p className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">{u.name || "Unknown"}</p>
+                                      <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono truncate">{npub.slice(0, 20)}...{npub.slice(-6)}</p>
                                     </div>
-                                    <ArrowRight className="h-3 w-3 text-slate-400 shrink-0" />
+                                    <ArrowRight className="h-3 w-3 text-slate-400 dark:text-slate-500 shrink-0" />
                                   </div>
                                 );
                               })}
@@ -3441,7 +3439,7 @@ export default function AdminPage() {
                             value={onboardSearch}
                             onChange={e => { setOnboardSearch(e.target.value); setOnboardError(null); }}
                             onKeyDown={e => { if (e.key === "Enter" && !onboardSearching) handleOnboardSearch(); }}
-                            className="flex-1 min-w-0 px-3 py-2 text-xs rounded-xl border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40"
+                            className="flex-1 min-w-0 px-3 py-2 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40"
                             data-testid="input-onboard-search"
                             disabled={onboardingAll}
                           />
@@ -3456,7 +3454,7 @@ export default function AdminPage() {
                             {onboardSearching ? "..." : "Search"}
                           </Button>
                         </div>
-                        <p className="text-[10px] text-slate-400 -mt-1 flex items-center gap-1">
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 -mt-1 flex items-center gap-1">
                           <Globe className="h-2.5 w-2.5 shrink-0" />
                           Powered by Brainstorm WoT search
                         </p>
@@ -3469,23 +3467,23 @@ export default function AdminPage() {
                               return (
                                 <div
                                   key={profile.pubkey}
-                                  className={`flex items-center gap-2 p-2 rounded-lg border transition-all overflow-hidden cursor-pointer ${isQueued ? "border-[#7c86ff]/40 bg-indigo-50/40" : "border-slate-200 bg-white/80 hover:border-[#7c86ff]/20 hover:bg-indigo-50/10"}`}
+                                  className={`flex items-center gap-2 p-2 rounded-lg border transition-all overflow-hidden cursor-pointer ${isQueued ? "border-brand-accent/40 bg-brand-primary/10" : "border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 hover:border-brand-accent/20 hover:bg-brand-primary/10"}`}
                                   onClick={() => isQueued ? removeFromOnboardQueue(profile.pubkey) : addToOnboardQueue(profile)}
                                   data-testid={`onboard-result-${profile.pubkey.slice(0, 8)}`}
                                 >
-                                  <div className={`h-4 w-4 rounded border-2 shrink-0 flex items-center justify-center transition-colors ${isQueued ? "bg-[#333286] border-[#333286]" : "border-slate-300"}`}>
+                                  <div className={`h-4 w-4 rounded border-2 shrink-0 flex items-center justify-center transition-colors ${isQueued ? "bg-brand-deep border-brand-deep" : "border-slate-300 dark:border-slate-700"}`}>
                                     {isQueued && <CheckCircle2 className="h-3 w-3 text-white" />}
                                   </div>
                                   {profile.picture ? (
-                                    <img src={profile.picture} alt="" className="h-7 w-7 rounded-full object-cover border border-slate-200 shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                                    <img src={profile.picture} alt="" className="h-7 w-7 rounded-full object-cover border border-slate-200 dark:border-slate-800 shrink-0" onError={e => { (e.target as HTMLImageElement).style.display = "none"; }} />
                                   ) : (
-                                    <div className="h-7 w-7 rounded-full bg-gradient-to-br from-[#7c86ff]/20 to-[#333286]/20 flex items-center justify-center shrink-0">
-                                      <Users className="h-3 w-3 text-[#333286]/50" />
+                                    <div className="h-7 w-7 rounded-full bg-gradient-to-br from-brand-accent/20 to-brand-deep/20 flex items-center justify-center shrink-0">
+                                      <Users className="h-3 w-3 text-brand-deep/50" />
                                     </div>
                                   )}
                                   <div className="flex-1 min-w-0 overflow-hidden">
-                                    <p className="text-[11px] font-semibold text-slate-900 truncate">{displayName}</p>
-                                    <p className="text-[9px] font-mono text-slate-400 truncate">{profile.npub.slice(0, 16)}...{profile.npub.slice(-4)}</p>
+                                    <p className="text-[11px] font-semibold text-slate-900 dark:text-slate-100 truncate">{displayName}</p>
+                                    <p className="text-[9px] font-mono text-slate-400 dark:text-slate-500 truncate">{profile.npub.slice(0, 16)}...{profile.npub.slice(-4)}</p>
                                   </div>
                                 </div>
                               );
@@ -3494,10 +3492,10 @@ export default function AdminPage() {
                         )}
 
                         {!onboardingAll && (
-                          <div className="border-t border-slate-200 pt-2">
+                          <div className="border-t border-slate-200 dark:border-slate-800 pt-2">
                             <button
                               onClick={() => setBulkPasteOpen(prev => !prev)}
-                              className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 hover:text-[#333286] transition-colors w-full"
+                              className="flex items-center gap-1.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400 hover:text-brand-deep transition-colors w-full"
                               data-testid="button-toggle-bulk-paste"
                             >
                               <FileText className="h-3 w-3" />
@@ -3510,7 +3508,7 @@ export default function AdminPage() {
                                   placeholder={"Paste npubs or hex pubkeys\nOne per line or comma-separated"}
                                   value={bulkPasteInput}
                                   onChange={e => setBulkPasteInput(e.target.value)}
-                                  className="w-full px-3 py-2 text-[10px] font-mono rounded-lg border border-slate-200 bg-white/80 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40 resize-none h-16"
+                                  className="w-full px-3 py-2 text-[10px] font-mono rounded-lg border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40 resize-none h-16"
                                   data-testid="textarea-bulk-paste"
                                 />
                                 <Button
@@ -3530,22 +3528,22 @@ export default function AdminPage() {
                         )}
 
                         {onboardError && (
-                          <div className="flex items-start gap-2 p-2 rounded-lg bg-red-50 border border-red-200" data-testid="onboard-error">
+                          <div className="flex items-start gap-2 p-2 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25" data-testid="onboard-error">
                             <XCircle className="h-3.5 w-3.5 text-red-500 shrink-0 mt-0.5" />
-                            <p className="text-[10px] text-red-700">{onboardError}</p>
+                            <p className="text-[10px] text-red-700 dark:text-red-300">{onboardError}</p>
                           </div>
                         )}
 
                         {onboardQueue.length > 0 && (
-                          <div className="border-t border-slate-200 pt-3 space-y-2" data-testid="onboard-queue">
+                          <div className="border-t border-slate-200 dark:border-slate-800 pt-3 space-y-2" data-testid="onboard-queue">
                             <div className="flex items-center justify-between">
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                                 Onboard Queue ({onboardQueue.length})
                               </span>
                               {!onboardingAll && (
                                 <button
                                   onClick={() => setOnboardQueue([])}
-                                  className="text-[10px] text-slate-400 hover:text-red-500 transition-colors"
+                                  className="text-[10px] text-slate-400 dark:text-slate-500 hover:text-red-500 transition-colors"
                                   data-testid="button-clear-queue"
                                 >
                                   Clear all
@@ -3562,9 +3560,9 @@ export default function AdminPage() {
                                     className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[10px] border transition-all ${
                                       progressItem
                                         ? progressItem.success
-                                          ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                                          : "bg-red-50 border-red-200 text-red-700"
-                                        : "bg-indigo-50 border-[#7c86ff]/20 text-slate-700"
+                                          ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/25 text-emerald-700 dark:text-emerald-300"
+                                          : "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/25 text-red-700 dark:text-red-300"
+                                        : "bg-brand-primary/10 dark:bg-brand-primary/10 border-brand-accent/20 text-slate-700 dark:text-slate-200"
                                     }`}
                                     data-testid={`queue-item-${profile.pubkey.slice(0, 8)}`}
                                   >
@@ -3586,10 +3584,10 @@ export default function AdminPage() {
 
                             {onboardingAll && onboardProgress && (
                               <div className="space-y-1.5">
-                                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                                  <div className="h-full bg-gradient-to-r from-[#7c86ff] to-[#333286] rounded-full transition-all duration-300" style={{ width: `${(onboardProgress.done / onboardProgress.total) * 100}%` }} />
+                                <div className="w-full h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                                  <div className="h-full bg-gradient-to-r from-brand-accent to-brand-deep rounded-full transition-all duration-300" style={{ width: `${(onboardProgress.done / onboardProgress.total) * 100}%` }} />
                                 </div>
-                                <p className="text-[10px] text-slate-500 text-center">{onboardProgress.done} of {onboardProgress.total} processed</p>
+                                <p className="text-[10px] text-slate-500 dark:text-slate-400 text-center">{onboardProgress.done} of {onboardProgress.total} processed</p>
                               </div>
                             )}
 
@@ -3606,10 +3604,10 @@ export default function AdminPage() {
                             )}
 
                             {onboardProgress && !onboardingAll && (
-                              <div className="p-2.5 rounded-lg bg-emerald-50 border border-emerald-200">
+                              <div className="p-2.5 rounded-lg bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25">
                                 <div className="flex items-center gap-2">
-                                  <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-                                  <p className="text-[11px] font-semibold text-emerald-800">
+                                  <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                  <p className="text-[11px] font-semibold text-emerald-800 dark:text-emerald-300">
                                     {onboardProgress.results.filter(r => r.success).length} onboarded
                                     {onboardProgress.results.filter(r => !r.success).length > 0 && `, ${onboardProgress.results.filter(r => !r.success).length} failed`}
                                   </p>
@@ -3622,9 +3620,9 @@ export default function AdminPage() {
                     )}
 
                     {lookupError && lookupMode === "lookup" && (
-                      <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200" data-testid="lookup-error">
+                      <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25" data-testid="lookup-error">
                         <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                        <p className="text-xs text-red-700">{lookupError}</p>
+                        <p className="text-xs text-red-700 dark:text-red-300">{lookupError}</p>
                       </div>
                     )}
                   </DialogContent>
@@ -3632,7 +3630,7 @@ export default function AdminPage() {
               </div>
 
               {(selectedUserPubkeys.size > 0 || (bulkLastResult && bulkLastResult.source !== "activity")) && (
-                <div className="px-3 sm:px-5 py-2 border-b border-slate-100 space-y-2">
+                <div className="px-3 sm:px-5 py-2 border-b border-slate-100 dark:border-slate-800/60 space-y-2">
                   {selectedUserPubkeys.size > 0 && (() => {
                     const dedupePubkeys = Array.from(selectedUserPubkeys);
                     const liveCount = bulkRunning ? Array.from(bulkStatuses.values()).filter(s => s === "success" || s === "failed").length : 0;
@@ -3669,14 +3667,14 @@ export default function AdminPage() {
                       }
                     };
                     return (
-                      <div className="px-3 py-2 rounded-xl bg-indigo-50/70 border border-[#7c86ff]/30 flex flex-wrap items-center gap-2" data-testid="bulk-toolbar-users">
-                        <CheckSquare className="h-4 w-4 text-[#333286]" />
-                        <span className="text-xs font-semibold text-slate-800">{dedupePubkeys.length} selected</span>
+                      <div className="px-3 py-2 rounded-xl bg-brand-primary/10 dark:bg-brand-primary/10 border border-brand-accent/30 flex flex-wrap items-center gap-2" data-testid="bulk-toolbar-users">
+                        <CheckSquare className="h-4 w-4 text-brand-deep" />
+                        <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">{dedupePubkeys.length} selected</span>
                         {canSelectAllMatching && (
                           <button
                             onClick={handleSelectAllMatching}
                             disabled={bulkRunning || fetchingMatching}
-                            className="text-[10px] font-semibold text-[#333286] hover:underline disabled:opacity-40 inline-flex items-center gap-1"
+                            className="text-[10px] font-semibold text-brand-deep hover:underline disabled:opacity-40 inline-flex items-center gap-1"
                             data-testid="button-bulk-select-all-matching-users"
                           >
                             {fetchingMatching && <Loader2 className="h-3 w-3 animate-spin" />}
@@ -3684,7 +3682,7 @@ export default function AdminPage() {
                           </button>
                         )}
                         {bulkRunning && (
-                          <span className="text-[10px] text-amber-700 font-medium" data-testid="bulk-progress-users">
+                          <span className="text-[10px] text-amber-700 dark:text-amber-300 font-medium" data-testid="bulk-progress-users">
                             {liveCount} of {liveTotal} triggered… {liveFailed > 0 ? `${liveFailed} failed` : ""}
                           </span>
                         )}
@@ -3693,7 +3691,7 @@ export default function AdminPage() {
                             size="sm"
                             onClick={() => setBulkConfirm({ pubkeys: dedupePubkeys, source: "users" })}
                             disabled={bulkRunning || dedupePubkeys.length === 0}
-                            className="text-xs gap-1.5 h-7 no-default-hover-elevate no-default-active-elevate bg-[#333286] hover:bg-[#7c86ff] text-white"
+                            className="text-xs gap-1.5 h-7 no-default-hover-elevate no-default-active-elevate bg-brand-deep hover:bg-brand-accent text-white"
                             data-testid="button-bulk-retrigger-users"
                           >
                             {bulkRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
@@ -3702,7 +3700,7 @@ export default function AdminPage() {
                           <button
                             onClick={() => setSelectedUserPubkeys(new Set())}
                             disabled={bulkRunning}
-                            className="text-[10px] text-slate-500 hover:text-slate-800 disabled:opacity-40"
+                            className="text-[10px] text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-40"
                             data-testid="button-bulk-clear-users"
                           >
                             Clear selection
@@ -3712,9 +3710,9 @@ export default function AdminPage() {
                     );
                   })()}
                   {bulkLastResult && bulkLastResult.source === "users" && (
-                    <div className={`px-3 py-2 rounded-xl border flex flex-wrap items-center gap-2 ${bulkLastResult.failures.length === 0 ? "bg-emerald-50/70 border-emerald-300/50" : "bg-red-50/60 border-red-300/50"}`} data-testid="bulk-result-users">
-                      {bulkLastResult.failures.length === 0 ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-red-600" />}
-                      <span className="text-xs font-semibold text-slate-800">{bulkLastResult.successes.length} succeeded · {bulkLastResult.failures.length} failed</span>
+                    <div className={`px-3 py-2 rounded-xl border flex flex-wrap items-center gap-2 ${bulkLastResult.failures.length === 0 ? "bg-emerald-50/70 dark:bg-emerald-500/10 border-emerald-300/50 dark:border-emerald-500/30" : "bg-red-50/60 dark:bg-red-500/10 border-red-300/50 dark:border-red-500/30"}`} data-testid="bulk-result-users">
+                      {bulkLastResult.failures.length === 0 ? <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> : <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />}
+                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">{bulkLastResult.successes.length} succeeded · {bulkLastResult.failures.length} failed</span>
                       <div className="ml-auto flex items-center gap-2">
                         {bulkLastResult.failures.length > 0 && (
                           <Button
@@ -3730,7 +3728,7 @@ export default function AdminPage() {
                         )}
                         <button
                           onClick={() => setBulkLastResult(null)}
-                          className="text-[10px] text-slate-500 hover:text-slate-800"
+                          className="text-[10px] text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
                           data-testid="button-bulk-dismiss-users"
                         >
                           Dismiss
@@ -3738,11 +3736,11 @@ export default function AdminPage() {
                       </div>
                       {bulkLastResult.failures.length > 0 && (
                         <details className="basis-full mt-1.5">
-                          <summary className="text-[10px] font-semibold text-red-700 cursor-pointer select-none">View failure details ({bulkLastResult.failures.length})</summary>
+                          <summary className="text-[10px] font-semibold text-red-700 dark:text-red-300 cursor-pointer select-none">View failure details ({bulkLastResult.failures.length})</summary>
                           <ul className="mt-1.5 space-y-0.5 max-h-40 overflow-auto" data-testid="list-bulk-errors-users">
                             {bulkLastResult.failures.map((f, i) => (
-                              <li key={`${f.pubkey}-${i}`} className="text-[10px] font-mono text-red-900/90 truncate" title={`${f.pubkey}: ${f.error}`}>
-                                <span className="text-red-600">{f.pubkey.slice(0, 12)}…</span> — {f.error}
+                              <li key={`${f.pubkey}-${i}`} className="text-[10px] font-mono text-red-900/90 dark:text-red-300/90 truncate" title={`${f.pubkey}: ${f.error}`}>
+                                <span className="text-red-600 dark:text-red-400">{f.pubkey.slice(0, 12)}…</span> — {f.error}
                               </li>
                             ))}
                           </ul>
@@ -3754,22 +3752,21 @@ export default function AdminPage() {
               )}
 
               {kpiFilter && (
-                <div className="px-3 sm:px-5 py-2 border-b border-[#7c86ff]/10 bg-indigo-50/30 flex items-center gap-2" data-testid="kpi-filter-badge">
-                  <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Filtered:</span>
-                  <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                    kpiFilter === "scored" ? "bg-emerald-50 border border-emerald-200 text-emerald-700" :
-                    kpiFilter === "sp_adopters" ? "bg-indigo-50 border border-indigo-200 text-indigo-700" :
-                    kpiFilter === "failed" ? "bg-red-50 border border-red-200 text-red-700" :
-                    "bg-amber-50 border border-amber-200 text-amber-700"
-                  }`}>
+                <div className="px-3 sm:px-5 py-2 border-b border-brand-accent/10 bg-brand-primary/10 dark:bg-brand-primary/10 flex items-center gap-2" data-testid="kpi-filter-badge">
+                  <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Filtered:</span>
+                  <Chip
+                    size="sm"
+                    tone={kpiFilter === "scored" ? "emerald" : kpiFilter === "sp_adopters" ? "indigo" : kpiFilter === "failed" ? "red" : "amber"}
+                    className="gap-1.5 px-2.5 py-1 font-bold uppercase tracking-wider"
+                  >
                     {kpiFilter === "scored" && <><UserCheck className="h-3 w-3" /> Scored Users</>}
                     {kpiFilter === "sp_adopters" && <><Shield className="h-3 w-3" /> SP Adopters</>}
                     {kpiFilter === "queue" && <><Clock className="h-3 w-3" /> In Queue</>}
                     {kpiFilter === "failed" && <><AlertTriangle className="h-3 w-3" /> Failed</>}
-                  </span>
+                  </Chip>
                   <button
                     onClick={() => setKpiFilter(null)}
-                    className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold text-slate-500 hover:text-slate-800 hover:bg-white/80 transition-colors"
+                    className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-[10px] font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/80 dark:hover:bg-slate-900/80 transition-colors"
                     data-testid="button-clear-kpi-filter"
                   >
                     <XCircle className="h-3 w-3" />
@@ -3780,10 +3777,10 @@ export default function AdminPage() {
 
               <div className="hidden md:block">
                 <ScrollableTable>
-                <table className="w-full text-left min-w-[900px] border-collapse border border-slate-200" data-testid="table-users">
+                <table className="w-full text-left min-w-[900px] border-collapse border border-slate-200 dark:border-slate-800" data-testid="table-users">
                   <thead>
-                    <tr className="border-b border-slate-200 bg-slate-50/80">
-                      <th className="px-2 py-2.5 align-middle w-8 border-r border-slate-200 sticky left-0 z-20 bg-slate-50">
+                    <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">
+                      <th className="px-2 py-2.5 align-middle w-8 border-r border-slate-200 dark:border-slate-800 sticky left-0 z-20 bg-slate-50 dark:bg-slate-900">
                         {(() => {
                           const visible = (activeNameSearch ? filteredUsersList.slice(userPage * pageSize, (userPage + 1) * pageSize) : filteredUsersList);
                           const visiblePks = visible.map(u => u.pubkey);
@@ -3805,32 +3802,32 @@ export default function AdminPage() {
                               data-testid="checkbox-users-select-all"
                               disabled={visiblePks.length === 0}
                             >
-                              {allSelected ? <CheckSquare className="h-3.5 w-3.5 text-[#333286]" /> :
-                               someSelected ? <MinusSquare className="h-3.5 w-3.5 text-[#333286]" /> :
-                               <Square className={`h-3.5 w-3.5 ${visiblePks.length ? "text-slate-400" : "text-slate-200"}`} />}
+                              {allSelected ? <CheckSquare className="h-3.5 w-3.5 text-brand-deep" /> :
+                               someSelected ? <MinusSquare className="h-3.5 w-3.5 text-brand-deep" /> :
+                               <Square className={`h-3.5 w-3.5 ${visiblePks.length ? "text-slate-400 dark:text-slate-500" : "text-slate-200"}`} />}
                             </button>
                           );
                         })()}
                       </th>
-                      <th className="px-2 py-2.5 align-middle w-12 border-r border-slate-200 sticky left-8 z-20 bg-slate-50"></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200 sticky left-20 z-20 bg-slate-50 shadow-[8px_0_10px_-8px_rgba(15,23,42,0.15)]"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Profile</span></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><SortHeader label="Pubkey" sortKey="pubkey" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">TA Pubkey</span></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</span></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">TA Status</span></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Algorithm</span></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><SortHeader label="# Calcs" sortKey="times_calculated" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><SortHeader label="Last Triggered" sortKey="last_triggered" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><SortHeader label="Last Updated" sortKey="last_updated" currentSort={userSort} onSort={handleSort} /></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Tier</span></th>
-                      <th className="px-2 py-2.5 align-middle whitespace-nowrap text-center sticky right-0 z-20 bg-slate-50 shadow-[-8px_0_10px_-8px_rgba(15,23,42,0.15)]"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Actions</span></th>
+                      <th className="px-2 py-2.5 align-middle w-12 border-r border-slate-200 dark:border-slate-800 sticky left-8 z-20 bg-slate-50 dark:bg-slate-900"></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200 dark:border-slate-800 sticky left-20 z-20 bg-slate-50 dark:bg-slate-900 shadow-[8px_0_10px_-8px_rgba(15,23,42,0.15)]"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Profile</span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200 dark:border-slate-800"><SortHeader label="Pubkey" sortKey="pubkey" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200 dark:border-slate-800"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">TA Pubkey</span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200 dark:border-slate-800"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Status</span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200 dark:border-slate-800"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">TA Status</span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200 dark:border-slate-800"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Algorithm</span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200 dark:border-slate-800"><SortHeader label="# Calcs" sortKey="times_calculated" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200 dark:border-slate-800"><SortHeader label="Last Triggered" sortKey="last_triggered" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200 dark:border-slate-800"><SortHeader label="Last Updated" sortKey="last_updated" currentSort={userSort} onSort={handleSort} /></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap border-r border-slate-200 dark:border-slate-800"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Tier</span></th>
+                      <th className="px-2 py-2.5 align-middle whitespace-nowrap text-center sticky right-0 z-20 bg-slate-50 dark:bg-slate-900 shadow-[-8px_0_10px_-8px_rgba(15,23,42,0.15)]"><span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Actions</span></th>
                     </tr>
                   </thead>
                   <tbody>
                     {adminUsersQuery.isLoading && adminUsersList.length === 0 ? (
                       <tr>
-                        <td colSpan={13} className="px-5 py-10 text-center text-sm text-slate-400">
-                          <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2 text-slate-300" />
+                        <td colSpan={13} className="px-5 py-10 text-center text-sm text-slate-400 dark:text-slate-500">
+                          <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2 text-slate-300 dark:text-slate-600" />
                           Loading users...
                         </td>
                       </tr>
@@ -3842,13 +3839,13 @@ export default function AdminPage() {
                       </tr>
                     ) : adminUsersList.length === 0 ? (
                       <tr>
-                        <td colSpan={13} className="px-5 py-10 text-center text-sm text-slate-400">
+                        <td colSpan={13} className="px-5 py-10 text-center text-sm text-slate-400 dark:text-slate-500">
                           {userSearch ? "No users match your search" : "No user data available"}
                         </td>
                       </tr>
                     ) : filteredUsersList.length === 0 ? (
                       <tr>
-                        <td colSpan={13} className="px-5 py-10 text-center text-sm text-slate-400">
+                        <td colSpan={13} className="px-5 py-10 text-center text-sm text-slate-400 dark:text-slate-500">
                           No users match the current filter
                         </td>
                       </tr>
@@ -3861,29 +3858,29 @@ export default function AdminPage() {
                         const isTriggering = triggeringPubkeys.has(u.pubkey);
                         return (
                           <Fragment key={u.pubkey}>
-                            <tr className={`group border-b border-slate-200 hover:bg-slate-50/60 transition-colors cursor-pointer ${highlightedPubkey === u.pubkey ? "animate-highlight-row" : ""}`} onClick={() => {
+                            <tr className={`group border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50/60 dark:hover:bg-slate-900/60 transition-colors cursor-pointer ${highlightedPubkey === u.pubkey ? "animate-highlight-row" : ""}`} onClick={() => {
                               setExpandedRows(prev => {
                                 const next = new Set(prev);
                                 if (next.has(u.pubkey)) next.delete(u.pubkey); else next.add(u.pubkey);
                                 return next;
                               });
                             }} data-testid={`row-user-${i}`}>
-                              <td className="px-2 py-2.5 border-r border-slate-100 w-8 sticky left-0 z-10 bg-white group-hover:bg-slate-50" onClick={(e) => { e.stopPropagation(); setSelectedUserPubkeys(prev => { const next = new Set(prev); if (next.has(u.pubkey)) next.delete(u.pubkey); else next.add(u.pubkey); return next; }); }}>
+                              <td className="px-2 py-2.5 border-r border-slate-100 dark:border-slate-800/60 w-8 sticky left-0 z-10 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-900" onClick={(e) => { e.stopPropagation(); setSelectedUserPubkeys(prev => { const next = new Set(prev); if (next.has(u.pubkey)) next.delete(u.pubkey); else next.add(u.pubkey); return next; }); }}>
                                 {(() => {
                                   const isSelected = selectedUserPubkeys.has(u.pubkey);
                                   const bs = bulkStatuses.get(u.pubkey);
                                   return (
                                     <button type="button" className="inline-flex items-center justify-center" data-testid={`checkbox-user-${i}`} title={isSelected ? "Deselect" : "Select"}>
                                       {bs === "running" ? <Loader2 className="h-3.5 w-3.5 animate-spin text-amber-500" /> :
-                                       bs === "success" ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" /> :
-                                       bs === "failed" ? <XCircle className="h-3.5 w-3.5 text-red-600" /> :
-                                       isSelected ? <CheckSquare className="h-3.5 w-3.5 text-[#333286]" /> :
-                                       <Square className="h-3.5 w-3.5 text-slate-400" />}
+                                       bs === "success" ? <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> :
+                                       bs === "failed" ? <XCircle className="h-3.5 w-3.5 text-red-600 dark:text-red-400" /> :
+                                       isSelected ? <CheckSquare className="h-3.5 w-3.5 text-brand-deep" /> :
+                                       <Square className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />}
                                     </button>
                                   );
                                 })()}
                               </td>
-                              <td className="px-2 py-2.5 border-r border-slate-100 w-12 sticky left-8 z-10 bg-white group-hover:bg-slate-50">
+                              <td className="px-2 py-2.5 border-r border-slate-100 dark:border-slate-800/60 w-12 sticky left-8 z-10 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-900">
                                 <div className="flex items-center gap-1.5">
                                   {(() => {
                                     const health = getUserHealth(u.latest_status, u.latest_ta_status, u.times_calculated);
@@ -3891,53 +3888,53 @@ export default function AdminPage() {
                                     const titles = { green: "Healthy", amber: "Partial failure", red: "Failing", gray: "No calculations" };
                                     return <span className={`h-2 w-2 rounded-full shrink-0 ${colors[health]}`} title={titles[health]} data-testid={`health-dot-${i}`} />;
                                   })()}
-                                  <ChevronDown className={`h-3 w-3 text-slate-400 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
+                                  <ChevronDown className={`h-3 w-3 text-slate-400 dark:text-slate-500 transition-transform ${isExpanded ? "rotate-180" : ""}`} />
                                 </div>
                               </td>
-                              <td className="px-2 py-2.5 border-r border-slate-100 sticky left-20 z-10 bg-white group-hover:bg-slate-50 shadow-[8px_0_10px_-8px_rgba(15,23,42,0.15)]" data-testid={`cell-profile-${i}`}>
+                              <td className="px-2 py-2.5 border-r border-slate-100 dark:border-slate-800/60 sticky left-20 z-10 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-900 shadow-[8px_0_10px_-8px_rgba(15,23,42,0.15)]" data-testid={`cell-profile-${i}`}>
                                 <div className="flex items-center gap-1.5">
                                   <Avatar className="h-6 w-6 shrink-0">
                                     {prof?.picture ? (
                                       <AvatarImage src={prof.picture} alt={prof.name || "User"} className="object-cover" />
                                     ) : null}
-                                    <AvatarFallback className="bg-slate-100 border border-slate-200 text-[9px] text-slate-400">
-                                      {prof?.name?.charAt(0)?.toUpperCase() || <Users className="h-3 w-3 text-slate-300" />}
+                                    <AvatarFallback className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-[9px] text-slate-400 dark:text-slate-500">
+                                      {prof?.name?.charAt(0)?.toUpperCase() || <Users className="h-3 w-3 text-slate-300 dark:text-slate-600" />}
                                     </AvatarFallback>
                                   </Avatar>
-                                  <span className="text-[9px] text-slate-700 truncate block max-w-[90px] font-medium">
+                                  <span className="text-[9px] text-slate-700 dark:text-slate-200 truncate block max-w-[90px] font-medium">
                                     {prof?.name || npub.slice(0, 12) + "..."}
                                   </span>
                                 </div>
                               </td>
-                              <td className="px-2 py-2.5 border-r border-slate-100">
+                              <td className="px-2 py-2.5 border-r border-slate-100 dark:border-slate-800/60">
                                 <div className="space-y-0.5">
                                   <div className="flex items-center gap-1">
-                                    <span className="text-[8px] font-mono text-indigo-500/80">{npub.slice(0, 12)}...{npub.slice(-4)}</span>
+                                    <span className="text-[8px] font-mono text-brand-primary/80">{npub.slice(0, 12)}...{npub.slice(-4)}</span>
                                     <CopyButton text={npub} />
                                   </div>
                                   <div className="flex items-center gap-1">
-                                    <span className="text-[7px] font-mono text-slate-400">{u.pubkey.slice(0, 8)}...{u.pubkey.slice(-4)}</span>
+                                    <span className="text-[7px] font-mono text-slate-400 dark:text-slate-500">{u.pubkey.slice(0, 8)}...{u.pubkey.slice(-4)}</span>
                                     <CopyButton text={u.pubkey} />
                                   </div>
                                 </div>
                               </td>
-                              <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-ta-pubkey-${i}`}>
+                              <td className="px-2 py-2.5 border-r border-slate-100 dark:border-slate-800/60" data-testid={`cell-ta-pubkey-${i}`}>
                                 {u.ta_pubkey ? (
                                   <div className="flex items-center gap-1">
-                                    <span className="text-[8px] font-mono text-emerald-600">{u.ta_pubkey.slice(0, 10)}...{u.ta_pubkey.slice(-4)}</span>
+                                    <span className="text-[8px] font-mono text-emerald-600 dark:text-emerald-400">{u.ta_pubkey.slice(0, 10)}...{u.ta_pubkey.slice(-4)}</span>
                                     <CopyButton text={u.ta_pubkey} />
                                   </div>
                                 ) : (
-                                  <span className="text-[8px] text-slate-300 italic">none</span>
+                                  <span className="text-[8px] text-slate-300 dark:text-slate-600 italic">none</span>
                                 )}
                               </td>
-                              <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-status-${i}`}>
+                              <td className="px-2 py-2.5 border-r border-slate-100 dark:border-slate-800/60" data-testid={`cell-status-${i}`}>
                                 {u.latest_status ? (
                                   <div className="flex items-center gap-1">
                                     <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-semibold ${
-                                      u.latest_status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                                      isFailedStatus(u.latest_status) ? "bg-red-50 text-red-700 border border-red-200" :
-                                      "bg-slate-50 text-slate-600 border border-slate-200"
+                                      u.latest_status.toLowerCase() === "success" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/25" :
+                                      isFailedStatus(u.latest_status) ? "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-500/25" :
+                                      "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800"
                                     }`}>{u.latest_status}</span>
                                     {isFailedStatus(u.latest_status) && (
                                       <span title="Calculation failed — click row to view error" data-testid={`icon-status-failed-${i}`}>
@@ -3946,16 +3943,16 @@ export default function AdminPage() {
                                     )}
                                   </div>
                                 ) : (
-                                  <span className="text-[8px] text-slate-400 italic">Pending</span>
+                                  <span className="text-[8px] text-slate-400 dark:text-slate-500 italic">Pending</span>
                                 )}
                               </td>
-                              <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-ta-status-${i}`}>
+                              <td className="px-2 py-2.5 border-r border-slate-100 dark:border-slate-800/60" data-testid={`cell-ta-status-${i}`}>
                                 {u.latest_ta_status ? (
                                   <div className="flex items-center gap-1">
                                     <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[8px] font-semibold ${
-                                      u.latest_ta_status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" :
-                                      isFailedStatus(u.latest_ta_status) ? "bg-red-50 text-red-700 border border-red-200" :
-                                      "bg-slate-50 text-slate-600 border border-slate-200"
+                                      u.latest_ta_status.toLowerCase() === "success" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/25" :
+                                      isFailedStatus(u.latest_ta_status) ? "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-500/25" :
+                                      "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800"
                                     }`}>{u.latest_ta_status}</span>
                                     {isFailedStatus(u.latest_ta_status) && (
                                       <span title="Trust Attestation failed — click row to view error" data-testid={`icon-ta-status-failed-${i}`}>
@@ -3964,32 +3961,32 @@ export default function AdminPage() {
                                     )}
                                   </div>
                                 ) : (
-                                  <span className="text-[8px] text-slate-400 italic">Pending</span>
+                                  <span className="text-[8px] text-slate-400 dark:text-slate-500 italic">Pending</span>
                                 )}
                               </td>
-                              <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-algorithm-${i}`}>
+                              <td className="px-2 py-2.5 border-r border-slate-100 dark:border-slate-800/60" data-testid={`cell-algorithm-${i}`}>
                                 {u.latest_algorithm ? (
-                                  <span className="text-[9px] font-mono text-slate-600">{u.latest_algorithm}</span>
+                                  <span className="text-[9px] font-mono text-slate-600 dark:text-slate-300">{u.latest_algorithm}</span>
                                 ) : (
-                                  <span className="text-[8px] text-slate-400 italic">N/A</span>
+                                  <span className="text-[8px] text-slate-400 dark:text-slate-500 italic">N/A</span>
                                 )}
                               </td>
-                              <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-times-calc-${i}`}>
-                                <span className="text-[10px] font-mono text-slate-600 tabular-nums">{u.times_calculated}</span>
+                              <td className="px-2 py-2.5 border-r border-slate-100 dark:border-slate-800/60" data-testid={`cell-times-calc-${i}`}>
+                                <span className="text-[10px] font-mono text-slate-600 dark:text-slate-300 tabular-nums">{u.times_calculated}</span>
                               </td>
-                              <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-last-triggered-${i}`}>
+                              <td className="px-2 py-2.5 border-r border-slate-100 dark:border-slate-800/60" data-testid={`cell-last-triggered-${i}`}>
                                 <div>
-                                  <span className="text-[9px] text-slate-600 block">{formatTimestamp(u.last_triggered)}</span>
-                                  {timeAgo(u.last_triggered) && <span className="text-[8px] text-slate-400">{timeAgo(u.last_triggered)}</span>}
+                                  <span className="text-[9px] text-slate-600 dark:text-slate-300 block">{formatTimestamp(u.last_triggered)}</span>
+                                  {timeAgo(u.last_triggered) && <span className="text-[8px] text-slate-400 dark:text-slate-500">{timeAgo(u.last_triggered)}</span>}
                                 </div>
                               </td>
-                              <td className="px-2 py-2.5 border-r border-slate-100" data-testid={`cell-last-updated-${i}`}>
+                              <td className="px-2 py-2.5 border-r border-slate-100 dark:border-slate-800/60" data-testid={`cell-last-updated-${i}`}>
                                 <div>
-                                  <span className="text-[9px] text-slate-600 block">{formatTimestamp(u.last_updated)}</span>
-                                  {timeAgo(u.last_updated) && <span className="text-[8px] text-slate-400">{timeAgo(u.last_updated)}</span>}
+                                  <span className="text-[9px] text-slate-600 dark:text-slate-300 block">{formatTimestamp(u.last_updated)}</span>
+                                  {timeAgo(u.last_updated) && <span className="text-[8px] text-slate-400 dark:text-slate-500">{timeAgo(u.last_updated)}</span>}
                                 </div>
                               </td>
-                              <td className="px-2 py-2.5 border-r border-slate-100" onClick={(e) => e.stopPropagation()}>
+                              <td className="px-2 py-2.5 border-r border-slate-100 dark:border-slate-800/60" onClick={(e) => e.stopPropagation()}>
                                 {schedulingPolicies.length > 0 ? (
                                   <UserTierPicker
                                     pubkey={u.pubkey}
@@ -3998,15 +3995,15 @@ export default function AdminPage() {
                                     policies={schedulingPolicies}
                                   />
                                 ) : (
-                                  <span className="text-[9px] text-slate-500">{u.scheduling_name}</span>
+                                  <span className="text-[9px] text-slate-500 dark:text-slate-400">{u.scheduling_name}</span>
                                 )}
                               </td>
-                              <td className="px-2 py-2.5 text-center sticky right-0 z-10 bg-white group-hover:bg-slate-50 shadow-[-8px_0_10px_-8px_rgba(15,23,42,0.15)]">
+                              <td className="px-2 py-2.5 text-center sticky right-0 z-10 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-900 shadow-[-8px_0_10px_-8px_rgba(15,23,42,0.15)]">
                                 <div className="flex items-center gap-1 justify-center">
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="text-[10px] text-emerald-600 hover:text-emerald-800 no-default-hover-elevate no-default-active-elevate px-2 h-6"
+                                    className="text-[10px] text-emerald-600 hover:text-emerald-800 dark:text-emerald-300 no-default-hover-elevate no-default-active-elevate px-2 h-6"
                                     disabled={isTriggering || bulkRunning || bulkStatuses.get(u.pubkey) === "running"}
                                     title={bulkRunning || bulkStatuses.get(u.pubkey) === "running" ? "Bulk re-trigger in progress" : undefined}
                                     onClick={(e) => { e.stopPropagation(); setTriggerConfirmPubkey(u.pubkey); }}
@@ -4018,7 +4015,7 @@ export default function AdminPage() {
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="text-[10px] text-[#7c86ff] hover:text-[#333286] no-default-hover-elevate no-default-active-elevate px-2 h-6"
+                                    className="text-[10px] text-brand-accent hover:text-brand-deep no-default-hover-elevate no-default-active-elevate px-2 h-6"
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       window.history.replaceState({}, "", `/admin?tab=users&highlight=${u.pubkey}`);
@@ -4033,21 +4030,21 @@ export default function AdminPage() {
                               </td>
                             </tr>
                             {(isFailedStatus(u.latest_status) || isFailedStatus(u.latest_ta_status)) && !isExpanded && (
-                              <tr className="bg-red-50/40 border-b border-red-100" data-testid={`row-failure-summary-${i}`}>
+                              <tr className="bg-red-50/40 dark:bg-red-500/10 border-b border-red-100 dark:border-red-500/25" data-testid={`row-failure-summary-${i}`}>
                                 <td colSpan={13} className="px-3 py-1.5">
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <AlertTriangle className="h-3 w-3 text-red-500 shrink-0" />
-                                    <span className="text-[10px] text-red-800 font-medium">
+                                    <span className="text-[10px] text-red-800 dark:text-red-300 font-medium">
                                       {isFailedStatus(u.latest_status) && isFailedStatus(u.latest_ta_status)
                                         ? "GrapeRank and TA Attestation both failed on the most recent run."
                                         : isFailedStatus(u.latest_status)
                                           ? "GrapeRank calculation failed on the most recent run."
                                           : "TA Attestation failed on the most recent run."}
                                     </span>
-                                    <span className="text-[9px] text-red-600/80">Open the error history to see the full message.</span>
+                                    <span className="text-[9px] text-red-600/80 dark:text-red-400/80">Open the error history to see the full message.</span>
                                     <button
                                       onClick={(e) => { e.stopPropagation(); setExpandedRows(prev => { const next = new Set(prev); next.add(u.pubkey); return next; }); }}
-                                      className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold text-red-700 bg-white border border-red-300 hover:bg-red-100 transition-colors"
+                                      className="ml-auto inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-semibold text-red-700 dark:text-red-300 bg-white dark:bg-slate-900 border border-red-300 dark:border-red-500/30 hover:bg-red-100 dark:hover:bg-red-500/15 transition-colors"
                                       data-testid={`button-view-error-history-${i}`}
                                     >
                                       <Eye className="h-3 w-3" /> View error history
@@ -4069,18 +4066,18 @@ export default function AdminPage() {
               </div>
 
               {/* Mobile: stacked user cards (the wide table is md+ only) */}
-              <div className="md:hidden divide-y divide-slate-100" data-testid="cards-users">
+              <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-800/60" data-testid="cards-users">
                 {adminUsersQuery.isLoading && adminUsersList.length === 0 ? (
-                  <div className="px-4 py-10 text-center text-sm text-slate-400">
-                    <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2 text-slate-300" />
+                  <div className="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">
+                    <Loader2 className="h-5 w-5 animate-spin mx-auto mb-2 text-slate-300 dark:text-slate-600" />
                     Loading users...
                   </div>
                 ) : adminUsersQuery.isError ? (
                   <div className="px-4 py-10 text-center text-sm text-red-400">Failed to load users. Check your admin access.</div>
                 ) : adminUsersList.length === 0 ? (
-                  <div className="px-4 py-10 text-center text-sm text-slate-400">{userSearch ? "No users match your search" : "No user data available"}</div>
+                  <div className="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">{userSearch ? "No users match your search" : "No user data available"}</div>
                 ) : filteredUsersList.length === 0 ? (
-                  <div className="px-4 py-10 text-center text-sm text-slate-400">No users match the current filter</div>
+                  <div className="px-4 py-10 text-center text-sm text-slate-400 dark:text-slate-500">No users match the current filter</div>
                 ) : (
                   (activeNameSearch ? filteredUsersList.slice(userPage * pageSize, (userPage + 1) * pageSize) : filteredUsersList).map((u, i) => {
                     const prof = userProfiles.get(u.pubkey);
@@ -4092,7 +4089,7 @@ export default function AdminPage() {
                     const health = getUserHealth(u.latest_status, u.latest_ta_status, u.times_calculated);
                     const healthColors = { green: "bg-emerald-400", amber: "bg-amber-400", red: "bg-red-400", gray: "bg-slate-300" } as const;
                     return (
-                      <div key={u.pubkey} className={`p-3 ${highlightedPubkey === u.pubkey ? "animate-highlight-row" : "bg-white"}`} data-testid={`card-user-${i}`}>
+                      <div key={u.pubkey} className={`p-3 ${highlightedPubkey === u.pubkey ? "animate-highlight-row" : "bg-white dark:bg-slate-900"}`} data-testid={`card-user-${i}`}>
                         <div className="flex items-start gap-2.5">
                           <button
                             type="button"
@@ -4102,22 +4099,22 @@ export default function AdminPage() {
                             data-testid={`card-checkbox-user-${i}`}
                           >
                             {bs === "running" ? <Loader2 className="h-4 w-4 animate-spin text-amber-500" /> :
-                             bs === "success" ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> :
-                             bs === "failed" ? <XCircle className="h-4 w-4 text-red-600" /> :
-                             isSelected ? <CheckSquare className="h-4 w-4 text-[#333286]" /> :
-                             <Square className="h-4 w-4 text-slate-300" />}
+                             bs === "success" ? <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> :
+                             bs === "failed" ? <XCircle className="h-4 w-4 text-red-600 dark:text-red-400" /> :
+                             isSelected ? <CheckSquare className="h-4 w-4 text-brand-deep" /> :
+                             <Square className="h-4 w-4 text-slate-300 dark:text-slate-600" />}
                           </button>
                           <Avatar className="h-9 w-9 shrink-0">
                             {prof?.picture ? <AvatarImage src={prof.picture} alt={prof.name || "User"} className="object-cover" /> : null}
-                            <AvatarFallback className="bg-slate-100 border border-slate-200 text-[10px] text-slate-400">{prof?.name?.charAt(0)?.toUpperCase() || <Users className="h-4 w-4 text-slate-300" />}</AvatarFallback>
+                            <AvatarFallback className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-[10px] text-slate-400 dark:text-slate-500">{prof?.name?.charAt(0)?.toUpperCase() || <Users className="h-4 w-4 text-slate-300 dark:text-slate-600" />}</AvatarFallback>
                           </Avatar>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1.5">
                               <span className={`h-2 w-2 rounded-full shrink-0 ${healthColors[health]}`} />
-                              <span className="text-sm font-semibold text-slate-800 truncate">{prof?.name || npub.slice(0, 12) + "..."}</span>
+                              <span className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">{prof?.name || npub.slice(0, 12) + "..."}</span>
                             </div>
                             <div className="flex items-center gap-1 mt-0.5">
-                              <span className="text-[10px] font-mono text-indigo-500/80 truncate">{npub.slice(0, 16)}...{npub.slice(-4)}</span>
+                              <span className="text-[10px] font-mono text-brand-primary/80 truncate">{npub.slice(0, 16)}...{npub.slice(-4)}</span>
                               <CopyButton text={npub} />
                             </div>
                           </div>
@@ -4125,27 +4122,27 @@ export default function AdminPage() {
                             {schedulingPolicies.length > 0 ? (
                               <UserTierPicker pubkey={u.pubkey} schedulingId={u.scheduling_id} schedulingName={u.scheduling_name} policies={schedulingPolicies} />
                             ) : (
-                              <span className="text-[10px] text-slate-500">{u.scheduling_name}</span>
+                              <span className="text-[10px] text-slate-500 dark:text-slate-400">{u.scheduling_name}</span>
                             )}
                           </div>
                         </div>
 
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mt-2">
                           {u.latest_status && (
-                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold ${u.latest_status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : isFailedStatus(u.latest_status) ? "bg-red-50 text-red-700 border border-red-200" : "bg-slate-50 text-slate-600 border border-slate-200"}`}>{u.latest_status}</span>
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold ${u.latest_status.toLowerCase() === "success" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/25" : isFailedStatus(u.latest_status) ? "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-500/25" : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800"}`}>{u.latest_status}</span>
                           )}
                           {u.latest_ta_status && (
-                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold ${u.latest_ta_status.toLowerCase() === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : isFailedStatus(u.latest_ta_status) ? "bg-red-50 text-red-700 border border-red-200" : "bg-slate-50 text-slate-600 border border-slate-200"}`}>TA {u.latest_ta_status}</span>
+                            <span className={`inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-semibold ${u.latest_ta_status.toLowerCase() === "success" ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/25" : isFailedStatus(u.latest_ta_status) ? "bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-300 border border-red-200 dark:border-red-500/25" : "bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800"}`}>TA {u.latest_ta_status}</span>
                           )}
-                          <span className="text-[9px] text-slate-400 tabular-nums">{u.times_calculated} calcs</span>
-                          <span className="text-[9px] text-slate-400">· Updated {timeAgo(u.last_updated) || formatTimestamp(u.last_updated)}</span>
+                          <span className="text-[9px] text-slate-400 dark:text-slate-500 tabular-nums">{u.times_calculated} calcs</span>
+                          <span className="text-[9px] text-slate-400 dark:text-slate-500">· Updated {timeAgo(u.last_updated) || formatTimestamp(u.last_updated)}</span>
                         </div>
 
                         <div className="flex items-center gap-1 mt-2">
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="text-[11px] text-emerald-600 hover:text-emerald-800 no-default-hover-elevate no-default-active-elevate px-2 h-7"
+                            className="text-[11px] text-emerald-600 hover:text-emerald-800 dark:text-emerald-300 no-default-hover-elevate no-default-active-elevate px-2 h-7"
                             disabled={isTriggering || bulkRunning || bulkStatuses.get(u.pubkey) === "running"}
                             onClick={(e) => { e.stopPropagation(); setTriggerConfirmPubkey(u.pubkey); }}
                             data-testid={`card-button-trigger-${i}`}
@@ -4156,7 +4153,7 @@ export default function AdminPage() {
                           <Button
                             variant="ghost"
                             size="sm"
-                            className="text-[11px] text-[#7c86ff] hover:text-[#333286] no-default-hover-elevate no-default-active-elevate px-2 h-7"
+                            className="text-[11px] text-brand-accent hover:text-brand-deep no-default-hover-elevate no-default-active-elevate px-2 h-7"
                             onClick={(e) => { e.stopPropagation(); window.history.replaceState({}, "", `/admin?tab=users&highlight=${u.pubkey}`); navigate(`/profile/${npub}?from=admin&pubkey=${u.pubkey}`); }}
                             data-testid={`card-button-view-${i}`}
                           >
@@ -4170,22 +4167,22 @@ export default function AdminPage() {
                 )}
               </div>
 
-              <div className="px-3 sm:px-5 py-3 border-t border-slate-100 flex flex-wrap items-center gap-2 sm:gap-3">
+              <div className="px-3 sm:px-5 py-3 border-t border-slate-100 dark:border-slate-800/60 flex flex-wrap items-center gap-2 sm:gap-3">
                 <div className="flex items-center gap-1.5">
                   <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                  <span className="text-[9px] text-slate-500">Data from /admin/users</span>
+                  <span className="text-[9px] text-slate-500 dark:text-slate-400">Data from /admin/users</span>
                 </div>
                 {adminUsersQuery.isFetching && (
                   <div className="flex items-center gap-1.5 ml-auto">
-                    <Loader2 className="h-3 w-3 animate-spin text-slate-400" />
-                    <span className="text-[9px] text-slate-400">Refreshing...</span>
+                    <Loader2 className="h-3 w-3 animate-spin text-slate-400 dark:text-slate-500" />
+                    <span className="text-[9px] text-slate-400 dark:text-slate-500">Refreshing...</span>
                   </div>
                 )}
               </div>
 
               {totalPages > 1 && (
-                <div className="px-3 sm:px-5 py-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2" data-testid="pagination-users">
-                  <span className="text-xs text-slate-500">
+                <div className="px-3 sm:px-5 py-3 border-t border-slate-100 dark:border-slate-800/60 flex flex-wrap items-center justify-between gap-2" data-testid="pagination-users">
+                  <span className="text-xs text-slate-500 dark:text-slate-400">
                     Page {userPage + 1} of {totalPages} ({(activeNameSearch ? filteredUsersList.length : adminUsersTotal).toLocaleString()} total)
                   </span>
                   <div className="flex items-center gap-1">
@@ -4218,18 +4215,18 @@ export default function AdminPage() {
               <DialogContent className="sm:max-w-md">
                 <DialogHeader>
                   <DialogTitle className="flex items-center gap-2">
-                    <Play className="h-5 w-5 text-emerald-600" />
+                    <Play className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                     Confirm GrapeRank Trigger
                   </DialogTitle>
-                  <DialogDescription className="text-sm text-slate-600 pt-1">
+                  <DialogDescription className="text-sm text-slate-600 dark:text-slate-300 pt-1">
                     You are about to manually trigger a GrapeRank calculation. Please review the details below before confirming.
                   </DialogDescription>
                 </DialogHeader>
                 {triggerConfirmPubkey && (
                   <div className="pt-2 space-y-4">
-                    <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-2">What happens when you confirm</p>
-                      <ul className="text-xs text-amber-900 space-y-1.5 list-disc list-inside">
+                    <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/25">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 mb-2">What happens when you confirm</p>
+                      <ul className="text-xs text-amber-900 dark:text-amber-200 space-y-1.5 list-disc list-inside">
                         <li>A GrapeRank calculation request is sent to the Brainstorm server for this user's pubkey</li>
                         <li>The server crawls the user's Nostr social graph — follows, mutes, and interactions — to compute personalized trust scores</li>
                         <li>This is <span className="font-semibold">resource-intensive</span> and may take several minutes depending on graph size</li>
@@ -4237,13 +4234,13 @@ export default function AdminPage() {
                         <li>If a calculation is already running for this user, a duplicate request may be queued</li>
                       </ul>
                     </div>
-                    <div className="p-3.5 rounded-xl bg-blue-50 border border-blue-200">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700 mb-1.5">Good to know</p>
-                      <p className="text-xs text-blue-800">GrapeRank scores are calculated relative to the user's own social graph. Each user's Web of Trust is unique. Triggering this does not affect other users' scores.</p>
+                    <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/25">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300 mb-1.5">Good to know</p>
+                      <p className="text-xs text-blue-800 dark:text-blue-300">GrapeRank scores are calculated relative to the user's own social graph. Each user's Web of Trust is unique. Triggering this does not affect other users' scores.</p>
                     </div>
-                    <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Target Pubkey</p>
-                      <p className="text-xs font-mono text-slate-800 break-all" data-testid="text-trigger-confirm-pubkey">{triggerConfirmPubkey}</p>
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Target Pubkey</p>
+                      <p className="text-xs font-mono text-slate-800 dark:text-slate-200 break-all" data-testid="text-trigger-confirm-pubkey">{triggerConfirmPubkey}</p>
                     </div>
                     <div className="flex justify-end gap-2">
                       <Button
@@ -4279,21 +4276,19 @@ export default function AdminPage() {
 
           {activeTab === "scheduling" && (
             <div className="grid grid-cols-1 gap-6" data-testid="panel-scheduling">
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-scheduling-policies">
-                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Scheduling Policies</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Tier cadences for automatic GrapeRank recalculation</p>
+              <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-scheduling-policies">
+                <div className="px-5 py-4 border-b border-brand-accent/10">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Scheduling Policies</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Tier cadences for automatic GrapeRank recalculation</p>
                 </div>
                 <div className="px-5 py-4">
                   <SchedulingCard active={activeTab === "scheduling"} />
                 </div>
               </div>
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-scheduling-stats">
-                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Scheduler Health</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Throughput, demand, queue depths and per-tier slip</p>
+              <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-scheduling-stats">
+                <div className="px-5 py-4 border-b border-brand-accent/10">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Scheduler Health</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Throughput, demand, queue depths and per-tier slip</p>
                 </div>
                 <div className="px-5 py-4">
                   <SchedulingStatsPanel active={activeTab === "scheduling"} />
@@ -4305,11 +4300,10 @@ export default function AdminPage() {
           {activeTab === "health" && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" data-testid="panel-health">
 
-              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-api-health">
-                <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-                <div className="px-5 py-4 border-b border-[#7c86ff]/10">
-                  <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>API Health</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Live endpoint status from active queries</p>
+              <div className="lg:col-span-2 rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-api-health">
+                <div className="px-5 py-4 border-b border-brand-accent/10">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>API Health</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Live endpoint status from active queries</p>
                 </div>
                 <div className="p-5 space-y-3">
                   {[
@@ -4319,24 +4313,24 @@ export default function AdminPage() {
                     { name: "/admin/users", ok: adminUsersQuery.isSuccess, loading: adminUsersQuery.isLoading, error: adminUsersQuery.isError, description: "Platform user database" },
                     { name: "/admin/activity", ok: adminActivityQuery.isSuccess || !adminActivityQuery.isError, loading: adminActivityQuery.isLoading, error: adminActivityQuery.isError, description: "Platform calculation activity" },
                   ].map(ep => (
-                    <div key={ep.name} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 p-3 rounded-xl bg-white/50 border border-slate-100" data-testid={`health-ep-${ep.name.replace(/[\/*]/g, "-")}`}>
+                    <div key={ep.name} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 p-3 rounded-xl bg-white/50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/60" data-testid={`health-ep-${ep.name.replace(/[\/*]/g, "-")}`}>
                       <div className="flex items-center gap-3">
                         {ep.loading ? (
-                          <Loader2 className="h-4 w-4 text-slate-400 animate-spin shrink-0" />
+                          <Loader2 className="h-4 w-4 text-slate-400 dark:text-slate-500 animate-spin shrink-0" />
                         ) : ep.ok ? (
                           <CheckCircle2 className="h-4 w-4 text-emerald-500 shrink-0" />
                         ) : (
                           <XCircle className="h-4 w-4 text-red-400 shrink-0" />
                         )}
                         <div>
-                          <span className="text-xs font-mono font-semibold text-slate-800">{ep.name}</span>
-                          <p className="text-[10px] text-slate-400">{ep.description}</p>
+                          <span className="text-xs font-mono font-semibold text-slate-800 dark:text-slate-200">{ep.name}</span>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500">{ep.description}</p>
                         </div>
                       </div>
                       <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full ${
-                        ep.loading ? "bg-slate-50 text-slate-500 border border-slate-200" :
-                        ep.ok ? "bg-emerald-50 text-emerald-600 border border-emerald-200" :
-                        "bg-red-50 text-red-600 border border-red-200"
+                        ep.loading ? "bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-800" :
+                        ep.ok ? "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/25" :
+                        "bg-red-50 dark:bg-red-500/10 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-500/25"
                       }`}>
                         {ep.loading ? "Loading" : ep.ok ? "Healthy" : "Error"}
                       </span>
@@ -4345,12 +4339,11 @@ export default function AdminPage() {
                 </div>
               </div>
 
-              <div className="lg:col-span-2 rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-relay-status">
-                <div className="h-1 w-full bg-gradient-to-r from-emerald-400 via-teal-500 to-emerald-400" />
-                <div className="px-4 sm:px-5 py-4 border-b border-[#7c86ff]/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="lg:col-span-2 rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-relay-status">
+                <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Relay Connectivity</h3>
-                    <p className="text-xs text-slate-500 mt-0.5">Live WebSocket latency probes</p>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Relay Connectivity</h3>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Live WebSocket latency probes</p>
                   </div>
                   <Button
                     variant="ghost"
@@ -4369,35 +4362,35 @@ export default function AdminPage() {
                     const latencyInfo = relayLatencies.find(r => r.url === relay);
                     const relayStatus = latencyInfo?.status ?? (relayCheckRunning ? "degraded" as const : "connected" as const);
                     return (
-                      <div key={relay} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 p-3 rounded-xl bg-white/60 border border-slate-100" data-testid={`relay-row-${idx}`}>
+                      <div key={relay} className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 p-3 rounded-xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60" data-testid={`relay-row-${idx}`}>
                         <div className="flex items-center gap-3 min-w-0">
                           <div className={`h-8 w-8 rounded-lg flex items-center justify-center ${
-                            relayStatus === "connected" ? "bg-emerald-50 border border-emerald-200" :
-                            relayStatus === "degraded" ? "bg-amber-50 border border-amber-200" :
-                            "bg-red-50 border border-red-200"
+                            relayStatus === "connected" ? "bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25" :
+                            relayStatus === "degraded" ? "bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/25" :
+                            "bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25"
                           }`}>
                             {relayStatus === "disconnected" ? (
-                              <WifiOff className="h-4 w-4 text-red-600" />
+                              <WifiOff className="h-4 w-4 text-red-600 dark:text-red-400" />
                             ) : (
-                              <Wifi className={`h-4 w-4 ${relayStatus === "connected" ? "text-emerald-600" : "text-amber-600"}`} />
+                              <Wifi className={`h-4 w-4 ${relayStatus === "connected" ? "text-emerald-600" : "text-amber-600 dark:text-amber-400"}`} />
                             )}
                           </div>
                           <div>
-                            <p className="text-xs font-semibold text-slate-800">{relay === PRIMARY_RELAY ? "DCoSL Relay (primary)" : "Profile Relay"}</p>
-                            <p className="text-[10px] font-mono text-slate-400 truncate max-w-[200px] sm:max-w-none">{relay}</p>
+                            <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">{relay === PRIMARY_RELAY ? "DCoSL Relay (primary)" : "Profile Relay"}</p>
+                            <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500 truncate max-w-[200px] sm:max-w-none">{relay}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-3">
                           {latencyInfo?.latencyMs !== null && latencyInfo?.latencyMs !== undefined && (
                             <span className={`text-[10px] font-mono font-bold tabular-nums ${
-                              latencyInfo.latencyMs < 500 ? "text-emerald-600" :
-                              latencyInfo.latencyMs < 2000 ? "text-amber-600" : "text-red-600"
+                              latencyInfo.latencyMs < 500 ? "text-emerald-600 dark:text-emerald-400" :
+                              latencyInfo.latencyMs < 2000 ? "text-amber-600 dark:text-amber-400" : "text-red-600"
                             }`} data-testid={`relay-latency-${idx}`}>
                               {latencyInfo.latencyMs}ms
                             </span>
                           )}
                           {relayCheckRunning && !latencyInfo && (
-                            <span className="text-[10px] text-slate-400 animate-pulse">Probing...</span>
+                            <span className="text-[10px] text-slate-400 dark:text-slate-500 animate-pulse">Probing...</span>
                           )}
                           <StatusBadge status={relayStatus} />
                         </div>
@@ -4405,7 +4398,7 @@ export default function AdminPage() {
                     );
                   })}
                   {relayLatencies.length > 0 && (
-                    <p className="text-[10px] text-slate-400 pt-2">
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 pt-2">
                       Last checked: {relayLatencies[0].checkedAt.toLocaleTimeString()} · Avg latency: {
                         Math.round(relayLatencies.filter(r => r.latencyMs !== null).reduce((s, r) => s + (r.latencyMs ?? 0), 0) / Math.max(1, relayLatencies.filter(r => r.latencyMs !== null).length))
                       }ms
@@ -4480,14 +4473,13 @@ export default function AdminPage() {
                 const presets: ActivityTimeRange[] = ["1h", "24h", "7d", "all"];
 
                 return (
-                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-activity-summary">
-                    <div className="h-1 w-full bg-gradient-to-r from-[#7c86ff] via-[#333286] to-[#7c86ff]" />
-                    <div className="px-4 sm:px-5 py-4 border-b border-[#7c86ff]/10">
+                  <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-activity-summary">
+                    <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                         <div className="flex items-center gap-2 min-w-0">
                           <div>
-                            <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Activity Summary</h3>
-                            <p className="text-xs text-slate-500 mt-0.5">Platform-wide throughput — <span className="font-semibold text-[#333286]">{rangeLabels[activityTimeRange]}</span></p>
+                            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Activity Summary</h3>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Platform-wide throughput — <span className="font-semibold text-brand-deep">{rangeLabels[activityTimeRange]}</span></p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
@@ -4501,8 +4493,8 @@ export default function AdminPage() {
                             onClick={() => setActivityTimeRange(p)}
                             className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition-all ${
                               activityTimeRange === p
-                                ? "bg-[#333286] text-white shadow-md shadow-indigo-200"
-                                : "bg-white/70 text-slate-600 border border-slate-200 hover:bg-indigo-50 hover:border-indigo-200 hover:text-[#333286]"
+                                ? "bg-brand-deep text-white shadow-md shadow-brand-primary/20"
+                                : "bg-white/70 dark:bg-slate-900/70 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-800 hover:bg-brand-primary/10 hover:border-brand-primary/20 hover:text-brand-deep"
                             }`}
                             data-testid={`time-range-${p}`}
                           >
@@ -4512,71 +4504,71 @@ export default function AdminPage() {
                       </div>
                       <div className="mt-3 sm:hidden" data-testid="time-range-selector-mobile">
                         <div className="relative">
-                          <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-[#333286] pointer-events-none" />
+                          <Calendar className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-brand-deep pointer-events-none" />
                           <select
                             value={activityTimeRange}
                             onChange={e => setActivityTimeRange(e.target.value as ActivityTimeRange)}
-                            className="w-full appearance-none pl-8 pr-8 py-2 rounded-lg text-xs font-semibold bg-white border border-[#7c86ff]/30 text-slate-700 focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/30 focus:border-[#7c86ff]/40 shadow-sm"
+                            className="w-full appearance-none pl-8 pr-8 py-2 rounded-lg text-xs font-semibold bg-white dark:bg-slate-900 border border-brand-accent/30 text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40 shadow-sm"
                             data-testid="select-time-range-mobile"
                           >
                             {presets.map(p => (
                               <option key={p} value={p}>{rangeLabels[p]}</option>
                             ))}
                           </select>
-                          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
+                          <ChevronDown className="absolute right-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400 dark:text-slate-500 pointer-events-none" />
                         </div>
                       </div>
                       {activityTimeRange !== "24h" && (
-                        <p className="mt-2 text-[9px] text-slate-400 italic">Based on the latest {activityCoverage.count} activity records (backend cap). Longer ranges may not reflect full history.</p>
+                        <p className="mt-2 text-[9px] text-slate-400 dark:text-slate-500 italic">Based on the latest {activityCoverage.count} activity records (backend cap). Longer ranges may not reflect full history.</p>
                       )}
                     </div>
                     <div className="p-4 sm:p-5">
                       {actSummaryLoading ? (
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 animate-pulse">
-                          {[1,2,3,4,5,6].map(i => <div key={i} className="h-20 bg-slate-100 rounded-xl" />)}
+                          {[1,2,3,4,5,6].map(i => <div key={i} className="h-20 bg-slate-100 dark:bg-slate-800 rounded-xl" />)}
                         </div>
                       ) : (
                         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-                          <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid="summary-total">
-                            <Activity className="h-4 w-4 text-[#333286] mx-auto mb-1" />
-                            <p className="text-lg font-bold text-slate-900">{filteredTotal.toLocaleString()}</p>
-                            <p className="text-[10px] text-slate-500">{rangeShort[activityTimeRange]} Requests</p>
+                          <div className="p-3 rounded-xl bg-white/50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/60 text-center" data-testid="summary-total">
+                            <Activity className="h-4 w-4 text-brand-deep mx-auto mb-1" />
+                            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">{filteredTotal.toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400">{rangeShort[activityTimeRange]} Requests</p>
                           </div>
-                          <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid="summary-success">
+                          <div className="p-3 rounded-xl bg-white/50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/60 text-center" data-testid="summary-success">
                             <CheckCircle2 className="h-4 w-4 text-emerald-500 mx-auto mb-1" />
-                            <p className="text-lg font-bold text-emerald-600">{filteredSuccess.toLocaleString()}</p>
-                            <p className="text-[10px] text-slate-500">{rangeShort[activityTimeRange]} Succeeded</p>
+                            <p className="text-lg font-bold text-emerald-600 dark:text-emerald-400">{filteredSuccess.toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400">{rangeShort[activityTimeRange]} Succeeded</p>
                           </div>
-                          <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid="summary-failed">
+                          <div className="p-3 rounded-xl bg-white/50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/60 text-center" data-testid="summary-failed">
                             <XCircle className="h-4 w-4 text-red-400 mx-auto mb-1" />
                             <p className="text-lg font-bold text-red-500">{filteredFailed.toLocaleString()}</p>
-                            <p className="text-[10px] text-slate-500">{rangeShort[activityTimeRange]} Failed</p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400">{rangeShort[activityTimeRange]} Failed</p>
                           </div>
-                          <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid="summary-unique-users">
+                          <div className="p-3 rounded-xl bg-white/50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/60 text-center" data-testid="summary-unique-users">
                             <Users className="h-4 w-4 text-blue-500 mx-auto mb-1" />
-                            <p className="text-lg font-bold text-slate-900">{uniquePubkeys.toLocaleString()}</p>
-                            <p className="text-[10px] text-slate-500">{rangeShort[activityTimeRange]} Active Users</p>
+                            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">{uniquePubkeys.toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400">{rangeShort[activityTimeRange]} Active Users</p>
                           </div>
-                          <div className="p-3 rounded-xl bg-white/50 border border-slate-100 text-center" data-testid="summary-total-calcs">
-                            <Hash className="h-4 w-4 text-[#333286] mx-auto mb-1" />
-                            <p className="text-lg font-bold text-slate-900">{totalCalcsAll.toLocaleString()}</p>
-                            <p className="text-[10px] text-slate-500">Total Calculations</p>
+                          <div className="p-3 rounded-xl bg-white/50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/60 text-center" data-testid="summary-total-calcs">
+                            <Hash className="h-4 w-4 text-brand-deep mx-auto mb-1" />
+                            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">{totalCalcsAll.toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400">Total Calculations</p>
                           </div>
                           <button
                             type="button"
                             onClick={() => { setKpiFilter("failed"); setActiveTab("users"); setUserPage(0); }}
-                            className="w-full h-full p-3 rounded-xl bg-white/50 border border-slate-100 text-center hover:bg-red-50 hover:border-red-200 transition-colors cursor-pointer"
+                            className="w-full h-full p-3 rounded-xl bg-white/50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/60 text-center hover:bg-red-50 hover:border-red-200 transition-colors cursor-pointer"
                             data-testid="summary-failed-users"
                             title="Click to view users with failures"
                           >
                             <AlertTriangle className="h-4 w-4 text-amber-500 mx-auto mb-1" />
-                            <p className="text-lg font-bold text-slate-900">{failedUsers.toLocaleString()}</p>
-                            <p className="text-[10px] text-slate-500">Users w/ Failures</p>
+                            <p className="text-lg font-bold text-slate-900 dark:text-slate-100">{failedUsers.toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400">Users w/ Failures</p>
                           </button>
                         </div>
                       )}
                       {lastActivityTs && !actSummaryLoading && (
-                        <p className="text-[10px] text-slate-400 mt-3">
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-3">
                           Last platform activity: {(() => {
                             try {
                               const d = new Date(lastActivityTs.endsWith("Z") ? lastActivityTs : lastActivityTs + "Z");
@@ -4607,16 +4599,15 @@ export default function AdminPage() {
                 }}
               />
 
-              <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-platform-activity">
-                <div className="h-1 w-full bg-gradient-to-r from-indigo-400 via-blue-500 to-indigo-400" />
-                <div className="px-4 sm:px-5 py-4 border-b border-[#7c86ff]/10">
+              <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-platform-activity">
+                <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10">
                   <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
-                      <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Platform Activity</h3>
-                      <p className="text-xs text-slate-500 mt-0.5">All GrapeRank calculation records from /admin/activity</p>
+                      <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Platform Activity</h3>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">All GrapeRank calculation records from /admin/activity</p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-[10px] text-slate-400">{activityTotal.toLocaleString()} total</span>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500">{activityTotal.toLocaleString()} total</span>
                       <LiveBadge updatedAt={adminActivityQuery.dataUpdatedAt} boosting={isBoostActive} isFetching={adminActivityQuery.isFetching} />
                       <StatusBadge status={adminActivityQuery.isSuccess ? "connected" : adminActivityQuery.isError ? "disconnected" : adminActivityQuery.fetchStatus === "idle" && !adminActivityQuery.isError ? "connected" : "degraded"} />
                     </div>
@@ -4625,19 +4616,19 @@ export default function AdminPage() {
                 <div className="p-3 sm:p-5">
                   {adminActivityQuery.isLoading && !activityItems.length ? (
                     <div className="space-y-2 animate-pulse">
-                      {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-8 bg-slate-100 rounded-lg" />)}
+                      {[1, 2, 3, 4, 5].map(i => <div key={i} className="h-8 bg-slate-100 dark:bg-slate-800 rounded-lg" />)}
                     </div>
                   ) : adminActivityQuery.isError ? (
                     <div className="text-center py-8">
                       <XCircle className="h-8 w-8 text-red-300 mx-auto mb-2" />
-                      <p className="text-sm font-semibold text-slate-500">Failed to load activity</p>
-                      <p className="text-[10px] text-slate-400 mt-1">{adminActivityQuery.error instanceof Error ? adminActivityQuery.error.message : "Unknown error"}</p>
+                      <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Failed to load activity</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">{adminActivityQuery.error instanceof Error ? adminActivityQuery.error.message : "Unknown error"}</p>
                     </div>
                   ) : activityItems.length === 0 ? (
                     <div className="text-center py-8">
-                      <Activity className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                      <p className="text-sm font-semibold text-slate-400">No activity records</p>
-                      <p className="text-[10px] text-slate-400 mt-1">No GrapeRank calculations have been recorded yet.</p>
+                      <Activity className="h-8 w-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                      <p className="text-sm font-semibold text-slate-400 dark:text-slate-500">No activity records</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">No GrapeRank calculations have been recorded yet.</p>
                     </div>
                   ) : (
                     <>
@@ -4649,14 +4640,14 @@ export default function AdminPage() {
                         const liveTotal = bulkRunning ? bulkStatuses.size : 0;
                         const liveFailed = bulkRunning ? Array.from(bulkStatuses.values()).filter(s => s === "failed").length : 0;
                         return (
-                          <div className="mb-3 px-3 py-2 rounded-xl bg-indigo-50/70 border border-[#7c86ff]/30 flex flex-wrap items-center gap-2" data-testid="bulk-toolbar-activity">
-                            <CheckSquare className="h-4 w-4 text-[#333286]" />
-                            <span className="text-xs font-semibold text-slate-800">
+                          <div className="mb-3 px-3 py-2 rounded-xl bg-brand-primary/10 dark:bg-brand-primary/10 border border-brand-accent/30 flex flex-wrap items-center gap-2" data-testid="bulk-toolbar-activity">
+                            <CheckSquare className="h-4 w-4 text-brand-deep" />
+                            <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                               {selectedCount} selected
-                              {dedupePubkeys.length !== selectedCount && <span className="text-slate-500 font-normal"> ({dedupePubkeys.length} unique)</span>}
+                              {dedupePubkeys.length !== selectedCount && <span className="text-slate-500 dark:text-slate-400 font-normal"> ({dedupePubkeys.length} unique)</span>}
                             </span>
                             {bulkRunning && (
-                              <span className="text-[10px] text-amber-700 font-medium" data-testid="bulk-progress-activity">
+                              <span className="text-[10px] text-amber-700 dark:text-amber-300 font-medium" data-testid="bulk-progress-activity">
                                 {liveCount} of {liveTotal} triggered… {liveFailed > 0 ? `${liveFailed} failed` : ""}
                               </span>
                             )}
@@ -4665,7 +4656,7 @@ export default function AdminPage() {
                                 size="sm"
                                 onClick={() => setBulkConfirm({ pubkeys: dedupePubkeys, source: "activity" })}
                                 disabled={bulkRunning || dedupePubkeys.length === 0}
-                                className="text-xs gap-1.5 h-7 no-default-hover-elevate no-default-active-elevate bg-[#333286] hover:bg-[#7c86ff] text-white"
+                                className="text-xs gap-1.5 h-7 no-default-hover-elevate no-default-active-elevate bg-brand-deep hover:bg-brand-accent text-white"
                                 data-testid="button-bulk-retrigger-activity"
                               >
                                 {bulkRunning ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
@@ -4674,7 +4665,7 @@ export default function AdminPage() {
                               <button
                                 onClick={() => setSelectedActivityRows(new Map())}
                                 disabled={bulkRunning}
-                                className="text-[10px] text-slate-500 hover:text-slate-800 disabled:opacity-40"
+                                className="text-[10px] text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 disabled:opacity-40"
                                 data-testid="button-bulk-clear-activity"
                               >
                                 Clear selection
@@ -4684,9 +4675,9 @@ export default function AdminPage() {
                         );
                       })()}
                       {bulkLastResult && bulkLastResult.source === "activity" && (
-                        <div className={`mb-3 px-3 py-2 rounded-xl border flex flex-wrap items-center gap-2 ${bulkLastResult.failures.length === 0 ? "bg-emerald-50/70 border-emerald-300/50" : "bg-red-50/60 border-red-300/50"}`} data-testid="bulk-result-activity">
-                          {bulkLastResult.failures.length === 0 ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 text-red-600" />}
-                          <span className="text-xs font-semibold text-slate-800">
+                        <div className={`mb-3 px-3 py-2 rounded-xl border flex flex-wrap items-center gap-2 ${bulkLastResult.failures.length === 0 ? "bg-emerald-50/70 dark:bg-emerald-500/10 border-emerald-300/50 dark:border-emerald-500/30" : "bg-red-50/60 dark:bg-red-500/10 border-red-300/50 dark:border-red-500/30"}`} data-testid="bulk-result-activity">
+                          {bulkLastResult.failures.length === 0 ? <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" /> : <AlertTriangle className="h-4 w-4 text-red-600 dark:text-red-400" />}
+                          <span className="text-xs font-semibold text-slate-800 dark:text-slate-200">
                             {bulkLastResult.successes.length} succeeded · {bulkLastResult.failures.length} failed
                           </span>
                           <div className="ml-auto flex items-center gap-2">
@@ -4704,7 +4695,7 @@ export default function AdminPage() {
                             )}
                             <button
                               onClick={() => setBulkLastResult(null)}
-                              className="text-[10px] text-slate-500 hover:text-slate-800"
+                              className="text-[10px] text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
                               data-testid="button-bulk-dismiss-activity"
                             >
                               Dismiss
@@ -4712,11 +4703,11 @@ export default function AdminPage() {
                           </div>
                           {bulkLastResult.failures.length > 0 && (
                             <details className="basis-full mt-1.5">
-                              <summary className="text-[10px] font-semibold text-red-700 cursor-pointer select-none">View failure details ({bulkLastResult.failures.length})</summary>
+                              <summary className="text-[10px] font-semibold text-red-700 dark:text-red-300 cursor-pointer select-none">View failure details ({bulkLastResult.failures.length})</summary>
                               <ul className="mt-1.5 space-y-0.5 max-h-40 overflow-auto" data-testid="list-bulk-errors-activity">
                                 {bulkLastResult.failures.map((f, i) => (
-                                  <li key={`${f.pubkey}-${i}`} className="text-[10px] font-mono text-red-900/90 truncate" title={`${f.pubkey}: ${f.error}`}>
-                                    <span className="text-red-600">{f.pubkey.slice(0, 12)}…</span> — {f.error}
+                                  <li key={`${f.pubkey}-${i}`} className="text-[10px] font-mono text-red-900/90 dark:text-red-300/90 truncate" title={`${f.pubkey}: ${f.error}`}>
+                                    <span className="text-red-600 dark:text-red-400">{f.pubkey.slice(0, 12)}…</span> — {f.error}
                                   </li>
                                 ))}
                               </ul>
@@ -4727,7 +4718,7 @@ export default function AdminPage() {
                       <div className="overflow-x-auto">
                         <table className="w-full text-left min-w-[780px]" data-testid="table-platform-activity">
                           <thead>
-                            <tr className="border-b border-slate-200/60">
+                            <tr className="border-b border-slate-200/60 dark:border-slate-800/60">
                               <th className="px-2 py-2 w-8">
                                 {(() => {
                                   const eligible = activityItems.filter(a => !!a.pubkey && a.private_id !== undefined && a.private_id !== null);
@@ -4749,25 +4740,25 @@ export default function AdminPage() {
                                       data-testid="checkbox-activity-select-all"
                                       disabled={eligible.length === 0}
                                     >
-                                      {allSelected ? <CheckSquare className="h-3.5 w-3.5 text-[#333286]" /> :
-                                       someSelected ? <MinusSquare className="h-3.5 w-3.5 text-[#333286]" /> :
-                                       <Square className={`h-3.5 w-3.5 ${eligible.length ? "text-slate-400" : "text-slate-200"}`} />}
+                                      {allSelected ? <CheckSquare className="h-3.5 w-3.5 text-brand-deep" /> :
+                                       someSelected ? <MinusSquare className="h-3.5 w-3.5 text-brand-deep" /> :
+                                       <Square className={`h-3.5 w-3.5 ${eligible.length ? "text-slate-400 dark:text-slate-500" : "text-slate-200"}`} />}
                                     </button>
                                   );
                                 })()}
                               </th>
-                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Created</th>
-                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Updated</th>
-                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500" title="Time from created to updated">Duration</th>
-                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">User</th>
-                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Source</th>
-                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Status</th>
-                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">TA Status</th>
-                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Pub Status</th>
-                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Algorithm</th>
-                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Queue</th>
-                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Req #</th>
-                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center">Actions</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Created</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Updated</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400" title="Time from created to updated">Duration</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">User</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Source</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Status</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">TA Status</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Pub Status</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Algorithm</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Queue</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Req #</th>
+                              <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 text-center">Actions</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -4798,11 +4789,11 @@ export default function AdminPage() {
                           </tbody>
                         </table>
                       </div>
-                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mt-4 pt-3 border-t border-slate-100">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/60">
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-slate-500">Rows per page:</span>
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400">Rows per page:</span>
                           <select
-                            className="text-[10px] border border-slate-200 rounded px-1.5 py-1 bg-white text-slate-700"
+                            className="text-[10px] border border-slate-200 dark:border-slate-800 rounded px-1.5 py-1 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200"
                             value={activityPageSize}
                             onChange={(e) => { setActivityPageSize(Number(e.target.value) as PageSizeOption); setActivityPage(0); }}
                             data-testid="select-activity-page-size"
@@ -4813,12 +4804,12 @@ export default function AdminPage() {
                           </select>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-slate-500">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400">
                             Page {activityPage + 1} of {activityTotalPages}
                           </span>
                           <div className="flex gap-1">
                             <button
-                              className="px-2 py-1 rounded text-[10px] border border-slate-200 bg-white text-slate-600 disabled:opacity-40 hover:bg-slate-50"
+                              className="px-2 py-1 rounded text-[10px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-900"
                               disabled={activityPage === 0}
                               onClick={() => setActivityPage(p => Math.max(0, p - 1))}
                               data-testid="button-activity-prev"
@@ -4826,7 +4817,7 @@ export default function AdminPage() {
                               Prev
                             </button>
                             <button
-                              className="px-2 py-1 rounded text-[10px] border border-slate-200 bg-white text-slate-600 disabled:opacity-40 hover:bg-slate-50"
+                              className="px-2 py-1 rounded text-[10px] border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-900"
                               disabled={activityPage + 1 >= activityTotalPages}
                               onClick={() => setActivityPage(p => p + 1)}
                               data-testid="button-activity-next"
@@ -4836,7 +4827,7 @@ export default function AdminPage() {
                           </div>
                         </div>
                       </div>
-                      <p className="text-[10px] text-slate-400 mt-2 italic">Click any row to expand details. Use the re-trigger button to re-run GrapeRank for that user.</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-2 italic">Click any row to expand details. Use the re-trigger button to re-run GrapeRank for that user.</p>
                     </>
                   )}
                 </div>
@@ -4846,32 +4837,32 @@ export default function AdminPage() {
                 <DialogContent className="sm:max-w-xl max-h-[80vh] overflow-y-auto">
                   <DialogHeader>
                     <DialogTitle className="flex items-center gap-2">
-                      <FileText className="h-5 w-5 text-[#333286]" />
+                      <FileText className="h-5 w-5 text-brand-deep" />
                       Brainstorm Request #{detailRequestId}
                     </DialogTitle>
-                    <DialogDescription className="text-sm text-slate-600 pt-1">
+                    <DialogDescription className="text-sm text-slate-600 dark:text-slate-300 pt-1">
                       Full request details for request #{detailRequestId}
                     </DialogDescription>
                   </DialogHeader>
                   <div className="pt-2">
                     {detailLoading && (
                       <div className="flex items-center justify-center py-8">
-                        <Loader2 className="h-6 w-6 animate-spin text-[#333286]" />
-                        <span className="ml-2 text-sm text-slate-500">Loading request detail...</span>
+                        <Loader2 className="h-6 w-6 animate-spin text-brand-deep" />
+                        <span className="ml-2 text-sm text-slate-500 dark:text-slate-400">Loading request detail...</span>
                       </div>
                     )}
                     {detailError && (
-                      <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 border border-red-200" data-testid="detail-error">
+                      <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25" data-testid="detail-error">
                         <XCircle className="h-4 w-4 text-red-500 shrink-0 mt-0.5" />
-                        <p className="text-xs text-red-700">{detailError}</p>
+                        <p className="text-xs text-red-700 dark:text-red-300">{detailError}</p>
                       </div>
                     )}
                     {detailData && (
                       <div className="space-y-2" data-testid="detail-fields">
                         {Object.entries(detailData).filter(([, value]) => value !== null && value !== undefined && value !== "").map(([key, value]) => (
-                          <div key={key} className="flex items-start justify-between p-2.5 rounded-lg bg-white/60 border border-slate-100">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 shrink-0 mr-4">{key}</span>
-                            <span className="text-[10px] font-mono text-slate-800 text-right break-all max-w-[60%] sm:max-w-[350px]">
+                          <div key={key} className="flex items-start justify-between p-2.5 rounded-lg bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 shrink-0 mr-4">{key}</span>
+                            <span className="text-[10px] font-mono text-slate-800 dark:text-slate-200 text-right break-all max-w-[60%] sm:max-w-[350px]">
                               {typeof value === "object" ? JSON.stringify(value) : String(value)}
                             </span>
                           </div>
@@ -4892,52 +4883,51 @@ export default function AdminPage() {
                 const statsLoading = assistantStatsQuery.isLoading;
                 const statsUnavailable = !statsLoading && stats === null;
                 return (
-                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-assistant-stats">
-                    <div className="h-1 w-full bg-gradient-to-r from-indigo-400 via-violet-500 to-indigo-400" />
-                    <div className="px-4 sm:px-5 py-4 border-b border-[#7c86ff]/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-assistant-stats">
+                    <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <div>
-                        <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2" style={{ fontFamily: "var(--font-display)" }}>
-                          <Sparkles className="h-4 w-4 text-[#7c86ff]" />
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2" style={{ fontFamily: "var(--font-display)" }}>
+                          <Sparkles className="h-4 w-4 text-brand-accent" />
                           Brainstorm Assistants
                         </h3>
-                        <p className="text-xs text-slate-500 mt-0.5">Tracks each successful kind 0 publish from the assistant publish endpoint.</p>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Tracks each successful kind 0 publish from the assistant publish endpoint.</p>
                       </div>
                       <StatusBadge status={statsUnavailable ? "disconnected" : assistantStatsQuery.isError ? "disconnected" : "connected"} />
                     </div>
                     <div className="p-4 sm:p-5">
                       {statsLoading ? (
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-3 animate-pulse">
-                          {[1,2,3,4,5].map(i => <div key={i} className="h-20 bg-slate-100 rounded-xl" />)}
+                          {[1,2,3,4,5].map(i => <div key={i} className="h-20 bg-slate-100 dark:bg-slate-800 rounded-xl" />)}
                         </div>
                       ) : statsUnavailable ? (
                         <div className="text-center py-6" data-testid="assistant-stats-unavailable">
-                          <WifiOff className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                          <p className="text-sm font-semibold text-slate-500">Not Connected</p>
-                          <p className="text-[11px] text-slate-400 mt-1">The backend has not yet exposed <code>/admin/assistants/stats</code>.</p>
+                          <WifiOff className="h-8 w-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                          <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Not Connected</p>
+                          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">The backend has not yet exposed <code>/admin/assistants/stats</code>.</p>
                         </div>
                       ) : (
                         <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                          <div className="p-3 rounded-xl bg-white/60 border border-slate-100" data-testid="kpi-assistants-total">
-                            <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Total Assistants</p>
-                            <p className="text-2xl font-bold text-slate-900 mt-1">{(stats?.totalAssistants ?? 0).toLocaleString()}</p>
-                            <p className="text-[10px] text-slate-400 mt-0.5">Distinct owner pubkeys</p>
+                          <div className="p-3 rounded-xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60" data-testid="kpi-assistants-total">
+                            <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Total Assistants</p>
+                            <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">{(stats?.totalAssistants ?? 0).toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Distinct owner pubkeys</p>
                           </div>
-                          <div className="p-3 rounded-xl bg-white/60 border border-slate-100" data-testid="kpi-assistants-publishes">
-                            <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Total Publishes</p>
-                            <p className="text-2xl font-bold text-slate-900 mt-1">{(stats?.totalPublishes ?? 0).toLocaleString()}</p>
-                            <p className="text-[10px] text-slate-400 mt-0.5">Successful kind 0 events</p>
+                          <div className="p-3 rounded-xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60" data-testid="kpi-assistants-publishes">
+                            <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Total Publishes</p>
+                            <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">{(stats?.totalPublishes ?? 0).toLocaleString()}</p>
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5">Successful kind 0 events</p>
                           </div>
-                          <div className="p-3 rounded-xl bg-white/60 border border-slate-100" data-testid="kpi-assistants-24h">
-                            <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Last 24h</p>
-                            <p className="text-2xl font-bold text-slate-900 mt-1">{(stats?.publishes24h ?? 0).toLocaleString()}</p>
+                          <div className="p-3 rounded-xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60" data-testid="kpi-assistants-24h">
+                            <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Last 24h</p>
+                            <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">{(stats?.publishes24h ?? 0).toLocaleString()}</p>
                           </div>
-                          <div className="p-3 rounded-xl bg-white/60 border border-slate-100" data-testid="kpi-assistants-7d">
-                            <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Last 7 days</p>
-                            <p className="text-2xl font-bold text-slate-900 mt-1">{(stats?.publishes7d ?? 0).toLocaleString()}</p>
+                          <div className="p-3 rounded-xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60" data-testid="kpi-assistants-7d">
+                            <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Last 7 days</p>
+                            <p className="text-2xl font-bold text-slate-900 dark:text-slate-100 mt-1">{(stats?.publishes7d ?? 0).toLocaleString()}</p>
                           </div>
-                          <div className="p-3 rounded-xl bg-white/60 border border-slate-100" data-testid="kpi-assistants-last">
-                            <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500">Last Publish</p>
-                            <p className="text-sm font-semibold text-slate-900 mt-2 leading-tight">{stats?.lastPublishAt ? formatTimestamp(stats.lastPublishAt) : "—"}</p>
+                          <div className="p-3 rounded-xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60" data-testid="kpi-assistants-last">
+                            <p className="text-[10px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">Last Publish</p>
+                            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mt-2 leading-tight">{stats?.lastPublishAt ? formatTimestamp(stats.lastPublishAt) : "—"}</p>
                           </div>
                         </div>
                       )}
@@ -4953,22 +4943,21 @@ export default function AdminPage() {
                 const total = data?.total ?? 0;
                 const totalPages = data?.pages ?? 1;
                 return (
-                  <div className="rounded-2xl bg-gradient-to-br from-white/95 via-white/80 to-indigo-50/40 backdrop-blur-xl border border-[#7c86ff]/20 shadow-[0_0_15px_rgba(124,134,255,0.07)] overflow-hidden" data-testid="card-assistant-list">
-                    <div className="h-1 w-full bg-gradient-to-r from-indigo-400 via-violet-500 to-indigo-400" />
-                    <div className="px-4 sm:px-5 py-4 border-b border-[#7c86ff]/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-assistant-list">
+                    <div className="px-4 sm:px-5 py-4 border-b border-brand-accent/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                       <div>
-                        <h3 className="text-sm font-bold text-slate-900" style={{ fontFamily: "var(--font-display)" }}>Per-User Publish History</h3>
-                        <p className="text-xs text-slate-500 mt-0.5">{total.toLocaleString()} owner{total === 1 ? "" : "s"} have published an assistant.</p>
+                        <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Per-User Publish History</h3>
+                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{total.toLocaleString()} owner{total === 1 ? "" : "s"} have published an assistant.</p>
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="relative">
-                          <Search className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                          <Search className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
                           <input
                             type="text"
                             value={assistantSearch}
                             onChange={(e) => setAssistantSearch(e.target.value)}
                             placeholder="Search npub or hex…"
-                            className="pl-7 pr-2 py-1.5 text-xs rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-[#7c86ff] w-44 sm:w-56"
+                            className="pl-7 pr-2 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:outline-none focus:border-brand-accent w-44 sm:w-56"
                             data-testid="input-assistant-search"
                           />
                         </div>
@@ -4978,30 +4967,30 @@ export default function AdminPage() {
                     <div className="p-3 sm:p-5">
                       {assistantsListQuery.isLoading && items.length === 0 ? (
                         <div className="space-y-2 animate-pulse">
-                          {[1,2,3,4,5].map(i => <div key={i} className="h-10 bg-slate-100 rounded-lg" />)}
+                          {[1,2,3,4,5].map(i => <div key={i} className="h-10 bg-slate-100 dark:bg-slate-800 rounded-lg" />)}
                         </div>
                       ) : isUnavailable ? (
                         <div className="text-center py-8" data-testid="assistants-list-unavailable">
-                          <WifiOff className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                          <p className="text-sm font-semibold text-slate-500">Not Connected</p>
-                          <p className="text-[11px] text-slate-400 mt-1">The backend has not yet exposed <code>/admin/assistants</code>.</p>
+                          <WifiOff className="h-8 w-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                          <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">Not Connected</p>
+                          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">The backend has not yet exposed <code>/admin/assistants</code>.</p>
                         </div>
                       ) : items.length === 0 ? (
                         <div className="text-center py-8">
-                          <Sparkles className="h-8 w-8 text-slate-300 mx-auto mb-2" />
-                          <p className="text-sm font-semibold text-slate-400">No assistants published yet</p>
-                          <p className="text-[11px] text-slate-400 mt-1">Once a user publishes their assistant, they'll appear here.</p>
+                          <Sparkles className="h-8 w-8 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                          <p className="text-sm font-semibold text-slate-400 dark:text-slate-500">No assistants published yet</p>
+                          <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">Once a user publishes their assistant, they'll appear here.</p>
                         </div>
                       ) : (
                         <div className="overflow-x-auto">
                           <table className="w-full text-left min-w-[640px]" data-testid="table-assistants">
                             <thead>
-                              <tr className="border-b border-slate-200/60">
-                                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Owner</th>
-                                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500"># Publishes</th>
-                                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">First</th>
-                                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Last</th>
-                                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500">Latest Event</th>
+                              <tr className="border-b border-slate-200/60 dark:border-slate-800/60">
+                                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Owner</th>
+                                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400"># Publishes</th>
+                                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">First</th>
+                                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Last</th>
+                                <th className="px-2 py-2 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Latest Event</th>
                                 <th className="px-2 py-2 w-8"></th>
                               </tr>
                             </thead>
@@ -5013,43 +5002,43 @@ export default function AdminPage() {
                                 return (
                                   <Fragment key={it.owner_pubkey}>
                                     <tr
-                                      className="border-b border-slate-100 hover:bg-indigo-50/40 cursor-pointer"
+                                      className="border-b border-slate-100 dark:border-slate-800/60 hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10 cursor-pointer"
                                       onClick={() => setExpandedAssistant(isExpanded ? null : it.owner_pubkey)}
                                       data-testid={`row-assistant-${it.owner_pubkey}`}
                                     >
                                       <td className="px-2 py-2">
                                         <div className="flex flex-col">
-                                          <span className="text-[11px] font-mono text-slate-800 truncate max-w-[220px]" title={npub}>{npub.slice(0, 18)}…{npub.slice(-6)}</span>
-                                          <span className="text-[9px] font-mono text-slate-400 truncate max-w-[220px]" title={it.owner_pubkey}>{it.owner_pubkey.slice(0, 12)}…</span>
+                                          <span className="text-[11px] font-mono text-slate-800 dark:text-slate-200 truncate max-w-[220px]" title={npub}>{npub.slice(0, 18)}…{npub.slice(-6)}</span>
+                                          <span className="text-[9px] font-mono text-slate-400 dark:text-slate-500 truncate max-w-[220px]" title={it.owner_pubkey}>{it.owner_pubkey.slice(0, 12)}…</span>
                                         </div>
                                       </td>
-                                      <td className="px-2 py-2 text-[11px] font-bold text-slate-900">{it.publish_count.toLocaleString()}</td>
-                                      <td className="px-2 py-2 text-[10px] text-slate-600">{it.first_published_at ? formatTimestamp(it.first_published_at) : "—"}</td>
-                                      <td className="px-2 py-2 text-[10px] text-slate-600">{it.last_published_at ? formatTimestamp(it.last_published_at) : "—"}</td>
-                                      <td className="px-2 py-2 text-[10px] font-mono text-slate-500 truncate max-w-[180px]" title={it.event_id || ""}>{it.event_id ? `${it.event_id.slice(0, 14)}…` : "—"}</td>
-                                      <td className="px-2 py-2 text-slate-400">
+                                      <td className="px-2 py-2 text-[11px] font-bold text-slate-900 dark:text-slate-100">{it.publish_count.toLocaleString()}</td>
+                                      <td className="px-2 py-2 text-[10px] text-slate-600 dark:text-slate-300">{it.first_published_at ? formatTimestamp(it.first_published_at) : "—"}</td>
+                                      <td className="px-2 py-2 text-[10px] text-slate-600 dark:text-slate-300">{it.last_published_at ? formatTimestamp(it.last_published_at) : "—"}</td>
+                                      <td className="px-2 py-2 text-[10px] font-mono text-slate-500 dark:text-slate-400 truncate max-w-[180px]" title={it.event_id || ""}>{it.event_id ? `${it.event_id.slice(0, 14)}…` : "—"}</td>
+                                      <td className="px-2 py-2 text-slate-400 dark:text-slate-500">
                                         {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
                                       </td>
                                     </tr>
                                     {isExpanded && (
                                       <tr data-testid={`row-assistant-history-${it.owner_pubkey}`}>
-                                        <td colSpan={6} className="px-3 py-3 bg-slate-50/60">
+                                        <td colSpan={6} className="px-3 py-3 bg-slate-50/60 dark:bg-slate-900/60">
                                           {assistantHistoryQuery.isLoading ? (
-                                            <div className="text-[11px] text-slate-500 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Loading history…</div>
+                                            <div className="text-[11px] text-slate-500 dark:text-slate-400 flex items-center gap-2"><Loader2 className="h-3 w-3 animate-spin" /> Loading history…</div>
                                           ) : assistantHistoryQuery.data === null ? (
-                                            <div className="text-[11px] text-slate-500">Per-user history endpoint not available.</div>
+                                            <div className="text-[11px] text-slate-500 dark:text-slate-400">Per-user history endpoint not available.</div>
                                           ) : (assistantHistoryQuery.data?.items?.length ?? 0) === 0 ? (
-                                            <div className="text-[11px] text-slate-500">No detailed publish events recorded.</div>
+                                            <div className="text-[11px] text-slate-500 dark:text-slate-400">No detailed publish events recorded.</div>
                                           ) : (
                                             <div className="space-y-1">
-                                              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Recent publishes</p>
+                                              <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Recent publishes</p>
                                               <ul className="space-y-1 max-h-60 overflow-auto">
                                                 {assistantHistoryQuery.data!.items.map((h, i) => (
-                                                  <li key={`${h.event_id}-${i}`} className="text-[11px] flex items-center gap-2 px-2 py-1 rounded bg-white border border-slate-100">
-                                                    <Clock className="h-3 w-3 text-slate-400" />
-                                                    <span className="text-slate-700">{formatTimestamp(h.published_at)}</span>
-                                                    <span className="font-mono text-slate-500 truncate flex-1" title={h.event_id}>{h.event_id.slice(0, 24)}…</span>
-                                                    {h.status && <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500">{h.status}</span>}
+                                                  <li key={`${h.event_id}-${i}`} className="text-[11px] flex items-center gap-2 px-2 py-1 rounded bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60">
+                                                    <Clock className="h-3 w-3 text-slate-400 dark:text-slate-500" />
+                                                    <span className="text-slate-700 dark:text-slate-200">{formatTimestamp(h.published_at)}</span>
+                                                    <span className="font-mono text-slate-500 dark:text-slate-400 truncate flex-1" title={h.event_id}>{h.event_id.slice(0, 24)}…</span>
+                                                    {h.status && <span className="text-[9px] uppercase tracking-wider font-bold text-slate-500 dark:text-slate-400">{h.status}</span>}
                                                   </li>
                                                 ))}
                                               </ul>
@@ -5064,7 +5053,7 @@ export default function AdminPage() {
                             </tbody>
                           </table>
                           <div className="flex flex-col sm:flex-row items-center justify-between gap-2 mt-3">
-                            <div className="text-[10px] text-slate-500">
+                            <div className="text-[10px] text-slate-500 dark:text-slate-400">
                               Page {assistantPage + 1} of {totalPages} · {total.toLocaleString()} total
                             </div>
                             <div className="flex items-center gap-2">
@@ -5104,10 +5093,10 @@ export default function AdminPage() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <RefreshCw className="h-5 w-5 text-[#333286]" />
+              <RefreshCw className="h-5 w-5 text-brand-deep" />
               Confirm Bulk Re-trigger
             </DialogTitle>
-            <DialogDescription className="text-sm text-slate-600 pt-1">
+            <DialogDescription className="text-sm text-slate-600 dark:text-slate-300 pt-1">
               Re-trigger GrapeRank calculation for multiple users at once.
             </DialogDescription>
           </DialogHeader>
@@ -5115,25 +5104,25 @@ export default function AdminPage() {
             const inFlight = bulkConfirm.pubkeys.filter(pk => triggeringPubkeys.has(pk));
             return (
               <div className="pt-2 space-y-4">
-                <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 mb-2">What happens when you confirm</p>
-                  <ul className="text-xs text-amber-900 space-y-1.5 list-disc list-inside">
+                <div className="p-3.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/25">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 mb-2">What happens when you confirm</p>
+                  <ul className="text-xs text-amber-900 dark:text-amber-200 space-y-1.5 list-disc list-inside">
                     <li>One GrapeRank calculation request is sent <span className="font-semibold">per unique pubkey</span></li>
                     <li>Requests fire in parallel batches (5 at a time) to avoid hammering the server</li>
                     <li>Already in-flight users will be skipped automatically</li>
                     <li>Progress will appear inline; failures can be retried individually</li>
                   </ul>
                 </div>
-                <div className="p-3 rounded-xl bg-slate-50 border border-slate-200">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-1">Targets</p>
-                  <p className="text-xs text-slate-800" data-testid="text-bulk-confirm-count">
+                <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Targets</p>
+                  <p className="text-xs text-slate-800 dark:text-slate-200" data-testid="text-bulk-confirm-count">
                     <span className="font-bold">{bulkConfirm.pubkeys.length}</span> unique pubkey{bulkConfirm.pubkeys.length !== 1 ? "s" : ""}
                   </p>
                 </div>
                 {inFlight.length > 0 && (
-                  <div className="p-3 rounded-xl bg-orange-50 border border-orange-200" data-testid="text-bulk-confirm-inflight">
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-orange-700 mb-1">Heads up</p>
-                    <p className="text-xs text-orange-900">{inFlight.length} of these user{inFlight.length !== 1 ? "s are" : " is"} already in flight and will be skipped.</p>
+                  <div className="p-3 rounded-xl bg-orange-50 dark:bg-orange-500/10 border border-orange-200 dark:border-orange-500/25" data-testid="text-bulk-confirm-inflight">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-orange-700 dark:text-orange-300 mb-1">Heads up</p>
+                    <p className="text-xs text-orange-900 dark:text-orange-200">{inFlight.length} of these user{inFlight.length !== 1 ? "s are" : " is"} already in flight and will be skipped.</p>
                   </div>
                 )}
                 <div className="flex justify-end gap-2">
@@ -5155,7 +5144,7 @@ export default function AdminPage() {
                       if (target) runBulkRetrigger(target.pubkeys, target.source === "retry" ? (bulkLastResult?.source ?? "users") : target.source);
                     }}
                     disabled={bulkRunning || bulkConfirm.pubkeys.length === 0}
-                    className="text-xs gap-1.5 bg-[#333286] hover:bg-[#7c86ff] text-white no-default-hover-elevate no-default-active-elevate"
+                    className="text-xs gap-1.5 bg-brand-deep hover:bg-brand-accent text-white no-default-hover-elevate no-default-active-elevate"
                     data-testid="button-confirm-bulk"
                   >
                     <RefreshCw className="h-3.5 w-3.5" />

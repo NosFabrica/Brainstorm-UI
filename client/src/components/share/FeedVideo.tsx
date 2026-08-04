@@ -56,7 +56,7 @@ export function FeedVideo({ src, poster, className }: { src: string; poster?: st
     v.play().catch(() => {});
   };
 
-  const shell = `relative mt-2 overflow-hidden rounded-xl border border-slate-200 bg-black ${className ?? ""}`;
+  const shell = `relative mt-2 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-black ${className ?? ""}`;
 
   // Reduced-motion: no autoplay — a clean click-to-play poster.
   if (reduce && !started) {
@@ -71,7 +71,7 @@ export function FeedVideo({ src, poster, className }: { src: string; poster?: st
           data-testid="feed-video-play"
         >
           <span className="flex h-14 w-14 items-center justify-center rounded-full bg-white/95 shadow-lg transition-transform group-hover:scale-105">
-            <Play className="h-6 w-6 translate-x-0.5 fill-current text-[#3730a3]" />
+            <Play className="h-6 w-6 translate-x-0.5 fill-current text-brand-link" />
           </span>
         </button>
       </div>

@@ -24,7 +24,7 @@ function primalUrl(e: OpenEntity): string {
 }
 
 const btn =
-  "inline-flex items-center justify-center gap-2 h-11 rounded-xl border border-slate-200 bg-white hover:border-[#7c86ff]/50 hover:shadow-sm text-sm font-semibold text-slate-700 transition-all";
+  "inline-flex items-center justify-center gap-2 h-11 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-brand-accent/50 hover:shadow-sm text-sm font-semibold text-slate-700 dark:text-slate-200 transition-all";
 const logoCls = "w-5 h-5 rounded-md object-contain";
 
 export function OpenInApp({ entity, className = "" }: { entity: OpenEntity; className?: string }) {
@@ -43,8 +43,8 @@ export function OpenInApp({ entity, className = "" }: { entity: OpenEntity; clas
   ];
 
   return (
-    <section className={`rounded-2xl bg-white border border-slate-200 shadow-sm p-5 ${className}`} data-testid="open-in-app">
-      <p className="text-[10px] font-bold tracking-[0.15em] text-slate-400 uppercase mb-3">Open in a Nostr app</p>
+    <section className={`rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm p-5 ${className}`} data-testid="open-in-app">
+      <p className="text-[10px] font-bold tracking-[0.15em] text-slate-400 dark:text-slate-500 uppercase mb-3">Open in a Nostr app</p>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         {clients.map((c) => (
           <a
@@ -58,7 +58,7 @@ export function OpenInApp({ entity, className = "" }: { entity: OpenEntity; clas
           </a>
         ))}
       </div>
-      <a href={uri} className="mt-2.5 block text-center text-xs text-slate-400 hover:text-[#333286] transition-colors" data-testid="open-default">
+      <a href={uri} className="mt-2.5 block text-center text-xs text-slate-400 dark:text-slate-500 hover:text-brand-deep transition-colors" data-testid="open-default">
         or open in your default app →
       </a>
     </section>

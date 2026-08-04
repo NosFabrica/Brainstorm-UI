@@ -1,5 +1,6 @@
 import { useLocation } from "wouter";
 import { copyToClipboard } from "@/lib/clipboard";
+import { getRecentItems, pushRecentQuery, pushRecentProfile, removeRecentItem, clearRecentSearches, recentKey, type RecentItem } from "@/lib/recentSearches";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type FormEvent } from "react";
 import { nip19 } from "nostr-tools";
 import {
@@ -15,13 +16,16 @@ import {
   UserRound,
   Radar,
   Copy,
+  Clock,
 } from "lucide-react";
 import { GlossBackground } from "@/components/GlossBackground";
 import { BrainLogo } from "@/components/BrainLogo";
+import { Wordmark } from "@/components/Wordmark";
 import { SignInButton } from "@/components/SignInButton";
-import { AppHeader } from "@/components/AppHeader";
+import { AccountMenu } from "@/components/AccountMenu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { EmptyState } from "@/components/ui/empty-state";
 import { getCurrentUser, fetchProfile, logout, type NostrUser } from "@/services/nostr";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { queryClient } from "@/lib/queryClient";
@@ -50,16 +54,24 @@ import { resolveEntityToPath } from "@/lib/resolveNostrEntity";
 const ANON_POV = "nosfabrica" as const;
 
 // Example prompts the empty search box gently cycles through to teach
-// visitors what they can search for. The first entry is the static
-// fallback (used as-is when the user prefers reduced motion).
+// first-time visitors what they can search for. The first entry is the
+// static fallback — used as-is when the user prefers reduced motion, and
+// for returning visitors who've already seen the rotating hints (see
+// SEEN_SEARCH_HINTS_KEY). Kept deliberately generic (mainstream names +
+// topics, no insider references) so it reads for a broad audience.
 const PLACEHOLDER_EXAMPLES = [
   "Search people and topics…",
-  'Search "Jack"',
+  'Search "Maria"',
   'Search "Prague"',
-  'Try a topic like "#bitcoin"',
-  'Search a handle like "odell@primal.net"',
+  'Try a topic like "#soccer"',
+  'Search a handle like "alex@primal.net"',
   "Search a public key…",
 ];
+
+// localStorage flag: set on a visitor's first landing view. Its presence
+// marks a "returning" visitor, who gets the calm static placeholder instead
+// of the rotating hints. First-party + functional → no consent banner needed.
+const SEEN_SEARCH_HINTS_KEY = "brainstorm_seen_search_hints";
 
 function truncateAbout(text: string, maxLen = 120): string {
   if (text.length <= maxLen) return text;
@@ -99,6 +111,17 @@ export default function Landing() {
   const [phIndex, setPhIndex] = useState(0);
   const [phVisible, setPhVisible] = useState(true);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  // First-time visitors get the rotating hints (a gentle "here's what you can
+  // search" onboarding); returning visitors get the calm static placeholder.
+  // Read once at mount so the current visit reflects prior visits, then persist
+  // below so the NEXT visit is treated as returning.
+  const [isFirstVisit] = useState(() => {
+    try { return !localStorage.getItem(SEEN_SEARCH_HINTS_KEY); } catch { return true; }
+  });
+  // Per-browser recent searches, shown under an empty, focused box (returning
+  // visitors only — a first-timer has none). `focused` gates that panel.
+  const [recent, setRecent] = useState<RecentItem[]>(() => getRecentItems());
+  const [focused, setFocused] = useState(false);
   const [suggestMaxH, setSuggestMaxH] = useState<number | null>(null);
 
   // Full search results state (merged in from the retired /search page).
@@ -167,11 +190,19 @@ export default function Landing() {
     return () => mq.removeEventListener("change", onChange);
   }, []);
 
-  // Gently cycle the empty box's placeholder through example prompts. Runs only
-  // while the field is empty and motion is allowed; a soft fade-out/in (300ms)
-  // bridges each swap. Pauses the moment the user types (query non-empty).
+  // Mark this browser as having seen the search hints, so the next visit is
+  // treated as returning (calm static placeholder). Set once, on first mount.
   useEffect(() => {
-    if (prefersReducedMotion || query.length > 0) {
+    if (!isFirstVisit) return;
+    try { localStorage.setItem(SEEN_SEARCH_HINTS_KEY, "1"); } catch {}
+  }, [isFirstVisit]);
+
+  // Gently cycle the empty box's placeholder through example prompts. Runs only
+  // for a first-time visitor, while the field is empty and motion is allowed; a
+  // soft fade-out/in (300ms) bridges each swap. Pauses the moment the user types
+  // (query non-empty). Returning visitors keep the static first entry.
+  useEffect(() => {
+    if (!isFirstVisit || prefersReducedMotion || query.length > 0) {
       window.clearTimeout(phFadeTimerRef.current);
       setPhVisible(true);
       return;
@@ -188,7 +219,7 @@ export default function Landing() {
       window.clearInterval(interval);
       window.clearTimeout(phFadeTimerRef.current);
     };
-  }, [prefersReducedMotion, query]);
+  }, [isFirstVisit, prefersReducedMotion, query]);
 
   // Keep the keyboard-highlighted suggestion scrolled into view.
   useEffect(() => {
@@ -295,6 +326,15 @@ export default function Landing() {
   }, [effectivePov]);
 
   const goToProfile = useCallback((result: SearchResult) => {
+    // Remember the people opened from search in the "Recent" list (avatar + name),
+    // so they're one tap to get back to — not just the words typed into the box.
+    setRecent(pushRecentProfile({
+      pubkey: result.pubkey,
+      npub: result.npub,
+      label: getDisplayLabel(result),
+      picture: result.picture,
+      nip05: result.nip05,
+    }));
     seedAndPrefetchProfile(result);
     const hex = (result.pubkey || "").toLowerCase();
     const hasNosfabricaRank =
@@ -367,6 +407,8 @@ export default function Landing() {
   const handleSearch = useCallback(async (overrideQuery?: string) => {
     const q = (overrideQuery ?? query).trim();
     if (!q) return;
+    // Remember this query for the "Recent" list (de-duped, most-recent-first).
+    setRecent(pushRecentQuery(q));
     // Running a full search cancels any pending/in-flight suggestion request and
     // closes the dropdown so it can't reopen on top of the results list.
     window.clearTimeout(suggestTimerRef.current);
@@ -545,10 +587,21 @@ export default function Landing() {
   const entityMatch = useMemo(() => resolveEntityToPath(query.trim()), [query]);
   const topicMatch = useMemo(() => parseTopicQuery(query), [query]);
   const dropdownOpen = showSuggestions && (suggestions.length > 0 || isSuggesting || topicMatch.isTopic);
+  // "Recent" shows under an empty, focused box before any search this session —
+  // never alongside the suggestions dropdown or a results list.
+  const showRecent = focused && query.trim() === "" && !hasSearched && !dropdownOpen && recent.length > 0;
   const lifted = hasSearched || isSearching || query.trim().length > 0;
 
+  // Measure the room left below the search box and cap whichever panel is open.
+  // Both panels are `absolute top-full`, so without a cap they run straight off
+  // the bottom of the page — and the page root is `overflow-hidden`, so the
+  // overrun is CLIPPED rather than scrollable (unreachable, not just ugly). This
+  // used to fire for the suggestions dropdown only, which left "Recent" — the
+  // panel a returning visitor sees first, before typing a single character —
+  // uncapped: in landscape it ran ~40px past the viewport with its last rows
+  // buried under the footer links.
   useLayoutEffect(() => {
-    if (!dropdownOpen) return;
+    if (!dropdownOpen && !showRecent) return;
     const recompute = () => {
       const el = searchContainerRef.current;
       if (!el) return;
@@ -580,59 +633,115 @@ export default function Landing() {
       vv?.removeEventListener("resize", recompute);
       vv?.removeEventListener("scroll", recompute);
     };
-  }, [dropdownOpen]);
+  }, [dropdownOpen, showRecent]);
 
   const showNoResults = hasSearched && results.length === 0 && !isSearching;
 
+  // 100dvh, not 100vh: on iOS the toolbar eats a big share of a LANDSCAPE
+  // viewport, and 100vh measures the large (toolbar-hidden) viewport — so the
+  // bottom of the page sits under the chrome exactly when room is scarcest.
   return (
-    <div className="min-h-screen bg-white text-slate-900 flex flex-col relative overflow-hidden" data-testid="page-home">
+    <div className="min-h-[100dvh] bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col relative overflow-hidden" data-testid="page-home">
       <GlossBackground />
+      {/* Aurora glow behind the hero — soft at rest, blooms when the search goes
+          active, so the wordmark + search feel alive without any idle noise. */}
+      <div
+        aria-hidden="true"
+        className={`pointer-events-none absolute left-1/2 top-[44%] z-0 h-[380px] w-[680px] max-w-[92vw] -translate-x-1/2 -translate-y-1/2 rounded-[50%] blur-[100px] transition-all duration-700 ease-out ${lifted ? "opacity-100 scale-105" : "opacity-60"}`}
+        style={{ background: "radial-gradient(ellipse at center, rgba(114,55,255,0.16) 0%, rgba(19,210,229,0.10) 45%, transparent 72%)" }}
+      />
 
-      {user ? (
-        <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="home" variant="light" />
-      ) : (
-        <header className="relative z-20 flex items-center justify-between px-4 sm:px-8 py-4">
-          <button
-            type="button"
-            onClick={() => setLocation("/about")}
-            className="text-sm font-medium text-slate-500 hover:text-indigo-600 transition-colors"
-            data-testid="link-home-about"
+      {/* Homepage top bar (Google-search pattern): the center stays empty so the
+          search box owns it. B symbol left · account actions right — transparent
+          over the hero photo, both signed-in/out. The About / How-search-works /
+          Developers / Q&A links live in the bottom footer, Google-style. */}
+      {/* No height floor needed for the hide/show below: the right-hand control
+          (36px) is taller than the B (28px), so the header measures 76px either
+          way and the hero never shifts. */}
+      <header className="relative z-20 flex items-center px-4 sm:px-8 py-5 short:py-2.5" data-testid="home-header">
+        {/* Left: the compact B symbol — the way back to a clean search page, and
+            ONLY shown once there's something to come back FROM.
+
+            This mirrors how search engines actually behave, which is not what
+            this was doing. On a results page (verified on DuckDuckGo and Bing)
+            the top-left mark is a plain `<a href="/">`: a real navigation that
+            lands you on a fresh homepage. On the pristine homepage there is no
+            such control at all — DuckDuckGo's homepage mark points at /about,
+            Google's homepage has no top-left logo, because the logo IS the
+            centred hero. Ours had one, wired to `setLocation("/")` from a page
+            that already IS "/", so clicking it did precisely nothing — and it
+            duplicated the wordmark sitting a couple of hundred pixels below it.
+
+            The reset can't be a bare anchor the way theirs is: their results
+            live at a DIFFERENT url from their homepage (/search?q= vs /), so
+            navigating genuinely changes the page. Our home is one route holding
+            both states — searching only pushState's `?q=` and re-renders in
+            place — so `href="/"` is a same-route link that wouldn't remount
+            anything and would leave the results on screen. `clearSearch` does by
+            hand what their navigation gets for free. The href stays real so
+            cmd/middle-click still opens a clean home in a new tab. */}
+        {hasSearched && (
+          <a
+            href="/"
+            onClick={(e) => {
+              // Modifier / non-primary clicks belong to the browser — that's the
+              // whole point of keeping this an anchor rather than a button.
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+              e.preventDefault();
+              clearSearch();
+              window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
+            }}
+            aria-label="Brainstorm home"
+            className="shrink-0 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
+            data-testid="home-brand"
           >
-            About
-          </button>
-          <SignInButton
-            variant="primary"
-            label="Sign in"
-            className="!rounded-full sm:px-5"
-            data-testid="button-home-sign-in"
-          />
-        </header>
-      )}
+            <img src="/brand/symbol-black.svg" alt="Brainstorm" draggable={false} className="h-7 w-auto select-none dark:hidden" />
+            <img src="/brand/symbol-white.svg" alt="Brainstorm" draggable={false} className="hidden h-7 w-auto select-none dark:block" />
+          </a>
+        )}
 
-      <main className={`relative z-10 flex-1 flex flex-col items-center px-4 ${dropdownOpen || lifted ? "justify-start pt-6 sm:pt-10" : "justify-center -mt-10 sm:-mt-16"}`}>
-        <div className="w-full max-w-2xl mx-auto text-center" style={{ animation: "homeFadeUp 0.5s ease-out" }}>
+        {/* Right: actions — apps + avatar when signed in, else Sign in. */}
+        <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+          {user ? (
+            <AccountMenu user={user} onLogout={handleLogout} active="home" />
+          ) : (
+            <SignInButton variant="primary" label="Sign in" className="!rounded-full sm:px-5" data-testid="button-home-sign-in" />
+          )}
+        </div>
+      </header>
+
+      {/* `short:` = a phone in landscape. It lands on the desktop side of every
+          width breakpoint, so the optical-centering offset and the generous
+          desktop padding both have to be neutralised by height, not width. `!`
+          because these override `sm:` utilities of equal specificity. */}
+      <main className={`relative z-10 flex-1 flex flex-col items-center px-4 ${dropdownOpen || lifted ? "justify-start pt-6 sm:pt-10 short:!pt-2" : "justify-center -mt-10 sm:-mt-16 short:justify-start short:!mt-0 short:pt-2"}`}>
+        <div className="w-full max-w-2xl mx-auto text-center" style={prefersReducedMotion ? undefined : { animation: "homeFadeUp 0.5s ease-out" }}>
           <style>{`@keyframes homeFadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }`}</style>
 
-          <div className="flex flex-col items-center mb-8">
-            <div className="flex items-center gap-2 mb-1.5">
-              <BrainLogo size={32} clickable className="text-indigo-500" />
-              <h1
-                className="font-brand text-3xl sm:text-4xl font-bold tracking-tight text-indigo-500"
-                data-testid="text-home-title"
-              >
-                Brainstorm
-              </h1>
-            </div>
-            <p className="text-slate-500 text-sm sm:text-base" data-testid="text-home-subtitle">
-              Search across millions of profiles
+          <div className="flex flex-col items-center mb-8 short:mb-3.5">
+            <h1 className="mb-2.5 short:mb-1.5" data-testid="text-home-title">
+              {/* Wordmark <img> carries the "Brainstorm" accessible name (its
+                  alt), so no sr-only duplicate. */}
+              {/* Website hero → wordmark. Stays the Aurora gradient (a reserved
+                  brand moment); it sits over the near-white scrim core, so it
+                  stays legible without recoloring as you type. Dark: white mark. */}
+              {/* `short:!h-9` needs the bang twice over: to beat `sm:`-level
+                  utilities AND because Wordmark sets its height as an inline
+                  style, which only `!important` can override. */}
+              <Wordmark height={52} variant="gradient" className="mx-auto dark:hidden short:!h-9" />
+              <Wordmark height={52} variant="white" className="mx-auto hidden dark:block short:!h-9" />
+            </h1>
+            <p className="text-slate-700 dark:text-slate-100 text-base sm:text-lg short:!text-sm font-medium" data-testid="text-home-subtitle">
+              Search through the people you trust.
             </p>
           </div>
 
           <div ref={searchContainerRef} className="relative">
             <form onSubmit={onSubmit} className="relative group" data-testid="form-home-search">
-              <div className="absolute -inset-1 bg-gradient-to-r from-[#7c86ff]/0 via-[#7c86ff]/15 to-[#7c86ff]/0 blur-xl rounded-full opacity-0 group-focus-within:opacity-100 transition-opacity duration-500 pointer-events-none" />
-              <div className="relative flex items-center gap-2 bg-white border border-slate-200 rounded-full pl-5 pr-2 py-2 shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_18px_rgba(0,0,0,0.08)] focus-within:border-indigo-300 focus-within:shadow-[0_4px_18px_rgba(99,102,241,0.12)] transition-all duration-300">
-                <Search className="h-5 w-5 text-slate-400 shrink-0" />
+              {/* (accent-discipline preview) focus "bloom" glow removed — the
+                  crisp border + shadow below is the guideline focus treatment. */}
+              <div className="relative flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full pl-5 pr-2 py-2 shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_18px_rgba(0,0,0,0.08)] focus-within:border-brand-primary/[0.4] focus-within:shadow-[0_4px_18px_rgb(var(--brand-primary)/0.12)] transition-all duration-300">
+                <Search className="h-5 w-5 text-slate-400 dark:text-slate-500 shrink-0" />
                 <div className="relative flex-1 min-w-0">
                 <input
                   ref={inputRef}
@@ -643,8 +752,10 @@ export default function Landing() {
                     scheduleSuggest(e.target.value);
                   }}
                   onFocus={() => {
+                    setFocused(true);
                     if (typedSinceSearchRef.current && suggestions.length > 0 && query.trim().length >= 2) setShowSuggestions(true);
                   }}
+                  onBlur={() => setFocused(false)}
                   onKeyDown={(e) => {
                     if (e.key === "ArrowDown" && showSuggestions && suggestions.length > 0) {
                       e.preventDefault();
@@ -669,8 +780,8 @@ export default function Landing() {
                     }
                   }}
                   placeholder=""
-                  aria-label="Search profiles"
-                  className="w-full bg-transparent text-slate-900 text-base outline-none py-1.5 min-w-0"
+                  aria-label="Search people, topics, or handles"
+                  className="w-full bg-transparent text-slate-900 dark:text-slate-100 text-base outline-none py-1.5 min-w-0"
                   autoFocus={!hasSearched}
                   role="combobox"
                   aria-expanded={showSuggestions}
@@ -685,10 +796,10 @@ export default function Landing() {
                     className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center overflow-hidden"
                   >
                     <span
-                      className={`truncate text-slate-400 text-base transition-opacity duration-300 ${phVisible ? "opacity-100" : "opacity-0"}`}
+                      className={`truncate text-slate-400 dark:text-slate-500 text-base transition-opacity duration-300 ${phVisible ? "opacity-100" : "opacity-0"}`}
                       data-testid="text-home-placeholder"
                     >
-                      {prefersReducedMotion ? PLACEHOLDER_EXAMPLES[0] : PLACEHOLDER_EXAMPLES[phIndex]}
+                      {isFirstVisit && !prefersReducedMotion ? PLACEHOLDER_EXAMPLES[phIndex] : PLACEHOLDER_EXAMPLES[0]}
                     </span>
                   </span>
                 )}
@@ -698,7 +809,7 @@ export default function Landing() {
                     type="button"
                     onClick={clearSearch}
                     aria-label="Clear search"
-                    className="inline-flex items-center justify-center h-7 w-7 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors shrink-0"
+                    className="inline-flex items-center justify-center h-7 w-7 rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
                     data-testid="button-home-clear"
                   >
                     <X className="h-4 w-4" />
@@ -706,8 +817,14 @@ export default function Landing() {
                 )}
                 <button
                   type="submit"
-                  disabled={isSearching || !query.trim()}
-                  className="inline-flex items-center gap-1.5 px-4 sm:px-5 py-2 text-sm font-semibold text-white bg-[#6366f1] hover:bg-[#4f46e5] rounded-full transition-colors active:scale-[0.98] shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
+                  aria-label="Search"
+                  // Disabled only while a search is in flight — at rest (even
+                  // with an empty box) the button stays solid Aurora Purple
+                  // (#7237ff) instead of washing out to a faded lavender.
+                  // handleSearch() no-ops on an empty query, so an idle click is
+                  // harmless.
+                  disabled={isSearching}
+                  className="inline-flex items-center gap-1.5 px-4 sm:px-5 py-2 text-sm font-semibold text-white bg-brand-primary hover:bg-brand-primary-hover rounded-full transition-colors active:scale-[0.98] shrink-0 disabled:opacity-60 disabled:cursor-not-allowed"
                   data-testid="button-home-search"
                 >
                   {isSearching ? (
@@ -726,7 +843,7 @@ export default function Landing() {
               <div
                 id="home-search-suggestions"
                 role="listbox"
-                className="absolute left-0 right-0 top-full mt-2 z-50 bg-white rounded-2xl border border-slate-200 shadow-[0_8px_30px_rgba(0,0,0,0.12)] flex flex-col overflow-hidden text-left"
+                className="absolute left-0 right-0 top-full mt-2 z-50 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-[0_8px_30px_rgba(0,0,0,0.12)] flex flex-col overflow-hidden text-left"
                 style={{ maxHeight: suggestMaxH !== null ? `${suggestMaxH}px` : "min(28rem, calc(100dvh - 9rem))" }}
                 data-testid="container-home-suggestions"
               >
@@ -738,7 +855,7 @@ export default function Landing() {
                     testId="home-topic"
                   />
                 ) : isSuggesting && suggestions.length === 0 ? (
-                  <div className="px-4 py-3 flex items-center gap-2 text-slate-400 text-xs" data-testid="home-suggestions-loading">
+                  <div className="px-4 py-3 flex items-center gap-2 text-slate-400 dark:text-slate-500 text-xs" data-testid="home-suggestions-loading">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…
                   </div>
                 ) : (
@@ -753,32 +870,32 @@ export default function Landing() {
                           type="button"
                           role="option"
                           aria-selected={i === activeSuggestion}
-                          className={`w-full flex items-center gap-3 px-3 sm:px-4 py-2.5 text-left transition-colors ${i === activeSuggestion ? "bg-indigo-50" : "hover:bg-slate-50"}`}
+                          className={`w-full flex items-center gap-3 px-3 sm:px-4 py-2.5 text-left transition-colors ${i === activeSuggestion ? "bg-brand-primary/10 dark:bg-brand-primary/15" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
                           onMouseEnter={() => { kbdNavRef.current = false; setActiveSuggestion(i); handlePrefetchEnter(s); }}
                           onMouseLeave={() => handlePrefetchLeave(s)}
                           onClick={() => goToProfile(s)}
                           data-testid={`home-suggestion-${i}`}
                         >
-                          <Avatar className="h-8 w-8 border border-slate-200/80 shrink-0">
+                          <Avatar className="h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 shrink-0">
                             {s.picture ? <AvatarImage src={s.picture} alt={getDisplayLabel(s)} className="object-cover" /> : null}
                             <AvatarFallback className="overflow-hidden">
                               <DefaultAvatarImg />
                             </AvatarFallback>
                           </Avatar>
                           <div className="flex-1 min-w-0">
-                            <p className="text-[13px] font-semibold text-slate-900 truncate" data-testid={`home-suggestion-name-${i}`}>
+                            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate" data-testid={`home-suggestion-name-${i}`}>
                               {getDisplayLabel(s)}
                             </p>
                             {handle && (
-                              <p className="text-[11px] text-indigo-600 truncate flex items-center gap-0.5">
-                                <Check className="h-2.5 w-2.5 shrink-0 text-indigo-500" />
+                              <p className="text-xs text-brand-primary dark:text-brand-link truncate flex items-center gap-0.5">
+                                <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />
                                 {handle}
                               </p>
                             )}
                           </div>
                           {s.wotRank != null && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100 shrink-0" data-testid={`home-suggestion-rank-${i}`}>
-                              <BrainLogo size={10} className="shrink-0" />
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand-primary/10 dark:bg-white/10 text-brand-primary dark:text-slate-100 border border-brand-primary/15 dark:border-white/15 shrink-0" data-testid={`home-suggestion-rank-${i}`}>
+                              <BrainLogo mono size={10} className="shrink-0" />
                               {s.wotRank}
                             </span>
                           )}
@@ -788,7 +905,7 @@ export default function Landing() {
                     </div>
                     <button
                       type="button"
-                      className={`w-full shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2.5 text-left border-t border-slate-100 text-[12px] font-medium transition-colors ${activeSuggestion === -1 ? "bg-slate-50 text-indigo-600" : "text-slate-500 hover:bg-slate-50 hover:text-indigo-600"}`}
+                      className={`w-full shrink-0 flex items-center gap-2 px-3 sm:px-4 py-2.5 text-left border-t border-slate-100 dark:border-slate-800/60 text-[12px] font-medium transition-colors ${activeSuggestion === -1 ? "bg-slate-50 dark:bg-slate-800 text-brand-primary" : "text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-brand-primary"}`}
                       onMouseEnter={() => { kbdNavRef.current = false; setActiveSuggestion(-1); }}
                       onMouseDown={(e) => { e.preventDefault(); setShowSuggestions(false); handleSearch(query); }}
                       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setShowSuggestions(false); handleSearch(query); } }}
@@ -804,46 +921,140 @@ export default function Landing() {
                 )}
               </div>
             )}
+
+            {showRecent && (
+              <div
+                role="listbox"
+                aria-label="Recent searches"
+                className="absolute left-0 right-0 top-full mt-2 z-50 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-[0_8px_30px_rgba(0,0,0,0.12)] flex flex-col overflow-hidden text-left"
+                style={{ maxHeight: suggestMaxH !== null ? `${suggestMaxH}px` : "min(28rem, calc(100dvh - 9rem))" }}
+                data-testid="container-home-recent"
+              >
+                <div className="flex items-center justify-between px-4 pt-2.5 pb-1">
+                  <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Recent</span>
+                  <button
+                    type="button"
+                    // onMouseDown + preventDefault keeps the input focused so the
+                    // click lands before the box blurs and closes this panel.
+                    onMouseDown={(e) => { e.preventDefault(); setRecent(clearRecentSearches()); }}
+                    className="text-[11px] font-medium text-slate-400 dark:text-slate-500 hover:text-brand-primary transition-colors focus:outline-none focus-visible:text-brand-primary"
+                    data-testid="button-home-recent-clear"
+                  >
+                    Clear
+                  </button>
+                </div>
+                {/* Rows scroll inside the capped panel — the "Recent" header and
+                    Clear stay pinned, matching the suggestions dropdown. */}
+                <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 pb-1.5">
+                  {recent.map((item, i) => {
+                    // Two row shapes share the hover container + remove button:
+                    // a person you opened (avatar → re-open) or a text query
+                    // (clock → re-run). onMouseDown + preventDefault keeps the
+                    // input focused so the action lands before the panel closes.
+                    const handle = item.type === "profile" && item.nip05 ? item.nip05.replace(/^_@/, "") : null;
+                    const removeLabel = item.type === "profile"
+                      ? `Remove ${item.label} from recent`
+                      : `Remove "${item.q}" from recent searches`;
+                    return (
+                      <div
+                        key={recentKey(item)}
+                        role="option"
+                        aria-selected={false}
+                        className="group/recent w-full flex items-center gap-3 px-3 sm:px-4 py-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                        data-testid={`home-recent-${i}`}
+                      >
+                        {item.type === "profile" ? (
+                          <button
+                            type="button"
+                            className="flex items-center gap-3 flex-1 min-w-0 text-left focus:outline-none"
+                            onMouseDown={(e) => { e.preventDefault(); goToProfile({ pubkey: item.pubkey, npub: item.npub, name: item.label, picture: item.picture, nip05: item.nip05 } as SearchResult); }}
+                            data-testid={`home-recent-open-${i}`}
+                          >
+                            <Avatar className="h-7 w-7 border border-slate-200/80 dark:border-slate-800/80 shrink-0">
+                              {item.picture ? <AvatarImage src={item.picture} alt={item.label} className="object-cover" /> : null}
+                              <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0">
+                              <p className="text-sm font-medium text-slate-800 dark:text-slate-100 truncate leading-tight">{item.label}</p>
+                              {handle && (
+                                <p className="text-xs text-brand-primary dark:text-brand-link truncate flex items-center gap-0.5 leading-tight">
+                                  <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />{handle}
+                                </p>
+                              )}
+                            </div>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            className="flex items-center gap-3 flex-1 min-w-0 text-left focus:outline-none"
+                            onMouseDown={(e) => { e.preventDefault(); setQuery(item.q); handleSearch(item.q); }}
+                            data-testid={`home-recent-run-${i}`}
+                          >
+                            <Clock className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
+                            <span className="text-sm text-slate-700 dark:text-slate-200 truncate">{item.q}</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          aria-label={removeLabel}
+                          onMouseDown={(e) => { e.preventDefault(); setRecent(removeRecentItem(item)); }}
+                          className="opacity-0 group-hover/recent:opacity-100 focus:opacity-100 inline-flex items-center justify-center h-6 w-6 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+                          data-testid={`home-recent-remove-${i}`}
+                        >
+                          <X className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
 
           {!user ? (
-            <p className="text-xs text-slate-500 mt-5 flex items-center justify-center gap-2" data-testid="text-home-hint">
-              <span data-testid="text-home-pov-label">Not Personalized</span>
-              <span className="text-slate-300">·</span>
+            <div className="mt-6 flex flex-col items-center gap-2.5 rounded-2xl backdrop-blur-[2px]" data-testid="text-home-hint">
+              {/* (accent-discipline preview) quiet neutral segmented control —
+                  no gradient chrome, no embedded wordmark (guidelines p16/p17). */}
+              <div role="group" aria-label="Trust perspective" className="inline-flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/50 p-0.5">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-white dark:bg-slate-900 px-3.5 py-1 text-xs font-semibold text-slate-800 dark:text-slate-100 shadow-sm" data-testid="text-home-pov-label">
+                  <Globe className="h-3 w-3 text-brand-primary" /> Brainstorm
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setLocation("/login")}
+                  className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 text-xs font-medium text-slate-500 dark:text-slate-400 transition-colors hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+                  data-testid="toggle-home-pov-signin"
+                >
+                  <UserRound className="h-3 w-3" /> My perspective
+                </button>
+              </div>
               <button
                 type="button"
                 onClick={() => setLocation("/personalization")}
-                className="text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
+                className="text-xs text-brand-link hover:underline transition-colors rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
                 data-testid="link-home-learn-more"
               >
                 What is this?
               </button>
-            </p>
+            </div>
           ) : (
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-x-2 gap-y-1 text-xs text-slate-500" data-testid="text-home-hint">
-              <div
-                role="group"
-                aria-label="Trust perspective"
-                className="inline-flex items-center gap-2"
-                data-testid="toggle-home-pov"
-              >
-                {/* Segmented control using the sitewide POV language: globe =
-                    Brainstorm's global view (neutral), person + indigo fill =
-                    your personalized view. Selected = filled pill, unmistakable. */}
+            <div className="mt-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs rounded-2xl backdrop-blur-[2px]" data-testid="text-home-hint">
+              {/* Quiet neutral segmented control — active segment is a plain white
+                  chip, no gradient / no wordmark image (guidelines p16/p17). */}
+              <div role="group" aria-label="Trust perspective" className="inline-flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/50 p-0.5" data-testid="toggle-home-pov">
                 <button
                   type="button"
                   onClick={() => setPov("nosfabrica")}
                   aria-pressed={effectivePov === "nosfabrica"}
                   className={
-                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40 " +
+                    "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
                     (effectivePov === "nosfabrica"
-                      ? "border-slate-300 bg-slate-100 font-semibold text-slate-800 shadow-sm"
-                      : "border-transparent font-medium text-slate-400 hover:text-slate-600")
+                      ? "bg-white dark:bg-slate-900 font-semibold text-slate-800 dark:text-slate-100 shadow-sm"
+                      : "font-medium text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white")
                   }
                   data-testid="toggle-home-pov-nosfabrica"
                 >
-                  <Globe className={"h-3 w-3 " + (effectivePov === "nosfabrica" ? "text-slate-500" : "text-slate-300")} />
-                  Brainstorm
+                  <Globe className={`h-3 w-3 ${effectivePov === "nosfabrica" ? "text-brand-primary" : ""}`} /> Brainstorm
                 </button>
                 <button
                   type="button"
@@ -860,33 +1071,36 @@ export default function Landing() {
                         : undefined
                   }
                   className={
-                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400/40 " +
+                    "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
                     (effectivePov === "mywot"
-                      ? "border-indigo-300 bg-indigo-50 font-semibold text-indigo-700 shadow-sm"
-                      : "border-transparent font-medium text-slate-400 hover:text-slate-600") +
+                      ? "bg-white dark:bg-slate-900 font-semibold text-slate-800 dark:text-slate-100 shadow-sm"
+                      : "font-medium text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white") +
                     (!canUseMywot ? " opacity-50 cursor-not-allowed" : "")
                   }
                   data-testid="toggle-home-pov-mywot"
                 >
-                  <UserRound className={"h-3 w-3 " + (effectivePov === "mywot" ? "text-indigo-500" : "text-slate-300")} />
-                  {user.displayName || "My results"}
+                  <Avatar className="h-4 w-4 shrink-0">
+                    {user.picture ? <AvatarImage src={user.picture} alt="" className="object-cover" /> : null}
+                    <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
+                  </Avatar>{" "}
+                  My perspective
                 </button>
               </div>
               {!hasMywot && (
                 <button
                   type="button"
                   onClick={() => setLocation("/settings")}
-                  className="inline-flex items-center gap-1 font-medium text-emerald-700 hover:text-emerald-800 hover:underline transition-colors"
+                  className="inline-flex items-center gap-1 font-medium text-emerald-700 dark:text-emerald-400 hover:underline transition-colors rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
                   data-testid="link-home-calculate-yours"
                 >
                   Calculate yours <ArrowRight className="h-3 w-3" />
                 </button>
               )}
-              <span className="text-slate-300" aria-hidden="true">·</span>
+              <span className="text-slate-400 dark:text-slate-500" aria-hidden="true">·</span>
               <button
                 type="button"
                 onClick={() => setLocation("/personalization")}
-                className="text-indigo-600 hover:text-indigo-700 hover:underline transition-colors"
+                className="text-brand-link hover:underline transition-colors rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
                 data-testid="link-home-learn-more"
               >
                 What is this?
@@ -906,14 +1120,14 @@ export default function Landing() {
         <BackupReminder />
 
         {isSearching && (
-          <div className="w-full max-w-3xl mx-auto mt-6 sm:mt-8 text-left">
+          <div className="w-full max-w-2xl mx-auto mt-6 sm:mt-8 text-left">
             <div className="space-y-2 sm:space-y-3" data-testid="container-search-loading">
               {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-white/70 border border-slate-100 animate-pulse" style={{ animationDelay: `${i * 0.08}s` }}>
-                  <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-full bg-slate-200 shrink-0" />
+                <div key={i} className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-white/70 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800/60 animate-pulse" style={{ animationDelay: `${i * 0.08}s` }}>
+                  <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-full bg-slate-200 dark:bg-slate-700 shrink-0" />
                   <div className="flex-1 space-y-2 pt-1">
-                    <div className="h-3 sm:h-3.5 bg-slate-200 rounded-full w-28 sm:w-36" />
-                    <div className="h-2.5 bg-slate-100 rounded-full w-full max-w-md" />
+                    <div className="h-3 sm:h-3.5 bg-slate-200 dark:bg-slate-700 rounded-full w-28 sm:w-36" />
+                    <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full w-full max-w-md" />
                   </div>
                 </div>
               ))}
@@ -922,9 +1136,9 @@ export default function Landing() {
         )}
 
         {!isSearching && hasSearched && results.length > 0 && (
-          <div className="w-full max-w-3xl mx-auto mt-6 sm:mt-8 text-left">
+          <div className="w-full max-w-2xl mx-auto mt-6 sm:mt-8 text-left">
             <div className="mb-2 sm:mb-3 px-1">
-              <p className="text-[10px] sm:text-[11px] text-slate-400" data-testid="text-search-stats">
+              <p className="text-xs text-slate-400 dark:text-slate-500" data-testid="text-search-stats">
                 About {results.length} result{results.length !== 1 ? "s" : ""} ({(searchTime / 1000).toFixed(2)} seconds)
               </p>
             </div>
@@ -933,18 +1147,23 @@ export default function Landing() {
                 const formatFollowers = (n: number) => n >= 10000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K` : n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
                 const websiteDisplay = result.website ? result.website.replace(/^https?:\/\//, "").replace(/\/$/, "") : null;
                 return (
-                  <button
+                  <div
                     key={result.pubkey}
-                    className="w-full bg-white/70 hover:bg-white border border-slate-100 hover:border-slate-200 hover:shadow-sm active:bg-slate-50 rounded-xl transition-all duration-150 text-left group cursor-pointer overflow-hidden"
+                    role="button"
+                    tabIndex={0}
+                    className="w-full bg-white/70 dark:bg-slate-900/70 hover:bg-white dark:hover:bg-slate-900 border border-slate-100 dark:border-slate-800/60 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm active:bg-slate-50 dark:active:bg-slate-800 rounded-xl transition-all duration-150 text-left group cursor-pointer overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
                     onMouseEnter={() => handlePrefetchEnter(result)}
                     onMouseLeave={() => handlePrefetchLeave(result)}
                     onFocus={() => handlePrefetchEnter(result)}
                     onBlur={() => handlePrefetchLeave(result)}
                     onClick={() => goToProfile(result)}
+                    // Only the card itself (not a bubbled keypress from the inner
+                    // website link / copy button) navigates on Enter/Space.
+                    onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); goToProfile(result); } }}
                     data-testid={`result-profile-${idx}`}
                   >
                     <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4">
-                      <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2 shrink-0 border-slate-200/80">
+                      <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2 shrink-0 border-slate-200/80 dark:border-slate-800/80">
                         {result.picture ? <AvatarImage src={result.picture} alt={getDisplayLabel(result)} className="object-cover" /> : null}
                         <AvatarFallback className="overflow-hidden">
                           <DefaultAvatarImg />
@@ -952,25 +1171,25 @@ export default function Landing() {
                       </Avatar>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-[13px] sm:text-sm font-semibold text-slate-900 group-hover:text-indigo-700 transition-colors truncate" data-testid={`text-result-name-${idx}`}>
+                          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors truncate" data-testid={`text-result-name-${idx}`}>
                             {getDisplayLabel(result)}
                           </span>
                         </div>
                         {result.nip05 && (
-                          <p className="text-[10px] sm:text-[11px] text-indigo-600 truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-nip05-${idx}`}>
-                            <Check className="h-2.5 w-2.5 shrink-0 text-indigo-500" />
+                          <p className="text-xs text-brand-primary dark:text-brand-link truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-nip05-${idx}`}>
+                            <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />
                             {result.nip05.replace(/^_@/, "")}
                           </p>
                         )}
                         {result.lud16 && (
-                          <p className="text-[10px] sm:text-[11px] text-amber-600 truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-lightning-${idx}`}>
-                            <Zap className="h-2.5 w-2.5 shrink-0 fill-amber-400 text-amber-500" />
+                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-lightning-${idx}`}>
+                            <Zap className="h-2.5 w-2.5 shrink-0 text-slate-400 dark:text-slate-500" />
                             {result.lud16}
                           </p>
                         )}
                         {websiteDisplay && (
-                          <p className="text-[10px] sm:text-[11px] text-emerald-600 truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-website-${idx}`}>
-                            <Globe className="h-2.5 w-2.5 shrink-0 text-emerald-500" />
+                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-website-${idx}`}>
+                            <Globe className="h-2.5 w-2.5 shrink-0 text-slate-400 dark:text-slate-500" />
                             <a
                               href={result.website!.startsWith("http") ? result.website! : `https://${result.website}`}
                               target="_blank"
@@ -983,42 +1202,42 @@ export default function Landing() {
                           </p>
                         )}
                         {result.about && (
-                          <p className="text-[11px] sm:text-xs text-slate-500 mt-1 leading-relaxed line-clamp-2" data-testid={`text-result-about-${idx}`}>
+                          <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2" data-testid={`text-result-about-${idx}`}>
                             {truncateAbout(result.about)}
                           </p>
                         )}
                         <div className="flex items-center gap-1.5 sm:gap-2 mt-2 flex-wrap">
                           {result.wotRank != null && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-indigo-50 text-indigo-600 border border-indigo-100" data-testid={`badge-rank-${idx}`}>
-                              <BrainLogo size={10} className="shrink-0" />
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand-primary/10 dark:bg-white/10 text-brand-primary dark:text-slate-100 border border-brand-primary/15 dark:border-white/15" data-testid={`badge-rank-${idx}`}>
+                              <BrainLogo mono size={10} className="shrink-0" />
                               {result.wotRank}
                             </span>
                           )}
                           {result.wotFollowers != null && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-50 text-slate-500 border border-slate-100" data-testid={`badge-followers-${idx}`}>
+                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800/60" data-testid={`badge-followers-${idx}`}>
                               <Users className="h-2.5 w-2.5" />
                               {formatFollowers(result.wotFollowers)}
                             </span>
                           )}
-                          <span className="inline-flex items-center gap-1 text-[10px] text-slate-300 font-mono hidden sm:inline" data-testid={`text-result-npub-${idx}`}>
+                          <span className="inline-flex items-center gap-1 text-[10px] text-slate-300 dark:text-slate-600 font-mono hidden sm:inline" data-testid={`text-result-npub-${idx}`}>
                             {result.npub.slice(0, 12)}...
-                            <span
-                              role="button"
-                              tabIndex={0}
-                              className="inline-flex items-center justify-center h-4 w-4 rounded hover:bg-slate-100 active:bg-slate-200 transition-colors cursor-pointer"
+                            <button
+                              type="button"
+                              aria-label="Copy npub"
+                              className="inline-flex items-center justify-center h-4 w-4 rounded hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-200 dark:active:bg-slate-700 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
                               data-testid={`button-copy-npub-${idx}`}
                               onClick={(e) => { e.stopPropagation(); copyToClipboard(result.npub); }}
                             >
-                              <Copy className="h-2.5 w-2.5 text-slate-400 hover:text-slate-600" />
-                            </span>
+                              <Copy className="h-2.5 w-2.5 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300" />
+                            </button>
                           </span>
                         </div>
                       </div>
-                      <span className="text-[11px] text-slate-300 group-hover:text-indigo-500 transition-colors shrink-0 mt-1 hidden sm:inline font-medium">
+                      <span className="text-[11px] text-slate-300 dark:text-slate-600 group-hover:text-brand-primary transition-colors shrink-0 mt-1 hidden sm:inline font-medium">
                         View →
                       </span>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -1026,33 +1245,44 @@ export default function Landing() {
         )}
 
         {showNoResults && (
-          <div className="w-full max-w-2xl mx-auto mt-8 sm:mt-12 text-center" data-testid="container-no-results">
-            <div className="p-6 sm:p-8 rounded-xl sm:rounded-2xl bg-white/60 border border-slate-100">
-              <Radar className="h-8 w-8 sm:h-10 sm:w-10 text-slate-300 mx-auto mb-3" />
-              <h3 className="text-sm font-semibold text-slate-700 mb-1">No profiles found</h3>
-              <p className="text-xs text-slate-500">Try a different name or paste an npub directly.</p>
+          <div className="w-full max-w-2xl mx-auto mt-8 sm:mt-12" data-testid="container-no-results">
+            <div className="p-2 rounded-xl sm:rounded-2xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60">
+              <EmptyState
+                icon={Radar}
+                compact
+                title="No profiles found"
+                description="Try a different name, or paste an npub directly."
+              />
             </div>
           </div>
         )}
       </main>
 
-      <footer className="relative z-10 flex items-center justify-between px-4 sm:px-8 py-4 text-xs" data-testid="footer-home">
-        <button
-          type="button"
-          onClick={() => setLocation("/developers")}
-          className="font-medium text-slate-500 hover:text-indigo-600 transition-colors"
-          data-testid="link-home-developers"
-        >
-          Developers
-        </button>
-        <button
-          type="button"
-          onClick={() => setLocation("/how-search-works")}
-          className="font-medium text-slate-500 hover:text-indigo-600 transition-colors"
-          data-testid="link-home-how-search-works"
-        >
-          How search works
-        </button>
+      {/* Footer (Google-search pattern): secondary/info links sit quietly at the
+          bottom, muted and small, so they never compete with the search box.
+          Hidden on mobile — on a phone the viewport belongs to the search box,
+          and these wrap into a block that crowds it. The mobile tab bar already
+          carries the primary navigation. */}
+      {/* Already hidden on narrow phones for lack of room; a landscape phone has
+          even less of it, and these links were what the Recent panel collided
+          with. Same rationale, height axis — they stay one rotation away. */}
+      <footer className="relative z-10 hidden sm:flex short:!hidden flex-wrap items-center justify-start gap-x-6 gap-y-2 px-4 sm:px-8 py-4 text-xs" data-testid="footer-home">
+        {[
+          { label: "About", path: "/about" },
+          { label: "How search works", path: "/how-search-works" },
+          { label: "Developers", path: "/developers" },
+          { label: "Q&A", path: "/faq" },
+        ].map((l) => (
+          <button
+            key={l.path}
+            type="button"
+            onClick={() => setLocation(l.path)}
+            className="font-medium text-slate-500 dark:text-slate-400 transition-colors hover:text-brand-deep dark:hover:text-white rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+            data-testid={`footer-home-${l.path.slice(1)}`}
+          >
+            {l.label}
+          </button>
+        ))}
       </footer>
     </div>
   );

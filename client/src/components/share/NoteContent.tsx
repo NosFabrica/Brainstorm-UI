@@ -4,6 +4,7 @@ import { parseNoteContent, extractImageUrls, extractNoteTitle, toPlayableStreamU
 import { decodeNostrEntity } from "@/lib/noteRefs";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { LinkChip, LinkPreviewCard } from "@/components/share/LinkPreview";
+import { VideoEmbed, videoEmbedFor } from "@/components/share/VideoEmbed";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { FeedVideo } from "@/components/share/FeedVideo";
 import { LiveVideoPlayer } from "@/components/share/LiveVideoPlayer";
@@ -96,13 +97,14 @@ export function NoteContent({
   // All image URLs in this note — the set the lightbox carousels through.
   const imageUrls = tokens.filter((t) => t.type === "image").map((t) => (t as { value: string }).value);
   return (
-    <div className="text-[15px] leading-relaxed text-slate-700 whitespace-pre-wrap break-words">
+    <div className="text-[15px] leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap break-words">
       {tokens.map((token, i) => {
         switch (token.type) {
           case "text":
             return <span key={i}>{token.value}</span>;
           case "url":
             if (wavlakeTrackId(token.value)) return <WavlakeTrackCard key={i} url={token.value} />;
+            if (videoEmbedFor(token.value)) return <VideoEmbed key={i} url={token.value} />;
             return <LinkChip key={i} url={token.value} />;
           case "audio":
             return (
@@ -126,7 +128,7 @@ export function NoteContent({
                 src={token.value}
                 alt=""
                 loading="lazy"
-                className="mt-2 w-full max-h-72 rounded-xl border border-slate-200 bg-slate-50 object-cover"
+                className="mt-2 w-full max-h-72 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 object-cover"
               />
             ) : (
               <img
@@ -136,7 +138,7 @@ export function NoteContent({
                 loading="lazy"
                 data-noopen
                 onClick={(e) => { e.stopPropagation(); openLightbox(imageUrls, Math.max(0, imageUrls.indexOf(token.value))); }}
-                className={`mt-2 rounded-xl border border-slate-200 bg-slate-50 object-contain w-full cursor-zoom-in ${compact ? "max-h-[28rem]" : "max-h-[34rem]"}`}
+                className={`mt-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 object-contain w-full cursor-zoom-in ${compact ? "max-h-[28rem]" : "max-h-[34rem]"}`}
               />
             );
           case "video":
@@ -148,7 +150,7 @@ export function NoteContent({
             if (address) {
               // Links to the on-site article page; also embedded as a card below.
               return (
-                <button key={i} type="button" onClick={() => navigate(`/a/${token.bech32}`)} className="text-indigo-500 font-medium hover:underline">
+                <button key={i} type="button" onClick={() => navigate(`/a/${token.bech32}`)} className="text-brand-link font-medium hover:underline">
                   📄 article
                 </button>
               );
@@ -162,7 +164,7 @@ export function NoteContent({
                   key={i}
                   type="button"
                   onClick={() => requestNav({ kind: "profile", target: token.bech32, label: name || token.bech32.slice(0, 12) + "…", picture: prof?.picture })}
-                  className="text-indigo-600 font-medium hover:underline"
+                  className="text-brand-link font-medium hover:underline"
                 >
                   {label}
                 </button>
@@ -171,12 +173,12 @@ export function NoteContent({
             if (id) {
               // Links to the on-site event page; also embedded as a card below.
               return (
-                <button key={i} type="button" onClick={() => navigate(`/e/${token.bech32}`)} className="text-indigo-500 font-medium hover:underline">
+                <button key={i} type="button" onClick={() => navigate(`/e/${token.bech32}`)} className="text-brand-link font-medium hover:underline">
                   ↳ quoted note
                 </button>
               );
             }
-            return <span key={i} className="text-indigo-500 font-medium">@{token.bech32.slice(0, 10)}…</span>;
+            return <span key={i} className="text-brand-link font-medium">@{token.bech32.slice(0, 10)}…</span>;
           }
           case "hashtag":
             return (
@@ -184,7 +186,7 @@ export function NoteContent({
                 key={i}
                 type="button"
                 onClick={() => requestNav({ kind: "hashtag", target: token.value, label: token.value })}
-                className="text-indigo-500 font-medium hover:underline"
+                className="text-brand-link font-medium hover:underline"
               >
                 {token.value}
               </button>
@@ -193,7 +195,7 @@ export function NoteContent({
             return null;
         }
       })}
-      {primaryUrl && linkCard && !wavlakeTrackId(primaryUrl) && <LinkPreviewCard url={primaryUrl} />}
+      {primaryUrl && linkCard && !wavlakeTrackId(primaryUrl) && !videoEmbedFor(primaryUrl) && <LinkPreviewCard url={primaryUrl} />}
     </div>
   );
 }

@@ -35,18 +35,18 @@ export function tierForScore01(score01: number): VerificationTier {
 // gently COLORED (indigo-tinted), never pure grey — grey is reserved for global,
 // so the two flavors never collide at the bottom of the scale.
 const PERSONALIZED_FILL: Record<VerificationTier, string> = {
-  high: TRUST_TIER_COLORS.highlyTrusted, // emerald
-  trusted: TRUST_TIER_COLORS.trusted, // sky
-  neutral: TRUST_TIER_COLORS.neutral, // indigo
+  high: TRUST_TIER_COLORS.highlyTrusted, // Aurora Purple
+  trusted: TRUST_TIER_COLORS.trusted, // Aurora Cyan
+  neutral: TRUST_TIER_COLORS.neutral, // Muted Violet
   low: "#d97706", // amber-600 — darker than the shared bar amber for white-text contrast on the coin
-  unverified: "#c7d2fe", // indigo-200 — colored, not grey
+  unverified: "#cbb8ff", // light Aurora Purple tint — colored (not grey), reserves grey for global
 };
 
-// Global flavor: one neutral slate for every tier; the number carries the tier.
-const GLOBAL_FILL = "#64748b"; // slate-500
+// Global flavor: one neutral brand grey for every tier; the number carries the tier.
+const GLOBAL_FILL = "#6b7480"; // brand slate-600
 
 // Fills light enough to need dark text instead of white.
-const DARK_TEXT_FILLS = new Set<string>(["#c7d2fe"]);
+const DARK_TEXT_FILLS = new Set<string>(["#cbb8ff"]);
 
 export function VerificationCoin({
   score01,
@@ -85,7 +85,7 @@ export function VerificationCoin({
       onClick={onClick}
       aria-label={label}
       title={label}
-      className={`inline-flex items-center justify-center rounded-full font-bold leading-none tabular-nums shadow-sm ${ring ? "ring-2 ring-white" : ""} ${onClick ? "transition-transform hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400" : ""} ${className}`}
+      className={`inline-flex items-center justify-center rounded-full font-bold leading-none tabular-nums shadow-sm ${ring ? "ring-2 ring-white" : ""} ${onClick ? "transition-transform hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary" : ""} ${className}`}
       style={{
         width: size,
         height: size,

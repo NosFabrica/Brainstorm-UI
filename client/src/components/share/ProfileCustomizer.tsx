@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Reorder, useDragControls } from "framer-motion";
-import { Loader2, Check, GripVertical, ChevronUp, ChevronDown, Search, X } from "lucide-react";
+import { useLocation } from "wouter";
+import { Loader2, Check, GripVertical, ChevronUp, ChevronDown, Search, X, UserRound, ArrowRight } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -46,20 +47,20 @@ function SectionRow({
       dragListener={false}
       dragControls={controls}
       onDragEnd={onCommit}
-      className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-2.5 py-2"
+      className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2.5 py-2"
       data-testid={`customize-section-${sectionKey}`}
     >
       <span
         onPointerDown={(e) => controls.start(e)}
-        className="shrink-0 cursor-grab touch-none p-0.5 text-slate-300"
+        className="shrink-0 cursor-grab touch-none p-0.5 text-slate-300 dark:text-slate-600"
         aria-label="Drag to reorder"
       >
         <GripVertical className="h-4 w-4" aria-hidden="true" />
       </span>
-      <span className="flex-1 truncate text-sm font-medium text-slate-800">{label}</span>
-      <button type="button" onClick={onMoveUp} disabled={index === 0} className="rounded p-0.5 text-slate-300 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30" aria-label="Move up" data-testid={`customize-up-${sectionKey}`}><ChevronUp className="h-4 w-4" /></button>
-      <button type="button" onClick={onMoveDown} disabled={index === total - 1} className="rounded p-0.5 text-slate-300 hover:bg-slate-100 hover:text-slate-600 disabled:opacity-30" aria-label="Move down" data-testid={`customize-down-${sectionKey}`}><ChevronDown className="h-4 w-4" /></button>
-      <Switch checked={!hidden} onCheckedChange={onToggle} className="data-[state=checked]:bg-[#6366f1]" data-testid={`customize-toggle-${sectionKey}`} />
+      <span className="flex-1 truncate text-sm font-medium text-slate-800 dark:text-slate-200">{label}</span>
+      <button type="button" onClick={onMoveUp} disabled={index === 0} className="rounded p-0.5 text-slate-300 dark:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300 disabled:opacity-30" aria-label="Move up" data-testid={`customize-up-${sectionKey}`}><ChevronUp className="h-4 w-4" /></button>
+      <button type="button" onClick={onMoveDown} disabled={index === total - 1} className="rounded p-0.5 text-slate-300 dark:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-600 dark:hover:text-slate-300 disabled:opacity-30" aria-label="Move down" data-testid={`customize-down-${sectionKey}`}><ChevronDown className="h-4 w-4" /></button>
+      <Switch checked={!hidden} onCheckedChange={onToggle} className="data-[state=checked]:bg-brand-primary" data-testid={`customize-toggle-${sectionKey}`} />
     </Reorder.Item>
   );
 }
@@ -92,6 +93,7 @@ export function ProfileCustomizer({
   emptyKeys: Set<string>;
 }) {
   const isMobile = useIsMobile();
+  const [, navigate] = useLocation();
   const [followerQuery, setFollowerQuery] = useState("");
 
   const isHidden = (k: string) => draft.hidden.includes(k);
@@ -162,15 +164,35 @@ export function ProfileCustomizer({
         className={`flex flex-col gap-0 p-0 ${isMobile ? "h-[88vh] rounded-t-2xl" : "w-full sm:max-w-md"}`}
         data-testid="profile-customizer"
       >
-        <SheetHeader className="border-b border-slate-100 px-5 py-4 text-left">
-          <SheetTitle className="text-base font-bold text-slate-900">Customize your profile</SheetTitle>
-          <SheetDescription className="text-xs text-slate-500">Toggle what visitors see — it previews live behind this panel.</SheetDescription>
+        <SheetHeader className="border-b border-slate-100 dark:border-slate-800/60 px-5 py-4 text-left">
+          <SheetTitle className="text-base font-bold text-slate-900 dark:text-slate-100">Customize your profile</SheetTitle>
+          <SheetDescription className="text-xs text-slate-500 dark:text-slate-400">Toggle what visitors see — it previews live behind this panel.</SheetDescription>
         </SheetHeader>
 
         <div className="flex-1 space-y-6 overflow-y-auto px-5 py-4">
+          {/* Edit the actual profile content (name, photo, bio) — distinct from
+              the visibility toggles below. Users often open "Customize" looking
+              for this, so it's pinned at the top. Goes to the app's canonical
+              editor at /settings?tab=profile. */}
+          <button
+            type="button"
+            onClick={() => { onCancel(); navigate("/settings?tab=profile"); }}
+            className="flex w-full items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-white/[0.04] px-3 py-2.5 text-left transition-colors hover:border-brand-accent/40 hover:bg-slate-50 dark:hover:bg-white/[0.06] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+            data-testid="customize-edit-profile"
+          >
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-primary/10 text-brand-primary dark:text-brand-link">
+              <UserRound className="h-5 w-5" />
+            </div>
+            <div className="min-w-0 flex-1">
+              <div className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">Edit profile info</div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400">Name, photo, bio &amp; banner</div>
+            </div>
+            <ArrowRight className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />
+          </button>
+
           {/* Sections */}
           <section>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Sections · drag or arrows to reorder</p>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Sections · drag or arrows to reorder</p>
             <Reorder.Group as="div" axis="y" values={localOrder} onReorder={setLocalOrder} className="space-y-1.5">
               {localOrder.map((k, i) => (
                 <SectionRow
@@ -190,10 +212,10 @@ export function ProfileCustomizer({
             {emptySections.length > 0 && (
               <div className="mt-1.5 space-y-1.5">
                 {emptySections.map((k) => (
-                  <div key={k} className="flex items-center gap-2 rounded-xl border border-dashed border-slate-200 bg-slate-50/60 px-2.5 py-2" data-testid={`customize-section-${k}`}>
-                    <GripVertical className="h-4 w-4 shrink-0 text-slate-200" aria-hidden="true" />
-                    <span className="flex-1 truncate text-sm font-medium text-slate-400">{SECTION_LABELS[k]}</span>
-                    <span className="shrink-0 text-[11px] text-slate-400">Nothing to show yet</span>
+                  <div key={k} className="flex items-center gap-2 rounded-xl border border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 px-2.5 py-2" data-testid={`customize-section-${k}`}>
+                    <GripVertical className="h-4 w-4 shrink-0 text-slate-200 dark:text-slate-700" aria-hidden="true" />
+                    <span className="flex-1 truncate text-sm font-medium text-slate-400 dark:text-slate-500">{SECTION_LABELS[k]}</span>
+                    <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">Nothing to show yet</span>
                     <Switch checked={false} disabled className="opacity-50" data-testid={`customize-toggle-${k}`} />
                   </div>
                 ))}
@@ -203,15 +225,15 @@ export function ProfileCustomizer({
 
           {/* Profile details */}
           <section>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Profile details</p>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Profile details</p>
             <div className="space-y-1.5">
               {HERO_KEYS.map((k) => {
                 const empty = emptyKeys.has(k);
                 return (
-                  <div key={k} className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${empty ? "border-dashed border-slate-200 bg-slate-50/60" : "border-slate-200 bg-white"}`} data-testid={`customize-row-${k}`}>
-                    <span className={`flex-1 truncate text-sm font-medium ${empty ? "text-slate-400" : "text-slate-800"}`}>{HERO_LABELS[k]}</span>
-                    {empty && <span className="shrink-0 text-[11px] text-slate-400">Not set yet</span>}
-                    <Switch checked={empty ? false : !isHidden(k)} disabled={empty} onCheckedChange={(on) => setHidden(k, !on)} className={empty ? "opacity-50" : "data-[state=checked]:bg-[#6366f1]"} data-testid={`customize-toggle-${k}`} />
+                  <div key={k} className={`flex items-center gap-2 rounded-xl border px-3 py-2 ${empty ? "border-dashed border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"}`} data-testid={`customize-row-${k}`}>
+                    <span className={`flex-1 truncate text-sm font-medium ${empty ? "text-slate-400 dark:text-slate-500" : "text-slate-800 dark:text-slate-200"}`}>{HERO_LABELS[k]}</span>
+                    {empty && <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">Not set yet</span>}
+                    <Switch checked={empty ? false : !isHidden(k)} disabled={empty} onCheckedChange={(on) => setHidden(k, !on)} className={empty ? "opacity-50" : "data-[state=checked]:bg-brand-primary"} data-testid={`customize-toggle-${k}`} />
                   </div>
                 );
               })}
@@ -220,12 +242,12 @@ export function ProfileCustomizer({
 
           {/* Roles */}
           <section>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">What you do</p>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">What you do</p>
             <div className="flex flex-wrap gap-1.5">
               {ROLES.map((r) => {
                 const on = draft.roles.includes(r.key);
                 return (
-                  <button key={r.key} type="button" onClick={() => toggleRole(r.key)} className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${on ? "border-[#7c86ff]/40 bg-[#333286]/5 text-[#333286]" : "border-slate-200 bg-white text-slate-500 hover:border-slate-300"}`} data-testid={`customize-role-${r.key}`}>
+                  <button key={r.key} type="button" onClick={() => toggleRole(r.key)} className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${on ? "border-brand-accent/40 bg-brand-deep/5 text-brand-deep" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700"}`} data-testid={`customize-role-${r.key}`}>
                     {on && <Check className="h-3 w-3" />} {r.label}
                   </button>
                 );
@@ -235,46 +257,46 @@ export function ProfileCustomizer({
 
           {/* Featured followers */}
           <section>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Featured followers · up to {MAX_FOLLOWERS} (empty = auto)</p>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Featured followers · up to {MAX_FOLLOWERS} (empty = auto)</p>
             {selected.length > 0 && (
               <div className="mb-2 flex flex-wrap gap-1.5">
                 {selected.map((c) => (
-                  <span key={c.pubkey} className="inline-flex items-center gap-1.5 rounded-full border border-[#7c86ff]/40 bg-[#333286]/5 py-0.5 pl-0.5 pr-1.5 text-xs font-semibold text-[#333286]">
+                  <span key={c.pubkey} className="inline-flex items-center gap-1.5 rounded-full border border-brand-accent/40 bg-brand-deep/5 py-0.5 pl-0.5 pr-1.5 text-xs font-semibold text-brand-deep">
                     <PersonAvatar c={c} size="h-5 w-5" />
                     <span className="max-w-[110px] truncate">{c.name || c.pubkey.slice(0, 8) + "…"}</span>
-                    <button type="button" onClick={() => removePinned(c.pubkey)} className="rounded-full p-0.5 hover:bg-[#333286]/10" aria-label="Remove" data-testid={`customize-follower-remove-${c.pubkey.slice(0, 8)}`}><X className="h-3 w-3" /></button>
+                    <button type="button" onClick={() => removePinned(c.pubkey)} className="rounded-full p-0.5 hover:bg-brand-deep/10" aria-label="Remove" data-testid={`customize-follower-remove-${c.pubkey.slice(0, 8)}`}><X className="h-3 w-3" /></button>
                   </span>
                 ))}
               </div>
             )}
             {!atMax && followerCandidates.length > 0 && (
               <>
-                <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2">
-                  <Search className="h-4 w-4 shrink-0 text-slate-400" />
-                  <input value={followerQuery} onChange={(e) => setFollowerQuery(e.target.value)} placeholder="Search your followers…" className="flex-1 bg-transparent text-sm text-slate-900 placeholder:text-slate-400 outline-none" data-testid="customize-follower-search" />
+                <div className="flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2">
+                  <Search className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />
+                  <input value={followerQuery} onChange={(e) => setFollowerQuery(e.target.value)} placeholder="Search your followers…" className="flex-1 bg-transparent text-sm text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 outline-none" data-testid="customize-follower-search" />
                 </div>
                 {results.length > 0 && (
                   <div className="mt-1.5 space-y-0.5">
                     {results.map((c) => (
-                      <button key={c.pubkey} type="button" onClick={() => addPinned(c.pubkey)} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-slate-50" data-testid={`customize-follower-${c.pubkey.slice(0, 8)}`}>
+                      <button key={c.pubkey} type="button" onClick={() => addPinned(c.pubkey)} className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left hover:bg-slate-50 dark:hover:bg-slate-800" data-testid={`customize-follower-${c.pubkey.slice(0, 8)}`}>
                         <PersonAvatar c={c} />
-                        <span className="flex-1 truncate text-sm text-slate-700">{c.name || c.pubkey.slice(0, 10) + "…"}</span>
-                        <span className="text-xs font-semibold text-[#3730a3]">Add</span>
+                        <span className="flex-1 truncate text-sm text-slate-700 dark:text-slate-200">{c.name || c.pubkey.slice(0, 10) + "…"}</span>
+                        <span className="text-xs font-semibold text-brand-link">Add</span>
                       </button>
                     ))}
                   </div>
                 )}
               </>
             )}
-            {atMax && <p className="text-xs text-slate-400">Max {MAX_FOLLOWERS} reached — remove one to add another.</p>}
+            {atMax && <p className="text-xs text-slate-400 dark:text-slate-500">Max {MAX_FOLLOWERS} reached — remove one to add another.</p>}
           </section>
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-5 py-3">
-          {error ? <span className="truncate text-xs text-red-500">{error}</span> : <span className="text-xs text-slate-400">Saved to Nostr — you own it.</span>}
+        <div className="flex items-center justify-between gap-3 border-t border-slate-100 dark:border-slate-800/60 px-5 py-3">
+          {error ? <span className="truncate text-xs text-red-500">{error}</span> : <span className="text-xs text-slate-400 dark:text-slate-500">Saved to Nostr — you own it.</span>}
           <div className="flex shrink-0 items-center gap-2">
-            <button type="button" onClick={onCancel} disabled={saving} className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 hover:bg-slate-100 disabled:opacity-50">Cancel</button>
-            <button type="button" onClick={onSave} disabled={saving} className="inline-flex items-center gap-1.5 rounded-xl bg-[#6366f1] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#4f46e5] disabled:opacity-60" data-testid="customize-save">
+            <button type="button" onClick={onCancel} disabled={saving} className="rounded-xl px-3 py-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-50">Cancel</button>
+            <button type="button" onClick={onSave} disabled={saving} className="inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-60" data-testid="customize-save">
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />} Save
             </button>
           </div>

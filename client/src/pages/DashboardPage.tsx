@@ -5,7 +5,6 @@ import { TRUST_TIER_COLORS } from "@/services/trustThreshold";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
 import { PresetBadge } from "@/components/PresetBadge";
-import amethystHeroImg from "../assets/amethyst-hero.webp";
 import amethystLogoImg from "../assets/amethyst-logo.png";
 import nostriaHeroImg from "../assets/nostria-hero.png";
 import nostriaManifestoImg from "../assets/nostria-manifesto-overlay.png";
@@ -16,6 +15,14 @@ import { useLocation } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
 import { FollowToCalculateCard } from "@/components/FollowToCalculateCard";
+import { NetworkAlertsModule } from "@/components/dashboard/NetworkAlertsModule";
+import { DashboardLookup } from "@/components/dashboard/DashboardLookup";
+import { YourNetworkCard } from "@/components/dashboard/YourNetworkCard";
+import { SetupProgressCard } from "@/components/dashboard/SetupProgressCard";
+import { useNetworkFaces } from "@/hooks/useNetworkFaces";
+import { NetworkArticlesModule } from "@/components/dashboard/NetworkArticlesModule";
+import { ClientShelf } from "@/components/dashboard/ClientShelf";
+import { NetworkThreadModule } from "@/components/dashboard/NetworkThreadModule";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -45,7 +52,6 @@ import {
   Info,
   RefreshCw,
   Network,
-  Menu,
   X,
   ChevronRight,
   ChevronDown,
@@ -73,8 +79,7 @@ import {
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { FEATURES } from "@/config/featureFlags";
-import { motion, AnimatePresence, useMotionValue, useMotionTemplate } from "framer-motion";
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip } from "recharts";
+import { motion, AnimatePresence } from "framer-motion";
 import { BrainLogo } from "@/components/BrainLogo";
 import {
   ASSISTANT_UPDATED_EVENT,
@@ -86,13 +91,10 @@ import {
 } from "@/lib/assistantStorage";
 import { ensureAssistantPublished } from "@/lib/assistantPublish";
 import { ToastAction } from "@/components/ui/toast";
-import { openMobileMenu } from "@/lib/mobileMenuStore";
 import PageBackground from "@/components/PageBackground";
 import { Footer } from "@/components/Footer";
 import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Slider } from "@/components/ui/slider";
-import { Badge } from "@/components/ui/badge";
-import { Carousel, CarouselContent, CarouselItem } from "@/components/ui/carousel";
 import {
   Dialog,
   DialogContent,
@@ -124,78 +126,20 @@ import bitcoinImg from "@/assets/stock_images/bitcoin_network.jpg";
 import digitalArtImg from "@/assets/stock_images/digital_art.jpg";
 import musicSceneImg from "@/assets/stock_images/music_scene.jpg";
 
-const ONBOARDING_SLIDES = [
-  {
-    title: "No Algorithm Overlords",
-    subtitle: "Your network, your rules",
-    content: "Traditional platforms use opaque algorithms to decide what you see. Brainstorm gives you algorithmic clarity.",
-    detail: "Every score is explainable, traceable back through your network. You're in control.",
-    tone: "from-emerald-500/20 via-teal-500/10 to-transparent",
-  },
-  {
-    title: "The Extended Follows Network",
-    subtitle: "More than just friends",
-    content: "Your network isn't just who you follow. It's who they follow, and who they follow, ad infinitum.",
-    detail: "We calculate trust across N hops. You'll be amazed at how vast your true network really is when you look beyond the surface.",
-    tone: "from-indigo-500/20 via-violet-500/10 to-transparent",
-  },
-  {
-    title: "Not A Popularity Contest",
-    subtitle: "A different kind of score",
-    content: "Finally, a metric that isn't about clout. A high score simply means your Grapevine verifies this person is real.",
-    detail: 'Low score \u2260 uncool. It just means "we haven\'t had the pleasure of meeting yet." Trust is earned, not farmed.',
-    tone: "from-fuchsia-500/20 via-purple-500/10 to-transparent",
-  },
-  {
-    title: "Safety in Numbers",
-    subtitle: "Crowdsourced immunity",
-    content: "Accidentally followed a bot farm? Your network knows things you don't. We'll flag it before it spams you.",
-    detail: "Get alerts if you follow someone highly reported or muted by your trusted peers. It's herd immunity for your feed.",
-    tone: "from-amber-500/20 via-orange-500/10 to-transparent",
-  },
-  {
-    title: "Computation In Progress",
-    subtitle: "Your scores are being prepared",
-    content: "We're calculating your trust graph and generating explainable scores you can use across the Brainstorm experience.",
-    detail: "You can use Brainstorm right now \u2014 this finishes in the background, no waiting. It usually takes a few minutes.",
-    tone: "from-cyan-500/20 via-sky-500/10 to-transparent",
-  },
-  {
-    title: "Trusted Assertions",
-    subtitle: "Technical deep dive",
-    content: "Brainstorm uses cryptographic proofs to deliver trust scores. These 'assertions' can be verified but never forged.",
-    detail: "Each assertion is a kind 3038x event containing your personalized trust scores, signed by you.",
-    tone: "from-rose-500/20 via-pink-500/10 to-transparent",
-  },
-  {
-    title: "What This Unlocks",
-    subtitle: "The future",
-    content: "Spam filtering, content recommendations, reputation systems, marketplace trust \u2014 all powered by your personal web of trust.",
-    detail: "Developers can build on top of your trust scores, creating experiences tailored to your unique social graph.",
-    tone: "from-yellow-500/20 via-amber-500/10 to-transparent",
-  },
-  {
-    title: "You're in control",
-    subtitle: "Last slide \u2014 explore anytime",
-    content: "There's no timer here. Click through at your own pace while your trust graph continues computing in the background.",
-    detail: "When scores are ready, the dashboard will reflect them \u2014 until then, explore and learn how the system works.",
-    tone: "from-fuchsia-500/20 via-indigo-500/10 to-transparent",
-  },
-];
 
 const isStatusDone = (s: unknown): boolean => typeof s === "string" && s.toLowerCase() === "success";
 
 const INTEREST_CLUSTERS = [
   { id: "dev", label: "Protocol Devs", icon: Code, count: 1240, color: "bg-blue-500", unit: "builders", image: protocolDevImg },
   { id: "btc", label: "Bitcoiners", icon: Bitcoin, count: 8500, color: "bg-orange-500", unit: "peers", image: bitcoinImg },
-  { id: "art", label: "Digital Artists", icon: Palette, count: 3200, color: "bg-[#333286]", unit: "creators", image: digitalArtImg },
-  { id: "music", label: "Music Scene", icon: Music, count: 1800, color: "bg-[#7c86ff]", unit: "artists", image: musicSceneImg },
+  { id: "art", label: "Digital Artists", icon: Palette, count: 3200, color: "bg-brand-deep", unit: "creators", image: digitalArtImg },
+  { id: "music", label: "Music Scene", icon: Music, count: 1800, color: "bg-brand-accent", unit: "artists", image: musicSceneImg },
 ];
 
 
 const NETWORK_METRICS = [
   { key: "followed_by", label: "Followers", icon: UserPlus, color: "text-emerald-500", bgColor: "bg-emerald-500" },
-  { key: "following", label: "Following", icon: Users, color: "text-indigo-500", bgColor: "bg-indigo-500" },
+  { key: "following", label: "Following", icon: Users, color: "text-brand-primary", bgColor: "bg-brand-primary" },
   { key: "muted_by", label: "Muted By", icon: VolumeX, color: "text-amber-500", bgColor: "bg-amber-500" },
   { key: "muting", label: "Muting", icon: UserMinus, color: "text-slate-500", bgColor: "bg-slate-400" },
   { key: "reported_by", label: "Reported By", icon: ShieldAlert, color: "text-red-500", bgColor: "bg-red-500" },
@@ -224,12 +168,7 @@ export default function DashboardPage() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [hopRange, setHopRange] = useState([1, 3]);
   const [extendedNetworkCount, setExtendedNetworkCount] = useState(250000);
-  const [riskDialogOpen, setRiskDialogOpen] = useState(false);
-  const riskTeaserTimerRef = useRef<number | null>(null);
   const [networkViewMode, setNetworkViewMode] = useState<"trust" | "activity">("trust");
-  const [healthView, setHealthView] = useState<"followers" | "following">("followers");
-  const [activeOnboardingIndex, setActiveOnboardingIndex] = useState(0);
-  const [isOnboardingCollapsed, setIsOnboardingCollapsed] = useState(true);
   const [nip85ModalOpen, setNip85ModalOpen] = useState(false);
   const [wotExpanded, setWotExpanded] = useState(false);
   const [nip85Activated, setNip85Activated] = useState(() => isNip85Activated(getCurrentUser()?.pubkey));
@@ -508,6 +447,17 @@ export default function DashboardPage() {
 
   const hasNoFollowing = overviewQuery.isSuccess && followingCount === 0;
 
+  // The backend `following` count lags for brand-new accounts — it only fills in
+  // after the first GrapeRank pass ingests the contact list. So a user who has
+  // already followed + triggered scoring still reads followingCount === 0 for a
+  // while. This flag (set the moment scoring is triggered, which requires having
+  // followed) lets us stop re-nagging them to "follow to begin" and instead show
+  // a calm "calculating" state until the count catches up.
+  const calcTriggered = (() => {
+    try { return !!user?.pubkey && !!localStorage.getItem(`brainstorm_calc_triggered_at:${user.pubkey}`); }
+    catch { return false; }
+  })();
+
   // The no-follows user just used the inline follow-picker → bridge to the
   // "calculating" state and suppress any stale "failed" status until the fresh
   // GrapeRank result replaces it.
@@ -625,25 +575,8 @@ export default function DashboardPage() {
     return Math.max(maxH, 5);
   }, [countValues]);
 
-  useEffect(() => {
-    return () => {
-      if (riskTeaserTimerRef.current) window.clearTimeout(riskTeaserTimerRef.current);
-    };
-  }, []);
 
 
-  const mouseX = useMotionValue(0);
-  const mouseY = useMotionValue(0);
-
-  function handleMouseMove({ currentTarget, clientX, clientY }: React.MouseEvent) {
-    const { left, top } = currentTarget.getBoundingClientRect();
-    const x = clientX - left;
-    const y = clientY - top;
-    mouseX.set(x);
-    mouseY.set(y);
-    (currentTarget as HTMLElement).style.setProperty("--flash-x", `${x}px`);
-    (currentTarget as HTMLElement).style.setProperty("--flash-y", `${y}px`);
-  }
 
   const aggregateByHopRange = (tierKey: string, lo: number, hi: number): number => {
     if (!countValues || !countValues[tierKey]) return 0;
@@ -706,7 +639,7 @@ export default function DashboardPage() {
   const activityBreakdown = [
     { name: "Very active (7 days)", value: Math.floor(extendedNetworkCount * 0.18), color: "#059669" },
     { name: "Active (90 days)", value: Math.floor(extendedNetworkCount * 0.32), color: "#0ea5e9" },
-    { name: "Quiet (90+ days)", value: Math.floor(extendedNetworkCount * 0.3), color: "#6366f1" },
+    { name: "Quiet (90+ days)", value: Math.floor(extendedNetworkCount * 0.3), color: "#7237ff" },
     {
       name: "Dormant (1+ year)",
       value: Math.max(
@@ -727,23 +660,6 @@ export default function DashboardPage() {
 
   // Stats `tier_counts` field names now match the GR `count_values` keys
   // used by TIER_CONFIG — pass straight through.
-  const directTierCounts = useMemo(
-    () => (stats?.followed_by?.tier_counts ?? {}) as Record<string, number>,
-    [stats],
-  );
-  const directFollowingTierCounts = useMemo(
-    () => (stats?.following?.tier_counts ?? {}) as Record<string, number>,
-    [stats],
-  );
-
-  const followingPieData = useMemo(() => {
-    return TIER_CONFIG.map((tier) => ({
-      name: tier.name,
-      value: directFollowingTierCounts[tier.key] ?? 0,
-      color: tier.color,
-    })).filter(d => d.value > 0 || d.name === "Flagged");
-  }, [directFollowingTierCounts]);
-
   const handleExport = () => {
     const data = {
       format: "brainstorm-v1",
@@ -801,11 +717,44 @@ export default function DashboardPage() {
     try { return !!k && localStorage.getItem(k) === "true"; } catch { return false; }
   }, [calcDone, user?.pubkey]);
 
+  // Recently-active faces for the Your Network tiles (follows + followers).
+  // MUST stay above the early return below — a hook called after a conditional
+  // return changes hook order between renders and crashes the whole page.
+  const recalculating = !calcDone && hadPreviousScores && !grapeRankQuery.isLoading;
+  const facesQuery = useNetworkFaces(user?.pubkey ?? "", calcDone || recalculating);
+
+  // Also above the early return, for the same reason. Holds whether this is the
+  // user's first-ever visit; the value is captured further down, once
+  // overviewQuery has actually answered.
+  const firstSessionRef = useRef<boolean | null>(null);
+
   if (!user || isAuthRedirecting()) return null;
 
-  const isRecalculating = !calcDone && hadPreviousScores && !grapeRankQuery.isLoading;
+  const isRecalculating = recalculating;
   const isCalculationComplete = calcDone || isRecalculating;
-  const showOnboarding = !grapeRankQuery.isLoading && !publishDone && !hasNoFollowing && !isRecalculating && !hadPreviousScores;
+
+  // "Welcome back" is a lie to someone who signed up 30 seconds ago, and the
+  // displayName fallback invented "Traveler" for exactly the people least likely
+  // to have set a name — new users. hadPreviousScores is a persisted per-account
+  // flag, so it identifies a genuine first visit with no new storage.
+  //
+  // FROZEN for the session: hadPreviousScores flips true the instant the first
+  // calculation lands, which would otherwise swap the heading out from under a
+  // user mid-visit. Captured on the first render where we actually know. The ref
+  // itself is declared ABOVE the early return — declaring it here made it a hook
+  // called after a conditional return, which changed hook order between renders
+  // and blanked the whole page.
+  if (firstSessionRef.current === null && overviewQuery.isSuccess) {
+    firstSessionRef.current = !hadPreviousScores;
+  }
+  const isFirstSession = firstSessionRef.current === true;
+  // `overviewQuery.isSuccess` is load-bearing, not belt-and-braces: hasNoFollowing
+  // is `overviewQuery.isSuccess && followingCount === 0`, so while overview is
+  // still in flight it reads FALSE — indistinguishable from "this user has
+  // follows". For a brand-new account grapeRank resolves first, every other term
+  // passes, and the onboarding panel flashed on screen for that window before
+  // overview landed and yanked it away. Waiting for overview to settle closes it.
+  const showOnboarding = overviewQuery.isSuccess && !grapeRankQuery.isLoading && !publishDone && !hasNoFollowing && !isRecalculating && !hadPreviousScores;
   // No-follows is NOT an error — it's the "start here" state (handled by the
   // inline follow-picker). Only real GrapeRank/publish failures are errors, and
   // we suppress those right after a fresh follow+calculate.
@@ -821,7 +770,7 @@ export default function DashboardPage() {
 
   return (
     <TooltipProvider>
-      <div className="min-h-screen bg-[#F8FAFC] text-slate-900 font-sans selection:bg-indigo-500/30 flex flex-col relative overflow-hidden" data-testid="page-dashboard">
+      <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-primary/[0.3] flex flex-col relative overflow-hidden" data-testid="page-dashboard">
         <PageBackground />
 
         <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="dashboard" />
@@ -832,46 +781,59 @@ export default function DashboardPage() {
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <PageHeader
                 kicker="Brainstorm Dashboard"
-                title={<>Welcome back, <span className="text-[#333286]">{user.displayName || "Traveler"}</span></>}
-                subtitle={hasNoFollowing ? "Set up your trust network" : "Your trust network is active and growing."}
+                title={isFirstSession
+                  ? <>Welcome to <span className="text-brand-link">Brainstorm</span></>
+                  : user.displayName
+                    ? <>Welcome back, <span className="text-brand-link">{user.displayName}</span></>
+                    : <>Welcome back</>}
+                subtitle={isFirstSession
+                  ? "Setting up your trust network."
+                  : hasNoFollowing ? "Set up your trust network" : "Your trust network is active and growing."}
                 testId="section-dashboard-header-copy"
               />
 
-              {nip85Activated && publishDone ? (
-              <div
-                className="rounded-2xl bg-white border border-slate-200 shadow-sm relative self-start md:self-end w-full max-w-sm overflow-hidden"
+              {/* Hidden for a brand-new account with no scores yet. Both of its
+                  actions are useless-or-worse at that moment: "Recalculate" while the
+                  first calculation is already running either no-ops or re-queues them
+                  behind other users, and "View insights" opens a page with nothing in
+                  it. All it adds is a fourth "Awaiting calculation" — and on mobile it
+                  stacks directly above the CalculatingNotice, so the duplication is
+                  unmissable. It returns the moment scores land. */}
+              {isFirstSession && !calcDone ? null : nip85Activated && publishDone ? (
+              <Card
+                className="relative self-start md:self-end w-full max-w-sm overflow-hidden"
                 data-testid="badge-nip85-active"
               >
                 <button
                   type="button"
                   onClick={() => setWotExpanded((v) => !v)}
                   aria-expanded={wotExpanded}
-                  className="w-full px-3.5 py-2.5 flex items-center gap-2.5 text-left hover:bg-slate-50/60 transition-colors"
+                  className="w-full px-3.5 py-2.5 flex items-center gap-2.5 text-left hover:bg-slate-50/60 dark:hover:bg-slate-800/60 transition-colors"
                   data-testid="button-wot-expand"
                 >
-                  <div className="h-7 w-7 rounded-lg bg-[#7c86ff]/10 border border-[#7c86ff]/20 flex items-center justify-center shrink-0">
-                    <BrainLogo size={14} className="text-[#333286]" />
+                  <div className="h-7 w-7 rounded-lg bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center shrink-0">
+                    <BrainLogo size={14} className="text-brand-deep" />
                   </div>
-                  <span className="text-[13px] font-semibold text-slate-900 shrink-0" style={{ fontFamily: "var(--font-display)" }}>Web of Trust</span>
-                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 shrink-0">
+                  <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 shrink-0" style={{ fontFamily: "var(--font-display)" }}>Web of Trust</span>
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 shrink-0">
                     <span className="relative flex h-1.5 w-1.5">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                       <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500" />
                     </span>
-                    <span className="text-[10px] font-semibold text-emerald-700">Active</span>
+                    <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">Active</span>
                   </span>
                   <span className="flex-1" />
-                  <ChevronDown className={`h-4 w-4 text-slate-400 shrink-0 transition-transform ${wotExpanded ? "rotate-180" : ""}`} />
+                  <ChevronDown className={`h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0 transition-transform ${wotExpanded ? "rotate-180" : ""}`} />
                 </button>
                 {wotExpanded && (
-                <div className="px-3.5 pb-3.5 border-t border-slate-100">
+                <div className="px-3.5 pb-3.5 border-t border-slate-100 dark:border-slate-800/60">
 
-                  <div className="mt-1.5 flex items-center gap-1.5 flex-wrap text-[11px] text-slate-400">
+                  <div className="mt-1.5 flex items-center gap-1.5 flex-wrap text-[11px] text-slate-400 dark:text-slate-500">
                     {history?.last_time_calculated_graperank && (
                       <span>Updated {formatTimestamp(new Date(history.last_time_calculated_graperank.endsWith("Z") ? history.last_time_calculated_graperank : history.last_time_calculated_graperank + "Z"))}</span>
                     )}
                     <span title="Published as a NIP-85 declaration so compatible apps can read your scores" className="inline-flex items-center">
-                      <Info className="h-3 w-3 text-slate-300" />
+                      <Info className="h-3 w-3 text-slate-300 dark:text-slate-600" />
                     </span>
                     {grapeRank?.graperank_preset_used && (
                       <span className="inline-flex items-center gap-1">
@@ -892,19 +854,19 @@ export default function DashboardPage() {
                         className="overflow-hidden"
                         data-testid="container-assistant-inline-prompt"
                       >
-                        <div className="rounded-lg bg-gradient-to-br from-[#7c86ff]/8 via-white to-indigo-50/40 border border-[#7c86ff]/20 px-2.5 py-2 flex items-center gap-2.5">
+                        <div className="rounded-lg bg-gradient-to-br from-brand-accent/8 via-white to-brand-primary/10 dark:bg-none dark:bg-slate-800/50 border border-brand-accent/20 px-2.5 py-2 flex items-center gap-2.5">
                           <img
                             src="/assistant-default.webp"
                             alt=""
                             aria-hidden="true"
-                            className="w-7 h-7 rounded-full ring-1 ring-[#7c86ff]/30 shrink-0 object-cover"
+                            className="w-7 h-7 rounded-full ring-1 ring-brand-accent/30 shrink-0 object-cover"
                             onError={(e) => { (e.currentTarget as HTMLImageElement).src = "/assistant-default.jpg"; }}
                           />
                           <div className="min-w-0 flex-1">
-                            <p className="text-[11px] font-semibold text-slate-900 leading-tight truncate" style={{ fontFamily: "var(--font-display)" }}>
+                            <p className="text-[11px] font-semibold text-slate-900 dark:text-slate-100 leading-tight truncate" style={{ fontFamily: "var(--font-display)" }}>
                               Publish your assistant
                             </p>
-                            <p className="text-[10px] text-slate-500 leading-tight truncate">
+                            <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight truncate">
                               Speak your trust scores to compatible apps
                             </p>
                           </div>
@@ -912,7 +874,7 @@ export default function DashboardPage() {
                             type="button"
                             onClick={() => publishAssistantMutation.mutate()}
                             disabled={publishAssistantMutation.isPending}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-gradient-to-br from-[#7c86ff] to-[#333286] text-white text-[10px] font-semibold tracking-wide shadow-sm hover:shadow-md hover:from-[#6b75ee] hover:to-[#2a2873] transition-all focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40 shrink-0 disabled:opacity-70 disabled:cursor-not-allowed"
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-gradient-to-br from-brand-primary to-brand-deep text-white text-[10px] font-semibold tracking-wide shadow-sm hover:shadow-md hover:brightness-110 transition-all focus:outline-none focus:ring-2 focus:ring-brand-accent/40 shrink-0 disabled:opacity-70 disabled:cursor-not-allowed"
                             data-testid="button-assistant-inline-publish"
                           >
                             {publishAssistantMutation.isPending ? (
@@ -930,7 +892,7 @@ export default function DashboardPage() {
                               setAssistantDismissedStorage(true);
                               setAssistantDismissed(true);
                             }}
-                            className="inline-flex items-center justify-center h-6 w-6 rounded-md text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40 shrink-0"
+                            className="inline-flex items-center justify-center h-6 w-6 rounded-md text-slate-400 dark:text-slate-500 hover:text-slate-700 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-accent/40 shrink-0"
                             aria-label="Dismiss publish assistant prompt"
                             data-testid="button-assistant-inline-dismiss"
                           >
@@ -941,13 +903,13 @@ export default function DashboardPage() {
                     )}
                   </AnimatePresence>
 
-                  <div className="mt-3 pt-3 border-t border-slate-100">
+                  <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/60">
                         <div className="flex items-center gap-1.5 mb-2.5">
-                          <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400">Readable in compatible apps</span>
+                          <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">Readable in compatible apps</span>
                           <div className="relative group/info">
                             <button
                               type="button"
-                              className="h-3.5 w-3.5 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400 hover:bg-slate-200 hover:text-slate-600 transition-colors focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/40"
+                              className="h-3.5 w-3.5 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 flex items-center justify-center text-slate-400 dark:text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 hover:text-slate-600 dark:hover:text-slate-300 transition-colors focus:outline-none focus:ring-2 focus:ring-brand-accent/40"
                               onClick={(e) => e.currentTarget.focus()}
                               aria-label="What are Compatible Clients?"
                               data-testid="button-compatible-clients-info"
@@ -960,19 +922,19 @@ export default function DashboardPage() {
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white border border-slate-200/80 shadow-sm hover:border-[#7c86ff] hover:shadow-md transition-all group/client" data-testid="link-compatible-amethyst">
+                          <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm hover:border-brand-accent hover:shadow-md transition-all group/client" data-testid="link-compatible-amethyst">
                             <img src={amethystLogoImg} alt="Amethyst" className="w-5 h-5 rounded-md" />
-                            <span className="text-[10px] font-semibold text-slate-700 group-hover/client:text-[#333286] transition-colors">Amethyst</span>
+                            <span className="text-[10px] font-semibold text-slate-700 dark:text-slate-200 group-hover/client:text-brand-deep transition-colors">Amethyst</span>
                           </a>
-                          <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white border border-slate-200/80 shadow-sm hover:border-orange-300 hover:shadow-md transition-all group/client" data-testid="link-compatible-nostria">
+                          <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm hover:border-orange-300 hover:shadow-md transition-all group/client" data-testid="link-compatible-nostria">
                             <img src={nostriaIconImg} alt="Nostria" className="w-5 h-5 rounded-md bg-white object-contain" />
-                            <span className="text-[10px] font-semibold text-slate-700 group-hover/client:text-orange-700 transition-colors">Nostria</span>
+                            <span className="text-[10px] font-semibold text-slate-700 dark:text-slate-200 group-hover/client:text-orange-700 transition-colors">Nostria</span>
                           </a>
                         </div>
                         <button
                           onClick={() => setRecalcConfirmOpen(true)}
                           disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
-                          className="mt-2.5 w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-[#333286]/[0.06] text-[#333286] hover:bg-[#333286]/[0.12] border border-[#7c86ff]/15 hover:border-[#7c86ff]/30 transition-all disabled:opacity-40 disabled:pointer-events-none"
+                          className="mt-2.5 w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-brand-deep/[0.06] text-brand-deep hover:bg-brand-deep/[0.12] border border-brand-accent/15 hover:border-brand-accent/30 transition-all disabled:opacity-40 disabled:pointer-events-none"
                           data-testid="button-recalculate-wot-card"
                         >
                           {triggerGrapeRankMutation.isPending ? (
@@ -984,29 +946,29 @@ export default function DashboardPage() {
                   </div>
                 </div>
                 )}
-              </div>
+              </Card>
               ) : (
-              <div
-                className="flex items-center gap-2.5 rounded-xl bg-white border border-slate-200 shadow-sm px-3 py-2 self-start md:self-end transition-all duration-200"
+              <Card
+                className="flex items-center gap-2.5 rounded-xl px-3 py-2 self-start md:self-end transition-all duration-200"
                 data-testid="card-overall-trust-score"
               >
                 <div className="flex flex-col leading-tight min-w-0">
-                  <span className="text-xs font-semibold tracking-[0.15em] uppercase text-slate-400">Trust signals</span>
+                  <span className="text-xs font-semibold tracking-[0.15em] uppercase text-slate-400 dark:text-slate-500">Trust signals</span>
                   {triggerGrapeRankMutation.isPending ? (
-                    <span className="text-xs text-indigo-600 font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
+                    <span className="text-xs text-brand-primary dark:text-brand-link font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
                       <Loader2 className="w-3 h-3 animate-spin" />
                       Recalculating...
                     </span>
                   ) : grapeRankScore ? (
-                    <span className="text-xs text-slate-700 font-semibold" data-testid="text-overall-trust-score-sub">
+                    <span className="text-xs text-slate-700 dark:text-slate-200 font-semibold" data-testid="text-overall-trust-score-sub">
                       Score: {grapeRankScore}
                     </span>
                   ) : publishDone ? (
-                    <span className="text-xs text-emerald-600 font-semibold" data-testid="text-overall-trust-score-sub">
+                    <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold" data-testid="text-overall-trust-score-sub">
                       Complete
                     </span>
                   ) : justFollowed ? (
-                    <span className="text-xs text-indigo-500 font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
+                    <span className="text-xs text-brand-primary font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
                       <Loader2 className="w-3 h-3 animate-spin" />
                       Calculating…
                     </span>
@@ -1015,31 +977,39 @@ export default function DashboardPage() {
                       {isGrapeRankFailed ? "Calculation failed" : isPublishFailed ? "Publishing failed" : "Action needed"}
                     </span>
                   ) : isRecalculation ? (
-                    <span className="text-xs text-indigo-500 font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
+                    <span className="text-xs text-brand-primary font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
                       <Loader2 className="w-3 h-3 animate-spin" />
                       {calcDone ? "Publishing…" : "Calculating…"}
                     </span>
                   ) : triggerGrapeRankMutation.isPending ? (
-                    <span className="text-xs text-indigo-500 font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
+                    <span className="text-xs text-brand-primary font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
                       <Loader2 className="w-3 h-3 animate-spin" />
                       Calculating…
                     </span>
                   ) : (
-                    <span className="text-xs text-slate-500 font-medium" data-testid="text-overall-trust-score-sub">
+                    <span className="text-xs text-slate-500 dark:text-slate-400 font-medium" data-testid="text-overall-trust-score-sub">
                       Awaiting calculation
                     </span>
                   )}
                   {publishDone && (grapeRankUpdatedAt || grapeRankCreatedAt) && (
-                    <span className="text-xs text-slate-400 mt-0.5" data-testid="text-trust-signals-updated">
+                    <span className="text-xs text-slate-400 dark:text-slate-500 mt-0.5" data-testid="text-trust-signals-updated">
                       Last updated — {formatTimestamp(grapeRankUpdatedAt || grapeRankCreatedAt)}
                     </span>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => navigate("/insights")}
+                    className="mt-1 inline-flex items-center gap-1 self-start text-[11px] font-semibold text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
+                    data-testid="link-view-insights"
+                  >
+                    View insights →
+                  </button>
                 </div>
-                <div className="w-px h-6 bg-slate-200 shrink-0" />
+                <div className="w-px h-6 bg-slate-200 dark:bg-slate-700 shrink-0" />
                 <button
                   onClick={() => setRecalcConfirmOpen(true)}
                   disabled={triggerGrapeRankMutation.isPending || hasNoFollowing}
-                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#333286]/10 text-[#333286] hover:bg-[#333286]/20 transition-colors disabled:opacity-40 disabled:pointer-events-none shrink-0 ring-1 ring-[#7c86ff]/20"
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-brand-deep/10 text-brand-deep hover:bg-brand-deep/20 transition-colors disabled:opacity-40 disabled:pointer-events-none shrink-0 ring-1 ring-brand-accent/20"
                   data-testid="button-trigger-graperank"
                 >
                   {triggerGrapeRankMutation.isPending ? (
@@ -1054,40 +1024,33 @@ export default function DashboardPage() {
                     </>
                   )}
                 </button>
-              </div>
+              </Card>
               )}
 
             </div>
 
             <AlertDialog open={recalcConfirmOpen} onOpenChange={setRecalcConfirmOpen}>
               <AlertDialogContent
-                className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-indigo-500/20 bg-white/80 backdrop-blur-xl shadow-[0_0_18px_rgba(99,102,241,0.10)] p-0 overflow-hidden"
+                className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl p-0 overflow-hidden"
                 data-testid="dialog-confirm-recalculate-dashboard"
               >
-                <div className="absolute inset-0 pointer-events-none">
-                  <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-indigo-500 via-indigo-800 to-indigo-500 animate-gradient-x" />
-                  <div className="absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-indigo-500/15 to-transparent" />
-                </div>
-                <div className="relative p-4 sm:p-5">
-                  <AlertDialogHeader className="space-y-2">
-                    <div className="flex items-start gap-3">
-                      <div className="h-9 w-9 rounded-2xl bg-indigo-800/10 border border-indigo-800/10 flex items-center justify-center shadow-[0_12px_26px_-18px_rgba(99,102,241,0.22)] shrink-0" data-testid="icon-confirm-recalculate-dashboard">
-                        <BrainLogo size={18} className="text-indigo-800" />
-                      </div>
-                      <div className="min-w-0">
-                        <AlertDialogTitle className="text-base font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-recalculate-dashboard-title">
-                          Recalculate GrapeRank?
-                        </AlertDialogTitle>
-                        <AlertDialogDescription className="text-sm text-slate-600 leading-relaxed" data-testid="text-confirm-recalculate-dashboard-desc">
-                          This re-runs your full network trust calculation. It typically takes 10-20 minutes and your current scores will be replaced with updated results.
-                        </AlertDialogDescription>
-                      </div>
+                <div className="p-5 sm:p-6">
+                  <AlertDialogHeader className="space-y-0 text-left">
+                    <div className="flex items-center gap-2.5 mb-3">
+                      <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link uppercase">Trust Signals</span>
+                      <div className="h-px w-10 bg-brand-link/30" />
                     </div>
+                    <AlertDialogTitle className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-confirm-recalculate-dashboard-title">
+                      Recalculate GrapeRank?
+                    </AlertDialogTitle>
+                    <AlertDialogDescription className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mt-2.5" data-testid="text-confirm-recalculate-dashboard-desc">
+                      This re-runs your full network trust calculation. It typically takes about 5 minutes and your current scores will be replaced with updated results.
+                    </AlertDialogDescription>
                   </AlertDialogHeader>
-                  <AlertDialogFooter className="mt-4 gap-2 sm:gap-2">
+                  <AlertDialogFooter className="mt-5 gap-2 sm:gap-2">
                     <AlertDialogCancel className="rounded-xl" data-testid="button-confirm-recalculate-dashboard-cancel">Cancel</AlertDialogCancel>
                     <AlertDialogAction
-                      className="rounded-xl bg-indigo-800 hover:bg-indigo-900"
+                      className="rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white shadow-lg shadow-brand-primary/25"
                       onClick={() => {
                         setRecalcConfirmOpen(false);
                         triggerGrapeRankMutation.mutate();
@@ -1102,29 +1065,48 @@ export default function DashboardPage() {
             </AlertDialog>
 
             <AnimatePresence>
-              {isGrapeRankFailed && !hasNoFollowing && !justFollowed && !triggerGrapeRankMutation.isError && !triggerGrapeRankMutation.isPending && !triggerGrapeRankMutation.isSuccess && (
+              {(isGrapeRankFailed || isPublishFailed) && !hasNoFollowing && !justFollowed && !triggerGrapeRankMutation.isError && !triggerGrapeRankMutation.isPending && !triggerGrapeRankMutation.isSuccess && (
                 <motion.div
                   initial={{ opacity: 0, y: -8, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: -8, scale: 0.98 }}
                   transition={{ duration: 0.3, ease: "easeOut" }}
-                  className="flex items-center gap-3 p-3 rounded-2xl bg-white/60 backdrop-blur-xl border border-red-200/60 shadow-[0_8px_30px_-12px_rgba(239,68,68,0.15)] w-fit md:ml-auto"
+                  className="flex items-center gap-3 p-3 rounded-2xl bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl border border-red-200/60 dark:border-red-500/25 shadow-[0_8px_30px_-12px_rgba(239,68,68,0.15)] w-fit md:ml-auto"
                   data-testid="graperank-failed"
                 >
-                  <div className="h-8 w-8 rounded-xl bg-red-50 border border-red-100 flex items-center justify-center shrink-0">
+                  <div className="h-8 w-8 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/25 flex items-center justify-center shrink-0">
                     <ShieldAlert className="w-4 h-4 text-red-500" />
                   </div>
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold text-red-700">Calculation incomplete</p>
-                    <p className="text-xs text-red-600/80 mt-0.5">Please wait a few minutes, then try again.</p>
+                    <p className="text-xs font-semibold text-red-700 dark:text-red-300">Calculation incomplete</p>
+                    <p className="text-xs text-red-600/80 dark:text-red-400/80 mt-0.5">Please wait a few minutes, then try again.</p>
                   </div>
                 </motion.div>
               )}
             </AnimatePresence>
-            {/* No-follows users: an inline follow-picker (same suggestions as
-                /welcome) so they can start their Web of Trust without leaving. */}
-            {hasNoFollowing && !justFollowed && !triggerGrapeRankMutation.isPending && (
+            {/* Genuinely new, zero-follows, not-yet-started users → inline
+                follow-picker (same suggestions as /welcome) so they can start
+                their Web of Trust without leaving. */}
+            {hasNoFollowing && !calcTriggered && !justFollowed && !triggerGrapeRankMutation.isPending && (
               <FollowToCalculateCard onDone={handleFollowDone} />
+            )}
+
+            {/* Already followed + triggered scoring, but the backend
+                following-count hasn't caught up yet. Don't re-nag them to
+                follow — reassure that their scores are calculating. */}
+            {hasNoFollowing && calcTriggered && !justFollowed && !triggerGrapeRankMutation.isPending && (
+              <div
+                className="flex items-center gap-4 rounded-2xl border border-brand-accent/20 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-5 shadow-sm dark:shadow-none"
+                data-testid="card-building-wot"
+              >
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-brand-primary/10 text-brand-primary dark:text-brand-link">
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-[15px] font-bold text-slate-900 dark:text-slate-100">Building your Web of Trust</div>
+                  <div className="text-[13px] text-slate-500 dark:text-slate-400">You're all set — your trust scores are calculating. This can take a few minutes.</div>
+                </div>
+              </div>
             )}
 
             {/* Scores just went live → the viral beat: invite people in. Shown
@@ -1134,20 +1116,30 @@ export default function DashboardPage() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.4 }}
-                className="mb-6"
+                // No mb-6: the parent column already applies gap-6, so adding a
+                // margin double-spaced this one child and made it read as detached
+                // from the rest of the page.
               >
-                <div className="relative flex items-center gap-3 rounded-xl border border-slate-200 bg-white shadow-sm pl-3.5 pr-2 py-2.5" data-testid="card-invite-grow">
-                  <div className="h-8 w-8 rounded-lg bg-[#6366f1]/[0.07] border border-[#7c86ff]/20 flex items-center justify-center text-[#3730a3] shrink-0">
-                    <Users className="h-4 w-4" />
+                {/* Stacks on mobile. It used to be a single row with `truncate` on the
+                    text AND the description hidden below sm:, so on a phone even the
+                    short title clipped to "Your network i…" — the message was the
+                    point and it was unreadable. Text now wraps and the full sentence
+                    shows at every width; the dismiss X is pinned to the corner so it
+                    never competes with the button for horizontal room. */}
+                <Card className="relative flex flex-col gap-3 rounded-xl p-3 pr-10 sm:flex-row sm:items-center sm:py-2.5 sm:pl-3.5 sm:pr-12" data-testid="card-invite-grow">
+                  <div className="flex items-start gap-3 sm:items-center">
+                    <div className="h-8 w-8 rounded-lg bg-brand-primary/[0.07] border border-brand-accent/20 flex items-center justify-center text-brand-link shrink-0">
+                      <Users className="h-4 w-4" />
+                    </div>
+                    <p className="min-w-0 text-[13px] text-slate-600 dark:text-slate-300 leading-snug">
+                      <span className="font-semibold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }} data-testid="text-invite-grow-title">Your network is live.</span>{" "}
+                      <span className="text-slate-500 dark:text-slate-400">Invite people — they join connected to you, strengthening everyone's Web of Trust.</span>
+                    </p>
                   </div>
-                  <p className="flex-1 min-w-0 text-[13px] text-slate-600 leading-snug truncate">
-                    <span className="font-semibold text-slate-900" style={{ fontFamily: "var(--font-display)" }} data-testid="text-invite-grow-title">Your network is live.</span>{" "}
-                    <span className="hidden sm:inline text-slate-500">Invite people — they join connected to you, strengthening everyone's Web of Trust.</span>
-                  </p>
                   <button
                     type="button"
                     onClick={() => { setInviteShareOpen(true); markInviteCardSeen(); }}
-                    className="shrink-0 h-9 px-4 rounded-lg bg-[#6366f1] hover:bg-[#4f46e5] text-white font-semibold text-[13px] tracking-wide shadow-sm transition-all flex items-center justify-center gap-1.5"
+                    className="h-9 w-full shrink-0 px-4 rounded-lg bg-brand-primary hover:bg-brand-primary-hover text-white font-semibold text-[13px] tracking-wide shadow-sm transition-all flex items-center justify-center gap-1.5 sm:ml-auto sm:w-auto"
                     data-testid="button-invite-grow"
                   >
                     <Users className="h-4 w-4" />
@@ -1156,13 +1148,13 @@ export default function DashboardPage() {
                   <button
                     type="button"
                     onClick={markInviteCardSeen}
-                    className="shrink-0 h-9 w-9 rounded-lg flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+                    className="absolute right-2 top-2 h-8 w-8 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors sm:top-1/2 sm:h-9 sm:w-9 sm:-translate-y-1/2"
                     aria-label="Dismiss"
                     data-testid="button-invite-grow-dismiss"
                   >
                     <X className="h-4 w-4" />
                   </button>
-                </div>
+                </Card>
               </motion.div>
             )}
             {/* Rendered outside the card gate so it stays mounted after the card
@@ -1184,380 +1176,17 @@ export default function DashboardPage() {
               />
             )}
 
-            {(showOnboarding || isRecalculating) && (
-              <div
-                className="group rounded-2xl bg-gradient-to-br from-slate-950 via-slate-950 to-indigo-950 border border-white/10 shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:shadow-[0_28px_70px_-20px_rgba(124,134,255,0.35)] overflow-hidden relative transition-shadow"
-                onMouseMove={handleMouseMove}
-                onMouseLeave={(e) => {
-                  (e.currentTarget as HTMLElement).style.setProperty("--flash-o", "0");
-                }}
-                onMouseEnter={(e) => {
-                  (e.currentTarget as HTMLElement).style.setProperty("--flash-o", "1");
-                }}
-                data-testid="container-onboarding-flashlight"
-                style={{
-                  ["--flash-x" as any]: "50%",
-                  ["--flash-y" as any]: "50%",
-                  ["--flash-o" as any]: 0,
-                }}
-              >
-                <div
-                  className="absolute inset-0 pointer-events-none transition-opacity duration-500"
-                  style={{
-                    opacity: "var(--flash-o, 0)" as any,
-                    background: [
-                      "radial-gradient(520px circle at var(--flash-x, 50%) var(--flash-y, 50%), rgba(124,134,255,0.26), rgba(124,134,255,0.08) 32%, rgba(2,6,23,0) 66%)",
-                      "radial-gradient(860px circle at var(--flash-x, 50%) var(--flash-y, 50%), rgba(51,50,134,0.11), rgba(2,6,23,0) 70%)",
-                    ].join(", "),
-                  }}
-                  data-testid="overlay-onboarding-flashlight"
-                />
-
-                <div
-                  className="absolute inset-0 pointer-events-none transition-opacity duration-500"
-                  style={{
-                    opacity: "var(--flash-o, 0)" as any,
-                    WebkitMaskImage:
-                      "radial-gradient(380px circle at var(--flash-x, 50%) var(--flash-y, 50%), rgba(0,0,0,1) 0%, rgba(0,0,0,0.85) 30%, rgba(0,0,0,0) 65%)",
-                    maskImage:
-                      "radial-gradient(380px circle at var(--flash-x, 50%) var(--flash-y, 50%), rgba(0,0,0,1) 0%, rgba(0,0,0,0.85) 30%, rgba(0,0,0,0) 65%)",
-                  }}
-                  aria-hidden="true"
-                  data-testid="overlay-onboarding-equations"
-                >
-                  <div
-                    className="absolute inset-0 mix-blend-screen"
-                    style={{
-                      opacity: 0.22,
-                      background: "linear-gradient(180deg, rgba(124,134,255,0.16), rgba(255,255,255,0.03) 55%, rgba(124,134,255,0.06))",
-                    }}
-                  />
-                  <div
-                    className="absolute inset-x-0 top-[88px] bottom-[280px]"
-                    style={{
-                      opacity: 0.36,
-                      transform: "translateZ(0)",
-                      fontFamily: "var(--font-mono)",
-                      color: "rgba(226,232,240,0.70)",
-                      textShadow: "0 1px 0 rgba(0,0,0,0.22), 0 0 12px rgba(124,134,255,0.12)",
-                    }}
-                    data-testid="container-onboarding-equations-safe"
-                  >
-                    {[
-                      { x: "18%", y: "20%", r: "-8deg", a: 0.4, lines: ["WOT(u) = \u03a3\u1d65 w(u,v) \u00b7 t(v)", "w(u,v) = 1/(1+dist(u,v))", "trust(u) \u2208 [0,100]"] },
-                      { x: "78%", y: "28%", r: "10deg", a: 0.34, lines: ["id = SHA256(serialized)", "sig = Schnorr(sk, id)", "event = {kind, pubkey, tags}"] },
-                      { x: "22%", y: "72%", r: "7deg", a: 0.32, lines: ["G = (V,E) from follows", "score = f(G, seeds, hops)", "relays = {r\u2081\u2026r\u2099}"] },
-                      { x: "76%", y: "78%", r: "-12deg", a: 0.3, lines: ["compute(graph) \u2192 scores", "verify(sig) \u2192 authentic", "\u0394t \u2248 4\u20135 min"] },
-                    ].map((b, i) => {
-                      const ox = `calc(${b.x} + (var(--flash-x, 50%) - 50%) * 0.05)`;
-                      const oy = `calc(${b.y} + (var(--flash-y, 50%) - 50%) * 0.05)`;
-                      return (
-                        <div
-                          key={i}
-                          className="absolute text-[10px] leading-relaxed tracking-[0.12em] select-none"
-                          style={{
-                            left: ox as any,
-                            top: oy as any,
-                            transform: `translate(-50%, -50%) rotate(${b.r})`,
-                            opacity: b.a,
-                          }}
-                          data-testid={`text-onboarding-equation-block-${i}`}
-                        >
-                          {b.lines.map((l, idx) => (
-                            <div key={idx} className={idx === 0 ? "font-medium" : idx === 1 ? "opacity-75" : "opacity-60"}>
-                              {l}
-                            </div>
-                          ))}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(99,102,241,0.18),_transparent_55%)]" />
-                <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff08_1px,transparent_1px),linear-gradient(to_bottom,#ffffff08_1px,transparent_1px)] bg-[size:28px_28px] opacity-25" />
-
-                <div className="relative p-5 sm:p-6">
-                  <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold tracking-[0.22em] uppercase text-indigo-300/80" data-testid="text-onboarding-kicker">
-                        {isRecalculation ? "Recalculating" : isErrorState ? "Action needed" : "Brainstorm onboarding"}
-                      </p>
-                      <h2
-                        className="text-xl sm:text-2xl font-bold text-white tracking-tight"
-                        style={{ fontFamily: "var(--font-display)" }}
-                        data-testid="text-onboarding-title"
-                      >
-                        {isRecalculation ? "Refreshing your trust scores" : isErrorState ? "Something went wrong" : "Clarity in a fragmented world"}
-                      </h2>
-                      <p className="text-sm text-slate-300/90 mt-1 max-w-3xl" data-testid="text-onboarding-subtitle">
-                        {isRecalculation
-                          ? <>Your trust scores are being recalculated. This usually takes <span className="font-semibold text-white" data-testid="text-onboarding-duration">10-20 minutes</span>. Previous scores will be replaced with fresh results once complete.</>
-                          : isErrorState
-                            ? <>Your {isGrapeRankFailed ? "trust score calculation" : "trusted assertion publishing"} didn't complete successfully. You can retry below, or head to <span className="font-semibold text-white">Settings</span> to try again later.</>
-                            : <>Welcome. Your trust score is being calculated. It usually takes <span className="font-semibold text-white" data-testid="text-onboarding-duration">10-20 minutes</span> to calculate. In the meantime, browse the dashboard and see how Brainstorm turns your Nostr graph into explainable trust.</>
-                        }
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="mt-4" data-testid="section-onboarding-carousel">
-                    <div className="flex items-center justify-between gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setIsOnboardingCollapsed((v) => !v)}
-                        className={`inline-flex items-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 text-xs font-semibold text-slate-200 transition-colors ${isOnboardingCollapsed ? "animate-[softPulse_2.6s_ease-in-out_infinite] ring-1 ring-indigo-400/20 shadow-[0_0_0_4px_rgba(99,102,241,0.06)]" : ""}`}
-                        data-testid="button-toggle-onboarding"
-                        aria-expanded={!isOnboardingCollapsed}
-                      >
-                        {isOnboardingCollapsed ? "Learn More" : "Hide"}
-                        <ChevronRight className={`h-4 w-4 transition-transform ${isOnboardingCollapsed ? "" : "rotate-90"}`} />
-                      </button>
-                      <div
-                        className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-3 py-1 text-xs text-slate-200/90"
-                        data-testid="badge-queue-position"
-                        aria-label={isErrorState ? "Idle" : calcDone ? "Calculation in progress" : queuePosition !== null && queuePosition > 0 ? `${queuePosition} people ahead of you in queue` : "Processing your scores"}
-                      >
-                        <span className={`h-1.5 w-1.5 rounded-full ${isErrorState ? "bg-slate-500" : calcDone ? "bg-indigo-400 animate-pulse" : "bg-emerald-400/90"}`} data-testid="dot-queue" />
-                        <span className="font-semibold" data-testid="text-queue-label">
-                          {isErrorState ? "Idle" : calcDone ? "Processing" : (queuePosition !== null && queuePosition > 0) ? "Queue" : "Processing"}
-                        </span>
-                        {!calcDone && !isErrorState && queuePosition !== null && queuePosition > 0 && (
-                          <span className="font-mono" data-testid="text-queue-value">
-                            {queuePosition} ahead
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="mt-3" data-testid="row-onboarding-status">
-                      <div
-                        className="mb-2.5 rounded-2xl border border-white/10 bg-white/5 px-3 py-2"
-                        data-testid="card-onboarding-progress"
-                        aria-label="Trust score calculation progress"
-                      >
-                        <div className="flex items-center justify-between gap-3" data-testid="row-onboarding-progress-header">
-                          <div className="min-w-0">
-                            <p className="text-xs font-bold tracking-[0.22em] uppercase text-slate-300/80" data-testid="text-onboarding-progress-kicker">
-                              Calculation
-                            </p>
-                            <p
-                              className="text-sm font-semibold text-white truncate"
-                              style={{ fontFamily: "var(--font-display)" }}
-                              data-testid="text-onboarding-progress-step"
-                            >
-                              {isGrapeRankFailed
-                                ? "Calculation failed"
-                                : isPublishFailed
-                                  ? "Publishing failed"
-                                  : hasNoFollowing && !triggerGrapeRankMutation.isPending
-                                    ? "Ready to calculate"
-                                    : publishDone
-                                      ? "Calculation complete"
-                                      : calcDone
-                                        ? "Publishing Trusted Assertion"
-                                        : "Computing network trust"}
-                            </p>
-                          </div>
-                          {!isErrorState && (
-                            publishDone ? (
-                              <span
-                                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-emerald-500/20 border border-emerald-400/30 shrink-0 animate-[scale-in_0.3s_ease-out]"
-                                data-testid="check-onboarding-complete"
-                                aria-label="All steps complete"
-                              >
-                                <CheckCircle2 className="h-4 w-4 text-emerald-400" />
-                              </span>
-                            ) : (
-                              <span
-                                className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-white/5 border border-white/10 shrink-0"
-                                data-testid="spinner-onboarding-progress"
-                                aria-label="In progress"
-                              >
-                                <span className="h-3.5 w-3.5 rounded-full border-2 border-white/25 border-t-white/80 animate-spin" />
-                              </span>
-                            )
-                          )}
-                        </div>
-
-                        <div className="mt-2 grid grid-cols-2 gap-2" data-testid="grid-onboarding-status">
-                          <div
-                            className={`flex items-center justify-between gap-3 py-2.5 px-3 rounded-2xl border transition-all duration-500 ${calcDone ? "bg-emerald-500/10 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.15)]" : isGrapeRankFailed ? "bg-red-500/10 border-red-500/20" : !calcDone && grapeRank ? "bg-white/7 border-white/15" : "bg-white/5 border-white/10 opacity-50"}`}
-                            data-testid="status-onboarding-graph"
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              {calcDone ? (
-                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 animate-[scale-in_0.3s_ease-out]" data-testid="check-onboarding-graph" />
-                              ) : (
-                                <div
-                                  className={`w-2 h-2 rounded-full shrink-0 ${isGrapeRankFailed ? "bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]" : !calcDone && grapeRank ? "bg-indigo-300 shadow-[0_0_10px_rgba(167,139,250,0.45)] animate-pulse" : "bg-slate-600"}`}
-                                  data-testid="dot-onboarding-graph"
-                                />
-                              )}
-                              <span className={`text-xs uppercase tracking-wider font-semibold truncate ${calcDone ? "text-emerald-300" : isGrapeRankFailed ? "text-red-200" : !calcDone && grapeRank ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-graph">{calcDone ? "Calculated" : "Calculating"}</span>
-                            </div>
-                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${calcDone ? "text-emerald-300/80" : isGrapeRankFailed ? "text-red-200/80" : grapeRank ? "text-indigo-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-graph-state">
-                              {calcDone ? "Complete" : isGrapeRankFailed ? "Failed" : isErrorState ? "\u2014" : grapeRank ? "Working" : "Waiting"}
-                            </span>
-                          </div>
-
-                          <div
-                            className={`flex items-center justify-between gap-3 py-2.5 px-3 rounded-2xl border transition-all duration-500 ${publishDone ? "bg-emerald-500/10 border-emerald-500/20 shadow-[0_0_15px_rgba(16,185,129,0.15)]" : isPublishFailed ? "bg-red-500/10 border-red-500/20" : calcDone && !publishDone ? "bg-white/7 border-white/15" : "bg-white/5 border-white/10 opacity-50"}`}
-                            data-testid="status-onboarding-scores"
-                          >
-                            <div className="flex items-center gap-2 min-w-0">
-                              {publishDone ? (
-                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400 shrink-0 animate-[scale-in_0.3s_ease-out]" data-testid="check-onboarding-scores" />
-                              ) : (
-                                <div
-                                  className={`w-2 h-2 rounded-full shrink-0 ${isPublishFailed ? "bg-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]" : calcDone && !publishDone ? "bg-indigo-300 shadow-[0_0_10px_rgba(232,121,249,0.45)] animate-pulse" : "bg-slate-600"}`}
-                                  data-testid="dot-onboarding-scores"
-                                />
-                              )}
-                              <span className={`text-xs uppercase tracking-wider font-semibold truncate ${publishDone ? "text-emerald-300" : isPublishFailed ? "text-red-200" : calcDone && !publishDone ? "text-slate-200" : "text-slate-400"}`} data-testid="text-onboarding-scores">{publishDone ? "Published" : "Publishing"}</span>
-                              <span className={`hidden lg:inline text-xs font-semibold tracking-wide ${publishDone ? "text-emerald-300/70" : "text-slate-400/60"}`} data-testid="text-onboarding-scores-ta">
-                                (Trusted Assertion)
-                              </span>
-                            </div>
-                            <span className={`hidden sm:inline text-xs font-bold tracking-[0.18em] uppercase ${publishDone ? "text-emerald-300/80" : isPublishFailed ? "text-red-200/80" : calcDone ? "text-indigo-200/80" : "text-slate-400/70"}`} data-testid="badge-onboarding-scores-state" title="Trusted Assertion">
-                              {publishDone ? "Complete" : isPublishFailed ? "Failed" : isErrorState ? "\u2014" : calcDone ? "Working" : "Waiting"}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-2 sm:hidden text-center" data-testid="text-onboarding-status-footnote">
-                        <span className="text-xs text-slate-400">
-                          Final step publishes a <span className="text-slate-200 font-semibold">Trusted Assertion</span> event.
-                        </span>
-                      </div>
-
-                      {(isGrapeRankFailed || isPublishFailed) && !hasNoFollowing && (
-                        <div className="mt-3 flex items-center justify-center gap-3" data-testid="row-onboarding-retry">
-                          {retryCount === 0 ? (
-                            <button
-                              type="button"
-                              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/15 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                              disabled={triggerGrapeRankMutation.isPending}
-                              onClick={() => {
-                                setRetryCount(1);
-                                triggerGrapeRankMutation.mutate();
-                              }}
-                              data-testid="button-onboarding-retry"
-                            >
-                              {triggerGrapeRankMutation.isPending ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                <RefreshCw className="w-3.5 h-3.5" />
-                              )}
-                              Try Again
-                            </button>
-                          ) : (
-                            <div className="flex flex-col items-center gap-2">
-                              <p className="text-xs text-slate-400">Still having trouble?</p>
-                              <button
-                                type="button"
-                                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/15 transition-all"
-                                onClick={() => navigate("/settings")}
-                                data-testid="button-onboarding-go-settings"
-                              >
-                                <SettingsIcon className="w-3.5 h-3.5" />
-                                Go to Settings
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    <AnimatePresence initial={false}>
-                      {!isOnboardingCollapsed && (
-                        <motion.div
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: "auto" }}
-                          exit={{ opacity: 0, height: 0 }}
-                          transition={{ duration: 0.25, ease: "easeOut" }}
-                          className="mt-4"
-                          data-testid="panel-onboarding"
-                        >
-                          <div
-                            className="rounded-2xl border border-white/10 bg-white/5 overflow-hidden cursor-pointer select-none relative"
-                            data-testid="card-onboarding-carousel"
-                            role="button"
-                            tabIndex={0}
-                            aria-label="Next onboarding slide"
-                            onClick={() => {
-                              setActiveOnboardingIndex((i) => (i + 1) % ONBOARDING_SLIDES.length);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" || e.key === " ") {
-                                e.preventDefault();
-                                setActiveOnboardingIndex((i) => (i + 1) % ONBOARDING_SLIDES.length);
-                              }
-                            }}
-                          >
-                            <div className="p-4 sm:p-5">
-                              <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-                                <div className="min-w-0">
-                                  <p className="text-xs font-semibold tracking-[0.18em] uppercase text-slate-400" data-testid="text-onboarding-active-subtitle">
-                                    {ONBOARDING_SLIDES[activeOnboardingIndex].subtitle}
-                                  </p>
-                                  <h3
-                                    className="text-base sm:text-lg font-semibold text-white mt-1"
-                                    style={{ fontFamily: "var(--font-display)" }}
-                                    data-testid="text-onboarding-active-title"
-                                  >
-                                    {ONBOARDING_SLIDES[activeOnboardingIndex].title}
-                                  </h3>
-                                  <p className="text-sm text-slate-200/90 mt-2" data-testid="text-onboarding-active-content">
-                                    {ONBOARDING_SLIDES[activeOnboardingIndex].content}
-                                  </p>
-                                  <p className="text-xs text-slate-300/90 mt-2" data-testid="text-onboarding-active-detail">
-                                    {ONBOARDING_SLIDES[activeOnboardingIndex].detail}
-                                  </p>
-                                  <p className="text-xs text-slate-400 mt-3" data-testid="text-onboarding-hint">
-                                    Tap to continue
-                                  </p>
-                                </div>
-                              </div>
-
-                              <div
-                                className="mt-4 flex flex-wrap items-center gap-2"
-                                data-testid="row-onboarding-dots"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                {ONBOARDING_SLIDES.map((_, idx) => (
-                                  <button
-                                    key={idx}
-                                    type="button"
-                                    onClick={() => {
-                                      setActiveOnboardingIndex(idx);
-                                    }}
-                                    className={`h-2 rounded-full transition-all ${idx === activeOnboardingIndex ? "w-6 bg-white" : "w-2 bg-white/25 hover:bg-white/40"}`}
-                                    data-testid={`button-onboarding-dot-${idx}`}
-                                    aria-label={`Go to slide ${idx + 1}`}
-                                  />
-                                ))}
-                              </div>
-
-                              <div
-                                className="absolute bottom-3 right-3 inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-3 py-1 text-xs text-slate-200 backdrop-blur-md"
-                                data-testid="badge-onboarding-step"
-                                aria-label={`Slide ${activeOnboardingIndex + 1} of ${ONBOARDING_SLIDES.length}`}
-                              >
-                                <span className="h-1.5 w-1.5 rounded-full bg-indigo-400" data-testid="dot-onboarding-step" />
-                                <span className="text-xs font-semibold tracking-[0.18em] uppercase" data-testid="text-onboarding-step">
-                                  Slide {activeOnboardingIndex + 1} of {ONBOARDING_SLIDES.length}
-                                </span>
-                              </div>
-                            </div>
-                          </div>
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-                  </div>
-                </div>
-              </div>
+            {/* First run: what's still to set up, plus one line of calc status.
+                Replaces a ~375-line dark marketing hero (a rotating
+                ONBOARDING_SLIDES carousel over a CALCULATING/PUBLISHING stepper)
+                that filled the fold while saying nothing actionable — a new user's
+                first few minutes are spent waiting, so spend them on the setup
+                they still owe. Recalculating users were already excluded here;
+                their status lives in the top-right Trust signals card and the
+                app-wide pill. Failures are carried by the alert above, so the
+                status line stands down rather than promising a time estimate. */}
+            {showOnboarding && (
+              <SetupProgressCard queueAhead={queuePosition} showStatus={!isErrorState} />
             )}
           </div>
 
@@ -1569,20 +1198,20 @@ export default function DashboardPage() {
               className="mb-6"
             >
               <Card
-                className="bg-white border-slate-200 shadow-sm overflow-hidden rounded-xl relative"
+                className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden rounded-xl relative"
                 data-testid="card-nip85-cta"
               >
 
                 <div className="relative p-5 sm:p-6 flex flex-col sm:flex-row items-start sm:items-center gap-4">
-                  <div className="h-12 w-12 rounded-2xl bg-white/70 border border-[#7c86ff]/20 shadow-sm flex items-center justify-center text-[#333286] shrink-0">
-                    <BrainLogo size={24} />
+                  <div className="h-12 w-12 rounded-2xl bg-brand-primary shadow-sm shadow-brand-primary/25 flex items-center justify-center shrink-0">
+                    <BrainLogo mono size={24} className="text-white" />
                   </div>
 
                   <div className="flex-1 min-w-0">
-                    <h3 className="text-base sm:text-lg font-bold text-slate-900 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-nip85-cta-title">
+                    <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-nip85-cta-title">
                       Select Brainstorm as your Web of Trust Service Provider
                     </h3>
-                    <p className="text-xs sm:text-sm text-slate-500 mt-1 leading-relaxed" data-testid="text-nip85-cta-subtitle">
+                    <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed" data-testid="text-nip85-cta-subtitle">
                       Sign a nostr note that tells compatible clients where to find your personalized trust scores.
                     </p>
                   </div>
@@ -1591,10 +1220,10 @@ export default function DashboardPage() {
                     <button
                       type="button"
                       onClick={() => setNip85ModalOpen(true)}
-                      className="flex-1 sm:flex-none h-10 px-5 rounded-xl bg-[#6366f1] hover:bg-[#4f46e5] text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-[#6366f1]/20 transition-all duration-200 flex items-center justify-center gap-2"
+                      className="flex-1 sm:flex-none h-10 px-5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white font-bold text-xs sm:text-sm tracking-wide shadow-lg shadow-brand-primary/20 transition-all duration-200 flex items-center justify-center gap-2"
                       data-testid="button-nip85-cta"
                     >
-                      <BrainLogo size={14} className="text-white/80" />
+                      <BrainLogo mono size={14} className="text-white" />
                       Select Brainstorm
                     </button>
                     <button
@@ -1606,7 +1235,7 @@ export default function DashboardPage() {
                         } catch { /* ignore */ }
                         setNip85Dismissed(true);
                       }}
-                      className="text-xs text-slate-400 hover:text-slate-600 transition-colors whitespace-nowrap"
+                      className="text-xs text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 transition-colors whitespace-nowrap"
                       data-testid="button-nip85-dismiss"
                     >
                       Maybe later
@@ -1628,912 +1257,70 @@ export default function DashboardPage() {
             }}
           />
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-              <Card
-                className={`bg-white border-slate-200 shadow-sm overflow-hidden group transition-all duration-500 rounded-xl relative h-full flex flex-col p-4 ${isCalculationComplete ? "" : "opacity-50 cursor-not-allowed"}`}
-                title={!isCalculationComplete ? "Available after calculation completes" : undefined}
-                data-testid="card-social-graph"
-              >
-                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-
-                <div className="flex flex-col h-full gap-2">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-[#333286] ring-1 ring-slate-100">
-                      <Users className="h-3.5 w-3.5" />
-                    </div>
-                    <span className="text-xs font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-                      Social Graph
-                    </span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3 mt-1">
-                    <div
-                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-indigo-50/40 p-3 transition-all duration-300 overflow-hidden ${isCalculationComplete ? "cursor-pointer border-slate-200/80 hover:border-[#7c86ff]/40 hover:shadow-[0_8px_24px_-8px_rgba(124,134,255,0.2)] hover:-translate-y-0.5" : "border-slate-100"}`}
-                      onClick={() => isCalculationComplete && navigate("/network?group=followed_by&view=list")}
-                      role={isCalculationComplete ? "button" : undefined}
-                      tabIndex={isCalculationComplete ? 0 : -1}
-                      onKeyDown={(e) => { if (isCalculationComplete && (e.key === "Enter" || e.key === " ")) navigate("/network?group=followed_by&view=list"); }}
-                      data-testid="card-trusted-followers"
-                    >
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <div className="p-1 rounded-md bg-[#333286]/8 text-[#333286]">
-                          <Award className="h-3 w-3" />
-                        </div>
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Followers</span>
-                      </div>
-                      <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight leading-none" data-testid="text-followers-count">
-                        {(overviewQuery.isLoading || statsQuery.isLoading) ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : verifiedFollowersCount}
-                      </div>
-                      <p className="text-[10px] text-slate-400 mt-1 leading-tight" data-testid="text-followers-label">Verified followers</p>
-                      {isCalculationComplete && (
-                        <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-[#333286]/60">
-                          <span>Explore</span>
-                          <ChevronRight className="h-2.5 w-2.5" />
-                        </div>
-                      )}
-                    </div>
-
-                    <div
-                      className={`relative rounded-xl border bg-gradient-to-br from-white via-white to-indigo-50/40 p-3 transition-all duration-300 overflow-hidden ${isCalculationComplete ? "cursor-pointer border-slate-200/80 hover:border-[#7c86ff]/40 hover:shadow-[0_8px_24px_-8px_rgba(124,134,255,0.2)] hover:-translate-y-0.5" : "border-slate-100"}`}
-                      onClick={() => isCalculationComplete && navigate("/network?group=following&view=list")}
-                      role={isCalculationComplete ? "button" : undefined}
-                      tabIndex={isCalculationComplete ? 0 : -1}
-                      onKeyDown={(e) => { if (isCalculationComplete && (e.key === "Enter" || e.key === " ")) navigate("/network?group=following&view=list"); }}
-                      data-testid="card-trusted-following"
-                    >
-                      <div className="flex items-center gap-1.5 mb-2">
-                        <div className="p-1 rounded-md bg-[#333286]/8 text-[#333286]">
-                          <UserPlus className="h-3 w-3" />
-                        </div>
-                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Following</span>
-                      </div>
-                      <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight leading-none" data-testid="text-following-count">
-                        {(overviewQuery.isLoading || statsQuery.isLoading) ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : verifiedFollowingCount}
-                      </div>
-                      <p className="text-[10px] text-slate-400 mt-1 leading-tight" data-testid="text-following-label">Verified following</p>
-                      {isCalculationComplete && (
-                        <div className="mt-2 flex items-center gap-1 text-[10px] font-semibold text-[#333286]/60">
-                          <span>Explore</span>
-                          <ChevronRight className="h-2.5 w-2.5" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-auto flex items-center justify-between pt-2">
-                    <div className="inline-flex items-center gap-2 text-xs font-mono text-slate-500">
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                      Live
-                    </div>
-                    <span
-                      className={`inline-flex items-center h-7 px-3 text-xs font-bold rounded-lg border border-slate-200 text-slate-600 ${isCalculationComplete ? "cursor-pointer hover:bg-slate-50 hover:border-slate-300 transition-colors" : ""}`}
-                      onClick={() => isCalculationComplete && navigate("/network")}
-                      role={isCalculationComplete ? "button" : undefined}
-                      tabIndex={isCalculationComplete ? 0 : -1}
-                      data-testid="button-view-all-network"
-                    >
-                      View All
-                      <ChevronRight className="ml-1.5 h-3 w-3" />
-                    </span>
-                  </div>
-                </div>
-              </Card>
-            </motion.div>
-
-            <Dialog open={riskDialogOpen} onOpenChange={setRiskDialogOpen}>
-              <DialogContent
-                className="sm:max-w-[620px] rounded-3xl border border-[#7c86ff]/20 bg-gradient-to-b from-white/92 via-white/88 to-indigo-50/60 backdrop-blur-xl shadow-[0_60px_140px_-70px_rgba(51,50,134,0.75)] overflow-hidden p-0"
-                data-testid="dialog-network-alerts-preview"
-              >
-                <div className="absolute inset-0 pointer-events-none">
-                  <div className="absolute -top-32 -right-32 h-[420px] w-[420px] rounded-full bg-[#7c86ff]/20 blur-[90px]" />
-                  <div className="absolute -bottom-40 -left-40 h-[520px] w-[520px] rounded-full bg-[#333286]/15 blur-[110px]" />
-                  <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(124,134,255,0.14)_0%,rgba(255,255,255,0.00)_40%,rgba(51,50,134,0.12)_100%)]" />
-                </div>
-
-                <div
-                  className="absolute -right-14 top-[1.1rem] z-30 rotate-45 bg-[#333286] px-14 py-1.5 text-[10px] font-extrabold uppercase tracking-widest text-white shadow-lg shadow-black/20 ring-1 ring-white/15"
-                  data-testid="ribbon-dialog-network-alerts-coming-soon"
-                  aria-label="Coming soon"
-                >
-                  Coming soon
-                </div>
-
-                <div className="relative">
-                  <div className="px-6 pt-6 pb-5">
-                    <DialogHeader>
-                      <div className="flex items-start justify-between gap-4 pr-10">
-                        <div className="flex items-start gap-3">
-                          <div className="h-10 w-10 rounded-2xl bg-white/70 border border-[#7c86ff]/20 shadow-sm flex items-center justify-center text-[#333286]" data-testid="icon-network-alerts-dialog">
-                            <ShieldAlert className="h-5 w-5" />
-                          </div>
-                          <div className="min-w-0">
-                            <DialogTitle className="text-xl font-bold text-slate-900 leading-none tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-network-alerts-dialog-title">
-                              Network Alerts
-                            </DialogTitle>
-                            <DialogDescription className="text-sm text-slate-600 mt-1 leading-relaxed" data-testid="text-network-alerts-dialog-subtitle">
-                              This feature is coming soon. We'll flag accounts that may be impersonators, spammers, or behaving unusually so you can keep your network clean.
-                            </DialogDescription>
-                          </div>
-                        </div>
-                      </div>
-                    </DialogHeader>
-
-                    <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-3 opacity-30 pointer-events-none select-none" data-testid="grid-network-alerts-dialog-signals">
-                      {[{ label: "Spoof detection", desc: "Look-alikes & impostors" }, { label: "Spam pressure", desc: "Mass-follow patterns" }, { label: "Trust drops", desc: "Fast score collapse" }].map((s, idx) => (
-                        <div key={s.label} className="rounded-2xl border border-white/70 bg-white/60 backdrop-blur-md px-3 py-2.5 shadow-sm" data-testid={`card-network-alerts-dialog-signal-${idx}`}>
-                          <div className="text-xs font-bold text-slate-900" data-testid={`text-network-alerts-dialog-signal-label-${idx}`}>{s.label}</div>
-                          <div className="text-xs text-slate-600 mt-1" data-testid={`text-network-alerts-dialog-signal-desc-${idx}`}>{s.desc}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="px-6 pb-6 relative">
-                    <div className="rounded-3xl border border-slate-200/70 bg-white/65 backdrop-blur-md shadow-sm overflow-hidden opacity-30 pointer-events-none select-none blur-[2px]">
-                      <div className="px-4 py-3 border-b border-slate-200/60 bg-gradient-to-r from-white/75 to-indigo-50/45">
-                        <div className="flex items-center justify-between gap-3">
-                          <div className="text-xs font-bold text-slate-900" data-testid="text-network-alerts-dialog-summary-title">Your Network Signals</div>
-                          <div className="text-xs font-mono text-slate-500" data-testid="text-network-alerts-dialog-summary-meta">From your social graph</div>
-                        </div>
-                      </div>
-
-                      <div className="p-4 space-y-2" data-testid="list-network-alerts-dialog-signals">
-                        {reportedByCount > 0 && (
-                          <div className="flex items-center justify-between gap-3 rounded-2xl border border-red-200/60 bg-gradient-to-r from-white/70 to-red-50/35 px-3 py-2.5" data-testid="row-dialog-reported-by">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <div className="h-8 w-8 rounded-full bg-red-100 border border-red-200 flex items-center justify-center">
-                                <ShieldAlert className="h-4 w-4 text-red-500" />
-                              </div>
-                              <div className="min-w-0">
-                                <div className="text-sm font-bold text-slate-900">Reported By</div>
-                                <div className="text-xs text-slate-500">{reportedByCount} {reportedByCount === 1 ? "user has" : "users have"} reported you</div>
-                              </div>
-                            </div>
-                            <Badge variant="outline" className="text-[10px] bg-red-50 text-red-700 border-red-200 no-default-hover-elevate no-default-active-elevate">{reportedByCount}</Badge>
-                          </div>
-                        )}
-                        {mutedByCount > 0 && (
-                          <div className="flex items-center justify-between gap-3 rounded-2xl border border-amber-200/60 bg-gradient-to-r from-white/70 to-amber-50/35 px-3 py-2.5" data-testid="row-dialog-muted-by">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <div className="h-8 w-8 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center">
-                                <VolumeX className="h-4 w-4 text-amber-500" />
-                              </div>
-                              <div className="min-w-0">
-                                <div className="text-sm font-bold text-slate-900">Muted By</div>
-                                <div className="text-xs text-slate-500">{mutedByCount} {mutedByCount === 1 ? "user has" : "users have"} muted you</div>
-                              </div>
-                            </div>
-                            <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-700 border-amber-200 no-default-hover-elevate no-default-active-elevate">{mutedByCount}</Badge>
-                          </div>
-                        )}
-                        {reportedByCount === 0 && mutedByCount === 0 && (
-                          <div className="text-center py-6" data-testid="row-dialog-no-signals">
-                            {(overviewQuery.isLoading || statsQuery.isLoading) ? (
-                              <>
-                                <div className="h-10 w-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center mx-auto mb-2 animate-pulse" />
-                                <p className="text-sm font-bold text-slate-500">Loading signals...</p>
-                              </>
-                            ) : (
-                              <>
-                                <div className="h-10 w-10 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto mb-2">
-                                  <Check className="h-5 w-5 text-emerald-500" />
-                                </div>
-                                <p className="text-sm font-bold text-slate-900">All clear</p>
-                                <p className="text-xs text-slate-500 mt-0.5">No reports or mutes detected in your network.</p>
-                              </>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-              <Card
-                className="bg-white border-slate-200 shadow-sm overflow-hidden group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1 transition-all duration-500 rounded-xl relative h-full flex flex-col p-4 cursor-pointer"
-                onClick={() => {
-                  setRiskDialogOpen(true);
-                  if (riskTeaserTimerRef.current) { window.clearTimeout(riskTeaserTimerRef.current); riskTeaserTimerRef.current = null; }
-                }}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" || e.key === " ") { setRiskDialogOpen(true); }
-                }}
-                data-testid="card-network-alerts"
-                aria-label="Open Network Alerts preview"
-              >
-                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-
-                <div
-                  className="absolute -right-12 top-[0.85rem] z-30 rotate-45 bg-[#333286] px-12 py-1.5 text-[10px] font-extrabold uppercase tracking-widest text-white shadow-lg shadow-black/20 ring-1 ring-white/15"
-                  data-testid="ribbon-network-alerts-coming-soon"
-                  aria-label="Coming soon"
-                >
-                  Coming soon
-                </div>
-                <div
-                  className="absolute inset-0 z-10"
-                  data-testid="overlay-network-alerts-coming-soon"
-                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); setRiskDialogOpen(true); }}
-                  role="button"
-                  tabIndex={-1}
-                  aria-hidden="true"
-                  style={{ pointerEvents: "auto" }}
-                >
-                  <div className="absolute -inset-16 bg-[conic-gradient(from_210deg_at_50%_50%,rgba(124,134,255,0.0),rgba(124,134,255,0.10),rgba(51,50,134,0.10),rgba(124,134,255,0.0))] blur-2xl opacity-70" />
-                  <div className="absolute inset-0 bg-white/55 backdrop-blur-[1px]" />
-                  <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(15,23,42,0.06)_0%,rgba(15,23,42,0.02)_45%,rgba(15,23,42,0.00)_60%)]" />
-                </div>
-
-                <div className="absolute top-0 right-0 p-3 z-20">
-                  {(reportedByCount + mutedByCount) > 0 && <div className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse" />}
-                </div>
-
-                <div className="flex flex-col h-full gap-2">
-                  <div className="flex items-center gap-2">
-                    <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-[#333286] ring-1 ring-slate-100">
-                      <ShieldAlert className="h-3.5 w-3.5" />
-                    </div>
-                    <span className="text-xs font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-                      Network Alerts
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-slate-500 leading-tight">
-                    {(overviewQuery.isLoading || statsQuery.isLoading) ? (
-                      <span className="text-slate-400">Loading signals...</span>
-                    ) : (reportedByCount + mutedByCount) > 0 ? (
-                      <><strong className="text-slate-900">{reportedByCount + mutedByCount} signals</strong> from your network.</>
-                    ) : (
-                      <span className="text-slate-400">No risk signals detected.</span>
-                    )}
-                  </p>
-
-                  <div className="space-y-1.5 mt-1">
-                    {reportedByCount > 0 && (
-                      <div className="flex items-center justify-between p-1.5 rounded bg-red-50/50 border border-red-200/60" data-testid="row-reported-by-count">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-5 h-5 rounded-full bg-red-100 flex items-center justify-center">
-                            <ShieldAlert className="h-2.5 w-2.5 text-red-500" />
-                          </div>
-                          <div className="min-w-0 flex flex-col">
-                            <p className="text-xs font-bold text-slate-800 leading-none">Reported By</p>
-                            <p className="text-xs text-red-600/70 font-medium leading-none mt-0.5">{reportedByCount} {reportedByCount === 1 ? "user" : "users"}</p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                    {mutedByCount > 0 && (
-                      <div className="flex items-center justify-between p-1.5 rounded bg-amber-50/50 border border-amber-200/60" data-testid="row-muted-by-count">
-                        <div className="flex items-center gap-2 min-w-0">
-                          <div className="w-5 h-5 rounded-full bg-amber-100 flex items-center justify-center">
-                            <VolumeX className="h-2.5 w-2.5 text-amber-500" />
-                          </div>
-                          <div className="min-w-0 flex flex-col">
-                            <p className="text-xs font-bold text-slate-800 leading-none">Muted By</p>
-                            <p className="text-xs text-amber-600/70 font-medium leading-none mt-0.5">{mutedByCount} {mutedByCount === 1 ? "user" : "users"}</p>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </Card>
-            </motion.div>
-
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-              <Card className={`bg-white border-slate-200 shadow-sm overflow-hidden rounded-xl relative h-full flex flex-col p-4 transition-all duration-500 ${isCalculationComplete ? "group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1" : ""}`}>
-                {!isCalculationComplete && (
-                  <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center rounded-xl" data-testid="overlay-extended-reach-calculating">
-                    {isErrorState ? (
-                      <>
-                        <Network className="w-5 h-5 text-slate-300 mb-2" />
-                        <span className="text-xs font-semibold text-slate-500 tracking-wide">Calculate scores to unlock</span>
-                      </>
-                    ) : (
-                      <>
-                        <Loader2 className="w-5 h-5 animate-spin text-slate-400 mb-2" />
-                        <span className="text-xs font-semibold text-slate-500 tracking-wide">Scores calculating...</span>
-                      </>
-                    )}
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-
-                <div className={`flex flex-col h-full gap-2 ${!isCalculationComplete ? "opacity-30 pointer-events-none select-none" : ""}`}>
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-[#333286] ring-1 ring-slate-100">
-                        <Network className="h-3.5 w-3.5" />
-                      </div>
-                      <span className="text-xs font-bold text-slate-800 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-                        Extended Reach
-                      </span>
-                    </div>
-                    <UITooltip>
-                      <TooltipTrigger>
-                        <Info className="h-3 w-3 text-indigo-400 hover:text-indigo-600 transition-colors" />
-                      </TooltipTrigger>
-                      <TooltipContent className="bg-white/95 backdrop-blur-xl border-[#7c86ff]/20 text-slate-700 shadow-xl p-3">
-                        <div className="space-y-1 max-w-xs">
-                          <p className="font-bold text-xs text-[#333286]">About Extended Reach</p>
-                          <p className="text-xs leading-relaxed">
-                            This metric represents your total discoverable network size. It counts unique identities connected to you through your trusted followers.
-                          </p>
-                          <p className="text-xs leading-relaxed border-t border-slate-100 pt-1 mt-1">
-                            <span className="font-semibold text-indigo-600">Hops:</span> Increasing hops expands your view to friends of friends (2 hops) and further, exponentially growing your reach.
-                          </p>
-                        </div>
-                      </TooltipContent>
-                    </UITooltip>
-                  </div>
-
-                  <div>
-                    <div className="text-2xl font-bold text-slate-900 font-mono tracking-tight leading-none mb-1" data-testid="text-extended-network-count">
-                      {(overviewQuery.isLoading || statsQuery.isLoading) || !isCalculationComplete ? <BrainLogo size={20} className="animate-pulse text-indigo-300" /> : extendedNetworkCount.toLocaleString()}
-                    </div>
-                    <p className="text-xs text-slate-400" data-testid="text-extended-network-label">Unique profiles in range</p>
-                  </div>
-
-                  <div className="mt-auto space-y-2 bg-slate-50/80 p-2.5 rounded-lg border border-slate-100">
-                    <div className="flex justify-between text-xs font-medium text-slate-600">
-                      <span>Reach Depth</span>
-                      <span className="text-indigo-600 font-bold">{hopRange[0] === hopRange[1] ? `${hopRange[0]}` : `${hopRange[0]}\u2013${hopRange[1]}`} Hops</span>
-                    </div>
-                    <Slider
-                      value={hopRange}
-                      onValueChange={(v) => {
-                        if (!isCalculationComplete) return;
-                        const next = (v ?? [1, maxHopInData]).slice(0, 2) as number[];
-                        const lo = Math.min(next[0] ?? 1, next[1] ?? 1);
-                        const hi = Math.min(maxHopInData, Math.max(next[0] ?? 1, next[1] ?? 1));
-                        setHopRange([lo, hi]);
-                        if (lo !== 1 || hi !== 1) setHealthView("followers");
-                      }}
-                      max={maxHopInData}
-                      min={1}
-                      step={1}
-                      className={isCalculationComplete ? "cursor-pointer py-1" : "cursor-not-allowed py-1 opacity-50"}
-                      disabled={!isCalculationComplete}
-                    />
-                    <div className="flex justify-between text-xs text-slate-400 uppercase tracking-wider font-semibold">
-                      <span>Direct</span>
-                      <span>Global</span>
-                    </div>
-                  </div>
-                </div>
-              </Card>
-            </motion.div>
+          {/* Investigate command bar — research entry point into the deep-dive
+              analytics (/profile/:npub) for anyone in your network. */}
+          <div className="mb-5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 px-3 py-2.5 shadow-sm" data-testid="dashboard-lookup-bar">
+            <DashboardLookup />
           </div>
 
-          {!hasNoFollowing && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }} className="lg:col-span-3 space-y-6">
-              <Card className={`bg-white border-slate-200 shadow-sm overflow-hidden rounded-xl relative min-h-[300px] transition-all duration-500 ${isCalculationComplete ? "group hover:shadow-[0_20px_40px_-12px_rgba(124,134,255,0.25)] hover:border-[#7c86ff]/40 hover:-translate-y-1" : ""}`}>
-                {!isCalculationComplete && (
-                  <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] z-20 flex flex-col items-center justify-center rounded-xl" data-testid="overlay-network-health-calculating">
-                    {isErrorState ? (
-                      <>
-                        <Users className="w-6 h-6 text-slate-300 mb-2" />
-                        <span className="text-sm font-semibold text-slate-500 tracking-wide">Calculate scores to unlock</span>
-                        <span className="text-xs text-slate-400 mt-1">Network health data will appear once scores are ready</span>
-                      </>
-                    ) : (
-                      <>
-                        <Loader2 className="w-6 h-6 animate-spin text-slate-400 mb-2" />
-                        <span className="text-sm font-semibold text-slate-500 tracking-wide">Scores calculating...</span>
-                        <span className="text-xs text-slate-400 mt-1">Network health data will appear once scores are ready</span>
-                      </>
-                    )}
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-transparent to-[#7c86ff]/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
+          {/* Stacked, never side-by-side: Network Alerts sits full-width on top,
+              "Your Network" full-width below. Minimizing/expanding Alerts is a pure
+              vertical accordion — it drops its body down in place and never shoves
+              "Your Network" to the side. "Your Network" folds in what used to be
+              three separate tiles (Social Graph, Extended Reach and the full
+              Network Health pie; the pie's tier drill-downs now live on /network)
+              and always renders in its wide four-cell row. */}
+          {/* Nothing here can hold real data before the first calculation, so before
+              then we render NOTHING rather than shells. Previously a brand-new user
+              got Network Alerts' "your safety radar is warming up" AND a full-height
+              greyed-out Your Network with a "Scores calculating…" overlay — so the
+              page said "wait" four or five times over and looked broken. The single
+              CalculatingNotice above is the one statement; these appear when they
+              have something to show. */}
+          <div className={`flex flex-col gap-4 ${isCalculationComplete ? "mb-6" : ""}`}>
 
-                <div className={!isCalculationComplete ? "opacity-30 pointer-events-none select-none" : ""}>
-                <CardHeader className="bg-slate-50 border-b border-slate-200 py-3 px-5">
-                  <div className="flex flex-row items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-1.5 rounded-lg bg-white border border-slate-100 shadow-sm text-[#333286] ring-1 ring-slate-100">
-                        <Users className="h-3.5 w-3.5" />
-                      </div>
-                      <div className="bg-white/50 backdrop-blur-sm px-3 py-1.5 rounded-2xl border border-slate-100 shadow-sm relative">
-                        <CardTitle className="text-xs font-bold text-slate-800 tracking-tight relative z-10" style={{ fontFamily: "var(--font-display)" }}>
-                          Network Health
-                        </CardTitle>
-                        <CardDescription className="text-slate-500 text-xs font-medium uppercase tracking-wide relative z-10" data-testid="text-network-health-subtitle">
-                          {(overviewQuery.isLoading || statsQuery.isLoading) || !isCalculationComplete ? "Computing\u2026" : hopRange[0] === 1 && hopRange[1] === 1 ? "Your direct followers" : `${extendedNetworkCount.toLocaleString()} people within ${hopRange[0]}\u2013${hopRange[1]} hops`}
-                        </CardDescription>
-                      </div>
-                    </div>
-                    <div className="px-2 py-0.5 rounded-full bg-[#7c86ff]/10 text-xs font-bold text-[#333286] border border-[#7c86ff]/20 uppercase tracking-wider flex items-center gap-1.5 shrink-0 self-start sm:self-center">
-                      <span className="text-[#333286]">WITHIN {hopRange[0] === hopRange[1] ? `${hopRange[0]} HOP` : `${hopRange[0]}\u2013${hopRange[1]} HOPS`}</span>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent className="pt-4 pb-4">
-                  <div className="flex flex-col md:flex-row items-center gap-6 px-4 sm:px-8">
-                    <div className="h-48 w-full md:w-5/12">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie data={(() => { const isHop1 = hopRange[0] === 1 && hopRange[1] === 1; return (isHop1 && healthView === "following" ? followingPieData : currentPieData).filter((d: { value: number }) => d.value > 0); })()} cx="50%" cy="50%" innerRadius={60} outerRadius={90} paddingAngle={3} dataKey="value" stroke="none" style={isCalculationComplete && calcDone ? { cursor: "pointer" } : undefined} onClick={(_data: any, index: number) => { if (!isCalculationComplete || !calcDone) return; const isHop1 = hopRange[0] === 1 && hopRange[1] === 1; const sliceData = (isHop1 && healthView === "following" ? followingPieData : currentPieData).filter((d: { value: number }) => d.value > 0); const tierMap: Record<string, string> = { "Highly Trusted": "high", "Trusted": "medium", "Neutral": "neutral", "Low Trust": "low", "Unverified": "unverified", "Flagged": "flagged" }; const tier = tierMap[sliceData[index]?.name]; const group = isHop1 && healthView === "following" ? "following" : "followed_by"; if (tier) navigate(`/network?trust=${tier}&group=${group}`); }}>
-                            {(() => { const isHop1 = hopRange[0] === 1 && hopRange[1] === 1; const sliceData = (isHop1 && healthView === "following" ? followingPieData : currentPieData).filter((d: { value: number }) => d.value > 0); return sliceData.map((entry: { color: string }, index: number) => (
-                              <Cell key={`cell-${index}`} fill={isCalculationComplete ? entry.color : "#cbd5e1"} style={isCalculationComplete && calcDone ? { cursor: "pointer" } : undefined} />
-                            )); })()}
-                          </Pie>
-                          {isCalculationComplete && (
-                          <Tooltip
-                            formatter={(value: number, _name: string) => {
-                              if ((overviewQuery.isLoading || statsQuery.isLoading)) return ["\u2014", ""];
-                              const hopLabel = hopRange[0] === hopRange[1] ? `Hop ${hopRange[0]}` : `Hops ${hopRange[0]}–${hopRange[1]}`;
-                              return [`${value.toLocaleString()} profiles · ${hopLabel}`, ""];
-                            }}
-                            contentStyle={{
-                              borderRadius: "8px",
-                              border: "1px solid #e2e8f0",
-                              backgroundColor: "#ffffff",
-                              color: "#0f172a",
-                              boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
-                              fontSize: "12px",
-                            }}
-                            itemStyle={{ color: "#0f172a" }}
-                          />
-                          )}
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-
-                    {(() => {
-                      const isHop1 = hopRange[0] === 1 && hopRange[1] === 1;
-                      const activePieData = isHop1 && healthView === "following" ? followingPieData : currentPieData;
-                      const activeTierCounts = isHop1 && healthView === "following" ? directFollowingTierCounts : directTierCounts;
-                      const activeGroup = isHop1 && healthView === "following" ? "following" : "followed_by";
-                      const totalActive = activePieData.reduce((acc, curr) => acc + curr.value, 0);
-                      return (
-                    <div className="w-full md:w-7/12 grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-1 sm:gap-y-3">
-                      <div className="col-span-1 sm:col-span-2 mb-1">
-                        <div className="flex items-center justify-between gap-2">
-                          <div>
-                            <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">{isHop1 ? (healthView === "following" ? "Following Trust Breakdown" : "Follower Trust Breakdown") : "Network Composition"}</h4>
-                            <p className="text-xs text-slate-500">{isHop1 ? (healthView === "following" ? "Trust quality of who you follow" : "How your followers rank by trust") : "Breakdown by trust signal strength"}</p>
-                          </div>
-                          {isHop1 && (
-                            <div className="flex items-center rounded-full bg-slate-100 p-0.5 shrink-0" data-testid="toggle-health-view">
-                              <button type="button" className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${healthView === "followers" ? "bg-[#6366f1] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`} onClick={() => setHealthView("followers")} data-testid="toggle-health-followers">Followers</button>
-                              <button type="button" className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider transition-all duration-200 ${healthView === "following" ? "bg-[#6366f1] text-white shadow-sm" : "text-slate-500 hover:text-slate-700"}`} onClick={() => setHealthView("following")} data-testid="toggle-health-following">Following</button>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                      {activePieData.map((dist, i) => {
-                        const tierMap: Record<string, string> = { "Highly Trusted": "high", "Trusted": "medium", "Neutral": "neutral", "Low Trust": "low", "Unverified": "unverified", "Flagged": "flagged" };
-                        const tier = tierMap[dist.name];
-                        const canClick = isCalculationComplete && calcDone && !!tier;
-                        const directCount = tier ? activeTierCounts[tier] ?? 0 : 0;
-                        return (
-                        <div key={i} className={`group flex items-center gap-2 p-2 rounded-lg transition-colors border border-transparent hover:border-slate-100 ${canClick ? "cursor-pointer hover:bg-indigo-50/60" : "cursor-default hover:bg-slate-50"}`} onClick={() => { if (canClick) navigate(`/network?trust=${tier}&group=${activeGroup}`); }} data-testid={`link-pie-tier-${tier || i}`}>
-                          <div className="w-2.5 h-2.5 rounded-full shadow-sm ring-2 ring-white shrink-0" style={{ backgroundColor: isCalculationComplete ? dist.color : "#cbd5e1" }} />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex justify-between items-center mb-1 gap-2">
-                              <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-1.5 min-w-0">
-                                <p className="font-bold text-xs text-slate-900 truncate">{dist.name}</p>
-                                {isCalculationComplete && tier && <span className="text-[10px] text-slate-400 truncate">{isHop1 ? (healthView === "following" ? `${directCount} following` : `${directCount} of your followers`) : `${dist.value.toLocaleString()} profiles`}</span>}
-                              </div>
-                              <span className="text-xs font-mono text-slate-400 group-hover:text-indigo-600 transition-colors shrink-0" data-testid={`text-network-composition-percent-${i}`}>
-                                {(overviewQuery.isLoading || statsQuery.isLoading) || !isCalculationComplete ? <BrainLogo size={12} className="animate-pulse text-indigo-300 inline-block" /> : `${((dist.value / totalActive) * 100).toFixed(1)}%`}
-                              </span>
-                            </div>
-                            <div className="w-full bg-slate-100 rounded-full h-1 overflow-hidden">
-                              <motion.div
-                                initial={{ width: 0 }}
-                                animate={{ width: isCalculationComplete ? `${(dist.value / totalActive) * 100}%` : "0%" }}
-                                transition={{ duration: 1, delay: 0.5 + i * 0.1 }}
-                                className="h-full rounded-full"
-                                style={{ backgroundColor: isCalculationComplete ? dist.color : "#cbd5e1" }}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                        );
-                      })}
-                    </div>
-                      );
-                    })()}
-                  </div>
-                </CardContent>
-                </div>
-              </Card>
+            {isCalculationComplete && (
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="w-full flex">
+              <NetworkAlertsModule observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
             </motion.div>
-          </div>)}
+            )}
 
-          {false && (
-            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }} className="mb-8">
-              <Card className="bg-gradient-to-br from-[#333286] via-[#1e1b4b] to-slate-950 text-white border-[#7c86ff]/20 shadow-[0_20px_60px_-15px_rgba(51,50,134,0.3)] overflow-hidden relative group" onMouseMove={handleMouseMove}>
-                <div className="relative z-10 p-6 sm:p-8">
-                  <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-                    Discover Your Tribe
-                  </h2>
-                  <p className="text-indigo-200/70 mt-2 max-w-xl text-sm sm:text-base font-light">
-                    Identify and connect with high-signal clusters in the global trust graph matching your interests.
-                  </p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-6">
-                    {INTEREST_CLUSTERS.map((cluster) => (
-                      <div key={cluster.id} className="relative rounded-2xl overflow-hidden cursor-pointer group/cluster">
-                        <img src={cluster.image} alt={cluster.label} className="w-full h-32 object-cover" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
-                        <div className="absolute bottom-0 left-0 right-0 p-3">
-                          <p className="text-sm font-bold text-white">{cluster.label}</p>
-                          <p className="text-xs text-white/60">{cluster.count.toLocaleString()} {cluster.unit}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </Card>
+            {isCalculationComplete && (
+            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className="w-full flex">
+              <YourNetworkCard
+                isReady={isCalculationComplete}
+                loading={overviewQuery.isLoading || statsQuery.isLoading}
+                followers={verifiedFollowersCount}
+                following={verifiedFollowingCount}
+                extendedCount={extendedNetworkCount}
+                hopRange={hopRange}
+                maxHop={maxHopInData}
+                onHopChange={setHopRange}
+                health={currentPieData}
+                onNavigate={navigate}
+                wide
+                followersFaces={facesQuery.data?.followers ?? []}
+                followingFaces={facesQuery.data?.following ?? []}
+              />
             </motion.div>
-          )}
-
-          {false && (
-            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.7 }} className="mb-8 text-center">
-              <h2 className="text-2xl font-bold" style={{ fontFamily: "var(--font-display)" }}>
-                <span className="bg-clip-text text-transparent bg-gradient-to-r from-[#333286] via-[#7c86ff] to-[#333286] bg-[length:200%_auto] animate-gradient-x drop-shadow-sm block pb-1">
-                  Grow Your Network
-                </span>
-              </h2>
-            </motion.div>
-          )}
-
-          <div className="w-screen relative left-[calc(-50vw+50%)] py-12 mb-12 overflow-hidden group">
-            <div className="absolute inset-0 bg-[#020617] border-y border-indigo-500/20">
-              <div className="absolute inset-0 bg-[linear-gradient(to_right,#818cf810_1px,transparent_1px),linear-gradient(to_bottom,#818cf810_1px,transparent_1px)] bg-[size:24px_24px] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)]" />
-              <div className="absolute -left-[10%] -top-[50%] w-[50%] h-[200%] bg-indigo-600/10 blur-[120px] rotate-12 animate-pulse" style={{ animationDuration: "8s" }} />
-              <div className="absolute -right-[10%] -bottom-[50%] w-[50%] h-[200%] bg-[#7c86ff]/10 blur-[120px] -rotate-12 animate-pulse" style={{ animationDuration: "10s" }} />
-            </div>
-
-            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
-              <div className="flex flex-col md:flex-row items-center justify-between gap-8 sm:gap-12">
-                <div className="flex-shrink-0 relative group-hover:scale-110 transition-transform duration-700 ease-out">
-                  <div className="absolute -inset-8 bg-indigo-500/20 blur-2xl rounded-full opacity-50 group-hover:opacity-100 transition-opacity duration-700 animate-pulse" />
-                  <BrainLogo size={80} className="relative z-10 drop-shadow-[0_0_15px_rgba(99,102,241,0.5)] text-indigo-400" />
-                </div>
-
-                <div className="flex-1 text-center md:text-left">
-                  <div className="flex items-center justify-center md:justify-start gap-3 mb-3">
-                    <h3 className="text-2xl font-bold text-white tracking-tight drop-shadow-md">
-                      The Power of Transitive Trust
-                    </h3>
-                    <Badge variant="secondary" className="hidden sm:flex bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 backdrop-blur-md shadow-sm">
-                      Graph Theory
-                    </Badge>
-                  </div>
-                  <p className="text-base sm:text-lg text-indigo-200/80 leading-relaxed max-w-2xl font-light">
-                    We don't maintain a blocklist. Instead, we compute a <span className="font-semibold text-white border-b border-indigo-400/30 pb-0.5">probabilistic reliability score</span> for every interaction based on your unique social graph. <span className="text-indigo-300 italic">Trust flows through your connections.</span>
-                  </p>
-                </div>
-
-                <div className="flex-shrink-0">
-                  <Button
-                    variant="ghost"
-                    className="!bg-white !text-indigo-950 border-none font-bold shadow-[0_0_20px_rgba(255,255,255,0.1)] hover:shadow-[0_0_25px_rgba(255,255,255,0.2)] h-12 px-8 rounded-full transition-all duration-300 group/btn transform hover:-translate-y-0.5"
-                    onClick={() => navigate("/what-is-wot")}
-                    data-testid="button-learn-wot"
-                  >
-                    Learn about WOT?
-                    <ArrowRight className="ml-2 h-4 w-4 group-hover/btn:translate-x-1 transition-transform text-indigo-600" />
-                  </Button>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
 
-          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.9 }} className="mb-8">
-            <Carousel opts={{ align: "start", loop: true }} className="relative" data-testid="carousel-supported-clients">
-              <CarouselContent className="-ml-4">
-                <CarouselItem className="pl-4 basis-full" data-testid="slide-supported-client-amethyst">
-                  <Card
-                    className="relative overflow-visible border-0 bg-gradient-to-r from-[#2a1b4e] to-[#1a1638] ring-1 ring-white/10 shadow-[0_18px_58px_-40px_rgba(0,0,0,0.55)] group cursor-pointer hover:shadow-[0_22px_70px_-42px_rgba(0,0,0,0.62)] transition-all duration-500 w-full rounded-3xl"
-                    onClick={() => {
-                      const el = document.querySelector('[data-testid="carousel-supported-clients"]') as HTMLElement | null;
-                      el?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if ((e.key === "Enter" || e.key === " ") && !(e.target as HTMLElement).closest("a, button:not([data-testid='button-supported-slide-next-from-amethyst'])")) {
-                        e.preventDefault();
-                        const el = document.querySelector('[data-testid="carousel-supported-clients"]') as HTMLElement | null;
-                        el?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
-                      }
-                    }}
-                    data-testid="button-supported-slide-next-from-amethyst"
-                    aria-label="Next supported client"
-                  >
-                    <div className="absolute inset-0 z-0 overflow-hidden rounded-3xl">
-                      <img src={amethystHeroImg} alt="Amethyst App Interface" className="w-full h-full object-cover opacity-30 mix-blend-overlay group-hover:opacity-40 transition-opacity duration-700 group-hover:scale-105 transform" />
-                      <div className="absolute inset-0 bg-gradient-to-b sm:bg-gradient-to-r from-[#1a1033] via-[#1a1033]/90 to-[#1a1033]/60 sm:to-transparent" />
-                    </div>
+          {/* Discovery, not a following feed: long-form from accounts two-plus
+              hops out that the graph vouches for. Renders nothing until there's
+              something worth showing. */}
+          <NetworkArticlesModule observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
 
-                    <div className="relative z-10 p-5 sm:p-10 flex flex-col md:flex-row items-center gap-4 sm:gap-8 min-h-[340px] sm:min-h-[420px] pb-8 sm:pb-10">
-                      <div className="flex-1 space-y-4 sm:space-y-6 text-center md:text-left">
-                        <div className="inline-flex items-center gap-2" data-testid="badge-supported-clients">
-                          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#7c86ff]/10 border border-[#7c86ff]/20 text-[#c7d2fe] text-xs font-bold uppercase tracking-wider backdrop-blur-md">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3" aria-hidden="true">
-                              <rect x="5" y="2" width="14" height="20" rx="3" ry="3" />
-                              <line x1="12" y1="18" x2="12.01" y2="18" />
-                            </svg>
-                            <span>Supported Clients</span>
-                          </div>
-                          <div className="relative group/info">
-                            <button
-                              type="button"
-                              className="h-5 w-5 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-[#c7d2fe] hover:bg-white/20 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-[#7c86ff]/50"
-                              onClick={(e) => { e.stopPropagation(); e.currentTarget.focus(); }}
-                              aria-label="What are Supported Clients?"
-                              data-testid="button-supported-clients-info"
-                            >
-                              <Info className="h-3 w-3" />
-                            </button>
-                            <div className="fixed left-4 right-4 top-1/2 -translate-y-1/2 sm:absolute sm:top-full sm:mt-2 sm:left-0 sm:right-auto sm:translate-y-0 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-[100] pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-supported-clients">
-                              Apps that read the personalized trust scores Brainstorm publishes for you — so your Web of Trust travels with you across the apps you use.
-                            </div>
-                          </div>
-                        </div>
+          {/* The circle you already chose (1 hop), under the discovery module.
+              Read-only: notes open the full conversation at /e/:id rather than
+              faking a composer the product doesn't have yet. */}
+          <NetworkThreadModule observer={user?.pubkey ?? ""} enabled={isCalculationComplete} />
 
-                        <div className="space-y-3 sm:space-y-4">
-                          <div className="flex flex-col md:flex-row items-center gap-3 sm:gap-4 justify-center md:justify-start">
-                            <img src={amethystLogoImg} alt="Amethyst Logo" className="w-12 h-12 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl shadow-lg ring-1 ring-white/10" data-testid="img-supported-amethyst-logo" />
-                            <div className="space-y-0.5 sm:space-y-1 text-center md:text-left">
-                              <h2 className="text-2xl sm:text-4xl font-bold text-white tracking-tight leading-none" style={{ fontFamily: "var(--font-display)" }} data-testid="text-supported-amethyst-title">
-                                Amethyst
-                              </h2>
-                              <p className="text-xs sm:text-sm font-medium text-[#c7d2fe]/80 uppercase tracking-widest" data-testid="text-supported-amethyst-tagline">The Future of Social</p>
-                              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-[#7c86ff]/15 border border-[#7c86ff]/25 text-[#ddd6fe] text-[10px] sm:text-xs font-semibold uppercase tracking-wider mt-1" data-testid="badge-amethyst-nip85">
-                                <CheckCircle2 className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                                <span>NIP-85</span>
-                              </div>
-                            </div>
-                          </div>
-                          <p className="text-sm sm:text-lg text-slate-300/90 font-light leading-relaxed max-w-xl mx-auto md:mx-0" data-testid="text-supported-amethyst-description">Experience true freedom with the premier Android client for Nostr. Direct, intermediary-free communication in a beautiful, feature-rich interface.</p>
-                        </div>
 
-                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-1 sm:pt-2 justify-center md:justify-start" data-testid="row-supported-amethyst-cta">
-                          <a href="https://play.google.com/store/apps/details?id=com.vitorpamplona.amethyst" target="_blank" rel="noopener noreferrer" data-testid="link-supported-amethyst-android" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" className="w-full sm:w-auto !bg-white !text-[#1a1033] font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-[#1e1b4b]/20 transition-all hover:scale-105 border-none text-sm sm:text-base" data-testid="button-supported-amethyst-android">
-                              <Download className="mr-2 h-4 w-4" />
-                              Download for Android
-                            </Button>
-                          </a>
-                          <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" data-testid="link-supported-amethyst-learn" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" className="w-full sm:w-auto !bg-[#3b73b4] !text-[#ffffff] font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-[#333286]/30 transition-all hover:scale-105 border-none text-sm sm:text-base" data-testid="button-supported-amethyst-learn">
-                              Learn More
-                              <ArrowRight className="ml-2 h-4 w-4" />
-                            </Button>
-                          </a>
-                        </div>
-                      </div>
+          {/* Expands to fill the gap while the modules above are still gated off,
+              and tightens to one row once scores land. See ClientShelf. */}
+          <ClientShelf expanded={!isCalculationComplete} onNavigate={navigate} />
 
-                      <div className="hidden md:block w-1/3 relative h-64" aria-hidden="true">
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-[#7c86ff]/20 rounded-full blur-[80px] pointer-events-none" />
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-48 h-48 border border-[#7c86ff]/20 rounded-full animate-pulse pointer-events-none" />
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 border border-[#7c86ff]/10 rounded-full pointer-events-none" />
-                      </div>
-                    </div>
-                  </Card>
-                </CarouselItem>
-
-                <CarouselItem className="pl-4 basis-full" data-testid="slide-supported-client-nostria">
-                  <Card
-                    className="relative overflow-visible border-0 bg-gradient-to-r from-[#f26b1d] via-[#f59f2e] to-[#f7b24a] ring-1 ring-white/15 shadow-[0_24px_80px_-44px_rgba(0,0,0,0.55)] group cursor-pointer hover:shadow-[0_28px_90px_-46px_rgba(0,0,0,0.62)] transition-all duration-500 w-full rounded-3xl"
-                    onClick={() => {
-                      const el = document.querySelector('[data-testid="carousel-supported-clients"]') as HTMLElement | null;
-                      el?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if ((e.key === "Enter" || e.key === " ") && !(e.target as HTMLElement).closest("a, button:not([data-testid='button-supported-slide-next-from-nostria'])")) {
-                        e.preventDefault();
-                        const el = document.querySelector('[data-testid="carousel-supported-clients"]') as HTMLElement | null;
-                        el?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
-                      }
-                    }}
-                    data-testid="button-supported-slide-next-from-nostria"
-                    aria-label="Next supported client"
-                  >
-                    <div className="absolute inset-0 z-0 overflow-hidden rounded-3xl">
-                      <img src={nostriaHeroImg} alt="Nostria" className="w-full h-full object-cover opacity-35 mix-blend-overlay group-hover:opacity-45 transition-opacity duration-700 group-hover:scale-105 transform" />
-                      <img src={nostriaManifestoImg} alt="" className="absolute inset-0 w-full h-full object-cover opacity-[0.20] mix-blend-soft-light pointer-events-none" aria-hidden="true" data-testid="img-nostria-manifesto-overlay" />
-                      <img
-                        src={nostriaTeaserImg}
-                        alt=""
-                        className="absolute right-[-24%] top-[-14%] w-[80%] h-auto opacity-[0.52] mix-blend-soft-light saturate-[0.92] contrast-[1.04] brightness-[1.06] rotate-[-2deg] blur-[0.35px] pointer-events-none hidden sm:block"
-                        style={{
-                          WebkitMaskImage: "radial-gradient(84% 86% at 60% 42%, rgba(0,0,0,1) 0%, rgba(0,0,0,0.9) 46%, rgba(0,0,0,0) 82%)",
-                          maskImage: "radial-gradient(84% 86% at 60% 42%, rgba(0,0,0,1) 0%, rgba(0,0,0,0.9) 46%, rgba(0,0,0,0) 82%)",
-                        }}
-                        aria-hidden="true"
-                        data-testid="img-nostria-ui-teaser"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-b sm:bg-gradient-to-r from-[#3a1606] via-[#3a1606]/85 to-[#3a1606]/60 sm:to-transparent" />
-                    </div>
-
-                    <div className="relative z-10 p-5 sm:p-10 flex flex-col md:flex-row items-center gap-4 sm:gap-8 min-h-[340px] sm:min-h-[420px] pb-8 sm:pb-10">
-                      <div className="flex-1 space-y-4 sm:space-y-6 text-center md:text-left">
-                        <div className="inline-flex items-center gap-2" data-testid="badge-supported-clients-nostria">
-                          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-orange-200/10 border border-orange-200/20 text-orange-100 text-xs font-bold uppercase tracking-wider backdrop-blur-md">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="h-3 w-3" aria-hidden="true">
-                              <rect x="5" y="2" width="14" height="20" rx="3" ry="3" />
-                              <line x1="12" y1="18" x2="12.01" y2="18" />
-                            </svg>
-                            <span>Supported Clients</span>
-                          </div>
-                          <div className="relative group/info">
-                            <button
-                              type="button"
-                              className="h-5 w-5 rounded-full bg-white/10 border border-white/20 flex items-center justify-center text-orange-100 hover:bg-white/20 hover:text-white transition-colors focus:outline-none focus:ring-2 focus:ring-orange-300/50"
-                              onClick={(e) => { e.stopPropagation(); e.currentTarget.focus(); }}
-                              aria-label="What are Supported Clients?"
-                              data-testid="button-supported-clients-info-nostria"
-                            >
-                              <Info className="h-3 w-3" />
-                            </button>
-                            <div className="fixed left-4 right-4 top-1/2 -translate-y-1/2 sm:absolute sm:top-full sm:mt-2 sm:left-0 sm:right-auto sm:translate-y-0 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-[100] pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-supported-clients-nostria">
-                              Apps that read the personalized trust scores Brainstorm publishes for you — so your Web of Trust travels with you across the apps you use.
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="space-y-3 sm:space-y-4">
-                          <div className="flex flex-col md:flex-row items-center gap-3 sm:gap-4 justify-center md:justify-start">
-                            <img src={nostriaIconImg} alt="Nostria Logo" className="w-12 h-12 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl shadow-lg ring-1 ring-white/10 bg-white object-contain" data-testid="img-supported-nostria-logo" />
-                            <div className="space-y-0.5 sm:space-y-1 text-center md:text-left">
-                              <h2 className="text-2xl sm:text-4xl font-bold text-white tracking-tight leading-none" style={{ fontFamily: "var(--font-display)" }} data-testid="text-supported-nostria-title">
-                                Nostria
-                              </h2>
-                              <p className="text-xs sm:text-sm font-medium text-orange-100/80 uppercase tracking-widest" data-testid="text-supported-nostria-tagline">Built for human connections</p>
-                              <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-200/15 border border-orange-200/25 text-orange-100 text-[10px] sm:text-xs font-semibold uppercase tracking-wider mt-1" data-testid="badge-nostria-nip85">
-                                <CheckCircle2 className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
-                                <span>NIP-85</span>
-                              </div>
-                            </div>
-                          </div>
-                          <p className="text-sm sm:text-lg text-orange-50/90 font-light leading-relaxed max-w-xl mx-auto md:mx-0" data-testid="text-supported-nostria-description">
-                            Get started in seconds. No email. No phone. Just you. A clean, scalable Nostr client focused on ownership, privacy, and a calmer social experience.
-                          </p>
-                        </div>
-
-                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-1 sm:pt-2 justify-center md:justify-start" data-testid="row-supported-nostria-cta">
-                          <a href="https://play.google.com/store/apps/details?id=app.nostria.twa" target="_blank" rel="noopener noreferrer" data-testid="link-supported-nostria-android" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" className="w-full sm:w-auto !bg-white !text-[#3a1606] font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-orange-900/20 transition-all hover:scale-105 border-none text-sm sm:text-base" data-testid="button-supported-nostria-android">
-                              <Download className="mr-2 h-4 w-4" />
-                              Download for Android
-                            </Button>
-                          </a>
-                          <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" data-testid="link-supported-nostria-learn" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" className="w-full sm:w-auto font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-orange-900/10 transition-all hover:scale-105 border border-white/15 text-sm sm:text-base" style={{ backgroundColor: '#ffffff26', color: 'white' }} data-testid="button-supported-nostria-learn">
-                              Learn More
-                              <ArrowRight className="ml-2 h-4 w-4" />
-                            </Button>
-                          </a>
-                        </div>
-                      </div>
-
-                      <div className="hidden md:block w-1/3 relative h-64" aria-hidden="true">
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-orange-300/20 rounded-full blur-[90px] pointer-events-none" />
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-52 h-52 border border-orange-200/25 rounded-full animate-pulse pointer-events-none" />
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-36 h-36 border border-orange-100/10 rounded-full pointer-events-none" />
-                      </div>
-                    </div>
-                  </Card>
-                </CarouselItem>
-
-                <CarouselItem className="pl-4 basis-full" data-testid="slide-supported-client-developer">
-                  <Card
-                    className="relative overflow-hidden border-0 bg-gradient-to-r from-[#1a1033] to-[#0f172a] ring-1 ring-white/10 shadow-[0_18px_58px_-40px_rgba(0,0,0,0.55)] group cursor-pointer hover:shadow-[0_22px_70px_-42px_rgba(0,0,0,0.62)] transition-all duration-500 w-full rounded-3xl"
-                    onClick={() => {
-                      const el = document.querySelector('[data-testid="carousel-supported-clients"]') as HTMLElement | null;
-                      el?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
-                    }}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if ((e.key === "Enter" || e.key === " ") && !(e.target as HTMLElement).closest("a, button:not([data-testid='button-supported-slide-next-from-developer'])")) {
-                        e.preventDefault();
-                        const el = document.querySelector('[data-testid="carousel-supported-clients"]') as HTMLElement | null;
-                        el?.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight" }));
-                      }
-                    }}
-                    data-testid="button-supported-slide-next-from-developer"
-                    aria-label="Next supported client"
-                  >
-                    <div className="absolute inset-0 z-0">
-                      <img
-                        src={brainstormHeroImg}
-                        alt=""
-                        className="absolute right-[-10%] top-[5%] w-[75%] h-auto opacity-[0.45] mix-blend-screen saturate-[0.8] brightness-[0.95] pointer-events-none group-hover:opacity-[0.55] transition-opacity duration-700 hidden sm:block"
-                        style={{
-                          WebkitMaskImage: "radial-gradient(80% 80% at 60% 50%, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0) 80%)",
-                          maskImage: "radial-gradient(80% 80% at 60% 50%, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.5) 50%, rgba(0,0,0,0) 80%)",
-                        }}
-                        aria-hidden="true"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-b sm:bg-gradient-to-r from-[#1a1033] via-[#1a1033]/85 to-[#1a1033]/60 sm:to-transparent" />
-                    </div>
-
-                    <div className="relative z-10 p-5 sm:p-10 flex flex-col md:flex-row items-center gap-4 sm:gap-8 min-h-[340px] sm:min-h-[420px] pb-8 sm:pb-10">
-                      <div className="flex-1 space-y-4 sm:space-y-6 text-center md:text-left">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-400/20 text-indigo-300 text-xs font-bold uppercase tracking-wider backdrop-blur-md" data-testid="badge-for-developers">
-                          <Terminal className="h-3 w-3" aria-hidden="true" />
-                          <span>For Developers</span>
-                        </div>
-
-                        <div className="space-y-3 sm:space-y-4">
-                          <div className="flex flex-col md:flex-row items-center gap-3 sm:gap-4 justify-center md:justify-start">
-                            <div className="w-12 h-12 sm:w-20 sm:h-20 rounded-xl sm:rounded-2xl shadow-lg ring-1 ring-white/10 bg-[#1a1033] flex items-center justify-center" data-testid="img-developer-brainlogo">
-                              <BrainLogo size={32} className="text-white sm:hidden" />
-                              <BrainLogo size={48} className="text-white hidden sm:block" />
-                            </div>
-                            <div className="space-y-0.5 sm:space-y-1 text-center md:text-left">
-                              <h2 className="text-xl sm:text-4xl font-bold text-white tracking-tight leading-tight sm:leading-none" style={{ fontFamily: "var(--font-display)" }} data-testid="text-developer-title">
-                                Get Your Client Featured
-                              </h2>
-                              <p className="text-xs sm:text-sm font-medium text-indigo-300/80 uppercase tracking-widest" data-testid="text-developer-tagline">Join the NIP-85 Ecosystem</p>
-                            </div>
-                          </div>
-                          <p className="text-sm sm:text-lg text-slate-300/90 font-light leading-relaxed max-w-xl mx-auto md:mx-0" data-testid="text-developer-description">Does your Nostr client support NIP-85? Get free promotion to our growing user base. We'll showcase your app right here alongside other supported clients.</p>
-                        </div>
-
-                        <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 pt-1 sm:pt-2 justify-center md:justify-start" data-testid="row-developer-cta">
-                          <div data-testid="link-developer-contact" onClick={(e) => { e.stopPropagation(); navigate("/faq?tab=developers"); }}>
-                            <Button variant="ghost" className="w-full sm:w-auto !bg-white !text-[#1a1033] font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-[#1e1b4b]/20 transition-all hover:scale-105 border-none text-sm sm:text-base cursor-pointer" data-testid="button-developer-contact">
-                              <HelpCircle className="mr-2 h-4 w-4" />
-                              Learn More
-                            </Button>
-                          </div>
-                          <a href="https://github.com/nostr-protocol/nips/blob/master/85.md" target="_blank" rel="noopener noreferrer" data-testid="link-developer-nip85" onClick={(e) => e.stopPropagation()}>
-                            <Button variant="ghost" className="w-full sm:w-auto !bg-indigo-600 !text-white font-bold h-10 sm:h-11 px-5 sm:px-6 rounded-xl shadow-lg shadow-indigo-900/30 transition-all hover:scale-105 border-none text-sm sm:text-base" data-testid="button-developer-nip85">
-                              View NIP-85 Spec
-                              <ArrowRight className="ml-2 h-4 w-4" />
-                            </Button>
-                          </a>
-                        </div>
-                      </div>
-
-                      <div className="hidden md:block w-1/3 relative h-64" aria-hidden="true">
-                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-[#7c86ff]/15 rounded-full blur-[90px] pointer-events-none" />
-                      </div>
-                    </div>
-                  </Card>
-                </CarouselItem>
-              </CarouselContent>
-
-              <div
-                className="flex justify-center mt-3 sm:mt-0 sm:absolute sm:bottom-3 sm:right-3 items-center gap-2 rounded-full bg-black/20 border border-white/15 px-3 py-2 backdrop-blur-md shadow-lg w-fit mx-auto sm:mx-0 sm:w-auto"
-                data-testid="nav-supported-carousel-dots"
-              >
-                {[0, 1, 2].map((idx) => (
-                  <button
-                    key={idx}
-                    type="button"
-                    className="h-2.5 w-2.5 rounded-full bg-white/40 hover:bg-white/70 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 focus-visible:ring-offset-2 focus-visible:ring-offset-transparent"
-                    aria-label={idx === 0 ? "Go to Amethyst slide" : idx === 1 ? "Go to Nostria slide" : "Go to developer slide"}
-                    data-testid={idx === 0 ? "dot-supported-amethyst" : idx === 1 ? "dot-supported-nostria" : "dot-supported-developer"}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const root = (e.currentTarget as HTMLButtonElement).closest('[data-testid="carousel-supported-clients"]') as HTMLElement | null;
-                      root?.dispatchEvent(new KeyboardEvent("keydown", { key: idx === 0 ? "ArrowLeft" : "ArrowRight" }));
-                    }}
-                  />
-                ))}
-              </div>
-            </Carousel>
-          </motion.div>
 
 
         </div>
@@ -2548,29 +1335,29 @@ export default function DashboardPage() {
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              className="bg-white rounded-xl shadow-2xl p-6 max-w-sm w-full"
+              className="bg-white dark:bg-slate-900 rounded-xl shadow-2xl p-6 max-w-sm w-full"
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-lg font-bold text-slate-900 mb-4 flex items-center gap-2">
-                <Keyboard className="h-5 w-5 text-indigo-600" />
+              <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 mb-4 flex items-center gap-2">
+                <Keyboard className="h-5 w-5 text-brand-primary dark:text-brand-link" />
                 Keyboard Shortcuts
               </h3>
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Export data</span>
-                  <kbd className="px-2 py-1 bg-slate-100 rounded text-sm font-mono text-slate-600">E</kbd>
+                  <span className="text-slate-600 dark:text-slate-300">Export data</span>
+                  <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-sm font-mono text-slate-600 dark:text-slate-300">E</kbd>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Go home</span>
-                  <kbd className="px-2 py-1 bg-slate-100 rounded text-sm font-mono text-slate-600">H</kbd>
+                  <span className="text-slate-600 dark:text-slate-300">Go home</span>
+                  <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-sm font-mono text-slate-600 dark:text-slate-300">H</kbd>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-slate-600">Toggle shortcuts</span>
-                  <kbd className="px-2 py-1 bg-slate-100 rounded text-sm font-mono text-slate-600">?</kbd>
+                  <span className="text-slate-600 dark:text-slate-300">Toggle shortcuts</span>
+                  <kbd className="px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded text-sm font-mono text-slate-600 dark:text-slate-300">?</kbd>
                 </div>
               </div>
               <Button
-                className="w-full mt-6 bg-slate-900 hover:bg-slate-800 text-white"
+                className="w-full mt-6 bg-slate-900 hover:bg-slate-800 dark:bg-slate-700 dark:hover:bg-slate-600 text-white"
                 onClick={() => setShowShortcuts(false)}
               >
                 Got it
@@ -2579,7 +1366,7 @@ export default function DashboardPage() {
           </motion.div>
         )}
 
-        <Footer />
+        <Footer minimal />
       </div>
     </TooltipProvider>
   );
