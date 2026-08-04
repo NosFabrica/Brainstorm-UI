@@ -10,7 +10,7 @@ import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { searchContentByHashtag, rankHashtagEvents, type SortMode } from "@/lib/contentSearch";
 import { fetchProfileMap } from "@/services/nostr";
-import { getActivePreset, PRESET_THRESHOLDS, presetDisplayLabel, presetDescription, type TrustPreset } from "@/services/trustThreshold";
+import { getActivePreset, presetDisplayLabel, presetDescription, type TrustPreset } from "@/services/trustThreshold";
 import { eventPath } from "@/lib/shareId";
 import { mentionPubkeysFromContent, type MinimalEvent } from "@/lib/noteRefs";
 
@@ -24,6 +24,15 @@ const SORTS: { key: SortMode; label: string }[] = [
   { key: "top", label: "Top" },
   { key: "latest", label: "Latest" },
 ];
+// Page-local floors for ranking relay notes by their author's score — a "how
+// noisy a feed do you want" knob with no backend equivalent. NOT the verified
+// line, which is per-relationship and server-owned (see trustThreshold.ts).
+const STRICTNESS_FLOOR: Record<TrustPreset, number> = {
+  relax: 0.0,
+  default: 0.02,
+  strict: 0.15,
+};
+
 // User-facing labels describe the WIDTH of the trust filter, not dev jargon —
 // Labels come from the shared preset vocabulary, NOT a local rename. This filter
 // seeds from the same global preset as Settings' Trust Perspective, so calling the
@@ -114,10 +123,10 @@ export default function HashtagPage() {
   // widen; the selected chip stays put, and a note explains what happened.
   const { events, widened } = useMemo(() => {
     let p = preset;
-    let evs = rankHashtagEvents(candidates, scores, PRESET_THRESHOLDS[p], sort);
+    let evs = rankHashtagEvents(candidates, scores, STRICTNESS_FLOOR[p], sort);
     while (evs.length < MIN_RESULTS && WIDER[p]) {
       p = WIDER[p]!;
-      evs = rankHashtagEvents(candidates, scores, PRESET_THRESHOLDS[p], sort);
+      evs = rankHashtagEvents(candidates, scores, STRICTNESS_FLOOR[p], sort);
     }
     return { events: evs, widened: p !== preset };
   }, [candidates, scores, preset, sort]);

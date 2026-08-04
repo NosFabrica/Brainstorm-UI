@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback, startTransition, memo } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { GlossBackground } from "@/components/GlossBackground";
-import { getVerifiedThreshold, TIER_THRESHOLDS } from "@/services/trustThreshold";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
 import { useLocation, useRoute } from "wouter";
@@ -504,13 +503,17 @@ const SECTION_BORDER_COLORS: Record<string, string> = {
   reporting: "border-slate-300 dark:border-slate-700",
 };
 
-function getTierKey(score: number): string {
-  if (score >= TIER_THRESHOLDS.high) return "high";
-  if (score >= TIER_THRESHOLDS.medium_high) return "trusted";
-  if (score >= TIER_THRESHOLDS.medium) return "neutral";
-  if (score >= getVerifiedThreshold()) return "low";
-  return "unverified";
-}
+// Backend GR bucket name → the display key TIER_DISPLAY_CONFIG uses. The page
+// has no dedicated flagged slice, so flagged folds into unverified (same as
+// `grTierCountsToUI`).
+const GR_TIER_TO_UI: Record<string, string> = {
+  high: "high",
+  medium_high: "trusted",
+  medium: "neutral",
+  medium_low: "low",
+  low: "unverified",
+  low_and_reported_by_2_or_more_trusted_pubkeys: "unverified",
+};
 
 function useDebouncedValue<T>(value: T, delay: number): T {
   const [v, setV] = useState(value);
@@ -1102,6 +1105,9 @@ export default function ProfilePage() {
   const profileOverviewQuery = useQuery<{
     pubkey: string;
     influence: number | null;
+    // The subject's own bucket under the viewer's saved preset — the server
+    // owns the verified line, so we never re-derive it from a threshold here.
+    tier: string | null;
     flagged_by_observer: boolean;
     counts: {
       followed_by: number;
@@ -1114,9 +1120,7 @@ export default function ProfilePage() {
   } | null>({
     queryKey: ["profile-overview", hexPubkey, trustPreset],
     queryFn: async () => {
-      const res = await apiClient.getUserOverview(hexPubkey, {
-        verified_threshold: getVerifiedThreshold(),
-      });
+      const res = await apiClient.getUserOverview(hexPubkey);
       return res?.data ?? null;
     },
     enabled: !!hexPubkey,
@@ -1149,12 +1153,7 @@ export default function ProfilePage() {
   } | null>({
     queryKey: ["profile-stats", hexPubkey, trustPreset],
     queryFn: async () => {
-      const res = await apiClient.getUserStats(hexPubkey, {
-        verified_threshold: getVerifiedThreshold(),
-        tier_high: TIER_THRESHOLDS.high,
-        tier_medium_high: TIER_THRESHOLDS.medium_high,
-        tier_medium: TIER_THRESHOLDS.medium,
-      });
+      const res = await apiClient.getUserStats(hexPubkey);
       return res?.data ?? null;
     },
     enabled: !!hexPubkey,
@@ -1171,9 +1170,9 @@ export default function ProfilePage() {
   const orderFor = (kind: string): "asc" | "desc" =>
     sectionSort[kind] === "trust-asc" ? "asc" : "desc";
 
-  // Map per-section FilterMode → backend `tier` + `min_influence`.
-  // "verified" is the union of high/trusted/neutral/low so it lives on
-  // min_influence; specific tiers go through `tier`.
+  // Map per-section FilterMode → backend `tier` + `verified_only`. "verified"
+  // is the union of every banded tier, so it goes through `verified_only`;
+  // specific tiers go through `tier`.
   // Map UI FilterMode keys → backend GR-style tier names.
   const UI_TO_GR_TIER: Record<string, "high" | "medium_high" | "medium" | "medium_low" | "low" | "low_and_reported_by_2_or_more_trusted_pubkeys"> = {
     high: "high",
@@ -1182,30 +1181,25 @@ export default function ProfilePage() {
     low: "medium_low",
     unverified: "low",
   };
-  // Inverse map: collapse backend GR-style tier_counts onto the FE display
-  // keys used by TIER_DISPLAY_CONFIG (high/trusted/neutral/low/unverified)
-  // so existing breakdown UI keeps working unchanged.
-  const grTierCountsToUI = (tc: any): Record<string, number> => ({
-    high: tc?.high ?? 0,
-    trusted: tc?.medium_high ?? 0,
-    neutral: tc?.medium ?? 0,
-    low: tc?.medium_low ?? 0,
-    // ProfilePage's breakdown has no dedicated flagged slice, so fold flagged
-    // (low_and_reported_by_2_or_more_trusted_pubkeys) into unverified — same as
-    // the legacy bundled `tier_counts.unverified`, which counted all sub-vt
-    // users. Keeps the slices summing to `total`.
-    unverified:
-      (tc?.low ?? 0) + (tc?.low_and_reported_by_2_or_more_trusted_pubkeys ?? 0),
-  });
+  // Collapse backend tier_counts onto the FE display keys via the same
+  // GR_TIER_TO_UI map that names a single row's tier, so a bucket count and a
+  // row badge can't land in different slices. Slices still sum to `total`.
+  const grTierCountsToUI = (tc: any): Record<string, number> => {
+    const counts: Record<string, number> = { high: 0, trusted: 0, neutral: 0, low: 0, unverified: 0 };
+    for (const [grTier, uiKey] of Object.entries(GR_TIER_TO_UI)) {
+      counts[uiKey] += tc?.[grTier] ?? 0;
+    }
+    return counts;
+  };
   const filterFor = (
     kind: string,
   ): {
     tier?: "high" | "medium_high" | "medium" | "medium_low" | "low" | "low_and_reported_by_2_or_more_trusted_pubkeys";
-    min_influence?: number;
+    verified_only?: boolean;
   } => {
     const f = sectionFilter[kind] || "all";
     if (f === "all") return {};
-    if (f === "verified") return { min_influence: getVerifiedThreshold() };
+    if (f === "verified") return { verified_only: true };
     return { tier: UI_TO_GR_TIER[f] };
   };
 
@@ -1220,7 +1214,7 @@ export default function ProfilePage() {
     eager: boolean = false,
   ) => {
     const order = orderFor(kind);
-    const { tier, min_influence } = filterFor(kind);
+    const { tier, verified_only } = filterFor(kind);
     return useInfiniteQuery<
       { items: GraphEntry[]; next_cursor: string | null },
       Error,
@@ -1228,15 +1222,14 @@ export default function ProfilePage() {
       readonly unknown[],
       string | undefined
     >({
-      queryKey: ["profile-conn", hexPubkey, kind, trustPreset, order, tier ?? null, min_influence ?? null],
+      queryKey: ["profile-conn", hexPubkey, kind, trustPreset, order, tier ?? null, verified_only ?? false],
       queryFn: async ({ pageParam }: { pageParam: string | undefined }) => {
         const res = await apiClient.getUserConnections(hexPubkey, kind, {
           limit: SECTION_LIMIT,
           cursor: pageParam || undefined,
           order,
           tier,
-          min_influence,
-          verified_threshold: getVerifiedThreshold(),
+          verified_only,
         });
         return {
           items: (res?.data?.items ?? []) as GraphEntry[],
@@ -1580,8 +1573,8 @@ export default function ProfilePage() {
   }, [selfFollowingList, profileResult]);
 
   // `flagged_by_observer` is computed server-side on /user/{viewedPubkey}/overview
-  // using the JWT user's perspective (influence < verified_threshold AND
-  // trusted_reporters >= 2). See UserOverviewData.
+  // from the JWT user's perspective: at or below their saved preset's verified
+  // line AND reported by 2+ trusted accounts. See UserOverviewData.
   const isProfileFlagged = profileOverviewQuery.data?.flagged_by_observer ?? false;
 
   useEffect(() => {
@@ -1665,20 +1658,24 @@ export default function ProfilePage() {
 
   // Brand-aligned trust ramp (mirrors TRUST_TIER_COLORS): Aurora Purple → Cyan
   // for the top tiers, muted violet for neutral, amber (semantic caution) for
-  // low, brand grey for unverified. Text shades are darkened for on-white contrast.
+  // low, brand grey for unverified.
+  //
+  // No `min` here: the line moves with the preset, so a subject's bucket is
+  // read off the backend `tier` rather than rederived from a number.
   const TIER_DISPLAY_CONFIG = [
-    { key: "high", name: "Highly Trusted", min: TIER_THRESHOLDS.high, color: "#7237ff", bg: "bg-brand-primary/10 dark:bg-brand-primary/10", text: "text-brand-primary dark:text-brand-link", border: "border-brand-primary/20 dark:border-brand-primary/25", ring: "stroke-brand-primary" },
-    { key: "trusted", name: "Trusted", min: TIER_THRESHOLDS.medium_high, color: "#13d2e5", bg: "bg-cyan-50 dark:bg-cyan-500/10", text: "text-cyan-700 dark:text-cyan-300", border: "border-cyan-200 dark:border-cyan-500/25", ring: "stroke-cyan-500" },
-    { key: "neutral", name: "Neutral", min: TIER_THRESHOLDS.medium, color: "#665487", bg: "bg-[#665487]/10 dark:bg-[#665487]/20", text: "text-[#665487] dark:text-brand-link", border: "border-[#665487]/30 dark:border-[#665487]/50", ring: "stroke-[#665487]" },
-    { key: "low", name: "Low Trust", min: getVerifiedThreshold(), color: "#f59e0b", bg: "bg-amber-50 dark:bg-amber-500/10", text: "text-amber-700 dark:text-amber-300", border: "border-amber-200 dark:border-amber-500/25", ring: "stroke-amber-400" },
-    { key: "unverified", name: "Unverified", min: 0, color: "#8c929e", bg: "bg-slate-100 dark:bg-slate-800", text: "text-slate-500 dark:text-slate-400", border: "border-slate-200 dark:border-slate-800", ring: "stroke-slate-400" },
+    { key: "high", name: "Highly Trusted", color: "#7237ff", bg: "bg-brand-primary/10 dark:bg-brand-primary/10", text: "text-brand-primary dark:text-brand-link", border: "border-brand-primary/20 dark:border-brand-primary/25", ring: "stroke-brand-primary" },
+    { key: "trusted", name: "Trusted", color: "#13d2e5", bg: "bg-cyan-50 dark:bg-cyan-500/10", text: "text-cyan-700 dark:text-cyan-300", border: "border-cyan-200 dark:border-cyan-500/25", ring: "stroke-cyan-500" },
+    { key: "neutral", name: "Neutral", color: "#665487", bg: "bg-[#665487]/10 dark:bg-[#665487]/20", text: "text-[#665487] dark:text-brand-link", border: "border-[#665487]/30 dark:border-[#665487]/50", ring: "stroke-[#665487]" },
+    { key: "low", name: "Low Trust", color: "#f59e0b", bg: "bg-amber-50 dark:bg-amber-500/10", text: "text-amber-700 dark:text-amber-300", border: "border-amber-200 dark:border-amber-500/25", ring: "stroke-amber-400" },
+    { key: "unverified", name: "Unverified", color: "#8c929e", bg: "bg-slate-100 dark:bg-slate-800", text: "text-slate-500 dark:text-slate-400", border: "border-slate-200 dark:border-slate-800", ring: "stroke-slate-400" },
   ];
 
   const profileTier = useMemo(() => {
-    if (!profileResult || profileResult.influence === undefined) return null;
-    const score = typeof profileResult.influence === "number" ? profileResult.influence : 0;
-    return TIER_DISPLAY_CONFIG.find(t => score >= t.min) || TIER_DISPLAY_CONFIG[TIER_DISPLAY_CONFIG.length - 1];
-  }, [profileResult, trustPreset]);
+    const backendTier = profileOverviewQuery.data?.tier;
+    if (!backendTier) return null;
+    const uiKey = GR_TIER_TO_UI[backendTier] ?? "unverified";
+    return TIER_DISPLAY_CONFIG.find(t => t.key === uiKey) ?? null;
+  }, [profileOverviewQuery.data]);
 
   const confidenceGuidance = useMemo(() => {
     if (!profileResult || profileResult.influence === undefined) return null;
@@ -1692,32 +1689,27 @@ export default function ProfilePage() {
   }, [profileResult, nostrProfile]);
 
   const verifiedCounts = useMemo(() => {
-    if (!profileResult) return { followers: 0, followersTotal: 0, following: 0, followingTotal: 0, mutedBy: 0, mutedByTotal: 0, reportedBy: 0, reportedByTotal: 0 };
-    // Prefer server-side stats (accurate over the full relationship); fall back
-    // to overview total + the loaded-subset influence map only when the section
-    // hasn't been fetched yet.
-    const threshold = getVerifiedThreshold();
-    const countVerifiedFromMap = (map: Map<string, number | null>) => {
-      let verified = 0;
-      map.forEach((inf) => { if (inf !== null && inf >= threshold) verified++; });
-      return verified;
-    };
+    // Verified counts come only from /stats — the preset applied to the FULL
+    // relationship, which a loaded page of items can't reproduce. `loaded` (not
+    // `count > 0`) gates the "Verified X" labels, so a real 0 under a strict
+    // preset reads as 0. Totals aren't preset-derived, so they still fall back.
     const ov = profileOverviewQuery.data?.counts;
     const fbStats = sectionStats.followed_by;
     const fgStats = sectionStats.following;
     const mbStats = sectionStats.muted_by;
     const rbStats = sectionStats.reported_by;
     return {
-      followers: fbStats?.verified ?? countVerifiedFromMap(sectionInfluenceMaps.followed_by),
+      loaded: !!profileStatsQuery.data,
+      followers: fbStats?.verified ?? 0,
       followersTotal: fbStats?.total ?? ov?.followed_by ?? sectionInfluenceMaps.followed_by.size,
-      following: fgStats?.verified ?? countVerifiedFromMap(sectionInfluenceMaps.following),
+      following: fgStats?.verified ?? 0,
       followingTotal: fgStats?.total ?? ov?.following ?? sectionInfluenceMaps.following.size,
-      mutedBy: mbStats?.verified ?? countVerifiedFromMap(sectionInfluenceMaps.muted_by),
+      mutedBy: mbStats?.verified ?? 0,
       mutedByTotal: mbStats?.total ?? ov?.muted_by ?? sectionInfluenceMaps.muted_by.size,
-      reportedBy: rbStats?.verified ?? countVerifiedFromMap(sectionInfluenceMaps.reported_by),
+      reportedBy: rbStats?.verified ?? 0,
       reportedByTotal: rbStats?.total ?? ov?.reported_by ?? sectionInfluenceMaps.reported_by.size,
     };
-  }, [profileResult, sectionInfluenceMaps, trustPreset, profileOverviewQuery.data, sectionStats]);
+  }, [sectionInfluenceMaps, profileOverviewQuery.data, profileStatsQuery.data, sectionStats]);
 
   // Same predicate the public page (/p/:id) and Network Alerts use, so one
   // account never reads as "flagged" on one surface and clean on another.
@@ -1727,33 +1719,12 @@ export default function ProfilePage() {
   );
 
   const followerTierBreakdown = useMemo(() => {
-    if (!profileResult) return null;
-    // Prefer server-computed tier counts (full relationship); fall back to
-    // counting the loaded subset's influence map when stats aren't in yet.
+    // Server counts only: bucketing falls through the preset's verified line,
+    // which this side doesn't know. Render nothing rather than guess it.
     const serverStats = sectionStats.followed_by;
-    let counts: Record<string, number>;
-    let total: number;
-    if (serverStats) {
-      counts = grTierCountsToUI(serverStats.tier_counts);
-      total = serverStats.total;
-    } else {
-      if (!Array.isArray(profileResult.followed_by)) return null;
-      counts = { high: 0, trusted: 0, neutral: 0, low: 0, unverified: 0 };
-      const verifiedMin = getVerifiedThreshold();
-      sectionInfluenceMaps.followed_by.forEach((inf: number | null) => {
-        if (inf === null || inf === undefined) {
-          counts.unverified++;
-        } else if (inf >= 0.50) counts.high++;
-        else if (inf >= 0.20) counts.trusted++;
-        else if (inf >= 0.07) counts.neutral++;
-        else if (inf >= verifiedMin) counts.low++;
-        else counts.unverified++;
-      });
-      total = sectionInfluenceMaps.followed_by.size;
-    }
-    if (total === 0) return null;
-    return { counts, total };
-  }, [profileResult, sectionInfluenceMaps, trustPreset]);
+    if (!serverStats || serverStats.total === 0) return null;
+    return { counts: grTierCountsToUI(serverStats.tier_counts), total: serverStats.total };
+  }, [sectionStats]);
 
   const getTrustForPk = useCallback((pk: string): number => {
     const cached = expandTrustCache.get(pk);
@@ -1771,26 +1742,10 @@ export default function ProfilePage() {
   }, []);
 
   const getTierBreakdown = useCallback((sectionKey: string): { tier: string; count: number; color: string }[] | null => {
-    // Prefer server-side tier counts (full relationship); fall back to the
-    // loaded-subset influence map until the section's stats arrive.
-    let counts: Record<string, number> | null = null;
+    // Server-side tier counts only — see followerTierBreakdown.
     const serverStats = (sectionStats as Record<string, SectionStats | null | undefined>)[sectionKey];
-    if (serverStats) {
-      counts = grTierCountsToUI(serverStats.tier_counts);
-    } else {
-      const section = getSection(profileResult, sectionKey);
-      if (!section || !Array.isArray(section)) return null;
-      const map = (sectionInfluenceMaps as Record<string, Map<string, number | null> | undefined>)[sectionKey];
-      if (!map || map.size === 0) return null;
-      counts = { high: 0, trusted: 0, neutral: 0, low: 0, unverified: 0 };
-      map.forEach((inf: number | null) => {
-        if (inf === null || inf === undefined) {
-          counts!.unverified++;
-        } else {
-          counts![getTierKey(inf)]++;
-        }
-      });
-    }
+    if (!serverStats) return null;
+    const counts = grTierCountsToUI(serverStats.tier_counts);
     const tierDefs: { tier: string; label: string; color: string }[] = [
       { tier: "high", label: "Highly Trusted", color: "text-emerald-600" },
       { tier: "trusted", label: "Trusted", color: "text-sky-500" },
@@ -1798,8 +1753,8 @@ export default function ProfilePage() {
       { tier: "low", label: "Low", color: "text-amber-500" },
       { tier: "unverified", label: "Unverified", color: "text-zinc-400" },
     ];
-    return tierDefs.filter(t => counts![t.tier] > 0).map(t => ({ tier: t.label, count: counts![t.tier], color: t.color }));
-  }, [profileResult, sectionInfluenceMaps, trustPreset, sectionStats]);
+    return tierDefs.filter(t => counts[t.tier] > 0).map(t => ({ tier: t.label, count: counts[t.tier], color: t.color }));
+  }, [sectionStats]);
 
   const seedTrustForSection = useCallback((key: string, pubkeys: string[]) => {
     // Seed expandTrustCache from already-known influence values so we never
@@ -2777,7 +2732,7 @@ export default function ProfilePage() {
                                   <FollowersIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500" />
                                 </div>
                                 <div>
-                                  <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">{verifiedCounts.followersTotal > 0 ? "Verified Followers" : "Followers"}</p>
+                                  <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">{verifiedCounts.loaded ? "Verified Followers" : "Followers"}</p>
                                   <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 leading-tight hidden sm:block">People following this account</p>
                                   {renderTierBadges("followed_by")}
                                 </div>
@@ -2785,9 +2740,9 @@ export default function ProfilePage() {
                               <div className="flex items-center gap-2">
                                 <div className="text-right">
                                   <p className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 font-mono tabular-nums tracking-tight" data-testid="text-profile-followers">
-                                    {verifiedCounts.followersTotal > 0 ? verifiedCounts.followers.toLocaleString() : fbCount.toLocaleString()}
+                                    {verifiedCounts.loaded ? verifiedCounts.followers.toLocaleString() : fbCount.toLocaleString()}
                                   </p>
-                                  {verifiedCounts.followersTotal > 0 && (
+                                  {verifiedCounts.loaded && (
                                     <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tabular-nums" data-testid="text-verified-followers">of {fbCount.toLocaleString()} total</p>
                                   )}
                                 </div>
@@ -2815,7 +2770,7 @@ export default function ProfilePage() {
                                   <FollowingIcon className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-500" />
                                 </div>
                                 <div>
-                                  <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">{verifiedCounts.followingTotal > 0 ? "Verified Following" : "Following"}</p>
+                                  <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">{verifiedCounts.loaded ? "Verified Following" : "Following"}</p>
                                   <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 leading-tight hidden sm:block">Accounts this person follows</p>
                                   {renderTierBadges("following")}
                                 </div>
@@ -2823,9 +2778,9 @@ export default function ProfilePage() {
                               <div className="flex items-center gap-2">
                                 <div className="text-right">
                                   <p className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 font-mono tabular-nums tracking-tight" data-testid="text-profile-following">
-                                    {verifiedCounts.followingTotal > 0 ? verifiedCounts.following.toLocaleString() : fgCount.toLocaleString()}
+                                    {verifiedCounts.loaded ? verifiedCounts.following.toLocaleString() : fgCount.toLocaleString()}
                                   </p>
-                                  {verifiedCounts.followingTotal > 0 && (
+                                  {verifiedCounts.loaded && (
                                     <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tabular-nums" data-testid="text-verified-following">of {fgCount.toLocaleString()} total</p>
                                   )}
                                 </div>
@@ -2978,7 +2933,7 @@ export default function ProfilePage() {
                                   <MutedByIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${mutedByCount > 0 ? "text-amber-500" : "text-slate-400 dark:text-slate-500"}`} />
                                 </div>
                                 <div>
-                                  <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">{verifiedCounts.mutedBy > 0 ? "Verified Muted By" : "Muted By"}</p>
+                                  <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">{verifiedCounts.loaded ? "Verified Muted By" : "Muted By"}</p>
                                   <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 leading-tight hidden sm:block">Others who muted this account</p>
                                   {renderTierBadges("muted_by")}
                                 </div>
@@ -2986,9 +2941,9 @@ export default function ProfilePage() {
                               <div className="flex items-center gap-2">
                                 <div className="text-right">
                                   <p className={`text-lg sm:text-xl font-bold font-mono tabular-nums tracking-tight ${mutedByCount > 0 ? "text-amber-700 dark:text-amber-300" : "text-slate-900 dark:text-slate-100"}`} data-testid="text-profile-muted-by">
-                                    {verifiedCounts.mutedBy > 0 ? verifiedCounts.mutedBy.toLocaleString() : mutedByCount.toLocaleString()}
+                                    {verifiedCounts.loaded ? verifiedCounts.mutedBy.toLocaleString() : mutedByCount.toLocaleString()}
                                   </p>
-                                  {verifiedCounts.mutedBy > 0 && (
+                                  {verifiedCounts.loaded && (
                                     <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tabular-nums" data-testid="text-verified-muted-by">of {mutedByCount.toLocaleString()} total</p>
                                   )}
                                 </div>
@@ -3015,7 +2970,7 @@ export default function ProfilePage() {
                                   <ReportedByIcon className={`h-3.5 w-3.5 sm:h-4 sm:w-4 ${reportedByCount > 0 ? "text-red-500" : "text-slate-400 dark:text-slate-500"}`} />
                                 </div>
                                 <div>
-                                  <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">{verifiedCounts.reportedBy > 0 ? "Verified Reported By" : "Reported By"}</p>
+                                  <p className="text-xs sm:text-sm font-semibold text-slate-700 dark:text-slate-200">{verifiedCounts.loaded ? "Verified Reported By" : "Reported By"}</p>
                                   <p className="text-[10px] sm:text-xs text-slate-400 dark:text-slate-500 leading-tight hidden sm:block">Reports filed against this account</p>
                                   {renderTierBadges("reported_by")}
                                 </div>
@@ -3023,9 +2978,9 @@ export default function ProfilePage() {
                               <div className="flex items-center gap-2">
                                 <div className="text-right">
                                   <p className={`text-lg sm:text-xl font-bold font-mono tabular-nums tracking-tight ${reportedByCount > 0 ? "text-red-600 dark:text-red-400" : "text-slate-900 dark:text-slate-100"}`} data-testid="text-profile-reported-by">
-                                    {verifiedCounts.reportedBy > 0 ? verifiedCounts.reportedBy.toLocaleString() : reportedByCount.toLocaleString()}
+                                    {verifiedCounts.loaded ? verifiedCounts.reportedBy.toLocaleString() : reportedByCount.toLocaleString()}
                                   </p>
-                                  {verifiedCounts.reportedBy > 0 && (
+                                  {verifiedCounts.loaded && (
                                     <p className="text-[10px] text-slate-400 dark:text-slate-500 font-mono tabular-nums" data-testid="text-verified-reported-by">of {reportedByCount.toLocaleString()} total</p>
                                   )}
                                 </div>

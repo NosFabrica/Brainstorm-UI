@@ -8,7 +8,6 @@ import { AccountMenu } from "@/components/AccountMenu";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { REPORT_TYPE_BADGE_COLORS, formatReportTime } from "@/lib/reportMeta";
 import { apiClient, hasSessionToken } from "@/services/api";
-import { getVerifiedThreshold } from "@/services/trustThreshold";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "@/services/graphHelpers";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Wordmark } from "@/components/Wordmark";
@@ -88,8 +87,7 @@ export default function ConnectionListPage() {
         cursor: pageParam || undefined,
         order: sortOrder,
         tier: tierFilter === "all" ? undefined : tierFilter,
-        verified_threshold: getVerifiedThreshold(),
-        min_influence: cfg!.verifiedOnly ? getVerifiedThreshold() : undefined,
+        verified_only: cfg!.verifiedOnly,
         house: !myPov,
       });
       return {

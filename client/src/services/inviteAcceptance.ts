@@ -9,7 +9,6 @@
 import { apiClient } from "@/services/api";
 import { fetchProfileMap } from "@/services/nostr";
 import { fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
-import { getVerifiedThreshold } from "@/services/trustThreshold";
 import { nip19 } from "nostr-tools";
 
 export interface NewJoiner {
@@ -99,7 +98,7 @@ export async function fetchNewJoiners(myPubkey: string): Promise<NewJoiner[]> {
     const trustedRes = await apiClient.getUserConnections(myPubkey, "followed_by", {
       limit: 100,
       order: "desc",
-      min_influence: getVerifiedThreshold(),
+      verified_only: true,
     });
     trusted = new Set(parsePubkeys(trustedRes));
   } catch {
