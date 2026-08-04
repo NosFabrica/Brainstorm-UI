@@ -13,15 +13,11 @@ type ConnectionKind =
 const FIRST_PAGE_LIMIT = 200;
 const NEXT_PAGE_LIMIT = 100;
 
-export function useSelfOverview(
-  pubkey: string | undefined,
-  opts?: { verified_threshold?: number },
-) {
+export function useSelfOverview(pubkey: string | undefined) {
 
-  const threshold = opts?.verified_threshold;
   return useQuery({
-    queryKey: ["/user/overview", pubkey, threshold ?? null],
-    queryFn: () => apiClient.getUserOverview(pubkey!, { verified_threshold: threshold }),
+    queryKey: ["/user/overview", pubkey],
+    queryFn: () => apiClient.getUserOverview(pubkey!),
     enabled: !!pubkey,
     staleTime: 60_000,
   });
@@ -40,15 +36,11 @@ export function useSelfHistory(pubkey: string | undefined) {
   });
 }
 
-export function useSelfStats(
-  pubkey: string | undefined,
-  opts?: { verified_threshold?: number },
-) {
+export function useSelfStats(pubkey: string | undefined) {
 
-  const threshold = opts?.verified_threshold;
   return useQuery({
-    queryKey: ["/user/stats", pubkey, threshold ?? null],
-    queryFn: () => apiClient.getUserStats(pubkey!, { verified_threshold: threshold }),
+    queryKey: ["/user/stats", pubkey],
+    queryFn: () => apiClient.getUserStats(pubkey!),
     enabled: !!pubkey,
     staleTime: 60_000,
   });
@@ -70,16 +62,14 @@ export function useSelfConnections(
     enabled?: boolean;
     order?: "asc" | "desc";
     tier?: Tier;
-    min_influence?: number;
-    verified_threshold?: number;
+    verifiedOnly?: boolean;
     withTotal?: boolean;
   },
 ) {
 
   const order: "asc" | "desc" = opts?.order ?? "desc";
   const tier = opts?.tier;
-  const min_influence = opts?.min_influence;
-  const verified_threshold = opts?.verified_threshold;
+  const verifiedOnly = opts?.verifiedOnly ?? false;
   const withTotal = opts?.withTotal ?? false;
   const query = useInfiniteQuery({
     queryKey: [
@@ -88,8 +78,7 @@ export function useSelfConnections(
       kind,
       order,
       tier ?? null,
-      min_influence ?? null,
-      verified_threshold ?? null,
+      verifiedOnly,
       withTotal,
     ],
     queryFn: ({ pageParam }) =>
@@ -98,8 +87,7 @@ export function useSelfConnections(
         cursor: pageParam as string | undefined,
         order,
         tier,
-        min_influence,
-        verified_threshold,
+        verified_only: verifiedOnly,
         // `total` is only needed once for the pager — request it on the first
         // page only; cursor pages reuse pages[0].data.total.
         with_total: withTotal && !pageParam,
@@ -123,6 +111,8 @@ export type ConnectionItem = {
   pubkey: string;
   influence: number | null;
   trusted_reporters: number | null;
+  /** The bucket the server tiered this row into, under the observer's preset. */
+  tier: Tier | null;
 };
 
 export function flattenConnections(pages: any[] | undefined): ConnectionItem[] {

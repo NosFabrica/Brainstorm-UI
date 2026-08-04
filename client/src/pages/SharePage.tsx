@@ -42,7 +42,6 @@ import { parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
 import { EventRow } from "@/components/share/EventRow";
 import { OpenInApp } from "@/components/share/OpenInApp";
 import { apiClient, hasSessionToken } from "@/services/api";
-import { getVerifiedThreshold } from "@/services/trustThreshold";
 import { parseProfilePrefs, loadProfilePrefsDraft, saveProfilePrefsDraft, clearProfilePrefsDraft } from "@/lib/personalization";
 import { ROLES, SECTION_KEYS, EMPTY_PROFILE_PREFS, type SectionKey, type ProfilePrefs } from "@/config/personalization";
 import { ProfileCustomizer } from "@/components/share/ProfileCustomizer";
@@ -51,6 +50,7 @@ import { DegreeChip } from "@/components/DegreeChip";
 import { useRelationshipBadges } from "@/hooks/useRelationshipBadges";
 import { ProfileActions, OwnerActions } from "@/components/share/ProfileActions";
 import { Stat, StatLensToggle, type StatLens } from "@/components/share/StatToggle";
+import { NegativeSignalStats } from "@/components/share/NegativeSignalStats";
 import { useScorePov, TrustScoreModal } from "@/components/score/TrustScorePov";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
 import { extractImageUrls, extractVideoUrls, extractVideoPoster } from "@/lib/noteContent";
@@ -190,8 +190,7 @@ export default function SharePage() {
       const res = await apiClient.getUserConnections(pubkey, "followed_by", {
         limit: 8,
         order: "desc",
-        verified_threshold: getVerifiedThreshold(),
-        min_influence: getVerifiedThreshold(),
+        verified_only: true,
         house: true,
       });
       const items = (res?.data?.items ?? []) as Array<string | { pubkey?: string }>;
@@ -228,7 +227,7 @@ export default function SharePage() {
     queryKey: ["share-follower-candidates", pubkey],
     queryFn: async () => {
       const res = await apiClient.getUserConnections(pubkey, "followed_by", {
-        limit: 40, order: "desc", verified_threshold: getVerifiedThreshold(), house: true,
+        limit: 40, order: "desc", house: true,
       });
       const items = (res?.data?.items ?? []) as Array<string | { pubkey?: string }>;
       return items.map((e) => (typeof e === "string" ? e : e?.pubkey)).filter((p): p is string => !!p);
@@ -280,7 +279,7 @@ export default function SharePage() {
   // personalized perspective.
   const statsQuery = useQuery({
     queryKey: ["share-stats", pubkey],
-    queryFn: () => apiClient.getUserStats(pubkey, { verified_threshold: getVerifiedThreshold(), house: true }),
+    queryFn: () => apiClient.getUserStats(pubkey, { house: true }),
     enabled: !!pubkey,
     staleTime: 5 * 60_000,
     retry: false,
@@ -438,10 +437,9 @@ export default function SharePage() {
   const allFollowers = num(stats?.followed_by?.total);
   const followingTotal = num(stats?.following?.total);
   const verifiedFollowing = num(stats?.following?.verified);
-  const verifiedMuters = num(stats?.muted_by?.verified);
-  const allMuters = num(stats?.muted_by?.total);
+  // The muter/reporter counts themselves render in <NegativeSignalStats>; the
+  // reporter count is read here too, for the flag banner.
   const verifiedReporters = num(stats?.reported_by?.verified);
-  const allReporters = num(stats?.reported_by?.total);
   // Flagged = reported by more than 5 verified accounts, +1 forgiven per 750
   // verified followers (house POV → same verdict for every viewer).
   const isFlagged = isFlaggedByReporters(verifiedReporters ?? 0, verifiedFollowers ?? 0);
@@ -986,33 +984,12 @@ export default function SharePage() {
                     <DegreeChip fromPubkey={currentUser.pubkey} toPubkey={pubkey} rawId={rawId} />
                   )}
               </div>
-              {(verifiedMuters != null || allMuters != null || verifiedReporters != null || allReporters != null) && (
-                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-slate-400">
-                  {(verifiedMuters != null || allMuters != null) && (
-                    <Stat
-                      verified={verifiedMuters}
-                      all={allMuters}
-                      verifiedLabel="Verified Muters"
-                      allLabel="All Muters"
-                      href={`/p/${rawId}/muters`}
-                      lens={statLens}
-                      testId="share-stat-muters"
-                    />
-                  )}
-                  {(verifiedReporters != null || allReporters != null) && (
-                    <Stat
-                      verified={verifiedReporters}
-                      all={allReporters}
-                      verifiedLabel="Verified Reporters"
-                      allLabel="All Reporters"
-                      href={`/p/${rawId}/reporters`}
-                      lens={statLens}
-                      danger={isFlagged}
-                      testId="share-stat-reporters"
-                    />
-                  )}
-                </div>
-              )}
+              <NegativeSignalStats
+                stats={stats}
+                rawId={rawId}
+                lens={statLens}
+                isFlagged={isFlagged}
+              />
             </div>
             {(verifiedFollowers != null || allFollowers != null) && (
               <StatLensToggle value={statLens} onChange={setStatLens} />

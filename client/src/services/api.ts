@@ -508,15 +508,8 @@ export const apiClient = {
     return await response.json();
   },
 
-  async getUserOverview(
-    pubkey: string,
-    opts?: { verified_threshold?: number },
-  ) {
-    const params = new URLSearchParams();
-    if (opts?.verified_threshold != null)
-      params.set("verified_threshold", String(opts.verified_threshold));
-    const qs = params.toString();
-    const url = `${getBrainstormApi()}/user/${pubkey}/overview${qs ? `?${qs}` : ""}`;
+  async getUserOverview(pubkey: string) {
+    const url = `${getBrainstormApi()}/user/${pubkey}/overview`;
     const response = await optionalAuthFetch(url, {
       signal: AbortSignal.timeout(30000),
     });
@@ -529,26 +522,14 @@ export const apiClient = {
   async getUserStats(
     pubkey: string,
     opts?: {
-      verified_threshold?: number;
-      tier_high?: number;
-      tier_medium_high?: number;
-      tier_medium?: number;
       // Force the unauthenticated "house" POV (stable for every viewer) instead
       // of the logged-in viewer's personalized perspective. Used by public pages.
       house?: boolean;
     },
   ) {
-    const params = new URLSearchParams();
-    if (opts?.verified_threshold != null)
-      params.set("verified_threshold", String(opts.verified_threshold));
-    if (opts?.tier_high != null)
-      params.set("tier_high", String(opts.tier_high));
-    if (opts?.tier_medium_high != null)
-      params.set("tier_medium_high", String(opts.tier_medium_high));
-    if (opts?.tier_medium != null)
-      params.set("tier_medium", String(opts.tier_medium));
-    const qs = params.toString();
-    const url = `${getBrainstormApi()}/user/${pubkey}/stats${qs ? `?${qs}` : ""}`;
+    // No params: the bands are fixed server-side and the verified line comes
+    // from the observer's saved preset.
+    const url = `${getBrainstormApi()}/user/${pubkey}/stats`;
     const response = await (opts?.house ? fetch : optionalAuthFetch)(url, {
       signal: AbortSignal.timeout(60000),
     });
@@ -597,11 +578,9 @@ export const apiClient = {
         | "medium_low"
         | "low"
         | "low_and_reported_by_2_or_more_trusted_pubkeys";
-      min_influence?: number;
-      verified_threshold?: number;
-      tier_high?: number;
-      tier_medium_high?: number;
-      tier_medium?: number;
+      // Verified for this `kind` under the observer's saved preset (strict `>`
+      // its per-relationship cutoff). Ignored for kind=flagged.
+      verified_only?: boolean;
       with_total?: boolean;
       // Force the unauthenticated "house" POV (stable for every viewer).
       house?: boolean;
@@ -613,11 +592,7 @@ export const apiClient = {
     if (opts?.cursor) params.set("cursor", opts.cursor);
     if (opts?.order) params.set("order", opts.order);
     if (opts?.tier) params.set("tier", opts.tier);
-    if (opts?.min_influence != null) params.set("min_influence", String(opts.min_influence));
-    if (opts?.verified_threshold != null) params.set("verified_threshold", String(opts.verified_threshold));
-    if (opts?.tier_high != null) params.set("tier_high", String(opts.tier_high));
-    if (opts?.tier_medium_high != null) params.set("tier_medium_high", String(opts.tier_medium_high));
-    if (opts?.tier_medium != null) params.set("tier_medium", String(opts.tier_medium));
+    if (opts?.verified_only) params.set("verified_only", "true");
     if (opts?.with_total) params.set("with_total", "true");
     const url = `${getBrainstormApi()}/user/${pubkey}/connections?${params.toString()}`;
     const response = await (opts?.house ? fetch : optionalAuthFetch)(url, {
