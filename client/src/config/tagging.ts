@@ -66,10 +66,31 @@ export const LOCAL_TA_PUBKEY: string = raw.localTaPubkey;
  */
 export const NIP85_AUTHOR_PUBKEYS: string[] = raw.nip85AuthorPubkeys;
 
+/**
+ * The live corpus does not publish `hops` — verified 2026-08-05 across 500
+ * kind-30382 events on the house relay: every one carries `d`, `rank` and
+ * `followers`, and NOT ONE carries `hops`.
+ *
+ * That matters because the SDK reads a missing `hops` as 999 ("unreachable")
+ * and then tests `hops <= maxHops`. With the kit's `maxHops: 20`, every asserter
+ * who HAS a published score fails, while everyone with no score at all passes
+ * through `unknownPolicy: "trusted"` — precisely backwards. It's what made
+ * david@bitcoinpark, `rank: 100` (the maximum), read as untrusted.
+ *
+ * So we neutralize the hops criterion and let `rank` do the gating it was
+ * meant to do. Absence of a dimension is not a failing score on it. The
+ * override lives here rather than in tagging.config.json so that file stays
+ * byte-identical to the kit and re-vendoring diffs stay clean.
+ *
+ * Revert this to `raw.trust.maxHops` the moment the house's NIP-85 pipeline
+ * starts publishing hops — at that point the check becomes meaningful again.
+ */
+const HOPS_UNPUBLISHED_UPSTREAM = 999;
+
 export const TRUST_SETTINGS = {
   mode: raw.trust.mode as "house-ta" | "everyone",
   minRank: raw.trust.minRank,
-  maxHops: raw.trust.maxHops,
+  maxHops: HOPS_UNPUBLISHED_UPSTREAM,
   unknownPolicy: raw.trust.unknownPolicy as "trusted" | "everyone",
 } as const;
 

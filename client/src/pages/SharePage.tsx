@@ -37,6 +37,7 @@ import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { audioUrlFromEvent, setPlaylist } from "@/lib/audioPlayer";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { TopicChips } from "@/components/share/TopicChips";
+import { ProfileTagChips } from "@/components/share/ProfileTagChips";
 import { ShareBio } from "@/components/share/ShareBio";
 import liveDefault from "@/assets/live-default.webp";
 import { PinIcon } from "@/components/PinIcon";
@@ -911,10 +912,12 @@ export default function SharePage() {
               (above), not here. */}
           {mobileFollowRow}
 
-          {/* Tags — the team's WoT-ranked attribute chips (Verified human, Founder,
-              …) will render here, colored in the personalized view / greyscale in
-              global, with a "+N → see all". Deferred until tag data ships; for now
-              the owner-set role chips below stand in. */}
+          {/* Tags — what the network says about this person, counted from the
+              configured trust perspective. Reads from relays only, so it renders
+              for logged-out visitors too. The owner-set role chips below are a
+              separate thing and stay: those are self-declared, these are not. */}
+          <ProfileTagChips pubkey={pubkey} />
+
           {roleLabels.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1.5" data-testid="share-roles">
               {roleLabels.map((label) => (
