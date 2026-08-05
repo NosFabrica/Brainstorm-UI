@@ -34,6 +34,7 @@ import {
   type TrustPredicate,
 } from "@/lib/tagging-sdk/trust.js";
 import { buildTagElement, conceptTag, slug as toSlug } from "@/lib/tagging-sdk/event-tagging/index.js";
+import { mergeSameNamedTags, stanceForVariants } from "@/lib/tagMerge";
 import {
   TAG_RELAYS,
   TRUST_RELAYS,
@@ -70,6 +71,12 @@ export interface ProfileTag extends TagIdentity {
   applications: number;
   /** Distinct trusted asserters who disputed it. */
   disputes: number;
+  /**
+   * How many separately-minted tag identities share this name and were folded
+   * into this one. 1 is the normal case; >1 means different authors created the
+   * same tag and we're showing the best-supported of them.
+   */
+  variants: number;
   /** The viewer's own stance, shown regardless of whether the POV counts them. */
   myStance?: "apply" | "dispute";
 }
@@ -349,20 +356,18 @@ export async function fetchProfileTags(
 
   const names = await resolveTagNames(Array.from(counted.values()));
 
-  const tags: ProfileTag[] = Array.from(counted.entries())
-    .map(([key, grp]) => {
-      const meta = names.get(key);
-      return {
-        key,
-        authorPubkey: grp.authorPubkey,
-        slug: grp.slug,
-        name: meta?.name || grp.slug,
-        description: meta?.description,
-        applications: grp.applications.size,
-        disputes: grp.disputes.size,
-        myStance: mine.get(key),
-      };
-    })
+  const tags: ProfileTag[] = mergeSameNamedTags(counted, names)
+    .map(({ key, group, name, description, variantKeys }) => ({
+      key,
+      authorPubkey: group.authorPubkey,
+      slug: group.slug,
+      name,
+      description,
+      applications: group.applications.size,
+      disputes: group.disputes.size,
+      variants: variantKeys.length,
+      myStance: stanceForVariants(variantKeys, mine),
+    }))
     // Contested tags sink; ties break alphabetically so the row is stable
     // across refetches rather than reshuffling on every render.
     .filter((t) => t.applications > 0)
@@ -468,9 +473,11 @@ export async function fetchTagDetail(authorPubkey: string, slug: string): Promis
  * way — `verified-human` is authored once and asserted by several different
  * people — and that only keeps working if clients reuse.
  *
- * When several authors have minted the same slug we take the OLDEST: the
- * original definition, and a deterministic choice every client can agree on
- * without coordination.
+ * When several authors have minted the same slug we take the BEST-SUPPORTED one
+ * — the variant the most people have actually applied — falling back to the
+ * oldest on a tie so the choice stays deterministic across clients that never
+ * talk to each other. Picking by age alone would keep sending new taggings to a
+ * dead original while everyone else converged somewhere better.
  *
  * Returns a mint spec (`{ name }`) when the tag genuinely doesn't exist yet.
  */
@@ -493,12 +500,40 @@ export async function resolveOrMintTag(
     // tag that may duplicate than block the user entirely.
   }
 
-  const oldest = existing
+  const candidates = existing
     .filter((ev) => tagValue(ev, "d") === slug)
-    .sort((a, b) => a.created_at - b.created_at)[0];
+    .sort((a, b) => a.created_at - b.created_at); // oldest first = the tiebreak
 
-  if (oldest) return { authorPubkey: oldest.pubkey, slug, eventId: oldest.id };
-  return { name, description };
+  if (!candidates.length) return { name, description };
+  if (candidates.length === 1) {
+    return { authorPubkey: candidates[0].pubkey, slug, eventId: candidates[0].id };
+  }
+
+  // Several authors minted this name. One extra query — not one per candidate —
+  // tells us which is actually in use.
+  const usage = new Map<string, number>();
+  try {
+    const assertions = await fetchTagEvents({
+      kinds: [TAG_ELEMENT_KIND],
+      "#a": candidates.map((ev) => `39999:${ev.pubkey}:${slug}`),
+      "#z": Z_HANDLE_PUBKEYS.map(conceptNostrUserTag),
+    });
+    for (const a of normalizeAssertions(assertions)) {
+      if (a.stance !== "apply") continue;
+      const k = `${a.tagAuthor}|${a.asserter}|${a.target}`;
+      if (!usage.has(k)) usage.set(k, 1);
+    }
+  } catch {
+    // Fall through to the oldest — a ranking we couldn't compute is not a
+    // reason to block the user from tagging.
+  }
+  const score = (pubkey: string) =>
+    Array.from(usage.keys()).filter((k) => k.startsWith(`${pubkey}|`)).length;
+
+  const best = [...candidates].sort(
+    (a, b) => score(b.pubkey) - score(a.pubkey) || a.created_at - b.created_at,
+  )[0];
+  return { authorPubkey: best.pubkey, slug, eventId: best.id };
 }
 
 export interface ApplyTagArgs {

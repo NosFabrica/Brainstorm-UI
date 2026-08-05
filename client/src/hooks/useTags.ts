@@ -147,6 +147,9 @@ export function useApplyTag(targetPubkey: string | undefined) {
                 name: args.displayName || (minted ? minted.name : existingRef!.slug),
                 applications: stance === "apply" ? 1 : 0,
                 disputes: stance === "dispute" ? 1 : 0,
+                // One identity until the refetch says otherwise; a merge can
+                // only be discovered by reading what's actually on the relays.
+                variants: 1,
                 myStance: stance,
               },
             ];
