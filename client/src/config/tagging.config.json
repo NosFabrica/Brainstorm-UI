@@ -1,0 +1,46 @@
+{
+  "_comment": "Deployment configuration for the NosFabrica (Brainstorm-UI) tagging integration. Values point at the Tapestry reference deployment (decision 2026-08-03: NosFabrica joins the same tag hub + house-trust POV as the jumble kit). Everything the client must not hardcode in code lives here — import this JSON through one config module. The Start.md interview may swap the trust source to NosFabrica's own NIP-85 corpus; that changes trustRelays + nip85AuthorPubkeys only.",
+
+  "tagRelays": [
+    "wss://dcosl.brainstorm.world"
+  ],
+  "_tagRelays": "The tag-hub relay set. Reads query (tagRelays UNION the user's read relays); tag/tagging publishes go to (tagRelays UNION the user's write relays). dcosl.brainstorm.world is the hub the reference instances negentropy-sync through — the cold-start default, NOT a protocol requirement. Make this list user-editable in Settings.",
+
+  "houseInstance": {
+    "name": "tags.brainstorm.world",
+    "relay": "wss://tags.brainstorm.world/relay",
+    "apiBase": "https://tags.brainstorm.world",
+    "_api": "This kit is PURE-RELAY BY DESIGN: do not build features on the REST API even though it currently answers cross-origin (reflective CORS observed 2026-07-23 — treat that as incidental, not contractual). apiBase is documented for operators: re-fetching localTaPubkey below (GET /api/assistant/pubkey) when re-pointing the kit at a different instance."
+  },
+
+  "trustRelays": [
+    "wss://tags.brainstorm.world/relay"
+  ],
+  "_trustRelays": "Where the house's TA-signed artifacts live: kind-30382 trust assertions and the kind-30392/30393/30394 Trusted Lists. VERIFIED 2026-07-23: these are NOT on the dcosl hub — a trust reader wired only to tagRelays finds nothing and silently degrades to count-everyone. The trust module's fetchEvents must query trustRelays (∪ tagRelays is harmless).",
+
+  "localTaPubkey": "a68dbf561cfe3da1b76f1e65c7d4d9cc116f79921b38a815fd75cb5460b4b599",
+  "_localTaPubkey": "The house instance's Tapestry Assistant pubkey — fetched from https://tags.brainstorm.world/api/assistant/pubkey (2026-07-23). Per-deployment: if you point the kit at a different instance, re-fetch and replace. This is deployment CONFIG, not code — never inline it as a literal in source.",
+
+  "canonicalConceptPubkey": "82b75e474dda005e912bcbb910391c60c2b89cc7faf5d3c30b7c59a324973833",
+  "_canonicalConceptPubkey": "The LEGACY canonical namespace (Tapestry ADR-0015): the `tag` and `nostr-user-tag` concept handles are historically bound to this pubkey across ALL reference instances so pre-existing tags/taggings stay visible. Used ONLY to compose concept z-handles; never as an author filter or signer identity.",
+
+  "zHandlePubkeys": [
+    "82b75e474dda005e912bcbb910391c60c2b89cc7faf5d3c30b7c59a324973833",
+    "a68dbf561cfe3da1b76f1e65c7d4d9cc116f79921b38a815fd75cb5460b4b599"
+  ],
+  "_zHandlePubkeys": "[canonicalConceptPubkey, localTaPubkey] in that order — the namespace list passed as `taPubkeys`/`zHandlePubkeys` to every builder and as `honoredAuthorities` to every classifier. Canonical first: the event-tagging orchestrator prefers headers authored under zHandlePubkeys[0].",
+
+  "nip85AuthorPubkeys": [
+    "a68dbf561cfe3da1b76f1e65c7d4d9cc116f79921b38a815fd75cb5460b4b599",
+    "bfb6e1e8f6d88cfc9f1c1fce7b70012ca959129d3d538879266aded10ef3feb0"
+  ],
+  "_nip85AuthorPubkeys": "Keys honored as AUTHORS of kind-30382 trust assertions (passed to createHouseTrustSource as assertionAuthorPubkeys). The house signs 30382s with its assistant key, which ROTATES when the instance container is re-initialized. VERIFIED 2026-07-23: the entire live corpus on the house relay (500+ events, dated 2026-05-26) is signed by the RETIRED key bfb6e1e8…, not the current TA a68dbf… (which has published zero 30382s so far). List current-TA first, retired second; latest event per subject wins. When the house re-runs its NIP-85 pipeline under the current TA, nothing here needs to change.",
+
+  "trust": {
+    "mode": "house-ta",
+    "minRank": 1,
+    "maxHops": 20,
+    "unknownPolicy": "trusted",
+    "_comment": "house-ta = build the asserter-trust predicate from the house's NIP-85 kind-30382 assertions (see sdk/trust.js), read from trustRelays, authored by nip85AuthorPubkeys. unknownPolicy 'trusted' counts asserters with no published score — matching the reference deployment's un-provisioned-POV fallback; note the live corpus is a 2026-05-26 snapshot until the house pipeline re-runs, so expect many unscored (thus counted) asserters. 'everyone' mode skips 30382 lookups entirely."
+  }
+}
