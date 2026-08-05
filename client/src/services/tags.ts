@@ -32,7 +32,7 @@ import {
   trustEveryone,
   type TrustPredicate,
 } from "@/lib/tagging-sdk/trust.js";
-import { buildTagElement, slug as toSlug } from "@/lib/tagging-sdk/event-tagging/index.js";
+import { buildTagElement, conceptTag, slug as toSlug } from "@/lib/tagging-sdk/event-tagging/index.js";
 import {
   TAG_RELAYS,
   TRUST_RELAYS,
@@ -336,6 +336,49 @@ export async function fetchProfileTags(
 }
 
 // ─── Writing (floor B: yourself only) ────────────────────────────────────────
+
+/**
+ * Find an existing tag-element for a name, so we apply the tag everyone else is
+ * already using instead of minting a private duplicate.
+ *
+ * This matters more than it looks. A tag's identity is `39999:<author>:<slug>`,
+ * so if two people each mint "Author", they are two unrelated tags and the
+ * counts never add up. The live hub shows the ecosystem converging the right
+ * way — `verified-human` is authored once and asserted by several different
+ * people — and that only keeps working if clients reuse.
+ *
+ * When several authors have minted the same slug we take the OLDEST: the
+ * original definition, and a deterministic choice every client can agree on
+ * without coordination.
+ *
+ * Returns a mint spec (`{ name }`) when the tag genuinely doesn't exist yet.
+ */
+export async function resolveOrMintTag(
+  name: string,
+  description?: string,
+): Promise<{ authorPubkey: string; slug: string; eventId: string } | { name: string; description?: string }> {
+  const slug = toSlug(name);
+  if (!slug) throw new Error("Give the tag a name.");
+
+  let existing: NostrEvent[] = [];
+  try {
+    existing = await fetchTagEvents({
+      kinds: [TAG_ELEMENT_KIND],
+      "#d": [slug],
+      "#z": Z_HANDLE_PUBKEYS.map(conceptTag),
+    });
+  } catch {
+    // Discovery is best-effort. If the hub is unreachable we'd rather mint a
+    // tag that may duplicate than block the user entirely.
+  }
+
+  const oldest = existing
+    .filter((ev) => tagValue(ev, "d") === slug)
+    .sort((a, b) => a.created_at - b.created_at)[0];
+
+  if (oldest) return { authorPubkey: oldest.pubkey, slug, eventId: oldest.id };
+  return { name, description };
+}
 
 export interface ApplyTagArgs {
   /** Reuse an existing tag, or mint a new one by name. */

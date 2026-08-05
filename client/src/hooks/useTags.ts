@@ -41,6 +41,17 @@ export function useProfileTags(pubkey: string | undefined) {
   });
 }
 
+export interface ApplyTagVariables extends Omit<ApplyTagArgs, "targetPubkey"> {
+  /**
+   * The label the user actually clicked, for the optimistic chip only.
+   *
+   * Without it, reusing an existing tag renders its slug ("author") for the
+   * couple of seconds before the refetch resolves the real display name
+   * ("Author") — a visible case-flip on the chip the user just added.
+   */
+  displayName?: string;
+}
+
 /**
  * Apply a tag, showing it immediately.
  *
@@ -57,7 +68,7 @@ export function useApplyTag(targetPubkey: string | undefined) {
   const key = profileTagsKey(targetPubkey ?? "", viewerPubkey);
 
   return useMutation({
-    mutationFn: (args: Omit<ApplyTagArgs, "targetPubkey">) =>
+    mutationFn: ({ displayName: _ignored, ...args }: ApplyTagVariables) =>
       applyTagToProfile({ ...args, targetPubkey: targetPubkey! }),
 
     onMutate: async (args) => {
@@ -88,7 +99,7 @@ export function useApplyTag(targetPubkey: string | undefined) {
                 key: optimisticKey,
                 authorPubkey: minted ? viewerPubkey : existingRef!.authorPubkey,
                 slug: optimisticKey.split("|")[1],
-                name: minted ? minted.name : existingRef!.slug,
+                name: args.displayName || (minted ? minted.name : existingRef!.slug),
                 applications: stance === "apply" ? 1 : 0,
                 disputes: stance === "dispute" ? 1 : 0,
                 myStance: stance,

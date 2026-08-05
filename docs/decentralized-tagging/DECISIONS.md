@@ -90,6 +90,55 @@ our 30382 signing pubkeys from David/Enes.
 
 ---
 
+## Field notes — what the live data actually looks like
+
+Surveyed 2026-08-05 while building C0/C1. Both findings changed the code, so
+they're written down rather than rediscovered.
+
+### The hub's assertions are mostly QA noise, and that's convenient
+
+Of 2000 profile-tag assertions on `dcosl.brainstorm.world`, only **6 carry an
+`a` tag** — the coordinate that names which tag is being applied. Those 6 are
+the real ones: `author`, `verified-human`, `dcosl` on people with real kind-0
+profiles (david@bitcoinpark, Avi Burra, Shawn Yeager, vinney). The other 1994
+are automated harness output (`wysiwyg-s17-1785898945945-…`) aimed at pubkeys
+with no profile at all.
+
+The protocol says to consume identity by `#a`, and we do. Falling back to the
+`e` tag would technically recover the 1994 — and surface pure noise. So the
+spec-conformant reader is also the correct one here.
+
+### The trust corpus doesn't publish `hops`, which inverted the trust filter
+
+All 500 sampled kind-30382 events on the house relay carry `d`, `rank` and
+`followers`. **None carries `hops`.**
+
+The SDK reads a missing `hops` as 999 ("unreachable") and then tests
+`hops <= maxHops`. With the kit's `maxHops: 20`, that rejects every asserter who
+*has* a published score, while everyone with no score at all sails through
+`unknownPolicy: "trusted"`. david@bitcoinpark — `rank: 100`, the maximum — read
+as untrusted, and the chip row rendered empty on every profile.
+
+Fixed in `client/src/config/tagging.ts` by neutralizing the hops criterion and
+letting `rank` gate, with `tagging.config.json` left byte-identical to the kit
+so re-vendoring diffs stay clean. **Revert it when the house's NIP-85 pipeline
+starts publishing hops.**
+
+Note what this means today: with rank gating at 1 and unscored asserters counted,
+trust is currently close to a no-op. That's the honest state of the corpus, not a
+bug in our reader — and it's the same reason the NosFabrica-own-POV switch
+(decision 5) matters before launch.
+
+### Tags must be reused, not re-minted
+
+A tag's identity is `39999:<author>:<slug>`, so two people minting "Author"
+create two unrelated tags whose counts never combine. The live data shows the
+ecosystem doing it right — `verified-human` is authored once by Avi and asserted
+by several different people. `resolveOrMintTag()` therefore looks for an existing
+tag-element first and only mints when there genuinely isn't one, choosing the
+oldest when several exist (the original definition, and a choice every client can
+reach independently).
+
 ## Standing constraints that shaped the above
 
 - **Never route tag reads through `authenticatedFetch`.** `/p/:id` is

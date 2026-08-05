@@ -916,7 +916,7 @@ export default function SharePage() {
               configured trust perspective. Reads from relays only, so it renders
               for logged-out visitors too. The owner-set role chips below are a
               separate thing and stay: those are self-declared, these are not. */}
-          <ProfileTagChips pubkey={pubkey} />
+          <ProfileTagChips pubkey={pubkey} canTag={isOwner} />
 
           {roleLabels.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1.5" data-testid="share-roles">
