@@ -133,6 +133,14 @@ export default function SharePage() {
   // Owner = the logged-in user IS this profile and can sign (publish prefs).
   const isOwner = !!currentUser?.pubkey && currentUser.pubkey === pubkey &&
     (hasSessionToken() || hasLocalSecretKey() || (typeof window !== "undefined" && !!(window as unknown as { nostr?: unknown }).nostr));
+  // Tagging needs a SIGNER, which is a stricter thing than being signed in: a
+  // session token is backend auth and can't sign an event. Deliberately not
+  // reusing `isOwner`'s check, which counts a session token — that's fine for
+  // the prefs flows it gates, but here it would show an "Add a tag" button that
+  // throws "No signer available" the moment it's used. Anyone with a signer can
+  // tag anyone, including themselves.
+  const canTag = !!currentUser?.pubkey &&
+    (hasLocalSecretKey() || (typeof window !== "undefined" && !!(window as unknown as { nostr?: unknown }).nostr));
   // Read-only relationship state (follow/mute/report/follows-you) for a logged-in
   // viewer — drives the at-a-glance badges next to the actions (which now live
   // here on /p; /profile is the tucked-away advanced view).
@@ -916,7 +924,7 @@ export default function SharePage() {
               configured trust perspective. Reads from relays only, so it renders
               for logged-out visitors too. The owner-set role chips below are a
               separate thing and stay: those are self-declared, these are not. */}
-          <ProfileTagChips pubkey={pubkey} canTag={isOwner} />
+          <ProfileTagChips pubkey={pubkey} canTag={canTag} isOwner={isOwner} />
 
           {roleLabels.length > 0 && (
             <div className="mt-1.5 flex flex-wrap gap-1.5" data-testid="share-roles">

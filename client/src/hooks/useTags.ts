@@ -112,10 +112,32 @@ export function useApplyTag(targetPubkey: string | undefined) {
         const base: ProfileTagsResult = old ?? { tags: [], mine: [] };
         const existing = base.tags.find((t) => t.key === optimisticKey);
 
-        // Re-stating a tag that's already shown: mark our stance, don't
-        // double-count — we may already be among its counted asserters.
+        // Move OUR one vote between the buckets. The counts are distinct
+        // asserters and we are exactly one of them, so a stance flip is -1 here
+        // and +1 there — not a fresh +1, which would double-count us.
+        //
+        // (If the POV doesn't actually count this viewer, the refetch will
+        // correct the number a couple of seconds later. With the trust filter
+        // as permissive as it currently is, that's rare.)
         const tags: ProfileTag[] = existing
-          ? base.tags.map((t) => (t.key === optimisticKey ? { ...t, myStance: stance } : t))
+          ? base.tags.map((t) => {
+              if (t.key !== optimisticKey) return t;
+              if (t.myStance === stance) return t; // re-stating the same thing
+              const wasApply = t.myStance === "apply";
+              const wasDispute = t.myStance === "dispute";
+              return {
+                ...t,
+                applications: Math.max(
+                  0,
+                  t.applications + (stance === "apply" ? 1 : wasApply ? -1 : 0),
+                ),
+                disputes: Math.max(
+                  0,
+                  t.disputes + (stance === "dispute" ? 1 : wasDispute ? -1 : 0),
+                ),
+                myStance: stance,
+              };
+            })
           : [
               ...base.tags,
               {
@@ -130,7 +152,11 @@ export function useApplyTag(targetPubkey: string | undefined) {
             ];
 
         return {
-          tags,
+          // Mirror the read's own rule (`fetchProfileTags` drops tags with no
+          // applications). Disagreeing with a tag only you had vouched for makes
+          // the chip go away now and stay away, instead of lingering at zero
+          // until the refetch removes it.
+          tags: tags.filter((t) => t.applications > 0),
           mine: [
             ...base.mine.filter((m) => m.key !== optimisticKey),
             { key: optimisticKey, stance },

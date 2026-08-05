@@ -1,7 +1,7 @@
 import { Link } from "wouter";
 import { Chip } from "@/components/ui/chip";
 import { useProfileTags } from "@/hooks/useTags";
-import { TagYourselfButton } from "@/components/share/TagYourselfButton";
+import { TagPersonButton } from "@/components/share/TagPersonButton";
 import { npubFromPubkey } from "@/lib/shareId";
 
 /**
@@ -20,16 +20,19 @@ import { npubFromPubkey } from "@/lib/shareId";
 export function ProfileTagChips({
   pubkey,
   canTag = false,
+  isOwner = false,
 }: {
   pubkey: string | undefined;
-  /** The viewer is this profile's owner and can sign. Shows "Add a tag". */
+  /** The viewer is signed in AND holds a signer. Shows "Add a tag". */
   canTag?: boolean;
+  /** Viewing their own profile — changes wording only, not permission. */
+  isOwner?: boolean;
 }) {
   const { data } = useProfileTags(pubkey);
   const tags = data?.tags ?? [];
 
-  // An owner with no tags yet still needs the way in — otherwise the feature is
-  // invisible to exactly the people who'd start using it.
+  // Someone who can tag but sees no tags yet still needs the way in — otherwise
+  // the feature is invisible to exactly the people who'd start using it.
   if (!tags.length && !canTag) return null;
 
   return (
@@ -45,6 +48,9 @@ export function ProfileTagChips({
           tag.applications === 1
             ? "1 person added this"
             : `${tag.applications} people added this`;
+        // Say so when the viewer has pushed back, otherwise a tag they disagreed
+        // with looks identical to one they never touched.
+        const stanceNote = tag.myStance === "dispute" ? " · you disagreed" : "";
         let authorNpub = "";
         try { authorNpub = npubFromPubkey(tag.authorPubkey); } catch { /* unlinkable */ }
 
@@ -52,7 +58,7 @@ export function ProfileTagChips({
           <Chip
             key={tag.key}
             tone={tag.myStance === "apply" ? "accent" : "brand"}
-            title={tag.description ? `${who} — ${tag.description}` : who}
+            title={(tag.description ? `${who} — ${tag.description}` : who) + stanceNote}
             data-testid="share-tag-chip"
             className={authorNpub ? "transition-opacity hover:opacity-80" : undefined}
           >
@@ -73,7 +79,7 @@ export function ProfileTagChips({
           chip
         );
       })}
-      {canTag && pubkey && <TagYourselfButton pubkey={pubkey} />}
+      {canTag && pubkey && <TagPersonButton pubkey={pubkey} isOwner={isOwner} />}
     </div>
   );
 }

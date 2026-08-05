@@ -10,20 +10,47 @@ Guidance source: `nous-clawds4/tapestry@generate-nosfabrica-integration-kit` →
 
 ---
 
-## 1. Scope — this is *tagging*, and we build floor B
+## 1. Scope — this is *tagging*
+
+> **Revised 2026-08-05, same day.** Originally scoped to floor B. Benjamin then
+> asked for the tag page, and then for tagging other people, so the shipped
+> scope is **floors B, C and D plus the C4 stance toggle**. The reasoning below
+> about *what the feature is* still stands; only the stopping point moved.
 
 The feature was requested as "decentralized lists". The kit does not define a
 lists feature; it defines a **decentralized, trust-ranked tagging protocol** for
 people and notes. A list is what you get when you look at everyone carrying a
 tag — so lists are the *payoff* of tagging, not the starting point.
 
-**We build floor B:**
+**Built:**
 
-- read tags on public surfaces (anyone, including logged-out visitors), and
-- let a signed-in user **tag themselves**.
+- read tags on public surfaces (anyone, including logged-out visitors) — C1
+- any signed-in user with a signer can tag **any** profile, their own or
+  someone else's — C3 + floor C
+- mint a brand-new tag from the picker — C5
+- agree / disagree with a tag already on a profile — C4
+- `/tags/:author/:slug`, everyone carrying one tag — floor D
 
-**Not in v1:** tagging other people (floor C), a `/tags/:author/:slug` list page
-(floor D), note tag chips (rung C2).
+**Still not built:** note tag chips (rung C2), and server-side WoT-weighted tag
+ranking.
+
+### What opening up floor C costs, and what pays for it
+
+Anyone tagging anyone is the point of a decentralized attribute system, but it
+means a stranger can attach a label to your profile. Two things are supposed to
+contain that, and only one of them currently works:
+
+1. **The trust filter** — the POV decides whose assertions count. *This is
+   presently close to a no-op* (see the field note on `hops` below): unscored
+   asserters are counted, so in practice any pubkey's tag shows up. **This is a
+   launch gate, not a build gate** — it's the same reason decision 5's own-POV
+   switch matters.
+2. **Disputes** — the subject (or anyone) can disagree, which is built.
+
+**There is no delete.** An assertion is superseded by re-publishing the same
+deterministic `d` tag with the opposite polarity; the original stays on relays
+and simply stops counting. So the UI says **"Disagree"**, never "Remove" —
+saying "Remove" would be claiming something we don't do.
 
 The old `origin/lists` branch (2026-03-30, info5195 — 289 behind / 122 ahead of
 main, `ListDetailPage.tsx` at 1580 lines) is **reference only**. It predates the
