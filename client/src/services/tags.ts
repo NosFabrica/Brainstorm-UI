@@ -19,6 +19,7 @@ import {
   signEventLocally,
   loadOutboxRelayListFromDb,
   getCurrentUser,
+  fetchProfileMap,
 } from "./nostr";
 import {
   applyProfileTagging,
@@ -232,17 +233,20 @@ function bucketize(ev: NostrEvent): "apply" | "dispute" | "neutral" {
  *
  * This mirrors the discipline of the SDK's `classifyEventTaggings` but cannot
  * reuse it: that classifier resolves an indirect per-tag *header* before it can
- * name a tag, and profile-tag assertions are the older DIRECT shape — the `a`
- * coordinate names the tag straight out. Reusing it here would drop every
- * candidate for want of a header that does not exist in this family.
+ * name a tag, and profile-tag assertions are the DIRECT shape.
  *
- * Requiring `a` is deliberate, and it is also a useful filter. Surveying the hub
- * on 2026-08-05 (2000 assertions) found only 6 carrying `a` — but those 6 are
- * the real ones: human-meaningful tags (`author`, `verified-human`, `dcosl`) on
- * pubkeys with real kind-0 profiles. The other 1994 are automated QA-harness
- * output (`wysiwyg-s17-1785898945945-…`) aimed at pubkeys that have no profile
- * at all. Reading identity from the `e` fallback instead would surface that
- * noise and buy nothing, so we consume by `#a` exactly as the protocol says.
+ * **Identity comes from `a` OR `e`.** The protocol's normative shape puts the
+ * tag in `a`, but `protocol/tags.md` §Taggings is explicit that the deployed
+ * publishers still emit the original `d/p/e/z/polarity` shape without it, and
+ * that "a reader needing completeness MUST union `#a` lookups with legacy `#e`
+ * lookups against the tag-element's event ids."
+ *
+ * We originally required `a` and were wrong. Of 2928 assertions on the hub,
+ * **2905 have no `a`** — and they are not junk: they carry `AOS 2026
+ * Participant` (109), `LFO` (60), `Bitcoin Vendor` (35), `Tunestr Community`
+ * (28), `Musician` (16), on 68 targets with real kind-0 profiles. Requiring `a`
+ * hid roughly 99% of real tagging. The earlier reasoning generalised from a
+ * newest-first sample that happened to be almost entirely QA-harness output.
  */
 interface NormalizedAssertion {
   /** `<tagAuthor>|<slug>` — the tag's identity. */
@@ -256,8 +260,62 @@ interface NormalizedAssertion {
   stance: "apply" | "dispute";
 }
 
-function normalizeAssertions(candidates: NostrEvent[]): NormalizedAssertion[] {
+/** A tag-element's coordinates, however we got to them. */
+interface TagRefResolved {
+  tagAuthor: string;
+  slug: string;
+}
+
+/**
+ * Resolve every candidate's tag identity, using `a` where present and falling
+ * back to resolving the `e` tag-element by id — the union the protocol requires.
+ *
+ * One batched fetch for all the `e`-only ids, not one per assertion. The
+ * elements are immutable in practice, so this is cache-friendly.
+ */
+async function resolveAssertionTags(
+  candidates: NostrEvent[],
+): Promise<Map<string, TagRefResolved>> {
+  const byEventId = new Map<string, TagRefResolved>();
+  const needElement = new Set<string>();
+
+  for (const ev of candidates) {
+    const a = tagValue(ev, "a");
+    const m = a && /^39999:([0-9a-f]{64}):(.+)$/.exec(a);
+    if (m) {
+      byEventId.set(ev.id, { tagAuthor: m[1], slug: m[2] });
+      continue;
+    }
+    const e = tagValue(ev, "e");
+    if (e) needElement.add(e);
+  }
+
+  if (needElement.size) {
+    const ids = Array.from(needElement);
+    const elements: NostrEvent[] = [];
+    for (let i = 0; i < ids.length; i += 200) {
+      try {
+        elements.push(...(await fetchTagEvents({ ids: ids.slice(i, i + 200) })));
+      } catch {
+        // Partial resolution beats none — the assertions we couldn't resolve
+        // just don't count, exactly as if their tag had been deleted.
+      }
+    }
+    const elementById = new Map(elements.map((el) => [el.id, el]));
+    for (const ev of candidates) {
+      if (byEventId.has(ev.id)) continue;
+      const el = elementById.get(tagValue(ev, "e") ?? "");
+      const d = el && tagValue(el, "d");
+      if (el && d) byEventId.set(ev.id, { tagAuthor: el.pubkey, slug: d });
+    }
+  }
+
+  return byEventId;
+}
+
+async function normalizeAssertions(candidates: NostrEvent[]): Promise<NormalizedAssertion[]> {
   const honored = new Set(Z_HANDLE_PUBKEYS.map(conceptNostrUserTag));
+  const tagOf = await resolveAssertionTags(candidates);
 
   // Latest-wins per (tag, target, asserter). The d-tag is deterministic for
   // that triple, so a re-tag replaces rather than stacks — but relays can hand
@@ -266,12 +324,11 @@ function normalizeAssertions(candidates: NostrEvent[]): NormalizedAssertion[] {
   const latest = new Map<string, NostrEvent>();
   for (const ev of candidates) {
     if (!(ev.tags || []).some((t) => t[0] === "z" && honored.has(t[1]))) continue;
-    const a = tagValue(ev, "a");
-    const m = a && /^39999:([0-9a-f]{64}):(.+)$/.exec(a);
-    if (!m) continue;
+    const ref = tagOf.get(ev.id);
+    if (!ref) continue;
     const target = tagValue(ev, "p");
     if (!target) continue;
-    const key = `${m[1]}|${m[2]}|${target}|${ev.pubkey}`;
+    const key = `${ref.tagAuthor}|${ref.slug}|${target}|${ev.pubkey}`;
     const prev = latest.get(key);
     if (!prev || ev.created_at > prev.created_at) latest.set(key, ev);
   }
@@ -284,6 +341,36 @@ function normalizeAssertions(candidates: NostrEvent[]): NormalizedAssertion[] {
     out.push({ tagKey: `${tagAuthor}|${slug}`, tagAuthor, slug, target, asserter: ev.pubkey, stance });
   }
   return out;
+}
+
+/**
+ * Which of these pubkeys are real people?
+ *
+ * The hub carries thousands of harness assertions aimed at pubkeys that have
+ * never had a kind-0. Gating carrier lists on "has a profile" drops all of them
+ * without inventing a name-shape blocklist, and it's defensible on its own
+ * terms: a tag on an identity that has never existed isn't a claim anyone can
+ * evaluate. Never throws — `fetchProfileMap` resolves a partial map on timeout,
+ * so a slow relay under-reports rather than empties the page.
+ */
+async function filterToRealProfiles(pubkeys: string[]): Promise<Set<string>> {
+  if (!pubkeys.length) return new Set();
+  try {
+    const map = await fetchProfileMap(pubkeys);
+    return new Set(map.keys());
+  } catch {
+    return new Set(pubkeys); // can't tell → don't hide anyone
+  }
+}
+
+/**
+ * The kit's inclusion rule: a target counts when its trusted support beats its
+ * trusted opposition (`INTEGRATION.md` C6 — "net apply−dispute > 0", restated
+ * in ACCEPTANCE Floors B and D). Counting applications alone would leave
+ * someone visible at 1 agree against 5 disagrees.
+ */
+function netPositive(applications: number, disputes: number): boolean {
+  return applications - disputes > 0;
 }
 
 /** Group normalized assertions BY TAG — the profile read. */
@@ -394,7 +481,7 @@ export async function fetchProfileTags(
   );
   if (!candidates.length) return { tags: [], mine: [] };
 
-  const assertions = normalizeAssertions(candidates);
+  const assertions = await normalizeAssertions(candidates);
   const trusted = await resolveTrust(Array.from(new Set(assertions.map((a) => a.asserter))));
   const { counted, mine } = groupByTag(assertions, trusted, viewerPubkey);
 
@@ -414,7 +501,7 @@ export async function fetchProfileTags(
     }))
     // Contested tags sink; ties break alphabetically so the row is stable
     // across refetches rather than reshuffling on every render.
-    .filter((t) => t.applications > 0)
+    .filter((t) => netPositive(t.applications, t.disputes))
     .sort(
       (a, b) =>
         b.applications - a.applications ||
@@ -456,7 +543,37 @@ export interface TagDetail {
  * Anonymous-safe, like every read here — relays only, no API client.
  */
 export async function fetchTagDetail(authorPubkey: string, slug: string): Promise<TagDetail> {
-  const [candidates, names] = await Promise.all([
+  // The tag-element, for its name AND its event id — assertions that predate
+  // the `a` correction reference the tag only by that id.
+  let elements: NostrEvent[] = [];
+  try {
+    elements = await fetchTagEvents({
+      kinds: [TAG_ELEMENT_KIND],
+      authors: [authorPubkey],
+      "#d": [slug],
+    });
+  } catch {
+    /* name falls back to the slug; the #a read below still works */
+  }
+  const element = elements.find((el) => tagValue(el, "d") === slug);
+  let meta: { name?: string; description?: string } = {};
+  if (element) {
+    try {
+      meta = (JSON.parse(element.content) as { tag?: typeof meta }).tag ?? {};
+    } catch { /* malformed content → slug */ }
+  }
+  const tag: TagIdentity = {
+    authorPubkey,
+    slug,
+    name: meta.name || slug,
+    description: meta.description,
+  };
+
+  // Both halves of the union: modern assertions point at the tag's coordinate,
+  // legacy ones at the element's event id. Querying only `#a` here is what made
+  // this page under-report.
+  const elementIds = elements.map((el) => el.id);
+  const [byCoord, byElementId] = await Promise.all([
     fetchTagEvents(
       filterProfileTaggingsUsingTag({
         tagAuthorPubkey: authorPubkey,
@@ -464,35 +581,38 @@ export async function fetchTagDetail(authorPubkey: string, slug: string): Promis
         zHandlePubkeys: Z_HANDLE_PUBKEYS,
       }),
     ),
-    resolveTagNames([{ authorPubkey, slug }]),
+    elementIds.length
+      ? fetchTagEvents({
+          kinds: [TAG_ELEMENT_KIND],
+          "#e": elementIds,
+          "#z": Z_HANDLE_PUBKEYS.map(conceptNostrUserTag),
+        })
+      : Promise.resolve([] as NostrEvent[]),
   ]);
 
-  const meta = names.get(`${authorPubkey}|${slug}`);
-  const tag: TagIdentity = {
-    authorPubkey,
-    slug,
-    name: meta?.name || slug,
-    description: meta?.description,
-  };
+  const deduped = new Map<string, NostrEvent>();
+  for (const ev of [...byCoord, ...byElementId]) deduped.set(ev.id, ev);
+  if (!deduped.size) return { tag, carriers: [] };
 
-  if (!candidates.length) return { tag, carriers: [] };
-
-  // Only assertions for THIS tag — the relay filtered by #a, but a permissive
-  // relay could hand back more and we'd rather not list strangers.
-  const assertions = normalizeAssertions(candidates).filter(
+  // Only assertions for THIS tag — the relays filtered, but a permissive one
+  // could hand back more and we'd rather not list strangers.
+  const assertions = (await normalizeAssertions(Array.from(deduped.values()))).filter(
     (a) => a.tagAuthor === authorPubkey && a.slug === slug,
   );
 
   const trusted = await resolveTrust(Array.from(new Set(assertions.map((a) => a.asserter))));
   const byTarget = groupByTarget(assertions, trusted);
 
+  const real = await filterToRealProfiles(Array.from(byTarget.keys()));
+
   const carriers: TagCarrier[] = Array.from(byTarget.entries())
+    .filter(([pubkey]) => real.has(pubkey))
     .map(([pubkey, grp]) => ({
       pubkey,
       applications: grp.applications.size,
       disputes: grp.disputes.size,
     }))
-    .filter((c) => c.applications > 0)
+    .filter((c) => netPositive(c.applications, c.disputes))
     // Most-vouched first; contested sink. Ties break on pubkey so the order is
     // stable across refetches instead of reshuffling.
     .sort(
@@ -538,19 +658,23 @@ export async function fetchTagIndex(): Promise<TagSummary[]> {
   });
   if (!candidates.length) return [];
 
-  const assertions = normalizeAssertions(candidates);
+  const assertions = await normalizeAssertions(candidates);
   const trusted = await resolveTrust(Array.from(new Set(assertions.map((a) => a.asserter))));
+  const real = await filterToRealProfiles(Array.from(new Set(assertions.map((a) => a.target))));
 
   // Reuse the profile read's grouping so the catalogue can't drift from what a
   // profile shows: same trust filter, same latest-wins, same apply/dispute rule.
+  // Support is tallied PER (tag, person) so the net rule can be applied per
+  // carrier — a tag isn't "used" by someone the network has voted down.
   const counted = new Map<
     string,
     { authorPubkey: string; slug: string; applications: Set<string>; disputes: Set<string> }
   >();
-  const people = new Map<string, Set<string>>();
+  const perCarrier = new Map<string, { applies: Set<string>; disputes: Set<string> }>();
 
   for (const a of assertions) {
-    if (!isCountable(a, trusted)) continue;
+    if (!trusted(a.asserter)) continue;
+    if (!real.has(a.target)) continue;
     if (!counted.has(a.tagKey)) {
       counted.set(a.tagKey, {
         authorPubkey: a.tagAuthor,
@@ -558,10 +682,24 @@ export async function fetchTagIndex(): Promise<TagSummary[]> {
         applications: new Set(),
         disputes: new Set(),
       });
-      people.set(a.tagKey, new Set());
     }
-    counted.get(a.tagKey)!.applications.add(a.asserter);
-    people.get(a.tagKey)!.add(a.target);
+    const grp = counted.get(a.tagKey)!;
+    (a.stance === "apply" ? grp.applications : grp.disputes).add(a.asserter);
+
+    const ck = `${a.tagKey}|${a.target}`;
+    if (!perCarrier.has(ck)) perCarrier.set(ck, { applies: new Set(), disputes: new Set() });
+    const c = perCarrier.get(ck)!;
+    (a.stance === "apply" ? c.applies : c.disputes).add(a.asserter);
+  }
+
+  const people = new Map<string, Set<string>>();
+  for (const [ck, c] of perCarrier) {
+    if (!netPositive(c.applies.size, c.disputes.size)) continue;
+    const sep = ck.lastIndexOf("|");
+    const tagKey = ck.slice(0, sep);
+    const target = ck.slice(sep + 1);
+    if (!people.has(tagKey)) people.set(tagKey, new Set());
+    people.get(tagKey)!.add(target);
   }
 
   const names = await resolveTagNames(Array.from(counted.values()));
@@ -583,11 +721,6 @@ export async function fetchTagIndex(): Promise<TagSummary[]> {
     })
     .filter((t) => t.people > 0)
     .sort((a, b) => b.people - a.people || b.vouches - a.vouches || a.name.localeCompare(b.name));
-}
-
-/** An assertion that a caller should count: trusted asserter, applying (not disputing). */
-function isCountable(a: NormalizedAssertion, isAsserterTrusted: TrustPredicate): boolean {
-  return a.stance === "apply" && isAsserterTrusted(a.asserter);
 }
 
 /**
@@ -665,12 +798,24 @@ export async function resolveOrMintTag(
   // tells us which is actually in use.
   const usage = new Map<string, number>();
   try {
-    const assertions = await fetchTagEvents({
-      kinds: [TAG_ELEMENT_KIND],
-      "#a": candidates.map((ev) => `39999:${ev.pubkey}:${slug}`),
-      "#z": Z_HANDLE_PUBKEYS.map(conceptNostrUserTag),
-    });
-    for (const a of normalizeAssertions(assertions)) {
+    // Union again: a candidate's usage may be recorded against its coordinate
+    // or its event id, and picking the "best-supported" from half the evidence
+    // would just pick the one that happens to use the newer shape.
+    const [byCoord, byId] = await Promise.all([
+      fetchTagEvents({
+        kinds: [TAG_ELEMENT_KIND],
+        "#a": candidates.map((ev) => `39999:${ev.pubkey}:${slug}`),
+        "#z": Z_HANDLE_PUBKEYS.map(conceptNostrUserTag),
+      }),
+      fetchTagEvents({
+        kinds: [TAG_ELEMENT_KIND],
+        "#e": candidates.map((ev) => ev.id),
+        "#z": Z_HANDLE_PUBKEYS.map(conceptNostrUserTag),
+      }),
+    ]);
+    const merged = new Map<string, NostrEvent>();
+    for (const ev of [...byCoord, ...byId]) merged.set(ev.id, ev);
+    for (const a of await normalizeAssertions(Array.from(merged.values()))) {
       if (a.stance !== "apply") continue;
       const k = `${a.tagAuthor}|${a.asserter}|${a.target}`;
       if (!usage.has(k)) usage.set(k, 1);
