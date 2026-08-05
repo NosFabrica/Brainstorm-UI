@@ -21,12 +21,15 @@ export function ProfileTagChips({
   pubkey,
   canTag = false,
   isOwner = false,
+  legacyRoles = [],
 }: {
   pubkey: string | undefined;
   /** The viewer is signed in AND holds a signer. Shows "Add a tag". */
   canTag?: boolean;
   /** Viewing their own profile — changes wording only, not permission. */
   isOwner?: boolean;
+  /** Retired self-declared roles, offered back to the owner as tags. */
+  legacyRoles?: string[];
 }) {
   const { data } = useProfileTags(pubkey);
   const tags = data?.tags ?? [];
@@ -79,7 +82,9 @@ export function ProfileTagChips({
           chip
         );
       })}
-      {canTag && pubkey && <TagPersonButton pubkey={pubkey} isOwner={isOwner} />}
+      {canTag && pubkey && (
+        <TagPersonButton pubkey={pubkey} isOwner={isOwner} legacyRoles={legacyRoles} />
+      )}
     </div>
   );
 }

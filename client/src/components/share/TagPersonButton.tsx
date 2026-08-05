@@ -39,10 +39,18 @@ import { useApplyTag, useProfileTags } from "@/hooks/useTags";
 export function TagPersonButton({
   pubkey,
   isOwner = false,
+  legacyRoles = [],
 }: {
   pubkey: string;
   /** Only changes wording — the permission is the same either way. */
   isOwner?: boolean;
+  /**
+   * Labels this person previously self-declared under the retired "What you do"
+   * editor. Offered as one-tap tags so a signal they already gave us isn't
+   * simply deleted — but only ever offered. Publishing them automatically would
+   * push private-ish profile settings to a public hub without asking.
+   */
+  legacyRoles?: string[];
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -52,7 +60,13 @@ export function TagPersonButton({
 
   const onProfile = data?.tags ?? [];
   const taken = new Set(onProfile.map((t) => t.name.toLowerCase()));
-  const suggestions = ROLES.filter((r) => !taken.has(r.label.toLowerCase()));
+  // Old roles that aren't already tags. Once added, they drop off this list on
+  // their own — no dismiss state to store.
+  const pendingLegacy = isOwner ? legacyRoles.filter((r) => !taken.has(r.toLowerCase())) : [];
+  // Anything offered above as a previously-listed role must not also appear in
+  // the generic list — the same word twice in one menu reads as a bug.
+  const offeredAbove = new Set([...taken, ...pendingLegacy.map((r) => r.toLowerCase())]);
+  const suggestions = ROLES.filter((r) => !offeredAbove.has(r.label.toLowerCase()));
 
   const typed = search.trim();
   const isNew =
@@ -190,6 +204,26 @@ export function TagPersonButton({
                     </CommandItem>
                   );
                 })}
+              </CommandGroup>
+            )}
+
+            {/* Roles this person listed before tags existed. Shown to them
+                only, and only until they've added them — a nudge, not a
+                migration that happens behind their back. */}
+            {isOwner && pendingLegacy.length > 0 && (
+              <CommandGroup heading="You listed these before">
+                {pendingLegacy.map((label) => (
+                  <CommandItem
+                    key={label}
+                    value={label}
+                    onSelect={() => addByName(label)}
+                    data-testid="share-tag-legacy"
+                  >
+                    <Plus className="mr-2 h-3.5 w-3.5" />
+                    <span className="flex-1 truncate">{label}</span>
+                    <span className="ml-2 shrink-0 text-[10px] text-slate-400">Add as tag</span>
+                  </CommandItem>
+                ))}
               </CommandGroup>
             )}
 

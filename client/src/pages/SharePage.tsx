@@ -46,7 +46,7 @@ import { EventRow } from "@/components/share/EventRow";
 import { OpenInApp } from "@/components/share/OpenInApp";
 import { apiClient, hasSessionToken } from "@/services/api";
 import { parseProfilePrefs, loadProfilePrefsDraft, saveProfilePrefsDraft, clearProfilePrefsDraft } from "@/lib/personalization";
-import { ROLES, SECTION_KEYS, EMPTY_PROFILE_PREFS, type SectionKey, type ProfilePrefs } from "@/config/personalization";
+import { SECTION_KEYS, ROLE_LABELS, EMPTY_PROFILE_PREFS, type SectionKey, type ProfilePrefs } from "@/config/personalization";
 import { ProfileCustomizer } from "@/components/share/ProfileCustomizer";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { DegreeChip } from "@/components/DegreeChip";
@@ -680,10 +680,17 @@ export default function SharePage() {
     [profilesQuery.data],
   );
 
-  // Roles ("what you do") from the user's local personalization prefs.
-  const roleLabels = useMemo(() => {
-    return prefs.roles.map((key) => ROLES.find((r) => r.key === key)?.label).filter(Boolean) as string[];
-  }, [prefs.roles]);
+  // Roles this person set under the retired "What you do" editor. No longer
+  // rendered — offered back to them in the tag picker so the signal isn't just
+  // dropped. Read from the PUBLISHED prefs, not the live draft: what they
+  // actually saved is what they meant.
+  const legacyRoleLabels = useMemo(
+    () =>
+      publishedPrefs.roles
+        .map((key) => ROLE_LABELS.get(key))
+        .filter((label): label is string => !!label),
+    [publishedPrefs.roles],
+  );
 
   const canonicalUrl = typeof window !== "undefined" && npub ? `${window.location.origin}/p/${npub}` : "";
 
@@ -922,19 +929,17 @@ export default function SharePage() {
 
           {/* Tags — what the network says about this person, counted from the
               configured trust perspective. Reads from relays only, so it renders
-              for logged-out visitors too. The owner-set role chips below are a
-              separate thing and stay: those are self-declared, these are not. */}
-          <ProfileTagChips pubkey={pubkey} canTag={canTag} isOwner={isOwner} />
-
-          {roleLabels.length > 0 && (
-            <div className="mt-1.5 flex flex-wrap gap-1.5" data-testid="share-roles">
-              {roleLabels.map((label) => (
-                <span key={label} className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-brand-deep/5 border border-brand-accent/30 text-xs font-semibold text-brand-deep">
-                  {label}
-                </span>
-              ))}
-            </div>
-          )}
+              for logged-out visitors too.
+              These replaced the self-declared "What you do" role chips that used
+              to sit below (the placeholder this slot's old TODO referred to).
+              The `roles` field stays in ProfilePrefs so nobody's stored data is
+              erased — it just no longer renders. */}
+          <ProfileTagChips
+            pubkey={pubkey}
+            canTag={canTag}
+            isOwner={isOwner}
+            legacyRoles={legacyRoleLabels}
+          />
 
           {!isHidden("bio") && profile.about && (
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-snug line-clamp-2" data-testid="share-bio">

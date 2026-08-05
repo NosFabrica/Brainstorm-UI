@@ -1141,7 +1141,7 @@ export default function SettingsPage() {
                 <span className="h-1 w-1 rounded-full bg-emerald-500" /> Live
               </span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-personalization-subtitle">Highlight what you share and what you do</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-personalization-subtitle">Choose what your profile shows</p>
           </div>
         </div>
         {user?.npub && (
@@ -1158,7 +1158,7 @@ export default function SettingsPage() {
 
       <div className="p-5">
         <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="text-personalization-desc">
-          Choose exactly what appears on your public profile — which sections show, the order they're in, who's featured, and the roles you play. Open the customizer to edit it live; your choices are published to Nostr, so you own them across every client.
+          Choose exactly what appears on your public profile — which sections show, the order they're in, and who's featured. Open the customizer to edit it live; your choices are published to Nostr, so you own them across every client. Tags are separate: add those from your profile, and anyone can add one to you.
         </p>
       </div>
     </div>
