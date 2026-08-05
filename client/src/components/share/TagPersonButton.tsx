@@ -12,7 +12,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { ROLES } from "@/config/personalization";
 import { resolveOrMintTag, type ProfileTag } from "@/services/tags";
-import { useApplyTag, useProfileTags } from "@/hooks/useTags";
+import { useApplyTag, useProfileTags, usePickerTags } from "@/hooks/useTags";
 
 /**
  * Add a tag to a person — your own profile or anyone else's.
@@ -57,6 +57,9 @@ export function TagPersonButton({
   const { toast } = useToast();
   const { data } = useProfileTags(pubkey);
   const applyTag = useApplyTag(pubkey);
+  // Loads only once the picker has been opened — no relay traffic for a button
+  // nobody clicked. Cached hard afterwards.
+  const { data: options } = usePickerTags(open);
 
   const onProfile = data?.tags ?? [];
   const taken = new Set(onProfile.map((t) => t.name.toLowerCase()));
@@ -66,13 +69,40 @@ export function TagPersonButton({
   // Anything offered above as a previously-listed role must not also appear in
   // the generic list — the same word twice in one menu reads as a bug.
   const offeredAbove = new Set([...taken, ...pendingLegacy.map((r) => r.toLowerCase())]);
-  const suggestions = ROLES.filter((r) => !offeredAbove.has(r.label.toLowerCase()));
+
+  /**
+   * Real tags people already use, most-used first, then the starter vocabulary
+   * for anything nobody has minted yet.
+   *
+   * This list used to be `ROLES` alone — twelve hardcoded words while 39 real
+   * tags existed on the hub. Nobody could apply "Bitcoin Vendor" without typing
+   * it exactly, and a near-miss minted a duplicate instead.
+   */
+  const existing = (options ?? [])
+    .filter((t) => !offeredAbove.has(t.name.toLowerCase()))
+    .map((t) => ({
+      key: t.key,
+      label: t.name,
+      description: t.description,
+      people: t.people,
+      tag: { authorPubkey: t.authorPubkey, slug: t.slug },
+    }))
+    // Most-used first. `fetchPickerTags` already puts the never-used hinted
+    // tags last, and they sort there naturally at zero.
+    .sort((a, b) => b.people - a.people || a.label.localeCompare(b.label));
+
+  const existingNames = new Set(existing.map((e) => e.label.toLowerCase()));
+  const starters = ROLES.filter(
+    (r) => !offeredAbove.has(r.label.toLowerCase()) && !existingNames.has(r.label.toLowerCase()),
+  );
 
   const typed = search.trim();
-  const isNew =
-    typed.length > 0 &&
-    !suggestions.some((r) => r.label.toLowerCase() === typed.toLowerCase()) &&
-    !taken.has(typed.toLowerCase());
+  const known = new Set([
+    ...offeredAbove,
+    ...existing.map((e) => e.label.toLowerCase()),
+    ...starters.map((s) => s.label.toLowerCase()),
+  ]);
+  const isNew = typed.length > 0 && !known.has(typed.toLowerCase());
 
   /** Agree with, or take back your agreement from, a tag already on the profile. */
   async function setStance(tag: ProfileTag, polarity: 1 | -1) {
@@ -100,6 +130,39 @@ export function TagPersonButton({
     } catch {
       toast({
         title: "Couldn't save that",
+        description: "Check your connection and try again.",
+        variant: "destructive",
+      });
+    }
+  }
+
+  /**
+   * Apply a tag we already have coordinates for. Skips `resolveOrMintTag`
+   * entirely — we picked this one off the catalogue, so there is nothing to
+   * resolve and no chance of minting a duplicate by a name near-miss.
+   */
+  async function applyExisting(tag: { authorPubkey: string; slug: string }, label: string) {
+    setOpen(false);
+    setSearch("");
+    try {
+      const result = await applyTag.mutateAsync({ tag, displayName: label });
+      if (result.failedAt) {
+        toast({
+          title: "Couldn't add that tag",
+          description: "Give it another try in a moment.",
+          variant: "destructive",
+        });
+        return;
+      }
+      toast({
+        title: `Added "${label}"`,
+        description: isOwner
+          ? "Others can see this on your profile."
+          : "Anyone can see this on their profile.",
+      });
+    } catch {
+      toast({
+        title: "Couldn't add that tag",
         description: "Check your connection and try again.",
         variant: "destructive",
       });
@@ -227,9 +290,35 @@ export function TagPersonButton({
               </CommandGroup>
             )}
 
-            {suggestions.length > 0 && (
+            {/* Real tags people already use. Applying one of these joins an
+                existing list rather than minting a near-duplicate. */}
+            {existing.length > 0 && (
+              <CommandGroup heading="Tags people use">
+                {existing.map((e) => (
+                  <CommandItem
+                    key={e.key}
+                    value={e.label}
+                    onSelect={() => applyExisting(e.tag, e.label)}
+                    data-testid="share-tag-existing"
+                  >
+                    <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{e.label}</span>
+                      {e.description && (
+                        <span className="block truncate text-[10px] text-slate-400">{e.description}</span>
+                      )}
+                    </span>
+                    <span className="ml-2 shrink-0 text-[10px] tabular-nums text-slate-400">
+                      {e.people}
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+
+            {starters.length > 0 && (
               <CommandGroup heading="Common tags">
-                {suggestions.map((role) => (
+                {starters.map((role) => (
                   <CommandItem
                     key={role.key}
                     value={role.label}

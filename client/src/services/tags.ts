@@ -31,12 +31,14 @@ import {
 } from "@/lib/tagging-sdk/profile-tagging.js";
 import {
   createHouseTrustSource,
+  fetchApplicabilityLists,
   trustEveryone,
   type TrustPredicate,
 } from "@/lib/tagging-sdk/trust.js";
 import { buildTagElement, conceptTag, slug as toSlug } from "@/lib/tagging-sdk/event-tagging/index.js";
 import { mergeSameNamedTags, stanceForVariants } from "@/lib/tagMerge";
 import {
+  LOCAL_TA_PUBKEY,
   TAG_RELAYS,
   TRUST_RELAYS,
   Z_HANDLE_PUBKEYS,
@@ -721,6 +723,57 @@ export async function fetchTagIndex(): Promise<TagSummary[]> {
     })
     .filter((t) => t.people > 0)
     .sort((a, b) => b.people - a.people || b.vouches - a.vouches || a.name.localeCompare(b.name));
+}
+
+/**
+ * The house's published view of which tags describe PEOPLE rather than notes
+ * (kind-30394 Trusted Lists, signed by the current assistant key).
+ *
+ * A hint, never a gate — the protocol is explicit that readers must not require
+ * it, nor treat its absence as "not applicable". We use it only to decide what
+ * the picker shows first. Returns an empty set when unpublished or unreachable,
+ * which degrades to "no opinion about ordering".
+ */
+export async function fetchProfileApplicableTags(): Promise<Set<string>> {
+  try {
+    const lists = await fetchApplicabilityLists({
+      fetchEvents: fetchTrustEvents,
+      houseAssistantPubkey: LOCAL_TA_PUBKEY,
+    });
+    return lists.pubkey;
+  } catch {
+    return new Set();
+  }
+}
+
+/** The a-coordinate an applicability list would name this tag by. */
+export function tagCoordinate(tag: { authorPubkey: string; slug: string }): string {
+  return `39999:${tag.authorPubkey}:${tag.slug}`;
+}
+
+/**
+ * What a "tag a person" picker offers: the tags people actually use.
+ *
+ * Applicability is defined by the protocol as **HINT ∪ USAGE** — "the operative
+ * applicability source is derived, not declared" — and our catalogue is built
+ * entirely from profile taggings, so **every tag in it is already applicable by
+ * usage**. The published hint therefore adds nothing here and must not reorder
+ * it: sorting by the hint buried `AOS 2026 Participant` (88 people) under tags
+ * with three, because only 9 of 39 carry it.
+ *
+ * We also tried the other half of the union — hinted tags nobody has applied
+ * yet, as the cold-start signal the hint exists for. Dropped: the house's list
+ * of 13 includes `jumble-qa-profile-1784946392` and `test account`, so it put
+ * harness output straight into the picker for the sake of one real unused tag.
+ * Nothing is lost by leaving them out, because typing an existing tag's name
+ * still reuses it via `resolveOrMintTag` — the picker just doesn't advertise
+ * tags with no track record.
+ *
+ * The hint becomes load-bearing when we tag NOTES, where a people-derived
+ * catalogue gives no signal at all. That's the seam this function marks.
+ */
+export async function fetchPickerTags(): Promise<TagSummary[]> {
+  return fetchTagIndex();
 }
 
 /**

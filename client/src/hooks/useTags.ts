@@ -4,6 +4,7 @@ import {
   fetchProfileTags,
   fetchTagDetail,
   fetchTagIndex,
+  fetchPickerTags,
   matchTags,
   applyTagToProfile,
   predictedTagKey,
@@ -61,6 +62,21 @@ export function useTagIndex(enabled = true) {
   return useQuery<TagSummary[]>({
     queryKey: tagIndexKey,
     queryFn: () => fetchTagIndex(),
+    enabled,
+    staleTime: 30 * 60_000,
+    gcTime: 60 * 60_000,
+    retry: 1,
+  });
+}
+
+/**
+ * Everything the "tag a person" picker can offer: tags in use, plus tags the
+ * house hinted are for people but nobody has applied yet.
+ */
+export function usePickerTags(enabled = true) {
+  return useQuery<TagSummary[]>({
+    queryKey: ["tag-picker-options"],
+    queryFn: () => fetchPickerTags(),
     enabled,
     staleTime: 30 * 60_000,
     gcTime: 60 * 60_000,

@@ -94,7 +94,24 @@ the union the kit asks for. Suggest the kit's §3.5 explicitly tell integrators 
 verify their publish helper actually honours a relay list, because the failure is
 invisible.
 
-## 5. Smaller notes
+## 5. The published applicability list carries QA entries
+
+`fetchApplicabilityLists` works and returns data — 13 pubkey-applicable, 27
+event-applicable coordinates as of 2026-08-05. Two problems in practice:
+
+- **For a people-picker sourced from usage, the hint is redundant and actively
+  harmful as a sort key.** Applicability is HINT ∪ USAGE, and a catalogue built
+  from profile taggings is *entirely* applicable-by-usage. Only 9 of our 39
+  tags carry the hint, so ordering by it buried `AOS 2026 Participant` (88
+  people) beneath tags with three. Worth stating in C3 that the hint is for
+  cold-start and cross-context ordering, not for ranking a usage-derived list.
+- **The pubkey list includes harness output** — `jumble-qa-profile-1784946392`
+  and `test account` are both in it. We tried offering never-used hinted tags as
+  the cold-start path the hint exists for, and it put those straight into the
+  picker. We dropped that path rather than ship the noise. Worth pruning the
+  published list, or documenting that consumers should expect test entries.
+
+## 6. Smaller notes
 
 - **The SDK runs fine outside a bundler.** We used the vendored
   `profile-tagging.js` from plain Node to build and sign events for a cleanup
