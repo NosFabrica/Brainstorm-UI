@@ -8,6 +8,9 @@ import { npubFromPubkey } from "@/lib/shareId";
 import { initialsFor } from "@/lib/profileDefaults";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
+import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
+import { useTagMatches } from "@/hooks/useTags";
+import type { TagSummary } from "@/services/tags";
 import { getCurrentUser } from "@/services/nostr";
 import { useActivePov } from "@/hooks/useActivePov";
 import { useHasMywot } from "@/hooks/useHasMywot";
@@ -111,6 +114,13 @@ export function HeaderSearchBox({
     navigate(topicPath(tag));
   };
 
+  const goTag = (tag: TagSummary) => {
+    const path = tagSuggestionPath(tag, npubFromPubkey);
+    if (!path) return;
+    setOpen(false);
+    navigate(path);
+  };
+
   const submit = (e?: FormEvent) => {
     e?.preventDefault();
     const topic = parseTopicQuery(q);
@@ -135,6 +145,8 @@ export function HeaderSearchBox({
   };
 
   const topic = parseTopicQuery(q);
+  // `#topic` queries already route to the hashtag feed — don't offer a second answer.
+  const tagMatches = useTagMatches(topic.isTopic ? "" : q);
 
   return (
     <div ref={containerRef} className={`relative ${className}`} data-testid="header-search">
@@ -167,16 +179,29 @@ export function HeaderSearchBox({
           )}
         </div>
       </form>
-      {open && (topic.isTopic || loading || suggestions.length > 0) && (
+      {open && (topic.isTopic || loading || suggestions.length > 0 || tagMatches.length > 0) && (
         <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl shadow-slate-900/10" role="listbox" data-testid="header-search-suggestions">
           {topic.isTopic ? (
             <TopicSuggestionRow tag={topic.tag} active onSelect={() => goTopic(topic.tag)} testId="header-search-topic" />
-          ) : loading && suggestions.length === 0 ? (
+          ) : loading && suggestions.length === 0 && tagMatches.length === 0 ? (
             <div className="flex items-center gap-2 px-4 py-3 text-sm text-slate-400 dark:text-slate-500">
               <Loader2 className="h-4 w-4 animate-spin" /> Searching…
             </div>
           ) : (
-            suggestions.map((r, i) => (
+            <>
+            {tagMatches.length > 0 && (
+              <div className="border-b border-slate-100 dark:border-slate-800/60" data-testid="header-search-tags">
+                {tagMatches.map((t) => (
+                  <TagSuggestionRow
+                    key={t.key}
+                    tag={t}
+                    onSelect={() => goTag(t)}
+                    testId="header-search-tag"
+                  />
+                ))}
+              </div>
+            )}
+            {suggestions.map((r, i) => (
               <button
                 key={r.pubkey}
                 type="button"
@@ -205,7 +230,8 @@ export function HeaderSearchBox({
                   </span>
                 )}
               </button>
-            ))
+            ))}
+            </>
           )}
         </div>
       )}

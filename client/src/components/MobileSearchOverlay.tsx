@@ -7,6 +7,9 @@ import { getRecentItems, recentKey, pushRecentQuery, pushRecentProfile, removeRe
 import { searchByText, isLikelyNpub, isHexPubkey, isNip05Handle, type SearchResult } from "@/lib/profileSearch";
 import { useActivePov } from "@/hooks/useActivePov";
 import { getCurrentUser } from "@/services/nostr";
+import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
+import { useTagMatches } from "@/hooks/useTags";
+import { npubFromPubkey } from "@/lib/shareId";
 
 /** Fire from anywhere (a header magnifier) to open mobile search. */
 export const OPEN_MOBILE_SEARCH_EVENT = "open-mobile-search";
@@ -34,11 +37,15 @@ export function openMobileSearch() {
  */
 export function MobileSearchOverlay() {
   const [, navigate] = useLocation();
+  // Note this overlay has never handled `#topic` queries the way the other two
+  // search surfaces do; tags are wired in here regardless so the three don't
+  // drift further apart.
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [recents, setRecents] = useState<RecentItem[]>([]);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const tagMatches = useTagMatches(q);
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<number | undefined>(undefined);
   // Bumped on every keystroke so a slow earlier response can never overwrite a
@@ -171,6 +178,25 @@ export function MobileSearchOverlay() {
             showing nothing. */}
         {q.trim().length > 0 ? (
           <>
+            {/* Tags before people: fewer of them, and a different kind of answer
+                — "who is known for this" rather than "who is called this". */}
+            {tagMatches.length > 0 && (
+              <div className="mb-1 border-b border-slate-100 pb-1 dark:border-slate-800/60" data-testid="mobile-search-tags">
+                {tagMatches.map((t) => (
+                  <TagSuggestionRow
+                    key={t.key}
+                    tag={t}
+                    onSelect={() => {
+                      const path = tagSuggestionPath(t, npubFromPubkey);
+                      if (!path) return;
+                      setOpen(false);
+                      navigate(path);
+                    }}
+                    testId="mobile-search-tag"
+                  />
+                ))}
+              </div>
+            )}
             {results.map((r) => {
               const label = r.displayName || r.name || `${r.npub.slice(0, 12)}…`;
               const score = typeof r.wotRank === "number" ? Math.round(r.wotRank * 100) : null;

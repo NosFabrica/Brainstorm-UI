@@ -47,6 +47,9 @@ import {
 } from "@/lib/profileSearch";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
+import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
+import { useTagMatches } from "@/hooks/useTags";
+import { npubFromPubkey } from "@/lib/shareId";
 import { resolveEntityToPath } from "@/lib/resolveNostrEntity";
 
 // Anonymous visitors search from the NosFabrica ("house") POV. Logged-in users
@@ -586,7 +589,11 @@ export default function Landing() {
   // the dropdown's action row resolves it straight to the right landing page.
   const entityMatch = useMemo(() => resolveEntityToPath(query.trim()), [query]);
   const topicMatch = useMemo(() => parseTopicQuery(query), [query]);
-  const dropdownOpen = showSuggestions && (suggestions.length > 0 || isSuggesting || topicMatch.isTopic);
+  // Tags the query matches. Skipped entirely for `#topic` queries — those are
+  // already routed at the hashtag feed and shouldn't offer a second answer.
+  const tagMatches = useTagMatches(topicMatch.isTopic ? "" : query);
+  const dropdownOpen =
+    showSuggestions && (suggestions.length > 0 || isSuggesting || topicMatch.isTopic || tagMatches.length > 0);
   // "Recent" shows under an empty, focused box before any search this session —
   // never alongside the suggestions dropdown or a results list.
   const showRecent = focused && query.trim() === "" && !hasSearched && !dropdownOpen && recent.length > 0;
@@ -854,12 +861,32 @@ export default function Landing() {
                     onSelect={() => { setShowSuggestions(false); if (topicMatch.tag) setLocation(topicPath(topicMatch.tag)); }}
                     testId="home-topic"
                   />
-                ) : isSuggesting && suggestions.length === 0 ? (
+                ) : isSuggesting && suggestions.length === 0 && tagMatches.length === 0 ? (
                   <div className="px-4 py-3 flex items-center gap-2 text-slate-400 dark:text-slate-500 text-xs" data-testid="home-suggestions-loading">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…
                   </div>
                 ) : (
                   <>
+                    {/* Tags first: far fewer of them than people, and they're a
+                        different kind of answer — "who is known for this"
+                        rather than "who is called this". */}
+                    {tagMatches.length > 0 && (
+                      <div className="shrink-0 border-b border-slate-100 dark:border-slate-800/60" data-testid="home-tag-matches">
+                        {tagMatches.map((t) => (
+                          <TagSuggestionRow
+                            key={t.key}
+                            tag={t}
+                            onSelect={() => {
+                              const path = tagSuggestionPath(t, npubFromPubkey);
+                              if (!path) return;
+                              setShowSuggestions(false);
+                              setLocation(path);
+                            }}
+                            testId="home-tag-suggestion"
+                          />
+                        ))}
+                      </div>
+                    )}
                     <div className="flex-1 overflow-y-auto overscroll-contain min-h-0" data-testid="list-home-suggestions">
                     {suggestions.map((s, i) => {
                       const handle = s.nip05 ? s.nip05.replace(/^_@/, "") : null;
