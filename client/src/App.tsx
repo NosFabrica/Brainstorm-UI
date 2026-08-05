@@ -41,6 +41,7 @@ import DeveloperTrustedAssertionsPage from "@/pages/DeveloperTrustedAssertionsPa
 import NostrPage from "@/pages/NostrPage";
 import HashtagPage from "@/pages/HashtagPage";
 import TagPage from "@/pages/TagPage";
+import TagIndexPage from "@/pages/TagIndexPage";
 import PrivacyPage from "@/pages/PrivacyPage";
 import TermsPage from "@/pages/TermsPage";
 import AdminPage from "@/pages/AdminPage";
@@ -162,7 +163,8 @@ function Router() {
         <Route path="/a/:id" component={ArticlePage} />
       <Route path="/e/:id" component={EventPage} />
         <Route path="/t/:tag" component={HashtagPage} />
-        {/* Public tag page — everyone carrying one protocol tag. */}
+        {/* Public tag pages. The index must precede the per-tag route. */}
+        <Route path="/tags" component={TagIndexPage} />
         <Route path="/tags/:author/:slug" component={TagPage} />
         <Route path="/hero-lab" component={HeroLab} />
         <Route path="/welcome" component={WelcomePage} />

@@ -2,12 +2,14 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchProfileTags,
   fetchTagDetail,
+  fetchTagIndex,
   applyTagToProfile,
   predictedTagKey,
   type ApplyTagArgs,
   type ProfileTag,
   type ProfileTagsResult,
   type TagDetail,
+  type TagSummary,
 } from "@/services/tags";
 import { getCurrentUser } from "@/services/nostr";
 
@@ -39,6 +41,27 @@ export function useProfileTags(pubkey: string | undefined) {
     // already opens ~25 queries.
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
+    retry: 1,
+  });
+}
+
+export const tagIndexKey = ["tag-index"] as const;
+
+/**
+ * The whole tag catalogue, most-used first. Backs the `/tags` browse page and
+ * the tag matches in search.
+ *
+ * Cached hard on purpose: it pages through the entire assertion history, so it
+ * is the most expensive read here by far — and the answer barely moves. Search
+ * filters this in memory rather than hitting relays per keystroke.
+ */
+export function useTagIndex(enabled = true) {
+  return useQuery<TagSummary[]>({
+    queryKey: tagIndexKey,
+    queryFn: () => fetchTagIndex(),
+    enabled,
+    staleTime: 30 * 60_000,
+    gcTime: 60 * 60_000,
     retry: 1,
   });
 }

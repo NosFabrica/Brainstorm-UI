@@ -104,6 +104,50 @@ function fetchTagEvents(filter: Record<string, unknown>): Promise<NostrEvent[]> 
 }
 
 /**
+ * Walk the whole assertion history, not just the newest page.
+ *
+ * A plain `limit` is useless for the catalogue: the hub holds 2928 profile-tag
+ * assertions of which **23 are real** — the rest is QA-harness output published
+ * in a recent burst. A newest-first page of 2000 therefore contains ~6 real
+ * ones, and the catalogue silently under-reports (it claimed "Verified Human,
+ * 2 people" for a tag that has 4). Relay filters can't express "has an `a`
+ * tag", so we page backwards through `until` until the relay stops giving us
+ * anything new.
+ *
+ * Bounded on both ends: it stops on an empty page, on a timestamp that doesn't
+ * advance, or at `maxRounds` — a relay that keeps replaying the same window
+ * must not spin here. Today the whole corpus takes 3 rounds.
+ */
+async function fetchAllTagEvents(
+  filter: Record<string, unknown>,
+  { pageSize = 1000, maxRounds = 8 } = {},
+): Promise<NostrEvent[]> {
+  const seen = new Map<string, NostrEvent>();
+  let until: number | undefined;
+
+  for (let round = 0; round < maxRounds; round++) {
+    let batch: NostrEvent[];
+    try {
+      batch = await fetchTagEvents({ ...filter, limit: pageSize, ...(until ? { until } : {}) });
+    } catch {
+      break; // keep whatever we already have rather than losing the page
+    }
+    if (!batch.length) break;
+
+    let oldest = Infinity;
+    for (const ev of batch) {
+      seen.set(ev.id, ev);
+      if (ev.created_at < oldest) oldest = ev.created_at;
+    }
+    if (!Number.isFinite(oldest)) break;
+    const next = oldest - 1;
+    if (next === until) break; // relay isn't advancing; stop rather than loop
+    until = next;
+  }
+  return Array.from(seen.values());
+}
+
+/**
  * Trust reads go to the HOUSE relay. Wiring this to the hub instead is the
  * documented way to get a silent degrade to "count everyone" — the fetch
  * succeeds, finds nothing, and every asserter falls under `unknownPolicy`.
@@ -459,6 +503,114 @@ export async function fetchTagDetail(authorPubkey: string, slug: string): Promis
     );
 
   return { tag, carriers };
+}
+
+// ─── The catalogue ───────────────────────────────────────────────────────────
+
+/** One tag in the catalogue, with how much use it's actually seen. */
+export interface TagSummary extends TagIdentity {
+  key: string;
+  /** Distinct people carrying this tag. */
+  people: number;
+  /** Distinct trusted asserters who applied it to somebody. */
+  vouches: number;
+  /** Separately-minted identities folded into this entry. */
+  variants: number;
+}
+
+/**
+ * Every tag anyone actually uses, most-used first.
+ *
+ * Deliberately derived from ASSERTIONS rather than from the tag-element list.
+ * The hub holds 1902 elements of which only ~64 are real; the rest is
+ * QA-harness output (`wysiwyg-s17-1785898945945-…`). Listing elements would
+ * mean showing that noise and inventing a filter to hide it. Listing what
+ * people have actually tagged excludes it for free, and gives real counts as a
+ * by-product — which is also what ranks search results.
+ *
+ * One relay round-trip for the whole catalogue, so callers should cache it hard.
+ * Anonymous-safe like every read here.
+ */
+export async function fetchTagIndex(): Promise<TagSummary[]> {
+  const candidates = await fetchAllTagEvents({
+    kinds: [TAG_ELEMENT_KIND],
+    "#z": Z_HANDLE_PUBKEYS.map(conceptNostrUserTag),
+  });
+  if (!candidates.length) return [];
+
+  const assertions = normalizeAssertions(candidates);
+  const trusted = await resolveTrust(Array.from(new Set(assertions.map((a) => a.asserter))));
+
+  // Reuse the profile read's grouping so the catalogue can't drift from what a
+  // profile shows: same trust filter, same latest-wins, same apply/dispute rule.
+  const counted = new Map<
+    string,
+    { authorPubkey: string; slug: string; applications: Set<string>; disputes: Set<string> }
+  >();
+  const people = new Map<string, Set<string>>();
+
+  for (const a of assertions) {
+    if (!isCountable(a, trusted)) continue;
+    if (!counted.has(a.tagKey)) {
+      counted.set(a.tagKey, {
+        authorPubkey: a.tagAuthor,
+        slug: a.slug,
+        applications: new Set(),
+        disputes: new Set(),
+      });
+      people.set(a.tagKey, new Set());
+    }
+    counted.get(a.tagKey)!.applications.add(a.asserter);
+    people.get(a.tagKey)!.add(a.target);
+  }
+
+  const names = await resolveTagNames(Array.from(counted.values()));
+
+  return mergeSameNamedTags(counted, names)
+    .map(({ key, group, name, description, variantKeys }) => {
+      const carriers = new Set<string>();
+      for (const k of variantKeys) for (const p of people.get(k) ?? []) carriers.add(p);
+      return {
+        key,
+        authorPubkey: group.authorPubkey,
+        slug: group.slug,
+        name,
+        description,
+        people: carriers.size,
+        vouches: group.applications.size,
+        variants: variantKeys.length,
+      };
+    })
+    .filter((t) => t.people > 0)
+    .sort((a, b) => b.people - a.people || b.vouches - a.vouches || a.name.localeCompare(b.name));
+}
+
+/** An assertion that a caller should count: trusted asserter, applying (not disputing). */
+function isCountable(a: NormalizedAssertion, isAsserterTrusted: TrustPredicate): boolean {
+  return a.stance === "apply" && isAsserterTrusted(a.asserter);
+}
+
+/**
+ * Filter the catalogue by what someone typed. Exact match first, then
+ * starts-with, then contains — inside each band the catalogue's own
+ * usage ordering carries through.
+ */
+export function matchTags(index: TagSummary[], query: string, max = 5): TagSummary[] {
+  const q = query.trim().toLowerCase();
+  if (q.length < 2) return [];
+  const band = (t: TagSummary) => {
+    const n = t.name.toLowerCase();
+    if (n === q) return 0;
+    if (n.startsWith(q)) return 1;
+    if (n.includes(q)) return 2;
+    return 3;
+  };
+  return index
+    .map((t) => ({ t, b: band(t) }))
+    .filter((x) => x.b < 3)
+    .sort((x, y) => x.b - y.b)
+    .slice(0, max)
+    .map((x) => x.t);
 }
 
 // ─── Writing (floor B: yourself only) ────────────────────────────────────────
