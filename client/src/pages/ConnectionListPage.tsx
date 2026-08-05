@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useRoute, Redirect, Link, useLocation } from "wouter";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
-import { ArrowLeft, ChevronRight, Loader2, Users, BadgeCheck, SlidersHorizontal } from "lucide-react";
+import { ArrowLeft, Loader2, Users, SlidersHorizontal } from "lucide-react";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 import { fetchProfileForShare, fetchProfileMap, fetchReportsForPubkey, logout, type ReportMetadata } from "@/services/nostr";
 import { AccountMenu } from "@/components/AccountMenu";
@@ -9,12 +9,10 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { REPORT_TYPE_BADGE_COLORS, formatReportTime } from "@/lib/reportMeta";
 import { apiClient, hasSessionToken } from "@/services/api";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "@/services/graphHelpers";
-import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Wordmark } from "@/components/Wordmark";
-import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { InfoHint } from "@/components/InfoHint";
-import { TrustScoreModal, useScorePov, PovToggle, type ScorePov } from "@/components/score/TrustScorePov";
-import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { TrustScoreModal, useScorePov, PovToggle } from "@/components/score/TrustScorePov";
+import { PersonListRow } from "@/components/PersonListRow";
 
 type ConnKind = "followed_by" | "following" | "muted_by" | "reported_by";
 
@@ -27,12 +25,6 @@ const TYPE_MAP: Record<
   muters: { kind: "muted_by", verifiedOnly: true, title: (n) => `Verified accounts muting ${n}`, subtitle: (n) => `Trusted people who have muted ${n}.`, empty: "No verified muters." },
   reporters: { kind: "reported_by", verifiedOnly: true, title: (n) => `Verified accounts reporting ${n}`, subtitle: (n) => `Trusted people who have reported ${n}.`, empty: "No verified reporters." },
 };
-
-/** Drop placeholder handles ("null"/"undefined"/empty) and the NIP-05 root prefix. */
-function cleanNip05(v?: string): string | undefined {
-  const s = (v || "").replace(/^_@/, "").trim();
-  return s && s.toLowerCase() !== "null" && s.toLowerCase() !== "undefined" ? s : undefined;
-}
 
 const PAGE = 20;
 
@@ -320,42 +312,26 @@ export default function ConnectionListPage() {
               const pk = typeof entry === "string" ? entry : entry.pubkey;
               const inf = influence.get(pk) ?? null;
               const p = profileMap?.get(pk);
-              let rowNpub = "";
-              try { rowNpub = npubFromPubkey(pk); } catch { /* skip bad key */ }
-              const name = p?.display_name || p?.name || (rowNpub ? rowNpub.slice(0, 12) + "…" : pk.slice(0, 12) + "…");
-              const handle = cleanNip05(p?.nip05);
               const score = typeof inf === "number" ? Math.min(1, Math.max(0, inf)) : null;
+              const rm = cfg.kind === "reported_by" ? reportMap.get(pk) : undefined;
               return (
-                <Link
+                <PersonListRow
                   key={pk}
-                  href={rowNpub ? `/p/${rowNpub}` : "#"}
-                  className="group flex items-center gap-3.5 px-4 py-3 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-                  data-testid={`conn-row-${pk.slice(0, 8)}`}
-                >
-                  <TrustAvatar picture={p?.picture} name={name} score={score} pov={scorePov} />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
-                    {handle ? (
-                      <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-500 dark:text-slate-400">
-                        <BadgeCheck className="h-3 w-3 shrink-0 text-sky-500" /><span className="truncate">{handle}</span>
-                      </p>
-                    ) : (
-                      rowNpub && <p className="mt-0.5 truncate font-mono text-xs text-slate-400 dark:text-slate-500">{rowNpub.slice(0, 16)}…</p>
-                    )}
-                    {cfg.kind === "reported_by" && (() => {
-                      const rm = reportMap.get(pk);
-                      if (!rm) return null;
-                      return (
-                        <div className="mt-1 flex flex-wrap items-center gap-1.5" data-testid={`conn-report-${pk.slice(0, 8)}`}>
-                          <span className={`inline-flex items-center rounded border px-1.5 py-px text-[10px] font-medium ${REPORT_TYPE_BADGE_COLORS[rm.reportType] || REPORT_TYPE_BADGE_COLORS.other}`}>{rm.reportType}</span>
-                          <span className="text-[10px] text-slate-400 dark:text-slate-500">{formatReportTime(rm.timestamp)}</span>
-                          {rm.reason && <span className="max-w-[160px] truncate text-[10px] italic text-slate-400 dark:text-slate-500" title={rm.reason}>"{rm.reason}"</span>}
-                        </div>
-                      );
-                    })()}
-                  </div>
-                  <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 dark:text-slate-600 transition-colors group-hover:text-slate-400 dark:group-hover:text-slate-500" />
-                </Link>
+                  pubkey={pk}
+                  displayName={p?.display_name || p?.name}
+                  picture={p?.picture}
+                  nip05={p?.nip05}
+                  score={score}
+                  pov={scorePov}
+                  testId={`conn-row-${pk.slice(0, 8)}`}
+                  meta={rm && (
+                    <div className="mt-1 flex flex-wrap items-center gap-1.5" data-testid={`conn-report-${pk.slice(0, 8)}`}>
+                      <span className={`inline-flex items-center rounded border px-1.5 py-px text-[10px] font-medium ${REPORT_TYPE_BADGE_COLORS[rm.reportType] || REPORT_TYPE_BADGE_COLORS.other}`}>{rm.reportType}</span>
+                      <span className="text-[10px] text-slate-400 dark:text-slate-500">{formatReportTime(rm.timestamp)}</span>
+                      {rm.reason && <span className="max-w-[160px] truncate text-[10px] italic text-slate-400 dark:text-slate-500" title={rm.reason}>"{rm.reason}"</span>}
+                    </div>
+                  )}
+                />
               );
             })
           )}
@@ -379,21 +355,3 @@ export default function ConnectionListPage() {
   );
 }
 
-/** Avatar wrapped in a tier-coloured trust ring with a small score badge — one
- *  premium "person" token (LinkedIn/Facebook feel) instead of two side-by-side
- *  circles. */
-function TrustAvatar({ picture, name, score, pov }: { picture?: string; name: string; score: number | null; pov: ScorePov }) {
-  return (
-    <div className="relative shrink-0">
-      <Avatar className="h-12 w-12 rounded-full bg-white dark:bg-slate-900" style={{ boxShadow: "0 0 0 1px #e2e8f0" }}>
-        {picture ? <AvatarImage src={picture} alt={name} className="object-cover" /> : null}
-        <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
-      </Avatar>
-      {/* The Verification Score coin — same label-less badge as the profile hero,
-          POV-aware (colored personalized / grey global). */}
-      {score != null && (
-        <VerificationCoin score01={score} pov={pov} size={24} className="absolute -bottom-1 -right-1" />
-      )}
-    </div>
-  );
-}

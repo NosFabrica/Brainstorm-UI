@@ -23,6 +23,7 @@ import {
 import {
   applyProfileTagging,
   conceptNostrUserTag,
+  filterProfileTaggingsUsingTag,
   filterTagsAppliedToPubkey,
   type Polarity,
   type ApplyProfileTaggingResult,
@@ -192,57 +193,99 @@ function bucketize(ev: NostrEvent): "apply" | "dispute" | "neutral" {
  * at all. Reading identity from the `e` fallback instead would surface that
  * noise and buy nothing, so we consume by `#a` exactly as the protocol says.
  */
-function classifyProfileTaggings(
-  candidates: NostrEvent[],
-  isAsserterTrusted: TrustPredicate,
-  viewerPubkey?: string,
-): {
-  counted: Map<string, { authorPubkey: string; slug: string; applications: Set<string>; disputes: Set<string> }>;
-  mine: Map<string, "apply" | "dispute">;
-} {
+interface NormalizedAssertion {
+  /** `<tagAuthor>|<slug>` — the tag's identity. */
+  tagKey: string;
+  tagAuthor: string;
+  slug: string;
+  /** The pubkey being tagged. */
+  target: string;
+  /** The pubkey doing the tagging. */
+  asserter: string;
+  stance: "apply" | "dispute";
+}
+
+function normalizeAssertions(candidates: NostrEvent[]): NormalizedAssertion[] {
   const honored = new Set(Z_HANDLE_PUBKEYS.map(conceptNostrUserTag));
 
-  // Latest-wins per (tag, asserter). The d-tag is deterministic per
-  // (slug, target, asserter), so a re-tag replaces rather than stacks — but
-  // relays can hand us both the old and new copy, and apply↔dispute must
-  // collapse to the newer stance rather than counting twice.
+  // Latest-wins per (tag, target, asserter). The d-tag is deterministic for
+  // that triple, so a re-tag replaces rather than stacks — but relays can hand
+  // us both the old and new copy, and an apply↔dispute flip has to collapse to
+  // the newer stance instead of counting as both.
   const latest = new Map<string, NostrEvent>();
   for (const ev of candidates) {
     if (!(ev.tags || []).some((t) => t[0] === "z" && honored.has(t[1]))) continue;
     const a = tagValue(ev, "a");
     const m = a && /^39999:([0-9a-f]{64}):(.+)$/.exec(a);
     if (!m) continue;
-    const key = `${m[1]}|${m[2]}|${ev.pubkey}`;
+    const target = tagValue(ev, "p");
+    if (!target) continue;
+    const key = `${m[1]}|${m[2]}|${target}|${ev.pubkey}`;
     const prev = latest.get(key);
     if (!prev || ev.created_at > prev.created_at) latest.set(key, ev);
   }
 
+  const out: NormalizedAssertion[] = [];
+  for (const [composite, ev] of latest) {
+    const [tagAuthor, slug, target] = composite.split("|");
+    const stance = bucketize(ev);
+    if (stance === "neutral") continue;
+    out.push({ tagKey: `${tagAuthor}|${slug}`, tagAuthor, slug, target, asserter: ev.pubkey, stance });
+  }
+  return out;
+}
+
+/** Group normalized assertions BY TAG — the profile read. */
+function groupByTag(
+  assertions: NormalizedAssertion[],
+  isAsserterTrusted: TrustPredicate,
+  viewerPubkey?: string,
+): {
+  counted: Map<string, { authorPubkey: string; slug: string; applications: Set<string>; disputes: Set<string> }>;
+  mine: Map<string, "apply" | "dispute">;
+} {
   const counted = new Map<
     string,
     { authorPubkey: string; slug: string; applications: Set<string>; disputes: Set<string> }
   >();
   const mine = new Map<string, "apply" | "dispute">();
 
-  for (const [composite, ev] of latest) {
-    const [authorPubkey, slug] = composite.split("|");
-    const tagKey = `${authorPubkey}|${slug}`;
-    const stance = bucketize(ev);
-    if (stance === "neutral") continue;
-
+  for (const a of assertions) {
     // The viewer's own stance is recorded BEFORE the trust filter, so a tag
     // they just applied doesn't disappear under a POV that doesn't count them.
-    if (viewerPubkey && ev.pubkey === viewerPubkey) mine.set(tagKey, stance);
+    if (viewerPubkey && a.asserter === viewerPubkey) mine.set(a.tagKey, a.stance);
+    if (!isAsserterTrusted(a.asserter)) continue;
 
-    if (!isAsserterTrusted(ev.pubkey)) continue;
-
-    if (!counted.has(tagKey)) {
-      counted.set(tagKey, { authorPubkey, slug, applications: new Set(), disputes: new Set() });
+    if (!counted.has(a.tagKey)) {
+      counted.set(a.tagKey, {
+        authorPubkey: a.tagAuthor,
+        slug: a.slug,
+        applications: new Set(),
+        disputes: new Set(),
+      });
     }
-    const grp = counted.get(tagKey)!;
-    (stance === "apply" ? grp.applications : grp.disputes).add(ev.pubkey);
+    const grp = counted.get(a.tagKey)!;
+    (a.stance === "apply" ? grp.applications : grp.disputes).add(a.asserter);
   }
 
   return { counted, mine };
+}
+
+/** Group normalized assertions BY TARGET — the tag-page read. */
+function groupByTarget(
+  assertions: NormalizedAssertion[],
+  isAsserterTrusted: TrustPredicate,
+): Map<string, { applications: Set<string>; disputes: Set<string> }> {
+  const byTarget = new Map<string, { applications: Set<string>; disputes: Set<string> }>();
+  for (const a of assertions) {
+    if (!isAsserterTrusted(a.asserter)) continue;
+    if (!byTarget.has(a.target)) {
+      byTarget.set(a.target, { applications: new Set(), disputes: new Set() });
+    }
+    const grp = byTarget.get(a.target)!;
+    (a.stance === "apply" ? grp.applications : grp.disputes).add(a.asserter);
+  }
+  return byTarget;
 }
 
 /**
@@ -300,8 +343,9 @@ export async function fetchProfileTags(
   );
   if (!candidates.length) return { tags: [], mine: [] };
 
-  const trusted = await resolveTrust(Array.from(new Set(candidates.map((c) => c.pubkey))));
-  const { counted, mine } = classifyProfileTaggings(candidates, trusted, viewerPubkey);
+  const assertions = normalizeAssertions(candidates);
+  const trusted = await resolveTrust(Array.from(new Set(assertions.map((a) => a.asserter))));
+  const { counted, mine } = groupByTag(assertions, trusted, viewerPubkey);
 
   const names = await resolveTagNames(Array.from(counted.values()));
 
@@ -333,6 +377,83 @@ export async function fetchProfileTags(
     tags,
     mine: Array.from(mine.entries()).map(([key, stance]) => ({ key, stance })),
   };
+}
+
+// ─── Reading a tag ───────────────────────────────────────────────────────────
+
+/** One person carrying a tag, as the tag page lists them. */
+export interface TagCarrier {
+  pubkey: string;
+  /** Distinct trusted asserters who applied the tag to this person. */
+  applications: number;
+  /** Distinct trusted asserters who disputed it. */
+  disputes: number;
+}
+
+export interface TagDetail {
+  tag: TagIdentity;
+  carriers: TagCarrier[];
+}
+
+/**
+ * Everyone the network says carries one tag — the reverse of `fetchProfileTags`,
+ * and the read behind `/tags/:author/:slug`.
+ *
+ * A tag IS its list of people, which is what makes this the payoff of the whole
+ * feature rather than a side view. Same trust discipline as the profile read:
+ * one assertion per (target, asserter) with the latest stance winning, counted
+ * only from asserters the POV honors.
+ *
+ * Anonymous-safe, like every read here — relays only, no API client.
+ */
+export async function fetchTagDetail(authorPubkey: string, slug: string): Promise<TagDetail> {
+  const [candidates, names] = await Promise.all([
+    fetchTagEvents(
+      filterProfileTaggingsUsingTag({
+        tagAuthorPubkey: authorPubkey,
+        slug,
+        zHandlePubkeys: Z_HANDLE_PUBKEYS,
+      }),
+    ),
+    resolveTagNames([{ authorPubkey, slug }]),
+  ]);
+
+  const meta = names.get(`${authorPubkey}|${slug}`);
+  const tag: TagIdentity = {
+    authorPubkey,
+    slug,
+    name: meta?.name || slug,
+    description: meta?.description,
+  };
+
+  if (!candidates.length) return { tag, carriers: [] };
+
+  // Only assertions for THIS tag — the relay filtered by #a, but a permissive
+  // relay could hand back more and we'd rather not list strangers.
+  const assertions = normalizeAssertions(candidates).filter(
+    (a) => a.tagAuthor === authorPubkey && a.slug === slug,
+  );
+
+  const trusted = await resolveTrust(Array.from(new Set(assertions.map((a) => a.asserter))));
+  const byTarget = groupByTarget(assertions, trusted);
+
+  const carriers: TagCarrier[] = Array.from(byTarget.entries())
+    .map(([pubkey, grp]) => ({
+      pubkey,
+      applications: grp.applications.size,
+      disputes: grp.disputes.size,
+    }))
+    .filter((c) => c.applications > 0)
+    // Most-vouched first; contested sink. Ties break on pubkey so the order is
+    // stable across refetches instead of reshuffling.
+    .sort(
+      (a, b) =>
+        b.applications - a.applications ||
+        a.disputes - b.disputes ||
+        a.pubkey.localeCompare(b.pubkey),
+    );
+
+  return { tag, carriers };
 }
 
 // ─── Writing (floor B: yourself only) ────────────────────────────────────────

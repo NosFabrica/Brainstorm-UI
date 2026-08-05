@@ -40,6 +40,7 @@ import DeveloperOpenRankingPage from "@/pages/DeveloperOpenRankingPage";
 import DeveloperTrustedAssertionsPage from "@/pages/DeveloperTrustedAssertionsPage";
 import NostrPage from "@/pages/NostrPage";
 import HashtagPage from "@/pages/HashtagPage";
+import TagPage from "@/pages/TagPage";
 import PrivacyPage from "@/pages/PrivacyPage";
 import TermsPage from "@/pages/TermsPage";
 import AdminPage from "@/pages/AdminPage";
@@ -161,6 +162,8 @@ function Router() {
         <Route path="/a/:id" component={ArticlePage} />
       <Route path="/e/:id" component={EventPage} />
         <Route path="/t/:tag" component={HashtagPage} />
+        {/* Public tag page — everyone carrying one protocol tag. */}
+        <Route path="/tags/:author/:slug" component={TagPage} />
         <Route path="/hero-lab" component={HeroLab} />
         <Route path="/welcome" component={WelcomePage} />
         <Route path="/setup">{() => <RequireAuth component={OnboardingWizard} />}</Route>

@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchProfileTags,
+  fetchTagDetail,
   applyTagToProfile,
   predictedTagKey,
   type ApplyTagArgs,
   type ProfileTag,
   type ProfileTagsResult,
+  type TagDetail,
 } from "@/services/tags";
 import { getCurrentUser } from "@/services/nostr";
 
@@ -35,6 +37,27 @@ export function useProfileTags(pubkey: string | undefined) {
     enabled: !!pubkey,
     // Tags move slowly and every miss costs a relay round-trip on a page that
     // already opens ~25 queries.
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    retry: 1,
+  });
+}
+
+export const tagDetailKey = (authorPubkey: string, slug: string) =>
+  ["tag-detail", authorPubkey, slug] as const;
+
+/**
+ * Everyone carrying one tag — the read behind `/tags/:author/:slug`.
+ *
+ * Anon-safe for the same reason as `useProfileTags`: relays only. The viewer
+ * isn't in the key because this view has no per-viewer component; what it shows
+ * is the same for everyone under the configured POV.
+ */
+export function useTagDetail(authorPubkey: string | undefined, slug: string | undefined) {
+  return useQuery<TagDetail>({
+    queryKey: tagDetailKey(authorPubkey ?? "", slug ?? ""),
+    queryFn: () => fetchTagDetail(authorPubkey!, slug!),
+    enabled: !!authorPubkey && !!slug,
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
     retry: 1,

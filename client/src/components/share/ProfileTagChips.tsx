@@ -1,6 +1,8 @@
+import { Link } from "wouter";
 import { Chip } from "@/components/ui/chip";
 import { useProfileTags } from "@/hooks/useTags";
 import { TagYourselfButton } from "@/components/share/TagYourselfButton";
+import { npubFromPubkey } from "@/lib/shareId";
 
 /**
  * Network-attested tags on the public profile — the chip row that fills the slot
@@ -12,9 +14,8 @@ import { TagYourselfButton } from "@/components/share/TagYourselfButton";
  * already assembling ~25 queries and a placeholder here would just add another
  * shifting block above the bio.
  *
- * Deliberately not clickable yet: a tag chip should open that tag's page, and
- * that page (floor D) isn't built. A chip that looks tappable and isn't is worse
- * than a plain one.
+ * Each chip links to its tag page (`/tags/:author/:slug`) — the list of everyone
+ * carrying it, which is what makes a tag legible as a list rather than a label.
  */
 export function ProfileTagChips({
   pubkey,
@@ -44,18 +45,32 @@ export function ProfileTagChips({
           tag.applications === 1
             ? "1 person added this"
             : `${tag.applications} people added this`;
-        return (
+        let authorNpub = "";
+        try { authorNpub = npubFromPubkey(tag.authorPubkey); } catch { /* unlinkable */ }
+
+        const chip = (
           <Chip
             key={tag.key}
             tone={tag.myStance === "apply" ? "accent" : "brand"}
             title={tag.description ? `${who} — ${tag.description}` : who}
             data-testid="share-tag-chip"
+            className={authorNpub ? "transition-opacity hover:opacity-80" : undefined}
           >
             {tag.name}
             {tag.applications > 1 && (
               <span className="opacity-60 tabular-nums">{tag.applications}</span>
             )}
           </Chip>
+        );
+
+        // A tag whose author pubkey won't encode has no page to open, so it
+        // stays a plain chip rather than a link that goes nowhere.
+        return authorNpub ? (
+          <Link key={tag.key} href={`/tags/${authorNpub}/${tag.slug}`}>
+            {chip}
+          </Link>
+        ) : (
+          chip
         );
       })}
       {canTag && pubkey && <TagYourselfButton pubkey={pubkey} />}
