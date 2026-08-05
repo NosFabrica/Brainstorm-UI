@@ -66,7 +66,13 @@ export default function TagPage() {
   const carriers = detailQuery.data?.carriers ?? [];
   const tagName = detailQuery.data?.tag.name || slug || "Tag";
 
-  const pubkeys = useMemo(() => carriers.map((c) => c.pubkey), [carriers]);
+  // The tag's author rides along with the carriers so their name resolves in
+  // the same round-trip — the alternative was a second query for one pubkey.
+  const pubkeys = useMemo(() => {
+    const list = carriers.map((c) => c.pubkey);
+    if (authorPubkey && !list.includes(authorPubkey)) list.push(authorPubkey);
+    return list;
+  }, [carriers, authorPubkey]);
   const profilesQuery = useQuery({
     queryKey: ["tag-profiles", pubkeys.join(",")],
     queryFn: () => fetchProfileMap(pubkeys),
@@ -86,6 +92,7 @@ export default function TagPage() {
   if (!authorPubkey) return <Redirect to="/" replace />;
 
   const loading = detailQuery.isLoading;
+  const authorProfile = profileMap?.get(authorPubkey);
   let authorNpub = "";
   try { authorNpub = npubFromPubkey(authorPubkey); } catch { /* leave unlinked */ }
 
@@ -114,12 +121,14 @@ export default function TagPage() {
         />
 
         {/* Who defined this tag. Tags aren't owned by the app — someone minted
-            this one, and saying who is part of the point. */}
+            this one, and saying who is part of the point. Show their NAME: a
+            truncated npub tells a normal reader nothing except that this is
+            complicated. Falls back to the npub only when there's no profile. */}
         {authorNpub && (
           <p className="mt-2 text-xs text-slate-400 dark:text-slate-500" data-testid="tag-author">
             Tag created by{" "}
             <Link href={`/p/${authorNpub}`} className="font-medium text-brand-link hover:underline">
-              {authorNpub.slice(0, 12)}…
+              {authorProfile?.display_name || authorProfile?.name || `${authorNpub.slice(0, 12)}…`}
             </Link>
           </p>
         )}

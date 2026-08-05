@@ -73,7 +73,26 @@ The SDK is plain ESM JavaScript with JSDoc; this project is strict TS with
 `.d.ts` beside the copy. Rewriting forks it from upstream and we lose the ability
 to re-vendor.
 
-## 3. Role chips and protocol tags coexist — no bridging
+## 3. Role chips are RETIRED; tags replaced them — still no auto-bridging
+
+> **Revised 2026-08-05, same day.** Originally "coexist". The team's notes call
+> the role chips the placeholder that tags were meant to replace, and
+> `SharePage`'s own TODO agreed ("the owner-set role chips below stand in").
+> Benjamin chose to follow that, so the chips and the "What you do" editor are
+> gone.
+>
+> **The privacy half of this decision stands unchanged and is the important
+> half:** nothing from `profile-prefs` is ever auto-published as a tag. Rather
+> than delete people's self-declarations, the picker *offers* them back — an
+> owner with saved roles sees "You listed these before · Add as tag", and a tap
+> publishes. No tap, no event.
+>
+> `roles` stays in `ProfilePrefs` and `parseProfilePrefs`: `publishProfilePrefs`
+> replaces the whole addressable event, so removing the field would erase saved
+> roles the next time a user changed any other setting. `ROLES` stays too — it
+> seeds the picker.
+
+The original reasoning, which still explains why the two are different things:
 
 Two things look similar on `/p/:id` and must stay separate:
 
