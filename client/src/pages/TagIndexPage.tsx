@@ -137,9 +137,19 @@ function TagIndexRow({ tag }: { tag: TagSummary }) {
           <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">{tag.description}</p>
         )}
       </div>
-      <span className="flex shrink-0 items-center gap-1 text-xs text-slate-400 dark:text-slate-500" title={`${tag.vouches} ${tag.vouches === 1 ? "person has" : "people have"} added this tag`}>
-        <Users className="h-3.5 w-3.5" />
-        {tag.people}
+      <span className="flex shrink-0 flex-col items-end gap-0.5 text-xs text-slate-400 dark:text-slate-500">
+        <span className="flex items-center gap-1">
+          <Users className="h-3.5 w-3.5" />
+          {tag.people}
+        </span>
+        {/* Diversity, not just size. A list of 24 assembled by one account is a
+            different object from 24 people agreeing, and the browse view is
+            where you'd choose which to open. */}
+        {tag.vouches > 0 && (
+          <span className="text-[10px]" data-testid="tag-index-vouchers">
+            {tag.vouches} {tag.vouches === 1 ? "account" : "accounts"}
+          </span>
+        )}
       </span>
     </Link>
   );

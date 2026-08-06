@@ -272,6 +272,8 @@ interface NormalizedAssertion {
   /** The pubkey doing the tagging. */
   asserter: string;
   stance: "apply" | "dispute";
+  /** When it was signed — the only honest basis for a "recently added" sort. */
+  at: number;
 }
 
 /** A tag-element's coordinates, however we got to them. */
@@ -352,7 +354,15 @@ async function normalizeAssertions(candidates: NostrEvent[]): Promise<Normalized
     const [tagAuthor, slug, target] = composite.split("|");
     const stance = bucketize(ev);
     if (stance === "neutral") continue;
-    out.push({ tagKey: `${tagAuthor}|${slug}`, tagAuthor, slug, target, asserter: ev.pubkey, stance });
+    out.push({
+      tagKey: `${tagAuthor}|${slug}`,
+      tagAuthor,
+      slug,
+      target,
+      asserter: ev.pubkey,
+      stance,
+      at: ev.created_at,
+    });
   }
   return out;
 }
@@ -436,6 +446,8 @@ interface TargetSupport {
   disputes: Set<string>;
   selfApplied: boolean;
   selfDisputed: boolean;
+  /** Newest applying assertion, for the "recently added" sort. */
+  addedAt: number;
 }
 
 /** Group normalized assertions BY TARGET — the tag-page read. */
@@ -452,9 +464,11 @@ function groupByTarget(
         disputes: new Set(),
         selfApplied: false,
         selfDisputed: false,
+        addedAt: 0,
       });
     }
     const grp = byTarget.get(a.target)!;
+    if (a.stance === "apply" && a.at > grp.addedAt) grp.addedAt = a.at;
     if (a.asserter === a.target) {
       if (a.stance === "apply") grp.selfApplied = true;
       else grp.selfDisputed = true;
@@ -586,6 +600,8 @@ export interface TagCarrier {
   subjectDisagreed: boolean;
   /** The VIEWER's stance on this person carrying the tag — drives the vote button. */
   myStance?: "apply" | "dispute";
+  /** Unix seconds of the newest assertion adding them. Powers "recently added". */
+  addedAt: number;
 }
 
 export interface TagDetail {
@@ -695,6 +711,7 @@ export async function fetchTagDetail(
       selfDeclared: grp.selfApplied,
       subjectDisagreed: grp.selfDisputed,
       myStance: myStanceFor.get(pubkey),
+      addedAt: grp.addedAt,
     }))
     // Vouched-for people, plus people who put the tag on themselves, plus
     // anyone the viewer has a stance on — same "never silently vanish" rule

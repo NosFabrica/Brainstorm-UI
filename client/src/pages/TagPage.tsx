@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRoute, Redirect, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Check, Loader2, Plus, Tag as TagIcon, Users } from "lucide-react";
@@ -56,8 +56,16 @@ function useTagMeta(name: string, count: number) {
   }, [name, count]);
 }
 
+/** Below this many people a filter bar is furniture; badges carry it instead. */
+const FILTER_THRESHOLD = 10;
+
+type CarrierSort = "vouched" | "recent";
+
 export default function TagPage() {
   const [, params] = useRoute("/tags/:author/:slug");
+  const [sort, setSort] = useState<CarrierSort>("vouched");
+  const [hideSelfDeclared, setHideSelfDeclared] = useState(false);
+  const [hideContested, setHideContested] = useState(false);
   const rawAuthor = params?.author;
   const slug = params?.slug;
   const { pov: scorePov } = useScorePov();
@@ -111,6 +119,20 @@ export default function TagPage() {
   const loading = detailQuery.isLoading;
   const distinctVouchers = new Set(carriers.flatMap((c) => c.asserters)).size;
   const iAmListed = !!viewerPubkey && carriers.some((c) => c.pubkey === viewerPubkey && c.myStance !== "dispute");
+
+  /**
+   * Filters appear only once a list is big enough to need them. 27 of the 39
+   * tags on the hub have fewer than four people — a filter bar over three rows
+   * is furniture, and the row badges already do the job at that size.
+   */
+  const showFilters = carriers.length >= FILTER_THRESHOLD;
+  const visible = useMemo(() => {
+    let list = carriers;
+    if (hideSelfDeclared) list = list.filter((c) => c.applications > 0);
+    if (hideContested) list = list.filter((c) => c.disputes === 0 && !c.subjectDisagreed);
+    if (sort === "recent") list = [...list].sort((a, b) => b.addedAt - a.addedAt);
+    return list;
+  }, [carriers, hideSelfDeclared, hideContested, sort]);
   const authorProfile = profileMap?.get(authorPubkey);
   let authorNpub = "";
   try { authorNpub = npubFromPubkey(authorPubkey); } catch { /* leave unlinked */ }
@@ -195,9 +217,48 @@ export default function TagPage() {
           )}
         </div>
 
+        {!loading && carriers.length > 1 && (
+          <div className="mb-2 flex flex-wrap items-center gap-1.5" data-testid="tag-controls">
+            <SortChip active={sort === "vouched"} onClick={() => setSort("vouched")} testId="tag-sort-vouched">
+              Most vouched
+            </SortChip>
+            <SortChip active={sort === "recent"} onClick={() => setSort("recent")} testId="tag-sort-recent">
+              Recently added
+            </SortChip>
+            {showFilters && (
+              <>
+                <span className="mx-1 h-3 w-px bg-slate-200 dark:bg-slate-700" />
+                <SortChip
+                  active={hideSelfDeclared}
+                  onClick={() => setHideSelfDeclared((v) => !v)}
+                  testId="tag-filter-self"
+                >
+                  Vouched only
+                </SortChip>
+                <SortChip
+                  active={hideContested}
+                  onClick={() => setHideContested((v) => !v)}
+                  testId="tag-filter-contested"
+                >
+                  Hide contested
+                </SortChip>
+              </>
+            )}
+          </div>
+        )}
+
         <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm divide-y divide-slate-100 dark:divide-slate-800/60 overflow-hidden">
           {loading ? (
             <PersonListSkeleton testId="tag-skeleton" />
+          ) : visible.length === 0 && carriers.length > 0 ? (
+            <div className="px-4 py-8">
+              <EmptyState
+                icon={TagIcon}
+                compact
+                title="Nothing matches those filters"
+                description="Turn one off to see the rest of the list."
+              />
+            </div>
           ) : carriers.length === 0 ? (
             <div className="px-4 py-8">
               <EmptyState
@@ -208,7 +269,7 @@ export default function TagPage() {
               />
             </div>
           ) : (
-            carriers.map((c) => {
+            visible.map((c) => {
               const p = profileMap?.get(c.pubkey);
               return (
                 <PersonListRow
@@ -250,5 +311,34 @@ export default function TagPage() {
         </div>
       </main>
     </div>
+  );
+}
+
+/** A sort or filter toggle. Same pill for both — they're the same gesture. */
+function SortChip({
+  active,
+  onClick,
+  children,
+  testId,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  testId?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
+        active
+          ? "bg-brand-primary text-white"
+          : "text-slate-500 hover:text-brand-primary dark:text-slate-400"
+      }`}
+      data-testid={testId}
+    >
+      {children}
+    </button>
   );
 }

@@ -192,6 +192,8 @@ export function useTagVote(authorPubkey: string | undefined, slug: string | unde
               selfDeclared: isSelf && stance === "apply",
               subjectDisagreed: isSelf && stance === "dispute",
               myStance: stance,
+              // Just now, by definition — this is the newest assertion there is.
+              addedAt: Math.floor(Date.now() / 1000),
             },
           ];
 

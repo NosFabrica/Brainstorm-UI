@@ -26,8 +26,32 @@ export function CarrierMeta({
   const shown = vouchers.slice(0, 3);
   const extra = vouchers.length - shown.length;
 
+  // Badges do at small scale what a filter bar does at large: let you scan a
+  // list and see which rows are self-declared or contested without reading
+  // every line. Most tags here have three people, where a filter row is noise.
+  const badges: Array<{ label: string; tone: string; testId: string }> = [];
+  if (carrier.applications === 0 && carrier.selfDeclared) {
+    badges.push({ label: "Self-declared", tone: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400", testId: "badge-self" });
+  }
+  if (carrier.disputes > 0 || carrier.subjectDisagreed) {
+    badges.push({ label: "Contested", tone: "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400", testId: "badge-contested" });
+  }
+
   return (
     <div className="mt-1 space-y-0.5" data-testid="tag-vouch-count">
+      {badges.length > 0 && (
+        <div className="mb-1 flex flex-wrap gap-1">
+          {badges.map((b) => (
+            <span
+              key={b.label}
+              className={`inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-semibold ${b.tone}`}
+              data-testid={b.testId}
+            >
+              {b.label}
+            </span>
+          ))}
+        </div>
+      )}
       {carrier.applications > 0 ? (
         <p className="text-[11px] text-slate-400 dark:text-slate-500">
           {/* Naming the vouchers is the point: "2 people" told you nothing
