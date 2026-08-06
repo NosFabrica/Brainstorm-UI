@@ -127,9 +127,13 @@ function TagIndexRow({ tag }: { tag: TagSummary }) {
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           <span className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{tag.name}</span>
-          {tag.variants > 1 && (
-            <Chip tone="slate" size="sm" title={`${tag.variants} people created a tag with this name`}>
-              {tag.variants} versions
+          {tag.sharesName > 1 && (
+            <Chip
+              tone="slate"
+              size="sm"
+              title={`${tag.sharesName} people made a tag with this name. Each one is listed separately.`}
+            >
+              1 of {tag.sharesName}
             </Chip>
           )}
         </div>

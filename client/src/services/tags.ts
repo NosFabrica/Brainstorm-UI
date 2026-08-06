@@ -37,11 +37,17 @@ import {
   trustEveryone,
   type TrustPredicate,
 } from "@/lib/tagging-sdk/trust.js";
-import { buildTagElement, conceptTag, slug as toSlug } from "@/lib/tagging-sdk/event-tagging/index.js";
-import { mergeSameNamedTags, stanceForVariants, type CountedTag } from "@/lib/tagMerge";
+import {
+  applicabilityHintFilter,
+  buildTagElement,
+  conceptTag,
+  deriveApplicabilityMembers,
+  slug as toSlug,
+} from "@/lib/tagging-sdk/event-tagging/index.js";
+import { countNameCollisions, type CountedTag } from "@/lib/tagMerge";
 import {
   LOCAL_TA_PUBKEY,
-  TAG_RELAYS,
+  tagRelays,
   TRUST_RELAYS,
   Z_HANDLE_PUBKEYS,
   NIP85_AUTHOR_PUBKEYS,
@@ -89,11 +95,12 @@ export interface ProfileTag extends TagIdentity {
    */
   counted: boolean;
   /**
-   * How many separately-minted tag identities share this name and were folded
-   * into this one. 1 is the normal case; >1 means different authors created the
-   * same tag and we're showing the best-supported of them.
+   * How many separately-minted tag identities carry this display name. 1 is the
+   * normal case; >1 means different authors created a tag with the same name and
+   * each is listed on its own, with its own count. Labelling only — it never
+   * affects the arithmetic.
    */
-  variants: number;
+  sharesName: number;
   /** The viewer's own stance, shown regardless of whether the POV counts them. */
   myStance?: "apply" | "dispute";
 }
@@ -106,6 +113,8 @@ export interface ProfileTagsResult {
    * never appear to vanish because the current POV doesn't count you.
    */
   mine: Array<{ key: string; stance: "apply" | "dispute" }>;
+  /** The trust source told us nothing — these counts weren't filtered. */
+  trustUnverified: boolean;
 }
 
 const TAG_ELEMENT_KIND = 39999;
@@ -117,7 +126,7 @@ const TAG_ELEMENT_KIND = 39999;
  * reader below — the house's TA-signed artifacts are not on the hub.
  */
 function fetchTagEvents(filter: Record<string, unknown>): Promise<NostrEvent[]> {
-  return fetchEventsByFilter(filter, TAG_RELAYS) as Promise<NostrEvent[]>;
+  return fetchEventsByFilter(filter, tagRelays()) as Promise<NostrEvent[]>;
 }
 
 /**
@@ -165,12 +174,22 @@ async function fetchAllTagEvents(
 }
 
 /**
+ * How many trust assertions have come back so far. Read as a delta around an
+ * `ensure()` to tell "the house scored these people" from "we learned nothing
+ * about them" — which are indistinguishable in the predicate's output, because
+ * `unknownPolicy: "trusted"` counts both.
+ */
+let trustEventsSeen = 0;
+
+/**
  * Trust reads go to the HOUSE relay. Wiring this to the hub instead is the
  * documented way to get a silent degrade to "count everyone" — the fetch
  * succeeds, finds nothing, and every asserter falls under `unknownPolicy`.
  */
-function fetchTrustEvents(filter: Record<string, unknown>): Promise<NostrEvent[]> {
-  return fetchEventsByFilter(filter, TRUST_RELAYS) as Promise<NostrEvent[]>;
+async function fetchTrustEvents(filter: Record<string, unknown>): Promise<NostrEvent[]> {
+  const events = (await fetchEventsByFilter(filter, TRUST_RELAYS)) as NostrEvent[];
+  trustEventsSeen += events.length;
+  return events;
 }
 
 /**
@@ -178,12 +197,12 @@ function fetchTrustEvents(filter: Record<string, unknown>): Promise<NostrEvent[]
  * rule. We can't use `publishToRelays()` from nostr.ts here: it ignores its
  * `relays` argument and always resolves the author's outbox seeded with
  * PROFILE_RELAYS, so a tag event would never reach the hub. Seeding
- * `loadOutboxRelayListFromDb` with TAG_RELAYS gives exactly the union we want.
+ * `loadOutboxRelayListFromDb` with the tag relays gives exactly the union we want.
  */
 async function publishTagEvent(
   signed: Record<string, unknown>,
 ): Promise<{ accepted: number; total: number }> {
-  const relays = loadOutboxRelayListFromDb(signed.pubkey as string, TAG_RELAYS);
+  const relays = loadOutboxRelayListFromDb(signed.pubkey as string, tagRelays());
   const responses = await pool.publish(relays, signed as never);
   const accepted = responses.filter((r) => r.ok).length;
   const total = responses.length || relays.length;
@@ -216,16 +235,66 @@ function getTrustSource() {
   return houseTrust;
 }
 
+/** A POV predicate, plus whether the house actually had anything to say. */
+interface ResolvedTrust {
+  predicate: TrustPredicate;
+  /**
+   * True when we asked about asserters and learned nothing about any of them —
+   * unreachable trust relays, or a POV with no published scores. Either way
+   * `unknownPolicy: "trusted"` is counting everyone, and the counts on screen
+   * are unfiltered. C7 asks that this degrade quietly rather than error; it
+   * does not ask that we imply the filter ran.
+   */
+  unverified: boolean;
+}
+
 /**
  * Resolve the POV predicate for a set of asserters. Never throws: if the trust
  * relay is unreachable the SDK leaves those pubkeys uncached and they fall
  * under `unknownPolicy`, so tags still render.
  */
-async function resolveTrust(asserters: string[]): Promise<TrustPredicate> {
+async function resolveTrust(asserters: string[]): Promise<ResolvedTrust> {
   const source = getTrustSource();
-  if (!source) return trustEveryone();
+  // "Everyone counts" is a POV the operator chose, not a degraded one.
+  if (!source) return { predicate: trustEveryone(), unverified: false };
   await source.ensure(asserters);
-  return source.predicate;
+  // The SDK's predicate can't tell us this: `unknownPolicy: "trusted"` returns
+  // true for scored and unscored alike. What it can't hide is that the trust
+  // source has handed us nothing at all this session — which happens when the
+  // trust relays are unreachable, or when they're wired to the tag hub, where
+  // no 30382 lives. Either way nothing on screen was actually filtered.
+  return {
+    predicate: source.predicate,
+    unverified: asserters.length > 0 && trustEventsSeen === 0,
+  };
+}
+
+// ─── Tag-element cache ───────────────────────────────────────────────────────
+
+/**
+ * Tag-elements, cached for the session. ACCEPTANCE C1 asks that "repeat reads
+ * hit the cache, not the relay", and without this two profiles carrying the
+ * same tag each re-fetched its element: the catalogue read alone resolves every
+ * tag in the corpus, then every profile view resolved its own again.
+ *
+ * Both caches are POSITIVE ONLY. A miss is not cached, because an element the
+ * relay doesn't have yet is exactly what someone minting a tag creates a second
+ * later — negative caching would hide their own new tag from them for the rest
+ * of the session. Elements are immutable at a given id, and a coordinate's
+ * name/description changing is a cosmetic staleness we accept until reload.
+ */
+const elementsById = new Map<string, TagRefResolved>();
+const elementMetaByCoord = new Map<string, { name: string; description?: string }>();
+
+/**
+ * Drop every cached read. Called when the tag-relay list changes — the caches
+ * are keyed by event id and coordinate, neither of which says which relay the
+ * answer came from, so pointing at a different instance has to start clean.
+ */
+export function resetTagCaches(): void {
+  elementsById.clear();
+  elementMetaByCoord.clear();
+  houseTrust = null;
 }
 
 // ─── Reading a profile's tags ────────────────────────────────────────────────
@@ -305,7 +374,10 @@ async function resolveAssertionTags(
       continue;
     }
     const e = tagValue(ev, "e");
-    if (e) needElement.add(e);
+    if (!e) continue;
+    const cached = elementsById.get(e);
+    if (cached) byEventId.set(ev.id, cached);
+    else needElement.add(e);
   }
 
   if (needElement.size) {
@@ -319,12 +391,14 @@ async function resolveAssertionTags(
         // just don't count, exactly as if their tag had been deleted.
       }
     }
-    const elementById = new Map(elements.map((el) => [el.id, el]));
+    for (const el of elements) {
+      const d = tagValue(el, "d");
+      if (d) elementsById.set(el.id, { tagAuthor: el.pubkey, slug: d });
+    }
     for (const ev of candidates) {
       if (byEventId.has(ev.id)) continue;
-      const el = elementById.get(tagValue(ev, "e") ?? "");
-      const d = el && tagValue(el, "d");
-      if (el && d) byEventId.set(ev.id, { tagAuthor: el.pubkey, slug: d });
+      const resolved = elementsById.get(tagValue(ev, "e") ?? "");
+      if (resolved) byEventId.set(ev.id, resolved);
     }
   }
 
@@ -373,11 +447,18 @@ async function normalizeAssertions(candidates: NostrEvent[]): Promise<Normalized
  * Which of these pubkeys are real people?
  *
  * The hub carries thousands of harness assertions aimed at pubkeys that have
- * never had a kind-0. Gating carrier lists on "has a profile" drops all of them
- * without inventing a name-shape blocklist, and it's defensible on its own
- * terms: a tag on an identity that has never existed isn't a claim anyone can
- * evaluate. Never throws — `fetchProfileMap` resolves a partial map on timeout,
- * so a slow relay under-reports rather than empties the page.
+ * never had a kind-0. Gating on "has a profile" drops all of them without
+ * inventing a name-shape blocklist, and it's defensible on its own terms: a tag
+ * on an identity that has never existed isn't a claim anyone can evaluate.
+ *
+ * SCOPE, deliberately: `/tags`, our own browse page, which the kit doesn't
+ * specify and which is mostly harness output without this. It is NOT applied to
+ * `fetchTagDetail` or `fetchProfileTags` — those are the surfaces ACCEPTANCE
+ * checks against the reference instance, and an extra condition there would put
+ * our counts out of agreement with it.
+ *
+ * Never throws — `fetchProfileMap` resolves a partial map on timeout, so a slow
+ * relay under-reports rather than empties the page.
  */
 async function filterToRealProfiles(pubkeys: string[]): Promise<Set<string>> {
   if (!pubkeys.length) return new Set();
@@ -429,13 +510,16 @@ function groupByTag(
     }
     const grp = counted.get(a.tagKey)!;
 
-    // The subject's own voice is kept apart from the crowd's, in both
-    // directions: self-declaration is not attestation, and the subject's
-    // objection is displayed rather than silently subtracted.
+    // The subject's own voice is FLAGGED but still counted. The kit's rule is
+    // "count per p target (trust-filtered, net apply−dispute > 0)" with no self
+    // exclusion, and ACCEPTANCE C1 requires our net to match the reference
+    // instance's — so dropping the subject's own assertion put us one behind
+    // Jumble on every self-tagged person. The flag survives because
+    // self-declaration really is a different kind of claim; that distinction
+    // belongs in the label, not in the arithmetic.
     if (a.asserter === a.target) {
       if (a.stance === "apply") grp.selfApplied = true;
       else grp.selfDisputed = true;
-      continue;
     }
     (a.stance === "apply" ? grp.applications : grp.disputes).add(a.asserter);
   }
@@ -471,10 +555,11 @@ function groupByTarget(
     }
     const grp = byTarget.get(a.target)!;
     if (a.stance === "apply" && a.at > grp.addedAt) grp.addedAt = a.at;
+    // Flagged, not excluded — see the note in groupByTag. The tag page's counts
+    // have to agree with the profile chips and with the reference instance.
     if (a.asserter === a.target) {
       if (a.stance === "apply") grp.selfApplied = true;
       else grp.selfDisputed = true;
-      continue;
     }
     (a.stance === "apply" ? grp.applications : grp.disputes).add(a.asserter);
   }
@@ -492,12 +577,23 @@ async function resolveTagNames(
   const out = new Map<string, { name: string; description?: string }>();
   if (!refs.length) return out;
 
+  // Serve what we already know, and only ask the relay about the rest. All
+  // cached → no query at all, which is the C1 property.
+  const unresolved: Array<{ authorPubkey: string; slug: string }> = [];
+  for (const r of refs) {
+    const key = `${r.authorPubkey}|${r.slug}`;
+    const hit = elementMetaByCoord.get(key);
+    if (hit) out.set(key, hit);
+    else unresolved.push(r);
+  }
+  if (!unresolved.length) return out;
+
   let events: NostrEvent[] = [];
   try {
     events = await fetchTagEvents({
       kinds: [TAG_ELEMENT_KIND],
-      authors: Array.from(new Set(refs.map((r) => r.authorPubkey))),
-      "#d": Array.from(new Set(refs.map((r) => r.slug))),
+      authors: Array.from(new Set(unresolved.map((r) => r.authorPubkey))),
+      "#d": Array.from(new Set(unresolved.map((r) => r.slug))),
     });
   } catch {
     return out; // names are cosmetic; slugs carry the meaning
@@ -509,10 +605,10 @@ async function resolveTagNames(
     try {
       const parsed = JSON.parse(ev.content) as { tag?: { name?: string; description?: string } };
       if (parsed?.tag?.name) {
-        out.set(`${ev.pubkey}|${d}`, {
-          name: parsed.tag.name,
-          description: parsed.tag.description,
-        });
+        const meta = { name: parsed.tag.name, description: parsed.tag.description };
+        const key = `${ev.pubkey}|${d}`;
+        out.set(key, meta);
+        elementMetaByCoord.set(key, meta);
       }
     } catch {
       // malformed content → fall through to the slug
@@ -534,29 +630,33 @@ export async function fetchProfileTags(
   const candidates = await fetchTagEvents(
     filterTagsAppliedToPubkey({ targetPubkey, zHandlePubkeys: Z_HANDLE_PUBKEYS }),
   );
-  if (!candidates.length) return { tags: [], mine: [] };
+  if (!candidates.length) return { tags: [], mine: [], trustUnverified: false };
 
   const assertions = await normalizeAssertions(candidates);
-  const trusted = await resolveTrust(Array.from(new Set(assertions.map((a) => a.asserter))));
-  const { counted, mine } = groupByTag(assertions, trusted, viewerPubkey);
+  const trust = await resolveTrust(Array.from(new Set(assertions.map((a) => a.asserter))));
+  const { counted, mine } = groupByTag(assertions, trust.predicate, viewerPubkey);
 
   const names = await resolveTagNames(Array.from(counted.values()));
 
-  const tags: ProfileTag[] = mergeSameNamedTags(counted, names)
-    .map(({ key, group, name, description, variantKeys }) => ({
+  // Each minted identity stands on its own — see lib/tagMerge.ts for why the
+  // merge is off. `sharesName` only labels a collision; it changes no count.
+  const sharesName = countNameCollisions(counted, names);
+
+  const tags: ProfileTag[] = Array.from(counted.entries())
+    .map(([key, group]) => ({
       key,
       authorPubkey: group.authorPubkey,
       slug: group.slug,
-      name,
-      description,
+      name: names.get(key)?.name || group.slug,
+      description: names.get(key)?.description,
       applications: group.applications.size,
       disputes: group.disputes.size,
       asserters: Array.from(group.applications),
       selfDeclared: group.selfApplied,
       subjectDisagreed: group.selfDisputed,
       counted: netPositive(group.applications.size, group.disputes.size),
-      variants: variantKeys.length,
-      myStance: stanceForVariants(variantKeys, mine),
+      sharesName: sharesName.get(key) ?? 1,
+      myStance: mine.get(key),
     }))
     /**
      * Three ways a tag earns a place on the profile:
@@ -582,6 +682,7 @@ export async function fetchProfileTags(
   return {
     tags,
     mine: Array.from(mine.entries()).map(([key, stance]) => ({ key, stance })),
+    trustUnverified: trust.unverified,
   };
 }
 
@@ -609,6 +710,8 @@ export interface TagCarrier {
 export interface TagDetail {
   tag: TagIdentity;
   carriers: TagCarrier[];
+  /** The trust source told us nothing — this list wasn't filtered. */
+  trustUnverified: boolean;
 }
 
 /**
@@ -676,7 +779,7 @@ export async function fetchTagDetail(
 
   const deduped = new Map<string, NostrEvent>();
   for (const ev of [...byCoord, ...byElementId]) deduped.set(ev.id, ev);
-  if (!deduped.size) return { tag, carriers: [] };
+  if (!deduped.size) return { tag, carriers: [], trustUnverified: false };
 
   // Only assertions for THIS tag — the relays filtered, but a permissive one
   // could hand back more and we'd rather not list strangers.
@@ -684,8 +787,8 @@ export async function fetchTagDetail(
     (a) => a.tagAuthor === authorPubkey && a.slug === slug,
   );
 
-  const trusted = await resolveTrust(Array.from(new Set(assertions.map((a) => a.asserter))));
-  const byTarget = groupByTarget(assertions, trusted);
+  const trust = await resolveTrust(Array.from(new Set(assertions.map((a) => a.asserter))));
+  const byTarget = groupByTarget(assertions, trust.predicate);
 
   // The viewer's own stance per person, read BEFORE the trust filter — the same
   // rule as the profile chips. Someone must always be able to see what they
@@ -697,14 +800,13 @@ export async function fetchTagDetail(
     }
   }
 
-  const real = await filterToRealProfiles(Array.from(byTarget.keys()));
-
+  // NO has-a-profile gate here. ACCEPTANCE Floor D specifies this list as
+  // "tagged people listed (net > 0 only)" and adds no other condition, so
+  // requiring a kind-0 would hide assertions the reference instance shows and
+  // put our carrier list out of agreement with it. The gate stays on
+  // `fetchTagIndex`, which backs our own `/tags` browse page — a surface the
+  // kit doesn't specify, and one that is mostly harness output without it.
   const carriers: TagCarrier[] = Array.from(byTarget.entries())
-    // The has-a-profile gate exists to drop harness targets, but it must never
-    // hide someone the VIEWER just acted on — otherwise a user without a
-    // kind-0 taps "Add me", sees themselves appear, and watches the refetch
-    // delete them with no explanation.
-    .filter(([pubkey]) => real.has(pubkey) || myStanceFor.has(pubkey))
     .map(([pubkey, grp]) => ({
       pubkey,
       applications: grp.applications.size,
@@ -728,7 +830,7 @@ export async function fetchTagDetail(
         a.pubkey.localeCompare(b.pubkey),
     );
 
-  return { tag, carriers };
+  return { tag, carriers, trustUnverified: trust.unverified };
 }
 
 // ─── The catalogue ───────────────────────────────────────────────────────────
@@ -740,8 +842,8 @@ export interface TagSummary extends TagIdentity {
   people: number;
   /** Distinct trusted asserters who applied it to somebody. */
   vouches: number;
-  /** Separately-minted identities folded into this entry. */
-  variants: number;
+  /** Other separately-minted identities sharing this name. Labelling only. */
+  sharesName: number;
 }
 
 /**
@@ -765,7 +867,7 @@ export async function fetchTagIndex(): Promise<TagSummary[]> {
   if (!candidates.length) return [];
 
   const assertions = await normalizeAssertions(candidates);
-  const trusted = await resolveTrust(Array.from(new Set(assertions.map((a) => a.asserter))));
+  const trust = await resolveTrust(Array.from(new Set(assertions.map((a) => a.asserter))));
   const real = await filterToRealProfiles(Array.from(new Set(assertions.map((a) => a.target))));
 
   // Reuse the profile read's grouping so the catalogue can't drift from what a
@@ -779,7 +881,7 @@ export async function fetchTagIndex(): Promise<TagSummary[]> {
   >();
 
   for (const a of assertions) {
-    if (!trusted(a.asserter)) continue;
+    if (!trust.predicate(a.asserter)) continue;
     if (!real.has(a.target)) continue;
     if (!counted.has(a.tagKey)) {
       counted.set(a.tagKey, {
@@ -799,10 +901,9 @@ export async function fetchTagIndex(): Promise<TagSummary[]> {
     }
     const c = perCarrier.get(ck)!;
 
-    // Self-assertions carry the person onto the list but never inflate the
-    // tag's vouch count — the catalogue's "N accounts" has to mean N *other*
-    // people, or a tag one person applied to themselves fifty times over would
-    // read as widely attested.
+    // Flagged, not excluded — see the note in groupByTag. A self-assertion is
+    // one distinct asserter like any other, which is what keeps this catalogue
+    // agreeing with the profile chips and with the reference instance.
     if (a.asserter === a.target) {
       if (a.stance === "apply") {
         grp.selfApplied = true;
@@ -810,7 +911,6 @@ export async function fetchTagIndex(): Promise<TagSummary[]> {
       } else {
         grp.selfDisputed = true;
       }
-      continue;
     }
     (a.stance === "apply" ? grp.applications : grp.disputes).add(a.asserter);
     (a.stance === "apply" ? c.applies : c.disputes).add(a.asserter);
@@ -828,43 +928,86 @@ export async function fetchTagIndex(): Promise<TagSummary[]> {
 
   const names = await resolveTagNames(Array.from(counted.values()));
 
-  return mergeSameNamedTags(counted, names)
-    .map(({ key, group, name, description, variantKeys }) => {
-      const carriers = new Set<string>();
-      for (const k of variantKeys) for (const p of people.get(k) ?? []) carriers.add(p);
-      return {
-        key,
-        authorPubkey: group.authorPubkey,
-        slug: group.slug,
-        name,
-        description,
-        people: carriers.size,
-        vouches: group.applications.size,
-        variants: variantKeys.length,
-      };
-    })
+  const sharesName = countNameCollisions(counted, names);
+
+  return Array.from(counted.entries())
+    .map(([key, group]) => ({
+      key,
+      authorPubkey: group.authorPubkey,
+      slug: group.slug,
+      name: names.get(key)?.name || group.slug,
+      description: names.get(key)?.description,
+      people: (people.get(key) ?? new Set()).size,
+      vouches: group.applications.size,
+      sharesName: sharesName.get(key) ?? 1,
+    }))
     .filter((t) => t.people > 0)
     .sort((a, b) => b.people - a.people || b.vouches - a.vouches || a.name.localeCompare(b.name));
 }
 
+/** Which contexts a tag is for, as sets of a-coordinates. */
+export interface Applicability {
+  /** Tags that describe PEOPLE. */
+  pubkey: Set<string>;
+  /** Tags that describe NOTES. */
+  event: Set<string>;
+  /** Where the split came from — `derived` means we computed it ourselves. */
+  source: "published" | "derived" | "none";
+}
+
 /**
- * The house's published view of which tags describe PEOPLE rather than notes
- * (kind-30394 Trusted Lists, signed by the current assistant key).
+ * Which tags describe people and which describe notes (ACCEPTANCE C3).
+ *
+ * Two sources, in the order the kit prescribes. First the house's published
+ * kind-30394 Trusted Lists — its own HINT ∪ USAGE derivation, signed by the
+ * current assistant key. When those are absent or unreachable we compute the
+ * same union client-side with `deriveApplicabilityMembers`: a relay scan for
+ * tag-elements carrying each context's z-hint, unioned with what tags are
+ * actually applied to that kind of target.
  *
  * A hint, never a gate — the protocol is explicit that readers must not require
- * it, nor treat its absence as "not applicable". We use it only to decide what
- * the picker shows first. Returns an empty set when unpublished or unreachable,
- * which degrades to "no opinion about ordering".
+ * it, nor read its absence as "not applicable". It decides ORDER, never
+ * inclusion. `source: "none"` degrades to having no opinion about order at all.
  */
-export async function fetchProfileApplicableTags(): Promise<Set<string>> {
+export async function fetchApplicability(usage: TagSummary[] = []): Promise<Applicability> {
   try {
     const lists = await fetchApplicabilityLists({
       fetchEvents: fetchTrustEvents,
       houseAssistantPubkey: LOCAL_TA_PUBKEY,
     });
-    return lists.pubkey;
+    if (lists.pubkey.size || lists.event.size) {
+      return { pubkey: lists.pubkey, event: lists.event, source: "published" };
+    }
   } catch {
-    return new Set();
+    // fall through to deriving it ourselves
+  }
+
+  // Fallback. `usage` is our catalogue, which is built entirely from profile
+  // taggings — so every entry in it is applicable-by-usage to pubkeys, and none
+  // of it says anything about notes. The event half therefore comes from the
+  // hint scan alone until we tag notes (C2).
+  const usageRows = usage.map((t) => ({
+    tag: { authorPubkey: t.authorPubkey, slug: t.slug },
+    byType: { profile: { applications: Math.max(t.people, 1) } },
+  }));
+
+  try {
+    const [pubkeyHints, eventHints] = await Promise.all([
+      fetchTagEvents(applicabilityHintFilter("pubkey") as Record<string, unknown>),
+      fetchTagEvents(applicabilityHintFilter("event") as Record<string, unknown>),
+    ]);
+    const toSet = (members: Array<{ a: string }>) => new Set(members.map((m) => m.a));
+    return {
+      pubkey: toSet(
+        deriveApplicabilityMembers({ usageRows, hintEls: pubkeyHints, context: "pubkey" }),
+      ),
+      event: toSet(
+        deriveApplicabilityMembers({ usageRows, hintEls: eventHints, context: "event" }),
+      ),
+      source: "derived",
+    };
+  } catch {
+    return { pubkey: new Set(), event: new Set(), source: "none" };
   }
 }
 
@@ -873,29 +1016,61 @@ export function tagCoordinate(tag: { authorPubkey: string; slug: string }): stri
   return `39999:${tag.authorPubkey}:${tag.slug}`;
 }
 
+/** A picker option: a catalogue tag plus which context it's meant for. */
+export interface PickerTag extends TagSummary {
+  /**
+   * `profile` — describes people, so it leads. `content` — the applicability
+   * split says this one is for notes; still offered, just after the rest.
+   */
+  band: "profile" | "content";
+}
+
 /**
- * What a "tag a person" picker offers: the tags people actually use.
+ * What a "tag a person" picker offers, in the order ACCEPTANCE C3 asks for:
+ * profile-applicable tags lead, content-applicable stay reachable but
+ * secondary.
  *
- * Applicability is defined by the protocol as **HINT ∪ USAGE** — "the operative
- * applicability source is derived, not declared" — and our catalogue is built
- * entirely from profile taggings, so **every tag in it is already applicable by
- * usage**. The published hint therefore adds nothing here and must not reorder
- * it: sorting by the hint buried `AOS 2026 Participant` (88 people) under tags
- * with three, because only 9 of 39 carry it.
+ * Applicability is **HINT ∪ USAGE** — "the operative applicability source is
+ * derived, not declared" — and our catalogue is built entirely from profile
+ * taggings, so almost everything in it is applicable-by-usage to people. The
+ * split therefore does little work today and will do all of it once we tag
+ * notes (C2). That's the point: the classification is wired and correct now,
+ * rather than discovered to be missing later.
  *
- * We also tried the other half of the union — hinted tags nobody has applied
- * yet, as the cold-start signal the hint exists for. Dropped: the house's list
- * of 13 includes `jumble-qa-profile-1784946392` and `test account`, so it put
- * harness output straight into the picker for the sake of one real unused tag.
- * Nothing is lost by leaving them out, because typing an existing tag's name
- * still reuses it via `resolveOrMintTag` — the picker just doesn't advertise
- * tags with no track record.
+ * Two things it deliberately does NOT do, both learned the hard way:
  *
- * The hint becomes load-bearing when we tag NOTES, where a people-derived
- * catalogue gives no signal at all. That's the seam this function marks.
+ *  - It does not sort BY the hint. Only 9 of 39 tags carry one, so ranking on
+ *    it buried `AOS 2026 Participant` (88 people) beneath tags with three.
+ *    Usage sorts within each band; the hint only chooses the band.
+ *  - It does not advertise hint-only tags nobody has applied. The house's
+ *    pubkey list includes `jumble-qa-profile-1784946392` and `test account`,
+ *    so offering them puts harness output in front of users for the sake of
+ *    one real unused tag (KIT-FEEDBACK.md §5). Nothing is lost: typing an
+ *    existing tag's name still reuses it via `resolveOrMintTag`.
  */
-export async function fetchPickerTags(): Promise<TagSummary[]> {
-  return fetchTagIndex();
+export async function fetchPickerTags(): Promise<PickerTag[]> {
+  const catalogue = await fetchTagIndex();
+  const applicability = await fetchApplicability(catalogue);
+
+  // No opinion available → everything is offered as-is, in usage order.
+  if (applicability.source === "none") {
+    return catalogue.map((t) => ({ ...t, band: "profile" as const }));
+  }
+
+  const banded = catalogue.map((t) => {
+    const coord = tagCoordinate(t);
+    // Content-only means the split says "notes" AND doesn't say "people".
+    // A tag in both lists is applicable to both and belongs up top.
+    const contentOnly = applicability.event.has(coord) && !applicability.pubkey.has(coord);
+    return { ...t, band: (contentOnly ? "content" : "profile") as PickerTag["band"] };
+  });
+
+  return banded.sort(
+    (a, b) =>
+      (a.band === b.band ? 0 : a.band === "profile" ? -1 : 1) ||
+      b.people - a.people ||
+      a.name.localeCompare(b.name),
+  );
 }
 
 /**
@@ -961,7 +1136,11 @@ export interface TagComment {
  * expresses "this person doesn't belong" without prose.
  *
  * Standard NIP-22 against the tag-element's address, so any NIP-22 client
- * renders these — nothing bespoke. Read from the tag relays.
+ * renders these — nothing bespoke. Read from the app's general relays, never
+ * the tag hub: see `fetchCommentEvents` above for why they can't be the same.
+ *
+ * OFF by default (`TAG_COMMENTS_ENABLED`) — no kit document defines a comment
+ * layer, so nothing extra-protocol should be live during an acceptance run.
  */
 export async function fetchTagComments(
   authorPubkey: string,

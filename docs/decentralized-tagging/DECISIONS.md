@@ -14,8 +14,15 @@ Guidance source: `nous-clawds4/tapestry@generate-nosfabrica-integration-kit` →
 
 > **Revised 2026-08-05, same day.** Originally scoped to floor B. Benjamin then
 > asked for the tag page, and then for tagging other people, so the shipped
-> scope is **floors B, C and D plus the C4 stance toggle**. The reasoning below
-> about *what the feature is* still stands; only the stopping point moved.
+> scope grew past floor B. The reasoning below about *what the feature is* still
+> stands; only the stopping point moved.
+>
+> **Corrected 2026-08-06.** That revision claimed "floors B, C and **D**". It
+> shouldn't have. Floor D requires note tagging (rung C2) *and* tag pages
+> listing both people and notes; we have people only, and
+> `event-tagging/apply.js` + `filters.js` are vendored but unreferenced. The
+> honest claim is **floors B and C, plus the C4 stance toggle and pubkey tag
+> pages**. See `ACCEPTANCE-RESULTS.md` for the box-by-box position.
 
 The feature was requested as "decentralized lists". The kit does not define a
 lists feature; it defines a **decentralized, trust-ranked tagging protocol** for
@@ -29,7 +36,8 @@ tag — so lists are the *payoff* of tagging, not the starting point.
   someone else's — C3 + floor C
 - mint a brand-new tag from the picker — C5
 - agree / disagree with a tag already on a profile — C4
-- `/tags/:author/:slug`, everyone carrying one tag — floor D
+- `/tags/:author/:slug`, everyone carrying one tag — the pubkey half of
+  floor D
 
 **Still not built:** note tag chips (rung C2), and server-side WoT-weighted tag
 ranking.
@@ -91,6 +99,18 @@ to re-vendor.
 > replaces the whole addressable event, so removing the field would erase saved
 > roles the next time a user changed any other setting. `ROLES` stays too — it
 > seeds the picker.
+>
+> **Completed 2026-08-06.** This is `Start.md` Q2's **migrate** option, which
+> the kit specifies as "a one-time, owner-prompted conversion". We had the
+> conversion but not the prompt — the roles were only offered inside the picker,
+> so finding them meant opening a menu you had no reason to open.
+> `components/share/LegacyRolePrompt.tsx` is the prompt: owner-only, publishes
+> nothing until they press it, dismissible once and permanently.
+>
+> Note for the kit owners: overlay `ACCEPTANCE.md` Floor A asserts role chips
+> "still render exactly as before", which contradicts Q2's own migrate option.
+> Floor A's line is the check for Q2's *default*; it should say "if you chose
+> coexist". Raised in `KIT-FEEDBACK.md`.
 
 The original reasoning, which still explains why the two are different things:
 
@@ -133,6 +153,53 @@ counted. Fine for building and demoing; **not** fine for launch.
 **Follow-up (not v1):** switch to NosFabrica's own NIP-85 corpus. That is a
 config-only change — `trustRelays` + `nip85AuthorPubkeys` — blocked on getting
 our 30382 signing pubkeys from David/Enes.
+
+## 6. Alignment pass — decided 2026-08-06
+
+Benjamin: *"we need to stick to the script of those docs … I dont want to
+deviate from what they want me to integrate."* Audited both checklists and
+changed what genuinely diverged. Results box-by-box in `ACCEPTANCE-RESULTS.md`.
+
+The rule applied: **the kit specifies the machinery, and delegates the
+rendering.** `INTEGRATION.md` §5 — "what the host *renders* with each capability
+is the integrator's decision" — and `core/ACCEPTANCE.md` defines "surface" as
+"whatever the host renders the data with, even if that's a `console.table`". So
+UI additions aren't deviations; arithmetic and wire behaviour are.
+
+**Changed to match the kit:**
+
+- **Self-assertions are COUNTED.** We were routing `asserter === target` out of
+  the counts. The kit counts distinct trusted asserters with no self exclusion,
+  and C1 checks our net against the reference instance's — so we were one behind
+  on every self-tagged person. The `selfDeclared` label stays; only the
+  arithmetic changed. UI copy says how many *other* people vouched, via
+  `lib/tagCounts.ts`.
+- **Same-named tags are no longer merged.** Combining two authors' identically
+  named tags reported one number where the protocol has two tags — the same
+  parity problem. They render separately now; `lib/tagMerge.ts` keeps the merge
+  code and its tests unwired against the open question in `KIT-FEEDBACK.md` §3.
+- **The has-a-profile gate came off the tag page.** Floor D says "tagged people
+  listed (net > 0 only)" and adds no condition. It stays on `/tags`, our own
+  browse page, which the kit doesn't specify.
+- **Applicability is wired into the picker** (C3), including the
+  `deriveApplicabilityMembers` fallback. Bands only — never a sort key; ranking
+  by the hint once buried `AOS 2026 Participant` (88 people) under tags with
+  three.
+- **Tag-elements are cached by coordinate** (C1's "repeat reads hit the cache").
+- **The tag-relay list is user-editable and persists** (Hygiene). Layered
+  `localStorage → VITE_TAG_RELAY_URLS → CONFIG.json`; `CONFIG.json` untouched.
+
+**Kept, with the reason recorded:**
+
+- **`maxHops` stays neutralised.** Reverting to `CONFIG.json`'s `20` re-breaks
+  trust entirely — see decision 5 and `KIT-FEEDBACK.md` §1. Shipping the value
+  as written would mean shipping a filter we know is inverted.
+- **Tag comments stay built but OFF** (`TAG_COMMENTS_ENABLED`). No kit document
+  defines a comment layer, so nothing extra-protocol should be live during an
+  acceptance run. The anchor question is `COMMENTS-PROPOSAL.md`.
+- **Degraded mode now says so.** C7 asks that a dead trust source degrade
+  without erroring; it doesn't ask us to imply the filter ran. When the trust
+  source returns nothing, tag pages say the counts weren't checked.
 
 ---
 

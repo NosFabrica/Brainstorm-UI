@@ -3,6 +3,7 @@ import { Chip } from "@/components/ui/chip";
 import { useProfileTags } from "@/hooks/useTags";
 import { TagPersonButton } from "@/components/share/TagPersonButton";
 import { npubFromPubkey } from "@/lib/shareId";
+import { corroborations, onlySelfDeclared } from "@/lib/tagCounts";
 
 /**
  * Network-attested tags on the public profile — the chip row that fills the slot
@@ -51,14 +52,19 @@ export function ProfileTagChips({
         // number belongs on the tag page, where the subject isn't the headline —
         // a permanent "3 people disagree" badge on someone's face is a
         // pile-on affordance, not information.
-        const who = tag.selfDeclared && tag.applications === 0
+        // `applications` counts the subject too (the kit's rule, and what the
+        // reference instance shows). The copy has to say how many OTHER people
+        // vouched, or a tag someone gave themselves reads as "1 person added
+        // this" — true of the number, misleading about the claim.
+        const others = corroborations(tag);
+        const who = onlySelfDeclared(tag)
           ? "Says this about themselves"
-          : tag.applications === 1
+          : others === 1
             ? "1 person added this"
-            : `${tag.applications} people added this`;
+            : `${others} people added this`;
         const notes = [
           // A tag the subject also claims is different from one only others say.
-          tag.selfDeclared && tag.applications > 0 ? "also says it themselves" : "",
+          tag.selfDeclared && others > 0 ? "also says it themselves" : "",
           tag.subjectDisagreed ? "they disagree" : "",
           tag.myStance === "dispute" ? "you disagreed" : "",
         ].filter(Boolean);
@@ -72,10 +78,10 @@ export function ProfileTagChips({
         const chip = (
           <Chip
             key={tag.key}
-            tone={tag.selfDeclared && tag.applications === 0 ? "slate" : tag.myStance === "apply" ? "accent" : "brand"}
+            tone={onlySelfDeclared(tag) ? "slate" : tag.myStance === "apply" ? "accent" : "brand"}
             title={(tag.description ? `${who} — ${tag.description}` : who) + stanceNote}
             data-testid="share-tag-chip"
-            data-self-declared={tag.selfDeclared && tag.applications === 0 ? "true" : undefined}
+            data-self-declared={onlySelfDeclared(tag) ? "true" : undefined}
             data-counted={tag.counted ? "true" : "false"}
             className={[
               authorNpub ? "transition-opacity hover:opacity-80" : "",
@@ -83,8 +89,8 @@ export function ProfileTagChips({
             ].filter(Boolean).join(" ") || undefined}
           >
             {tag.name}
-            {tag.applications > 1 && (
-              <span className="opacity-60 tabular-nums">{tag.applications}</span>
+            {others > 1 && (
+              <span className="opacity-60 tabular-nums">{others}</span>
             )}
           </Chip>
         );

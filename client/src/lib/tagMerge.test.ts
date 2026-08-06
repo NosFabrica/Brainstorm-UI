@@ -1,11 +1,21 @@
 import { describe, it, expect } from "vitest";
-import { mergeSameNamedTags, stanceForVariants, type CountedTag } from "./tagMerge";
+import {
+  countNameCollisions,
+  mergeSameNamedTags,
+  stanceForVariants,
+  type CountedTag,
+} from "./tagMerge";
 
 /**
  * These cover the one property that can't be checked against the live hub: as of
  * 2026-08-05 the only duplicated tag name there is "bitcoin", and nobody carries
- * either variant, so the merge path never executes in production data yet. It
- * will the moment two people tag the same person with same-named tags.
+ * either variant, so the duplicate path never executes in production data yet.
+ * It will the moment two people tag the same person with same-named tags.
+ *
+ * `mergeSameNamedTags` / `stanceForVariants` are unwired (see the module note);
+ * their tests stay so the behaviour is still specified if KIT-FEEDBACK.md §3 is
+ * answered in favour of converging duplicates. `countNameCollisions` is what
+ * actually ships.
  */
 
 const AUTHOR_A = "a".repeat(64);
@@ -19,6 +29,59 @@ function tag(authorPubkey: string, slug: string, applications: string[], dispute
     disputes: new Set(disputes),
   };
 }
+
+describe("countNameCollisions", () => {
+  it("reports 1 for a name only one author minted", () => {
+    const counted = new Map([[`${AUTHOR_A}|author`, tag(AUTHOR_A, "author", ["v1"])]]);
+    const names = new Map([[`${AUTHOR_A}|author`, { name: "Author" }]]);
+
+    expect(countNameCollisions(counted, names).get(`${AUTHOR_A}|author`)).toBe(1);
+  });
+
+  it("tells BOTH identities that the name is shared", () => {
+    // The label has to appear on every colliding entry, not just the second —
+    // a reader looking at either one needs to know the other exists.
+    const counted = new Map([
+      [`${AUTHOR_A}|bitcoin`, tag(AUTHOR_A, "bitcoin", ["v1"])],
+      [`${AUTHOR_B}|btc`, tag(AUTHOR_B, "btc", ["v2"])],
+    ]);
+    const names = new Map([
+      [`${AUTHOR_A}|bitcoin`, { name: "Bitcoin" }],
+      [`${AUTHOR_B}|btc`, { name: "bitcoin " }],
+    ]);
+
+    const collisions = countNameCollisions(counted, names);
+    expect(collisions.get(`${AUTHOR_A}|bitcoin`)).toBe(2);
+    expect(collisions.get(`${AUTHOR_B}|btc`)).toBe(2);
+  });
+
+  it("falls back to the slug when a name never resolved", () => {
+    // Unresolvable elements still render under their slug, so two of them with
+    // the same slug are a visible collision even with no names in hand.
+    const counted = new Map([
+      [`${AUTHOR_A}|author`, tag(AUTHOR_A, "author", ["v1"])],
+      [`${AUTHOR_B}|author`, tag(AUTHOR_B, "author", ["v2"])],
+    ]);
+
+    const collisions = countNameCollisions(counted, new Map());
+    expect(collisions.get(`${AUTHOR_A}|author`)).toBe(2);
+  });
+
+  it("keeps unrelated names apart", () => {
+    const counted = new Map([
+      [`${AUTHOR_A}|author`, tag(AUTHOR_A, "author", ["v1"])],
+      [`${AUTHOR_B}|chef`, tag(AUTHOR_B, "chef", ["v2"])],
+    ]);
+    const names = new Map([
+      [`${AUTHOR_A}|author`, { name: "Author" }],
+      [`${AUTHOR_B}|chef`, { name: "Chef" }],
+    ]);
+
+    const collisions = countNameCollisions(counted, names);
+    expect(collisions.get(`${AUTHOR_A}|author`)).toBe(1);
+    expect(collisions.get(`${AUTHOR_B}|chef`)).toBe(1);
+  });
+});
 
 describe("mergeSameNamedTags", () => {
   it("passes a lone tag through untouched, with one variant", () => {

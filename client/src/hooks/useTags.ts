@@ -15,6 +15,7 @@ import {
   type ProfileTagsResult,
   type TagDetail,
   type TagSummary,
+  type PickerTag,
   type TagComment,
 } from "@/services/tags";
 import { getCurrentUser } from "@/services/nostr";
@@ -73,11 +74,11 @@ export function useTagIndex(enabled = true) {
 }
 
 /**
- * Everything the "tag a person" picker can offer: tags in use, plus tags the
- * house hinted are for people but nobody has applied yet.
+ * Everything the "tag a person" picker can offer, banded by applicability:
+ * tags that describe people lead, tags the split says are for notes follow.
  */
 export function usePickerTags(enabled = true) {
-  return useQuery<TagSummary[]>({
+  return useQuery<PickerTag[]>({
     queryKey: ["tag-picker-options"],
     queryFn: () => fetchPickerTags(),
     enabled,
@@ -319,7 +320,7 @@ export function useApplyTag(targetPubkey: string | undefined) {
       const stance = (args.polarity ?? 1) === 1 ? "apply" : "dispute";
 
       queryClient.setQueryData<ProfileTagsResult>(key, (old) => {
-        const base: ProfileTagsResult = old ?? { tags: [], mine: [] };
+        const base: ProfileTagsResult = old ?? { tags: [], mine: [], trustUnverified: false };
         const existing = base.tags.find((t) => t.key === optimisticKey);
 
         // Move OUR one vote between the buckets. The counts are distinct
@@ -357,16 +358,17 @@ export function useApplyTag(targetPubkey: string | undefined) {
                 name: args.displayName || (minted ? minted.name : existingRef!.slug),
                 applications: stance === "apply" ? 1 : 0,
                 disputes: stance === "dispute" ? 1 : 0,
-                // One identity until the refetch says otherwise; a merge can
-                // only be discovered by reading what's actually on the relays.
-                variants: 1,
-                // Optimistically we know only our own act. Whether this is a
-                // self-declaration, and who else vouched, comes back with the
-                // refetch — guessing here would flash a wrong label.
-                asserters: viewerPubkey === targetPubkey ? [] : [viewerPubkey],
+                // No name collision until the refetch says otherwise; another
+                // author's same-named tag can only be found on the relays.
+                sharesName: 1,
+                // Optimistically we know only our own act. Who else vouched
+                // comes back with the refetch — guessing would flash a wrong
+                // label. Our own assertion counts like anyone else's, including
+                // when we're tagging ourselves.
+                asserters: stance === "apply" ? [viewerPubkey] : [],
                 selfDeclared: viewerPubkey === targetPubkey && stance === "apply",
                 subjectDisagreed: viewerPubkey === targetPubkey && stance === "dispute",
-                counted: viewerPubkey !== targetPubkey && stance === "apply",
+                counted: stance === "apply",
                 myStance: stance,
               },
             ];
@@ -381,6 +383,7 @@ export function useApplyTag(targetPubkey: string | undefined) {
             ...base.mine.filter((m) => m.key !== optimisticKey),
             { key: optimisticKey, stance },
           ],
+          trustUnverified: base.trustUnverified,
         };
       });
 

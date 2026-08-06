@@ -1,34 +1,69 @@
 /**
- * Pure logic for folding together tags that different authors minted under the
- * same name. No relays, no signer, no React — kept out of `services/tags.ts` so
- * it can be tested without dragging in the whole nostr stack.
+ * Pure logic about tags that different authors minted under the same name. No
+ * relays, no signer, no React — kept out of `services/tags.ts` so it can be
+ * tested without dragging in the whole nostr stack.
  *
- * Why this exists: nothing stops two people creating "Bitcoin". The protocol
- * says that's fine and expects readers to rank the duplicates rather than
- * prevent them. But two chips both reading "Bitcoin" looks like a bug, so we
- * show one and combine its support.
+ * Nothing stops two people creating "Bitcoin". The protocol says that's fine
+ * and expects readers to rank the duplicates rather than prevent them.
+ *
+ * We used to fold them into one chip with combined support. That is now OFF:
+ * combining changes the arithmetic, so we reported one number where the
+ * protocol has two tags, and ACCEPTANCE C1 requires our net counts to match the
+ * reference instance's view. Duplicates now render separately, each with its
+ * own true count, and `countNameCollisions` supplies the disambiguation the
+ * merge used to hide.
+ *
+ * `mergeSameNamedTags` / `stanceForVariants` are kept, tested and unwired
+ * against the open question filed as KIT-FEEDBACK.md §3 — if the kit rules that
+ * clients SHOULD converge duplicate names, rewiring is a one-line change at
+ * each call site. Do not re-enable them without that ruling.
  */
 
 /**
  * A tag's counted support, as distinct asserter pubkeys.
  *
- * The subject's own assertions are deliberately NOT in `applications` /
- * `disputes` — they live in `selfApplied` / `selfDisputed`. Someone saying a
- * thing about themselves is a different claim from other people saying it, and
- * folding the two together is what let self-tagging masquerade as network
- * attestation once the self-declared role chips were retired.
+ * The subject's own assertion IS included here, and additionally flagged via
+ * `selfApplied` / `selfDisputed`. The kit counts distinct trusted asserters
+ * with no self exclusion, so excluding the subject put every self-tagged
+ * person one behind the reference instance. Self-declaration is still a
+ * different kind of claim — that belongs in the label, not the number.
  */
 export interface CountedTag {
   authorPubkey: string;
   slug: string;
-  /** Distinct third parties who applied it. Excludes the subject. */
+  /** Distinct asserters who applied it, the subject included. */
   applications: Set<string>;
-  /** Distinct third parties who disputed it. Excludes the subject. */
+  /** Distinct asserters who disputed it, the subject included. */
   disputes: Set<string>;
-  /** The subject applied this to themselves. */
+  /** The subject applied this to themselves — also counted in `applications`. */
   selfApplied: boolean;
   /** The subject disputed it — their objection, shown but never a veto. */
   selfDisputed: boolean;
+}
+
+/**
+ * How many separately-minted tag identities share each display name.
+ *
+ * Replaces the merge as the answer to "why do I see 'Bitcoin' twice?": both
+ * entries stay, each keeps its own honest count, and a name carrying more than
+ * one identity can be labelled as such. Keyed by `<author>|<slug>`.
+ */
+export function countNameCollisions(
+  counted: Map<string, CountedTag>,
+  names: Map<string, { name: string; description?: string }>,
+): Map<string, number> {
+  const perName = new Map<string, number>();
+  for (const [key, group] of counted) {
+    const bucket = normalizeTagName(names.get(key)?.name || group.slug);
+    perName.set(bucket, (perName.get(bucket) ?? 0) + 1);
+  }
+
+  const out = new Map<string, number>();
+  for (const [key, group] of counted) {
+    const bucket = normalizeTagName(names.get(key)?.name || group.slug);
+    out.set(key, perName.get(bucket) ?? 1);
+  }
+  return out;
 }
 
 export interface MergedTag {
@@ -48,6 +83,8 @@ export function normalizeTagName(name: string): string {
 
 /**
  * Collapse same-named tags into one, combining their support.
+ *
+ * UNWIRED — see the module note. Kept against KIT-FEEDBACK.md §3.
  *
  * The merge is over the SETS of asserters, never their sizes: somebody who
  * vouched for both variants is one person and must count once. Adding the
@@ -110,7 +147,10 @@ export function mergeSameNamedTags(
 }
 
 /**
- * The viewer's stance on a merged tag. It follows the NAME, not the identity:
+ * The viewer's stance on a merged tag. UNWIRED alongside `mergeSameNamedTags`;
+ * with duplicates rendered separately, a stance is read per identity.
+ *
+ * It follows the NAME, not the identity:
  * having applied any variant means they stand behind the tag. Apply beats
  * dispute, so agreeing with one variant isn't masked by an older disagreement
  * with another.

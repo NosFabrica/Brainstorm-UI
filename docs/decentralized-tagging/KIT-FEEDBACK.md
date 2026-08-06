@@ -162,3 +162,58 @@ Floors B, C and D plus the C4 stance toggle: tag chips on the public profile
 (anon-viewable), tag anyone with a signer, mint new tags, agree/disagree,
 `/tags/:author/:slug` listing everyone carrying a tag, a `/tags` catalogue, and
 tag matches in search. See `DECISIONS.md` in this folder for the choices and why.
+
+---
+
+## Added 2026-08-06, after running both acceptance scripts
+
+### 8. Floor A contradicts Q2's own migrate option
+
+`ACCEPTANCE.md` Floor A asserts the host's existing role chips "still render
+exactly as before — coexistence, no regression". But `Start.md` Q2 offers
+**migrate** — "a one-time, owner-prompted conversion" — as a sanctioned answer,
+and an integrator who takes it cannot satisfy that line.
+
+Floor A reads as the check for Q2's *default*. Suggest it say so explicitly
+("if you chose coexist"), and add the migrate equivalent: the conversion is
+owner-prompted, one-time, and publishes nothing without an explicit action.
+
+We took migrate, on our team's instruction that the role chips were the
+placeholder tags were meant to replace.
+
+### 9. `core/ACCEPTANCE.md` Hygiene asks for something no doc tells you to build
+
+"The tag-relay list is editable where INTEGRATION.md §3 put it (Settings if the
+host has one) and persists" is the only checkbox that requires UI the walkthrough
+never mentions. `CONFIG.json`'s `_tagRelays` comment says the same thing, and
+both are easy to read as advisory.
+
+Worth promoting to the build steps — it's a genuine feature (it's how we
+exercised C7's "tag relays unreachable" box without touching code), and it's
+the first box a reviewer will find missing.
+
+### 10. Please state whether the subject's own assertion counts
+
+`INTEGRATION.md` C6 says "count per `p` target (trust-filtered, net
+apply−dispute > 0)" and never mentions self-assertions. We initially excluded
+them — a self-declaration isn't corroboration — and that put us one behind the
+reference instance on every self-tagged person, which C1's "net counts matching"
+check is exactly designed to catch.
+
+We now count them, and label them separately in the UI. But the docs don't say
+which is intended, and it's a silent one-off divergence for anyone who reads it
+the way we first did. One sentence in C6 would settle it.
+
+Related: if self-assertions count, clients should be told not to render the
+subject in their own "vouched by" list. "Added by <the person themselves>"
+claims corroboration that doesn't exist.
+
+### 11. The cache expectation in C1 deserves a pointer
+
+C1 asks that "repeat reads hit the cache, not the relay". Nothing in the SDK
+caches tag-elements — `filterTagElements` and friends are pure — so this is
+entirely the integrator's to build, and it isn't mentioned in the walkthrough.
+Ours re-fetched the same element once per profile until we read this box.
+
+A line in §3 saying the host owns element caching, keyed by a-coordinate and by
+element id, would make it obvious.

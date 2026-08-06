@@ -38,6 +38,7 @@ import { audioUrlFromEvent, setPlaylist } from "@/lib/audioPlayer";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { TopicChips } from "@/components/share/TopicChips";
 import { ProfileTagChips } from "@/components/share/ProfileTagChips";
+import { LegacyRolePrompt } from "@/components/share/LegacyRolePrompt";
 import { ShareBio } from "@/components/share/ShareBio";
 import liveDefault from "@/assets/live-default.webp";
 import { PinIcon } from "@/components/PinIcon";
@@ -940,6 +941,13 @@ export default function SharePage() {
             isOwner={isOwner}
             legacyRoles={legacyRoleLabels}
           />
+
+          {/* The prompt half of Q2's "one-time, owner-prompted conversion".
+              Only the owner sees it, only when they have roles that aren't
+              tags yet, and only until they answer it once. */}
+          {isOwner && canTag && pubkey && legacyRoleLabels.length > 0 && (
+            <LegacyRolePrompt pubkey={pubkey} legacyRoles={legacyRoleLabels} />
+          )}
 
           {!isHidden("bio") && profile.about && (
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-snug line-clamp-2" data-testid="share-bio">

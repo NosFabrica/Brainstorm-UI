@@ -78,20 +78,26 @@ export function TagPersonButton({
    * tags existed on the hub. Nobody could apply "Bitcoin Vendor" without typing
    * it exactly, and a near-miss minted a duplicate instead.
    */
-  const existing = (options ?? [])
+  const offered = (options ?? [])
     .filter((t) => !offeredAbove.has(t.name.toLowerCase()))
     .map((t) => ({
       key: t.key,
       label: t.name,
       description: t.description,
       people: t.people,
+      band: t.band,
       tag: { authorPubkey: t.authorPubkey, slug: t.slug },
-    }))
-    // Most-used first. `fetchPickerTags` already puts the never-used hinted
-    // tags last, and they sort there naturally at zero.
-    .sort((a, b) => b.people - a.people || a.label.localeCompare(b.label));
+    }));
 
-  const existingNames = new Set(existing.map((e) => e.label.toLowerCase()));
+  // The applicability split (ACCEPTANCE C3): tags that describe people lead,
+  // tags the house says are for notes stay reachable but sit below. Ordering
+  // WITHIN each band is by usage — never by the hint, which only 9 of 39 tags
+  // carry and which buried the biggest real tag when we tried ranking on it.
+  // `fetchPickerTags` already sorted; these keep that order.
+  const existing = offered.filter((t) => t.band === "profile");
+  const forNotes = offered.filter((t) => t.band === "content");
+
+  const existingNames = new Set(offered.map((e) => e.label.toLowerCase()));
   const starters = ROLES.filter(
     (r) => !offeredAbove.has(r.label.toLowerCase()) && !existingNames.has(r.label.toLowerCase()),
   );
@@ -99,7 +105,7 @@ export function TagPersonButton({
   const typed = search.trim();
   const known = new Set([
     ...offeredAbove,
-    ...existing.map((e) => e.label.toLowerCase()),
+    ...offered.map((e) => e.label.toLowerCase()),
     ...starters.map((s) => s.label.toLowerCase()),
   ]);
   const isNew = typed.length > 0 && !known.has(typed.toLowerCase());
@@ -300,6 +306,33 @@ export function TagPersonButton({
                     value={e.label}
                     onSelect={() => applyExisting(e.tag, e.label)}
                     data-testid="share-tag-existing"
+                  >
+                    <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{e.label}</span>
+                      {e.description && (
+                        <span className="block truncate text-[10px] text-slate-400">{e.description}</span>
+                      )}
+                    </span>
+                    <span className="ml-2 shrink-0 text-[10px] tabular-nums text-slate-400">
+                      {e.people}
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+
+            {/* Tags the applicability split says describe posts rather than
+                people. Still applicable — the hint is never a gate — just not
+                what someone tagging a person is usually looking for. */}
+            {forNotes.length > 0 && (
+              <CommandGroup heading="Usually used on posts">
+                {forNotes.map((e) => (
+                  <CommandItem
+                    key={e.key}
+                    value={e.label}
+                    onSelect={() => applyExisting(e.tag, e.label)}
+                    data-testid="share-tag-content"
                   >
                     <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
                     <span className="min-w-0 flex-1">

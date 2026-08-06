@@ -131,4 +131,46 @@ describe("CarrierMeta", () => {
     expect(screen.getByTestId("tag-vouch-count").textContent).not.toMatch(/disagreed/);
     expect(screen.queryByTestId("tag-subject-disagrees")).toBeNull();
   });
+
+  /**
+   * The subject's own assertion is now COUNTED (the kit counts distinct
+   * asserters with no self exclusion), so it arrives in `asserters` too. It
+   * must not be read back out as attribution — "Added by <themselves>" claims
+   * corroboration that doesn't exist.
+   */
+  it("does not list the subject as their own voucher", () => {
+    const subject = "a".repeat(64);
+    render(
+      <CarrierMeta
+        carrier={carrier({
+          pubkey: subject,
+          applications: 1,
+          asserters: [subject],
+          selfDeclared: true,
+        })}
+        profileMap={profileMap}
+      />,
+    );
+    expect(screen.getByTestId("tag-self-declared")).toHaveTextContent("Says this about themselves");
+    expect(screen.queryByTestId("tag-voucher-link")).toBeNull();
+  });
+
+  it("names only the others when the subject also vouched for themselves", () => {
+    const subject = "a".repeat(64);
+    render(
+      <CarrierMeta
+        carrier={carrier({
+          pubkey: subject,
+          applications: 2,
+          asserters: [subject, "b".repeat(64)],
+          selfDeclared: true,
+        })}
+        profileMap={profileMap}
+      />,
+    );
+    const meta = screen.getByTestId("tag-vouch-count");
+    expect(meta).toHaveTextContent("Added by Avi Burra");
+    expect(meta).toHaveTextContent("Also says it themselves");
+    expect(screen.getAllByTestId("tag-voucher-link")).toHaveLength(1);
+  });
 });

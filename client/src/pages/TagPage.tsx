@@ -12,11 +12,13 @@ import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useTagDetail, useTagVote } from "@/hooks/useTags";
 import { TagVoteButton } from "@/components/share/TagVoteButton";
 import { TagComments } from "@/components/share/TagComments";
+import { TAG_COMMENTS_ENABLED } from "@/config/tagging";
 
 
 import { CarrierMeta } from "@/components/share/CarrierMeta";
 import { LinkedText } from "@/components/LinkedText";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
+import { onlySelfDeclared } from "@/lib/tagCounts";
 
 /**
  * `/tags/:author/:slug` — everyone the network says carries one tag.
@@ -119,7 +121,13 @@ export default function TagPage() {
   if (!authorPubkey) return <Redirect to="/" replace />;
 
   const loading = detailQuery.isLoading;
-  const distinctVouchers = new Set(carriers.flatMap((c) => c.asserters)).size;
+  // Distinct accounts who vouched for SOMEONE ELSE. `asserters` now includes
+  // the subject's own assertion (the kit counts it), but "added by N accounts"
+  // is a brigading tell about third parties — self-taggers inflating it would
+  // undo the point of showing it.
+  const distinctVouchers = new Set(
+    carriers.flatMap((c) => c.asserters.filter((pk) => pk !== c.pubkey)),
+  ).size;
   const iAmListed = !!viewerPubkey && carriers.some((c) => c.pubkey === viewerPubkey && c.myStance !== "dispute");
 
   /**
@@ -130,7 +138,7 @@ export default function TagPage() {
   const showFilters = carriers.length >= FILTER_THRESHOLD;
   const visible = useMemo(() => {
     let list = carriers;
-    if (hideSelfDeclared) list = list.filter((c) => c.applications > 0);
+    if (hideSelfDeclared) list = list.filter((c) => !onlySelfDeclared(c));
     if (hideContested) list = list.filter((c) => c.disputes === 0 && !c.subjectDisagreed);
     if (sort === "recent") list = [...list].sort((a, b) => b.addedAt - a.addedAt);
     return list;
@@ -228,6 +236,20 @@ export default function TagPage() {
           )}
         </div>
 
+        {/* The trust source gave us nothing, so nobody here was filtered.
+            ACCEPTANCE C7 wants that to degrade quietly rather than error — but
+            quietly isn't the same as invisibly, and a list that looks vetted
+            when it wasn't is the one failure worth a line of text. */}
+        {!loading && detailQuery.data?.trustUnverified && carriers.length > 0 && (
+          <p
+            className="mb-3 text-xs text-slate-400 dark:text-slate-500"
+            data-testid="tag-trust-unverified"
+          >
+            We couldn't check who's reputable right now, so everyone who added a
+            name is counted here.
+          </p>
+        )}
+
         {!loading && carriers.length > 1 && (
           <div className="mb-2 flex flex-wrap items-center gap-1.5" data-testid="tag-controls">
             <SortChip active={sort === "vouched"} onClick={() => setSort("vouched")} testId="tag-sort-vouched">
@@ -316,7 +338,11 @@ export default function TagPage() {
           )}
         </div>
 
-        <TagComments authorPubkey={authorPubkey} slug={slug} canPost={canVote} />
+        {/* Off by default — a comment layer isn't in any kit document, so it
+            must not be live during an acceptance run. See TAG_COMMENTS_ENABLED. */}
+        {TAG_COMMENTS_ENABLED && (
+          <TagComments authorPubkey={authorPubkey} slug={slug} canPost={canVote} />
+        )}
       </main>
     </div>
   );

@@ -40,3 +40,28 @@ export function buildTagElement(args: {
   taPubkeys: string[];
   applicabilityZ?: string;
 }): UnsignedPartialEvent;
+
+/**
+ * The relay filter that finds tag-elements carrying a context's applicability
+ * z-hint — the HINT half of the HINT ∪ USAGE union.
+ */
+export function applicabilityHintFilter(context: "event" | "pubkey"): {
+  kinds: number[];
+  "#z": string[];
+};
+
+/**
+ * Derive one context's applicable tags client-side: HINT ∪ USAGE, deduped by
+ * a-coordinate, usage-descending (hint-only entries last, at zero).
+ *
+ * The fallback the kit prescribes when the house's published kind-30394
+ * applicability lists are absent or unreachable.
+ */
+export function deriveApplicabilityMembers(args: {
+  usageRows: Array<{
+    tag: { authorPubkey: string; slug: string };
+    byType: { event?: { applications: number }; profile?: { applications: number } };
+  }>;
+  hintEls: unknown[];
+  context: "event" | "pubkey";
+}): Array<{ a: string; authorPubkey: string | null; slug: string | null; applications: number }>;

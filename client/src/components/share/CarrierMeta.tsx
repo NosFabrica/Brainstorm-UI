@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "wouter";
 import { npubFromPubkey } from "@/lib/shareId";
+import { onlySelfDeclared } from "@/lib/tagCounts";
 import type { TagCarrier } from "@/services/tags";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 
@@ -33,7 +34,11 @@ export function CarrierMeta({
   // Three keeps the row one line; the rest are a tap away rather than hidden.
   // "Who vouched" is the whole point of attribution — a name you can't open
   // is barely better than a count.
-  const vouchers = carrier.asserters;
+  // The subject is in `asserters` now (their assertion counts like anyone
+  // else's), but "Added by <the person themselves>" isn't attribution — their
+  // own claim gets its own line below.
+  const vouchers = carrier.asserters.filter((pk) => pk !== carrier.pubkey);
+  const others = vouchers.length;
   const shown = expanded ? vouchers : vouchers.slice(0, 3);
   const extra = vouchers.length - shown.length;
 
@@ -41,7 +46,7 @@ export function CarrierMeta({
   // list and see which rows are self-declared or contested without reading
   // every line. Most tags here have three people, where a filter row is noise.
   const badges: Array<{ label: string; tone: string; testId: string }> = [];
-  if (carrier.applications === 0 && carrier.selfDeclared) {
+  if (onlySelfDeclared(carrier)) {
     badges.push({ label: "Self-declared", tone: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400", testId: "badge-self" });
   }
   if (carrier.disputes > 0 || carrier.subjectDisagreed) {
@@ -63,7 +68,7 @@ export function CarrierMeta({
           ))}
         </div>
       )}
-      {carrier.applications > 0 ? (
+      {others > 0 ? (
         <p className="text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
           {/* Naming the vouchers is the point: "2 people" told you nothing
               about whether that was two strangers or one account twice. */}
@@ -115,12 +120,12 @@ export function CarrierMeta({
       {/* Nobody vouched and they didn't claim it — the row is only here because
           the reader has a stance on it. Saying "says this about themselves"
           here would be flatly untrue, which is what the first cut did. */}
-      {carrier.applications === 0 && !carrier.selfDeclared && carrier.myStance === "dispute" && (
+      {others === 0 && !carrier.selfDeclared && carrier.myStance === "dispute" && (
         <p className="text-[11px] text-slate-400 dark:text-slate-500" data-testid="tag-withdrawn">
           {isViewer ? "You withdrew your vote" : "No longer vouched for"}
         </p>
       )}
-      {carrier.selfDeclared && carrier.applications > 0 && (
+      {carrier.selfDeclared && others > 0 && (
         <p className="text-[11px] text-slate-400 dark:text-slate-500">
           {isViewer ? "You also added yourself" : "Also says it themselves"}
         </p>
