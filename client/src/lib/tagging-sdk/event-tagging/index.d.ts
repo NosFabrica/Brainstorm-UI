@@ -26,6 +26,12 @@ export function tagElementAddr(authorPubkey: string, slug: string): string;
 /** Concept handle for the `tag` namespace under one pubkey. */
 export function conceptTag(taPubkey: string): string;
 
+/** Concept handle for the `nostr-event-tag` namespace — assertions about notes. */
+export function conceptNostrEventTag(taPubkey: string): string;
+
+/** Concept handle for the `tagging-with-specific-tag` namespace — the headers. */
+export function conceptTaggingWithSpecificTag(taPubkey: string): string;
+
 /**
  * Build a tag-element (the tag itself, as opposed to an assertion applying it).
  *

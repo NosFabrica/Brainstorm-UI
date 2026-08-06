@@ -42,6 +42,7 @@ import {
   applyEventTagging,
   buildTagElement,
   classifyEventTaggings,
+  conceptNostrEventTag,
   conceptTag,
   deriveApplicabilityMembers,
   filterTaggingHeadersForTag,
@@ -51,6 +52,7 @@ import {
 } from "@/lib/tagging-sdk/event-tagging/index.js";
 import { countNameCollisions, type CountedTag } from "@/lib/tagMerge";
 import { stanceOnlyRefs } from "@/lib/tagCounts";
+import { buildTagPin, conceptTagPinning, tagRefFromPin } from "@/lib/tagPins";
 import {
   LOCAL_TA_PUBKEY,
   tagRelays,
@@ -1393,6 +1395,272 @@ export function predictedTagKey(name: string, asserterPubkey: string): string {
 
 /** The applicability hint stamped on tags born tagging a person. */
 export { TAG_FOR_NOSTR_PUBKEY_Z };
+
+// ─── Pinning (OFF by default — see TAG_PINS_ENABLED) ─────────────────────────
+
+/** NIP-09 deletion. */
+const DELETION_KIND = 5;
+
+/** A tag the viewer has pinned, plus the pin event so it can be undone. */
+export interface PinnedTag extends TagIdentity {
+  key: string;
+  /** The pin event's id — what an unpin deletes. */
+  pinEventId: string;
+  at: number;
+}
+
+/**
+ * The viewer's pinned tags.
+ *
+ * Reader semantics are **existence-based** per the spec: a live pin means
+ * pinned, its absence means not. We additionally filter out pins the viewer has
+ * already deleted, because relays are inconsistent about honouring NIP-09 and a
+ * tag reappearing after you unpinned it is worse than a slow list.
+ */
+export async function fetchPinnedTags(viewerPubkey: string): Promise<PinnedTag[]> {
+  if (!viewerPubkey) return [];
+
+  const [pins, hubDeletions, generalDeletions] = await Promise.all([
+    fetchTagEvents({
+      kinds: [TAG_ELEMENT_KIND],
+      authors: [viewerPubkey],
+      "#z": Z_HANDLE_PUBKEYS.map(conceptTagPinning),
+    }).catch(() => [] as NostrEvent[]),
+    // The hub almost certainly holds none of these — see `unpinTag` — but ask
+    // anyway, in case an operator widens the allow-list later.
+    fetchTagEvents({ kinds: [DELETION_KIND], authors: [viewerPubkey] }).catch(
+      () => [] as NostrEvent[],
+    ),
+    fetchCommentEvents({ kinds: [DELETION_KIND], authors: [viewerPubkey] }).catch(
+      () => [] as NostrEvent[],
+    ),
+  ]);
+  const deletions = [...hubDeletions, ...generalDeletions];
+  if (!pins.length) return [];
+
+  const deleted = new Set(
+    deletions.flatMap((d) => (d.tags || []).filter((t) => t[0] === "e").map((t) => t[1])),
+  );
+
+  // Latest wins per pin address, same replaceable discipline as everything else.
+  const latest = new Map<string, NostrEvent>();
+  for (const ev of pins) {
+    const d = tagValue(ev, "d");
+    if (!d || deleted.has(ev.id)) continue;
+    const prev = latest.get(d);
+    if (!prev || ev.created_at > prev.created_at) latest.set(d, ev);
+  }
+
+  const refs: Array<{ authorPubkey: string; slug: string }> = [];
+  const rows: Array<{ ref: { authorPubkey: string; slug: string }; ev: NostrEvent }> = [];
+  for (const ev of latest.values()) {
+    const ref = tagRefFromPin(ev);
+    if (!ref) continue;
+    refs.push(ref);
+    rows.push({ ref, ev });
+  }
+  if (!rows.length) return [];
+
+  const names = await resolveTagNames(refs);
+  return rows
+    .map(({ ref, ev }) => {
+      const key = `${ref.authorPubkey}|${ref.slug}`;
+      return {
+        key,
+        authorPubkey: ref.authorPubkey,
+        slug: ref.slug,
+        name: names.get(key)?.name || ref.slug,
+        description: names.get(key)?.description,
+        pinEventId: ev.id,
+        at: ev.created_at,
+      };
+    })
+    .sort((a, b) => b.at - a.at);
+}
+
+/**
+ * Pin a tag. Needs the tag-element's event id for the `e` half of the spec's
+ * dual reference — `fetchTagDetail` and `resolveOrMintTag` both surface it.
+ */
+export async function pinTag({
+  authorPubkey,
+  slug,
+  tagEventId,
+}: {
+  authorPubkey: string;
+  slug: string;
+  tagEventId: string;
+}): Promise<void> {
+  const user = getCurrentUser();
+  if (!user?.pubkey) throw new Error("Sign in to pin.");
+
+  const unsigned = {
+    ...buildTagPin({
+      slug,
+      tagAuthorPubkey: authorPubkey,
+      tagEventId,
+      viewerPubkey: user.pubkey,
+      taPubkeys: Z_HANDLE_PUBKEYS,
+    }),
+    pubkey: user.pubkey,
+    created_at: Math.floor(Date.now() / 1000),
+  };
+  const signed = await signEventLocally(unsigned as Record<string, unknown>);
+  await publishTagEvent(signed);
+}
+
+/**
+ * Unpin — a NIP-09 kind-5 deletion of the pin event.
+ *
+ * This is the app's FIRST deletion of any kind. Note what it does and doesn't
+ * mean: it removes a PIN, which is a private curation choice. It emphatically
+ * does not delete a tagging — those have no delete at all, only polarity
+ * replacement. Don't reach for this from any other flow.
+ *
+ * **The deletion cannot go to the tag hub.** `dcosl.brainstorm.world` advertises
+ * its allow-list in its NIP-11 document — "stores kinds 9998, 9999, 39998,
+ * 39999 … also supports kind 7" — and kind 5 isn't on it, the same wall that
+ * blocks kind-1111 comments (KIT-FEEDBACK §6). So the spec's unpin mechanism
+ * cannot be executed against the relay the spec's pins live on.
+ *
+ * We publish the deletion to the app's general relays and, on read, union
+ * deletions from both sets. That makes unpinning work for us and for anyone
+ * reading the same way — but a client reading the hub alone will keep seeing
+ * the pin forever. Filed as KIT-FEEDBACK §15; this is a workaround, not a fix.
+ */
+export async function unpinTag(pinEventId: string): Promise<void> {
+  const user = getCurrentUser();
+  if (!user?.pubkey) throw new Error("Sign in to unpin.");
+
+  const unsigned = {
+    kind: DELETION_KIND,
+    pubkey: user.pubkey,
+    created_at: Math.floor(Date.now() / 1000),
+    tags: [["e", pinEventId]],
+    content: "",
+  };
+  const signed = await signEventLocally(unsigned as Record<string, unknown>);
+  // General relays, NOT publishTagEvent — the hub would reject this outright.
+  const result = await publishToRelays(signed);
+  if (!result.success) throw new Error(result.error || "No relay accepted the unpin");
+}
+
+// ─── What the viewer has said ────────────────────────────────────────────────
+
+/** One claim the viewer has made, about a person or a note. */
+export interface MyAssertion {
+  /** `<tagAuthor>|<slug>` — the tag's identity. */
+  key: string;
+  authorPubkey: string;
+  slug: string;
+  name: string;
+  /** A person's pubkey, or a note's event id. */
+  target: string;
+  targetKind: "pubkey" | "event";
+  stance: "apply" | "dispute";
+  /** When we signed it. */
+  at: number;
+}
+
+/**
+ * Everything the viewer has ever claimed — both halves of the protocol.
+ *
+ * Nothing else in the app answers "what have I actually said about people?".
+ * The assertions are public, permanent and signed with their key, so being able
+ * to review them in one place is the least a client owes someone. Withdrawal
+ * runs through the same polarity flip the pickers use; there is no delete.
+ *
+ * Trust-free by construction: these are the viewer's OWN events, so no POV gets
+ * a say in whether they're listed. That's the same reasoning as the `mine`
+ * channel, applied to a whole page.
+ */
+export async function fetchMyAssertions(viewerPubkey: string): Promise<MyAssertion[]> {
+  if (!viewerPubkey) return [];
+
+  const [profileEvents, eventEvents] = await Promise.all([
+    fetchAllTagEvents({
+      kinds: [TAG_ELEMENT_KIND],
+      authors: [viewerPubkey],
+      "#z": Z_HANDLE_PUBKEYS.map(conceptNostrUserTag),
+    }).catch(() => [] as NostrEvent[]),
+    fetchAllTagEvents({
+      kinds: [TAG_ELEMENT_KIND],
+      authors: [viewerPubkey],
+      "#z": Z_HANDLE_PUBKEYS.map(conceptNostrEventTag),
+    }).catch(() => [] as NostrEvent[]),
+  ]);
+
+  const out: MyAssertion[] = [];
+
+  // ── People we've tagged ──
+  const onPeople = await normalizeAssertions(profileEvents);
+  for (const a of onPeople) {
+    if (a.asserter !== viewerPubkey) continue; // defensive: the filter said authors:[me]
+    out.push({
+      key: a.tagKey,
+      authorPubkey: a.tagAuthor,
+      slug: a.slug,
+      name: a.slug,
+      target: a.target,
+      targetKind: "pubkey",
+      stance: a.stance,
+      at: a.at,
+    });
+  }
+
+  // ── Notes we've tagged ──
+  // The event half needs its headers resolved before a candidate names its tag,
+  // so it goes through the classifier rather than `normalizeAssertions`.
+  const dedupedEvents = latestByReplaceableKey(eventEvents);
+  if (dedupedEvents.length) {
+    const headers = await resolveTaggingHeaders(
+      dedupedEvents.map(descriptorOf).filter((c): c is string => !!c),
+    );
+    // Grouped per target because the classifier answers "what tags are on THIS
+    // target"; we're asking the transpose, one target at a time.
+    const byTarget = new Map<string, NostrEvent[]>();
+    for (const ev of dedupedEvents) {
+      const target = targetIdOf(ev);
+      if (!target) continue;
+      if (!byTarget.has(target)) byTarget.set(target, []);
+      byTarget.get(target)!.push(ev);
+    }
+    for (const [target, evs] of byTarget) {
+      const classified = classifyEventTaggings({
+        candidates: evs,
+        headers,
+        honoredAuthorities: Z_HANDLE_PUBKEYS,
+        // Our own events; the POV has no business filtering them out here.
+        isAsserterTrusted: () => true,
+        viewerPubkey,
+      });
+      for (const m of classified.mine) {
+        out.push({
+          key: `${m.tag.authorPubkey}|${m.tag.slug}`,
+          authorPubkey: m.tag.authorPubkey,
+          slug: m.tag.slug,
+          name: m.tag.slug,
+          target,
+          targetKind: "event",
+          stance: m.stance,
+          at: m.createdAt,
+        });
+      }
+    }
+  }
+
+  if (!out.length) return [];
+
+  // One name lookup for the whole page, served from the session element cache
+  // where a chip already resolved it.
+  const names = await resolveTagNames(
+    Array.from(new Map(out.map((a) => [a.key, { authorPubkey: a.authorPubkey, slug: a.slug }])).values()),
+  );
+  for (const a of out) a.name = names.get(a.key)?.name || a.slug;
+
+  // Newest first — this reads as a log of what you've said.
+  return out.sort((a, b) => b.at - a.at);
+}
 
 // ─── Tagging NOTES (rung C2) ─────────────────────────────────────────────────
 

@@ -172,3 +172,20 @@ export const TAG_FOR_NOSTR_PUBKEY_Z = "tag-for-nostr-pubkey";
  * relay constraint it runs into is `KIT-FEEDBACK.md` §6.
  */
 export const TAG_COMMENTS_ENABLED = false;
+
+/**
+ * Pinning tags into a personal curated set — built, and OFF.
+ *
+ * Unlike comments, this one IS in the protocol: `core/protocol/tags.md` §Pins
+ * specifies the event, the `curation-method` payload and NIP-09 unpinning. What
+ * makes it a deviation is that `core/INTEGRATION.md` §8 lists it under
+ * "Explicitly OUT of scope for the core (do not build; do not preclude) — Tag
+ * pinning / Trusted-List publication from the client", and Brainstorm's
+ * `Start.md` never pulls it back in. The SDK agrees: it ships the read half and
+ * no pin builder.
+ *
+ * Built on Benjamin's explicit call (2026-08-06) and defaulted off, so an
+ * acceptance run sees only what the kit describes. Flip to `true` to demo.
+ * Rationale and the ask to scope it in: `DECISIONS.md` §8, `KIT-FEEDBACK.md` §14.
+ */
+export const TAG_PINS_ENABLED = false;

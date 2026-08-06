@@ -9,6 +9,10 @@ import {
   fetchEventTags,
   fetchEventTagsBatch,
   fetchTagNotes,
+  fetchMyAssertions,
+  fetchPinnedTags,
+  pinTag,
+  unpinTag,
   publishTagComment,
   matchTags,
   applyTagToProfile,
@@ -23,6 +27,8 @@ import {
   type TagComment,
   type NoteTagsResult,
   type TaggedNote,
+  type MyAssertion,
+  type PinnedTag,
 } from "@/services/tags";
 import { getCurrentUser } from "@/services/nostr";
 
@@ -225,6 +231,58 @@ export function useEventTagsBatch(eventIds: string[]) {
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
     retry: 1,
+  });
+}
+
+/**
+ * Everything the viewer has claimed, about people and notes alike.
+ *
+ * Signed-in only — there is no "mine" without a viewer. Cached loosely: this
+ * pages the viewer's whole assertion history, and the answer barely moves.
+ */
+export function useMyAssertions() {
+  const viewerPubkey = getCurrentUser()?.pubkey;
+  return useQuery<MyAssertion[]>({
+    queryKey: ["my-assertions", viewerPubkey ?? "anon"],
+    queryFn: () => fetchMyAssertions(viewerPubkey!),
+    enabled: !!viewerPubkey,
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    retry: 1,
+  });
+}
+
+/** The viewer's pinned tags. Off unless `TAG_PINS_ENABLED` — see the config. */
+export function usePinnedTags(enabled = true) {
+  const viewerPubkey = getCurrentUser()?.pubkey;
+  return useQuery<PinnedTag[]>({
+    queryKey: ["pinned-tags", viewerPubkey ?? "anon"],
+    queryFn: () => fetchPinnedTags(viewerPubkey!),
+    enabled: enabled && !!viewerPubkey,
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+}
+
+/**
+ * Pin or unpin. Not optimistic: pinning is a publish and unpinning is a
+ * deletion, and showing either as done before the relay accepted it would be
+ * claiming something we don't know.
+ */
+export function useTogglePin() {
+  const queryClient = useQueryClient();
+  const viewerPubkey = getCurrentUser()?.pubkey;
+
+  return useMutation({
+    mutationFn: (args: { authorPubkey: string; slug: string; tagEventId: string } | { pinEventId: string }) =>
+      "pinEventId" in args ? unpinTag(args.pinEventId) : pinTag(args),
+    onSuccess: () => {
+      const key = ["pinned-tags", viewerPubkey ?? "anon"];
+      void queryClient.invalidateQueries({ queryKey: key });
+      // Relays settle a beat after the publish resolves — and a deletion needs
+      // longer to propagate than a write does.
+      setTimeout(() => queryClient.invalidateQueries({ queryKey: key }), 2500);
+    },
   });
 }
 

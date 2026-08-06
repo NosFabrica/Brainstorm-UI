@@ -108,6 +108,18 @@ export function ProfileTagChips({
       {canTag && pubkey && (
         <TagPersonButton pubkey={pubkey} isOwner={isOwner} legacyRoles={legacyRoles} />
       )}
+      {/* Owner-only shortcut to the one place that lists every tag on them AND
+          everything they've said about others. Not on someone else's profile —
+          there's nothing of yours to manage there. */}
+      {isOwner && canTag && tags.length > 0 && (
+        <Link
+          href="/tags/mine"
+          className="text-[11px] font-semibold text-slate-400 transition-colors hover:text-brand-primary dark:text-slate-500"
+          data-testid="share-tags-manage"
+        >
+          Manage
+        </Link>
+      )}
     </div>
   );
 }

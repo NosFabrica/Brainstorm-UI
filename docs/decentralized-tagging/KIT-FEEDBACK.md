@@ -254,3 +254,63 @@ We don't ask: the picker offers every tag and lets the SDK mint the header when
 needed, which is correct but means some picks quietly cost an extra signature.
 A `#a`-batched variant (all headers for a LIST of tag coordinates) would let a
 client show that difference, or at least warn before a three-signature flow.
+
+### 14. Pinning is specified, forbidden, and half-shipped — please pick one
+
+`core/protocol/tags.md` §Pins fully specifies a personal curated set: the
+kind-39999 pin event, its dual `e`+`a` reference, the `curation-method` payload,
+and NIP-09 unpinning. `core/INTEGRATION.md` §8 then lists "Tag pinning /
+Trusted-List publication from the client" under **do not build**. The SDK splits
+the same way: `taggings.js` ships `projectionFor` and `curateNotes` — the read
+and snapshot halves — and no pin builder at all.
+
+That's an awkward place for an integrator to stand. "How do I manage my tags?"
+is the first question a user asks after their second tag, and the protocol has
+the answer while the kit says not to implement it.
+
+We built it (Benjamin's call, 2026-08-06) behind `TAG_PINS_ENABLED`, defaulting
+**off**, so an acceptance run still sees only what the kit describes. Two asks:
+
+1. **Can pinning move into scope for Brainstorm?** §8 says a per-target kit may
+   pull items back in explicitly; ours doesn't. If the answer is yes, shipping a
+   `buildTagPin` beside the other builders would stop every client inventing the
+   shape independently.
+2. **Confirm the `tag-pinning` concept handle.** `handles.js` composes `tag`,
+   `nostr-event-tag` and `tagging-with-specific-tag`; there is no `tag-pinning`
+   composer. We compose `39998:<ta>:tag-pinning` by analogy with the documented
+   family — but worksheet **W1 (cross-deployment concept identity)** is open on
+   exactly this, so it's a guess we'd rather not be making in a signed event.
+
+### 15. The spec's unpin mechanism can't run against the relay that stores pins
+
+Same shape as §6, and found the same way — by reading the hub's own NIP-11
+document before publishing anything:
+
+> "This is a strfry instance. It stores kinds **9998, 9999, 39998, 39999** events
+> in support of the NostrHub.io Custom NIP: Decentralized Lists. Also supports
+> **kind 7** for the WoT aspects of DL."
+
+Kind **5 is not on that list**. But `tags.md` §Unpinning says:
+
+> "Unpinning is a standard NIP-09 kind-`5` deletion of the pin event. Reader
+> semantics are existence-based: a live pin event means pinned; its absence (or
+> deletion) means not pinned."
+
+So a pin published to the hub — where §Pins says it belongs — can never be
+unpinned there. Existence-based reader semantics make that worse than a missing
+feature: a client reading the hub alone sees the pin forever, with no signal
+that the user removed it.
+
+Our workaround: publish the kind-5 to the app's general relays and union
+deletions from both relay sets on read. That works for us and for anyone reading
+the same way, and is wrong for everyone else.
+
+Options, in preference order:
+
+1. Add kind 5 to the hub's allow-list, scoped to deleting the author's own
+   DList events. Unpinning then works where the spec says it should.
+2. Failing that, specify unpinning as something the hub *can* store — a
+   replaceable pin carrying an explicit `["status","unpinned"]`, say — rather
+   than a deletion the storage layer rejects.
+3. At minimum, document the split so nobody ships an unpin button that silently
+   does nothing.

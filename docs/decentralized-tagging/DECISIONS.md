@@ -238,6 +238,50 @@ Consequences we accepted:
   publisher attaches no relay hints, which is what makes this bite. Our own
   writes always attach one.
 
+## 8. A "my tags" page, and pinning — decided 2026-08-06
+
+Benjamin asked what the kit says about managing a user's tag list. The answer
+split three ways, and the split is the decision:
+
+**There is no management page in the kit.** Tags on you live in the profile chip
+row (`Start.md` §3.4's reserved slot) and you manage them there, in place. Tag
+pages are `/tags/:author/:slug`. That's the whole specified surface.
+
+**Two thirds of `/tags/mine` is therefore not a deviation.** `INTEGRATION.md` §5
+puts rendering with the integrator — "what the host renders with each capability
+is the integrator's decision" — so "tags about you" and "what you've said" are
+ordinary UI over machinery the kit already sanctions. No flag, no apology.
+
+The second one earns its place on its own terms: assertions are public,
+permanent and signed with the user's key, and nothing else in the app answers
+*"what have I actually claimed about other people?"*. A client that lets you
+make permanent public claims owes you a list of them.
+
+**Pinning is the deviation, and it ships off.** `core/protocol/tags.md` §Pins
+specifies a personal curated set; `INTEGRATION.md` §8 lists it under *do not
+build*; the SDK ships the read half and no builder. Built behind
+`TAG_PINS_ENABLED = false` — same treatment as tag comments — so an acceptance
+run sees only what the kit describes. Asks filed as KIT-FEEDBACK §14.
+
+Two things we had to decide for ourselves, both flagged upstream rather than
+buried:
+
+- **The `tag-pinning` concept handle isn't in the SDK.** We compose
+  `39998:<ta>:tag-pinning` by analogy with the documented family. Worksheet W1
+  is open on exactly this, so `lib/tagPins.ts` says so in a comment and the
+  tests assert our reading rather than a certainty.
+- **Unpinning can't run where pins live.** The hub's NIP-11 document lists kinds
+  9998/9999/39998/39999 and 7; kind 5 isn't there, so the spec's NIP-09 unpin is
+  rejected by the relay the spec's pins belong on. We publish the deletion to
+  general relays and union both sets on read — a workaround, recorded as
+  KIT-FEEDBACK §15. Found by reading the relay's own advertisement before
+  publishing anything, which is the cheapest verification in this whole build.
+
+**The copy rule this page had to respect:** you cannot erase a tag someone else
+gave you. The page says that in plain words at the top and never offers a
+"Remove" button, because the protocol has no delete and we don't promise what we
+don't do.
+
 ---
 
 ## Field notes — what the live data actually looks like

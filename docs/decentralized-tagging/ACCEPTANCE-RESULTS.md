@@ -10,13 +10,17 @@ the kit says "still applies verbatim underneath", and the UI overlay's
 Kit commit integrated: `8412198053c5916377724a9a2960db8d5bd67407`
 (`nous-clawds4/tapestry`, branch `generate-nosfabrica-integration-kit`).
 
-**Summary: 48 pass · 0 fail · 0 not-built · 1 not-exercisable · 1 declared
-divergence.**
+**Summary: 48 pass · 0 fail · 0 not-built · 1 not-exercisable · 2 declared
+divergences.**
 
 - The **not-exercisable** box needs a second signer identity (core C3, "as B,
   reading the same targets"). Genuinely unverified, not waved through.
-- The **divergence** is `Start.md` Q2's migrate option, which the overlay's
-  Floor A wording doesn't account for. Declared, not accidental.
+- The **divergences** are declared, not accidental: (1) `Start.md` Q2's migrate
+  option, which the overlay's Floor A wording doesn't account for; (2) tag
+  **pinning**, which `core/protocol/tags.md` §Pins specifies and
+  `INTEGRATION.md` §8 forbids building — shipped behind `TAG_PINS_ENABLED`,
+  default **off**, so an acceptance run never sees it (DECISIONS §8,
+  KIT-FEEDBACK §14–15).
 - Two **upstream defects** are worked around rather than failed:
   `KIT-FEEDBACK.md` §1 (the `hops` inversion — we neutralise it in
   `config/tagging.ts`, and reverting would ship a knowingly inverted filter) and

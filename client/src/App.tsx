@@ -42,6 +42,7 @@ import NostrPage from "@/pages/NostrPage";
 import HashtagPage from "@/pages/HashtagPage";
 import TagPage from "@/pages/TagPage";
 import TagIndexPage from "@/pages/TagIndexPage";
+import MyTagsPage from "@/pages/MyTagsPage";
 import PrivacyPage from "@/pages/PrivacyPage";
 import TermsPage from "@/pages/TermsPage";
 import AdminPage from "@/pages/AdminPage";
@@ -165,6 +166,8 @@ function Router() {
         <Route path="/t/:tag" component={HashtagPage} />
         {/* Public tag pages. The index must precede the per-tag route. */}
         <Route path="/tags" component={TagIndexPage} />
+        {/* Before the :author/:slug pattern — "mine" is a page, not an author. */}
+        <Route path="/tags/mine">{() => <RequireAuth component={MyTagsPage} />}</Route>
         <Route path="/tags/:author/:slug" component={TagPage} />
         <Route path="/hero-lab" component={HeroLab} />
         <Route path="/welcome" component={WelcomePage} />
