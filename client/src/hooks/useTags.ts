@@ -205,6 +205,13 @@ export function useApplyTag(targetPubkey: string | undefined) {
                 // One identity until the refetch says otherwise; a merge can
                 // only be discovered by reading what's actually on the relays.
                 variants: 1,
+                // Optimistically we know only our own act. Whether this is a
+                // self-declaration, and who else vouched, comes back with the
+                // refetch — guessing here would flash a wrong label.
+                asserters: viewerPubkey === targetPubkey ? [] : [viewerPubkey],
+                selfDeclared: viewerPubkey === targetPubkey && stance === "apply",
+                subjectDisagreed: viewerPubkey === targetPubkey && stance === "dispute",
+                counted: viewerPubkey !== targetPubkey && stance === "apply",
                 myStance: stance,
               },
             ];

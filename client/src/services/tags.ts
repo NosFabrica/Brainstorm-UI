@@ -36,7 +36,7 @@ import {
   type TrustPredicate,
 } from "@/lib/tagging-sdk/trust.js";
 import { buildTagElement, conceptTag, slug as toSlug } from "@/lib/tagging-sdk/event-tagging/index.js";
-import { mergeSameNamedTags, stanceForVariants } from "@/lib/tagMerge";
+import { mergeSameNamedTags, stanceForVariants, type CountedTag } from "@/lib/tagMerge";
 import {
   LOCAL_TA_PUBKEY,
   TAG_RELAYS,
@@ -74,6 +74,18 @@ export interface ProfileTag extends TagIdentity {
   applications: number;
   /** Distinct trusted asserters who disputed it. */
   disputes: number;
+  /** Who vouched, for attribution. Same people `applications` counts. */
+  asserters: string[];
+  /** This person said it about themselves. Not the network saying it. */
+  selfDeclared: boolean;
+  /** This person objects. Displayed with weight; never a veto. */
+  subjectDisagreed: boolean;
+  /**
+   * Whether third-party support actually carries the tag (the kit's net rule).
+   * False for a tag that only survives because the subject declared it, or
+   * because the viewer has a stance on it — both still render, differently.
+   */
+  counted: boolean;
   /**
    * How many separately-minted tag identities share this name and were folded
    * into this one. 1 is the normal case; >1 means different authors created the
@@ -381,13 +393,10 @@ function groupByTag(
   isAsserterTrusted: TrustPredicate,
   viewerPubkey?: string,
 ): {
-  counted: Map<string, { authorPubkey: string; slug: string; applications: Set<string>; disputes: Set<string> }>;
+  counted: Map<string, CountedTag>;
   mine: Map<string, "apply" | "dispute">;
 } {
-  const counted = new Map<
-    string,
-    { authorPubkey: string; slug: string; applications: Set<string>; disputes: Set<string> }
-  >();
+  const counted = new Map<string, CountedTag>();
   const mine = new Map<string, "apply" | "dispute">();
 
   for (const a of assertions) {
@@ -402,27 +411,55 @@ function groupByTag(
         slug: a.slug,
         applications: new Set(),
         disputes: new Set(),
+        selfApplied: false,
+        selfDisputed: false,
       });
     }
     const grp = counted.get(a.tagKey)!;
+
+    // The subject's own voice is kept apart from the crowd's, in both
+    // directions: self-declaration is not attestation, and the subject's
+    // objection is displayed rather than silently subtracted.
+    if (a.asserter === a.target) {
+      if (a.stance === "apply") grp.selfApplied = true;
+      else grp.selfDisputed = true;
+      continue;
+    }
     (a.stance === "apply" ? grp.applications : grp.disputes).add(a.asserter);
   }
 
   return { counted, mine };
 }
 
+interface TargetSupport {
+  applications: Set<string>;
+  disputes: Set<string>;
+  selfApplied: boolean;
+  selfDisputed: boolean;
+}
+
 /** Group normalized assertions BY TARGET — the tag-page read. */
 function groupByTarget(
   assertions: NormalizedAssertion[],
   isAsserterTrusted: TrustPredicate,
-): Map<string, { applications: Set<string>; disputes: Set<string> }> {
-  const byTarget = new Map<string, { applications: Set<string>; disputes: Set<string> }>();
+): Map<string, TargetSupport> {
+  const byTarget = new Map<string, TargetSupport>();
   for (const a of assertions) {
     if (!isAsserterTrusted(a.asserter)) continue;
     if (!byTarget.has(a.target)) {
-      byTarget.set(a.target, { applications: new Set(), disputes: new Set() });
+      byTarget.set(a.target, {
+        applications: new Set(),
+        disputes: new Set(),
+        selfApplied: false,
+        selfDisputed: false,
+      });
     }
     const grp = byTarget.get(a.target)!;
+    if (a.asserter === a.target) {
+      if (a.stance === "apply") grp.selfApplied = true;
+      else grp.selfDisputed = true;
+      continue;
+    }
     (a.stance === "apply" ? grp.applications : grp.disputes).add(a.asserter);
   }
   return byTarget;
@@ -498,14 +535,29 @@ export async function fetchProfileTags(
       description,
       applications: group.applications.size,
       disputes: group.disputes.size,
+      asserters: Array.from(group.applications),
+      selfDeclared: group.selfApplied,
+      subjectDisagreed: group.selfDisputed,
+      counted: netPositive(group.applications.size, group.disputes.size),
       variants: variantKeys.length,
       myStance: stanceForVariants(variantKeys, mine),
     }))
+    /**
+     * Three ways a tag earns a place on the profile:
+     *  - the net rule (real third-party support), or
+     *  - the subject declared it — renders, but labelled as their own claim
+     *    rather than the network's, or
+     *  - the VIEWER has a stance on it. ACCEPTANCE Floor B is explicit that
+     *    after you take your own tag back you must "still see your own stance
+     *    state honestly (dimmed/struck, not vanished)" — silently vanishing
+     *    leaves you unsure whether the click worked.
+     */
+    .filter((t) => t.counted || t.selfDeclared || !!t.myStance)
     // Contested tags sink; ties break alphabetically so the row is stable
     // across refetches rather than reshuffling on every render.
-    .filter((t) => netPositive(t.applications, t.disputes))
     .sort(
       (a, b) =>
+        Number(b.counted) - Number(a.counted) ||
         b.applications - a.applications ||
         a.disputes - b.disputes ||
         a.name.localeCompare(b.name),
@@ -522,10 +574,16 @@ export async function fetchProfileTags(
 /** One person carrying a tag, as the tag page lists them. */
 export interface TagCarrier {
   pubkey: string;
-  /** Distinct trusted asserters who applied the tag to this person. */
+  /** Distinct trusted third parties who applied the tag to this person. */
   applications: number;
-  /** Distinct trusted asserters who disputed it. */
+  /** Distinct trusted third parties who disputed it. */
   disputes: number;
+  /** Who vouched, for attribution. */
+  asserters: string[];
+  /** They put this on themselves — a claim, not a corroboration. */
+  selfDeclared: boolean;
+  /** They object to carrying it. Shown on their row. */
+  subjectDisagreed: boolean;
 }
 
 export interface TagDetail {
@@ -613,10 +671,15 @@ export async function fetchTagDetail(authorPubkey: string, slug: string): Promis
       pubkey,
       applications: grp.applications.size,
       disputes: grp.disputes.size,
+      asserters: Array.from(grp.applications),
+      selfDeclared: grp.selfApplied,
+      subjectDisagreed: grp.selfDisputed,
     }))
-    .filter((c) => netPositive(c.applications, c.disputes))
-    // Most-vouched first; contested sink. Ties break on pubkey so the order is
-    // stable across refetches instead of reshuffling.
+    // Vouched-for people, plus people who put the tag on themselves — the
+    // latter labelled as such rather than counted as network attestation.
+    .filter((c) => netPositive(c.applications, c.disputes) || c.selfDeclared)
+    // Most-vouched first; self-declared-only sink below anyone corroborated.
+    // Ties break on pubkey so the order is stable across refetches.
     .sort(
       (a, b) =>
         b.applications - a.applications ||
@@ -668,11 +731,11 @@ export async function fetchTagIndex(): Promise<TagSummary[]> {
   // profile shows: same trust filter, same latest-wins, same apply/dispute rule.
   // Support is tallied PER (tag, person) so the net rule can be applied per
   // carrier — a tag isn't "used" by someone the network has voted down.
-  const counted = new Map<
+  const counted = new Map<string, CountedTag>();
+  const perCarrier = new Map<
     string,
-    { authorPubkey: string; slug: string; applications: Set<string>; disputes: Set<string> }
+    { applies: Set<string>; disputes: Set<string>; selfApplied: boolean }
   >();
-  const perCarrier = new Map<string, { applies: Set<string>; disputes: Set<string> }>();
 
   for (const a of assertions) {
     if (!trusted(a.asserter)) continue;
@@ -683,20 +746,38 @@ export async function fetchTagIndex(): Promise<TagSummary[]> {
         slug: a.slug,
         applications: new Set(),
         disputes: new Set(),
+        selfApplied: false,
+        selfDisputed: false,
       });
     }
     const grp = counted.get(a.tagKey)!;
-    (a.stance === "apply" ? grp.applications : grp.disputes).add(a.asserter);
 
     const ck = `${a.tagKey}|${a.target}`;
-    if (!perCarrier.has(ck)) perCarrier.set(ck, { applies: new Set(), disputes: new Set() });
+    if (!perCarrier.has(ck)) {
+      perCarrier.set(ck, { applies: new Set(), disputes: new Set(), selfApplied: false });
+    }
     const c = perCarrier.get(ck)!;
+
+    // Self-assertions carry the person onto the list but never inflate the
+    // tag's vouch count — the catalogue's "N accounts" has to mean N *other*
+    // people, or a tag one person applied to themselves fifty times over would
+    // read as widely attested.
+    if (a.asserter === a.target) {
+      if (a.stance === "apply") {
+        grp.selfApplied = true;
+        c.selfApplied = true;
+      } else {
+        grp.selfDisputed = true;
+      }
+      continue;
+    }
+    (a.stance === "apply" ? grp.applications : grp.disputes).add(a.asserter);
     (a.stance === "apply" ? c.applies : c.disputes).add(a.asserter);
   }
 
   const people = new Map<string, Set<string>>();
   for (const [ck, c] of perCarrier) {
-    if (!netPositive(c.applies.size, c.disputes.size)) continue;
+    if (!netPositive(c.applies.size, c.disputes.size) && !c.selfApplied) continue;
     const sep = ck.lastIndexOf("|");
     const tagKey = ck.slice(0, sep);
     const target = ck.slice(sep + 1);

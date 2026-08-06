@@ -47,23 +47,40 @@ export function ProfileTagChips({
         // Plain-language tooltip. The count is how many people vouched, so say
         // that — "3 applications" means nothing to someone who just opened a
         // profile.
-        const who =
-          tag.applications === 1
+        // Agreement is the only count on a profile chip. The disagreement
+        // number belongs on the tag page, where the subject isn't the headline —
+        // a permanent "3 people disagree" badge on someone's face is a
+        // pile-on affordance, not information.
+        const who = tag.selfDeclared && tag.applications === 0
+          ? "Says this about themselves"
+          : tag.applications === 1
             ? "1 person added this"
             : `${tag.applications} people added this`;
-        // Say so when the viewer has pushed back, otherwise a tag they disagreed
-        // with looks identical to one they never touched.
-        const stanceNote = tag.myStance === "dispute" ? " · you disagreed" : "";
+        const notes = [
+          // A tag the subject also claims is different from one only others say.
+          tag.selfDeclared && tag.applications > 0 ? "also says it themselves" : "",
+          tag.subjectDisagreed ? "they disagree" : "",
+          tag.myStance === "dispute" ? "you disagreed" : "",
+        ].filter(Boolean);
+        const stanceNote = notes.length ? ` · ${notes.join(" · ")}` : "";
+        // Floor B: after you take your own tag back it must stay visible and
+        // honest rather than vanishing. Uncounted tags render faded.
+        const faded = !tag.counted;
         let authorNpub = "";
         try { authorNpub = npubFromPubkey(tag.authorPubkey); } catch { /* unlinkable */ }
 
         const chip = (
           <Chip
             key={tag.key}
-            tone={tag.myStance === "apply" ? "accent" : "brand"}
+            tone={tag.selfDeclared && tag.applications === 0 ? "slate" : tag.myStance === "apply" ? "accent" : "brand"}
             title={(tag.description ? `${who} — ${tag.description}` : who) + stanceNote}
             data-testid="share-tag-chip"
-            className={authorNpub ? "transition-opacity hover:opacity-80" : undefined}
+            data-self-declared={tag.selfDeclared && tag.applications === 0 ? "true" : undefined}
+            data-counted={tag.counted ? "true" : "false"}
+            className={[
+              authorNpub ? "transition-opacity hover:opacity-80" : "",
+              faded ? "opacity-50" : "",
+            ].filter(Boolean).join(" ") || undefined}
           >
             {tag.name}
             {tag.applications > 1 && (

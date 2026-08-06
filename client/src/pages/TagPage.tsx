@@ -9,6 +9,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useScorePov } from "@/components/score/TrustScorePov";
 import { fetchProfileMap } from "@/services/nostr";
 import { useTagDetail } from "@/hooks/useTags";
+
+
+import { CarrierMeta } from "@/components/share/CarrierMeta";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 
 /**
@@ -69,9 +72,12 @@ export default function TagPage() {
   // The tag's author rides along with the carriers so their name resolves in
   // the same round-trip — the alternative was a second query for one pubkey.
   const pubkeys = useMemo(() => {
-    const list = carriers.map((c) => c.pubkey);
-    if (authorPubkey && !list.includes(authorPubkey)) list.push(authorPubkey);
-    return list;
+    // Carriers, the tag's author, and everyone who vouched — one round-trip
+    // resolves every name and face the page shows.
+    const list = new Set(carriers.map((c) => c.pubkey));
+    for (const c of carriers) for (const a of c.asserters) list.add(a);
+    if (authorPubkey) list.add(authorPubkey);
+    return Array.from(list);
   }, [carriers, authorPubkey]);
   const profilesQuery = useQuery({
     queryKey: ["tag-profiles", pubkeys.join(",")],
@@ -92,6 +98,7 @@ export default function TagPage() {
   if (!authorPubkey) return <Redirect to="/" replace />;
 
   const loading = detailQuery.isLoading;
+  const distinctVouchers = new Set(carriers.flatMap((c) => c.asserters)).size;
   const authorProfile = profileMap?.get(authorPubkey);
   let authorNpub = "";
   try { authorNpub = npubFromPubkey(authorPubkey); } catch { /* leave unlinked */ }
@@ -133,9 +140,21 @@ export default function TagPage() {
           </p>
         )}
 
-        <div className="mt-5 mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-          <Users className="h-3.5 w-3.5" />
-          {loading ? "Loading" : `${carriers.length} ${carriers.length === 1 ? "person" : "people"}`}
+        <div className="mt-5 mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+          <span className="flex items-center gap-1.5">
+            <Users className="h-3.5 w-3.5" />
+            {loading ? "Loading" : `${carriers.length} ${carriers.length === 1 ? "person" : "people"}`}
+          </span>
+          {/* How many DISTINCT accounts built this list. Without it, a list one
+              account assembled reads exactly like a list two dozen people
+              agreed on — and on this hub that's the common case, not the edge
+              one. Cheapest brigading tell available while trust is inert. */}
+          {!loading && distinctVouchers > 0 && (
+            <span className="font-medium normal-case tracking-normal" data-testid="tag-voucher-count">
+              · added by {distinctVouchers}{" "}
+              {distinctVouchers === 1 ? "account" : "accounts"}
+            </span>
+          )}
         </div>
 
         <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm divide-y divide-slate-100 dark:divide-slate-800/60 overflow-hidden">
@@ -165,10 +184,7 @@ export default function TagPage() {
                   meta={
                     // Not `tag-row-count`: that would match a `tag-row-*`
                     // prefix selector and double-count every row.
-                    <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500" data-testid="tag-vouch-count">
-                      {c.applications === 1 ? "1 person added this" : `${c.applications} people added this`}
-                      {c.disputes > 0 && ` · ${c.disputes} disagreed`}
-                    </p>
+                    <CarrierMeta carrier={c} profileMap={profileMap} />
                   }
                 />
               );

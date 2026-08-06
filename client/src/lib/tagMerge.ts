@@ -9,12 +9,26 @@
  * show one and combine its support.
  */
 
-/** A tag's counted support, as distinct asserter pubkeys. */
+/**
+ * A tag's counted support, as distinct asserter pubkeys.
+ *
+ * The subject's own assertions are deliberately NOT in `applications` /
+ * `disputes` — they live in `selfApplied` / `selfDisputed`. Someone saying a
+ * thing about themselves is a different claim from other people saying it, and
+ * folding the two together is what let self-tagging masquerade as network
+ * attestation once the self-declared role chips were retired.
+ */
 export interface CountedTag {
   authorPubkey: string;
   slug: string;
+  /** Distinct third parties who applied it. Excludes the subject. */
   applications: Set<string>;
+  /** Distinct third parties who disputed it. Excludes the subject. */
   disputes: Set<string>;
+  /** The subject applied this to themselves. */
+  selfApplied: boolean;
+  /** The subject disputed it — their objection, shown but never a veto. */
+  selfDisputed: boolean;
 }
 
 export interface MergedTag {
@@ -85,6 +99,10 @@ export function mergeSameNamedTags(
         slug: canonical.group.slug,
         applications,
         disputes,
+        // Saying it about yourself under any spelling of the name still counts
+        // as saying it; disputing any variant still counts as objecting.
+        selfApplied: variants.some((v) => v.group.selfApplied),
+        selfDisputed: variants.some((v) => v.group.selfDisputed),
       },
       variantKeys,
     };
