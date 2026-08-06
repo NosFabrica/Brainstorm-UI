@@ -1,3 +1,6 @@
+import { useState } from "react";
+import { Link } from "wouter";
+import { npubFromPubkey } from "@/lib/shareId";
 import type { TagCarrier } from "@/services/tags";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 
@@ -18,12 +21,20 @@ export function CarrierMeta({
   /** This row is the person reading it — switches the copy to second person. */
   isViewer?: boolean;
 }) {
+  const [expanded, setExpanded] = useState(false);
+
   const nameFor = (pk: string) => {
     const p = profileMap?.get(pk);
     return p?.display_name || p?.name || `${pk.slice(0, 8)}…`;
   };
-  const vouchers = carrier.asserters.map(nameFor);
-  const shown = vouchers.slice(0, 3);
+  const linkFor = (pk: string) => {
+    try { return `/p/${npubFromPubkey(pk)}`; } catch { return null; }
+  };
+  // Three keeps the row one line; the rest are a tap away rather than hidden.
+  // "Who vouched" is the whole point of attribution — a name you can't open
+  // is barely better than a count.
+  const vouchers = carrier.asserters;
+  const shown = expanded ? vouchers : vouchers.slice(0, 3);
   const extra = vouchers.length - shown.length;
 
   // Badges do at small scale what a filter bar does at large: let you scan a
@@ -53,11 +64,42 @@ export function CarrierMeta({
         </div>
       )}
       {carrier.applications > 0 ? (
-        <p className="text-[11px] text-slate-400 dark:text-slate-500">
+        <p className="text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
           {/* Naming the vouchers is the point: "2 people" told you nothing
               about whether that was two strangers or one account twice. */}
-          Added by {shown.join(", ")}
-          {extra > 0 && ` +${extra}`}
+          Added by{" "}
+          {shown.map((pk, i) => {
+            const href = linkFor(pk);
+            return (
+              <span key={pk}>
+                {i > 0 && ", "}
+                {href ? (
+                  <Link
+                    href={href}
+                    className="font-medium text-slate-500 underline decoration-slate-300 underline-offset-2 hover:text-brand-primary dark:text-slate-400 dark:decoration-slate-600"
+                    data-testid="tag-voucher-link"
+                  >
+                    {nameFor(pk)}
+                  </Link>
+                ) : (
+                  nameFor(pk)
+                )}
+              </span>
+            );
+          })}
+          {extra > 0 && (
+            <>
+              {" "}
+              <button
+                type="button"
+                onClick={() => setExpanded(true)}
+                className="font-medium text-brand-link hover:underline"
+                data-testid="tag-voucher-more"
+              >
+                +{extra} more
+              </button>
+            </>
+          )}
           {carrier.disputes > 0 && (
             <span className="text-amber-600 dark:text-amber-500">
               {" · "}

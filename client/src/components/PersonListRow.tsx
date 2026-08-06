@@ -90,32 +90,36 @@ export function PersonListRow({
   const handle = cleanNip05(nip05);
 
   return (
-    // The row is a plain container; only the identity half is the link, so
-    // `actions` can hold real buttons without being swallowed by the anchor.
+    // Only the identity block is a link. `actions` and `meta` sit outside it —
+    // both can contain buttons and links of their own, and an anchor nested in
+    // an anchor is invalid HTML that swallows the inner click.
     <div
-      className="group flex items-center gap-3.5 px-4 py-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800"
+      className="group px-4 py-3 transition-colors hover:bg-slate-50 dark:hover:bg-slate-800"
       data-testid={testId}
     >
-      <Link
-        href={npub ? `/p/${npub}` : "#"}
-        className="flex min-w-0 flex-1 items-center gap-3.5"
-      >
-        <TrustAvatar picture={picture} name={name} score={score} pov={pov} />
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
-          {handle ? (
-            <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-500 dark:text-slate-400">
-              <BadgeCheck className="h-3 w-3 shrink-0 text-sky-500" /><span className="truncate">{handle}</span>
-            </p>
-          ) : (
-            npub && <p className="mt-0.5 truncate font-mono text-xs text-slate-400 dark:text-slate-500">{npub.slice(0, 16)}…</p>
-          )}
-          {meta}
-        </div>
-      </Link>
-      {actions ?? (
-        <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 dark:text-slate-600 transition-colors group-hover:text-slate-400 dark:group-hover:text-slate-500" />
-      )}
+      <div className="flex items-center gap-3.5">
+        <Link
+          href={npub ? `/p/${npub}` : "#"}
+          className="flex min-w-0 flex-1 items-center gap-3.5"
+        >
+          <TrustAvatar picture={picture} name={name} score={score} pov={pov} />
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
+            {handle ? (
+              <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-500 dark:text-slate-400">
+                <BadgeCheck className="h-3 w-3 shrink-0 text-sky-500" /><span className="truncate">{handle}</span>
+              </p>
+            ) : (
+              npub && <p className="mt-0.5 truncate font-mono text-xs text-slate-400 dark:text-slate-500">{npub.slice(0, 16)}…</p>
+            )}
+          </div>
+        </Link>
+        {actions ?? (
+          <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 dark:text-slate-600 transition-colors group-hover:text-slate-400 dark:group-hover:text-slate-500" />
+        )}
+      </div>
+      {/* Indented to line up under the name: avatar (3rem) + gap (0.875rem). */}
+      {meta && <div className="pl-[3.875rem]">{meta}</div>}
     </div>
   );
 }

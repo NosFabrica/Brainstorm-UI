@@ -111,7 +111,34 @@ event-applicable coordinates as of 2026-08-05. Two problems in practice:
   picker. We dropped that path rather than ship the noise. Worth pruning the
   published list, or documenting that consumers should expect test entries.
 
-## 6. Smaller notes
+## 6. The tag hub rejects every non-DList kind — which splits any comment layer
+
+We built tag comments (NIP-22 kind-1111 anchored on the tag-element address) and
+publishing to `wss://dcosl.brainstorm.world` fails outright:
+
+```
+blocked: not a supported Decentralized Lists event kind
+```
+
+Correct behaviour for a purpose-built hub, and worth stating in the kit because
+it constrains everyone: **any discussion layer on tags is inherently split
+across two relay sets** — the tag on the hub, the conversation about it on
+general relays. Ours publishes and reads comments through the app's normal
+relays instead.
+
+Consequences the kit should probably speak to:
+
+- A client reading only `tagRelays` will never see a comment, and won't get an
+  error telling it why.
+- "Most discussed" as a sort on a tag directory needs a second, unrelated relay
+  query — it can't ride along with the catalogue read.
+- If the hub is ever meant to carry discussion, the kind allow-list is the
+  thing to change; if not, the split should be documented as intended.
+
+See `COMMENTS-PROPOSAL.md` in this folder for the anchor question (tag vs
+tagging) that we'd still like settled.
+
+## 7. Smaller notes
 
 - **The SDK runs fine outside a bundler.** We used the vendored
   `profile-tagging.js` from plain Node to build and sign events for a cleanup

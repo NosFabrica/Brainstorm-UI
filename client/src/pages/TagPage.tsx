@@ -11,6 +11,7 @@ import { fetchProfileMap, hasLocalSecretKey } from "@/services/nostr";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { useTagDetail, useTagVote } from "@/hooks/useTags";
 import { TagVoteButton } from "@/components/share/TagVoteButton";
+import { TagComments } from "@/components/share/TagComments";
 
 
 import { CarrierMeta } from "@/components/share/CarrierMeta";
@@ -293,14 +294,9 @@ export default function TagPage() {
                   actions={
                     canVote ? (
                       <TagVoteButton
-                        agreed={c.myStance === "apply"}
+                        stance={c.myStance}
                         pending={vote.isPending && vote.variables?.targetPubkey === c.pubkey}
-                        onToggle={() =>
-                          vote.mutate({
-                            targetPubkey: c.pubkey,
-                            polarity: c.myStance === "apply" ? -1 : 1,
-                          })
-                        }
+                        onVote={(polarity) => vote.mutate({ targetPubkey: c.pubkey, polarity })}
                         testId={`tag-vote-${c.pubkey.slice(0, 8)}`}
                       />
                     ) : undefined
@@ -319,6 +315,8 @@ export default function TagPage() {
             })
           )}
         </div>
+
+        <TagComments authorPubkey={authorPubkey} slug={slug} canPost={canVote} />
       </main>
     </div>
   );

@@ -1,7 +1,17 @@
-# Proposal: comments on tags (not on taggings)
+# Comments on tags (not on taggings)
 
-**Status: proposal, not built.** For Vinny / the kit owners. Written 2026-08-05
-from the Brainstorm-UI integration.
+**Status: BUILT on the tag page, anchor still worth ratifying.** For Vinny / the
+kit owners. Written 2026-08-05 from the Brainstorm-UI integration; updated the
+same day when Benjamin asked for comments to ship rather than wait.
+
+We built option A below (comment on the tag-element). The open questions in
+"What we'd need from the kit" still stand — if the kit lands on a different
+anchor we'd rather change now than after other clients copy us.
+
+**One thing we learned by building it:** the tag hub refuses kind-1111
+outright — `blocked: not a supported Decentralized Lists event kind` — so
+comments live on general relays while the tag lives on the hub. See
+KIT-FEEDBACK.md §6.
 
 The tagging protocol has no comment layer — nothing in `protocol/tags.md`,
 `event-taggings.md` or `trusted-lists.md`. Before any client invents one, it's

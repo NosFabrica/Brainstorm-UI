@@ -5,6 +5,8 @@ import {
   fetchTagDetail,
   fetchTagIndex,
   fetchPickerTags,
+  fetchTagComments,
+  publishTagComment,
   matchTags,
   applyTagToProfile,
   predictedTagKey,
@@ -13,6 +15,7 @@ import {
   type ProfileTagsResult,
   type TagDetail,
   type TagSummary,
+  type TagComment,
 } from "@/services/tags";
 import { getCurrentUser } from "@/services/nostr";
 
@@ -96,6 +99,56 @@ export function useTagMatches(query: string, max = 3): TagSummary[] {
   const enabled = query.trim().length >= 2;
   const { data } = useTagIndex(enabled);
   return useMemo(() => (enabled ? matchTags(data ?? [], query, max) : []), [enabled, data, query, max]);
+}
+
+export const tagCommentsKey = (authorPubkey: string, slug: string) =>
+  ["tag-comments", authorPubkey, slug] as const;
+
+/** Comments on a tag. Anon-readable like everything else here. */
+export function useTagComments(authorPubkey: string | undefined, slug: string | undefined) {
+  return useQuery<TagComment[]>({
+    queryKey: tagCommentsKey(authorPubkey ?? "", slug ?? ""),
+    queryFn: () => fetchTagComments(authorPubkey!, slug!),
+    enabled: !!authorPubkey && !!slug,
+    staleTime: 2 * 60_000,
+    retry: 1,
+  });
+}
+
+/**
+ * Post a comment. Optimistic, because a comment you typed vanishing for two
+ * seconds while relays settle reads as a failure.
+ */
+export function usePostTagComment(authorPubkey: string | undefined, slug: string | undefined) {
+  const queryClient = useQueryClient();
+  const viewerPubkey = getCurrentUser()?.pubkey;
+  const key = tagCommentsKey(authorPubkey ?? "", slug ?? "");
+
+  return useMutation({
+    mutationFn: (content: string) => publishTagComment(authorPubkey!, slug!, content),
+    onMutate: async (content) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<TagComment[]>(key);
+      if (viewerPubkey) {
+        queryClient.setQueryData<TagComment[]>(key, [
+          {
+            id: `pending-${Date.now()}`,
+            author: viewerPubkey,
+            content: content.trim(),
+            createdAt: Math.floor(Date.now() / 1000),
+          },
+          ...(previous ?? []),
+        ]);
+      }
+      return { previous };
+    },
+    onError: (_e, _v, ctx) => {
+      if (ctx?.previous !== undefined) queryClient.setQueryData(key, ctx.previous);
+    },
+    onSuccess: () => {
+      setTimeout(() => queryClient.invalidateQueries({ queryKey: key }), 2500);
+    },
+  });
 }
 
 export const tagDetailKey = (authorPubkey: string, slug: string, viewerPubkey?: string) =>
