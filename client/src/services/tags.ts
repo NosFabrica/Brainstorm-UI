@@ -1502,90 +1502,161 @@ function descriptorOf(ev: NostrEvent): string | null {
   return z ? z[1] : null;
 }
 
+const EMPTY_NOTE_TAGS: NoteTagsResult = {
+  tags: [],
+  mine: [],
+  unverifiable: 0,
+  trustUnverified: false,
+};
+
+/** The event id a candidate assertion targets, if it targets one by id. */
+function targetIdOf(ev: NostrEvent): string | null {
+  const e = (ev.tags || []).find((t) => t[0] === "e");
+  return e?.[1] ?? null;
+}
+
 /**
- * Every tag applied to one note (ACCEPTANCE C2).
+ * Every tag applied to each of N notes, in ONE pass (ACCEPTANCE C2).
+ *
+ * Batched on purpose, and the checklist is explicit about why: "reads over a
+ * list of N events issue batched queries … no per-event REQ storm". A profile
+ * page renders half a dozen notes, so a per-note read would be half a dozen
+ * REQs where one will do — and the header, trust and name resolution behind
+ * them would each multiply too.
  *
  * Anonymous-safe like every read here: relays only, no API client. Pass
  * `viewerPubkey` to surface the viewer's own stances via the `mine` channel,
  * which is deliberately trust-unfiltered.
+ *
+ * Returns a map keyed by event id. Ids with no tags are simply absent.
+ */
+export async function fetchEventTagsBatch(
+  eventIds: string[],
+  viewerPubkey?: string,
+): Promise<Map<string, NoteTagsResult>> {
+  const out = new Map<string, NoteTagsResult>();
+  const ids = Array.from(new Set(eventIds.filter(Boolean)));
+  if (!ids.length) return out;
+
+  // One REQ per chunk, never per note. 200 keeps the filter under the size
+  // most relays accept while still collapsing any realistic page to one query.
+  const candidates: NostrEvent[] = [];
+  for (let i = 0; i < ids.length; i += 200) {
+    const chunk = ids.slice(i, i + 200);
+    // The SDK owns the filter's shape; we only widen `#e` from one id to the
+    // chunk, which is exactly the batching the checklist asks for.
+    const filter = filterTagsAppliedToEvent({ target: { id: chunk[0] } }) as Record<string, unknown>;
+    try {
+      candidates.push(...(await fetchTagEvents({ ...filter, "#e": chunk })));
+    } catch {
+      // Partial results beat none; the notes we couldn't ask about just show
+      // no chips, which is what an untagged note looks like anyway.
+    }
+  }
+  if (!candidates.length) return out;
+
+  const deduped = latestByReplaceableKey(candidates);
+
+  // Headers, trust and names all resolve ONCE across every note — the whole
+  // point of batching. Notes on a profile tend to share tags, so this is where
+  // most of the saving actually lands.
+  const headers = await resolveTaggingHeaders(
+    deduped.map(descriptorOf).filter((c): c is string => !!c),
+  );
+  const trust = await resolveTrust(Array.from(new Set(deduped.map((ev) => ev.pubkey))));
+
+  const byTarget = new Map<string, NostrEvent[]>();
+  for (const ev of deduped) {
+    const target = targetIdOf(ev);
+    if (!target || !ids.includes(target)) continue;
+    if (!byTarget.has(target)) byTarget.set(target, []);
+    byTarget.get(target)!.push(ev);
+  }
+  if (!byTarget.size) return out;
+
+  // `classifyEventTaggings` groups one target's candidates by tag, so it runs
+  // per note — but on already-fetched data, with no further I/O.
+  const classifiedByTarget = new Map<string, ReturnType<typeof classifyEventTaggings>>();
+  const refs = new Map<string, { authorPubkey: string; slug: string }>();
+  for (const [target, evs] of byTarget) {
+    const classified = classifyEventTaggings({
+      candidates: evs,
+      headers,
+      honoredAuthorities: Z_HANDLE_PUBKEYS,
+      isAsserterTrusted: trust.predicate,
+      viewerPubkey,
+    });
+    classifiedByTarget.set(target, classified);
+    for (const t of classified.tags) {
+      refs.set(`${t.tag.authorPubkey}|${t.tag.slug}`, {
+        authorPubkey: t.tag.authorPubkey,
+        slug: t.tag.slug,
+      });
+    }
+  }
+
+  const names = await resolveTagNames(Array.from(refs.values()));
+
+  for (const [target, classified] of classifiedByTarget) {
+    const mine = new Map(
+      classified.mine.map((m) => [
+        `${m.tag.authorPubkey}|${m.tag.slug}`,
+        m.stance as "apply" | "dispute",
+      ]),
+    );
+
+    const tags: NoteTag[] = classified.tags
+      .map((t) => {
+        const key = `${t.tag.authorPubkey}|${t.tag.slug}`;
+        // Distinct ASSERTERS, not raw entries — the same discipline as the
+        // profile read, and the only reading that matches the kit's rule.
+        const applied = new Set(t.applications.map((a) => a.authorPubkey));
+        const disputed = new Set(t.disputes.map((d) => d.authorPubkey));
+        return {
+          key,
+          authorPubkey: t.tag.authorPubkey,
+          slug: t.tag.slug,
+          name: names.get(key)?.name || t.tag.slug,
+          description: names.get(key)?.description,
+          applications: applied.size,
+          disputes: disputed.size,
+          asserters: Array.from(applied),
+          counted: netPositive(applied.size, disputed.size),
+          myStance: mine.get(key),
+        };
+      })
+      // Same rule as the profile chips: carried by the network, or the viewer
+      // has a stance on it and must keep seeing their own action.
+      .filter((t) => t.counted || !!t.myStance)
+      .sort(
+        (a, b) =>
+          Number(b.counted) - Number(a.counted) ||
+          b.applications - a.applications ||
+          a.name.localeCompare(b.name),
+      );
+
+    out.set(target, {
+      tags,
+      mine: Array.from(mine.entries()).map(([key, stance]) => ({ key, stance })),
+      unverifiable: classified.unverifiable.length,
+      trustUnverified: trust.unverified,
+    });
+  }
+
+  return out;
+}
+
+/**
+ * Every tag applied to ONE note. A thin wrapper over the batch so there is a
+ * single classification path — the note page and the profile teasers must never
+ * be able to disagree about what a note is tagged.
  */
 export async function fetchEventTags(
   eventId: string,
   viewerPubkey?: string,
 ): Promise<NoteTagsResult> {
-  let candidates: NostrEvent[] = [];
-  try {
-    candidates = await fetchTagEvents(
-      filterTagsAppliedToEvent({ target: { id: eventId } }) as Record<string, unknown>,
-    );
-  } catch {
-    return { tags: [], mine: [], unverifiable: 0, trustUnverified: false };
-  }
-  if (!candidates.length) return { tags: [], mine: [], unverifiable: 0, trustUnverified: false };
-
-  const deduped = latestByReplaceableKey(candidates);
-  const headers = await resolveTaggingHeaders(
-    deduped.map(descriptorOf).filter((c): c is string => !!c),
-  );
-
-  const trust = await resolveTrust(Array.from(new Set(deduped.map((ev) => ev.pubkey))));
-  const classified = classifyEventTaggings({
-    candidates: deduped,
-    headers,
-    honoredAuthorities: Z_HANDLE_PUBKEYS,
-    isAsserterTrusted: trust.predicate,
-    viewerPubkey,
-  });
-
-  const refs = classified.tags.map((t) => ({
-    authorPubkey: t.tag.authorPubkey,
-    slug: t.tag.slug,
-  }));
-  const names = await resolveTagNames(refs);
-
-  const mine = new Map(
-    classified.mine.map((m) => [
-      `${m.tag.authorPubkey}|${m.tag.slug}`,
-      m.stance as "apply" | "dispute",
-    ]),
-  );
-
-  const tags: NoteTag[] = classified.tags
-    .map((t) => {
-      const key = `${t.tag.authorPubkey}|${t.tag.slug}`;
-      // Distinct ASSERTERS, not raw entries — the same discipline as the
-      // profile read, and the only reading that matches the kit's counting rule.
-      const applied = new Set(t.applications.map((a) => a.authorPubkey));
-      const disputed = new Set(t.disputes.map((d) => d.authorPubkey));
-      return {
-        key,
-        authorPubkey: t.tag.authorPubkey,
-        slug: t.tag.slug,
-        name: names.get(key)?.name || t.tag.slug,
-        description: names.get(key)?.description,
-        applications: applied.size,
-        disputes: disputed.size,
-        asserters: Array.from(applied),
-        counted: netPositive(applied.size, disputed.size),
-        myStance: mine.get(key),
-      };
-    })
-    // Same rule as the profile chips: carried by the network, or the viewer has
-    // a stance on it and must keep seeing their own action.
-    .filter((t) => t.counted || !!t.myStance)
-    .sort(
-      (a, b) =>
-        Number(b.counted) - Number(a.counted) ||
-        b.applications - a.applications ||
-        a.name.localeCompare(b.name),
-    );
-
-  return {
-    tags,
-    mine: Array.from(mine.entries()).map(([key, stance]) => ({ key, stance })),
-    unverifiable: classified.unverifiable.length,
-    trustUnverified: trust.unverified,
-  };
+  const batch = await fetchEventTagsBatch([eventId], viewerPubkey);
+  return batch.get(eventId) ?? EMPTY_NOTE_TAGS;
 }
 
 /** A note carrying a tag, as the tag page lists it. */

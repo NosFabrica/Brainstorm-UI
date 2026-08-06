@@ -8,6 +8,8 @@ import { VerificationCoin } from "@/components/score/VerificationCoin";
 import { NoteContent } from "@/components/share/NoteContent";
 import { parseNoteContent } from "@/lib/noteContent";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
+import { NoteTagRow } from "@/components/share/NoteTagChips";
+import type { NoteTag } from "@/services/tags";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { analyzeNote, addrCoord, type MinimalEvent } from "@/lib/noteRefs";
@@ -80,6 +82,7 @@ export function ShareNoteCard({
   forceExpanded = false,
   showAuthor = false,
   authorScore,
+  tags,
 }: {
   event: MinimalEvent;
   profiles: Map<string, ProfileLite>;
@@ -95,6 +98,10 @@ export function ShareNoteCard({
   /** Author's Web-of-Trust score (0..1) — drives the avatar's tier ring and the
    *  trust hovercard in the author header. */
   authorScore?: number | null;
+  /** What the network says this note is about (rung C2). Passed in rather than
+   *  fetched here: a page rendering several notes must read them in ONE batched
+   *  query, not one per card — see ACCEPTANCE C2 and `useEventTagsBatch`. */
+  tags?: NoteTag[];
 }) {
   const [expanded, setExpanded] = useState(false);
   const [, navigate] = useLocation();
@@ -254,6 +261,11 @@ export function ShareNoteCard({
       ))}
 
       {!showAuthor && <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">{ago(event.created_at)}</p>}
+
+      {/* Read-only here. The affordance to ADD a tag lives on the note's own
+          page, where there's room for a picker and the reader has the whole
+          post in view — a picker per card in a six-note list is clutter. */}
+      {tags && tags.length > 0 && <NoteTagRow tags={tags} />}
     </div>
   );
 }

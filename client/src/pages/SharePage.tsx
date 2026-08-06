@@ -38,6 +38,7 @@ import { audioUrlFromEvent, setPlaylist } from "@/lib/audioPlayer";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { TopicChips } from "@/components/share/TopicChips";
 import { ProfileTagChips } from "@/components/share/ProfileTagChips";
+import { useEventTagsBatch } from "@/hooks/useTags";
 import { LegacyRolePrompt } from "@/components/share/LegacyRolePrompt";
 import { ShareBio } from "@/components/share/ShareBio";
 import liveDefault from "@/assets/live-default.webp";
@@ -624,6 +625,20 @@ export default function SharePage() {
   const noteEvents = (notesQuery.data ?? []) as MinimalEvent[];
   const refs = useMemo(() => collectRefs(noteEvents), [noteEvents]);
 
+  /**
+   * What the network says these notes are about (ACCEPTANCE Floor A's C2 clause:
+   * "a tagged note shows its chips where SharePage renders that note").
+   *
+   * ONE batched query for every note on the page — the featured post and the
+   * whole "Latest notes" list together. Letting each card fetch its own would
+   * be the per-event REQ storm core C2 explicitly forbids.
+   */
+  const taggableNoteIds = useMemo(
+    () => [featured?.id, ...noteEvents.map((n) => n.id)].filter((id): id is string => !!id),
+    [featured, noteEvents],
+  );
+  const { data: noteTags } = useEventTagsBatch(taggableNoteIds);
+
   const refEventsQuery = useQuery({
     queryKey: ["share-ref-events", pubkey, refs.ids],
     queryFn: () => fetchEventsByIds(refs.ids, Array.from(new Set([...relayHints, ...PROFILE_RELAYS]))),
@@ -1101,7 +1116,7 @@ export default function SharePage() {
             {featured.kind === 30023 ? (
               <EmbeddedArticleCard event={featured} author={{ name: profile.name, display_name: profile.display_name, picture: profile.picture, nip05: profile.nip05 }} />
             ) : (
-              <ShareNoteCard event={featured} profiles={noteProfiles} eventsById={eventsById} addrByCoord={addrByCoord} href={eventPath(featured, relayHints)} forceExpanded />
+              <ShareNoteCard event={featured} profiles={noteProfiles} eventsById={eventsById} addrByCoord={addrByCoord} href={eventPath(featured, relayHints)} forceExpanded tags={noteTags?.get(featured.id)?.tags} />
             )}
           </ContentTeaserBlock>
         )}
@@ -1140,7 +1155,7 @@ export default function SharePage() {
             <div className="space-y-4">
               {noteEvents.map((ev) => (
                 <div key={ev.id} className="pb-4 border-b border-slate-100 dark:border-slate-800/60 last:border-0 last:pb-0">
-                  <ShareNoteCard event={ev} profiles={noteProfiles} eventsById={eventsById} addrByCoord={addrByCoord} href={eventPath(ev, relayHints)} />
+                  <ShareNoteCard event={ev} profiles={noteProfiles} eventsById={eventsById} addrByCoord={addrByCoord} href={eventPath(ev, relayHints)} tags={noteTags?.get(ev.id)?.tags} />
                 </div>
               ))}
             </div>

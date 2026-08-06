@@ -10,8 +10,10 @@ the kit says "still applies verbatim underneath", and the UI overlay's
 Kit commit integrated: `8412198053c5916377724a9a2960db8d5bd67407`
 (`nous-clawds4/tapestry`, branch `generate-nosfabrica-integration-kit`).
 
-**Summary: 40 pass · 2 fail · 0 not-built.** Both failures are upstream defects
-we've filed, not integration gaps — see `KIT-FEEDBACK.md` §1 and §5.
+**Summary: 42 pass · 2 fail · 0 not-built · 1 declared divergence.** Both
+failures are upstream defects we've filed, not integration gaps — see
+`KIT-FEEDBACK.md` §1 and §5. The divergence is `Start.md` Q2's migrate option,
+which the overlay's Floor A wording doesn't account for.
 
 Legend: **PASS** verified this run · **FAIL** verified broken · **N/B** rung not
 built · **N/E** not exercisable in this environment, with the reason given.
@@ -55,10 +57,12 @@ built · **N/E** not exercisable in this environment, with the reason given.
 - **PASS** *An event known to be tagged yields its tags with correct net
   counts.* `/e/:id` renders a "Tagged as" row. Verified anonymously on a note
   carrying `LFO Community`; the chip links back to that tag's page.
-- **PASS** *Reads issue batched queries, no per-event REQ storm.* One
-  `{kinds:[39999], '#e':[id]}` per note, and the tagging headers behind them
-  resolve through a session cache keyed by coordinate, so the second note
-  carrying a tag issues no header query.
+- **PASS** *Reads issue batched queries, no per-event REQ storm.* Instrumented
+  `WebSocket.send` and loaded a profile rendering 4 notes: **one** REQ,
+  `{kinds:[39999], '#e':[4 ids]}`. Header, trust and name resolution each run
+  once for the whole page, not once per note. `fetchEventTags` (single note) is
+  a thin wrapper over `fetchEventTagsBatch`, so the note page and the profile
+  teasers cannot disagree about what a note is tagged.
 - **PASS** *Headers resolve; no `unverifiable` for known-good taggings.* The
   count is carried through to `NoteTagsResult.unverifiable` rather than being
   swallowed — an assertion whose header we can't reach is reported, not dropped,
@@ -192,6 +196,19 @@ built · **N/E** not exercisable in this environment, with the reason given.
 - **PASS** `data-testid="share-tags"` present.
 - **PASS** Counts match the reference instance — see C1 above.
 - **PASS** An untagged profile renders nothing for an anonymous viewer.
+- **PASS** *A tagged note shows its chips where SharePage renders that note.*
+  Verified on a profile whose recent notes are tagged: 4 note cards, 2 carrying
+  a "Tagged as" row, each chip linking to its tag page. Read-only there by
+  design — the picker lives on the note's own page, where there's room for it
+  and the reader has the whole post in view. A picker per card in a six-note
+  list is clutter, and Floor A asks for chips, not the affordance.
+  **This box failed until 2026-08-06** — the chips existed only on `/e/:id`.
+  Closing it required batching the read first: a component per card would have
+  satisfied Floor A while breaking core C2's no-REQ-storm rule.
+- **PASS** *An unreachable tag relay leaves notes rendering normally, chips
+  absent.* Pointed the tag-relay list at `wss://nope.invalid.example` through
+  the Settings override: 4 note cards still rendered, zero tag rows, no error
+  boundary, no spinner, page otherwise intact. Config restored after.
 - **DIVERGENCE, declared** *"Role chips still render exactly as before."* They
   don't — we took `Start.md` Q2's **migrate** option, which sanctions converting
   the host's role chips to protocol tags. Floor A's coexistence line is the
@@ -230,7 +247,8 @@ built · **N/E** not exercisable in this environment, with the reason given.
 - **PASS** *Note-tagging affordance wherever the app renders notes with
   actions.* That is `/e/:id`, the only surface where a note has its own page and
   action row; feed rows and thread replies render notes without actions, so
-  there is nothing to hang it off there.
+  there is nothing to hang it off there. Read-only chips render everywhere else
+  a note appears — see Floor A.
 
 ---
 

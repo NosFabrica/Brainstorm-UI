@@ -7,6 +7,7 @@ import {
   fetchPickerTags,
   fetchTagComments,
   fetchEventTags,
+  fetchEventTagsBatch,
   fetchTagNotes,
   publishTagComment,
   matchTags,
@@ -194,6 +195,33 @@ export function useEventTags(eventId: string | undefined) {
     queryKey: eventTagsKey(eventId ?? "", viewerPubkey),
     queryFn: () => fetchEventTags(eventId!, viewerPubkey),
     enabled: !!eventId,
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    retry: 1,
+  });
+}
+
+/**
+ * Tags for a whole page of notes in one relay round-trip.
+ *
+ * The batched form is what ACCEPTANCE C2 actually requires — "reads over a list
+ * of N events issue batched queries … no per-event REQ storm" — so any surface
+ * rendering more than one note must use this rather than `useEventTags` per
+ * card. Returns a map keyed by event id; ids with no tags are absent.
+ *
+ * The key joins the ids so a page whose note list grows (load-more) refetches
+ * once for the new set rather than per note.
+ */
+export function useEventTagsBatch(eventIds: string[]) {
+  const viewerPubkey = getCurrentUser()?.pubkey;
+  const ids = useMemo(
+    () => Array.from(new Set(eventIds.filter(Boolean))).sort(),
+    [eventIds],
+  );
+  return useQuery<Map<string, NoteTagsResult>>({
+    queryKey: ["event-tags-batch", ids.join(","), viewerPubkey ?? "anon"],
+    queryFn: () => fetchEventTagsBatch(ids, viewerPubkey),
+    enabled: ids.length > 0,
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
     retry: 1,

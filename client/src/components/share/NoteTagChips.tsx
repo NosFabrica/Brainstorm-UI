@@ -1,3 +1,4 @@
+import type React from "react";
 import { useState } from "react";
 import { Link } from "wouter";
 import { Check, Loader2, Plus } from "lucide-react";
@@ -52,6 +53,31 @@ export function NoteTagChips({
   if (!tags.length && !canTag) return null;
 
   return (
+    <NoteTagRow tags={tags}>
+      {canTag && <TagNoteButton eventId={eventId} relayHint={relayHint} onNote={tags} />}
+    </NoteTagRow>
+  );
+}
+
+/**
+ * The chips alone, given tags someone else already fetched.
+ *
+ * Exists because a page rendering several notes must not have each of them
+ * open its own relay subscription — ACCEPTANCE C2 requires one batched `#e`
+ * query for a list of notes, not a REQ per note. `SharePage` reads the whole
+ * page's worth through `useEventTagsBatch` and hands each card its slice.
+ */
+export function NoteTagRow({
+  tags,
+  children,
+}: {
+  tags: NoteTag[];
+  /** Optional trailing control — the picker, where one belongs. */
+  children?: React.ReactNode;
+}) {
+  if (!tags.length && !children) return null;
+
+  return (
     <div className="mt-3 flex flex-wrap items-center gap-1.5" data-testid="note-tags">
       <span className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
         Tagged as
@@ -99,7 +125,7 @@ export function NoteTagChips({
         );
       })}
 
-      {canTag && <TagNoteButton eventId={eventId} relayHint={relayHint} onNote={tags} />}
+      {children}
     </div>
   );
 }
