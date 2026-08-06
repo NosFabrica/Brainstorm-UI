@@ -14,6 +14,7 @@ import { TagVoteButton } from "@/components/share/TagVoteButton";
 
 
 import { CarrierMeta } from "@/components/share/CarrierMeta";
+import { LinkedText } from "@/components/LinkedText";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 
 /**
@@ -155,8 +156,17 @@ export default function TagPage() {
           kicker="Tag"
           title={tagName}
           subtitle={
-            detailQuery.data?.tag.description ||
-            "People the network says this describes."
+            // Descriptions are user-authored and several carry links — the AOS
+            // tag points at its own event site. Plain text made those
+            // un-followable. No link PREVIEW though: fetching a page's OG tags
+            // needs a server, and this app has none — the browser can't read
+            // cross-origin HTML. A preview card would mean a backend, so it's
+            // a deliberate omission rather than an oversight.
+            detailQuery.data?.tag.description ? (
+              <LinkedText text={detailQuery.data.tag.description} />
+            ) : (
+              "People the network says this describes."
+            )
           }
           testId="tag-header"
         />
