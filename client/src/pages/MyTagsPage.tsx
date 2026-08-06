@@ -88,7 +88,10 @@ export default function MyTagsPage() {
             and a page called "manage" must not imply otherwise. */}
         <p className="mt-3 text-sm text-slate-500 dark:text-slate-400" data-testid="my-tags-no-delete">
           You can't erase a tag someone else gave you — nobody can, on Nostr. What
-          you can do is disagree, and it stops counting.
+          you can do is disagree, and it stops counting.{" "}
+          <Link href="/how-tags-work" className="font-semibold text-brand-link hover:underline" data-testid="my-tags-guide">
+            How tags work →
+          </Link>
         </p>
 
         {/* ── 1. Tags on me ─────────────────────────────────────────────── */}

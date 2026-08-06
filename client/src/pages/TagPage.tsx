@@ -229,6 +229,12 @@ export default function TagPage() {
           </div>
         )}
 
+        <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+          <Link href="/how-tags-work" className="font-semibold text-brand-link hover:underline" data-testid="tag-page-guide">
+            How tags work →
+          </Link>
+        </p>
+
         {TAG_PINS_ENABLED && canVote && elementId && (
           <div className="mt-4" data-testid="tag-pin">
             <button

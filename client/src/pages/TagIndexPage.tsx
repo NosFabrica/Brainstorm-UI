@@ -60,6 +60,11 @@ export default function TagIndexPage() {
           subtitle="What the network says people are known for."
           testId="tag-index-header"
         />
+        <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+          <Link href="/how-tags-work" className="font-semibold text-brand-link hover:underline" data-testid="tag-index-guide">
+            How tags work →
+          </Link>
+        </p>
 
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <div className="relative min-w-0 flex-1">

@@ -43,6 +43,7 @@ import HashtagPage from "@/pages/HashtagPage";
 import TagPage from "@/pages/TagPage";
 import TagIndexPage from "@/pages/TagIndexPage";
 import MyTagsPage from "@/pages/MyTagsPage";
+import HowTagsWorkPage from "@/pages/HowTagsWorkPage";
 import PrivacyPage from "@/pages/PrivacyPage";
 import TermsPage from "@/pages/TermsPage";
 import AdminPage from "@/pages/AdminPage";
@@ -177,6 +178,7 @@ function Router() {
         <Route path="/network">{() => <RequireAuth component={NetworkPage} />}</Route>
         <Route path="/what-is-wot" component={WhatIsWotPage} />
         <Route path="/how-search-works" component={HowSearchWorksPage} />
+        <Route path="/how-tags-work" component={HowTagsWorkPage} />
         <Route path="/personalization" component={PersonalizationPage} />
         <Route path="/about" component={AboutPage} />
         <Route path="/developers" component={DevelopersPage} />

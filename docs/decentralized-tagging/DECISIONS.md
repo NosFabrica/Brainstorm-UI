@@ -328,6 +328,33 @@ equivalent line says so at the point of use instead: "We couldn't check who's
 reputable right now, so everyone who added a name is counted here." Worth
 raising with them as a copy fix.
 
+## 10. A user-facing guide — added 2026-08-06
+
+`/how-tags-work`, linked from the browse page, every tag page and `/tags/mine`.
+
+Prompted by Jumble having one and us having nothing. Written to a different
+brief, though: the project's copy rule is "no tech talk, make it make sense to
+super normal users", and the reference guide speaks in kind numbers,
+a-coordinates and NIP references. Ours contains none of those — checked
+mechanically, zero hits for `kind-`, `npub1`, `NIP-`, `assertion`, `polarity`,
+`pubkey`, `30382`, `39999`. 632 words.
+
+**The point of the page is the three admissions**, not the explanation:
+
+1. **Nothing can be deleted.** Stated as its own section, marked as the thing to
+   understand *before* you tag anyone, and it says outright that promising
+   deletion would be a lie.
+2. **The reputation filter is currently weak.** Jumble's banner claims counts
+   are "filtered through a web of trust" and its guide admits three screens
+   later that unscored people are counted anyway. We put that in the same
+   breath, under "Being straight with you", and say to treat the numbers as a
+   signal rather than a verdict.
+3. **Some real tags are hidden from browse**, why, and — the part that makes it
+   fair — exactly what still works for them.
+
+If any of those three stop being true, the page changes the same day. That's
+recorded in the file's own header comment so the next person finds it.
+
 ---
 
 ## Field notes — what the live data actually looks like
