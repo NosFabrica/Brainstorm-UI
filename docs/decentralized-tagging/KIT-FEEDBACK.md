@@ -217,3 +217,40 @@ Ours re-fetched the same element once per profile until we read this box.
 
 A line in §3 saying the host owns element caching, keyed by a-coordinate and by
 element id, would make it obvious.
+
+### 12. Event-tagging assertions carry no relay hints, so tagged notes go missing
+
+`buildEventTaggingAssertion` supports a NIP-01 relay hint on the `e` tag, and
+its own comment explains exactly why it matters: it "lets read paths fetch an
+EXTERNAL target note on-demand from where it actually lives, instead of
+persisting other people's notes into the local relay".
+
+Nothing on the hub uses it. We checked all 15 `lfo-community` taggings on
+2026-08-05: **0 of 15 carry a hint**. The hub holds assertions about notes and
+never the notes themselves, so a reader whose relay set doesn't happen to
+include the note's home has no way to resolve it — and no way to tell that apart
+from the note having been deleted.
+
+We hit this immediately: our tag page rendered 14 of 15 tagged notes on first
+load, with no signal that one was missing. We now report the tagged count rather
+than the fetched count, and say how many we couldn't reach.
+
+Suggestions, in preference order:
+
+1. Have the reference publisher emit the hint — the SDK already accepts it, so
+   this is a caller change, not a protocol one. Ours does.
+2. Failing that, say in the docs that consumers must expect unresolvable targets
+   and should report them rather than silently shortening the list.
+
+### 13. `event-taggings` has no "is this tag note-taggable yet" answer for pickers
+
+`filterTaggingHeadersForTag` tells you whether a tag has a tagging header, which
+is the same question as "can this tag be applied to a note without minting an
+extra event". But there's no batched form — it's one filter per (tag, TA), so a
+picker offering 39 tags would need 78 queries to know which are one publish and
+which are two.
+
+We don't ask: the picker offers every tag and lets the SDK mint the header when
+needed, which is correct but means some picks quietly cost an extra signature.
+A `#a`-batched variant (all headers for a LIST of tag coordinates) would let a
+client show that difference, or at least warn before a three-signature flow.

@@ -5,7 +5,8 @@ import { nip19 } from "nostr-tools";
 import { ArrowLeft, BadgeCheck, Smartphone, Loader2, MessageSquare, ArrowRight, Share2, Check, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
-import { fetchEventsByIds, fetchAddressableEvents, fetchProfile, fetchProfileMap, getCurrentUser, hasPersistentKey, PROFILE_RELAYS } from "@/services/nostr";
+import { fetchEventsByIds, fetchAddressableEvents, fetchProfile, fetchProfileMap, getCurrentUser, hasLocalSecretKey, hasPersistentKey, PROFILE_RELAYS } from "@/services/nostr";
+import { NoteTagChips } from "@/components/share/NoteTagChips";
 import { apiClient, hasSessionToken } from "@/services/api";
 import { collectRefs, addrCoord, replyRefs, type MinimalEvent } from "@/lib/noteRefs";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
@@ -94,6 +95,11 @@ export default function EventPage() {
   const ptr = useMemo(() => decodeEventId(raw), [raw]);
   const relayHints = ptr?.relays || [];
   const loggedIn = hasSessionToken();
+  // Tagging needs a SIGNER, not a session: a session token is backend auth and
+  // cannot sign an event, so gating on it would show a button that throws.
+  const canTagNote =
+    !!getCurrentUser()?.pubkey &&
+    (hasLocalSecretKey() || (typeof window !== "undefined" && !!(window as unknown as { nostr?: unknown }).nostr));
   const fromSearch = new URLSearchParams(useSearch()).get("fromSearch") === "1";
   const [, navigate] = useLocation();
 
@@ -367,6 +373,12 @@ export default function EventPage() {
                 </div>
               )}
             </div>
+
+            {/* What the network says this post is ABOUT (rung C2). Sits under
+                the note itself, where a reader has just finished it and a
+                tagger has the content in view. Reads from relays only, so it
+                renders for logged-out visitors too. */}
+            <NoteTagChips eventId={note.id} relayHint={relayHints[0]} canTag={canTagNote} />
 
             {/* Reply thread — teaser-gated for anon, trust-filterable for members. */}
             <EventThread eventId={note.id} authorNpub={authorNpub} relayHints={relayHints} onGateChange={setThreadGated} />

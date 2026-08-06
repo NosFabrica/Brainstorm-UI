@@ -16,6 +16,7 @@ import { TAG_COMMENTS_ENABLED } from "@/config/tagging";
 
 
 import { CarrierMeta } from "@/components/share/CarrierMeta";
+import { TaggedNotes } from "@/components/share/TaggedNotes";
 import { LinkedText } from "@/components/LinkedText";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 import { onlySelfDeclared } from "@/lib/tagCounts";
@@ -337,6 +338,10 @@ export default function TagPage() {
             })
           )}
         </div>
+
+        {/* Posts carrying this tag. Renders nothing when there are none, which
+            is most tags — see TaggedNotes. */}
+        <TaggedNotes authorPubkey={authorPubkey} slug={slug} />
 
         {/* Off by default — a comment layer isn't in any kit document, so it
             must not be live during an acceptance run. See TAG_COMMENTS_ENABLED. */}

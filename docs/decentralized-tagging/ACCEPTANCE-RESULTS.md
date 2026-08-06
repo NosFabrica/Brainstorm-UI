@@ -1,6 +1,7 @@
 # Acceptance results — Brainstorm-UI × nosfabrica-tagging
 
 Run 2026-08-06 against the live instances, branch `feat/decentralized-tagging`.
+Updated the same day when rung C2 (tagging notes) landed.
 
 Covers **both** kit checklists: `core/ACCEPTANCE.md` (C0–C7 + Hygiene), which
 the kit says "still applies verbatim underneath", and the UI overlay's
@@ -9,9 +10,8 @@ the kit says "still applies verbatim underneath", and the UI overlay's
 Kit commit integrated: `8412198053c5916377724a9a2960db8d5bd67407`
 (`nous-clawds4/tapestry`, branch `generate-nosfabrica-integration-kit`).
 
-**Summary: 31 pass · 2 fail · 9 not-built.** Both failures are upstream defects
-we've filed, not integration gaps — see `KIT-FEEDBACK.md` §1 and §5. Everything
-not built is C2/Floor D (tagging notes), deliberately out of this scope.
+**Summary: 40 pass · 2 fail · 0 not-built.** Both failures are upstream defects
+we've filed, not integration gaps — see `KIT-FEEDBACK.md` §1 and §5.
 
 Legend: **PASS** verified this run · **FAIL** verified broken · **N/B** rung not
 built · **N/E** not exercisable in this environment, with the reason given.
@@ -52,12 +52,25 @@ built · **N/E** not exercisable in this environment, with the reason given.
 
 ### C2 — Read tags on events
 
-- **N/B** ×3. Note tagging isn't built. `event-tagging/apply.js` and
-  `filters.js` are vendored but unreferenced. See "Floor claim" below.
+- **PASS** *An event known to be tagged yields its tags with correct net
+  counts.* `/e/:id` renders a "Tagged as" row. Verified anonymously on a note
+  carrying `LFO Community`; the chip links back to that tag's page.
+- **PASS** *Reads issue batched queries, no per-event REQ storm.* One
+  `{kinds:[39999], '#e':[id]}` per note, and the tagging headers behind them
+  resolve through a session cache keyed by coordinate, so the second note
+  carrying a tag issues no header query.
+- **PASS** *Headers resolve; no `unverifiable` for known-good taggings.* The
+  count is carried through to `NoteTagsResult.unverifiable` rather than being
+  swallowed — an assertion whose header we can't reach is reported, not dropped,
+  which is the kit's stated diagnostic for a header fetch that missed a relay.
 
 ### C3 — Apply an existing tag
 
-- **N/B** Apply to an **event** — no note tagging.
+- **PASS** *Apply an existing tag to an **event**.* Wire-checked across all
+  three publish sequences without publishing anything: `applyEventTagging` takes
+  sign/publish as injected deps, so the real sequence-selection logic ran
+  (including live header discovery against the hub) while every event it would
+  sign was captured instead. See "Event-tagging wire check" below.
 - **PASS** Apply to a **pubkey** → the C1 read includes it, and the asserter's
   own stance is present immediately via the `mine` channel
   (`fetchProfileTags` records `mine` *before* the trust filter, so a tag you
@@ -94,7 +107,13 @@ built · **N/E** not exercisable in this environment, with the reason given.
 
 ### C5 — Create a new tag on the fly
 
-- **N/B** ×2 — the event-flavoured mint paths.
+- **PASS** *Mint-and-apply a new tag to an **event** in one flow.* Sequence (c)
+  in the wire check: tag-element carrying the `tag-for-nostr-event` hint z, then
+  the tagging header, then the assertion — all three shapes correct.
+- **PASS** *As B, apply A's new tag to a different event → exactly ONE publish.*
+  Sequence (a): with a header already on the hub, only the assertion is built,
+  and its descriptor names the EXISTING header's author rather than minting a
+  second one.
 - **PASS** Mint-and-apply a new tag to a **pubkey** in one flow → tag-element
   carrying the `tag-for-nostr-pubkey` hint z, plus the assertion. Both shapes
   correct.
@@ -109,7 +128,9 @@ built · **N/E** not exercisable in this environment, with the reason given.
 
 - **PASS** Forward read returns tagged **pubkeys**, grouped by target, with
   most-recently-tagged available as a sort (`/tags/:author/:slug`).
-- **N/B** Forward read returning tagged **events**.
+- **PASS** Forward read returns tagged **events**. Recounted `lfo-community`
+  straight off the hub with the kit's discipline (latest-wins per `(pubkey, d)`,
+  then net apply−dispute > 0): **15 notes**. The tag page renders 15.
 - **PASS** A target disputed below net-0 is absent from the forward read
   (`netPositive`, applied per carrier).
 - **PASS** Cold-start via the hub works — `verified-human` returns 14 people on
@@ -203,16 +224,41 @@ built · **N/E** not exercisable in this environment, with the reason given.
   no such condition, and requiring a kind-0 would hide assertions the reference
   instance shows. The gate remains only on `/tags`, our own browse page, which
   the kit doesn't specify and which is mostly harness output without it.
-- **N/B** Tag pages listing tagged **notes** — requires C2.
+- **PASS** Tag pages list tagged **notes**, rendered with the app's own
+  `EmbeddedNoteCard` — the same component the share page uses for quoted notes,
+  which is what "the app's native note components" asks for.
+- **PASS** *Note-tagging affordance wherever the app renders notes with
+  actions.* That is `/e/:id`, the only surface where a note has its own page and
+  action row; feed rows and thread replies render notes without actions, so
+  there is nothing to hang it off there.
 
 ---
 
 ## Floor claim
 
-We are at **B + C + pubkey tag pages**. Not Floor D: C2 doesn't exist, tag pages
-list no notes, and C6's "forward read returns the tagged events" is unmet.
-`DECISIONS.md` §1 previously over-claimed "floors B, C and D" and has been
-corrected.
+**Floor D.** Every rung C0–C7 is built, and both halves of a tag page — people
+and notes — are live. The one caveat worth stating plainly: addressable targets
+(`a`-coordinates) are read and counted but not rendered, because no tag on the
+live hub uses one and we won't ship a card shape we've never seen real data for.
+
+## Event-tagging wire check (C3/C5, §6)
+
+Run as a dry run — `applyEventTagging`'s sign/publish deps were replaced with
+collectors, so the real logic ran and **nothing was published**. Header
+discovery hit the live hub, so the sequence choice is real.
+
+| Sequence | Situation | Publishes | Verified |
+|---|---|---|---|
+| a | tag + header both exist | 1 | `d` = `event-tag-<slug>-<target8>-<asserter8>`; `e` carries our relay hint; two `nostr-event-tag` z-handles; descriptor z resolves to the **live** header `39999:6db8a13f…:tagging:lfo-community-tagging`; `polarity 1` |
+| b | tag exists, no header | 2 | header `d` = `tagging:<slug>-tagging`, its `a` pointing at the tag author's element; assertion's descriptor names the asserter as header author |
+| c | brand-new tag | 3 | element carries the `tag-for-nostr-event` hint (not the pubkey one); header; assertion with `polarity -1` |
+
+A `publish` that throws aborts the sequence and returns `failedAt` rather than
+reporting success — the partial-failure contract, confirmed in all three runs.
+
+**Not verified:** the live publish round-trip. Doing it means writing a public,
+permanent, signed claim about somebody else's note, and there is no delete. Say
+the word and it's a two-minute check with a throwaway key.
 
 ## The two failures, both upstream
 

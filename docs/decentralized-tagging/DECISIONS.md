@@ -17,12 +17,13 @@ Guidance source: `nous-clawds4/tapestry@generate-nosfabrica-integration-kit` →
 > scope grew past floor B. The reasoning below about *what the feature is* still
 > stands; only the stopping point moved.
 >
-> **Corrected 2026-08-06.** That revision claimed "floors B, C and **D**". It
-> shouldn't have. Floor D requires note tagging (rung C2) *and* tag pages
-> listing both people and notes; we have people only, and
-> `event-tagging/apply.js` + `filters.js` are vendored but unreferenced. The
-> honest claim is **floors B and C, plus the C4 stance toggle and pubkey tag
-> pages**. See `ACCEPTANCE-RESULTS.md` for the box-by-box position.
+> **Corrected 2026-08-06.** That revision claimed "floors B, C and **D**" before
+> Floor D was real: it requires note tagging (rung C2) *and* tag pages listing
+> both people and notes, and we had people only.
+>
+> **Earned 2026-08-06, later the same day.** C2 is built — see decision 7 — so
+> the claim is now **Floor D**, honestly. `ACCEPTANCE-RESULTS.md` has the
+> box-by-box position.
 
 The feature was requested as "decentralized lists". The kit does not define a
 lists feature; it defines a **decentralized, trust-ranked tagging protocol** for
@@ -36,11 +37,11 @@ tag — so lists are the *payoff* of tagging, not the starting point.
   someone else's — C3 + floor C
 - mint a brand-new tag from the picker — C5
 - agree / disagree with a tag already on a profile — C4
-- `/tags/:author/:slug`, everyone carrying one tag — the pubkey half of
+- `/tags/:author/:slug`, everyone carrying one tag — the pubkey half of floor D
+- tag chips on NOTES, and the posts carrying a tag — C2 + the note half of
   floor D
 
-**Still not built:** note tag chips (rung C2), and server-side WoT-weighted tag
-ranking.
+**Still not built:** server-side WoT-weighted tag ranking.
 
 ### What opening up floor C costs, and what pays for it
 
@@ -200,6 +201,42 @@ UI additions aren't deviations; arithmetic and wire behaviour are.
 - **Degraded mode now says so.** C7 asks that a dead trust source degrade
   without erroring; it doesn't ask us to imply the filter ran. When the trust
   source returns nothing, tag pages say the counts weren't checked.
+
+## 7. Tagging notes — decided 2026-08-06
+
+Built so Floor D could be claimed for real rather than aspirationally.
+
+**Note tagging is a different shape, and the difference drove the design.** A
+profile assertion names its tag directly (`a` = `39999:<author>:<slug>`); an
+event assertion names a **per-tag tagging header** instead, and that header
+carries the pointer to the tag. So reading tags on a note is a two-hop
+resolution, and the middle hop is what decides legitimacy — a candidate counts
+only if its header joins a `tagging-with-specific-tag` namespace we honor.
+
+Consequences we accepted:
+
+- **Applying a tag to a note costs 1, 2 or 3 publishes** — assertion alone,
+  header + assertion, or tag + header + assertion. The SDK signs everything
+  before publishing anything, so cancelling the signer aborts cleanly.
+- **No optimistic chip on notes**, unlike profiles. Three publishes with a
+  partial-failure contract means painting a chip before the assertion lands
+  would be claiming something we don't know yet.
+- **Unverifiable ≠ invalid.** An assertion whose header we can't resolve is
+  reported (`NoteTagsResult.unverifiable`), not dropped. A header that hasn't
+  propagated looks exactly like one that never existed, and only one of those is
+  the reader's business.
+- **The affordance lives on `/e/:id`.** Floor D says "wherever the app renders
+  notes with actions", and that's the only surface where a note has its own page
+  and action row. Feed rows and thread replies render notes without actions.
+- **Addressable targets are counted but not rendered.** No tag on the live hub
+  uses an `a`-coordinate target, and shipping a card shape we've never seen real
+  data for is how you ship something broken.
+- **Tag pages report how many posts carry a tag, not how many we could fetch.**
+  The hub holds assertions ABOUT notes, never the notes, so a note on relays we
+  don't read is unreachable — we say so rather than quietly showing a smaller
+  number than another client would. See KIT-FEEDBACK §12: the reference
+  publisher attaches no relay hints, which is what makes this bite. Our own
+  writes always attach one.
 
 ---
 

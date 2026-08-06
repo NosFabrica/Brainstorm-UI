@@ -6,9 +6,12 @@ import {
   fetchTagIndex,
   fetchPickerTags,
   fetchTagComments,
+  fetchEventTags,
+  fetchTagNotes,
   publishTagComment,
   matchTags,
   applyTagToProfile,
+  applyTagToEvent,
   predictedTagKey,
   type ApplyTagArgs,
   type ProfileTag,
@@ -17,6 +20,8 @@ import {
   type TagSummary,
   type PickerTag,
   type TagComment,
+  type NoteTagsResult,
+  type TaggedNote,
 } from "@/services/tags";
 import { getCurrentUser } from "@/services/nostr";
 
@@ -171,6 +176,83 @@ export function useTagDetail(authorPubkey: string | undefined, slug: string | un
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
     retry: 1,
+  });
+}
+
+export const eventTagsKey = (eventId: string, viewerPubkey?: string) =>
+  ["event-tags", eventId, viewerPubkey ?? "anon"] as const;
+
+/**
+ * Every tag applied to one note (rung C2).
+ *
+ * Anon-safe like the profile read. The viewer is part of the key because their
+ * own stances ride along and must not leak between accounts via a shared entry.
+ */
+export function useEventTags(eventId: string | undefined) {
+  const viewerPubkey = getCurrentUser()?.pubkey;
+  return useQuery<NoteTagsResult>({
+    queryKey: eventTagsKey(eventId ?? "", viewerPubkey),
+    queryFn: () => fetchEventTags(eventId!, viewerPubkey),
+    enabled: !!eventId,
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    retry: 1,
+  });
+}
+
+export const tagNotesKey = (authorPubkey: string, slug: string, viewerPubkey?: string) =>
+  ["tag-notes", authorPubkey, slug, viewerPubkey ?? "anon"] as const;
+
+/**
+ * Every note carrying one tag — the other half of what Floor D wants on a tag
+ * page. Most tags have none, and that's the normal case rather than an error:
+ * a tag only becomes note-taggable once somebody mints its tagging header.
+ */
+export function useTagNotes(authorPubkey: string | undefined, slug: string | undefined) {
+  const viewerPubkey = getCurrentUser()?.pubkey;
+  return useQuery<TaggedNote[]>({
+    queryKey: tagNotesKey(authorPubkey ?? "", slug ?? "", viewerPubkey),
+    queryFn: () => fetchTagNotes(authorPubkey!, slug!, viewerPubkey),
+    enabled: !!authorPubkey && !!slug,
+    staleTime: 5 * 60_000,
+    gcTime: 30 * 60_000,
+    retry: 1,
+  });
+}
+
+/**
+ * Apply, dispute or mint a tag on a note.
+ *
+ * Deliberately NOT optimistic, unlike the profile equivalent. Applying a tag to
+ * a note can be three publishes (tag-element → tagging header → assertion) and
+ * the SDK reports partial failure in `failedAt`; painting a chip before we know
+ * the assertion landed would be claiming something we don't know. The refetch
+ * below is the honest version, and the caller shows pending state meanwhile.
+ */
+export function useApplyEventTag(eventId: string | undefined, relayHint?: string) {
+  const queryClient = useQueryClient();
+  const viewerPubkey = getCurrentUser()?.pubkey;
+
+  return useMutation({
+    mutationFn: (args: {
+      tag: { authorPubkey: string; slug: string } | { name: string; description?: string };
+      polarity?: 1 | -1;
+    }) =>
+      applyTagToEvent({
+        tag: args.tag,
+        eventId: eventId!,
+        relayHint,
+        polarity: args.polarity ?? 1,
+      }),
+    onSuccess: () => {
+      const key = eventTagsKey(eventId ?? "", viewerPubkey);
+      void queryClient.invalidateQueries({ queryKey: key });
+      // Relays settle a beat after the publish resolves; one delayed re-read
+      // stops a just-applied tag from appearing to not have worked.
+      setTimeout(() => queryClient.invalidateQueries({ queryKey: key }), 2500);
+      // The tag's own page now lists this note.
+      void queryClient.invalidateQueries({ queryKey: ["tag-notes"] });
+    },
   });
 }
 

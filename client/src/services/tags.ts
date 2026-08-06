@@ -39,9 +39,14 @@ import {
 } from "@/lib/tagging-sdk/trust.js";
 import {
   applicabilityHintFilter,
+  applyEventTagging,
   buildTagElement,
+  classifyEventTaggings,
   conceptTag,
   deriveApplicabilityMembers,
+  filterTaggingHeadersForTag,
+  filterTagsAppliedToEvent,
+  groupTaggingsByTarget,
   slug as toSlug,
 } from "@/lib/tagging-sdk/event-tagging/index.js";
 import { countNameCollisions, type CountedTag } from "@/lib/tagMerge";
@@ -294,6 +299,7 @@ const elementMetaByCoord = new Map<string, { name: string; description?: string 
 export function resetTagCaches(): void {
   elementsById.clear();
   elementMetaByCoord.clear();
+  headersByCoord.clear();
   houseTrust = null;
 }
 
@@ -1352,3 +1358,409 @@ export function predictedTagKey(name: string, asserterPubkey: string): string {
 
 /** The applicability hint stamped on tags born tagging a person. */
 export { TAG_FOR_NOSTR_PUBKEY_Z };
+
+// ─── Tagging NOTES (rung C2) ─────────────────────────────────────────────────
+
+/**
+ * Note tagging is shaped differently from profile tagging, and the difference is
+ * the whole reason this section exists rather than reusing the code above.
+ *
+ * A profile assertion names its tag directly (`a` = `39999:<author>:<slug>`). An
+ * EVENT assertion names a **per-tag tagging header** instead
+ * (`z` = `39999:<headerAuthor>:tagging:<slug>-tagging`), and that header carries
+ * the `a` pointing at the tag-element. So reading tags on a note is a two-hop
+ * resolution, and the middle hop is what decides legitimacy: a candidate counts
+ * only if its header joins a `tagging-with-specific-tag` namespace we honor.
+ *
+ * That indirection is also why applying a tag to a note can cost 1, 2 or 3
+ * publishes — assertion alone, header + assertion, or tag + header + assertion.
+ * `applyEventTagging` picks the sequence; we just supply the deps.
+ *
+ * An assertion whose header we can't resolve is **unverifiable**, not invalid.
+ * The SDK surfaces those separately and we pass the count through rather than
+ * silently dropping them — a header that hasn't propagated yet looks exactly
+ * like one that never existed, and only one of those is the reader's business.
+ */
+
+/** One tag as it appears on a note. */
+export interface NoteTag extends TagIdentity {
+  key: string;
+  /** Distinct asserters who applied it. */
+  applications: number;
+  /** Distinct asserters who disputed it. */
+  disputes: number;
+  /** Who applied it, for attribution. */
+  asserters: string[];
+  /** Whether the net rule carries it. */
+  counted: boolean;
+  /** The viewer's own stance, shown regardless of whether the POV counts them. */
+  myStance?: "apply" | "dispute";
+}
+
+export interface NoteTagsResult {
+  tags: NoteTag[];
+  mine: Array<{ key: string; stance: "apply" | "dispute" }>;
+  /**
+   * Assertions we found but whose tagging header wouldn't resolve. Reported, not
+   * dropped — a non-zero count here means a header fetch missed a relay, which
+   * is the kit's stated diagnostic for exactly this.
+   */
+  unverifiable: number;
+  /** The trust source told us nothing — these counts weren't filtered. */
+  trustUnverified: boolean;
+}
+
+/**
+ * Tagging headers, cached per session alongside the tag-elements. Same reasoning
+ * as `elementMetaByCoord`: every note carrying a given tag points at the same
+ * header, so resolving it once per note is a wasted round-trip per note.
+ * Positive-only, for the same reason — a header minted seconds ago must not be
+ * cached as absent.
+ */
+const headersByCoord = new Map<string, NostrEvent>();
+
+/** `39999:<author>:tagging:<slug>-tagging` → its `d` tag. */
+function headerDTagFromCoord(coord: string): string | null {
+  const m = /^39999:[0-9a-f]{64}:(tagging:.+-tagging)$/.exec(coord);
+  return m ? m[1] : null;
+}
+
+function headerCoordOf(ev: NostrEvent): string {
+  return `39999:${ev.pubkey}:${tagValue(ev, "d") ?? ""}`;
+}
+
+/** Resolve tagging headers by coordinate, serving what we already hold. */
+async function resolveTaggingHeaders(coords: string[]): Promise<NostrEvent[]> {
+  const wanted = Array.from(new Set(coords));
+  const out: NostrEvent[] = [];
+  const missing: string[] = [];
+  for (const c of wanted) {
+    const hit = headersByCoord.get(c);
+    if (hit) out.push(hit);
+    else missing.push(c);
+  }
+  if (!missing.length) return out;
+
+  const authors = new Set<string>();
+  const dTags = new Set<string>();
+  for (const c of missing) {
+    const parts = c.split(":");
+    const d = headerDTagFromCoord(c);
+    if (parts[1] && d) {
+      authors.add(parts[1]);
+      dTags.add(d);
+    }
+  }
+  if (!authors.size) return out;
+
+  try {
+    const found = await fetchTagEvents({
+      kinds: [TAG_ELEMENT_KIND],
+      authors: Array.from(authors),
+      "#d": Array.from(dTags),
+    });
+    // The filter is a cross-product, so it can return headers we didn't ask for.
+    // Cache them all — they're the ones the next note will want.
+    for (const ev of found) {
+      headersByCoord.set(headerCoordOf(ev), ev);
+    }
+    for (const c of missing) {
+      const hit = headersByCoord.get(c);
+      if (hit) out.push(hit);
+    }
+  } catch {
+    // Unresolved headers become `unverifiable` downstream, which is the honest
+    // outcome — better than dropping the assertions or failing the read.
+  }
+  return out;
+}
+
+/**
+ * Collapse replaceable duplicates before classifying. An event-tagging's `d` is
+ * deterministic per (slug, target, asserter), so a relay handing us both the old
+ * and the new copy must not count as two — and an apply↔dispute flip has to
+ * settle on the newer stance. The SDK's classifier documents this as the
+ * caller's job.
+ */
+function latestByReplaceableKey(events: NostrEvent[]): NostrEvent[] {
+  const latest = new Map<string, NostrEvent>();
+  for (const ev of events) {
+    const d = tagValue(ev, "d");
+    if (!d) continue;
+    const key = `${ev.kind}|${ev.pubkey}|${d}`;
+    const prev = latest.get(key);
+    if (!prev || ev.created_at > prev.created_at) latest.set(key, ev);
+  }
+  return Array.from(latest.values());
+}
+
+/** The descriptor coordinate a candidate assertion points at, if it has one. */
+function descriptorOf(ev: NostrEvent): string | null {
+  const z = (ev.tags || []).find(
+    (t) => t[0] === "z" && /^39999:[0-9a-f]{64}:tagging:.+-tagging$/.test(t[1] || ""),
+  );
+  return z ? z[1] : null;
+}
+
+/**
+ * Every tag applied to one note (ACCEPTANCE C2).
+ *
+ * Anonymous-safe like every read here: relays only, no API client. Pass
+ * `viewerPubkey` to surface the viewer's own stances via the `mine` channel,
+ * which is deliberately trust-unfiltered.
+ */
+export async function fetchEventTags(
+  eventId: string,
+  viewerPubkey?: string,
+): Promise<NoteTagsResult> {
+  let candidates: NostrEvent[] = [];
+  try {
+    candidates = await fetchTagEvents(
+      filterTagsAppliedToEvent({ target: { id: eventId } }) as Record<string, unknown>,
+    );
+  } catch {
+    return { tags: [], mine: [], unverifiable: 0, trustUnverified: false };
+  }
+  if (!candidates.length) return { tags: [], mine: [], unverifiable: 0, trustUnverified: false };
+
+  const deduped = latestByReplaceableKey(candidates);
+  const headers = await resolveTaggingHeaders(
+    deduped.map(descriptorOf).filter((c): c is string => !!c),
+  );
+
+  const trust = await resolveTrust(Array.from(new Set(deduped.map((ev) => ev.pubkey))));
+  const classified = classifyEventTaggings({
+    candidates: deduped,
+    headers,
+    honoredAuthorities: Z_HANDLE_PUBKEYS,
+    isAsserterTrusted: trust.predicate,
+    viewerPubkey,
+  });
+
+  const refs = classified.tags.map((t) => ({
+    authorPubkey: t.tag.authorPubkey,
+    slug: t.tag.slug,
+  }));
+  const names = await resolveTagNames(refs);
+
+  const mine = new Map(
+    classified.mine.map((m) => [
+      `${m.tag.authorPubkey}|${m.tag.slug}`,
+      m.stance as "apply" | "dispute",
+    ]),
+  );
+
+  const tags: NoteTag[] = classified.tags
+    .map((t) => {
+      const key = `${t.tag.authorPubkey}|${t.tag.slug}`;
+      // Distinct ASSERTERS, not raw entries — the same discipline as the
+      // profile read, and the only reading that matches the kit's counting rule.
+      const applied = new Set(t.applications.map((a) => a.authorPubkey));
+      const disputed = new Set(t.disputes.map((d) => d.authorPubkey));
+      return {
+        key,
+        authorPubkey: t.tag.authorPubkey,
+        slug: t.tag.slug,
+        name: names.get(key)?.name || t.tag.slug,
+        description: names.get(key)?.description,
+        applications: applied.size,
+        disputes: disputed.size,
+        asserters: Array.from(applied),
+        counted: netPositive(applied.size, disputed.size),
+        myStance: mine.get(key),
+      };
+    })
+    // Same rule as the profile chips: carried by the network, or the viewer has
+    // a stance on it and must keep seeing their own action.
+    .filter((t) => t.counted || !!t.myStance)
+    .sort(
+      (a, b) =>
+        Number(b.counted) - Number(a.counted) ||
+        b.applications - a.applications ||
+        a.name.localeCompare(b.name),
+    );
+
+  return {
+    tags,
+    mine: Array.from(mine.entries()).map(([key, stance]) => ({ key, stance })),
+    unverifiable: classified.unverifiable.length,
+    trustUnverified: trust.unverified,
+  };
+}
+
+/** A note carrying a tag, as the tag page lists it. */
+export interface TaggedNote {
+  /** The note's event id. Addressable targets carry `address` instead. */
+  id?: string;
+  address?: string;
+  applications: number;
+  disputes: number;
+  asserters: string[];
+  myStance?: "apply" | "dispute";
+  /** Newest applying assertion, for a "recently tagged" ordering. */
+  addedAt: number;
+  /**
+   * Relay hints the asserters attached to their `e` tag — where the note
+   * actually lives. The hub carries assertions ABOUT notes, never the notes, so
+   * without a hint a reader can only guess (their own relays) and a note living
+   * elsewhere is unreachable. Our own writes always attach one; the reference
+   * publisher currently attaches none, so this is often empty.
+   */
+  relays: string[];
+}
+
+/**
+ * Every note the network says carries one tag — the event half of C6, and what
+ * Floor D wants listed on a tag page beside the people.
+ *
+ * Two hops, because a tag can have several legitimate headers authored by
+ * different people: find the tag's headers first, then read every tagging that
+ * points at any of them.
+ */
+export async function fetchTagNotes(
+  authorPubkey: string,
+  slug: string,
+  viewerPubkey?: string,
+): Promise<TaggedNote[]> {
+  let headers: NostrEvent[] = [];
+  try {
+    const perAuthority = await Promise.all(
+      Z_HANDLE_PUBKEYS.map((ta) =>
+        fetchTagEvents(
+          filterTaggingHeadersForTag({
+            tagAuthorPubkey: authorPubkey,
+            slug,
+            taPubkey: ta,
+          }) as Record<string, unknown>,
+        ).catch(() => [] as NostrEvent[]),
+      ),
+    );
+    const byId = new Map<string, NostrEvent>();
+    for (const ev of perAuthority.flat()) byId.set(ev.id, ev);
+    headers = Array.from(byId.values());
+  } catch {
+    return [];
+  }
+  // No header means nobody has ever made this tag applicable to notes, so there
+  // is nothing to find. Not an error — most tags are people-only today.
+  if (!headers.length) return [];
+
+  for (const h of headers) headersByCoord.set(headerCoordOf(h), h);
+
+  let candidates: NostrEvent[] = [];
+  try {
+    // One query across every header coordinate rather than one per header.
+    candidates = await fetchAllTagEvents({
+      kinds: [TAG_ELEMENT_KIND],
+      "#z": headers.map(headerCoordOf),
+    });
+  } catch {
+    return [];
+  }
+  if (!candidates.length) return [];
+
+  const deduped = latestByReplaceableKey(candidates);
+  const trust = await resolveTrust(Array.from(new Set(deduped.map((ev) => ev.pubkey))));
+  const grouped = groupTaggingsByTarget({
+    candidates: deduped,
+    headers,
+    honoredAuthorities: Z_HANDLE_PUBKEYS,
+    isAsserterTrusted: trust.predicate,
+    viewerPubkey,
+    tag: { authorPubkey, slug },
+  });
+
+  const mineFor = new Map(
+    grouped.mine.map((m) => [m.target.id ?? m.target.address ?? "", m.stance as "apply" | "dispute"]),
+  );
+
+  // Harvest the `e`-tag relay hints before we lose the raw candidates — the
+  // classifier returns targets, not the tags they came from.
+  const hintsFor = new Map<string, Set<string>>();
+  for (const ev of deduped) {
+    const e = (ev.tags || []).find((t) => t[0] === "e");
+    const hint = e?.[2];
+    if (!e?.[1] || typeof hint !== "string" || !/^wss?:\/\//i.test(hint)) continue;
+    if (!hintsFor.has(e[1])) hintsFor.set(e[1], new Set());
+    hintsFor.get(e[1])!.add(hint);
+  }
+
+  return grouped.targets
+    .map((t) => {
+      const applied = new Set(t.applications.map((a) => a.authorPubkey));
+      const disputed = new Set(t.disputes.map((d) => d.authorPubkey));
+      return {
+        id: t.target.id,
+        address: t.target.address,
+        applications: applied.size,
+        disputes: disputed.size,
+        asserters: Array.from(applied),
+        myStance: mineFor.get(t.target.id ?? t.target.address ?? ""),
+        addedAt: t.applications.reduce((max, a) => Math.max(max, a.createdAt ?? 0), 0),
+        relays: Array.from(hintsFor.get(t.target.id ?? "") ?? []),
+      };
+    })
+    .filter((n) => netPositive(n.applications, n.disputes) || !!n.myStance)
+    .sort((a, b) => b.applications - a.applications || b.addedAt - a.addedAt);
+}
+
+/**
+ * Apply (or dispute) a tag on a note as the signed-in user.
+ *
+ * 1, 2 or 3 publishes depending on what already exists — the SDK decides and
+ * signs everything before publishing anything, so cancelling the signer aborts
+ * cleanly with nothing on the relays. A partial failure is reported in
+ * `failedAt` and must be surfaced rather than reported as success.
+ *
+ * `relayHint` rides along on the `e` tag so a reader can fetch the target note
+ * from where it actually lives, instead of us persisting other people's notes
+ * onto the tag hub.
+ */
+export async function applyTagToEvent({
+  tag,
+  eventId,
+  relayHint,
+  polarity = 1,
+}: {
+  tag: { authorPubkey: string; slug: string } | { name: string; description?: string };
+  eventId: string;
+  relayHint?: string;
+  polarity?: Polarity;
+}) {
+  const user = getCurrentUser();
+  if (!user?.pubkey) throw new Error("Sign in to tag.");
+
+  return applyEventTagging({
+    tagInput: tag,
+    target: { id: eventId, ...(relayHint ? { relays: [relayHint] } : {}) },
+    polarity,
+    asserterPubkey: user.pubkey,
+    taPubkeys: Z_HANDLE_PUBKEYS,
+    deps: {
+      // Which tagging headers already exist for this tag — decides whether the
+      // asserter has to mint one (sequence b) or can reference an existing one
+      // (sequence a).
+      findHeaders: async ({ tagAuthorPubkey, slug }) => {
+        const found = await Promise.all(
+          Z_HANDLE_PUBKEYS.map((ta) =>
+            fetchTagEvents(
+              filterTaggingHeadersForTag({ tagAuthorPubkey, slug, taPubkey: ta }) as Record<
+                string,
+                unknown
+              >,
+            ).catch(() => [] as NostrEvent[]),
+          ),
+        );
+        const byAuthor = new Map<string, { author: string }>();
+        for (const ev of found.flat()) {
+          headersByCoord.set(headerCoordOf(ev), ev);
+          byAuthor.set(ev.pubkey, { author: ev.pubkey });
+        }
+        return Array.from(byAuthor.values());
+      },
+      sign: signEventLocally,
+      publish: publishTagEvent,
+      now: () => Math.floor(Date.now() / 1000),
+    },
+  });
+}

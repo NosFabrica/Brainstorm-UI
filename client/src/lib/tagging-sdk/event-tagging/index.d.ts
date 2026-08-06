@@ -65,3 +65,109 @@ export function deriveApplicabilityMembers(args: {
   hintEls: unknown[];
   context: "event" | "pubkey";
 }): Array<{ a: string; authorPubkey: string | null; slug: string | null; applications: number }>;
+
+// ─── Event tagging (rung C2) ─────────────────────────────────────────────────
+
+/** A tagging target: a plain event by id, or an addressable one by coordinate. */
+export type EventTagTarget =
+  | { id: string; relays?: string[] }
+  | { address: string };
+
+/** Candidates that tag a given event. Results are candidates, not truth. */
+export function filterTagsAppliedToEvent(args: { target: EventTagTarget }): Record<string, unknown>;
+
+/** All taggings that apply a given tag, via its per-tag tagging header. */
+export function filterTaggingsUsingTag(args: {
+  headerAuthorPubkey: string;
+  slug: string;
+}): Record<string, unknown>;
+
+/** The per-tag tagging headers that exist for a tag — is it event-taggable yet. */
+export function filterTaggingHeadersForTag(args: {
+  tagAuthorPubkey: string;
+  slug: string;
+  taPubkey: string;
+}): Record<string, unknown>;
+
+interface TaggingEntry {
+  eventId: string;
+  authorPubkey: string;
+  createdAt: number;
+  polarity: number;
+}
+
+/**
+ * Group candidate taggings of ONE target by tag. A candidate counts only if its
+ * descriptor header resolves AND joins an honored `tagging-with-specific-tag`
+ * namespace; unresolvable headers surface in `unverifiable` rather than vanish.
+ */
+export function classifyEventTaggings(args: {
+  candidates: unknown[];
+  headers: unknown[];
+  honoredAuthorities: string[];
+  isAsserterTrusted?: (pubkey: string) => boolean;
+  viewerPubkey?: string;
+}): {
+  tags: Array<{
+    tag: { authorPubkey: string; slug: string };
+    applications: TaggingEntry[];
+    disputes: TaggingEntry[];
+  }>;
+  unverifiable: Array<{
+    eventId: string;
+    authorPubkey: string;
+    descriptor: string;
+    createdAt: number;
+  }>;
+  mine: Array<{
+    tag: { authorPubkey: string; slug: string };
+    stance: "apply" | "dispute";
+    eventId: string;
+    createdAt: number;
+  }>;
+};
+
+/** The forward complement: candidates for ONE tag, grouped by target note. */
+export function groupTaggingsByTarget(args: {
+  candidates: unknown[];
+  headers: unknown[];
+  honoredAuthorities: string[];
+  isAsserterTrusted?: (pubkey: string) => boolean;
+  viewerPubkey?: string;
+  tag: { authorPubkey: string; slug: string };
+}): {
+  targets: Array<{
+    target: { id?: string; address?: string };
+    applications: TaggingEntry[];
+    disputes: TaggingEntry[];
+  }>;
+  mine: Array<{
+    target: { id?: string; address?: string };
+    stance: "apply" | "dispute";
+    eventId: string;
+    createdAt: number;
+  }>;
+};
+
+/**
+ * Apply (or dispute) a tag on an event, minting whatever intermediate objects
+ * are missing. 1, 2 or 3 publishes — everything is signed before anything is
+ * published, so cancelling the signer aborts cleanly.
+ */
+export function applyEventTagging(args: {
+  tagInput: { name: string; description?: string } | { authorPubkey: string; slug: string };
+  target: EventTagTarget;
+  polarity: 1 | -1;
+  asserterPubkey: string;
+  taPubkeys: string[];
+  deps: {
+    findHeaders?: (args: { tagAuthorPubkey: string; slug: string }) => Promise<Array<{ author: string }>>;
+    sign: (unsigned: Record<string, unknown>) => Promise<Record<string, unknown>>;
+    publish: (signed: Record<string, unknown>) => Promise<unknown>;
+    now: () => number;
+  };
+}): Promise<{
+  sequence: "a" | "b" | "c";
+  published: Array<{ kind: number; address: string; id: string }>;
+  failedAt?: { kind: number; address: string; error?: string };
+}>;
