@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRoute, Redirect, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Check, Loader2, Plus, Tag as TagIcon, Users } from "lucide-react";
+import { ArrowLeft, Bookmark, BookmarkCheck, Check, Loader2, Plus, Tag as TagIcon, Users } from "lucide-react";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { PageHeader } from "@/components/PageHeader";
 import { PersonListRow, PersonListSkeleton } from "@/components/PersonListRow";
@@ -9,10 +9,10 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useScorePov } from "@/components/score/TrustScorePov";
 import { fetchProfileMap, hasLocalSecretKey } from "@/services/nostr";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { useTagDetail, useTagVote } from "@/hooks/useTags";
+import { useTagDetail, useTagVote, usePinnedTags, useTogglePin } from "@/hooks/useTags";
 import { TagVoteButton } from "@/components/share/TagVoteButton";
 import { TagComments } from "@/components/share/TagComments";
-import { TAG_COMMENTS_ENABLED } from "@/config/tagging";
+import { TAG_COMMENTS_ENABLED, TAG_PINS_ENABLED } from "@/config/tagging";
 
 
 import { CarrierMeta } from "@/components/share/CarrierMeta";
@@ -85,6 +85,13 @@ export default function TagPage() {
   const vote = useTagVote(authorPubkey, slug);
   const carriers = detailQuery.data?.carriers ?? [];
   const disputed = detailQuery.data?.disputed ?? [];
+  const elementId = detailQuery.data?.elementId ?? "";
+
+  // Saving a tag to your own list. Off unless TAG_PINS_ENABLED — the kit puts
+  // pinning out of scope, so this is a declared deviation (DECISIONS §8).
+  const { data: pinned } = usePinnedTags(TAG_PINS_ENABLED);
+  const togglePin = useTogglePin();
+  const myPin = pinned?.find((p) => p.authorPubkey === authorPubkey && p.slug === slug);
   const tagName = detailQuery.data?.tag.name || slug || "Tag";
 
   // Voting needs a SIGNER, not just a session — same rule as the profile
@@ -219,6 +226,33 @@ export default function TagPage() {
                 Add me to this tag
               </button>
             )}
+          </div>
+        )}
+
+        {TAG_PINS_ENABLED && canVote && elementId && (
+          <div className="mt-4" data-testid="tag-pin">
+            <button
+              type="button"
+              onClick={() =>
+                togglePin.mutate(
+                  myPin
+                    ? { pinEventId: myPin.pinEventId }
+                    : { authorPubkey, slug, tagEventId: elementId },
+                )
+              }
+              disabled={togglePin.isPending}
+              className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-brand-primary hover:text-brand-primary disabled:opacity-50 dark:border-slate-700 dark:text-slate-300"
+              data-testid="tag-pin-toggle"
+            >
+              {togglePin.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : myPin ? (
+                <BookmarkCheck className="h-3.5 w-3.5" />
+              ) : (
+                <Bookmark className="h-3.5 w-3.5" />
+              )}
+              {myPin ? "Saved" : "Save this tag"}
+            </button>
           </div>
         )}
 

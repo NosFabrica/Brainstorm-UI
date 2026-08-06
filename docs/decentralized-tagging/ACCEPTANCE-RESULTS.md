@@ -310,6 +310,32 @@ discovery hit the live hub, so the sequence choice is real.
 A `publish` that throws aborts the sequence and returns `failedAt` rather than
 reporting success — the partial-failure contract, confirmed in all three runs.
 
+## Pin round-trip (declared deviation, not a kit box) — done 2026-08-06
+
+Run with a throwaway key, pinning **its own test tag** so no real tag was
+touched. `TAG_PINS_ENABLED` was flipped on locally and back off before commit.
+
+- **Pin published and accepted by the hub**, wire shape matching
+  `core/protocol/tags.md` §Pins field for field: `d` =
+  `tag-pin-<slug>-<author8>-<viewer8>`, both halves of the dual reference (`e`
+  at the element's version, `a` at its stable address), a `tag-pinning` z per
+  honored namespace, and `curation-method` as **stringified** JSON carrying
+  `{observer, method:"nip85:rank", cutoff:1, includeScoreInTL:true}`.
+- **Read back** on `/tags/mine` under "Saved tags".
+- **Unpin — and this is the finding.** The kind-5 was **rejected by the hub (0
+  events) and accepted by `relay.damus.io`**, exactly as the hub's NIP-11
+  allow-list predicted. The pin therefore remains on the hub permanently while
+  the deletion saying otherwise lives elsewhere. Our UI shows it removed because
+  `fetchPinnedTags` unions deletions from both relay sets; a client reading the
+  hub alone would not. Filed as KIT-FEEDBACK §15 with the table.
+- **A gap this test exposed:** there was no way to pin anything. `useTogglePin`
+  was wired only for *un*pinning, while the empty state told users to "save a
+  tag from its page" — copy promising a control that didn't exist. The tag page
+  now has one.
+
+**Residue:** one pin event by the throwaway remains on the hub, undeletable
+there by design. It points at that throwaway's own test tag.
+
 ## Live publish round-trip (Floor D, C3, C4, C5) — done 2026-08-06
 
 Run with a throwaway key against the real relays, targeting one of the QA

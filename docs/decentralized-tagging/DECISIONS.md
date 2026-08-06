@@ -278,7 +278,9 @@ buried:
   rejected by the relay the spec's pins belong on. We publish the deletion to
   general relays and union both sets on read — a workaround, recorded as
   KIT-FEEDBACK §15. Found by reading the relay's own advertisement before
-  publishing anything, which is the cheapest verification in this whole build.
+  publishing anything, which is the cheapest verification in this whole build,
+  and **confirmed on the wire 2026-08-06**: pin accepted by the hub, unpin
+  rejected by it and accepted by `relay.damus.io`.
 
 **The copy rule this page had to respect:** you cannot erase a tag someone else
 gave you. The page says that in plain words at the top and never offers a

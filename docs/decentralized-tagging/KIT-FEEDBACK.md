@@ -332,9 +332,21 @@ unpinned there. Existence-based reader semantics make that worse than a missing
 feature: a client reading the hub alone sees the pin forever, with no signal
 that the user removed it.
 
+**Confirmed on the wire, not just inferred from the allow-list.** We published a
+real pin and then unpinned it with a throwaway key on 2026-08-06:
+
+| event | hub | general relays |
+|---|---|---|
+| the pin (kind 39999) | **accepted**, still there | — |
+| the unpin (kind 5) | **0 — rejected** | accepted, correctly referencing the pin id |
+
+So the pin is now permanently on `dcosl.brainstorm.world` with no way to remove
+it there, while the deletion that says otherwise lives somewhere else entirely.
+
 Our workaround: publish the kind-5 to the app's general relays and union
 deletions from both relay sets on read. That works for us and for anyone reading
-the same way, and is wrong for everyone else.
+the same way, and is wrong for everyone else — a client reading the hub alone
+sees a pin its owner deleted, with nothing to indicate it.
 
 Options, in preference order:
 

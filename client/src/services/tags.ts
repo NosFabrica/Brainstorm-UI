@@ -748,6 +748,12 @@ export interface TagCarrier {
 
 export interface TagDetail {
   tag: TagIdentity;
+  /**
+   * The tag-element's event id. Only a pin needs it — the spec's dual reference
+   * pins the version seen at pin-time via `e` while tracking the tag through
+   * edits via `a`. Empty when the element didn't resolve.
+   */
+  elementId: string;
   /** Net-positive carriers — the Floor D list, "net > 0 only". */
   carriers: TagCarrier[];
   /**
@@ -828,7 +834,7 @@ export async function fetchTagDetail(
 
   const deduped = new Map<string, NostrEvent>();
   for (const ev of [...byCoord, ...byElementId]) deduped.set(ev.id, ev);
-  if (!deduped.size) return { tag, carriers: [], disputed: [], trustUnverified: false };
+  if (!deduped.size) return { tag, elementId: element?.id ?? "", carriers: [], disputed: [], trustUnverified: false };
 
   // Only assertions for THIS tag — the relays filtered, but a permissive one
   // could hand back more and we'd rather not list strangers.
@@ -899,7 +905,7 @@ export async function fetchTagDetail(
   const shown = new Set(carriers.map((c) => c.pubkey));
   const disputed = all.filter((c) => !shown.has(c.pubkey)).sort(byVouches);
 
-  return { tag, carriers, disputed, trustUnverified: trust.unverified };
+  return { tag, elementId: element?.id ?? "", carriers, disputed, trustUnverified: trust.unverified };
 }
 
 // ─── The catalogue ───────────────────────────────────────────────────────────
