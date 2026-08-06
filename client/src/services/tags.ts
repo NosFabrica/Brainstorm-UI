@@ -50,6 +50,7 @@ import {
   slug as toSlug,
 } from "@/lib/tagging-sdk/event-tagging/index.js";
 import { countNameCollisions, type CountedTag } from "@/lib/tagMerge";
+import { stanceOnlyRefs } from "@/lib/tagCounts";
 import {
   LOCAL_TA_PUBKEY,
   tagRelays,
@@ -642,6 +643,25 @@ export async function fetchProfileTags(
   const trust = await resolveTrust(Array.from(new Set(assertions.map((a) => a.asserter))));
   const { counted, mine } = groupByTag(assertions, trust.predicate, viewerPubkey);
 
+  // `counted` is trust-filtered; `mine` is not. A tag only the viewer applied,
+  // under a POV that doesn't count them, is in `mine` and NOT in `counted` — so
+  // iterating `counted` alone makes the viewer's own action disappear. Floor B
+  // is explicit that it must stay visible ("dimmed/struck, not vanished"), so
+  // the viewer's stance INTRODUCES a zero-support entry rather than only
+  // annotating an existing one.
+  for (const tagKey of mine.keys()) {
+    if (counted.has(tagKey)) continue;
+    const sep = tagKey.indexOf("|");
+    counted.set(tagKey, {
+      authorPubkey: tagKey.slice(0, sep),
+      slug: tagKey.slice(sep + 1),
+      applications: new Set(),
+      disputes: new Set(),
+      selfApplied: false,
+      selfDisputed: false,
+    });
+  }
+
   const names = await resolveTagNames(Array.from(counted.values()));
 
   // Each minted identity stands on its own — see lib/tagMerge.ts for why the
@@ -804,6 +824,21 @@ export async function fetchTagDetail(
     for (const a of assertions) {
       if (a.asserter === viewerPubkey) myStanceFor.set(a.target, a.stance);
     }
+  }
+
+  // Same rule as the profile chips: `byTarget` is trust-filtered, `myStanceFor`
+  // is not, so someone the viewer alone tagged would be missing entirely. The
+  // viewer's stance introduces the row; the net rule below still decides
+  // whether it reads as carried.
+  for (const target of myStanceFor.keys()) {
+    if (byTarget.has(target)) continue;
+    byTarget.set(target, {
+      applications: new Set(),
+      disputes: new Set(),
+      selfApplied: false,
+      selfDisputed: false,
+      addedAt: 0,
+    });
   }
 
   // NO has-a-profile gate here. ACCEPTANCE Floor D specifies this list as
@@ -1587,7 +1622,9 @@ export async function fetchEventTagsBatch(
       viewerPubkey,
     });
     classifiedByTarget.set(target, classified);
-    for (const t of classified.tags) {
+    // Names for the counted tags AND for the viewer's own — a tag that survives
+    // only via `mine` still has to render under its real name, not its slug.
+    for (const t of [...classified.tags, ...classified.mine]) {
       refs.set(`${t.tag.authorPubkey}|${t.tag.slug}`, {
         authorPubkey: t.tag.authorPubkey,
         slug: t.tag.slug,
@@ -1605,7 +1642,20 @@ export async function fetchEventTagsBatch(
       ]),
     );
 
-    const tags: NoteTag[] = classified.tags
+    // `classified.tags` is trust-filtered; `classified.mine` is not. A tag whose
+    // only asserter is the viewer — and whom the POV doesn't count — is absent
+    // from the former and present in the latter, so mapping over `tags` alone
+    // makes the viewer's own action vanish. ACCEPTANCE C7 and Floor C both
+    // require the opposite: the viewer's stance stays visible whatever the POV
+    // makes of them. So `mine` INTRODUCES an entry here, it doesn't just
+    // annotate one.
+    const fromMine = stanceOnlyRefs(classified.tags, classified.mine).map((m) => ({
+      tag: m.tag,
+      applications: [],
+      disputes: [],
+    }));
+
+    const tags: NoteTag[] = [...classified.tags, ...fromMine]
       .map((t) => {
         const key = `${t.tag.authorPubkey}|${t.tag.slug}`;
         // Distinct ASSERTERS, not raw entries — the same discipline as the

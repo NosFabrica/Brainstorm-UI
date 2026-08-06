@@ -151,9 +151,29 @@ built · **N/E** not exercisable in this environment, with the reason given.
   `verified-human` fell from **14 people to 6**. The 6 survivors are carried by
   asserters with no published score, passing via `unknownPolicy: "trusted"` —
   precisely the behaviour the checkbox describes. Config restored after.
-- **N/E** *…and the viewer's OWN stance still surfaces via `mine`.* Verified
-  logged-out, so there was no viewer stance to observe. The `mine` channel is
-  recorded before the trust filter by construction, but this half is untested.
+- **PASS, after fixing a real bug** *…and the viewer's OWN stance still
+  surfaces via `mine`.* Exercised with a throwaway signer. **It failed first
+  time: the chip vanished.**
+
+  Root cause, in all three read paths: `mine` could only ANNOTATE an entry, never
+  INTRODUCE one. Each path mapped over the trust-filtered collection
+  (`counted` / `classified.tags` / `byTarget`) and then filtered on
+  `counted || myStance` — but a tag whose only asserter is the viewer, under a
+  POV that doesn't count them, is absent from that collection entirely, so the
+  `myStance` clause had nothing to rescue. Fixed by synthesising a zero-support
+  entry from `mine`, extracted as the tested pure helper
+  `stanceOnlyRefs` (`lib/tagCounts.ts`, 5 cases, mutation-checked).
+
+  Re-run: the chip renders with `data-counted="false"` and dimmed — exactly
+  Floor B's "dimmed/struck, not vanished".
+
+  **Note on how this had to be tested.** With the shipped
+  `unknownPolicy: "trusted"`, an unscored asserter passes the predicate no
+  matter how high `minRank` goes (`trust.js:118-122`), so cranking `minRank`
+  alone can never drop an unscored viewer — the box's own scenario is
+  unreachable for a fresh identity. We hardened `unknownPolicy` alongside it so
+  the predicate genuinely rejected the viewer. Config restored after; `git diff`
+  on `config/tagging.ts` is clean.
 - **PASS** *Tag relays unreachable.* Pointed the tag-relay list at
   `wss://nope.invalid.example` (through the new Settings override, no code
   change). Profile rendered normally, tags simply absent, no crash, no wedged
@@ -274,9 +294,29 @@ discovery hit the live hub, so the sequence choice is real.
 A `publish` that throws aborts the sequence and returns `failedAt` rather than
 reporting success — the partial-failure contract, confirmed in all three runs.
 
-**Not verified:** the live publish round-trip. Doing it means writing a public,
-permanent, signed claim about somebody else's note, and there is no delete. Say
-the word and it's a two-minute check with a throwaway key.
+## Live publish round-trip (Floor D, C3, C4, C5) — done 2026-08-06
+
+Run with a throwaway key against the real relays, targeting one of the QA
+account's own "Safe to ignore" test notes so no real content was labelled.
+
+1. **Mint-and-apply in one flow** (sequence c) via the picker → three events
+   landed on the hub, signed, with the exact shapes the dry run predicted:
+   tag-element carrying `tag-for-nostr-event`; header
+   `d = tagging:<slug>-tagging` with its `a` at the element; assertion
+   `d = event-tag-<slug>-<target8>-<asserter8>`, `polarity 1`, descriptor `z`
+   resolving to the header.
+2. **Chip appeared on the note**, and survived a hard reload — so it is
+   relay-sourced, not local state.
+3. **The tag's own page listed the note** ("1 post"), closing the loop from the
+   other direction.
+4. **Withdrawal** via the picker's Disagree → the hub still holds exactly
+   **three** events, not four: same `d`, new event id, `polarity -1`. That is
+   C4's replace semantics verified on-wire for an EVENT tagging.
+5. Anonymous re-check: no chip, since the assertion no longer counts.
+
+Throwaway session cleared afterwards. The tag-element and header remain, as they
+must — the protocol has no delete, and both are reusable infrastructure rather
+than claims about anyone.
 
 ## The two failures, both upstream
 

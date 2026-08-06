@@ -35,3 +35,35 @@ export function onlySelfDeclared(t: SelfAwareCount): boolean {
 export function corroborations(t: SelfAwareCount): number {
   return Math.max(0, t.applications - (t.selfDeclared ? 1 : 0));
 }
+
+/** Anything identified by a tag coordinate. */
+export interface HasTagRef {
+  tag: { authorPubkey: string; slug: string };
+}
+
+/**
+ * The viewer's own stances that the trust filter dropped entirely.
+ *
+ * Every read path here produces two lists: a trust-filtered one (what counts)
+ * and the viewer's own (`mine`, deliberately unfiltered). Mapping over the
+ * filtered list alone is a trap — a tag whose ONLY asserter is the viewer, under
+ * a POV that doesn't count them, is absent from it, so the viewer's own action
+ * silently disappears. ACCEPTANCE Floor B requires the opposite: it must stay
+ * visible, "dimmed/struck, not vanished".
+ *
+ * This returns the entries that need synthesising with zero support so the
+ * viewer's stance can INTRODUCE a row rather than only annotate one. It caught a
+ * real regression on 2026-08-06: a note tagged solely by the viewer vanished
+ * from its own page the moment the POV stopped trusting them.
+ */
+export function stanceOnlyRefs<Trusted extends HasTagRef, Mine extends HasTagRef>(
+  trusted: Trusted[],
+  mine: Mine[],
+): Mine[] {
+  return mine.filter(
+    (m) =>
+      !trusted.some(
+        (t) => t.tag.authorPubkey === m.tag.authorPubkey && t.tag.slug === m.tag.slug,
+      ),
+  );
+}
