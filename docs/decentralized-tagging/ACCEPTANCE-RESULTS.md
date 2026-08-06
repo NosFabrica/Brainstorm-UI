@@ -10,10 +10,22 @@ the kit says "still applies verbatim underneath", and the UI overlay's
 Kit commit integrated: `8412198053c5916377724a9a2960db8d5bd67407`
 (`nous-clawds4/tapestry`, branch `generate-nosfabrica-integration-kit`).
 
-**Summary: 42 pass · 2 fail · 0 not-built · 1 declared divergence.** Both
-failures are upstream defects we've filed, not integration gaps — see
-`KIT-FEEDBACK.md` §1 and §5. The divergence is `Start.md` Q2's migrate option,
-which the overlay's Floor A wording doesn't account for.
+**Summary: 48 pass · 0 fail · 0 not-built · 1 not-exercisable · 1 declared
+divergence.**
+
+- The **not-exercisable** box needs a second signer identity (core C3, "as B,
+  reading the same targets"). Genuinely unverified, not waved through.
+- The **divergence** is `Start.md` Q2's migrate option, which the overlay's
+  Floor A wording doesn't account for. Declared, not accidental.
+- Two **upstream defects** are worked around rather than failed:
+  `KIT-FEEDBACK.md` §1 (the `hops` inversion — we neutralise it in
+  `config/tagging.ts`, and reverting would ship a knowingly inverted filter) and
+  §5 (harness entries in the published applicability list — we classify with it
+  but don't advertise hint-only tags). Both are the kit's to fix.
+
+Nothing here is a box we quietly rounded up. Two boxes went red during this run
+and were fixed rather than reworded: the SharePage note chips (Floor A) and the
+`mine` channel under a rejecting POV (Floor C / core C7).
 
 Legend: **PASS** verified this run · **FAIL** verified broken · **N/B** rung not
 built · **N/E** not exercisable in this environment, with the reason given.
