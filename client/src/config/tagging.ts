@@ -140,6 +140,11 @@ export const NIP85_AUTHOR_PUBKEYS: string[] = raw.nip85AuthorPubkeys;
  * override lives here rather than in tagging.config.json so that file stays
  * byte-identical to the kit and re-vendoring diffs stay clean.
  *
+ * NOT a local deviation: the reference client does the same. Jumble prints its
+ * baked-in defaults in its own user guide — `mode=house-ta minRank=1
+ * maxHops=999 unknown=trusted`. Two independent integrations corrected the same
+ * shipped value, which makes `CONFIG.json`'s `20` the thing that's wrong.
+ *
  * Revert this to `raw.trust.maxHops` the moment the house's NIP-85 pipeline
  * starts publishing hops — at that point the check becomes meaningful again.
  */

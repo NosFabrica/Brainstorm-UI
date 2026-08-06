@@ -71,6 +71,7 @@ export default function TagPage() {
   const [sort, setSort] = useState<CarrierSort>("vouched");
   const [hideSelfDeclared, setHideSelfDeclared] = useState(false);
   const [hideContested, setHideContested] = useState(false);
+  const [showDisputed, setShowDisputed] = useState(false);
   const rawAuthor = params?.author;
   const slug = params?.slug;
   const { pov: scorePov } = useScorePov();
@@ -83,6 +84,7 @@ export default function TagPage() {
   const detailQuery = useTagDetail(authorPubkey, slug);
   const vote = useTagVote(authorPubkey, slug);
   const carriers = detailQuery.data?.carriers ?? [];
+  const disputed = detailQuery.data?.disputed ?? [];
   const tagName = detailQuery.data?.tag.name || slug || "Tag";
 
   // Voting needs a SIGNER, not just a session — same rule as the profile
@@ -98,11 +100,11 @@ export default function TagPage() {
   const pubkeys = useMemo(() => {
     // Carriers, the tag's author, and everyone who vouched — one round-trip
     // resolves every name and face the page shows.
-    const list = new Set(carriers.map((c) => c.pubkey));
-    for (const c of carriers) for (const a of c.asserters) list.add(a);
+    const list = new Set([...carriers, ...disputed].map((c) => c.pubkey));
+    for (const c of [...carriers, ...disputed]) for (const a of c.asserters) list.add(a);
     if (authorPubkey) list.add(authorPubkey);
     return Array.from(list);
-  }, [carriers, authorPubkey]);
+  }, [carriers, disputed, authorPubkey]);
   const profilesQuery = useQuery({
     queryKey: ["tag-profiles", pubkeys.join(",")],
     queryFn: () => fetchProfileMap(pubkeys),
@@ -338,6 +340,65 @@ export default function TagPage() {
             })
           )}
         </div>
+
+        {/* Voted down, kept reachable. Hiding a disputed claim outright would
+            make the page look tidier than the network actually is, and you
+            can't judge a dispute you're not allowed to see. */}
+        {!loading && disputed.length > 0 && (
+          <div className="mt-3" data-testid="tag-disputed">
+            <button
+              type="button"
+              onClick={() => setShowDisputed((v) => !v)}
+              aria-expanded={showDisputed}
+              className="text-xs font-semibold text-slate-500 transition-colors hover:text-brand-primary dark:text-slate-400"
+              data-testid="tag-disputed-toggle"
+            >
+              {showDisputed ? "Hide" : "Show"} {disputed.length} disputed
+            </button>
+
+            {showDisputed && (
+              <div className="mt-2 overflow-hidden rounded-2xl border border-amber-200/60 bg-white shadow-sm dark:border-amber-500/20 dark:bg-slate-900">
+                <p className="border-b border-amber-200/60 bg-amber-50/60 px-4 py-2 text-[11px] text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/[0.06] dark:text-amber-500">
+                  More people disagreed than agreed, so these don't count toward
+                  the tag.
+                </p>
+                <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                  {disputed.map((c) => {
+                    const p = profileMap?.get(c.pubkey);
+                    return (
+                      <PersonListRow
+                        key={c.pubkey}
+                        pubkey={c.pubkey}
+                        displayName={p?.display_name || p?.name}
+                        picture={p?.picture}
+                        nip05={p?.nip05}
+                        pov={scorePov}
+                        testId={`tag-disputed-row-${c.pubkey.slice(0, 8)}`}
+                        actions={
+                          canVote ? (
+                            <TagVoteButton
+                              stance={c.myStance}
+                              pending={vote.isPending && vote.variables?.targetPubkey === c.pubkey}
+                              onVote={(polarity) => vote.mutate({ targetPubkey: c.pubkey, polarity })}
+                              testId={`tag-disputed-vote-${c.pubkey.slice(0, 8)}`}
+                            />
+                          ) : undefined
+                        }
+                        meta={
+                          <CarrierMeta
+                            carrier={c}
+                            profileMap={profileMap}
+                            isViewer={c.pubkey === viewerPubkey}
+                          />
+                        }
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Posts carrying this tag. Renders nothing when there are none, which
             is most tags — see TaggedNotes. */}

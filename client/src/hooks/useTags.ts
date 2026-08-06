@@ -75,9 +75,12 @@ export const tagIndexKey = ["tag-index"] as const;
  * filters this in memory rather than hitting relays per keystroke.
  */
 export function useTagIndex(enabled = true) {
+  // The viewer is in the key because their OWN tags are never hidden from the
+  // discovery gate — so two accounts can legitimately see different catalogues.
+  const viewerPubkey = getCurrentUser()?.pubkey;
   return useQuery<TagSummary[]>({
-    queryKey: tagIndexKey,
-    queryFn: () => fetchTagIndex(),
+    queryKey: [...tagIndexKey, viewerPubkey ?? "anon"],
+    queryFn: () => fetchTagIndex(viewerPubkey),
     enabled,
     staleTime: 30 * 60_000,
     gcTime: 60 * 60_000,
@@ -90,9 +93,10 @@ export function useTagIndex(enabled = true) {
  * tags that describe people lead, tags the split says are for notes follow.
  */
 export function usePickerTags(enabled = true) {
+  const viewerPubkey = getCurrentUser()?.pubkey;
   return useQuery<PickerTag[]>({
-    queryKey: ["tag-picker-options"],
-    queryFn: () => fetchPickerTags(),
+    queryKey: ["tag-picker-options", viewerPubkey ?? "anon"],
+    queryFn: () => fetchPickerTags(viewerPubkey),
     enabled,
     staleTime: 30 * 60_000,
     gcTime: 60 * 60_000,

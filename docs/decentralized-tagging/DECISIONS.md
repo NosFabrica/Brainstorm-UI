@@ -192,7 +192,10 @@ UI additions aren't deviations; arithmetic and wire behaviour are.
 
 **Kept, with the reason recorded:**
 
-- **`maxHops` stays neutralised.** Reverting to `CONFIG.json`'s `20` re-breaks
+- **`maxHops` stays neutralised — and it is not a deviation.** Jumble, the
+  reference client by the kit's own authors, publishes its defaults in its user
+  guide and runs `maxHops=999` too. Both independent integrations corrected the
+  same shipped value. Reverting to `CONFIG.json`'s `20` re-breaks
   trust entirely — see decision 5 and `KIT-FEEDBACK.md` §1. Shipping the value
   as written would mean shipping a filter we know is inverted.
 - **Tag comments stay built but OFF** (`TAG_COMMENTS_ENABLED`). No kit document
@@ -281,6 +284,47 @@ buried:
 gave you. The page says that in plain words at the top and never offers a
 "Remove" button, because the protocol has no delete and we don't promise what we
 don't do.
+
+## 9. Adopting the reference client's rules — decided 2026-08-06
+
+Benjamin shared Jumble's tags page and its user guide. Reading a sibling
+implementation of the same kit was the cheapest review we've had, and it settled
+three things.
+
+**`maxHops` is not our deviation.** Jumble prints its baked-in defaults in its
+own guide: `mode=house-ta minRank=1 maxHops=999 unknown=trusted`. Both
+independent integrations corrected `CONFIG.json`'s `20` the same way. That
+reframes KIT-FEEDBACK §1 from "our workaround" to "the shipped config is wrong
+and everyone has to discover it the hard way".
+
+**Discovery now gates on the tag CREATOR's trust score, not the tagged person's
+kind-0.** Ours was the wrong axis: spam economics are about minting being free
+and permissionless, so the bar belongs on who mints, not on who gets tagged.
+Jumble's rule is better reasoned and better bounded, and it is scoped to browse
+only — direct tag links resolve, existing taggings still render on profiles and
+notes, and your own tags are never hidden from you.
+
+Measured before and after on the live hub: the catalogue went from 39 entries
+including `jumble-qa-profile-…` and `test-account`, to **34 entries with no
+harness output at all** and the real counts intact (Musician 162, Author 43,
+Artist 32). The honest cost, which Jumble also documents: genuine tags by
+unscored creators — `lfo`, `developer`, `relay-operator` — drop out of browse
+too, because an unscored key is indistinguishable from a throwaway one. They
+reappear on their own when a score is published; nothing needs republishing.
+
+**Net-disputed carriers are hidden, not deleted.** They now sit behind a "Show
+N disputed" toggle rather than vanishing. You cannot judge a dispute you are not
+allowed to see, and a page that silently drops them looks tidier than the
+network actually is. `TagDetail.carriers` stays exactly what Floor D specifies
+("net > 0 only") and the disputed set rides alongside in its own field, so the
+acceptance box is untouched.
+
+**One thing we did NOT copy.** Jumble's banner says "What you see here is
+filtered through a web of trust", while its own guide admits unscored asserters
+currently count — which on this corpus means the filter is close to inert. Our
+equivalent line says so at the point of use instead: "We couldn't check who's
+reputable right now, so everyone who added a name is counted here." Worth
+raising with them as a copy fix.
 
 ---
 

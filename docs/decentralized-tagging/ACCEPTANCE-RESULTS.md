@@ -340,7 +340,10 @@ than claims about anyone.
    kind-30382 events carry `d`, `rank` and `followers`; not one carries `hops`.
    The SDK reads a missing `hops` as 999 and tests `hops <= maxHops`, so
    `CONFIG.json`'s `maxHops: 20` rejects every asserter who *has* a score while
-   counting everyone who has none. We neutralise the hops criterion in
+   counting everyone who has none. The reference client (Jumble) ships
+   `maxHops=999` for the same reason — it prints its defaults in its own user
+   guide — so this is the shipped config being wrong, not a local workaround.
+   We neutralise the hops criterion in
    `config/tagging.ts` — outside `CONFIG.json`, so re-vendoring stays clean —
    and let `rank` gate. Shipping the config value as written would mean
    knowingly shipping an inverted filter. Revert when the pipeline publishes

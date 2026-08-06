@@ -19,7 +19,6 @@ import {
   signEventLocally,
   loadOutboxRelayListFromDb,
   getCurrentUser,
-  fetchProfileMap,
   publishToRelays,
   PROFILE_RELAYS,
 } from "./nostr";
@@ -453,30 +452,42 @@ async function normalizeAssertions(candidates: NostrEvent[]): Promise<Normalized
 }
 
 /**
- * Which of these pubkeys are real people?
+ * Which of these pubkeys have a PUBLISHED trust score?
  *
- * The hub carries thousands of harness assertions aimed at pubkeys that have
- * never had a kind-0. Gating on "has a profile" drops all of them without
- * inventing a name-shape blocklist, and it's defensible on its own terms: a tag
- * on an identity that has never existed isn't a claim anyone can evaluate.
+ * Not the same question as the trust predicate. Under
+ * `unknownPolicy: "trusted"` the predicate says yes to a pubkey it has never
+ * heard of, which is right for counting and useless for discovery — an unscored
+ * key and a well-regarded one are indistinguishable to it. This asks the
+ * narrower question the SDK can't: did the house actually say anything about
+ * them?
  *
- * SCOPE, deliberately: `/tags`, our own browse page, which the kit doesn't
- * specify and which is mostly harness output without this. It is NOT applied to
- * `fetchTagDetail` or `fetchProfileTags` — those are the surfaces ACCEPTANCE
- * checks against the reference instance, and an extra condition there would put
- * our counts out of agreement with it.
- *
- * Never throws — `fetchProfileMap` resolves a partial map on timeout, so a slow
- * relay under-reports rather than empties the page.
+ * Used to gate what appears in BROWSE surfaces. See `fetchTagIndex`.
  */
-async function filterToRealProfiles(pubkeys: string[]): Promise<Set<string>> {
-  if (!pubkeys.length) return new Set();
-  try {
-    const map = await fetchProfileMap(pubkeys);
-    return new Set(map.keys());
-  } catch {
-    return new Set(pubkeys); // can't tell → don't hide anyone
+async function fetchScoredPubkeys(pubkeys: string[]): Promise<Set<string>> {
+  const unique = Array.from(new Set(pubkeys.filter(Boolean)));
+  if (!unique.length) return new Set();
+
+  const scored = new Set<string>();
+  // Chunked to keep the filter under what relays accept, same as the SDK's own
+  // trust reader.
+  for (let i = 0; i < unique.length; i += 100) {
+    try {
+      const events = await fetchTrustEvents({
+        kinds: [30382],
+        authors: NIP85_AUTHOR_PUBKEYS,
+        "#d": unique.slice(i, i + 100),
+      });
+      for (const ev of events) {
+        const d = tagValue(ev, "d");
+        if (d) scored.add(d);
+      }
+    } catch {
+      // Can't tell → don't hide anyone. A trust relay outage must not empty the
+      // catalogue; the failure mode is a noisier page, not a blank one.
+      return new Set(unique);
+    }
   }
+  return scored;
 }
 
 /**
@@ -737,7 +748,17 @@ export interface TagCarrier {
 
 export interface TagDetail {
   tag: TagIdentity;
+  /** Net-positive carriers — the Floor D list, "net > 0 only". */
   carriers: TagCarrier[];
+  /**
+   * Carriers the network voted DOWN: more disputes than applies.
+   *
+   * Kept separate rather than dropped. "Hidden, not deleted" is the honest
+   * shape for a public claim someone disagreed with — you can look at what was
+   * disputed away and by whom — and it keeps `carriers` exactly what Floor D
+   * specifies, so the acceptance box is unaffected.
+   */
+  disputed: TagCarrier[];
   /** The trust source told us nothing — this list wasn't filtered. */
   trustUnverified: boolean;
 }
@@ -807,7 +828,7 @@ export async function fetchTagDetail(
 
   const deduped = new Map<string, NostrEvent>();
   for (const ev of [...byCoord, ...byElementId]) deduped.set(ev.id, ev);
-  if (!deduped.size) return { tag, carriers: [], trustUnverified: false };
+  if (!deduped.size) return { tag, carriers: [], disputed: [], trustUnverified: false };
 
   // Only assertions for THIS tag — the relays filtered, but a permissive one
   // could hand back more and we'd rather not list strangers.
@@ -843,37 +864,42 @@ export async function fetchTagDetail(
     });
   }
 
-  // NO has-a-profile gate here. ACCEPTANCE Floor D specifies this list as
-  // "tagged people listed (net > 0 only)" and adds no other condition, so
-  // requiring a kind-0 would hide assertions the reference instance shows and
-  // put our carrier list out of agreement with it. The gate stays on
-  // `fetchTagIndex`, which backs our own `/tags` browse page — a surface the
-  // kit doesn't specify, and one that is mostly harness output without it.
-  const carriers: TagCarrier[] = Array.from(byTarget.entries())
-    .map(([pubkey, grp]) => ({
-      pubkey,
-      applications: grp.applications.size,
-      disputes: grp.disputes.size,
-      asserters: Array.from(grp.applications),
-      selfDeclared: grp.selfApplied,
-      subjectDisagreed: grp.selfDisputed,
-      myStance: myStanceFor.get(pubkey),
-      addedAt: grp.addedAt,
-    }))
-    // Vouched-for people, plus people who put the tag on themselves, plus
-    // anyone the viewer has a stance on — same "never silently vanish" rule
-    // the profile chips follow.
-    .filter((c) => netPositive(c.applications, c.disputes) || c.selfDeclared || !!c.myStance)
-    // Most-vouched first; self-declared-only sink below anyone corroborated.
+  // NO gate of any kind here. ACCEPTANCE Floor D specifies this list as
+  // "tagged people listed (net > 0 only)" and adds no other condition, so an
+  // extra one would put our carrier list out of agreement with the reference
+  // instance. Discovery filtering belongs on `fetchTagIndex`; a direct link to
+  // a tag page must always resolve, which is exactly what the reference client
+  // promises too.
+  const byVouches = (a: TagCarrier, b: TagCarrier) =>
+    b.applications - a.applications ||
+    a.disputes - b.disputes ||
     // Ties break on pubkey so the order is stable across refetches.
-    .sort(
-      (a, b) =>
-        b.applications - a.applications ||
-        a.disputes - b.disputes ||
-        a.pubkey.localeCompare(b.pubkey),
-    );
+    a.pubkey.localeCompare(b.pubkey);
 
-  return { tag, carriers, trustUnverified: trust.unverified };
+  const all: TagCarrier[] = Array.from(byTarget.entries()).map(([pubkey, grp]) => ({
+    pubkey,
+    applications: grp.applications.size,
+    disputes: grp.disputes.size,
+    asserters: Array.from(grp.applications),
+    selfDeclared: grp.selfApplied,
+    subjectDisagreed: grp.selfDisputed,
+    myStance: myStanceFor.get(pubkey),
+    addedAt: grp.addedAt,
+  }));
+
+  // Vouched-for people, plus people who put the tag on themselves, plus anyone
+  // the viewer has a stance on — same "never silently vanish" rule the profile
+  // chips follow.
+  const carriers = all
+    .filter((c) => netPositive(c.applications, c.disputes) || c.selfDeclared || !!c.myStance)
+    .sort(byVouches);
+
+  // Voted down, and not rescued by one of the rules above. Surfaced separately
+  // so the page can offer them rather than pretend they were never claimed.
+  const shown = new Set(carriers.map((c) => c.pubkey));
+  const disputed = all.filter((c) => !shown.has(c.pubkey)).sort(byVouches);
+
+  return { tag, carriers, disputed, trustUnverified: trust.unverified };
 }
 
 // ─── The catalogue ───────────────────────────────────────────────────────────
@@ -890,19 +916,42 @@ export interface TagSummary extends TagIdentity {
 }
 
 /**
- * Every tag anyone actually uses, most-used first.
+ * Every tag anyone actually uses, most-used first — the BROWSE surface.
  *
  * Deliberately derived from ASSERTIONS rather than from the tag-element list.
  * The hub holds 1902 elements of which only ~64 are real; the rest is
- * QA-harness output (`wysiwyg-s17-1785898945945-…`). Listing elements would
- * mean showing that noise and inventing a filter to hide it. Listing what
- * people have actually tagged excludes it for free, and gives real counts as a
+ * QA-harness output (`wysiwyg-s17-1785898945945-…`). Listing what people have
+ * actually tagged excludes most of that for free, and gives real counts as a
  * by-product — which is also what ranks search results.
  *
- * One relay round-trip for the whole catalogue, so callers should cache it hard.
+ * ## Why discovery holds tag CREATORS to a higher bar than counting does
+ *
+ * Minting a tag is free and permissionless, so throwaway keys flood the
+ * catalogue — `jumble-qa-profile-…`, `test-account` and friends are all real
+ * entries on the hub right now. Usage alone doesn't filter them, because the
+ * harness applies them too.
+ *
+ * So a tag appears in browse only when its creator has a **published trust
+ * score**. This is the reference client's rule, adopted deliberately: Jumble
+ * gates "the Tags page, tag search, and the tag picker" the same way, for the
+ * same stated reason. It replaces an earlier invention of ours that gated on
+ * the TAGGED person having a kind-0 — wrong axis, since the spam problem is
+ * about who mints, not who gets tagged.
+ *
+ * **What it does NOT do**, and this matters: a tag by an unscored creator is
+ * not blocked or deleted. Its page still opens from a direct link
+ * (`fetchTagDetail` applies no such gate), taggings made with it still render
+ * on profiles and notes (`fetchProfileTags`, `fetchEventTagsBatch`), and the
+ * viewer's own tags are always listed here. It reappears in discovery by
+ * itself the moment a score is published — nothing gets republished.
+ *
+ * The honest cost: real tags by unscored newcomers are hidden too. An unscored
+ * key looks exactly like a throwaway one, and today that hides `lfo`,
+ * `developer` and `relay-operator` alongside the harness output.
+ *
  * Anonymous-safe like every read here.
  */
-export async function fetchTagIndex(): Promise<TagSummary[]> {
+export async function fetchTagIndex(viewerPubkey?: string): Promise<TagSummary[]> {
   const candidates = await fetchAllTagEvents({
     kinds: [TAG_ELEMENT_KIND],
     "#z": Z_HANDLE_PUBKEYS.map(conceptNostrUserTag),
@@ -911,7 +960,9 @@ export async function fetchTagIndex(): Promise<TagSummary[]> {
 
   const assertions = await normalizeAssertions(candidates);
   const trust = await resolveTrust(Array.from(new Set(assertions.map((a) => a.asserter))));
-  const real = await filterToRealProfiles(Array.from(new Set(assertions.map((a) => a.target))));
+  const scoredCreators = await fetchScoredPubkeys(
+    Array.from(new Set(assertions.map((a) => a.tagAuthor))),
+  );
 
   // Reuse the profile read's grouping so the catalogue can't drift from what a
   // profile shows: same trust filter, same latest-wins, same apply/dispute rule.
@@ -925,7 +976,9 @@ export async function fetchTagIndex(): Promise<TagSummary[]> {
 
   for (const a of assertions) {
     if (!trust.predicate(a.asserter)) continue;
-    if (!real.has(a.target)) continue;
+    // Discovery gate — see the note above. Your own tags are never hidden
+    // from you, scored or not.
+    if (!scoredCreators.has(a.tagAuthor) && a.tagAuthor !== viewerPubkey) continue;
     if (!counted.has(a.tagKey)) {
       counted.set(a.tagKey, {
         authorPubkey: a.tagAuthor,
@@ -1091,8 +1144,8 @@ export interface PickerTag extends TagSummary {
  *    one real unused tag (KIT-FEEDBACK.md §5). Nothing is lost: typing an
  *    existing tag's name still reuses it via `resolveOrMintTag`.
  */
-export async function fetchPickerTags(): Promise<PickerTag[]> {
-  const catalogue = await fetchTagIndex();
+export async function fetchPickerTags(viewerPubkey?: string): Promise<PickerTag[]> {
+  const catalogue = await fetchTagIndex(viewerPubkey);
   const applicability = await fetchApplicability(catalogue);
 
   // No opinion available → everything is offered as-is, in usage order.

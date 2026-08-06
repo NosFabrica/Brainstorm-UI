@@ -27,13 +27,27 @@ with no score at all passes via `unknownPolicy: "trusted"`. Exactly backwards.
 Concretely: david@bitcoinpark has `rank: 100` — the maximum — and read as
 untrusted. Our chip row rendered empty on every profile until we found it.
 
-Our workaround is a config-level override neutralising the hops criterion so
-`rank` does the gating. Suggested fixes for the kit, in preference order:
+**The reference client already does this too — we just didn't know.** Jumble's
+own published guide (`jumble-tags.vercel.app`, "How decentralized tags work")
+prints its baked-in defaults verbatim:
+
+```
+mode=house-ta  minRank=1  maxHops=999  unknown=trusted
+```
+
+So both independent integrations of this kit ship `maxHops: 999` against a
+`CONFIG.json` that says `20`. That makes this a defect in the shipped config
+rather than a Brainstorm workaround, and it means every integrator has to
+rediscover it — ours cost a day of an empty chip row before we found it.
+
+Our override neutralises the hops criterion so `rank` does the gating.
+Suggested fixes for the kit, in preference order:
 
 1. Treat a **missing** `hops` as unknown rather than as 999. Absence of a
    dimension isn't a failing score on that dimension.
 2. Failing that, ship `maxHops: 999` in `CONFIG.json` until the pipeline
-   publishes hops, and say why in the `_comment`.
+   publishes hops, and say why in the `_comment` — this is what both shipping
+   clients already run, so the config is simply out of date with reality.
 3. At minimum, document it loudly — an integrator has no way to guess that the
    trust source silently inverts.
 
@@ -41,19 +55,36 @@ Worth noting the second-order effect: with hops neutralised and
 `unknownPolicy: "trusted"`, trust is currently close to a no-op. Any client
 shipping this today is effectively unfiltered, whatever the config implies.
 
-## 2. Most of the hub's assertions are QA output — and `#a` is the filter
+## 2. Most of the hub's assertions are QA output — and `#a` is NOT the filter
 
-Not a bug, but integrators should be told.
+Not a bug, but integrators should be told. **This section previously said the
+opposite and was wrong; the correction is the useful part.**
 
-Of **2928** profile-tag assertions on `wss://dcosl.brainstorm.world`, only **23**
-carry an `a` tag. The other ~2900 are harness output
-(`profile-tag-wysiwyg-s17-1785898945945-kv0oo3-…`) aimed at pubkeys with no
-kind-0 at all. The 23 are the real ones — `author`, `verified-human`, `dcosl` —
-on real people.
+Of **2930** profile-tag assertions on `wss://dcosl.brainstorm.world`, only
+**25** carry an `a` tag. The other ~2900 reference their tag by `e` alone, and
+a large share are harness output
+(`profile-tag-wysiwyg-s17-1785898945945-kv0oo3-…`).
 
-Consuming identity by `#a`, as the protocol says, is therefore *also* the noise
-filter. We nearly added an `e`-tag fallback "for robustness"; it would have
-surfaced the garbage and bought nothing. Please say so in the docs.
+Our first read consumed `#a` only, and we wrote here that doing so was
+conveniently *also* the noise filter — advice we asked you to put in the docs.
+That was wrong twice over. `tags.md` §"Deployed variant" is explicit that until
+the `a`-backfill lands, "a reader needing completeness MUST union `#a` lookups
+with legacy `#e` lookups against the tag-element's event ids". And when we
+implemented that union, it turned out the `e`-only set contains **real tagging
+on real profiles at scale** — we had been hiding roughly 99% of the corpus,
+including most of what now populates our catalogue. Please don't document the
+`#a`-only shortcut; document the union, prominently, because the failure is
+silent and looks like "the hub is empty".
+
+**The real noise filter is the tag CREATOR's trust score**, which is what your
+own client does — Jumble's guide states that browse surfaces "only list tags
+whose creator has a published trust score", with direct links, existing
+taggings and the viewer's own tags all still working. That rule is worth
+promoting from a client behaviour into kit guidance: it's the only thing we
+found that separates harness tags from real ones without a name-shape blocklist,
+and every integrator otherwise invents something worse. We did — we gated on the
+*tagged* person having a kind-0, which is the wrong axis entirely, since the
+spam economics are about minting being free.
 
 **Related trap:** a plain `limit` on that read is misleading. The QA events are a
 recent burst, so a newest-first page of 2000 contains ~6 real assertions. Our
