@@ -94,6 +94,38 @@ describe("CarrierMeta", () => {
     expect(screen.getByTestId("tag-vouch-count")).toHaveTextContent("2 disagreed");
   });
 
+  it("does not claim self-declaration for a row only the viewer's stance keeps alive", () => {
+    // Regression: withdrawing your vote left the row rendering "Says this about
+    // themselves" next to "They disagree with this tag" — two contradictory
+    // claims, neither of them true.
+    render(
+      <CarrierMeta
+        carrier={carrier({ applications: 0, asserters: [], myStance: "dispute" })}
+        profileMap={profileMap}
+      />,
+    );
+    expect(screen.queryByTestId("tag-self-declared")).toBeNull();
+    expect(screen.getByTestId("tag-withdrawn")).toHaveTextContent("No longer vouched for");
+  });
+
+  it("speaks in second person on the reader's own row", () => {
+    render(
+      <CarrierMeta
+        carrier={carrier({ applications: 0, asserters: [], selfDeclared: true })}
+        profileMap={profileMap}
+        isViewer
+      />,
+    );
+    expect(screen.getByTestId("tag-self-declared")).toHaveTextContent("You added yourself");
+  });
+
+  it("does not tell you that you disagree with yourself", () => {
+    render(
+      <CarrierMeta carrier={carrier({ subjectDisagreed: true })} profileMap={profileMap} isViewer />,
+    );
+    expect(screen.queryByTestId("tag-subject-disagrees")).toBeNull();
+  });
+
   it("stays quiet about disagreement when there is none", () => {
     render(<CarrierMeta carrier={carrier()} profileMap={profileMap} />);
     expect(screen.getByTestId("tag-vouch-count").textContent).not.toMatch(/disagreed/);

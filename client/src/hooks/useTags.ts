@@ -98,8 +98,8 @@ export function useTagMatches(query: string, max = 3): TagSummary[] {
   return useMemo(() => (enabled ? matchTags(data ?? [], query, max) : []), [enabled, data, query, max]);
 }
 
-export const tagDetailKey = (authorPubkey: string, slug: string) =>
-  ["tag-detail", authorPubkey, slug] as const;
+export const tagDetailKey = (authorPubkey: string, slug: string, viewerPubkey?: string) =>
+  ["tag-detail", authorPubkey, slug, viewerPubkey ?? "anon"] as const;
 
 /**
  * Everyone carrying one tag — the read behind `/tags/:author/:slug`.
@@ -109,13 +109,113 @@ export const tagDetailKey = (authorPubkey: string, slug: string) =>
  * is the same for everyone under the configured POV.
  */
 export function useTagDetail(authorPubkey: string | undefined, slug: string | undefined) {
+  const viewerPubkey = getCurrentUser()?.pubkey;
   return useQuery<TagDetail>({
-    queryKey: tagDetailKey(authorPubkey ?? "", slug ?? ""),
-    queryFn: () => fetchTagDetail(authorPubkey!, slug!),
+    queryKey: tagDetailKey(authorPubkey ?? "", slug ?? "", viewerPubkey),
+    queryFn: () => fetchTagDetail(authorPubkey!, slug!, viewerPubkey),
     enabled: !!authorPubkey && !!slug,
     staleTime: 5 * 60_000,
     gcTime: 30 * 60_000,
     retry: 1,
+  });
+}
+
+/**
+ * Vote on someone carrying a tag, or add yourself to it, from the tag page.
+ *
+ * The tag page is where people arrive — from search, from a chip, from a shared
+ * link — so making them navigate to a profile to act was the main thing
+ * standing between "I see this list" and "I'm on this list". Web-of-trust only
+ * does its job if people actually assert; this removes the detour.
+ *
+ * Optimistic on the tag-detail query rather than the profile one, since that's
+ * what's on screen. The profile chips get invalidated too, because the same
+ * assertion changes both views.
+ */
+export function useTagVote(authorPubkey: string | undefined, slug: string | undefined) {
+  const queryClient = useQueryClient();
+  const viewerPubkey = getCurrentUser()?.pubkey;
+  const key = tagDetailKey(authorPubkey ?? "", slug ?? "", viewerPubkey);
+
+  return useMutation({
+    mutationFn: ({ targetPubkey, polarity }: { targetPubkey: string; polarity: 1 | -1 }) =>
+      applyTagToProfile({
+        tag: { authorPubkey: authorPubkey!, slug: slug! },
+        targetPubkey,
+        polarity,
+      }),
+
+    onMutate: async ({ targetPubkey, polarity }) => {
+      await queryClient.cancelQueries({ queryKey: key });
+      const previous = queryClient.getQueryData<TagDetail>(key);
+      if (!viewerPubkey || !previous) return { previous };
+
+      const stance = polarity === 1 ? ("apply" as const) : ("dispute" as const);
+      const isSelf = targetPubkey === viewerPubkey;
+      const existing = previous.carriers.find((c) => c.pubkey === targetPubkey);
+
+      const carriers = existing
+        ? previous.carriers.map((c) => {
+            if (c.pubkey !== targetPubkey) return c;
+            if (c.myStance === stance) return c;
+            // Move our single vote between the buckets rather than adding a
+            // fresh one — we may already be among this person's vouchers.
+            const wasApply = c.myStance === "apply";
+            const wasDispute = c.myStance === "dispute";
+            const selfShift = isSelf
+              ? { selfDeclared: stance === "apply", subjectDisagreed: stance === "dispute" }
+              : {};
+            return {
+              ...c,
+              ...selfShift,
+              applications: isSelf
+                ? c.applications
+                : Math.max(0, c.applications + (stance === "apply" ? 1 : wasApply ? -1 : 0)),
+              disputes: isSelf
+                ? c.disputes
+                : Math.max(0, c.disputes + (stance === "dispute" ? 1 : wasDispute ? -1 : 0)),
+              asserters: isSelf
+                ? c.asserters
+                : stance === "apply"
+                  ? Array.from(new Set([...c.asserters, viewerPubkey]))
+                  : c.asserters.filter((a) => a !== viewerPubkey),
+              myStance: stance,
+            };
+          })
+        : [
+            ...previous.carriers,
+            {
+              pubkey: targetPubkey,
+              applications: isSelf || stance === "dispute" ? 0 : 1,
+              disputes: 0,
+              asserters: isSelf || stance === "dispute" ? [] : [viewerPubkey],
+              selfDeclared: isSelf && stance === "apply",
+              subjectDisagreed: isSelf && stance === "dispute",
+              myStance: stance,
+            },
+          ];
+
+      queryClient.setQueryData<TagDetail>(key, {
+        ...previous,
+        // Mirror the read's rule so a withdrawn vote doesn't leave a ghost row.
+        carriers: carriers.filter(
+          (c) => c.applications - c.disputes > 0 || c.selfDeclared || !!c.myStance,
+        ),
+      });
+      return { previous };
+    },
+
+    onError: (_e, _v, ctx) => {
+      if (ctx?.previous !== undefined) queryClient.setQueryData(key, ctx.previous);
+    },
+
+    onSuccess: (_r, { targetPubkey }) => {
+      setTimeout(() => {
+        queryClient.invalidateQueries({ queryKey: key });
+        queryClient.invalidateQueries({ queryKey: ["profile-tags", targetPubkey] });
+        queryClient.invalidateQueries({ queryKey: tagIndexKey });
+      }, 2500);
+    },
   });
 }
 

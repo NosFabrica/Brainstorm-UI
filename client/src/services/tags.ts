@@ -584,6 +584,8 @@ export interface TagCarrier {
   selfDeclared: boolean;
   /** They object to carrying it. Shown on their row. */
   subjectDisagreed: boolean;
+  /** The VIEWER's stance on this person carrying the tag — drives the vote button. */
+  myStance?: "apply" | "dispute";
 }
 
 export interface TagDetail {
@@ -602,7 +604,11 @@ export interface TagDetail {
  *
  * Anonymous-safe, like every read here — relays only, no API client.
  */
-export async function fetchTagDetail(authorPubkey: string, slug: string): Promise<TagDetail> {
+export async function fetchTagDetail(
+  authorPubkey: string,
+  slug: string,
+  viewerPubkey?: string,
+): Promise<TagDetail> {
   // The tag-element, for its name AND its event id — assertions that predate
   // the `a` correction reference the tag only by that id.
   let elements: NostrEvent[] = [];
@@ -663,10 +669,24 @@ export async function fetchTagDetail(authorPubkey: string, slug: string): Promis
   const trusted = await resolveTrust(Array.from(new Set(assertions.map((a) => a.asserter))));
   const byTarget = groupByTarget(assertions, trusted);
 
+  // The viewer's own stance per person, read BEFORE the trust filter — the same
+  // rule as the profile chips. Someone must always be able to see what they
+  // themselves said, whatever the POV makes of them.
+  const myStanceFor = new Map<string, "apply" | "dispute">();
+  if (viewerPubkey) {
+    for (const a of assertions) {
+      if (a.asserter === viewerPubkey) myStanceFor.set(a.target, a.stance);
+    }
+  }
+
   const real = await filterToRealProfiles(Array.from(byTarget.keys()));
 
   const carriers: TagCarrier[] = Array.from(byTarget.entries())
-    .filter(([pubkey]) => real.has(pubkey))
+    // The has-a-profile gate exists to drop harness targets, but it must never
+    // hide someone the VIEWER just acted on — otherwise a user without a
+    // kind-0 taps "Add me", sees themselves appear, and watches the refetch
+    // delete them with no explanation.
+    .filter(([pubkey]) => real.has(pubkey) || myStanceFor.has(pubkey))
     .map(([pubkey, grp]) => ({
       pubkey,
       applications: grp.applications.size,
@@ -674,10 +694,12 @@ export async function fetchTagDetail(authorPubkey: string, slug: string): Promis
       asserters: Array.from(grp.applications),
       selfDeclared: grp.selfApplied,
       subjectDisagreed: grp.selfDisputed,
+      myStance: myStanceFor.get(pubkey),
     }))
-    // Vouched-for people, plus people who put the tag on themselves — the
-    // latter labelled as such rather than counted as network attestation.
-    .filter((c) => netPositive(c.applications, c.disputes) || c.selfDeclared)
+    // Vouched-for people, plus people who put the tag on themselves, plus
+    // anyone the viewer has a stance on — same "never silently vanish" rule
+    // the profile chips follow.
+    .filter((c) => netPositive(c.applications, c.disputes) || c.selfDeclared || !!c.myStance)
     // Most-vouched first; self-declared-only sink below anyone corroborated.
     // Ties break on pubkey so the order is stable across refetches.
     .sort(

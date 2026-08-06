@@ -1,14 +1,16 @@
 import { useEffect, useMemo } from "react";
 import { useRoute, Redirect, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Tag as TagIcon, Users } from "lucide-react";
+import { ArrowLeft, Check, Loader2, Plus, Tag as TagIcon, Users } from "lucide-react";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { PageHeader } from "@/components/PageHeader";
 import { PersonListRow, PersonListSkeleton } from "@/components/PersonListRow";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useScorePov } from "@/components/score/TrustScorePov";
-import { fetchProfileMap } from "@/services/nostr";
-import { useTagDetail } from "@/hooks/useTags";
+import { fetchProfileMap, hasLocalSecretKey } from "@/services/nostr";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useTagDetail, useTagVote } from "@/hooks/useTags";
+import { TagVoteButton } from "@/components/share/TagVoteButton";
 
 
 import { CarrierMeta } from "@/components/share/CarrierMeta";
@@ -66,8 +68,17 @@ export default function TagPage() {
   }, [rawAuthor]);
 
   const detailQuery = useTagDetail(authorPubkey, slug);
+  const vote = useTagVote(authorPubkey, slug);
   const carriers = detailQuery.data?.carriers ?? [];
   const tagName = detailQuery.data?.tag.name || slug || "Tag";
+
+  // Voting needs a SIGNER, not just a session — same rule as the profile
+  // picker, for the same reason: a token can't sign an event.
+  const [currentUser] = useCurrentUser();
+  const viewerPubkey = currentUser?.pubkey;
+  const canVote =
+    !!viewerPubkey &&
+    (hasLocalSecretKey() || (typeof window !== "undefined" && !!(window as unknown as { nostr?: unknown }).nostr));
 
   // The tag's author rides along with the carriers so their name resolves in
   // the same round-trip — the alternative was a second query for one pubkey.
@@ -99,6 +110,7 @@ export default function TagPage() {
 
   const loading = detailQuery.isLoading;
   const distinctVouchers = new Set(carriers.flatMap((c) => c.asserters)).size;
+  const iAmListed = !!viewerPubkey && carriers.some((c) => c.pubkey === viewerPubkey && c.myStance !== "dispute");
   const authorProfile = profileMap?.get(authorPubkey);
   let authorNpub = "";
   try { authorNpub = npubFromPubkey(authorPubkey); } catch { /* leave unlinked */ }
@@ -138,6 +150,32 @@ export default function TagPage() {
               {authorProfile?.display_name || authorProfile?.name || `${authorNpub.slice(0, 12)}…`}
             </Link>
           </p>
+        )}
+
+        {/* Adoption lives or dies here. People arrive at this page from search,
+            a chip or a shared link — sending them off to a profile to act was
+            the whole distance between "I see this list" and "I'm on it".
+            Web-of-trust can only rank assertions people actually make. */}
+        {canVote && !loading && (
+          <div className="mt-4" data-testid="tag-self-add">
+            {iAmListed ? (
+              <p className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                <Check className="h-3.5 w-3.5" />
+                You're on this list
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={() => vote.mutate({ targetPubkey: viewerPubkey!, polarity: 1 })}
+                disabled={vote.isPending}
+                className="inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-50"
+                data-testid="tag-add-me"
+              >
+                {vote.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                Add me to this tag
+              </button>
+            )}
+          </div>
         )}
 
         <div className="mt-5 mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
@@ -181,10 +219,29 @@ export default function TagPage() {
                   nip05={p?.nip05}
                   pov={scorePov}
                   testId={`tag-row-${c.pubkey.slice(0, 8)}`}
+                  actions={
+                    canVote ? (
+                      <TagVoteButton
+                        agreed={c.myStance === "apply"}
+                        pending={vote.isPending && vote.variables?.targetPubkey === c.pubkey}
+                        onToggle={() =>
+                          vote.mutate({
+                            targetPubkey: c.pubkey,
+                            polarity: c.myStance === "apply" ? -1 : 1,
+                          })
+                        }
+                        testId={`tag-vote-${c.pubkey.slice(0, 8)}`}
+                      />
+                    ) : undefined
+                  }
                   meta={
                     // Not `tag-row-count`: that would match a `tag-row-*`
                     // prefix selector and double-count every row.
-                    <CarrierMeta carrier={c} profileMap={profileMap} />
+                    <CarrierMeta
+                      carrier={c}
+                      profileMap={profileMap}
+                      isViewer={c.pubkey === viewerPubkey}
+                    />
                   }
                 />
               );
