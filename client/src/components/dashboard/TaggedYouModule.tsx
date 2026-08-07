@@ -31,7 +31,7 @@ import { npubFromPubkey } from "@/lib/shareId";
  *   filter depends on.
  * - **Event, not wallpaper.** It shows only what's new since you last looked and
  *   returns null otherwise. A permanent "you're known for…" panel becomes
- *   invisible within a week; Settings → Tags is the durable home.
+ *   invisible within a week; `/tags/mine` is the durable home.
  * - **Self-tagging is not news.** `asserters` includes the subject (the
  *   deliberate count-parity fix), so we filter ourselves out — same reasoning as
  *   `distinctVouchers` on the tag page.
@@ -188,7 +188,7 @@ export function TaggedYouModule() {
       </ul>
 
       <Link
-        href="/settings?tab=tags"
+        href="/tags/mine"
         className="mt-3 inline-block text-xs font-semibold text-brand-link hover:underline"
         data-testid="tagged-you-manage"
       >

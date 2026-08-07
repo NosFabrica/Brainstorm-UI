@@ -1,15 +1,33 @@
-import { Redirect } from "wouter";
+import { TagsPageShell } from "@/components/tags/TagsPageShell";
+import { YourTagsPanel } from "@/components/tags/YourTagsPanel";
 
 /**
- * `/tags/mine` moved into Settings → Tags (`/settings?tab=tags`).
+ * `/tags/mine` — the "Yours" view of the Tags page.
  *
- * Kept as a redirect rather than deleted: the URL was live, linked from the
- * account menu, the profile chip row and the tags guide, and may already have
- * been shared or bookmarked. `replace` so it doesn't wedge the back button —
- * going back from Settings should reach wherever you actually came from.
+ * Briefly lived as a Settings tab. That was the wrong shelf and it's worth
+ * recording why, because Settings is a tempting default for anything
+ * account-shaped: **nothing on this page is a setting.** "About you" is your
+ * public reputation as other people report it, and "What you've said" is a log
+ * of permanent, signed, public claims. Neither is configuration you change.
+ * The one genuine tags setting — which relays to read — stays in
+ * Settings → Trust & search.
  *
- * The page's content now lives in `components/settings/YourTagsPanel.tsx`.
+ * Sharing `/tags`'s shell rather than standing alone is the adoption argument:
+ * anyone who lands on the public catalogue now sees they have a page of their
+ * own. Before, discovering it required already knowing to open the account
+ * menu.
+ *
+ * Behind `RequireAuth` at the route, so a logged-out visitor lands on login
+ * with `next` pointing here rather than at a dead URL.
  */
 export default function MyTagsPage() {
-  return <Redirect to="/settings?tab=tags" replace />;
+  return (
+    <TagsPageShell
+      view="mine"
+      title="Your tags"
+      subtitle="What people say about you, and what you've said about them."
+    >
+      <YourTagsPanel />
+    </TagsPageShell>
+  );
 }

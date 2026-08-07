@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, PinOff, Search, Tag as TagIcon } from "lucide-react";
+import { Loader2, PinOff, Tag as TagIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Card } from "@/components/ui/card";
@@ -25,10 +25,11 @@ import type { FaceProfile } from "@/components/tags/FacePile";
 import type { MyAssertion, ProfileTag } from "@/services/tags";
 
 /**
- * Everything tagging-related about you, as the Settings → Tags tab.
+ * Everything tagging-related about you — the body of `/tags/mine`, the "Yours"
+ * view of the Tags page.
  *
- * Extracted from the old `/tags/mine` page so there is exactly one
- * implementation; that route now redirects here.
+ * Briefly lived as a Settings tab. See `pages/MyTagsPage.tsx` for why it left:
+ * nothing here is a setting.
  *
  * The kit specifies no such surface — tags on you live in the profile chip row
  * and you manage them there. But nothing in that design answers "what have I
@@ -92,13 +93,12 @@ export function YourTagsPanel() {
   return (
     <div className="space-y-6" data-testid="your-tags-panel">
         {/* Said once, near the top, in plain words. The protocol has no delete
-            and a page called "manage" must not imply otherwise. */}
-        <p className="mt-3 text-sm text-slate-500 dark:text-slate-400" data-testid="my-tags-no-delete">
+            and a page called "manage" must not imply otherwise. No guide link
+            on the end of it — the shell puts one directly above this, and the
+            same link twice in four lines reads as a mistake. */}
+        <p className="mt-4 text-sm text-slate-500 dark:text-slate-400" data-testid="my-tags-no-delete">
           You can't erase a tag someone else gave you — nobody can, on Nostr. What
-          you can do is disagree, and it stops counting.{" "}
-          <Link href="/how-tags-work" className="font-semibold text-brand-link hover:underline" data-testid="my-tags-guide">
-            How tags work →
-          </Link>
+          you can do is disagree, and it stops counting.
         </p>
 
         {/* ── 1. Tags on me ─────────────────────────────────────────────── */}
@@ -199,18 +199,10 @@ export function YourTagsPanel() {
           </section>
         )}
 
-        {/* Where to go next. Reviewing your own tags is a dead end otherwise —
-            and the way tagging spreads is one person going and tagging
-            someone. Browse is the "I don't know who to look for" door. */}
+        {/* Everyone-else's tags are one tap away in the view switcher above,
+            so the only thing left worth linking is the public face of all
+            this — what other people actually see. */}
         <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-slate-100 pt-6 text-xs dark:border-slate-800/60">
-          <Link
-            href="/tags"
-            className="flex items-center gap-1.5 font-semibold text-brand-link hover:underline"
-            data-testid="your-tags-browse"
-          >
-            <Search className="h-3.5 w-3.5" />
-            Browse tags
-          </Link>
           {myNpub && (
             <Link
               href={`/p/${myNpub}`}

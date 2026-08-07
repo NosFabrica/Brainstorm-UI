@@ -15,7 +15,7 @@ import DashboardPage from "@/pages/DashboardPage";
 import AlertsPage from "@/pages/AlertsPage";
 import ReadingPage from "@/pages/ReadingPage";
 import InsightsPage from "@/pages/InsightsPage";
-import SettingsPage from "@/pages/SettingsPage";
+import { SettingsRoute } from "@/pages/SettingsPage";
 import WhatIsWotPage from "@/pages/WhatIsWotPage";
 import OnboardingPage from "@/pages/OnboardingPage";
 import NetworkPage from "@/pages/NetworkPage";
@@ -167,19 +167,16 @@ function Router() {
         <Route path="/t/:tag" component={HashtagPage} />
         {/* Public tag pages. The index must precede the per-tag route. */}
         <Route path="/tags" component={TagIndexPage} />
-        {/* Before the :author/:slug pattern — "mine" is a page, not an author. */}
-        {/* Legacy URL — now just a redirect, so NOT behind RequireAuth.
-            Gating it here would send a logged-out visitor to
-            /login?next=/tags/mine and bounce them through the dead URL on
-            the way back; Settings gates itself, so `next` lands on the
-            canonical destination instead. */}
-        <Route path="/tags/mine" component={MyTagsPage} />
+        {/* Before the :author/:slug pattern — "mine" is a page, not an author.
+            Gated: it's your own record, and `next` now points at a real page
+            rather than the redirect this used to be. */}
+        <Route path="/tags/mine">{() => <RequireAuth component={MyTagsPage} />}</Route>
         <Route path="/tags/:author/:slug" component={TagPage} />
         <Route path="/hero-lab" component={HeroLab} />
         <Route path="/welcome" component={WelcomePage} />
         <Route path="/setup">{() => <RequireAuth component={OnboardingWizard} />}</Route>
         <Route path="/activate" component={ActivatePage} />
-        <Route path="/settings">{() => <RequireAuth component={SettingsPage} />}</Route>
+        <Route path="/settings">{() => <RequireAuth component={SettingsRoute} />}</Route>
         <Route path="/network">{() => <RequireAuth component={NetworkPage} />}</Route>
         <Route path="/what-is-wot" component={WhatIsWotPage} />
         <Route path="/how-search-works" component={HowSearchWorksPage} />

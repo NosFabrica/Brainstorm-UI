@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { GlossBackground } from "@/components/GlossBackground";
 import { PageHeader } from "@/components/PageHeader";
-import { useLocation, useSearch } from "wouter";
+import { Redirect, useLocation, useSearch } from "wouter";
 import { ProfileEditForm } from "@/components/ProfileEditForm";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { presetDisplayLabel, presetDescription, presetDisplayLabelFromBackend, type TrustPreset } from "@/services/trustThreshold";
@@ -61,7 +61,6 @@ import {
   SlidersHorizontal,
   ShieldAlert,
   ChevronRight,
-  Tag as TagIcon,
 } from "lucide-react";
 import { ignoredAlertMap, hasUnsyncedIgnores } from "@/lib/networkAlertsIgnored";
 import { useIgnoreSyncState } from "@/hooks/useIgnoreSyncState";
@@ -88,9 +87,8 @@ import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e2456
 import nostrLogo from "@assets/download_1774042580188.png";
 import { BrainstormAssistantCard } from "@/components/BrainstormAssistantCard";
 import { TagRelaysCard } from "@/components/settings/TagRelaysCard";
-import { YourTagsPanel } from "@/components/settings/YourTagsPanel";
 
-type SettingsTab = "profile" | "tags" | "trust" | "about";
+type SettingsTab = "profile" | "trust" | "about";
 
 // Placeholder agent prompts (the dev team will supply the final, working copy).
 const AGENT_SELFHOST_PROMPT = `You're helping me run my own copy of Brainstorm, an open-source
@@ -118,13 +116,13 @@ Explain each step, note anything I need to configure, and keep it simple.`;
 const inputCls =
   "w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 shadow-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30 transition disabled:opacity-60";
 
-// "About" not "About & support": the four labels have to share a 339px track at
-// 375px wide, and the three-label version already only fitted after a padding
-// fix (see the tab-bar comment below). Dropping "& support" buys back the room
-// a fourth tab needs.
+// "About" not "About & support": three labels share a 339px track at 375px
+// wide and only fitted after a padding fix (see the tab-bar comment below).
+// A fourth tab was briefly here for Tags; it moved to /tags/mine because
+// nothing on it was a setting. Which relays to read IS one, and lives under
+// Trust & search.
 const TABS: { key: SettingsTab; label: string; icon: typeof User }[] = [
   { key: "profile", label: "Profile", icon: User },
-  { key: "tags", label: "Tags", icon: TagIcon },
   { key: "trust", label: "Trust & search", icon: ShieldCheck },
   { key: "about", label: "About", icon: Info },
 ];
@@ -134,7 +132,7 @@ export default function SettingsPage() {
   const search = useSearch();
   const tabParam = new URLSearchParams(search).get("tab");
   const activeTab: SettingsTab =
-    tabParam === "tags" || tabParam === "trust" || tabParam === "about" ? tabParam : "profile";
+    tabParam === "trust" || tabParam === "about" ? tabParam : "profile";
   // Deep-link to the backup action (e.g. from the logout prompt / backup nudge):
   // /settings?focus=backup scrolls straight to the Account > Back up section.
   const focusParam = new URLSearchParams(search).get("focus");
@@ -1574,12 +1572,6 @@ export default function SettingsPage() {
             </div>
           )}
 
-          {activeTab === "tags" && (
-            <div data-testid="tab-content-tags">
-              <YourTagsPanel />
-            </div>
-          )}
-
           {activeTab === "trust" && (
             <div className="space-y-6" data-testid="tab-content-trust">
               {presetsCard}
@@ -1602,4 +1594,21 @@ export default function SettingsPage() {
       <Footer />
     </div>
   );
+}
+
+/**
+ * Route wrapper that catches `/settings?tab=tags`.
+ *
+ * Tags was a Settings tab for a day before moving to `/tags/mine` (nothing on
+ * it was a setting). Those links land here; sending them on beats silently
+ * dropping them on Profile, which reads as "the feature was removed".
+ *
+ * Done BEFORE `SettingsPage` mounts rather than in an effect inside it: this
+ * page fires authenticated requests on mount, so an in-page redirect races
+ * them. Never rendering it is the version with no race to lose.
+ */
+export function SettingsRoute() {
+  const tabParam = new URLSearchParams(useSearch()).get("tab");
+  if (tabParam === "tags") return <Redirect to="/tags/mine" replace />;
+  return <SettingsPage />;
 }

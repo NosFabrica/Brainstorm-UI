@@ -113,7 +113,7 @@ export function ProfileTagChips({
           there's nothing of yours to manage there. */}
       {isOwner && canTag && tags.length > 0 && (
         <Link
-          href="/settings?tab=tags"
+          href="/tags/mine"
           className="text-[11px] font-semibold text-slate-400 transition-colors hover:text-brand-primary dark:text-slate-500"
           data-testid="share-tags-manage"
         >

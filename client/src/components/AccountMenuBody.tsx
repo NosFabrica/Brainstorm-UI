@@ -188,14 +188,28 @@ export function AccountMenuBody({ user, isAdmin, active, onNavigate, onInvite, o
             </button>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => onNavigate(`/p/${user.npub}`)}
-          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-full border border-slate-300/70 dark:border-white/15 bg-white/50 dark:bg-white/[0.06] px-4 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-100 transition-colors hover:bg-white/80 dark:hover:bg-white/[0.12] hover:border-brand-accent/40"
-          data-testid="dropdown-view-profile"
-        >
-          <UserCircle className="h-4 w-4" /> View profile
-        </button>
+        {/* Your two personal surfaces, paired. "Your tags" used to sit below
+            with Invite / Help / Settings — a utilities group it never belonged
+            in. It's a page about you, like your profile, so it lives next to
+            it. */}
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => onNavigate(`/p/${user.npub}`)}
+            className="flex w-full items-center justify-center gap-1.5 rounded-full border border-slate-300/70 dark:border-white/15 bg-white/50 dark:bg-white/[0.06] px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-100 transition-colors hover:bg-white/80 dark:hover:bg-white/[0.12] hover:border-brand-accent/40"
+            data-testid="dropdown-view-profile"
+          >
+            <UserCircle className="h-4 w-4 shrink-0" /> Profile
+          </button>
+          <button
+            type="button"
+            onClick={() => onNavigate("/tags/mine")}
+            className="flex w-full items-center justify-center gap-1.5 rounded-full border border-slate-300/70 dark:border-white/15 bg-white/50 dark:bg-white/[0.06] px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-100 transition-colors hover:bg-white/80 dark:hover:bg-white/[0.12] hover:border-brand-accent/40"
+            data-testid="dropdown-my-tags"
+          >
+            <TagIcon className="h-4 w-4 shrink-0" /> Your tags
+          </button>
+        </div>
       </div>
 
       {/* Primary destinations as tiles */}
@@ -233,7 +247,6 @@ export function AccountMenuBody({ user, isAdmin, active, onNavigate, onInvite, o
 
       {/* Grouped actions — Settings sits under Help & FAQ */}
       <div className="p-1.5">
-        <MenuRow icon={TagIcon} label="Your tags" onClick={() => onNavigate("/settings?tab=tags")} testId="dropdown-my-tags" />
         <MenuRow icon={UserPlus} label="Invite friends" onClick={onInvite} testId="dropdown-invite" />
         <MenuRow icon={HelpCircle} label="Help & FAQ" onClick={() => onNavigate("/faq")} testId="dropdown-faq" />
         <MenuRow icon={BookOpen} label="What is WoT?" onClick={() => onNavigate("/what-is-wot")} testId="dropdown-wot" />

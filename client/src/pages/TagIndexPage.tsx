@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { Search, Tag as TagIcon, Users } from "lucide-react";
-import { PublicPageHeader } from "@/components/PublicPageHeader";
-import { PageHeader } from "@/components/PageHeader";
+import { TagsPageShell } from "@/components/tags/TagsPageShell";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Chip } from "@/components/ui/chip";
 import { UnverifiedTagChip } from "@/components/search/UnverifiedTagChip";
@@ -71,21 +70,12 @@ export default function TagIndexPage() {
   );
 
   return (
-    <div className="min-h-[100dvh] bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col">
-      <PublicPageHeader maxWidthClass="max-w-2xl" />
-      <main className="w-full max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex-1" data-testid="tag-index-page">
-        <PageHeader
-          kicker="Tags"
-          title="Browse tags"
-          subtitle="What the network says people are known for."
-          testId="tag-index-header"
-        />
-        <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
-          <Link href="/how-tags-work" className="font-semibold text-brand-link hover:underline" data-testid="tag-index-guide">
-            How tags work →
-          </Link>
-        </p>
-
+    <TagsPageShell
+      view="browse"
+      title="Tags"
+      subtitle="What the network says people are known for."
+    >
+      <div data-testid="tag-index-page">
         <div className="mt-5 flex flex-wrap items-center gap-2">
           <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
@@ -142,8 +132,8 @@ export default function TagIndexPage() {
             tags.map((tag) => <TagIndexRow key={tag.key} tag={tag} />)
           )}
         </div>
-      </main>
-    </div>
+      </div>
+    </TagsPageShell>
   );
 }
 
