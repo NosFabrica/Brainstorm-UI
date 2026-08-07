@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, PinOff, Tag as TagIcon } from "lucide-react";
+import { ChevronDown, Loader2, PinOff, Tag as TagIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Card } from "@/components/ui/card";
@@ -41,8 +41,8 @@ import type { MyAssertion, ProfileTag } from "@/services/tags";
  * `TAG_PINS_ENABLED`.
  */
 
-/** Roughly a screenful before "Show all" — see the note at the call site. */
-const SAID_PREVIEW = 10;
+/** Tag groups shown before "Show all". Groups, not claims — see `groups`. */
+const SAID_PREVIEW = 8;
 
 export function YourTagsPanel() {
   const [currentUser] = useCurrentUser();
@@ -66,6 +66,44 @@ export function YourTagsPanel() {
   const tagsOnMe = onMe?.tags ?? [];
   const said = mySaid ?? [];
   const [saidShown, setSaidShown] = useState(SAID_PREVIEW);
+  const [stance, setStance] = useState<Stance>("all");
+
+  const applyCount = useMemo(() => said.filter((a) => a.stance === "apply").length, [said]);
+  const disputeCount = said.length - applyCount;
+
+  /**
+   * Everything you've said, collapsed to one row per TAG.
+   *
+   * Newest group first, and newest claim first inside a group, because the
+   * thing you most likely want is what you just did.
+   */
+  const groups = useMemo<SaidGroupData[]>(() => {
+    const filtered = stance === "all" ? said : said.filter((a) => a.stance === stance);
+    const byTag = new Map<string, SaidGroupData>();
+    for (const a of filtered) {
+      let g = byTag.get(a.key);
+      if (!g) {
+        g = {
+          key: a.key,
+          name: a.name,
+          authorPubkey: a.authorPubkey,
+          slug: a.slug,
+          items: [],
+          applies: 0,
+          disputes: 0,
+          latestAt: 0,
+        };
+        byTag.set(a.key, g);
+      }
+      g.items.push(a);
+      if (a.stance === "apply") g.applies++;
+      else g.disputes++;
+      if (a.at > g.latestAt) g.latestAt = a.at;
+    }
+    const out = Array.from(byTag.values());
+    for (const g of out) g.items.sort((x, y) => y.at - x.at);
+    return out.sort((x, y) => y.latestAt - x.latestAt);
+  }, [said, stance]);
 
   /**
    * Everyone named anywhere on this page — the people who tagged you AND the
@@ -139,11 +177,35 @@ export function YourTagsPanel() {
         {/* ── 2. Tags I've applied ──────────────────────────────────────── */}
         <section className="mt-8" data-testid="my-tags-said">
           <SectionLabel
-            count={said.length}
+            count={groups.length}
             hint="Public and signed by you. These are your claims about other people."
           >
             What you've said
           </SectionLabel>
+
+          {/* One row per PERSON was the obvious build and the wrong one: tagging
+              is repetitive by nature, so a session of labelling a dozen
+              musicians produced a dozen identical chips down the page. Grouped
+              by tag, that's one row. Someone with a thousand claims has as many
+              rows as they have distinct tags, which is a number a human chose. */}
+          {said.length > 0 && (
+            <div className="mb-3 flex flex-wrap items-center gap-1" data-testid="my-tags-said-filters">
+              <StanceTab active={stance === "all"} onClick={() => setStance("all")} testId="filter-all">
+                All
+              </StanceTab>
+              <StanceTab active={stance === "apply"} onClick={() => setStance("apply")} testId="filter-added">
+                Added {applyCount > 0 && <Count>{applyCount}</Count>}
+              </StanceTab>
+              <StanceTab
+                active={stance === "dispute"}
+                onClick={() => setStance("dispute")}
+                testId="filter-disagreed"
+              >
+                Disagreed {disputeCount > 0 && <Count>{disputeCount}</Count>}
+              </StanceTab>
+            </div>
+          )}
+
           {loadingSaid ? (
             <Loading />
           ) : said.length === 0 ? (
@@ -155,22 +217,28 @@ export function YourTagsPanel() {
                 description="Open someone's profile and use “Add a tag” to say what they're known for. It shows up here so you can look back at it."
               />
             </Card>
+          ) : groups.length === 0 ? (
+            <Card className="p-6">
+              <EmptyState
+                icon={TagIcon}
+                compact
+                title={stance === "dispute" ? "You haven't disagreed with anything" : "Nothing here yet"}
+                description="Switch back to All to see everything you've said."
+              />
+            </Card>
           ) : (
             <Card className="divide-y divide-slate-100 dark:divide-slate-800/60 overflow-hidden">
-              {said.slice(0, saidShown).map((a) => (
-                <SaidRow key={`${a.key}-${a.target}`} said={a} profiles={profiles} />
+              {groups.slice(0, saidShown).map((g) => (
+                <SaidGroup key={g.key} group={g} profiles={profiles} />
               ))}
-              {/* This list grows by one row every time you tag anybody, and
-                  there is no delete — an active account has hundreds. Newest
-                  first, a screenful by default, the rest on request. */}
-              {said.length > saidShown && (
+              {groups.length > saidShown && (
                 <button
                   type="button"
-                  onClick={() => setSaidShown(said.length)}
+                  onClick={() => setSaidShown(groups.length)}
                   className="w-full px-4 py-3 text-xs font-semibold text-brand-link transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
                   data-testid="my-tags-said-more"
                 >
-                  Show all {said.length}
+                  Show all {groups.length} tags
                 </button>
               )}
             </Card>
@@ -352,19 +420,129 @@ function TagOnMeRow({
   );
 }
 
+type Stance = "all" | "apply" | "dispute";
+
+interface SaidGroupData {
+  key: string;
+  name: string;
+  authorPubkey: string;
+  slug: string;
+  items: MyAssertion[];
+  applies: number;
+  disputes: number;
+  latestAt: number;
+}
+
+/** Rough cap on rows revealed inside one expanded group before "Show all". */
+const GROUP_PREVIEW = 10;
+
 /**
- * One thing you said about somebody — their face, their name, the tag, when.
+ * One tag you've used, and everyone you used it on.
  *
- * The tag chip links to the tag's page and the person links to their profile:
- * two different questions ("who else is this?" / "who is this?"), and before
- * this the row answered neither.
+ * Collapsed it reads as a sentence: the faces, the tag, how many people. Open
+ * it and you get the individual claims, each still linked to that person.
+ *
+ * The chip stays out of the expanded rows. Inside a group headed "Musician",
+ * repeating "Musician" on all twelve rows is the exact noise this grouping
+ * exists to remove.
+ */
+function SaidGroup({
+  group,
+  profiles,
+}: {
+  group: SaidGroupData;
+  profiles?: Map<string, FaceProfile>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [shown, setShown] = useState(GROUP_PREVIEW);
+
+  let authorNpub = "";
+  try {
+    authorNpub = npubFromPubkey(group.authorPubkey);
+  } catch {
+    /* unlinkable */
+  }
+
+  // Faces of the people, not of the tag. Disputes go in the count line rather
+  // than the pile — a face here reads as "I said this about them".
+  const applied = group.items.filter((a) => a.stance === "apply" && a.targetKind === "pubkey");
+  const parts = [
+    group.applies > 0 ? `${group.applies} ${group.applies === 1 ? "person" : "people"}` : "",
+    group.disputes > 0 ? `${group.disputes} you disagreed with` : "",
+  ].filter(Boolean);
+
+  return (
+    <div data-testid="my-tag-said-group">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/40"
+        data-testid="my-tag-said-group-toggle"
+      >
+        <FacePile pubkeys={applied.map((a) => a.target)} profiles={profiles} size="sm" />
+
+        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+          <Chip tone={group.applies > 0 ? "brand" : "amber"} size="sm">
+            {group.name}
+          </Chip>
+          <span className="text-xs text-slate-500 dark:text-slate-400">{parts.join(" · ")}</span>
+        </span>
+
+        <span className="shrink-0 text-[11px] tabular-nums text-slate-400 dark:text-slate-500">
+          {relativeTime(group.latestAt)}
+        </span>
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-slate-300 transition-transform dark:text-slate-600 ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <div className="border-t border-slate-100 bg-slate-50/60 dark:border-slate-800/60 dark:bg-slate-900/40">
+          {authorNpub && (
+            <Link
+              href={`/tags/${authorNpub}/${group.slug}`}
+              className="block px-4 pt-3 text-xs font-semibold text-brand-link hover:underline"
+              data-testid="my-tag-said-link"
+            >
+              Open the {group.name} tag →
+            </Link>
+          )}
+          <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+            {group.items.slice(0, shown).map((a) => (
+              <SaidRow key={`${a.key}-${a.target}`} said={a} profiles={profiles} showTag={false} />
+            ))}
+          </div>
+          {group.items.length > shown && (
+            <button
+              type="button"
+              onClick={() => setShown(group.items.length)}
+              className="w-full px-4 py-2.5 text-xs font-semibold text-brand-link transition-colors hover:bg-slate-100 dark:hover:bg-slate-800/60"
+              data-testid="my-tag-said-group-more"
+            >
+              Show all {group.items.length}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * One thing you said about somebody — their face, their name, when.
+ *
+ * The person links to their profile. `showTag` adds the tag chip, linked to
+ * the tag's page; it's off inside a group, where the heading already said it.
  */
 function SaidRow({
   said,
   profiles,
+  showTag = true,
 }: {
   said: MyAssertion;
   profiles?: Map<string, FaceProfile>;
+  showTag?: boolean;
 }) {
   const isPerson = said.targetKind === "pubkey";
   const name = isPerson ? displayName(said.target, profiles) : "a post";
@@ -400,15 +578,16 @@ function SaidRow({
       )}
 
       <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
-        {authorNpub ? (
-          <Link href={`/tags/${authorNpub}/${said.slug}`} className="hover:opacity-80" data-testid="my-tag-said-link">
-            {chip}
-          </Link>
-        ) : (
-          chip
-        )}
+        {showTag &&
+          (authorNpub ? (
+            <Link href={`/tags/${authorNpub}/${said.slug}`} className="hover:opacity-80" data-testid="my-tag-said-link">
+              {chip}
+            </Link>
+          ) : (
+            chip
+          ))}
         <span className="text-slate-400 dark:text-slate-500">
-          {said.stance === "apply" ? "on" : "disagreed on"}
+          {said.stance === "apply" ? (showTag ? "on" : "") : "disagreed on"}
         </span>
         {targetHref ? (
           <Link
@@ -470,6 +649,39 @@ function PinnedRow({ pin }: { pin: { key: string; name: string; authorPubkey: st
       </button>
     </div>
   );
+}
+
+/** Pill filter for the stance split. Same shape as the tag page's sort pills. */
+function StanceTab({
+  children,
+  active,
+  onClick,
+  testId,
+}: {
+  children: React.ReactNode;
+  active: boolean;
+  onClick: () => void;
+  testId: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+        active
+          ? "bg-brand-primary text-white"
+          : "text-slate-500 hover:text-brand-primary dark:text-slate-400"
+      }`}
+      data-testid={testId}
+    >
+      {children}
+    </button>
+  );
+}
+
+function Count({ children }: { children: React.ReactNode }) {
+  return <span className="tabular-nums opacity-60">{children}</span>;
 }
 
 function SectionLabel({
