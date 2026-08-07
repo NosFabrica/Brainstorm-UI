@@ -133,21 +133,32 @@ export default function SettingsPage() {
   const tabParam = new URLSearchParams(search).get("tab");
   const activeTab: SettingsTab =
     tabParam === "trust" || tabParam === "about" ? tabParam : "profile";
-  // Deep-link to the backup action (e.g. from the logout prompt / backup nudge):
-  // /settings?focus=backup scrolls straight to the Account > Back up section.
+  // Deep links into a specific control, so a "you can change this in Settings"
+  // sentence elsewhere lands ON the thing rather than at the top of a tab:
+  //   ?focus=backup      → Account > Back up
+  //   ?tab=trust&focus=tag-relays → Trust > Advanced > Where tags come from
   const focusParam = new URLSearchParams(search).get("focus");
-  const [highlightBackup, setHighlightBackup] = useState(false);
+  const [highlighted, setHighlighted] = useState<string | null>(null);
+  const highlightBackup = highlighted === "backup";
+  // Tag relays live inside the collapsed "Advanced" block, so a link that only
+  // scrolled would land on a closed section. Open it before we scroll.
+  const [advancedOpen, setAdvancedOpen] = useState(focusParam === "tag-relays");
   useEffect(() => {
-    if (focusParam !== "backup") return;
+    const target =
+      focusParam === "backup"
+        ? "account-backup-section"
+        : focusParam === "tag-relays"
+          ? "tag-relays-section"
+          : null;
+    if (!target) return;
     const t = setTimeout(() => {
-      document.getElementById("account-backup-section")?.scrollIntoView({ behavior: "smooth", block: "center" });
-      setHighlightBackup(true);
+      document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlighted(focusParam);
     }, 150);
     // Drop the cue once it has pulsed (2 × 1.5s) so it's a one-time nudge.
-    const off = setTimeout(() => setHighlightBackup(false), 3400);
+    const off = setTimeout(() => setHighlighted(null), 3400);
     return () => { clearTimeout(t); clearTimeout(off); };
   }, [focusParam]);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [agentSetupOpen, setAgentSetupOpen] = useState(false);
   const [agentPath, setAgentPath] = useState<"selfhost" | "integrate">("selfhost");
   const goTab = (t: SettingsTab) => {
@@ -1242,7 +1253,12 @@ export default function SettingsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" data-testid="grid-advanced">
           {serviceProviderCard}
           {trustCalcCard}
-          <TagRelaysCard />
+          <div
+            id="tag-relays-section"
+            className={`scroll-mt-20 rounded-2xl transition-shadow ${highlighted === "tag-relays" ? "animate-attention-ring ring-2 ring-brand-accent/70" : ""}`}
+          >
+            <TagRelaysCard />
+          </div>
         </div>
       )}
     </div>

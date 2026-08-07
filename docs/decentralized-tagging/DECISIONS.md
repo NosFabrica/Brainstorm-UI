@@ -344,11 +344,16 @@ mechanically, zero hits for `kind-`, `npub1`, `NIP-`, `assertion`, `polarity`,
 1. **Nothing can be deleted.** Stated as its own section, marked as the thing to
    understand *before* you tag anyone, and it says outright that promising
    deletion would be a lie.
-2. **The reputation filter is currently weak.** Jumble's banner claims counts
+2. **Counts are a rough guide, not a verdict.** Jumble's banner claims counts
    are "filtered through a web of trust" and its guide admits three screens
-   later that unscored people are counted anyway. We put that in the same
-   breath, under "Being straight with you", and say to treat the numbers as a
-   signal rather than a verdict.
+   later that unscored people are counted anyway. Our first answer was an amber
+   "Being straight with you" panel confessing that our filter is weak — which
+   Benjamin correctly called oversharing on 2026-08-07. It was an anxious
+   paragraph about our own internals that a reader can do nothing with.
+   Deleting it alone would have left the page overclaiming, so the CLAIM was
+   weakened to match reality instead: "we lean on how much standing someone has
+   built up", not "we only count people with standing". The caveat is now one
+   plain sentence. **Re-strengthen the claim and the caveat has to come back.**
 3. **Some real tags are left off the browse list**, why, and — the part that
    makes it fair — exactly what still works for them. Rewritten under decision
    11: the claim is now "search finds every tag", which is a promise, so if the

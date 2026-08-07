@@ -21,20 +21,26 @@ import { Chip } from "@/components/ui/chip";
  * "web of trust score", "npub". The reference client's guide is good but speaks
  * in kind numbers and a-coordinates; this one doesn't.
  *
- * More importantly it is where we say the things the product would otherwise
- * only admit in code comments:
+ * It is also where we say the things the product would otherwise only admit in
+ * code comments:
  *
  *  1. Nothing can be deleted, ever. You can disagree; the original stays.
- *  2. The reputation filter is currently weak, so counts are more permissive
- *     than they look. (The reference client's banner claims filtering that its
- *     own guide later admits isn't really happening. We say it up front.)
+ *  2. Counts are a rough guide, not a verdict. This started as a confessional
+ *     amber panel about our filter being weak. That was oversharing — an
+ *     anxious paragraph about our internals that a normal reader can do
+ *     nothing with. It is now one sentence, and the claim ABOVE it was weakened
+ *     to match reality so the confession isn't needed. Don't reintroduce a
+ *     strong filtering claim without reintroducing the caveat.
  *  3. Some real tags are left off the browse LIST because their creator has no
- *     track record yet — and that search still finds them. The wording here
- *     changed once the list/query split landed; if the split is ever reverted,
- *     "Search finds every tag" becomes a lie and this section must change with
- *     it the same day.
+ *     track record yet, and search still finds them. If the list/query split is
+ *     ever reverted, "Search finds every tag" becomes a lie and this section
+ *     must change with it the same day.
  *
- * If any of those three stop being true, this page must change the same day.
+ * If any of those stop being true, this page must change the same day.
+ *
+ * House style, learned the hard way: no em-dash-per-sentence cadence, no
+ * "it's not X, it's Y", and no explaining Nostr. A reader here wants to know
+ * what happens when someone labels them, not what protocol it rides on.
  */
 export default function HowTagsWorkPage() {
   return (
@@ -45,7 +51,7 @@ export default function HowTagsWorkPage() {
             size="hero"
             kicker="Tags"
             title={<>What people say <span className="text-brand-link">about each other</span>.</>}
-            subtitle="A tag is a short label — Musician, Verified Human, Bitcoin Vendor — that someone puts on a person or a post. Anyone can add one. Nobody is in charge of the list."
+            subtitle="A tag is a short label like Musician, Photographer or Vendor that someone puts on a person or a post. Anyone can add one, and nobody is in charge of the list."
             testId="section-htw-header"
           />
 
@@ -61,8 +67,8 @@ export default function HowTagsWorkPage() {
               everyone's opinions added up.
             </p>
             <p className="mt-4 text-lg leading-relaxed text-slate-700 dark:text-slate-200">
-              The difference is that here it's written down permanently, in
-              public, and it can't be unsaid.
+              The difference is that here it's written down in public, and it
+              stays there.
             </p>
           </Card>
 
@@ -79,10 +85,10 @@ export default function HowTagsWorkPage() {
             </p>
             <p>
               People can also tag themselves. When someone has only said it
-              about their own profile, we show it in grey and label it — because
-              "I'm a musician" and "three other people say she's a musician" are
-              different claims, and it wouldn't be fair to show them the same
-              way.
+              about their own profile we show it in grey and label it, because
+              "I'm a musician" and "three other people say she's a musician"
+              are different claims and it wouldn't be fair to show them the
+              same way.
             </p>
           </Section>
 
@@ -97,44 +103,40 @@ export default function HowTagsWorkPage() {
               <span className="font-semibold text-slate-900 dark:text-slate-100">
                 This is the part worth understanding before you tag anyone.
               </span>{" "}
-              When someone puts a tag on you, there is no button — for you, for
-              us, or for anyone — that removes it. That's how Nostr works:
-              what's published stays published.
+              When someone puts a tag on you, there is no button that takes it
+              away. Not for you, not for us, not for anyone. Once something is
+              published it stays published.
             </p>
             <p>
-              What you <em>can</em> do is disagree. Your disagreement is also
-              public and signed by you, and it makes the tag stop counting. The
-              original is still out there; it just no longer adds up to
+              What you <em>can</em> do is disagree. Your disagreement is public
+              and has your name on it too, and it makes the tag stop counting.
+              The original is still out there. It just no longer adds up to
               anything.
             </p>
             <p>
-              So we never say "remove" — we say{" "}
+              So we never say "remove". We say{" "}
               <span className="font-semibold text-slate-900 dark:text-slate-100">disagree</span>.
-              Promising deletion would be a lie.
+              Promising to delete something would be a lie.
             </p>
           </Section>
 
           {/* ── POV, honestly ─────────────────────────────────────────── */}
           <Section
             icon={Eye}
-            title="Your view and someone else's may not match"
+            title="Numbers are a guide, not a verdict"
             testId="section-htw-pov"
           >
             <p>
-              Anyone can tag anyone, so counting every opinion equally would
-              make tags easy to fake. Instead we only count people with some
-              standing in the network — and "standing" is judged from a
-              particular point of view. There's no single official answer.
+              Anyone can tag anyone, so if every opinion counted equally tags
+              would be easy to fake. We lean on how much standing someone has
+              built up in the network, worked out from your point of view. Two
+              people can see slightly different numbers on the same tag, and
+              that's normal. There's no single official answer.
             </p>
-            <p className="rounded-xl border border-amber-200/60 bg-amber-50/60 p-4 text-sm dark:border-amber-500/20 dark:bg-amber-500/[0.06]">
-              <span className="font-semibold text-amber-800 dark:text-amber-400">
-                Being straight with you:
-              </span>{" "}
-              that filtering is weaker than we'd like right now. The reputation
-              data it relies on is still being built, so people we know nothing
-              about are currently counted too. When we can't check at all, the
-              page says so instead of pretending. Treat the numbers as a signal,
-              not a verdict.
+            <p>
+              All of that standing is still being built up, so read the numbers
+              as a rough guide rather than the last word. If we can't work it
+              out at all, we say so on the page instead of guessing.
             </p>
           </Section>
 
@@ -145,20 +147,20 @@ export default function HowTagsWorkPage() {
             testId="section-htw-discovery"
           >
             <p>
-              Making a tag is free, which means anyone can make thousands — and
-              plenty have. So the browse list only shows tags whose creator has
-              built up some standing. Without that, it would be mostly junk.
+              Making a tag is free, so anyone can make thousands, and plenty
+              have. The list only shows tags whose creator has built up some
+              standing. Without that rule it would be mostly junk.
             </p>
             <p>
-              That's a blunt rule and it catches real people too: someone new
-              looks exactly like someone throwaway. So it applies to the{" "}
+              It's a blunt rule and it catches real people too. Someone new
+              looks the same as someone throwaway. So it applies to the{" "}
               <em>list</em> and nothing else.{" "}
               <span className="font-semibold text-slate-900 dark:text-slate-100">
                 Search finds every tag, including those.
               </span>{" "}
-              If you know the name, type it — anywhere you can search — and
-              you'll get it, marked "Unknown creator" so you know what we can
-              and can't tell you.
+              If you know the name, type it anywhere you can search and you'll
+              get it, marked "Unknown creator" so you know what we can and
+              can't tell you.
             </p>
             <p>Tags left off the list still work in every other way:</p>
             <ul className="ml-1 space-y-1.5">
@@ -168,8 +170,8 @@ export default function HowTagsWorkPage() {
               <Bullet>your own tags are always visible to you</Bullet>
             </ul>
             <p>
-              And nothing needs redoing — when the creator earns some standing,
-              their tags simply start appearing in the list again.
+              Nothing needs redoing either. Once the creator earns some
+              standing, their tags start showing in the list again.
             </p>
           </Section>
 
@@ -181,36 +183,40 @@ export default function HowTagsWorkPage() {
           >
             <p>
               When more people disagree than agree, that person drops off the
-              tag's main list — but you'll see a{" "}
+              tag's main list. You'll still see a{" "}
               <span className="font-semibold text-slate-900 dark:text-slate-100">
                 "Show disputed"
               </span>{" "}
               link that brings them back into view.
             </p>
             <p>
-              Hiding it completely would make the page look tidier than the
-              network really is, and you can't judge a disagreement you're not
-              allowed to see.
+              Hiding it altogether would make the page look tidier than things
+              really are, and you can't judge a disagreement you aren't allowed
+              to see.
             </p>
           </Section>
 
           {/* ── Where it lives ────────────────────────────────────────── */}
           <Section
             icon={Globe}
-            title="None of this is stored by us"
+            title="You choose where tags come from"
             testId="section-htw-where"
           >
             <p>
-              Tags live on Nostr's open servers, not in a Brainstorm database.
-              We just read them and add them up. Other apps read the same tags
-              and may add them up slightly differently — that's normal, and it's
-              the point.
+              Tags aren't kept in a Brainstorm database. They sit on open
+              servers that anyone can read, and we add up what's there. Other
+              apps read the same tags and may add them up a little differently.
+              That's normal, and it's the point.
             </p>
             <p>
-              It also means you're not locked in. You can change which servers
-              we read from in{" "}
-              <Link href="/settings" className="font-semibold text-brand-link hover:underline">
-                Settings
+              It also means you aren't locked in. You can pick which servers we
+              read your tags from, and send yours to, in{" "}
+              <Link
+                href="/settings?tab=trust&focus=tag-relays"
+                className="font-semibold text-brand-link hover:underline"
+                data-testid="htw-tag-relays"
+              >
+                Where tags come from
               </Link>
               .
             </p>
