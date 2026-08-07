@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Tag as TagIcon, X } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { fetchProfileMap, getCurrentUser } from "@/services/nostr";
@@ -127,7 +129,7 @@ export function TaggedYouModule() {
         </button>
       </div>
 
-      <ul className="space-y-2">
+      <ul className="divide-y divide-slate-100 dark:divide-slate-800/60">
         {fresh.map((tag) => {
           let authorNpub = "";
           try {
@@ -140,18 +142,43 @@ export function TaggedYouModule() {
           return (
             <li
               key={tag.key}
-              className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-slate-600 dark:text-slate-300"
+              className="flex items-start gap-3 py-3 first:pt-0 last:pb-0"
               data-testid="tagged-you-row"
             >
-              <NameList pubkeys={tag.others} profiles={profiles} />
-              <span>tagged you as</span>
-              {authorNpub ? (
-                <Link href={`/tags/${authorNpub}/${tag.slug}`} className="hover:opacity-80">
-                  {chip}
-                </Link>
-              ) : (
-                chip
-              )}
+              <FacePile pubkeys={tag.others} profiles={profiles} />
+
+              <div className="min-w-0 flex-1">
+                {/* Name and tag on one line where there's room, wrapping on a
+                    phone rather than truncating someone's name. */}
+                <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-slate-600 dark:text-slate-300">
+                  <NameList pubkeys={tag.others} profiles={profiles} />
+                  <span>tagged you as</span>
+                  {authorNpub ? (
+                    <Link href={`/tags/${authorNpub}/${tag.slug}`} className="hover:opacity-80">
+                      {chip}
+                    </Link>
+                  ) : (
+                    chip
+                  )}
+                </div>
+
+                {/* The tag's own description — the closest thing to an
+                    explanation that exists. A tagging carries no free text:
+                    its content is a fixed payload, so there is no per-tag
+                    note to show and inventing one would be a lie. */}
+                {tag.description && (
+                  <p
+                    className="mt-0.5 line-clamp-2 text-xs text-slate-400 dark:text-slate-500"
+                    data-testid="tagged-you-description"
+                  >
+                    {tag.description}
+                  </p>
+                )}
+              </div>
+
+              <span className="shrink-0 pt-0.5 text-[11px] tabular-nums text-slate-400 dark:text-slate-500">
+                {relativeTime(tag.addedAt)}
+              </span>
             </li>
           );
         })}
@@ -214,4 +241,70 @@ function NameList({
       {extra > 0 && ` and ${extra} ${extra === 1 ? "other" : "others"}`}
     </span>
   );
+}
+
+/**
+ * Overlapping avatars of the people who applied the tag — the same face-pile
+ * idiom the profile page uses for "Followed by".
+ *
+ * Capped at three: past that the pile stops reading as faces and starts reading
+ * as a smudge, and the names beside it already carry the count.
+ */
+function FacePile({
+  pubkeys,
+  profiles,
+}: {
+  pubkeys: string[];
+  profiles?: Map<string, { display_name?: string; name?: string; picture?: string }>;
+}) {
+  const shown = pubkeys.slice(0, 3);
+
+  return (
+    <div className="flex shrink-0 -space-x-2" data-testid="tagged-you-facepile">
+      {shown.map((pk) => {
+        const p = profiles?.get(pk);
+        const name = p?.display_name || p?.name || "";
+        let npub = "";
+        try {
+          npub = npubFromPubkey(pk);
+        } catch {
+          /* unlinkable */
+        }
+        const avatar = (
+          <Avatar className="h-9 w-9 border-2 border-white bg-white dark:border-slate-900 dark:bg-slate-900">
+            {p?.picture ? <AvatarImage src={p.picture} alt={name} className="object-cover" /> : null}
+            <AvatarFallback className="overflow-hidden">
+              <DefaultAvatarImg />
+            </AvatarFallback>
+          </Avatar>
+        );
+        return npub ? (
+          <Link
+            key={pk}
+            href={`/p/${npub}`}
+            title={name || undefined}
+            className="transition-opacity hover:opacity-80"
+          >
+            {avatar}
+          </Link>
+        ) : (
+          <span key={pk}>{avatar}</span>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Coarse "how long ago" — precision past a day isn't worth a date library. */
+function relativeTime(unixSeconds: number): string {
+  if (!unixSeconds) return "";
+  const secs = Math.max(0, Math.floor(Date.now() / 1000) - unixSeconds);
+  if (secs < 60) return "now";
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours}h`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${days}d`;
+  return `${Math.floor(days / 30)}mo`;
 }
