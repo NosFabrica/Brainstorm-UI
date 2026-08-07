@@ -1038,21 +1038,11 @@ export default function Landing() {
             )}
           </div>
 
-          {/* The catalogue had no entry point anywhere in the app — chips link
-              to individual tag pages, never to the list — so browse was
-              reachable only by typing the URL. It belongs beside search rather
-              than in the nav: this is the "I don't know what to type" half, and
-              the page works logged-out, which the dashboard doesn't. */}
-          <p className="mt-3 text-center text-xs text-slate-400 dark:text-slate-500">
-            <Link
-              href="/tags"
-              className="font-semibold text-brand-link transition-colors hover:underline"
-              data-testid="link-home-browse-tags"
-            >
-              Browse tags
-            </Link>{" "}
-            — what people are known for
-          </p>
+          {/* No browse link here on purpose. Tags reach this page through the
+              search box itself — type two characters and matching tags appear
+              in the dropdown above the people. A second, static CTA under the
+              field competed with the one thing this screen asks you to do.
+              The catalogue's home entry point is /tags/mine instead. */}
 
           {!user ? (
             <div className="mt-6 flex flex-col items-center gap-2.5 rounded-2xl backdrop-blur-[2px]" data-testid="text-home-hint">

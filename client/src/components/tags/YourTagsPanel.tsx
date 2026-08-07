@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, PinOff, Tag as TagIcon } from "lucide-react";
+import { ChevronRight, Loader2, PinOff, Tag as TagIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Card } from "@/components/ui/card";
@@ -199,18 +199,48 @@ export function YourTagsPanel() {
           </section>
         )}
 
-        {/* Everyone-else's tags are one tap away in the view switcher above,
-            so the only thing left worth linking is the public face of all
-            this — what other people actually see. */}
-        <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-slate-100 pt-6 text-xs dark:border-slate-800/60">
+        {/* The catalogue's home in the app.
+
+            It used to sit under the search box on the landing page, which was
+            the wrong place: that screen asks you to do exactly one thing, and
+            a static second CTA competed with it. Tags already reach search
+            through the field itself — type two letters and matching tags come
+            back above the people — so the standing link belongs here, where
+            somebody is already thinking about tags.
+
+            Spelled out rather than left to the "Everyone" pill above: the pill
+            is a view toggle you notice once you know what it does; this says
+            what you'd get. */}
+        <div className="mt-8 space-y-4 border-t border-slate-100 pt-6 dark:border-slate-800/60">
+          <Link
+            href="/tags"
+            className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 transition-colors hover:border-brand-primary/40 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800/60"
+            data-testid="your-tags-browse"
+          >
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-accent/10">
+              <TagIcon className="h-4 w-4 text-brand-deep dark:text-brand-link" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-slate-900 dark:text-slate-100">
+                Browse tags
+              </span>
+              <span className="block text-xs text-slate-500 dark:text-slate-400">
+                What people are known for, across the network
+              </span>
+            </span>
+            <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-brand-primary dark:text-slate-600" />
+          </Link>
+
           {myNpub && (
-            <Link
-              href={`/p/${myNpub}`}
-              className="font-semibold text-brand-link hover:underline"
-              data-testid="your-tags-profile"
-            >
-              See your public profile →
-            </Link>
+            <p className="text-center text-xs">
+              <Link
+                href={`/p/${myNpub}`}
+                className="font-semibold text-brand-link hover:underline"
+                data-testid="your-tags-profile"
+              >
+                See your public profile →
+              </Link>
+            </p>
           )}
         </div>
     </div>
