@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { npubFromPubkey } from "@/lib/shareId";
 import { onlySelfDeclared } from "@/lib/tagCounts";
+import { relativeTime } from "@/lib/relativeTime";
 import type { TagCarrier } from "@/services/tags";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 
@@ -45,6 +46,12 @@ export function CarrierMeta({
   // Badges do at small scale what a filter bar does at large: let you scan a
   // list and see which rows are self-declared or contested without reading
   // every line. Most tags here have three people, where a filter row is noise.
+  // When, on the same line as who. A tagging is a dated claim, and "Recently
+  // added" was already a sort option — offering to order by something the page
+  // then refused to show is the gap this closes. Newest APPLY only; 0 means
+  // nothing applies it, and `relativeTime` renders that as nothing.
+  const added = relativeTime(carrier.addedAt);
+
   const badges: Array<{ label: string; tone: string; testId: string }> = [];
   if (onlySelfDeclared(carrier)) {
     badges.push({ label: "Self-declared", tone: "bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400", testId: "badge-self" });
@@ -110,6 +117,12 @@ export function CarrierMeta({
               {" · "}
               {carrier.disputes} disagreed
             </span>
+          )}
+          {added && (
+            <>
+              {" · "}
+              <span data-testid="tag-added-at">{added}</span>
+            </>
           )}
         </p>
       ) : carrier.selfDeclared ? (

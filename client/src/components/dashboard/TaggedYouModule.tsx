@@ -8,6 +8,7 @@ import { Chip } from "@/components/ui/chip";
 import { fetchProfileMap, getCurrentUser } from "@/services/nostr";
 import { useProfileTags } from "@/hooks/useTags";
 import { npubFromPubkey } from "@/lib/shareId";
+import { relativeTimeShort } from "@/lib/relativeTime";
 
 /**
  * "Alice and Bob tagged you as Musician."
@@ -180,7 +181,7 @@ export function TaggedYouModule() {
               </div>
 
               <span className="shrink-0 pt-0.5 text-[11px] tabular-nums text-slate-400 dark:text-slate-500">
-                {relativeTime(tag.addedAt)}
+                {relativeTimeShort(tag.addedAt)}
               </span>
             </li>
           );
@@ -196,18 +197,4 @@ export function TaggedYouModule() {
       </Link>
     </Card>
   );
-}
-
-/** Coarse "how long ago" — precision past a day isn't worth a date library. */
-function relativeTime(unixSeconds: number): string {
-  if (!unixSeconds) return "";
-  const secs = Math.max(0, Math.floor(Date.now() / 1000) - unixSeconds);
-  if (secs < 60) return "now";
-  const mins = Math.floor(secs / 60);
-  if (mins < 60) return `${mins}m`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `${hours}h`;
-  const days = Math.floor(hours / 24);
-  if (days < 30) return `${days}d`;
-  return `${Math.floor(days / 30)}mo`;
 }
