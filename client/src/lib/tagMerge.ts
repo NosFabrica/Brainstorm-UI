@@ -39,6 +39,13 @@ export interface CountedTag {
   selfApplied: boolean;
   /** The subject disputed it — their objection, shown but never a veto. */
   selfDisputed: boolean;
+  /**
+   * Unix seconds of the newest APPLYING assertion. The only honest basis for
+   * "what's new since I last looked" — mirrors `TargetSupport.addedAt` on the
+   * tag-page path. Disputes don't move it: a tag being argued about isn't the
+   * same event as a tag being added.
+   */
+  addedAt: number;
 }
 
 /**
@@ -140,6 +147,9 @@ export function mergeSameNamedTags(
         // as saying it; disputing any variant still counts as objecting.
         selfApplied: variants.some((v) => v.group.selfApplied),
         selfDisputed: variants.some((v) => v.group.selfDisputed),
+        // The most recent time anyone applied ANY spelling — folding two tags
+        // into one chip means the chip is as new as its newest half.
+        addedAt: Math.max(...variants.map((v) => v.group.addedAt)),
       },
       variantKeys,
     };

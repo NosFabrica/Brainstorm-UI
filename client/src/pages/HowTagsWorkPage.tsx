@@ -210,7 +210,7 @@ export default function HowTagsWorkPage() {
             <Link href="/tags" className="font-semibold text-brand-link hover:underline" data-testid="htw-browse">
               Browse tags →
             </Link>
-            <Link href="/tags/mine" className="font-semibold text-brand-link hover:underline" data-testid="htw-mine">
+            <Link href="/settings?tab=tags" className="font-semibold text-brand-link hover:underline" data-testid="htw-mine">
               Your tags →
             </Link>
             <Link href="/what-is-wot" className="font-semibold text-brand-link hover:underline" data-testid="htw-wot">

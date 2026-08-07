@@ -61,6 +61,7 @@ import {
   SlidersHorizontal,
   ShieldAlert,
   ChevronRight,
+  Tag as TagIcon,
 } from "lucide-react";
 import { ignoredAlertMap, hasUnsyncedIgnores } from "@/lib/networkAlertsIgnored";
 import { useIgnoreSyncState } from "@/hooks/useIgnoreSyncState";
@@ -87,8 +88,9 @@ import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e2456
 import nostrLogo from "@assets/download_1774042580188.png";
 import { BrainstormAssistantCard } from "@/components/BrainstormAssistantCard";
 import { TagRelaysCard } from "@/components/settings/TagRelaysCard";
+import { YourTagsPanel } from "@/components/settings/YourTagsPanel";
 
-type SettingsTab = "profile" | "trust" | "about";
+type SettingsTab = "profile" | "tags" | "trust" | "about";
 
 // Placeholder agent prompts (the dev team will supply the final, working copy).
 const AGENT_SELFHOST_PROMPT = `You're helping me run my own copy of Brainstorm, an open-source
@@ -116,17 +118,23 @@ Explain each step, note anything I need to configure, and keep it simple.`;
 const inputCls =
   "w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 shadow-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30 transition disabled:opacity-60";
 
+// "About" not "About & support": the four labels have to share a 339px track at
+// 375px wide, and the three-label version already only fitted after a padding
+// fix (see the tab-bar comment below). Dropping "& support" buys back the room
+// a fourth tab needs.
 const TABS: { key: SettingsTab; label: string; icon: typeof User }[] = [
   { key: "profile", label: "Profile", icon: User },
+  { key: "tags", label: "Tags", icon: TagIcon },
   { key: "trust", label: "Trust & search", icon: ShieldCheck },
-  { key: "about", label: "About & support", icon: Info },
+  { key: "about", label: "About", icon: Info },
 ];
 
 export default function SettingsPage() {
   const [location, navigate] = useLocation();
   const search = useSearch();
   const tabParam = new URLSearchParams(search).get("tab");
-  const activeTab: SettingsTab = tabParam === "trust" || tabParam === "about" ? tabParam : "profile";
+  const activeTab: SettingsTab =
+    tabParam === "tags" || tabParam === "trust" || tabParam === "about" ? tabParam : "profile";
   // Deep-link to the backup action (e.g. from the logout prompt / backup nudge):
   // /settings?focus=backup scrolls straight to the Account > Back up section.
   const focusParam = new URLSearchParams(search).get("focus");
@@ -1563,6 +1571,12 @@ export default function SettingsPage() {
               {personalizationCard}
               {appearanceCard}
               {accountCard}
+            </div>
+          )}
+
+          {activeTab === "tags" && (
+            <div data-testid="tab-content-tags">
+              <YourTagsPanel />
             </div>
           )}
 

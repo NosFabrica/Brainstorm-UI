@@ -110,6 +110,12 @@ export interface ProfileTag extends TagIdentity {
   sharesName: number;
   /** The viewer's own stance, shown regardless of whether the POV counts them. */
   myStance?: "apply" | "dispute";
+  /**
+   * Unix seconds of the newest assertion APPLYING this tag. Powers "what's new
+   * since I last looked" on the dashboard; 0 when nothing applies it (a tag
+   * surviving only on the viewer's dispute).
+   */
+  addedAt: number;
 }
 
 export interface ProfileTagsResult {
@@ -526,6 +532,7 @@ function groupByTag(
         disputes: new Set(),
         selfApplied: false,
         selfDisputed: false,
+        addedAt: 0,
       });
     }
     const grp = counted.get(a.tagKey)!;
@@ -541,6 +548,7 @@ function groupByTag(
       if (a.stance === "apply") grp.selfApplied = true;
       else grp.selfDisputed = true;
     }
+    if (a.stance === "apply" && a.at > grp.addedAt) grp.addedAt = a.at;
     (a.stance === "apply" ? grp.applications : grp.disputes).add(a.asserter);
   }
 
@@ -672,6 +680,7 @@ export async function fetchProfileTags(
       disputes: new Set(),
       selfApplied: false,
       selfDisputed: false,
+      addedAt: 0,
     });
   }
 
@@ -696,6 +705,7 @@ export async function fetchProfileTags(
       counted: netPositive(group.applications.size, group.disputes.size),
       sharesName: sharesName.get(key) ?? 1,
       myStance: mine.get(key),
+      addedAt: group.addedAt,
     }))
     /**
      * Three ways a tag earns a place on the profile:
@@ -993,6 +1003,7 @@ export async function fetchTagIndex(viewerPubkey?: string): Promise<TagSummary[]
         disputes: new Set(),
         selfApplied: false,
         selfDisputed: false,
+        addedAt: 0,
       });
     }
     const grp = counted.get(a.tagKey)!;

@@ -541,6 +541,9 @@ export function useApplyTag(targetPubkey: string | undefined) {
                 selfDeclared: viewerPubkey === targetPubkey && stance === "apply",
                 subjectDisagreed: viewerPubkey === targetPubkey && stance === "dispute",
                 counted: stance === "apply",
+                // You just did this, so it's as new as it gets — and it's your
+                // own act, which the "someone tagged you" module filters out.
+                addedAt: Math.floor(Date.now() / 1000),
                 myStance: stance,
               },
             ];

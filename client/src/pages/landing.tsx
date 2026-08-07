@@ -1,4 +1,4 @@
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { copyToClipboard } from "@/lib/clipboard";
 import { getRecentItems, pushRecentQuery, pushRecentProfile, removeRecentItem, clearRecentSearches, recentKey, type RecentItem } from "@/lib/recentSearches";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type FormEvent } from "react";
@@ -1037,6 +1037,22 @@ export default function Landing() {
               </div>
             )}
           </div>
+
+          {/* The catalogue had no entry point anywhere in the app — chips link
+              to individual tag pages, never to the list — so browse was
+              reachable only by typing the URL. It belongs beside search rather
+              than in the nav: this is the "I don't know what to type" half, and
+              the page works logged-out, which the dashboard doesn't. */}
+          <p className="mt-3 text-center text-xs text-slate-400 dark:text-slate-500">
+            <Link
+              href="/tags"
+              className="font-semibold text-brand-link transition-colors hover:underline"
+              data-testid="link-home-browse-tags"
+            >
+              Browse tags
+            </Link>{" "}
+            — what people are known for
+          </p>
 
           {!user ? (
             <div className="mt-6 flex flex-col items-center gap-2.5 rounded-2xl backdrop-blur-[2px]" data-testid="text-home-hint">

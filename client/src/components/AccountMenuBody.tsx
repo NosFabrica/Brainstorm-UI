@@ -233,7 +233,7 @@ export function AccountMenuBody({ user, isAdmin, active, onNavigate, onInvite, o
 
       {/* Grouped actions — Settings sits under Help & FAQ */}
       <div className="p-1.5">
-        <MenuRow icon={TagIcon} label="Your tags" onClick={() => onNavigate("/tags/mine")} testId="dropdown-my-tags" />
+        <MenuRow icon={TagIcon} label="Your tags" onClick={() => onNavigate("/settings?tab=tags")} testId="dropdown-my-tags" />
         <MenuRow icon={UserPlus} label="Invite friends" onClick={onInvite} testId="dropdown-invite" />
         <MenuRow icon={HelpCircle} label="Help & FAQ" onClick={() => onNavigate("/faq")} testId="dropdown-faq" />
         <MenuRow icon={BookOpen} label="What is WoT?" onClick={() => onNavigate("/what-is-wot")} testId="dropdown-wot" />

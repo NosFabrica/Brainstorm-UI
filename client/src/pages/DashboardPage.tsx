@@ -19,6 +19,7 @@ import { NetworkAlertsModule } from "@/components/dashboard/NetworkAlertsModule"
 import { DashboardLookup } from "@/components/dashboard/DashboardLookup";
 import { YourNetworkCard } from "@/components/dashboard/YourNetworkCard";
 import { SetupProgressCard } from "@/components/dashboard/SetupProgressCard";
+import { TaggedYouModule } from "@/components/dashboard/TaggedYouModule";
 import { useNetworkFaces } from "@/hooks/useNetworkFaces";
 import { NetworkArticlesModule } from "@/components/dashboard/NetworkArticlesModule";
 import { ClientShelf } from "@/components/dashboard/ClientShelf";
@@ -1188,6 +1189,10 @@ export default function DashboardPage() {
             {showOnboarding && (
               <SetupProgressCard queueAhead={queuePosition} showStatus={!isErrorState} />
             )}
+
+            {/* Someone put a public label on you. Nothing else in the app would
+                ever tell you — self-hides when there's nothing new. */}
+            <TaggedYouModule />
           </div>
 
           {publishDone && !isRecalculating && !nip85Activated && !nip85Dismissed && !nip85CreatedInApp && (

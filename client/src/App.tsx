@@ -168,7 +168,12 @@ function Router() {
         {/* Public tag pages. The index must precede the per-tag route. */}
         <Route path="/tags" component={TagIndexPage} />
         {/* Before the :author/:slug pattern — "mine" is a page, not an author. */}
-        <Route path="/tags/mine">{() => <RequireAuth component={MyTagsPage} />}</Route>
+        {/* Legacy URL — now just a redirect, so NOT behind RequireAuth.
+            Gating it here would send a logged-out visitor to
+            /login?next=/tags/mine and bounce them through the dead URL on
+            the way back; Settings gates itself, so `next` lands on the
+            canonical destination instead. */}
+        <Route path="/tags/mine" component={MyTagsPage} />
         <Route path="/tags/:author/:slug" component={TagPage} />
         <Route path="/hero-lab" component={HeroLab} />
         <Route path="/welcome" component={WelcomePage} />
