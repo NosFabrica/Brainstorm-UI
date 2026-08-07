@@ -109,9 +109,10 @@ export default function HowTagsWorkPage() {
             </p>
             <p>
               What you <em>can</em> do is disagree. Your disagreement is public
-              and has your name on it too, and it makes the tag stop counting.
-              The original is still out there. It just no longer adds up to
-              anything.
+              and has your name on it too, and it counts against the tag. Once
+              more people disagree than agree, the tag stops counting. The
+              original is still out there either way; it just stops adding up
+              to anything.
             </p>
             <p>
               So we never say "remove". We say{" "}

@@ -34,7 +34,9 @@ import { useApplyTag, useProfileTags, usePickerTags } from "@/hooks/useTags";
  * On disagreeing: the protocol has no delete. An assertion is replaced by
  * re-publishing the same deterministic `d` tag with the opposite polarity, so
  * the honest word is "Disagree" — the old assertion is still on relays, it just
- * stops counting. Never label this "Remove".
+ * counts against it. Never label this "Remove" — and never promise that one
+ * disagreement stops the tag counting; the rule is applies minus disputes > 0,
+ * so against several vouchers a single no changes nothing visible.
  */
 export function TagPersonButton({
   pubkey,
@@ -160,7 +162,9 @@ export function TagPersonButton({
       }
       toast({
         title: agreeing ? `You agree with "${tag.name}"` : `You disagreed with "${tag.name}"`,
-        description: agreeing ? "Your vote is public." : "It stops counting toward this tag.",
+        description: agreeing
+          ? "Your vote is public."
+          : "Your vote is public, and counts against this tag.",
       });
     } catch {
       toast({

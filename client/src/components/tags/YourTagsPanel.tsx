@@ -138,13 +138,19 @@ export function YourTagsPanel() {
             restriction and a protocol lecture in one breath. Nobody arriving
             here needs to know what it rides on; they need to know what to do
             about a label they don't like.
-            The second sentence still has to be there. Disagreeing doesn't make
-            a tag vanish, and a page that implies it does would surprise
-            someone the moment they pressed the button. Say it plainly, once,
-            without dressing it up as a limitation. */}
+            Two things it must not overpromise, both learned by reading
+            `netPositive` rather than the old copy:
+            1. One disagreement does NOT necessarily stop a tag counting. The
+               rule is applies MINUS disputes > 0, so against three vouchers
+               your single no leaves it at 2 and still counting. "Disagree and
+               it stops counting" was simply false for any popular tag.
+            2. Disagreeing doesn't make it vanish either. It keeps rendering,
+               marked. A page implying otherwise surprises people the moment
+               they press the button. */}
         <p className="mt-4 text-sm text-slate-500 dark:text-slate-400" data-testid="my-tags-no-delete">
-          Anything here that doesn't fit? Disagree with it and it stops counting
-          toward you. It stays on the page, marked as disagreed.
+          Something here that's wrong? Disagree with it. That's a public vote
+          against, and once more people disagree than agree the tag stops
+          counting. It stays on the page either way, marked as disagreed.
         </p>
 
         {/* ── 1. Tags on me ─────────────────────────────────────────────── */}
@@ -354,7 +360,7 @@ function TagOnMeRow({
         description:
           polarity === 1
             ? "Your agreement is public."
-            : "It stops counting toward you. It stays on the page, marked as disagreed.",
+            : "Your vote is public. Once disagreements outnumber agreements, the tag stops counting.",
       });
     } catch {
       toast({
