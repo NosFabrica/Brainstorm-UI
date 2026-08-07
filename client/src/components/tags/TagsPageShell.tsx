@@ -1,7 +1,6 @@
 import { Link } from "wouter";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { PageHeader } from "@/components/PageHeader";
-import { getCurrentUser } from "@/services/nostr";
 
 /**
  * The chrome shared by `/tags` (everyone's tags) and `/tags/mine` (yours).
@@ -20,9 +19,11 @@ import { getCurrentUser } from "@/services/nostr";
  * the personal half was otherwise limited to people who already opened the
  * account menu, which is to say people who already knew.
  *
- * "Yours" only appears when signed in. Showing it logged-out would advertise
- * the feature, but only by leading to a sign-in wall, and the way in for a new
- * visitor is a tag page they can actually read.
+ * The two views link to each other from the BOTTOM of the page, via
+ * {@link TagsCrossLink}, rather than through a pill switcher under the header.
+ * A toggle only reads as a toggle once you know what's on the other side; a
+ * labelled row tells you. `/tags` shows its half only when signed in — pointing
+ * a logged-out visitor at a sign-in wall isn't an introduction to anything.
  */
 export function TagsPageShell({
   view,
@@ -35,8 +36,6 @@ export function TagsPageShell({
   subtitle: string;
   children: React.ReactNode;
 }) {
-  const signedIn = !!getCurrentUser()?.pubkey;
-
   return (
     <div className="flex min-h-[100dvh] flex-col bg-[#F8FAFC] font-sans text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <PublicPageHeader maxWidthClass="max-w-2xl" />
@@ -53,44 +52,8 @@ export function TagsPageShell({
           </Link>
         </p>
 
-        {/* Only a switcher once there are two things to switch between. A lone
-            "Everyone" pill would just be a label pretending to be a control. */}
-        {signedIn && (
-          <div className="mt-5 flex items-center gap-1" data-testid="tags-view-switch">
-            <ViewTab href="/tags" label="Everyone" active={view === "browse"} testId="tags-tab-browse" />
-            <ViewTab href="/tags/mine" label="Yours" active={view === "mine"} testId="tags-tab-mine" />
-          </div>
-        )}
-
         {children}
       </main>
     </div>
-  );
-}
-
-function ViewTab({
-  href,
-  label,
-  active,
-  testId,
-}: {
-  href: string;
-  label: string;
-  active: boolean;
-  testId: string;
-}) {
-  return (
-    <Link
-      href={href}
-      aria-current={active ? "page" : undefined}
-      className={`rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
-        active
-          ? "bg-brand-primary text-white"
-          : "text-slate-500 hover:text-brand-primary dark:text-slate-400"
-      }`}
-      data-testid={testId}
-    >
-      {label}
-    </Link>
   );
 }

@@ -1,13 +1,14 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronRight, Loader2, PinOff, Tag as TagIcon } from "lucide-react";
+import { Loader2, PinOff, Tag as TagIcon } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FacePile, NameList, displayName, profilePath } from "@/components/tags/FacePile";
+import { TagsCrossLink } from "@/components/tags/TagsCrossLink";
 import { useToast } from "@/hooks/use-toast";
 import { fetchProfileMap, hasLocalSecretKey } from "@/services/nostr";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -208,28 +209,15 @@ export function YourTagsPanel() {
             back above the people — so the standing link belongs here, where
             somebody is already thinking about tags.
 
-            Spelled out rather than left to the "Everyone" pill above: the pill
-            is a view toggle you notice once you know what it does; this says
-            what you'd get. */}
+            A labelled row, not the pill switcher this replaced: a toggle only
+            reads as a toggle once you know what's on the other side. */}
         <div className="mt-8 space-y-4 border-t border-slate-100 pt-6 dark:border-slate-800/60">
-          <Link
+          <TagsCrossLink
             href="/tags"
-            className="group flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 transition-colors hover:border-brand-primary/40 hover:bg-slate-50 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800/60"
-            data-testid="your-tags-browse"
-          >
-            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-accent/10">
-              <TagIcon className="h-4 w-4 text-brand-deep dark:text-brand-link" />
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-slate-900 dark:text-slate-100">
-                Browse tags
-              </span>
-              <span className="block text-xs text-slate-500 dark:text-slate-400">
-                What people are known for, across the network
-              </span>
-            </span>
-            <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-brand-primary dark:text-slate-600" />
-          </Link>
+            title="Browse tags"
+            description="What people are known for, across the network"
+            testId="your-tags-browse"
+          />
 
           {myNpub && (
             <p className="text-center text-xs">

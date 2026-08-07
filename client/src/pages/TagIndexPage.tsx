@@ -1,11 +1,13 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
-import { Search, Tag as TagIcon, Users } from "lucide-react";
+import { Search, Tag as TagIcon, User as UserIcon, Users } from "lucide-react";
 import { TagsPageShell } from "@/components/tags/TagsPageShell";
+import { TagsCrossLink } from "@/components/tags/TagsCrossLink";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Chip } from "@/components/ui/chip";
 import { UnverifiedTagChip } from "@/components/search/UnverifiedTagChip";
 import { useTagIndex } from "@/hooks/useTags";
+import { getCurrentUser } from "@/services/nostr";
 import { npubFromPubkey } from "@/lib/shareId";
 import type { TagSummary } from "@/services/tags";
 
@@ -23,6 +25,7 @@ type Sort = "used" | "az";
 
 export default function TagIndexPage() {
   const { data, isLoading } = useTagIndex();
+  const signedIn = !!getCurrentUser()?.pubkey;
   const [sort, setSort] = useState<Sort>("used");
   const [filter, setFilter] = useState("");
 
@@ -132,6 +135,21 @@ export default function TagIndexPage() {
             tags.map((tag) => <TagIndexRow key={tag.key} tag={tag} />)
           )}
         </div>
+
+        {/* The other half of Tags. Only for signed-in visitors — a logged-out
+            one would just be walked into a sign-in wall, and the way in for
+            them is a tag page they can actually read. */}
+        {signedIn && (
+          <div className="mt-8 border-t border-slate-100 pt-6 dark:border-slate-800/60">
+            <TagsCrossLink
+              href="/tags/mine"
+              icon={UserIcon}
+              title="Your tags"
+              description="What people say about you, and what you've said about them"
+              testId="tag-index-mine"
+            />
+          </div>
+        )}
       </div>
     </TagsPageShell>
   );
