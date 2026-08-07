@@ -2,8 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Tag as TagIcon, X } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { FacePile, NameList } from "@/components/tags/FacePile";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { fetchProfileMap, getCurrentUser } from "@/services/nostr";
@@ -151,7 +150,11 @@ export function TaggedYouModule() {
                 {/* Name and tag on one line where there's room, wrapping on a
                     phone rather than truncating someone's name. */}
                 <div className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-slate-600 dark:text-slate-300">
-                  <NameList pubkeys={tag.others} profiles={profiles} />
+                  <NameList
+                    pubkeys={tag.others}
+                    profiles={profiles}
+                    className="font-semibold text-slate-800 hover:text-brand-primary dark:text-slate-100"
+                  />
                   <span>tagged you as</span>
                   {authorNpub ? (
                     <Link href={`/tags/${authorNpub}/${tag.slug}`} className="hover:opacity-80">
@@ -192,106 +195,6 @@ export function TaggedYouModule() {
         See all your tags →
       </Link>
     </Card>
-  );
-}
-
-/**
- * "Alice and Bob", "Alice, Bob and 3 others" — names linked to their profiles,
- * because the profile is where you can tag someone back if you want to. Capped
- * at two so one popular tag can't turn the card into a wall of names.
- */
-function NameList({
-  pubkeys,
-  profiles,
-}: {
-  pubkeys: string[];
-  profiles?: Map<string, { display_name?: string; name?: string }>;
-}) {
-  const shown = pubkeys.slice(0, 2);
-  const extra = pubkeys.length - shown.length;
-
-  return (
-    <span>
-      {shown.map((pk, i) => {
-        const p = profiles?.get(pk);
-        const name = p?.display_name || p?.name || `${pk.slice(0, 8)}…`;
-        let npub = "";
-        try {
-          npub = npubFromPubkey(pk);
-        } catch {
-          /* unlinkable */
-        }
-        return (
-          <span key={pk}>
-            {i > 0 && (extra > 0 || i < shown.length - 1 ? ", " : " and ")}
-            {npub ? (
-              <Link
-                href={`/p/${npub}`}
-                className="font-semibold text-slate-800 hover:text-brand-primary dark:text-slate-100"
-                data-testid="tagged-you-tagger"
-              >
-                {name}
-              </Link>
-            ) : (
-              <span className="font-semibold text-slate-800 dark:text-slate-100">{name}</span>
-            )}
-          </span>
-        );
-      })}
-      {extra > 0 && ` and ${extra} ${extra === 1 ? "other" : "others"}`}
-    </span>
-  );
-}
-
-/**
- * Overlapping avatars of the people who applied the tag — the same face-pile
- * idiom the profile page uses for "Followed by".
- *
- * Capped at three: past that the pile stops reading as faces and starts reading
- * as a smudge, and the names beside it already carry the count.
- */
-function FacePile({
-  pubkeys,
-  profiles,
-}: {
-  pubkeys: string[];
-  profiles?: Map<string, { display_name?: string; name?: string; picture?: string }>;
-}) {
-  const shown = pubkeys.slice(0, 3);
-
-  return (
-    <div className="flex shrink-0 -space-x-2" data-testid="tagged-you-facepile">
-      {shown.map((pk) => {
-        const p = profiles?.get(pk);
-        const name = p?.display_name || p?.name || "";
-        let npub = "";
-        try {
-          npub = npubFromPubkey(pk);
-        } catch {
-          /* unlinkable */
-        }
-        const avatar = (
-          <Avatar className="h-9 w-9 border-2 border-white bg-white dark:border-slate-900 dark:bg-slate-900">
-            {p?.picture ? <AvatarImage src={p.picture} alt={name} className="object-cover" /> : null}
-            <AvatarFallback className="overflow-hidden">
-              <DefaultAvatarImg />
-            </AvatarFallback>
-          </Avatar>
-        );
-        return npub ? (
-          <Link
-            key={pk}
-            href={`/p/${npub}`}
-            title={name || undefined}
-            className="transition-opacity hover:opacity-80"
-          >
-            {avatar}
-          </Link>
-        ) : (
-          <span key={pk}>{avatar}</span>
-        );
-      })}
-    </div>
   );
 }
 

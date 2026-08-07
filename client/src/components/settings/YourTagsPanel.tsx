@@ -1,10 +1,13 @@
 import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { Loader2, PinOff, Tag as TagIcon } from "lucide-react";
+import { Loader2, PinOff, Search, Tag as TagIcon } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
+import { FacePile, NameList, displayName, profilePath } from "@/components/tags/FacePile";
 import { useToast } from "@/hooks/use-toast";
 import { fetchProfileMap, hasLocalSecretKey } from "@/services/nostr";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -18,7 +21,8 @@ import {
 import { TAG_PINS_ENABLED } from "@/config/tagging";
 import { npubFromPubkey } from "@/lib/shareId";
 import { corroborations, onlySelfDeclared } from "@/lib/tagCounts";
-import type { ProfileTag } from "@/services/tags";
+import type { FaceProfile } from "@/components/tags/FacePile";
+import type { MyAssertion, ProfileTag } from "@/services/tags";
 
 /**
  * Everything tagging-related about you, as the Settings → Tags tab.
@@ -34,6 +38,9 @@ import type { ProfileTag } from "@/services/tags";
  * the kit already sanctions. Section 3 (pins) is the declared deviation — see
  * `TAG_PINS_ENABLED`.
  */
+
+/** Roughly a screenful before "Show all" — see the note at the call site. */
+const SAID_PREVIEW = 10;
 
 export function YourTagsPanel() {
   const [currentUser] = useCurrentUser();
@@ -56,16 +63,27 @@ export function YourTagsPanel() {
 
   const tagsOnMe = onMe?.tags ?? [];
   const said = mySaid ?? [];
+  const [saidShown, setSaidShown] = useState(SAID_PREVIEW);
 
-  // Everyone named across "what I've said", resolved in one round-trip.
-  const targets = useMemo(
-    () => Array.from(new Set(said.filter((a) => a.targetKind === "pubkey").map((a) => a.target))),
-    [said],
-  );
+  /**
+   * Everyone named anywhere on this page — the people who tagged you AND the
+   * people you tagged — resolved in ONE round-trip.
+   *
+   * Both sections want faces, and the two sets overlap in practice (you tag
+   * people who tag you). Two queries would fetch the same profiles twice and
+   * make the sections pop in at different moments.
+   */
+  const people = useMemo(() => {
+    const set = new Set<string>();
+    for (const t of tagsOnMe) for (const pk of t.asserters) if (pk !== viewerPubkey) set.add(pk);
+    for (const a of said) if (a.targetKind === "pubkey") set.add(a.target);
+    return Array.from(set);
+  }, [tagsOnMe, said, viewerPubkey]);
+
   const profilesQuery = useQuery({
-    queryKey: ["my-assertion-profiles", targets.join(",")],
-    queryFn: () => fetchProfileMap(targets),
-    enabled: targets.length > 0,
+    queryKey: ["your-tags-profiles", people.join(",")],
+    queryFn: () => fetchProfileMap(people),
+    enabled: people.length > 0,
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -85,7 +103,12 @@ export function YourTagsPanel() {
 
         {/* ── 1. Tags on me ─────────────────────────────────────────────── */}
         <section className="mt-8" data-testid="my-tags-on-me">
-          <SectionLabel>About you</SectionLabel>
+          <SectionLabel
+            count={tagsOnMe.length}
+            hint="What other people say you're known for."
+          >
+            About you
+          </SectionLabel>
           {loadingMine ? (
             <Loading />
           ) : tagsOnMe.length === 0 ? (
@@ -100,7 +123,13 @@ export function YourTagsPanel() {
           ) : (
             <Card className="divide-y divide-slate-100 dark:divide-slate-800/60 overflow-hidden">
               {tagsOnMe.map((tag) => (
-                <TagOnMeRow key={tag.key} tag={tag} canAct={canAct} viewerPubkey={viewerPubkey!} />
+                <TagOnMeRow
+                  key={tag.key}
+                  tag={tag}
+                  canAct={canAct}
+                  viewerPubkey={viewerPubkey!}
+                  profiles={profiles}
+                />
               ))}
             </Card>
           )}
@@ -108,7 +137,12 @@ export function YourTagsPanel() {
 
         {/* ── 2. Tags I've applied ──────────────────────────────────────── */}
         <section className="mt-8" data-testid="my-tags-said">
-          <SectionLabel>What you've said</SectionLabel>
+          <SectionLabel
+            count={said.length}
+            hint="Public and signed by you. These are your claims about other people."
+          >
+            What you've said
+          </SectionLabel>
           {loadingSaid ? (
             <Loading />
           ) : said.length === 0 ? (
@@ -117,56 +151,27 @@ export function YourTagsPanel() {
                 icon={TagIcon}
                 compact
                 title="You haven't tagged anyone yet"
-                description="Tags you add to people or posts are listed here, so you can look back at them."
+                description="Open someone's profile and use “Add a tag” to say what they're known for. It shows up here so you can look back at it."
               />
             </Card>
           ) : (
             <Card className="divide-y divide-slate-100 dark:divide-slate-800/60 overflow-hidden">
-              {said.map((a) => {
-                const p = a.targetKind === "pubkey" ? profiles?.get(a.target) : undefined;
-                const name = p?.display_name || p?.name;
-                let npub = "";
-                try {
-                  npub = a.targetKind === "pubkey" ? npubFromPubkey(a.target) : "";
-                } catch {
-                  /* unlinkable */
-                }
-                const href =
-                  a.targetKind === "pubkey" ? (npub ? `/p/${npub}` : null) : `/e/${a.target}`;
-                const label =
-                  a.targetKind === "pubkey"
-                    ? name || `${a.target.slice(0, 8)}…`
-                    : "a post";
-
-                return (
-                  <div
-                    key={`${a.key}-${a.target}`}
-                    className="flex flex-wrap items-center gap-x-2 gap-y-1 px-4 py-3 text-sm"
-                    data-testid="my-tag-said-row"
-                  >
-                    <Chip tone={a.stance === "apply" ? "brand" : "amber"} size="sm">
-                      {a.name}
-                    </Chip>
-                    <span className="text-slate-400 dark:text-slate-500">
-                      {a.stance === "apply" ? "on" : "disagreed on"}
-                    </span>
-                    {href ? (
-                      <Link
-                        href={href}
-                        className="font-medium text-slate-700 hover:text-brand-primary dark:text-slate-200"
-                        data-testid="my-tag-said-target"
-                      >
-                        {label}
-                      </Link>
-                    ) : (
-                      <span className="font-medium text-slate-700 dark:text-slate-200">{label}</span>
-                    )}
-                    <span className="ml-auto shrink-0 text-[11px] text-slate-400 dark:text-slate-500">
-                      {relativeTime(a.at)}
-                    </span>
-                  </div>
-                );
-              })}
+              {said.slice(0, saidShown).map((a) => (
+                <SaidRow key={`${a.key}-${a.target}`} said={a} profiles={profiles} />
+              ))}
+              {/* This list grows by one row every time you tag anybody, and
+                  there is no delete — an active account has hundreds. Newest
+                  first, a screenful by default, the rest on request. */}
+              {said.length > saidShown && (
+                <button
+                  type="button"
+                  onClick={() => setSaidShown(said.length)}
+                  className="w-full px-4 py-3 text-xs font-semibold text-brand-link transition-colors hover:bg-slate-50 dark:hover:bg-slate-800/50"
+                  data-testid="my-tags-said-more"
+                >
+                  Show all {said.length}
+                </button>
+              )}
             </Card>
           )}
         </section>
@@ -194,13 +199,28 @@ export function YourTagsPanel() {
           </section>
         )}
 
-        {myNpub && (
-          <p className="mt-8 text-center text-xs text-slate-400 dark:text-slate-500">
-            <Link href={`/p/${myNpub}`} className="font-semibold text-brand-link hover:underline">
+        {/* Where to go next. Reviewing your own tags is a dead end otherwise —
+            and the way tagging spreads is one person going and tagging
+            someone. Browse is the "I don't know who to look for" door. */}
+        <div className="mt-8 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 border-t border-slate-100 pt-6 text-xs dark:border-slate-800/60">
+          <Link
+            href="/tags"
+            className="flex items-center gap-1.5 font-semibold text-brand-link hover:underline"
+            data-testid="your-tags-browse"
+          >
+            <Search className="h-3.5 w-3.5" />
+            Browse tags
+          </Link>
+          {myNpub && (
+            <Link
+              href={`/p/${myNpub}`}
+              className="font-semibold text-brand-link hover:underline"
+              data-testid="your-tags-profile"
+            >
               See your public profile →
             </Link>
-          </p>
-        )}
+          )}
+        </div>
     </div>
   );
 }
@@ -211,10 +231,12 @@ function TagOnMeRow({
   tag,
   canAct,
   viewerPubkey,
+  profiles,
 }: {
   tag: ProfileTag;
   canAct: boolean;
   viewerPubkey: string;
+  profiles?: Map<string, FaceProfile>;
 }) {
   const applyTag = useApplyTag(viewerPubkey);
   const { toast } = useToast();
@@ -222,11 +244,10 @@ function TagOnMeRow({
 
   const others = corroborations(tag);
   const agreed = tag.myStance === "apply";
-  const who = onlySelfDeclared(tag)
-    ? "Only you say this"
-    : others === 1
-      ? "1 person says this"
-      : `${others} people say this`;
+  // Whoever vouched, minus you. "3 people say this" is a statistic; "Tanja, Avi
+  // and 1 other say this" is a claim you can go and check, which is the whole
+  // point of a signed tag.
+  const vouchers = tag.asserters.filter((pk) => pk !== viewerPubkey);
 
   let authorNpub = "";
   try {
@@ -262,11 +283,13 @@ function TagOnMeRow({
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-3" data-testid="my-tag-row">
+    <div className="flex items-start gap-3 px-4 py-3.5" data-testid="my-tag-row">
+      <FacePile pubkeys={vouchers} profiles={profiles} />
+
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-2">
           {authorNpub ? (
-            <Link href={`/tags/${authorNpub}/${tag.slug}`}>
+            <Link href={`/tags/${authorNpub}/${tag.slug}`} data-testid="my-tag-link">
               <Chip tone={tag.counted ? "brand" : "slate"} className="hover:opacity-80">
                 {tag.name}
               </Chip>
@@ -278,7 +301,30 @@ function TagOnMeRow({
             <span className="text-[11px] text-amber-600 dark:text-amber-500">you disagreed</span>
           )}
         </div>
-        <p className="mt-0.5 text-[11px] text-slate-400 dark:text-slate-500">{who}</p>
+
+        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+          {onlySelfDeclared(tag) ? (
+            "Only you say this"
+          ) : vouchers.length ? (
+            <>
+              <NameList
+                pubkeys={vouchers}
+                profiles={profiles}
+                className="font-semibold text-slate-600 hover:text-brand-primary dark:text-slate-300"
+              />{" "}
+              {vouchers.length === 1 ? "says" : "say"} this
+            </>
+          ) : others === 1 ? (
+            "1 person says this"
+          ) : (
+            `${others} people say this`
+          )}
+        </p>
+        {tag.description && (
+          <p className="mt-0.5 line-clamp-2 text-xs text-slate-400 dark:text-slate-500">
+            {tag.description}
+          </p>
+        )}
       </div>
 
       {canAct && (
@@ -286,12 +332,92 @@ function TagOnMeRow({
           type="button"
           onClick={() => setStance(agreed ? -1 : 1)}
           disabled={busy}
-          className="shrink-0 rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 transition-colors hover:border-brand-primary hover:text-brand-primary disabled:opacity-50 dark:border-slate-700 dark:text-slate-300"
+          className="mt-0.5 shrink-0 rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 transition-colors hover:border-brand-primary hover:text-brand-primary disabled:opacity-50 dark:border-slate-700 dark:text-slate-300"
           data-testid="my-tag-stance"
         >
           {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : agreed ? "Disagree" : "Agree"}
         </button>
       )}
+    </div>
+  );
+}
+
+/**
+ * One thing you said about somebody — their face, their name, the tag, when.
+ *
+ * The tag chip links to the tag's page and the person links to their profile:
+ * two different questions ("who else is this?" / "who is this?"), and before
+ * this the row answered neither.
+ */
+function SaidRow({
+  said,
+  profiles,
+}: {
+  said: MyAssertion;
+  profiles?: Map<string, FaceProfile>;
+}) {
+  const isPerson = said.targetKind === "pubkey";
+  const name = isPerson ? displayName(said.target, profiles) : "a post";
+  const targetHref = isPerson ? profilePath(said.target) : `/e/${said.target}`;
+  const picture = isPerson ? profiles?.get(said.target)?.picture : undefined;
+
+  let authorNpub = "";
+  try {
+    authorNpub = npubFromPubkey(said.authorPubkey);
+  } catch {
+    /* unlinkable */
+  }
+
+  const chip = (
+    <Chip tone={said.stance === "apply" ? "brand" : "amber"} size="sm">
+      {said.name}
+    </Chip>
+  );
+
+  return (
+    <div className="flex items-center gap-3 px-4 py-3" data-testid="my-tag-said-row">
+      {isPerson ? (
+        <Avatar className="h-8 w-8 shrink-0">
+          {picture ? <AvatarImage src={picture} alt={name} className="object-cover" /> : null}
+          <AvatarFallback className="overflow-hidden">
+            <DefaultAvatarImg />
+          </AvatarFallback>
+        </Avatar>
+      ) : (
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800">
+          <TagIcon className="h-3.5 w-3.5" />
+        </span>
+      )}
+
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+        {authorNpub ? (
+          <Link href={`/tags/${authorNpub}/${said.slug}`} className="hover:opacity-80" data-testid="my-tag-said-link">
+            {chip}
+          </Link>
+        ) : (
+          chip
+        )}
+        <span className="text-slate-400 dark:text-slate-500">
+          {said.stance === "apply" ? "on" : "disagreed on"}
+        </span>
+        {targetHref ? (
+          <Link
+            href={targetHref}
+            className="min-w-0 truncate font-semibold text-slate-700 hover:text-brand-primary dark:text-slate-200"
+            data-testid="my-tag-said-target"
+          >
+            {name}
+          </Link>
+        ) : (
+          <span className="min-w-0 truncate font-semibold text-slate-700 dark:text-slate-200">
+            {name}
+          </span>
+        )}
+      </div>
+
+      <span className="shrink-0 text-[11px] tabular-nums text-slate-400 dark:text-slate-500">
+        {relativeTime(said.at)}
+      </span>
     </div>
   );
 }
@@ -336,10 +462,25 @@ function PinnedRow({ pin }: { pin: { key: string; name: string; authorPubkey: st
   );
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+function SectionLabel({
+  children,
+  count,
+  hint,
+}: {
+  children: React.ReactNode;
+  count?: number;
+  /** One line saying what the section is for — the two are easy to confuse. */
+  hint?: string;
+}) {
   return (
-    <div className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-      {children}
+    <div className="mb-3">
+      <div className="flex items-baseline gap-2 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+        <span>{children}</span>
+        {count !== undefined && count > 0 && (
+          <span className="tabular-nums text-slate-300 dark:text-slate-600">{count}</span>
+        )}
+      </div>
+      {hint && <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{hint}</p>}
     </div>
   );
 }
