@@ -131,13 +131,19 @@ export function YourTagsPanel() {
 
   return (
     <div className="space-y-6" data-testid="your-tags-panel">
-        {/* Said once, near the top, in plain words. The protocol has no delete
-            and a page called "manage" must not imply otherwise. No guide link
-            on the end of it — the shell puts one directly above this, and the
-            same link twice in four lines reads as a mistake. */}
+        {/* Leads with what you CAN do.
+            The first version opened "You can't erase a tag someone else gave
+            you — nobody can, on Nostr", which greeted people with a
+            restriction and a protocol lecture in one breath. Nobody arriving
+            here needs to know what it rides on; they need to know what to do
+            about a label they don't like.
+            The second sentence still has to be there. Disagreeing doesn't make
+            a tag vanish, and a page that implies it does would surprise
+            someone the moment they pressed the button. Say it plainly, once,
+            without dressing it up as a limitation. */}
         <p className="mt-4 text-sm text-slate-500 dark:text-slate-400" data-testid="my-tags-no-delete">
-          You can't erase a tag someone else gave you — nobody can, on Nostr. What
-          you can do is disagree, and it stops counting.
+          Anything here that doesn't fit? Disagree with it and it stops counting
+          toward you. It stays on the page, marked as disagreed.
         </p>
 
         {/* ── 1. Tags on me ─────────────────────────────────────────────── */}
@@ -347,7 +353,7 @@ function TagOnMeRow({
         description:
           polarity === 1
             ? "Your agreement is public."
-            : "It stops counting. The original stays on Nostr — nothing is ever deleted.",
+            : "It stops counting toward you. It stays on the page, marked as disagreed.",
       });
     } catch {
       toast({
