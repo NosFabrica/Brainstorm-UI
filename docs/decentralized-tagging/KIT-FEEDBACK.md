@@ -79,12 +79,47 @@ silent and looks like "the hub is empty".
 **The real noise filter is the tag CREATOR's trust score**, which is what your
 own client does — Jumble's guide states that browse surfaces "only list tags
 whose creator has a published trust score", with direct links, existing
-taggings and the viewer's own tags all still working. That rule is worth
-promoting from a client behaviour into kit guidance: it's the only thing we
-found that separates harness tags from real ones without a name-shape blocklist,
-and every integrator otherwise invents something worse. We did — we gated on the
-*tagged* person having a kind-0, which is the wrong axis entirely, since the
-spam economics are about minting being free.
+taggings and the viewer's own tags all still working. It's the only thing we
+found that separates harness tags from real ones without a name-shape
+blocklist, and every integrator otherwise invents something worse. We did — we
+gated on the *tagged* person having a kind-0, which is the wrong axis entirely,
+since the spam economics are about minting being free.
+
+**But please document it as a rule about SURFACES, not about tags** — we shipped
+the blunt version first and it cost us the second most-used tag on your hub.
+
+*Usage cannot be the filter, and we'd suggest saying so explicitly, because it's
+the first thing everyone reaches for.* Measured 2026-08-07 across all 875 tags
+with at least one carrier: your harness fakes asserters as well as targets — 35
+junk tags carry **5 distinct asserters each** — while genuinely-used tags like
+`tunestr-community` (28 people) and `urbit` (7) carry **one**. There is no
+threshold that admits the real ones and excludes the fakes.
+
+*What the blunt rule costs.* Of those 875, 34 were listed and 841 were not.
+Excluding the harness output, that set is essentially one tag: **`lfo`, 54
+people, the second most-used on the hub** behind `aos-2026-participant`. Its
+creator has no kind-30382, so it was absent from browse, from every search box,
+and from the tag picker — where typing "LFO" then offered *"Create tag"* for a
+tag 54 people already carry. `resolveOrMintTag` reuses the existing element, so
+nothing was corrupted, but the user is told something false. We'd note that
+`ACCEPTANCE` line 33 ("existing protocol tags load and search-by-name filters
+them") passes on a strict reading while failing in spirit under this rule.
+
+*What we ship now.* Nothing is dropped; tags carry an `unverified` flag.
+Surfaces that render an **unrequested list** filter them out. Surfaces that
+answer a **typed query** — search, and the picker once you type — include them,
+labelled. Junk can flood a page nobody asked for; it cannot flood a name
+somebody typed. That also lands closer to `Start.md` Q5's own recommended
+default ("full client-side search over all existing protocol tags") than the
+list-wide gate did.
+
+*And the reason any of this bites right now is upstream.* Only **3 of 138** tag
+creators have a published score, because `trustRelays` still carries the
+2026-05-26 snapshot under the retired key while the current TA has published
+zero 30382s — the caveat your own `CONFIG` `_comment` records. Until that
+pipeline re-runs, "creator has a score" is a much narrower test than it reads
+as, and any client adopting the rule verbatim will hide real tags. Worth a
+sentence in the kit next to the rule.
 
 **Related trap:** a plain `limit` on that read is misleading. The QA events are a
 recent burst, so a newest-first page of 2000 contains ~6 real assertions. Our

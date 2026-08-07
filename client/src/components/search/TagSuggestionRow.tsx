@@ -1,4 +1,5 @@
 import { Tag, ArrowRight } from "lucide-react";
+import { UnverifiedTagChip } from "@/components/search/UnverifiedTagChip";
 import type { TagSummary } from "@/services/tags";
 
 /**
@@ -39,7 +40,13 @@ export function TagSuggestionRow({
         <Tag className="h-4 w-4" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{tag.name}</p>
+        <div className="flex items-center gap-1.5">
+          <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{tag.name}</p>
+          {/* You typed this name, so we show the tag — but we say what we
+              don't know about it rather than letting the list imply we
+              vouched for it. */}
+          {tag.unverified && <UnverifiedTagChip className="shrink-0" />}
+        </div>
         <p className="truncate text-xs text-slate-500 dark:text-slate-400">{people} tagged this</p>
       </div>
       <ArrowRight className="h-4 w-4 shrink-0 text-slate-300 dark:text-slate-600" aria-hidden="true" />

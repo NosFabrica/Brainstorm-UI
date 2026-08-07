@@ -86,6 +86,7 @@ export function TagPersonButton({
       description: t.description,
       people: t.people,
       band: t.band,
+      unverified: t.unverified,
       tag: { authorPubkey: t.authorPubkey, slug: t.slug },
     }));
 
@@ -94,8 +95,36 @@ export function TagPersonButton({
   // WITHIN each band is by usage — never by the hint, which only 9 of 39 tags
   // carry and which buried the biggest real tag when we tried ranking on it.
   // `fetchPickerTags` already sorted; these keep that order.
-  const existing = offered.filter((t) => t.band === "profile");
-  const forNotes = offered.filter((t) => t.band === "content");
+  const vouched = offered.filter((t) => !t.unverified);
+  const existing = vouched.filter((t) => t.band === "profile");
+  const forNotes = vouched.filter((t) => t.band === "content");
+
+  /**
+   * Tags whose creator the network says nothing about — kept out of the
+   * standing suggestions and surfaced only against something typed.
+   *
+   * The bug this fixes: `lfo` carries 54 people, more than every tag in the
+   * suggestion list bar one, but its creator is unscored — so typing "LFO"
+   * offered nothing and pushed you to "Create tag" for a tag that already
+   * exists. `resolveOrMintTag` would have quietly reused the real element, so
+   * no data was harmed; the user was just told a falsehood about what they
+   * were doing.
+   *
+   * Capped, because ~840 of these exist and most are harness output. cmdk
+   * still filters what we hand it; matching here is what keeps the DOM small.
+   */
+  const typedForMatch = search.trim().toLowerCase();
+  const unverifiedMatches =
+    typedForMatch.length >= 2
+      ? offered
+          .filter((t) => t.unverified && t.label.toLowerCase().includes(typedForMatch))
+          .sort(
+            (a, b) =>
+              Number(b.label.toLowerCase() === typedForMatch) -
+                Number(a.label.toLowerCase() === typedForMatch) || b.people - a.people,
+          )
+          .slice(0, 5)
+      : [];
 
   const existingNames = new Set(offered.map((e) => e.label.toLowerCase()));
   const starters = ROLES.filter(
@@ -313,6 +342,33 @@ export function TagPersonButton({
                       {e.description && (
                         <span className="block truncate text-[10px] text-slate-400">{e.description}</span>
                       )}
+                    </span>
+                    <span className="ml-2 shrink-0 text-[10px] tabular-nums text-slate-400">
+                      {e.people}
+                    </span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            )}
+
+            {/* Only ever shown against something typed — see the note on
+                `unverifiedMatches`. Applying one of these joins the real,
+                existing list instead of minting a duplicate of it. */}
+            {unverifiedMatches.length > 0 && (
+              <CommandGroup heading="Also called this">
+                {unverifiedMatches.map((e) => (
+                  <CommandItem
+                    key={e.key}
+                    value={e.label}
+                    onSelect={() => applyExisting(e.tag, e.label)}
+                    data-testid="share-tag-unverified"
+                  >
+                    <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{e.label}</span>
+                      <span className="block truncate text-[10px] text-slate-400">
+                        We don't know who made this tag
+                      </span>
                     </span>
                     <span className="ml-2 shrink-0 text-[10px] tabular-nums text-slate-400">
                       {e.people}

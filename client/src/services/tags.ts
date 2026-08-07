@@ -407,7 +407,13 @@ async function resolveAssertionTags(
     }
     for (const el of elements) {
       const d = tagValue(el, "d");
-      if (d) elementsById.set(el.id, { tagAuthor: el.pubkey, slug: d });
+      if (!d) continue;
+      elementsById.set(el.id, { tagAuthor: el.pubkey, slug: d });
+      // We are holding the whole element, so bank its name/description too.
+      // `resolveTagNames` would otherwise re-fetch the same events by
+      // coordinate — cheap when the catalogue was 34 entries, a query over
+      // hundreds of slugs now that it carries everything.
+      cacheElementMeta(el.pubkey, d, el.content);
     }
     for (const ev of candidates) {
       if (byEventId.has(ev.id)) continue;
@@ -599,6 +605,25 @@ function groupByTarget(
  * keyed `["d", <slug>]` under its author, with `{"tag":{name,description}}` in
  * content. Unresolvable tags still render — the slug is a usable label.
  */
+/**
+ * Park a tag-element's display metadata under its coordinate. Shared by the
+ * two paths that end up holding an element event, so neither has to re-fetch
+ * what the other already had.
+ */
+function cacheElementMeta(authorPubkey: string, slug: string, content: string) {
+  try {
+    const parsed = JSON.parse(content) as { tag?: { name?: string; description?: string } };
+    if (parsed?.tag?.name) {
+      elementMetaByCoord.set(`${authorPubkey}|${slug}`, {
+        name: parsed.tag.name,
+        description: parsed.tag.description,
+      });
+    }
+  } catch {
+    // malformed content → callers fall through to the slug
+  }
+}
+
 async function resolveTagNames(
   refs: Array<{ authorPubkey: string; slug: string }>,
 ): Promise<Map<string, { name: string; description?: string }>> {
@@ -616,30 +641,30 @@ async function resolveTagNames(
   }
   if (!unresolved.length) return out;
 
-  let events: NostrEvent[] = [];
-  try {
-    events = await fetchTagEvents({
-      kinds: [TAG_ELEMENT_KIND],
-      authors: Array.from(new Set(unresolved.map((r) => r.authorPubkey))),
-      "#d": Array.from(new Set(unresolved.map((r) => r.slug))),
-    });
-  } catch {
-    return out; // names are cosmetic; slugs carry the meaning
-  }
-
-  for (const ev of events) {
-    const d = tagValue(ev, "d");
-    if (!d) continue;
+  // Chunked by slug. The catalogue now carries every tag anyone has used, so
+  // an unchunked filter would ask for hundreds of `#d` values in one REQ —
+  // past what some relays accept, and a rejection here would blank every name
+  // on the page.
+  const slugs = Array.from(new Set(unresolved.map((r) => r.slug)));
+  const authors = Array.from(new Set(unresolved.map((r) => r.authorPubkey)));
+  for (let i = 0; i < slugs.length; i += 200) {
+    let events: NostrEvent[] = [];
     try {
-      const parsed = JSON.parse(ev.content) as { tag?: { name?: string; description?: string } };
-      if (parsed?.tag?.name) {
-        const meta = { name: parsed.tag.name, description: parsed.tag.description };
-        const key = `${ev.pubkey}|${d}`;
-        out.set(key, meta);
-        elementMetaByCoord.set(key, meta);
-      }
+      events = await fetchTagEvents({
+        kinds: [TAG_ELEMENT_KIND],
+        authors,
+        "#d": slugs.slice(i, i + 200),
+      });
     } catch {
-      // malformed content → fall through to the slug
+      continue; // names are cosmetic; slugs carry the meaning
+    }
+    for (const ev of events) {
+      const d = tagValue(ev, "d");
+      if (!d) continue;
+      cacheElementMeta(ev.pubkey, d, ev.content);
+      const key = `${ev.pubkey}|${d}`;
+      const meta = elementMetaByCoord.get(key);
+      if (meta) out.set(key, meta);
     }
   }
   return out;
@@ -929,6 +954,16 @@ export interface TagSummary extends TagIdentity {
   vouches: number;
   /** Other separately-minted identities sharing this name. Labelling only. */
   sharesName: number;
+  /**
+   * The network has published nothing about whoever created this tag — so we
+   * can't tell a newcomer from a throwaway key.
+   *
+   * A flag, NOT an exclusion. Surfaces that show an unrequested LIST (the
+   * browse page with no filter typed, the picker's suggestions) leave these
+   * out; surfaces answering a QUERY somebody typed include them, labelled.
+   * See `fetchTagIndex`.
+   */
+  unverified: boolean;
 }
 
 /**
@@ -940,30 +975,41 @@ export interface TagSummary extends TagIdentity {
  * actually tagged excludes most of that for free, and gives real counts as a
  * by-product — which is also what ranks search results.
  *
- * ## Why discovery holds tag CREATORS to a higher bar than counting does
+ * ## Why tag CREATORS are held to a higher bar than counting holds anyone
  *
  * Minting a tag is free and permissionless, so throwaway keys flood the
  * catalogue — `jumble-qa-profile-…`, `test-account` and friends are all real
  * entries on the hub right now. Usage alone doesn't filter them, because the
- * harness applies them too.
+ * harness applies them too: measured 2026-08-07, 35 junk tags carry 5 distinct
+ * asserters each while genuinely-used tags like `tunestr-community` (28
+ * people) and `urbit` (7) carry ONE. Any threshold that admits the real ones
+ * admits ninety fakes. That door is closed; creator standing is what's left.
  *
- * So a tag appears in browse only when its creator has a **published trust
- * score**. This is the reference client's rule, adopted deliberately: Jumble
- * gates "the Tags page, tag search, and the tag picker" the same way, for the
- * same stated reason. It replaces an earlier invention of ours that gated on
- * the TAGGED person having a kind-0 — wrong axis, since the spam problem is
- * about who mints, not who gets tagged.
+ * So a tag whose creator has no **published trust score** is marked
+ * `unverified` — the reference client's rule, adopted deliberately, replacing
+ * an earlier invention of ours that gated on the TAGGED person having a
+ * kind-0 (wrong axis: spam economics are about who mints).
  *
- * **What it does NOT do**, and this matters: a tag by an unscored creator is
- * not blocked or deleted. Its page still opens from a direct link
- * (`fetchTagDetail` applies no such gate), taggings made with it still render
- * on profiles and notes (`fetchProfileTags`, `fetchEventTagsBatch`), and the
- * viewer's own tags are always listed here. It reappears in discovery by
- * itself the moment a score is published — nothing gets republished.
+ * ## Marked, not dropped — the list/query split
  *
- * The honest cost: real tags by unscored newcomers are hidden too. An unscored
- * key looks exactly like a throwaway one, and today that hides `lfo`,
- * `developer` and `relay-operator` alongside the harness output.
+ * This function no longer hides them, because hiding proved too blunt. `lfo`
+ * is the second most-used tag on the hub (54 people, behind only
+ * `aos-2026-participant`) and its creator is unscored, so it was invisible to
+ * browse, to all three search boxes AND to the tag picker — where "LFO" then
+ * offered "Create tag" for something 54 people already carry.
+ *
+ * The rule that replaces it: **gate the list, never the query.** Junk fills a
+ * page nobody asked for; it cannot fill a name somebody typed. So callers
+ * showing an unrequested list filter `unverified` out, and callers answering
+ * a typed query keep them and label them. That also puts us back on the kit's
+ * own default — `Start.md` Q5 recommends "full client-side search over all
+ * existing protocol tags", with curation flagged as something to "confirm
+ * deliberately".
+ *
+ * Unchanged: a tag's page still opens from a direct link (`fetchTagDetail`
+ * applies no gate), taggings still render on profiles and notes, the viewer's
+ * own tags are never marked, and a tag stops being `unverified` on its own the
+ * moment a score is published — nothing gets republished.
  *
  * Anonymous-safe like every read here.
  */
@@ -992,9 +1038,6 @@ export async function fetchTagIndex(viewerPubkey?: string): Promise<TagSummary[]
 
   for (const a of assertions) {
     if (!trust.predicate(a.asserter)) continue;
-    // Discovery gate — see the note above. Your own tags are never hidden
-    // from you, scored or not.
-    if (!scoredCreators.has(a.tagAuthor) && a.tagAuthor !== viewerPubkey) continue;
     if (!counted.has(a.tagKey)) {
       counted.set(a.tagKey, {
         authorPubkey: a.tagAuthor,
@@ -1053,6 +1096,9 @@ export async function fetchTagIndex(viewerPubkey?: string): Promise<TagSummary[]
       people: (people.get(key) ?? new Set()).size,
       vouches: group.applications.size,
       sharesName: sharesName.get(key) ?? 1,
+      // Your own tags are never marked — you know perfectly well who made them.
+      unverified:
+        !scoredCreators.has(group.authorPubkey) && group.authorPubkey !== viewerPubkey,
     }))
     .filter((t) => t.people > 0)
     .sort((a, b) => b.people - a.people || b.vouches - a.vouches || a.name.localeCompare(b.name));
@@ -1160,6 +1206,10 @@ export interface PickerTag extends TagSummary {
  *    so offering them puts harness output in front of users for the sake of
  *    one real unused tag (KIT-FEEDBACK.md §5). Nothing is lost: typing an
  *    existing tag's name still reuses it via `resolveOrMintTag`.
+ *
+ * Returns `unverified` entries too. The picker is BOTH surfaces at once — a
+ * suggestion list before you type and a query after — so the list/query split
+ * has to be made there, not here. `TagPersonButton` does it.
  */
 export async function fetchPickerTags(viewerPubkey?: string): Promise<PickerTag[]> {
   const catalogue = await fetchTagIndex(viewerPubkey);
@@ -1204,7 +1254,12 @@ export function matchTags(index: TagSummary[], query: string, max = 5): TagSumma
   return index
     .map((t) => ({ t, b: band(t) }))
     .filter((x) => x.b < 3)
-    .sort((x, y) => x.b - y.b)
+    // How well the name matches outranks who made the tag — an exact hit on an
+    // unverified tag is still what the person typed, and burying it under
+    // loose contains-matches is how `lfo` became unfindable. Creator standing
+    // only breaks ties inside a band; usage order survives beneath that,
+    // because the sort is stable.
+    .sort((x, y) => x.b - y.b || Number(x.t.unverified) - Number(y.t.unverified))
     .slice(0, max)
     .map((x) => x.t);
 }

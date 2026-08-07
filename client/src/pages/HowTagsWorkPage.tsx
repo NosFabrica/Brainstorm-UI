@@ -28,8 +28,11 @@ import { Chip } from "@/components/ui/chip";
  *  2. The reputation filter is currently weak, so counts are more permissive
  *     than they look. (The reference client's banner claims filtering that its
  *     own guide later admits isn't really happening. We say it up front.)
- *  3. Some real tags are hidden from browsing because their creator has no
- *     track record yet — and what still works for them.
+ *  3. Some real tags are left off the browse LIST because their creator has no
+ *     track record yet — and that search still finds them. The wording here
+ *     changed once the list/query split landed; if the split is ever reverted,
+ *     "Search finds every tag" becomes a lie and this section must change with
+ *     it the same day.
  *
  * If any of those three stop being true, this page must change the same day.
  */
@@ -138,27 +141,35 @@ export default function HowTagsWorkPage() {
           {/* ── Discovery gate ────────────────────────────────────────── */}
           <Section
             icon={Search}
-            title="Why you won't find every tag by browsing"
+            title="The browse list is shorter than the real list"
             testId="section-htw-discovery"
           >
             <p>
-              Making a tag is free, which means anyone can make thousands. To
-              stop the browse list filling up with junk, it only shows tags
-              whose creator has built up some standing.
+              Making a tag is free, which means anyone can make thousands — and
+              plenty have. So the browse list only shows tags whose creator has
+              built up some standing. Without that, it would be mostly junk.
             </p>
             <p>
-              That's a blunt rule and it catches real people too — someone new
-              looks exactly like someone throwaway. So it only affects{" "}
-              <em>browsing</em>. A hidden tag still works everywhere else:
+              That's a blunt rule and it catches real people too: someone new
+              looks exactly like someone throwaway. So it applies to the{" "}
+              <em>list</em> and nothing else.{" "}
+              <span className="font-semibold text-slate-900 dark:text-slate-100">
+                Search finds every tag, including those.
+              </span>{" "}
+              If you know the name, type it — anywhere you can search — and
+              you'll get it, marked "Unknown creator" so you know what we can
+              and can't tell you.
             </p>
+            <p>Tags left off the list still work in every other way:</p>
             <ul className="ml-1 space-y-1.5">
-              <Bullet>a direct link to it still opens</Bullet>
+              <Bullet>a direct link to one still opens</Bullet>
               <Bullet>it still shows on the profiles and posts it's been put on</Bullet>
+              <Bullet>you can still put it on someone</Bullet>
               <Bullet>your own tags are always visible to you</Bullet>
             </ul>
             <p>
               And nothing needs redoing — when the creator earns some standing,
-              their tags simply start appearing again.
+              their tags simply start appearing in the list again.
             </p>
           </Section>
 

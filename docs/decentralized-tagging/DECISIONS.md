@@ -349,11 +349,82 @@ mechanically, zero hits for `kind-`, `npub1`, `NIP-`, `assertion`, `polarity`,
    later that unscored people are counted anyway. We put that in the same
    breath, under "Being straight with you", and say to treat the numbers as a
    signal rather than a verdict.
-3. **Some real tags are hidden from browse**, why, and — the part that makes it
-   fair — exactly what still works for them.
+3. **Some real tags are left off the browse list**, why, and — the part that
+   makes it fair — exactly what still works for them. Rewritten under decision
+   11: the claim is now "search finds every tag", which is a promise, so if the
+   list/query split is ever reverted this section becomes a lie.
 
 If any of those three stop being true, the page changes the same day. That's
 recorded in the file's own header comment so the next person finds it.
+
+## 11. Gate the list, never the query — decided 2026-08-07
+
+Supersedes the discovery half of decision 9. Prompted by Benjamin asking why
+searching "LFO" found nothing when the LFO tag page plainly exists.
+
+**What we measured on the live hub before touching anything.** The tag's
+creator, `npub1aqll77s…`, has no kind-30382 — verified directly against
+`tags.brainstorm.world/relay` — so decision 9's rule dropped it. That much was
+working as designed. The scale was not:
+
+| tags with ≥1 carrier | listed in browse | left out |
+| --- | --- | --- |
+| 875 | 34 | 841 |
+
+Sorted by carriers, the excluded set is 840 harness tags (`test-tag-…`,
+`tagdetail-s2-…`) **and `lfo`, the second most-used tag on the entire hub at 54
+people** — behind only `aos-2026-participant`.
+
+**Usage cannot rescue it, which is the finding worth keeping.** The obvious fix
+is "let usage override the creator rule — 5 accounts and 54 people is obviously
+not spam." It fails in both directions, because the QA harness fakes asserters
+too: 35 junk tags carry 5 distinct asserters each, while real tags like
+`tunestr-community` (28 people) and `urbit` (7) carry ONE. Any threshold that
+admits the real ones admits ninety fakes; any threshold that excludes the fakes
+excludes most of the real ones. Don't re-propose this.
+
+**So the axis moved from WHICH tags to WHICH SURFACE.** `TagSummary` now carries
+`unverified` and nothing is dropped. Callers rendering an unrequested list
+(browse with an empty filter, the picker's suggestions) filter it out; callers
+answering a typed query (all three search boxes, browse's own filter, the picker
+once you type) keep it and label it "Unknown creator". Junk can flood a page
+nobody asked for; it cannot flood a name somebody typed.
+
+**This moves us back toward the kit, not away.** `core/INTEGRATION.md` §C3
+specifies discovery as `filterTagElements({zHandlePubkeys})` searched
+client-side by name — no trust gate at all — and `Start.md` **Q5** recommends
+"full client-side search over all existing protocol tags", flagging curation as
+something to "confirm deliberately". Decision 9 adopted a third option from the
+reference client's live behaviour. This keeps its spam protection where the kit
+doesn't specify a list, and restores the kit's default where it does.
+
+**The picker bug this exposed, which was the worse one.** `fetchPickerTags`
+builds on the same catalogue, so typing "LFO" into "Add a tag" offered nothing
+and fell through to "Create tag" — for a tag 54 people already carry.
+`resolveOrMintTag` queries the hub ungated and would have quietly reused the
+real element, so no data was ever corrupted; the user was simply told something
+false about what they were doing. Kit ACCEPTANCE line 33 ("existing protocol
+tags load and search-by-name filters them") passed on a strict reading and
+failed in spirit.
+
+**Root cause is upstream and not ours.** Only 3 of 138 tag creators have a score
+at all, because the live corpus is a 2026-05-26 snapshot signed by a retired key
+while the current TA has published zero — already recorded in
+`tagging.config.json`. When the house re-runs its NIP-85 pipeline, `lfo` very
+likely stops being `unverified` on its own, with nothing republished. Worth
+raising with the team as a blocker on tag discovery generally.
+
+**Wording.** "Unknown creator", never "unverified tag" or a warning colour. The
+true statement is narrow — we know nothing about who *made* it — and it is not
+"this is fake", not "these people aren't really this", and not "it's new"
+(`lfo` is one of the oldest and most-used). See `UnverifiedTagChip`.
+
+**Also fixed while in here.** The catalogue now carries 25× more entries, so
+`resolveTagNames` chunks its lookup at 200 slugs (an unchunked `#d` filter over
+hundreds of values is past what some relays accept, and a rejection would blank
+every name on the page), and `resolveAssertionTags` banks each element's
+name/description while it already holds the event instead of letting the name
+pass re-fetch them.
 
 ---
 
