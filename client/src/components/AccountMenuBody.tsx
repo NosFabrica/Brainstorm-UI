@@ -18,6 +18,7 @@ import {
   BadgeCheck,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { PovToggle } from "@/components/score/TrustScorePov";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useToast } from "@/hooks/use-toast";
@@ -149,6 +150,13 @@ export function AccountMenuBody({ user, isAdmin, active, onNavigate, onInvite, o
   // identity — show just the domain rather than the placeholder underscore.
   const rawNip05 = user.profile?.nip05?.trim();
   const nip05 = rawNip05 ? rawNip05.replace(/^_@/, "") : "";
+  // Same gate every other PovToggle uses: you need a finished calculation
+  // before "my perspective" means anything. Without it the control renders as
+  // an honest single Brainstorm chip rather than a switch that does nothing.
+  const calcDone = (() => {
+    try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; }
+  })();
+  const canPersonalize = !!user.pubkey && calcDone;
 
   return (
     <div className="relative">
@@ -236,6 +244,28 @@ export function AccountMenuBody({ user, isAdmin, active, onNavigate, onInvite, o
         <MenuRow icon={HelpCircle} label="Help & FAQ" onClick={() => onNavigate("/faq")} testId="dropdown-faq" />
         <MenuRow icon={BookOpen} label="What is WoT?" onClick={() => onNavigate("/what-is-wot")} testId="dropdown-wot" />
         <MenuRow icon={SettingsIcon} label="Settings" onClick={() => onNavigate("/settings")} testId="dropdown-settings" />
+      </div>
+
+      {/* Trust perspective — the sitewide POV lens.
+
+          Team feedback: the only place to switch it was the pill under the
+          search box, so once you left the home page there was no way to change
+          (or even see) which view you were in, while every score on screen
+          depended on it. The account menu is on every page, which makes it the
+          one placement that fixes all of them at once.
+
+          Deliberately the SAME `PovToggle` component as the search-box pill and
+          the list surfaces, not a lookalike — the team's worry was being unsure
+          whether two controls were the same switch. One component, one store
+          (`useActivePov`), so they cannot drift apart or disagree.
+
+          Sits directly above Appearance because both are "how the app looks to
+          me" preferences, and the segmented shape already rhymes. */}
+      <div className="px-3 pb-2" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+        <p className="px-1 pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+          Trust perspective
+        </p>
+        <PovToggle canPersonalize={canPersonalize} avatarUrl={user.picture} className="w-full justify-center" />
       </div>
 
       {/* Appearance — compact full-width segmented row */}
