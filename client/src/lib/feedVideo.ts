@@ -1,4 +1,4 @@
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, type RefObject } from "react";
 
 /**
  * Every autoplay-in-view `<video>` registers here so only ONE plays at a time —
@@ -11,19 +11,6 @@ function playSolo(el: HTMLVideoElement) {
   for (const other of registry) {
     if (other !== el && !other.paused) other.pause();
   }
-}
-
-/** True when the user has asked the OS to reduce motion (autoplay is suppressed). */
-export function usePrefersReducedMotion(): boolean {
-  const [reduce, setReduce] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const update = () => setReduce(mq.matches);
-    update();
-    mq.addEventListener?.("change", update);
-    return () => mq.removeEventListener?.("change", update);
-  }, []);
-  return reduce;
 }
 
 /**

@@ -3,7 +3,8 @@ import { copyToClipboard } from "@/lib/clipboard";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { ArrowRight, Copy, ExternalLink, Globe, Info, Loader2, Quote, RefreshCw, Sparkles, Wand2 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { apiClient } from "@/services/api";
@@ -72,7 +73,7 @@ export interface BrainstormAssistantCardProps {
 export function BrainstormAssistantCard({ variant, prominence = "default", onDismiss, lastCalculated }: BrainstormAssistantCardProps) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = usePrefersReducedMotion();
   const [published, setPublished] = useState<PublishedState | null>(() => readPublishedAssistant());
   const [profile, setProfile] = useState<AssistantProfile | null>(() => readAssistantProfile());
   const userPubkey = useActiveAccountDisplay()?.pubkey ?? null;
@@ -560,9 +561,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                     className="group/cta relative w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-white text-sm font-bold transition-[filter,background-position] duration-300 disabled:opacity-60 disabled:pointer-events-none min-h-[48px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white overflow-hidden bg-[length:200%_100%] bg-[linear-gradient(110deg,rgb(var(--brand-primary))_0%,rgb(var(--brand-primary-hover))_40%,rgb(var(--brand-accent))_100%)] hover:bg-[position:100%_0] hover:brightness-110"
                     data-testid={`button-assistant-publish-${variant}`}
                   >
-                    {!reduceMotion && (
-                      <span aria-hidden="true" className="pointer-events-none absolute inset-0 -translate-x-full group-hover/cta:translate-x-full transition-transform duration-700 ease-out bg-[linear-gradient(120deg,transparent_30%,rgba(255,255,255,0.35)_50%,transparent_70%)]" />
-                    )}
+                    <span aria-hidden="true" className="pointer-events-none absolute inset-0 -translate-x-full group-hover/cta:translate-x-full transition-transform duration-700 ease-out bg-[linear-gradient(120deg,transparent_30%,rgba(255,255,255,0.35)_50%,transparent_70%)] motion-reduce:hidden" />
                     {isPending ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin relative z-10" />
