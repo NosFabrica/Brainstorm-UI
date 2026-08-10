@@ -22,7 +22,8 @@ interface AccountMenuProps {
 export function AccountMenu({ user, onLogout, active }: AccountMenuProps) {
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
-  const { onNavigate, onInvite, onRequestLogout, modals } = useAccountMenu(user, onLogout, () => setOpen(false));
+  const close = () => setOpen(false);
+  const { onNavigate, onInvite, onRequestLogout, onRequestRemove, modals } = useAccountMenu(user, onLogout, close);
   const isAdmin = user.isAdmin;
 
   // Phones use the bottom tab bar + sheet instead of a top-anchored popover.
@@ -63,6 +64,8 @@ export function AccountMenu({ user, onLogout, active }: AccountMenuProps) {
             onNavigate={onNavigate}
             onInvite={onInvite}
             onRequestLogout={onRequestLogout}
+            onRequestRemove={onRequestRemove}
+            close={close}
           />
         </PopoverContent>
       </Popover>

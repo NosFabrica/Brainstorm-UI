@@ -9,13 +9,12 @@
  * owner needs in order to go looking.
  */
 import { useState } from "react";
-import { AlertTriangle, Chrome, KeyRound, Loader2, Radio, RefreshCw, ShieldAlert, Smartphone } from "lucide-react";
+import { KeyRound, Loader2, RefreshCw } from "lucide-react";
 
-import { forgetAccount } from "@/accounts/login";
 import { isUnlockCancelled } from "@/accounts/local-signer";
 import type { BrainstormAccount } from "@/accounts/metadata";
-import type { PickerIdentity, PickerRow, RowHealth, SignerKind } from "@/accounts/picker";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import type { PickerIdentity, PickerRow } from "@/accounts/picker";
+import { AccountFace, AccountNames, AccountRowChips } from "@/components/AccountRow";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,71 +27,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Chip } from "@/components/ui/chip";
 import { useToast } from "@/hooks/use-toast";
-import { signInWithAccount } from "@/services/nostr";
+import { removeAccountFromDevice, signInWithAccount } from "@/services/nostr";
 import { cn } from "@/lib/utils";
-
-const SIGNERS: Record<SignerKind, { label: string; icon: typeof Chrome; tone: "indigo" | "amber" | "sky" | "emerald" }> = {
-  extension: { label: "Extension", icon: Chrome, tone: "indigo" },
-  key: { label: "Key", icon: KeyRound, tone: "amber" },
-  remote: { label: "Remote signer", icon: Radio, tone: "sky" },
-  amber: { label: "Amber", icon: Smartphone, tone: "emerald" },
-};
-
-const HEALTH: Partial<Record<RowHealth, { label: string; icon: typeof AlertTriangle; tone: "warning" | "danger" }>> = {
-  "no-backup": { label: "No backup", icon: AlertTriangle, tone: "warning" },
-  "key-unavailable": { label: "Key unavailable", icon: ShieldAlert, tone: "danger" },
-  "extension-missing": { label: "Extension missing", icon: ShieldAlert, tone: "danger" },
-  "signer-unusable": { label: "Unavailable here", icon: ShieldAlert, tone: "danger" },
-};
-
-function Face({ identity, className }: { identity: PickerIdentity; className?: string }) {
-  const initial = (identity.name || identity.npub || "?").charAt(0).toUpperCase();
-  return (
-    <Avatar className={cn("h-10 w-10 shrink-0", className)}>
-      {identity.picture ? (
-        <AvatarImage src={identity.picture} alt={identity.name || identity.npub} className="object-cover" />
-      ) : null}
-      <AvatarFallback className="bg-brand-primary/15 text-brand-primary font-bold">
-        {initial}
-      </AvatarFallback>
-    </Avatar>
-  );
-}
-
-function Names({ identity }: { identity: PickerIdentity }) {
-  return (
-    <span className="min-w-0 flex-1 text-left">
-      <span className="block truncate text-sm font-semibold text-foreground">
-        {identity.name || "Account"}
-      </span>
-      <span className="block truncate text-xs text-muted-foreground">{identity.npub}</span>
-    </span>
-  );
-}
-
-function RowChips({ row }: { row: PickerRow }) {
-  const signer = SIGNERS[row.signer];
-  const health = HEALTH[row.health];
-  return (
-    <>
-      <Chip tone={signer.tone} size="sm" icon={signer.icon}>
-        {signer.label}
-      </Chip>
-      {health && (
-        <Chip
-          tone={health.tone}
-          size="sm"
-          icon={health.icon}
-          data-testid={`chip-health-${row.account.id}`}
-        >
-          {health.label}
-        </Chip>
-      )}
-    </>
-  );
-}
 
 /** What a row that can't sign here offers instead. Removal is never the first thing. */
 function DeadEnd({
@@ -231,10 +168,10 @@ export function LoginPicker({
       )}
       data-testid={`button-pick-account-${row.account.id}`}
     >
-      {!grouped && <Face identity={identity} />}
-      {!grouped && <Names identity={identity} />}
+      {!grouped && <AccountFace identity={identity} />}
+      {!grouped && <AccountNames identity={identity} />}
       <span className={cn("flex items-center gap-1.5", grouped ? "flex-1" : "flex-col items-end shrink-0")}>
-        <RowChips row={row} />
+        <AccountRowChips row={row} />
       </span>
       {busy === row.account.id ? (
         <Loader2 className="h-4 w-4 shrink-0 animate-spin text-muted-foreground" />
@@ -267,10 +204,10 @@ export function LoginPicker({
               ) : (
                 <div className="flex flex-col gap-2.5 px-3 py-2.5">
                   <div className="flex items-center gap-3">
-                    <Face identity={identity} />
-                    <Names identity={identity} />
+                    <AccountFace identity={identity} />
+                    <AccountNames identity={identity} />
                     <span className="flex flex-col items-end gap-1 shrink-0">
-                      <RowChips row={identity.rows[0]} />
+                      <AccountRowChips row={identity.rows[0]} />
                     </span>
                   </div>
                   <DeadEnd
@@ -285,8 +222,8 @@ export function LoginPicker({
             ) : (
               <>
                 <div className="flex items-center gap-3 px-3 py-2.5">
-                  <Face identity={identity} className="h-9 w-9" />
-                  <Names identity={identity} />
+                  <AccountFace identity={identity} className="h-9 w-9" />
+                  <AccountNames identity={identity} />
                 </div>
                 <div className="divide-y divide-border border-t border-border">
                   {identity.rows.map((row) =>
@@ -295,7 +232,7 @@ export function LoginPicker({
                     ) : (
                       <div key={row.account.id} className="flex flex-col gap-2 px-3 py-2.5">
                         <span className="flex items-center gap-1.5">
-                          <RowChips row={row} />
+                          <AccountRowChips row={row} />
                         </span>
                         <DeadEnd
                           row={row}
@@ -327,7 +264,9 @@ export function LoginPicker({
             <AlertDialogCancel>Keep it</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => {
-                if (forgetting) forgetAccount(forgetting);
+                // Not `forgetAccount`: `/login?add=1` is reachable while signed in, so
+                // this row may be the Active Account, and its Session has to go too.
+                if (forgetting) removeAccountFromDevice(forgetting);
                 setForgetting(null);
               }}
               data-testid="button-forget-account-confirm"

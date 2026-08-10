@@ -66,8 +66,9 @@ import {
   activateAccount,
   adoptAccount,
   extensionAccount,
+  forgetAccount,
   localAccount,
-  releaseActiveAccount,
+  signOutActiveAccount,
 } from "@/accounts/login";
 import { isRemembered, type AccountMetadata, type BrainstormAccount } from "@/accounts/metadata";
 import { activePubkey, rememberProfile } from "@/accounts/display";
@@ -1389,15 +1390,35 @@ export function signInWithExternalSigner(account: BrainstormAccount): Promise<No
 }
 
 /**
- * Sign in as an Account this device already holds — what a login-picker row does.
- * The Session comes first: an Account whose Signer refuses must not leave the app
- * switched to an identity it can't use. A declined unlock travels back out
- * untouched, because a deliberate no is not a failed sign-in.
+ * Sign in as an Account this device already holds — what a login-picker row and
+ * the in-app switcher both do. The Session comes first: an Account whose Signer
+ * refuses must not leave the app switched to an identity it can't use. A declined
+ * unlock travels back out untouched, because a deliberate no is not a failed
+ * sign-in.
+ *
+ * The cache is cleared between the two, not after: once `activateAccount` returns,
+ * every query in it answers for the identity that just left.
  */
 export async function signInWithAccount(account: BrainstormAccount): Promise<NostrUser> {
   const token = await sessions.ensureSession(account);
+  if (activePubkey() !== account.pubkey) queryClient.clear();
   activateAccount(account);
   return completeLogin(account, token);
+}
+
+/**
+ * Let an Account go for good: it leaves this device, key and all. Where it was
+ * the one signing, the Session and the v1 caches go with it — which sign-out no
+ * longer does, and this is the only act that still should.
+ *
+ * Returns whether that signed the user out, so the caller knows to leave a page
+ * scoped to an identity this browser no longer holds.
+ */
+export function removeAccountFromDevice(account: BrainstormAccount): boolean {
+  const wasActive = activeAccount()?.id === account.id;
+  if (wasActive) logout();
+  forgetAccount(account);
+  return wasActive;
 }
 
 /**
@@ -1472,6 +1493,11 @@ export async function loginWithPastedKey(
 }
 
 
+/**
+ * Sign out the Active Account. The Session ends and nothing signs, but the
+ * Account keeps its place in the picker with its key at rest — signing back in is
+ * one tap. Letting an Account go for good is `removeAccountFromDevice`.
+ */
 export function logout() {
   // Brainstorm Assistant data is namespaced per owner, so logging out does
   // not need to wipe it — switching accounts naturally isolates state and
@@ -1479,9 +1505,10 @@ export function logout() {
   const prevPubkey = activePubkey();
   setCurrentUser(null);
   localStorage.removeItem("brainstorm_session_token");
-  // The Account goes with the key: nothing may still sign as an identity this
-  // browser has just been told to forget.
-  releaseActiveAccount();
+  signOutActiveAccount();
+  // v1's key slot is a single one for the whole browser, so it must not be left
+  // answering for an identity nobody is signed in as. The Account's own at-rest
+  // forms are what bring it back.
   clearSecretKey();
   queryClient.clear();
 

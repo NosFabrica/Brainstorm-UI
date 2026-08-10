@@ -46,9 +46,10 @@ function getNextPath(): string {
   return "/";
 }
 
-function wantsKeyForm(): boolean {
+/** `?key=1`, `?add=1` — how the rest of the app asks this page for something. */
+function flagged(name: string): boolean {
   try {
-    return new URLSearchParams(window.location.search).get("key") === "1";
+    return new URLSearchParams(window.location.search).get(name) === "1";
   } catch {
     return false;
   }
@@ -91,7 +92,11 @@ export default function LoginPage() {
   // `?key=1` asks for the key form directly — where someone arrives from the
   // Unlock modal's "sign in with your key", the account they can't open is still
   // the active one, so the signed-in bounce below has to stand aside.
-  const keyRequested = useRef(wantsKeyForm());
+  const keyRequested = useRef(flagged("key"));
+
+  // `?add=1` is the switcher's "add another account", where the user is signed in
+  // on purpose — the bounce below would send them straight back.
+  const addRequested = useRef(flagged("add"));
 
   // Mount-only: signing in *here* routes through the handlers below (a new
   // account goes to the wizard, not to `next`), so this must not fire the moment
@@ -102,7 +107,7 @@ export default function LoginPage() {
       openNsec();
       return;
     }
-    if (signedInOnArrival.current) navigate(nextPath, { replace: true });
+    if (signedInOnArrival.current && !addRequested.current) navigate(nextPath, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate, nextPath]);
 

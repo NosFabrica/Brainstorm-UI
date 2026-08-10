@@ -102,6 +102,16 @@ export function adoptAccount(account: BrainstormAccount, metadata: AccountMetada
   accountManager.setActive(account);
 }
 
+/**
+ * The Account this device holds the *key* for, by identity. An identity may sign
+ * through several Signers, but only one of them keeps a key here.
+ */
+export function localAccountFor(pubkey: string): LocalAccount | undefined {
+  return accountManager.accounts.find(
+    (account) => account.pubkey === pubkey && account instanceof LocalAccount,
+  ) as LocalAccount | undefined;
+}
+
 /** Make an Account this device already holds the one that signs — the picker's act. */
 export function activateAccount(account: BrainstormAccount): void {
   accountManager.setActive(account);
@@ -138,11 +148,17 @@ function releaseSigner(account: BrainstormAccount): void {
 }
 
 /**
- * Sign out. Removing rather than deactivating is what v1's sign-out did — it
- * deleted the key — and until the switcher offers Sign out and Remove as separate
- * acts (ticket 15) it stays the only way an Account leaves this device.
+ * Sign out: the Session ends and nobody signs, but the Account stays listed with
+ * its key at rest, so the picker can offer it back in one tap. v1's sign-out
+ * deleted the key instead, which left a signed-out device with nothing to offer.
+ *
+ * The in-memory key goes with the Session, but only where an at-rest form could
+ * bring it back — for a key with neither, locking it would be losing it.
  */
-export function releaseActiveAccount(): void {
-  const account = accountManager.active;
-  if (account) forgetAccount(account);
+export function signOutActiveAccount(): void {
+  const account = accountManager.active as BrainstormAccount | undefined;
+  if (!account) return;
+  updateMetadata(account, { session: undefined });
+  accountManager.clearActive();
+  if (account instanceof LocalAccount && account.persistable) account.signer.lock();
 }

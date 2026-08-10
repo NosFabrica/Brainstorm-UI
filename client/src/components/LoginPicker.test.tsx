@@ -7,14 +7,12 @@ import type { PickerIdentity, RowHealth, SignerKind } from "@/accounts/picker";
 import { LoginPicker } from "./LoginPicker";
 
 const signInWithAccount = vi.fn();
-const forgetAccount = vi.fn();
+const removeAccountFromDevice = vi.fn();
 const toast = vi.fn();
 
 vi.mock("@/services/nostr", () => ({
   signInWithAccount: (account: BrainstormAccount) => signInWithAccount(account),
-}));
-vi.mock("@/accounts/login", () => ({
-  forgetAccount: (account: BrainstormAccount) => forgetAccount(account),
+  removeAccountFromDevice: (account: BrainstormAccount) => removeAccountFromDevice(account),
 }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
 
@@ -159,11 +157,11 @@ describe("a key that can't be recovered here", () => {
     renderPicker([dead()]);
 
     fireEvent.click(screen.getByTestId("button-forget-account-dave-key"));
-    expect(forgetAccount).not.toHaveBeenCalled();
+    expect(removeAccountFromDevice).not.toHaveBeenCalled();
 
     fireEvent.click(await screen.findByTestId("button-forget-account-confirm"));
 
-    expect(forgetAccount).toHaveBeenCalledWith(expect.objectContaining({ id: "dave-key" }));
+    expect(removeAccountFromDevice).toHaveBeenCalledWith(expect.objectContaining({ id: "dave-key" }));
   });
 
   it("explains a browser-wide loss once, not once per account", () => {

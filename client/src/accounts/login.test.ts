@@ -13,7 +13,7 @@ import {
   extensionAccount,
   forgetAccount,
   localAccount,
-  releaseActiveAccount,
+  signOutActiveAccount,
   waitForExtension,
 } from "./login";
 import { createFakeUnlockCache, LOW_LOGN, PASSWORD } from "./test-fakes";
@@ -145,18 +145,34 @@ describe("adopting and releasing", () => {
     expect(getMetadata(account).session?.token).toBe("t");
   });
 
-  it("releases the account and its in-memory key on sign out", async () => {
+  it("keeps the account listed and its key at rest on sign out — one tap to return", async () => {
     const account = await adopted();
+    account.metadata = { ...getMetadata(account), session: { token: "t", isAdmin: false } };
 
-    releaseActiveAccount();
+    signOutActiveAccount();
 
     expect(accountManager.active).toBeUndefined();
-    expect(accountManager.accounts).not.toContain(account);
-    expect((account as LocalAccount).locked).toBe(true);
+    expect(accountManager.accounts).toContain(account);
+    expect(getMetadata(account).session).toBeUndefined();
+    expect(account.persistable).toBe(true);
+    // the in-memory key goes; the Unlock cache is what brings it back
+    expect(account.locked).toBe(true);
+  });
+
+  it("holds on to a key with nowhere to go — locking it would be losing it", async () => {
+    const unlockCache = createFakeUnlockCache();
+    unlockCache.supported = false;
+    const account = await localAccount(generateSecretKey(), { unlockCache });
+    adoptAccount(account, { remembered: true });
+
+    signOutActiveAccount();
+
+    expect(account.persistable).toBe(false);
+    expect(account.locked).toBe(false);
   });
 
   it("is a no-op when nobody is signed in", () => {
-    expect(() => releaseActiveAccount()).not.toThrow();
+    expect(() => signOutActiveAccount()).not.toThrow();
   });
 
   it("hands signing to an account this device already holds", async () => {

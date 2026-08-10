@@ -152,7 +152,7 @@ function YouTab({ user, active, onClick }: { user: AccountDisplay; active: boole
 function MobileAccountSheet({ user, onLogout }: { user: AccountDisplay; onLogout: () => void }) {
   const open = useAccountSheetOpen();
   const isAdmin = user.isAdmin;
-  const { onNavigate, onInvite, onRequestLogout, modals } = useAccountMenu(user, onLogout, closeAccountSheet);
+  const { onNavigate, onInvite, onRequestLogout, onRequestRemove, modals } = useAccountMenu(user, onLogout, closeAccountSheet);
 
   return (
     <>
@@ -169,6 +169,8 @@ function MobileAccountSheet({ user, onLogout }: { user: AccountDisplay; onLogout
               onNavigate={onNavigate}
               onInvite={onInvite}
               onRequestLogout={onRequestLogout}
+              onRequestRemove={onRequestRemove}
+              close={closeAccountSheet}
             />
           </div>
         </DrawerContent>

@@ -13,10 +13,14 @@ const PASSWORD = "correct horse battery staple";
 /** Every prompt this file raises, so none is left blocking the next test. */
 const raised: Promise<void>[] = [];
 
-const logout = vi.fn();
+const removeAccountFromDevice = vi.fn();
 const navigate = vi.fn();
+const heldAccount = { id: "local-1", pubkey: "a".repeat(64) };
 
-vi.mock("@/services/nostr", () => ({ logout: () => logout() }));
+vi.mock("@/services/nostr", () => ({
+  removeAccountFromDevice: (account: unknown) => removeAccountFromDevice(account),
+}));
+vi.mock("@/accounts/login", () => ({ localAccountFor: () => heldAccount }));
 vi.mock("wouter", () => ({ useLocation: () => ["/dashboard", (to: string) => navigate(to)] }));
 
 /** Raise a prompt the way a Locked Signer does, and render the modal that serves it. */
@@ -156,7 +160,7 @@ describe("forgetting the recovery password", () => {
 
     expect(isUnlockCancelled(await pending.catch((e) => e))).toBe(true);
     expect(navigate).toHaveBeenCalledWith("/login?key=1");
-    expect(logout).not.toHaveBeenCalled();
+    expect(removeAccountFromDevice).not.toHaveBeenCalled();
   });
 
   it("does not destroy the key on one tap — removal is confirmed first", async () => {
@@ -165,7 +169,7 @@ describe("forgetting the recovery password", () => {
     fireEvent.click(screen.getByTestId("button-unlock-forgotten"));
     fireEvent.click(screen.getByTestId("button-unlock-remove"));
 
-    expect(logout).not.toHaveBeenCalled();
+    expect(removeAccountFromDevice).not.toHaveBeenCalled();
     expect(screen.getByTestId("button-unlock-remove-confirm")).toBeInTheDocument();
   });
 
@@ -177,7 +181,7 @@ describe("forgetting the recovery password", () => {
     fireEvent.click(screen.getByTestId("button-unlock-remove-confirm"));
 
     expect(isUnlockCancelled(await pending.catch((e) => e))).toBe(true);
-    expect(logout).toHaveBeenCalledTimes(1);
+    expect(removeAccountFromDevice).toHaveBeenCalledWith(heldAccount);
     expect(navigate).toHaveBeenCalledWith("/login");
   });
 });

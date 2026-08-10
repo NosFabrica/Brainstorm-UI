@@ -14,14 +14,17 @@ import {
   Settings as SettingsIcon,
   Shield,
   LogOut,
-  Plus,
+  ChevronRight,
   BadgeCheck,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
+import { AccountSwitcher } from "@/components/AccountSwitcherPane";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useToast } from "@/hooks/use-toast";
-import { hasPersistentKey } from "@/services/nostr";
+import { removeAccountFromDevice } from "@/services/nostr";
+import { isUnbackedUp } from "@/accounts/picker";
+import type { BrainstormAccount } from "@/accounts/metadata";
 import type { AccountDisplay } from "@/accounts/display";
 import { apiClient } from "@/services/api";
 import {
@@ -35,6 +38,18 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import type { AppKey } from "@/components/AppsLauncher";
+
+/**
+ * Where "add another account" goes. Adding one is an errand, not a destination, so
+ * the login page is told where to put them back — and `?add=1` is what stops it
+ * bouncing a signed-in arrival straight home before they get there.
+ */
+function addAccountPath(): string {
+  const here = typeof window === "undefined" ? "" : window.location.pathname + window.location.search;
+  return here && !here.startsWith("/login")
+    ? `/login?add=1&next=${encodeURIComponent(here)}`
+    : "/login?add=1";
+}
 
 export const NAV_TILES: { key: AppKey; label: string; path: string; icon: React.ComponentType<{ className?: string }> }[] = [
   { key: "home", label: "Search", path: "/", icon: Search },
@@ -53,7 +68,7 @@ export const NAV_TILES: { key: AppKey; label: string; path: string; icon: React.
 export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close: () => void) {
   const [, navigate] = useLocation();
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [removing, setRemoving] = useState<BrainstormAccount | null>(null);
 
   // Own house Web-of-Trust score for the invite card — fetched lazily when the
   // invite sheet opens (cached). Sharing your standing is a credible flex.
@@ -65,23 +80,19 @@ export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close
     retry: false,
   });
 
-  // In-app accounts hold their key locally; signing out without a backup makes
-  // the account unrecoverable. Only intercept those (extension/nsec users keep
-  // their key elsewhere).
-  const backedUp = (() => {
-    try { return !user?.pubkey || localStorage.getItem(`brainstorm_backup_done:${user.pubkey}`) === "true"; }
-    catch { return true; }
-  })();
-  const needsBackupBeforeLogout = hasPersistentKey() && !backedUp;
-
   const inviteUrl = typeof window !== "undefined" && user?.npub ? `${window.location.origin}/p/${user.npub}` : "";
 
   const onNavigate = (path: string) => { close(); navigate(path); };
   const onInvite = () => { close(); setInviteOpen(true); };
-  const onRequestLogout = () => {
-    close();
-    if (needsBackupBeforeLogout) setLogoutConfirmOpen(true);
-    else onLogout();
+  // Sign out no longer destroys anything, so it asks nothing — the wall it used to
+  // put up has moved onto the act that still does (see the dialog below).
+  const onRequestLogout = () => { close(); onLogout(); };
+  const onRequestRemove = (account: BrainstormAccount) => { close(); setRemoving(account); };
+
+  // Removing the Account that was signing leaves the app on a page belonging to an
+  // identity this browser no longer holds.
+  const remove = (account: BrainstormAccount) => {
+    if (removeAccountFromDevice(account)) navigate("/");
   };
 
   const modals: ReactNode = (
@@ -98,36 +109,63 @@ export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close
         score01={typeof houseScoreQuery.data === "number" ? houseScoreQuery.data : null}
       />
 
-      <AlertDialog open={logoutConfirmOpen} onOpenChange={setLogoutConfirmOpen}>
-        <AlertDialogContent data-testid="logout-backup-confirm">
-          <AlertDialogHeader>
-            <AlertDialogTitle>Save a backup before you sign out?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This account lives in this browser. Without a backup file you can't sign back in
-              here or anywhere else — and it can't be recovered. It takes a few seconds.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel
-              className="text-red-600 hover:text-red-700"
-              onClick={() => { setLogoutConfirmOpen(false); onLogout(); }}
-              data-testid="logout-anyway"
-            >
-              Sign out anyway
-            </AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => { setLogoutConfirmOpen(false); navigate("/settings?tab=profile&focus=backup"); }}
-              data-testid="logout-save-backup"
-            >
-              Save backup
-            </AlertDialogAction>
-          </AlertDialogFooter>
+      {/* The wall decision 10 moved off sign-out and onto removal. Whether it says
+          "you'll lose this" or "you can add it back" turns on the same question the
+          switcher's rows answer: is there a Backup behind this key? */}
+      <AlertDialog open={removing !== null} onOpenChange={(open) => !open && setRemoving(null)}>
+        <AlertDialogContent data-testid="remove-account-confirm">
+          {removing && isUnbackedUp(removing) ? (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Save a backup before you remove this account?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  This account's key lives in this browser and nowhere else. Removing it deletes
+                  the key — without a backup file it can't be recovered, here or anywhere. It
+                  takes a few seconds.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel
+                  className="text-red-600 hover:text-red-700"
+                  onClick={() => { const account = removing; setRemoving(null); if (account) remove(account); }}
+                  data-testid="remove-anyway"
+                >
+                  Remove anyway
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => { setRemoving(null); navigate("/settings?tab=profile&focus=backup"); }}
+                  data-testid="remove-save-backup"
+                >
+                  Save backup
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          ) : (
+            <>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Remove this account from this device?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Everything this browser holds for it goes, including its npub. Anyone holding
+                  the key elsewhere can add it again; nobody else can.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Keep it</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={() => { const account = removing; setRemoving(null); if (account) remove(account); }}
+                  data-testid="remove-account-confirm-button"
+                >
+                  Remove
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </>
+          )}
         </AlertDialogContent>
       </AlertDialog>
     </>
   );
 
-  return { onNavigate, onInvite, onRequestLogout, modals };
+  return { onNavigate, onInvite, onRequestLogout, onRequestRemove, modals };
 }
 
 interface AccountMenuBodyProps {
@@ -137,25 +175,59 @@ interface AccountMenuBodyProps {
   onNavigate: (path: string) => void;
   onInvite: () => void;
   onRequestLogout: () => void;
+  onRequestRemove: (account: BrainstormAccount) => void;
+  /** Dismiss the host surface — what switching to another Account does. */
+  close: () => void;
 }
 
 /**
  * The visible account-menu content — identity, primary-destination tiles,
- * grouped links, appearance, admin, and the account switcher. Presentation only;
- * the host (popover on desktop, bottom sheet on mobile) supplies the surface.
+ * grouped links, appearance, admin, and sign out. Presentation only; the host
+ * (popover on desktop, bottom sheet on mobile) supplies the surface.
+ *
+ * The identity card is also the way into the account switcher, which replaces
+ * everything here rather than appearing beneath it: both hosts are already at
+ * their height budget, and a list under the card would grow with the number of
+ * Accounts a device holds.
  */
-export function AccountMenuBody({ user, isAdmin, active, onNavigate, onInvite, onRequestLogout }: AccountMenuBodyProps) {
+export function AccountMenuBody({
+  user,
+  isAdmin,
+  active,
+  onNavigate,
+  onInvite,
+  onRequestLogout,
+  onRequestRemove,
+  close,
+}: AccountMenuBodyProps) {
   const { toast } = useToast();
+  const [pane, setPane] = useState<"menu" | "switcher">("menu");
   // Verified handle for the identity line. A "_@domain" nip05 is a bare-domain
   // identity — show just the domain rather than the placeholder underscore.
   const rawNip05 = user.nip05?.trim();
   const nip05 = rawNip05 ? rawNip05.replace(/^_@/, "") : "";
 
+  if (pane === "switcher") {
+    return (
+      <AccountSwitcher
+        onBack={() => setPane("menu")}
+        onSwitched={() => { setPane("menu"); close(); }}
+        onRequestRemove={(account) => { setPane("menu"); onRequestRemove(account); }}
+        onAddAccount={() => { setPane("menu"); onNavigate(addAccountPath()); }}
+      />
+    );
+  }
+
   return (
     <div className="relative">
-      {/* Identity card */}
+      {/* Identity card — and the switcher's trigger */}
       <div className="p-4 pb-3">
-        <div className="flex items-center gap-3">
+        <button
+          type="button"
+          onClick={() => setPane("switcher")}
+          className="flex w-full items-center gap-3 rounded-xl px-1 py-1 -mx-1 text-left transition-colors hover:bg-white/60 dark:hover:bg-white/[0.08] outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+          data-testid="button-switch-account"
+        >
           <span className="block rounded-full p-[2px] bg-gradient-to-tr from-brand-deep via-brand-accent to-brand-deep shrink-0">
             <Avatar className="h-11 w-11">
               {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "User"} className="object-cover" /> : null}
@@ -164,30 +236,34 @@ export function AccountMenuBody({ user, isAdmin, active, onNavigate, onInvite, o
               </AvatarFallback>
             </Avatar>
           </span>
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100" data-testid="text-menu-name">
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-semibold text-slate-900 dark:text-slate-100" data-testid="text-menu-name">
               {user.displayName || "Anonymous"}
-            </p>
+            </span>
             {nip05 && (
-              <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-300" data-testid="text-menu-nip05">
+              <span className="mt-0.5 flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-300" data-testid="text-menu-nip05">
                 <BadgeCheck className="h-3.5 w-3.5 shrink-0 text-brand-primary dark:text-brand-link" />
                 <span className="truncate">{nip05}</span>
-              </p>
+              </span>
             )}
-            <button
-              type="button"
-              className="mt-0.5 flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 transition-colors hover:text-brand-deep dark:hover:text-brand-link"
-              onClick={async () => {
-                await copyToClipboard(user.npub);
-                toast({ title: "Copied!", description: "npub copied to clipboard" });
-              }}
-              data-testid="button-copy-npub"
-            >
-              <span className="font-mono" data-testid="text-menu-npub">{user.npub.slice(0, 14)}…</span>
-              <Copy className="h-3 w-3 shrink-0" />
-            </button>
-          </div>
-        </div>
+            <span className="mt-0.5 block text-xs text-slate-500 dark:text-slate-400">Switch account</span>
+          </span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />
+        </button>
+        {/* Outside the trigger: a button inside a button is not a thing, and the
+            npub is the one part of this card that isn't about switching. */}
+        <button
+          type="button"
+          className="mt-1 ml-[3.75rem] flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 transition-colors hover:text-brand-deep dark:hover:text-brand-link"
+          onClick={async () => {
+            await copyToClipboard(user.npub);
+            toast({ title: "Copied!", description: "npub copied to clipboard" });
+          }}
+          data-testid="button-copy-npub"
+        >
+          <span className="font-mono" data-testid="text-menu-npub">{user.npub.slice(0, 14)}…</span>
+          <Copy className="h-3 w-3 shrink-0" />
+        </button>
         <button
           type="button"
           onClick={() => onNavigate(`/p/${user.npub}`)}
@@ -264,9 +340,9 @@ export function AccountMenuBody({ user, isAdmin, active, onNavigate, onInvite, o
           turning into a hard border. */}
       <div className="mx-3 border-t border-slate-900/[0.16] dark:border-white/[0.16]" />
 
-      {/* Account switcher + sign out */}
+      {/* Sign out stays panel-level and acts on the Active Account — it's "me, now".
+          Adding and removing Accounts are the switcher's job. */}
       <div className="p-1.5">
-        <MenuRow icon={Plus} label="Add another account" onClick={() => onNavigate("/login?add=1")} testId="dropdown-add-account" />
         <MenuRow icon={LogOut} label="Sign out" onClick={onRequestLogout} tone="danger" testId="dropdown-logout" />
       </div>
     </div>

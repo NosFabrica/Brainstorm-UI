@@ -7,7 +7,7 @@ import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import { LocalAccount } from "./local-account";
 import { LocalSigner } from "./local-signer";
 import { updateMetadata, type BrainstormAccount } from "./metadata";
-import { healthOf, isSelectable, pickerIdentities, signerKindOf } from "./picker";
+import { healthOf, isSelectable, pickerIdentities, signerKindOf, withActiveAccount } from "./picker";
 import { createFakeUnlockCache, keyFixture, type FakeUnlockCache } from "./test-fakes";
 
 function localRow(
@@ -72,6 +72,14 @@ describe("the health of a local key", () => {
     expect(await healthOf(localRow({ envelope }, unlockCache, pubkey), "present")).toBe("no-backup");
   });
 
+  it("is well where the User pasted the key themselves — they hold it, not us", async () => {
+    const { pubkey, unlockCache, envelope } = await keyFixture();
+    const account = localRow({ envelope }, unlockCache, pubkey);
+    updateMetadata(account as unknown as BrainstormAccount, { remembered: true, backedUp: true });
+
+    expect(await healthOf(account, "present")).toBe("ok");
+  });
+
   it("is well with only a Backup — selecting it asks for the password", async () => {
     const { pubkey, unlockCache, ncryptsec } = await keyFixture();
 
@@ -93,6 +101,51 @@ describe("the health of a local key", () => {
     await healthOf(account, "present");
 
     expect(account.locked).toBe(true);
+  });
+});
+
+describe("an account this device didn't keep", () => {
+  it("is nowhere in a list — it dies with the tab, so offering it would be a lie", async () => {
+    const { pubkey, unlockCache, envelope } = await keyFixture();
+    const account = localRow({ envelope }, unlockCache, pubkey) as unknown as BrainstormAccount;
+    updateMetadata(account, { remembered: false, name: "Alice" });
+
+    expect(pickerIdentities([account], () => "ok")).toEqual([]);
+  });
+
+  it("still heads the switcher where it is the one signing", async () => {
+    const { pubkey, unlockCache, envelope } = await keyFixture();
+    const account = localRow({ envelope }, unlockCache, pubkey) as unknown as BrainstormAccount;
+    updateMetadata(account, { remembered: false, name: "Alice", npub: "npub1alice" });
+
+    const [identity] = withActiveAccount([], account);
+
+    expect(identity.name).toBe("Alice");
+    expect(identity.npub).toBe("npub1alice");
+    // signing right now, so it is well — and not a way to switch to itself
+    expect(identity.rows).toEqual([
+      { account, signer: "key", health: "ok", selectable: false },
+    ]);
+  });
+
+  it("joins its identity rather than repeating the same face under a second heading", async () => {
+    const { pubkey, unlockCache, envelope } = await keyFixture();
+    const kept = remembered(extensionRow(pubkey), "Alice");
+    const unkept = localRow({ envelope }, unlockCache, pubkey) as unknown as BrainstormAccount;
+    const listed = pickerIdentities([kept], () => "ok");
+
+    const identities = withActiveAccount(listed, unkept);
+
+    expect(identities).toHaveLength(1);
+    expect(identities[0].rows.map((row) => row.signer)).toEqual(["extension", "key"]);
+  });
+
+  it("leaves the list alone where the active account is already in it", async () => {
+    const { pubkey, unlockCache, envelope } = await keyFixture();
+    const kept = remembered(localRow({ envelope }, unlockCache, pubkey), "Alice");
+    const listed = pickerIdentities([kept], () => "ok");
+
+    expect(withActiveAccount(listed, kept as unknown as BrainstormAccount)).toBe(listed);
   });
 });
 

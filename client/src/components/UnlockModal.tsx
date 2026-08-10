@@ -4,8 +4,9 @@ import { use$ } from "applesauce-react/hooks";
 import { KeyRound, Trash2 } from "lucide-react";
 
 import { installUnlockPrompt, unlockPrompt$ } from "@/accounts/unlock-request";
+import { localAccountFor } from "@/accounts/login";
 import type { UnlockFailure } from "@/accounts/restore";
-import { logout } from "@/services/nostr";
+import { removeAccountFromDevice } from "@/services/nostr";
 import { afterPaint } from "@/lib/afterPaint";
 import { Button } from "@/components/ui/button";
 import {
@@ -96,9 +97,13 @@ export function UnlockModal() {
     navigate("/login?key=1");
   };
 
+  // The Account this box names, which is the Active one by construction — nothing
+  // the user didn't start can raise a prompt. Named rather than assumed because
+  // what follows destroys a key.
   const removeFromDevice = () => {
+    const account = localAccountFor(prompt.pubkey);
     prompt.cancel();
-    logout();
+    if (account) removeAccountFromDevice(account);
     navigate("/login");
   };
 

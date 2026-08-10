@@ -1,7 +1,8 @@
 /**
- * What the login picker shows: the Accounts this device kept, gathered under the
- * identity each one signs for, every row carrying its Signer and whether that
- * Signer can still be used here.
+ * What an account list shows — the login picker's and the in-app switcher's
+ * alike: the Accounts this device kept, gathered under the identity each one
+ * signs for, every row carrying its Signer and whether that Signer can still be
+ * used here.
  *
  * Health is checked where checking is cheap and left to the click where it isn't
  * — an Unlock cache is an AES-GCM decrypt over 32 bytes, an extension either
@@ -77,13 +78,30 @@ export function signerPresence(kind: SignerKind, extension: ExtensionPresence): 
 }
 
 /**
+ * Whether losing this browser loses the Account: a key kept here with no Backup
+ * behind it, that its owner didn't bring themselves. Both the switcher's rows and
+ * the remove-from-device warning ask this. The older nags still read v1's
+ * `brainstorm_backup_done:<pubkey>` flags — ticket 16 is what moves them.
+ */
+export function isUnbackedUp(account: BrainstormAccount | LocalAccount): boolean {
+  return (
+    account instanceof LocalAccount &&
+    !account.signer.data.ncryptsec &&
+    !getMetadata(account as unknown as BrainstormAccount).backedUp
+  );
+}
+
+/**
  * A Backup means the key is recoverable with a password, so the row works — it
  * simply asks for one, and nothing about this device can change that. Only where
- * there is no Backup does the Unlock cache decide, and only then is it opened.
+ * there is no Backup does the Unlock cache decide, and only then is it opened:
+ * the cache says whether the row can *sign*, `backedUp` only whether losing this
+ * browser loses it — which for a key its owner pasted in, it doesn't.
  */
 export async function localKeyHealth(account: LocalAccount): Promise<RowHealth> {
   if (account.signer.data.ncryptsec) return "ok";
-  return (await account.signer.probeUnlockCache()) ? "no-backup" : "key-unavailable";
+  if (!(await account.signer.probeUnlockCache())) return "key-unavailable";
+  return isUnbackedUp(account) ? "no-backup" : "ok";
 }
 
 /** How this Account's Signer looks from here, right now. */
@@ -94,6 +112,48 @@ export async function healthOf(
   return account instanceof LocalAccount
     ? localKeyHealth(account)
     : signerPresence(signerKindOf(account), extension);
+}
+
+/**
+ * The same list, guaranteed to contain the Active Account.
+ *
+ * A Remembered Account is the only kind anything lists: the rest die with the tab,
+ * and offering one at sign-in would be offering something that won't be there. But
+ * the switcher asks a different question, and one that doesn't contain the person
+ * reading it looks broken — so an Account signed in without "remember me" gets a
+ * row anyway, healthy by construction because it is signing right now.
+ *
+ * It joins its identity where that identity is already listed under another
+ * Signer, rather than appearing as a second heading for the same face.
+ */
+export function withActiveAccount(
+  identities: PickerIdentity[],
+  active: BrainstormAccount | null | undefined,
+): PickerIdentity[] {
+  if (!active) return identities;
+  if (identities.some((identity) => identity.rows.some((row) => row.account.id === active.id))) {
+    return identities;
+  }
+
+  const row: PickerRow = { account: active, signer: signerKindOf(active), health: "ok", selectable: false };
+  const listed = identities.find((identity) => identity.pubkey === active.pubkey);
+  if (listed) {
+    return identities.map((identity) =>
+      identity === listed ? { ...identity, rows: [...identity.rows, row] } : identity,
+    );
+  }
+
+  const metadata = getMetadata(active);
+  return [
+    {
+      pubkey: active.pubkey,
+      npub: npubOf(active),
+      name: metadata.name,
+      picture: metadata.picture,
+      rows: [row],
+    },
+    ...identities,
+  ];
 }
 
 /**
