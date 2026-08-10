@@ -1,12 +1,12 @@
 // @vitest-environment node
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { ExtensionAccount } from "applesauce-accounts/accounts";
 import { ExtensionSigner } from "applesauce-signers";
 import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
 
 import { accountManager } from "@/accounts";
 import { LocalAccount } from "./local-account";
-import { getMetadata } from "./metadata";
+import { getMetadata, type BrainstormAccount } from "./metadata";
 import {
   activateAccount,
   adoptAccount,
@@ -182,5 +182,23 @@ describe("adopting and releasing", () => {
     expect(accountManager.accounts).not.toContain(other);
     expect(other.locked).toBe(true);
     expect(accountManager.active).toBe(signedIn);
+  });
+
+  it("shuts a Signer down rather than only dropping the reference", () => {
+    // A remote signer's relay subscription and Amber's visibilitychange listener
+    // both outlive the Account otherwise, for an identity we no longer hold.
+    const destroy = vi.fn();
+    const logout = vi.fn().mockResolvedValue(undefined);
+    const account = {
+      id: "external-1",
+      pubkey: "b".repeat(64),
+      type: "nostr-connect",
+      signer: { destroy, logout },
+    } as unknown as BrainstormAccount;
+
+    forgetAccount(account);
+
+    expect(destroy).toHaveBeenCalled();
+    expect(logout).toHaveBeenCalled();
   });
 });

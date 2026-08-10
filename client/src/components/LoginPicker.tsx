@@ -9,7 +9,7 @@
  * owner needs in order to go looking.
  */
 import { useState } from "react";
-import { AlertTriangle, Chrome, KeyRound, Loader2, Radio, RefreshCw, ShieldAlert } from "lucide-react";
+import { AlertTriangle, Chrome, KeyRound, Loader2, Radio, RefreshCw, ShieldAlert, Smartphone } from "lucide-react";
 
 import { forgetAccount } from "@/accounts/login";
 import { isUnlockCancelled } from "@/accounts/local-signer";
@@ -33,16 +33,18 @@ import { useToast } from "@/hooks/use-toast";
 import { signInWithAccount } from "@/services/nostr";
 import { cn } from "@/lib/utils";
 
-const SIGNERS: Record<SignerKind, { label: string; icon: typeof Chrome; tone: "indigo" | "amber" | "sky" }> = {
+const SIGNERS: Record<SignerKind, { label: string; icon: typeof Chrome; tone: "indigo" | "amber" | "sky" | "emerald" }> = {
   extension: { label: "Extension", icon: Chrome, tone: "indigo" },
   key: { label: "Key", icon: KeyRound, tone: "amber" },
   remote: { label: "Remote signer", icon: Radio, tone: "sky" },
+  amber: { label: "Amber", icon: Smartphone, tone: "emerald" },
 };
 
 const HEALTH: Partial<Record<RowHealth, { label: string; icon: typeof AlertTriangle; tone: "warning" | "danger" }>> = {
   "no-backup": { label: "No backup", icon: AlertTriangle, tone: "warning" },
   "key-unavailable": { label: "Key unavailable", icon: ShieldAlert, tone: "danger" },
   "extension-missing": { label: "Extension missing", icon: ShieldAlert, tone: "danger" },
+  "signer-unusable": { label: "Unavailable here", icon: ShieldAlert, tone: "danger" },
 };
 
 function Face({ identity, className }: { identity: PickerIdentity; className?: string }) {
@@ -107,6 +109,7 @@ function DeadEnd({
   onForget: (account: BrainstormAccount) => void;
 }) {
   const gone = row.health === "key-unavailable";
+  const elsewhere = row.health === "signer-unusable";
   return (
     <div className="flex flex-col gap-2">
       {explain && (
@@ -116,11 +119,13 @@ function DeadEnd({
         >
           {gone
             ? "This browser no longer holds this key, and no backup stands behind it. Sign in with your key if you kept one elsewhere."
-            : "Your signing extension isn't available in this browser. Nothing is lost — enable it and look again, or add this account another way below."}
+            : elsewhere
+              ? "This browser can't hand requests to Amber. It needs an Android browser over https, with “Desktop site” off — turn that back and reload. Nothing is lost."
+              : "Your signing extension isn't available in this browser. Nothing is lost — enable it and look again, or add this account another way below."}
         </p>
       )}
       <div className="flex flex-wrap items-center gap-2">
-        {gone ? (
+        {gone && (
           <Button
             type="button"
             variant="outline"
@@ -130,7 +135,8 @@ function DeadEnd({
           >
             <KeyRound /> Sign in with your key
           </Button>
-        ) : (
+        )}
+        {!gone && !elsewhere && (
           <Button
             type="button"
             variant="outline"

@@ -111,10 +111,30 @@ export function activateAccount(account: BrainstormAccount): void {
  * Let an Account go: it leaves this device, keys and all, and the in-memory copy
  * goes with it — nothing may still sign as an identity this browser no longer
  * holds.
+ *
+ * For a Signer that reaches outside this module that means shutting it down too,
+ * not just dropping the reference. A remote signer holds a live relay
+ * subscription that would otherwise run for the life of the tab; Amber's holds a
+ * `visibilitychange` listener that would read the clipboard on every return to
+ * the app, for an identity we no longer have.
  */
 export function forgetAccount(account: BrainstormAccount): void {
   accountManager.removeAccount(account);
   if (account instanceof LocalAccount) account.signer.lock();
+  // `logout` is a courtesy the spec makes optional and nsec.app doesn't
+  // implement, so it is sent without waiting and without caring.
+  releaseSigner(account);
+}
+
+/** Shut down whatever the Signer was holding open. Best effort, always. */
+function releaseSigner(account: BrainstormAccount): void {
+  const signer = account.signer as { logout?: () => Promise<void>; destroy?: () => void };
+  try {
+    signer.destroy?.();
+    void signer.logout?.().catch(() => {});
+  } catch {
+    /* a Signer that can't be shut down cleanly still has to leave */
+  }
 }
 
 /**

@@ -33,10 +33,12 @@ const afterFirstRender = (task: () => void) => void setTimeout(task, 0);
 export function bootstrapAccounts({
   storage = browserStorage(),
   unlockCache = deviceUnlockCache,
+  transport,
   retireV1Keys = false,
   schedule = afterFirstRender,
 }: BootstrapOptions = {}): Bootstrapped {
-  const accounts = createManager({ storage, unlockCache, autoStart: false });
+  // Installs the remote-signer transport as its first act — see `createManager`.
+  const accounts = createManager({ storage, unlockCache, transport, autoStart: false });
 
   // Before the restore, not after: migration no-ops once a v2 blob exists, and
   // that check is only meaningful while the manager is still empty.

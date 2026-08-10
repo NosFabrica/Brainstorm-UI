@@ -6,8 +6,17 @@ import {
   ChevronDown,
   KeyRound,
   ArrowRight,
+  Radio,
+  Smartphone,
 } from "lucide-react";
-import { handleLogin, LoginError, type LoginErrorCode } from "@/services/nostr";
+import {
+  handleLogin,
+  signInWithExternalSigner,
+  LoginError,
+  type LoginErrorCode,
+} from "@/services/nostr";
+import { amberAccount, isAmberSupported } from "@/accounts/amber";
+import { RemoteSignerModal } from "@/components/RemoteSignerModal";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useLoginPicker } from "@/hooks/useLoginPicker";
 import { LoginPicker } from "@/components/LoginPicker";
@@ -17,6 +26,15 @@ import { decodeShareId } from "@/lib/shareId";
 import { Wordmark } from "@/components/Wordmark";
 import { HeroSceneRotator } from "@/components/brand/HeroSceneRotator";
 import { HERO_SOLO } from "@/lib/heroScenes";
+
+/**
+ * The quiet way in, for the rows that aren't the headline: signer app, Amber,
+ * create an account. Login is intentionally bespoke rather than built on the
+ * design-system Button (docs/design-system.md), so the one place the shape lives
+ * is here.
+ */
+const SECONDARY_BUTTON =
+  "group w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 transition-all active:scale-[0.99]";
 
 function getNextPath(): string {
   try {
@@ -58,6 +76,11 @@ export default function LoginPage() {
   const [failureOpen, setFailureOpen] = useState(false);
   const [failureCode, setFailureCode] = useState<LoginErrorCode | null>(null);
   const [failureMessage, setFailureMessage] = useState("");
+  const [remoteOpen, setRemoteOpen] = useState(false);
+  const [amberBusy, setAmberBusy] = useState(false);
+
+  // Read once: `SUPPORTED` is settled at module load and can't change under us.
+  const amberSupported = useRef(isAmberSupported()).current;
 
   const signedIn = useActiveAccountDisplay();
   const { identities, recheckExtension } = useLoginPicker();
@@ -108,6 +131,25 @@ export default function LoginPage() {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Amber answers through the clipboard after an app switch, so this settles
+  // only once the user comes back — including when they come back having said no.
+  const onAmberLogin = async () => {
+    setError(null);
+    setAmberBusy(true);
+    try {
+      await signInWithExternalSigner(await amberAccount());
+      routeAfterLogin();
+    } catch (err) {
+      setError(
+        err instanceof Error && /cancel/i.test(err.message)
+          ? "Amber didn't hand anything back. Approve the request and try again."
+          : "Couldn't sign in with Amber. Make sure it's installed, then try again.",
+      );
+    } finally {
+      setAmberBusy(false);
     }
   };
 
@@ -244,6 +286,35 @@ export default function LoginPage() {
               <ArrowRight className="h-4 w-4 shrink-0 group-hover:translate-x-0.5 transition-transform" />
             </button>
 
+            {/* One row for every remote signer — nsec.app, Amber's bunker mode,
+                Keycast, anything self-hosted. Their differences are absorbed at
+                transport; giving each its own row would be a lie about how many
+                choices there are. */}
+            <button
+              type="button"
+              onClick={() => setRemoteOpen(true)}
+              className={SECONDARY_BUTTON}
+              data-testid="button-signin-remote"
+            >
+              <Radio className="h-4 w-4" /> Sign in with a signer app
+            </button>
+
+            {/* Only where it works. It is the one option for Amber's offline
+                build, which ships with networking removed and cannot do NIP-46
+                at all — and the alternative for those users is a raw key. */}
+            {amberSupported && (
+              <button
+                type="button"
+                onClick={onAmberLogin}
+                disabled={amberBusy}
+                className={`${SECONDARY_BUTTON} disabled:opacity-60`}
+                data-testid="button-signin-amber"
+              >
+                {amberBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4" />}
+                {amberBusy ? "Waiting for Amber…" : "Sign in with Amber on this phone"}
+              </button>
+            )}
+
             <button
               type="button"
               onClick={openNsec}
@@ -268,7 +339,7 @@ export default function LoginPage() {
             <button
               type="button"
               onClick={() => setCreateOpen(true)}
-              className="group w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 transition-all active:scale-[0.99]"
+              className={SECONDARY_BUTTON}
               data-testid="link-create-identity"
             >
               Create your account
@@ -321,6 +392,15 @@ export default function LoginPage() {
         errorMessage={failureMessage}
         onLoginSuccess={handleNsecLoginSuccess}
         onRetryExtension={handleRetryExtension}
+      />
+
+      <RemoteSignerModal
+        open={remoteOpen}
+        onOpenChange={setRemoteOpen}
+        onSignedIn={() => {
+          setRemoteOpen(false);
+          routeAfterLogin();
+        }}
       />
 
       <CreateAccountModal

@@ -1,9 +1,12 @@
 import { AccountManager, type SerializedAccount } from "applesauce-accounts";
-import { ExtensionAccount } from "applesauce-accounts/accounts";
+import { AmberClipboardAccount, ExtensionAccount } from "applesauce-accounts/accounts";
+import type { NostrPool } from "applesauce-signers";
 
 import { LocalAccount } from "./local-account";
 import type { LocalSignerData, LocalSignerOptions } from "./local-signer";
 import type { AccountMetadata } from "./metadata";
+import { RemoteAccount } from "./remote-signer";
+import { installRemoteTransport } from "./remote-transport";
 import {
   browserStorage,
   createPersistence,
@@ -22,6 +25,8 @@ export type ManagedAccounts = {
 export type CreateManagerOptions = {
   storage?: StorageSeam;
   unlockCache?: UnlockCache;
+  /** The relay pool remote signers talk over. Injected so tests never open a socket. */
+  transport?: NostrPool;
   /** Restore from storage and start saving. Bootstrap passes false to migrate first. */
   autoStart?: boolean;
 };
@@ -49,13 +54,24 @@ function localAccountType(options: LocalSignerOptions) {
 export function createManager({
   storage = browserStorage(),
   unlockCache = deviceUnlockCache,
+  transport,
   autoStart = true,
 }: CreateManagerOptions = {}): ManagedAccounts {
+  // Before anything is restored, and before the types that need it are even
+  // registered: a remote signer reads the transport in its *constructor* and
+  // throws without one, so an Account deserialised first would be quarantined
+  // rather than merely mute — and quarantine is for the life of the browser.
+  installRemoteTransport(transport);
+
   const manager = new AccountManager<AccountMetadata>();
   manager.registerType(localAccountType({ unlockCache }));
   // Unregistered types are quarantined on load, so an extension user's Account
   // has to be restorable here or they'd be signed out on the next reload.
   manager.registerType(ExtensionAccount);
+  // One type for every remote signer — nsec.app, Amber's bunker mode, Keycast
+  // and anything self-hosted. Their differences live at transport, not here.
+  manager.registerType(RemoteAccount);
+  manager.registerType(AmberClipboardAccount);
 
   const persistence = createPersistence(manager, storage);
 

@@ -1,0 +1,145 @@
+/**
+ * A remote signer, in memory.
+ *
+ * NIP-46 is two keypairs talking over a relay, so a fake relay plus a fake
+ * signer is enough to exercise every path the real thing has — the pairing
+ * handshake, the secret that proves it, the requests afterwards, and the two
+ * failure modes that matter most: a signer that answers with an error string,
+ * and one that says nothing at all.
+ */
+import type { NostrEvent } from "applesauce-core/helpers/event";
+import { PrivateKeySigner, type NostrPool } from "applesauce-signers";
+import { parseNostrConnectURI } from "applesauce-signers/helpers/nostr-connect";
+import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
+import { Subject } from "rxjs";
+
+export const NOSTR_CONNECT_KIND = 24133;
+
+export type FakeRemoteSigner = {
+  /** The pool a client talks to us over. */
+  pool: NostrPool;
+  /** The identity we sign for. */
+  userPubkey: string;
+  /** Our own pubkey, as it appears in a `bunker://` URI. */
+  remotePubkey: string;
+  /** A `bunker://` URI naming us, for the paste route. */
+  bunkerURI(options?: { secret?: string; relays?: string[] }): string;
+  /** Answer a `nostrconnect://` URI, as a signer does once its owner approves. */
+  pair(uri: string): Promise<void>;
+  /** Answer a pairing with a bare `"ack"` — what a relay observer can forge. */
+  forgeAck(uri: string): Promise<void>;
+  /** Fail the next request of this method with this error string. */
+  failWith(method: string, error: string): void;
+  /** Say nothing at all, as Amber does for an un-remembered request. */
+  goSilent(): void;
+  /** Requests we've been sent, in order. */
+  received: { method: string; params: string[] }[];
+};
+
+export function createFakeRemoteSigner(): FakeRemoteSigner {
+  const remoteKey = generateSecretKey();
+  const remotePubkey = getPublicKey(remoteKey);
+  const userKey = generateSecretKey();
+  const userPubkey = getPublicKey(userKey);
+  const remote = new PrivateKeySigner(remoteKey);
+
+  const wire = new Subject<NostrEvent>();
+  const received: { method: string; params: string[] }[] = [];
+  const failures = new Map<string, string>();
+  let silent = false;
+
+  async function sendAs(key: Uint8Array, client: string, payload: unknown): Promise<void> {
+    const content = await new PrivateKeySigner(key).nip44.encrypt(client, JSON.stringify(payload));
+    wire.next(
+      finalizeEvent(
+        {
+          kind: NOSTR_CONNECT_KIND,
+          created_at: Math.floor(Date.now() / 1000),
+          tags: [["p", client]],
+          content,
+        },
+        key,
+      ) as NostrEvent,
+    );
+  }
+
+  const send = (client: string, payload: unknown) => sendAs(remoteKey, client, payload);
+
+  async function handle(event: NostrEvent): Promise<void> {
+    const request = JSON.parse(await remote.nip44.decrypt(event.pubkey, event.content));
+    received.push({ method: request.method, params: request.params });
+    if (silent) return;
+
+    const failure = failures.get(request.method);
+    if (failure) {
+      failures.delete(request.method);
+      await send(event.pubkey, { id: request.id, result: "", error: failure });
+      return;
+    }
+
+    switch (request.method) {
+      case "connect":
+        // The `secret` from a bunker:// URI comes back, or a bare ack.
+        await send(event.pubkey, { id: request.id, result: request.params[1] || "ack" });
+        break;
+      case "get_public_key":
+        await send(event.pubkey, { id: request.id, result: userPubkey });
+        break;
+      case "sign_event": {
+        const template = JSON.parse(request.params[0]);
+        delete template.pubkey;
+        delete template.id;
+        delete template.sig;
+        await send(event.pubkey, {
+          id: request.id,
+          result: JSON.stringify(finalizeEvent(template, userKey)),
+        });
+        break;
+      }
+      case "ping":
+        await send(event.pubkey, { id: request.id, result: "pong" });
+        break;
+      case "nip44_encrypt":
+      case "nip44_decrypt":
+        await send(event.pubkey, { id: request.id, result: request.params[1] });
+        break;
+      default:
+        await send(event.pubkey, {
+          id: request.id,
+          result: "",
+          error: `Unrecognized method: ${request.method}`,
+        });
+    }
+  }
+
+  return {
+    pool: {
+      subscription: () => wire.asObservable(),
+      publish: async (_relays, event) => {
+        await handle(event);
+      },
+    },
+    userPubkey,
+    remotePubkey,
+    bunkerURI({ secret = "bunker-secret", relays = ["wss://fake.relay"] } = {}) {
+      const params = relays.map((relay) => `relay=${encodeURIComponent(relay)}`).join("&");
+      return `bunker://${remotePubkey}?${params}&secret=${secret}`;
+    },
+    async pair(uri) {
+      const { client, connectSecret, secret } = parseNostrConnectURI(uri);
+      await send(client, { result: connectSecret ?? secret });
+    },
+    /** From a stranger's key — the whole point is that they never saw the secret. */
+    async forgeAck(uri) {
+      const { client } = parseNostrConnectURI(uri);
+      await sendAs(generateSecretKey(), client, { result: "ack" });
+    },
+    failWith(method, error) {
+      failures.set(method, error);
+    },
+    goSilent() {
+      silent = true;
+    },
+    received,
+  };
+}

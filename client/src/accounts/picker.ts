@@ -9,11 +9,12 @@
  * Session state is deliberately absent: selecting a row ensures a Session anyway,
  * so saying so in advance would warn about something the click already handles.
  */
+import { isAmberSupported } from "./amber";
 import { LocalAccount } from "./local-account";
 import { getMetadata, isRemembered, type BrainstormAccount } from "./metadata";
 import { npubOf } from "./display";
 
-export type SignerKind = "key" | "extension" | "remote";
+export type SignerKind = "key" | "extension" | "remote" | "amber";
 
 /** What the extension wait has found so far. Judged before it ends, every row lies. */
 export type ExtensionPresence = "checking" | "present" | "missing";
@@ -23,10 +24,16 @@ export type ExtensionPresence = "checking" | "present" | "missing";
  *
  * - `checking` — the probe hasn't landed; say nothing rather than guess.
  * - `no-backup` — the key opens here and nowhere else: losing this browser loses it.
- * - `key-unavailable` / `extension-missing` — the row can't sign, and is a marked
- *   dead end with its own actions rather than a way in.
+ * - `key-unavailable` / `extension-missing` / `signer-unusable` — the row can't
+ *   sign, and is a marked dead end with its own actions rather than a way in.
  */
-export type RowHealth = "checking" | "ok" | "no-backup" | "key-unavailable" | "extension-missing";
+export type RowHealth =
+  | "checking"
+  | "ok"
+  | "no-backup"
+  | "key-unavailable"
+  | "extension-missing"
+  | "signer-unusable";
 
 export type PickerRow = {
   account: BrainstormAccount;
@@ -46,20 +53,24 @@ export type PickerIdentity = {
 export function signerKindOf(account: BrainstormAccount): SignerKind {
   if (account instanceof LocalAccount) return "key";
   if (account.type === "extension") return "extension";
+  if (account.type === "amber-clipboard") return "amber";
   return "remote";
 }
 
 /** Whether a row is a way in, or a dead end that keeps its place and says so. */
 export function isSelectable(health: RowHealth): boolean {
-  return health !== "key-unavailable" && health !== "extension-missing";
+  return health === "checking" || health === "ok" || health === "no-backup";
 }
 
 /**
  * A Signer we can judge without asking it anything: the extension either injected
- * or it didn't, and one wait answers for every extension row. A remote signer is
- * taken on trust — probing it is a relay round-trip that can hang.
+ * or it didn't, and one wait answers for every extension row; Amber's clipboard
+ * signer works on this device or it doesn't, and no signing in the world changes
+ * that. A NIP-46 signer is taken on trust — probing it is a relay round-trip that
+ * can hang, so its row looks healthy until the click.
  */
 export function signerPresence(kind: SignerKind, extension: ExtensionPresence): RowHealth {
+  if (kind === "amber") return isAmberSupported() ? "ok" : "signer-unusable";
   if (kind !== "extension") return "ok";
   if (extension === "checking") return "checking";
   return extension === "present" ? "ok" : "extension-missing";

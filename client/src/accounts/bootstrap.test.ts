@@ -8,6 +8,7 @@ import { bootstrapAccounts, type BootstrapOptions } from "./bootstrap";
 import { LocalAccount } from "./local-account";
 import { V1_KEYS } from "./migrate";
 import { ACCOUNTS_KEY, ACTIVE_KEY, type StorageSeam } from "./persist";
+import { createFakeRemoteSigner } from "./remote-test-fakes";
 import { createFakeUnlockCache, createTestStorage, v1UserBlob, type FakeUnlockCache } from "./test-fakes";
 
 /** Run the scheduled follow-up work now, so a test can await it. */
@@ -230,5 +231,47 @@ describe("bootstrapAccounts", () => {
 
     const { manager } = boot({ ...storage, device: exploding }, unlockCache);
     expect(manager.accounts).toHaveLength(0);
+  });
+
+  it("restores a remembered remote signer from a cold boot, and signs with it", async () => {
+    // The ordering that makes or breaks remote signers. A signer takes its
+    // subscribe and publish methods from class statics at *construction*, and
+    // throws without them — so a transport installed after the restore doesn't
+    // leave this Account mute, it leaves it quarantined, permanently. Signing
+    // proves the restored Signer is really wired to the transport, not merely
+    // that an object came back.
+    const { storage, unlockCache } = setup();
+    const fake = createFakeRemoteSigner();
+    storage.device.setItem(
+      ACCOUNTS_KEY,
+      JSON.stringify([
+        {
+          type: "nostr-connect",
+          id: "remote-1",
+          pubkey: fake.userPubkey,
+          metadata: { remembered: true },
+          signer: {
+            clientKey: bytesToHex(generateSecretKey()),
+            remote: fake.remotePubkey,
+            relays: ["wss://fake.relay"],
+            bunkerSecret: "bunker-secret",
+          },
+        },
+      ]),
+    );
+    storage.device.setItem(ACTIVE_KEY, "remote-1");
+
+    const { manager } = boot(storage, unlockCache, { transport: fake.pool });
+
+    expect(storage.device.getItem(`${ACCOUNTS_KEY}.quarantine`)).toBeNull();
+    expect(manager.active?.pubkey).toBe(fake.userPubkey);
+
+    const signed = await manager.active!.signEvent({
+      kind: 1,
+      content: "signed after a cold boot",
+      tags: [],
+      created_at: 1,
+    });
+    expect(signed.pubkey).toBe(fake.userPubkey);
   });
 });

@@ -1,0 +1,194 @@
+// @vitest-environment node
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { NostrConnectSigner } from "applesauce-signers";
+import { parseNostrConnectURI } from "applesauce-signers/helpers/nostr-connect";
+
+import { createFakeRemoteSigner } from "./remote-test-fakes";
+import {
+  advertisedRelays,
+  appMetadata,
+  isRemoteSignerTimeout,
+  NIP46_PERMISSIONS,
+  NSEC_APP_RELAY,
+  REQUEST_TIMEOUT_MS,
+  RemoteAccount,
+  RemoteSigner,
+  SIGNED_KINDS,
+  subscribeRelays,
+  withTimeout,
+} from "./remote-signer";
+import { installRemoteTransport } from "./remote-transport";
+
+describe("what we ask a signer for", () => {
+  it("names every kind the app signs, so nothing becomes a later prompt", () => {
+    // NIP-46 has no way to ask for more later, and under Amber's default policy
+    // an omitted kind is a notification its owner may never see.
+    for (const kind of [0, 3, 5, 1984, 9734, 10000, 10002, 10040, 22242, 24242, 27235, 30078]) {
+      expect(NIP46_PERMISSIONS).toContain(`sign_event:${kind}`);
+    }
+    expect(SIGNED_KINDS).toHaveLength(12);
+  });
+
+  it("asks for NIP-44 explicitly — buildSigningPermissions never does", () => {
+    expect(NIP46_PERMISSIONS).toContain("nip44_encrypt");
+    expect(NIP46_PERMISSIONS).toContain("nip44_decrypt");
+  });
+
+  it("never sends a bare sign_event, which Amber drops silently", () => {
+    expect(NIP46_PERMISSIONS).not.toContain("sign_event");
+  });
+
+  it("always carries a name, url and image — nsec.app rejects a URI without them", () => {
+    const metadata = appMetadata();
+    expect(metadata.name).toBeTruthy();
+    expect(metadata.url).toBeTruthy();
+    expect(metadata.image).toBeTruthy();
+  });
+});
+
+describe("relays", () => {
+  it("listens on the one nsec.app answers on, whatever we asked for", () => {
+    expect(subscribeRelays()).toContain(NSEC_APP_RELAY);
+  });
+
+  it("advertises only ours, so no other signer's traffic routes through it", () => {
+    expect(advertisedRelays()).not.toContain(NSEC_APP_RELAY);
+  });
+
+  it("keeps the advertised set small rather than reusing the profile relays", () => {
+    expect(advertisedRelays().length).toBeLessThanOrEqual(3);
+  });
+
+  it("puts the narrow set in the URI even though the signer listens broadly", () => {
+    installRemoteTransport(createFakeRemoteSigner().pool);
+    const signer = new RemoteSigner({ relays: subscribeRelays(), requireConnectSecret: true });
+    const uri = parseNostrConnectURI(signer.nostrConnectURI());
+
+    expect(signer.relays).toContain(NSEC_APP_RELAY);
+    expect(uri.relays).toEqual(advertisedRelays());
+    expect(uri.relays).not.toContain(NSEC_APP_RELAY);
+  });
+});
+
+describe("withTimeout", () => {
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => vi.useRealTimers());
+
+  it("gives up on a promise that never settles", async () => {
+    const forever = new Promise<string>(() => {});
+    const guarded = withTimeout(forever, 1000);
+    vi.advanceTimersByTime(1000);
+    await expect(guarded).rejects.toSatisfy(isRemoteSignerTimeout);
+  });
+
+  it("passes an answer that arrives in time straight through", async () => {
+    await expect(withTimeout(Promise.resolve("pong"), 1000)).resolves.toBe("pong");
+  });
+
+  it("swallows a late answer rather than leaving it unhandled", async () => {
+    let reject!: (error: Error) => void;
+    const late = new Promise<string>((_, r) => (reject = r));
+    const guarded = withTimeout(late, 1000);
+    vi.advanceTimersByTime(1000);
+    await expect(guarded).rejects.toSatisfy(isRemoteSignerTimeout);
+    reject(new Error("too late"));
+    await Promise.resolve();
+  });
+});
+
+describe("a signer that stops answering", () => {
+  it("times the request out rather than hanging for the life of the tab", async () => {
+    vi.useFakeTimers();
+    try {
+      const fake = createFakeRemoteSigner();
+      installRemoteTransport(fake.pool);
+      const signer = new RemoteSigner({
+        relays: ["wss://fake.relay"],
+        remote: fake.remotePubkey,
+        pubkey: fake.userPubkey,
+      });
+      // Amber's real failure mode: an Android notification, and no wire response.
+      fake.goSilent();
+
+      const signing = signer.signEvent({ kind: 1, content: "", tags: [], created_at: 0 });
+      const settled = expect(signing).rejects.toSatisfy(isRemoteSignerTimeout);
+      await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS + 1);
+      await settled;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe("the pairing secret", () => {
+  it("refuses a bare ack, which any relay observer can forge", async () => {
+    const fake = createFakeRemoteSigner();
+    installRemoteTransport(fake.pool);
+    const signer = new RemoteSigner({ relays: ["wss://fake.relay"], requireConnectSecret: true });
+    const uri = signer.nostrConnectURI();
+
+    const waiting = signer.waitForSigner();
+    await fake.forgeAck(uri);
+    await flush();
+
+    expect(signer.remote).toBeUndefined();
+    expect(signer.isConnected).toBe(false);
+
+    // and the real signer, answering with the secret we minted, still gets in
+    await fake.pair(uri);
+    await waiting;
+    expect(signer.remote).toBe(fake.remotePubkey);
+  });
+
+  it("accepts a bare ack where we never issued a secret to check", async () => {
+    // The bunker:// flow: the signer named its own pubkey, so there is nobody to
+    // impersonate and nothing of ours to prove.
+    const fake = createFakeRemoteSigner();
+    installRemoteTransport(fake.pool);
+    const signer = new RemoteSigner({ relays: ["wss://fake.relay"], remote: fake.remotePubkey });
+
+    await expect(signer.connect()).resolves.toBe("ack");
+  });
+});
+
+describe("a restored account", () => {
+  it("signs with the transport its signer was built against", async () => {
+    const fake = createFakeRemoteSigner();
+    installRemoteTransport(fake.pool);
+
+    const account = RemoteAccount.fromJSON({
+      type: "nostr-connect",
+      id: "restored",
+      pubkey: fake.userPubkey,
+      metadata: { remembered: true },
+      signer: {
+        clientKey: "11".repeat(32),
+        remote: fake.remotePubkey,
+        relays: ["wss://fake.relay"],
+        bunkerSecret: "bunker-secret",
+      },
+    });
+
+    const signed = await account.signEvent({
+      kind: 1,
+      content: "hello",
+      tags: [],
+      created_at: 1,
+    });
+    expect(signed.pubkey).toBe(fake.userPubkey);
+  });
+
+  it("cannot even be constructed before a transport is installed", () => {
+    // Not "starts mute" — it throws, so persistence quarantines the entry and
+    // that identity is gone for the life of the browser. Hence the ordering.
+    NostrConnectSigner.pool = undefined;
+    NostrConnectSigner.subscriptionMethod = undefined;
+    expect(
+      () => new RemoteSigner({ relays: ["wss://fake.relay"], remote: "ab".repeat(32) }),
+    ).toThrow(/subscriptionMethod/);
+  });
+});
+
+function flush(): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, 0));
+}

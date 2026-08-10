@@ -7,7 +7,7 @@ import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import { LocalAccount } from "./local-account";
 import { LocalSigner } from "./local-signer";
 import { updateMetadata, type BrainstormAccount } from "./metadata";
-import { healthOf, pickerIdentities, signerKindOf } from "./picker";
+import { healthOf, isSelectable, pickerIdentities, signerKindOf } from "./picker";
 import { createFakeUnlockCache, keyFixture, type FakeUnlockCache } from "./test-fakes";
 
 function localRow(
@@ -28,11 +28,32 @@ function remembered<T extends BrainstormAccount>(account: T, name?: string): T {
 }
 
 describe("which signer is behind a row", () => {
-  it("names the three kinds it can tell apart", async () => {
+  it("names the kinds it can tell apart", async () => {
     const { pubkey, unlockCache, envelope } = await keyFixture();
 
     expect(signerKindOf(localRow({ envelope }, unlockCache, pubkey))).toBe("key");
     expect(signerKindOf(extensionRow(pubkey))).toBe("extension");
+    // Every NIP-46 signer is one kind — nsec.app, Amber's bunker mode, Keycast.
+    expect(signerKindOf({ type: "nostr-connect" } as BrainstormAccount)).toBe("remote");
+    // Amber over intents is not one of them: it never touches a relay.
+    expect(signerKindOf({ type: "amber-clipboard" } as BrainstormAccount)).toBe("amber");
+  });
+});
+
+describe("a row that signs through Amber", () => {
+  it("is a dead end where the browser can't hand off to it", async () => {
+    // jsdom is not Android, so `AmberClipboardSigner.SUPPORTED` is false — the
+    // same state a phone reaches with “Desktop site” on, or over plain HTTP.
+    const amber = { type: "amber-clipboard", id: "amber-1" } as BrainstormAccount;
+    expect(await healthOf(amber, "present")).toBe("signer-unusable");
+    expect(isSelectable(await healthOf(amber, "present"))).toBe(false);
+  });
+});
+
+describe("a row that signs through a remote signer", () => {
+  it("is taken on trust — probing it is a relay round trip that can hang", async () => {
+    const remote = { type: "nostr-connect", id: "remote-1" } as BrainstormAccount;
+    expect(await healthOf(remote, "missing")).toBe("ok");
   });
 });
 

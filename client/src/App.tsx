@@ -54,6 +54,7 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { MobileSearchOverlay } from "@/components/MobileSearchOverlay";
 import { UnlockModal } from "@/components/UnlockModal";
 import { CrossTabIdentity } from "@/components/CrossTabIdentity";
+import { SignerApprovalModal } from "@/components/SignerApprovalModal";
 import { ensureUnlocked } from "@/services/nostr";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import type { ComponentType } from "react";
@@ -210,6 +211,7 @@ function App() {
         <TooltipProvider delayDuration={300} skipDelayDuration={100}>
           <Toaster />
           <UnlockModal />
+          <SignerApprovalModal />
           <CrossTabIdentity />
           <PovAutoDefault />
           <MobileTabBar />

@@ -1,6 +1,6 @@
 import { nip19, finalizeEvent, getPublicKey, generateSecretKey, verifyEvent } from "nostr-tools";
-import { RelayPool } from "applesauce-relay";
 import { env } from "@/lib/runtimeEnv";
+import { pool } from "@/lib/relayPool";
 import { isVaultSupported, encryptSecret, decryptSecret } from "@/lib/skVault";
 
 const RAW_NIP85_RELAY_URL = env.VITE_NIP85_RELAY_URL;
@@ -424,7 +424,6 @@ export const CONTENT_RELAYS = [
   "wss://nostr.wine/",
 ];
 
-const pool = new RelayPool();
 
 export function fetchProfiles(
   pubkeys: string[],
@@ -1377,6 +1376,16 @@ export async function handleLogin(): Promise<NostrUser> {
       `Your extension couldn't sign you in${msg ? `: ${msg}` : ""}. Try again, or use your key.`
     );
   }
+}
+
+/**
+ * Sign in with an Account whose Signer holds the key somewhere else — a NIP-46
+ * remote signer, or Amber over intents. Remembered, because the whole point of
+ * both is staying signed in across a reload; and backed up by construction,
+ * since this device never had a key to lose.
+ */
+export function signInWithExternalSigner(account: BrainstormAccount): Promise<NostrUser> {
+  return signIn(account, { remembered: true, backedUp: true });
 }
 
 /**
