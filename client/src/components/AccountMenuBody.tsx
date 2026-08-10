@@ -7,7 +7,6 @@ import {
   Home,
   Users,
   Copy,
-  UserCircle,
   UserPlus,
   HelpCircle,
   BookOpen,
@@ -16,6 +15,7 @@ import {
   LogOut,
   Plus,
   BadgeCheck,
+  ChevronRight,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PovToggle } from "@/components/score/TrustScorePov";
@@ -160,9 +160,28 @@ export function AccountMenuBody({ user, isAdmin, active, onNavigate, onInvite, o
 
   return (
     <div className="relative">
-      {/* Identity card */}
-      <div className="p-4 pb-3">
-        <div className="flex items-center gap-3">
+      {/* Identity card — the card IS the link to your public profile.
+
+          It used to carry a separate full-width "View profile" button. Once the
+          perspective pill moved up here the block ran avatar → button → pill →
+          link before you reached a single destination, pushing the nav tiles
+          past the halfway line of a phone sheet. Tapping your own face to see
+          your own profile is the obvious gesture and costs no height.
+
+          Built as a stretched overlay button rather than by wrapping the
+          content: the npub row is itself a button (copy to clipboard), and a
+          button inside a button is invalid and swallows the inner click. The
+          overlay sits at z-0 behind the content, the copy control is lifted to
+          z-10, so each gets its own hit area. */}
+      <div className="group relative p-4 pb-3">
+        <button
+          type="button"
+          onClick={() => onNavigate(`/p/${user.npub}`)}
+          aria-label="View your public profile"
+          className="absolute inset-x-2 inset-y-2 z-0 rounded-xl transition-colors group-hover:bg-slate-900/[0.04] dark:group-hover:bg-white/[0.06] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
+          data-testid="dropdown-view-profile"
+        />
+        <div className="pointer-events-none relative flex items-center gap-3">
           <span className="block rounded-full p-[2px] bg-gradient-to-tr from-brand-deep via-brand-accent to-brand-deep shrink-0">
             <Avatar className="h-11 w-11">
               {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "User"} className="object-cover" /> : null}
@@ -183,8 +202,9 @@ export function AccountMenuBody({ user, isAdmin, active, onNavigate, onInvite, o
             )}
             <button
               type="button"
-              className="mt-0.5 flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 transition-colors hover:text-brand-deep dark:hover:text-brand-link"
-              onClick={async () => {
+              className="pointer-events-auto relative z-10 mt-0.5 flex items-center gap-1 rounded text-xs text-slate-500 dark:text-slate-400 transition-colors hover:text-brand-deep dark:hover:text-brand-link focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+              onClick={async (e) => {
+                e.stopPropagation();
                 await copyToClipboard(user.npub);
                 toast({ title: "Copied!", description: "npub copied to clipboard" });
               }}
@@ -194,15 +214,13 @@ export function AccountMenuBody({ user, isAdmin, active, onNavigate, onInvite, o
               <Copy className="h-3 w-3 shrink-0" />
             </button>
           </div>
+          {/* The one affordance that survives without hover. Desktop gets a
+              hover fill, but a phone has no hover at all, and losing the
+              "View profile" button took the only words saying this row goes
+              somewhere. A chevron is the universal "this navigates" mark. */}
+          <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-slate-500 dark:text-slate-600 dark:group-hover:text-slate-400" />
         </div>
-        <button
-          type="button"
-          onClick={() => onNavigate(`/p/${user.npub}`)}
-          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-full border border-slate-300/70 dark:border-white/15 bg-white/50 dark:bg-white/[0.06] px-4 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-100 transition-colors hover:bg-white/80 dark:hover:bg-white/[0.12] hover:border-brand-accent/40"
-          data-testid="dropdown-view-profile"
-        >
-          <UserCircle className="h-4 w-4" /> View profile
-        </button>
+
       </div>
 
       {/* Trust perspective — a LENS, not a preference.
