@@ -1182,7 +1182,7 @@ export default function UserPanelPage() {
                         {socialActions.isFollowing(lookedUpUser.pubkey) && (
                           <Badge className="bg-emerald-50 border-emerald-200 text-emerald-700 text-[10px]" data-testid="badge-already-following">Following</Badge>
                         )}
-                        <Button size="sm" variant="outline" onClick={() => navigate(`/profile/${lookedUpUser.npub}`)} className="gap-1 text-xs" data-testid="button-view-profile-looked-up">
+                        <Button size="sm" variant="outline" onClick={() => navigate(`/p/${lookedUpUser.npub}`)} className="gap-1 text-xs" data-testid="button-view-profile-looked-up">
                           <ExternalLink className="h-3 w-3" /> Profile
                         </Button>
                       </div>
@@ -1310,7 +1310,7 @@ export default function UserPanelPage() {
                     ) : filteredAndSortedUsers.slice(0, 100).map(u => {
                       const tierInfo = getTier(u.influence);
                       return (
-                        <div key={u.pubkey} className="grid grid-cols-1 sm:grid-cols-[auto_1fr_100px_100px_40px] gap-2 sm:gap-3 px-3 py-2.5 hover:bg-slate-50/80 transition-colors cursor-pointer rounded-lg dark:hover:bg-slate-900/80" onClick={() => navigate(`/profile/${u.npub}`)} data-testid={`row-score-${u.pubkey.slice(0, 8)}`}>
+                        <div key={u.pubkey} className="grid grid-cols-1 sm:grid-cols-[auto_1fr_100px_100px_40px] gap-2 sm:gap-3 px-3 py-2.5 hover:bg-slate-50/80 transition-colors cursor-pointer rounded-lg dark:hover:bg-slate-900/80" onClick={() => navigate(`/p/${u.npub}`)} data-testid={`row-score-${u.pubkey.slice(0, 8)}`}>
                           <Avatar className="h-8 w-8 border border-slate-100 dark:border-slate-800/60">
                             {u.picture ? <AvatarImage src={u.picture} alt={u.displayName || "User"} className="object-cover" /> : null}
                             <AvatarFallback className="bg-brand-primary/10 text-brand-primary text-xs font-bold">{(u.displayName?.charAt(0) || "?").toUpperCase()}</AvatarFallback>
