@@ -1,5 +1,5 @@
 import { useMemo, useState, type MouseEvent } from "react";
-import { useRoute, Redirect, Link } from "wouter";
+import { useRoute, Redirect, Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Shuffle, ShieldAlert, Flag, UserPlus, Check, ChevronDown } from "lucide-react";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
@@ -28,6 +28,7 @@ function shortNpub(npub: string): string {
  * downstream of it drops out of your trust network. Signed-in + scored viewers only.
  */
 export default function HopsPathPage() {
+  const [, navigate] = useLocation();
   const [, params] = useRoute("/p/:id/hops");
   const rawId = params?.id || "";
   const decoded = useMemo(() => decodeShareId(rawId), [rawId]);
@@ -123,9 +124,13 @@ export default function HopsPathPage() {
     retry: false,
   });
 
-  if (!rawId || !toPubkey) return <Redirect to="/" />;
+  // replace, not push — see ConnectionListPage. These guards fire on the first
+  // render before params/auth resolve, and a pushed entry poisons the back stack.
+  // Same as ConnectionListPage: an unresolved route is not an invalid one.
+  if (!rawId) return null;
+  if (!toPubkey) return <Redirect to="/" replace />;
   // v1 is signed-in + scored only; send everyone else back to the profile.
-  if (!eligible) return <Redirect to={`/p/${rawId}`} />;
+  if (!eligible) return <Redirect to={`/p/${rawId}`} replace />;
 
   const subjectName =
     subjectQuery.data?.display_name || subjectQuery.data?.name || shortNpub(npubFromPubkey(toPubkey));
@@ -167,9 +172,20 @@ export default function HopsPathPage() {
     <div className="min-h-screen bg-gradient-to-b from-slate-50 dark:from-slate-950 to-white dark:to-slate-900">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur sticky top-0 z-10">
         <div className="mx-auto max-w-xl flex items-center gap-3 px-4 sm:px-6 h-14">
-          <Link href={backLink} className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-100 hover:text-slate-900 dark:hover:text-white transition-colors" data-testid="hops-back">
+          {/* Pops history instead of pushing the profile again — same fix and
+              same reasoning as ConnectionListPage. `backLink` is the fallback
+              for a cold deep-link with nothing to pop. */}
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) window.history.back();
+              else navigate(backLink);
+            }}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-100 hover:text-slate-900 dark:hover:text-white transition-colors"
+            data-testid="hops-back"
+          >
             <ArrowLeft className="h-4 w-4" /> Back
-          </Link>
+          </button>
           <div className="ml-auto flex items-center gap-3">
             <Link href="/" className="flex items-center" aria-label="Brainstorm home">
               <Wordmark height={24} className="dark:hidden" />

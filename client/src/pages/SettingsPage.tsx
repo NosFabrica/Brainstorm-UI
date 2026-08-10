@@ -5,9 +5,9 @@ import { PageHeader } from "@/components/PageHeader";
 import { useLocation, useSearch } from "wouter";
 import { ProfileEditForm } from "@/components/ProfileEditForm";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { setActivePreset, presetToBackend, presetDisplayLabel, presetDescription, presetDisplayLabelFromBackend, PRESET_THRESHOLDS, type TrustPreset } from "@/services/trustThreshold";
+import { presetDisplayLabel, presetDescription, presetDisplayLabelFromBackend, type TrustPreset } from "@/services/trustThreshold";
 import { PresetBadge } from "@/components/PresetBadge";
-import { useTrustPresetSync, trustPresetQueryKey } from "@/hooks/useTrustPresetSync";
+import { useTrustPresetSync, useSetTrustPreset } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -59,7 +59,11 @@ import {
   AlertTriangle,
   IdCard,
   SlidersHorizontal,
+  ShieldAlert,
+  ChevronRight,
 } from "lucide-react";
+import { ignoredAlertMap, hasUnsyncedIgnores } from "@/lib/networkAlertsIgnored";
+import { useIgnoreSyncState } from "@/hooks/useIgnoreSyncState";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AgentIcon } from "@/components/AgentIcon";
 import { InfoHint } from "@/components/InfoHint";
@@ -161,20 +165,14 @@ export default function SettingsPage() {
   const [optimisticPreset, setOptimisticPreset] = useState<TrustPreset | null>(null);
   const activePreset: TrustPreset = optimisticPreset ?? serverPreset ?? "default";
 
-  const setPresetMutation = useMutation({
-    mutationFn: (preset: TrustPreset) => apiClient.setGrapeRankPreset(presetToBackend(preset)),
+  const setPresetMutation = useSetTrustPreset({
+    pubkey: user?.pubkey,
     onMutate: (preset) => {
       const previous = optimisticPreset;
       setOptimisticPreset(preset);
       return { previous };
     },
-    onSuccess: (_data, preset) => {
-      setActivePreset(preset);
-      const key = trustPresetQueryKey(user?.pubkey);
-      queryClient.setQueryData(key, {
-        data: { preset: presetToBackend(preset) },
-      });
-      queryClient.invalidateQueries({ queryKey: key });
+    onSettledOk: (preset) => {
       setOptimisticPreset(null);
       const lastResult = queryClient.getQueryData<any>(["/user/graperankResult"]);
       const previousUsedLabel = presetDisplayLabelFromBackend(lastResult?.data?.graperank_preset_used);
@@ -189,7 +187,7 @@ export default function SettingsPage() {
       });
     },
     onError: (error, _preset, context) => {
-      setOptimisticPreset(context?.previous ?? null);
+      setOptimisticPreset((context as { previous?: TrustPreset } | undefined)?.previous ?? null);
       toast({
         variant: "destructive",
         title: "Couldn't save preset",
@@ -1095,7 +1093,10 @@ export default function SettingsPage() {
 
       <div className="p-5 space-y-4">
         <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="text-presets-desc">
-          Adjust how strict the verified threshold is across Brainstorm. This controls which accounts appear as "verified" on Dashboard, Network, and Profile pages.
+          How strict your web of trust is. This sets which accounts count as "verified" followers, muters and reporters on Dashboard, Network, and Profile pages — the counts update as soon as you switch.
+        </p>
+        <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed" data-testid="text-presets-persistence">
+          Saved to your account, so it follows you across devices. Your published Trusted Assertions keep the old numbers until your next calculation.
         </p>
 
         {presetLoading && !serverPreset ? (
@@ -1182,6 +1183,53 @@ export default function SettingsPage() {
         </p>
       </div>
     </div>
+  );
+
+  // Settings' door to the whole Network Alerts surface, not just one slice of it.
+  // It opens /alerts, which has three tabs, so labelling it "Ignored accounts"
+  // described a third of where it goes. The subtitle names all three so this
+  // reads as a map — which also gives extended reach a findable trail now that
+  // it's off the dashboard entirely.
+  //
+  // Only the ignored count is shown, because it's the only free one: it's a
+  // localStorage read, whereas follows/extended need the ~10s /networkAlerts
+  // call, and firing that from Settings to fill in a subtitle would make the
+  // page slow for numbers nobody came here for. It's also the one people
+  // actually arrive hunting for. Counting the raw persisted list (the Ignored
+  // TAB counts what's currently hidden, which differs once something escalates)
+  // — hence "on your ignore list" rather than repeating the tab's wording.
+  const ignoredListCount = useMemo(() => (pubkey ? ignoredAlertMap(pubkey).size : 0), [pubkey]);
+  // The "saved to your account" half of this subtitle was an unconditional
+  // claim. When the NIP-78 write can't happen it's simply untrue, and this card
+  // is exactly where someone checks what they've ignored — so it has to say
+  // which of the two is actually the case.
+  const ignoreSync = useIgnoreSyncState();
+  // Also consult the persisted flag: this page can be loaded cold, where the
+  // in-memory state has reset to "ok" but the list still never left the device.
+  const ignoresUnsynced = ignoreSync === "local-only" || (pubkey ? hasUnsyncedIgnores(pubkey) : false);
+  const savedWhere = ignoresUnsynced ? "saved on this device only" : "saved to your account";
+  const networkAlertsCard = (
+    <button
+      type="button"
+      onClick={() => navigate("/alerts")}
+      className="w-full flex items-center justify-between gap-3 rounded-2xl bg-white/70 dark:bg-slate-900/70 border border-brand-accent/15 px-5 py-4 text-left hover:border-brand-accent/30 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+      data-testid="button-network-alerts"
+    >
+      <div className="flex items-center gap-3 min-w-0">
+        <div className="h-9 w-9 rounded-xl bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 shadow-sm ring-1 ring-slate-100 dark:ring-slate-800/60 flex items-center justify-center shrink-0">
+          <ShieldAlert className="h-4 w-4 text-brand-deep" />
+        </div>
+        <div className="min-w-0">
+          <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>Network Alerts</h2>
+          <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-network-alerts-summary">
+            {ignoredListCount === 0
+              ? "Accounts people you trust have reported — the people you follow, your wider network, and anything you've ignored."
+              : `Accounts people you trust have reported — the people you follow, your wider network, and ${ignoredListCount} you've ignored, ${savedWhere}.`}
+          </p>
+        </div>
+      </div>
+      <ChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
+    </button>
   );
 
   const advancedSection = (
@@ -1496,8 +1544,16 @@ export default function SettingsPage() {
             testId="section-settings-header"
           />
 
-          {/* Tab navigation — segmented pill, matching the FAQ page */}
-          <div className="max-w-full overflow-x-auto scrollbar-hide" data-testid="settings-tab-bar">
+          {/* Tab navigation — segmented pill, matching the FAQ page.
+              The three labels measure 367px against a 339px track at 375px wide,
+              so "About & support" was being sliced mid-word at the container's
+              padding edge — which reads as broken layout, not as a scroller.
+              Two fixes: tighter horizontal padding below `sm` buys back ~48px so
+              all three fit on a normal phone, and the scroll track bleeds to the
+              true screen edge (-mx-4 cancelling the page's px-4, re-padded
+              inside) so on a narrow device like an SE the cut lands at the edge
+              of the display, which is the universal "this scrolls" cue. */}
+          <div className="-mx-4 max-w-[100vw] overflow-x-auto px-4 scrollbar-hide sm:mx-0 sm:max-w-full sm:px-0" data-testid="settings-tab-bar">
             <div className="inline-flex rounded-full p-1 bg-white/70 dark:bg-slate-900/70 border border-brand-accent/12 shadow-sm backdrop-blur-sm">
               {TABS.map((tab) => {
                 const active = activeTab === tab.key;
@@ -1506,7 +1562,7 @@ export default function SettingsPage() {
                     key={tab.key}
                     onClick={() => goTab(tab.key)}
                     aria-current={active ? "page" : undefined}
-                    className={`px-5 py-2 rounded-full text-sm font-semibold whitespace-nowrap transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 ${
+                    className={`px-3 py-2 sm:px-5 rounded-full text-sm font-semibold whitespace-nowrap transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 ${
                       active
                         ? "bg-brand-primary text-white shadow-lg shadow-brand-primary/[0.3]"
                         : "text-slate-500 dark:text-slate-400 hover:text-brand-deep"
@@ -1534,6 +1590,7 @@ export default function SettingsPage() {
             <div className="space-y-6" data-testid="tab-content-trust">
               {presetsCard}
               <BrainstormAssistantCard variant="settings" lastCalculated={lastCalculated} />
+              {networkAlertsCard}
               {advancedSection}
             </div>
           )}

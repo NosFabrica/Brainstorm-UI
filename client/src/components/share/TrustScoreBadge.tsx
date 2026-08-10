@@ -1,4 +1,4 @@
-import { TIER_THRESHOLDS, TRUST_TIER_COLORS } from "@/services/trustThreshold";
+import { DEFAULT_VERIFIED_LINE, TIER_THRESHOLDS, TRUST_TIER_COLORS } from "@/services/trustThreshold";
 
 /**
  * Lean trust-score ring for the public share page. Takes a 0–1 influence score
@@ -7,15 +7,16 @@ import { TIER_THRESHOLDS, TRUST_TIER_COLORS } from "@/services/trustThreshold";
  * public teaser, not the full app widget. Tier bands match `trustThreshold.ts`.
  */
 
-// Fixed public-page bands (low bound 0.02 = the default verified threshold;
-// not preset-driven, since the viewer is usually anonymous).
+// Fixed public-page bands. The low bound is the DEFAULT line, not the viewer's
+// preset: this badge is handed a bare house score with no observer context (see
+// DEFAULT_VERIFIED_LINE), and the viewer is usually anonymous anyway.
 // Colors come from the shared TRUST_TIER_COLORS palette (services/trustThreshold)
 // so this bar and the dashboard's Network Composition never drift.
 const SHARE_TIERS = [
   { key: "high", name: "Highly Trusted", min: TIER_THRESHOLDS.high, color: TRUST_TIER_COLORS.highlyTrusted, text: "text-emerald-700", ring: TRUST_TIER_COLORS.highlyTrusted },
   { key: "trusted", name: "Trusted", min: TIER_THRESHOLDS.medium_high, color: TRUST_TIER_COLORS.trusted, text: "text-sky-700", ring: TRUST_TIER_COLORS.trusted },
   { key: "neutral", name: "Neutral", min: TIER_THRESHOLDS.medium, color: TRUST_TIER_COLORS.neutral, text: "text-brand-primary", ring: TRUST_TIER_COLORS.neutral },
-  { key: "low", name: "Low Trust", min: 0.02, color: TRUST_TIER_COLORS.lowTrust, text: "text-amber-700", ring: TRUST_TIER_COLORS.lowTrust },
+  { key: "low", name: "Low Trust", min: DEFAULT_VERIFIED_LINE, color: TRUST_TIER_COLORS.lowTrust, text: "text-amber-700", ring: TRUST_TIER_COLORS.lowTrust },
   { key: "unverified", name: "Unverified", min: 0, color: TRUST_TIER_COLORS.unverified, text: "text-zinc-600", ring: TRUST_TIER_COLORS.unverified },
 ];
 

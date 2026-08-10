@@ -4,11 +4,6 @@ import { AppHeader } from "@/components/AppHeader";
 import { CalculatingNotice } from "@/components/CalculatingNotice";
 import { GlossBackground } from "@/components/GlossBackground";
 import { PageHeader } from "@/components/PageHeader";
-import {
-  getVerifiedThreshold,
-  PRESET_THRESHOLDS,
-  TIER_THRESHOLDS,
-} from "@/services/trustThreshold";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
@@ -367,22 +362,10 @@ export default function NetworkPage() {
 
   const { preset: trustPreset } = useTrustPresetSync(!!user);
 
-  // SELF overview's `flagged_by_observer` is always false (self ≠ flags self),
-  // so threshold doesn't affect any consumed field — omit to keep the queryKey
-  // stable across `trustPreset` lifecycle transitions.
   const overviewQuery = useSelfOverview(user?.pubkey);
-  // Stats verified/tier counts DO depend on threshold. Derive from the
-  // server-confirmed preset (stable) rather than `getVerifiedThreshold()`
-  // (which reads localStorage and can flip mid-mount).
-  const statsThreshold = trustPreset
-    ? PRESET_THRESHOLDS[trustPreset]
-    : undefined;
-  const statsQuery = useSelfStats(
-    user?.pubkey,
-    statsThreshold !== undefined
-      ? { verified_threshold: statsThreshold }
-      : undefined,
-  );
+  // Preset-driven server-side, so nothing preset-shaped rides the queryKey —
+  // a preset change invalidates instead (`invalidatePresetDrivenReads`).
+  const statsQuery = useSelfStats(user?.pubkey);
 
   // Track which kinds the user has visited so each kind only fetches once mounted.
   // "flagged" is a derived view that scopes to currently-loaded sections — it
@@ -410,29 +393,12 @@ export default function NetworkPage() {
     isFlaggedView || trustFilter === "all"
       ? undefined
       : UI_TO_GR_TIER[trustFilter];
-  // Single source of truth for the verified line: the preset value when a preset
-  // is active (stable), else the localStorage threshold. Used for BOTH the
-  // verified-only `min_influence` list filter AND the `verified_threshold`
-  // predicate, so the filtered list and the stats-derived header count agree.
-  const verifiedThreshold = trustPreset
-    ? PRESET_THRESHOLDS[trustPreset]
-    : getVerifiedThreshold();
-  const minInfluenceFilter =
-    !isFlaggedView && verifiedOnly && mappedTier === undefined
-      ? verifiedThreshold
-      : undefined;
-  // Preset-driven verified_threshold so tier=low / tier=unverified /
-  // tier=low_and_reported_by_2_or_more_trusted_pubkeys / min_influence on
-  // /connections honour the user's preset (otherwise backend would default
-  // to 0.02).
-  const connectionsVt = trustPreset
-    ? PRESET_THRESHOLDS[trustPreset]
-    : undefined;
+  // `verified_only` filters on the preset's cutoff for that section, so the
+  // list and the stats-derived header count agree by construction.
   const filterOpts = {
     order: sortDirection,
     tier: mappedTier,
-    min_influence: minInfluenceFilter,
-    verified_threshold: connectionsVt,
+    verifiedOnly: !isFlaggedView && verifiedOnly && mappedTier === undefined,
     // Pager needs the filtered total per section (overview/stats can't express
     // arbitrary tier filters). Requested on the first page only (see useSelf).
     withTotal: true,
@@ -463,12 +429,11 @@ export default function NetworkPage() {
     ...filterOpts,
   });
   // Virtual cross-relationship kind: DISTINCT flagged users, server-side.
-  // Filters/min_influence don't apply — the flagged predicate is fixed. The
-  // verified_threshold is still preset-driven (it's part of the predicate).
+  // Filters don't apply — the flagged predicate is fixed (and preset-driven on
+  // the server, since the line it sits below is the preset's).
   const flaggedConn = useSelfConnections(user?.pubkey, "flagged", {
     enabled: loadedKinds.has("flagged"),
     order: sortDirection,
-    verified_threshold: connectionsVt,
   });
 
   // Lookup the currently-active connection query so we can fetch the next
@@ -686,12 +651,7 @@ export default function NetworkPage() {
       trustPreset,
     ],
     queryFn: async () => {
-      const res = await apiClient.getUserStats(expandedPubkey!, {
-        verified_threshold: getVerifiedThreshold(),
-        tier_high: TIER_THRESHOLDS.high,
-        tier_medium_high: TIER_THRESHOLDS.medium_high,
-        tier_medium: TIER_THRESHOLDS.medium,
-      });
+      const res = await apiClient.getUserStats(expandedPubkey!);
       return res?.data ?? null;
     },
     enabled: !!expandedPubkey,
@@ -735,7 +695,6 @@ export default function NetworkPage() {
   // inside another tab, or just spotting flagged users in an unfiltered list.
   const flaggedPubkeySet = useMemo(() => {
     const set = new Set<string>();
-    const vt = getVerifiedThreshold();
     const allKinds: GroupKey[] = [
       "followed_by",
       "following",
@@ -747,15 +706,14 @@ export default function NetworkPage() {
     ];
     for (const k of allKinds) {
       for (const item of (networkData[k] as ConnectionItem[]) || []) {
-        const inf = item.influence;
-        const tr = item.trusted_reporters ?? 0;
-        if (inf !== null && inf !== undefined && inf < vt && tr >= 2) {
+        // Read the server's bucket rather than re-deriving it from a line.
+        if (item.tier === "low_and_reported_by_2_or_more_trusted_pubkeys") {
           set.add(item.pubkey);
         }
       }
     }
     return set;
-  }, [networkData, trustPreset]);
+  }, [networkData]);
 
   const getGroupPubkeys = useCallback(
     (key: GroupKey): string[] => {
@@ -829,8 +787,8 @@ export default function NetworkPage() {
   );
 
   const filteredPubkeys = useCallback(() => {
-    // tier + verified-only are now applied server-side via the `tier` /
-    // `min_influence` query params on /connections — see filterOpts above.
+    // tier + verified-only are applied server-side via the `tier` /
+    // `verified_only` query params on /connections — see filterOpts above.
     // The active-section's loaded items already match the filter, so the only
     // client-side narrowing left is the text search.
     let pubkeys = getGroupPubkeys(activeGroup);

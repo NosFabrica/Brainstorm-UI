@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useRoute, Redirect, Link } from "wouter";
+import { useRoute, Redirect, Link, useLocation } from "wouter";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { ArrowLeft, ChevronRight, Loader2, Users, BadgeCheck, SlidersHorizontal } from "lucide-react";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
@@ -8,7 +8,6 @@ import { AccountMenu } from "@/components/AccountMenu";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { REPORT_TYPE_BADGE_COLORS, formatReportTime } from "@/lib/reportMeta";
 import { apiClient, hasSessionToken } from "@/services/api";
-import { getVerifiedThreshold } from "@/services/trustThreshold";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "@/services/graphHelpers";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Wordmark } from "@/components/Wordmark";
@@ -38,6 +37,7 @@ function cleanNip05(v?: string): string | undefined {
 const PAGE = 20;
 
 export default function ConnectionListPage() {
+  const [, navigate] = useLocation();
   const [, params] = useRoute("/p/:id/:type");
   const me = useActiveAccountDisplay();
   const handleLogout = () => logout();
@@ -87,8 +87,7 @@ export default function ConnectionListPage() {
         cursor: pageParam || undefined,
         order: sortOrder,
         tier: tierFilter === "all" ? undefined : tierFilter,
-        verified_threshold: getVerifiedThreshold(),
-        min_influence: cfg!.verifiedOnly ? getVerifiedThreshold() : undefined,
+        verified_only: cfg!.verifiedOnly,
         house: !myPov,
       });
       return {
@@ -136,8 +135,22 @@ export default function ConnectionListPage() {
   }, [reportsQuery.data]);
 
   // Guard rails — bad share id or unknown list type.
-  if (!decoded) return <Redirect to="/" />;
-  if (!cfg) return <Redirect to={`/p/${rawId}`} />;
+  // `replace`, never push. wouter's <Redirect> PUSHES by default, and these are
+  // guards that can fire transiently: on the first render after an in-app
+  // navigation `useRoute` hasn't matched yet, so `rawId` is empty, `decoded` is
+  // null, and this fired — shoving "/" into history BETWEEN the profile and this
+  // list. The page then rendered correctly, so nothing looked wrong until the
+  // user pressed Back and landed on the home page having lost their place.
+  // A guard redirect must only ever REPLACE the entry it rejects.
+  // Params not resolved yet is NOT a bad URL. `useRoute` can return null params
+  // on the first render after an in-app navigation, making `rawId` empty and
+  // `decoded` null — and redirecting on that rewrote history for a URL that was
+  // about to be perfectly valid, which is what sent people to the home page when
+  // they pressed Back. Wait for the route instead; only a rawId that genuinely
+  // fails to decode is a bad link.
+  if (!rawId) return null;
+  if (!decoded) return <Redirect to="/" replace />;
+  if (!cfg) return <Redirect to={`/p/${rawId}`} replace />;
 
   const subject = (subjectQuery.data ?? {}) as Record<string, string | undefined>;
   const subjectName =
@@ -174,9 +187,31 @@ export default function ConnectionListPage() {
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col">
       <header className="border-b border-slate-200/70 dark:border-slate-800/70 bg-white/70 dark:bg-slate-900/70 backdrop-blur-sm sticky top-0 z-20">
         <div className="max-w-2xl mx-auto px-4 sm:px-6 py-3 flex items-center gap-3">
-          <Link href={`/p/${rawId}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-100 hover:text-slate-900 dark:hover:text-white transition-colors" data-testid="conn-back">
+          {/* Pops history rather than navigating to the profile. As a <Link> this
+              PUSHED a duplicate entry, so "Back" moved the user forward: the
+              stack became [profile, list, profile] and the browser's own Back
+              then returned to the list they'd just left. Do that across a few
+              profiles and the stack fills with duplicates — back-tapping
+              retraces the loop instead of retreating, and eventually overshoots
+              to wherever the session began.
+
+              A <button>, not an <a>: same shape AlertsPage / InsightsPage /
+              ReadingPage / ProfilePage already use for their back controls, and
+              it can't fall through to a full document navigation the way an
+              anchor does if the handler ever declines to preventDefault. Nobody
+              needs to open "Back" in a new tab. `navigate` is the cold-deep-link
+              fallback when there's no history to pop. */}
+          <button
+            type="button"
+            onClick={() => {
+              if (typeof window !== "undefined" && window.history.length > 1) window.history.back();
+              else navigate(`/p/${rawId}`);
+            }}
+            className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-100 hover:text-slate-900 dark:hover:text-white transition-colors"
+            data-testid="conn-back"
+          >
             <ArrowLeft className="h-4 w-4" /> Back to {subjectName.split(" ")[0]}
-          </Link>
+          </button>
           <div className="ml-auto flex items-center gap-3">
             <Link href="/" className="flex items-center" data-testid="conn-brand">
               <Wordmark height={24} className="dark:hidden" />
