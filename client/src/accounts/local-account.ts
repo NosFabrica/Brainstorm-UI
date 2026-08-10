@@ -84,6 +84,8 @@ export class LocalAccount extends BaseAccount<LocalSigner, LocalSignerData, Acco
     options: LocalSignerOptions & {
       password?: string;
       logn?: number;
+      /** The Backup this key was restored from, adopted at its own work factor. */
+      ncryptsec?: string;
       /** Throw rather than hand back an Account nothing can store. On by default. */
       requirePersistable?: boolean;
     } = {},

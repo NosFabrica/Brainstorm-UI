@@ -250,6 +250,8 @@ export default function LoginPage() {
               className="w-full inline-flex justify-center items-center gap-2 py-3 text-sm font-semibold text-brand-primary dark:text-brand-link hover:text-brand-primary dark:hover:text-brand-link hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10 rounded-xl transition-colors"
               data-testid="link-use-nsec"
             >
+              {/* Don't reword: every backup file ever downloaded tells its holder
+                  to look for "Use your key". See buildAccountBackupFileContent. */}
               <KeyRound className="h-4 w-4" /> Use your key?
             </button>
           </div>

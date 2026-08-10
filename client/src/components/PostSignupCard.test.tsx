@@ -77,6 +77,22 @@ describe("backing up from the post-signup card", () => {
     expect(screen.queryByTestId("tile-backup-done")).toBeNull();
   });
 
+  // Demoted, not removed: many nostr clients take an nsec and not an ncryptsec,
+  // so dropping it would trap anyone trying to take their identity elsewhere.
+  it("keeps the raw-key download below the encrypted one, behind its blunt warning", () => {
+    openBackupForm();
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+
+    const encrypted = screen.getByTestId("button-download-backup");
+    const raw = screen.getByTestId("button-download-raw-key");
+    expect(encrypted.compareDocumentPosition(raw)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+
+    fireEvent.click(raw);
+
+    expect(confirm.mock.calls[0][0]).toMatch(/WITHOUT a password/);
+    expect(downloadRawKeyBackup).not.toHaveBeenCalled();
+  });
+
   it("marks the account backed up after a raw-key download too", async () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     openBackupForm();

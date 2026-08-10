@@ -72,7 +72,7 @@ export async function extensionAccount(): Promise<ExtensionAccount<AccountMetada
  */
 export function localAccount(
   key: Uint8Array,
-  options: LocalSignerOptions & { password?: string; logn?: number } = {},
+  options: LocalSignerOptions & { password?: string; logn?: number; ncryptsec?: string } = {},
 ): Promise<LocalAccount> {
   return LocalAccount.fromKey(key, { ...options, requirePersistable: false });
 }

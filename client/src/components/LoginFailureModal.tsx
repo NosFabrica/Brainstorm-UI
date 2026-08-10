@@ -16,8 +16,15 @@ import {
   ArrowRight,
   ShieldCheck,
 } from "lucide-react";
-import { loginWithNsec, loginWithEncryptedBackup, type LoginErrorCode } from "@/services/nostr";
-import { looksLikeEncryptedKey } from "@/lib/credentialManager";
+import { loginWithPastedKey, type LoginErrorCode } from "@/services/nostr";
+import { setRecoveryPassword } from "@/accounts/backup";
+import { BACKUP_LOGN } from "@/accounts/local-signer";
+import {
+  backupTooExpensive,
+  backupWorkFactor,
+  extractKeyToken,
+  UNUSABLE_BACKUP_MESSAGE,
+} from "@/accounts/restore";
 import {
   Tooltip,
   TooltipContent,
@@ -49,6 +56,19 @@ const EXTENSIONS = [
   },
 ];
 
+/** The one red note this modal shows, wherever it fails. */
+function ErrorNote({ message, testId }: { message: string; testId: string }) {
+  return (
+    <div
+      className="flex items-start gap-2 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25 text-red-700 dark:text-red-300"
+      data-testid={testId}
+    >
+      <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
+      <span className="text-xs font-medium leading-relaxed">{message}</span>
+    </div>
+  );
+}
+
 export function LoginFailureModal({
   open,
   onOpenChange,
@@ -64,10 +84,19 @@ export function LoginFailureModal({
   const [submitting, setSubmitting] = useState(false);
   const [secretKeyError, setSecretKeyError] = useState("");
   const [showSecretKeyForm, setShowSecretKeyForm] = useState(false);
+  /** Set once a restored Backup turns out to cost more to open than ours do. */
+  const [importedCost, setImportedCost] = useState<number | null>(null);
 
-  // An encrypted backup key (NIP-49) needs a password to unlock.
-  const isEncryptedKey = looksLikeEncryptedKey(secretKey);
-  const canSubmitKey = !!secretKey.trim() && (!isEncryptedKey || !!backupPassword);
+  /**
+   * People paste the whole backup file, not the key line inside it — every file
+   * this app ever wrote prints restore steps around the key. Find the key in
+   * whatever arrived; an encrypted one (NIP-49) then needs its password.
+   */
+  const pastedKey = extractKeyToken(secretKey);
+  const isEncryptedKey = pastedKey?.kind === "ncryptsec";
+  /** Its own header says it needs more memory than a browser has — say so now. */
+  const unusableBackup = isEncryptedKey && backupTooExpensive(pastedKey.token);
+  const canSubmitKey = !!secretKey.trim() && !unusableBackup && (!isEncryptedKey || !!backupPassword);
 
   // Password-manager autofill often does NOT fire React's onChange, so the
   // controlled `secretKey` would stay empty and the ncryptsec branch never
@@ -95,6 +124,7 @@ export function LoginFailureModal({
       setSubmitting(false);
       setSecretKeyError("");
       setShowSecretKeyForm(false);
+      setImportedCost(null);
     }
   }, [open]);
 
@@ -111,10 +141,16 @@ export function LoginFailureModal({
     setSecretKeyError("");
     setSubmitting(true);
     try {
-      if (isEncryptedKey) {
-        await loginWithEncryptedBackup(secretKey, backupPassword, { persistent: rememberMe });
-      } else {
-        await loginWithNsec(secretKey, { persistent: rememberMe });
+      await loginWithPastedKey(secretKey, isEncryptedKey ? backupPassword : undefined, {
+        persistent: rememberMe,
+      });
+      // The Backup came in at whatever cost its minter chose. Where that is
+      // heavier than ours, every future unlock pays for it — so offer, once,
+      // to re-mint it cheaper. Never silently: it is their protection.
+      const cost = isEncryptedKey ? backupWorkFactor(pastedKey!.token) : undefined;
+      if (cost !== undefined && cost > BACKUP_LOGN) {
+        setImportedCost(cost);
+        return;
       }
       onLoginSuccess();
     } catch (err) {
@@ -128,8 +164,32 @@ export function LoginFailureModal({
     }
   };
 
+  /**
+   * Re-encrypt the Backup at our own work factor, under the same password they
+   * just typed — so nothing about which password opens what changes, and the
+   * file they already hold keeps working. Only the stored copy gets cheaper.
+   */
+  const handleRemint = async () => {
+    setSecretKeyError("");
+    setSubmitting(true);
+    try {
+      await setRecoveryPassword(backupPassword);
+      onLoginSuccess();
+    } catch {
+      setSecretKeyError("Couldn't re-encrypt your key. Your backup is unchanged — carry on.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const handleClose = (nextOpen: boolean) => {
     if (submitting) return;
+    // Past the offer the sign-in has already happened. Dismissing it declines
+    // the re-mint; it must not also swallow the login the app is waiting on.
+    if (!nextOpen && importedCost !== null) {
+      onLoginSuccess();
+      return;
+    }
     onOpenChange(nextOpen);
   };
 
@@ -150,7 +210,9 @@ export function LoginFailureModal({
                   style={{ fontFamily: "var(--font-display)" }}
                   data-testid="text-login-failure-title"
                 >
-                  {showSecretKeyForm
+                  {importedCost !== null
+                    ? "You're in"
+                    : showSecretKeyForm
                     ? "Sign in with your key"
                     : "Sign-in couldn't complete"}
                 </DialogTitle>
@@ -158,7 +220,9 @@ export function LoginFailureModal({
                   className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed"
                   data-testid="text-login-failure-subtitle"
                 >
-                  {showSecretKeyForm
+                  {importedCost !== null
+                    ? "Your backup was made with heavier protection than this app uses."
+                    : showSecretKeyForm
                     ? "Paste your key to continue."
                     : subheadline}
                 </DialogDescription>
@@ -179,7 +243,51 @@ export function LoginFailureModal({
               </div>
             )}
 
-            {!showSecretKeyForm && (
+            {importedCost !== null && (
+              <div className="px-5 sm:px-6 pb-5 pt-2 space-y-2.5" data-testid="pane-work-factor">
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
+                  Unlocking it takes {2 ** (importedCost - BACKUP_LOGN)}× the work Brainstorm asks
+                  for, every time — slow on a phone. We can re-encrypt your key here at our own
+                  setting, using the same password. That's less protection than whoever made this
+                  backup chose, so it's yours to decide; the file you already have is unchanged
+                  either way.
+                </p>
+                {secretKeyError && (
+                  <ErrorNote message={secretKeyError} testId="text-remint-error" />
+                )}
+                <button
+                  type="button"
+                  onClick={() => void handleRemint()}
+                  disabled={submitting}
+                  className="w-full h-11 rounded-xl bg-brand-primary hover:bg-brand-primary text-white font-semibold text-sm tracking-wide shadow-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  data-testid="button-remint-backup"
+                >
+                  {submitting ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Re-encrypting…
+                    </>
+                  ) : (
+                    <>
+                      <ShieldCheck className="h-4 w-4" />
+                      Make unlocking faster
+                    </>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={onLoginSuccess}
+                  disabled={submitting}
+                  className="w-full h-10 rounded-xl bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 font-semibold text-sm transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  data-testid="button-keep-work-factor"
+                >
+                  Keep it as it is
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+
+            {!showSecretKeyForm && importedCost === null && (
               <div className="px-5 sm:px-6 pb-5 pt-2 space-y-2.5">
                 {isNoExtension ? (
                   <>
@@ -268,7 +376,7 @@ export function LoginFailureModal({
               </div>
             )}
 
-            {showSecretKeyForm && (
+            {showSecretKeyForm && importedCost === null && (
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
@@ -337,12 +445,21 @@ export function LoginFailureModal({
                   </div>
 
                   {isEncryptedKey && (
-                    <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-backup-detected">
-                      Looks like a backup file — enter its password below.
+                    <p
+                      className={
+                        unusableBackup
+                          ? "text-xs font-medium text-amber-700 dark:text-amber-400"
+                          : "text-xs text-slate-500 dark:text-slate-400"
+                      }
+                      data-testid={unusableBackup ? "text-backup-unusable" : "text-backup-detected"}
+                    >
+                      {unusableBackup
+                        ? UNUSABLE_BACKUP_MESSAGE
+                        : "Looks like a backup file — enter its password below."}
                     </p>
                   )}
 
-                  {isEncryptedKey && (
+                  {isEncryptedKey && !unusableBackup && (
                     <div className="relative" data-testid="row-backup-password">
                       <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 dark:text-slate-500 pointer-events-none" />
                       <input
@@ -363,15 +480,7 @@ export function LoginFailureModal({
                   )}
 
                   {secretKeyError && (
-                    <div
-                      className="flex items-start gap-2 px-3 py-2 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/25 text-red-700 dark:text-red-300"
-                      data-testid="text-nsec-error"
-                    >
-                      <AlertCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" />
-                      <span className="text-xs font-medium leading-relaxed">
-                        {secretKeyError}
-                      </span>
-                    </div>
+                    <ErrorNote message={secretKeyError} testId="text-nsec-error" />
                   )}
                 </div>
 

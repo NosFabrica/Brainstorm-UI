@@ -141,6 +141,18 @@ describe("LocalAccount.fromKey", () => {
     expect(account.signer.data.envelope).toBeDefined();
   });
 
+  it("adopts the Backup an import arrived with, at the cost whoever minted it chose", async () => {
+    const unlockCache = createFakeUnlockCache();
+    const { secretKey, ncryptsec } = await keyFixture();
+
+    const account = await LocalAccount.fromKey(secretKey, { ncryptsec, unlockCache });
+
+    // Verbatim: re-minting at our own cost would quietly lower the protection
+    // its owner chose, and would no longer match the file they still hold.
+    expect(account.signer.data.ncryptsec).toBe(ncryptsec);
+    expect(account.signer.data.envelope).toBeDefined();
+  });
+
   it("refuses to hold a key it could never store or unlock again", async () => {
     const unlockCache = createFakeUnlockCache();
     unlockCache.supported = false; // private browsing: no cache, so a password is the only form

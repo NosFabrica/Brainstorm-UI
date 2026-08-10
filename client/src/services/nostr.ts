@@ -1,5 +1,4 @@
 import { nip19, finalizeEvent, getPublicKey, generateSecretKey, verifyEvent } from "nostr-tools";
-import { decrypt as decryptSecretKeyNip49 } from "nostr-tools/nip49";
 import { RelayPool } from "applesauce-relay";
 import { env } from "@/lib/runtimeEnv";
 import { isVaultSupported, encryptSecret, decryptSecret } from "@/lib/skVault";
@@ -72,6 +71,11 @@ import {
 } from "@/accounts/login";
 import { isRemembered, type AccountMetadata, type BrainstormAccount } from "@/accounts/metadata";
 import { activePubkey, rememberProfile } from "@/accounts/display";
+import {
+  openPastedKey,
+  UNUSABLE_BACKUP_MESSAGE,
+  type RestoreFailure,
+} from "@/accounts/restore";
 import { queryClient } from "@/lib/queryClient";
 import { extractAdminFlag } from "@/lib/jwt";
 import { recordFollowList } from "@/lib/followStore";
@@ -1392,10 +1396,13 @@ export async function signInWithAccount(account: BrainstormAccount): Promise<Nos
  * server's challenge LOCALLY (the key never leaves the device), and complete the
  * session. `opts.persistent` is "stay signed in" — a Remembered Account.
  */
-async function authenticateWithSecretKey(sk: Uint8Array, opts?: { persistent?: boolean }): Promise<NostrUser> {
+async function authenticateWithSecretKey(
+  sk: Uint8Array,
+  opts?: { persistent?: boolean; ncryptsec?: string },
+): Promise<NostrUser> {
   let account: LocalAccount;
   try {
-    account = await localAccount(sk);
+    account = await localAccount(sk, { ncryptsec: opts?.ncryptsec });
   } catch {
     throw new LoginError("INVALID_NSEC", "We couldn't read a valid account from that key.");
   }
@@ -1418,55 +1425,43 @@ function asLoginError(err: unknown): LoginError {
   return new LoginError("SERVER_ERROR", message || "Server error during login.");
 }
 
-export async function loginWithNsec(nsec: string, opts?: { persistent?: boolean }): Promise<NostrUser> {
-  const trimmed = nsec.trim();
-  if (!trimmed) {
-    throw new LoginError("INVALID_NSEC", "Please paste your key to continue.");
-  }
-
-  let sk: Uint8Array;
-  try {
-    const decoded = nip19.decode(trimmed);
-    if (decoded.type !== "nsec") {
-      throw new Error("Not an nsec key");
-    }
-    sk = decoded.data as Uint8Array;
-  } catch {
-    throw new LoginError(
-      "INVALID_NSEC",
-      "That doesn't look like a valid key. Double-check it and try again."
-    );
-  }
-
-  // `persistent` ("Remember me on this device") stores the key in localStorage so
-  // the user stays signed in. Default false → ephemeral sessionStorage.
-  return authenticateWithSecretKey(sk, opts);
-}
+/**
+ * What a failed paste is told. `unusable-backup` is the one that matters: it is
+ * a correct password against a key this browser hasn't the memory to open, and
+ * calling it wrong would tell someone their password is wrong forever.
+ */
+const RESTORE_MESSAGES: Record<RestoreFailure, string> = {
+  empty: "Please paste your key to continue.",
+  unreadable: "That doesn't look like a valid key. Double-check it and try again.",
+  "no-password": "Enter the password for this backup.",
+  "wrong-password": "Wrong password, or this isn't a valid backup key.",
+  "unusable-backup": UNUSABLE_BACKUP_MESSAGE,
+};
 
 /**
- * Restore an account from an encrypted backup key (NIP-49 `ncryptsec…`) + password.
- * Decryption happens entirely in the browser; the password is never sent anywhere.
- * Restored accounts persist (stay signed in), matching created-account behavior.
+ * Sign in from whatever was pasted — a raw nsec, or an encrypted Backup and its
+ * password, either as the bare token or the whole backup file around it. Every
+ * file this app has ever written prints restore steps that end in this box.
+ *
+ * A Backup arrives with the account: it is stored verbatim, at the work factor
+ * whoever minted it chose, so the file the user still holds keeps opening it.
  */
-export async function loginWithEncryptedBackup(ncryptsec: string, password: string, opts?: { persistent?: boolean }): Promise<NostrUser> {
-  const trimmed = ncryptsec.trim();
-  if (!trimmed) {
-    throw new LoginError("INVALID_NSEC", "Please paste your backup key to continue.");
-  }
-  if (!password) {
-    throw new LoginError("INVALID_NSEC", "Enter the password you used for this backup.");
-  }
+export async function loginWithPastedKey(
+  pasted: string,
+  password?: string,
+  opts?: { persistent?: boolean },
+): Promise<NostrUser> {
+  const opened = openPastedKey(pasted, password);
+  if (!opened.ok) throw new LoginError("INVALID_NSEC", RESTORE_MESSAGES[opened.reason]);
 
-  let sk: Uint8Array;
-  try {
-    sk = decryptSecretKeyNip49(trimmed, password);
-  } catch {
-    throw new LoginError("INVALID_NSEC", "Wrong password, or this isn't a valid backup key.");
-  }
-
-  // Restoring from a backup defaults to staying signed in (the user has the password).
-  return authenticateWithSecretKey(sk, { persistent: opts?.persistent ?? true });
+  // `persistent` is "Remember me on this device" — it keeps the account across
+  // reloads.
+  return authenticateWithSecretKey(opened.secretKey, {
+    persistent: opts?.persistent,
+    ncryptsec: opened.ncryptsec,
+  });
 }
+
 
 export function logout() {
   // Brainstorm Assistant data is namespaced per owner, so logging out does
@@ -1724,7 +1719,7 @@ export async function runInitialSetup(
  * Create a brand-new Brainstorm account: generate a keypair client-side, log in
  * via the existing challenge/verify flow, persist the key locally so the user
  * stays signed in, and fire-and-forget the first-run setup. Mirrors
- * `loginWithNsec` but with a generated key.
+ * `loginWithPastedKey` but with a generated key.
  *
  * `password` is the Recovery password chosen at signup — it mints the Backup, so
  * the account is portable from birth rather than device-bound until someone

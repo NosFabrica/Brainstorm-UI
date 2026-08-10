@@ -9,7 +9,7 @@ import {
   setRecoveryPassword,
   verifyRecoveryPassword,
 } from "@/accounts/backup";
-import type { UnlockFailure } from "@/accounts/local-signer";
+import type { UnlockFailure } from "@/accounts/restore";
 import { downloadBackupFile, heldBackupCredential, type BackupCredential } from "@/lib/accountBackup";
 import { storePasswordCredential } from "@/lib/credentialManager";
 import { afterPaint } from "@/lib/afterPaint";

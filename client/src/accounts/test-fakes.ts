@@ -6,7 +6,7 @@
 import { vi } from "vitest";
 import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import { encrypt as encryptSecretKeyNip49 } from "nostr-tools/nip49";
-import { npubEncode } from "nostr-tools/nip19";
+import { encodeBytes, npubEncode } from "nostr-tools/nip19";
 
 import { UnlockCancelled, type RecoveryPasswordRequest } from "./local-signer";
 import { createMemoryStorage, type StorageSeam } from "./persist";
@@ -62,6 +62,18 @@ export function fakePrompt(...passwords: string[]) {
     }
     throw new UnlockCancelled();
   });
+}
+
+/**
+ * A NIP-49 payload minted at `logn` — without running scrypt at it, which above
+ * ~20 is precisely what no browser can afford. Only the header is ever read, so
+ * the salt, nonce and ciphertext stay zeroed.
+ */
+export function backupAtCost(logn: number): string {
+  const payload = new Uint8Array(1 + 1 + 16 + 24 + 1 + 48);
+  payload[0] = 2; // NIP-49 version
+  payload[1] = logn;
+  return encodeBytes("ncryptsec", payload);
 }
 
 export function createTestStorage(): StorageSeam {

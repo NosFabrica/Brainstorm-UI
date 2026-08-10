@@ -7,6 +7,11 @@ import { activeDisplay } from "@/accounts/display";
  * restore, and the password caveat. The raw nsec is intentionally NOT included —
  * the `ncryptsec` is the key already encrypted with the user's password, which is
  * the only safe way to put a key in a file.
+ *
+ * **The restore steps are a compatibility surface.** Every file ever downloaded
+ * carries them and none can be edited afterwards, so the sign-in affordance has
+ * to stay findable as `"Use your key"` however it is renamed internally — it is
+ * printed below, and lives in `LoginPage` and `LoginFailureModal`.
  */
 export function buildAccountBackupFileContent(ncryptsec: string, npub: string): string {
   return [
@@ -31,7 +36,7 @@ export function buildAccountBackupFileContent(ncryptsec: string, npub: string): 
     "HOW TO RESTORE",
     '1. Open Brainstorm and choose Sign in -> "Use your key".',
     '2. Paste the encrypted recovery key line above (it starts with "ncryptsec").',
-    "3. Enter the password you set when you saved this backup.",
+    "3. Enter your recovery password - the one you chose for this account.",
     "It also works in any Nostr app that supports encrypted keys",
     "(NIP-49, the standard encrypted-key format).",
     "",

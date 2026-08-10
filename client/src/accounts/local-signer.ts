@@ -8,6 +8,12 @@ import {
 } from "nostr-tools/nip49";
 import { Subject } from "rxjs";
 
+import {
+  backupTooExpensive,
+  unlockFailureOf,
+  UNUSABLE_BACKUP_MESSAGE,
+  type UnlockFailure,
+} from "./restore";
 import { deviceUnlockCache, type UnlockCache } from "./unlock-cache";
 
 /**
@@ -41,13 +47,6 @@ export function isUnlockCancelled(error: unknown): boolean {
   return error instanceof UnlockCancelled || (error as { name?: string })?.name === "UnlockCancelled";
 }
 
-/**
- * Why an attempt at the Backup failed. The distinction is load-bearing: telling
- * someone their correct password is wrong is the worst failure here, and a
- * ncryptsec minted above this browser's memory ceiling fails identically.
- */
-export type UnlockFailure = "wrong-password" | "unusable-backup";
-
 export type UnlockAttemptResult = { ok: true } | { ok: false; reason: UnlockFailure };
 
 /** Thrown when a Recovery password handed straight in doesn't open the Backup. */
@@ -55,23 +54,13 @@ export class RecoveryPasswordError extends Error {
   constructor(readonly reason: UnlockFailure) {
     super(
       reason === "unusable-backup"
-        ? "This backup needs more memory than this browser allows"
+        ? UNUSABLE_BACKUP_MESSAGE
         : "That is not the recovery password for this account",
     );
     this.name = "RecoveryPasswordError";
   }
 }
 
-/**
- * Which kind of failure a Backup decrypt threw. @noble's scrypt refuses a work
- * factor above its memory ceiling with a maxmem throw, and a bad password fails
- * on the cipher's tag — indistinguishable unless we look at the message. Ticket 13
- * owns reading `logn` before we even try.
- */
-export function unlockFailureOf(error: unknown): UnlockFailure {
-  const message = error instanceof Error ? error.message : String(error);
-  return /maxmem|memory/i.test(message) ? "unusable-backup" : "wrong-password";
-}
 
 /**
  * The two at-rest forms of a key. Both optional, and all four combinations are
@@ -244,6 +233,7 @@ export class LocalSigner implements ISigner {
    * loop, so no spinner can animate through it.
    */
   private tryBackup(password: string): UnlockAttemptResult {
+    if (backupTooExpensive(this.data.ncryptsec!)) return { ok: false, reason: "unusable-backup" };
     try {
       this.inner = new PrivateKeySigner(decryptSecretKeyNip49(this.data.ncryptsec!, password));
       return { ok: true };
@@ -301,6 +291,7 @@ export class LocalSigner implements ISigner {
     if (!this.data.ncryptsec) {
       throw new NoUnlockPathError("This account has no backup to check a password against");
     }
+    if (backupTooExpensive(this.data.ncryptsec)) return { ok: false, reason: "unusable-backup" };
     try {
       decryptSecretKeyNip49(this.data.ncryptsec, password);
       return { ok: true };
@@ -324,9 +315,22 @@ export class LocalSigner implements ISigner {
     return this.inner!.signEvent(template);
   }
 
-  /** An already-unlocked Signer over `key` — the signup and paste-nsec paths. */
-  static fromKey(key: Uint8Array, options: LocalSignerOptions = {}): LocalSigner {
-    const signer = new LocalSigner(getPublicKey(key), {}, options);
+  /**
+   * An already-unlocked Signer over `key` — the signup and paste-nsec paths.
+   *
+   * `ncryptsec` is adopted verbatim where the key came *out* of one: it is the
+   * Backup its owner already holds a file of, at the work factor they chose, and
+   * re-minting it here would silently replace both.
+   */
+  static fromKey(
+    key: Uint8Array,
+    options: LocalSignerOptions & { ncryptsec?: string } = {},
+  ): LocalSigner {
+    const signer = new LocalSigner(
+      getPublicKey(key),
+      options.ncryptsec ? { ncryptsec: options.ncryptsec } : {},
+      options,
+    );
     signer.inner = new PrivateKeySigner(key);
     return signer;
   }

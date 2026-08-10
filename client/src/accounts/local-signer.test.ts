@@ -9,10 +9,10 @@ import {
   setRecoveryPasswordPrompt,
   UnlockCancelled,
   isUnlockCancelled,
-  unlockFailureOf,
   type RecoveryPasswordRequest,
 } from "./local-signer";
-import { fakePrompt, keyFixture, LOW_LOGN, PASSWORD } from "./test-fakes";
+import { unlockFailureOf } from "./restore";
+import { backupAtCost, fakePrompt, keyFixture, LOW_LOGN, PASSWORD } from "./test-fakes";
 
 afterEach(() => setRecoveryPasswordPrompt(undefined));
 
@@ -171,6 +171,25 @@ describe("LocalSigner and the Recovery password prompt", () => {
     expect(
       unlockFailureOf(new Error('"maxmem" limit was hit, expected 128*r*(N+p) <= "maxmem"=1073742848')),
     ).toBe("unusable-backup");
+    expect(unlockFailureOf(new RangeError("Array buffer allocation failed"))).toBe(
+      "unusable-backup",
+    );
+  });
+
+  it("reads the cost off a foreign Backup rather than attempting a decrypt that can't finish", async () => {
+    const { pubkey, unlockCache } = await keyFixture();
+    const signer = new LocalSigner(pubkey, { ncryptsec: backupAtCost(22) }, { unlockCache });
+
+    // Attempting this would allocate 4 GiB — it has to fail on the header alone.
+    expect(signer.verifyRecoveryPassword(PASSWORD)).toEqual({
+      ok: false,
+      reason: "unusable-backup",
+    });
+    await expect(signer.unlock(PASSWORD)).rejects.toMatchObject({
+      name: "RecoveryPasswordError",
+      reason: "unusable-backup",
+    });
+    expect(signer.unlocked).toBe(false);
   });
 
   it("propagates a cancel to the caller, untouched, and stays locked", async () => {

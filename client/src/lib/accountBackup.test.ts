@@ -124,4 +124,11 @@ describe("the backup file", () => {
     expect(content).toContain(NCRYPTSEC);
     expect(content).toContain(NPUB);
   });
+
+  it("no longer claims the password was chosen at backup time — it's set at signup", () => {
+    const content = buildAccountBackupFileContent(NCRYPTSEC, NPUB);
+
+    expect(content).not.toContain("when you saved this backup");
+    expect(content).toContain("recovery password");
+  });
 });

@@ -4,7 +4,7 @@ import { use$ } from "applesauce-react/hooks";
 import { KeyRound, Trash2 } from "lucide-react";
 
 import { installUnlockPrompt, unlockPrompt$ } from "@/accounts/unlock-request";
-import type { UnlockFailure } from "@/accounts/local-signer";
+import type { UnlockFailure } from "@/accounts/restore";
 import { logout } from "@/services/nostr";
 import { afterPaint } from "@/lib/afterPaint";
 import { Button } from "@/components/ui/button";
