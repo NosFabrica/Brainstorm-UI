@@ -814,7 +814,29 @@ export interface TagCarrier {
   addedAt: number;
 }
 
+/**
+ * Did this tag turn out to exist?
+ *
+ * `"ok"`        — real: a tag-element resolved, or people have applied it.
+ * `"absent"`    — checked, and there is nothing here. The URL was invented.
+ * `"unavailable"` — the relays didn't answer. NOT the same as absent, and the
+ *                 difference is the whole point: 404-ing on a flaky relay would
+ *                 tell people a real tag doesn't exist.
+ */
+export type TagDetailStatus = "ok" | "absent" | "unavailable";
+
 export interface TagDetail {
+  /**
+   * Whether the tag exists. Callers MUST branch on this before rendering
+   * anything derived from the URL.
+   *
+   * Issue #41 B3: this read used to always succeed, synthesizing an identity
+   * from the path — so `/tags/<any npub>/<any string>` rendered a complete,
+   * branded page whose headline was the attacker's string and whose byline read
+   * "Tag created by <that npub's real display name>", linked to their profile.
+   * No account, no signing key, and nothing on a relay to take down.
+   */
+  status: TagDetailStatus;
   tag: TagIdentity;
   /**
    * The tag-element's event id. Only a pin needs it — the spec's dual reference
@@ -855,7 +877,12 @@ export async function fetchTagDetail(
 ): Promise<TagDetail> {
   // The tag-element, for its name AND its event id — assertions that predate
   // the `a` correction reference the tag only by that id.
+  //
+  // Whether this read FAILED or merely found nothing has to survive: swallowing
+  // the throw made "no such tag" and "relay unreachable" the same code path, and
+  // that is what let an invented URL render as a real page (B3).
   let elements: NostrEvent[] = [];
+  let elementLookupFailed = false;
   try {
     elements = await fetchTagEvents({
       kinds: [TAG_ELEMENT_KIND],
@@ -863,7 +890,7 @@ export async function fetchTagDetail(
       "#d": [slug],
     });
   } catch {
-    /* name falls back to the slug; the #a read below still works */
+    elementLookupFailed = true;
   }
   const element = elements.find((el) => tagValue(el, "d") === slug);
   let meta: { name?: string; description?: string } = {};
@@ -882,27 +909,70 @@ export async function fetchTagDetail(
   // Both halves of the union: modern assertions point at the tag's coordinate,
   // legacy ones at the element's event id. Querying only `#a` here is what made
   // this page under-report.
+  //
+  // These reads catch too, and for the same reason as the element read above: a
+  // throw escaping here would surface as a generic query error, and the page's
+  // "can't load this tag" state would never be reached. A failure and an empty
+  // result must stay distinguishable all the way out of this function.
   const elementIds = elements.map((el) => el.id);
+  let assertionLookupFailed = false;
+  const swallow = async (p: Promise<NostrEvent[]>) => {
+    try {
+      return await p;
+    } catch {
+      assertionLookupFailed = true;
+      return [] as NostrEvent[];
+    }
+  };
   const [byCoord, byElementId] = await Promise.all([
-    fetchTagEvents(
-      filterProfileTaggingsUsingTag({
-        tagAuthorPubkey: authorPubkey,
-        slug,
-        zHandlePubkeys: Z_HANDLE_PUBKEYS,
-      }),
+    swallow(
+      fetchTagEvents(
+        filterProfileTaggingsUsingTag({
+          tagAuthorPubkey: authorPubkey,
+          slug,
+          zHandlePubkeys: Z_HANDLE_PUBKEYS,
+        }),
+      ),
     ),
     elementIds.length
-      ? fetchTagEvents({
-          kinds: [TAG_ELEMENT_KIND],
-          "#e": elementIds,
-          "#z": Z_HANDLE_PUBKEYS.map(conceptNostrUserTag),
-        })
+      ? swallow(
+          fetchTagEvents({
+            kinds: [TAG_ELEMENT_KIND],
+            "#e": elementIds,
+            "#z": Z_HANDLE_PUBKEYS.map(conceptNostrUserTag),
+          }),
+        )
       : Promise.resolve([] as NostrEvent[]),
   ]);
 
   const deduped = new Map<string, NostrEvent>();
   for (const ev of [...byCoord, ...byElementId]) deduped.set(ev.id, ev);
-  if (!deduped.size) return { tag, elementId: element?.id ?? "", carriers: [], disputed: [], trustUnverified: false };
+
+  if (!deduped.size) {
+    /**
+     * Nothing applies this tag. Whether that means "invented URL" or "real tag,
+     * nobody has used it yet" is decided by the ELEMENT, not by the assertions:
+     * minting a tag and applying it are separate acts, and a freshly minted tag
+     * legitimately has no carriers.
+     *
+     * Requiring BOTH signals — no element AND no assertions — before calling it
+     * absent is deliberate. An element that never propagated to our relay set,
+     * on a tag people have genuinely applied, would otherwise 404 a real page.
+     */
+    const status: TagDetailStatus = element
+      ? "ok"
+      : elementLookupFailed || assertionLookupFailed
+        ? "unavailable"
+        : "absent";
+    return {
+      status,
+      tag,
+      elementId: element?.id ?? "",
+      carriers: [],
+      disputed: [],
+      trustUnverified: false,
+    };
+  }
 
   // Only assertions for THIS tag — the relays filtered, but a permissive one
   // could hand back more and we'd rather not list strangers.
@@ -973,7 +1043,15 @@ export async function fetchTagDetail(
   const shown = new Set(carriers.map((c) => c.pubkey));
   const disputed = all.filter((c) => !shown.has(c.pubkey)).sort(byVouches);
 
-  return { tag, elementId: element?.id ?? "", carriers, disputed, trustUnverified: trust.unverified };
+  // People have applied it, so it exists whether or not its element reached us.
+  return {
+    status: "ok",
+    tag,
+    elementId: element?.id ?? "",
+    carriers,
+    disputed,
+    trustUnverified: trust.unverified,
+  };
 }
 
 // ─── The catalogue ───────────────────────────────────────────────────────────

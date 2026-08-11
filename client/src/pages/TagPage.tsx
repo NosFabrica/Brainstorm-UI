@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useRoute, Redirect, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Bookmark, BookmarkCheck, Check, Loader2, Plus, Tag as TagIcon, Users } from "lucide-react";
+import NotFound from "@/pages/not-found";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { PageHeader } from "@/components/PageHeader";
 import { PersonListRow, PersonListSkeleton } from "@/components/PersonListRow";
@@ -36,9 +37,18 @@ import { onlySelfDeclared } from "@/lib/tagCounts";
  * other and people will paste whichever form they have.
  */
 
-/** Set/reset the document title + OG meta for shareable previews. */
-function useTagMeta(name: string, count: number) {
+/**
+ * Set/reset the document title + OG meta for shareable previews.
+ *
+ * `active` gates the whole effect on the tag being REAL (issue #41 B3). The
+ * name here comes from the URL until the relays say otherwise, so writing it
+ * eagerly put an attacker's string into the tab title and the OG tags of a page
+ * that turned out not to exist. Nothing derived from the path reaches the
+ * document until the tag is confirmed.
+ */
+function useTagMeta(name: string, count: number, active: boolean) {
   useEffect(() => {
+    if (!active) return;
     const title = `${name} · Brainstorm`;
     const desc =
       count > 0
@@ -58,7 +68,7 @@ function useTagMeta(name: string, count: number) {
       set('meta[property="og:description"]', "content", desc),
     ];
     return () => { document.title = prevTitle; undo.forEach((u) => u()); };
-  }, [name, count]);
+  }, [name, count, active]);
 }
 
 /** Below this many people a filter bar is furniture; badges carry it instead. */
@@ -92,7 +102,16 @@ export default function TagPage() {
   const { data: pinned } = usePinnedTags(TAG_PINS_ENABLED);
   const togglePin = useTogglePin();
   const myPin = pinned?.find((p) => p.authorPubkey === authorPubkey && p.slug === slug);
-  const tagName = detailQuery.data?.tag.name || slug || "Tag";
+  /**
+   * The headline. Falls back to a neutral word, NOT to the slug (#41 B3).
+   *
+   * The slug is whatever the link's author typed. Echoing it as an h1 under
+   * Brainstorm's chrome before the relays have confirmed the tag exists is the
+   * screenshot the issue is about, and "it's only visible for a second while
+   * loading" is not a defence against a screenshot. Once the tag resolves, the
+   * element's own name — or its real slug — is safe to show.
+   */
+  const tagName = detailQuery.data?.tag.name || "Tag";
 
   // Voting needs a SIGNER, not just a session — same rule as the profile
   // picker, for the same reason: a token can't sign an event.
@@ -121,7 +140,8 @@ export default function TagPage() {
   });
   const profileMap = profilesQuery.data;
 
-  useTagMeta(tagName, carriers.length);
+  const status = detailQuery.data?.status;
+  useTagMeta(tagName, carriers.length, status === "ok");
 
   // Params read null on the first render after an in-app navigation, so bail
   // quietly rather than firing a redirect that would corrupt the back stack.
@@ -156,6 +176,28 @@ export default function TagPage() {
   const authorProfile = profileMap?.get(authorPubkey);
   let authorNpub = "";
   try { authorNpub = npubFromPubkey(authorPubkey); } catch { /* leave unlinked */ }
+
+  /**
+   * The tag does not exist — someone typed or forged the URL (issue #41 B3).
+   *
+   * Hand off to the app's own not-found page rather than rendering a tag-shaped
+   * empty state. That is the point: the slug is an arbitrary string supplied by
+   * whoever made the link, and the `:author` npub belongs to a real person who
+   * had nothing to do with it. Neither may appear anywhere on screen, in the tab
+   * title, or in the meta tags — a branded page reading "no such tag called
+   * <accusation>, by <real name>" is still the screenshot.
+   *
+   * `unavailable` deliberately does NOT land here; it gets the "can't load"
+   * empty state below. Telling someone a real tag doesn't exist because a relay
+   * blinked is the mirror-image mistake.
+   *
+   * MUST stay below every hook. `status` starts undefined and becomes "absent"
+   * only once the query resolves, so returning earlier changes the hook count
+   * between renders — React throws "Rendered fewer hooks than expected" and the
+   * page goes blank. The two guards above are safe there only because their
+   * conditions are fixed for the life of the mount.
+   */
+  if (status === "absent") return <NotFound />;
 
   return (
     <div className="min-h-[100dvh] bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col">
@@ -194,7 +236,13 @@ export default function TagPage() {
             this one, and saying who is part of the point. Show their NAME: a
             truncated npub tells a normal reader nothing except that this is
             complicated. Falls back to the npub only when there's no profile. */}
-        {authorNpub && (
+        {/* Gated on a CONFIRMED tag, not just on having an npub to render.
+            "Tag created by <real person>" is the line that gets screenshotted
+            (#41 B3), and until the relays confirm the element exists, the only
+            thing linking that person to this slug is the URL someone typed.
+            `absent` already returns not-found above; this also covers the
+            unconfirmed states — loading, and relays-didn't-answer. */}
+        {authorNpub && status === "ok" && (
           <p className="mt-2 text-xs text-slate-400 dark:text-slate-500" data-testid="tag-author">
             Tag created by{" "}
             <Link href={`/p/${authorNpub}`} className="font-medium text-brand-link hover:underline">
@@ -337,12 +385,26 @@ export default function TagPage() {
             </div>
           ) : carriers.length === 0 ? (
             <div className="px-4 py-8">
-              <EmptyState
-                icon={TagIcon}
-                compact
-                title="Nobody has this tag yet"
-                description="When someone adds it, they'll show up here."
-              />
+              {/* "Nobody has this tag" is a claim about the world, and we can
+                  only make it if we actually got an answer. When the relays
+                  didn't respond we know nothing, and saying the tag is empty
+                  would be inventing a fact — the same mistake in the other
+                  direction from rendering a tag that doesn't exist (#41 B3). */}
+              {status === "unavailable" ? (
+                <EmptyState
+                  icon={TagIcon}
+                  compact
+                  title="Can't load this tag right now"
+                  description="The connection didn't come back. Reload in a moment and it should be here."
+                />
+              ) : (
+                <EmptyState
+                  icon={TagIcon}
+                  compact
+                  title="Nobody has this tag yet"
+                  description="When someone adds it, they'll show up here."
+                />
+              )}
             </div>
           ) : (
             visible.map((c) => {
