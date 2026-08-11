@@ -22,6 +22,7 @@ import {
   publishToRelays,
   PROFILE_RELAYS,
 } from "./nostr";
+import { resolveHouseObserver, resolveTrustSource } from "./trustSource";
 import {
   applyProfileTagging,
   conceptNostrUserTag,
@@ -213,15 +214,17 @@ async function fetchAllTagEvents(
 let trustEventsSeen = 0;
 
 /**
- * Trust reads go to the HOUSE relay. Wiring this to the hub instead means the
- * fetch succeeds, finds nothing, and every asserter falls under `unknownPolicy`
- * — which now means every tag on the site disappears rather than every tag
- * being counted. Loud either way, opposite directions.
+ * Trust reads go to the relay the OBSERVER'S OWN kind-10040 names — not to a
+ * relay this module picked. Pointing it anywhere else means the fetch succeeds,
+ * finds nothing, and every asserter fails the predicate, so every tag on the
+ * site disappears. Silent and total, which is why `trustEventsSeen` exists.
  */
-async function fetchTrustEvents(filter: Record<string, unknown>): Promise<NostrEvent[]> {
-  const events = (await fetchEventsByFilter(filter, TRUST_RELAYS)) as NostrEvent[];
-  trustEventsSeen += events.length;
-  return events;
+function makeTrustFetcher(relay: string) {
+  return async (filter: Record<string, unknown>): Promise<NostrEvent[]> => {
+    const events = (await fetchEventsByFilter(filter, [relay])) as NostrEvent[];
+    trustEventsSeen += events.length;
+    return events;
+  };
 }
 
 /**
@@ -247,24 +250,62 @@ async function publishTagEvent(
 // ─── Trust ───────────────────────────────────────────────────────────────────
 
 /**
- * Module-level so the 30382 cache survives across profile views — the house may
- * publish hundreds of thousands of assertions and we only ever fetch the
- * asserters we actually saw.
+ * One trust source per OBSERVER, cached for the session.
+ *
+ * Keyed by observer because the answer genuinely differs per perspective — that
+ * is the entire point of NIP-85 and of the Brainstorm / My-perspective toggle.
+ * The same asserter can be rank 100 to one observer's assistant and unknown to
+ * another's; measured on the live corpus, one account is rated 11, 26 and 100 by
+ * three different assistants.
+ *
+ * Each entry keeps the SDK's own 30382 cache alive across profile views, so we
+ * only ever fetch the asserters we actually encountered.
  */
-let houseTrust: ReturnType<typeof createHouseTrustSource> | null = null;
+const trustSources = new Map<string, ReturnType<typeof createHouseTrustSource>>();
 
-function getTrustSource() {
+/**
+ * The trust source for one observer, built from the relay + TA their own
+ * kind-10040 names.
+ *
+ * `null` means "count everyone" — an operator choice via `mode`, not a
+ * degradation. `undefined` means we could not resolve this observer at all;
+ * callers treat that as untrusted-and-say-so, never as a free pass.
+ */
+async function getTrustSource(
+  observerPubkey: string | undefined,
+): Promise<ReturnType<typeof createHouseTrustSource> | null | undefined> {
   if (TRUST_SETTINGS.mode !== "house-ta") return null;
-  if (!houseTrust) {
-    houseTrust = createHouseTrustSource({
-      fetchEvents: fetchTrustEvents,
-      assertionAuthorPubkeys: NIP85_AUTHOR_PUBKEYS,
-      minRank: TRUST_SETTINGS.minRank,
-      maxHops: TRUST_SETTINGS.maxHops,
-      unknownPolicy: TRUST_SETTINGS.unknownPolicy,
-    });
-  }
-  return houseTrust;
+  if (!observerPubkey) return undefined;
+
+  const cached = trustSources.get(observerPubkey);
+  if (cached) return cached;
+
+  const ref = await resolveTrustSource(observerPubkey);
+  if (!ref) return undefined;
+
+  const source = createHouseTrustSource({
+    fetchEvents: makeTrustFetcher(ref.relay),
+    assertionAuthorPubkeys: [ref.taPubkey],
+    minRank: TRUST_SETTINGS.minRank,
+    maxHops: TRUST_SETTINGS.maxHops,
+    unknownPolicy: TRUST_SETTINGS.unknownPolicy,
+  });
+  trustSources.set(observerPubkey, source);
+  return source;
+}
+
+/**
+ * Which observer's perspective a read runs from.
+ *
+ * `"house"` is the logged-out / Brainstorm view — resolved by asking the server
+ * who it is (NIP-05 `_`), never hardcoded here. A hex pubkey is a specific
+ * observer, normally the signed-in viewer in personalized mode.
+ */
+export type TrustObserver = "house" | string;
+
+async function observerPubkeyFor(observer: TrustObserver): Promise<string | undefined> {
+  if (observer !== "house") return observer;
+  return (await resolveHouseObserver()) ?? undefined;
 }
 
 /** A POV predicate, plus whether the house actually had anything to say. */
@@ -285,21 +326,41 @@ interface ResolvedTrust {
 }
 
 /**
- * Resolve the POV predicate for a set of asserters. Never throws: if the trust
- * relay is unreachable the SDK leaves those pubkeys uncached, and they now fail
- * the predicate rather than passing it — so the caller gets an empty result and
- * has to say why, via `unverified`.
+ * Resolve the POV predicate for a set of asserters, from `observer`'s point of
+ * view. Never throws: an unreachable relay leaves those pubkeys uncached in the
+ * SDK, and they then fail the predicate rather than passing it — so the caller
+ * gets an empty result and has to say why, via `unverified`.
  */
-async function resolveTrust(asserters: string[]): Promise<ResolvedTrust> {
-  const source = getTrustSource();
+async function resolveTrust(
+  asserters: string[],
+  observer: TrustObserver = "house",
+): Promise<ResolvedTrust> {
+  const observerPubkey = await observerPubkeyFor(observer);
+  let source = await getTrustSource(observerPubkey);
+
+  // A signed-in viewer who has never activated has no assistant, so no
+  // perspective to compute from. Fall back to the HOUSE view rather than to
+  // "count everyone" — a missing declaration is not a reason to trust
+  // strangers, and it's the difference between "we don't know you yet" and
+  // "the filter is off".
+  if (source === undefined && observer !== "house") {
+    const housePubkey = await observerPubkeyFor("house");
+    source = await getTrustSource(housePubkey);
+  }
+
   // "Everyone counts" is a POV the operator chose, not a degraded one.
-  if (!source) return { predicate: trustEveryone(), unverified: false };
+  if (source === null) return { predicate: trustEveryone(), unverified: false };
+
+  // Nobody left to ask. Trust nothing, and set the flag so the surface says
+  // "couldn't check" instead of rendering an empty list as a fact.
+  if (!source) return { predicate: () => false, unverified: true };
+
   await source.ensure(asserters);
   // The predicate alone can't distinguish "checked, and none of them qualify"
   // from "never got an answer" — both are just `false`. What it can't hide is
   // that the trust source handed us nothing at all this session, which happens
-  // when the trust relays are unreachable, or when they're wired to the tag hub
-  // where no 30382 lives.
+  // when the resolved relay is unreachable, or when a 10040 points somewhere
+  // that carries no kind-30382.
   return {
     predicate: source.predicate,
     unverified: asserters.length > 0 && trustEventsSeen === 0,
@@ -332,7 +393,7 @@ export function resetTagCaches(): void {
   elementsById.clear();
   elementMetaByCoord.clear();
   headersByCoord.clear();
-  houseTrust = null;
+  trustSources.clear();
 }
 
 // ─── Reading a profile's tags ────────────────────────────────────────────────
@@ -499,19 +560,32 @@ async function normalizeAssertions(candidates: NostrEvent[]): Promise<Normalized
  * unknown creator when reputable people have applied it.
  *
  * Used to gate what appears in BROWSE surfaces. See `fetchTagIndex`.
+ *
+ * Reads the same resolved source as the predicate, so "known" and "counts" are
+ * answers from ONE perspective. Asking two different scoreboards would let a tag
+ * be labelled "unknown creator" while that creator's assertions were counting.
  */
-async function fetchScoredPubkeys(pubkeys: string[]): Promise<Set<string>> {
+async function fetchScoredPubkeys(
+  pubkeys: string[],
+  observer: TrustObserver = "house",
+): Promise<Set<string>> {
   const unique = Array.from(new Set(pubkeys.filter(Boolean)));
   if (!unique.length) return new Set();
+
+  const ref = await resolveTrustSource((await observerPubkeyFor(observer)) ?? "");
+  // No resolvable source → nobody is "known". Browse falls back to labelling
+  // creators as unverified, which is the honest read when we can't check.
+  if (!ref) return new Set();
+  const readTrust = makeTrustFetcher(ref.relay);
 
   const scored = new Set<string>();
   // Chunked to keep the filter under what relays accept, same as the SDK's own
   // trust reader.
   for (let i = 0; i < unique.length; i += 100) {
     try {
-      const events = await fetchTrustEvents({
+      const events = await readTrust({
         kinds: [30382],
-        authors: NIP85_AUTHOR_PUBKEYS,
+        authors: [ref.taPubkey],
         "#d": unique.slice(i, i + 100),
       });
       for (const ev of events) {
@@ -704,6 +778,7 @@ async function resolveTagNames(
 export async function fetchProfileTags(
   targetPubkey: string,
   viewerPubkey?: string,
+  observer: TrustObserver = "house",
 ): Promise<ProfileTagsResult> {
   const candidates = await fetchTagEvents(
     filterTagsAppliedToPubkey({ targetPubkey, zHandlePubkeys: Z_HANDLE_PUBKEYS }),
@@ -716,7 +791,7 @@ export async function fetchProfileTags(
   // the predicate can answer "do this person's taggings count" for `viewerUnscored`.
   const asserters = new Set(assertions.map((a) => a.asserter));
   if (viewerPubkey) asserters.add(viewerPubkey);
-  const trust = await resolveTrust(Array.from(asserters));
+  const trust = await resolveTrust(Array.from(asserters), observer);
   const { counted, mine } = groupByTag(assertions, trust.predicate, viewerPubkey);
 
   // `counted` is trust-filtered; `mine` is not. A tag only the viewer applied,
@@ -874,6 +949,7 @@ export async function fetchTagDetail(
   authorPubkey: string,
   slug: string,
   viewerPubkey?: string,
+  observer: TrustObserver = "house",
 ): Promise<TagDetail> {
   // The tag-element, for its name AND its event id — assertions that predate
   // the `a` correction reference the tag only by that id.
@@ -980,7 +1056,7 @@ export async function fetchTagDetail(
     (a) => a.tagAuthor === authorPubkey && a.slug === slug,
   );
 
-  const trust = await resolveTrust(Array.from(new Set(assertions.map((a) => a.asserter))));
+  const trust = await resolveTrust(Array.from(new Set(assertions.map((a) => a.asserter))), observer);
   const byTarget = groupByTarget(assertions, trust.predicate);
 
   // The viewer's own stance per person, read BEFORE the trust filter — the same
@@ -1124,7 +1200,10 @@ export interface TagSummary extends TagIdentity {
  *
  * Anonymous-safe like every read here.
  */
-export async function fetchTagIndex(viewerPubkey?: string): Promise<TagSummary[]> {
+export async function fetchTagIndex(
+  viewerPubkey?: string,
+  observer: TrustObserver = "house",
+): Promise<TagSummary[]> {
   const candidates = await fetchAllTagEvents({
     kinds: [TAG_ELEMENT_KIND],
     "#z": Z_HANDLE_PUBKEYS.map(conceptNostrUserTag),
@@ -1132,7 +1211,7 @@ export async function fetchTagIndex(viewerPubkey?: string): Promise<TagSummary[]
   if (!candidates.length) return [];
 
   const assertions = await normalizeAssertions(candidates);
-  const trust = await resolveTrust(Array.from(new Set(assertions.map((a) => a.asserter))));
+  const trust = await resolveTrust(Array.from(new Set(assertions.map((a) => a.asserter))), observer);
   const scoredCreators = await fetchScoredPubkeys(
     Array.from(new Set(assertions.map((a) => a.tagAuthor))),
   );
@@ -1241,8 +1320,13 @@ export interface Applicability {
  */
 export async function fetchApplicability(usage: TagSummary[] = []): Promise<Applicability> {
   try {
+    // Deliberately NOT the per-observer source. Applicability lists are a
+    // published editorial hint ("which tags describe people vs events") signed
+    // by the kit's own assistant on the configured trust relays — not a claim
+    // about anyone's standing, so it has no observer and no perspective.
     const lists = await fetchApplicabilityLists({
-      fetchEvents: fetchTrustEvents,
+      fetchEvents: async (filter: Record<string, unknown>) =>
+        (await fetchEventsByFilter(filter, TRUST_RELAYS)) as NostrEvent[],
       houseAssistantPubkey: LOCAL_TA_PUBKEY,
     });
     if (lists.pubkey.size || lists.event.size) {
@@ -1322,8 +1406,11 @@ export interface PickerTag extends TagSummary {
  * suggestion list before you type and a query after — so the list/query split
  * has to be made there, not here. `TagPersonButton` does it.
  */
-export async function fetchPickerTags(viewerPubkey?: string): Promise<PickerTag[]> {
-  const catalogue = await fetchTagIndex(viewerPubkey);
+export async function fetchPickerTags(
+  viewerPubkey?: string,
+  observer: TrustObserver = "house",
+): Promise<PickerTag[]> {
+  const catalogue = await fetchTagIndex(viewerPubkey, observer);
   const applicability = await fetchApplicability(catalogue);
 
   // No opinion available → everything is offered as-is, in usage order.
@@ -2072,6 +2159,7 @@ function targetIdOf(ev: NostrEvent): string | null {
 export async function fetchEventTagsBatch(
   eventIds: string[],
   viewerPubkey?: string,
+  observer: TrustObserver = "house",
 ): Promise<Map<string, NoteTagsResult>> {
   const out = new Map<string, NoteTagsResult>();
   const ids = Array.from(new Set(eventIds.filter(Boolean)));
@@ -2102,7 +2190,7 @@ export async function fetchEventTagsBatch(
   const headers = await resolveTaggingHeaders(
     deduped.map(descriptorOf).filter((c): c is string => !!c),
   );
-  const trust = await resolveTrust(Array.from(new Set(deduped.map((ev) => ev.pubkey))));
+  const trust = await resolveTrust(Array.from(new Set(deduped.map((ev) => ev.pubkey))), observer);
 
   const byTarget = new Map<string, NostrEvent[]>();
   for (const ev of deduped) {
@@ -2208,8 +2296,9 @@ export async function fetchEventTagsBatch(
 export async function fetchEventTags(
   eventId: string,
   viewerPubkey?: string,
+  observer: TrustObserver = "house",
 ): Promise<NoteTagsResult> {
-  const batch = await fetchEventTagsBatch([eventId], viewerPubkey);
+  const batch = await fetchEventTagsBatch([eventId], viewerPubkey, observer);
   return batch.get(eventId) ?? EMPTY_NOTE_TAGS;
 }
 
@@ -2246,6 +2335,7 @@ export async function fetchTagNotes(
   authorPubkey: string,
   slug: string,
   viewerPubkey?: string,
+  observer: TrustObserver = "house",
 ): Promise<TaggedNote[]> {
   let headers: NostrEvent[] = [];
   try {
@@ -2285,7 +2375,7 @@ export async function fetchTagNotes(
   if (!candidates.length) return [];
 
   const deduped = latestByReplaceableKey(candidates);
-  const trust = await resolveTrust(Array.from(new Set(deduped.map((ev) => ev.pubkey))));
+  const trust = await resolveTrust(Array.from(new Set(deduped.map((ev) => ev.pubkey))), observer);
   const grouped = groupTaggingsByTarget({
     candidates: deduped,
     headers,

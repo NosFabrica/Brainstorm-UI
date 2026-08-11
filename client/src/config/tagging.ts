@@ -97,10 +97,14 @@ export function setTagRelays(urls: string[]): string[] {
 }
 
 /**
- * Where the house's TA-signed artifacts live: kind-30382 trust assertions and
- * the 3039x Trusted Lists. Deliberately separate from TAG_RELAYS — these are
- * NOT on the hub, and a trust reader wired only to the hub finds nothing and
- * silently degrades to counting everyone.
+ * Where the kit's TA-signed APPLICABILITY lists live (the 3039x Trusted Lists
+ * that say which tags describe people vs events).
+ *
+ * NO LONGER used for kind-30382 trust assertions (#41 B1-proper). Those now come
+ * from the relay each observer's own kind-10040 names — see
+ * `services/trustSource.ts`. This constant survives for the applicability read
+ * only, which is an editorial hint signed by the kit's assistant rather than a
+ * claim about anyone's standing, so it has no observer and no perspective.
  */
 export const TRUST_RELAYS: string[] = dedupe(raw.trustRelays);
 
@@ -115,29 +119,25 @@ export const Z_HANDLE_PUBKEYS: string[] = raw.zHandlePubkeys;
 export const LOCAL_TA_PUBKEY: string = raw.localTaPubkey;
 
 /**
- * Keys honored as AUTHORS of kind-30382 trust assertions. A list because the
- * house's signing key rotates; latest event per subject wins across all of them.
+ * DEAD FOR TRUST READS as of issue #41 B1-proper. Kept only because
+ * `tagging.config.json` must stay byte-identical to the vendored kit.
  *
- * KNOWN, AND THE NEXT THING TO FIX (issue #41 B1-proper): these keys belong to
- * the TAPESTRY reference deployment, not to Brainstorm. We are reading another
- * deployment's corpus. Measured 2026-08-11:
+ * These keys belong to the TAPESTRY reference deployment. Reading them meant
+ * every trust decision in the tag UI came from another instance's corpus:
+ * measured 2026-08-11, `wss://tags.brainstorm.world/relay` held 500 kind-30382
+ * events, every one signed by the RETIRED key `bfb6e1e8…` and stamped
+ * 2026-05-26. One day's snapshot, from a key no longer in use, for every viewer.
  *
- *   wss://tags.brainstorm.world/relay   newest 2026-08-01, rank 2–95, no hops
- *   wss://nip85.nosfabrica.com          newest TODAY,      rank 8–99, hops on all
- *                                       ← Brainstorm's own, and it is alive
+ * Trust now resolves per observer — `services/trustSource.ts` reads the
+ * observer's own kind-10040 (via `fetchTrustProviderList`, the same reader the
+ * activation flow uses) and honors the TA + relay it names. Nothing static.
  *
- * Repointing is not a value swap. Each observer publishes a kind-10040 naming
- * where its own trust assertions live, so static `trustRelays` +
- * `nip85AuthorPubkeys` is the wrong SHAPE — it should resolve per observer, and
- * follow the PoV the product already exposes (House when logged out, the user's
- * own npub in personalized mode).
- *
- * Blocked on the backend before that work starts: three different pubkeys are in
- * play. Issue #41 names `2009390460…`; the relay is publishing under `c8c7df76…`;
- * the single kind-10040 there names `2c1b7130…`, which has published nothing on
- * it. A dynamic lookup built today would resolve to an author with zero events.
- * Also unreconciled: `GET /setup/<pubkey>` and that kind-10040 name different
- * relays for the same author.
+ * A correction, because an earlier version of this comment asserted otherwise
+ * and was wrong: `wss://nip85.nosfabrica.com` is NOT "Brainstorm's own corpus
+ * under author c8c7df76… with rank 8–99". It holds MANY observers' assistants —
+ * one identifies itself as "ManyKeys's Brainstorm Assistant" — and a capped
+ * query returns whichever author's block the relay happens to serve, which is
+ * where that reading came from. There is no single house corpus on it.
  */
 export const NIP85_AUTHOR_PUBKEYS: string[] = raw.nip85AuthorPubkeys;
 
@@ -162,22 +162,20 @@ export const NIP85_AUTHOR_PUBKEYS: string[] = raw.nip85AuthorPubkeys;
  * maxHops=999 unknown=trusted`. Two independent integrations corrected the same
  * shipped value, which makes `CONFIG.json`'s `20` the thing that's wrong.
  *
- * Revert this to `raw.trust.maxHops` the moment the house's NIP-85 pipeline
- * starts publishing hops — at that point the check becomes meaningful again.
+ * STATUS 2026-08-11, now that trust resolves per observer (#41 B1-proper): the
+ * corpora we actually read DO publish `hops`. The house TA on
+ * `wss://scores.brainstorm.world` carries it on every sampled event, values 2–5.
  *
- * STATUS 2026-08-11: that moment has arrived, but on a corpus we don't read yet.
- * `wss://nip85.nosfabrica.com` (Brainstorm's OWN pipeline, author `c8c7df76…`,
- * current to today) publishes `hops` on 2000 of 2000 sampled events, values 2–5.
- * The corpus we currently read, `wss://tags.brainstorm.world/relay`, still
- * publishes none.
+ * The override therefore stops being correct-by-absence and becomes a deliberate
+ * "don't filter on reachability". That is still the right call for tagging — a
+ * tagging is a claim about someone, and how many follow-hops away its author
+ * happens to sit is not what makes it credible; `rank` already carries that. But
+ * it is now a POLICY choice rather than a workaround, and should be decided
+ * rather than inherited.
  *
- * So keep the override while we read the old corpus, and revisit it as part of
- * repointing (issue #41 B1-proper) — NOT before. Note that issue #41 asserts
- * "0 of 300 events in the House corpus carry hops" and instructs that this note
- * be struck; that measurement was taken against the Tapestry relay, not
- * Brainstorm's, and the instruction is therefore left unactioned on purpose.
- * At hops 2–5, `maxHops: 999` admits everything, so the override is safe today
- * — it just stops being correct-by-absence once we repoint.
+ * Issue #41 asserts "0 of 300 events in the House corpus carry hops" and
+ * instructs that this note be struck. That measurement was taken against the
+ * Tapestry relay, not ours, so the instruction is left unactioned on purpose.
  */
 const HOPS_UNPUBLISHED_UPSTREAM = 999;
 
@@ -200,10 +198,13 @@ const HOPS_UNPUBLISHED_UPSTREAM = 999;
  * `tunestr-community` 28→28, `aos-2026-participant` 100→99, `bitcoin-vendor`
  * 34→33, `lfo` 54→47. 15 of 105 asserters carry essentially all real content.
  *
- * `minRank` is deliberately NOT the lever here and raising it would do nothing:
- * an unscored asserter short-circuits above, and every scored asserter on this
- * corpus sits at rank 54–100. It becomes a real lever only once we repoint at
- * Brainstorm's own corpus (rank 8–99, median 37) — see the field note below.
+ * This rule, not `minRank`, is what does the filtering. Measured against the
+ * house TA after repointing (#41 B1-proper): it scores 21 of the 106 accounts
+ * that have tagged anyone, and their ranks run 2, 2, 17, 18, 21, 42, 71 … 100.
+ * The floor IS 2, so `minRank: 2` and `minRank: 1` return an identical set —
+ * the threshold only starts excluding anyone around 5. Keep it as a policy floor
+ * if that's the intent, but don't expect it to change what's on screen; the 85
+ * accounts with no published score are the ones being filtered.
  */
 const UNSCORED_DOES_NOT_COUNT = "everyone";
 
