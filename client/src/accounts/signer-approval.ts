@@ -1,18 +1,11 @@
 /**
  * The seam between a signer that wants approving and the modal that says so.
  *
- * NIP-46's `auth_url` tells the client to send its user somewhere to approve a
- * request. applesauce's default answer is `window.open(url, "auth", …)` fired
- * from inside an async relay-event handler — no user gesture, so blockers eat it
- * silently and the request hangs with nothing on screen to explain why. nsec.app
- * sends `auth_url` for *every* un-permissioned request, so that is not an edge.
- *
- * The fix is to put a link in front of the user and let *them* click it, which
- * restores the gesture. This module carries the request up to the modal, the way
- * `unlock-request` carries a Locked key's password prompt.
- *
- * Pre-requesting every permission at connect doesn't retire this: grants get
- * revoked, forgotten, or reset by an interactive re-pair.
+ * applesauce answers NIP-46's `auth_url` with `window.open` from inside an async
+ * relay handler — no user gesture, so blockers eat it and the request hangs with
+ * nothing on screen. We render a link the user clicks instead. Not an edge case:
+ * nsec.app sends `auth_url` for every un-permissioned request, and pre-requesting
+ * permissions at connect doesn't help — grants get revoked and re-pairs reset them.
  */
 import { BehaviorSubject } from "rxjs";
 

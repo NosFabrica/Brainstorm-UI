@@ -22,8 +22,13 @@ export class NoLocalKeyError extends Error {
   }
 }
 
+/** The Account these calls act on: the one named, or whoever is active. */
+function targetAccount(account?: BrainstormAccount): BrainstormAccount | undefined {
+  return account ?? activeAccount();
+}
+
 function localAccount(account: BrainstormAccount | undefined): LocalAccount {
-  const holder = account ?? activeAccount();
+  const holder = targetAccount(account);
   if (!(holder instanceof LocalAccount)) throw new NoLocalKeyError();
   return holder;
 }
@@ -50,8 +55,8 @@ export async function mintBackup(
 export const MIN_RECOVERY_PASSWORD_LENGTH = 8;
 
 /** Whether this Account's key is ours to back up — false for an extension or a bunker. */
-export function canBackUp({ account }: { account?: BrainstormAccount } = {}): boolean {
-  return (account ?? activeAccount()) instanceof LocalAccount;
+export function canBackUp(account?: BrainstormAccount): boolean {
+  return targetAccount(account) instanceof LocalAccount;
 }
 
 /**
@@ -60,9 +65,9 @@ export function canBackUp({ account }: { account?: BrainstormAccount } = {}): bo
  * *replaced* depends on: everywhere else, forgetting it is terminal.
  */
 export async function keyReachableWithoutPassword(
-  { account }: { account?: BrainstormAccount } = {},
+  account?: BrainstormAccount,
 ): Promise<boolean> {
-  const holder = account ?? activeAccount();
+  const holder = targetAccount(account);
   if (!(holder instanceof LocalAccount)) return false;
   return !holder.locked || holder.unlockSilently();
 }
@@ -73,8 +78,8 @@ export async function keyReachableWithoutPassword(
  * already the artefact, and re-minting would only produce a second file opening
  * on the same password.
  */
-export function heldBackup({ account }: { account?: BrainstormAccount } = {}): string | undefined {
-  const holder = account ?? activeAccount();
+export function heldBackup(account?: BrainstormAccount): string | undefined {
+  const holder = targetAccount(account);
   return holder instanceof LocalAccount ? holder.signer.data.ncryptsec : undefined;
 }
 
@@ -84,38 +89,32 @@ export function heldBackup({ account }: { account?: BrainstormAccount } = {}): s
  * whether a download arrived, so this is the strongest claim there is, and the
  * nag chain is built on it rather than on any confirmation that doesn't exist.
  */
-export function isBackedUp({ account }: { account?: BrainstormAccount } = {}): boolean {
-  const holder = account ?? activeAccount();
+export function isBackedUp(account?: BrainstormAccount): boolean {
+  const holder = targetAccount(account);
   return !!holder && getMetadata(holder).backedUp === true;
 }
 
 /** Record the hand-over. Rides on the Account, so a second Account can't inherit it. */
-export function markBackedUp({ account }: { account?: BrainstormAccount } = {}): void {
-  const holder = account ?? activeAccount();
-  if (holder && !isBackedUp({ account: holder })) updateMetadata(holder, { backedUp: true });
+export function markBackedUp(account?: BrainstormAccount): void {
+  const holder = targetAccount(account);
+  if (holder && !isBackedUp(holder)) updateMetadata(holder, { backedUp: true });
 }
 
 /**
- * What this Account still needs before losing this browser stops losing it — the
- * one question all three backup surfaces ask, so they can't disagree about who is
- * asked for what.
+ * What this Account still needs before losing this browser stops losing it. All
+ * three backup surfaces ask this one question, so they can't disagree.
  *
- * - `recovery-password` — a key kept here with no Backup behind it: a migrated
- *   Account, whose envelope opens on this device and nowhere else. It needs a
- *   password minted before there is a file worth having.
- * - `download` — a Backup exists and has never been handed over. Someone who set
- *   a password at signup and skipped the wizard's last step is exactly as
- *   device-bound as a migrated user; they are one step further along, not done.
- * - `null` — nothing to ask. An extension or a bunker keeps its key elsewhere,
- *   and an Account marked backed up either brought its own key or has been
- *   handed the file already.
+ * - `recovery-password` — key here, no Backup behind it (a migrated Account).
+ * - `download` — a Backup exists and has never been handed over. Just as
+ *   device-bound as the above: one step further along, not done.
+ * - `null` — the key lives elsewhere, or the file has already been handed over.
  */
 export type BackupNeed = "recovery-password" | "download";
 
-export function backupNeed({ account }: { account?: BrainstormAccount } = {}): BackupNeed | null {
-  const holder = account ?? activeAccount();
+export function backupNeed(account?: BrainstormAccount): BackupNeed | null {
+  const holder = targetAccount(account);
   if (!(holder instanceof LocalAccount)) return null;
-  if (isBackedUp({ account: holder })) return null;
+  if (isBackedUp(holder)) return null;
   return holder.signer.data.ncryptsec ? "download" : "recovery-password";
 }
 
@@ -134,7 +133,7 @@ export function backupNeedStream(
       const metadata$ = (account as BaseAccount<any, any, AccountMetadata>).metadata$;
       return merge(metadata$, ...(changed$ ? [changed$] : [])).pipe(
         startWith(null),
-        map(() => backupNeed({ account: account as BrainstormAccount })),
+        map(() => backupNeed(account as BrainstormAccount)),
       );
     }),
     distinctUntilChanged(),
@@ -148,7 +147,7 @@ export function backupNeedStream(
  */
 export async function verifyRecoveryPassword(
   password: string,
-  { account }: { account?: BrainstormAccount } = {},
+  account?: BrainstormAccount,
 ): Promise<UnlockAttemptResult> {
   return localAccount(account).signer.verifyRecoveryPassword(password);
 }
@@ -166,9 +165,7 @@ export async function setRecoveryPassword(
 }
 
 /** This Account's key as a raw `nsec…`, for a deliberate reveal. */
-export async function revealSecretKey(
-  { account }: { account?: BrainstormAccount } = {},
-): Promise<string> {
+export async function revealSecretKey(account?: BrainstormAccount): Promise<string> {
   return localAccount(account).revealNsec();
 }
 

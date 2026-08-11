@@ -10,7 +10,7 @@ import { collectRefs, type MinimalEvent } from "@/lib/noteRefs";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { eventPath } from "@/lib/shareId";
 import { TIER_THRESHOLDS } from "@/services/trustThreshold";
-import { useActivePov } from "@/hooks/useActivePov";
+import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
 import {
@@ -53,7 +53,7 @@ export function EventThread({
   onGateChange?: (gated: boolean) => void;
 }) {
   const loggedIn = activeHasSession();
-  const [pov] = useActivePov();
+  const [pov] = useActivePerspective();
   const { hasMywot } = useHasMywot();
   const { isSearchObserver } = useIsSearchObserver();
   const usePersonal = loggedIn && hasMywot && isSearchObserver && pov === "mywot";

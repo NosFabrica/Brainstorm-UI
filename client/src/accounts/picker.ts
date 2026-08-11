@@ -78,11 +78,9 @@ export function signerPresence(kind: SignerKind, extension: ExtensionPresence): 
 }
 
 /**
- * Whether losing this browser loses the Account: a key kept here with no Backup
- * behind it, that its owner didn't bring themselves. Both the switcher's rows and
- * the remove-from-device warning ask this. The backup chain asks a sharper
- * version of the same question — `backupNeed` also counts a Backup that was never
- * downloaded — because a nag can afford to be early where a warning can't.
+ * Whether losing this browser loses the Account. Not `backupNeed`, which also
+ * counts a Backup that was never downloaded: a nag can afford to be early where
+ * this warning can't.
  */
 export function isUnbackedUp(account: BrainstormAccount | LocalAccount): boolean {
   return (
@@ -93,11 +91,8 @@ export function isUnbackedUp(account: BrainstormAccount | LocalAccount): boolean
 }
 
 /**
- * A Backup means the key is recoverable with a password, so the row works — it
- * simply asks for one, and nothing about this device can change that. Only where
- * there is no Backup does the Unlock cache decide, and only then is it opened:
- * the cache says whether the row can *sign*, `backedUp` only whether losing this
- * browser loses it — which for a key its owner pasted in, it doesn't.
+ * A Backup means the row works — it just asks for a password. Only without one
+ * does the Unlock cache decide, and only then is it opened.
  */
 export async function localKeyHealth(account: LocalAccount): Promise<RowHealth> {
   if (account.signer.data.ncryptsec) return "ok";

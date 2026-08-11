@@ -8,7 +8,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { apiClient } from "@/services/api";
 import { decodeShareId } from "@/lib/shareId";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
-import { useActivePov } from "@/hooks/useActivePov";
+import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
 import { activeHasSession } from "@/accounts/session";
@@ -41,7 +41,7 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
 
   // Show the target's trust score in the viewer's current perspective: their own
   // Web of Trust when logged in + using the mywot POV, otherwise the house score.
-  const [pov] = useActivePov();
+  const [pov] = useActivePerspective();
   const { hasMywot } = useHasMywot();
   const { isSearchObserver } = useIsSearchObserver();
   const usePersonal = activeHasSession() && hasMywot && isSearchObserver && pov === "mywot";

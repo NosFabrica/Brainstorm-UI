@@ -112,7 +112,7 @@ describe("revealing the secret key", () => {
   it("hands back the account's own key as an nsec", async () => {
     const { account, secretKey } = await lockedAccount();
 
-    const nsec = await revealSecretKey({ account });
+    const nsec = await revealSecretKey(account);
 
     const decoded = decode(nsec);
     expect(decoded.type).toBe("nsec");
@@ -122,12 +122,12 @@ describe("revealing the secret key", () => {
   it("unlocks first, so a reveal straight after a page load works", async () => {
     const { account, requestPassword } = await lockedAccount();
 
-    await expect(revealSecretKey({ account })).resolves.toContain("nsec1");
+    await expect(revealSecretKey(account)).resolves.toContain("nsec1");
     expect(requestPassword).not.toHaveBeenCalled();
   });
 
   it("refuses an account whose key isn't ours to reach", async () => {
-    await expect(revealSecretKey({ account: foreignAccount() })).rejects.toThrow(NoLocalKeyError);
+    await expect(revealSecretKey(foreignAccount())).rejects.toThrow(NoLocalKeyError);
   });
 });
 
@@ -157,7 +157,7 @@ describe("checking the Recovery password", () => {
   it("accepts the password the Backup was minted under", async () => {
     const { account } = await lockedAccount();
 
-    await expect(verifyRecoveryPassword(PASSWORD, { account })).resolves.toEqual({ ok: true });
+    await expect(verifyRecoveryPassword(PASSWORD, account)).resolves.toEqual({ ok: true });
   });
 
   // The rehearsal the onboarding step exists for: a typo made at signup surfaces
@@ -166,7 +166,7 @@ describe("checking the Recovery password", () => {
     const { account } = await lockedAccount();
     const stored = account.signer.data.ncryptsec;
 
-    await expect(verifyRecoveryPassword("hunter2hunter2", { account })).resolves.toEqual({
+    await expect(verifyRecoveryPassword("hunter2hunter2", account)).resolves.toEqual({
       ok: false,
       reason: "wrong-password",
     });
@@ -175,7 +175,7 @@ describe("checking the Recovery password", () => {
   });
 
   it("refuses an account whose key isn't ours to reach", async () => {
-    await expect(verifyRecoveryPassword(PASSWORD, { account: foreignAccount() })).rejects.toThrow(
+    await expect(verifyRecoveryPassword(PASSWORD, foreignAccount())).rejects.toThrow(
       NoLocalKeyError,
     );
   });
@@ -191,7 +191,7 @@ describe("setting a new Recovery password", () => {
     const reminted = account.signer.data.ncryptsec!;
     expect(reminted).not.toBe(stored);
     expect(decryptSecretKeyNip49(reminted, NEW_PASSWORD)).toEqual(secretKey);
-    await expect(verifyRecoveryPassword(NEW_PASSWORD, { account })).resolves.toEqual({ ok: true });
+    await expect(verifyRecoveryPassword(NEW_PASSWORD, account)).resolves.toEqual({ ok: true });
   });
 
   it("unlocks on the way through, so a forgotten password is fixable from a cold boot", async () => {
@@ -215,25 +215,25 @@ describe("the Backup an account already holds", () => {
   it("hands back the stored ncryptsec without minting a second one", async () => {
     const { account } = await lockedAccount();
 
-    expect(heldBackup({ account })).toBe(account.signer.data.ncryptsec);
+    expect(heldBackup(account)).toBe(account.signer.data.ncryptsec);
   });
 
   it("is nothing when the account has never had a Recovery password", async () => {
     const unlockCache = createFakeUnlockCache();
     const account = await LocalAccount.fromKey(generateSecretKey(), { unlockCache });
 
-    expect(heldBackup({ account })).toBeUndefined();
+    expect(heldBackup(account)).toBeUndefined();
   });
 
   it("is nothing for an account whose key lives elsewhere, rather than a throw", () => {
-    expect(heldBackup({ account: foreignAccount() })).toBeUndefined();
-    expect(canBackUp({ account: foreignAccount() })).toBe(false);
+    expect(heldBackup(foreignAccount())).toBeUndefined();
+    expect(canBackUp(foreignAccount())).toBe(false);
   });
 
   it("knows a local account can be backed up", async () => {
     const { account } = await lockedAccount();
 
-    expect(canBackUp({ account })).toBe(true);
+    expect(canBackUp(account)).toBe(true);
   });
 });
 
@@ -247,13 +247,13 @@ describe("whether a forgotten password can still be replaced", () => {
       unlockCache,
     });
 
-    await expect(keyReachableWithoutPassword({ account })).resolves.toBe(true);
+    await expect(keyReachableWithoutPassword(account)).resolves.toBe(true);
   });
 
   it("can, when the Unlock cache still opens it after a reload", async () => {
     const { account } = await lockedAccount();
 
-    await expect(keyReachableWithoutPassword({ account })).resolves.toBe(true);
+    await expect(keyReachableWithoutPassword(account)).resolves.toBe(true);
   });
 
   // Locked, with only the Backup left: asking for a new password would mean
@@ -262,11 +262,11 @@ describe("whether a forgotten password can still be replaced", () => {
     const { account, unlockCache } = await lockedAccount();
     unlockCache.wipe();
 
-    await expect(keyReachableWithoutPassword({ account })).resolves.toBe(false);
+    await expect(keyReachableWithoutPassword(account)).resolves.toBe(false);
   });
 
   it("cannot for an account whose key lives elsewhere", async () => {
-    await expect(keyReachableWithoutPassword({ account: foreignAccount() })).resolves.toBe(false);
+    await expect(keyReachableWithoutPassword(foreignAccount())).resolves.toBe(false);
   });
 });
 
@@ -280,7 +280,7 @@ describe("what an account still needs before losing this browser stops mattering
   it("asks a migrated account for a Recovery password — there is no file to take yet", async () => {
     const account = await migratedAccount();
 
-    expect(backupNeed({ account })).toBe("recovery-password");
+    expect(backupNeed(account)).toBe("recovery-password");
   });
 
   // A password set at signup and a skipped wizard leaves someone exactly as
@@ -288,11 +288,11 @@ describe("what an account still needs before losing this browser stops mattering
   it("asks for the download when a Backup exists and has never been handed over", async () => {
     const { account } = await lockedAccount();
 
-    expect(backupNeed({ account })).toBe("download");
+    expect(backupNeed(account)).toBe("download");
   });
 
   it("asks nothing of an account whose key lives elsewhere", () => {
-    expect(backupNeed({ account: foreignAccount() })).toBeNull();
+    expect(backupNeed(foreignAccount())).toBeNull();
   });
 
   // The user pasted their own key: they demonstrably hold it, so login marks it
@@ -301,26 +301,26 @@ describe("what an account still needs before losing this browser stops mattering
     const account = await migratedAccount();
     updateMetadata(account as unknown as BrainstormAccount, { backedUp: true });
 
-    expect(backupNeed({ account })).toBeNull();
+    expect(backupNeed(account)).toBeNull();
   });
 
   it("asks nothing once the file has been handed over", async () => {
     const { account } = await lockedAccount();
 
-    markBackedUp({ account });
+    markBackedUp(account);
 
-    expect(isBackedUp({ account })).toBe(true);
-    expect(backupNeed({ account })).toBeNull();
+    expect(isBackedUp(account)).toBe(true);
+    expect(backupNeed(account)).toBeNull();
   });
 
   it("writes nothing when the account is already marked, so no save is triggered", async () => {
     const { account } = await lockedAccount();
-    markBackedUp({ account });
+    markBackedUp(account);
     const seen = vi.fn();
     account.metadata$.subscribe(seen);
     seen.mockClear();
 
-    markBackedUp({ account });
+    markBackedUp(account);
 
     expect(seen).not.toHaveBeenCalled();
   });
@@ -364,7 +364,7 @@ describe("the active account's backup need over time", () => {
     manager.addAccount(account as any);
     manager.setActive(account as any);
 
-    markBackedUp({ account });
+    markBackedUp(account);
 
     expect(seen.at(-1)).toBeNull();
     stop();

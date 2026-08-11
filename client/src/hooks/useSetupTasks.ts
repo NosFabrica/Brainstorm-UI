@@ -91,7 +91,7 @@ export function useSetupTasks(): SetupState {
       done: { network: networkStarted, backup: backupNeed === null, photo: hasPhoto },
       doneCount,
       allDone: doneCount === tasks.length,
-      eligible: !!pubkey && createdInApp && canBackUp({ account }),
+      eligible: !!pubkey && createdInApp && canBackUp(account),
     };
   }, [pubkey, picture, account, backupNeed]);
 }

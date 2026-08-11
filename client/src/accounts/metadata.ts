@@ -1,9 +1,8 @@
 import type { IAccount } from "applesauce-accounts";
 
 /**
- * Everything the app keeps per Account. It rides in `SerializedAccount.metadata`,
- * so there are no pubkey-namespaced localStorage keys and no separate session
- * store — state attached to an Account *is* per-Account.
+ * Everything the app keeps per Account. Rides in `SerializedAccount.metadata`, so
+ * there are no pubkey-namespaced localStorage keys and no separate session store.
  */
 export type AccountMetadata = {
   /** Kept on this device and listed at sign-in, rather than dying with the tab. */

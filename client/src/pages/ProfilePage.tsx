@@ -96,7 +96,7 @@ import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { DegreeChip } from "@/components/DegreeChip";
 import { SignInButton } from "@/components/SignInButton";
-import { useActivePov, type ActivePov } from "@/hooks/useActivePov";
+import { useActivePerspective, type ActivePerspective } from "@/hooks/useActivePerspective";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { fetchContactList, getFollowedPubkeys, fetchMyReport, type MyReport } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";

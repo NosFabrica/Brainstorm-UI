@@ -10,8 +10,13 @@ import {
   verifyRecoveryPassword,
 } from "@/accounts/backup";
 import type { UnlockFailure } from "@/accounts/restore";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { deliverBackup, downloadBackupFile, type BackupCredential } from "@/lib/accountBackup";
 import { afterPaint } from "@/lib/afterPaint";
+import { tone } from "@/lib/tones";
 import { useToast } from "@/hooks/use-toast";
 
 const FAILURE_COPY: Record<UnlockFailure, string> = {
@@ -20,12 +25,8 @@ const FAILURE_COPY: Record<UnlockFailure, string> = {
     "This browser couldn't check your password — it needs more memory than it allows. Your backup is below; it opens with the password you set.",
 };
 
-const fieldClass =
-  "w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30";
-const primaryButtonClass =
-  "w-full inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold py-3 shadow-lg shadow-brand-primary/25 disabled:opacity-50 disabled:cursor-not-allowed transition-all";
-const secondaryButtonClass =
-  "inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-800 px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors";
+/** The pane surface, shared by all three. */
+const paneClass = "mt-6 p-5 space-y-3";
 
 /**
  * Onboarding's last step: prove the Recovery password chosen at signup, then take
@@ -152,137 +153,144 @@ export function OnboardingBackupStep({
       </p>
 
       {pane === "verify" && (
-        <form
-          onSubmit={(e) => { e.preventDefault(); void verifyAndDownload(); }}
-          className="mt-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-3"
-        >
-          <label htmlFor="ob-backup-password" className="block text-sm font-medium text-slate-700 dark:text-slate-200">
-            Enter the recovery password you chose
-          </label>
-          <input
-            id="ob-backup-password"
-            name="recovery-password"
-            type="password"
-            value={pass}
-            onChange={(e) => setPass(e.target.value)}
-            placeholder="Recovery password"
-            autoComplete="current-password"
-            autoFocus
-            disabled={busy}
-            className={fieldClass}
-            data-testid="onboarding-backup-password"
-          />
-          {failure && (
-            <p className="text-xs font-medium text-red-600 dark:text-red-400" data-testid="onboarding-backup-error">
-              {FAILURE_COPY[failure]}
-            </p>
-          )}
-          <button type="submit" disabled={!pass || busy} className={primaryButtonClass} data-testid="onboarding-backup-download">
-            {/* No spinner: the thread is blocked, so an animation would visibly stall. */}
-            {busy ? "Checking password…" : <><Download className="h-4 w-4" /> Download backup</>}
-          </button>
-          {replaceBlocked ? (
-            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="onboarding-backup-replace-blocked">
-              Only that password opens your key on this device, so it can't be replaced here. You can
-              still finish setting up and sign in later with your key or an older backup file.
-            </p>
-          ) : (
-            <button
-              type="button"
-              onClick={() => void openReplacePane()}
+        <Card className={paneClass}>
+          <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void verifyAndDownload(); }}>
+            <Label htmlFor="ob-backup-password">Enter the recovery password you chose</Label>
+            <Input
+              id="ob-backup-password"
+              name="recovery-password"
+              type="password"
+              value={pass}
+              onChange={(e) => setPass(e.target.value)}
+              placeholder="Recovery password"
+              autoComplete="current-password"
+              autoFocus
               disabled={busy}
-              className="w-full text-center text-xs font-medium text-brand-link hover:underline disabled:opacity-50"
-              data-testid="onboarding-backup-forgotten"
-            >
-              I don't remember it — set a new one
-            </button>
-          )}
-        </form>
+              data-testid="onboarding-backup-password"
+            />
+            {failure && (
+              <p className={`text-xs font-medium ${tone("danger").text}`} data-testid="onboarding-backup-error">
+                {FAILURE_COPY[failure]}
+              </p>
+            )}
+            <Button type="submit" disabled={!pass || busy} className="w-full" data-testid="onboarding-backup-download">
+              {/* No spinner: the thread is blocked, so an animation would visibly stall. */}
+              {busy ? "Checking password…" : <><Download /> Download backup</>}
+            </Button>
+            {replaceBlocked ? (
+              <p className="text-xs text-muted-foreground" data-testid="onboarding-backup-replace-blocked">
+                Only that password opens your key on this device, so it can't be replaced here. You can
+                still finish setting up and sign in later with your key or an older backup file.
+              </p>
+            ) : (
+              <Button
+                type="button"
+                variant="link"
+                size="sm"
+                onClick={() => void openReplacePane()}
+                disabled={busy}
+                className="w-full text-xs"
+                data-testid="onboarding-backup-forgotten"
+              >
+                I don't remember it — set a new one
+              </Button>
+            )}
+          </form>
+        </Card>
       )}
 
       {pane === "set" && (
-        <form
-          onSubmit={(e) => { e.preventDefault(); void setPasswordAndDownload(); }}
-          className="mt-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-3"
-        >
-          <p className="text-sm text-slate-600 dark:text-slate-300" data-testid="onboarding-backup-set-note">
-            {replacingPassword
-              ? "Your key is still unlocked here, so you can set a new password now — this is the only time that's possible. Any older backup file, and whatever your password manager saved, still belongs to the old password."
-              : "Choose a recovery password. It encrypts your backup, and there's no reset."}
-          </p>
-          <input
-            id="ob-backup-new-password"
-            name="recovery-password"
-            type="password"
-            value={newPass}
-            onChange={(e) => setNewPass(e.target.value)}
-            placeholder={`New password — at least ${MIN_RECOVERY_PASSWORD_LENGTH} characters`}
-            autoComplete="new-password"
-            disabled={busy}
-            className={fieldClass}
-            data-testid="onboarding-backup-new-password"
-          />
-          <input
-            id="ob-backup-new-confirm"
-            name="recovery-password-confirm"
-            type="password"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            placeholder="Confirm password"
-            autoComplete="new-password"
-            disabled={busy}
-            className={fieldClass}
-            data-testid="onboarding-backup-new-confirm"
-          />
-          {mismatch && <p className="text-xs font-medium text-red-600 dark:text-red-400">Passwords don't match.</p>}
-          <button type="submit" disabled={!canSetPassword || busy} className={primaryButtonClass} data-testid="onboarding-backup-set">
-            {busy ? "Setting password…" : <><Download className="h-4 w-4" /> Set password &amp; download backup</>}
-          </button>
-        </form>
+        <Card className={paneClass}>
+          <form className="space-y-3" onSubmit={(e) => { e.preventDefault(); void setPasswordAndDownload(); }}>
+            <p className="text-sm text-muted-foreground" data-testid="onboarding-backup-set-note">
+              {replacingPassword
+                ? "Your key is still unlocked here, so you can set a new password now — this is the only time that's possible. Any older backup file, and whatever your password manager saved, still belongs to the old password."
+                : "Choose a recovery password. It encrypts your backup, and there's no reset."}
+            </p>
+            <Input
+              id="ob-backup-new-password"
+              name="recovery-password"
+              type="password"
+              value={newPass}
+              onChange={(e) => setNewPass(e.target.value)}
+              placeholder={`New password — at least ${MIN_RECOVERY_PASSWORD_LENGTH} characters`}
+              autoComplete="new-password"
+              disabled={busy}
+              data-testid="onboarding-backup-new-password"
+            />
+            <Input
+              id="ob-backup-new-confirm"
+              name="recovery-password-confirm"
+              type="password"
+              value={confirm}
+              onChange={(e) => setConfirm(e.target.value)}
+              placeholder="Confirm password"
+              autoComplete="new-password"
+              disabled={busy}
+              data-testid="onboarding-backup-new-confirm"
+            />
+            {mismatch && (
+              <p className={`text-xs font-medium ${tone("danger").text}`}>Passwords don't match.</p>
+            )}
+            <Button type="submit" disabled={!canSetPassword || busy} className="w-full" data-testid="onboarding-backup-set">
+              {busy ? "Setting password…" : <><Download /> Set password &amp; download backup</>}
+            </Button>
+          </form>
+        </Card>
       )}
 
       {pane === "delivered" && (
-        <div className="mt-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-3" data-testid="onboarding-backup-delivered">
-          <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+        <Card className={paneClass} data-testid="onboarding-backup-delivered">
+          <div className={`flex items-center gap-2 text-sm font-semibold ${tone("success").text}`}>
             <Check className="h-4 w-4" /> Backup file downloaded
           </div>
           {failure === "unusable-backup" && (
-            <p className="text-xs font-medium text-amber-700 dark:text-amber-400" data-testid="onboarding-backup-error">
+            <p className={`text-xs font-medium ${tone("warning").text}`} data-testid="onboarding-backup-error">
               {FAILURE_COPY[failure]}
             </p>
           )}
-          <p className="text-sm text-slate-600 dark:text-slate-300">
+          <p className="text-sm text-muted-foreground">
             Saved to your password manager too, where your browser supports it. Downloads are easy to
             lose on a phone — copy the key somewhere you'll find it.
           </p>
           <div className="flex flex-wrap gap-2">
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="sm"
               onClick={() => credential && downloadBackupFile(credential)}
-              className={secondaryButtonClass}
               data-testid="onboarding-backup-download-again"
             >
-              <Download className="h-4 w-4" /> Download again
-            </button>
-            <button type="button" onClick={copyKey} className={secondaryButtonClass} data-testid="onboarding-backup-copy">
-              <Copy className="h-4 w-4" /> Copy recovery key
-            </button>
+              <Download /> Download again
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={copyKey} data-testid="onboarding-backup-copy">
+              <Copy /> Copy recovery key
+            </Button>
           </div>
-          <button type="button" onClick={onFinish} className={primaryButtonClass} data-testid="onboarding-backup-finish">
-            Finish <ArrowRight className="h-4 w-4" />
-          </button>
-        </div>
+          <Button type="button" onClick={onFinish} className="w-full" data-testid="onboarding-backup-finish">
+            Finish <ArrowRight />
+          </Button>
+        </Card>
       )}
 
       <div className="mt-6 flex items-center justify-between gap-3">
         {pane === "delivered" ? (
           <span />
         ) : (
-          <button type="button" onClick={onSkip} className="text-sm font-semibold text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300" data-testid="onboarding-backup-skip">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={onSkip}
+            className="text-muted-foreground"
+            data-testid="onboarding-backup-skip"
+          >
             Skip for now
-          </button>
+          </Button>
         )}
-        <span className="inline-flex items-center gap-1.5 text-xs text-emerald-700 dark:text-emerald-400"><Check className="h-3.5 w-3.5" /> Scores are calculating</span>
+        <span className={`inline-flex items-center gap-1.5 text-xs ${tone("success").text}`}>
+          <Check className="h-3.5 w-3.5" /> Scores are calculating
+        </span>
       </div>
     </div>
   );

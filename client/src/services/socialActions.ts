@@ -146,6 +146,11 @@ async function resolveContactBase(
   return { base, known, unsafe };
 }
 
+const NOT_LOGGED_IN: PublishOutcome = { success: false, error: "Not logged in" };
+
+/** A `p` tag naming this pubkey — how every follow and mute list is indexed. */
+const isPTagFor = (pubkey: string) => (tag: string[]) => tag[0] === "p" && tag[1] === pubkey;
+
 async function publishContactList(
   account: BrainstormAccount,
   base: NostrEvent | null,
@@ -173,7 +178,7 @@ async function publishContactList(
 
 export async function followUser(targetPubkey: string, cachedContactList?: NostrEvent | null): Promise<PublishOutcome> {
   const account = activeAccount();
-  if (!account) return { success: false, error: "Not logged in" };
+  if (!account) return NOT_LOGGED_IN;
   if (account.pubkey === targetPubkey) return { success: false, error: "Cannot follow yourself" };
 
   const { base, unsafe } = await resolveContactBase(account.pubkey, cachedContactList);
@@ -183,7 +188,7 @@ export async function followUser(targetPubkey: string, cachedContactList?: Nostr
   if (base) recordFollowList(account.pubkey, base as any); // remember the largest seen
   const baseTags = base?.tags ?? []; // brand-new account: genuinely empty list
 
-  if (baseTags.some(t => t[0] === "p" && t[1] === targetPubkey)) return { success: true };
+  if (baseTags.some(isPTagFor(targetPubkey))) return { success: true };
 
   const newTags = [...baseTags, ["p", targetPubkey]];
   return publishContactList(account, base, newTags);
@@ -191,7 +196,7 @@ export async function followUser(targetPubkey: string, cachedContactList?: Nostr
 
 export async function unfollowUser(targetPubkey: string, cachedContactList?: NostrEvent | null): Promise<PublishOutcome> {
   const account = activeAccount();
-  if (!account) return { success: false, error: "Not logged in" };
+  if (!account) return NOT_LOGGED_IN;
 
   const { base, unsafe } = await resolveContactBase(account.pubkey, cachedContactList);
   if (unsafe || !base) {
@@ -199,9 +204,9 @@ export async function unfollowUser(targetPubkey: string, cachedContactList?: Nos
   }
   recordFollowList(account.pubkey, base as any);
 
-  if (!base.tags.some(t => t[0] === "p" && t[1] === targetPubkey)) return { success: true };
+  if (!base.tags.some(isPTagFor(targetPubkey))) return { success: true };
 
-  const newTags = base.tags.filter(t => !(t[0] === "p" && t[1] === targetPubkey));
+  const newTags = base.tags.filter((t) => !isPTagFor(targetPubkey)(t));
   return publishContactList(account, base, newTags);
 }
 
@@ -213,7 +218,7 @@ export async function unfollowUser(targetPubkey: string, cachedContactList?: Nos
  */
 export async function followPubkeys(targetPubkeys: string[]): Promise<PublishOutcome> {
   const account = activeAccount();
-  if (!account) return { success: false, error: "Not logged in" };
+  if (!account) return NOT_LOGGED_IN;
   const wanted = targetPubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk) && pk !== account.pubkey);
   if (!wanted.length) return { success: false, error: "No valid accounts to follow" };
 
@@ -231,58 +236,52 @@ export async function followPubkeys(targetPubkeys: string[]): Promise<PublishOut
   return publishContactList(account, base, newTags);
 }
 
+/** The mute list, replaced wholesale — the kind-3 path's `publishContactList`. */
+async function publishMuteList(
+  account: BrainstormAccount,
+  base: NostrEvent,
+  newTags: string[][],
+): Promise<PublishOutcome> {
+  try {
+    const signed = await signAs(account, {
+      kind: 10000,
+      tags: withClientTag(newTags),
+      content: base.content || "",
+    });
+    return await publishToRelays(signed);
+  } catch (e) {
+    return signingFailure(e);
+  }
+}
+
 export async function muteUser(targetPubkey: string, cachedMuteList?: NostrEvent | null): Promise<PublishOutcome> {
   const account = activeAccount();
-  if (!account) return { success: false, error: "Not logged in" };
+  if (!account) return NOT_LOGGED_IN;
   if (account.pubkey === targetPubkey) return { success: false, error: "Cannot mute yourself" };
 
   const current = cachedMuteList ?? await fetchMuteList(account.pubkey);
   if (!current) return { success: false, error: "Could not fetch your mute list from relays. Please try again." };
 
-  const alreadyMuted = current.tags.some(t => t[0] === "p" && t[1] === targetPubkey);
-  if (alreadyMuted) return { success: true };
+  if (current.tags.some(isPTagFor(targetPubkey))) return { success: true };
 
-  const newTags = [...current.tags, ["p", targetPubkey]];
-
-  try {
-    const signed = await signAs(account, {
-      kind: 10000,
-      tags: withClientTag(newTags),
-      content: current.content || "",
-    });
-    return await publishToRelays(signed);
-  } catch (e) {
-    return signingFailure(e);
-  }
+  return publishMuteList(account, current, [...current.tags, ["p", targetPubkey]]);
 }
 
 export async function unmuteUser(targetPubkey: string, cachedMuteList?: NostrEvent | null): Promise<PublishOutcome> {
   const account = activeAccount();
-  if (!account) return { success: false, error: "Not logged in" };
+  if (!account) return NOT_LOGGED_IN;
 
   const current = cachedMuteList ?? await fetchMuteList(account.pubkey);
   if (!current) return { success: false, error: "Could not fetch your mute list" };
 
-  const wasMuted = current.tags.some(t => t[0] === "p" && t[1] === targetPubkey);
-  if (!wasMuted) return { success: true };
+  if (!current.tags.some(isPTagFor(targetPubkey))) return { success: true };
 
-  const newTags = current.tags.filter(t => !(t[0] === "p" && t[1] === targetPubkey));
-
-  try {
-    const signed = await signAs(account, {
-      kind: 10000,
-      tags: withClientTag(newTags),
-      content: current.content || "",
-    });
-    return await publishToRelays(signed);
-  } catch (e) {
-    return signingFailure(e);
-  }
+  return publishMuteList(account, current, current.tags.filter((t) => !isPTagFor(targetPubkey)(t)));
 }
 
 export async function reportUser(targetPubkey: string, reason: string, note?: string): Promise<PublishOutcome> {
   const account = activeAccount();
-  if (!account) return { success: false, error: "Not logged in" };
+  if (!account) return NOT_LOGGED_IN;
   if (account.pubkey === targetPubkey) return { success: false, error: "Cannot report yourself" };
 
   try {
@@ -350,7 +349,7 @@ export async function fetchMyReport(targetPubkey: string, timeoutMs = 8000): Pro
  */
 export async function unreportUser(targetPubkey: string): Promise<PublishOutcome> {
   const account = activeAccount();
-  if (!account) return { success: false, error: "Not logged in" };
+  if (!account) return NOT_LOGGED_IN;
   const mine = await fetchMyReport(targetPubkey);
   if (!mine || !mine.eventIds.length) return { success: true }; // nothing to undo
   try {

@@ -5,7 +5,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { getRecentItems, recentKey, pushRecentQuery, pushRecentProfile, removeRecentItem, clearRecentSearches, type RecentItem } from "@/lib/recentSearches";
 import { searchByText, isLikelyNpub, isHexPubkey, isNip05Handle, type SearchResult } from "@/lib/profileSearch";
-import { useActivePov } from "@/hooks/useActivePov";
+import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 
 /** Fire from anywhere (a header magnifier) to open mobile search. */
@@ -44,7 +44,7 @@ export function MobileSearchOverlay() {
   // Bumped on every keystroke so a slow earlier response can never overwrite a
   // newer one — same race guard the home page uses.
   const reqRef = useRef(0);
-  const [pov] = useActivePov();
+  const [pov] = useActivePerspective();
   const observerPubkey = useActiveAccountDisplay()?.pubkey;
 
   useEffect(() => {

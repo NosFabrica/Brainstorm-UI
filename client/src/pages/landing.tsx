@@ -31,7 +31,7 @@ import { fetchProfile, logout } from "@/services/nostr";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { queryClient } from "@/lib/queryClient";
 import { apiClient } from "@/services/api";
-import { useActivePov } from "@/hooks/useActivePov";
+import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
 import { AccountCards } from "@/components/AccountCards";
@@ -147,7 +147,7 @@ export default function Landing() {
   // Live identity: the header avatar appears as soon as the profile metadata
   // lands after login, without a refresh.
   const user = useActiveAccountDisplay();
-  const [pov, setPov] = useActivePov();
+  const [pov, setPov] = useActivePerspective();
   const { hasMywot } = useHasMywot();
   // Permission to search from one's own perspective, per GET /user/isSearchObserver.
   const { isSearchObserver } = useIsSearchObserver();

@@ -10,7 +10,7 @@ import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
 
 import { accountManager } from "@/accounts";
 import type { AccountMetadata } from "@/accounts/metadata";
-import { getActivePov, hasStoredPov, setActivePov } from "./useActivePov";
+import { getActivePerspective, hasStoredPerspective, setActivePerspective } from "./useActivePerspective";
 
 class TestAccount extends BaseAccount<PrivateKeySigner, never, AccountMetadata> {
   static readonly type = "test-pov";
@@ -35,34 +35,34 @@ afterEach(() => {
 
 describe("the active perspective", () => {
   it("defaults to the house view, and says so", () => {
-    expect(getActivePov()).toBe("nosfabrica");
-    expect(hasStoredPov()).toBe(false);
+    expect(getActivePerspective()).toBe("nosfabrica");
+    expect(hasStoredPerspective()).toBe(false);
   });
 
   it("is stored on the Account, not in a pubkey-namespaced row", () => {
     const account = signIn();
 
-    setActivePov("mywot");
+    setActivePerspective("mywot");
 
     expect(account.metadata?.perspective).toBe("mywot");
-    expect(getActivePov()).toBe("mywot");
+    expect(getActivePerspective()).toBe("mywot");
     expect(localStorage.getItem(`brainstorm_active_pov:${account.pubkey}`)).toBeNull();
   });
 
   it("a second Account keeps its own", () => {
     signIn();
-    setActivePov("mywot");
+    setActivePerspective("mywot");
 
     signIn();
 
-    expect(getActivePov()).toBe("nosfabrica");
-    expect(hasStoredPov()).toBe(false);
+    expect(getActivePerspective()).toBe("nosfabrica");
+    expect(hasStoredPerspective()).toBe(false);
   });
 
   it("falls back to its own row while nobody is signed in", () => {
-    setActivePov("mywot");
+    setActivePerspective("mywot");
 
     expect(localStorage.getItem("brainstorm_active_pov:anon")).toBe("mywot");
-    expect(getActivePov()).toBe("mywot");
+    expect(getActivePerspective()).toBe("mywot");
   });
 });
