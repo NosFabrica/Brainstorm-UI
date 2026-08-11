@@ -1,7 +1,6 @@
 import { nip19, finalizeEvent, getPublicKey, generateSecretKey, verifyEvent } from "nostr-tools";
 import { env } from "@/lib/runtimeEnv";
 import { pool } from "@/lib/relayPool";
-import { isVaultSupported, encryptSecret, decryptSecret } from "@/lib/skVault";
 
 const RAW_NIP85_RELAY_URL = env.VITE_NIP85_RELAY_URL;
 const NIP85_RELAY_URL = RAW_NIP85_RELAY_URL.trim().replace(/\/+$/, "");
@@ -24,22 +23,6 @@ export function getNip85RelayUrl(): string {
   return NIP85_RELAY_URL;
 }
 
-function hexToBytes(hex: string): Uint8Array {
-  if (hex.length % 2 !== 0) throw new Error("Invalid hex");
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = parseInt(hex.substr(i * 2, 2), 16);
-  }
-  return bytes;
-}
-
-function bytesToHex(bytes: Uint8Array): string {
-  let hex = "";
-  for (let i = 0; i < bytes.length; i++) {
-    hex += bytes[i].toString(16).padStart(2, "0");
-  }
-  return hex;
-}
 import { EventStore, firstValueFrom } from "applesauce-core";
 import {
   getProfileContent,
@@ -63,6 +46,8 @@ import {
   type PublishOutcome,
 } from "@/accounts/signing";
 import {
+  accountFor,
+  accountsFor,
   activateAccount,
   adoptAccount,
   extensionAccount,
@@ -70,8 +55,8 @@ import {
   localAccount,
   signOutActiveAccount,
 } from "@/accounts/login";
-import type { AccountMetadata, BrainstormAccount } from "@/accounts/metadata";
-import { activePubkey, rememberProfile } from "@/accounts/display";
+import { updateMetadata, type AccountMetadata, type BrainstormAccount } from "@/accounts/metadata";
+import { activePubkey, identityHas, rememberProfile } from "@/accounts/display";
 import {
   openPastedKey,
   UNUSABLE_BACKUP_MESSAGE,
@@ -80,19 +65,9 @@ import {
 import { queryClient } from "@/lib/queryClient";
 import { extractAdminFlag } from "@/lib/jwt";
 import { recordFollowList } from "@/lib/followStore";
+import { accountKey, clearAccountStorage, clearSessionScopedStorage } from "@/lib/accountStorage";
 import { isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
 import { NostrEvent } from "applesauce-core/helpers";
-
-// Ephemeral session copy for non-persistent logins (nsec paste without "remember
-// me", extension fallback) — plaintext, cleared when the tab closes.
-const SK_STORAGE_KEY = "brainstorm_sk_hex";
-// LEGACY plaintext persistent key. Read-only now (for one-time migration); we no
-// longer write it except in the rare vault-unsupported fallback. See SK_ENC_KEY.
-const SK_PERSIST_KEY = "brainstorm_sk_hex_persist";
-// Persistent account key, ENCRYPTED at rest (skVault device-key wrap). Holds a
-// versioned envelope, never the raw key. This is the default for created/restored
-// accounts that "stay signed in".
-const SK_ENC_KEY = "brainstorm_sk_enc";
 
 export type LoginErrorCode =
   | "NO_EXTENSION"
@@ -111,168 +86,6 @@ export class LoginError extends Error {
   }
 }
 
-// The decrypted persistent key lives ONLY here — a module-level variable, never
-// written back to any storage API. It's populated by `storeSecretKey` (fresh
-// login/create) or by `ensureUnlocked` (silent async decrypt on cold boot).
-let memSk: Uint8Array | null = null;
-let unlockPromise: Promise<void> | null = null;
-
-/**
- * Populate `memSk` from persisted storage, decrypting the encrypted envelope if
- * needed. Idempotent + memoized so concurrent callers share one in-flight decrypt.
- * Silent (no password, no prompt). Also performs the one-time legacy→encrypted
- * migration. Safe to call eagerly on boot and defensively before any local sign.
- */
-export async function ensureUnlocked(): Promise<void> {
-  if (memSk) return;
-  if (unlockPromise) {
-    await unlockPromise;
-    return;
-  }
-  unlockPromise = doUnlock();
-  try {
-    await unlockPromise;
-  } finally {
-    unlockPromise = null;
-  }
-}
-
-async function doUnlock(): Promise<void> {
-  if (memSk) return;
-
-  let sess: string | null = null;
-  let encEnvelope: string | null = null;
-  let legacy: string | null = null;
-  try {
-    sess = sessionStorage.getItem(SK_STORAGE_KEY);
-    encEnvelope = localStorage.getItem(SK_ENC_KEY);
-    legacy = localStorage.getItem(SK_PERSIST_KEY);
-  } catch {
-    return;
-  }
-
-  // Ephemeral session key (non-persistent login) — plaintext, never migrated.
-  if (sess) {
-    try {
-      memSk = hexToBytes(sess);
-    } catch {
-      /* ignore */
-    }
-    return;
-  }
-
-  // Encrypted persistent key → decrypt with the device key, bound to this
-  // account's pubkey (AAD). A foreign/corrupt envelope throws → treated as "no
-  // key" (the user re-authenticates).
-  if (encEnvelope) {
-    const pubkey = activePubkey();
-    if (pubkey && isVaultSupported()) {
-      try {
-        memSk = await decryptSecret(encEnvelope, pubkey);
-      } catch {
-        memSk = null;
-      }
-    }
-    return;
-  }
-
-  // Legacy plaintext persist → migrate in place: hold in memory, re-encrypt, and
-  // delete the plaintext. One-time, transparent, no user action.
-  if (legacy) {
-    try {
-      memSk = hexToBytes(legacy);
-    } catch {
-      return;
-    }
-    if (isVaultSupported()) {
-      try {
-        const envelope = await encryptSecret(memSk, getPublicKey(memSk));
-        localStorage.setItem(SK_ENC_KEY, envelope);
-        localStorage.removeItem(SK_PERSIST_KEY);
-      } catch {
-        /* leave the plaintext key as-is (vault-unsupported fallback) */
-      }
-    }
-  }
-}
-
-/**
- * Persist (or session-scope) a freshly-obtained secret key and hold it in memory.
- * Persistent keys are ENCRYPTED at rest via the device-key wrap; only if the
- * vault is unavailable do we fall back to plaintext localStorage (parity with the
- * old behavior — never orphan a brand-new account). Non-persistent keys stay in
- * plaintext sessionStorage (ephemeral, cleared on tab close).
- */
-async function storeSecretKey(sk: Uint8Array, opts?: { persistent?: boolean }): Promise<void> {
-  memSk = sk;
-  try {
-    if (opts?.persistent) {
-      sessionStorage.removeItem(SK_STORAGE_KEY);
-      if (isVaultSupported()) {
-        try {
-          const envelope = await encryptSecret(sk, getPublicKey(sk));
-          localStorage.setItem(SK_ENC_KEY, envelope);
-          localStorage.removeItem(SK_PERSIST_KEY);
-          return;
-        } catch (err) {
-          // eslint-disable-next-line no-console
-          console.warn(
-            "[skVault] at-rest encryption failed — falling back to plaintext persist",
-            err,
-          );
-        }
-      } else {
-        // eslint-disable-next-line no-console
-        console.warn("[skVault] at-rest encryption unavailable — falling back to plaintext persist");
-      }
-      // Fallback: plaintext persist (no worse than the prior behavior).
-      localStorage.setItem(SK_PERSIST_KEY, bytesToHex(sk));
-      localStorage.removeItem(SK_ENC_KEY);
-    } else {
-      sessionStorage.setItem(SK_STORAGE_KEY, bytesToHex(sk));
-      localStorage.removeItem(SK_PERSIST_KEY);
-      localStorage.removeItem(SK_ENC_KEY);
-    }
-  } catch {
-    /* ignore */
-  }
-}
-
-function clearSecretKey(): void {
-  memSk = null;
-  unlockPromise = null;
-  try {
-    sessionStorage.removeItem(SK_STORAGE_KEY);
-    localStorage.removeItem(SK_PERSIST_KEY);
-    localStorage.removeItem(SK_ENC_KEY);
-  } catch {}
-}
-
-/** True when a secret key is held or persisted in any form (memory / session /
- * encrypted / legacy plaintext). A presence check — does NOT decrypt. */
-function hasAnyStoredKey(): boolean {
-  if (memSk) return true;
-  try {
-    return !!(
-      sessionStorage.getItem(SK_STORAGE_KEY) ||
-      localStorage.getItem(SK_ENC_KEY) ||
-      localStorage.getItem(SK_PERSIST_KEY)
-    );
-  } catch {
-    return false;
-  }
-}
-
-/**
- * True when we hold the raw secret key for this account (created/restored account
- * persisted locally, OR an nsec pasted into the session) — i.e. when we can back
- * it up or reveal it. False for extension logins, where the key never leaves the
- * signer. Presence check only; the actual bytes come via `ensureUnlocked`.
- */
-export function hasStoredSecretKey(): boolean {
-  return hasAnyStoredKey();
-}
-
 /**
  * Sign an event with a freshly-generated THROWAWAY key. Used for anonymous
  * NIP-57 zaps from logged-out visitors: the key is ephemeral and discarded, so
@@ -285,22 +98,15 @@ export function signEventWithEphemeralKey(event: Record<string, unknown>): Recor
   return finalizeEvent(event as any, sk) as unknown as Record<string, unknown>;
 }
 
+/** What a completed sign-in hands back. Whoever holds it renders it; nothing caches it. */
 export interface NostrUser {
   pubkey: string;
   npub: string;
   displayName?: string;
-  picture?: string;
-  about?: string;
-  nip05?: string;
-  profile?: ProfileContent;
-  userData?: any;
   isAdmin?: boolean;
 }
 
-
 const eventStore = new EventStore();
-
-let currentUser: NostrUser | null = null;
 
 // One-time cleanup of pre-Task-#85 unscoped Brainstorm Assistant keys.
 // These were stored globally so that one account's assistant identity bled
@@ -330,67 +136,6 @@ let currentUser: NostrUser | null = null;
     }
   } catch {}
 })();
-
-export function getCurrentUser(): NostrUser | null {
-  if (currentUser) return currentUser;
-
-  const stored = localStorage.getItem("nostr_user");
-  if (stored) {
-    try {
-      const parsed = JSON.parse(stored) as NostrUser;
-      if (parsed.isAdmin === undefined) {
-        const token = localStorage.getItem("brainstorm_session_token");
-        if (token) {
-          parsed.isAdmin = extractAdminFlag(token);
-          localStorage.setItem("nostr_user", JSON.stringify(parsed));
-        }
-      }
-      currentUser = parsed;
-      return currentUser;
-    } catch {
-      return null;
-    }
-  }
-  return null;
-}
-
-function setCurrentUser(user: NostrUser | null) {
-  const prev = currentUser;
-  const prevPubkey = prev?.pubkey ?? null;
-  currentUser = user;
-  if (user) {
-    localStorage.setItem("nostr_user", JSON.stringify(user));
-  } else {
-    localStorage.removeItem("nostr_user");
-  }
-  const nextPubkey = user?.pubkey ?? null;
-  const pubkeyChanged = prevPubkey !== nextPubkey;
-  // v1 shadow: nothing listens any more — the header reads the Active Account's
-  // metadata (ticket 06). The dispatch goes with the cache, in ticket 17.
-  const profileChanged =
-    !!user &&
-    !!prev &&
-    prev.pubkey === user.pubkey &&
-    (prev.picture !== user.picture || prev.displayName !== user.displayName);
-  if (pubkeyChanged || profileChanged) {
-    try {
-      window.dispatchEvent(new CustomEvent("brainstorm-user-changed", {
-        detail: { previous: prevPubkey, current: nextPubkey },
-      }));
-    } catch {}
-  }
-}
-
-export function updateCurrentUser(updates: Partial<NostrUser>) {
-  const existing = getCurrentUser();
-  if (!existing) return;
-  const updated = { ...existing, ...updates };
-  setCurrentUser(updated);
-}
-
-export function clearUserCache() {
-  currentUser = null;
-}
 
 export const PROFILE_RELAYS = [
   "wss://relay.damus.io/",
@@ -1225,16 +970,6 @@ export async function fetchProfileMap(
   });
 }
 
-export function applyProfileToUser(content: ProfileContent): Partial<NostrUser> {
-  return {
-    profile: content,
-    displayName: getDisplayName(content) || content.name || content.display_name,
-    picture: getProfilePicture(content) || content.picture || content.image,
-    about: content.about,
-    nip05: content.nip05,
-  };
-}
-
 /**
  * Cache a fetched kind-0 on the Account it belongs to. The Account's metadata is
  * what the header reads, so this is what makes an avatar appear moments after
@@ -1244,8 +979,11 @@ export function cacheProfile(content: ProfileContent, pubkey?: string): void {
   const account = activeAccount();
   // A switch mid-fetch means this profile belongs to whoever we were before.
   if (!account || (pubkey !== undefined && account.pubkey !== pubkey)) return;
-  const { displayName, picture, nip05 } = applyProfileToUser(content);
-  rememberProfile(account, { name: displayName, picture, nip05 });
+  rememberProfile(account, {
+    name: getDisplayName(content) || content.name || content.display_name,
+    picture: getProfilePicture(content) || content.picture || content.image,
+    nip05: content.nip05,
+  });
 }
 
 /** Did the signer's own UI turn us down, rather than something breaking? */
@@ -1255,39 +993,21 @@ function refusedBySigner(err: unknown): boolean {
 }
 
 /**
- * Authenticate an Account, adopt it as the one that signs, and fold in the v1
- * caches every reader still expects. The Account is only adopted once the
- * backend has accepted it, so a failed login leaves nothing behind.
+ * Authenticate an Account and adopt it as the one that signs. The Account is only
+ * adopted once the backend has accepted it, so a failed login leaves nothing
+ * behind.
  */
 async function signIn(account: BrainstormAccount, metadata: AccountMetadata): Promise<NostrUser> {
   const token = await sessions.authenticate(account);
   // The previous Account stays: signing in adds an identity rather than replacing
   // one, which is what the login picker lists. Sign-out is what lets one go.
   adoptAccount(account, { ...metadata, npub: nip19.npubEncode(account.pubkey) });
-
-  // v1 shadow: the auto-publish effects and the dashboard still read this
-  // pubkey-namespaced flag, so it carries the same answer as the metadata does.
-  // `brainstorm_backup_done` no longer needs one — the backup chain reads the
-  // Account (ticket 16), and nothing else ever did.
-  if (metadata.createdInApp) writeV1Flag("brainstorm_created_inapp", account.pubkey);
-
   return completeLogin(account, token);
-}
-
-function writeV1Flag(name: string, pubkey: string): void {
-  try { localStorage.setItem(`${name}:${pubkey}`, "true"); } catch { /* ignore */ }
 }
 
 async function completeLogin(account: BrainstormAccount, token: string): Promise<NostrUser> {
   const pubkey = account.pubkey;
-  // v1 shadow: `api.ts` and `getCurrentUser` still read these (tickets 06, 17).
-  localStorage.setItem("brainstorm_session_token", token);
-
-  const isAdmin = extractAdminFlag(token);
   const npub = nip19.npubEncode(pubkey);
-
-  const user: NostrUser = { pubkey, npub, isAdmin };
-  setCurrentUser(user);
 
   // Load the authoritative contact list (kind 3) once at login and persist it as
   // the known-follows floor, so the follow handlers can never publish a list
@@ -1300,18 +1020,12 @@ async function completeLogin(account: BrainstormAccount, token: string): Promise
   // Start fetching the user's profile metadata (kind 0) immediately at login
   // instead of deferring it to the dashboard. This removes the dashboard-mount
   // delay from the time-to-avatar. Fire-and-forget so login is never blocked on
-  // relay latency; when it resolves, updateCurrentUser dispatches a
-  // user-changed event that the header/menu listen to, so the avatar appears
-  // as soon as the metadata arrives.
+  // relay latency; caching it on the Account is what the header renders from.
   void fetchProfile(pubkey)
-    .then((content) => {
-      if (!content) return;
-      cacheProfile(content, pubkey);
-      updateCurrentUser(applyProfileToUser(content));
-    })
+    .then((content) => { if (content) cacheProfile(content, pubkey); })
     .catch(() => {});
 
-  return user;
+  return { pubkey, npub, isAdmin: extractAdminFlag(token) };
 }
 
 export async function handleLogin(): Promise<NostrUser> {
@@ -1342,10 +1056,7 @@ export async function handleLogin(): Promise<NostrUser> {
 
   try {
     // The extension holds the key → recoverable, so the backup nags leave it alone.
-    const user = await signIn(account, { remembered: true, backedUp: true });
-    // Only now: a cancelled extension prompt must not cost the previous user their key.
-    clearSecretKey();
-    return user;
+    return await signIn(account, { remembered: true, backedUp: true });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "";
     if (err instanceof SessionTransportError) {
@@ -1393,8 +1104,8 @@ export async function signInWithAccount(account: BrainstormAccount): Promise<Nos
 
 /**
  * Let an Account go for good: it leaves this device, key and all. Where it was
- * the one signing, the Session and the v1 caches go with it — which sign-out no
- * longer does, and this is the only act that still should.
+ * the one signing, the Session goes with it — which sign-out no longer does, and
+ * this is the only act that still should.
  *
  * Returns whether that signed the user out, so the caller knows to leave a page
  * scoped to an identity this browser no longer holds.
@@ -1403,6 +1114,11 @@ export function removeAccountFromDevice(account: BrainstormAccount): boolean {
   const wasActive = activeAccount()?.id === account.id;
   if (wasActive) logout();
   forgetAccount(account);
+  // The per-account rows are keyed by identity, and one identity can hold more
+  // than one Account — an extension row and a local row for the same key. Wiping
+  // them here while a sibling still signs as that identity would take its
+  // follow-wipe guard and its prefs with it.
+  if (accountsFor(account.pubkey).length === 0) clearAccountStorage(account.pubkey);
   return wasActive;
 }
 
@@ -1422,13 +1138,11 @@ async function authenticateWithSecretKey(
     throw new LoginError("INVALID_NSEC", "We couldn't read a valid account from that key.");
   }
 
-  await storeSecretKey(sk, opts); // v1 shadow, until ticket 17 retires it
   try {
     // The user supplied their own key → they demonstrably hold it, so the account
     // is recoverable and the backup nags leave it alone.
     return await signIn(account, { remembered: !!opts?.persistent, backedUp: true });
   } catch (err) {
-    clearSecretKey();
     throw asLoginError(err);
   }
 }
@@ -1484,37 +1198,17 @@ export async function loginWithPastedKey(
  * one tap. Letting an Account go for good is `removeAccountFromDevice`.
  */
 export function logout() {
-  // Brainstorm Assistant data is namespaced per owner, so logging out does
-  // not need to wipe it — switching accounts naturally isolates state and
-  // the user's own assistant identity should still be there next login.
   const prevPubkey = activePubkey();
-  setCurrentUser(null);
-  localStorage.removeItem("brainstorm_session_token");
   signOutActiveAccount();
-  // v1's key slot is a single one for the whole browser, so it must not be left
-  // answering for an identity nobody is signed in as. The Account's own at-rest
-  // forms are what bring it back.
-  clearSecretKey();
   queryClient.clear();
 
-  // Clear leftover Web-of-Trust scoring state so the next session starts clean.
-  // Global markers bleed across accounts (a new login would inherit the previous
-  // user's "calculating"/"ready" bar); the per-user markers re-drive the
-  // "Calculating…" pill for ~30min if the same user logs back in. Wipe both.
-  try {
-    ["brainstorm_calc_active", "brainstorm_scores_ready_nudge", "brainstorm_calc_completed"].forEach((k) =>
-      localStorage.removeItem(k),
-    );
-    if (prevPubkey) {
-      [
-        `brainstorm_calc_triggered_at:${prevPubkey}`,
-        `brainstorm_calc_pill_dismissed:${prevPubkey}`,
-        `brainstorm_calc_completed:${prevPubkey}`,
-      ].forEach((k) => localStorage.removeItem(k));
-    }
-  } catch {
-    /* ignore */
-  }
+  // The Account's own per-Session state goes with the Session, from the registry
+  // rather than a list kept here. What it keeps on this device stays: it is still
+  // listed, and signing back in should find its follows and prefs where it left them.
+  if (prevPubkey) clearSessionScopedStorage(prevPubkey);
+  // Not per-Account: this one says "somebody has scored on this browser", which is
+  // what the public pages render, so it must not survive into an anonymous visit.
+  try { localStorage.removeItem("brainstorm_calc_completed"); } catch { /* ignore */ }
 }
 
 export async function publishToRelays(
@@ -1550,8 +1244,6 @@ try {
   const decoded = nip19.decode(SEED_FOLLOW_NPUB);
   if (decoded.type === "npub") SEED_FOLLOW_HEX = decoded.data as string;
 } catch {}
-
-const initialSetupFlag = (pubkey: string) => `brainstorm_initial_setup_done:${pubkey}`;
 
 /**
  * Build → sign as the Active Account → publish, verifying the signer didn't
@@ -1596,11 +1288,7 @@ export async function publishProfile(
     res = await signAndPublish(template, 0);
   }
   if (res.success) {
-    try {
-      const profile = content as unknown as ProfileContent;
-      cacheProfile(profile);
-      updateCurrentUser(applyProfileToUser(profile));
-    } catch {}
+    try { cacheProfile(content as unknown as ProfileContent); } catch {}
     // Keep the outbox list fresh (the signup publish may have silently failed),
     // so other clients can locate this kind-0. Best-effort.
     void publishRelayList(PROFILE_RELAYS).catch(() => {});
@@ -1633,11 +1321,9 @@ export async function publishRelayList(
 export async function triggerScoringAndAnchor(pubkey: string): Promise<void> {
   // Mark the start so the global status chip can show "Calculating…" immediately,
   // before the backend's graperankResult reflects an in-progress record.
-  try { localStorage.setItem(`brainstorm_calc_triggered_at:${pubkey}`, String(Date.now())); } catch {}
+  try { localStorage.setItem(accountKey("brainstorm_calc_triggered_at", pubkey), String(Date.now())); } catch {}
   try { await apiClient.triggerGrapeRank(); } catch {}
-  let createdInApp = false;
-  try { createdInApp = localStorage.getItem(`brainstorm_created_inapp:${pubkey}`) === "true"; } catch {}
-  if (createdInApp) void pollAndPublishTrustAnchor(pubkey);
+  if (identityHas(pubkey, "createdInApp")) void pollAndPublishTrustAnchor(pubkey);
 }
 
 /**
@@ -1707,9 +1393,7 @@ export async function runInitialSetup(
   profile: { name: string; about?: string; picture?: string },
   opts: { inviterPubkey?: string } = {},
 ): Promise<void> {
-  try {
-    if (localStorage.getItem(initialSetupFlag(pubkey)) === "true") return;
-  } catch {}
+  if (identityHas(pubkey, "initialSetupDone")) return;
 
   const content: Record<string, unknown> = { name: profile.name, display_name: profile.name };
   if (profile.about) content.about = profile.about;
@@ -1732,8 +1416,10 @@ export async function runInitialSetup(
     }
   } catch {}
 
-  // Bootstrap publishes done — guard against re-running on reload.
-  try { localStorage.setItem(initialSetupFlag(pubkey), "true"); } catch {}
+  // Bootstrap publishes done — guard against re-running on reload. Resolved now
+  // rather than before the publishes, which are slow enough for a switch.
+  const account = accountFor(pubkey);
+  if (account) updateMetadata(account, { initialSetupDone: true });
 }
 
 /**
@@ -1756,14 +1442,12 @@ export async function createAccount(
   const pubkey = getPublicKey(sk);
   const account = await localAccount(sk, { password: opts.password });
 
-  await storeSecretKey(sk, { persistent: true }); // v1 shadow, until ticket 17 retires it
   let user: NostrUser;
   try {
     // A brand-new key exists only in this browser, so it is emphatically not
     // backed up — `createdInApp` is what points the onboarding nags at it.
     user = await signIn(account, { remembered: true, createdInApp: true });
   } catch (err) {
-    clearSecretKey();
     throw asLoginError(err);
   }
 
@@ -1773,7 +1457,6 @@ export async function createAccount(
   // waiting for the relay round-trip after runInitialSetup publishes.
   if (name) {
     rememberProfile(account, { name });
-    updateCurrentUser({ displayName: name });
     user = { ...user, displayName: name };
   }
 

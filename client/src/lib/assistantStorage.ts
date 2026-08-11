@@ -1,5 +1,6 @@
 import { nip19 } from "nostr-tools";
 import { activePubkey } from "@/accounts/display";
+import { accountKey } from "@/lib/accountStorage";
 
 export interface PublishedAssistantState {
   pubkey: string;
@@ -18,7 +19,6 @@ export interface AssistantProfile {
   nip05?: string;
 }
 
-const KEY_PREFIX = "brainstorm_assistant";
 const SUFFIX_PUBKEY = "pubkey";
 const SUFFIX_EVENT_ID = "event_id";
 const SUFFIX_PUBLISHED_AT = "published_at";
@@ -40,7 +40,7 @@ function ownerHex(): string | null {
 function key(suffix: string, owner?: string | null): string | null {
   const o = owner ?? ownerHex();
   if (!o) return null;
-  return `${KEY_PREFIX}:${o}:${suffix}`;
+  return `${accountKey("brainstorm_assistant", o)}:${suffix}`;
 }
 
 function safeGet(k: string | null): string | null {

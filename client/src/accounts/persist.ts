@@ -92,6 +92,32 @@ export function hasStoredAccounts(storage: StorageSeam): boolean {
   return holds(storage.device) || holds(storage.tab);
 }
 
+/** A serialised entry as it sits on disk, read back rather than assumed. */
+type StoredEntry = { pubkey?: string; signer?: { envelope?: string; ncryptsec?: string } };
+
+/**
+ * The entry a blob actually holds for this identity, or null.
+ *
+ * Read back, because `save()` is silent about failing: a blocked or over-quota
+ * write only logs (`browserStorage`), and an entry that won't serialise is
+ * skipped. Anything that deletes the last copy of a key has to look here first —
+ * "we called save" is not "the key reached storage".
+ */
+export function storedEntryFor(storage: StorageSeam, pubkey: string): StoredEntry | null {
+  const find = (store: StorageLike): StoredEntry | null => {
+    const raw = store.getItem(ACCOUNTS_KEY);
+    if (raw === null) return null;
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return null;
+      return (parsed as StoredEntry[]).find((entry) => entry?.pubkey === pubkey) ?? null;
+    } catch {
+      return null;
+    }
+  };
+  return find(storage.device) ?? find(storage.tab);
+}
+
 export type Persistence = {
   /** Restore Accounts and the Active Account. Quarantines whatever won't load. */
   load(): void;

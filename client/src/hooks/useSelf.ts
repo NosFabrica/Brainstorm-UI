@@ -1,5 +1,6 @@
 import { useQuery, useInfiniteQuery, keepPreviousData } from "@tanstack/react-query";
-import { apiClient, hasSessionToken } from "@/services/api";
+import { apiClient } from "@/services/api";
+import { activeHasSession } from "@/accounts/session";
 
 type ConnectionKind =
   | "followed_by"
@@ -31,7 +32,7 @@ export function useSelfHistory(pubkey: string | undefined) {
     // `/user/history` is auth-required; an Account can be active with no
     // Session, and firing anyway means authenticatedFetch → 401 → storage wipe
     // + hard-redirect to "/". Require a real session token.
-    enabled: !!pubkey && hasSessionToken(),
+    enabled: !!pubkey && activeHasSession(),
     staleTime: 60_000,
   });
 }

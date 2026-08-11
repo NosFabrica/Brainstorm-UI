@@ -1,4 +1,5 @@
 import { fetchAlertPrefs, publishAlertPrefs } from "@/services/nostr";
+import { accountKey } from "@/lib/accountStorage";
 
 /**
  * "Ignored" store for Network Alerts.
@@ -34,7 +35,7 @@ interface IgnoredAlerts {
   updated_at: number;
 }
 
-const storageKey = (observer: string) => `brainstorm_network_alerts_ignored:${observer}`;
+const storageKey = (observer: string) => accountKey("brainstorm_network_alerts_ignored", observer);
 
 /** Re-surface once reports double, or grow by 5 — whichever is the higher bar. */
 export function hasEscalated(atReports: number | null, currentReports: number): boolean {
@@ -105,7 +106,7 @@ function isPermanentFailure(error?: string): boolean {
   return error === "No signer available" || error === "Could not encrypt";
 }
 
-const dirtyKey = (observer: string) => `brainstorm_alert_prefs_dirty:${observer}`;
+const dirtyKey = (observer: string) => accountKey("brainstorm_alert_prefs_dirty", observer);
 const isDirty = (observer: string) => {
   try { return !!observer && localStorage.getItem(dirtyKey(observer)) === "1"; } catch { return false; }
 };
@@ -258,7 +259,7 @@ export function backfillIgnoredBaselines(
 // the dashboard module and the /alerts page (each mounts its own hook), so a
 // report on one surface hides it on the other and survives a reload — instead of
 // reappearing until the backend's next recalculation drops it from the feed.
-const actedKey = (observer: string) => `brainstorm_network_alerts_acted:${observer}`;
+const actedKey = (observer: string) => accountKey("brainstorm_network_alerts_acted", observer);
 
 export function actedAlertSet(observer: string): Set<string> {
   if (!observer) return new Set();

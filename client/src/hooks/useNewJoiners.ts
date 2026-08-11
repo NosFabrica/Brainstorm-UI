@@ -1,11 +1,12 @@
 import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { hasSessionToken } from "@/services/api";
 import { triggerScoringAndAnchor } from "@/services/nostr";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { followPubkeys } from "@/services/socialActions";
 import { useSelfHistory } from "@/hooks/useSelf";
 import { fetchNewJoiners, acknowledgeJoiners, type NewJoiner } from "@/services/inviteAcceptance";
+import { activeHasSession } from "@/accounts/session";
+import { identityHas } from "@/accounts/display";
 
 const QUERY_KEY = "invite/new-joiners";
 
@@ -33,13 +34,13 @@ export function useNewJoiners() {
   })();
   // Demo mode (QA-only, guarded by a localStorage key never set in prod) falls back
   // to a placeholder pubkey so the card renders in the auth-gated preview.
-  const pk = hasSessionToken() ? user?.pubkey : demo ? DEMO_PUBKEY : undefined;
-  const history = useSelfHistory(hasSessionToken() ? pk : undefined);
+  const pk = activeHasSession() ? user?.pubkey : demo ? DEMO_PUBKEY : undefined;
+  const history = useSelfHistory(activeHasSession() ? pk : undefined);
 
   const scored = !!(history.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey;
   let createdInApp = false;
   try {
-    if (pk) createdInApp = localStorage.getItem(`brainstorm_created_inapp:${pk}`) === "true";
+    createdInApp = identityHas(pk, "createdInApp");
   } catch {
     /* ignore */
   }

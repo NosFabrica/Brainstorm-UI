@@ -6,6 +6,11 @@
  * Issue: .scratch/preset-verified-counts/issues/04-frontend-render-backend-truth.md
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { stubAccount } from "@/test/accountStub";
+
+const active = vi.hoisted(() => ({ account: undefined as unknown }));
+vi.mock("@/accounts/signing", () => ({ activeAccount: () => active.account }));
+
 import { apiClient } from "@/services/api";
 
 const PK = "a".repeat(64);
@@ -85,7 +90,7 @@ describe("the house perspective bypasses the session", () => {
   beforeEach(() => {
     // A signed-in viewer: without `house`, these calls would attach the token
     // and return that viewer's personalized numbers.
-    localStorage.setItem("brainstorm_session_token", "test-token");
+    active.account = stubAccount("test-token");
   });
   afterEach(() => {
     vi.unstubAllGlobals();

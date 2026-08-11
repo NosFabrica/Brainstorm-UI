@@ -2,12 +2,13 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Loader2, ArrowRight, X, ShieldCheck, Clock } from "lucide-react";
 import { useScoringStatus } from "@/hooks/useScoringStatus";
-import { hasSessionToken } from "@/services/api";
+import { activeHasSession } from "@/accounts/session";
+import { accountKey } from "@/lib/accountStorage";
 
 // Per-account. These were global strings, so with more than one account on a device
 // one account's calc/ready state leaked into another's UI.
-const calcActiveKey = (pk?: string) => `brainstorm_calc_active:${pk || "anon"}`;
-const readyNudgeKey = (pk?: string) => `brainstorm_scores_ready_nudge:${pk || "anon"}`;
+const calcActiveKey = (pk?: string) => accountKey("brainstorm_calc_active", pk || "anon");
+const readyNudgeKey = (pk?: string) => accountKey("brainstorm_scores_ready_nudge", pk || "anon");
 
 // After SLOW_MS we soften the copy; after STALL_MS (or on backend failure) we
 // stop the spinner and stand down rather than spin forever. Tunable.
@@ -64,7 +65,7 @@ export function ScoringStatusBar() {
     // not-yet-loaded render) — clear this run's hide so the next run re-shows.
     if (wasCalculating.current && !isCalculating) {
       setCalcHidden(false);
-      try { if (pubkey) localStorage.removeItem(`brainstorm_calc_pill_dismissed:${pubkey}`); } catch { /* ignore */ }
+      try { if (pubkey) localStorage.removeItem(accountKey("brainstorm_calc_pill_dismissed", pubkey)); } catch { /* ignore */ }
     }
     wasCalculating.current = isCalculating;
   }, [isCalculating, isReady, navigate, pubkey]);
@@ -75,7 +76,7 @@ export function ScoringStatusBar() {
     if (!isCalculating && confirming) setConfirming(false);
   }, [isCalculating, confirming]);
 
-  if (!hasSessionToken()) return null;
+  if (!activeHasSession()) return null;
   // The dashboard already surfaces calculating/score state inline (and every
   // button here just routes back to it), so the floating bar would be redundant
   // there. It still shows on every other page until calc finishes or it's dismissed.
@@ -101,7 +102,7 @@ export function ScoringStatusBar() {
   const calcPillDismissed = (() => {
     try {
       if (!pubkey) return false;
-      const v = localStorage.getItem(`brainstorm_calc_pill_dismissed:${pubkey}`);
+      const v = localStorage.getItem(accountKey("brainstorm_calc_pill_dismissed", pubkey));
       return v !== null && v === String(triggeredAt);
     } catch {
       return false;
@@ -131,7 +132,7 @@ export function ScoringStatusBar() {
     // Persist for reload (marker = this run's triggeredAt, "0" when backend-driven)
     // AND hide immediately via state, so it disappears regardless of storage.
     try {
-      if (pubkey) localStorage.setItem(`brainstorm_calc_pill_dismissed:${pubkey}`, String(triggeredAt));
+      if (pubkey) localStorage.setItem(accountKey("brainstorm_calc_pill_dismissed", pubkey), String(triggeredAt));
     } catch { /* ignore */ }
     setCalcHidden(true);
     setConfirming(false);

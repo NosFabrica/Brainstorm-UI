@@ -19,6 +19,7 @@ import { unfollowUser, muteUser, reportUser } from "@/services/socialActions";
 import { npubFromPubkey } from "@/lib/shareId";
 import { computeNewAlerts, markAlertsSeen } from "@/lib/networkAlertsSeen";
 import { ignoredAlertMap, ignoreAlert, unignoreAlert, ignoreMany, unignoreMany, hydrateIgnoredFromNostr, backfillIgnoredBaselines, whenIgnoreSyncSettles, hasEscalated, actedAlertSet, markActed } from "@/lib/networkAlertsIgnored";
+import { accountKey } from "@/lib/accountStorage";
 
 // Module scope, not per-hook: the point is to say this ONCE, not once per hook
 // instance and certainly not once per ignored account. The likeliest cause (a
@@ -424,7 +425,7 @@ export function NetworkAlertsModule({ observer, enabled, onEmptyChange }: {
   // User can minimize the card to a slim one-row bar; the choice is remembered
   // per account. Collapsing also tells the dashboard to give "Your Network" the
   // full row (same reflow as the all-clear state), so nothing sits half-empty.
-  const COLLAPSE_KEY = `brainstorm_alerts_collapsed:${observer}`;
+  const COLLAPSE_KEY = accountKey("brainstorm_alerts_collapsed", observer);
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => {
     try { setCollapsed(!!localStorage.getItem(COLLAPSE_KEY)); } catch {}
@@ -444,7 +445,7 @@ export function NetworkAlertsModule({ observer, enabled, onEmptyChange }: {
   // The all-clear can be dismissed. Safe to persist because it ONLY suppresses
   // the empty state — the moment anything is actually flagged, isEmpty goes false
   // and the card renders regardless. So a user can never hide a real alert.
-  const CLEAR_KEY = `brainstorm_alerts_clear_dismissed:${observer}`;
+  const CLEAR_KEY = accountKey("brainstorm_alerts_clear_dismissed", observer);
   const [clearDismissed, setClearDismissed] = useState(false);
   useEffect(() => {
     try { setClearDismissed(!!localStorage.getItem(CLEAR_KEY)); } catch {}

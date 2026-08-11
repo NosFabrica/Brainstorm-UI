@@ -28,12 +28,15 @@ let accountManager: import("applesauce-accounts").AccountManager;
 let written: Record<string, string | null>;
 
 beforeAll(async () => {
-  ({ accountManager } = await import("./index"));
+  const module = await import("./index");
+  accountManager = module.accountManager;
+  // after the post-render migration, not before: retiring the v1 rows is the last
+  // thing it does, and that is what this suite is here to see
+  await module.accounts.migrated;
   written = Object.fromEntries(
-    [ACCOUNTS_KEY, ACTIVE_KEY, V1_KEYS.user, V1_KEYS.encryptedKey].map((key) => [
-      key,
-      localStorage.getItem(key),
-    ]),
+    [ACCOUNTS_KEY, ACTIVE_KEY, V1_KEYS.user, V1_KEYS.encryptedKey, `brainstorm_backup_done:${pubkey}`].map(
+      (key) => [key, localStorage.getItem(key)],
+    ),
   );
 });
 
@@ -59,8 +62,11 @@ describe("the accounts singleton", () => {
     });
   });
 
-  it("leaves the v1 keys readable — their callers move in later tickets", () => {
-    expect(written[V1_KEYS.user]).not.toBeNull();
-    expect(written[V1_KEYS.encryptedKey]).toBe(ENVELOPE);
+  it("retires the v1 rows, now that the blob it read back holds them instead", () => {
+    expect(written[V1_KEYS.user]).toBeNull();
+    expect(written[V1_KEYS.encryptedKey]).toBeNull();
+    expect(written[`brainstorm_backup_done:${pubkey}`]).toBeNull();
+    // and what replaced them is still there
+    expect(written[ACCOUNTS_KEY]).not.toBeNull();
   });
 });

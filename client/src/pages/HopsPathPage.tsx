@@ -8,13 +8,14 @@ import { AccountMenu } from "@/components/AccountMenu";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { reportUser, followUser, fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
-import { apiClient, hasSessionToken } from "@/services/api";
+import { apiClient } from "@/services/api";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Wordmark } from "@/components/Wordmark";
 import { ordinal } from "@/components/DegreeChip";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { TrustScoreModal, PovIcon, povChrome, useScorePov } from "@/components/score/TrustScorePov";
+import { activeHasSession } from "@/accounts/session";
 
 function shortNpub(npub: string): string {
   return `${npub.slice(0, 10)}…${npub.slice(-4)}`;
@@ -38,7 +39,7 @@ export default function HopsPathPage() {
   const handleLogout = () => logout();
   const fromPubkey = me?.pubkey || "";
   const toPubkey = decoded?.pubkey || "";
-  const signedIn = hasSessionToken();
+  const signedIn = activeHasSession();
   const calcDone = (() => {
     try {
       return localStorage.getItem("brainstorm_calc_completed") === "true";

@@ -103,6 +103,28 @@ export function adoptAccount(account: BrainstormAccount, metadata: AccountMetada
 }
 
 /**
+ * The Account this device holds for an identity, whichever Signer it signs
+ * through — the Active one where it is this identity.
+ *
+ * One identity can hold several Accounts: `adoptAccount` dedupes on Signer type,
+ * so an extension row and a local row for one key both stand. Taking whichever
+ * came first would answer from an arbitrary row *and* change its answer when a
+ * re-login reorders them, so per-identity state would appear to come and go.
+ */
+export function accountFor(pubkey: string): BrainstormAccount | undefined {
+  const active = accountManager.active;
+  if (active?.pubkey === pubkey) return active as BrainstormAccount;
+  return accountManager.accounts.find((account) => account.pubkey === pubkey) as
+    | BrainstormAccount
+    | undefined;
+}
+
+/** Every Account this device holds for an identity. */
+export function accountsFor(pubkey: string): BrainstormAccount[] {
+  return accountManager.accounts.filter((account) => account.pubkey === pubkey) as BrainstormAccount[];
+}
+
+/**
  * The Account this device holds the *key* for, by identity. An identity may sign
  * through several Signers, but only one of them keeps a key here.
  */

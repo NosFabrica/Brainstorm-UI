@@ -44,7 +44,7 @@ import { PinIcon } from "@/components/PinIcon";
 import { parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
 import { EventRow } from "@/components/share/EventRow";
 import { OpenInApp } from "@/components/share/OpenInApp";
-import { apiClient, hasSessionToken } from "@/services/api";
+import { apiClient } from "@/services/api";
 import { parseProfilePrefs, loadProfilePrefsDraft, saveProfilePrefsDraft, clearProfilePrefsDraft } from "@/lib/personalization";
 import { ROLES, SECTION_KEYS, EMPTY_PROFILE_PREFS, type SectionKey, type ProfilePrefs } from "@/config/personalization";
 import { ProfileCustomizer } from "@/components/share/ProfileCustomizer";
@@ -69,6 +69,7 @@ import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC } from "@/lib/profileDefaults";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { activeHasSession } from "@/accounts/session";
 
 type ProfileContentLike = Record<string, string | undefined>;
 
@@ -89,7 +90,7 @@ export default function SharePage() {
   const pubkey = decoded?.pubkey || "";
   const relayHints = decoded?.relays || [];
   const npub = pubkey ? safeNpub(pubkey) : "";
-  const loggedIn = hasSessionToken();
+  const loggedIn = activeHasSession();
   const [shareOpen, setShareOpen] = useState(false);
   const [zapOpen, setZapOpen] = useState(false);
   const [npubCopied, setNpubCopied] = useState(false);

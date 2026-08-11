@@ -7,7 +7,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
 import { fetchEventsByIds, fetchAddressableEvents, fetchProfile, fetchProfileMap, PROFILE_RELAYS } from "@/services/nostr";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
-import { apiClient, hasSessionToken } from "@/services/api";
+import { apiClient } from "@/services/api";
 import { collectRefs, addrCoord, replyRefs, type MinimalEvent } from "@/lib/noteRefs";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { NoteContent } from "@/components/share/NoteContent";
@@ -25,6 +25,7 @@ import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { BrainLogo } from "@/components/BrainLogo";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
+import { activeHasSession } from "@/accounts/session";
 
 type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string };
 type EventPointer = { id: string; relays?: string[]; author?: string };
@@ -94,7 +95,7 @@ export default function EventPage() {
   const raw = (params?.id || "").replace(/^nostr:/, "");
   const ptr = useMemo(() => decodeEventId(raw), [raw]);
   const relayHints = ptr?.relays || [];
-  const loggedIn = hasSessionToken();
+  const loggedIn = activeHasSession();
   const fromSearch = new URLSearchParams(useSearch()).get("fromSearch") === "1";
   const [, navigate] = useLocation();
 

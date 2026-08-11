@@ -22,6 +22,21 @@ export interface LnurlPayParams {
   lnurlUrl: string; // the raw https lnurlp URL (used in the zap-request `lnurl` tag)
 }
 
+/** Whether the recipient's provider accepts a NIP-57 zap at all. */
+export const acceptsZaps = (params: LnurlPayParams | null | undefined): boolean =>
+  !!(params?.allowsNostr && params?.nostrPubkey);
+
+/**
+ * Whether this zap can carry the zapper's name. A kind-9734 is signed by the
+ * zapper, so an Account that can sign is the whole requirement — deliberately
+ * **not** a Session question: a lapsed Session would otherwise anonymise every
+ * zap silently, with nothing on screen to say so.
+ */
+export const canAttributeZap = (
+  params: LnurlPayParams | null | undefined,
+  signer: unknown,
+): boolean => acceptsZaps(params) && !!signer;
+
 /** Thrown when the lightning provider can't be reached or returns bad data —
  *  the modal treats this as "fall back to the address QR", not a hard error. */
 export class LnurlError extends Error {}

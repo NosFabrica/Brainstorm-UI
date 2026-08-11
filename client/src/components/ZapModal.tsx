@@ -12,12 +12,13 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { FlashIcon } from "@/components/FlashIcon";
 import { copyToClipboard } from "@/lib/clipboard";
 import { initialsFor } from "@/lib/profileDefaults";
-import { hasSessionToken } from "@/services/api";
 import { useActiveAccount } from "applesauce-react/hooks";
 import { signAs } from "@/accounts/signing";
 import { isUnlockCancelled } from "@/accounts/local-signer";
 import { signEventWithEphemeralKey, getVerifiedProfileLud16, PROFILE_RELAYS } from "@/services/nostr";
 import {
+  acceptsZaps,
+  canAttributeZap,
   lnurlpFromAddress,
   buildZapRequest,
   requestInvoice,
@@ -62,8 +63,8 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
   // shows on nostr) — attributed to the viewer when signed in, otherwise an
   // anonymous zap signed with a throwaway key. Plain wallet-only payment is the
   // last resort, only when the provider doesn't support zaps.
-  const recipientSupportsZaps = !!(params?.allowsNostr && params?.nostrPubkey);
-  const isAttributed = recipientSupportsZaps && hasSessionToken() && !!account;
+  const recipientSupportsZaps = acceptsZaps(params);
+  const isAttributed = canAttributeZap(params, account);
   // Address shown / paid: the verified one once known, the prop only as a
   // pre-verification placeholder in the header.
   const displayAddr = verifiedLud16 ?? lud16;

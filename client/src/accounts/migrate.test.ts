@@ -5,9 +5,12 @@ import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import { nip19 } from "nostr-tools";
 import { ExtensionAccount } from "applesauce-accounts/accounts";
 
+import { AccountManager } from "applesauce-accounts";
+
 import { LocalAccount } from "./local-account";
+import type { AccountMetadata, BrainstormAccount } from "./metadata";
 import { migrateV1, V1_KEYS } from "./migrate";
-import { ACCOUNTS_KEY, type StorageSeam } from "./persist";
+import { ACCOUNTS_KEY, createPersistence, type StorageSeam } from "./persist";
 import { createFakeUnlockCache, createTestStorage, v1UserBlob } from "./test-fakes";
 
 /** A JWT whose payload is exactly `claims`. Only the payload is ever read. */
@@ -23,7 +26,19 @@ function setup() {
   const pubkey = getPublicKey(secretKey);
   const migrate = (options: { retireV1Keys?: boolean } = {}) =>
     migrateV1({ storage, signerOptions: { unlockCache }, ...options });
-  return { storage, unlockCache, secretKey, pubkey, migrate };
+  /**
+   * What bootstrap does between `migrateV1` and `finish()`: hold the Account and
+   * write the blobs. `finish()` reads them back before deleting anything, so a
+   * test that skips this is describing a browser whose save failed — which is
+   * exactly the case where nothing may be retired.
+   */
+  const held = (account: BrainstormAccount) => {
+    const manager = new AccountManager<AccountMetadata>();
+    manager.addAccount(account);
+    manager.setActive(account);
+    return createPersistence(manager, storage).start();
+  };
+  return { storage, unlockCache, secretKey, pubkey, migrate, held };
 }
 
 describe("migrateV1", () => {
@@ -61,12 +76,13 @@ describe("migrateV1", () => {
   });
 
   it("re-wraps a legacy plaintext key in the background and deletes the plaintext", async () => {
-    const { storage, secretKey, pubkey, migrate } = setup();
+    const { storage, secretKey, pubkey, migrate, held } = setup();
     storage.device.setItem(V1_KEYS.legacyPlaintextKey, bytesToHex(secretKey));
     storage.device.setItem(V1_KEYS.user, v1UserBlob(pubkey));
 
     const migration = migrate({ retireV1Keys: true })!;
     const account = migration.account as LocalAccount;
+    held(account);
 
     // synchronously usable — the key is held in memory, not yet at rest
     expect(account.pubkey).toBe(pubkey);
@@ -94,12 +110,13 @@ describe("migrateV1", () => {
   });
 
   it("migrates a session-only key without remembering it", async () => {
-    const { storage, secretKey, pubkey, migrate } = setup();
+    const { storage, secretKey, pubkey, migrate, held } = setup();
     storage.tab.setItem(V1_KEYS.sessionKey, bytesToHex(secretKey));
 
     const migration = migrate({ retireV1Keys: true })!;
     expect(migration.account.pubkey).toBe(pubkey);
     expect(migration.account.metadata?.remembered).toBe(false);
+    held(migration.account);
 
     await migration.finish();
     expect(storage.tab.getItem(V1_KEYS.sessionKey)).toBeNull();
@@ -247,14 +264,14 @@ describe("migrateV1", () => {
   });
 
   describe("retiring the v1 keys", () => {
-    it("leaves everything in place while legacy readers still exist", async () => {
+    it("leaves a row alone when the caller opts out", async () => {
       const { storage, unlockCache, secretKey, pubkey, migrate } = setup();
       storage.device.setItem(V1_KEYS.encryptedKey, await unlockCache.encrypt(secretKey, pubkey));
       storage.device.setItem(V1_KEYS.user, v1UserBlob(pubkey));
       storage.device.setItem(V1_KEYS.token, token({}));
       storage.device.setItem(`brainstorm_backup_done:${pubkey}`, "true");
 
-      await migrate()!.finish();
+      await migrate({ retireV1Keys: false })!.finish();
 
       expect(storage.device.getItem(V1_KEYS.user)).not.toBeNull();
       expect(storage.device.getItem(V1_KEYS.token)).not.toBeNull();
@@ -262,15 +279,17 @@ describe("migrateV1", () => {
       expect(storage.device.getItem(`brainstorm_backup_done:${pubkey}`)).not.toBeNull();
     });
 
-    it("removes what v2 now holds once the last reader is gone", async () => {
-      const { storage, unlockCache, secretKey, pubkey, migrate } = setup();
+    it("removes what v2 now holds", async () => {
+      const { storage, unlockCache, secretKey, pubkey, migrate, held } = setup();
       storage.device.setItem(V1_KEYS.encryptedKey, await unlockCache.encrypt(secretKey, pubkey));
       storage.device.setItem(V1_KEYS.user, v1UserBlob(pubkey));
       storage.device.setItem(V1_KEYS.token, token({}));
       storage.device.setItem(`brainstorm_backup_done:${pubkey}`, "true");
       storage.device.setItem(`brainstorm_active_pov:${pubkey}`, "mywot");
 
-      await migrate({ retireV1Keys: true })!.finish();
+      const migration = migrate()!;
+      held(migration.account);
+      await migration.finish();
 
       expect(storage.device.getItem(V1_KEYS.user)).toBeNull();
       expect(storage.device.getItem(V1_KEYS.token)).toBeNull();
@@ -279,8 +298,31 @@ describe("migrateV1", () => {
       expect(storage.device.getItem(`brainstorm_active_pov:${pubkey}`)).toBeNull();
     });
 
-    it("keeps the cached user when it names an identity v2 did not take", async () => {
+    it("retires nothing when the v2 blob never took the account", async () => {
       const { storage, unlockCache, secretKey, pubkey, migrate } = setup();
+      storage.device.setItem(V1_KEYS.encryptedKey, await unlockCache.encrypt(secretKey, pubkey));
+      storage.device.setItem(V1_KEYS.user, v1UserBlob(pubkey));
+
+      // no `held` — a browser whose save was blocked or over quota. `save()` only
+      // logs, so this is indistinguishable from success without reading back.
+      await migrate()!.finish();
+
+      // the envelope is the only copy of this key; deleting it would be permanent
+      expect(storage.device.getItem(V1_KEYS.encryptedKey)).not.toBeNull();
+      expect(storage.device.getItem(V1_KEYS.user)).not.toBeNull();
+    });
+
+    it("keeps the plaintext when the at-rest form it re-wrapped never reached the blob", async () => {
+      const { storage, secretKey, migrate } = setup();
+      storage.device.setItem(V1_KEYS.legacyPlaintextKey, bytesToHex(secretKey));
+
+      await migrate()!.finish();
+
+      expect(storage.device.getItem(V1_KEYS.legacyPlaintextKey)).not.toBeNull();
+    });
+
+    it("keeps the cached user when it names an identity v2 did not take", async () => {
+      const { storage, unlockCache, secretKey, pubkey, migrate, held } = setup();
       const stranger = generateSecretKey();
       // v1's unlock order takes the session key, leaving the envelope behind —
       // and `nostr_user` is the only thing that names its AAD
@@ -292,8 +334,9 @@ describe("migrateV1", () => {
       storage.device.setItem(V1_KEYS.user, v1UserBlob(getPublicKey(stranger)));
       storage.device.setItem(V1_KEYS.token, token({}));
 
-      const migration = migrate({ retireV1Keys: true })!;
+      const migration = migrate()!;
       expect(migration.account.pubkey).toBe(pubkey);
+      held(migration.account);
       await migration.finish();
 
       expect(storage.device.getItem(V1_KEYS.encryptedKey)).not.toBeNull();

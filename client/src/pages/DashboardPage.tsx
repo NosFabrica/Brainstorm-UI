@@ -125,6 +125,8 @@ import protocolDevImg from "@/assets/stock_images/protocol_dev.jpg";
 import bitcoinImg from "@/assets/stock_images/bitcoin_network.jpg";
 import digitalArtImg from "@/assets/stock_images/digital_art.jpg";
 import musicSceneImg from "@/assets/stock_images/music_scene.jpg";
+import { identityHas } from "@/accounts/display";
+import { accountKey } from "@/lib/accountStorage";
 
 
 const isStatusDone = (s: unknown): boolean => typeof s === "string" && s.toLowerCase() === "success";
@@ -153,7 +155,7 @@ const NIP85_DISMISS_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 function nip85DismissedRecently(pubkey?: string): boolean {
   if (!pubkey) return false;
   try {
-    const at = Number(localStorage.getItem(`brainstorm_nip85_dismissed_at:${pubkey}`) || 0);
+    const at = Number(localStorage.getItem(accountKey("brainstorm_nip85_dismissed_at", pubkey)) || 0);
     return at > 0 && Date.now() - at < NIP85_DISMISS_COOLDOWN_MS;
   } catch {
     return false;
@@ -176,7 +178,7 @@ export default function DashboardPage() {
   // In-app-created accounts auto-activate Brainstorm silently (see
   // AutoActivateBrainstorm) — they never get the consent card.
   const nip85CreatedInApp = (() => {
-    try { return !!user?.pubkey && localStorage.getItem(`brainstorm_created_inapp:${user.pubkey}`) === "true"; } catch { return false; }
+    return identityHas(user?.pubkey, "createdInApp");
   })();
   const [assistantDismissed, setAssistantDismissed] = useState<boolean>(() => readAssistantDismissed());
   const [assistantPubkey, setAssistantPubkey] = useState<string | null>(() => getCurrentAssistantPubkey());
@@ -184,10 +186,10 @@ export default function DashboardPage() {
   // user's scores go ready (publishDone). Persisted per-account so it never nags.
   const [inviteShareOpen, setInviteShareOpen] = useState(false);
   const [inviteCardSeen, setInviteCardSeen] = useState<boolean>(() => {
-    try { const pk = user?.pubkey; return !!pk && localStorage.getItem(`brainstorm_invite_card_seen:${pk}`) === "true"; } catch { return false; }
+    try { const pk = user?.pubkey; return !!pk && localStorage.getItem(accountKey("brainstorm_invite_card_seen", pk)) === "true"; } catch { return false; }
   });
   const markInviteCardSeen = () => {
-    try { const pk = user?.pubkey; if (pk) localStorage.setItem(`brainstorm_invite_card_seen:${pk}`, "true"); } catch { /* ignore */ }
+    try { const pk = user?.pubkey; if (pk) localStorage.setItem(accountKey("brainstorm_invite_card_seen", pk), "true"); } catch { /* ignore */ }
     setInviteCardSeen(true);
   };
   useEffect(() => {
@@ -436,7 +438,7 @@ export default function DashboardPage() {
   // followed) lets us stop re-nagging them to "follow to begin" and instead show
   // a calm "calculating" state until the count catches up.
   const calcTriggered = (() => {
-    try { return !!user?.pubkey && !!localStorage.getItem(`brainstorm_calc_triggered_at:${user.pubkey}`); }
+    try { return !!user?.pubkey && !!localStorage.getItem(accountKey("brainstorm_calc_triggered_at", user.pubkey)); }
     catch { return false; }
   })();
 
@@ -691,7 +693,7 @@ export default function DashboardPage() {
   // the next account on the same browser (making a brand-new user look like a
   // recalculation). Keep the legacy global key in sync for back-compat readers.
   const hadPreviousScores = useMemo(() => {
-    const k = user?.pubkey ? `brainstorm_calc_completed:${user.pubkey}` : "";
+    const k = user?.pubkey ? accountKey("brainstorm_calc_completed", user.pubkey) : "";
     if (calcDone) {
       try { if (k) localStorage.setItem(k, "true"); localStorage.setItem("brainstorm_calc_completed", "true"); } catch {}
       return true;
@@ -1215,7 +1217,7 @@ export default function DashboardPage() {
                       onClick={() => {
                         try {
                           const pk = user?.pubkey;
-                          if (pk) localStorage.setItem(`brainstorm_nip85_dismissed_at:${pk}`, String(Date.now()));
+                          if (pk) localStorage.setItem(accountKey("brainstorm_nip85_dismissed_at", pk), String(Date.now()));
                         } catch { /* ignore */ }
                         setNip85Dismissed(true);
                       }}

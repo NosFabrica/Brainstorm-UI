@@ -10,7 +10,7 @@ import type { EventTemplate } from "applesauce-accounts";
 import { extractAdminFlag } from "@/lib/jwt";
 import { withTabLock } from "./cross-tab";
 import { getMetadata, updateMetadata, type BrainstormAccount } from "./metadata";
-import { canSignSilently } from "./signing";
+import { activeAccount, canSignSilently } from "./signing";
 
 export const LOGIN_KIND = 22242;
 
@@ -67,6 +67,17 @@ export function getSessionToken(account: BrainstormAccount): string | undefined 
 
 export function hasSession(account: BrainstormAccount): boolean {
   return !!getSessionToken(account);
+}
+
+/**
+ * "Am I signed in?" — the most-asked question in the app. It is the Active
+ * Account's Session, not a token in a global row: an Account with no Session
+ * reads as signed out even while it is still listed, which is what lets the
+ * deferred-session card offer to sign back in.
+ */
+export function activeHasSession(): boolean {
+  const account = activeAccount();
+  return !!account && hasSession(account);
 }
 
 /** Per Account: the claim is minted with the token and dies with it. */

@@ -1,9 +1,10 @@
 import { useEffect, useRef } from "react";
-import { hasSessionToken } from "@/services/api";
 import { ensureBrainstormTrustAnchor } from "@/services/nostr";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { isNip85Activated } from "@/lib/nip85Activation";
 import { useSelfHistory } from "@/hooks/useSelf";
+import { activeHasSession } from "@/accounts/session";
+import { identityHas } from "@/accounts/display";
 
 /**
  * New (in-app-created) accounts select Brainstorm as their Web-of-Trust provider
@@ -23,7 +24,7 @@ import { useSelfHistory } from "@/hooks/useSelf";
  */
 export function AutoActivateBrainstorm() {
   const user = useActiveAccountDisplay();
-  const pk = hasSessionToken() ? user?.pubkey : undefined;
+  const pk = activeHasSession() ? user?.pubkey : undefined;
   // Wait for /user/history to settle so we don't act before ta_pubkey is known.
   const history = useSelfHistory(pk);
   const fired = useRef(false);
@@ -31,10 +32,7 @@ export function AutoActivateBrainstorm() {
   useEffect(() => {
     if (fired.current || !pk || !history.isSuccess) return;
 
-    let createdInApp = false;
-    try {
-      createdInApp = localStorage.getItem(`brainstorm_created_inapp:${pk}`) === "true";
-    } catch { /* ignore */ }
+    const createdInApp = identityHas(pk, "createdInApp");
     if (!createdInApp || isNip85Activated(pk)) return; // existing user, or already activated
 
     const taPubkey = (history.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey;

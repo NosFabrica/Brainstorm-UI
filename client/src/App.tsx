@@ -55,7 +55,6 @@ import { MobileSearchOverlay } from "@/components/MobileSearchOverlay";
 import { UnlockModal } from "@/components/UnlockModal";
 import { CrossTabIdentity } from "@/components/CrossTabIdentity";
 import { SignerApprovalModal } from "@/components/SignerApprovalModal";
-import { ensureUnlocked } from "@/services/nostr";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import type { ComponentType } from "react";
 
@@ -197,14 +196,6 @@ function Router() {
 }
 
 function App() {
-  // Warm up the in-memory secret key on boot so the encrypted-at-rest key is
-  // decrypted (silently, no password) before the first signing action — keeps the
-  // synchronous reveal/backup paths correct. Only for signed-in users (the decrypt
-  // is bound to the account pubkey); anonymous visitors skip the IndexedDB open.
-  useEffect(() => {
-    if (accountManager.active) void ensureUnlocked();
-  }, []);
-
   return (
     <AccountsProvider manager={accountManager}>
       <QueryClientProvider client={queryClient}>

@@ -5,12 +5,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ArrowRight, UserRound, Search } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { apiClient, hasSessionToken } from "@/services/api";
+import { apiClient } from "@/services/api";
 import { decodeShareId } from "@/lib/shareId";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { useActivePov } from "@/hooks/useActivePov";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
+import { activeHasSession } from "@/accounts/session";
 
 /**
  * The share page is a teaser, not a full client — so clicking a @mention or
@@ -43,7 +44,7 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
   const [pov] = useActivePov();
   const { hasMywot } = useHasMywot();
   const { isSearchObserver } = useIsSearchObserver();
-  const usePersonal = hasSessionToken() && hasMywot && isSearchObserver && pov === "mywot";
+  const usePersonal = activeHasSession() && hasMywot && isSearchObserver && pov === "mywot";
 
   const targetPubkey = useMemo(() => {
     if (intent?.kind !== "profile") return null;

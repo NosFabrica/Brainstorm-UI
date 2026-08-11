@@ -7,7 +7,7 @@ import { fetchProfileForShare, fetchProfileMap, fetchReportsForPubkey, logout, t
 import { AccountMenu } from "@/components/AccountMenu";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { REPORT_TYPE_BADGE_COLORS, formatReportTime } from "@/lib/reportMeta";
-import { apiClient, hasSessionToken } from "@/services/api";
+import { apiClient } from "@/services/api";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "@/services/graphHelpers";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Wordmark } from "@/components/Wordmark";
@@ -15,6 +15,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { InfoHint } from "@/components/InfoHint";
 import { TrustScoreModal, useScorePov, PovToggle, type ScorePov } from "@/components/score/TrustScorePov";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { activeHasSession } from "@/accounts/session";
 
 type ConnKind = "followed_by" | "following" | "muted_by" | "reported_by";
 
@@ -51,7 +52,7 @@ export default function ConnectionListPage() {
   // POV: honors the sitewide score-POV toggle. Personalized needs a signed-in
   // viewer with calculated scores; otherwise (or when the viewer chose Global)
   // the house perspective serves — `house: true` forces the unauthenticated view.
-  const signedIn = hasSessionToken();
+  const signedIn = activeHasSession();
   const calcDone = (() => { try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; } })();
   const { pov: scorePov } = useScorePov();
   const [scoreExplainOpen, setScoreExplainOpen] = useState(false);

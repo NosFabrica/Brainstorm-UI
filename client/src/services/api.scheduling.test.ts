@@ -1,4 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { stubAccount } from "@/test/accountStub";
+
+const active = vi.hoisted(() => ({ account: undefined as unknown }));
+vi.mock("@/accounts/signing", () => ({ activeAccount: () => active.account }));
+
 import { apiClient } from "@/services/api";
 
 function mockFetchOnce(body: unknown, init: { ok?: boolean; status?: number } = {}) {
@@ -14,7 +19,7 @@ function mockFetchOnce(body: unknown, init: { ok?: boolean; status?: number } = 
 
 describe("apiClient.getSchedulingPolicies", () => {
   beforeEach(() => {
-    localStorage.setItem("brainstorm_session_token", "test-token");
+    active.account = stubAccount("test-token");
   });
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -58,7 +63,7 @@ describe("apiClient.getSchedulingPolicies", () => {
 
 describe("apiClient scheduling policy mutations", () => {
   beforeEach(() => {
-    localStorage.setItem("brainstorm_session_token", "test-token");
+    active.account = stubAccount("test-token");
   });
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -120,7 +125,7 @@ describe("apiClient scheduling policy mutations", () => {
 describe("apiClient.assignUserScheduling", () => {
   const PK = "a".repeat(64);
   beforeEach(() => {
-    localStorage.setItem("brainstorm_session_token", "test-token");
+    active.account = stubAccount("test-token");
   });
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -150,7 +155,7 @@ describe("apiClient.assignUserScheduling", () => {
 
 describe("apiClient.getSchedulingStats", () => {
   beforeEach(() => {
-    localStorage.setItem("brainstorm_session_token", "test-token");
+    active.account = stubAccount("test-token");
   });
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -175,7 +180,7 @@ describe("apiClient.getSchedulingStats", () => {
 
 describe("apiClient scheduling policy users", () => {
   beforeEach(() => {
-    localStorage.setItem("brainstorm_session_token", "test-token");
+    active.account = stubAccount("test-token");
   });
   afterEach(() => {
     vi.unstubAllGlobals();

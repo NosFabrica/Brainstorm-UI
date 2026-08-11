@@ -18,7 +18,7 @@ import { extractAdminFlag } from "@/lib/jwt";
 import { LocalAccount } from "./local-account";
 import { LocalSigner, type LocalSignerOptions } from "./local-signer";
 import type { AccountMetadata, BrainstormAccount } from "./metadata";
-import { hasStoredAccounts, type StorageLike, type StorageSeam } from "./persist";
+import { hasStoredAccounts, storedEntryFor, type StorageLike, type StorageSeam } from "./persist";
 
 /** Every v1 storage key this migration reads. Nothing else in v2 knows these names. */
 export const V1_KEYS = {
@@ -56,9 +56,8 @@ export type MigrateOptions = {
   /** Passed to every `LocalSigner` this mints, so tests get their own Unlock cache. */
   signerOptions?: LocalSignerOptions;
   /**
-   * Delete the v1 rows once v2 holds them. **Off** until ticket 17 retires the
-   * last legacy reader — `getCurrentUser`, `authenticatedFetch` and the backup
-   * nags still read these keys, so removing them now would sign everyone out.
+   * Delete the v1 rows once v2 holds them. On by default: this module is the only
+   * thing left that knows these names, so a row it has migrated has no reader.
    */
   retireV1Keys?: boolean;
 };
@@ -212,17 +211,17 @@ function collectMetadata(
 /**
  * Delete only what v2 actually took. The flags are namespaced to the pubkey we
  * migrated, so they always go; `nostr_user` and the token only go when they
- * described *this* identity, and the envelope only when this Account holds it.
- * A cached user that names someone else is the sole route back into that
+ * described *this* identity, and the envelope only when the entry on disk holds
+ * it. A cached user that names someone else is the sole route back into that
  * envelope — deleting it would strand the row rather than migrate it.
  */
 function retire(
   storage: StorageSeam,
   pubkey: string,
-  { ownsCachedUser, usedEnvelope }: { ownsCachedUser: boolean; usedEnvelope: boolean },
+  { ownsCachedUser, envelopeStored }: { ownsCachedUser: boolean; envelopeStored: boolean },
 ): void {
   for (const key of Object.values(flagKeys(pubkey))) storage.device.removeItem(key);
-  if (usedEnvelope) storage.device.removeItem(V1_KEYS.encryptedKey);
+  if (envelopeStored) storage.device.removeItem(V1_KEYS.encryptedKey);
   if (!ownsCachedUser) return;
   storage.device.removeItem(V1_KEYS.user);
   storage.device.removeItem(V1_KEYS.token);
@@ -235,7 +234,7 @@ function retire(
 export function migrateV1({
   storage,
   signerOptions = {},
-  retireV1Keys = false,
+  retireV1Keys = true,
 }: MigrateOptions): Migration | null {
   if (hasStoredAccounts(storage)) return null;
 
@@ -250,16 +249,25 @@ export function migrateV1({
   return {
     account,
     async finish() {
-      if (rewrap) {
-        await rewrap.signer.cache();
-        // The plaintext only goes once the envelope that replaces it exists —
-        // where there is no Unlock cache (private browsing, plain HTTP) this row
-        // is still the only copy of the key.
-        if (retireV1Keys && rewrap.signer.data.envelope) {
-          rewrap.row.store.removeItem(rewrap.row.key);
-        }
-      }
-      if (retireV1Keys) retire(storage, account.pubkey, { ownsCachedUser, usedEnvelope });
+      if (rewrap) await rewrap.signer.cache();
+
+      // Nothing is deleted until the v2 blob has been read back and found to hold
+      // this identity. `save()` is silent about failing — a blocked or over-quota
+      // write only logs — and these rows are the sole copy of a remembered user's
+      // key, so retiring on the assumption that the save landed is how an identity
+      // is lost for good.
+      const stored = retireV1Keys ? storedEntryFor(storage, account.pubkey) : null;
+      if (!stored) return;
+      // An at-rest form in the blob, not merely in memory. Where there is no Unlock
+      // cache (private browsing, plain HTTP) and no Backup, the v1 row is still the
+      // only copy of the key and has to stay.
+      const atRest = !!(stored.signer?.envelope || stored.signer?.ncryptsec);
+
+      if (rewrap && atRest) rewrap.row.store.removeItem(rewrap.row.key);
+      retire(storage, account.pubkey, {
+        ownsCachedUser,
+        envelopeStored: usedEnvelope && atRest,
+      });
     },
   };
 }

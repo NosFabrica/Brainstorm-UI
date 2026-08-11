@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from "react";
+import { accountKey } from "@/lib/accountStorage";
 
 /**
  * Whether the post-signup card has been put away, for the Account it names.
@@ -14,7 +15,7 @@ import { useSyncExternalStore } from "react";
 const dismissedHere = new Set<string>();
 const listeners = new Set<() => void>();
 
-const flagFor = (pubkey: string) => `brainstorm_postsignup_dismissed:${pubkey}`;
+const flagFor = (pubkey: string) => accountKey("brainstorm_postsignup_dismissed", pubkey);
 
 export function isPostSignupDismissed(pubkey?: string): boolean {
   if (!pubkey) return false;

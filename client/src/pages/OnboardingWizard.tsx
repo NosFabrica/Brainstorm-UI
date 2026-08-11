@@ -11,6 +11,7 @@ import { followPubkeys } from "@/services/socialActions";
 import { canBackUp } from "@/accounts/backup";
 import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC, initialsFor } from "@/lib/profileDefaults";
 import { useToast } from "@/hooks/use-toast";
+import { accountKey } from "@/lib/accountStorage";
 
 type Step = "profile" | "follow" | "backup";
 const STEPS: { key: Step; label: string }[] = [
@@ -79,7 +80,7 @@ export default function OnboardingWizard() {
   // --- Follow step → publish kind-3 + trigger scoring in background, advance ---
   const followAndNext = (pks: string[]) => {
     if (!pks.length) return;
-    if (user?.pubkey) { try { localStorage.setItem(`brainstorm_calc_triggered_at:${user.pubkey}`, String(Date.now())); } catch {} }
+    if (user?.pubkey) { try { localStorage.setItem(accountKey("brainstorm_calc_triggered_at", user.pubkey), String(Date.now())); } catch {} }
     void (async () => {
       try {
         const res = await followPubkeys(pks);

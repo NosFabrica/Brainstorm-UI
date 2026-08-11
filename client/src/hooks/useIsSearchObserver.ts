@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { apiClient, hasSessionToken } from "@/services/api";
+import { apiClient } from "@/services/api";
+import { activeHasSession } from "@/accounts/session";
 
 /**
  * Whether the logged-in user is allowed to run search from their own trust
@@ -7,7 +8,7 @@ import { apiClient, hasSessionToken } from "@/services/api";
  *
  * Defaults to `false` (house / NosFabrica perspective) when logged out, while
  * loading, or on error — so personalized search is only ever enabled once the
- * backend explicitly confirms it. Gated on `hasSessionToken()` so it never
+ * backend explicitly confirms it. Gated on `activeHasSession()` so it never
  * fires for anonymous visitors (that path goes through `authenticatedFetch`,
  * which can 401-redirect public pages).
  */
@@ -15,12 +16,12 @@ export function useIsSearchObserver(): { isSearchObserver: boolean; isLoading: b
   const query = useQuery({
     queryKey: ["/user/isSearchObserver"],
     queryFn: () => apiClient.getIsSearchObserver(),
-    enabled: hasSessionToken(),
+    enabled: activeHasSession(),
     staleTime: 60_000,
   });
 
   return {
     isSearchObserver: query.data ?? false,
-    isLoading: hasSessionToken() && query.isPending,
+    isLoading: activeHasSession() && query.isPending,
   };
 }

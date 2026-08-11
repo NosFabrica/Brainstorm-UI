@@ -6,6 +6,7 @@ import { triggerScoringAndAnchor } from "@/services/nostr";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { followPubkeys } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
+import { accountKey } from "@/lib/accountStorage";
 
 /**
  * Post-signup "Build your network" — the primary activation step. New users pick
@@ -38,7 +39,7 @@ export default function WelcomePage() {
   // into the backend before returning, so scoring runs on fresh follows.
   const finish = (pks: string[]) => {
     if (!pks.length) return;
-    if (user?.pubkey) { try { localStorage.setItem(`brainstorm_calc_triggered_at:${user.pubkey}`, String(Date.now())); } catch {} }
+    if (user?.pubkey) { try { localStorage.setItem(accountKey("brainstorm_calc_triggered_at", user.pubkey), String(Date.now())); } catch {} }
     toast({ title: "You're all set!", description: "Your trust network is calculating — explore and finish setting up in the meantime." });
     navigate(returnPath, { replace: true });
     void (async () => {

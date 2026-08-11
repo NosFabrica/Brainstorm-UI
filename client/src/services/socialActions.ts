@@ -1,8 +1,9 @@
 import { pool, PROFILE_RELAYS, publishToRelays, loadOutboxRelayListFromDb } from "./nostr";
 import { activeAccount, signAs, signingFailure, type PublishOutcome } from "@/accounts/signing";
 import type { BrainstormAccount } from "@/accounts/metadata";
-import { apiClient, hasSessionToken } from "./api";
+import { apiClient } from "./api";
 import { loadKnownFollowList, recordFollowList, knownFollowCount, countFollows } from "@/lib/followStore";
+import { activeHasSession } from "@/accounts/session";
 
 /**
  * Ingest a freshly-signed kind-3 follow list into the backend synchronously, so
@@ -13,7 +14,7 @@ import { loadKnownFollowList, recordFollowList, knownFollowCount, countFollows }
  * Best-effort — failure never blocks the follow (relays remain the source of truth).
  */
 async function ingestFollowList(signed: Record<string, unknown>): Promise<void> {
-  if (!hasSessionToken()) return; // must be logged in
+  if (!activeHasSession()) return; // must be logged in
   const backoffMs = [600, 1500, 3000];
   for (let attempt = 0; attempt <= backoffMs.length; attempt++) {
     try {

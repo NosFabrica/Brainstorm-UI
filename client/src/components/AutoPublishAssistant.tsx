@@ -1,9 +1,10 @@
 import { useEffect, useRef } from "react";
-import { hasSessionToken } from "@/services/api";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { getCurrentAssistantPubkey } from "@/lib/assistantStorage";
 import { ensureAssistantPublished } from "@/lib/assistantPublish";
 import { useSelfHistory } from "@/hooks/useSelf";
+import { activeHasSession } from "@/accounts/session";
+import { identityHas } from "@/accounts/display";
 
 /**
  * New (in-app-created) accounts get their Brainstorm Assistant published
@@ -22,7 +23,7 @@ import { useSelfHistory } from "@/hooks/useSelf";
  */
 export function AutoPublishAssistant() {
   const user = useActiveAccountDisplay();
-  const pk = hasSessionToken() ? user?.pubkey : undefined;
+  const pk = activeHasSession() ? user?.pubkey : undefined;
   // Wait for /user/history to settle so we don't act before ta_pubkey is known.
   const history = useSelfHistory(pk);
   const fired = useRef(false);
@@ -30,10 +31,7 @@ export function AutoPublishAssistant() {
   useEffect(() => {
     if (fired.current || !pk || !history.isSuccess) return;
 
-    let createdInApp = false;
-    try {
-      createdInApp = localStorage.getItem(`brainstorm_created_inapp:${pk}`) === "true";
-    } catch { /* ignore */ }
+    const createdInApp = identityHas(pk, "createdInApp");
     if (!createdInApp) return; // existing user — manual publish only
     if (getCurrentAssistantPubkey()) return; // already published
 

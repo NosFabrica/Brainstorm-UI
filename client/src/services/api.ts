@@ -1,14 +1,14 @@
 import { env } from "@/lib/runtimeEnv";
 import {
+  clearSession,
   ensureSession,
-  isAdmin,
+  getSessionToken,
   isSessionDeferredError,
   refreshSession,
   SessionDeferredError,
 } from "@/accounts/session";
 import { waitForExtension } from "@/accounts/login";
 import { activeAccount } from "@/accounts/signing";
-import { clearUserCache } from "./nostr";
 
 const RAW_API_URL = env.VITE_API_URL;
 const API_BASE_URL = RAW_API_URL.replace(/\/+$/, "");
@@ -47,44 +47,16 @@ export function isAuthRedirecting(): boolean {
 }
 
 /**
- * True only when a real session token is present. Use this (not just the
- * presence of `nostr_user`) to gate any call that goes through
- * `authenticatedFetch` (e.g. getSelf), because that path wipes storage and
- * hard-redirects to "/" on a 401. A stale `nostr_user` without a token must
- * never trigger that redirect on public/anonymous pages.
+ * The Session ended and could not be renewed. It costs the Active Account its
+ * token, not its place on this device — the Account is still listed and signing
+ * back in is one tap. The redirect is what stops a page rendering an identity
+ * the backend just refused.
  */
-export function hasSessionToken(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    return !!localStorage.getItem("brainstorm_session_token");
-  } catch {
-    return false;
-  }
-}
-
 function handleUnauthorized() {
   isRedirectingToLogin = true;
-  localStorage.removeItem("brainstorm_session_token");
-  localStorage.removeItem("nostr_user");
-  try { sessionStorage.removeItem("brainstorm_sk_hex"); } catch {}
+  const account = activeAccount();
+  if (account) clearSession(account);
   window.location.href = "/";
-}
-
-/**
- * v1 shadow: this module's own token read, plus `nostr_user`'s admin flag, both
- * of which ticket 17 retires along with the keys they live in.
- */
-function adoptToken(account: NonNullable<ReturnType<typeof activeAccount>>, token: string): void {
-  localStorage.setItem("brainstorm_session_token", token);
-  try {
-    const storedUserStr = localStorage.getItem("nostr_user");
-    if (storedUserStr) {
-      const storedUserObj = JSON.parse(storedUserStr);
-      storedUserObj.isAdmin = isAdmin(account);
-      localStorage.setItem("nostr_user", JSON.stringify(storedUserObj));
-      clearUserCache();
-    }
-  } catch {}
 }
 
 /** Healed, waiting for the user, or genuinely unusable — three different answers. */
@@ -103,7 +75,7 @@ async function silentReauth(): Promise<ReauthResult> {
   // A 401 on a cold boot can beat the extension's own injection; v1 waited here too.
   if (account.type === "extension") await waitForExtension();
   try {
-    adoptToken(account, await refreshSession(account, { background: true }));
+    await refreshSession(account, { background: true });
     return "ok";
   } catch (err) {
     return isSessionDeferredError(err) ? "deferred" : "failed";
@@ -118,14 +90,20 @@ async function silentReauth(): Promise<ReauthResult> {
 export async function resumeSession(): Promise<void> {
   const account = activeAccount();
   if (!account) return;
-  adoptToken(account, await ensureSession(account));
+  await ensureSession(account);
+}
+
+/** The Active Account's token, or undefined — signed out, or Session-less. */
+function currentToken(): string | undefined {
+  const account = activeAccount();
+  return account && getSessionToken(account);
 }
 
 async function authenticatedFetch(
   url: string,
   options: RequestInit = {},
 ): Promise<Response> {
-  let token = localStorage.getItem("brainstorm_session_token");
+  let token = currentToken();
   if (!token) {
     const reauth = await silentReauth();
     // Deferred is not expired: the Account is fine and the key is simply asleep,
@@ -136,7 +114,7 @@ async function authenticatedFetch(
       handleUnauthorized();
       throw new Error("No session token found");
     }
-    token = localStorage.getItem("brainstorm_session_token");
+    token = currentToken();
   }
   const response = await fetch(url, {
     ...options,
@@ -148,7 +126,7 @@ async function authenticatedFetch(
     const reauth = await silentReauth();
     if (reauth === "deferred") throw new SessionDeferredError();
     if (reauth === "ok") {
-      const newToken = localStorage.getItem("brainstorm_session_token");
+      const newToken = currentToken();
       const retryResponse = await fetch(url, {
         ...options,
         headers: { ...options.headers, access_token: newToken! },
@@ -183,10 +161,9 @@ async function optionalAuthFetch(
   url: string,
   options: RequestInit = {},
 ): Promise<Response> {
-  const hasSession =
-    !!localStorage.getItem("brainstorm_session_token") ||
-    !!localStorage.getItem("nostr_user");
-  if (hasSession) {
+  // An Account with no Session still counts: `authenticatedFetch` mints one, and
+  // a deferred mint falls through to the anonymous read below.
+  if (activeAccount()) {
     try {
       return await authenticatedFetch(url, options);
     } catch (err) {

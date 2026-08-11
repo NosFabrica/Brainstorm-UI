@@ -1,4 +1,5 @@
 import { EMPTY_PERSONALIZATION, EMPTY_PROFILE_PREFS, type PersonalizationPrefs, type ProfilePrefs } from "@/config/personalization";
+import { accountKey } from "@/lib/accountStorage";
 
 /**
  * Local (per-account) persistence for the Personalization preview. Pure
@@ -7,7 +8,7 @@ import { EMPTY_PERSONALIZATION, EMPTY_PROFILE_PREFS, type PersonalizationPrefs, 
  * a backend endpoint without changing the UI.
  */
 
-const personalizationKey = (pubkey: string) => `brainstorm_personalization:${pubkey}`;
+const personalizationKey = (pubkey: string) => accountKey("brainstorm_personalization", pubkey);
 
 export function loadPersonalization(pubkey: string): PersonalizationPrefs {
   if (!pubkey) return { ...EMPTY_PERSONALIZATION };
@@ -53,7 +54,7 @@ export function parseProfilePrefs(raw: unknown): ProfilePrefs {
 
 // A local DRAFT cache so the inline editor stays snappy and survives a refresh
 // before the user hits Save (which is what actually publishes to Nostr).
-const prefsDraftKey = (pubkey: string) => `brainstorm_profile_prefs_draft:${pubkey}`;
+const prefsDraftKey = (pubkey: string) => accountKey("brainstorm_profile_prefs_draft", pubkey);
 
 export function loadProfilePrefsDraft(pubkey: string): ProfilePrefs | null {
   if (!pubkey) return null;

@@ -71,14 +71,14 @@ import { copyToClipboard } from "@/lib/clipboard";
 import { FEATURES } from "@/config/featureFlags";
 import { SiGithub } from "react-icons/si";
 import type { NostrEvent } from "applesauce-core/helpers";
-import { logout, signNip85, signNip85Deactivation, publishToRelays, getNip85RelayUrl, hasStoredSecretKey } from "@/services/nostr";
+import { logout, signNip85, signNip85Deactivation, publishToRelays, getNip85RelayUrl } from "@/services/nostr";
 import { isUnlockCancelled } from "@/accounts/local-signer";
 import { isNip85Activated, markNip85Activated, clearNip85Activated } from "@/lib/nip85Activation";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
 import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { downloadAccountBackup } from "@/lib/accountBackup";
-import { keyAccessMessage, markBackedUp, revealSecretKey } from "@/accounts/backup";
+import { canBackUp, keyAccessMessage, markBackedUp, revealSecretKey } from "@/accounts/backup";
 import { storePasswordCredential } from "@/lib/credentialManager";
 import { CodeBlock } from "@/components/CodeBlock";
 import { apiClient, isAuthRedirecting } from "@/services/api";
@@ -453,7 +453,7 @@ export default function SettingsPage() {
         </div>
       </div>
       <div className="p-5 space-y-4">
-        {hasStoredSecretKey() && (!backedUp || !user?.picture) && (
+        {canBackUp() && (!backedUp || !user?.picture) && (
           <div className="flex items-start rounded-xl bg-brand-accent/8 border border-brand-accent/20 px-3.5 py-3" data-testid="hint-finish-setup">
             <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
               <span className="font-semibold text-slate-900 dark:text-slate-100">Finish setting up.</span>{" "}
@@ -486,7 +486,7 @@ export default function SettingsPage() {
           </button>
         </div>
 
-        {hasStoredSecretKey() && (
+        {canBackUp() && (
           <div id="account-backup-section" className="pt-4 border-t border-slate-100 dark:border-slate-800/60 scroll-mt-20" data-testid="row-account-backup">
             {backedUp ? (
               <div className="flex items-center gap-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 p-3">
@@ -568,7 +568,7 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {hasStoredSecretKey() && (
+        {canBackUp() && (
           <div className="pt-4 border-t border-slate-100 dark:border-slate-800/60" data-testid="row-account-secret">
             {showSecret ? (
               <div>

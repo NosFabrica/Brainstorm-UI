@@ -11,6 +11,7 @@ import { knownFollowCount } from "@/lib/followStore";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useToast } from "@/hooks/use-toast";
+import { accountKey } from "@/lib/accountStorage";
 
 /**
  * First-run for EXISTING Nostr users (logged in via extension/nsec) who already
@@ -25,7 +26,7 @@ export default function ActivatePage() {
   const pubkey = user?.pubkey || "";
   const { hasMywot } = useHasMywot();
 
-  const seenKey = pubkey ? `brainstorm_activate_seen:${pubkey}` : "";
+  const seenKey = pubkey ? accountKey("brainstorm_activate_seen", pubkey) : "";
   const markSeen = () => { try { if (seenKey) localStorage.setItem(seenKey, "true"); } catch {} };
 
   useEffect(() => {
@@ -62,7 +63,7 @@ export default function ActivatePage() {
   const calc = () => {
     markSeen();
     if (pubkey) {
-      try { localStorage.setItem(`brainstorm_calc_triggered_at:${pubkey}`, String(Date.now())); } catch {}
+      try { localStorage.setItem(accountKey("brainstorm_calc_triggered_at", pubkey), String(Date.now())); } catch {}
     }
     toast({ title: "Calculating your Web of Trust", description: "We're scoring your network — explore while it runs." });
     navigate("/", { replace: true });

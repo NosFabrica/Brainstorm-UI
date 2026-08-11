@@ -5,7 +5,7 @@ import { MessageSquare, ArrowRight, SlidersHorizontal, Loader2 } from "lucide-re
 import { fetchEventsByFilter, fetchProfileMap, triggerScoringAndAnchor, PROFILE_RELAYS } from "@/services/nostr";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { knownFollowCount } from "@/lib/followStore";
-import { apiClient, hasSessionToken } from "@/services/api";
+import { apiClient } from "@/services/api";
 import { collectRefs, type MinimalEvent } from "@/lib/noteRefs";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { eventPath } from "@/lib/shareId";
@@ -17,6 +17,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { activeHasSession } from "@/accounts/session";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -51,7 +52,7 @@ export function EventThread({
       own (now-redundant) funnel. */
   onGateChange?: (gated: boolean) => void;
 }) {
-  const loggedIn = hasSessionToken();
+  const loggedIn = activeHasSession();
   const [pov] = useActivePov();
   const { hasMywot } = useHasMywot();
   const { isSearchObserver } = useIsSearchObserver();

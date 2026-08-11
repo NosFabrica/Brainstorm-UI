@@ -8,6 +8,7 @@ import { generateSecretKey } from "nostr-tools/pure";
 
 import { accountManager } from "@/accounts";
 import { adoptAccount, localAccount } from "@/accounts/login";
+import { accountKey } from "@/lib/accountStorage";
 import { getMetadata, type BrainstormAccount } from "@/accounts/metadata";
 import { createFakeUnlockCache } from "@/accounts/test-fakes";
 import type { LocalAccount } from "@/accounts/local-account";
@@ -84,6 +85,33 @@ describe("removing an account from this device", () => {
 
     expect(accountManager.accounts).not.toContain(account as any);
     expect(accountManager.active).toBeUndefined();
+  });
+
+  it("takes the rows that identity kept on this device", async () => {
+    const { removeAccountFromDevice } = await import("./nostr");
+    const account = await held();
+    localStorage.setItem(accountKey("brainstorm_known_follows", account.pubkey), "{}");
+
+    removeAccountFromDevice(account as unknown as BrainstormAccount);
+
+    expect(localStorage.getItem(accountKey("brainstorm_known_follows", account.pubkey))).toBeNull();
+  });
+
+  it("keeps those rows while another Account still signs as that identity", async () => {
+    const { removeAccountFromDevice } = await import("./nostr");
+    const key = generateSecretKey();
+    const first = await localAccount(key, { unlockCache: createFakeUnlockCache() });
+    const second = await localAccount(key, { unlockCache: createFakeUnlockCache() });
+    // two rows for one key: `adoptAccount` dedupes on Signer type, and these are
+    // separate instances, so both stand
+    accountManager.addAccount(first as unknown as BrainstormAccount);
+    accountManager.addAccount(second as unknown as BrainstormAccount);
+    localStorage.setItem(accountKey("brainstorm_known_follows", first.pubkey), "{}");
+
+    removeAccountFromDevice(first as unknown as BrainstormAccount);
+
+    // the follow-wipe guard belongs to the identity, which is still here
+    expect(localStorage.getItem(accountKey("brainstorm_known_follows", first.pubkey))).toBe("{}");
   });
 
   it("lets a locked account nobody is signed in as go, without disturbing the one who is", async () => {

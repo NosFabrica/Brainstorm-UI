@@ -14,7 +14,7 @@ import { browserStorage } from "./persist";
 import { deviceUnlockCache } from "./unlock-cache";
 
 export type BootstrapOptions = Omit<CreateManagerOptions, "autoStart"> & {
-  /** See `MigrateOptions.retireV1Keys` — ticket 17 turns this on. */
+  /** See `MigrateOptions.retireV1Keys`. On: nothing outside migration reads v1 any more. */
   retireV1Keys?: boolean;
   /** Defers the background re-wrap past first render. Tests run it inline. */
   schedule?: (task: () => void) => void;
@@ -34,7 +34,7 @@ export function bootstrapAccounts({
   storage = browserStorage(),
   unlockCache = deviceUnlockCache,
   transport,
-  retireV1Keys = false,
+  retireV1Keys = true,
   schedule = afterFirstRender,
 }: BootstrapOptions = {}): Bootstrapped {
   // Installs the remote-signer transport as its first act — see `createManager`.

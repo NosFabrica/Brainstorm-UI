@@ -9,6 +9,7 @@ import { npubEncode } from "nostr-tools/nip19";
 import { distinctUntilChanged, map, of, startWith, switchMap, type Observable } from "rxjs";
 
 import { accountManager } from "@/accounts";
+import { accountsFor } from "./login";
 import { getMetadata, updateMetadata, type AccountMetadata, type BrainstormAccount } from "./metadata";
 import { isAdmin } from "./session";
 
@@ -61,6 +62,23 @@ export function activeDisplay(): AccountDisplay | null {
 /** The signed-in pubkey, or null — the most-asked question in the app. */
 export function activePubkey(): string | null {
   return accountManager.active?.pubkey ?? null;
+}
+
+/** The per-identity facts: things a key has done once, that no later Signer undoes. */
+export type IdentityFlag = "createdInApp" | "initialSetupDone" | "nip85Activated";
+
+/**
+ * Whether **any** Account for this identity carries the flag.
+ *
+ * One identity can hold several Accounts — an extension row and a local row for
+ * the same key both stand. "This key already published its kind-10040" is a fact
+ * about the key, so asking only the row that happens to be active would re-offer
+ * an activation the user has already made. v1's pubkey-namespaced rows were
+ * per-identity too; this keeps that.
+ */
+export function identityHas(pubkey: string | null | undefined, flag: IdentityFlag): boolean {
+  if (!pubkey) return false;
+  return accountsFor(pubkey).some((account) => getMetadata(account)[flag] === true);
 }
 
 /** What a kind-0 contributes to the display cache. */

@@ -10,6 +10,7 @@ import { followPubkeys } from "@/services/socialActions";
 import { searchByText, type SearchResult } from "@/lib/profileSearch";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useToast } from "@/hooks/use-toast";
+import { accountKey } from "@/lib/accountStorage";
 
 /**
  * Compact "follow a few accounts → calculate" card for the dashboard's no-follows
@@ -122,7 +123,7 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
       return;
     }
     if (identity?.pubkey) {
-      try { localStorage.setItem(`brainstorm_calc_triggered_at:${identity.pubkey}`, String(Date.now())); } catch { /* ignore */ }
+      try { localStorage.setItem(accountKey("brainstorm_calc_triggered_at", identity.pubkey), String(Date.now())); } catch { /* ignore */ }
       void triggerScoringAndAnchor(identity.pubkey);
     }
     toast({ title: "Calculating your trust network", description: "We're scoring your follows — this can take a few minutes." });

@@ -81,7 +81,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { apiClient, isAuthRedirecting, hasSessionToken } from "@/services/api";
+import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfConnections, flattenConnections } from "@/hooks/useSelf";
 import { getProfileSeed, setProfileSeed, clearProfileSeed, consumeStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "../services/graphHelpers";
@@ -100,6 +100,7 @@ import { useActivePov, type ActivePov } from "@/hooks/useActivePov";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { fetchContactList, getFollowedPubkeys, fetchMyReport, type MyReport } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
+import { activeHasSession } from "@/accounts/session";
 
 interface AdminHistoryItem {
   created_at: string;
@@ -1039,7 +1040,7 @@ export default function ProfilePage() {
   // visitors are redirected to the PUBLIC share page (/p/:npub) — the join-funnel
   // view — no matter how they arrived (search, a shared link, a bookmark).
   useEffect(() => {
-    if (npubParam && !hasSessionToken()) {
+    if (npubParam && !activeHasSession()) {
       navigate(`/p/${npubParam}`, { replace: true });
     }
   }, [npubParam, navigate]);
@@ -1062,7 +1063,7 @@ export default function ProfilePage() {
   // wipe-and-redirect (Profile is a public page). Gate the pubkey on a real
   // session token — anon and stale-token visitors see the public overview
   // without their browsing being hijacked.
-  const selfMutualsPubkey = hasSessionToken() ? user?.pubkey : undefined;
+  const selfMutualsPubkey = activeHasSession() ? user?.pubkey : undefined;
   const selfFollowedByConn = useSelfConnections(selfMutualsPubkey, "followed_by", { enabled: !!selfMutualsPubkey });
   const selfFollowingConn = useSelfConnections(selfMutualsPubkey, "following", { enabled: !!selfMutualsPubkey });
   const selfFollowedByList = useMemo(() => flattenConnections(selfFollowedByConn.data?.pages), [selfFollowedByConn.data?.pages]);
@@ -2318,7 +2319,7 @@ export default function ProfilePage() {
                     <span className="text-slate-500 dark:text-slate-400 ml-1">Mutual</span>
                   </span>
                   {/* Degree (1st/2nd/3rd) — signed-in + scored viewers, not your own profile. */}
-                  {hasSessionToken() && !isOwnProfile && user?.pubkey && hexPubkey &&
+                  {activeHasSession() && !isOwnProfile && user?.pubkey && hexPubkey &&
                     localStorage.getItem("brainstorm_calc_completed") === "true" && (
                       <DegreeChip fromPubkey={user.pubkey} toPubkey={hexPubkey} rawId={npubParam} variant="bold" />
                     )}
