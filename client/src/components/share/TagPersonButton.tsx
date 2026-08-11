@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { ROLES } from "@/config/personalization";
 import { resolveOrMintTag, type ProfileTag } from "@/services/tags";
 import { useApplyTag, useProfileTags, usePickerTags } from "@/hooks/useTags";
+import { stanceMenuRow } from "@/components/share/StanceControl";
 
 /**
  * Add a tag to a person — your own profile or anyone else's.
@@ -280,31 +281,42 @@ export function TagPersonButton({
               </CommandGroup>
             )}
 
-            {/* Already on this profile — where you agree, or take your agreement
-                back. Listed first because reacting to what's there beats
-                scrolling a generic list. */}
+            {/* Already on this profile — where you say whether it fits. Listed
+                first because reacting to what's there beats scrolling a generic
+                list.
+
+                Two entries per tag, not one toggle (#41 B2). The old single row
+                sent `agreed ? -1 : 1`, so from neutral the only reachable action
+                was to agree, and pressing it a second time — which reads as
+                undo — published a permanent public disagreement instead. Both
+                stances are reachable from neutral now, and the one you already
+                hold renders as state rather than an action. */}
             {onProfile.length > 0 && (
               <CommandGroup heading="Already on this profile">
-                {onProfile.map((tag) => {
-                  const agreed = tag.myStance === "apply";
-                  return (
-                    <CommandItem
-                      key={tag.key}
-                      value={tag.name}
-                      onSelect={() => setStance(tag, agreed ? -1 : 1)}
-                      data-testid="share-tag-stance"
-                    >
-                      {agreed ? (
-                        <Check className="mr-2 h-3.5 w-3.5 text-emerald-500" />
-                      ) : (
-                        <Plus className="mr-2 h-3.5 w-3.5" />
-                      )}
-                      <span className="flex-1 truncate">{tag.name}</span>
-                      <span className="ml-2 shrink-0 text-[10px] text-slate-400">
-                        {agreed ? "Disagree" : "Agree"}
-                      </span>
-                    </CommandItem>
-                  );
+                {onProfile.flatMap((tag) => {
+                  const row = stanceMenuRow(tag.myStance);
+                  return ([row.agree, row.disagree] as const).map((choice) => {
+                    const Icon = choice.icon;
+                    return (
+                      <CommandItem
+                        key={`${tag.key}:${choice.polarity}`}
+                        // cmdk matches on `value`, so both entries have to carry
+                        // the tag's name or typing it would hide one of them.
+                        value={`${tag.name} ${choice.hint}`}
+                        onSelect={() => !choice.disabled && setStance(tag, choice.polarity)}
+                        className={choice.disabled ? "opacity-60" : ""}
+                        data-testid="share-tag-stance"
+                        data-polarity={choice.polarity}
+                        data-current={choice.disabled ? "true" : "false"}
+                      >
+                        <Icon className={`mr-2 h-3.5 w-3.5 ${choice.iconClass}`} />
+                        <span className="flex-1 truncate">{tag.name}</span>
+                        <span className="ml-2 shrink-0 text-[10px] text-slate-400">
+                          {choice.hint}
+                        </span>
+                      </CommandItem>
+                    );
+                  });
                 })}
               </CommandGroup>
             )}

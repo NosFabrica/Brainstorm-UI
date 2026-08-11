@@ -10,6 +10,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { FacePile, NameList, displayName, profilePath } from "@/components/tags/FacePile";
 import { TagsCrossLink } from "@/components/tags/TagsCrossLink";
 import { UnscoredReachNotice } from "@/components/tags/UnscoredReachNotice";
+import { StanceButtons } from "@/components/share/StanceControl";
 import { useToast } from "@/hooks/use-toast";
 import { fetchProfileMap, hasLocalSecretKey } from "@/services/nostr";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -147,11 +148,17 @@ export function YourTagsPanel() {
                it stops counting" was simply false for any popular tag.
             2. Disagreeing doesn't make it vanish either. It keeps rendering,
                marked. A page implying otherwise surprises people the moment
-               they press the button. */}
+               they press the button.
+            3. Added with #41 B2: your vote can't be taken back. The protocol
+               stores one assertion per (tag, target, asserter) and there is no
+               polarity 0 and no deletion — you can change your mind, but not
+               erase having spoken. The buttons no longer imply otherwise, and
+               neither should the paragraph above them. */}
         <p className="mt-4 text-sm text-slate-500 dark:text-slate-400" data-testid="my-tags-no-delete">
           Something here that's wrong? Disagree with it. That's a public vote
           against, and once more people disagree than agree the tag stops
-          counting. It stays on the page either way, marked as disagreed.
+          counting. It stays on the page either way, marked as disagreed. You can
+          change your mind later, but there's no way to un-say it.
         </p>
 
         {/* ── 1. Tags on me ─────────────────────────────────────────────── */}
@@ -343,7 +350,6 @@ function TagOnMeRow({
   const [busy, setBusy] = useState(false);
 
   const others = corroborations(tag);
-  const agreed = tag.myStance === "apply";
   // Whoever vouched, minus you. "3 people say this" is a statistic; "Tanja, Avi
   // and 1 other say this" is a claim you can go and check, which is the whole
   // point of a signed tag.
@@ -427,16 +433,18 @@ function TagOnMeRow({
         )}
       </div>
 
+      {/* Both stances, always reachable (#41 B2). This row is the whole reason
+          /tags/mine exists — it's where you answer a label someone applied to
+          you — and until now the only button on it said "Agree". */}
       {canAct && (
-        <button
-          type="button"
-          onClick={() => setStance(agreed ? -1 : 1)}
-          disabled={busy}
-          className="mt-0.5 shrink-0 rounded-full border border-slate-200 px-3 py-1 text-xs font-semibold text-slate-600 transition-colors hover:border-brand-primary hover:text-brand-primary disabled:opacity-50 dark:border-slate-700 dark:text-slate-300"
-          data-testid="my-tag-stance"
-        >
-          {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : agreed ? "Disagree" : "Agree"}
-        </button>
+        <div className="mt-0.5">
+          <StanceButtons
+            stance={tag.myStance}
+            pending={busy}
+            onVote={setStance}
+            testId="my-tag-stance"
+          />
+        </div>
       )}
     </div>
   );

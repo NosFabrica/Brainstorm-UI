@@ -15,6 +15,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { npubFromPubkey } from "@/lib/shareId";
 import { useApplyEventTag, useEventTags, usePickerTags } from "@/hooks/useTags";
+import { stanceMenuRow } from "@/components/share/StanceControl";
 import type { NoteTag } from "@/services/tags";
 
 /**
@@ -242,35 +243,44 @@ function TagNoteButton({
               </CommandGroup>
             )}
 
-            {/* Already on this post — agree, or take your agreement back. */}
+            {/* Already on this post — where you say whether it fits. Two
+                entries per tag rather than one toggle, for the reasons in
+                StanceControl (#41 B2): a single toggle made agreeing the only
+                thing reachable from neutral, and turned a second press into a
+                permanent public disagreement. */}
             {onNote.length > 0 && (
               <CommandGroup heading="Already on this post">
-                {onNote.map((tag) => {
-                  const agreed = tag.myStance === "apply";
-                  return (
-                    <CommandItem
-                      key={tag.key}
-                      value={tag.name}
-                      onSelect={() =>
-                        run(
-                          { authorPubkey: tag.authorPubkey, slug: tag.slug },
-                          tag.name,
-                          agreed ? -1 : 1,
-                        )
-                      }
-                      data-testid="note-tag-stance"
-                    >
-                      {agreed ? (
-                        <Check className="mr-2 h-3.5 w-3.5 text-emerald-500" />
-                      ) : (
-                        <Plus className="mr-2 h-3.5 w-3.5" />
-                      )}
-                      <span className="flex-1 truncate">{tag.name}</span>
-                      <span className="ml-2 shrink-0 text-[10px] text-slate-400">
-                        {agreed ? "Disagree" : "Agree"}
-                      </span>
-                    </CommandItem>
-                  );
+                {onNote.flatMap((tag) => {
+                  const row = stanceMenuRow(tag.myStance);
+                  return ([row.agree, row.disagree] as const).map((choice) => {
+                    const Icon = choice.icon;
+                    return (
+                      <CommandItem
+                        key={`${tag.key}:${choice.polarity}`}
+                        // cmdk filters on `value` — both entries need the tag's
+                        // name or typing it would hide one of them.
+                        value={`${tag.name} ${choice.hint}`}
+                        onSelect={() =>
+                          !choice.disabled &&
+                          run(
+                            { authorPubkey: tag.authorPubkey, slug: tag.slug },
+                            tag.name,
+                            choice.polarity,
+                          )
+                        }
+                        className={choice.disabled ? "opacity-60" : ""}
+                        data-testid="note-tag-stance"
+                        data-polarity={choice.polarity}
+                        data-current={choice.disabled ? "true" : "false"}
+                      >
+                        <Icon className={`mr-2 h-3.5 w-3.5 ${choice.iconClass}`} />
+                        <span className="flex-1 truncate">{tag.name}</span>
+                        <span className="ml-2 shrink-0 text-[10px] text-slate-400">
+                          {choice.hint}
+                        </span>
+                      </CommandItem>
+                    );
+                  });
                 })}
               </CommandGroup>
             )}
