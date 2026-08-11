@@ -169,7 +169,9 @@ describe("removing an account", () => {
     fireEvent.click(screen.getByTestId("switcher-manage"));
     fireEvent.click(screen.getByTestId("switcher-remove-bob-key"));
 
-    expect(onRequestRemove).toHaveBeenCalledWith(expect.objectContaining({ id: "bob-key" }));
+    // and says it wasn't the active row — the host's "save a backup first" offer
+    // only works for the Account that is signing
+    expect(onRequestRemove).toHaveBeenCalledWith(expect.objectContaining({ id: "bob-key" }), false);
   });
 
   // That account may be Locked, and unlocking it to throw it away is absurd.

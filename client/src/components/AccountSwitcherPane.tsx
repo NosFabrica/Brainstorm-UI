@@ -53,8 +53,12 @@ export type AccountSwitcherPaneProps = {
   onBack: () => void;
   /** Switched to another Account: the host closes the panel. */
   onSwitched: () => void;
-  /** Let this Account go. The host closes the panel and puts up the warning. */
-  onRequestRemove: (account: BrainstormAccount) => void;
+  /**
+   * Let this Account go. The host closes the panel and puts up the warning, and
+   * needs to know whether this is the Account signing: what it can offer instead
+   * of removal — backing the key up first — only works for that one.
+   */
+  onRequestRemove: (account: BrainstormAccount, isActive: boolean) => void;
   /** Sign in as somebody this device doesn't hold yet. */
   onAddAccount: () => void;
 };
@@ -150,7 +154,7 @@ export function AccountSwitcherPane({
                 busy={busy === row.account.id}
                 disabled={busy !== null}
                 onSwitch={() => void switchTo(row)}
-                onRemove={() => onRequestRemove(row.account)}
+                onRemove={() => onRequestRemove(row.account, row.account.id === activeId)}
               />
             ))}
           </div>

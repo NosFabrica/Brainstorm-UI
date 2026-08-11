@@ -52,7 +52,8 @@ function Panel({ onLogout = () => {}, close = () => {} }: { onLogout?: () => voi
         close={close}
       />
       {menu.modals}
-      <button type="button" onClick={() => menu.onRequestRemove(account)} data-testid="ask-remove" />
+      <button type="button" onClick={() => menu.onRequestRemove(account, true)} data-testid="ask-remove" />
+      <button type="button" onClick={() => menu.onRequestRemove(account, false)} data-testid="ask-remove-other" />
     </>
   );
 }
@@ -173,6 +174,18 @@ describe("removing an account", () => {
 
     expect(navigate).toHaveBeenCalledWith("/settings?tab=profile&focus=backup");
     expect(removeAccountFromDevice).not.toHaveBeenCalled();
+  });
+
+  // Settings' backup section acts on the Active Account, so offering it here for
+  // somebody else would send the user off to back up the wrong key.
+  it("does not offer to back up an account it cannot back up", () => {
+    unbacked.mockReturnValue(true);
+    renderWithProviders(<Panel />);
+
+    fireEvent.click(screen.getByTestId("ask-remove-other"));
+
+    expect(screen.getByTestId("remove-account-confirm")).toHaveTextContent(/can't be recovered/i);
+    expect(screen.queryByTestId("remove-save-backup")).not.toBeInTheDocument();
   });
 
   it("takes the answer anyway, once it has been given", () => {

@@ -68,7 +68,7 @@ export const NAV_TILES: { key: AppKey; label: string; path: string; icon: React.
 export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close: () => void) {
   const [, navigate] = useLocation();
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [removing, setRemoving] = useState<BrainstormAccount | null>(null);
+  const [removing, setRemoving] = useState<{ account: BrainstormAccount; isActive: boolean } | null>(null);
 
   // Own house Web-of-Trust score for the invite card — fetched lazily when the
   // invite sheet opens (cached). Sharing your standing is a credible flex.
@@ -87,7 +87,7 @@ export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close
   // Sign out no longer destroys anything, so it asks nothing — the wall it used to
   // put up has moved onto the act that still does (see the dialog below).
   const onRequestLogout = () => { close(); onLogout(); };
-  const onRequestRemove = (account: BrainstormAccount) => { close(); setRemoving(account); };
+  const onRequestRemove = (account: BrainstormAccount, isActive: boolean) => { close(); setRemoving({ account, isActive }); };
 
   // Removing the Account that was signing leaves the app on a page belonging to an
   // identity this browser no longer holds.
@@ -114,7 +114,10 @@ export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close
           switcher's rows answer: is there a Backup behind this key? */}
       <AlertDialog open={removing !== null} onOpenChange={(open) => !open && setRemoving(null)}>
         <AlertDialogContent data-testid="remove-account-confirm">
-          {removing && isUnbackedUp(removing) ? (
+          {/* "Save backup" is only honest for the Account that is signing: the
+              Settings backup section acts on the Active Account, so offering it
+              while removing a different one would back up the wrong key. */}
+          {removing && isUnbackedUp(removing.account) && removing.isActive ? (
             <>
               <AlertDialogHeader>
                 <AlertDialogTitle>Save a backup before you remove this account?</AlertDialogTitle>
@@ -127,7 +130,7 @@ export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close
               <AlertDialogFooter>
                 <AlertDialogCancel
                   className="text-red-600 hover:text-red-700"
-                  onClick={() => { const account = removing; setRemoving(null); if (account) remove(account); }}
+                  onClick={() => { const target = removing; setRemoving(null); if (target) remove(target.account); }}
                   data-testid="remove-anyway"
                 >
                   Remove anyway
@@ -145,14 +148,15 @@ export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close
               <AlertDialogHeader>
                 <AlertDialogTitle>Remove this account from this device?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Everything this browser holds for it goes, including its npub. Anyone holding
-                  the key elsewhere can add it again; nobody else can.
+                  {removing && isUnbackedUp(removing.account)
+                    ? "This account's key lives in this browser and nowhere else, and removing it deletes the key. Without a backup file it can't be recovered, here or anywhere."
+                    : "Everything this browser holds for it goes, including its npub. Anyone holding the key elsewhere can add it again; nobody else can."}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>Keep it</AlertDialogCancel>
                 <AlertDialogAction
-                  onClick={() => { const account = removing; setRemoving(null); if (account) remove(account); }}
+                  onClick={() => { const target = removing; setRemoving(null); if (target) remove(target.account); }}
                   data-testid="remove-account-confirm-button"
                 >
                   Remove
@@ -175,7 +179,7 @@ interface AccountMenuBodyProps {
   onNavigate: (path: string) => void;
   onInvite: () => void;
   onRequestLogout: () => void;
-  onRequestRemove: (account: BrainstormAccount) => void;
+  onRequestRemove: (account: BrainstormAccount, isActive: boolean) => void;
   /** Dismiss the host surface — what switching to another Account does. */
   close: () => void;
 }
@@ -212,7 +216,7 @@ export function AccountMenuBody({
       <AccountSwitcher
         onBack={() => setPane("menu")}
         onSwitched={() => { setPane("menu"); close(); }}
-        onRequestRemove={(account) => { setPane("menu"); onRequestRemove(account); }}
+        onRequestRemove={(account, isActive) => { setPane("menu"); onRequestRemove(account, isActive); }}
         onAddAccount={() => { setPane("menu"); onNavigate(addAccountPath()); }}
       />
     );
