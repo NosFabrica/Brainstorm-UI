@@ -438,3 +438,39 @@ describe("LocalSigner cache and Backup", () => {
     expect(await signer.nip44.decrypt(pubkey, cipher)).toBe("secret");
   });
 });
+
+describe("locking while something is still reaching for the key", () => {
+  it("does not hand the key back when the unlock lands after the lock", async () => {
+    const { pubkey, unlockCache, envelope } = await keyFixture();
+    const signer = new LocalSigner(pubkey, { envelope }, { unlockCache });
+
+    // Sign out, removal and cross-tab eviction all lock; each can land while an
+    // unlock started a moment earlier is still settling.
+    const inFlight = signer.unlock();
+    signer.lock();
+
+    // The waiting operation is abandoned, not failed: its Account just left.
+    expect(isUnlockCancelled(await inFlight.catch((e) => e))).toBe(true);
+    expect(signer.unlocked).toBe(false);
+  });
+
+  it("holds the same line for a silent unlock, which never goes through `unlock`", async () => {
+    const { pubkey, unlockCache, envelope } = await keyFixture();
+    const signer = new LocalSigner(pubkey, { envelope }, { unlockCache });
+
+    const inFlight = signer.unlockSilently();
+    signer.lock();
+
+    await expect(inFlight).resolves.toBe(false);
+    expect(signer.unlocked).toBe(false);
+  });
+
+  it("still unlocks normally when nothing interrupts it", async () => {
+    const { pubkey, unlockCache, envelope } = await keyFixture();
+    const signer = new LocalSigner(pubkey, { envelope }, { unlockCache });
+
+    await signer.unlock();
+
+    expect(signer.unlocked).toBe(true);
+  });
+});

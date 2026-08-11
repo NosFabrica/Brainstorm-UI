@@ -103,6 +103,12 @@ export function setRecoveryPasswordPrompt(prompt?: RecoveryPasswordPrompt): void
 export class LocalSigner implements ISigner {
   private inner: PrivateKeySigner | null = null;
   private pending: Promise<void> | null = null;
+  /**
+   * Bumped by `lock`. An unlock that was already in flight when the key was
+   * locked must not hand it back afterwards — sign-out and removal both lock,
+   * and a key that reappears a moment later belongs to nobody.
+   */
+  private generation = 0;
   private readonly unlockCache: UnlockCache;
   private readonly requestPassword?: RecoveryPasswordPrompt;
 
@@ -155,8 +161,14 @@ export class LocalSigner implements ISigner {
   unlock(password?: string): Promise<void> {
     if (this.inner) return Promise.resolve();
     if (this.pending) return this.pending;
+    const started = this.generation;
     this.pending = this.doUnlock(password)
-      .then(() => void this.unlocked$.next())
+      .then(() => {
+        // Locked while we were away: drop what we opened rather than restoring a
+        // key its Account has since been signed out of, or removed entirely.
+        if (started !== this.generation) this.inner = null;
+        else this.unlocked$.next();
+      })
       .finally(() => {
         this.pending = null;
       });
@@ -178,11 +190,14 @@ export class LocalSigner implements ISigner {
 
   private async fromCache(): Promise<boolean> {
     if (!this.data.envelope || !this.unlockCache.isSupported()) return false;
+    const started = this.generation;
     try {
       // AAD is the pubkey — an envelope minted for another Account fails closed.
-      this.inner = new PrivateKeySigner(
-        await this.unlockCache.decrypt(this.data.envelope, this.pubkey),
-      );
+      const key = await this.unlockCache.decrypt(this.data.envelope, this.pubkey);
+      // `unlockSilently` reaches here without going through `unlock`, so the
+      // locked-while-we-were-away check has to stand at the assignment too.
+      if (started !== this.generation) return false;
+      this.inner = new PrivateKeySigner(key);
       return true;
     } catch {
       // A stale cache holds no authority the Backup doesn't; drop it and fall through.
@@ -210,7 +225,14 @@ export class LocalSigner implements ISigner {
 
   private async doUnlock(password?: string): Promise<void> {
     if (this.inner) return;
+    const started = this.generation;
     if (await this.fromCache()) return;
+
+    // Locked while we were away, so whatever wanted this key belongs to an
+    // Account that has since been signed out or removed. Abandon it the way a
+    // declined unlock is abandoned — every signing call site already swallows
+    // `UnlockCancelled` in silence, which is the right answer for both.
+    if (started !== this.generation) throw new UnlockCancelled();
 
     if (!this.data.ncryptsec) throw new NoUnlockPathError();
 
@@ -221,6 +243,7 @@ export class LocalSigner implements ISigner {
     }
 
     await this.prompt();
+    if (started !== this.generation) throw new UnlockCancelled();
     // A prompt that returns without unlocking would leave the caller signing with
     // nothing at all, so treat it as terminal rather than trusting it.
     if (!this.inner) throw new NoUnlockPathError("The recovery password prompt returned locked");
@@ -300,9 +323,10 @@ export class LocalSigner implements ISigner {
     }
   }
 
-  /** Drop the in-memory key. The at-rest forms are untouched. */
+  /** Drop the in-memory key, and disown any unlock still in flight. The at-rest forms are untouched. */
   lock(): void {
     this.inner = null;
+    this.generation += 1;
   }
 
   async getPublicKey(): Promise<string> {
