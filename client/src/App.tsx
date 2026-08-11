@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { Switch, Route, Redirect, useLocation } from "wouter";
-import { AccountsProvider } from "applesauce-react/providers";
+import { AccountsProvider, EventStoreProvider } from "applesauce-react/providers";
 import { accountManager } from "@/accounts";
+import { eventStore } from "@/services/nostr";
 import { stopAllMedia } from "@/lib/audioPlayer";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -198,25 +199,27 @@ function Router() {
 function App() {
   return (
     <AccountsProvider manager={accountManager}>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider delayDuration={300} skipDelayDuration={100}>
-          <Toaster />
-          <UnlockModal />
-          <SignerApprovalModal />
-          <CrossTabIdentity />
-          <PovAutoDefault />
-          <MobileTabBar />
-          <CommandPalette />
-          <MobileSearchOverlay />
-          <ScoringStatusBar />
-          <AutoScoreReturning />
-          <AutoActivateBrainstorm />
-          <AutoPublishAssistant />
-          <LightboxProvider>
-            <Router />
-          </LightboxProvider>
-        </TooltipProvider>
-      </QueryClientProvider>
+      <EventStoreProvider eventStore={eventStore}>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider delayDuration={300} skipDelayDuration={100}>
+            <Toaster />
+            <UnlockModal />
+            <SignerApprovalModal />
+            <CrossTabIdentity />
+            <PovAutoDefault />
+            <MobileTabBar />
+            <CommandPalette />
+            <MobileSearchOverlay />
+            <ScoringStatusBar />
+            <AutoScoreReturning />
+            <AutoActivateBrainstorm />
+            <AutoPublishAssistant />
+            <LightboxProvider>
+              <Router />
+            </LightboxProvider>
+          </TooltipProvider>
+        </QueryClientProvider>
+      </EventStoreProvider>
     </AccountsProvider>
   );
 }

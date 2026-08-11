@@ -17,7 +17,7 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import { loginWithPastedKey, type LoginErrorCode } from "@/services/nostr";
-import { setRecoveryPassword } from "@/accounts/backup";
+import { MIN_RECOVERY_PASSWORD_LENGTH, setRecoveryPassword } from "@/accounts/backup";
 import { BACKUP_LOGN } from "@/accounts/local-signer";
 import {
   backupTooExpensive,
@@ -29,6 +29,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
+import { isVaultSupported } from "@/lib/skVault";
 import { tone } from "@/lib/tones";
 import {
   Tooltip,
@@ -77,6 +78,8 @@ export function KeySignInModal({
   const [secretKey, setSecretKey] = useState("");
   const [backupPassword, setBackupPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
+  const [recoveryPassword, setRecoveryPasswordInput] = useState("");
+  const [recoveryConfirm, setRecoveryConfirm] = useState("");
   const [showSecretKey, setShowSecretKey] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [secretKeyError, setSecretKeyError] = useState("");
@@ -90,7 +93,22 @@ export function KeySignInModal({
   const isEncryptedKey = pastedKey?.kind === "ncryptsec";
   /** Its own header says it needs more memory than a browser has — say so now. */
   const unusableBackup = isEncryptedKey && backupTooExpensive(pastedKey.token);
-  const canSubmitKey = !!secretKey.trim() && !unusableBackup && (!isEncryptedKey || !!backupPassword);
+
+  // A pasted Backup already carries its own at-rest form. A plaintext key has
+  // none, so on a browser with no Unlock cache "remember me" can only be honoured
+  // by minting one — see ADR-0001. Without a Recovery password there, the account
+  // would be dropped at the next `save()` and the promise on the checkbox is a lie.
+  const vaultSupported = isVaultSupported();
+  const needsRecoveryPassword = rememberMe && !vaultSupported && !isEncryptedKey;
+  const recoveryMismatch = recoveryConfirm.length > 0 && recoveryPassword !== recoveryConfirm;
+  const recoveryReady =
+    recoveryPassword.length >= MIN_RECOVERY_PASSWORD_LENGTH && recoveryPassword === recoveryConfirm;
+
+  const canSubmitKey =
+    !!secretKey.trim() &&
+    !unusableBackup &&
+    (!isEncryptedKey || !!backupPassword) &&
+    (!needsRecoveryPassword || recoveryReady);
 
   // Password-manager autofill often does NOT fire React's onChange, so the
   // controlled `secretKey` would stay empty and the ncryptsec branch never fire.
@@ -113,6 +131,8 @@ export function KeySignInModal({
       setSecretKey("");
       setBackupPassword("");
       setRememberMe(true);
+      setRecoveryPasswordInput("");
+      setRecoveryConfirm("");
       setShowSecretKey(false);
       setSubmitting(false);
       setSecretKeyError("");
@@ -136,6 +156,7 @@ export function KeySignInModal({
     try {
       await loginWithPastedKey(secretKey, isEncryptedKey ? backupPassword : undefined, {
         persistent: rememberMe,
+        recoveryPassword: needsRecoveryPassword ? recoveryPassword : undefined,
       });
       // A Backup heavier than ours makes every future unlock pay for it, so offer
       // — once, never silently — to re-mint it cheaper.
@@ -475,13 +496,60 @@ export function KeySignInModal({
                 Stay signed in on this browser. Your key is stored only here — never sent to us.
               </span>
             </label>
+
+            {needsRecoveryPassword && (
+              <div className="space-y-1.5" data-testid="row-signin-recovery-password">
+                <Input
+                  type="password"
+                  name="recovery-password"
+                  value={recoveryPassword}
+                  onChange={(e) => setRecoveryPasswordInput(e.target.value)}
+                  placeholder={`Recovery password — at least ${MIN_RECOVERY_PASSWORD_LENGTH} characters`}
+                  autoComplete="new-password"
+                  disabled={submitting}
+                  className="h-11"
+                  data-testid="input-signin-recovery-password"
+                />
+                <Input
+                  type="password"
+                  name="recovery-password-confirm"
+                  value={recoveryConfirm}
+                  onChange={(e) => setRecoveryConfirm(e.target.value)}
+                  placeholder="Confirm password"
+                  aria-label="Confirm recovery password"
+                  autoComplete="new-password"
+                  disabled={submitting}
+                  className="h-11"
+                  data-testid="input-signin-recovery-confirm"
+                />
+                {recoveryMismatch ? (
+                  <p
+                    className={`text-xs font-medium ${tone("danger").text}`}
+                    data-testid="text-signin-recovery-mismatch"
+                  >
+                    Passwords don't match.
+                  </p>
+                ) : (
+                  <p
+                    className="text-xs text-muted-foreground"
+                    data-testid="text-signin-recovery-hint"
+                  >
+                    This browser can't store a key on its own, so staying signed in needs a
+                    password. There's no reset — save it in your password manager.
+                  </p>
+                )}
+              </div>
+            )}
+
             <p
               className="text-[11px] text-muted-foreground leading-relaxed text-center px-1"
               data-testid="text-nsec-session-note"
             >
-              {rememberMe
-                ? "You'll stay signed in on this device until you sign out."
-                : "You'll be signed out when you close this tab."}
+              {!rememberMe
+                ? "You'll be signed out when you close this tab."
+                : needsRecoveryPassword && !recoveryReady
+                ? "Set a recovery password to stay signed in, or continue for this tab only."
+                : "You'll stay signed in on this device until you sign out."}
             </p>
 
             <Button

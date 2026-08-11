@@ -1129,11 +1129,14 @@ export function removeAccountFromDevice(account: BrainstormAccount): boolean {
  */
 async function authenticateWithSecretKey(
   sk: Uint8Array,
-  opts?: { persistent?: boolean; ncryptsec?: string },
+  opts?: { persistent?: boolean; ncryptsec?: string; recoveryPassword?: string },
 ): Promise<NostrUser> {
   let account: LocalAccount;
   try {
-    account = await localAccount(sk, { ncryptsec: opts?.ncryptsec });
+    account = await localAccount(sk, {
+      ncryptsec: opts?.ncryptsec,
+      password: opts?.recoveryPassword,
+    });
   } catch {
     throw new LoginError("INVALID_NSEC", "We couldn't read a valid account from that key.");
   }
@@ -1178,16 +1181,18 @@ const RESTORE_MESSAGES: Record<RestoreFailure, string> = {
 export async function loginWithPastedKey(
   pasted: string,
   password?: string,
-  opts?: { persistent?: boolean },
+  opts?: { persistent?: boolean; recoveryPassword?: string },
 ): Promise<NostrUser> {
   const opened = openPastedKey(pasted, password);
   if (!opened.ok) throw new LoginError("INVALID_NSEC", RESTORE_MESSAGES[opened.reason]);
 
   // `persistent` is "Remember me on this device" — it keeps the account across
-  // reloads.
+  // reloads. Without an Unlock cache that needs a Recovery password: it is the
+  // only at-rest form a pasted plaintext key can be given.
   return authenticateWithSecretKey(opened.secretKey, {
     persistent: opts?.persistent,
     ncryptsec: opened.ncryptsec,
+    recoveryPassword: opts?.recoveryPassword,
   });
 }
 

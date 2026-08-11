@@ -30,6 +30,17 @@ describe("the account card strip", () => {
     expect(screen.queryByTestId("card-unlock-session")).not.toBeInTheDocument();
   });
 
+  // PLAN §10 fixes the priority as unlock → backup → post-signup. The lower two
+  // also gate each other, but that is a second mechanism, not this one.
+  it("puts the backup nag above the post-signup card, in priority order", () => {
+    renderWithProviders(<AccountCards />);
+
+    const strip = screen.getByTestId("backup-reminder").parentElement!;
+    const order = [...strip.children].map((child) => child.getAttribute("data-testid"));
+
+    expect(order.indexOf("backup-reminder")).toBeLessThan(order.indexOf("card-post-signup"));
+  });
+
   it("gives the strip to the unlock card — it is blocking data right now", () => {
     deferredAccount.mockReturnValue(account);
 

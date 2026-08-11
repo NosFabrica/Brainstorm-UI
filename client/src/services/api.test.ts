@@ -11,8 +11,17 @@ import { stubAccount, type StubAccount } from "@/test/accountStub";
 const activeAccount = vi.fn();
 const refreshSession = vi.fn();
 const ensureSession = vi.fn();
+/** What else this device holds, for the redirect decision. */
+const heldAccounts: unknown[] = [];
 
 vi.mock("@/accounts/signing", () => ({ activeAccount: () => activeAccount() }));
+vi.mock("@/accounts", () => ({
+  accountManager: {
+    get accounts() {
+      return heldAccounts;
+    },
+  },
+}));
 vi.mock("@/accounts/session", async (original) => ({
   ...(await original<typeof import("@/accounts/session")>()),
   refreshSession: (...args: unknown[]) => refreshSession(...args),
@@ -23,13 +32,18 @@ vi.mock("@/accounts/login", () => ({ waitForExtension: async () => undefined }))
 let account: StubAccount;
 
 let apiClient: typeof import("./api").apiClient;
+let isAuthRedirecting: typeof import("./api").isAuthRedirecting;
 let resumeSession: typeof import("./api").resumeSession;
 
 beforeEach(async () => {
   vi.clearAllMocks();
+  // `isRedirectingToLogin` is module state; without this it leaks across tests.
+  vi.resetModules();
   account = stubAccount();
   activeAccount.mockReturnValue(account);
-  ({ apiClient, resumeSession } = await import("./api"));
+  heldAccounts.length = 0;
+  heldAccounts.push(account);
+  ({ apiClient, isAuthRedirecting, resumeSession } = await import("./api"));
 });
 
 afterEach(() => {
@@ -88,6 +102,34 @@ describe("an authenticated request whose session has lapsed", () => {
 
     expect(getSessionToken(account as never)).toBe("fresh");
     expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ headers: { access_token: "fresh" } });
+  });
+});
+
+describe("a session that cannot be renewed at all", () => {
+  /** A re-auth that fails outright — not deferred, genuinely unusable. */
+  const cannotHeal = () => refreshSession.mockRejectedValue(new Error("expired"));
+
+  it("stays put when this device holds another account to be", async () => {
+    holdsSession("stale");
+    cannotHeal();
+    heldAccounts.push(stubAccount(undefined, "b".repeat(64)));
+    stubFetch(unauthorized(), unauthorized());
+
+    await expect(apiClient.getUserHistory()).rejects.toThrow();
+
+    // PLAN §6: never redirect while another Account is usable. Blanking every
+    // page behind `isAuthRedirecting` would be the same mistake by another name.
+    expect(isAuthRedirecting()).toBe(false);
+  });
+
+  it("gives up the route only when there is nothing else on this device", async () => {
+    holdsSession("stale");
+    cannotHeal();
+    stubFetch(unauthorized(), unauthorized());
+
+    await expect(apiClient.getUserHistory()).rejects.toThrow();
+
+    expect(isAuthRedirecting()).toBe(true);
   });
 });
 

@@ -30,12 +30,20 @@ const loginWithPastedKey = vi.fn(async () => ({}) as never);
 const setRecoveryPassword = vi.fn(async () => {});
 const onLoginSuccess = vi.fn();
 const onRetryExtension = vi.fn();
+/** jsdom is not a secure context, so the real check would answer for us. */
+const vaultSupported = vi.fn(() => true);
 
 vi.mock("@/services/nostr", () => ({
   loginWithPastedKey: (...args: unknown[]) => loginWithPastedKey(...(args as [])),
 }));
 vi.mock("@/accounts/backup", () => ({
+  MIN_RECOVERY_PASSWORD_LENGTH: 8,
   setRecoveryPassword: (...args: unknown[]) => setRecoveryPassword(...(args as [])),
+}));
+// Partial: `accounts/unlock-cache` pulls the real encrypt/decrypt out of here.
+vi.mock("@/lib/skVault", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/skVault")>()),
+  isVaultSupported: () => vaultSupported(),
 }));
 
 function render() {
@@ -62,6 +70,7 @@ beforeEach(() => {
   loginWithPastedKey.mockClear();
   setRecoveryPassword.mockClear();
   onLoginSuccess.mockClear();
+  vaultSupported.mockReturnValue(true);
 });
 
 describe("the way in every backup file ever downloaded points at", () => {
@@ -122,6 +131,69 @@ describe("what the paste box accepts", () => {
     fireEvent.animationStart(field, { animationName: "onAutoFillStart" });
 
     expect(await screen.findByTestId("input-backup-password")).toBeInTheDocument();
+  });
+});
+
+describe("remembering a pasted key where this browser can't store one", () => {
+  it("asks for a Recovery password rather than promising what it can't keep", () => {
+    vaultSupported.mockReturnValue(false);
+    paste(NSEC);
+
+    expect(screen.getByTestId("input-signin-recovery-password")).toBeInTheDocument();
+    expect(screen.getByTestId("text-nsec-session-note")).toHaveTextContent(/this tab only/i);
+    expect(screen.getByTestId("button-nsec-signin")).toBeDisabled();
+  });
+
+  it("mints the key under that password, so it survives the reload", async () => {
+    vaultSupported.mockReturnValue(false);
+    paste(NSEC);
+    fireEvent.change(screen.getByTestId("input-signin-recovery-password"), {
+      target: { value: "hunter2hunter2" },
+    });
+    fireEvent.change(screen.getByTestId("input-signin-recovery-confirm"), {
+      target: { value: "hunter2hunter2" },
+    });
+    fireEvent.click(screen.getByTestId("button-nsec-signin"));
+
+    await waitFor(() => expect(loginWithPastedKey).toHaveBeenCalled());
+    const [, , options] = loginWithPastedKey.mock.calls[0] as unknown as [
+      string,
+      string | undefined,
+      { persistent: boolean; recoveryPassword?: string },
+    ];
+    expect(options).toEqual({ persistent: true, recoveryPassword: "hunter2hunter2" });
+  });
+
+  it("lets a tab-only sign-in through untouched", async () => {
+    vaultSupported.mockReturnValue(false);
+    paste(NSEC);
+    fireEvent.click(screen.getByTestId("checkbox-remember-me"));
+
+    expect(screen.queryByTestId("input-signin-recovery-password")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("button-nsec-signin"));
+
+    await waitFor(() => expect(loginWithPastedKey).toHaveBeenCalled());
+    const [, , options] = loginWithPastedKey.mock.calls[0] as unknown as [
+      string,
+      string | undefined,
+      { persistent: boolean; recoveryPassword?: string },
+    ];
+    expect(options.persistent).toBe(false);
+    expect(options.recoveryPassword).toBeUndefined();
+  });
+
+  it("leaves a pasted backup alone — it already has an at-rest form", () => {
+    vaultSupported.mockReturnValue(false);
+    paste(NCRYPTSEC);
+
+    expect(screen.queryByTestId("input-signin-recovery-password")).not.toBeInTheDocument();
+  });
+
+  it("says nothing about passwords where the browser can store the key itself", () => {
+    paste(NSEC);
+
+    expect(screen.queryByTestId("input-signin-recovery-password")).not.toBeInTheDocument();
+    expect(screen.getByTestId("text-nsec-session-note")).toHaveTextContent(/stay signed in/i);
   });
 });
 

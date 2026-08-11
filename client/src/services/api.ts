@@ -8,6 +8,7 @@ import {
   SessionDeferredError,
 } from "@/accounts/session";
 import { waitForExtension } from "@/accounts/login";
+import { accountManager } from "@/accounts";
 import { activeAccount } from "@/accounts/signing";
 
 const RAW_API_URL = env.VITE_API_URL;
@@ -49,13 +50,21 @@ export function isAuthRedirecting(): boolean {
 /**
  * The Session ended and could not be renewed. It costs the Active Account its
  * token, not its place on this device — the Account is still listed and signing
- * back in is one tap. The redirect is what stops a page rendering an identity
- * the backend just refused.
+ * back in is one tap.
+ *
+ * The redirect is a last resort, not the response: it is what stops a page
+ * rendering an identity the backend just refused, and it is only the right answer
+ * when there is nothing else on this device to be. Where another Account is held,
+ * leaving the route alone lets the switcher offer it — bouncing to the landing
+ * page would throw away a session the user still has. We do not pick the
+ * replacement for them; whether that Signer can actually sign is a probe the
+ * picker already makes properly.
  */
 function handleUnauthorized() {
-  isRedirectingToLogin = true;
   const account = activeAccount();
   if (account) clearSession(account);
+  if (accountManager.accounts.some((held) => held !== account)) return;
+  isRedirectingToLogin = true;
   window.location.href = "/";
 }
 

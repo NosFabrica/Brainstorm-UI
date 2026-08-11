@@ -13,10 +13,11 @@ import { useDeferredSession } from "@/hooks/useDeferredSession";
  * couple of days regardless. Dismissing it hands the strip back rather than
  * silencing the rest of the chain.
  *
- * The backup and post-signup cards already arbitrate between themselves — the
- * reminder waits while the post-signup card is offering the same backup, and
- * takes over the moment that card is dismissed or was never this account's to
- * see (a migrated one, which was not created here).
+ * The order below is the order of that priority, not a rendering detail. The two
+ * lower cards do also arbitrate between themselves — the reminder waits while the
+ * post-signup card is offering the same backup — but a strip that reads
+ * bottom-to-top only holds while both of those gates stay correct, and a reader
+ * checking the rule against the source shouldn't have to prove that first.
  */
 export function AccountCards() {
   const deferred = useDeferredSession();
@@ -28,8 +29,8 @@ export function AccountCards() {
 
   return (
     <>
-      <PostSignupCard />
       <BackupReminder />
+      <PostSignupCard />
     </>
   );
 }
