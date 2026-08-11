@@ -14,7 +14,9 @@ import { useDeferredSession } from "@/hooks/useDeferredSession";
  * silencing the rest of the chain.
  *
  * The backup and post-signup cards already arbitrate between themselves — the
- * reminder waits for the post-signup card to be dismissed.
+ * reminder waits while the post-signup card is offering the same backup, and
+ * takes over the moment that card is dismissed or was never this account's to
+ * see (a migrated one, which was not created here).
  */
 export function AccountCards() {
   const deferred = useDeferredSession();

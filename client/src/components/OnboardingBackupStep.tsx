@@ -10,8 +10,7 @@ import {
   verifyRecoveryPassword,
 } from "@/accounts/backup";
 import type { UnlockFailure } from "@/accounts/restore";
-import { downloadBackupFile, heldBackupCredential, type BackupCredential } from "@/lib/accountBackup";
-import { storePasswordCredential } from "@/lib/credentialManager";
+import { deliverBackup, downloadBackupFile, type BackupCredential } from "@/lib/accountBackup";
 import { afterPaint } from "@/lib/afterPaint";
 import { useToast } from "@/hooks/use-toast";
 
@@ -40,11 +39,9 @@ const secondaryButtonClass =
  * post-signup card and then the recurring reminder.
  */
 export function OnboardingBackupStep({
-  pubkey,
   onSkip,
   onFinish,
 }: {
-  pubkey?: string;
   onSkip: () => void;
   onFinish: () => void;
 }) {
@@ -70,22 +67,15 @@ export function OnboardingBackupStep({
   const replacingPassword = pane === "set" && !!heldBackup();
 
   /**
-   * Hand the Backup over: the file, the password manager, and the key itself on
-   * the next pane. All three from the ncryptsec the account already holds — the
-   * password has just been checked against it, so minting a copy would cost a
-   * second derivation for the same bytes.
+   * Hand the Backup over — the file, the password manager and the mark, as every
+   * surface in the chain does it — then offer the key itself on the next pane.
+   * All of it from the ncryptsec the account already holds: the password has just
+   * been checked against it, so minting a copy would cost a second derivation for
+   * the same bytes.
    */
   const deliver = () => {
-    const held = heldBackupCredential();
+    const held = deliverBackup();
     if (!held) throw new Error("No backup to deliver");
-    downloadBackupFile(held);
-    // "Backed up" means we offered and they accepted — browsers report nothing
-    // about whether the file arrived.
-    if (pubkey) {
-      try { localStorage.setItem(`brainstorm_backup_done:${pubkey}`, "true"); } catch {}
-    }
-    // Best-effort and Chromium-only; never block the step on it.
-    if (held.npub && held.ncryptsec) void storePasswordCredential(held.npub, held.ncryptsec, held.npub);
     setCredential(held);
     setPane("delivered");
   };

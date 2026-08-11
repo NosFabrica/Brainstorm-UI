@@ -5,8 +5,8 @@ import { nip19 } from "nostr-tools";
 import { ArrowLeft, BadgeCheck, Smartphone, Loader2, MessageSquare, ArrowRight, Share2, Check, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
-import { fetchEventsByIds, fetchAddressableEvents, fetchProfile, fetchProfileMap, hasPersistentKey, PROFILE_RELAYS } from "@/services/nostr";
-import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { fetchEventsByIds, fetchAddressableEvents, fetchProfile, fetchProfileMap, PROFILE_RELAYS } from "@/services/nostr";
+import { useBackupNeed } from "@/hooks/useBackupNeed";
 import { apiClient, hasSessionToken } from "@/services/api";
 import { collectRefs, addrCoord, replyRefs, type MinimalEvent } from "@/lib/noteRefs";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
@@ -237,16 +237,11 @@ export default function EventPage() {
   const galleryImages = mediaUrls.filter((u) => !VID_RE.test(u));
 
   // New in-app accounts that landed here (e.g. via the thread gate) haven't saved
-  // a backup yet — surface a slim, dismissible safety + discovery nudge.
-  const me = useActiveAccountDisplay();
+  // a backup yet — surface a slim, dismissible safety + discovery nudge. It asks
+  // the same question the rest of the chain does, so it goes quiet for anyone the
+  // chain has nothing to ask.
   const [setupDismissed, setSetupDismissed] = useState(false);
-  const showSetupNudge = (() => {
-    try {
-      return hasPersistentKey() && !!me?.pubkey && localStorage.getItem(`brainstorm_backup_done:${me.pubkey}`) !== "true" && !setupDismissed;
-    } catch {
-      return false;
-    }
-  })();
+  const showSetupNudge = useBackupNeed() !== null && !setupDismissed;
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950">

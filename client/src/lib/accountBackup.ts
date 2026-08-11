@@ -1,5 +1,6 @@
-import { heldBackup, mintBackup, revealSecretKey } from "@/accounts/backup";
+import { heldBackup, markBackedUp, mintBackup, revealSecretKey } from "@/accounts/backup";
 import { activeDisplay } from "@/accounts/display";
+import { storePasswordCredential } from "@/lib/credentialManager";
 
 /**
  * Build the human-readable contents of the account backup `.txt`. The file is
@@ -112,6 +113,29 @@ export function downloadBackupFile(credential: BackupCredential): void {
     buildAccountBackupFileContent(credential.ncryptsec, credential.npub),
     backupFileName("brainstorm-account-backup"),
   );
+}
+
+/**
+ * Hand the Backup the Account already holds over, every way there is: the file,
+ * the password manager, and the Account marked as having been given it.
+ *
+ * The one hand-over every surface in the backup chain performs — the onboarding
+ * step, the post-signup card and the recurring reminder — so none of them can
+ * mark an Account backed up without also producing the file that claim is about.
+ * Null where there is nothing to hand over.
+ */
+export function deliverBackup(): BackupCredential | null {
+  const credential = heldBackupCredential();
+  if (!credential) return null;
+  downloadBackupFile(credential);
+  // Best-effort and Chromium-only; the file is what matters, so never block on it.
+  if (credential.npub && credential.ncryptsec) {
+    void storePasswordCredential(credential.npub, credential.ncryptsec, credential.npub);
+  }
+  // "Backed up" means we offered and they accepted — browsers report nothing
+  // about whether the file arrived.
+  markBackedUp();
+  return credential;
 }
 
 /**

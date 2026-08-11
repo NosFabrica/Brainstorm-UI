@@ -227,7 +227,7 @@ export default function OnboardingWizard() {
         )}
 
         {step === "backup" && (
-          <OnboardingBackupStep pubkey={user.pubkey} onSkip={finish} onFinish={finish} />
+          <OnboardingBackupStep onSkip={finish} onFinish={finish} />
         )}
       </main>
     </div>

@@ -70,7 +70,7 @@ import {
   localAccount,
   signOutActiveAccount,
 } from "@/accounts/login";
-import { isRemembered, type AccountMetadata, type BrainstormAccount } from "@/accounts/metadata";
+import type { AccountMetadata, BrainstormAccount } from "@/accounts/metadata";
 import { activePubkey, rememberProfile } from "@/accounts/display";
 import {
   openPastedKey,
@@ -258,22 +258,6 @@ function hasAnyStoredKey(): boolean {
       localStorage.getItem(SK_ENC_KEY) ||
       localStorage.getItem(SK_PERSIST_KEY)
     );
-  } catch {
-    return false;
-  }
-}
-
-/**
- * True when the signed-in account's key is kept in this browser ("stay signed
- * in") — what the backup nags are about. The Account answers now that several can
- * be held at once: the v1 keys are a single slot, so they'd report an extension
- * user's browser as holding a key because someone else's key is still in it.
- */
-export function hasPersistentKey(): boolean {
-  const account = activeAccount();
-  if (account) return account instanceof LocalAccount && isRemembered(account);
-  try {
-    return !!(localStorage.getItem(SK_ENC_KEY) || localStorage.getItem(SK_PERSIST_KEY));
   } catch {
     return false;
   }
@@ -1281,9 +1265,10 @@ async function signIn(account: BrainstormAccount, metadata: AccountMetadata): Pr
   // one, which is what the login picker lists. Sign-out is what lets one go.
   adoptAccount(account, { ...metadata, npub: nip19.npubEncode(account.pubkey) });
 
-  // v1 shadow: the backup nags and the onboarding cards still read these
-  // pubkey-namespaced flags, so they carry the same answer as the metadata does.
-  if (metadata.backedUp) writeV1Flag("brainstorm_backup_done", account.pubkey);
+  // v1 shadow: the auto-publish effects and the dashboard still read this
+  // pubkey-namespaced flag, so it carries the same answer as the metadata does.
+  // `brainstorm_backup_done` no longer needs one — the backup chain reads the
+  // Account (ticket 16), and nothing else ever did.
   if (metadata.createdInApp) writeV1Flag("brainstorm_created_inapp", account.pubkey);
 
   return completeLogin(account, token);

@@ -6,9 +6,12 @@
  * and so could only ever see one that had already been decrypted, which is why a
  * backup triggered straight after a page load threw "no key available".
  */
+import type { AccountManager, BaseAccount } from "applesauce-accounts";
+import { distinctUntilChanged, map, merge, of, startWith, switchMap, type Observable } from "rxjs";
+
 import { LocalAccount } from "./local-account";
 import { isUnlockCancelled, type UnlockAttemptResult } from "./local-signer";
-import type { BrainstormAccount } from "./metadata";
+import { getMetadata, updateMetadata, type AccountMetadata, type BrainstormAccount } from "./metadata";
 import { activeAccount } from "./signing";
 
 /** Thrown when the Account in hand keeps its key elsewhere — an extension, a bunker. */
@@ -73,6 +76,69 @@ export async function keyReachableWithoutPassword(
 export function heldBackup({ account }: { account?: BrainstormAccount } = {}): string | undefined {
   const holder = account ?? activeAccount();
   return holder instanceof LocalAccount ? holder.signer.data.ncryptsec : undefined;
+}
+
+/**
+ * Whether this Account has been handed its Backup, or holds its key some other
+ * way. **"We offered and they accepted"** — a browser reports nothing about
+ * whether a download arrived, so this is the strongest claim there is, and the
+ * nag chain is built on it rather than on any confirmation that doesn't exist.
+ */
+export function isBackedUp({ account }: { account?: BrainstormAccount } = {}): boolean {
+  const holder = account ?? activeAccount();
+  return !!holder && getMetadata(holder).backedUp === true;
+}
+
+/** Record the hand-over. Rides on the Account, so a second Account can't inherit it. */
+export function markBackedUp({ account }: { account?: BrainstormAccount } = {}): void {
+  const holder = account ?? activeAccount();
+  if (holder && !isBackedUp({ account: holder })) updateMetadata(holder, { backedUp: true });
+}
+
+/**
+ * What this Account still needs before losing this browser stops losing it — the
+ * one question all three backup surfaces ask, so they can't disagree about who is
+ * asked for what.
+ *
+ * - `recovery-password` — a key kept here with no Backup behind it: a migrated
+ *   Account, whose envelope opens on this device and nowhere else. It needs a
+ *   password minted before there is a file worth having.
+ * - `download` — a Backup exists and has never been handed over. Someone who set
+ *   a password at signup and skipped the wizard's last step is exactly as
+ *   device-bound as a migrated user; they are one step further along, not done.
+ * - `null` — nothing to ask. An extension or a bunker keeps its key elsewhere,
+ *   and an Account marked backed up either brought its own key or has been
+ *   handed the file already.
+ */
+export type BackupNeed = "recovery-password" | "download";
+
+export function backupNeed({ account }: { account?: BrainstormAccount } = {}): BackupNeed | null {
+  const holder = account ?? activeAccount();
+  if (!(holder instanceof LocalAccount)) return null;
+  if (isBackedUp({ account: holder })) return null;
+  return holder.signer.data.ncryptsec ? "download" : "recovery-password";
+}
+
+/**
+ * The Active Account's need over time. `metadata$` carries the hand-over and
+ * `changed$` the minting of a Backup, so a card rendered from this puts itself
+ * away the moment either happens — neither of which touches the other's stream.
+ */
+export function backupNeedStream(
+  manager: AccountManager<AccountMetadata>,
+): Observable<BackupNeed | null> {
+  return manager.active$.pipe(
+    switchMap((account) => {
+      if (!account) return of(null);
+      const changed$ = (account.signer as { changed$?: Observable<unknown> })?.changed$;
+      const metadata$ = (account as BaseAccount<any, any, AccountMetadata>).metadata$;
+      return merge(metadata$, ...(changed$ ? [changed$] : [])).pipe(
+        startWith(null),
+        map(() => backupNeed({ account: account as BrainstormAccount })),
+      );
+    }),
+    distinctUntilChanged(),
+  );
 }
 
 /**

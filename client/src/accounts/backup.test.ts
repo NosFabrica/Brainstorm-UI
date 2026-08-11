@@ -9,19 +9,26 @@ import {
 } from "nostr-tools/nip49";
 import { decode } from "nostr-tools/nip19";
 
+import { AccountManager } from "applesauce-accounts";
+
 import { LocalAccount } from "./local-account";
 import { LocalSigner, UnlockCancelled } from "./local-signer";
-import type { BrainstormAccount } from "./metadata";
+import { updateMetadata, type AccountMetadata, type BrainstormAccount } from "./metadata";
 import {
+  backupNeed,
+  backupNeedStream,
   canBackUp,
   heldBackup,
+  isBackedUp,
   keyAccessMessage,
   keyReachableWithoutPassword,
+  markBackedUp,
   mintBackup,
   NoLocalKeyError,
   revealSecretKey,
   setRecoveryPassword,
   verifyRecoveryPassword,
+  type BackupNeed,
 } from "./backup";
 import { createFakeUnlockCache, fakePrompt, LOW_LOGN, PASSWORD } from "./test-fakes";
 
@@ -260,6 +267,123 @@ describe("whether a forgotten password can still be replaced", () => {
 
   it("cannot for an account whose key lives elsewhere", async () => {
     await expect(keyReachableWithoutPassword({ account: foreignAccount() })).resolves.toBe(false);
+  });
+});
+
+describe("what an account still needs before losing this browser stops mattering", () => {
+  /** A migrated Account: an Unlock cache envelope, and no Backup behind it. */
+  async function migratedAccount() {
+    const unlockCache = createFakeUnlockCache();
+    return LocalAccount.fromKey(generateSecretKey(), { unlockCache });
+  }
+
+  it("asks a migrated account for a Recovery password — there is no file to take yet", async () => {
+    const account = await migratedAccount();
+
+    expect(backupNeed({ account })).toBe("recovery-password");
+  });
+
+  // A password set at signup and a skipped wizard leaves someone exactly as
+  // device-bound as a migrated user: one step further along, not done.
+  it("asks for the download when a Backup exists and has never been handed over", async () => {
+    const { account } = await lockedAccount();
+
+    expect(backupNeed({ account })).toBe("download");
+  });
+
+  it("asks nothing of an account whose key lives elsewhere", () => {
+    expect(backupNeed({ account: foreignAccount() })).toBeNull();
+  });
+
+  // The user pasted their own key: they demonstrably hold it, so login marks it
+  // backed up and no surface in the chain ever asks them for anything.
+  it("asks nothing of a key its owner brought themselves", async () => {
+    const account = await migratedAccount();
+    updateMetadata(account as unknown as BrainstormAccount, { backedUp: true });
+
+    expect(backupNeed({ account })).toBeNull();
+  });
+
+  it("asks nothing once the file has been handed over", async () => {
+    const { account } = await lockedAccount();
+
+    markBackedUp({ account });
+
+    expect(isBackedUp({ account })).toBe(true);
+    expect(backupNeed({ account })).toBeNull();
+  });
+
+  it("writes nothing when the account is already marked, so no save is triggered", async () => {
+    const { account } = await lockedAccount();
+    markBackedUp({ account });
+    const seen = vi.fn();
+    account.metadata$.subscribe(seen);
+    seen.mockClear();
+
+    markBackedUp({ account });
+
+    expect(seen).not.toHaveBeenCalled();
+  });
+
+  it("asks nothing when nobody is signed in", () => {
+    expect(backupNeed()).toBeNull();
+    expect(isBackedUp()).toBe(false);
+  });
+});
+
+describe("the active account's backup need over time", () => {
+  function watch() {
+    const manager = new AccountManager<AccountMetadata>();
+    const seen: (BackupNeed | null)[] = [];
+    const sub = backupNeedStream(manager).subscribe((need) => seen.push(need));
+    return { manager, seen, stop: () => sub.unsubscribe() };
+  }
+
+  it("is nothing while nobody is signed in", () => {
+    const { seen, stop } = watch();
+
+    expect(seen).toEqual([null]);
+    stop();
+  });
+
+  it("follows the active account", async () => {
+    const { manager, seen, stop } = watch();
+    const { account } = await lockedAccount();
+
+    manager.addAccount(account as any);
+    manager.setActive(account as any);
+
+    expect(seen.at(-1)).toBe("download");
+    stop();
+  });
+
+  // The card renders from this, so the hand-over is what puts it away.
+  it("drops to nothing the moment the backup is handed over", async () => {
+    const { manager, seen, stop } = watch();
+    const { account } = await lockedAccount();
+    manager.addAccount(account as any);
+    manager.setActive(account as any);
+
+    markBackedUp({ account });
+
+    expect(seen.at(-1)).toBeNull();
+    stop();
+  });
+
+  // The migrated user's one journey: setting the password mints the Backup, and
+  // the same card turns straight into the download it now has something to offer.
+  it("moves from password to download when a Recovery password is set", async () => {
+    const { manager, seen, stop } = watch();
+    const unlockCache = createFakeUnlockCache();
+    const account = await LocalAccount.fromKey(generateSecretKey(), { unlockCache });
+    manager.addAccount(account as any);
+    manager.setActive(account as any);
+    expect(seen.at(-1)).toBe("recovery-password");
+
+    await setRecoveryPassword(PASSWORD, { account, logn: LOW_LOGN });
+
+    expect(seen.at(-1)).toBe("download");
+    stop();
   });
 });
 

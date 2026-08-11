@@ -4,7 +4,6 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
 import { OnboardingBackupStep } from "./OnboardingBackupStep";
 
-const PUBKEY = "a".repeat(64);
 const NPUB = "npub1lira";
 const NCRYPTSEC = "ncryptsec1qqqqq";
 const PASSWORD = "hunter2hunter2";
@@ -19,9 +18,8 @@ const verifyRecoveryPassword = vi.fn(async (_password: string) => ({ ok: true })
 const setRecoveryPassword = vi.fn(async () => {});
 const heldBackup = vi.fn((): string | undefined => NCRYPTSEC);
 const keyReachableWithoutPassword = vi.fn(async () => true);
-const heldBackupCredential = vi.fn(() => ({ npub: NPUB, ncryptsec: NCRYPTSEC }));
+const deliverBackup = vi.fn(() => ({ npub: NPUB, ncryptsec: NCRYPTSEC }) as { npub: string; ncryptsec: string } | null);
 const downloadBackupFile = vi.fn();
-const storePasswordCredential = vi.fn(async () => true);
 const writeText = vi.fn(async () => {});
 
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
@@ -34,15 +32,12 @@ vi.mock("@/accounts/backup", () => ({
   keyAccessMessage: () => "Please try again.",
 }));
 vi.mock("@/lib/accountBackup", () => ({
-  heldBackupCredential: () => heldBackupCredential(),
+  deliverBackup: () => deliverBackup(),
   downloadBackupFile: (...args: unknown[]) => downloadBackupFile(...(args as [])),
-}));
-vi.mock("@/lib/credentialManager", () => ({
-  storePasswordCredential: (...args: unknown[]) => storePasswordCredential(...(args as [])),
 }));
 
 function render() {
-  renderWithProviders(<OnboardingBackupStep pubkey={PUBKEY} onSkip={onSkip} onFinish={onFinish} />);
+  renderWithProviders(<OnboardingBackupStep onSkip={onSkip} onFinish={onFinish} />);
 }
 
 /** Answer the verify pane and submit it. */
@@ -65,6 +60,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   verifyRecoveryPassword.mockResolvedValue({ ok: true });
   heldBackup.mockReturnValue(NCRYPTSEC);
+  deliverBackup.mockReturnValue({ npub: NPUB, ncryptsec: NCRYPTSEC });
   keyReachableWithoutPassword.mockResolvedValue(true);
   Object.assign(navigator, { clipboard: { writeText } });
 });
@@ -73,10 +69,9 @@ describe("verifying the signup password", () => {
   it("hands over the backup the account already holds, minting nothing new", async () => {
     await submitPassword(PASSWORD);
 
-    await waitFor(() =>
-      expect(downloadBackupFile).toHaveBeenCalledWith({ npub: NPUB, ncryptsec: NCRYPTSEC }),
-    );
-    expect(localStorage.getItem(`brainstorm_backup_done:${PUBKEY}`)).toBe("true");
+    // The shared hand-over: the file, the password-manager credential and the
+    // mark all come from the ncryptsec the account already holds.
+    await waitFor(() => expect(deliverBackup).toHaveBeenCalledTimes(1));
   });
 
   // The rehearsal: a password typed wrong at signup surfaces here, not months later.
@@ -86,7 +81,7 @@ describe("verifying the signup password", () => {
     await submitPassword("not-the-password");
 
     await waitFor(() => expect(screen.getByTestId("onboarding-backup-error")).toBeInTheDocument());
-    expect(downloadBackupFile).not.toHaveBeenCalled();
+    expect(deliverBackup).not.toHaveBeenCalled();
   });
 
   // The check is what this browser can't run — the file itself is fine, and it
@@ -96,7 +91,7 @@ describe("verifying the signup password", () => {
 
     await submitPassword(PASSWORD);
 
-    await waitFor(() => expect(downloadBackupFile).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(deliverBackup).toHaveBeenCalledTimes(1));
     expect(screen.getByTestId("onboarding-backup-error").textContent).toMatch(/couldn't check/i);
   });
 
@@ -121,7 +116,7 @@ describe("a password they can't produce", () => {
     fireEvent.click(screen.getByTestId("onboarding-backup-set"));
 
     await waitFor(() => expect(setRecoveryPassword).toHaveBeenCalledWith(NEW_PASSWORD));
-    await waitFor(() => expect(downloadBackupFile).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(deliverBackup).toHaveBeenCalledTimes(1));
   });
 
   it("warns that the old password still owns whatever is already saved", async () => {
@@ -168,18 +163,12 @@ describe("a password they can't produce", () => {
 });
 
 describe("delivering it three ways", () => {
-  it("saves the same credential to the password manager", async () => {
-    await submitPassword(PASSWORD);
-
-    await waitFor(() => expect(storePasswordCredential).toHaveBeenCalledWith(NPUB, NCRYPTSEC, NPUB));
-  });
-
   it("offers the file again and the key on the clipboard — mobile downloads get lost", async () => {
     await submitPassword(PASSWORD);
     await screen.findByTestId("onboarding-backup-delivered");
 
     fireEvent.click(screen.getByTestId("onboarding-backup-download-again"));
-    expect(downloadBackupFile).toHaveBeenCalledTimes(2);
+    expect(downloadBackupFile).toHaveBeenCalledWith({ npub: NPUB, ncryptsec: NCRYPTSEC });
 
     fireEvent.click(screen.getByTestId("onboarding-backup-copy"));
     await waitFor(() => expect(writeText).toHaveBeenCalledWith(NCRYPTSEC));
@@ -199,7 +188,6 @@ describe("delivering it three ways", () => {
     fireEvent.click(screen.getByTestId("onboarding-backup-skip"));
 
     expect(onSkip).toHaveBeenCalled();
-    expect(downloadBackupFile).not.toHaveBeenCalled();
-    expect(localStorage.getItem(`brainstorm_backup_done:${PUBKEY}`)).toBeNull();
+    expect(deliverBackup).not.toHaveBeenCalled();
   });
 });

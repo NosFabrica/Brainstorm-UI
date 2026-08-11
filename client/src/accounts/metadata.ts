@@ -18,7 +18,10 @@ export type AccountMetadata = {
   /** The backend's acceptance of this Account. `isAdmin` is written with the token so they can't drift. */
   session?: { token: string; isAdmin: boolean };
 
+  /** Handed its Backup, or holding its key some other way. "We offered and they accepted." */
   backedUp?: boolean;
+  /** When the recurring backup reminder was last snoozed. It returns; it never goes for good. */
+  backupRemindedAt?: number;
   createdInApp?: boolean;
   initialSetupDone?: boolean;
   nip85Activated?: boolean;

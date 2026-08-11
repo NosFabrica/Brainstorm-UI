@@ -80,8 +80,9 @@ export function signerPresence(kind: SignerKind, extension: ExtensionPresence): 
 /**
  * Whether losing this browser loses the Account: a key kept here with no Backup
  * behind it, that its owner didn't bring themselves. Both the switcher's rows and
- * the remove-from-device warning ask this. The older nags still read v1's
- * `brainstorm_backup_done:<pubkey>` flags — ticket 16 is what moves them.
+ * the remove-from-device warning ask this. The backup chain asks a sharper
+ * version of the same question — `backupNeed` also counts a Backup that was never
+ * downloaded — because a nag can afford to be early where a warning can't.
  */
 export function isUnbackedUp(account: BrainstormAccount | LocalAccount): boolean {
   return (

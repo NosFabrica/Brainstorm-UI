@@ -1,6 +1,10 @@
 import { useMemo } from "react";
-import { hasPersistentKey } from "@/services/nostr";
+import { useActiveAccount } from "applesauce-react/hooks";
+
+import { canBackUp } from "@/accounts/backup";
+import { getMetadata, type BrainstormAccount } from "@/accounts/metadata";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { useBackupNeed } from "@/hooks/useBackupNeed";
 import { knownFollowCount } from "@/lib/followStore";
 
 /**
@@ -11,8 +15,9 @@ import { knownFollowCount } from "@/lib/followStore";
  * show different answers because each recomputed the flags itself.
  *
  * Deliberately not persisted as "progress": every task is derived from the thing
- * it actually asks for (a follow exists, a backup flag is set, a picture is on the
- * kind-0), so it can never claim done for something the user undid.
+ * it actually asks for (a follow exists, the account has been handed its backup,
+ * a picture is on the kind-0), so it can never claim done for something the user
+ * undid.
  */
 
 export type SetupTaskKey = "network" | "backup" | "photo";
@@ -29,12 +34,14 @@ export interface SetupTask {
 export interface SetupState {
   tasks: SetupTask[];
   remaining: SetupTask[];
+  /** The same answers by name, for a surface that renders one tile per task. */
+  done: Record<SetupTaskKey, boolean>;
   doneCount: number;
   allDone: boolean;
   /**
    * Whether a setup checklist should be offered at all.
    *
-   * Only for accounts CREATED IN THIS APP that still hold a persistent key. A
+   * Only for accounts CREATED IN THIS APP whose key this device holds. A
    * returning user who signed in with their own nsec or an extension already owns
    * their profile and their backup, so showing them "back up your account" is both
    * wrong and slightly alarming.
@@ -44,18 +51,17 @@ export interface SetupState {
 
 export function useSetupTasks(): SetupState {
   const user = useActiveAccountDisplay();
+  const account = useActiveAccount() as BrainstormAccount | undefined;
   const pubkey = user?.pubkey ?? "";
   const picture = user?.picture;
+  // The same question the backup chain answers, so the checklist and the nags
+  // can't disagree about whether this account still has something to do.
+  const backupNeed = useBackupNeed();
 
   return useMemo(() => {
-    const read = (k: string) => {
-      try { return !!k && localStorage.getItem(k) === "true"; } catch { return false; }
-    };
-
     const networkStarted = pubkey ? knownFollowCount(pubkey) >= 1 : false;
-    const backedUp = read(pubkey ? `brainstorm_backup_done:${pubkey}` : "");
     const hasPhoto = !!picture;
-    const createdInApp = read(pubkey ? `brainstorm_created_inapp:${pubkey}` : "");
+    const createdInApp = !!account && getMetadata(account).createdInApp === true;
 
     const tasks: SetupTask[] = [
       {
@@ -68,7 +74,7 @@ export function useSetupTasks(): SetupState {
         key: "backup",
         label: "Back up your account",
         detail: "Save your key file — it's the only way back in.",
-        done: backedUp,
+        done: backupNeed === null,
       },
       {
         key: "photo",
@@ -82,9 +88,10 @@ export function useSetupTasks(): SetupState {
     return {
       tasks,
       remaining: tasks.filter((t) => !t.done),
+      done: { network: networkStarted, backup: backupNeed === null, photo: hasPhoto },
       doneCount,
       allDone: doneCount === tasks.length,
-      eligible: !!pubkey && createdInApp && hasPersistentKey(),
+      eligible: !!pubkey && createdInApp && canBackUp({ account }),
     };
-  }, [pubkey, picture]);
+  }, [pubkey, picture, account, backupNeed]);
 }

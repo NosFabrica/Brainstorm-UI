@@ -75,9 +75,10 @@ import { logout, signNip85, signNip85Deactivation, publishToRelays, getNip85Rela
 import { isUnlockCancelled } from "@/accounts/local-signer";
 import { isNip85Activated, markNip85Activated, clearNip85Activated } from "@/lib/nip85Activation";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { useBackupNeed } from "@/hooks/useBackupNeed";
 import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { downloadAccountBackup } from "@/lib/accountBackup";
-import { keyAccessMessage, revealSecretKey } from "@/accounts/backup";
+import { keyAccessMessage, markBackedUp, revealSecretKey } from "@/accounts/backup";
 import { storePasswordCredential } from "@/lib/credentialManager";
 import { CodeBlock } from "@/components/CodeBlock";
 import { apiClient, isAuthRedirecting } from "@/services/api";
@@ -214,19 +215,12 @@ export default function SettingsPage() {
   };
 
   const pubkey = user?.pubkey ?? "";
-  const backupFlag = pubkey ? `brainstorm_backup_done:${pubkey}` : "";
 
   const [backupMode, setBackupMode] = useState(false);
   const [backupPass, setBackupPass] = useState("");
   const [backupConfirm, setBackupConfirm] = useState("");
-  const [backedUp, setBackedUp] = useState(false);
-  useEffect(() => {
-    try {
-      setBackedUp(!!backupFlag && localStorage.getItem(backupFlag) === "true");
-    } catch {
-      setBackedUp(false);
-    }
-  }, [backupFlag]);
+  /** The same answer the nag chain reads, so Settings can't say "backed up" while it asks. */
+  const backedUp = useBackupNeed() === null;
 
   const backupMismatch = backupConfirm.length > 0 && backupPass !== backupConfirm;
   const canBackup = backupPass.length >= 8 && backupPass === backupConfirm;
@@ -238,13 +232,10 @@ export default function SettingsPage() {
     try {
       // One mint feeds both the file and the password-manager credential.
       const { npub, ncryptsec } = await downloadAccountBackup(backupPass);
-      try {
-        if (backupFlag) localStorage.setItem(backupFlag, "true");
-      } catch {}
+      markBackedUp();
       // Stash the encrypted key in the browser password manager (Chromium
       // best-effort): username = npub, password = ncryptsec. Don't block on it.
       if (npub && ncryptsec) void storePasswordCredential(npub, ncryptsec, npub);
-      setBackedUp(true);
       setBackupMode(false);
       setBackupPass("");
       setBackupConfirm("");

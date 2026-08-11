@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   buildAccountBackupFileContent,
+  deliverBackup,
   downloadAccountBackup,
   downloadBackupFile,
   downloadRawKeyBackup,
@@ -16,23 +17,28 @@ const NSEC = "nsec1qqqqq";
 const mintBackup = vi.fn(async () => NCRYPTSEC);
 const revealSecretKey = vi.fn(async () => NSEC);
 const heldBackup = vi.fn((): string | undefined => NCRYPTSEC);
+const markBackedUp = vi.fn();
+const storePasswordCredential = vi.fn(async () => true);
 const activeDisplay = vi.fn(() => ({ npub: NPUB, displayName: "Lira Flint" }));
 
 vi.mock("@/accounts/backup", () => ({
   mintBackup: (...args: unknown[]) => mintBackup(...(args as [])),
   revealSecretKey: (...args: unknown[]) => revealSecretKey(...(args as [])),
   heldBackup: () => heldBackup(),
+  markBackedUp: () => markBackedUp(),
 }));
 vi.mock("@/accounts/display", () => ({ activeDisplay: () => activeDisplay() }));
+vi.mock("@/lib/credentialManager", () => ({
+  storePasswordCredential: (...args: unknown[]) => storePasswordCredential(...(args as [])),
+}));
 
 /** Filenames of the anchors the download path clicked. jsdom has no downloads. */
 let downloads: string[] = [];
 
 beforeEach(() => {
   downloads = [];
-  mintBackup.mockClear();
-  revealSecretKey.mockClear();
-  heldBackup.mockClear();
+  vi.clearAllMocks();
+  heldBackup.mockReturnValue(NCRYPTSEC);
   // jsdom implements neither, so they are assigned rather than spied on.
   URL.createObjectURL = () => "blob:fake";
   URL.revokeObjectURL = () => {};
@@ -97,6 +103,28 @@ describe("the Backup the account already holds", () => {
 
     expect(downloads[0]).toBe("brainstorm-account-backup-lira-flint.txt");
     expect(mintBackup).not.toHaveBeenCalled();
+  });
+});
+
+describe("handing the backup over", () => {
+  it("gives out the file, the password-manager credential and the mark, from one ciphertext", () => {
+    const credential = deliverBackup();
+
+    expect(credential).toEqual({ npub: NPUB, ncryptsec: NCRYPTSEC });
+    expect(downloads).toHaveLength(1);
+    expect(storePasswordCredential).toHaveBeenCalledWith(NPUB, NCRYPTSEC, NPUB);
+    expect(markBackedUp).toHaveBeenCalledTimes(1);
+    expect(mintBackup).not.toHaveBeenCalled();
+  });
+
+  // Marking an account backed up without producing the file would be the one
+  // lie this chain can tell: the flag says "we handed it over".
+  it("marks nothing when there is no backup to hand over", () => {
+    heldBackup.mockReturnValueOnce(undefined);
+
+    expect(deliverBackup()).toBeNull();
+    expect(downloads).toHaveLength(0);
+    expect(markBackedUp).not.toHaveBeenCalled();
   });
 });
 

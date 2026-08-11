@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 
 import { renderWithProviders } from "@/test/utils";
+import type { BackupNeed } from "@/accounts/backup";
+import type { SetupState } from "@/hooks/useSetupTasks";
 import { PostSignupCard } from "./PostSignupCard";
 
 const PUBKEY = "a".repeat(64);
@@ -9,98 +11,159 @@ const NPUB = "npub1lira";
 const NCRYPTSEC = "ncryptsec1qqqqq";
 const PASSWORD = "hunter2hunter2";
 
-const downloadAccountBackup = vi.fn(async () => ({ npub: NPUB, ncryptsec: NCRYPTSEC }));
-const downloadRawKeyBackup = vi.fn(async () => {});
-const storePasswordCredential = vi.fn(async () => true);
 const toast = vi.fn();
+const setRecoveryPassword = vi.fn(async () => {});
+const deliverBackup = vi.fn(() => ({ npub: NPUB, ncryptsec: NCRYPTSEC }) as { npub: string; ncryptsec: string } | null);
+const downloadBackupFile = vi.fn();
+const backupNeed = vi.fn<() => BackupNeed | null>(() => "download");
+/** Everything but the backup done, so the card turns on the one task left. */
+const allDone = vi.fn(() => false);
+const cardDismissed = vi.fn(() => false);
+const dismissPostSignup = vi.fn();
 
-vi.mock("@/lib/accountBackup", () => ({
-  downloadAccountBackup: (...args: unknown[]) => downloadAccountBackup(...(args as [])),
-  downloadRawKeyBackup: () => downloadRawKeyBackup(),
-}));
-vi.mock("@/lib/credentialManager", () => ({
-  storePasswordCredential: (...args: unknown[]) => storePasswordCredential(...(args as [])),
-}));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
-vi.mock("@/services/nostr", () => ({ hasPersistentKey: () => true }));
-vi.mock("@/lib/followStore", () => ({ knownFollowCount: () => 0 }));
+vi.mock("@/accounts/backup", () => ({
+  MIN_RECOVERY_PASSWORD_LENGTH: 8,
+  setRecoveryPassword: (...args: unknown[]) => setRecoveryPassword(...(args as [])),
+  keyAccessMessage: () => "Please try again.",
+}));
+vi.mock("@/lib/accountBackup", () => ({
+  deliverBackup: () => deliverBackup(),
+  downloadBackupFile: (...args: unknown[]) => downloadBackupFile(...(args as [])),
+}));
+vi.mock("@/hooks/useBackupNeed", () => ({ useBackupNeed: () => backupNeed() }));
+vi.mock("@/lib/postSignupDismissal", () => ({
+  usePostSignupDismissed: () => cardDismissed(),
+  dismissPostSignup: (...args: unknown[]) => dismissPostSignup(...(args as [])),
+}));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({
   useActiveAccountDisplay: () => ({ pubkey: PUBKEY, npub: NPUB, displayName: "Lira" }),
 }));
+// A brand-new in-app account with everything still to do — the card's own case.
+vi.mock("@/hooks/useSetupTasks", () => ({
+  useSetupTasks: (): SetupState => ({
+    tasks: [],
+    remaining: [],
+    done: { network: false, backup: backupNeed() === null, photo: false },
+    doneCount: 0,
+    allDone: allDone(),
+    eligible: true,
+  }),
+}));
 
-/** Open the backup tile and fill in a matching password pair. */
-function openBackupForm() {
+/** Open the backup tile, which is what the card offers rather than a form of its own. */
+function openBackupTile() {
   renderWithProviders(<PostSignupCard />);
   fireEvent.click(screen.getByTestId("tile-backup"));
-  fireEvent.change(screen.getByTestId("input-backup-password"), { target: { value: PASSWORD } });
-  fireEvent.change(screen.getByTestId("input-backup-confirm"), { target: { value: PASSWORD } });
-  return screen.getByTestId("button-download-backup");
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  localStorage.setItem(`brainstorm_created_inapp:${PUBKEY}`, "true");
+  backupNeed.mockReturnValue("download");
+  allDone.mockReturnValue(false);
+  cardDismissed.mockReturnValue(false);
+  deliverBackup.mockReturnValue({ npub: NPUB, ncryptsec: NCRYPTSEC });
 });
 
-describe("backing up from the post-signup card", () => {
-  it("stores the password-manager credential from the same mint as the file", async () => {
-    fireEvent.click(openBackupForm());
+describe("the backup tile, as the chain's second surface", () => {
+  it("asks an account that already holds a backup only to take it", () => {
+    openBackupTile();
 
-    await waitFor(() => expect(storePasswordCredential).toHaveBeenCalledWith(NPUB, NCRYPTSEC, NPUB));
-    expect(downloadAccountBackup).toHaveBeenCalledTimes(1);
-    expect(downloadAccountBackup).toHaveBeenCalledWith(PASSWORD);
+    fireEvent.click(screen.getByTestId("backup-prompt-download"));
+
+    expect(deliverBackup).toHaveBeenCalledTimes(1);
+    expect(setRecoveryPassword).not.toHaveBeenCalled();
   });
 
-  it("shows a pending state while the key is being reached, rather than looking dead", async () => {
-    let release!: (credential: { npub: string; ncryptsec: string }) => void;
-    downloadAccountBackup.mockReturnValueOnce(new Promise((resolve) => { release = resolve; }));
+  it("asks a migrated account for a password, and hands the file over in the same flow", async () => {
+    backupNeed.mockReturnValue("recovery-password");
+    openBackupTile();
 
-    const button = openBackupForm();
-    fireEvent.click(button);
+    fireEvent.change(screen.getByTestId("backup-prompt-password"), { target: { value: PASSWORD } });
+    fireEvent.change(screen.getByTestId("backup-prompt-confirm"), { target: { value: PASSWORD } });
+    fireEvent.click(screen.getByTestId("backup-prompt-set"));
 
-    await screen.findByText(/preparing backup/i);
-    expect(button).toBeDisabled();
-
-    release({ npub: NPUB, ncryptsec: NCRYPTSEC });
-    await screen.findByTestId("tile-backup-done");
+    await waitFor(() => expect(setRecoveryPassword).toHaveBeenCalledWith(PASSWORD));
+    await waitFor(() => expect(deliverBackup).toHaveBeenCalledTimes(1));
   });
 
-  it("says so when the key can't be reached, instead of failing silently", async () => {
-    downloadAccountBackup.mockRejectedValueOnce(new Error("locked"));
+  // Demoted, not removed: the raw nsec is still reachable from Settings, where
+  // someone goes looking for it. A nudge steering people at it is what stops.
+  it("never offers the raw key", () => {
+    openBackupTile();
 
-    fireEvent.click(openBackupForm());
-
-    await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" })),
-    );
-    expect(storePasswordCredential).not.toHaveBeenCalled();
-    expect(screen.queryByTestId("tile-backup-done")).toBeNull();
+    expect(screen.queryByTestId("button-download-raw-key")).toBeNull();
+    expect(screen.queryByText(/without a password/i)).toBeNull();
   });
 
-  // Demoted, not removed: many nostr clients take an nsec and not an ncryptsec,
-  // so dropping it would trap anyone trying to take their identity elsewhere.
-  it("keeps the raw-key download below the encrypted one, behind its blunt warning", () => {
-    openBackupForm();
-    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+  // The state flips to "nothing left to ask" the moment the file is handed over,
+  // and a phone loses downloads — so the offer to take it again stays put.
+  it("keeps the delivered pane once there is nothing left to ask", async () => {
+    openBackupTile();
+    fireEvent.click(screen.getByTestId("backup-prompt-download"));
+    backupNeed.mockReturnValue(null);
 
-    const encrypted = screen.getByTestId("button-download-backup");
-    const raw = screen.getByTestId("button-download-raw-key");
-    expect(encrypted.compareDocumentPosition(raw)).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    await screen.findByTestId("backup-prompt-delivered");
 
-    fireEvent.click(raw);
-
-    expect(confirm.mock.calls[0][0]).toMatch(/WITHOUT a password/);
-    expect(downloadRawKeyBackup).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("backup-prompt-download-again"));
+    expect(downloadBackupFile).toHaveBeenCalledWith({ npub: NPUB, ncryptsec: NCRYPTSEC });
   });
 
-  it("marks the account backed up after a raw-key download too", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
-    openBackupForm();
+  it("says the backup is done once the account has nothing left to ask", () => {
+    backupNeed.mockReturnValue(null);
 
-    fireEvent.click(screen.getByTestId("button-download-raw-key"));
+    renderWithProviders(<PostSignupCard />);
 
-    await screen.findByTestId("tile-backup-done");
-    expect(downloadRawKeyBackup).toHaveBeenCalledTimes(1);
-    expect(localStorage.getItem(`brainstorm_backup_done:${PUBKEY}`)).toBe("true");
+    expect(screen.getByTestId("tile-backup-done")).toBeInTheDocument();
+    expect(screen.queryByTestId("tile-backup")).toBeNull();
+  });
+
+  // Handing the file over can complete the checklist, and the card is gated on
+  // the checklist — so without care the click that finishes setup unmounts the
+  // confirmation of the very thing it just did.
+  it("stays up when the backup was the last thing left", async () => {
+    openBackupTile();
+    backupNeed.mockReturnValue(null);
+    allDone.mockReturnValue(true);
+
+    fireEvent.click(screen.getByTestId("backup-prompt-download"));
+
+    expect(await screen.findByTestId("backup-prompt-delivered")).toBeInTheDocument();
+    expect(screen.getByTestId("card-post-signup")).toBeInTheDocument();
+  });
+
+  // Another tab (or Settings) can take the backup while this tile sits open.
+  it("closes an open tile that has nothing left to ask, rather than showing an empty one", () => {
+    renderWithProviders(<PostSignupCard />);
+    fireEvent.click(screen.getByTestId("tile-backup"));
+    backupNeed.mockReturnValue(null);
+
+    // Any re-render — here, the dismiss of a sibling tile's hover state stands in.
+    fireEvent.click(screen.getByTestId("tile-complete-profile"));
+
+    expect(screen.getByTestId("tile-backup-done")).toBeInTheDocument();
+    expect(screen.queryByTestId("tile-backup-form")).toBeNull();
+  });
+});
+
+describe("putting the card away", () => {
+  // The store, not component state: the recurring reminder is this card's sibling
+  // and takes over the moment it goes.
+  it("records the dismissal where the rest of the chain can see it", () => {
+    renderWithProviders(<PostSignupCard />);
+
+    fireEvent.click(screen.getByTestId("button-post-signup-dismiss"));
+
+    expect(dismissPostSignup).toHaveBeenCalledWith(PUBKEY);
+  });
+
+  // Read live rather than snapshotted at mount: the account arrives after the
+  // first render, and a card that asked before it landed would ignore the answer.
+  it("stays away for an account that already dismissed it", () => {
+    cardDismissed.mockReturnValue(true);
+
+    renderWithProviders(<PostSignupCard />);
+
+    expect(screen.queryByTestId("card-post-signup")).toBeNull();
   });
 });
