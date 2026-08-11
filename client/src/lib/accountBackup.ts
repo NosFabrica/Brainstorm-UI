@@ -12,7 +12,7 @@ import { storePasswordCredential } from "@/lib/credentialManager";
  * **The restore steps are a compatibility surface.** Every file ever downloaded
  * carries them and none can be edited afterwards, so the sign-in affordance has
  * to stay findable as `"Use your key"` however it is renamed internally — it is
- * printed below, and lives in `LoginPage` and `LoginFailureModal`.
+ * printed below, and lives in `LoginPage` and `KeySignInModal`.
  */
 export function buildAccountBackupFileContent(ncryptsec: string, npub: string): string {
   return [

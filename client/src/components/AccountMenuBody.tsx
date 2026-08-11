@@ -305,11 +305,7 @@ export function AccountMenuBody({
         })}
       </div>
 
-      {/* 8%/10% read as a smudge rather than a rule on this frosted surface,
-          especially on a phone where the panel sits over a bright wallpaper.
-          ~16% is the point where the line looks deliberate in both themes without
-          turning into a hard border. */}
-      <div className="mx-3 border-t border-slate-900/[0.16] dark:border-white/[0.16]" />
+      <MenuDivider />
 
       {/* Grouped actions — Settings sits under Help & FAQ */}
       <div className="p-1.5">
@@ -338,11 +334,7 @@ export function AccountMenuBody({
         </div>
       )}
 
-      {/* 8%/10% read as a smudge rather than a rule on this frosted surface,
-          especially on a phone where the panel sits over a bright wallpaper.
-          ~16% is the point where the line looks deliberate in both themes without
-          turning into a hard border. */}
-      <div className="mx-3 border-t border-slate-900/[0.16] dark:border-white/[0.16]" />
+      <MenuDivider />
 
       {/* Sign out stays panel-level and acts on the Active Account — it's "me, now".
           Adding and removing Accounts are the switcher's job. */}
@@ -351,6 +343,13 @@ export function AccountMenuBody({
       </div>
     </div>
   );
+}
+
+// 8%/10% read as a smudge rather than a rule on this frosted surface, especially
+// over a bright wallpaper. ~16% looks deliberate in both themes without becoming
+// a hard border.
+function MenuDivider() {
+  return <div className="mx-3 border-t border-slate-900/[0.16] dark:border-white/[0.16]" />;
 }
 
 function MenuRow({

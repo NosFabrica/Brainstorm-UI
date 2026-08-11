@@ -4,7 +4,7 @@ import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { backupAtCost } from "@/accounts/test-fakes";
 import { BACKUP_LOGN } from "@/accounts/local-signer";
 import { renderWithProviders } from "@/test/utils";
-import { LoginFailureModal } from "./LoginFailureModal";
+import { KeySignInModal } from "./KeySignInModal";
 
 /**
  * Nothing here is ever decrypted — the sign-in is mocked — so the payloads only
@@ -40,7 +40,7 @@ vi.mock("@/accounts/backup", () => ({
 
 function render() {
   renderWithProviders(
-    <LoginFailureModal
+    <KeySignInModal
       open
       onOpenChange={() => {}}
       errorCode="NO_EXTENSION"

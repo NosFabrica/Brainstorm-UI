@@ -20,21 +20,15 @@ import { RemoteSignerModal } from "@/components/RemoteSignerModal";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useLoginPicker } from "@/hooks/useLoginPicker";
 import { LoginPicker } from "@/components/LoginPicker";
-import { LoginFailureModal } from "@/components/LoginFailureModal";
+import { KeySignInModal } from "@/components/KeySignInModal";
 import { CreateAccountModal } from "@/components/CreateAccountModal";
 import { decodeShareId } from "@/lib/shareId";
 import { Wordmark } from "@/components/Wordmark";
 import { HeroSceneRotator } from "@/components/brand/HeroSceneRotator";
 import { HERO_SOLO } from "@/lib/heroScenes";
-
-/**
- * The quiet way in, for the rows that aren't the headline: signer app, Amber,
- * create an account. Login is intentionally bespoke rather than built on the
- * design-system Button (docs/design-system.md), so the one place the shape lives
- * is here.
- */
-const SECONDARY_BUTTON =
-  "group w-full inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl text-sm font-semibold text-slate-700 dark:text-slate-200 bg-white dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 transition-all active:scale-[0.99]";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 
 function getNextPath(): string {
   try {
@@ -175,7 +169,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen w-full bg-[#F8FAFC] dark:bg-slate-900 text-slate-900 dark:text-slate-100 font-sans lg:overflow-hidden" data-testid="page-login">
+    <div className="flex min-h-screen w-full bg-background text-foreground font-sans lg:overflow-hidden" data-testid="page-login">
       {/* Left column — editorial value panel */}
       <div className="hidden lg:flex w-[45%] flex-col relative bg-gradient-to-br from-brand-deep via-slate-950 to-slate-950 text-white overflow-hidden p-12 justify-between">
         <div className="absolute inset-0 z-0" aria-hidden="true">
@@ -227,21 +221,21 @@ export default function LoginPage() {
               <div className="h-px w-12 bg-brand-accent/40" />
             </div>
             <h2
-              className="text-3xl sm:text-4xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-[1.1] mb-3"
+              className="text-3xl sm:text-4xl font-bold text-foreground tracking-tight leading-[1.1] mb-3"
               style={{ fontFamily: "var(--font-display)" }}
             >
               Sign in to your <span className="text-brand-link">Brainstorm</span> account
             </h2>
-            <p className="text-base text-slate-500 dark:text-slate-400 leading-relaxed">
+            <p className="text-base text-muted-foreground leading-relaxed">
               Pick up where you left off and keep building your web of trust.
             </p>
           </div>
 
           {error && (
-            <div className="flex items-start gap-2 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 p-3 mb-4" data-testid="text-login-error">
-              <AlertCircle className="w-4 h-4 text-red-500 dark:text-red-400 mt-0.5 shrink-0" />
-              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
-            </div>
+            <Alert variant="destructive" className="mb-4" data-testid="text-login-error">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
           )}
 
           <LoginPicker
@@ -255,26 +249,27 @@ export default function LoginPage() {
               and become the way to add one more. */}
           {hasAccounts && (
             <div className="my-8 flex items-center gap-4" aria-hidden="true">
-              <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
-              <span className="text-xs font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+              <div className="h-px flex-1 bg-border" />
+              <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
                 Add another account
               </span>
-              <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+              <div className="h-px flex-1 bg-border" />
             </div>
           )}
 
-          <div className={hasAccounts ? "space-y-4" : "mt-6 space-y-4"}>
-            <button
+          <div className={hasAccounts ? "space-y-3" : "mt-6 space-y-3"}>
+            <Button
               onClick={onLogin}
               disabled={loading}
-              className="group w-full inline-flex items-center justify-center gap-2.5 rounded-xl px-6 py-3.5 text-sm font-semibold text-white dark:text-slate-900 bg-slate-900 hover:bg-slate-800 dark:bg-white dark:hover:bg-slate-200 shadow-sm dark:shadow-lg dark:shadow-black/30 active:scale-[0.99] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              variant="neutral"
+              size="lg"
+              className="w-full"
               data-testid="button-signin-extension"
             >
               {loading ? (
-                <Loader2 className="h-5 w-5 animate-spin shrink-0" />
+                <Loader2 className="animate-spin" />
               ) : (
                 <svg
-                  className="h-5 w-5 shrink-0"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -288,109 +283,118 @@ export default function LoginPage() {
                 </svg>
               )}
               <span>{loading ? "Connecting…" : "Sign in with your extension"}</span>
-              <ArrowRight className="h-4 w-4 shrink-0 group-hover:translate-x-0.5 transition-transform" />
-            </button>
+              <ArrowRight />
+            </Button>
 
             {/* One row for every remote signer — nsec.app, Amber's bunker mode,
                 Keycast, anything self-hosted. Their differences are absorbed at
                 transport; giving each its own row would be a lie about how many
                 choices there are. */}
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="lg"
               onClick={() => setRemoteOpen(true)}
-              className={SECONDARY_BUTTON}
+              className="w-full"
               data-testid="button-signin-remote"
             >
-              <Radio className="h-4 w-4" /> Sign in with a signer app
-            </button>
+              <Radio /> Sign in with a signer app
+            </Button>
 
             {/* Only where it works. It is the one option for Amber's offline
                 build, which ships with networking removed and cannot do NIP-46
                 at all — and the alternative for those users is a raw key. */}
             {amberSupported && (
-              <button
+              <Button
                 type="button"
+                variant="outline"
+                size="lg"
                 onClick={onAmberLogin}
                 disabled={amberBusy}
-                className={`${SECONDARY_BUTTON} disabled:opacity-60`}
+                className="w-full"
                 data-testid="button-signin-amber"
               >
-                {amberBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Smartphone className="h-4 w-4" />}
+                {amberBusy ? <Loader2 className="animate-spin" /> : <Smartphone />}
                 {amberBusy ? "Waiting for Amber…" : "Sign in with Amber on this phone"}
-              </button>
+              </Button>
             )}
 
-            <button
+            <Button
               type="button"
+              variant="ghost"
               onClick={openNsec}
-              className="w-full inline-flex justify-center items-center gap-2 py-3 text-sm font-semibold text-brand-primary dark:text-brand-link hover:text-brand-primary dark:hover:text-brand-link hover:bg-brand-primary/10 dark:hover:bg-brand-primary/10 rounded-xl transition-colors"
+              className="w-full text-brand-link hover:text-brand-link hover:bg-brand-primary/10"
               data-testid="link-use-nsec"
             >
               {/* Don't reword: every backup file ever downloaded tells its holder
                   to look for "Use your key". See buildAccountBackupFileContent. */}
-              <KeyRound className="h-4 w-4" /> Use your key?
-            </button>
+              <KeyRound /> Use your key?
+            </Button>
           </div>
 
           <div className="my-8 flex items-center gap-4" aria-hidden="true">
-            <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
-            <span className="text-xs font-semibold uppercase tracking-widest text-slate-400 dark:text-slate-500">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
               New to Brainstorm?
             </span>
-            <div className="h-px flex-1 bg-slate-200 dark:bg-slate-800" />
+            <div className="h-px flex-1 bg-border" />
           </div>
 
           <div className="flex flex-col items-center gap-3">
-            <button
+            <Button
               type="button"
+              variant="outline"
+              size="lg"
               onClick={() => setCreateOpen(true)}
-              className={SECONDARY_BUTTON}
+              className="w-full"
               data-testid="link-create-identity"
             >
               Create your account
-              <ArrowRight className="h-4 w-4 group-hover:translate-x-0.5 transition-transform" />
-            </button>
-            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+              <ArrowRight />
+            </Button>
+            <p className="text-xs text-muted-foreground font-medium">
               Free, takes a minute — no email required
             </p>
           </div>
 
-          <div className="mt-8 p-5 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-700/50 text-sm text-slate-600 dark:text-slate-300 text-center leading-relaxed">
+          <Card className="mt-8 p-5 text-sm text-muted-foreground text-center leading-relaxed">
             <p className="mb-2" data-testid="text-anon-note">
-              <span className="font-semibold text-slate-800 dark:text-slate-200">Not your device?</span> Keep your identity private — you can browse Brainstorm anonymously without signing in.
+              <span className="font-semibold text-foreground">Not your device?</span> Keep your identity private — you can browse Brainstorm anonymously without signing in.
             </p>
-            <button
+            <Button
               type="button"
+              variant="link"
+              size="sm"
               onClick={() => navigate("/personalization")}
-              className="font-semibold text-brand-primary dark:text-brand-link hover:text-brand-primary dark:hover:text-brand-link transition-colors inline-flex items-center gap-1"
+              className="h-auto p-0"
               data-testid="link-learn-anon"
             >
               Learn about anonymous browsing
-              <ArrowRight className="w-3 h-3" />
-            </button>
-          </div>
+              <ArrowRight />
+            </Button>
+          </Card>
 
         </div>
         </div>
 
         {/* Footer */}
-        <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 text-xs font-medium text-slate-500 dark:text-slate-400">
+        <div className="w-full flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 text-xs font-medium text-muted-foreground">
           <button
             type="button"
-            className="inline-flex items-center gap-1.5 hover:text-slate-800 dark:hover:text-slate-200 transition-colors px-2 py-1 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800"
+            className="inline-flex items-center gap-1.5 hover:text-foreground transition-colors px-2 py-1 rounded-md hover:bg-muted"
             data-testid="button-login-language"
           >
             English (United States) <ChevronDown className="h-3.5 w-3.5" />
           </button>
           <div className="flex items-center gap-6">
-            <button type="button" onClick={() => navigate("/faq")} className="hover:text-slate-800 dark:hover:text-slate-200 transition-colors" data-testid="link-login-help">Help</button>
-            <button type="button" onClick={() => navigate("/privacy")} className="hover:text-slate-800 dark:hover:text-slate-200 transition-colors" data-testid="link-login-privacy">Privacy</button>
-            <button type="button" onClick={() => navigate("/terms")} className="hover:text-slate-800 dark:hover:text-slate-200 transition-colors" data-testid="link-login-terms">Terms</button>
+            <button type="button" onClick={() => navigate("/faq")} className="hover:text-foreground transition-colors" data-testid="link-login-help">Help</button>
+            <button type="button" onClick={() => navigate("/privacy")} className="hover:text-foreground transition-colors" data-testid="link-login-privacy">Privacy</button>
+            <button type="button" onClick={() => navigate("/terms")} className="hover:text-foreground transition-colors" data-testid="link-login-terms">Terms</button>
           </div>
         </div>
       </main>
 
-      <LoginFailureModal
+      <KeySignInModal
         open={failureOpen}
         onOpenChange={setFailureOpen}
         errorCode={failureCode}

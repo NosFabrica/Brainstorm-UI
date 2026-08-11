@@ -12,6 +12,7 @@ import { afterPaint } from "@/lib/afterPaint";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { tone } from "@/lib/tones";
 
 /**
  * One card, two messages: what the chain says depends only on what the Account is
@@ -107,10 +108,10 @@ export function BackupPrompt({
   if (credential) {
     return (
       <div className="space-y-2" data-testid="backup-prompt-delivered">
-        <div className="flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+        <div className={`flex items-center gap-2 text-sm font-semibold ${tone("success").text}`}>
           <Check className="h-4 w-4" /> Backup file downloaded
         </div>
-        <p className="text-[13px] text-slate-600 dark:text-slate-300">
+        <p className="text-[13px] text-muted-foreground">
           Saved to your password manager too, where your browser supports it. Downloads are easy to
           lose on a phone — copy the key somewhere you'll find it.
         </p>
@@ -173,13 +174,13 @@ export function BackupPrompt({
         data-testid="backup-prompt-confirm"
       />
       {mismatch && (
-        <p className="text-xs font-medium text-red-600 dark:text-red-400" data-testid="backup-prompt-mismatch">
+        <p className={`text-xs font-medium ${tone("danger").text}`} data-testid="backup-prompt-mismatch">
           Passwords don't match.
         </p>
       )}
       {/* Two files under two passwords is the confusion this warns about: the old
           one still opens, and nothing here invalidates it. */}
-      <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="backup-prompt-note">
+      <p className="text-xs text-muted-foreground" data-testid="backup-prompt-note">
         There's no reset, so keep it somewhere safe. Any backup file you saved before still opens
         with the password you used then — this one doesn't replace it.
       </p>

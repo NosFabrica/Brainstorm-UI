@@ -4,6 +4,8 @@ import { useActiveAccount } from "applesauce-react/hooks";
 
 import { getMetadata, updateMetadata, type BrainstormAccount } from "@/accounts/metadata";
 import { BACKUP_MESSAGE, BackupPrompt } from "@/components/BackupPrompt";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
 import { useSetupTasks } from "@/hooks/useSetupTasks";
 import { usePostSignupDismissed } from "@/lib/postSignupDismissal";
@@ -56,19 +58,16 @@ export function BackupReminder() {
   const message = need ? BACKUP_MESSAGE[need] : null;
 
   return (
-    // One row on desktop, stacked on a phone. As a single row at 375px the icon,
-    // the CTA and the dismiss ate everything, leaving the copy about 100px wide —
-    // "Back up your account" broke across three lines and the sentence below it
-    // ran as a narrow ribbon. Same fix the invite banner needed: stack under
-    // `sm`, give the CTA the full width, and float the dismiss to the corner so
-    // it doesn't take a column of its own.
-    <div
-      className="relative w-full max-w-3xl mx-auto mt-4 flex flex-col gap-2.5 rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.03] to-brand-accent/[0.06] shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] px-4 py-3.5 pr-10 sm:py-3"
+    // Stacked, not one row: at 375px the icon, CTA and dismiss ate everything and
+    // left the copy about 100px wide. The dismiss floats to the corner so it
+    // doesn't take a column of its own.
+    <Card
+      accent
+      className="relative w-full max-w-3xl mx-auto mt-4 flex flex-col gap-2.5 px-4 py-3.5 pr-10 sm:py-3"
       data-testid="backup-reminder"
     >
-      {/* `items-start` + a nudge down on the icon: centring it against a two-line
-          block left it floating between the title and the body. It should anchor
-          the title, which is what the eye pairs it with. */}
+      {/* `items-start`: centring the icon against a two-line block left it
+          floating. It should anchor the title, which is what the eye pairs it with. */}
       <div className="flex items-start gap-3 min-w-0">
         <span className="mt-0.5 h-9 w-9 rounded-xl bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center text-brand-deep shrink-0">
           <ShieldCheck className="h-5 w-5" />
@@ -76,24 +75,26 @@ export function BackupReminder() {
         <div className="min-w-0 flex-1 space-y-2.5">
           {message && (
             <div>
-              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100" data-testid="backup-reminder-title">
+              <p className="text-sm font-semibold text-foreground" data-testid="backup-reminder-title">
                 {message.title}
               </p>
-              <p className="text-[13px] text-slate-600 dark:text-slate-300 leading-snug">{message.body}</p>
+              <p className="text-[13px] text-muted-foreground leading-snug">{message.body}</p>
             </div>
           )}
           <BackupPrompt need={need} onDelivered={() => setDelivered(true)} />
         </div>
       </div>
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="icon"
         onClick={delivered ? () => setHidden(true) : snooze}
         aria-label={delivered ? "Close" : "Remind me later"}
-        className="absolute right-2 top-2 shrink-0 rounded-lg p-1.5 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-brand-accent/10 transition-colors"
+        className="absolute right-1.5 top-1.5 h-8 w-8 shrink-0 text-muted-foreground"
         data-testid="backup-reminder-dismiss"
       >
         <X className="h-4 w-4" />
-      </button>
-    </div>
+      </Button>
+    </Card>
   );
 }

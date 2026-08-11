@@ -15,6 +15,16 @@ if (hasDom) {
   };
 }
 
+// jsdom has no ResizeObserver, and Radix primitives (Checkbox, Slider, …) call it
+// in a layout effect — without this they throw on mount.
+if (hasDom && typeof globalThis.ResizeObserver === "undefined") {
+  globalThis.ResizeObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  };
+}
+
 beforeEach(() => {
   if (hasDom) localStorage.clear();
 });
