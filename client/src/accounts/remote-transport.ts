@@ -18,13 +18,55 @@
  *    apart is most of what a connect screen is for.
  */
 import { NostrConnectSigner, type NostrPool } from "applesauce-signers";
+import type { NostrEvent } from "applesauce-core/helpers/event";
 import { distinctUntilChanged, map, startWith, type Observable } from "rxjs";
 
 import { pool } from "@/lib/relayPool";
 
+/**
+ * How long a request waits for its own publish before getting on with it. Long
+ * enough that a healthy relay reports back first, short enough to be invisible.
+ */
+export const PUBLISH_GRACE_MS = 2_000;
+
 /** Point every remote signer, restored or new, at a pool. */
 export function installRemoteTransport(source: NostrPool = pool): void {
   NostrConnectSigner.pool = source;
+
+  /**
+   * The library's `makeRequest` will not return the signer's response until the
+   * publish has settled on *every* relay in the set:
+   *
+   *     const result = this.publishMethod?.(this.relays, event);
+   *     if (result instanceof Promise) await result;
+   *     return p;                        // p resolved long ago
+   *
+   * So one unreachable relay costs its full 30s `publishTimeout` on every single
+   * request, and our own 30s deadline then fires and calls a signer that answered
+   * in 329ms unresponsive. Measured against Amethyst, 2026-08-11.
+   *
+   * We hand the request back after a grace period instead. The publish itself is
+   * untouched and keeps going — a slow relay still gets the event, it just stops
+   * holding the conversation up.
+   */
+  NostrConnectSigner.publishMethod = (relays: string[], event: NostrEvent) => {
+    // Per relay, so one accepting is enough — a whole-set publish would only tell
+    // us once the slowest had finished, which is the problem itself. A relay that
+    // fails never resolves: it must not win the race and cut the others short.
+    const accepted = relays.map(
+      (relay) =>
+        new Promise<void>((resolve) => {
+          Promise.resolve(source.publish([relay], event)).then(
+            () => resolve(),
+            () => {},
+          );
+        }),
+    );
+    return Promise.race([
+      ...accepted,
+      new Promise<void>((resolve) => setTimeout(resolve, PUBLISH_GRACE_MS)),
+    ]);
+  };
 }
 
 /** Relay URLs vary by a trailing slash between what we ask for and what the pool reports. */

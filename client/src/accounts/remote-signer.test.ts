@@ -7,6 +7,7 @@ import { createFakeRemoteSigner } from "./remote-test-fakes";
 import {
   advertisedRelays,
   appMetadata,
+  FALLBACK_NIP46_RELAY,
   isRemoteSignerTimeout,
   NIP46_PERMISSIONS,
   NSEC_APP_RELAY,
@@ -57,6 +58,34 @@ describe("relays", () => {
 
   it("keeps the advertised set small rather than reusing the profile relays", () => {
     expect(advertisedRelays().length).toBeLessThanOrEqual(3);
+  });
+
+  /** `advertisedRelays` reads `env`, which is captured at module load. */
+  async function withConfiguredRelay(value: string) {
+    vi.resetModules();
+    vi.doMock("@/lib/runtimeEnv", () => ({ env: { VITE_NIP85_RELAY_URL: value } }));
+    try {
+      return (await import("./remote-signer")).advertisedRelays();
+    } finally {
+      vi.doUnmock("@/lib/runtimeEnv");
+      vi.resetModules();
+    }
+  }
+
+  // `RelayPool.relay()` runs `normalizeURL` but never `ensureWebSocketURL`, so an
+  // http:// value survives all the way to `new WebSocket()`, which throws on it.
+  it("makes a websocket URL of a deployment that configured http://", async () => {
+    expect(await withConfiguredRelay("http://localhost:7778")).toEqual(["ws://localhost:7778/"]);
+  });
+
+  it("leaves a well-formed value alone", async () => {
+    expect(await withConfiguredRelay("wss://nip85.nosfabrica.com")).toEqual([
+      "wss://nip85.nosfabrica.com/",
+    ]);
+  });
+
+  it("falls back rather than advertising something unparseable", async () => {
+    expect(await withConfiguredRelay("not a url")).toEqual([FALLBACK_NIP46_RELAY]);
   });
 
   it("puts the narrow set in the URI even though the signer listens broadly", () => {
@@ -138,6 +167,38 @@ describe("the pairing secret", () => {
     await fake.pair(uri);
     await waiting;
     expect(signer.remote).toBe(fake.remotePubkey);
+  });
+
+  // A refusal used to be indistinguishable from silence — the event was dropped,
+  // nothing settled, and three minutes later the screen blamed the signer. That
+  // misdiagnosis cost a whole debugging session on 2026-08-11.
+  it("records the refusal, so it can be told apart from a signer saying nothing", async () => {
+    const fake = createFakeRemoteSigner();
+    installRemoteTransport(fake.pool);
+    const signer = new RemoteSigner({ relays: ["wss://fake.relay"], requireConnectSecret: true });
+    const uri = signer.nostrConnectURI();
+
+    void signer.waitForSigner().catch(() => {});
+    expect(signer.ackRefused).toBe(false);
+
+    await fake.ackAsSigner(uri);
+    await flush();
+
+    expect(signer.ackRefused).toBe(true);
+  });
+
+  it("stays quiet about a pairing that came back with the secret we minted", async () => {
+    const fake = createFakeRemoteSigner();
+    installRemoteTransport(fake.pool);
+    const signer = new RemoteSigner({ relays: ["wss://fake.relay"], requireConnectSecret: true });
+    const uri = signer.nostrConnectURI();
+
+    const waiting = signer.waitForSigner();
+    await fake.pair(uri);
+    await waiting;
+
+    expect(signer.remote).toBe(fake.remotePubkey);
+    expect(signer.ackRefused).toBe(false);
   });
 
   it("accepts a bare ack where we never issued a secret to check", async () => {

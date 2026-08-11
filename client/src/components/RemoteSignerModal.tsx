@@ -229,8 +229,21 @@ function ConnectPane({
 
   const qr = showQr ? (
     <div className="flex flex-col items-center gap-2" data-testid="remote-signer-qr">
-      <div className="rounded-xl bg-white p-3">
-        <QRCodeSVG value={pairing.uri} size={188} bgColor="#ffffff" fgColor="#0A0E18" level="M" />
+      {/*
+        A `nostrconnect://` URI is long — twelve permissions and the metadata —
+        so the code is dense and each module ends up tiny. At 188px phones
+        couldn't focus on it. Sized to the dialog, and at error-correction L
+        rather than M: this is a clean screen, not a printed label, so spending
+        modules on damage recovery only makes them smaller.
+      */}
+      <div className="rounded-xl bg-white p-3 w-full max-w-[320px]">
+        <QRCodeSVG
+          value={pairing.uri}
+          bgColor="#ffffff"
+          fgColor="#0A0E18"
+          level="L"
+          className="h-auto w-full"
+        />
       </div>
       <p className="text-xs text-muted-foreground">Scan this with your signer app</p>
     </div>

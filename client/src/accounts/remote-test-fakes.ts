@@ -28,6 +28,8 @@ export type FakeRemoteSigner = {
   pair(uri: string): Promise<void>;
   /** Answer a pairing with a bare `"ack"` — what a relay observer can forge. */
   forgeAck(uri: string): Promise<void>;
+  /** Answer with a bare `"ack"` as the real signer does — Amethyst's behaviour. */
+  ackAsSigner(uri: string): Promise<void>;
   /** Fail the next request of this method with this error string. */
   failWith(method: string, error: string): void;
   /** Say nothing at all, as Amber does for an un-remembered request. */
@@ -65,7 +67,18 @@ export function createFakeRemoteSigner(): FakeRemoteSigner {
 
   const send = (client: string, payload: unknown) => sendAs(remoteKey, client, payload);
 
+  /**
+   * One event id is one request, however many relays carry it. The transport
+   * publishes per relay so a dead one can't hold the request up, so the same
+   * event legitimately arrives more than once — a real signer dedupes by id.
+   */
+  const handled = new Set<string>();
+
   async function handle(event: NostrEvent): Promise<void> {
+    if (event.id) {
+      if (handled.has(event.id)) return;
+      handled.add(event.id);
+    }
     const request = JSON.parse(await remote.nip44.decrypt(event.pubkey, event.content));
     received.push({ method: request.method, params: request.params });
     if (silent) return;
@@ -133,6 +146,10 @@ export function createFakeRemoteSigner(): FakeRemoteSigner {
     async forgeAck(uri) {
       const { client } = parseNostrConnectURI(uri);
       await sendAs(generateSecretKey(), client, { result: "ack" });
+    },
+    async ackAsSigner(uri) {
+      const { client } = parseNostrConnectURI(uri);
+      await send(client, { result: "ack" });
     },
     failWith(method, error) {
       failures.set(method, error);

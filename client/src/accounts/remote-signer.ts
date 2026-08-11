@@ -27,6 +27,7 @@ import {
 import { BaseAccount, type SerializedAccount } from "applesauce-accounts";
 import { hexToBytes, type NostrEvent } from "applesauce-core/helpers/event";
 import { getHiddenContent } from "applesauce-core/helpers";
+import { normalizeRelayUrl } from "applesauce-core/helpers/relays";
 import {
   NostrConnectSigner,
   PrivateKeySigner,
@@ -44,9 +45,21 @@ import type { AccountMetadata } from "./metadata";
 import { requestSignerApproval } from "./signer-approval";
 
 /**
- * nsec.app parses our `relay=` parameters away and answers only here, whatever
- * we ask for — so hearing it is a *subscription* requirement, not something we
- * advertise. Leave it out and the most popular web signer is silently unpairable.
+ * nsec.app parses our `relay=` parameters away and answers only here, whatever we
+ * ask for — so pairing *with nsec.app* means hearing this relay.
+ *
+ * Nearly removed on 2026-08-11, and worth recording why it stayed. It was
+ * unreachable from the network we tested on, and that alone broke pairing with a
+ * *different* signer entirely: the library will not hand back a response until
+ * the publish has finished on every relay in the set, so this one burned its full
+ * 30s `publishTimeout` on every request and tripped our own 30s deadline — which
+ * the user was shown as "your signer didn't respond", about a signer that had
+ * answered in 329ms.
+ *
+ * The fix belonged in the transport, not here: `installRemoteTransport` now
+ * releases a request as soon as *one* relay accepts it. A relay nobody can reach
+ * costs a background retry loop and nothing else, so hearing this one is cheap
+ * again — and leaving it out would silently strand the most popular web signer.
  */
 export const NSEC_APP_RELAY = "wss://relay.nsec.app";
 
@@ -72,7 +85,21 @@ export const FALLBACK_NIP46_RELAY = "wss://relay.primal.net";
  */
 export function advertisedRelays(): string[] {
   const configured = env.VITE_NIP85_RELAY_URL.trim().replace(/\/+$/, "");
-  return [configured || FALLBACK_NIP46_RELAY];
+  // A deployment that configures `http://…` gets it back unchanged from
+  // `RelayPool.relay()` — that only runs `normalizeURL`, never
+  // `ensureWebSocketURL` — and `new WebSocket()` then throws on the scheme,
+  // taking NIP-46 down with it. Fix the scheme here, where the value enters.
+  return [safeRelayURL(configured) ?? FALLBACK_NIP46_RELAY];
+}
+
+/** `ws(s)://` or nothing. An unparseable configured value must not be advertised. */
+function safeRelayURL(configured: string): string | null {
+  if (!configured) return null;
+  try {
+    return normalizeRelayUrl(configured);
+  } catch {
+    return null;
+  }
 }
 
 /** Listen broadly. What we advertise stays narrow — see `nostrConnectURI`. */
@@ -192,6 +219,17 @@ export type RemoteSignerOptions = NostrConnectSignerOptions & {
 export class RemoteSigner extends NostrConnectSigner {
   readonly requireConnectSecret: boolean;
 
+  /**
+   * Set when we turned a pairing away for proving itself with a bare `"ack"`.
+   *
+   * It exists because the refusal is otherwise invisible: dropping the event
+   * leaves `waitForSigner` pending, and three minutes later the deadline fires
+   * and the screen says the signer never answered — which is a lie, and one that
+   * cost a long debugging session on 2026-08-11 before the wire showed the reply
+   * sitting in the relay. A refusal must be able to say it refused.
+   */
+  ackRefused = false;
+
   constructor(options: RemoteSignerOptions) {
     super({ onAuth: requestSignerApproval, ...options });
     this.requireConnectSecret = options.requireConnectSecret ?? false;
@@ -201,13 +239,31 @@ export class RemoteSigner extends NostrConnectSigner {
    * Drop a bare `"ack"` while we're still waiting on a pairing we started.
    * Everything else — including the real acknowledgement, which carries the
    * secret — goes through untouched.
+   *
+   * NIP-46 requires this. In the `nostrconnect://` flow `secret` is *required*,
+   * and the obligation is ours, at MUST level: "`secret` value MUST be provided
+   * to avoid connection spoofing, client MUST validate the `secret` returned by
+   * `connect` response." The library checks `result === "ack" || result ===
+   * connectSecret`, which passes anything — so the validation has to live here.
+   *
+   * The attack the spec is naming: our URI is public — on screen as a QR, and
+   * travelling through relays — so anyone who sees it can answer `"ack"` and be
+   * adopted as our signer. They never learn the user's key; what they gain is the
+   * app signed in as *their* pubkey.
+   *
+   * `bunker://` is deliberately exempt (`requireConnectSecret` false): there the
+   * secret is optional and only SHOULD-level, and the signer named its own pubkey
+   * in the URI, so there is nobody to impersonate.
    */
   async handleEvent(event: NostrEvent): Promise<void> {
     if (this.requireConnectSecret && !this.remote) {
       const response = await this.readResponse(event);
       // The secret is a nanoid, so it is never the literal "ack" — this drops
       // exactly the acknowledgement that proves nothing.
-      if (response?.result === "ack") return;
+      if (response?.result === "ack") {
+        this.ackRefused = true;
+        return;
+      }
     }
     return super.handleEvent(event);
   }

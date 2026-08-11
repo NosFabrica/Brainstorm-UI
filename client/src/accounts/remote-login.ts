@@ -49,6 +49,20 @@ export type RemotePairing = {
   cancel(): void;
 };
 
+/**
+ * The signer answered, but only with `"ack"` — which proves nothing, since the
+ * URI anyone can read is all it takes to send one. Distinct from silence, and
+ * distinct from a cancel: this one has something to tell the user.
+ */
+export class AckRefusedError extends Error {
+  constructor() {
+    super(
+      "Your signer answered without the code we sent, so we couldn't confirm it was really yours. Paste a bunker:// link from the signer instead.",
+    );
+    this.name = "AckRefusedError";
+  }
+}
+
 /** The user backed out of a pairing. Never shown as an error. */
 export class PairingCancelled extends Error {
   constructor() {
@@ -86,11 +100,12 @@ export function beginRemotePairing(): RemotePairing {
     try {
       await signer.waitForSigner(abort.signal);
     } catch (error) {
-      // `waitForSigner` rejects with a bare "Aborted" for both, and they are
-      // different things to say.
-      throw cancelled
-        ? new PairingCancelled()
-        : new RemoteSignerTimeoutError("Your signer didn't answer. Try again, or paste a link.");
+      // `waitForSigner` rejects with a bare "Aborted" for all three of these, and
+      // they are different things to say. A refused pairing is the one that must
+      // never read as silence: the signer did answer, we turned the answer down.
+      if (cancelled) throw new PairingCancelled();
+      if (signer.ackRefused) throw new AckRefusedError();
+      throw new RemoteSignerTimeoutError("Your signer didn't answer. Try again, or paste a link.");
     } finally {
       clearTimeout(timer);
     }
@@ -181,6 +196,11 @@ export function bunkerUriProblem(input: string): string | null {
  */
 export function remoteSignerMessage(error: unknown): string {
   if (isPairingCancelled(error)) return "";
+  // Before the timeout branch: a refusal is not silence, and saying it is sends
+  // the user off to look for a notification that was already answered.
+  if (error instanceof AckRefusedError || (error as { name?: string })?.name === "AckRefusedError") {
+    return (error as Error).message;
+  }
   if (isRemoteSignerTimeout(error)) {
     return "Your signer didn't respond. Open it and check for a pending notification, then try again.";
   }

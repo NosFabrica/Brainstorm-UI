@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { parseNostrConnectURI } from "applesauce-signers/helpers/nostr-connect";
 
 import {
+  AckRefusedError,
   beginRemotePairing,
   bunkerUriProblem,
   connectWithBunkerURI,
@@ -167,5 +168,16 @@ describe("what a failure is told to the user", () => {
 
   it("tells a silent signer apart from one that declined", () => {
     expect(remoteSignerMessage({ name: "RemoteSignerTimeoutError" })).toMatch(/notification/i);
+  });
+
+  // The refusal used to be dropped on the floor, so it surfaced three minutes
+  // later as the timeout above — sending the user to hunt for a notification
+  // their signer had already answered.
+  it("does not call a refused pairing a silent one", () => {
+    const refused = remoteSignerMessage(new AckRefusedError());
+
+    expect(refused).toMatch(/couldn't confirm/i);
+    expect(refused).not.toMatch(/notification/i);
+    expect(refused).not.toBe(remoteSignerMessage({ name: "RemoteSignerTimeoutError" }));
   });
 });
