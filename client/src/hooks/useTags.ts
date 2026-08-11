@@ -492,16 +492,23 @@ export function useApplyTag(targetPubkey: string | undefined) {
       const stance = (args.polarity ?? 1) === 1 ? "apply" : "dispute";
 
       queryClient.setQueryData<ProfileTagsResult>(key, (old) => {
-        const base: ProfileTagsResult = old ?? { tags: [], mine: [], trustUnverified: false };
+        const base: ProfileTagsResult = old ?? {
+          tags: [],
+          mine: [],
+          trustUnverified: false,
+          viewerUnscored: false,
+        };
         const existing = base.tags.find((t) => t.key === optimisticKey);
 
         // Move OUR one vote between the buckets. The counts are distinct
         // asserters and we are exactly one of them, so a stance flip is -1 here
         // and +1 there — not a fresh +1, which would double-count us.
         //
-        // (If the POV doesn't actually count this viewer, the refetch will
-        // correct the number a couple of seconds later. With the trust filter
-        // as permissive as it currently is, that's rare.)
+        // If the POV doesn't count this viewer, the refetch corrects the number
+        // a couple of seconds later. Since #41 B1 that is the COMMON case, not a
+        // rare one — most accounts have no published score. We still show the
+        // optimistic +1 rather than nothing: the act did happen, it is on the
+        // relay, and `viewerUnscored` is what explains its reach.
         const tags: ProfileTag[] = existing
           ? base.tags.map((t) => {
               if (t.key !== optimisticKey) return t;
@@ -559,6 +566,7 @@ export function useApplyTag(targetPubkey: string | undefined) {
             { key: optimisticKey, stance },
           ],
           trustUnverified: base.trustUnverified,
+          viewerUnscored: base.viewerUnscored,
         };
       });
 

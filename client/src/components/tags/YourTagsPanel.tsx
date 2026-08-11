@@ -9,6 +9,7 @@ import { Chip } from "@/components/ui/chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { FacePile, NameList, displayName, profilePath } from "@/components/tags/FacePile";
 import { TagsCrossLink } from "@/components/tags/TagsCrossLink";
+import { UnscoredReachNotice } from "@/components/tags/UnscoredReachNotice";
 import { useToast } from "@/hooks/use-toast";
 import { fetchProfileMap, hasLocalSecretKey } from "@/services/nostr";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -195,6 +196,14 @@ export function YourTagsPanel() {
           >
             What you've said
           </SectionLabel>
+
+          {/* Only where it's actionable: above your own claims, and only once
+              you have some. On the "About you" section above it would be
+              answering a question nobody asked — those are other people's tags,
+              and their reach has nothing to do with your score. */}
+          {onMe?.viewerUnscored && said.length > 0 && (
+            <UnscoredReachNotice className="mb-3" />
+          )}
 
           {/* One row per PERSON was the obvious build and the wrong one: tagging
               is repetitive by nature, so a session of labelling a dozen

@@ -128,6 +128,19 @@ export interface ProfileTagsResult {
   mine: Array<{ key: string; stance: "apply" | "dispute" }>;
   /** The trust source told us nothing — these counts weren't filtered. */
   trustUnverified: boolean;
+  /**
+   * The VIEWER has no published trust score, so their own taggings count for
+   * nobody but themselves.
+   *
+   * Since #41 B1 an unscored asserter is filtered out, and most accounts are
+   * unscored — 90 of the 105 on the live hub. Their tag still renders for them
+   * (`mine` is read before the predicate) but at zero support, which looks
+   * exactly like "nobody has agreed yet" and means something completely
+   * different. Surfaces that show a viewer their OWN tags use this to say so.
+   *
+   * False for logged-out visitors: there's no "your" tag to caveat.
+   */
+  viewerUnscored: boolean;
 }
 
 const TAG_ELEMENT_KIND = 39999;
@@ -189,15 +202,21 @@ async function fetchAllTagEvents(
 /**
  * How many trust assertions have come back so far. Read as a delta around an
  * `ensure()` to tell "the house scored these people" from "we learned nothing
- * about them" — which are indistinguishable in the predicate's output, because
- * `unknownPolicy: "trusted"` counts both.
+ * about them".
+ *
+ * Since the policy flipped to "unscored does not count" (issue #41 B1), those
+ * two cases are no longer indistinguishable in the counts — they're
+ * indistinguishable in the EMPTINESS. A dead trust relay and a person nobody
+ * reputable has tagged both render as no tags, and only this counter can tell
+ * them apart.
  */
 let trustEventsSeen = 0;
 
 /**
- * Trust reads go to the HOUSE relay. Wiring this to the hub instead is the
- * documented way to get a silent degrade to "count everyone" — the fetch
- * succeeds, finds nothing, and every asserter falls under `unknownPolicy`.
+ * Trust reads go to the HOUSE relay. Wiring this to the hub instead means the
+ * fetch succeeds, finds nothing, and every asserter falls under `unknownPolicy`
+ * — which now means every tag on the site disappears rather than every tag
+ * being counted. Loud either way, opposite directions.
  */
 async function fetchTrustEvents(filter: Record<string, unknown>): Promise<NostrEvent[]> {
   const events = (await fetchEventsByFilter(filter, TRUST_RELAYS)) as NostrEvent[];
@@ -253,29 +272,34 @@ interface ResolvedTrust {
   predicate: TrustPredicate;
   /**
    * True when we asked about asserters and learned nothing about any of them —
-   * unreachable trust relays, or a POV with no published scores. Either way
-   * `unknownPolicy: "trusted"` is counting everyone, and the counts on screen
-   * are unfiltered. C7 asks that this degrade quietly rather than error; it
-   * does not ask that we imply the filter ran.
+   * unreachable trust relays, or a POV with no published scores.
+   *
+   * Under the current policy that means everything got filtered out, so the
+   * surface goes EMPTY. An empty tag list reads as a fact about the person
+   * ("nobody has tagged them"), which is why this flag has to reach the empty
+   * states: silence and "we couldn't check" must not look the same. C7 asks
+   * that this degrade quietly rather than error; it does not ask that we imply
+   * the filter ran.
    */
   unverified: boolean;
 }
 
 /**
  * Resolve the POV predicate for a set of asserters. Never throws: if the trust
- * relay is unreachable the SDK leaves those pubkeys uncached and they fall
- * under `unknownPolicy`, so tags still render.
+ * relay is unreachable the SDK leaves those pubkeys uncached, and they now fail
+ * the predicate rather than passing it — so the caller gets an empty result and
+ * has to say why, via `unverified`.
  */
 async function resolveTrust(asserters: string[]): Promise<ResolvedTrust> {
   const source = getTrustSource();
   // "Everyone counts" is a POV the operator chose, not a degraded one.
   if (!source) return { predicate: trustEveryone(), unverified: false };
   await source.ensure(asserters);
-  // The SDK's predicate can't tell us this: `unknownPolicy: "trusted"` returns
-  // true for scored and unscored alike. What it can't hide is that the trust
-  // source has handed us nothing at all this session — which happens when the
-  // trust relays are unreachable, or when they're wired to the tag hub, where
-  // no 30382 lives. Either way nothing on screen was actually filtered.
+  // The predicate alone can't distinguish "checked, and none of them qualify"
+  // from "never got an answer" — both are just `false`. What it can't hide is
+  // that the trust source handed us nothing at all this session, which happens
+  // when the trust relays are unreachable, or when they're wired to the tag hub
+  // where no 30382 lives.
   return {
     predicate: source.predicate,
     unverified: asserters.length > 0 && trustEventsSeen === 0,
@@ -466,12 +490,13 @@ async function normalizeAssertions(candidates: NostrEvent[]): Promise<Normalized
 /**
  * Which of these pubkeys have a PUBLISHED trust score?
  *
- * Not the same question as the trust predicate. Under
- * `unknownPolicy: "trusted"` the predicate says yes to a pubkey it has never
- * heard of, which is right for counting and useless for discovery — an unscored
- * key and a well-regarded one are indistinguishable to it. This asks the
- * narrower question the SDK can't: did the house actually say anything about
- * them?
+ * Related to the trust predicate but not the same question, and it stays
+ * separate now that the predicate rejects unscored keys too. The predicate
+ * answers "does this asserter's vote count"; this answers "has the house said
+ * anything at all about this key" — which is what BROWSE needs, because a tag
+ * whose creator nobody has heard of should be findable-but-labelled rather than
+ * silently promoted. Keeping them apart is also what lets a tag survive an
+ * unknown creator when reputable people have applied it.
  *
  * Used to gate what appears in BROWSE surfaces. See `fetchTagIndex`.
  */
@@ -683,10 +708,15 @@ export async function fetchProfileTags(
   const candidates = await fetchTagEvents(
     filterTagsAppliedToPubkey({ targetPubkey, zHandlePubkeys: Z_HANDLE_PUBKEYS }),
   );
-  if (!candidates.length) return { tags: [], mine: [], trustUnverified: false };
+  if (!candidates.length)
+    return { tags: [], mine: [], trustUnverified: false, viewerUnscored: false };
 
   const assertions = await normalizeAssertions(candidates);
-  const trust = await resolveTrust(Array.from(new Set(assertions.map((a) => a.asserter))));
+  // The viewer joins the asserter set even when they've tagged nobody here, so
+  // the predicate can answer "do this person's taggings count" for `viewerUnscored`.
+  const asserters = new Set(assertions.map((a) => a.asserter));
+  if (viewerPubkey) asserters.add(viewerPubkey);
+  const trust = await resolveTrust(Array.from(asserters));
   const { counted, mine } = groupByTag(assertions, trust.predicate, viewerPubkey);
 
   // `counted` is trust-filtered; `mine` is not. A tag only the viewer applied,
@@ -757,6 +787,9 @@ export async function fetchProfileTags(
     tags,
     mine: Array.from(mine.entries()).map(([key, stance]) => ({ key, stance })),
     trustUnverified: trust.unverified,
+    // Suppressed when the trust source said nothing at all: we'd be telling
+    // someone their account doesn't count on the strength of a failed lookup.
+    viewerUnscored: !!viewerPubkey && !trust.unverified && !trust.predicate(viewerPubkey),
   };
 }
 
