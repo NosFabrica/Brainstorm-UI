@@ -63,8 +63,10 @@ another operated by different parties.** Every host below is operated by the sam
 | `nip85.nosfabrica.com` | NIP-85 relay |
 | `nip85-staging.nosfabrica.com` | NIP-85 relay (staging) |
 
-**Any `*.brainstorm.world` or `*.nosfabrica.com` host not listed above is not operated by us.** If
-you find one impersonating this project, that itself is worth reporting through the link above.
+**The `brainstorm.world` and `nosfabrica.com` domains are both ours**, so any host under either of
+them is operated by us — the tables above are a current inventory, not an exhaustive claim. A site
+that resembles Brainstorm on any *other* domain is not affiliated with us; if you find one, that
+itself is worth reporting through the link above.
 
 ## Scope
 

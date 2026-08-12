@@ -33,8 +33,10 @@
 #   nip85.nosfabrica.com
 #   nip85-staging.nosfabrica.com
 #
-# Any *.brainstorm.world or *.nosfabrica.com host not listed above is
-# not operated by us.
+# The brainstorm.world and nosfabrica.com domains are both ours, so any
+# host under either of them is operated by us. The list above is a
+# current inventory, not an exhaustive claim. A site that resembles
+# Brainstorm on any OTHER domain is not affiliated with us.
 # ---------------------------------------------------------------------
 
 Contact: https://github.com/NosFabrica/Brainstorm-UI/security/advisories/new
