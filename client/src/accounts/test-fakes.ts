@@ -22,11 +22,14 @@ export type FakeUnlockCache = UnlockCache & {
   supported: boolean;
   /** Drop every envelope, making any outstanding one stale. */
   wipe(): void;
+  /** Fail every read with this — for the "could not ask" case, not "said no". */
+  failWith(error: unknown): void;
 };
 
 export function createFakeUnlockCache(): FakeUnlockCache {
   const envelopes = new Map<string, { secret: Uint8Array; pubkey: string }>();
   let counter = 0;
+  let failure: unknown = null;
 
   return {
     supported: true,
@@ -39,6 +42,7 @@ export function createFakeUnlockCache(): FakeUnlockCache {
       return id;
     },
     async decrypt(envelope, pubkey) {
+      if (failure) throw failure;
       const found = envelopes.get(envelope);
       // AAD is the pubkey — a foreign envelope fails closed, as skVault's does.
       if (!found || found.pubkey !== pubkey) throw new Error("fake cache: bad envelope");
@@ -46,6 +50,9 @@ export function createFakeUnlockCache(): FakeUnlockCache {
     },
     wipe() {
       envelopes.clear();
+    },
+    failWith(error) {
+      failure = error;
     },
   };
 }

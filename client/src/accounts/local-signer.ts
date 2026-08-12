@@ -15,6 +15,7 @@ import {
   type UnlockFailure,
 } from "./restore";
 import { deviceUnlockCache, type UnlockCache } from "./unlock-cache";
+import { isUnlockCacheUnavailable } from "@/lib/skVault";
 
 /**
  * Work factor for a minted Backup. Every ncryptsec Brainstorm has ever written
@@ -199,7 +200,15 @@ export class LocalSigner implements ISigner {
       if (started !== this.generation) return false;
       this.inner = new PrivateKeySigner(key);
       return true;
-    } catch {
+    } catch (error) {
+      // "The cache said no" and "the cache could not be asked" are different
+      // answers, and only the first means the envelope is stale. Reaching the
+      // device key goes through IndexedDB, which fails for reasons that say
+      // nothing about this envelope — and for a migrated Account, or one signed
+      // in without a Recovery password, the envelope is the *only* at-rest form.
+      // Dropping it there is destroying the key over a bad afternoon for the
+      // browser. `probeUnlockCache` never drops for exactly this reason.
+      if (isUnlockCacheUnavailable(error)) return false;
       // A stale cache holds no authority the Backup doesn't; drop it and fall through.
       this.data.envelope = undefined;
       this.changed$.next();

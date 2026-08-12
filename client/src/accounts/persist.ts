@@ -237,10 +237,23 @@ export function createPersistence(
     const remembered: unknown[] = [];
     const perTab: unknown[] = [];
     for (const account of manager.accounts) {
-      // A key with no at-rest form yet — it stays usable in this tab, but writing
-      // it would park a row nothing can open *and* make the blob non-empty, which
-      // is what tells migration this browser is already v2's.
-      if (account instanceof LocalAccount && !account.persistable) continue;
+      // A key with no at-rest form *yet* — it stays usable in this tab, but
+      // writing it would park a row nothing can open, and make the blob non-empty,
+      // which is what tells migration this browser is already v2's.
+      //
+      // "Yet" is the whole of it. This rewrites the blob wholesale, so skipping an
+      // Account that is already stored does not decline to add it — it deletes it,
+      // and for an envelope-only key that is the last copy. `storedEntryFor` says
+      // the rule out loud: anything that deletes the last copy of a key looks in
+      // storage first. Keep what is already written and let the row go stale; a
+      // stale row can still be opened by whoever holds the Backup, and a deleted
+      // one cannot be opened by anybody.
+      if (account instanceof LocalAccount && !account.persistable) {
+        const stored = storedEntryFor(storage, account.pubkey);
+        if (!stored) continue;
+        (isRemembered(account) ? remembered : perTab).push(stored);
+        continue;
+      }
       const json = serialise(account);
       if (json === null) continue;
       (isRemembered(account) ? remembered : perTab).push(json);

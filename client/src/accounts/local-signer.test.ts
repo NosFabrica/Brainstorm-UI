@@ -13,6 +13,7 @@ import {
 } from "./local-signer";
 import { unlockFailureOf } from "./restore";
 import { backupAtCost, fakePrompt, keyFixture, LOW_LOGN, PASSWORD } from "./test-fakes";
+import { UnlockCacheUnavailableError } from "@/lib/skVault";
 
 afterEach(() => setRecoveryPasswordPrompt(undefined));
 
@@ -226,6 +227,28 @@ describe("LocalSigner stale Unlock cache", () => {
     expect(signer.unlocked).toBe(true);
     expect(requestPassword).toHaveBeenCalledTimes(1);
     expect(signer.data.envelope).toBeUndefined();
+  });
+
+  /**
+   * The envelope is an at-rest form, and for a migrated Account or one signed in
+   * without a Recovery password it is the *only* one — so dropping it is
+   * destroying the key. "The cache said no" and "we could not ask the cache" are
+   * different answers, and only the first one means stale.
+   *
+   * `decryptSecret` reaches IndexedDB for the device key, so a rejected `open()`,
+   * a failed transaction or a corrupt stored value all arrive here as a throw
+   * while `isVaultSupported()` still says yes. `probeUnlockCache` already refuses
+   * to drop on any failure; this is the same rule for the path that unlocks.
+   */
+  it("keeps the envelope when the cache could not be reached at all", async () => {
+    const { pubkey, unlockCache, envelope } = await keyFixture();
+    unlockCache.failWith(new UnlockCacheUnavailableError("IndexedDB is having a day"));
+    const signer = new LocalSigner(pubkey, { envelope }, { unlockCache });
+
+    await expect(signer.unlock()).rejects.toBeInstanceOf(NoUnlockPathError);
+
+    // the only copy of this key survives a bad afternoon for the browser
+    expect(signer.data.envelope).toBe(envelope);
   });
 
   it("is terminal when a stale envelope is the only form", async () => {

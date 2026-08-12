@@ -312,3 +312,45 @@ describe("a blob that will not load", () => {
     expect(read(storage.device, QUARANTINE_KEY)).toHaveLength(1);
   });
 });
+
+/**
+ * `save()` rewrites the whole blob, so skipping an Account does not decline to
+ * add it — it *removes* one already there. `storedEntryFor`'s own doc comment
+ * states the rule: "Anything that deletes the last copy of a key has to look
+ * here first." This was the one deleter that didn't.
+ */
+describe("an account that loses its last at-rest form", () => {
+  it("keeps the row it already had in storage", async () => {
+    const storage = createTestStorage();
+    const unlockCache = createFakeUnlockCache();
+    const { manager } = createManager({ storage, unlockCache });
+    const { account } = await addAccount(manager, unlockCache, { remembered: true });
+    expect(read(storage.device, ACCOUNTS_KEY)).toHaveLength(1);
+
+    // whatever the reason — a stale cache, a browser that lost its device key —
+    // the row already on disk is the only copy left
+    account.signer.data.envelope = undefined;
+    updateMetadata(account as never, { name: "forces a save" });
+
+    expect(read(storage.device, ACCOUNTS_KEY)).toHaveLength(1);
+  });
+
+  it("still declines to write one that was never stored", async () => {
+    const storage = createTestStorage();
+    const unlockCache = createFakeUnlockCache();
+    unlockCache.supported = false;
+    const { manager } = createManager({ storage, unlockCache });
+
+    // as a no-vault paste builds it: no envelope, no Backup, this tab only
+    const account = await LocalAccount.fromKey(generateSecretKey(), {
+      unlockCache,
+      requirePersistable: false,
+    });
+    account.metadata = { remembered: true };
+    manager.addAccount(account);
+
+    // a row nothing can ever open is worse than none: it also tells migration
+    // this browser is already v2's
+    expect(read(storage.device, ACCOUNTS_KEY)).toEqual([]);
+  });
+});

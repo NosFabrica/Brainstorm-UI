@@ -76,8 +76,15 @@ import { isNip85Activated, markNip85Activated, clearNip85Activated } from "@/lib
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
 import { DeferredSessionNotice } from "@/components/DeferredSession";
-import { downloadAccountBackup } from "@/lib/accountBackup";
-import { canBackUp, keyAccessMessage, markBackedUp, revealSecretKey } from "@/accounts/backup";
+import { deliverBackup } from "@/lib/accountBackup";
+import {
+  canBackUp,
+  heldBackup,
+  keyAccessMessage,
+  MIN_RECOVERY_PASSWORD_LENGTH,
+  revealSecretKey,
+  setRecoveryPassword,
+} from "@/accounts/backup";
 import { storePasswordCredential } from "@/lib/credentialManager";
 import { CodeBlock } from "@/components/CodeBlock";
 import { apiClient, isAuthRedirecting } from "@/services/api";
@@ -222,19 +229,31 @@ export default function SettingsPage() {
   const backedUp = useBackupNeed() === null;
 
   const backupMismatch = backupConfirm.length > 0 && backupPass !== backupConfirm;
-  const canBackup = backupPass.length >= 8 && backupPass === backupConfirm;
+  /**
+   * A password is asked for only where the Account has no Backup yet — a migrated
+   * one, whose key opens from the Unlock cache and nowhere else. Then it *is* the
+   * Account's Recovery password, set here, exactly as `BackupPrompt` does it.
+   *
+   * Where a Backup already exists there is nothing to ask: it was minted at signup
+   * under a password the user chose, and that is what the file's own instructions
+   * tell them to use. This used to mint a second one under whatever was typed
+   * here, so those files opened with a password the instructions never mentioned —
+   * and "wrong password" on a backup reads as a corrupt file, not a wrong key.
+   */
+  const needsRecoveryPassword = !heldBackup();
+  const canBackup =
+    !needsRecoveryPassword || (backupPass.length >= MIN_RECOVERY_PASSWORD_LENGTH && backupPass === backupConfirm);
   /** Reaching the key waits for the account to unlock — the button says so. */
   const [backupBusy, setBackupBusy] = useState(false);
   const handleBackupDownload = async () => {
     if (!canBackup || backupBusy) return;
     setBackupBusy(true);
     try {
-      // One mint feeds both the file and the password-manager credential.
-      const { npub, ncryptsec } = await downloadAccountBackup(backupPass);
-      markBackedUp();
-      // Stash the encrypted key in the browser password manager (Chromium
-      // best-effort): username = npub, password = ncryptsec. Don't block on it.
-      if (npub && ncryptsec) void storePasswordCredential(npub, ncryptsec, npub);
+      // The same hand-over every other backup surface performs — file, password
+      // manager and the mark, in one place, so this one cannot drift from them
+      // again.
+      if (needsRecoveryPassword) await setRecoveryPassword(backupPass);
+      if (!deliverBackup()) throw new Error("No backup to deliver");
       setBackupMode(false);
       setBackupPass("");
       setBackupConfirm("");
@@ -506,7 +525,12 @@ export default function SettingsPage() {
             ) : backupMode ? (
               <div>
                 <label htmlFor="account-backup-pass" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">Back up your account</label>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Choose a password to encrypt your backup file. This file is how you sign in on another device or get back in if you clear your browser — keep it safe, no one can reset this password.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+                  {needsRecoveryPassword
+                    ? "Choose a recovery password. It encrypts your backup file and unlocks your account — keep it safe, no one can reset it."
+                    : "Your encrypted backup file, ready to download. It opens with the recovery password you already chose — this file plus that password is how you sign in on another device."}
+                </p>
+                {needsRecoveryPassword && (<>
                 <input
                   id="account-backup-pass"
                   type="password"
@@ -530,6 +554,7 @@ export default function SettingsPage() {
                 {backupMismatch && (
                   <p className="mt-1.5 text-xs font-medium text-red-600" data-testid="text-account-backup-mismatch">Passwords don't match.</p>
                 )}
+                </>)}
                 <div className="mt-2 flex flex-wrap gap-2">
                   <button
                     type="button"
