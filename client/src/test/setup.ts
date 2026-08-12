@@ -12,7 +12,9 @@ window.__ENV__ = {
  * Node 26 exposes a native experimental `localStorage` global that is undefined
  * without `--localstorage-file`, and it shadows the one jsdom would provide. A
  * bare `localStorage.setItem(...)` in a test therefore throws "Cannot read
- * properties of undefined", which took out all 121 tests in this suite.
+ * properties of undefined" in the `beforeEach` below, which takes out the
+ * entire suite before a single assertion runs — 76 tests across 12 files on
+ * `main` at the time of writing.
  *
  * Install a minimal in-memory Storage when nothing usable is present. A no-op
  * on Node 20/22, where jsdom's own implementation is already there.
