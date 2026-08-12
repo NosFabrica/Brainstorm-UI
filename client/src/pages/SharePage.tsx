@@ -755,7 +755,7 @@ export default function SharePage() {
     pubkey
       ? {
           title: `${displayName} on Brainstorm`,
-          description: profile.about ? profile.about.slice(0, 160) : `${displayName}'s profile and Web-of-Verification Score on Brainstorm.`,
+          description: profile.about ? profile.about.slice(0, 160) : `${displayName}'s profile and Verification Score on Brainstorm.`,
           image: profile.picture,
           url: canonicalUrl,
         }

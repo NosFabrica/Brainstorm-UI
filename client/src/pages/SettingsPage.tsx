@@ -102,7 +102,7 @@ web-of-trust search engine for Nostr.
 If anything fails, check the README's troubleshooting section, tell me
 what to fix, and explain each step as you go. Keep it simple.`;
 
-const AGENT_INTEGRATE_PROMPT = `You're helping me add Brainstorm's web-of-scores to my own
+const AGENT_INTEGRATE_PROMPT = `You're helping me add Brainstorm's web-of-trust scores to my own
 Nostr client so my users see personalized trust.
 
 1. Read Brainstorm's developer guide (I'll give you the link).
@@ -1327,7 +1327,7 @@ export default function SettingsPage() {
         <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="text-agent-setup-desc">
           {agentPath === "selfhost"
             ? "Brainstorm is open-source. Instead of following technical steps yourself, hand them to your AI agent — copy the prompt below, or point your agent at our guide."
-            : "Already run a Nostr client? Have your AI agent connect Brainstorm's web-of-scores and Trusted Assertions (NIP-85) so your users see personalized trust."}
+            : "Already run a Nostr client? Have your AI agent connect Brainstorm's web-of-trust scores and Trusted Assertions (NIP-85) so your users see personalized trust."}
         </p>
 
         {/* The prompt to paste into the agent */}
