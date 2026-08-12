@@ -249,7 +249,7 @@ export function MobileSearchOverlay() {
           </>
         ) : visible.length === 0 ? (
           <p className="px-1 py-6 text-center text-sm text-slate-400 dark:text-slate-500" data-testid="mobile-search-empty">
-            Search anyone on Nostr — results are ranked by your web of trust.
+            Search anyone on Nostr — results are ranked by your network.
           </p>
         ) : (
           <>

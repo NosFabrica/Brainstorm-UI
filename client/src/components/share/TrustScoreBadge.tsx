@@ -1,4 +1,4 @@
-import { DEFAULT_VERIFIED_LINE, TIER_THRESHOLDS, TRUST_TIER_COLORS } from "@/services/trustThreshold";
+import { DEFAULT_VERIFIED_LINE, TIER_THRESHOLDS, TIER_LABELS, TRUST_TIER_COLORS } from "@/services/trustThreshold";
 
 /**
  * Lean trust-score ring for the public share page. Takes a 0–1 influence score
@@ -13,11 +13,11 @@ import { DEFAULT_VERIFIED_LINE, TIER_THRESHOLDS, TRUST_TIER_COLORS } from "@/ser
 // Colors come from the shared TRUST_TIER_COLORS palette (services/trustThreshold)
 // so this bar and the dashboard's Network Composition never drift.
 const SHARE_TIERS = [
-  { key: "high", name: "Highly Trusted", min: TIER_THRESHOLDS.high, color: TRUST_TIER_COLORS.highlyTrusted, text: "text-emerald-700", ring: TRUST_TIER_COLORS.highlyTrusted },
-  { key: "trusted", name: "Trusted", min: TIER_THRESHOLDS.medium_high, color: TRUST_TIER_COLORS.trusted, text: "text-sky-700", ring: TRUST_TIER_COLORS.trusted },
-  { key: "neutral", name: "Neutral", min: TIER_THRESHOLDS.medium, color: TRUST_TIER_COLORS.neutral, text: "text-brand-primary", ring: TRUST_TIER_COLORS.neutral },
-  { key: "low", name: "Low Trust", min: DEFAULT_VERIFIED_LINE, color: TRUST_TIER_COLORS.lowTrust, text: "text-amber-700", ring: TRUST_TIER_COLORS.lowTrust },
-  { key: "unverified", name: "Unverified", min: 0, color: TRUST_TIER_COLORS.unverified, text: "text-zinc-600", ring: TRUST_TIER_COLORS.unverified },
+  { key: "high", name: TIER_LABELS.high, min: TIER_THRESHOLDS.high, color: TRUST_TIER_COLORS.highlyTrusted, text: "text-emerald-700", ring: TRUST_TIER_COLORS.highlyTrusted },
+  { key: "trusted", name: TIER_LABELS.trusted, min: TIER_THRESHOLDS.medium_high, color: TRUST_TIER_COLORS.trusted, text: "text-sky-700", ring: TRUST_TIER_COLORS.trusted },
+  { key: "neutral", name: TIER_LABELS.neutral, min: TIER_THRESHOLDS.medium, color: TRUST_TIER_COLORS.neutral, text: "text-brand-primary", ring: TRUST_TIER_COLORS.neutral },
+  { key: "low", name: TIER_LABELS.low, min: DEFAULT_VERIFIED_LINE, color: TRUST_TIER_COLORS.lowTrust, text: "text-amber-700", ring: TRUST_TIER_COLORS.lowTrust },
+  { key: "unverified", name: TIER_LABELS.unverified, min: 0, color: TRUST_TIER_COLORS.unverified, text: "text-zinc-600", ring: TRUST_TIER_COLORS.unverified },
 ];
 
 export function tierForScore(score01: number) {

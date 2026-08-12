@@ -160,7 +160,7 @@ export default function LoginPage() {
               Sign in to your <span className="text-brand-link">Brainstorm</span> account
             </h2>
             <p className="text-base text-slate-500 dark:text-slate-400 leading-relaxed">
-              Pick up where you left off and keep building your web of trust.
+              Pick up where you left off and keep building your network.
             </p>
           </div>
 

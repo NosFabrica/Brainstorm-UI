@@ -9,7 +9,6 @@ import {
   Copy,
   UserPlus,
   HelpCircle,
-  BookOpen,
   Settings as SettingsIcon,
   Shield,
   LogOut,
@@ -313,11 +312,17 @@ export function AccountMenuBody({ user, isAdmin, active, onNavigate, onInvite, o
           turning into a hard border. */}
       <div className="mx-3 border-t border-slate-900/[0.16] dark:border-white/[0.16]" />
 
-      {/* Grouped actions — Settings sits under Help & FAQ */}
+      {/* Grouped actions — Settings sits under Help & FAQ.
+
+          "What is WoT?" used to sit between them. It asked people to decode an
+          acronym before they knew whether they cared, and a definition is not a
+          thing you reach for from an account menu. The page is still there and
+          still linked from where curiosity actually starts — About, the footer,
+          onboarding, the tags explainer, the connection lists and the
+          flagged-profile banner. Ten routes in; this was the worst of them. */}
       <div className="p-1.5">
         <MenuRow icon={UserPlus} label="Invite friends" onClick={onInvite} testId="dropdown-invite" />
         <MenuRow icon={HelpCircle} label="Help & FAQ" onClick={() => onNavigate("/faq")} testId="dropdown-faq" />
-        <MenuRow icon={BookOpen} label="What is WoT?" onClick={() => onNavigate("/what-is-wot")} testId="dropdown-wot" />
         <MenuRow icon={SettingsIcon} label="Settings" onClick={() => onNavigate("/settings")} testId="dropdown-settings" />
       </div>
 

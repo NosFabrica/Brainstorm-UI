@@ -755,7 +755,7 @@ export default function SharePage() {
     pubkey
       ? {
           title: `${displayName} on Brainstorm`,
-          description: profile.about ? profile.about.slice(0, 160) : `${displayName}'s profile and Web-of-Trust score on Brainstorm.`,
+          description: profile.about ? profile.about.slice(0, 160) : `${displayName}'s profile and Web-of-Verification Score on Brainstorm.`,
           image: profile.picture,
           url: canonicalUrl,
         }
@@ -1009,7 +1009,7 @@ export default function SharePage() {
               <AlertTriangle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
               <div className="min-w-0 text-xs leading-relaxed">
                 <span className="font-bold text-red-700">Flagged by the network</span>
-                <span className="text-red-700/90"> — reported by {verifiedReporters} verified {verifiedReporters === 1 ? "account" : "accounts"} in the Web of Trust.</span>{" "}
+                <span className="text-red-700/90"> — reported by {verifiedReporters} verified {verifiedReporters === 1 ? "account" : "accounts"} in the network.</span>{" "}
                 <Link href={`/p/${rawId}/reporters`} className="font-semibold text-red-700 underline underline-offset-2 hover:text-red-800" data-testid="share-flag-reporters">See who</Link>
                 <span className="text-red-700/60"> · </span>
                 {/* TODO(phase2): point at /what-are-degrees once the explainer exists */}
@@ -1019,7 +1019,7 @@ export default function SharePage() {
           )}
 
           {/* Stats — one shared Verified/All lens for the whole block (tap the
-              toggle to reveal how many bots the web of trust filters out). Each
+              toggle to reveal how many bots the network filters out). Each
               count links to its full list. */}
           <div className="mt-2.5 space-y-1.5" data-testid="share-stats">
             <div className="space-y-1.5">
@@ -1103,7 +1103,7 @@ export default function SharePage() {
                       Connect with {displayName}
                     </h3>
                     <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                      Real humans, not bots — join the web of trust you own and you're instantly connected to {displayName}.
+                      Real humans, not bots — join a network you own and you're instantly connected to {displayName}.
                     </p>
                   </div>
                 </div>

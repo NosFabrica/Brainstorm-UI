@@ -67,7 +67,7 @@ export function StatLensToggle({
       type="button"
       onClick={() => onChange(value === "verified" ? "all" : "verified")}
       className="inline-flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 transition-colors hover:text-slate-600 dark:hover:text-slate-300"
-      title={value === "verified" ? "Show all counts, including bots the web of trust filters out" : "Show only web-of-trust-verified counts"}
+      title={value === "verified" ? "Show all counts, including bots the network filters out" : "Show only network-verified counts"}
       data-testid="stat-lens-toggle"
       data-mode={value}
     >

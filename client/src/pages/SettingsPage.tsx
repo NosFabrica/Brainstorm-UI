@@ -102,14 +102,14 @@ web-of-trust search engine for Nostr.
 If anything fails, check the README's troubleshooting section, tell me
 what to fix, and explain each step as you go. Keep it simple.`;
 
-const AGENT_INTEGRATE_PROMPT = `You're helping me add Brainstorm's web-of-trust scores to my own
+const AGENT_INTEGRATE_PROMPT = `You're helping me add Brainstorm's web-of-scores to my own
 Nostr client so my users see personalized trust.
 
 1. Read Brainstorm's developer guide (I'll give you the link).
-2. Fetch personalized trust scores from the Brainstorm relay / API.
+2. Fetch personalized scores from the Brainstorm relay / API.
 3. Read kind 30382 "Trusted Assertions" (NIP-85) for each user.
 4. Honor the kind 10040 service-provider pointer so scores resolve per user.
-5. Verify a sample user's Brainstorm trust score renders in my client.
+5. Verify a sample user's Brainstorm Verification Score renders in my client.
 
 Explain each step, note anything I need to configure, and keep it simple.`;
 
@@ -302,7 +302,7 @@ export default function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["/user/graperankResult"] });
       toast({
         title: "Recalculation started",
-        description: "Your trust scores are being recalculated. Redirecting to dashboard...",
+        description: "Your scores are being recalculated. Redirecting to dashboard...",
         duration: 4000,
       });
       setTimeout(() => navigate("/dashboard"), 600);
@@ -650,7 +650,7 @@ export default function SettingsPage() {
           </div>
           <div className="min-w-0">
             <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-sp-title">Service Provider</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-sp-subtitle">NIP-85 Web of Trust declaration</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-sp-subtitle">NIP-85 declaration</p>
           </div>
         </div>
       </div>
@@ -708,7 +708,7 @@ export default function SettingsPage() {
                       <Info className="h-2.5 w-2.5" />
                     </button>
                     <div className="fixed left-4 right-4 top-1/2 -translate-y-1/2 sm:absolute sm:top-auto sm:left-0 sm:right-auto sm:translate-y-0 sm:bottom-full sm:mb-2 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-[100] pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-supported-by">
-                      These are Nostr clients that use personalized trust scores calculated by Brainstorm and other Web of Trust Service Providers via NIP-85: Trusted Assertions or other integration methods.
+                      These are Nostr clients that use the personalized scores Brainstorm publishes for you, via NIP-85 Trusted Assertions or other integrations.
                     </div>
                   </div>
                 </div>
@@ -821,7 +821,7 @@ export default function SettingsPage() {
                         Deactivate Service Provider?
                       </AlertDialogTitle>
                       <AlertDialogDescription className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mt-2.5" data-testid="text-confirm-deactivate-desc">
-                        This will publish an event to Nostr relays removing Brainstorm as your WoT service provider. Compatible clients like Amethyst and Nostria will no longer use Brainstorm for your trust scores. Your data inside Brainstorm will not be affected.
+                        This will publish an event to Nostr relays removing Brainstorm as your WoT service provider. Compatible clients like Amethyst and Nostria will no longer use Brainstorm for your scores. Your data inside Brainstorm will not be affected.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter className="mt-5 gap-2 sm:gap-2">
@@ -859,7 +859,7 @@ export default function SettingsPage() {
             </div>
 
             <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="text-sp-inactive-desc">
-              No WoT service provider has been selected. Activate Brainstorm as your provider to publish trust scores across the Nostr ecosystem.
+              No WoT service provider has been selected. Activate Brainstorm as your provider to publish scores across the Nostr ecosystem.
             </p>
 
             {hasNoFollowing && (
@@ -997,7 +997,7 @@ export default function SettingsPage() {
               <div className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200/60 mb-3" data-testid="banner-gr-no-follows">
                 <Info className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                 <p className="text-xs text-amber-700 font-medium">
-                  Follow at least one account first so we can calculate your trust scores.{" "}
+                  Follow at least one account first so we can calculate your scores.{" "}
                   <button type="button" onClick={() => navigate("/welcome")} className="font-semibold underline hover:text-amber-900" data-testid="link-gr-build-network">
                     Find people to follow →
                   </button>
@@ -1090,7 +1090,7 @@ export default function SettingsPage() {
 
       <div className="p-5 space-y-4">
         <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="text-presets-desc">
-          How strict your web of trust is. This sets which accounts count as "verified" followers, muters and reporters on Dashboard, Network, and Profile pages — the counts update as soon as you switch.
+          How strict your network is. This sets which accounts count as "verified" followers, muters and reporters on Dashboard, Network, and Profile pages — the counts update as soon as you switch.
         </p>
         <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed" data-testid="text-presets-persistence">
           Saved to your account, so it follows you across devices. Your published Trusted Assertions keep the old numbers until your next calculation.
@@ -1327,7 +1327,7 @@ export default function SettingsPage() {
         <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="text-agent-setup-desc">
           {agentPath === "selfhost"
             ? "Brainstorm is open-source. Instead of following technical steps yourself, hand them to your AI agent — copy the prompt below, or point your agent at our guide."
-            : "Already run a Nostr client? Have your AI agent connect Brainstorm's web-of-trust scores and Trusted Assertions (NIP-85) so your users see personalized trust."}
+            : "Already run a Nostr client? Have your AI agent connect Brainstorm's web-of-scores and Trusted Assertions (NIP-85) so your users see personalized trust."}
         </p>
 
         {/* The prompt to paste into the agent */}
@@ -1466,7 +1466,7 @@ export default function SettingsPage() {
 
       <div className="p-5">
         <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-4" data-testid="text-about-description">
-          NosFabrica builds the open-source, scalable Web of Trust engines that power a safer, cleaner Nostr. We analyze raw network signals and turn them into clear, reliable trust scores.
+          NosFabrica builds the open-source, scalable Web of Trust engines that power a safer, cleaner Nostr. We analyze raw network signals and turn them into clear, reliable scores.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">

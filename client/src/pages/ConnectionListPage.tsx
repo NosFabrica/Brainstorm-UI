@@ -13,6 +13,7 @@ import { Wordmark } from "@/components/Wordmark";
 import { InfoHint } from "@/components/InfoHint";
 import { TrustScoreModal, useScorePov, PovToggle } from "@/components/score/TrustScorePov";
 import { PersonListRow } from "@/components/PersonListRow";
+import { TIER_LABELS } from "@/services/trustThreshold";
 
 type ConnKind = "followed_by" | "following" | "muted_by" | "reported_by";
 
@@ -156,20 +157,20 @@ export default function ConnectionListPage() {
   const currentPath = `/p/${rawId}/${type}`;
   const verifiedPopover = !signedIn ? (
     <>
-      <p><strong className="font-semibold text-slate-700 dark:text-slate-200">Verified</strong> means an account the Web of Trust vouches for — its score clears the threshold, so bots and unknown accounts don't count.</p>
-      <p className="mt-1.5">Right now you're seeing <strong className="font-semibold text-slate-700 dark:text-slate-200">Brainstorm's</strong> point of view. <Link href={`/login?next=${encodeURIComponent(currentPath)}`} className={povLink}>Sign in</Link> to switch to <em>your own</em> Web of Trust — once your scores are calculated.</p>
+      <p><strong className="font-semibold text-slate-700 dark:text-slate-200">Verified</strong> means an account the network vouches for — its score clears the threshold, so bots and unknown accounts don't count.</p>
+      <p className="mt-1.5">Right now you're seeing <strong className="font-semibold text-slate-700 dark:text-slate-200">Brainstorm's</strong> point of view. <Link href={`/login?next=${encodeURIComponent(currentPath)}`} className={povLink}>Sign in</Link> to switch to <em>your own</em> network — once your scores are calculated.</p>
       <Link href="/what-is-wot" className={`mt-2 inline-block ${povLink}`}>Learn how it works →</Link>
     </>
   ) : !calcDone ? (
     <>
-      <p><strong className="font-semibold text-slate-700 dark:text-slate-200">Verified</strong> means an account the Web of Trust vouches for — bots and unknown accounts don't count.</p>
+      <p><strong className="font-semibold text-slate-700 dark:text-slate-200">Verified</strong> means an account the network vouches for — bots and unknown accounts don't count.</p>
       <p className="mt-1.5">You're signed in, but <strong className="font-semibold text-slate-700 dark:text-slate-200">your scores are still being calculated</strong>. Until they're ready, this shows Brainstorm's point of view.</p>
       <Link href="/dashboard" className={`mt-1 inline-block ${povLink}`}>Check your dashboard →</Link>
       <Link href="/what-is-wot" className={`mt-2 block ${povLink}`}>Learn how it works →</Link>
     </>
   ) : (
     <>
-      <p><strong className="font-semibold text-slate-700 dark:text-slate-200">Verified</strong> means an account <em>your</em> Web of Trust vouches for — the accounts <strong className="font-semibold text-slate-700 dark:text-slate-200">you</strong> trust decide who counts.</p>
+      <p><strong className="font-semibold text-slate-700 dark:text-slate-200">Verified</strong> means an account <em>your own</em> network vouches for — the accounts <strong className="font-semibold text-slate-700 dark:text-slate-200">you</strong> trust decide who counts.</p>
       <p className="mt-1.5">You're seeing your own point of view. Tune the threshold in <Link href="/settings?tab=trust" className={povLink}>Settings</Link> — Relax, Default, or Strict.</p>
       <Link href="/what-is-wot" className={`mt-2 inline-block ${povLink}`}>Learn how it works →</Link>
     </>
@@ -260,7 +261,7 @@ export default function ConnectionListPage() {
               <div>
                 <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Trust level</span>
                 <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
-                  {([["all", "All"], ["high", "Highly Trusted"], ["medium_high", "Trusted"], ["medium", "Neutral"], ["medium_low", "Low"]] as const).map(([value, label]) => (
+                  {([["all", "All"], ["high", TIER_LABELS.high], ["medium_high", TIER_LABELS.trusted], ["medium", TIER_LABELS.neutral], ["medium_low", TIER_LABELS.low]] as const).map(([value, label]) => (
                     <button
                       key={value}
                       type="button"

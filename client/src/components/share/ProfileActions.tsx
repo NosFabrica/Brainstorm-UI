@@ -82,7 +82,7 @@ export function ProfileActions({
     const res = await reportUser(targetPubkey, reason);
     if (res.success) {
       setReported(true);
-      toast({ title: "Reported", description: "This lowers their standing in your Web of Trust." });
+      toast({ title: "Reported", description: "This lowers their standing in your network." });
     } else {
       toast({ variant: "destructive", title: "Couldn't report", description: res.error || "Try again." });
     }

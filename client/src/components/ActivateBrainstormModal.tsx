@@ -151,7 +151,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
       content: (
         <div className="space-y-3">
           <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-            We will calculate trust scores for your entire nostr network, entirely from YOUR
+            We will calculate scores for your entire nostr network, entirely from YOUR
             perspective, using standard nostr follows, mutes, and reports. This usually takes
             5–10 minutes.
           </p>
@@ -185,7 +185,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
           <div className="px-5 sm:px-7 pt-6 sm:pt-8 pb-2">
             <DialogHeader className="space-y-0 text-left">
               <div className="flex items-center gap-2.5 mb-3">
-                <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link uppercase">Web of Trust</span>
+                <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link uppercase">Your network</span>
                 <div className="h-px w-10 bg-brand-link/30" />
               </div>
               <DialogTitle
@@ -196,7 +196,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                 Broadcast your scores <span className="text-brand-link">across Nostr</span>.
               </DialogTitle>
               <DialogDescription className="text-sm sm:text-[15px] text-slate-600 dark:text-slate-300 mt-2.5 leading-relaxed" data-testid="text-activate-subtitle">
-                Selecting Brainstorm as your service provider signs one nostr note that tells compatible clients where to find the personalized trust scores we publish for you.
+                Selecting Brainstorm as your service provider signs one nostr note that tells compatible clients where to find the personalized scores we publish for you.
               </DialogDescription>
             </DialogHeader>
           </div>
@@ -308,14 +308,14 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
                       <div className="flex items-start gap-2 mb-3 px-3 py-2.5 rounded-xl bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/25" data-testid="text-activate-replace-warning">
                         <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-px" />
                         <p className="text-[12px] leading-relaxed text-amber-800 dark:text-amber-200">
-                          You already have a different Web of Trust provider selected. Continuing will <strong className="font-bold">replace it</strong> with Brainstorm for your trusted assertions going forward.
+                          Another provider is already publishing your scores. Continuing will <strong className="font-bold">replace it</strong> with Brainstorm for your trusted assertions going forward.
                         </p>
                       </div>
                     ) : (
                       <div className="flex items-start gap-2 mb-3 px-1" data-testid="text-activate-disclaimer">
                         <AlertCircle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-px" />
                         <p className="text-[11px] leading-relaxed text-slate-500 dark:text-slate-400">
-                          If you have an active Web of Trust service provider, proceeding will override existing trusted assertion calculations. By continuing, you confirm Brainstorm as your service provider for trusted assertions going forward.
+                          If another provider is already publishing your scores, proceeding will override those calculations. By continuing, you confirm Brainstorm as your service provider for trusted assertions going forward.
                         </p>
                       </div>
                     )
