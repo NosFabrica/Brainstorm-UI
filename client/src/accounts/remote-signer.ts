@@ -376,6 +376,26 @@ export class RemoteAccount<Metadata = AccountMetadata> extends NostrConnectAccou
       bunkerSecret: json.signer.bunkerSecret,
       signer: new PrivateKeySigner(hexToBytes(json.signer.clientKey)),
     });
+
+    // This pairing already happened. `isConnected` is in-memory only, and every
+    // operation runs through `requireConnection()`, which re-pairs when it is
+    // false — so without this a restored Account tries to `connect` again before
+    // its first request, and *cannot* succeed: NIP-46 makes a bunker secret
+    // single-use, so the signer answers `invalid secret` (Amber: `already
+    // connected`). It broke every reload and every account switch.
+    //
+    // Opening is not optional and does not come for free with the flag: `open()`
+    // is what subscribes to the signer's replies, and the only callers are
+    // `connect()` and `waitForSigner()`. Skipping the spurious connect without
+    // this would leave a signer that publishes requests and can never hear the
+    // answers — every one of them timing out at 30s.
+    //
+    // If the signer really has forgotten us, the request that follows fails on
+    // its own and `signer-liveness` calls it unreachable — which is the honest
+    // answer, and a far better one than a pairing error nobody can act on.
+    signer.isConnected = true;
+    void signer.open();
+
     return BaseAccount.loadCommonFields(new RemoteAccount<Metadata>(json.pubkey, signer), json);
   }
 }

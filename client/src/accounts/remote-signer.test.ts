@@ -253,6 +253,63 @@ describe("a restored account", () => {
     expect(signed.pubkey).toBe(fake.userPubkey);
   });
 
+  /**
+   * The library gates every operation on `requireConnection()`, which re-runs
+   * `connect()` whenever its in-memory `isConnected` is false — and that flag is
+   * never persisted, so it is false for every restored Account.
+   *
+   * Re-pairing is the wrong move and cannot succeed: NIP-46 makes a bunker
+   * secret single-use ("remote-signer SHOULD ignore new attempts to establish
+   * connection with old secret"), so the signer answers `invalid secret` — or
+   * `already connected`, on Amber. Observed against Amethyst 2026-08-12: every
+   * account switch and every reload failed this way, with an error toast and no
+   * approval prompt, because the pairing was being redone rather than used.
+   */
+  it("uses the pairing it already has instead of making a new one", async () => {
+    const fake = createFakeRemoteSigner();
+    installRemoteTransport(fake.pool);
+
+    const account = RemoteAccount.fromJSON({
+      type: "nostr-connect",
+      id: "restored",
+      pubkey: fake.userPubkey,
+      metadata: { remembered: true },
+      signer: {
+        clientKey: "11".repeat(32),
+        remote: fake.remotePubkey,
+        relays: ["wss://fake.relay"],
+        bunkerSecret: "",
+      },
+    });
+
+    await account.signEvent({ kind: 1, content: "hello", tags: [], created_at: 1 });
+
+    expect(fake.received.map((request) => request.method)).toEqual(["sign_event"]);
+  });
+
+  // `connect()` was also the only thing calling `open()`, which is what
+  // subscribes to the signer's replies. Skipping the connect without opening
+  // would leave a signer that can publish and never hear anything back.
+  it("is listening for replies, which the skipped connect used to arrange", () => {
+    const fake = createFakeRemoteSigner();
+    installRemoteTransport(fake.pool);
+
+    const account = RemoteAccount.fromJSON({
+      type: "nostr-connect",
+      id: "restored",
+      pubkey: fake.userPubkey,
+      metadata: { remembered: true },
+      signer: {
+        clientKey: "11".repeat(32),
+        remote: fake.remotePubkey,
+        relays: ["wss://fake.relay"],
+        bunkerSecret: "",
+      },
+    });
+
+    expect(account.signer.listening).toBe(true);
+  });
+
   it("cannot even be constructed before a transport is installed", () => {
     // Not "starts mute" — it throws, so persistence quarantines the entry and
     // that identity is gone for the life of the browser. Hence the ordering.
