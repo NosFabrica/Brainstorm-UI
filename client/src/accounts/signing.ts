@@ -12,6 +12,7 @@ import type { EventTemplate } from "applesauce-accounts";
 import { accountManager } from "@/accounts";
 import { LocalAccount } from "./local-account";
 import { isUnlockCancelled } from "./local-signer";
+import { isRemoteSignerTimeout } from "./remote-signer";
 import type { BrainstormAccount } from "./metadata";
 
 /** Thrown where an event must be signed and no Account is active. */
@@ -42,8 +43,25 @@ export type PublishOutcome = {
 };
 
 /** Turn a thrown signing error into an outcome, keeping a deliberate cancel silent. */
+/**
+ * A remote signer that has gone away is discovered here and nowhere else.
+ *
+ * NIP-46 carries no revocation signal: Amber's "Reset Bunker" mints a new
+ * per-connection key and "Delete application" drops the pairing, and in both
+ * cases the stored `remote` becomes a pubkey nobody listens on without a word.
+ * So the first anyone hears of it is a signature that never comes back — and
+ * that moment is the only one where the diagnosis is certainly right, which is
+ * why it belongs here rather than in a probe that goes looking.
+ *
+ * The library's own message names the symptom and stops. This names the cause and
+ * where to go.
+ */
+const SIGNER_SILENT =
+  "Your signer didn't answer. Open it and check for a pending request — or connect it again from your account menu.";
+
 export function signingFailure(error: unknown, fallback = "Signing failed"): PublishOutcome {
   if (isUnlockCancelled(error)) return { success: false, cancelled: true };
+  if (isRemoteSignerTimeout(error)) return { success: false, error: SIGNER_SILENT };
   return { success: false, error: error instanceof Error ? error.message : fallback };
 }
 

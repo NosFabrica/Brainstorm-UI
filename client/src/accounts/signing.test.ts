@@ -17,6 +17,7 @@ import {
   signAs,
   signingFailure,
 } from "./signing";
+import { RemoteSignerTimeoutError } from "./remote-signer";
 import { createFakeUnlockCache, fakePrompt, LOW_LOGN, PASSWORD } from "./test-fakes";
 
 /** An Account that signs without asking — an extension or a bunker. */
@@ -156,6 +157,30 @@ describe("a deliberate cancel", () => {
       success: false,
       error: "relay exploded",
     });
+  });
+
+  /**
+   * A signer that has been reset or deleted says nothing — NIP-46 carries no
+   * revocation signal — so the first anyone hears of it is a signature that never
+   * comes back. That moment *is* the discovery, and it is the only one where the
+   * answer is certainly right, so it has to name the cause and where to go.
+   *
+   * The bare library message ("Your signer didn't respond.") named the symptom
+   * and left the user with nothing to do about it.
+   */
+  it("tells a silent remote signer apart, and says what to do about it", () => {
+    const timeout = new RemoteSignerTimeoutError();
+
+    const outcome = signingFailure(timeout);
+
+    expect(outcome.success).toBe(false);
+    expect(outcome.cancelled).toBeUndefined();
+    expect(outcome.error).toMatch(/signer/i);
+    expect(outcome.error).toMatch(/connect it again|connect again/i);
+  });
+
+  it("leaves an ordinary failure alone", () => {
+    expect(signingFailure(new Error("relay exploded")).error).toBe("relay exploded");
   });
 
   // Swallowing it here would report "couldn't encrypt" for a choice the user made.
