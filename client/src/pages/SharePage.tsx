@@ -69,7 +69,7 @@ import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC } from "@/lib/profileDefaults";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { activeHasSession } from "@/accounts/session";
+import { useHasSession } from "@/hooks/useHasSession";
 
 type ProfileContentLike = Record<string, string | undefined>;
 
@@ -90,7 +90,7 @@ export default function SharePage() {
   const pubkey = decoded?.pubkey || "";
   const relayHints = decoded?.relays || [];
   const npub = pubkey ? safeNpub(pubkey) : "";
-  const loggedIn = activeHasSession();
+  const loggedIn = useHasSession();
   const [shareOpen, setShareOpen] = useState(false);
   const [zapOpen, setZapOpen] = useState(false);
   const [npubCopied, setNpubCopied] = useState(false);

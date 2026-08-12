@@ -109,6 +109,56 @@ describe("adopting and releasing", () => {
     expect(getMetadata(account).npub).toBe("npub1test");
   });
 
+  /**
+   * `backedUp: true` carries across, so the nag never comes back — which makes it
+   * a promise. The Backup it refers to lives in the *signer*, not the metadata,
+   * so replacing the row with one that has only a device envelope quietly turns
+   * that promise into a lie: clear site data or lose the vault and the account is
+   * gone, while its owner still holds a file and the password that opens it.
+   *
+   * The normal path there is mundane — re-pasting an nsec where the vault works,
+   * which mints no `ncryptsec` at all.
+   */
+  it("keeps the backup the replaced row was carrying", async () => {
+    const key = generateSecretKey();
+    const backedUp = await localAccount(key, {
+      password: PASSWORD,
+      logn: LOW_LOGN,
+      unlockCache: createFakeUnlockCache(),
+    });
+    expect(backedUp.signer.data.ncryptsec).toBeTruthy();
+    adoptAccount(backedUp, { remembered: true, backedUp: true });
+
+    // as `loginWithPastedKey` builds it for a bare nsec: envelope only
+    const pasted = await localAccount(key, { unlockCache: createFakeUnlockCache() });
+    expect(pasted.signer.data.ncryptsec).toBeUndefined();
+
+    adoptAccount(pasted, { remembered: true });
+
+    expect(pasted.signer.data.ncryptsec).toBe(backedUp.signer.data.ncryptsec);
+  });
+
+  it("does not overwrite a backup the new row brought itself", async () => {
+    const key = generateSecretKey();
+    const old = await localAccount(key, {
+      password: PASSWORD,
+      logn: LOW_LOGN,
+      unlockCache: createFakeUnlockCache(),
+    });
+    adoptAccount(old, { remembered: true, backedUp: true });
+
+    const fresh = await localAccount(key, {
+      password: "a-different-password",
+      logn: LOW_LOGN,
+      unlockCache: createFakeUnlockCache(),
+    });
+    const minted = fresh.signer.data.ncryptsec;
+
+    adoptAccount(fresh, { remembered: true });
+
+    expect(fresh.signer.data.ncryptsec).toBe(minted);
+  });
+
   it("replaces the row this device already held for the same identity and signer", async () => {
     const key = generateSecretKey();
     const first = await localAccount(key, { unlockCache: createFakeUnlockCache() });

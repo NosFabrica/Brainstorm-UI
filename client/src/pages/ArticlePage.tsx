@@ -22,7 +22,7 @@ import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { BrainLogo } from "@/components/BrainLogo";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
-import { activeHasSession } from "@/accounts/session";
+import { useHasSession } from "@/hooks/useHasSession";
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?.*)?$/i;
 const VID_RE = /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i;
@@ -123,7 +123,7 @@ export default function ArticlePage() {
   const authorName = profile.display_name || profile.name || (ptr ? nip19.npubEncode(ptr.pubkey).slice(0, 12) + "…" : "Unknown");
   const authorNpub = ptr ? (() => { try { return npubFromPubkey(ptr.pubkey); } catch { return ""; } })() : "";
   const score01 = typeof trustQuery.data === "number" ? trustQuery.data : null;
-  const loggedIn = activeHasSession();
+  const loggedIn = useHasSession();
   const firstName = authorName.split(" ")[0];
   const [threadGated, setThreadGated] = useState(false);
 

@@ -3,8 +3,8 @@ import { ensureBrainstormTrustAnchor } from "@/services/nostr";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { isNip85Activated } from "@/lib/nip85Activation";
 import { useSelfHistory } from "@/hooks/useSelf";
-import { activeHasSession } from "@/accounts/session";
 import { identityHas } from "@/accounts/display";
+import { useHasSession } from "@/hooks/useHasSession";
 
 /**
  * New (in-app-created) accounts select Brainstorm as their Web-of-Trust provider
@@ -24,7 +24,7 @@ import { identityHas } from "@/accounts/display";
  */
 export function AutoActivateBrainstorm() {
   const user = useActiveAccountDisplay();
-  const pk = activeHasSession() ? user?.pubkey : undefined;
+  const pk = useHasSession() ? user?.pubkey : undefined;
   // Wait for /user/history to settle so we don't act before ta_pubkey is known.
   const history = useSelfHistory(pk);
   const fired = useRef(false);

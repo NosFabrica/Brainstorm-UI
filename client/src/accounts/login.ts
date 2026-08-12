@@ -78,6 +78,26 @@ export function localAccount(
 }
 
 /**
+ * The Backup follows the identity, not the row.
+ *
+ * `backedUp: true` carries across a replacement, and that flag is a promise: the
+ * nag never returns once it is set. But the Backup it refers to lives in the
+ * signer, so a row replaced by one holding only a device envelope keeps the
+ * promise and loses the thing — and the ordinary way there is re-pasting an nsec
+ * on a browser where the vault works, which mints no `ncryptsec` at all. Clear
+ * site data after that and the account is unrecoverable, while its owner still
+ * has the file and the password that opens it.
+ *
+ * Only fills a gap. A row that brought its own Backup keeps it: that one was
+ * minted under a password the user chose more recently.
+ */
+function carryBackup(from: BrainstormAccount, to: BrainstormAccount): void {
+  if (!(from instanceof LocalAccount) || !(to instanceof LocalAccount)) return;
+  if (to.signer.data.ncryptsec || !from.signer.data.ncryptsec) return;
+  to.signer.data.ncryptsec = from.signer.data.ncryptsec;
+}
+
+/**
  * Hold this Account, and make it the one that signs.
  *
  * One row per identity per Signer: signing in again with the same extension, or
@@ -93,6 +113,7 @@ export function adoptAccount(account: BrainstormAccount, metadata: AccountMetada
     if (held === account || held.pubkey !== account.pubkey || held.type !== account.type) continue;
     const { session, remembered, ...rest } = getMetadata(held as BrainstormAccount);
     carried = rest;
+    carryBackup(held as BrainstormAccount, account);
     forgetAccount(held as BrainstormAccount);
   }
 

@@ -11,7 +11,7 @@ import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
-import { activeHasSession } from "@/accounts/session";
+import { useHasSession } from "@/hooks/useHasSession";
 
 /**
  * The share page is a teaser, not a full client — so clicking a @mention or
@@ -44,7 +44,8 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
   const [pov] = useActivePerspective();
   const { hasMywot } = useHasMywot();
   const { isSearchObserver } = useIsSearchObserver();
-  const usePersonal = activeHasSession() && hasMywot && isSearchObserver && pov === "mywot";
+  const hasSession = useHasSession();
+  const usePersonal = hasSession && hasMywot && isSearchObserver && pov === "mywot";
 
   const targetPubkey = useMemo(() => {
     if (intent?.kind !== "profile") return null;

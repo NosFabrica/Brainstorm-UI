@@ -41,6 +41,11 @@ const NAMESPACES = {
   brainstorm_alerts_clear_dismissed: "device",
   brainstorm_personalization: "device",
   brainstorm_profile_prefs_draft: "device",
+  // Both are keyed by pubkey by hand rather than through `accountKey`, which is
+  // how they went unregistered — and unregistered means "let this account go for
+  // good" left its search history and its filter preset on the device.
+  brainstorm_recent_searches: "device",
+  brainstorm_trust_preset: "device",
   brainstorm_postsignup_dismissed: "device",
   brainstorm_invite_cta_dismissed: "device",
   brainstorm_activate_seen: "device",

@@ -1868,17 +1868,21 @@ export default function AdminPage() {
     }
   }, []);
 
+  // `user` is non-null on the first render for anyone signed in — it used to be
+  // set only after the admin check passed. The redirect below merely *schedules*
+  // a navigation, so gating on `user` alone fires every admin request for a
+  // non-admin and collects a handful of 403s on the way out.
   const grapeRankQuery = useQuery<GrapeRankApiResponse>({
     queryKey: ["/user/graperankResult"],
     queryFn: () => apiClient.getGrapeRankResult(),
-    enabled: !!user,
+    enabled: !!user?.isAdmin,
     staleTime: 30_000,
   });
 
   const adminStatsQuery = useQuery({
     queryKey: ["/api/admin/stats"],
     queryFn: () => apiClient.getAdminStats(),
-    enabled: !!user,
+    enabled: !!user?.isAdmin,
     staleTime: 120_000,
     retry: false,
     refetchInterval: isBoostActive ? BOOST_INTERVAL_MS : POLL_STATS_MS,
@@ -1899,7 +1903,7 @@ export default function AdminPage() {
       page: userPage + 1,
       size: pageSize,
     }),
-    enabled: !!user,
+    enabled: !!user?.isAdmin,
     staleTime: 30_000,
     placeholderData: (prev) => prev,
     refetchInterval: activeTab === "users" ? (isBoostActive ? BOOST_INTERVAL_MS : POLL_USERS_MS) : false,
@@ -1909,7 +1913,7 @@ export default function AdminPage() {
   const schedulingPoliciesQuery = useQuery<SchedulingItem[]>({
     queryKey: ["/api/admin/scheduling"],
     queryFn: () => apiClient.getSchedulingPolicies(),
-    enabled: !!user,
+    enabled: !!user?.isAdmin,
     staleTime: 60_000,
   });
   const schedulingPolicies = schedulingPoliciesQuery.data ?? [];
@@ -1922,7 +1926,7 @@ export default function AdminPage() {
   const overviewUsersQuery = useQuery<AdminUsersPage>({
     queryKey: ["/api/admin/users/overview", daysFilter],
     queryFn: () => apiClient.getAdminUsers({ days: daysFilter, page: 1, size: 100 }),
-    enabled: !!user,
+    enabled: !!user?.isAdmin,
     staleTime: 60_000,
     retry: 1,
     refetchInterval: isBoostActive ? BOOST_INTERVAL_MS : POLL_OVERVIEW_MS,
@@ -1933,7 +1937,7 @@ export default function AdminPage() {
     queryKey: ["/api/admin/activity/overview"],
     // Backend caps `size` at 100; requesting more 422s.
     queryFn: () => apiClient.getAdminActivity({ page: 1, size: 100 }),
-    enabled: !!user,
+    enabled: !!user?.isAdmin,
     staleTime: 60_000,
     retry: 1,
     refetchInterval: isBoostActive ? BOOST_INTERVAL_MS : POLL_OVERVIEW_MS,

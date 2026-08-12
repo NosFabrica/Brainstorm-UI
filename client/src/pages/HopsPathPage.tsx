@@ -15,7 +15,7 @@ import { Wordmark } from "@/components/Wordmark";
 import { ordinal } from "@/components/DegreeChip";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { TrustScoreModal, PovIcon, povChrome, useScorePov } from "@/components/score/TrustScorePov";
-import { activeHasSession } from "@/accounts/session";
+import { useHasSession } from "@/hooks/useHasSession";
 
 function shortNpub(npub: string): string {
   return `${npub.slice(0, 10)}…${npub.slice(-4)}`;
@@ -39,7 +39,7 @@ export default function HopsPathPage() {
   const handleLogout = () => logout();
   const fromPubkey = me?.pubkey || "";
   const toPubkey = decoded?.pubkey || "";
-  const signedIn = activeHasSession();
+  const signedIn = useHasSession();
   const calcDone = (() => {
     try {
       return localStorage.getItem("brainstorm_calc_completed") === "true";

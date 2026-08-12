@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Loader2, ArrowRight, X, ShieldCheck, Clock } from "lucide-react";
 import { useScoringStatus } from "@/hooks/useScoringStatus";
-import { activeHasSession } from "@/accounts/session";
 import { accountKey } from "@/lib/accountStorage";
+import { useHasSession } from "@/hooks/useHasSession";
 
 // Per-account. These were global strings, so with more than one account on a device
 // one account's calc/ready state leaked into another's UI.
@@ -25,6 +25,7 @@ const STALL_MS = 6 * 60_000;
  * persisted so the nudge survives navigation. Self-gates when logged out / idle.
  */
 export function ScoringStatusBar() {
+  const hasSession = useHasSession();
   const [location, navigate] = useLocation();
   const { isCalculating, isReady, status, elapsedMs, triggeredAt, pubkey } = useScoringStatus();
   const wasCalculating = useRef(false);
@@ -76,7 +77,7 @@ export function ScoringStatusBar() {
     if (!isCalculating && confirming) setConfirming(false);
   }, [isCalculating, confirming]);
 
-  if (!activeHasSession()) return null;
+  if (!hasSession) return null;
   // The dashboard already surfaces calculating/score state inline (and every
   // button here just routes back to it), so the floating bar would be redundant
   // there. It still shows on every other page until calc finishes or it's dismissed.

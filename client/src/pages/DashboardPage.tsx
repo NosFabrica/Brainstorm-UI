@@ -162,6 +162,15 @@ function nip85DismissedRecently(pubkey?: string): boolean {
   }
 }
 
+/** Whether this account has already been shown the invite card. */
+function readInviteCardSeen(pubkey?: string): boolean {
+  try {
+    return !!pubkey && localStorage.getItem(accountKey("brainstorm_invite_card_seen", pubkey)) === "true";
+  } catch {
+    return false;
+  }
+}
+
 export default function DashboardPage() {
   const [location, navigate] = useLocation();
   const { toast } = useToast();
@@ -185,9 +194,16 @@ export default function DashboardPage() {
   // "Your network is live — invite friends" card: shown once, the first time the
   // user's scores go ready (publishDone). Persisted per-account so it never nags.
   const [inviteShareOpen, setInviteShareOpen] = useState(false);
-  const [inviteCardSeen, setInviteCardSeen] = useState<boolean>(() => {
-    try { const pk = user?.pubkey; return !!pk && localStorage.getItem(accountKey("brainstorm_invite_card_seen", pk)) === "true"; } catch { return false; }
-  });
+  const [inviteCardSeen, setInviteCardSeen] = useState<boolean>(() => readInviteCardSeen(user?.pubkey));
+
+  // Lazy initialisers run once, and switching accounts in-app does not remount
+  // this page — so without re-reading them, B renders with A's per-account flags:
+  // B's consent card suppressed by A's dismissal, B's invite card already "seen".
+  useEffect(() => {
+    setNip85Activated(isNip85Activated(user?.pubkey));
+    setNip85Dismissed(nip85DismissedRecently(user?.pubkey));
+    setInviteCardSeen(readInviteCardSeen(user?.pubkey));
+  }, [user?.pubkey]);
   const markInviteCardSeen = () => {
     try { const pk = user?.pubkey; if (pk) localStorage.setItem(accountKey("brainstorm_invite_card_seen", pk), "true"); } catch { /* ignore */ }
     setInviteCardSeen(true);

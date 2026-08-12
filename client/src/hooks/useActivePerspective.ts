@@ -9,6 +9,13 @@ export type ActivePerspective = "nosfabrica" | "mywot";
 /** Anonymous browsing has no Account to hang a Perspective on, so it keeps this row. */
 /** Storage key and event name keep their v1 spelling — both are wire contracts. */
 const ANON_KEY = "brainstorm_active_pov:anon";
+/**
+ * Same tab only. For an anonymous visitor the `storage` event covers the rest,
+ * but a signed-in user's Perspective lives on the Account's *in-memory* metadata
+ * — nothing reloads the persisted blob on a storage event — so a toggle in one
+ * tab does not reach another until reload. Fixing that needs the cross-tab
+ * channel to carry the field; sketched in the tracker rather than bodged here.
+ */
 const EVENT_NAME = "brainstorm-pov-changed";
 
 function isPerspective(value: unknown): value is ActivePerspective {
@@ -58,6 +65,9 @@ export function useActivePerspective(): [ActivePerspective, (p: ActivePerspectiv
       const detail = (e as CustomEvent).detail as ActivePerspective | undefined;
       setPerspective(isPerspective(detail) ? detail : getActivePerspective());
     };
+    // Anonymous browsing only. A signed-in user's Perspective rides on the
+    // Account's in-memory metadata, so no storage event can reveal a change made
+    // in another tab — see the note above `EVENT_NAME`.
     const onStorage = (e: StorageEvent) => {
       if (e.key === ANON_KEY) setPerspective(getActivePerspective());
     };

@@ -72,7 +72,6 @@ import { FEATURES } from "@/config/featureFlags";
 import { SiGithub } from "react-icons/si";
 import type { NostrEvent } from "applesauce-core/helpers";
 import { logout, signNip85, signNip85Deactivation, publishToRelays, getNip85RelayUrl } from "@/services/nostr";
-import { isUnlockCancelled } from "@/accounts/local-signer";
 import { isNip85Activated, markNip85Activated, clearNip85Activated } from "@/lib/nip85Activation";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
@@ -334,8 +333,11 @@ export default function SettingsPage() {
       signedEvent = await signNip85(taPubkey, nip85Relay);
     } catch (err) {
       setRepublishState("idle");
-      if (!isUnlockCancelled(err))
-        toast({ title: "Signing cancelled", description: "The event was not signed.", duration: 3000 });
+      // Declining is silent, as everywhere else — `keyAccessMessage` returns null
+      // for it. What reaches here otherwise is a real failure, and calling that
+      // "cancelled" told the user they had done something they hadn't.
+      const message = keyAccessMessage(err);
+      if (message) toast({ variant: "destructive", title: "Couldn't sign", description: message, duration: 3000 });
       return;
     }
 
@@ -368,8 +370,11 @@ export default function SettingsPage() {
       signedEvent = await signNip85Deactivation();
     } catch (err) {
       setDeactivateState("idle");
-      if (!isUnlockCancelled(err))
-        toast({ title: "Signing cancelled", description: "The event was not signed.", duration: 3000 });
+      // Declining is silent, as everywhere else — `keyAccessMessage` returns null
+      // for it. What reaches here otherwise is a real failure, and calling that
+      // "cancelled" told the user they had done something they hadn't.
+      const message = keyAccessMessage(err);
+      if (message) toast({ variant: "destructive", title: "Couldn't sign", description: message, duration: 3000 });
       return;
     }
 

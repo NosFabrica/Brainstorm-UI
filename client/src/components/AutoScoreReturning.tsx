@@ -3,9 +3,9 @@ import { triggerScoringAndAnchor } from "@/services/nostr";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { knownFollowCount } from "@/lib/followStore";
 import { useSelfHistory } from "@/hooks/useSelf";
-import { activeHasSession } from "@/accounts/session";
 import { identityHas } from "@/accounts/display";
 import { accountKey } from "@/lib/accountStorage";
+import { useHasSession } from "@/hooks/useHasSession";
 
 /**
  * Returning users who ALREADY follow people but have never been scored (e.g. an
@@ -20,7 +20,7 @@ import { accountKey } from "@/lib/accountStorage";
  */
 export function AutoScoreReturning() {
   const user = useActiveAccountDisplay();
-  const pk = activeHasSession() ? user?.pubkey : undefined;
+  const pk = useHasSession() ? user?.pubkey : undefined;
   // Only decide once the /user/history query has actually settled, so we never
   // mistake "still loading" for "unscored".
   const history = useSelfHistory(pk);

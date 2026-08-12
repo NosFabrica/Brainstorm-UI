@@ -36,7 +36,12 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
   const [hasOtherProvider, setHasOtherProvider] = useState(false);
 
   useEffect(() => {
-    if (!open) { setHasOtherProvider(false); return; }
+    // Cleared on every run, not only on close. Now that the Account is a
+    // dependency, a switch re-runs the fetch — and leaving the previous answer
+    // standing would show B "this replaces your existing provider" for a provider
+    // that is A's.
+    setHasOtherProvider(false);
+    if (!open) return;
     let cancelled = false;
     (async () => {
       try {
@@ -49,7 +54,11 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
       } catch { /* best-effort — fall back to the generic disclaimer */ }
     })();
     return () => { cancelled = true; };
-  }, [open, serviceKey]);
+    // `user` is stream-backed and null for the first renders, so the effect bails
+    // early. Without it in the deps it never re-runs, `hasOtherProvider` stays
+    // false, and the "this replaces your existing provider" warning is skipped
+    // before overwriting kind-10040 — the one thing this check is here to catch.
+  }, [open, serviceKey, user?.pubkey]);
 
   const toggleSection = (key: string) => {
     setExpandedSection((prev) => (prev === key ? null : key));

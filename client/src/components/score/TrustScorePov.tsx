@@ -12,7 +12,7 @@ import { VerificationCoin } from "@/components/score/VerificationCoin";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { cn } from "@/lib/utils";
-import { activeHasSession } from "@/accounts/session";
+import { useHasSession } from "@/hooks/useHasSession";
 
 /**
  * The sitewide "whose view is this score?" system (team feedback):
@@ -33,7 +33,7 @@ export type ScorePov = "personalized" | "global";
 /** Effective POV for score display: personalized only when signed in AND the store says "mywot". */
 export function useScorePov(): { pov: ScorePov; loggedIn: boolean; setPersonalized: (on: boolean) => void } {
   const [activePov, setActivePerspective] = useActivePerspective();
-  const loggedIn = activeHasSession();
+  const loggedIn = useHasSession();
   const pov: ScorePov = loggedIn && activePov === "mywot" ? "personalized" : "global";
   return { pov, loggedIn, setPersonalized: (on) => setActivePerspective(on ? "mywot" : "nosfabrica") };
 }

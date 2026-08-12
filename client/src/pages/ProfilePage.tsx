@@ -100,7 +100,7 @@ import { useActivePerspective, type ActivePerspective } from "@/hooks/useActiveP
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { fetchContactList, getFollowedPubkeys, fetchMyReport, type MyReport } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
-import { activeHasSession } from "@/accounts/session";
+import { useHasSession } from "@/hooks/useHasSession";
 
 interface AdminHistoryItem {
   created_at: string;
@@ -937,6 +937,7 @@ export default function ProfilePage() {
   const npubParam = params?.npub || "";
 
   const user = useActiveAccountDisplay();
+  const hasSession = useHasSession();
 
   const [copied, setCopied] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -1039,11 +1040,17 @@ export default function ProfilePage() {
   // Members-only gate: /profile is the personalized (signed-in) surface. Logged-out
   // visitors are redirected to the PUBLIC share page (/p/:npub) — the join-funnel
   // view — no matter how they arrived (search, a shared link, a bookmark).
+  //
+  // "Logged out" means holding no Account, not holding no Session. An Account
+  // stays active with its Session cleared — a deferred re-auth, or a 401 that
+  // `handleUnauthorized` decided not to redirect over — and `RequireAuth` lets
+  // that in. Bouncing on the Session sent those users to a public page that
+  // carries no unlock prompt, and every attempt to come back bounced again.
   useEffect(() => {
-    if (npubParam && !activeHasSession()) {
+    if (npubParam && !user) {
       navigate(`/p/${npubParam}`, { replace: true });
     }
-  }, [npubParam, navigate]);
+  }, [npubParam, navigate, user]);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -1063,7 +1070,7 @@ export default function ProfilePage() {
   // wipe-and-redirect (Profile is a public page). Gate the pubkey on a real
   // session token — anon and stale-token visitors see the public overview
   // without their browsing being hijacked.
-  const selfMutualsPubkey = activeHasSession() ? user?.pubkey : undefined;
+  const selfMutualsPubkey = hasSession ? user?.pubkey : undefined;
   const selfFollowedByConn = useSelfConnections(selfMutualsPubkey, "followed_by", { enabled: !!selfMutualsPubkey });
   const selfFollowingConn = useSelfConnections(selfMutualsPubkey, "following", { enabled: !!selfMutualsPubkey });
   const selfFollowedByList = useMemo(() => flattenConnections(selfFollowedByConn.data?.pages), [selfFollowedByConn.data?.pages]);
@@ -2319,7 +2326,7 @@ export default function ProfilePage() {
                     <span className="text-slate-500 dark:text-slate-400 ml-1">Mutual</span>
                   </span>
                   {/* Degree (1st/2nd/3rd) — signed-in + scored viewers, not your own profile. */}
-                  {activeHasSession() && !isOwnProfile && user?.pubkey && hexPubkey &&
+                  {hasSession && !isOwnProfile && user?.pubkey && hexPubkey &&
                     localStorage.getItem("brainstorm_calc_completed") === "true" && (
                       <DegreeChip fromPubkey={user.pubkey} toPubkey={hexPubkey} rawId={npubParam} variant="bold" />
                     )}

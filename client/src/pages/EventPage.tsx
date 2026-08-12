@@ -25,7 +25,7 @@ import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { BrainLogo } from "@/components/BrainLogo";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
-import { activeHasSession } from "@/accounts/session";
+import { useHasSession } from "@/hooks/useHasSession";
 
 type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string };
 type EventPointer = { id: string; relays?: string[]; author?: string };
@@ -95,7 +95,7 @@ export default function EventPage() {
   const raw = (params?.id || "").replace(/^nostr:/, "");
   const ptr = useMemo(() => decodeEventId(raw), [raw]);
   const relayHints = ptr?.relays || [];
-  const loggedIn = activeHasSession();
+  const loggedIn = useHasSession();
   const fromSearch = new URLSearchParams(useSearch()).get("fromSearch") === "1";
   const [, navigate] = useLocation();
 

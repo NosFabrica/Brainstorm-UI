@@ -3,8 +3,8 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { getCurrentAssistantPubkey } from "@/lib/assistantStorage";
 import { ensureAssistantPublished } from "@/lib/assistantPublish";
 import { useSelfHistory } from "@/hooks/useSelf";
-import { activeHasSession } from "@/accounts/session";
 import { identityHas } from "@/accounts/display";
+import { useHasSession } from "@/hooks/useHasSession";
 
 /**
  * New (in-app-created) accounts get their Brainstorm Assistant published
@@ -23,7 +23,7 @@ import { identityHas } from "@/accounts/display";
  */
 export function AutoPublishAssistant() {
   const user = useActiveAccountDisplay();
-  const pk = activeHasSession() ? user?.pubkey : undefined;
+  const pk = useHasSession() ? user?.pubkey : undefined;
   // Wait for /user/history to settle so we don't act before ta_pubkey is known.
   const history = useSelfHistory(pk);
   const fired = useRef(false);

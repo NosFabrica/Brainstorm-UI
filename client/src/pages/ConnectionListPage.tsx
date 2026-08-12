@@ -15,7 +15,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { InfoHint } from "@/components/InfoHint";
 import { TrustScoreModal, useScorePov, PovToggle, type ScorePov } from "@/components/score/TrustScorePov";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
-import { activeHasSession } from "@/accounts/session";
+import { useHasSession } from "@/hooks/useHasSession";
 
 type ConnKind = "followed_by" | "following" | "muted_by" | "reported_by";
 
@@ -52,7 +52,7 @@ export default function ConnectionListPage() {
   // POV: honors the sitewide score-POV toggle. Personalized needs a signed-in
   // viewer with calculated scores; otherwise (or when the viewer chose Global)
   // the house perspective serves — `house: true` forces the unauthenticated view.
-  const signedIn = activeHasSession();
+  const signedIn = useHasSession();
   const calcDone = (() => { try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; } })();
   const { pov: scorePov } = useScorePov();
   const [scoreExplainOpen, setScoreExplainOpen] = useState(false);
