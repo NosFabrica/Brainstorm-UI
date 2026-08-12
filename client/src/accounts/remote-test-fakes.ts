@@ -34,6 +34,18 @@ export type FakeRemoteSigner = {
   failWith(method: string, error: string): void;
   /** Say nothing at all, as Amber does for an un-remembered request. */
   goSilent(): void;
+  /**
+   * Ignore just this method, as Amber does for ones it doesn't recognise —
+   * which is not the same as answering with an error, and is the case a caller's
+   * try/catch cannot see.
+   */
+  swallow(method: string): void;
+  /**
+   * Answer `switch_relays` with these, as Amber does — it replies with its own
+   * defaults and rewrites the stored connection. Unset, the method is refused
+   * with "Unrecognized method", which is nsec.app's behaviour.
+   */
+  wantsRelays(relays: string[]): void;
   /** Requests we've been sent, in order. */
   received: { method: string; params: string[] }[];
 };
@@ -67,6 +79,10 @@ export function createFakeRemoteSigner(): FakeRemoteSigner {
 
   const send = (client: string, payload: unknown) => sendAs(remoteKey, client, payload);
 
+  /** Set to make the signer ask us to move; unset, `switch_relays` is refused. */
+  let preferredRelays: string[] | null = null;
+  const swallowed = new Set<string>();
+
   /**
    * One event id is one request, however many relays carry it. The transport
    * publishes per relay so a dead one can't hold the request up, so the same
@@ -81,7 +97,7 @@ export function createFakeRemoteSigner(): FakeRemoteSigner {
     }
     const request = JSON.parse(await remote.nip44.decrypt(event.pubkey, event.content));
     received.push({ method: request.method, params: request.params });
-    if (silent) return;
+    if (silent || swallowed.has(request.method)) return;
 
     const failure = failures.get(request.method);
     if (failure) {
@@ -111,6 +127,17 @@ export function createFakeRemoteSigner(): FakeRemoteSigner {
       }
       case "ping":
         await send(event.pubkey, { id: request.id, result: "pong" });
+        break;
+      case "switch_relays":
+        if (!preferredRelays) {
+          await send(event.pubkey, {
+            id: request.id,
+            result: "",
+            error: "Unsupported method",
+          });
+          break;
+        }
+        await send(event.pubkey, { id: request.id, result: preferredRelays });
         break;
       case "nip44_encrypt":
       case "nip44_decrypt":
@@ -160,6 +187,12 @@ export function createFakeRemoteSigner(): FakeRemoteSigner {
     },
     goSilent() {
       silent = true;
+    },
+    swallow(method) {
+      swallowed.add(method);
+    },
+    wantsRelays(relays) {
+      preferredRelays = relays;
     },
     received,
   };

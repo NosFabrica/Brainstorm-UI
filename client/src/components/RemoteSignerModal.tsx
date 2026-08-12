@@ -367,23 +367,6 @@ function WaitingState({
   const reachable = use$(() => relaysReachable$(relays), [key]);
   const ackRefused = use$(() => ackRefused$, [ackRefused$]);
 
-  // Above the other two: something did answer, and neither "waiting" nor "can't
-  // reach the relays" is true of it. Still a wait, not an end — the URI is public,
-  // so an observer can send one of these, and giving up on it would let anyone
-  // watching cancel the handshake. The real signer can still answer.
-  if (ackRefused) {
-    return (
-      <Alert variant="warning" data-testid="notice-ack-refused">
-        <AlertTriangle className="h-4 w-4" />
-        <AlertDescription>
-          Something answered without the code we sent, so we couldn't confirm it was your
-          signer — still waiting for one that can. If this is your signer, pair by pasting a{" "}
-          <span className="font-mono">bunker://</span> link from it instead.
-        </AlertDescription>
-      </Alert>
-    );
-  }
-
   if (reachable === false && waited > 3) {
     return (
       <Alert variant="warning" data-testid="notice-relays-unreachable">
@@ -393,6 +376,26 @@ function WaitingState({
           <Button variant="outline" size="sm" onClick={onRetry} data-testid="button-retry-pairing">
             Try again
           </Button>
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
+  // Above "waiting" but *below* the relays: something did answer, so "waiting" is
+  // misleading — but `ackRefused` only ever latches on, and one forged ack from
+  // any observer would otherwise pin this screen for the rest of the pairing and
+  // hide a relay failure the user could actually do something about.
+  //
+  // Still a wait, not an end. The URI is public, so giving up on one unsigned
+  // message would let anyone watching cancel the handshake.
+  if (ackRefused) {
+    return (
+      <Alert variant="warning" data-testid="notice-ack-refused">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertDescription>
+          Something answered without the code we sent, so we couldn't confirm it was your
+          signer — still waiting for one that can. If this is your signer, pair by pasting a{" "}
+          <span className="font-mono">bunker://</span> link from it instead.
         </AlertDescription>
       </Alert>
     );

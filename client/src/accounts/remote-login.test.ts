@@ -10,7 +10,12 @@ import {
   isPairingCancelled,
   remoteSignerMessage,
 } from "./remote-login";
-import { isRemoteSignerTimeout, NIP46_PERMISSIONS, PAIRING_TIMEOUT_MS } from "./remote-signer";
+import {
+  isRemoteSignerTimeout,
+  NIP46_PERMISSIONS,
+  PAIRING_TIMEOUT_MS,
+  REQUEST_TIMEOUT_MS,
+} from "./remote-signer";
 import { createFakeRemoteSigner } from "./remote-test-fakes";
 import { installRemoteTransport } from "./remote-transport";
 
@@ -43,6 +48,33 @@ describe("pairing with a nostrconnect:// URI", () => {
     expect(account.type).toBe("nostr-connect");
   });
 
+  // Our relay is the one place the choice is genuinely ours — it goes in the URI.
+  // Once the signer has answered, where it listens is its fact to state.
+  it("follows the signer off our relay when it asks to move", async () => {
+    const fake = createFakeRemoteSigner();
+    installRemoteTransport(fake.pool);
+    fake.wantsRelays(["wss://the-signer-moved-here"]);
+
+    const pairing = beginRemotePairing();
+    await flush();
+    await fake.pair(pairing.uri);
+
+    const account = await pairing.completed;
+    expect(account.signer.relays).toEqual(["wss://the-signer-moved-here"]);
+  });
+
+  it("keeps the pairing when the signer won't discuss relays", async () => {
+    const fake = createFakeRemoteSigner();
+    installRemoteTransport(fake.pool);
+
+    const pairing = beginRemotePairing();
+    await flush();
+    await fake.pair(pairing.uri);
+
+    const account = await pairing.completed;
+    expect(account.pubkey).toBe(fake.userPubkey);
+  });
+
   it("leaves an adopted connection alone when the screen that started it closes", async () => {
     // Closing the modal cancels the pairing, and cancelling aborts the signer.
     // A `nostrconnect://` pairing is already connected, so tearing it down isn't
@@ -61,7 +93,12 @@ describe("pairing with a nostrconnect:// URI", () => {
     pairing.cancel();
     await account.signEvent({ kind: 1, content: "", tags: [], created_at: 1 });
 
-    expect(fake.received.map((request) => request.method)).toEqual(["get_public_key", "sign_event"]);
+    // The point is the absence of `connect`, not the exact list: a re-pair after
+    // adoption is the failure this guards. `switch_relays` belongs to the
+    // pairing, and is asked once.
+    const asked = fake.received.map((request) => request.method);
+    expect(asked).toEqual(["switch_relays", "get_public_key", "sign_event"]);
+    expect(asked).not.toContain("connect");
   });
 
   it("tells a cancel apart from a signer that never answered", async () => {
@@ -119,6 +156,116 @@ describe("pairing with a pasted bunker:// URI", () => {
     fake.failWith("connect", "already connected");
 
     await expect(connectWithBunkerURI(fake.bunkerURI())).rejects.toThrow("already connected");
+  });
+});
+
+/**
+ * NIP-46's `switch_relays`: we ask where the signer wants to be reached and go
+ * there. Only the signer knows — Amber answers with its own defaults and rewrites
+ * its stored connection, and a pairing that stays pointed at relays the signer
+ * has moved off is simply dead with no error anywhere.
+ *
+ * Optional in practice, so refusing it must cost nothing: of the three signers
+ * researched only Amber implements it, and nsec.app and nsecbunker both answer
+ * "Unsupported method". Failing a login over an optional capability would break
+ * pairings that work today.
+ */
+describe("where the signer wants to be reached", () => {
+  it("moves to the relays the signer asks for", async () => {
+    const fake = createFakeRemoteSigner();
+    installRemoteTransport(fake.pool);
+    fake.wantsRelays(["wss://the-signer-moved-here"]);
+
+    const account = await connectWithBunkerURI(fake.bunkerURI({ relays: ["wss://theirs"] }));
+
+    expect(account.signer.relays).toEqual(["wss://the-signer-moved-here"]);
+  });
+
+  // Serialised live off the signer, so the move has to survive a reload — a
+  // pairing that reverts to the old relays on the next boot is no pairing.
+  it("remembers the move, so the next reload doesn't undo it", async () => {
+    const fake = createFakeRemoteSigner();
+    installRemoteTransport(fake.pool);
+    fake.wantsRelays(["wss://the-signer-moved-here"]);
+
+    const account = await connectWithBunkerURI(fake.bunkerURI({ relays: ["wss://theirs"] }));
+
+    expect(account.toJSON().signer.relays).toEqual(["wss://the-signer-moved-here"]);
+  });
+
+  /**
+   * `switchRelays` restarts the subscription — `close()` then `open()` — and
+   * `close()` clears `isConnected` while `open()` never restores it. The next
+   * call then goes through `requireConnection()` and re-sends the **single-use**
+   * bunker secret, which is the `invalid secret` failure ticket 27 exists to
+   * prevent. Amber is the one signer that implements `switch_relays`, so this
+   * would fire on exactly the signer the feature is for.
+   */
+  it("does not re-pair itself after moving", async () => {
+    const fake = createFakeRemoteSigner();
+    installRemoteTransport(fake.pool);
+    fake.wantsRelays(["wss://the-signer-moved-here"]);
+
+    await connectWithBunkerURI(fake.bunkerURI({ relays: ["wss://theirs"] }));
+
+    expect(fake.received.map((r) => r.method)).toEqual([
+      "connect",
+      "switch_relays",
+      "get_public_key",
+    ]);
+  });
+
+  it("stays where it is when the signer doesn't implement it", async () => {
+    const fake = createFakeRemoteSigner();
+    installRemoteTransport(fake.pool);
+
+    const account = await connectWithBunkerURI(fake.bunkerURI({ relays: ["wss://theirs"] }));
+
+    expect(account.signer.relays).toEqual(["wss://theirs"]);
+    expect(fake.received.map((r) => r.method)).toContain("switch_relays");
+  });
+
+  // The trap this ticket exists to avoid: an optional method that a signer
+  // refuses must not take the login down with it.
+  it("signs in anyway when the method is refused", async () => {
+    const fake = createFakeRemoteSigner();
+    installRemoteTransport(fake.pool);
+
+    const account = await connectWithBunkerURI(fake.bunkerURI());
+
+    expect(account.pubkey).toBe(fake.userPubkey);
+  });
+
+  it("signs in anyway when the signer answers with an error", async () => {
+    const fake = createFakeRemoteSigner();
+    installRemoteTransport(fake.pool);
+    fake.failWith("switch_relays", "");
+
+    const account = await connectWithBunkerURI(fake.bunkerURI());
+
+    expect(account.pubkey).toBe(fake.userPubkey);
+  });
+
+  /**
+   * Silence, not an error — Amber ignores methods it doesn't recognise rather
+   * than replying. `makeRequest`'s deferred only ever settles on a matching
+   * response, so without a deadline of our own nothing rejects, the `try/catch`
+   * never runs, and the login hangs with the pairing timer already cleared.
+   */
+  it("signs in anyway when the signer says nothing at all", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const fake = createFakeRemoteSigner();
+      installRemoteTransport(fake.pool);
+      fake.swallow("switch_relays");
+
+      const login = connectWithBunkerURI(fake.bunkerURI());
+      await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS + 100);
+
+      expect((await login).pubkey).toBe(fake.userPubkey);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

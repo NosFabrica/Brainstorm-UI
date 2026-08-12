@@ -122,6 +122,9 @@ export function beginRemotePairing(): RemotePairing {
     } finally {
       clearTimeout(timer);
     }
+    // Only now: `switchRelays` runs through `requireConnection`, and before the
+    // ack there is no connection to run through.
+    await followSignerRelays(signer);
     return new RemoteAccount(await signer.getPublicKey(), signer);
   })();
 
@@ -161,7 +164,34 @@ export async function connectWithBunkerURI(uri: string): Promise<RemoteAccount> 
   const { remote, relays, bunkerSecret } = NostrConnectSigner.parseBunkerURI(uri.trim());
   const signer = new RemoteSigner({ relays, remote, bunkerSecret });
   await signer.connect(bunkerSecret, NIP46_PERMISSIONS);
+  await followSignerRelays(signer);
   return new RemoteAccount(await signer.getPublicKey(), signer);
+}
+
+/**
+ * Ask where the signer wants to be reached, and go there.
+ *
+ * Only the signer knows. Amber answers with its own defaults and rewrites its
+ * stored connection to match, so a client that ignores this ends up talking to
+ * relays the signer has already moved off — dead, with no error anywhere, which
+ * is the same silent failure mode as a reset pairing.
+ *
+ * It costs us the relay we chose, and that is the trade being made deliberately:
+ * `advertisedRelays()` still names our own relay in the `nostrconnect://` URI,
+ * because that is the one place the choice is genuinely ours. Once a signer has
+ * answered, where it listens is its fact to state, not ours to insist on.
+ *
+ * **Never fatal.** Only Amber implements it; nsec.app and nsecbunker both answer
+ * "Unsupported method", and a signer can simply not reply. Failing a login over
+ * an optional capability would break every pairing that works today — so this
+ * swallows everything, and the pairing keeps the relays it already had.
+ */
+async function followSignerRelays(signer: RemoteSigner): Promise<void> {
+  try {
+    await signer.switchRelays();
+  } catch {
+    // Refused, unimplemented, or unanswered — all of them mean "stay put".
+  }
 }
 
 /**

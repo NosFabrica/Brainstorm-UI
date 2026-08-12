@@ -313,6 +313,28 @@ export class RemoteSigner extends NostrConnectSigner {
   }
 
   /**
+   * Ask where the signer wants to be reached — with the two guards the base
+   * implementation is missing.
+   *
+   * **A deadline**, like every other round trip here. A signer that ignores an
+   * unknown method rather than answering leaves `makeRequest`'s deferred pending
+   * forever, and a caller's `try/catch` cannot help because nothing ever rejects.
+   * Amber does exactly this for methods it doesn't recognise.
+   *
+   * **Still connected afterwards.** A successful switch restarts the
+   * subscription, and `close()` clears `isConnected` while `open()` never puts it
+   * back — so the next call would go through `requireConnection()` and re-send
+   * the single-use bunker secret, which is the `invalid secret` failure of
+   * ticket 27. Amber is the one signer that implements this, so it would fire on
+   * precisely the signer the feature exists for.
+   */
+  async switchRelays(): Promise<string[] | null> {
+    const result = await withTimeout(super.switchRelays(), REQUEST_TIMEOUT_MS);
+    this.isConnected = true;
+    return result;
+  }
+
+  /**
    * Every request, including the last one. The library closes the subscription
    * in a `finally` *after* awaiting the `logout` round trip — so against a signer
    * that has stopped answering it never gets there, and the connection we were
@@ -394,7 +416,12 @@ export class RemoteAccount<Metadata = AccountMetadata> extends NostrConnectAccou
     // its own and `signer-liveness` calls it unreachable — which is the honest
     // answer, and a far better one than a pairing error nobody can act on.
     signer.isConnected = true;
-    void signer.open();
+    // `open()` sets `listening` before it awaits, so a throw leaves the flag set
+    // and every later `open()` returns early — the exact mute signer this line
+    // exists to prevent, plus an unhandled rejection. Put it back.
+    signer.open().catch(() => {
+      signer.listening = false;
+    });
 
     return BaseAccount.loadCommonFields(new RemoteAccount<Metadata>(json.pubkey, signer), json);
   }
