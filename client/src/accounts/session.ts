@@ -5,11 +5,12 @@
  * inherit each other's token.
  */
 import type { NostrEvent } from "applesauce-core/helpers/event";
-import type { EventTemplate } from "applesauce-accounts";
+import type { AccountManager, BaseAccount, EventTemplate } from "applesauce-accounts";
+import { distinctUntilChanged, map, of, startWith, switchMap, type Observable } from "rxjs";
 
 import { extractAdminFlag } from "@/lib/jwt";
 import { withTabLock } from "./cross-tab";
-import { getMetadata, updateMetadata, type BrainstormAccount } from "./metadata";
+import { getMetadata, updateMetadata, type AccountMetadata, type BrainstormAccount } from "./metadata";
 import { activeAccount, canSignSilently } from "./signing";
 
 export const LOGIN_KIND = 22242;
@@ -78,6 +79,32 @@ export function hasSession(account: BrainstormAccount): boolean {
 export function activeHasSession(): boolean {
   const account = activeAccount();
   return !!account && hasSession(account);
+}
+
+/**
+ * The same question, as a stream.
+ *
+ * `activeHasSession()` is read during render, so a component only learns the
+ * answer changed when something else re-renders it. That is fine for a card that
+ * lives next to the change and fatal for a React Query `enabled` gate: minting a
+ * Session leaves those queries disabled, and `invalidateQueries` does not refetch
+ * a disabled query — so unlocking cleared the notice and left the page empty
+ * until a manual reload.
+ */
+export function activeHasSession$(
+  manager: AccountManager<AccountMetadata>,
+): Observable<boolean> {
+  return manager.active$.pipe(
+    switchMap((active) => {
+      if (!active) return of(false);
+      const account = active as unknown as BrainstormAccount;
+      return (active as BaseAccount<any, any, AccountMetadata>).metadata$.pipe(
+        startWith(null),
+        map(() => hasSession(account)),
+      );
+    }),
+    distinctUntilChanged(),
+  );
 }
 
 /** Per Account: the claim is minted with the token and dies with it. */

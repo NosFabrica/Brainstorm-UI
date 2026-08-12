@@ -1,4 +1,4 @@
-import { useState, useEffect, type FormEvent } from "react";
+import { useState, useEffect, useRef, type FormEvent } from "react";
 import { ImageUpload } from "@/components/ImageUpload";
 import { Loader2, Check, AlertCircle, Pencil, Link2, ChevronDown, Plus, X, UserRound, AtSign } from "lucide-react";
 import { publishProfile, fetchProfile, fetchProfileEvent } from "@/services/nostr";
@@ -33,6 +33,9 @@ const inputViewCls =
  */
 export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: ProfileEditFormProps) {
   const display = useActiveAccountDisplay();
+  /** Who the form is for right now, readable from a promise that resolved late. */
+  const pubkeyRef = useRef<string | undefined>(display?.pubkey);
+  pubkeyRef.current = display?.pubkey;
   const [name, setName] = useState("");
   const [about, setAbout] = useState("");
   const [picture, setPicture] = useState("");
@@ -106,10 +109,25 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
     setWebsite("");
     setLud16("");
     setIdentities([]);
+    // The merge base resets too — the half that doesn't show. Leave it and a
+    // switch publishes the previous Account's unmanaged content keys and non-`i`
+    // tags, because `baseLoaded` would still be true and skip the submit-time
+    // re-fetch.
+    setBaseLoaded(false);
+    setBaseContent({});
+    setBaseTags([]);
     if (display?.pubkey) {
-      fetchProfile(display.pubkey)
+      // Both fetches are for *this* Account. A switch does not cancel the ones
+      // already in flight, and a late answer would repopulate the base — setting
+      // `baseLoaded` so the submit-time re-fetch guard is skipped, and refilling
+      // the blanked fields, since `(v) => v || …` treats "" as a gap. Drop
+      // anything that comes back for an Account we have moved off.
+      const forPubkey = display.pubkey;
+      const stale = () => forPubkey !== pubkeyRef.current;
+
+      fetchProfile(forPubkey)
         .then((c) => {
-          if (!c) return;
+          if (!c || stale()) return;
           const x = c as Record<string, string | undefined>;
           setName((v) => v || x.display_name || x.name || "");
           setAbout((v) => v || x.about || "");
@@ -122,9 +140,9 @@ export function ProfileEditForm({ onSaved, submitLabel = "Save profile" }: Profi
         .catch(() => {});
       // Capture the raw kind-0 (content + tags) so save MERGES, and pre-fill the
       // linked-accounts editor from the existing NIP-39 `i` tags.
-      fetchProfileEvent(display.pubkey)
+      fetchProfileEvent(forPubkey)
         .then((ev) => {
-          if (!ev) return;
+          if (!ev || stale()) return;
           setBaseLoaded(true);
           setBaseTags(ev.tags || []);
           try { setBaseContent(JSON.parse(ev.content || "{}")); } catch { /* keep {} */ }

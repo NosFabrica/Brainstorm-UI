@@ -1,4 +1,5 @@
 import { fetchAlertPrefs, publishAlertPrefs } from "@/services/nostr";
+import type { PublishOutcome } from "@/accounts/signing";
 import { accountKey } from "@/lib/accountStorage";
 
 /**
@@ -101,9 +102,14 @@ function setSyncState(next: IgnoreSyncState) {
   for (const fn of syncListeners) { try { fn(next); } catch { /* a listener must not break the others */ } }
 }
 
-/** Errors that another attempt cannot fix — worth telling the user about. */
+/**
+ * Errors another attempt cannot fix — worth telling the user about.
+ *
+ * `publishAlertPrefs` can no longer return "No signer available"; a Signer that
+ * isn't there now comes back as `deferred`, handled on its own branch below.
+ */
 function isPermanentFailure(error?: string): boolean {
-  return error === "No signer available" || error === "Could not encrypt";
+  return error === "Could not encrypt";
 }
 
 const dirtyKey = (observer: string) => accountKey("brainstorm_alert_prefs_dirty", observer);
@@ -127,18 +133,31 @@ let retryTimer: ReturnType<typeof setTimeout> | null = null;
  * always ships the newest state instead of resurrecting whatever was pending
  * when the failure happened.
  */
-export function flushIgnoredToNostr(observer: string): Promise<IgnoreSyncState> {
+export function flushIgnoredToNostr(
+  observer: string,
+  { background = false }: { background?: boolean } = {},
+): Promise<IgnoreSyncState> {
   inFlight = (async () => {
-    const res = await publishAlertPrefs({ entries: load(observer) }).catch(() => ({
-      success: false as const,
-      error: "All relays failed",
-    }));
+    const res = await publishAlertPrefs({ entries: load(observer) }, undefined, {
+      background,
+    }).catch((): PublishOutcome => ({ success: false, error: "All relays failed" }));
     if (res.success) {
       setDirty(observer, false);
       setSyncState("ok");
       return "ok" as const;
     }
     if (res.error === "Not logged in") return syncState; // nothing to sync to
+    // Waiting on the user, not on the network — either the Account is Locked and
+    // nobody asked for this (`deferred`), or they were asked and said no
+    // (`cancelled`). A timer against either is a modal on a fifteen-second loop,
+    // which is what this used to do: a cancel carries no `error`, so it fell
+    // through to the transient branch and re-armed. The next mutation or app open
+    // is the retry, and that one the user will have initiated.
+    if (res.deferred || res.cancelled) {
+      setDirty(observer, true);
+      setSyncState("retrying");
+      return "retrying" as const;
+    }
     if (isPermanentFailure(res.error)) {
       setDirty(observer, true);
       setSyncState("local-only");
@@ -149,7 +168,9 @@ export function flushIgnoredToNostr(observer: string): Promise<IgnoreSyncState> 
     setDirty(observer, true);
     setSyncState("retrying");
     if (retryTimer) clearTimeout(retryTimer);
-    retryTimer = setTimeout(() => { void flushIgnoredToNostr(observer); }, 15_000);
+    // Carries the mode: a background flush that hit a relay blip must not come
+    // back fifteen seconds later as a password prompt.
+    retryTimer = setTimeout(() => { void flushIgnoredToNostr(observer, { background }); }, 15_000);
     return "retrying" as const;
   })();
   return inFlight;
@@ -289,7 +310,9 @@ export async function hydrateIgnoredFromNostr(observer: string): Promise<Map<str
   // still only on this device, and this runs on mount, so it's the natural place
   // to try again. Fire-and-forget — a stale local copy shouldn't delay the read
   // below, and a second failure just re-arms the flag.
-  if (isDirty(observer)) void flushIgnoredToNostr(observer);
+  // In background: this rides along with a page load, so a Locked Account waits
+  // for a later one rather than being shown a password prompt it never asked for.
+  if (isDirty(observer)) void flushIgnoredToNostr(observer, { background: true });
   const prefs = await fetchAlertPrefs();
   const remote = normalize(prefs);
   if (remote.length === 0) return new Map(local.map((e) => [e.pubkey, e.atReports]));

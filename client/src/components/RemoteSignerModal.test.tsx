@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { BehaviorSubject } from "rxjs";
@@ -14,7 +15,24 @@ const PAIRING_URI =
   `&url=${encodeURIComponent(appMetadata().url)}` +
   `&image=${encodeURIComponent(appMetadata().image)}`;
 
-const cancel = vi.fn();
+/**
+ * One `cancel` per pairing, not one shared spy. A shared one can only count
+ * calls, which cannot tell "the replaced pairing was retired" from "the live one
+ * was cancelled instead" — and those are opposite outcomes.
+ */
+const pairings: { cancel: ReturnType<typeof vi.fn> }[] = [];
+const beginRemotePairing = vi.fn(() => {
+  const made = {
+    uri: PAIRING_URI,
+    relays: ["wss://ours"],
+    ackRefused$,
+    completed,
+    cancel: vi.fn(),
+    keep: vi.fn(),
+  };
+  pairings.push(made);
+  return made;
+});
 const connectWithBunkerURI = vi.fn();
 const signInWithExternalSigner = vi.fn();
 let completed: Promise<unknown>;
@@ -24,13 +42,7 @@ const ackRefused$ = new BehaviorSubject(false);
 let mobile = false;
 
 vi.mock("@/accounts/remote-login", () => ({
-  beginRemotePairing: () => ({
-    uri: PAIRING_URI,
-    relays: ["wss://ours"],
-    ackRefused$,
-    completed,
-    cancel,
-  }),
+  beginRemotePairing: () => beginRemotePairing(),
   bunkerUriProblem: (input: string) => (input.trim() ? problem : "Paste the link."),
   connectWithBunkerURI: (uri: string) => connectWithBunkerURI(uri),
   isPairingCancelled: (error: unknown) => (error as { name?: string })?.name === "PairingCancelled",
@@ -48,6 +60,17 @@ function open(props: Record<string, unknown> = {}) {
   );
 }
 
+/** A parent that re-renders, handing the modal a fresh inline `onSignedIn`. */
+function Restless() {
+  const [, bump] = useState(0);
+  return (
+    <>
+      <button data-testid="bump" onClick={() => bump((n) => n + 1)} />
+      <RemoteSignerModal open onOpenChange={() => {}} onSignedIn={() => {}} />
+    </>
+  );
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   completed = new Promise(() => {});
@@ -55,7 +78,11 @@ beforeEach(() => {
   reachable$.next(true);
   ackRefused$.next(false);
   mobile = false;
+  pairings.length = 0;
 });
+
+/** How many pairings have been cancelled, across all of them. */
+const cancelCount = () => pairings.filter((p) => p.cancel.mock.calls.length > 0).length;
 
 /**
  * Research §4: Amber renders our `name` bold with the `url` beneath and the
@@ -96,6 +123,79 @@ describe("what the signer is about to be told about us", () => {
     expect(screen.getByTestId("text-remote-signer-origin")).toHaveTextContent(
       window.location.host,
     );
+  });
+});
+
+/**
+ * `LoginPage` passes `onSignedIn` as an inline arrow and re-renders on its own
+ * while the modal is open — the extension probe settles around 800ms, the
+ * key-health probe after it. A pairing keyed on that callback's identity is torn
+ * down and re-minted each time, with a new client keypair and a new QR.
+ *
+ * The failure is silent and total: the code the user scanned encodes a client
+ * pubkey we have stopped listening on, so their signer answers into the void and
+ * the screen blames them three minutes later.
+ */
+describe("a screen that re-renders under it", () => {
+  it("keeps the pairing, so the QR on screen is still the live one", () => {
+    renderWithProviders(<Restless />);
+    expect(beginRemotePairing).toHaveBeenCalledTimes(1);
+
+    fireEvent.click(screen.getByTestId("bump"));
+    fireEvent.click(screen.getByTestId("bump"));
+
+    expect(beginRemotePairing).toHaveBeenCalledTimes(1);
+    expect(cancelCount()).toBe(0);
+  });
+
+  // Each pairing owns a relay subscription, a three-minute timer and a
+  // `completed` handler. Leaving one running means a late answer from the signer
+  // the user gave up on can still sign them in.
+  it("retires the pairing it replaces when the user retries", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      renderWithProviders(<Restless />);
+      reachable$.next(false);
+      await vi.advanceTimersByTimeAsync(4000);
+      await waitFor(() => expect(screen.getByTestId("button-retry-pairing")).toBeInTheDocument());
+
+      fireEvent.click(screen.getByTestId("button-retry-pairing"));
+
+      // The one it replaced, and only that one.
+      expect(beginRemotePairing).toHaveBeenCalledTimes(2);
+      expect(pairings[0].cancel).toHaveBeenCalled();
+      expect(pairings[1].cancel).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("still cancels when the screen actually goes away", () => {
+    const { unmount } = renderWithProviders(<Restless />);
+    fireEvent.click(screen.getByTestId("bump"));
+
+    unmount();
+
+    expect(pairings[0].cancel).toHaveBeenCalled();
+  });
+
+  // Closing after a retry must retire the pairing that is actually live — the
+  // effect's own `started` is the one the retry already replaced.
+  it("cancels the pairing that is live, not the one it opened with", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    try {
+      const { unmount } = renderWithProviders(<Restless />);
+      reachable$.next(false);
+      await vi.advanceTimersByTimeAsync(4000);
+      fireEvent.click(await screen.findByTestId("button-retry-pairing"));
+      expect(pairings).toHaveLength(2);
+
+      unmount();
+
+      expect(pairings[1].cancel).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -146,7 +246,7 @@ describe("something answered without the code we sent", () => {
     ackRefused$.next(true);
     await waitFor(() => expect(screen.getByTestId("notice-ack-refused")).toBeInTheDocument());
 
-    expect(cancel).not.toHaveBeenCalled();
+    expect(cancelCount()).toBe(0);
     expect(screen.getByTestId("link-open-signer-app")).toBeInTheDocument();
   });
 });
@@ -173,7 +273,7 @@ describe("waiting", () => {
   it("cancels the pairing when the dialog goes away", () => {
     const { unmount } = open();
     unmount();
-    expect(cancel).toHaveBeenCalled();
+    expect(cancelCount()).toBeGreaterThan(0);
   });
 });
 

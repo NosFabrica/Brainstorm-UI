@@ -7,6 +7,7 @@ import { useSelfHistory } from "@/hooks/useSelf";
 import { fetchNewJoiners, acknowledgeJoiners, type NewJoiner } from "@/services/inviteAcceptance";
 import { activeHasSession } from "@/accounts/session";
 import { identityHas } from "@/accounts/display";
+import { useHasSession } from "@/hooks/useHasSession";
 
 const QUERY_KEY = "invite/new-joiners";
 
@@ -22,6 +23,7 @@ const DEMO_PUBKEY = "d0a1b2c3d4e5f60718293a4b5c6d7e8f90112233445566778899aabbccd
 
 export function useNewJoiners() {
   const user = useActiveAccountDisplay();
+  const hasSession = useHasSession();
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
 
@@ -34,8 +36,8 @@ export function useNewJoiners() {
   })();
   // Demo mode (QA-only, guarded by a localStorage key never set in prod) falls back
   // to a placeholder pubkey so the card renders in the auth-gated preview.
-  const pk = activeHasSession() ? user?.pubkey : demo ? DEMO_PUBKEY : undefined;
-  const history = useSelfHistory(activeHasSession() ? pk : undefined);
+  const pk = hasSession ? user?.pubkey : demo ? DEMO_PUBKEY : undefined;
+  const history = useSelfHistory(hasSession ? pk : undefined);
 
   const scored = !!(history.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey;
   let createdInApp = false;

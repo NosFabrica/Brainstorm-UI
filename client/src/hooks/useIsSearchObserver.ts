@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/services/api";
 import { activeHasSession } from "@/accounts/session";
+import { useHasSession } from "@/hooks/useHasSession";
 
 /**
  * Whether the logged-in user is allowed to run search from their own trust
@@ -13,15 +14,16 @@ import { activeHasSession } from "@/accounts/session";
  * which can 401-redirect public pages).
  */
 export function useIsSearchObserver(): { isSearchObserver: boolean; isLoading: boolean } {
+  const hasSession = useHasSession();
   const query = useQuery({
     queryKey: ["/user/isSearchObserver"],
     queryFn: () => apiClient.getIsSearchObserver(),
-    enabled: activeHasSession(),
+    enabled: hasSession,
     staleTime: 60_000,
   });
 
   return {
     isSearchObserver: query.data ?? false,
-    isLoading: activeHasSession() && query.isPending,
+    isLoading: hasSession && query.isPending,
   };
 }

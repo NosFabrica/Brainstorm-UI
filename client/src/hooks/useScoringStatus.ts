@@ -4,6 +4,7 @@ import { apiClient } from "@/services/api";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { activeHasSession } from "@/accounts/session";
 import { accountKey } from "@/lib/accountStorage";
+import { useHasSession } from "@/hooks/useHasSession";
 
 export type ScoringStatus = "idle" | "calculating" | "publishing" | "ready" | "failed";
 
@@ -27,7 +28,8 @@ export function useScoringStatus(): {
   pubkey?: string;
 } {
   const user = useActiveAccountDisplay();
-  const enabled = activeHasSession() && !!user?.pubkey;
+  const hasSession = useHasSession();
+  const enabled = hasSession && !!user?.pubkey;
 
   const q = useQuery({
     queryKey: ["/user/graperankResult"],

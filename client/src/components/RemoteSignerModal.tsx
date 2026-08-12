@@ -12,7 +12,7 @@
  * hasn't picked up their phone — so the first comes from the pool and the second
  * from a clock.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { use$ } from "applesauce-react/hooks";
 import {
@@ -83,26 +83,57 @@ export function RemoteSignerModal({ open, onOpenChange, onSignedIn }: RemoteSign
     [onSignedIn],
   );
 
+  /**
+   * Read through a ref, so `start` never changes identity.
+   *
+   * `finish` closes over `onSignedIn`, which callers pass as an inline arrow —
+   * `LoginPage` does. Depending on it made `start` new on every parent render,
+   * and the effect below tore down the live pairing and minted another: new
+   * client keypair, new URI, new QR. `LoginPage` re-renders on its own while this
+   * is open (the extension probe settles around 800ms, the key-health probe after
+   * it), so a user who had already scanned was answering a pairing we had stopped
+   * listening to — silently, until the deadline blamed their signer.
+   */
+  const finishRef = useRef(finish);
+  useEffect(() => {
+    finishRef.current = finish;
+  }, [finish]);
+
+  /** The pairing this component owns, so a restart can retire the one it replaces. */
+  const live = useRef<RemotePairing | null>(null);
+
   // One pairing per opening. Restarting mints a new client keypair, so the URI
-  // on screen is always the one the waiting signer is listening for.
+  // on screen is always the one the waiting signer is listening for — and the
+  // one it replaces is cancelled, or it keeps its subscription and its deadline
+  // and can still sign the user in after they visibly moved on.
   const start = useCallback(() => {
+    live.current?.cancel();
     setError(null);
     setWaited(0);
     const next = beginRemotePairing();
+    live.current = next;
     setPairing(next);
     next.completed.then(
-      (account) => void finish(account, next).catch((err) => setError(remoteSignerMessage(err))),
+      (account) =>
+        void finishRef.current(account, next).catch((err) => setError(remoteSignerMessage(err))),
       (err) => {
         if (!isPairingCancelled(err)) setError(remoteSignerMessage(err));
       },
     );
     return next;
-  }, [finish]);
+  }, []);
 
   useEffect(() => {
     if (!open) return;
-    const started = start();
-    return () => started.cancel();
+    start();
+    // Whatever is live *now*, not the one this effect opened with — a retry has
+    // since replaced it, and cancelling the already-retired one would leave the
+    // real pairing holding its subscription, its deadline and its `completed`
+    // handler, free to sign the user in after they closed the screen.
+    return () => {
+      live.current?.cancel();
+      live.current = null;
+    };
   }, [open, start]);
 
   // Elapsed, not a countdown: the deadline is ours and generous, and showing it
