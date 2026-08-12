@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { decodeShareId, npubFromPubkey, nostrUriFor, eventPath } from "@/lib/shareId";
+import { relativeTime } from "@/lib/relativeTime";
 import { copyToClipboard } from "@/lib/clipboard";
 import { fetchProfileForShare, fetchRecentByKinds, fetchLiveStreams, fetchEventsByIds, fetchAddressableEvents, fetchProfileMap, fetchExternalIdentities, fetchOutboxRelayList, fetchProfilePrefs, publishProfilePrefs, hasLocalSecretKey, PROFILE_RELAYS } from "@/services/nostr";
 import { parseIdentities } from "@/lib/externalIdentity";
@@ -411,22 +412,50 @@ export default function SharePage() {
   const profile = (profileQuery.data ?? {}) as ProfileContentLike;
   const displayName = profile.display_name || profile.name || (npub ? npub.slice(0, 12) + "…" : "Nostr profile");
 
-  // "On Nostr since [year]" — a truthful LOWER BOUND from the oldest event we
-  // already fetched (their old articles/events/notes). Only shown when that's
-  // genuinely old (>6 months), so it never mislabels a fresh fetch as recent.
-  const memberSinceYear = useMemo(() => {
-    const arrays = [notesQuery.data, photosQuery.data, articlesQuery.data, photoNotesQuery.data, videosQuery.data, musicQuery.data, statusQuery.data, eventsQuery.data, liveQuery.data];
-    let oldest = Infinity;
+  /**
+   * "Last posted <when>" — the newest thing they actually wrote.
+   *
+   * ## What this replaced, and why
+   *
+   * This slot used to say "On Nostr since <year>", derived from the OLDEST
+   * event in these same arrays. That looked like a tenure signal and was
+   * something else entirely: the arrays are recent pages (5 notes, 12 photos,
+   * 5 articles…), so the oldest of them measures how fast someone posts, not
+   * how long they've been here. **The more you post, the newer you looked.**
+   * Measured on ODELL 2026-08-07: the page printed 2025 while his oldest
+   * reachable note is 2021-11-19. Four years out, and biased against exactly
+   * the established accounts the line was meant to vouch for.
+   *
+   * Nostr has no join date. Paging back to a true first note is possible but
+   * costs ~24 extra round trips and is still only a lower bound on what relays
+   * kept, so the honest move was to stop claiming tenure at all and show the
+   * thing we can actually observe.
+   *
+   * ## Why these arrays and not all of them
+   *
+   * Authored posts only. Two of the sets the old code pooled are not the
+   * person posting:
+   *  - `statusQuery` (NIP-38 kind 30315) carries the now-playing line clients
+   *    publish automatically — it would report "posted 2 minutes ago" for an
+   *    account nobody has touched in a year.
+   *  - `liveQuery` events are authored by the streaming PLATFORM, not the
+   *    streamer (see `fetchLiveStreams`).
+   * Both fail in the direction that makes a dormant account look alive, which
+   * is the same class of error this whole change exists to remove.
+   */
+  const lastPostedAt = useMemo(() => {
+    const arrays = [notesQuery.data, photosQuery.data, articlesQuery.data, photoNotesQuery.data, videosQuery.data, musicQuery.data, eventsQuery.data];
+    let newest = 0;
+    const nowSec = Math.floor(Date.now() / 1000);
     for (const arr of arrays) for (const ev of (arr ?? []) as { created_at?: number }[]) {
       const c = ev?.created_at;
-      if (typeof c === "number" && c > 0 && c < oldest) oldest = c;
+      // Clamp to now: a relay clock running ahead would otherwise print a
+      // future post date, which reads as a bug rather than a stale clock.
+      if (typeof c === "number" && c > 0 && c <= nowSec && c > newest) newest = c;
     }
-    if (!Number.isFinite(oldest)) return null;
-    const nowSec = Math.floor(Date.now() / 1000);
-    if (oldest > nowSec - 60 * 60 * 24 * 182) return null; // < ~6 months old → not meaningful
-    return new Date(oldest * 1000).getFullYear();
+    return newest;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [notesQuery.data, photosQuery.data, articlesQuery.data, photoNotesQuery.data, videosQuery.data, musicQuery.data, statusQuery.data, eventsQuery.data, liveQuery.data]);
+  }, [notesQuery.data, photosQuery.data, articlesQuery.data, photoNotesQuery.data, videosQuery.data, musicQuery.data, eventsQuery.data]);
   const overview = overviewQuery.data as { influence?: number | null; counts?: Record<string, number> } | undefined;
   // The overview score is viewer-relative: house/network POV when logged out,
   // the viewer's own web-of-trust POV when logged in. That's the primary ring.
@@ -759,7 +788,7 @@ export default function SharePage() {
   if (!profile.about) emptyKeys.add("bio");
   if (topics.length === 0) emptyKeys.add("topics");
   if (topFollowers.length === 0) emptyKeys.add("followedBy");
-  if (!memberSinceYear && relayCount === 0) emptyKeys.add("tenure");
+  if (!lastPostedAt && relayCount === 0) emptyKeys.add("tenure");
   if (identities.length === 0) emptyKeys.add("identities");
   if (!status.general && !status.music) emptyKeys.add("status");
 
@@ -1048,10 +1077,10 @@ export default function SharePage() {
           )}
 
           {/* Tenure / presence — Google-knowledge-panel "at a glance" line. */}
-          {!isHidden("tenure") && (memberSinceYear || relayCount > 0) && (
+          {!isHidden("tenure") && (lastPostedAt > 0 || relayCount > 0) && (
             <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500" data-testid="share-tenure">
-              {memberSinceYear && <>On Nostr since {memberSinceYear}</>}
-              {memberSinceYear && relayCount > 0 && " · "}
+              {lastPostedAt > 0 && <>Last posted {relativeTime(lastPostedAt)}</>}
+              {lastPostedAt > 0 && relayCount > 0 && " · "}
               {relayCount > 0 && <>Active on {relayCount} relay{relayCount === 1 ? "" : "s"}</>}
             </p>
           )}
