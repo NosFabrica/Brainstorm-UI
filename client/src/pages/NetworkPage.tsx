@@ -1343,11 +1343,13 @@ export default function NetworkPage() {
                     data-testid="select-trust-filter-mobile"
                   >
                     <option value="all">All</option>
-                    <option value="high">Highly Trusted</option>
-                    <option value="medium">Trusted</option>
-                    <option value="neutral">Neutral</option>
-                    <option value="low">Low Trust</option>
-                    <option value="unverified">Unverified</option>
+                    {/* Labels from TIER_LABELS; the `value` keys are this page's
+                        own filter vocabulary and must not follow the rename. */}
+                    <option value="high">{TIER_LABELS.high}</option>
+                    <option value="medium">{TIER_LABELS.trusted}</option>
+                    <option value="neutral">{TIER_LABELS.neutral}</option>
+                    <option value="low">{TIER_LABELS.low}</option>
+                    <option value="unverified">{TIER_LABELS.unverified}</option>
                     {getGroupPubkeys("flagged").length > 0 && (
                       <option value="flagged">Flagged</option>
                     )}
