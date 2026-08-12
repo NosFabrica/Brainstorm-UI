@@ -467,7 +467,7 @@ export function NetworkAlertsModule({ observer, enabled, onEmptyChange }: {
     isNew: newSet.has(e.pubkey),
     following: e.hops <= 1,
     escalatedFrom: isEscalated(e.pubkey, e.verifiedReporterCount) ? ignoredBaseline(e.pubkey) : null,
-    onDeepDive: () => navigate(`/profile/${npubFromPubkey(e.pubkey)}`),
+    onDeepDive: () => navigate(`/p/${npubFromPubkey(e.pubkey)}`),
     onWhy: () => navigate(`/p/${npubFromPubkey(e.pubkey)}/reporters`),
     ...actionsFor(e.pubkey, nameFor(e.pubkey), e.verifiedReporterCount, {
       picture: profiles.get(e.pubkey)?.picture,

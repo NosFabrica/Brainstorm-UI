@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
-import { Switch, Route, Redirect, useLocation } from "wouter";
+import { Switch, Route, Redirect, useLocation, useParams } from "wouter";
 import { stopAllMedia } from "@/lib/audioPlayer";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -55,6 +55,7 @@ import { MobileTabBar } from "@/components/MobileTabBar";
 import { CommandPalette } from "@/components/CommandPalette";
 import { MobileSearchOverlay } from "@/components/MobileSearchOverlay";
 import { getCurrentUser, ensureUnlocked } from "@/services/nostr";
+import { isAdminPubkey } from "@/config/adminAccess";
 import type { ComponentType } from "react";
 
 /**
@@ -143,6 +144,36 @@ function RequireAuth({ component: Component }: { component: ComponentType }) {
   return <Component />;
 }
 
+/**
+ * `/profile/:npub` — the old analytics view, now admin-only.
+ *
+ * `/p/:id` is the profile page. This one survives as operator telemetry
+ * (audience quality, network position, GrapeRank parameters, reports in both
+ * directions) that no normal user asked for, and it is deliberately NOT the
+ * place a user lands when they click someone's name.
+ *
+ * ## Why the guard is here and not just on the links
+ *
+ * Eight call sites pointed at this route and four of them were user-facing;
+ * the Deep dive on the dashboard's Network Alerts was the one that surfaced
+ * it. Repointing links alone fixes today and nothing else — it can't catch a
+ * bookmark, a shared URL, or the ninth link someone adds next month. A rule at
+ * the route is one thing to keep true instead of an audit to repeat.
+ *
+ * The links were repointed as well, so a user never eats a redirect on the way
+ * to a page they wanted; this is the backstop, not the mechanism.
+ *
+ * `replace` for the same reason RequireAuth uses it: pushing would leave the
+ * deprecated URL in history, and Back would bounce you forward again.
+ */
+function ProfileRoute() {
+  const params = useParams<{ npub: string }>();
+  if (!isAdminPubkey(getCurrentUser()?.pubkey)) {
+    return <Redirect to={`/p/${params.npub}`} replace />;
+  }
+  return <ProfilePage />;
+}
+
 function Router() {
   return (
     <>
@@ -157,8 +188,8 @@ function Router() {
         <Route path="/reading">{() => <RequireAuth component={ReadingPage} />}</Route>
         <Route path="/insights">{() => <RequireAuth component={InsightsPage} />}</Route>
         <Route path="/search" component={SearchRedirect} />
-        {/* Advanced/analytics profile — members only; /p/:id is the public profile. */}
-        <Route path="/profile/:npub">{() => <RequireAuth component={ProfilePage} />}</Route>
+        {/* Deprecated for users — see ProfileRoute. /p/:id is THE profile page. */}
+        <Route path="/profile/:npub">{() => <RequireAuth component={ProfileRoute} />}</Route>
         <Route path="/p/:id/hops" component={HopsPathPage} />
         <Route path="/p/:id/:type" component={ConnectionListPage} />
         <Route path="/p/:id" component={SharePage} />
