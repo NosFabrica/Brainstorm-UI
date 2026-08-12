@@ -33,16 +33,25 @@ fi
 # OMITTED otherwise — the field is optional, which makes absence safe and a
 # wrong value actively harmful.
 #
-# CANONICAL_HOST is validated as a bare hostname before use. A typo that
-# produced a malformed URI would invalidate the whole document, so a value that
-# does not look like a hostname is dropped (with a warning) rather than emitted.
+# CANONICAL_HOSTS accepts a comma- or space-separated LIST, and emits one
+# Canonical line per host. This is required, not a convenience: a single
+# deployment serves more than one hostname (prod-values.yaml lists both
+# brainstorm.nosfabrica.com and brainstorm.world under domains.ui), and a
+# document naming only one of them is invalid on the other. RFC 9116 permits
+# repeated Canonical fields for exactly this case.
+#
+# Each host is validated as a bare hostname. A typo that produced a malformed
+# URI would invalidate the whole document, so a bad entry is dropped with a
+# warning rather than emitted.
 SECURITY_FILE="/usr/share/nginx/html/.well-known/security.txt"
-if [ -f "$SECURITY_FILE" ] && [ -n "${CANONICAL_HOST}" ]; then
-  if printf '%s' "${CANONICAL_HOST}" | grep -Eq '^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$'; then
-    printf 'Canonical: https://%s/.well-known/security.txt\n' "${CANONICAL_HOST}" >> "$SECURITY_FILE"
-  else
-    echo "[entrypoint] WARN: CANONICAL_HOST='${CANONICAL_HOST}' is not a bare hostname; omitting Canonical from security.txt" >&2
-  fi
+if [ -f "$SECURITY_FILE" ] && [ -n "${CANONICAL_HOSTS}" ]; then
+  for host in $(printf '%s' "${CANONICAL_HOSTS}" | tr ',' ' '); do
+    if printf '%s' "$host" | grep -Eq '^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$'; then
+      printf 'Canonical: https://%s/.well-known/security.txt\n' "$host" >> "$SECURITY_FILE"
+    else
+      echo "[entrypoint] WARN: CANONICAL_HOSTS entry '$host' is not a bare hostname; omitting it from security.txt" >&2
+    fi
+  done
 fi
 # -----------------------------------------------------------------------------
 
