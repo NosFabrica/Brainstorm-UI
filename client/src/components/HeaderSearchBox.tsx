@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type Keyboard
 import { useLocation } from "wouter";
 import { Search, Loader2, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { BrainLogo } from "@/components/BrainLogo";
+import { VerificationCoin } from "@/components/score/VerificationCoin";
 import { searchByText, isLikelyNpub, isHexPubkey, isNip05Handle, type SearchResult } from "@/lib/profileSearch";
 import { npubFromPubkey } from "@/lib/shareId";
 import { initialsFor } from "@/lib/profileDefaults";
@@ -220,14 +220,17 @@ export function HeaderSearchBox({
                   <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{nameOf(r)}</p>
                   {r.nip05 && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{r.nip05}</p>}
                 </div>
+                {/* Same coin as the results page, the profile hero and every
+                    people list. It also fixes a scale bug this pill had: it
+                    printed `wotRank` raw, which is 0..1, so a 93 would have read
+                    "0.93". The coin does the ×100 in one place. */}
                 {r.wotRank != null && (
-                  <span
-                    className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-brand-primary/15 dark:border-white/15 bg-brand-primary/10 dark:bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-brand-primary dark:text-slate-100"
-                    data-testid={`header-search-rank-${i}`}
-                  >
-                    <BrainLogo mono size={10} className="shrink-0" />
-                    {r.wotRank}
-                  </span>
+                  <VerificationCoin
+                    score01={r.wotRank}
+                    pov={effectivePov === "mywot" ? "personalized" : "global"}
+                    size={22}
+                    className="shrink-0"
+                  />
                 )}
               </button>
             ))}

@@ -25,6 +25,7 @@ import { SignInButton } from "@/components/SignInButton";
 import { AccountMenu } from "@/components/AccountMenu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { VerificationCoin } from "@/components/score/VerificationCoin";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getCurrentUser, fetchProfile, logout, type NostrUser } from "@/services/nostr";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -1196,12 +1197,27 @@ export default function Landing() {
                     data-testid={`result-profile-${idx}`}
                   >
                     <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4">
-                      <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2 shrink-0 border-slate-200/80 dark:border-slate-800/80">
-                        {result.picture ? <AvatarImage src={result.picture} alt={getDisplayLabel(result)} className="object-cover" /> : null}
-                        <AvatarFallback className="overflow-hidden">
-                          <DefaultAvatarImg />
-                        </AvatarFallback>
-                      </Avatar>
+                      {/* Avatar + score coin, the same pairing as the profile
+                          hero and every people-list row. This used to be a
+                          bespoke pill further down the card, which meant the one
+                          number the product is about looked different here than
+                          anywhere else. Team feedback, and they were right. */}
+                      <div className="relative shrink-0">
+                        <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2 border-slate-200/80 dark:border-slate-800/80">
+                          {result.picture ? <AvatarImage src={result.picture} alt={getDisplayLabel(result)} className="object-cover" /> : null}
+                          <AvatarFallback className="overflow-hidden">
+                            <DefaultAvatarImg />
+                          </AvatarFallback>
+                        </Avatar>
+                        {result.wotRank != null && (
+                          <VerificationCoin
+                            score01={result.wotRank}
+                            pov={effectivePov === "mywot" ? "personalized" : "global"}
+                            size={22}
+                            className="absolute -bottom-1 -right-1"
+                          />
+                        )}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors truncate" data-testid={`text-result-name-${idx}`}>
@@ -1240,12 +1256,8 @@ export default function Landing() {
                           </p>
                         )}
                         <div className="flex items-center gap-1.5 sm:gap-2 mt-2 flex-wrap">
-                          {result.wotRank != null && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand-primary/10 dark:bg-white/10 text-brand-primary dark:text-slate-100 border border-brand-primary/15 dark:border-white/15" data-testid={`badge-rank-${idx}`}>
-                              <BrainLogo mono size={10} className="shrink-0" />
-                              {result.wotRank}
-                            </span>
-                          )}
+                          {/* The rank pill that lived here is now the coin on the
+                              avatar above — one badge for the score, sitewide. */}
                           {result.wotFollowers != null && (
                             <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800/60" data-testid={`badge-followers-${idx}`}>
                               <Users className="h-2.5 w-2.5" />

@@ -3,6 +3,7 @@ import { useLocation } from "wouter";
 import { Search, X, Clock, ArrowUpRight } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { VerificationCoin } from "@/components/score/VerificationCoin";
 import { getRecentItems, recentKey, pushRecentQuery, pushRecentProfile, removeRecentItem, clearRecentSearches, type RecentItem } from "@/lib/recentSearches";
 import { searchByText, isLikelyNpub, isHexPubkey, isNip05Handle, type SearchResult } from "@/lib/profileSearch";
 import { useActivePov } from "@/hooks/useActivePov";
@@ -199,7 +200,6 @@ export function MobileSearchOverlay() {
             )}
             {results.map((r) => {
               const label = r.displayName || r.name || `${r.npub.slice(0, 12)}…`;
-              const score = typeof r.wotRank === "number" ? Math.round(r.wotRank * 100) : null;
               return (
                 <button
                   key={r.pubkey}
@@ -216,10 +216,16 @@ export function MobileSearchOverlay() {
                     <span className="block truncate text-sm font-semibold text-slate-800 dark:text-slate-200">{label}</span>
                     {r.nip05 && <span className="block truncate text-xs text-brand-primary dark:text-brand-link">{r.nip05.replace(/^_@/, "")}</span>}
                   </span>
-                  {score != null && (
-                    <span className="shrink-0 rounded-full bg-brand-primary/[0.08] px-2 py-0.5 font-mono text-[11px] font-bold tabular-nums text-brand-primary dark:text-brand-link" data-testid="mobile-search-result-score">
-                      {score}
-                    </span>
+                  {/* The same coin as the results page and the desktop
+                      dropdown — this was the third bespoke rendering of one
+                      number. */}
+                  {r.wotRank != null && (
+                    <VerificationCoin
+                      score01={r.wotRank}
+                      pov={pov === "mywot" ? "personalized" : "global"}
+                      size={22}
+                      className="shrink-0"
+                    />
                   )}
                 </button>
               );

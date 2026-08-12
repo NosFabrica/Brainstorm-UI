@@ -28,7 +28,9 @@ describe("tierForScore01", () => {
 });
 
 describe("VerificationCoin", () => {
-  it("renders the same fill in both views — POV is no longer on the coin", () => {
+  it("renders the same FILL in both views — hue is tier, never point of view", () => {
+    // The regression this guards: when hue meant POV, a 95 and a 12 were the
+    // same colour in global view, and a teammate read grey as "scores badly".
     const { unmount } = render(<VerificationCoin score01={0.9} pov="personalized" />);
     const personalized = coin().style.backgroundColor;
     unmount();
@@ -36,6 +38,40 @@ describe("VerificationCoin", () => {
     render(<VerificationCoin score01={0.9} pov="global" />);
     expect(coin().style.backgroundColor).toBe(personalized);
     expect(personalized).toBe(rgb(TRUST_TIER_COLORS.highlyTrusted));
+  });
+
+  it("distinguishes the two views by RING, so the score still says whose view it is", () => {
+    // The team's actual ask. Tier keeps the fill; POV gets its own channel.
+    const { unmount } = render(<VerificationCoin score01={0.9} pov="personalized" />);
+    const personalized = coin().className;
+    expect(coin().getAttribute("data-pov-ring")).toBe("personalized");
+    unmount();
+
+    render(<VerificationCoin score01={0.9} pov="global" />);
+    expect(coin().getAttribute("data-pov-ring")).toBe("global");
+    expect(coin().className).not.toBe(personalized);
+  });
+
+  it("separates the ring from the fill, so a purple ring survives a purple coin", () => {
+    // Aurora Purple is both brand-primary and the `high` tier fill. Without the
+    // surface-coloured inner step the personalized ring would be invisible on
+    // exactly the coins that matter most.
+    render(<VerificationCoin score01={0.95} pov="personalized" />);
+    const cls = coin().className;
+    expect(cls).toContain("#ffffff"); // the separator step
+    expect(cls).toContain("#7237ff"); // the ring itself
+  });
+
+  it("draws no ring when there is no number to attribute", () => {
+    render(<VerificationCoin score01={null} pov="personalized" />);
+    expect(coin().getAttribute("data-pov-ring")).toBe("none");
+  });
+
+  it("draws no ring where the surface already labels the view", () => {
+    // The compare-both rows in TrustScoreModal print "Personalized" / "Global"
+    // beside each coin; a ring there is just repetition.
+    render(<VerificationCoin score01={0.9} pov="personalized" ring={false} />);
+    expect(coin().getAttribute("data-pov-ring")).toBe("none");
   });
 
   it("still names the view for screen readers", () => {

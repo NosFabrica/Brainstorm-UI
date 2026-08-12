@@ -4,33 +4,27 @@ import type { ScorePov } from "@/components/score/TrustScorePov";
 /**
  * VerificationCoin — the sitewide, label-less Verification Score badge.
  *
- * A round number-coin. Its styling conveys two things, and deliberately not a
- * third:
- *   1. that it IS a verification score → the consistent coin shape + placement
- *   2. tier                            → the NUMBER always (0–100), reinforced
- *      by HUE, in every view
- *   3. NOT point of view — see below
+ * Two facts, two channels, deliberately not sharing one:
+ *   1. TIER  → the NUMBER (0–100), reinforced by the FILL hue
+ *   2. POINT OF VIEW → the RING around it
  *
- * ## Why POV is no longer on the coin
+ * ## Why they are separate channels
  *
- * It used to be: personalized coins were tier-coloured and global coins were a
- * flat grey. That put two different meanings on one channel — in personalized
- * view hue meant tier, in global view hue meant POV and tier was carried only
- * by the number. Switching views silently changed what colour was telling you.
+ * Originally hue carried both: personalized coins were tier-coloured, global
+ * coins were flat grey. In personalized view hue meant tier; in global view hue
+ * meant POV and tier was left to the number alone. Switching views silently
+ * changed what colour was telling you.
  *
- * The cost showed up as a real misread: a teammate reported that grey looked
- * like "this account scores badly", because in global view a 95 and a 12 were
- * the same colour. Grey also did double duty for "no score at all", so two
- * different greys sat next to each other in the same list.
+ * That produced a real misread — a teammate read grey as "this account scores
+ * badly", because in global view a 95 and a 12 were the same colour. Grey also
+ * did double duty for "no score at all", so two different greys sat side by side
+ * in one list.
  *
- * So hue is now tier, always. POV is stated ONCE PER SURFACE — by the toggle
- * or tag near the scores — rather than baked into every coin. That's the
- * honest split: tier is per-item data, POV is page state identical for every
- * coin on screen, and a 20px circle should not encode both.
- *
- * `pov` is still taken, and still reaches the accessible label ("…personalized
- * view"), so a screen-reader user gets what sighted users get from the
- * surface-level indicator. It simply has no visual effect.
+ * Hue therefore became tier-only. But the team then asked, correctly, for the
+ * score to say whose view it is — that is the whole product. So POV came back on
+ * its own channel instead of taking the fill's: tier is per-item data, POV is
+ * page state identical for every coin on screen, and each now has somewhere to
+ * live. `pov` also still reaches the accessible label, as it always did.
  *
  * ## Palette
  *
@@ -84,6 +78,34 @@ const TIER_FILL: Record<VerificationTier, string> = {
  */
 const DARK_TEXT_TIERS = new Set<VerificationTier>(["trusted", "low", "unverified"]);
 
+/**
+ * The point-of-view ring.
+ *
+ * Drawn as a two-step box-shadow rather than a plain `ring-*`, because a single
+ * ring in the brand purple would be INVISIBLE on a `high` coin — Aurora Purple
+ * is both `brand-primary` and the top tier's fill. The inner step is the page
+ * surface, so there is always a gap separating fill from ring whatever the tier
+ * underneath.
+ *
+ * It replaces the old `ring-2 ring-white` lift rather than stacking on it, so
+ * the coin grows by 2px, not 4 — this renders at 20–24px in lists and the
+ * budget is tight.
+ *
+ * Tailwind classes rather than an inline style, because the separator has to
+ * follow the page surface into dark mode and an inline `boxShadow` cannot carry
+ * a `dark:` variant.
+ */
+const POV_RING: Record<ScorePov, string> = {
+  // Aurora Purple (#7237ff) — "yours". Same hue as brand-primary and the `high`
+  // tier fill, which is exactly why the white/slate separator step exists.
+  personalized:
+    "shadow-[0_0_0_2px_#ffffff,0_0_0_4px_#7237ff] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_4px_#7237ff]",
+  // slate-300 / slate-600 — the neutral everyone's-view outline, lifted in dark
+  // mode so it doesn't vanish into the card.
+  global:
+    "shadow-[0_0_0_2px_#ffffff,0_0_0_4px_#cbd5e1] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_4px_#475569]",
+};
+
 export function VerificationCoin({
   score01,
   pov,
@@ -94,15 +116,18 @@ export function VerificationCoin({
 }: {
   /** Influence 0–1 (backend scale); rendered as 0–100. Null → unrated ("—"). */
   score01: number | null | undefined;
-  /**
-   * Whose view this number came from. Reaches the accessible label only — the
-   * coin looks identical either way, by design (see the note above).
-   */
+  /** Whose view this number came from — drives the ring, and the aria-label. */
   pov: ScorePov;
   size?: number;
   onClick?: () => void;
   className?: string;
-  /** Thin white ring to lift the coin off an avatar/background. */
+  /**
+   * Draw the point-of-view ring. On by default.
+   *
+   * Off only where the surrounding UI already states the perspective and a ring
+   * would repeat it — the compare-both rows inside `TrustScoreModal`, where each
+   * option is labelled "Personalized" / "Global" in text beside the coin.
+   */
   ring?: boolean;
 }) {
   const hasScore = typeof score01 === "number" && Number.isFinite(score01);
@@ -129,7 +154,7 @@ export function VerificationCoin({
       onClick={onClick}
       aria-label={label}
       title={label}
-      className={`inline-flex items-center justify-center rounded-full font-bold leading-none tabular-nums ${hasScore ? "shadow-sm" : "border-2 border-dashed border-slate-300 dark:border-slate-600"} ${ring && hasScore ? "ring-2 ring-white" : ""} ${onClick ? "transition-transform hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary" : ""} ${className}`}
+      className={`inline-flex items-center justify-center rounded-full font-bold leading-none tabular-nums ${hasScore ? "" : "border-2 border-dashed border-slate-300 dark:border-slate-600"} ${ring && hasScore ? POV_RING[pov] : ""} ${onClick ? "transition-transform hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary" : ""} ${className}`}
       style={{
         width: size,
         height: size,
@@ -141,6 +166,9 @@ export function VerificationCoin({
       data-testid="verification-coin"
       data-pov={pov}
       data-tier={hasScore ? tier : "unrated"}
+      // Whether the perspective ring is actually drawn — `pov` alone doesn't say,
+      // since an unrated coin and a `ring={false}` coin both suppress it.
+      data-pov-ring={ring && hasScore ? pov : "none"}
     >
       {hasScore ? pct : "—"}
     </Comp>
