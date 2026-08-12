@@ -91,7 +91,7 @@ export function PovMenuSection({ user, scope = "global" }: PovMenuSectionProps) 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <span className="text-[13px] font-medium text-slate-800 dark:text-slate-200 truncate">
-              {user?.displayName || "My WoT"}
+              {user?.displayName || "My network"}
             </span>
             {effective === "mywot" && <Check className="h-3 w-3 text-emerald-600" />}
             {!hasMywot && (

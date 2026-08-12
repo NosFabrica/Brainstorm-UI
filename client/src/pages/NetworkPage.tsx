@@ -1273,7 +1273,7 @@ export default function NetworkPage() {
                         Verified
                       </div>
                       <div className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
-                        Show only WoT-verified accounts
+                        Show only verified accounts
                       </div>
                     </div>
                   </div>

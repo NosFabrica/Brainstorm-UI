@@ -394,7 +394,7 @@ export default function SettingsPage() {
     if (result.success) {
       clearNip85Activated(currentUser.pubkey);
       setDeactivateState("success");
-      toast({ title: "Provider deactivated", description: "Brainstorm has been removed as your WoT service provider.", duration: 4000 });
+      toast({ title: "Provider deactivated", description: "Brainstorm no longer publishes your scores for other apps to use.", duration: 4000 });
       setTimeout(() => {
         setDeactivateState("idle");
         window.location.reload();
@@ -821,7 +821,7 @@ export default function SettingsPage() {
                         Deactivate Service Provider?
                       </AlertDialogTitle>
                       <AlertDialogDescription className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mt-2.5" data-testid="text-confirm-deactivate-desc">
-                        This will publish an event to Nostr relays removing Brainstorm as your WoT service provider. Compatible clients like Amethyst and Nostria will no longer use Brainstorm for your scores. Your data inside Brainstorm will not be affected.
+                        This tells other Nostr apps to stop using Brainstorm as the source of your scores. Apps like Amethyst and Nostria will no longer show them. Your data inside Brainstorm will not be affected.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter className="mt-5 gap-2 sm:gap-2">
@@ -859,7 +859,7 @@ export default function SettingsPage() {
             </div>
 
             <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="text-sp-inactive-desc">
-              No WoT service provider has been selected. Activate Brainstorm as your provider to publish scores across the Nostr ecosystem.
+              You haven't picked anywhere for your scores to come from. Turn Brainstorm on to share them with other Nostr apps.
             </p>
 
             {hasNoFollowing && (

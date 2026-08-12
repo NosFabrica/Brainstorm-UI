@@ -351,7 +351,7 @@ export default function HowSearchWorksPage() {
                 <ShieldCheck className="h-5 w-5 text-brand-deep" />
               </div>
               <h2 className="text-xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-                How a trust score moves
+                How a Verification Score moves
               </h2>
             </div>
             <p className="text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed mb-6 max-w-2xl">
