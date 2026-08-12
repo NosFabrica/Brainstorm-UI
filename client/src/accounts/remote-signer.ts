@@ -322,6 +322,12 @@ export class RemoteSigner extends NostrConnectSigner {
     return withTimeout(super.signEvent(template), REQUEST_TIMEOUT_MS);
   }
 
+  /**
+   * Nothing calls this today — the liveness probe that did was removed. Kept
+   * because the deadline is a property of the class, not of that one caller: any
+   * future `ping()` gets it without having to remember, which is the rule the
+   * rest of these overrides exist to hold.
+   */
   ping(): Promise<"pong"> {
     return withTimeout(super.ping(), REQUEST_TIMEOUT_MS);
   }
@@ -427,8 +433,8 @@ export class RemoteAccount<Metadata = AccountMetadata> extends NostrConnectAccou
     // answers — every one of them timing out at 30s.
     //
     // If the signer really has forgotten us, the request that follows fails on
-    // its own and `signer-liveness` calls it unreachable — which is the honest
-    // answer, and a far better one than a pairing error nobody can act on.
+    // its own — the honest answer, and a far better one than a pairing error
+    // nobody can act on.
     signer.isConnected = true;
     // `open()` sets `listening` before it awaits, so a throw leaves the flag set
     // and every later `open()` returns early — the exact mute signer this line

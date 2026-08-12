@@ -6,16 +6,8 @@ import type { BrainstormAccount } from "@/accounts/metadata";
 import { AccountCards } from "./AccountCards";
 
 const deferredAccount = vi.fn<() => BrainstormAccount | null>();
-const signerUnreachable = vi.fn<() => BrainstormAccount | null>();
 
 vi.mock("@/hooks/useDeferredSession", () => ({ useDeferredSession: () => deferredAccount() }));
-vi.mock("@/hooks/useSignerUnreachable", () => ({
-  useSignerUnreachable: () => signerUnreachable(),
-}));
-vi.mock("./SignerUnreachableCard", () => ({
-  SignerUnreachableCard: () =>
-    signerUnreachable() ? <div data-testid="card-signer-unreachable" /> : null,
-}));
 vi.mock("@/services/api", () => ({ resumeSession: vi.fn() }));
 vi.mock("./PostSignupCard", () => ({ PostSignupCard: () => <div data-testid="card-post-signup" /> }));
 vi.mock("./BackupReminder", () => ({ BackupReminder: () => <div data-testid="backup-reminder" /> }));
@@ -25,7 +17,6 @@ const account = { id: "acc-1", pubkey: "a".repeat(64) } as unknown as Brainstorm
 beforeEach(() => {
   vi.clearAllMocks();
   deferredAccount.mockReturnValue(null);
-  signerUnreachable.mockReturnValue(null);
 });
 
 describe("the account card strip", () => {
@@ -37,30 +28,6 @@ describe("the account card strip", () => {
     expect(screen.getByTestId("card-post-signup")).toBeInTheDocument();
     expect(screen.getByTestId("backup-reminder")).toBeInTheDocument();
     expect(screen.queryByTestId("card-unlock-session")).not.toBeInTheDocument();
-  });
-
-  // Blocking data right now, exactly like the unlock card, and for the same
-  // reason it goes first: the rest are about future risk.
-  it("gives the strip to an unreachable signer — nothing else can be done first", () => {
-    signerUnreachable.mockReturnValue(account);
-
-    renderWithProviders(<AccountCards />);
-
-    expect(screen.getByTestId("card-signer-unreachable")).toBeInTheDocument();
-    expect(screen.queryByTestId("backup-reminder")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("card-post-signup")).not.toBeInTheDocument();
-  });
-
-  // Both block signing, but one is ours to fix in a click and the other needs
-  // another device. Ask for the cheap one first.
-  it("asks for the unlock before the signer, when somehow both are true", () => {
-    deferredAccount.mockReturnValue(account);
-    signerUnreachable.mockReturnValue(account);
-
-    renderWithProviders(<AccountCards />);
-
-    expect(screen.getByTestId("card-unlock-session")).toBeInTheDocument();
-    expect(screen.queryByTestId("card-signer-unreachable")).not.toBeInTheDocument();
   });
 
   // PLAN §10 fixes the priority as unlock → backup → post-signup. The lower two
