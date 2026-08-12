@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from "react";
 import { useActiveAccount } from "applesauce-react/hooks";
 
 import { accountManager } from "@/accounts";
-import { getMetadata, updateMetadata, type BrainstormAccount } from "@/accounts/metadata";
+import { getMetadata, updateMetadata, type AccountMetadata, type BrainstormAccount } from "@/accounts/metadata";
+import type { BaseAccount } from "applesauce-accounts";
 
 export type ActivePerspective = "nosfabrica" | "mywot";
 
@@ -10,11 +11,11 @@ export type ActivePerspective = "nosfabrica" | "mywot";
 /** Storage key and event name keep their v1 spelling — both are wire contracts. */
 const ANON_KEY = "brainstorm_active_pov:anon";
 /**
- * Same tab only. For an anonymous visitor the `storage` event covers the rest,
- * but a signed-in user's Perspective lives on the Account's *in-memory* metadata
- * — nothing reloads the persisted blob on a storage event — so a toggle in one
- * tab does not reach another until reload. Fixing that needs the cross-tab
- * channel to carry the field; sketched in the tracker rather than bodged here.
+ * Same tab only, and that is all it has to be. An anonymous visitor's Perspective
+ * is its own row, so the `storage` event carries it between tabs; a signed-in
+ * user's rides on the Account, and the cross-tab mirror carries that as
+ * `perspective-changed` — arriving here as a metadata write, which the
+ * subscription below is watching for.
  */
 const EVENT_NAME = "brainstorm-pov-changed";
 
@@ -65,17 +66,27 @@ export function useActivePerspective(): [ActivePerspective, (p: ActivePerspectiv
       const detail = (e as CustomEvent).detail as ActivePerspective | undefined;
       setPerspective(isPerspective(detail) ? detail : getActivePerspective());
     };
-    // Anonymous browsing only. A signed-in user's Perspective rides on the
-    // Account's in-memory metadata, so no storage event can reveal a change made
-    // in another tab — see the note above `EVENT_NAME`.
+    // Anonymous browsing only — that Perspective is its own row, so a storage
+    // event carries it. A signed-in user's rides on the Account.
     const onStorage = (e: StorageEvent) => {
       if (e.key === ANON_KEY) setPerspective(getActivePerspective());
     };
     window.addEventListener(EVENT_NAME, onCustom);
     window.addEventListener("storage", onStorage);
+
+    // And the Account's own metadata, which is what a change from another tab
+    // arrives as: the mirror applies it with `updateMetadata`, and that fires no
+    // `CustomEvent` — that one is same-tab only, dispatched by our own setter.
+    const watching = account
+      ? (account as BaseAccount<any, any, AccountMetadata>).metadata$.subscribe(() =>
+          setPerspective(getActivePerspective()),
+        )
+      : null;
+
     return () => {
       window.removeEventListener(EVENT_NAME, onCustom);
       window.removeEventListener("storage", onStorage);
+      watching?.unsubscribe();
     };
   }, [account?.id]);
 

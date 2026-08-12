@@ -19,7 +19,20 @@
  * own way, and `signerPresence` is deliberately left alone.
  */
 import type { AccountManager } from "applesauce-accounts";
-import { distinctUntilChanged, merge, of, startWith, Subject, switchMap, type Observable } from "rxjs";
+import {
+  distinctUntilChanged,
+  EMPTY,
+  filter,
+  fromEvent,
+  merge,
+  of,
+  startWith,
+  Subject,
+  exhaustMap,
+  switchMap,
+  throttleTime,
+  type Observable,
+} from "rxjs";
 
 import type { AccountMetadata, BrainstormAccount } from "./metadata";
 import { relaysReachable$ } from "./remote-transport";
@@ -35,6 +48,37 @@ const recheck$ = new Subject<void>();
 
 export function recheckSigner(): void {
   recheck$.next();
+}
+
+/**
+ * No more often than this on tab focus — flicking between tabs is not news.
+ *
+ * Comfortably longer than `REQUEST_TIMEOUT_MS`, which is what a ping waits before
+ * giving up. Equal would mean a revisit landing just as a probe was about to time
+ * out, and with `exhaustMap` below that revisit is dropped rather than restarting
+ * it — but leaving no daylight between the two is asking for the interleaving to
+ * matter.
+ */
+export const REVISIT_THROTTLE_MS = 90_000;
+
+/**
+ * The tab coming back to the foreground.
+ *
+ * The gap this closes: a signer that dies *during* a session — Amber's "Reset
+ * Bunker", or the app being killed — changes no Account and moves no relay, so
+ * none of the other triggers fire and the card never appears. The user finds out
+ * when a publish fails, which is the thing this module exists to prevent.
+ *
+ * A revisit is the cheapest honest signal. No timer runs while the tab is idle,
+ * and it fires exactly when someone is back and able to act on the answer. It
+ * does not cover a signer that dies while they sit watching the tab; a poll
+ * would, at the cost of a round trip per interval per user, forever.
+ */
+function tabRevisited$(): Observable<unknown> {
+  if (typeof document === "undefined") return EMPTY;
+  return fromEvent(document, "visibilitychange").pipe(
+    filter(() => document.visibilityState === "visible"),
+  );
 }
 
 function isRemote(account: BrainstormAccount | undefined): account is PingableAccount {
@@ -57,6 +101,7 @@ function isRemote(account: BrainstormAccount | undefined): account is PingableAc
 export function signerUnreachable$(
   manager: AccountManager<AccountMetadata>,
   reachable: (relays: string[]) => Observable<boolean> = relaysReachable$,
+  revisited: Observable<unknown> = tabRevisited$(),
 ): Observable<BrainstormAccount | null> {
   return manager.active$.pipe(
     switchMap((active) => {
@@ -75,6 +120,18 @@ export function signerUnreachable$(
         }
       };
 
+      // Throttled out here, not inside the reachability switch: in there the
+      // window belongs to the inner subscription, so every relay flap would
+      // resubscribe and reset it. Only this arm is throttled — "Check again" is a
+      // person asking, and making them wait out a window would look broken.
+      //
+      // `trailing` as well as `leading`, so a revisit that lands inside the window
+      // still probes when it closes. Dropping it outright is how a signer that
+      // died while the user was away goes unnoticed after they come back.
+      const throttledRevisits = revisited.pipe(
+        throttleTime(REVISIT_THROTTLE_MS, undefined, { leading: true, trailing: true }),
+      );
+
       // This Account's own relays, not the app's. A `bunker://` pairing listens
       // on whatever its URI named and nothing else, so asking about ours would
       // answer a different question: a healthy app relay would let us probe into
@@ -86,8 +143,13 @@ export function signerUnreachable$(
           // Not "unreachable" — unknown. Saying nothing is the honest answer, and
           // it also stops us probing into a socket that isn't there.
           if (!up) return of(null);
-          return merge(of(void 0), recheck$).pipe(
-            switchMap(probe),
+          // `exhaustMap`, not `switchMap`: a probe already in flight is the
+          // answer we are waiting for, and restarting it postpones the verdict.
+          // With a 30s ping deadline, a user flipping tabs could have kept
+          // cancelling the ping just before it expired and never been told their
+          // signer was dead — the one thing this module is for.
+          return merge(of(void 0), recheck$, throttledRevisits).pipe(
+            exhaustMap(probe),
             startWith(null as BrainstormAccount | null),
           );
         }),

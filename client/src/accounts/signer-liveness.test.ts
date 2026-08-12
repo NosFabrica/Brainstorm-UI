@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { BehaviorSubject } from "rxjs";
+import { BehaviorSubject, Subject } from "rxjs";
 
 import { recheckSigner, signerUnreachable$ } from "./signer-liveness";
 import type { BrainstormAccount } from "./metadata";
@@ -16,6 +16,8 @@ const ping = vi.fn(async () => "pong" as const);
 const askedAbout: string[][] = [];
 const active$ = new BehaviorSubject<unknown>(null);
 const reachable$ = new BehaviorSubject(true);
+/** Stands in for the tab coming back to the foreground. */
+const revisited$ = new Subject<void>();
 
 const manager = { active$ } as never;
 
@@ -37,10 +39,14 @@ function extensionAccount() {
 /** Collect what the stream says, in order. */
 function watch() {
   const seen: (BrainstormAccount | null)[] = [];
-  const sub = signerUnreachable$(manager, (relays) => {
-    askedAbout.push(relays);
-    return reachable$;
-  }).subscribe((a) => seen.push(a));
+  const sub = signerUnreachable$(
+    manager,
+    (relays) => {
+      askedAbout.push(relays);
+      return reachable$;
+    },
+    revisited$,
+  ).subscribe((a) => seen.push(a));
   return { seen, stop: () => sub.unsubscribe() };
 }
 
@@ -155,6 +161,104 @@ describe("a remote signer that has stopped answering", () => {
 
     expect(seen.at(-1)).toBeNull();
     stop();
+  });
+
+  /**
+   * The scenario this module exists for and could not see: Amber's "Reset Bunker"
+   * or "Delete application" with the tab open and the relays fine produces no
+   * account change and no reachability edge, so nothing probed and the card never
+   * came. Coming back to the tab is the cheapest honest trigger — no timer, and
+   * it fires exactly when the user is present to act on the answer.
+   */
+  it("looks again when the user comes back to the tab", async () => {
+    active$.next(remoteAccount());
+    const { seen, stop } = watch();
+    await settle();
+    expect(seen.at(-1)).toBeNull();
+
+    ping.mockRejectedValue(silence());
+    revisited$.next();
+    await settle();
+
+    expect(seen.at(-1)).not.toBeNull();
+    stop();
+  });
+
+  // Flicking between tabs is not news, and each probe is a real round trip to
+  // somebody's phone. Throttled at the consumer, so it holds however the stream
+  // is supplied — the source-side version passed only because the test injects
+  // its own.
+  it("does not re-probe on every flick between tabs", async () => {
+    vi.useFakeTimers();
+    try {
+      active$.next(remoteAccount());
+      const { stop } = watch();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(ping).toHaveBeenCalledTimes(1);
+
+      revisited$.next();
+      revisited$.next();
+      revisited$.next();
+      await vi.advanceTimersByTimeAsync(1);
+
+      expect(ping).toHaveBeenCalledTimes(2);
+      stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  // "Check again" is a person asking, and it is not subject to the tab-focus
+  // window — making them wait it out would read as a dead button.
+  it("never makes the user wait out the tab-focus window", async () => {
+    vi.useFakeTimers();
+    try {
+      active$.next(remoteAccount());
+      const { stop } = watch();
+      await vi.advanceTimersByTimeAsync(1);
+      ping.mockClear();
+
+      recheckSigner();
+      await vi.advanceTimersByTimeAsync(1);
+      recheckSigner();
+      await vi.advanceTimersByTimeAsync(1);
+
+      // twice, immediately — no 90s window between them
+      expect(ping).toHaveBeenCalledTimes(2);
+      stop();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  /**
+   * A probe already running *is* the answer being waited on. Restarting it
+   * postpones the verdict, and with the ping deadline close to the tab-focus
+   * window a user flipping back and forth could have deferred it forever —
+   * never being told the signer was dead, which is the whole point of this.
+   */
+  it("does not restart a probe that is already in flight", async () => {
+    vi.useFakeTimers();
+    let land!: () => void;
+    ping.mockImplementation(() => new Promise((resolve) => (land = () => resolve("pong"))));
+    try {
+      active$.next(remoteAccount());
+      const { stop } = watch();
+      await vi.advanceTimersByTimeAsync(1);
+      expect(ping).toHaveBeenCalledTimes(1);
+
+      revisited$.next();
+      recheckSigner();
+      await vi.advanceTimersByTimeAsync(1);
+
+      expect(ping).toHaveBeenCalledTimes(1);
+
+      land();
+      await vi.advanceTimersByTimeAsync(1);
+      stop();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("forgets the last answer when the account changes", async () => {

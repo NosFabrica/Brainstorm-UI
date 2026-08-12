@@ -1,6 +1,5 @@
 import { useQuery, useInfiniteQuery, keepPreviousData } from "@tanstack/react-query";
 import { apiClient } from "@/services/api";
-import { activeHasSession } from "@/accounts/session";
 import { useHasSession } from "@/hooks/useHasSession";
 
 type ConnectionKind =

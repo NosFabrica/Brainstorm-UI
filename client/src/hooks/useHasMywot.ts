@@ -1,6 +1,5 @@
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useSelfHistory } from "@/hooks/useSelf";
-import { activeHasSession } from "@/accounts/session";
 import { useHasSession } from "@/hooks/useHasSession";
 
 export function useHasMywot(): { hasMywot: boolean; taPubkey: string | null } {

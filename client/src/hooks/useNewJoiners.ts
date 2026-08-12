@@ -5,7 +5,6 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { followPubkeys } from "@/services/socialActions";
 import { useSelfHistory } from "@/hooks/useSelf";
 import { fetchNewJoiners, acknowledgeJoiners, type NewJoiner } from "@/services/inviteAcceptance";
-import { activeHasSession } from "@/accounts/session";
 import { identityHas } from "@/accounts/display";
 import { useHasSession } from "@/hooks/useHasSession";
 

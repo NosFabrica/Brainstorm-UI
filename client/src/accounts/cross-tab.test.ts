@@ -259,6 +259,48 @@ describe("mirroring a session", () => {
   });
 });
 
+/**
+ * Perspective rides on the Account's metadata, and `getActivePerspective()` reads
+ * the *in-memory* copy — nothing reloads the persisted blob on a `storage` event.
+ * So without carrying it here, a signed-in user's toggle never reaches their
+ * other tabs, while an anonymous visitor's does.
+ */
+describe("mirroring the perspective", () => {
+  it("follows a toggle made in the other tab", () => {
+    const tabs = twoTabs();
+    const { a, b } = tabs;
+    const held = sharedAccounts(a.manager, b.manager, ["alice"]);
+    tabs.settled();
+
+    updateMetadata(held.alice.a, { perspective: "mywot" });
+
+    expect(getMetadata(held.alice.b).perspective).toBe("mywot");
+  });
+
+  it("follows it back", () => {
+    const tabs = twoTabs();
+    const { a, b } = tabs;
+    const held = sharedAccounts(a.manager, b.manager, ["alice"]);
+    updateMetadata(held.alice.a, { perspective: "mywot" });
+    tabs.settled();
+
+    updateMetadata(held.alice.a, { perspective: "nosfabrica" });
+
+    expect(getMetadata(held.alice.b).perspective).toBe("nosfabrica");
+  });
+
+  it("says nothing for a metadata write that leaves it alone", () => {
+    const tabs = twoTabs();
+    const { bus, a, b } = tabs;
+    const held = sharedAccounts(a.manager, b.manager, ["alice"]);
+    tabs.settled();
+
+    updateMetadata(held.alice.a, { name: "Alice" });
+
+    expect(bus.sent).toEqual([]);
+  });
+});
+
 describe("stopping the mirror", () => {
   it("stops both listening and telling", () => {
     const tabs = twoTabs();

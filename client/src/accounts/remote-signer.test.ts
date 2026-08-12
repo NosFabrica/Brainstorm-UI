@@ -62,8 +62,11 @@ describe("what we ask a signer for", () => {
 });
 
 describe("relays", () => {
-  it("listens on the one nsec.app answers on, whatever we asked for", () => {
-    expect(subscribeRelays()).toContain(NSEC_APP_RELAY);
+  // Removed 2026-08-12: unreachable from a real deployment's network, where it
+  // became a permanent background reconnect loop. nsec.app can still be paired by
+  // pasting its `bunker://` link, which carries its own relays.
+  it("does not carry a relay only one signer needs", () => {
+    expect(subscribeRelays()).not.toContain(NSEC_APP_RELAY);
   });
 
   it("advertises only ours, so no other signer's traffic routes through it", () => {
@@ -107,7 +110,6 @@ describe("relays", () => {
     const signer = new RemoteSigner({ relays: subscribeRelays(), requireConnectSecret: true });
     const uri = parseNostrConnectURI(signer.nostrConnectURI());
 
-    expect(signer.relays).toContain(NSEC_APP_RELAY);
     expect(uri.relays).toEqual(advertisedRelays());
     expect(uri.relays).not.toContain(NSEC_APP_RELAY);
   });

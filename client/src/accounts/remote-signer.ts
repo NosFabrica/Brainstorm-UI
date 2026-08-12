@@ -103,9 +103,23 @@ function safeRelayURL(configured: string): string | null {
   }
 }
 
-/** Listen broadly. What we advertise stays narrow — see `nostrConnectURI`. */
+/**
+ * Where we listen for a signer: the relay we advertise, and nothing else.
+ *
+ * `NSEC_APP_RELAY` was in here so nsec.app could be paired by QR at all — it
+ * ignores our `relay=` and answers only on its own. Removed 2026-08-12: it is
+ * unreachable from at least one real deployment's network, where it produced a
+ * permanent background reconnect loop and, before the transport was fixed, took
+ * every signer down with it. Carrying a relay that fails for everyone to serve
+ * one signer is the wrong trade.
+ *
+ * What it costs: nsec.app can no longer be paired by `nostrconnect://`. It can
+ * still be paired by pasting a `bunker://` link, which brings its own relays —
+ * and `followSignerRelays` now moves us onto whatever a signer names, so that
+ * route needs nothing from this list.
+ */
 export function subscribeRelays(): string[] {
-  return [...advertisedRelays(), NSEC_APP_RELAY];
+  return advertisedRelays();
 }
 
 /**

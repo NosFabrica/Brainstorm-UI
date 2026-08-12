@@ -4,13 +4,21 @@
  * singleton, because that is what the non-hook accessors read.
  */
 import { afterEach, describe, expect, it } from "vitest";
+import { renderHook, act } from "@testing-library/react";
+import { AccountsProvider } from "applesauce-react/providers";
 import { BaseAccount } from "applesauce-accounts";
 import { PrivateKeySigner } from "applesauce-signers";
 import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
 
 import { accountManager } from "@/accounts";
 import type { AccountMetadata } from "@/accounts/metadata";
-import { getActivePerspective, hasStoredPerspective, setActivePerspective } from "./useActivePerspective";
+import { updateMetadata } from "@/accounts/metadata";
+import {
+  getActivePerspective,
+  hasStoredPerspective,
+  setActivePerspective,
+  useActivePerspective,
+} from "./useActivePerspective";
 
 class TestAccount extends BaseAccount<PrivateKeySigner, never, AccountMetadata> {
   static readonly type = "test-pov";
@@ -64,5 +72,29 @@ describe("the active perspective", () => {
 
     expect(localStorage.getItem("brainstorm_active_pov:anon")).toBe("mywot");
     expect(getActivePerspective()).toBe("mywot");
+  });
+});
+
+/**
+ * A change made in another tab arrives as a `updateMetadata` from the cross-tab
+ * mirror. It fires no `CustomEvent` — that one is dispatched by our own setter
+ * and never leaves the tab — so the hook has to be watching the Account itself,
+ * or the receiving tab holds the new value and shows the old one.
+ */
+describe("a perspective changed in another tab", () => {
+  it("reaches a component that is already rendered", () => {
+    const account = signIn();
+    const { result } = renderHook(() => useActivePerspective(), {
+      wrapper: ({ children }) => (
+        <AccountsProvider manager={accountManager}>{children}</AccountsProvider>
+      ),
+    });
+    expect(result.current[0]).toBe("nosfabrica");
+
+    act(() => {
+      updateMetadata(account as never, { perspective: "mywot" });
+    });
+
+    expect(result.current[0]).toBe("mywot");
   });
 });

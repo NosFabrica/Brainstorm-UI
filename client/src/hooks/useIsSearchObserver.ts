@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/services/api";
-import { activeHasSession } from "@/accounts/session";
 import { useHasSession } from "@/hooks/useHasSession";
 
 /**
@@ -9,7 +8,7 @@ import { useHasSession } from "@/hooks/useHasSession";
  *
  * Defaults to `false` (house / NosFabrica perspective) when logged out, while
  * loading, or on error — so personalized search is only ever enabled once the
- * backend explicitly confirms it. Gated on `activeHasSession()` so it never
+ * backend explicitly confirms it. Gated on `useHasSession()` so it never
  * fires for anonymous visitors (that path goes through `authenticatedFetch`,
  * which can 401-redirect public pages).
  */

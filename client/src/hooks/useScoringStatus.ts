@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiClient } from "@/services/api";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { activeHasSession } from "@/accounts/session";
 import { accountKey } from "@/lib/accountStorage";
 import { useHasSession } from "@/hooks/useHasSession";
 

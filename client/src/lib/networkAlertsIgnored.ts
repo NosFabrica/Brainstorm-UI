@@ -156,6 +156,11 @@ export function flushIgnoredToNostr(
     if (res.deferred || res.cancelled) {
       setDirty(observer, true);
       setSyncState("retrying");
+      // And disarm anything an earlier transient failure left armed: that timer
+      // would fire fifteen seconds later and put the prompt back in front of
+      // someone who has just declined it.
+      if (retryTimer) clearTimeout(retryTimer);
+      retryTimer = null;
       return "retrying" as const;
     }
     if (isPermanentFailure(res.error)) {

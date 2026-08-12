@@ -23,11 +23,13 @@ import type { Persistence } from "./persist";
 export const CHANNEL_NAME = "brainstorm_accounts";
 
 export type SessionRecord = NonNullable<AccountMetadata["session"]>;
+type Perspective = NonNullable<AccountMetadata["perspective"]>;
 
 export type CrossTabMessage =
   | { type: "active-changed"; accountId: string | null }
   | { type: "account-removed"; accountId: string }
-  | { type: "session-updated"; accountId: string; session: SessionRecord | null };
+  | { type: "session-updated"; accountId: string; session: SessionRecord | null }
+  | { type: "perspective-changed"; accountId: string; perspective: Perspective | null };
 
 export interface TabChannel {
   post(message: CrossTabMessage): void;
@@ -40,6 +42,7 @@ const MESSAGE_TYPES: CrossTabMessage["type"][] = [
   "active-changed",
   "account-removed",
   "session-updated",
+  "perspective-changed",
 ];
 
 function isCrossTabMessage(value: unknown): value is CrossTabMessage {
@@ -131,6 +134,7 @@ export function createMirror({
   let announcedActive = manager.active?.id ?? null;
   let known = new Set(manager.accounts.map((account) => account.id));
   const announcedSessions = new Map<string, string | undefined>();
+  const announcedPerspectives = new Map<string, Perspective | undefined>();
 
   const subscription = manager.active$.subscribe((active) => {
     const id = active?.id ?? null;
@@ -145,6 +149,7 @@ export function createMirror({
       for (const id of known) {
         if (ids.has(id)) continue;
         announcedSessions.delete(id);
+        announcedPerspectives.delete(id);
         post({ type: "account-removed", accountId: id });
       }
       known = ids;
@@ -167,12 +172,31 @@ export function createMirror({
         ),
       )
       .subscribe((account) => {
-        const session = getMetadata(account as BrainstormAccount).session;
-        const first = !announcedSessions.has(account.id);
-        const unchanged = announcedSessions.get(account.id) === session?.token;
+        const metadata = getMetadata(account as BrainstormAccount);
+
+        const session = metadata.session;
+        const firstSession = !announcedSessions.has(account.id);
+        const sameSession = announcedSessions.get(account.id) === session?.token;
         announcedSessions.set(account.id, session?.token);
-        if (first || unchanged) return;
-        post({ type: "session-updated", accountId: account.id, session: session ?? null });
+        if (!firstSession && !sameSession) {
+          post({ type: "session-updated", accountId: account.id, session: session ?? null });
+        }
+
+        // Perspective rides on the same metadata, and reading it goes to the
+        // in-memory copy — nothing reloads the blob on a `storage` event, so
+        // without this a signed-in user's toggle never leaves the tab it was made
+        // in, while an anonymous visitor's does.
+        const perspective = metadata.perspective;
+        const firstPerspective = !announcedPerspectives.has(account.id);
+        const samePerspective = announcedPerspectives.get(account.id) === perspective;
+        announcedPerspectives.set(account.id, perspective);
+        if (!firstPerspective && !samePerspective) {
+          post({
+            type: "perspective-changed",
+            accountId: account.id,
+            perspective: perspective ?? null,
+          });
+        }
       }),
   );
 
@@ -212,6 +236,13 @@ export function createMirror({
     if (wasActive) changes.next({ account: null, previous });
   }
 
+  function applyPerspective(accountId: string, perspective: Perspective | null): void {
+    const account = manager.getAccount(accountId) as BrainstormAccount | undefined;
+    if (!account) return;
+    if (getMetadata(account).perspective === (perspective ?? undefined)) return;
+    updateMetadata(account, { perspective: perspective ?? undefined });
+  }
+
   function applySession(accountId: string, session: SessionRecord | null): void {
     const account = manager.getAccount(accountId) as BrainstormAccount | undefined;
     if (!account) return;
@@ -231,6 +262,9 @@ export function createMirror({
           break;
         case "session-updated":
           applySession(message.accountId, message.session);
+          break;
+        case "perspective-changed":
+          applyPerspective(message.accountId, message.perspective);
           break;
       }
     } catch (err) {
