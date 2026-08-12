@@ -77,6 +77,27 @@ describe("the flush that runs on app load", () => {
     expect(publishAlertPrefs).not.toHaveBeenCalled();
   });
 
+  /**
+   * A signer that has gone quiet needs a person to open or re-pair it. On a timer
+   * that is an endless loop of NIP-46 requests, each waiting out its own 30s
+   * deadline — introduced the moment a silent signer stopped being reported as
+   * "No signer available" and started coming back as a plain error.
+   */
+  it("does not hammer a signer that has gone quiet", async () => {
+    vi.useFakeTimers();
+    publishAlertPrefs.mockResolvedValue({
+      success: false,
+      error: "Your signer didn't answer.",
+      signerUnreachable: true,
+    });
+
+    await lib.flushIgnoredToNostr(OBSERVER);
+    publishAlertPrefs.mockClear();
+    await vi.advanceTimersByTimeAsync(60_000);
+
+    expect(publishAlertPrefs).not.toHaveBeenCalled();
+  });
+
   // A relay failure is the case the retry was written for, and it stays.
   it("still retries a genuine relay failure", async () => {
     vi.useFakeTimers();

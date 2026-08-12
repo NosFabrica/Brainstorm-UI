@@ -147,13 +147,15 @@ export function flushIgnoredToNostr(
       return "ok" as const;
     }
     if (res.error === "Not logged in") return syncState; // nothing to sync to
-    // Waiting on the user, not on the network — either the Account is Locked and
-    // nobody asked for this (`deferred`), or they were asked and said no
-    // (`cancelled`). A timer against either is a modal on a fifteen-second loop,
+    // Waiting on the user, not on the network — the Account is Locked and nobody
+    // asked (`deferred`), they were asked and said no (`cancelled`), or their
+    // remote signer has gone quiet and needs opening or re-pairing
+    // (`signerUnreachable`, which on a timer would be an endless loop of NIP-46
+    // requests each waiting out a 30s deadline). A timer against either is a modal on a fifteen-second loop,
     // which is what this used to do: a cancel carries no `error`, so it fell
     // through to the transient branch and re-armed. The next mutation or app open
     // is the retry, and that one the user will have initiated.
-    if (res.deferred || res.cancelled) {
+    if (res.deferred || res.cancelled || res.signerUnreachable) {
       setDirty(observer, true);
       setSyncState("retrying");
       // And disarm anything an earlier transient failure left armed: that timer

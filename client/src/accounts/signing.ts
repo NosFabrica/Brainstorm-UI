@@ -37,6 +37,8 @@ export type PublishOutcome = {
   cancelled?: boolean;
   /** Nobody asked for this publish and the Account is Locked, so it waits for a later load. */
   deferred?: boolean;
+  /** The remote signer never answered — a person has to open or re-pair it. */
+  signerUnreachable?: boolean;
   relay?: string;
   accepted?: number;
   total?: number;
@@ -61,7 +63,12 @@ const SIGNER_SILENT =
 
 export function signingFailure(error: unknown, fallback = "Signing failed"): PublishOutcome {
   if (isUnlockCancelled(error)) return { success: false, cancelled: true };
-  if (isRemoteSignerTimeout(error)) return { success: false, error: SIGNER_SILENT };
+  // Flagged, not just worded: a signer that has gone quiet is waiting on a person
+  // to open or re-pair it, so a caller with a retry timer must stop rather than
+  // re-ask every few seconds — each attempt burning another 30s deadline.
+  if (isRemoteSignerTimeout(error)) {
+    return { success: false, error: SIGNER_SILENT, signerUnreachable: true };
+  }
   return { success: false, error: error instanceof Error ? error.message : fallback };
 }
 
