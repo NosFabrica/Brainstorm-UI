@@ -45,6 +45,20 @@ describe("what we ask a signer for", () => {
     expect(metadata.url).toBeTruthy();
     expect(metadata.image).toBeTruthy();
   });
+
+  // The connect screen shows the user what we are about to send, so they can
+  // check it against what their signer displays. That comparison is worthless if
+  // the two can drift, so this pins them to one source.
+  it("puts exactly what appMetadata() says into the URI", () => {
+    installRemoteTransport(createFakeRemoteSigner().pool);
+    const signer = new RemoteSigner({ relays: ["wss://fake.relay"], requireConnectSecret: true });
+    const encoded = new URL(signer.nostrConnectURI()).searchParams;
+    const metadata = appMetadata();
+
+    expect(encoded.get("name")).toBe(metadata.name);
+    expect(encoded.get("url")).toBe(metadata.url);
+    expect(encoded.get("image")).toBe(metadata.image);
+  });
 });
 
 describe("relays", () => {

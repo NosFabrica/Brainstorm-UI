@@ -29,6 +29,13 @@ import { pool } from "@/lib/relayPool";
  */
 export const PUBLISH_GRACE_MS = 2_000;
 
+const noop = () => {};
+
+/** `pool.publish` answers per relay; a single-relay call still returns a list. */
+function asArray<T>(value: T | T[]): T[] {
+  return Array.isArray(value) ? value : [value];
+}
+
 /** Point every remote signer, restored or new, at a pool. */
 export function installRemoteTransport(source: NostrPool = pool): void {
   NostrConnectSigner.pool = source;
@@ -50,22 +57,26 @@ export function installRemoteTransport(source: NostrPool = pool): void {
    * holding the conversation up.
    */
   NostrConnectSigner.publishMethod = (relays: string[], event: NostrEvent) => {
-    // Per relay, so one accepting is enough — a whole-set publish would only tell
-    // us once the slowest had finished, which is the problem itself. A relay that
-    // fails never resolves: it must not win the race and cut the others short.
-    const accepted = relays.map(
-      (relay) =>
-        new Promise<void>((resolve) => {
-          Promise.resolve(source.publish([relay], event)).then(
-            () => resolve(),
-            () => {},
-          );
-        }),
-    );
-    return Promise.race([
-      ...accepted,
-      new Promise<void>((resolve) => setTimeout(resolve, PUBLISH_GRACE_MS)),
-    ]);
+    let done!: () => void;
+    const settled = new Promise<void>((resolve) => (done = resolve));
+
+    // Per relay, so one accepting is enough — a whole-set publish only reports
+    // once the slowest has finished, which is the problem itself.
+    //
+    // `ok`, not "it resolved". A failed publish does not reject: `RelayGroup`
+    // wraps each relay in `errorToPublishResponse`, which catches the error and
+    // resolves `{ ok: false }`. So a relay that refuses in 50ms settles first and
+    // would release the request having accepted nothing at all.
+    for (const relay of relays) {
+      Promise.resolve(source.publish([relay], event)).then((responses) => {
+        if (asArray(responses).some((response) => response?.ok)) done();
+      }, noop);
+    }
+
+    // The backstop, so a request is never stuck behind the publish. Cleared on
+    // the way out — one stray timer per request is a slow leak on a long session.
+    const timer = setTimeout(done, PUBLISH_GRACE_MS);
+    return settled.finally(() => clearTimeout(timer));
   };
 }
 

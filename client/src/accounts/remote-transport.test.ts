@@ -18,21 +18,29 @@ function watch(pool: ReturnType<typeof fakePool>, relays: string[]) {
 }
 
 /**
- * A pool where each relay's publish settles when we say so.
+ * A pool that settles when we say so, and settles the way the real one does.
  *
- * The real failure this reproduces: a relay we cannot reach does not reject, it
- * hangs for its whole 30s `publishTimeout`.
+ * Two behaviours that matter here, both from `RelayGroup`: a relay we cannot
+ * reach hangs for its whole 30s `publishTimeout` rather than failing, and a
+ * relay that *does* fail never rejects — `errorToPublishResponse` (group.js:8)
+ * catches the error and resolves `{ ok: false }`. A fake that rejects would let
+ * a broken implementation pass.
  */
 const tick = () => new Promise((resolve) => setImmediate(resolve));
 
 function publishPool() {
-  const pending = new Map<string, { resolve: () => void; reject: (e: unknown) => void }>();
+  const pending = new Map<string, (ok: boolean) => void>();
   return {
     pending,
+    accept: (relay: string) => pending.get(relay)!(true),
+    /** As the real pool does it: resolved, not rejected. */
+    refuse: (relay: string) => pending.get(relay)!(false),
     status$: new BehaviorSubject({}),
     publish: (relays: string[]) =>
-      new Promise<void>((resolve, reject) => {
-        pending.set(relays[0], { resolve, reject });
+      new Promise((resolve) => {
+        pending.set(relays[0], (ok: boolean) =>
+          resolve([{ ok, from: relays[0], message: ok ? "" : "refused" }]),
+        );
       }),
   };
 }
@@ -58,13 +66,15 @@ describe("a request whose publish is waiting on a dead relay", () => {
     expect(settled).toBe(false);
 
     // ours accepts; the dead one is still hanging and always will be
-    pool.pending.get("wss://ours")!.resolve();
+    pool.accept("wss://ours");
     await tick();
 
     expect(settled).toBe(true);
     expect(pool.pending.has("wss://unreachable")).toBe(true);
   });
 
+  // The pool resolves a failed publish rather than rejecting it, so "it settled"
+  // is not "it was accepted" — only `ok` says that.
   it("does not let a relay that fails fast cut the others short", async () => {
     vi.useFakeTimers();
     const pool = publishPool();
@@ -74,12 +84,31 @@ describe("a request whose publish is waiting on a dead relay", () => {
     let settled = false;
     void Promise.resolve(sent).then(() => (settled = true));
 
-    pool.pending.get("wss://broken")!.reject(new Error("refused"));
+    pool.refuse("wss://broken");
     await vi.advanceTimersByTimeAsync(1);
     expect(settled).toBe(false);
 
     // the grace is the backstop, so a request is never stuck on the publish
     await vi.advanceTimersByTimeAsync(PUBLISH_GRACE_MS);
+    expect(settled).toBe(true);
+  });
+
+  it("still takes an acceptance that arrives after a refusal", async () => {
+    vi.useFakeTimers();
+    const pool = publishPool();
+    installRemoteTransport(pool as never);
+
+    const sent = NostrConnectSigner.publishMethod!(["wss://broken", "wss://slow"], {} as never);
+    let settled = false;
+    void Promise.resolve(sent).then(() => (settled = true));
+
+    pool.refuse("wss://broken");
+    await vi.advanceTimersByTimeAsync(1);
+
+    pool.accept("wss://slow");
+    await vi.advanceTimersByTimeAsync(1);
+
+    // released on the acceptance, not by waiting out the backstop
     expect(settled).toBe(true);
   });
 });

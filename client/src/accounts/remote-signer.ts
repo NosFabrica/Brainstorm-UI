@@ -39,6 +39,7 @@ import {
   createNostrConnectURI,
   type NostrConnectAppMetadata,
 } from "applesauce-signers/helpers/nostr-connect";
+import { BehaviorSubject } from "rxjs";
 
 import { env } from "@/lib/runtimeEnv";
 import type { AccountMetadata } from "./metadata";
@@ -220,15 +221,24 @@ export class RemoteSigner extends NostrConnectSigner {
   readonly requireConnectSecret: boolean;
 
   /**
-   * Set when we turned a pairing away for proving itself with a bare `"ack"`.
+   * Raised when we turn a pairing answer away for proving itself with a bare
+   * `"ack"`.
    *
    * It exists because the refusal is otherwise invisible: dropping the event
    * leaves `waitForSigner` pending, and three minutes later the deadline fires
    * and the screen says the signer never answered — which is a lie, and one that
    * cost a long debugging session on 2026-08-11 before the wire showed the reply
-   * sitting in the relay. A refusal must be able to say it refused.
+   * sitting in the relay.
+   *
+   * A stream rather than a flag because the screen has to hear it *as it
+   * happens*; a value only read at the deadline is three minutes too late to be
+   * of use to anyone.
    */
-  ackRefused = false;
+  readonly ackRefused$ = new BehaviorSubject(false);
+
+  get ackRefused(): boolean {
+    return this.ackRefused$.value;
+  }
 
   constructor(options: RemoteSignerOptions) {
     super({ onAuth: requestSignerApproval, ...options });
@@ -261,7 +271,7 @@ export class RemoteSigner extends NostrConnectSigner {
       // The secret is a nanoid, so it is never the literal "ack" — this drops
       // exactly the acknowledgement that proves nothing.
       if (response?.result === "ack") {
-        this.ackRefused = true;
+        this.ackRefused$.next(true);
         return;
       }
     }

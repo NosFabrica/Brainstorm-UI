@@ -2,10 +2,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { BehaviorSubject } from "rxjs";
 
+import { appMetadata } from "@/accounts/remote-signer";
 import { renderWithProviders } from "@/test/utils";
 import { RemoteSignerModal } from "./RemoteSignerModal";
 
-const PAIRING_URI = "nostrconnect://abc?secret=s&name=Brainstorm&relay=wss%3A%2F%2Fours";
+// Built from the real metadata, so a test comparing what we render against what
+// we send is comparing two things that can actually disagree.
+const PAIRING_URI =
+  "nostrconnect://abc?secret=s&relay=wss%3A%2F%2Fours" +
+  `&name=${encodeURIComponent(appMetadata().name)}` +
+  `&url=${encodeURIComponent(appMetadata().url)}` +
+  `&image=${encodeURIComponent(appMetadata().image)}`;
 
 const cancel = vi.fn();
 const connectWithBunkerURI = vi.fn();
@@ -13,12 +20,14 @@ const signInWithExternalSigner = vi.fn();
 let completed: Promise<unknown>;
 let problem: string | null = null;
 const reachable$ = new BehaviorSubject(true);
+const ackRefused$ = new BehaviorSubject(false);
 let mobile = false;
 
 vi.mock("@/accounts/remote-login", () => ({
   beginRemotePairing: () => ({
     uri: PAIRING_URI,
     relays: ["wss://ours"],
+    ackRefused$,
     completed,
     cancel,
   }),
@@ -44,7 +53,50 @@ beforeEach(() => {
   completed = new Promise(() => {});
   problem = null;
   reachable$.next(true);
+  ackRefused$.next(false);
   mobile = false;
+});
+
+/**
+ * Research §4: Amber renders our `name` bold with the `url` beneath and the
+ * `image` as an avatar, and nsec.app keeps only the `url` once approved. All of
+ * it is unauthenticated — "a display hint only". Showing the user the same three
+ * fields is what turns them into something checkable: a lookalike screen can say
+ * anything, but it can't match what this side already told you to expect.
+ */
+describe("what the signer is about to be told about us", () => {
+  it("shows the name, origin and icon we send", () => {
+    open();
+    const shown = screen.getByTestId("remote-signer-identity");
+
+    expect(shown).toHaveTextContent(appMetadata().name);
+    expect(shown).toHaveTextContent(new URL(appMetadata().url).host);
+    expect(screen.getByTestId("img-remote-signer-icon")).toHaveAttribute(
+      "src",
+      appMetadata().image,
+    );
+  });
+
+  // The whole point is that the user can compare the two screens, which is
+  // worthless the moment what we render and what we send can differ.
+  it("shows the origin the pairing URI actually carries", () => {
+    open();
+
+    const sent = new URL(screen.getByTestId("link-open-signer-app").getAttribute("href")!);
+    const origin = sent.searchParams.get("url")!;
+
+    expect(screen.getByTestId("text-remote-signer-origin")).toHaveTextContent(
+      new URL(origin).host,
+    );
+  });
+
+  it("names the origin it is really running on, not a hardcoded brand domain", () => {
+    open();
+
+    expect(screen.getByTestId("text-remote-signer-origin")).toHaveTextContent(
+      window.location.host,
+    );
+  });
 });
 
 describe("the three routes", () => {
@@ -71,6 +123,31 @@ describe("the three routes", () => {
     expect(screen.queryByTestId("remote-signer-qr")).not.toBeInTheDocument();
     fireEvent.click(screen.getByTestId("button-show-qr"));
     expect(screen.getByTestId("remote-signer-qr")).toBeInTheDocument();
+  });
+});
+
+describe("something answered without the code we sent", () => {
+  // NIP-46 makes validating the secret MUST-level on us, so the answer is
+  // refused. Refusing it silently is what we are fixing: the pairing used to sit
+  // there looking untouched until the three-minute deadline blamed the signer.
+  it("says so while it happens, not three minutes later", async () => {
+    open();
+    expect(screen.queryByTestId("notice-ack-refused")).not.toBeInTheDocument();
+
+    ackRefused$.next(true);
+
+    await waitFor(() => expect(screen.getByTestId("notice-ack-refused")).toBeInTheDocument());
+  });
+
+  // The URI is public, so anyone watching can send one. Ending the pairing on it
+  // would hand every observer a one-message denial of service.
+  it("keeps waiting, because the real signer can still answer", async () => {
+    open();
+    ackRefused$.next(true);
+    await waitFor(() => expect(screen.getByTestId("notice-ack-refused")).toBeInTheDocument());
+
+    expect(cancel).not.toHaveBeenCalled();
+    expect(screen.getByTestId("link-open-signer-app")).toBeInTheDocument();
   });
 });
 

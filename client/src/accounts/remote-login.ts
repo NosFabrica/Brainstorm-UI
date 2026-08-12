@@ -16,6 +16,7 @@
  * QR and on the clipboard — so `beginRemotePairing` serves all of them.
  */
 import { NostrConnectSigner } from "applesauce-signers";
+import type { Observable } from "rxjs";
 
 import {
   isRemoteSignerTimeout,
@@ -33,6 +34,13 @@ export type RemotePairing = {
   uri: string;
   /** The relays we're listening on, for the transport indicator. */
   relays: string[];
+  /**
+   * True once something answered this pairing with a bare `"ack"` and we turned
+   * it away. The screen says so immediately; the pairing deliberately stays open,
+   * because the URI is public and ending it on one unsigned message would let any
+   * observer cancel the handshake.
+   */
+  ackRefused$: Observable<boolean>;
   /** Resolves once the signer answers with the secret we minted. */
   completed: Promise<RemoteAccount>;
   /**
@@ -50,14 +58,19 @@ export type RemotePairing = {
 };
 
 /**
- * The signer answered, but only with `"ack"` — which proves nothing, since the
- * URI anyone can read is all it takes to send one. Distinct from silence, and
- * distinct from a cancel: this one has something to tell the user.
+ * Something answered, but only with `"ack"`, and the pairing then ran out of time.
+ *
+ * Deliberately not "your signer answered wrongly". Anyone who can read the URI
+ * can send an `"ack"` — it is on screen as a QR and it travels through relays —
+ * so the honest reading of this state is ambiguous: either the user's signer
+ * answered in a form we can't accept, or an observer answered and the real signer
+ * never did. Both end in the same place and have the same way out, so the copy
+ * covers both rather than picking one and being wrong half the time.
  */
 export class AckRefusedError extends Error {
   constructor() {
     super(
-      "Your signer answered without the code we sent, so we couldn't confirm it was really yours. Paste a bunker:// link from the signer instead.",
+      "Something answered without the code we sent, so we couldn't confirm it was your signer. Pair by pasting a bunker:// link from the signer instead.",
     );
     this.name = "AckRefusedError";
   }
@@ -120,6 +133,7 @@ export function beginRemotePairing(): RemotePairing {
   return {
     uri,
     relays,
+    ackRefused$: signer.ackRefused$,
     completed,
     keep() {
       kept = true;

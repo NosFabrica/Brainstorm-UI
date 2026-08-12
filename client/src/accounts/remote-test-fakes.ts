@@ -128,8 +128,12 @@ export function createFakeRemoteSigner(): FakeRemoteSigner {
   return {
     pool: {
       subscription: () => wire.asObservable(),
-      publish: async (_relays, event) => {
+      // Shaped like the real pool's: a `PublishResponse` per relay. The
+      // transport releases a request on `ok`, so a bare `undefined` here would
+      // make every call sit out the publish grace instead.
+      publish: async (relays, event) => {
         await handle(event);
+        return [{ ok: true, from: relays[0] ?? "wss://fake.relay", message: "" }];
       },
     },
     userPubkey,

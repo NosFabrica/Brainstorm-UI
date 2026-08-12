@@ -34,6 +34,8 @@ import {
   remoteSignerMessage,
   type RemotePairing,
 } from "@/accounts/remote-login";
+import { appMetadata } from "@/accounts/remote-signer";
+import type { Observable } from "rxjs";
 import { relaysReachable$ } from "@/accounts/remote-transport";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import { signInWithExternalSigner } from "@/services/nostr";
@@ -255,6 +257,8 @@ function ConnectPane({
 
   return (
     <div className="space-y-4">
+      <AppIdentity />
+
       {mobile ? (
         <>
           {openApp}
@@ -276,7 +280,69 @@ function ConnectPane({
         </Button>
       </div>
 
-      <WaitingState relays={pairing.relays} waited={waited} onRetry={onRetry} />
+      <WaitingState
+        relays={pairing.relays}
+        ackRefused$={pairing.ackRefused$}
+        waited={waited}
+        onRetry={onRetry}
+      />
+    </div>
+  );
+}
+
+/**
+ * What the signer is about to be told about us — read off `appMetadata()`, the
+ * same call that fills the URI, so the two cannot disagree.
+ *
+ * This is the handshake's only trust surface, and the signer treats it as
+ * "a display hint only" (NIP-46 §123) — unauthenticated, unvalidated. That is
+ * exactly why it belongs on *this* screen too: a lookalike signer can display
+ * whatever it likes, but it can't match what the user was already shown to
+ * expect. The origin carries the weight — nsec.app discards our name and icon on
+ * approval and identifies us by domain and favicon from then on.
+ */
+function AppIdentity() {
+  const metadata = appMetadata();
+  // The host, not the full URL: it is what the user is being asked to recognise,
+  // and a scheme and trailing slash only make it harder to compare at a glance.
+  // The library types `url` loosely, so fall back to whatever it gave us rather
+  // than rendering nothing where the one field that matters should be.
+  const url = metadata.url ? String(metadata.url) : "";
+  const host = (() => {
+    try {
+      return new URL(url).host;
+    } catch {
+      return url;
+    }
+  })();
+
+  return (
+    <div
+      className="flex items-center gap-3 rounded-xl border border-border bg-muted/40 p-3"
+      data-testid="remote-signer-identity"
+    >
+      <img
+        src={metadata.image}
+        alt=""
+        width={36}
+        height={36}
+        className="h-9 w-9 shrink-0 rounded-lg"
+        data-testid="img-remote-signer-icon"
+      />
+      <div className="min-w-0">
+        <p className="text-sm font-semibold leading-tight">{metadata.name}</p>
+        <p
+          className="truncate text-xs text-muted-foreground"
+          data-testid="text-remote-signer-origin"
+        >
+          {host}
+        </p>
+      </div>
+      <p className="ml-auto text-right text-[11px] leading-tight text-muted-foreground">
+        Your signer
+        <br />
+        should show this
+      </p>
     </div>
   );
 }
@@ -288,15 +354,35 @@ function ConnectPane({
  */
 function WaitingState({
   relays,
+  ackRefused$,
   waited,
   onRetry,
 }: {
   relays: string[];
+  ackRefused$: Observable<boolean>;
   waited: number;
   onRetry(): void;
 }) {
   const key = relays.join(",");
   const reachable = use$(() => relaysReachable$(relays), [key]);
+  const ackRefused = use$(() => ackRefused$, [ackRefused$]);
+
+  // Above the other two: something did answer, and neither "waiting" nor "can't
+  // reach the relays" is true of it. Still a wait, not an end — the URI is public,
+  // so an observer can send one of these, and giving up on it would let anyone
+  // watching cancel the handshake. The real signer can still answer.
+  if (ackRefused) {
+    return (
+      <Alert variant="warning" data-testid="notice-ack-refused">
+        <AlertTriangle className="h-4 w-4" />
+        <AlertDescription>
+          Something answered without the code we sent, so we couldn't confirm it was your
+          signer — still waiting for one that can. If this is your signer, pair by pasting a{" "}
+          <span className="font-mono">bunker://</span> link from it instead.
+        </AlertDescription>
+      </Alert>
+    );
+  }
 
   if (reachable === false && waited > 3) {
     return (
