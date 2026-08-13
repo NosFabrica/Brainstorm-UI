@@ -140,14 +140,27 @@ export function byTextResultToSearchResult(hit: Record<string, unknown>): Search
   //     per-trust-anchor key `rank_<taPubkey>` (e.g. `rank_be7bf5de...`), 0..100.
   // Capture both so the Profile page's dual-meter widget can render them, and
   // pick a single primary `wotRank` for the result card.
-  const wotRankNosfabrica: number | null =
-    num(hit._quality_score) ?? num(hit.quality_score);
+  //
+  // NORMALISED TO 0..1 on the way out, which is the scale `SearchResult`
+  // documents and the rest of the app speaks — `getHouseInfluence` returns 0..1,
+  // and `VerificationCoin` takes 0..1. Handing consumers the raw 0..100 is what
+  // made `MobileSearchOverlay` render a score of 9300 (it multiplied by 100 as
+  // the type told it to), and would clamp every coin to a flat 100.
+  //
+  // Verified against the live API: ODELL is `influence` 0.9337 on
+  // `/user/{pk}/overview` and `_quality_score` 93.0 here — one number, two
+  // scales, and this is where they are reconciled.
+  const to01 = (v: number | null): number | null => (v === null ? null : v / 100);
+
+  const wotRankNosfabrica: number | null = to01(
+    num(hit._quality_score) ?? num(hit.quality_score),
+  );
   let wotRankMywot: number | null = null;
   for (const key of Object.keys(hit)) {
     if (/^rank_[0-9a-f]+$/i.test(key)) {
       const v = num(hit[key]);
       if (v !== null) {
-        wotRankMywot = v;
+        wotRankMywot = to01(v);
         break;
       }
     }
@@ -171,7 +184,10 @@ export function byTextResultToSearchResult(hit: Record<string, unknown>): Search
     banner: str(hit.banner),
     createdAt: typeof hit.created_at === "number" ? hit.created_at : undefined,
     wotRank,
-    wotFollowers: null,
+    // Was hardcoded `null`, so the follower pill beside each result had never
+    // rendered — the endpoint does send it, as `_followers`. Count, not a
+    // ratio, so no 0..1 conversion here.
+    wotFollowers: num(hit._followers) ?? num(hit.followers) ?? null,
     wotRankNosfabrica,
     wotRankMywot,
   };

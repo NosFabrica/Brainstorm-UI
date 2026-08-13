@@ -12,7 +12,6 @@ import {
   HERO_KEYS,
   SECTION_LABELS,
   HERO_LABELS,
-  ROLES,
   type ProfilePrefs,
   type SectionKey,
 } from "@/config/personalization";
@@ -99,8 +98,6 @@ export function ProfileCustomizer({
   const isHidden = (k: string) => draft.hidden.includes(k);
   const setHidden = (k: string, hidden: boolean) =>
     onChange({ ...draft, hidden: hidden ? [...new Set([...draft.hidden, k])] : draft.hidden.filter((x) => x !== k) });
-  const toggleRole = (k: string) =>
-    onChange({ ...draft, roles: draft.roles.includes(k) ? draft.roles.filter((x) => x !== k) : [...draft.roles, k] });
 
   // Sections in current display order (draft order first, then defaults).
   const orderedSections = useMemo<SectionKey[]>(() => {
@@ -240,20 +237,12 @@ export function ProfileCustomizer({
             </div>
           </section>
 
-          {/* Roles */}
-          <section>
-            <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">What you do</p>
-            <div className="flex flex-wrap gap-1.5">
-              {ROLES.map((r) => {
-                const on = draft.roles.includes(r.key);
-                return (
-                  <button key={r.key} type="button" onClick={() => toggleRole(r.key)} className={`inline-flex items-center gap-1 rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${on ? "border-brand-accent/40 bg-brand-deep/5 text-brand-deep" : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700"}`} data-testid={`customize-role-${r.key}`}>
-                    {on && <Check className="h-3 w-3" />} {r.label}
-                  </button>
-                );
-              })}
-            </div>
-          </section>
+          {/* "What you do" used to live here. It was the placeholder for real
+              tags, and now that they ship it's gone: a self-declared label and
+              a network-attested one competing on the same profile just muddled
+              which was which. Add a tag from the profile instead.
+              `draft.roles` is still carried through save so existing users'
+              stored roles survive a customize-and-save round trip. */}
 
           {/* Featured followers */}
           <section>

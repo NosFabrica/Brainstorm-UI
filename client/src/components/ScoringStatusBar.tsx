@@ -176,8 +176,8 @@ export function ScoringStatusBar() {
             <Loader2 className="h-4 w-4 animate-spin text-brand-link shrink-0" />
             <span className="text-sm font-medium">
               {phase === "soft"
-                ? "Still building your Web of Trust — new accounts can take a few minutes."
-                : "Calculating your Web of Trust…"}
+                ? "Still building your network — new accounts can take a few minutes."
+                : "Calculating your network…"}
             </span>
             <button
               type="button"
@@ -199,7 +199,7 @@ export function ScoringStatusBar() {
             <Clock className="h-4 w-4 text-slate-500 dark:text-slate-400" />
           </span>
           <span className="text-[13px] text-slate-600 dark:text-slate-300 leading-snug max-w-[15rem]">
-            We'll keep building your Web of Trust in the background — check your dashboard later.
+            We'll keep building your network in the background — check your dashboard later.
           </span>
           <button
             type="button"
@@ -227,7 +227,7 @@ export function ScoringStatusBar() {
           <span className="h-6 w-6 rounded-full bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center shrink-0">
             <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
           </span>
-          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Your Web of Trust is ready</span>
+          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Your network is ready</span>
           <button
             type="button"
             onClick={() => { dismissReady(); navigate("/dashboard"); }}

@@ -131,7 +131,7 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
         <Users className="h-4 w-4 text-brand-link" />
         <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Follow a few accounts to begin</h3>
       </div>
-      <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">Your Web of Trust is built from who you follow. Pick at least one so we can calculate your scores.</p>
+      <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">Your network is built from who you follow. Pick at least one so we can calculate your scores.</p>
 
       <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
         {visiblePeople.map((p) => (

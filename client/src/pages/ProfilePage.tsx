@@ -100,6 +100,7 @@ import { useActivePov, type ActivePov } from "@/hooks/useActivePov";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { fetchContactList, getFollowedPubkeys, fetchMyReport, type MyReport } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
+import { TIER_LABELS } from "@/services/trustThreshold";
 
 interface AdminHistoryItem {
   created_at: string;
@@ -473,10 +474,10 @@ const SORT_OPTIONS: { value: SortMode; label: string }[] = [
 const FILTER_OPTIONS: { value: FilterMode; label: string; color: string }[] = [
   { value: "all", label: "All", color: "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300" },
   { value: "verified", label: "Verified", color: "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link" },
-  { value: "high", label: "Highly Trusted", color: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
-  { value: "trusted", label: "Trusted", color: "bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400" },
+  { value: "high", label: TIER_LABELS.high, color: "bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+  { value: "trusted", label: TIER_LABELS.trusted, color: "bg-sky-50 dark:bg-sky-500/10 text-sky-600 dark:text-sky-400" },
   { value: "neutral", label: "Neutral", color: "bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link" },
-  { value: "low", label: "Low Trust", color: "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400" },
+  { value: "low", label: TIER_LABELS.low, color: "bg-amber-50 dark:bg-amber-500/10 text-amber-600 dark:text-amber-400" },
   { value: "unverified", label: "Unverified", color: "bg-zinc-50 dark:bg-zinc-500/10 text-zinc-500 dark:text-zinc-400" },
 ];
 
@@ -1663,10 +1664,10 @@ export default function ProfilePage() {
   // No `min` here: the line moves with the preset, so a subject's bucket is
   // read off the backend `tier` rather than rederived from a number.
   const TIER_DISPLAY_CONFIG = [
-    { key: "high", name: "Highly Trusted", color: "#7237ff", bg: "bg-brand-primary/10 dark:bg-brand-primary/10", text: "text-brand-primary dark:text-brand-link", border: "border-brand-primary/20 dark:border-brand-primary/25", ring: "stroke-brand-primary" },
-    { key: "trusted", name: "Trusted", color: "#13d2e5", bg: "bg-cyan-50 dark:bg-cyan-500/10", text: "text-cyan-700 dark:text-cyan-300", border: "border-cyan-200 dark:border-cyan-500/25", ring: "stroke-cyan-500" },
+    { key: "high", name: TIER_LABELS.high, color: "#7237ff", bg: "bg-brand-primary/10 dark:bg-brand-primary/10", text: "text-brand-primary dark:text-brand-link", border: "border-brand-primary/20 dark:border-brand-primary/25", ring: "stroke-brand-primary" },
+    { key: "trusted", name: TIER_LABELS.trusted, color: "#13d2e5", bg: "bg-cyan-50 dark:bg-cyan-500/10", text: "text-cyan-700 dark:text-cyan-300", border: "border-cyan-200 dark:border-cyan-500/25", ring: "stroke-cyan-500" },
     { key: "neutral", name: "Neutral", color: "#665487", bg: "bg-[#665487]/10 dark:bg-[#665487]/20", text: "text-[#665487] dark:text-brand-link", border: "border-[#665487]/30 dark:border-[#665487]/50", ring: "stroke-[#665487]" },
-    { key: "low", name: "Low Trust", color: "#f59e0b", bg: "bg-amber-50 dark:bg-amber-500/10", text: "text-amber-700 dark:text-amber-300", border: "border-amber-200 dark:border-amber-500/25", ring: "stroke-amber-400" },
+    { key: "low", name: TIER_LABELS.low, color: "#f59e0b", bg: "bg-amber-50 dark:bg-amber-500/10", text: "text-amber-700 dark:text-amber-300", border: "border-amber-200 dark:border-amber-500/25", ring: "stroke-amber-400" },
     { key: "unverified", name: "Unverified", color: "#8c929e", bg: "bg-slate-100 dark:bg-slate-800", text: "text-slate-500 dark:text-slate-400", border: "border-slate-200 dark:border-slate-800", ring: "stroke-slate-400" },
   ];
 
@@ -1747,8 +1748,8 @@ export default function ProfilePage() {
     if (!serverStats) return null;
     const counts = grTierCountsToUI(serverStats.tier_counts);
     const tierDefs: { tier: string; label: string; color: string }[] = [
-      { tier: "high", label: "Highly Trusted", color: "text-emerald-600" },
-      { tier: "trusted", label: "Trusted", color: "text-sky-500" },
+      { tier: "high", label: TIER_LABELS.high, color: "text-emerald-600" },
+      { tier: "trusted", label: TIER_LABELS.trusted, color: "text-sky-500" },
       { tier: "neutral", label: "Neutral", color: "text-brand-link" },
       { tier: "low", label: "Low", color: "text-amber-500" },
       { tier: "unverified", label: "Unverified", color: "text-zinc-400" },
@@ -2204,7 +2205,7 @@ export default function ProfilePage() {
                       <div
                         className="flex flex-col items-center gap-0.5 bg-brand-primary/10 dark:bg-brand-primary/10 border border-brand-primary/20 dark:border-brand-primary/25 rounded-xl px-2 sm:px-3 py-1.5 sm:py-2 backdrop-blur-sm shrink-0"
                         data-testid="badge-trust-score-seed"
-                        aria-label="Brainstorm trust score loading"
+                        aria-label="Brainstorm Verification Score loading"
                       >
                         <div className="flex items-center gap-1">
                           <BrainLogo size={8} className="text-brand-link sm:hidden" />
@@ -2294,7 +2295,7 @@ export default function ProfilePage() {
                               variant="secondary"
                               className="text-[10px] font-bold tracking-wider uppercase bg-brand-accent/10 text-brand-deep border border-brand-accent/30 self-center"
                               data-testid="badge-brainstorm-assistant"
-                              title="This is your Brainstorm Assistant — a bot that publishes your trust scores to Nostr."
+                              title="This is your Brainstorm Assistant — a bot that publishes your scores to Nostr."
                             >
                               <span className="inline-block h-1.5 w-1.5 rounded-full bg-brand-accent mr-1" />
                               Brainstorm Assistant
@@ -2432,7 +2433,7 @@ export default function ProfilePage() {
                                 setMyReport(null); // optimistic: chip + menu flip instantly
                                 const result = await social.unreport(hexPubkey);
                                 if (result.success) {
-                                  toast({ title: "Report removed", description: "Trust scores may take a little while to reflect this." });
+                                  toast({ title: "Report removed", description: "Scores may take a little while to reflect this." });
                                 } else {
                                   setMyReport(snapshot); // rollback
                                   toast({ title: "Error", description: result.error || "Couldn't remove report", variant: "destructive" });
@@ -2454,7 +2455,7 @@ export default function ProfilePage() {
                           tone="amber"
                           icon={Flag}
                           className="text-[11px]"
-                          title="Your report is published. Undo it from the ⋯ menu. Trust scores may take a little while to reflect changes."
+                          title="Your report is published. Undo it from the ⋯ menu. Scores may take a little while to reflect changes."
                           data-testid="chip-you-reported"
                         >
                           You reported this{myReport.reportType ? ` (${myReport.reportType})` : ""}
@@ -2525,12 +2526,12 @@ export default function ProfilePage() {
                           which promises a single universal number. The card shows the
                           HOUSE score — Brainstorm's vantage point, the default before
                           a viewer's own web of trust applies. The old copy even
-                          contradicted itself by adding "trust scores are
+                          contradicted itself by adding "scores are
                           personalized" one sentence later. */}
                       <span className="text-xs sm:text-sm font-bold text-brand-primary dark:text-brand-link">This is how Brainstorm sees you</span>
                       <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
                         {houseInfluence01 != null
-                          ? "Your public trust card — the default view before someone's own web of trust applies. Everyone computes their own number for you, and to yourself you always score 100."
+                          ? "Your public score card — the default view before someone's own network applies. Everyone computes their own number for you, and to yourself you always score 100."
                           : "Your network is still being scored. The more trusted accounts that connect to you, the stronger your card — invite people so more trusted accounts vouch for you."}
                       </p>
                       {houseInfluence01 == null && (
@@ -2558,7 +2559,7 @@ export default function ProfilePage() {
                     <div className="min-w-0 flex-1 text-xs leading-relaxed">
                       <span className="text-xs sm:text-sm font-bold text-red-700 dark:text-red-300">Flagged by your network</span>
                       <p className="mt-0.5 text-[11px] sm:text-xs text-red-700/90 dark:text-red-300/90">
-                        Reported by {verifiedCounts.reportedBy} verified {verifiedCounts.reportedBy === 1 ? "account" : "accounts"} in your Web of Trust
+                        Reported by {verifiedCounts.reportedBy} verified {verifiedCounts.reportedBy === 1 ? "account" : "accounts"} in your network
                         {verifiedCounts.mutedBy > 0 ? ` · muted by ${verifiedCounts.mutedBy}` : ""}.
                       </p>
                       <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1">

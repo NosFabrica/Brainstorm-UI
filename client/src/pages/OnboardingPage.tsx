@@ -11,12 +11,12 @@ const steps = [
   {
     icon: Users,
     title: "Build Your Network",
-    description: "Follow people you trust. Your follow list becomes the foundation of your personal Web of Trust.",
+    description: "Follow a few accounts. Your follow list is what your personal network is built from.",
   },
   {
     icon: Zap,
     title: "Calculate GrapeRank",
-    description: "Run the GrapeRank algorithm to compute trust scores based on your unique social graph.",
+    description: "Run the GrapeRank algorithm to compute scores based on your unique social graph.",
   },
 ];
 
@@ -60,7 +60,7 @@ export default function OnboardingPage() {
               Get Started with Brainstorm
             </h1>
             <p className="text-slate-300 mt-3 text-base sm:text-lg max-w-lg mx-auto">
-              Three steps to your personalized Web of Trust
+              Three steps to your personalized scores
             </p>
           </div>
 
@@ -103,7 +103,7 @@ export default function OnboardingPage() {
               className="px-5 py-3 text-sm font-medium text-slate-400 hover:text-brand-link bg-slate-800/50 hover:bg-slate-700/70 border border-slate-700/50 hover:border-brand-primary/[0.3] rounded-lg transition-all duration-300 cursor-pointer"
               data-testid="button-onboarding-learn"
             >
-              Learn about Web of Trust
+              How Brainstorm works
             </button>
           </div>
         </div>

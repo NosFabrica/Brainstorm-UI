@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { decodeShareId, npubFromPubkey, nostrUriFor, eventPath } from "@/lib/shareId";
+import { relativeTime } from "@/lib/relativeTime";
 import { copyToClipboard } from "@/lib/clipboard";
 import { fetchProfileForShare, fetchRecentByKinds, fetchLiveStreams, fetchEventsByIds, fetchAddressableEvents, fetchProfileMap, fetchExternalIdentities, fetchOutboxRelayList, fetchProfilePrefs, publishProfilePrefs, hasLocalSecretKey, PROFILE_RELAYS } from "@/services/nostr";
 import { parseIdentities } from "@/lib/externalIdentity";
@@ -37,6 +38,9 @@ import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { audioUrlFromEvent, setPlaylist } from "@/lib/audioPlayer";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { TopicChips } from "@/components/share/TopicChips";
+import { ProfileTagChips } from "@/components/share/ProfileTagChips";
+import { useEventTagsBatch } from "@/hooks/useTags";
+import { LegacyRolePrompt } from "@/components/share/LegacyRolePrompt";
 import { ShareBio } from "@/components/share/ShareBio";
 import liveDefault from "@/assets/live-default.webp";
 import { PinIcon } from "@/components/PinIcon";
@@ -45,7 +49,7 @@ import { EventRow } from "@/components/share/EventRow";
 import { OpenInApp } from "@/components/share/OpenInApp";
 import { apiClient, hasSessionToken } from "@/services/api";
 import { parseProfilePrefs, loadProfilePrefsDraft, saveProfilePrefsDraft, clearProfilePrefsDraft } from "@/lib/personalization";
-import { ROLES, SECTION_KEYS, EMPTY_PROFILE_PREFS, type SectionKey, type ProfilePrefs } from "@/config/personalization";
+import { SECTION_KEYS, ROLE_LABELS, EMPTY_PROFILE_PREFS, type SectionKey, type ProfilePrefs } from "@/config/personalization";
 import { ProfileCustomizer } from "@/components/share/ProfileCustomizer";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
 import { DegreeChip } from "@/components/DegreeChip";
@@ -132,6 +136,14 @@ export default function SharePage() {
   // Owner = the logged-in user IS this profile and can sign (publish prefs).
   const isOwner = !!currentUser?.pubkey && currentUser.pubkey === pubkey &&
     (hasSessionToken() || hasLocalSecretKey() || (typeof window !== "undefined" && !!(window as unknown as { nostr?: unknown }).nostr));
+  // Tagging needs a SIGNER, which is a stricter thing than being signed in: a
+  // session token is backend auth and can't sign an event. Deliberately not
+  // reusing `isOwner`'s check, which counts a session token — that's fine for
+  // the prefs flows it gates, but here it would show an "Add a tag" button that
+  // throws "No signer available" the moment it's used. Anyone with a signer can
+  // tag anyone, including themselves.
+  const canTag = !!currentUser?.pubkey &&
+    (hasLocalSecretKey() || (typeof window !== "undefined" && !!(window as unknown as { nostr?: unknown }).nostr));
   // Read-only relationship state (follow/mute/report/follows-you) for a logged-in
   // viewer — drives the at-a-glance badges next to the actions (which now live
   // here on /p; /profile is the tucked-away advanced view).
@@ -400,22 +412,50 @@ export default function SharePage() {
   const profile = (profileQuery.data ?? {}) as ProfileContentLike;
   const displayName = profile.display_name || profile.name || (npub ? npub.slice(0, 12) + "…" : "Nostr profile");
 
-  // "On Nostr since [year]" — a truthful LOWER BOUND from the oldest event we
-  // already fetched (their old articles/events/notes). Only shown when that's
-  // genuinely old (>6 months), so it never mislabels a fresh fetch as recent.
-  const memberSinceYear = useMemo(() => {
-    const arrays = [notesQuery.data, photosQuery.data, articlesQuery.data, photoNotesQuery.data, videosQuery.data, musicQuery.data, statusQuery.data, eventsQuery.data, liveQuery.data];
-    let oldest = Infinity;
+  /**
+   * "Last posted <when>" — the newest thing they actually wrote.
+   *
+   * ## What this replaced, and why
+   *
+   * This slot used to say "On Nostr since <year>", derived from the OLDEST
+   * event in these same arrays. That looked like a tenure signal and was
+   * something else entirely: the arrays are recent pages (5 notes, 12 photos,
+   * 5 articles…), so the oldest of them measures how fast someone posts, not
+   * how long they've been here. **The more you post, the newer you looked.**
+   * Measured on ODELL 2026-08-07: the page printed 2025 while his oldest
+   * reachable note is 2021-11-19. Four years out, and biased against exactly
+   * the established accounts the line was meant to vouch for.
+   *
+   * Nostr has no join date. Paging back to a true first note is possible but
+   * costs ~24 extra round trips and is still only a lower bound on what relays
+   * kept, so the honest move was to stop claiming tenure at all and show the
+   * thing we can actually observe.
+   *
+   * ## Why these arrays and not all of them
+   *
+   * Authored posts only. Two of the sets the old code pooled are not the
+   * person posting:
+   *  - `statusQuery` (NIP-38 kind 30315) carries the now-playing line clients
+   *    publish automatically — it would report "posted 2 minutes ago" for an
+   *    account nobody has touched in a year.
+   *  - `liveQuery` events are authored by the streaming PLATFORM, not the
+   *    streamer (see `fetchLiveStreams`).
+   * Both fail in the direction that makes a dormant account look alive, which
+   * is the same class of error this whole change exists to remove.
+   */
+  const lastPostedAt = useMemo(() => {
+    const arrays = [notesQuery.data, photosQuery.data, articlesQuery.data, photoNotesQuery.data, videosQuery.data, musicQuery.data, eventsQuery.data];
+    let newest = 0;
+    const nowSec = Math.floor(Date.now() / 1000);
     for (const arr of arrays) for (const ev of (arr ?? []) as { created_at?: number }[]) {
       const c = ev?.created_at;
-      if (typeof c === "number" && c > 0 && c < oldest) oldest = c;
+      // Clamp to now: a relay clock running ahead would otherwise print a
+      // future post date, which reads as a bug rather than a stale clock.
+      if (typeof c === "number" && c > 0 && c <= nowSec && c > newest) newest = c;
     }
-    if (!Number.isFinite(oldest)) return null;
-    const nowSec = Math.floor(Date.now() / 1000);
-    if (oldest > nowSec - 60 * 60 * 24 * 182) return null; // < ~6 months old → not meaningful
-    return new Date(oldest * 1000).getFullYear();
+    return newest;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [notesQuery.data, photosQuery.data, articlesQuery.data, photoNotesQuery.data, videosQuery.data, musicQuery.data, statusQuery.data, eventsQuery.data, liveQuery.data]);
+  }, [notesQuery.data, photosQuery.data, articlesQuery.data, photoNotesQuery.data, videosQuery.data, musicQuery.data, eventsQuery.data]);
   const overview = overviewQuery.data as { influence?: number | null; counts?: Record<string, number> } | undefined;
   // The overview score is viewer-relative: house/network POV when logged out,
   // the viewer's own web-of-trust POV when logged in. That's the primary ring.
@@ -614,6 +654,20 @@ export default function SharePage() {
   const noteEvents = (notesQuery.data ?? []) as MinimalEvent[];
   const refs = useMemo(() => collectRefs(noteEvents), [noteEvents]);
 
+  /**
+   * What the network says these notes are about (ACCEPTANCE Floor A's C2 clause:
+   * "a tagged note shows its chips where SharePage renders that note").
+   *
+   * ONE batched query for every note on the page — the featured post and the
+   * whole "Latest notes" list together. Letting each card fetch its own would
+   * be the per-event REQ storm core C2 explicitly forbids.
+   */
+  const taggableNoteIds = useMemo(
+    () => [featured?.id, ...noteEvents.map((n) => n.id)].filter((id): id is string => !!id),
+    [featured, noteEvents],
+  );
+  const { data: noteTags } = useEventTagsBatch(taggableNoteIds);
+
   const refEventsQuery = useQuery({
     queryKey: ["share-ref-events", pubkey, refs.ids],
     queryFn: () => fetchEventsByIds(refs.ids, Array.from(new Set([...relayHints, ...PROFILE_RELAYS]))),
@@ -671,10 +725,17 @@ export default function SharePage() {
     [profilesQuery.data],
   );
 
-  // Roles ("what you do") from the user's local personalization prefs.
-  const roleLabels = useMemo(() => {
-    return prefs.roles.map((key) => ROLES.find((r) => r.key === key)?.label).filter(Boolean) as string[];
-  }, [prefs.roles]);
+  // Roles this person set under the retired "What you do" editor. No longer
+  // rendered — offered back to them in the tag picker so the signal isn't just
+  // dropped. Read from the PUBLISHED prefs, not the live draft: what they
+  // actually saved is what they meant.
+  const legacyRoleLabels = useMemo(
+    () =>
+      publishedPrefs.roles
+        .map((key) => ROLE_LABELS.get(key))
+        .filter((label): label is string => !!label),
+    [publishedPrefs.roles],
+  );
 
   const canonicalUrl = typeof window !== "undefined" && npub ? `${window.location.origin}/p/${npub}` : "";
 
@@ -694,7 +755,7 @@ export default function SharePage() {
     pubkey
       ? {
           title: `${displayName} on Brainstorm`,
-          description: profile.about ? profile.about.slice(0, 160) : `${displayName}'s profile and Web-of-Trust score on Brainstorm.`,
+          description: profile.about ? profile.about.slice(0, 160) : `${displayName}'s profile and Verification Score on Brainstorm.`,
           image: profile.picture,
           url: canonicalUrl,
         }
@@ -727,7 +788,7 @@ export default function SharePage() {
   if (!profile.about) emptyKeys.add("bio");
   if (topics.length === 0) emptyKeys.add("topics");
   if (topFollowers.length === 0) emptyKeys.add("followedBy");
-  if (!memberSinceYear && relayCount === 0) emptyKeys.add("tenure");
+  if (!lastPostedAt && relayCount === 0) emptyKeys.add("tenure");
   if (identities.length === 0) emptyKeys.add("identities");
   if (!status.general && !status.music) emptyKeys.add("status");
 
@@ -911,18 +972,25 @@ export default function SharePage() {
               (above), not here. */}
           {mobileFollowRow}
 
-          {/* Tags — the team's WoT-ranked attribute chips (Verified human, Founder,
-              …) will render here, colored in the personalized view / greyscale in
-              global, with a "+N → see all". Deferred until tag data ships; for now
-              the owner-set role chips below stand in. */}
-          {roleLabels.length > 0 && (
-            <div className="mt-1.5 flex flex-wrap gap-1.5" data-testid="share-roles">
-              {roleLabels.map((label) => (
-                <span key={label} className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-brand-deep/5 border border-brand-accent/30 text-xs font-semibold text-brand-deep">
-                  {label}
-                </span>
-              ))}
-            </div>
+          {/* Tags — what the network says about this person, counted from the
+              configured trust perspective. Reads from relays only, so it renders
+              for logged-out visitors too.
+              These replaced the self-declared "What you do" role chips that used
+              to sit below (the placeholder this slot's old TODO referred to).
+              The `roles` field stays in ProfilePrefs so nobody's stored data is
+              erased — it just no longer renders. */}
+          <ProfileTagChips
+            pubkey={pubkey}
+            canTag={canTag}
+            isOwner={isOwner}
+            legacyRoles={legacyRoleLabels}
+          />
+
+          {/* The prompt half of Q2's "one-time, owner-prompted conversion".
+              Only the owner sees it, only when they have roles that aren't
+              tags yet, and only until they answer it once. */}
+          {isOwner && canTag && pubkey && legacyRoleLabels.length > 0 && (
+            <LegacyRolePrompt pubkey={pubkey} legacyRoles={legacyRoleLabels} />
           )}
 
           {!isHidden("bio") && profile.about && (
@@ -941,7 +1009,7 @@ export default function SharePage() {
               <AlertTriangle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
               <div className="min-w-0 text-xs leading-relaxed">
                 <span className="font-bold text-red-700">Flagged by the network</span>
-                <span className="text-red-700/90"> — reported by {verifiedReporters} verified {verifiedReporters === 1 ? "account" : "accounts"} in the Web of Trust.</span>{" "}
+                <span className="text-red-700/90"> — reported by {verifiedReporters} verified {verifiedReporters === 1 ? "account" : "accounts"} in the network.</span>{" "}
                 <Link href={`/p/${rawId}/reporters`} className="font-semibold text-red-700 underline underline-offset-2 hover:text-red-800" data-testid="share-flag-reporters">See who</Link>
                 <span className="text-red-700/60"> · </span>
                 {/* TODO(phase2): point at /what-are-degrees once the explainer exists */}
@@ -951,7 +1019,7 @@ export default function SharePage() {
           )}
 
           {/* Stats — one shared Verified/All lens for the whole block (tap the
-              toggle to reveal how many bots the web of trust filters out). Each
+              toggle to reveal how many bots the network filters out). Each
               count links to its full list. */}
           <div className="mt-2.5 space-y-1.5" data-testid="share-stats">
             <div className="space-y-1.5">
@@ -1009,10 +1077,10 @@ export default function SharePage() {
           )}
 
           {/* Tenure / presence — Google-knowledge-panel "at a glance" line. */}
-          {!isHidden("tenure") && (memberSinceYear || relayCount > 0) && (
+          {!isHidden("tenure") && (lastPostedAt > 0 || relayCount > 0) && (
             <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500" data-testid="share-tenure">
-              {memberSinceYear && <>On Nostr since {memberSinceYear}</>}
-              {memberSinceYear && relayCount > 0 && " · "}
+              {lastPostedAt > 0 && <>Last posted {relativeTime(lastPostedAt)}</>}
+              {lastPostedAt > 0 && relayCount > 0 && " · "}
               {relayCount > 0 && <>Active on {relayCount} relay{relayCount === 1 ? "" : "s"}</>}
             </p>
           )}
@@ -1035,7 +1103,7 @@ export default function SharePage() {
                       Connect with {displayName}
                     </h3>
                     <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                      Real humans, not bots — join the web of trust you own and you're instantly connected to {displayName}.
+                      Real humans, not bots — join a network you own and you're instantly connected to {displayName}.
                     </p>
                   </div>
                 </div>
@@ -1077,7 +1145,7 @@ export default function SharePage() {
             {featured.kind === 30023 ? (
               <EmbeddedArticleCard event={featured} author={{ name: profile.name, display_name: profile.display_name, picture: profile.picture, nip05: profile.nip05 }} />
             ) : (
-              <ShareNoteCard event={featured} profiles={noteProfiles} eventsById={eventsById} addrByCoord={addrByCoord} href={eventPath(featured, relayHints)} forceExpanded />
+              <ShareNoteCard event={featured} profiles={noteProfiles} eventsById={eventsById} addrByCoord={addrByCoord} href={eventPath(featured, relayHints)} forceExpanded tags={noteTags?.get(featured.id)?.tags} />
             )}
           </ContentTeaserBlock>
         )}
@@ -1116,7 +1184,7 @@ export default function SharePage() {
             <div className="space-y-4">
               {noteEvents.map((ev) => (
                 <div key={ev.id} className="pb-4 border-b border-slate-100 dark:border-slate-800/60 last:border-0 last:pb-0">
-                  <ShareNoteCard event={ev} profiles={noteProfiles} eventsById={eventsById} addrByCoord={addrByCoord} href={eventPath(ev, relayHints)} />
+                  <ShareNoteCard event={ev} profiles={noteProfiles} eventsById={eventsById} addrByCoord={addrByCoord} href={eventPath(ev, relayHints)} tags={noteTags?.get(ev.id)?.tags} />
                 </div>
               ))}
             </div>

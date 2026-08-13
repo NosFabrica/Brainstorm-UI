@@ -104,7 +104,7 @@ export function CommandPalette() {
               </CommandItem>
             )}
             {user && (
-              <CommandItem keywords={["follows", "web of trust", "connections"]} onSelect={() => run(() => navigate("/network"))}>
+              <CommandItem keywords={["follows", "network", "web of trust", "connections"]} onSelect={() => run(() => navigate("/network"))}>
                 <Users /> Network
               </CommandItem>
             )}

@@ -104,7 +104,7 @@ export function PovToggle({ canPersonalize, avatarUrl, className }: { canPersona
         <Link
           href={loginHref}
           className={cn(seg, idleSeg)}
-          aria-label="Sign in to see this through your own Web of Trust"
+          aria-label="Sign in to see this through your own network"
           data-testid="pov-toggle-signin-link"
         >
           <Lock className="h-3 w-3" /> My perspective

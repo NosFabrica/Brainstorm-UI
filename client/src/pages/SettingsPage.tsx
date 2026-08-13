@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { GlossBackground } from "@/components/GlossBackground";
 import { PageHeader } from "@/components/PageHeader";
-import { useLocation, useSearch } from "wouter";
+import { Redirect, useLocation, useSearch } from "wouter";
 import { ProfileEditForm } from "@/components/ProfileEditForm";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { presetDisplayLabel, presetDescription, presetDisplayLabelFromBackend, type TrustPreset } from "@/services/trustThreshold";
@@ -86,6 +86,7 @@ import { BrainLogo } from "@/components/BrainLogo";
 import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
 import nostrLogo from "@assets/download_1774042580188.png";
 import { BrainstormAssistantCard } from "@/components/BrainstormAssistantCard";
+import { TagRelaysCard } from "@/components/settings/TagRelaysCard";
 
 type SettingsTab = "profile" | "trust" | "about";
 
@@ -105,42 +106,59 @@ const AGENT_INTEGRATE_PROMPT = `You're helping me add Brainstorm's web-of-trust 
 Nostr client so my users see personalized trust.
 
 1. Read Brainstorm's developer guide (I'll give you the link).
-2. Fetch personalized trust scores from the Brainstorm relay / API.
+2. Fetch personalized scores from the Brainstorm relay / API.
 3. Read kind 30382 "Trusted Assertions" (NIP-85) for each user.
 4. Honor the kind 10040 service-provider pointer so scores resolve per user.
-5. Verify a sample user's Brainstorm trust score renders in my client.
+5. Verify a sample user's Brainstorm Verification Score renders in my client.
 
 Explain each step, note anything I need to configure, and keep it simple.`;
 
 const inputCls =
   "w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2.5 text-[15px] text-slate-900 dark:text-slate-100 placeholder:text-slate-500 dark:placeholder:text-slate-400 shadow-sm focus:border-brand-accent focus:outline-none focus:ring-2 focus:ring-brand-accent/30 transition disabled:opacity-60";
 
+// "About" not "About & support": three labels share a 339px track at 375px
+// wide and only fitted after a padding fix (see the tab-bar comment below).
+// A fourth tab was briefly here for Tags; it moved to /tags/mine because
+// nothing on it was a setting. Which relays to read IS one, and lives under
+// Trust & search.
 const TABS: { key: SettingsTab; label: string; icon: typeof User }[] = [
   { key: "profile", label: "Profile", icon: User },
   { key: "trust", label: "Trust & search", icon: ShieldCheck },
-  { key: "about", label: "About & support", icon: Info },
+  { key: "about", label: "About", icon: Info },
 ];
 
 export default function SettingsPage() {
   const [location, navigate] = useLocation();
   const search = useSearch();
   const tabParam = new URLSearchParams(search).get("tab");
-  const activeTab: SettingsTab = tabParam === "trust" || tabParam === "about" ? tabParam : "profile";
-  // Deep-link to the backup action (e.g. from the logout prompt / backup nudge):
-  // /settings?focus=backup scrolls straight to the Account > Back up section.
+  const activeTab: SettingsTab =
+    tabParam === "trust" || tabParam === "about" ? tabParam : "profile";
+  // Deep links into a specific control, so a "you can change this in Settings"
+  // sentence elsewhere lands ON the thing rather than at the top of a tab:
+  //   ?focus=backup      → Account > Back up
+  //   ?tab=trust&focus=tag-relays → Trust > Advanced > Where tags come from
   const focusParam = new URLSearchParams(search).get("focus");
-  const [highlightBackup, setHighlightBackup] = useState(false);
+  const [highlighted, setHighlighted] = useState<string | null>(null);
+  const highlightBackup = highlighted === "backup";
+  // Tag relays live inside the collapsed "Advanced" block, so a link that only
+  // scrolled would land on a closed section. Open it before we scroll.
+  const [advancedOpen, setAdvancedOpen] = useState(focusParam === "tag-relays");
   useEffect(() => {
-    if (focusParam !== "backup") return;
+    const target =
+      focusParam === "backup"
+        ? "account-backup-section"
+        : focusParam === "tag-relays"
+          ? "tag-relays-section"
+          : null;
+    if (!target) return;
     const t = setTimeout(() => {
-      document.getElementById("account-backup-section")?.scrollIntoView({ behavior: "smooth", block: "center" });
-      setHighlightBackup(true);
+      document.getElementById(target)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlighted(focusParam);
     }, 150);
     // Drop the cue once it has pulsed (2 × 1.5s) so it's a one-time nudge.
-    const off = setTimeout(() => setHighlightBackup(false), 3400);
+    const off = setTimeout(() => setHighlighted(null), 3400);
     return () => { clearTimeout(t); clearTimeout(off); };
   }, [focusParam]);
-  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [agentSetupOpen, setAgentSetupOpen] = useState(false);
   const [agentPath, setAgentPath] = useState<"selfhost" | "integrate">("selfhost");
   const goTab = (t: SettingsTab) => {
@@ -284,7 +302,7 @@ export default function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["/user/graperankResult"] });
       toast({
         title: "Recalculation started",
-        description: "Your trust scores are being recalculated. Redirecting to dashboard...",
+        description: "Your scores are being recalculated. Redirecting to dashboard...",
         duration: 4000,
       });
       setTimeout(() => navigate("/dashboard"), 600);
@@ -376,7 +394,7 @@ export default function SettingsPage() {
     if (result.success) {
       clearNip85Activated(currentUser.pubkey);
       setDeactivateState("success");
-      toast({ title: "Provider deactivated", description: "Brainstorm has been removed as your WoT service provider.", duration: 4000 });
+      toast({ title: "Provider deactivated", description: "Brainstorm no longer publishes your scores for other apps to use.", duration: 4000 });
       setTimeout(() => {
         setDeactivateState("idle");
         window.location.reload();
@@ -632,7 +650,7 @@ export default function SettingsPage() {
           </div>
           <div className="min-w-0">
             <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-sp-title">Service Provider</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-sp-subtitle">NIP-85 Web of Trust declaration</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-sp-subtitle">NIP-85 declaration</p>
           </div>
         </div>
       </div>
@@ -690,7 +708,7 @@ export default function SettingsPage() {
                       <Info className="h-2.5 w-2.5" />
                     </button>
                     <div className="fixed left-4 right-4 top-1/2 -translate-y-1/2 sm:absolute sm:top-auto sm:left-0 sm:right-auto sm:translate-y-0 sm:bottom-full sm:mb-2 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-[100] pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-supported-by">
-                      These are Nostr clients that use personalized trust scores calculated by Brainstorm and other Web of Trust Service Providers via NIP-85: Trusted Assertions or other integration methods.
+                      These are Nostr clients that use the personalized scores Brainstorm publishes for you, via NIP-85 Trusted Assertions or other integrations.
                     </div>
                   </div>
                 </div>
@@ -803,7 +821,7 @@ export default function SettingsPage() {
                         Deactivate Service Provider?
                       </AlertDialogTitle>
                       <AlertDialogDescription className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mt-2.5" data-testid="text-confirm-deactivate-desc">
-                        This will publish an event to Nostr relays removing Brainstorm as your WoT service provider. Compatible clients like Amethyst and Nostria will no longer use Brainstorm for your trust scores. Your data inside Brainstorm will not be affected.
+                        This tells other Nostr apps to stop using Brainstorm as the source of your scores. Apps like Amethyst and Nostria will no longer show them. Your data inside Brainstorm will not be affected.
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter className="mt-5 gap-2 sm:gap-2">
@@ -841,7 +859,7 @@ export default function SettingsPage() {
             </div>
 
             <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="text-sp-inactive-desc">
-              No WoT service provider has been selected. Activate Brainstorm as your provider to publish trust scores across the Nostr ecosystem.
+              You haven't picked anywhere for your scores to come from. Turn Brainstorm on to share them with other Nostr apps.
             </p>
 
             {hasNoFollowing && (
@@ -979,7 +997,7 @@ export default function SettingsPage() {
               <div className="flex items-center gap-2 p-2.5 rounded-lg bg-amber-50 border border-amber-200/60 mb-3" data-testid="banner-gr-no-follows">
                 <Info className="h-3.5 w-3.5 text-amber-500 shrink-0" />
                 <p className="text-xs text-amber-700 font-medium">
-                  Follow at least one account first so we can calculate your trust scores.{" "}
+                  Follow at least one account first so we can calculate your scores.{" "}
                   <button type="button" onClick={() => navigate("/welcome")} className="font-semibold underline hover:text-amber-900" data-testid="link-gr-build-network">
                     Find people to follow →
                   </button>
@@ -1072,7 +1090,7 @@ export default function SettingsPage() {
 
       <div className="p-5 space-y-4">
         <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="text-presets-desc">
-          How strict your web of trust is. This sets which accounts count as "verified" followers, muters and reporters on Dashboard, Network, and Profile pages — the counts update as soon as you switch.
+          How strict your network is. This sets which accounts count as "verified" followers, muters and reporters on Dashboard, Network, and Profile pages — the counts update as soon as you switch.
         </p>
         <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed" data-testid="text-presets-persistence">
           Saved to your account, so it follows you across devices. Your published Trusted Assertions keep the old numbers until your next calculation.
@@ -1141,7 +1159,7 @@ export default function SettingsPage() {
                 <span className="h-1 w-1 rounded-full bg-emerald-500" /> Live
               </span>
             </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-personalization-subtitle">Highlight what you share and what you do</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="text-personalization-subtitle">Choose what your profile shows</p>
           </div>
         </div>
         {user?.npub && (
@@ -1158,7 +1176,7 @@ export default function SettingsPage() {
 
       <div className="p-5">
         <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="text-personalization-desc">
-          Choose exactly what appears on your public profile — which sections show, the order they're in, who's featured, and the roles you play. Open the customizer to edit it live; your choices are published to Nostr, so you own them across every client.
+          Choose exactly what appears on your public profile — which sections show, the order they're in, and who's featured. Open the customizer to edit it live; your choices are published to Nostr, so you own them across every client. Tags are separate: add those from your profile, and anyone can add one to you.
         </p>
       </div>
     </div>
@@ -1235,6 +1253,12 @@ export default function SettingsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" data-testid="grid-advanced">
           {serviceProviderCard}
           {trustCalcCard}
+          <div
+            id="tag-relays-section"
+            className={`scroll-mt-20 rounded-2xl transition-shadow ${highlighted === "tag-relays" ? "animate-attention-ring ring-2 ring-brand-accent/70" : ""}`}
+          >
+            <TagRelaysCard />
+          </div>
         </div>
       )}
     </div>
@@ -1442,7 +1466,7 @@ export default function SettingsPage() {
 
       <div className="p-5">
         <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-4" data-testid="text-about-description">
-          NosFabrica builds the open-source, scalable Web of Trust engines that power a safer, cleaner Nostr. We analyze raw network signals and turn them into clear, reliable trust scores.
+          NosFabrica builds the open-source, scalable Web of Trust engines that power a safer, cleaner Nostr. We analyze raw network signals and turn them into clear, reliable scores.
         </p>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -1586,4 +1610,21 @@ export default function SettingsPage() {
       <Footer />
     </div>
   );
+}
+
+/**
+ * Route wrapper that catches `/settings?tab=tags`.
+ *
+ * Tags was a Settings tab for a day before moving to `/tags/mine` (nothing on
+ * it was a setting). Those links land here; sending them on beats silently
+ * dropping them on Profile, which reads as "the feature was removed".
+ *
+ * Done BEFORE `SettingsPage` mounts rather than in an effect inside it: this
+ * page fires authenticated requests on mount, so an in-page redirect races
+ * them. Never rendering it is the version with no race to lose.
+ */
+export function SettingsRoute() {
+  const tabParam = new URLSearchParams(useSearch()).get("tab");
+  if (tabParam === "tags") return <Redirect to="/tags/mine" replace />;
+  return <SettingsPage />;
 }

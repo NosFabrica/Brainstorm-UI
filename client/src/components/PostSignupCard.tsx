@@ -170,13 +170,13 @@ export function PostSignupCard() {
             <X className="h-4 w-4" />
           </button>
           <div className="flex items-center gap-2.5 mb-2">
-            <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link dark:text-brand-link uppercase">Web of Trust</span>
+            <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link dark:text-brand-link uppercase">Your network</span>
           </div>
           <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-            Switch on your trust scores
+            Switch on your scores
           </h3>
           <p className="mt-1.5 text-[15px] text-slate-700 dark:text-slate-200 leading-relaxed max-w-xl">
-            Follow a few accounts and Brainstorm scores everyone through your own Web of Trust.
+            Follow a few accounts and Brainstorm scores everyone through your own network.
           </p>
           <button
             type="button"
@@ -191,7 +191,7 @@ export function PostSignupCard() {
               <div className="min-w-0">
                 <div className="text-[15px] font-bold text-slate-900 dark:text-slate-100">Follow a few accounts</div>
                 <div className="text-[13px] font-semibold text-brand-link dark:text-brand-link inline-flex items-center gap-1">
-                  Turn on your trust scores
+                  Turn on your scores
                   <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                 </div>
               </div>
@@ -248,7 +248,7 @@ export function PostSignupCard() {
             {user.displayName ? `, ${user.displayName}` : ""}!
           </h3>
           <p className="mt-1.5 text-[15px] text-slate-700 dark:text-slate-200 leading-relaxed max-w-xl">
-            Follow a few accounts to switch on your trust scores — then back up your account and add a
+            Follow a few accounts to switch on your scores — then back up your account and add a
             photo so people recognize you.
           </p>
 
@@ -261,7 +261,7 @@ export function PostSignupCard() {
                 </div>
                 <div>
                   <div className="text-[15px] font-semibold text-slate-900 dark:text-slate-100">Network started</div>
-                  <div className="text-[13px] text-emerald-700 dark:text-emerald-300">Your trust scores are calculating</div>
+                  <div className="text-[13px] text-emerald-700 dark:text-emerald-300">Your scores are calculating</div>
                 </div>
               </div>
             </div>
@@ -279,7 +279,7 @@ export function PostSignupCard() {
                 <div className="min-w-0">
                   <div className="text-[15px] font-bold text-slate-900 dark:text-slate-100">Build your network</div>
                   <div className="text-[13px] font-semibold text-brand-link dark:text-brand-link inline-flex items-center gap-1">
-                    Follow accounts to turn on trust scores
+                    Follow accounts to turn on scores
                     <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
                   </div>
                 </div>

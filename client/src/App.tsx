@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
-import { Switch, Route, Redirect, useLocation } from "wouter";
+import { Switch, Route, Redirect, useLocation, useParams } from "wouter";
 import { stopAllMedia } from "@/lib/audioPlayer";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -15,7 +15,7 @@ import DashboardPage from "@/pages/DashboardPage";
 import AlertsPage from "@/pages/AlertsPage";
 import ReadingPage from "@/pages/ReadingPage";
 import InsightsPage from "@/pages/InsightsPage";
-import SettingsPage from "@/pages/SettingsPage";
+import { SettingsRoute } from "@/pages/SettingsPage";
 import WhatIsWotPage from "@/pages/WhatIsWotPage";
 import OnboardingPage from "@/pages/OnboardingPage";
 import NetworkPage from "@/pages/NetworkPage";
@@ -40,6 +40,10 @@ import DeveloperOpenRankingPage from "@/pages/DeveloperOpenRankingPage";
 import DeveloperTrustedAssertionsPage from "@/pages/DeveloperTrustedAssertionsPage";
 import NostrPage from "@/pages/NostrPage";
 import HashtagPage from "@/pages/HashtagPage";
+import TagPage from "@/pages/TagPage";
+import TagIndexPage from "@/pages/TagIndexPage";
+import MyTagsPage from "@/pages/MyTagsPage";
+import HowTagsWorkPage from "@/pages/HowTagsWorkPage";
 import PrivacyPage from "@/pages/PrivacyPage";
 import TermsPage from "@/pages/TermsPage";
 import AdminPage from "@/pages/AdminPage";
@@ -51,6 +55,7 @@ import { MobileTabBar } from "@/components/MobileTabBar";
 import { CommandPalette } from "@/components/CommandPalette";
 import { MobileSearchOverlay } from "@/components/MobileSearchOverlay";
 import { getCurrentUser, ensureUnlocked } from "@/services/nostr";
+import { isAdminPubkey } from "@/config/adminAccess";
 import type { ComponentType } from "react";
 
 /**
@@ -139,6 +144,36 @@ function RequireAuth({ component: Component }: { component: ComponentType }) {
   return <Component />;
 }
 
+/**
+ * `/profile/:npub` — the old analytics view, now admin-only.
+ *
+ * `/p/:id` is the profile page. This one survives as operator telemetry
+ * (audience quality, network position, GrapeRank parameters, reports in both
+ * directions) that no normal user asked for, and it is deliberately NOT the
+ * place a user lands when they click someone's name.
+ *
+ * ## Why the guard is here and not just on the links
+ *
+ * Eight call sites pointed at this route and four of them were user-facing;
+ * the Deep dive on the dashboard's Network Alerts was the one that surfaced
+ * it. Repointing links alone fixes today and nothing else — it can't catch a
+ * bookmark, a shared URL, or the ninth link someone adds next month. A rule at
+ * the route is one thing to keep true instead of an audit to repeat.
+ *
+ * The links were repointed as well, so a user never eats a redirect on the way
+ * to a page they wanted; this is the backstop, not the mechanism.
+ *
+ * `replace` for the same reason RequireAuth uses it: pushing would leave the
+ * deprecated URL in history, and Back would bounce you forward again.
+ */
+function ProfileRoute() {
+  const params = useParams<{ npub: string }>();
+  if (!isAdminPubkey(getCurrentUser()?.pubkey)) {
+    return <Redirect to={`/p/${params.npub}`} replace />;
+  }
+  return <ProfilePage />;
+}
+
 function Router() {
   return (
     <>
@@ -153,22 +188,30 @@ function Router() {
         <Route path="/reading">{() => <RequireAuth component={ReadingPage} />}</Route>
         <Route path="/insights">{() => <RequireAuth component={InsightsPage} />}</Route>
         <Route path="/search" component={SearchRedirect} />
-        {/* Advanced/analytics profile — members only; /p/:id is the public profile. */}
-        <Route path="/profile/:npub">{() => <RequireAuth component={ProfilePage} />}</Route>
+        {/* Deprecated for users — see ProfileRoute. /p/:id is THE profile page. */}
+        <Route path="/profile/:npub">{() => <RequireAuth component={ProfileRoute} />}</Route>
         <Route path="/p/:id/hops" component={HopsPathPage} />
         <Route path="/p/:id/:type" component={ConnectionListPage} />
         <Route path="/p/:id" component={SharePage} />
         <Route path="/a/:id" component={ArticlePage} />
       <Route path="/e/:id" component={EventPage} />
         <Route path="/t/:tag" component={HashtagPage} />
+        {/* Public tag pages. The index must precede the per-tag route. */}
+        <Route path="/tags" component={TagIndexPage} />
+        {/* Before the :author/:slug pattern — "mine" is a page, not an author.
+            Gated: it's your own record, and `next` now points at a real page
+            rather than the redirect this used to be. */}
+        <Route path="/tags/mine">{() => <RequireAuth component={MyTagsPage} />}</Route>
+        <Route path="/tags/:author/:slug" component={TagPage} />
         <Route path="/hero-lab" component={HeroLab} />
         <Route path="/welcome" component={WelcomePage} />
         <Route path="/setup">{() => <RequireAuth component={OnboardingWizard} />}</Route>
         <Route path="/activate" component={ActivatePage} />
-        <Route path="/settings">{() => <RequireAuth component={SettingsPage} />}</Route>
+        <Route path="/settings">{() => <RequireAuth component={SettingsRoute} />}</Route>
         <Route path="/network">{() => <RequireAuth component={NetworkPage} />}</Route>
         <Route path="/what-is-wot" component={WhatIsWotPage} />
         <Route path="/how-search-works" component={HowSearchWorksPage} />
+        <Route path="/how-tags-work" component={HowTagsWorkPage} />
         <Route path="/personalization" component={PersonalizationPage} />
         <Route path="/about" component={AboutPage} />
         <Route path="/developers" component={DevelopersPage} />

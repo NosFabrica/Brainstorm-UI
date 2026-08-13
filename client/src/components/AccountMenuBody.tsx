@@ -7,17 +7,18 @@ import {
   Home,
   Users,
   Copy,
-  UserCircle,
   UserPlus,
   HelpCircle,
-  BookOpen,
   Settings as SettingsIcon,
   Shield,
   LogOut,
   Plus,
   BadgeCheck,
+  Tag as TagIcon,
+  ChevronRight,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { PovToggle } from "@/components/score/TrustScorePov";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useToast } from "@/hooks/use-toast";
@@ -149,12 +150,38 @@ export function AccountMenuBody({ user, isAdmin, active, onNavigate, onInvite, o
   // identity — show just the domain rather than the placeholder underscore.
   const rawNip05 = user.profile?.nip05?.trim();
   const nip05 = rawNip05 ? rawNip05.replace(/^_@/, "") : "";
+  // Same gate every other PovToggle uses: you need a finished calculation
+  // before "my perspective" means anything. Without it the control renders as
+  // an honest single Brainstorm chip rather than a switch that does nothing.
+  const calcDone = (() => {
+    try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; }
+  })();
+  const canPersonalize = !!user.pubkey && calcDone;
 
   return (
     <div className="relative">
-      {/* Identity card */}
-      <div className="p-4 pb-3">
-        <div className="flex items-center gap-3">
+      {/* Identity card — the card IS the link to your public profile.
+
+          It used to carry a separate full-width "View profile" button. Once the
+          perspective pill moved up here the block ran avatar → button → pill →
+          link before you reached a single destination, pushing the nav tiles
+          past the halfway line of a phone sheet. Tapping your own face to see
+          your own profile is the obvious gesture and costs no height.
+
+          Built as a stretched overlay button rather than by wrapping the
+          content: the npub row is itself a button (copy to clipboard), and a
+          button inside a button is invalid and swallows the inner click. The
+          overlay sits at z-0 behind the content, the copy control is lifted to
+          z-10, so each gets its own hit area. */}
+      <div className="group relative p-4 pb-3">
+        <button
+          type="button"
+          onClick={() => onNavigate(`/p/${user.npub}`)}
+          aria-label="View your public profile"
+          className="absolute inset-x-2 inset-y-2 z-0 rounded-xl transition-colors group-hover:bg-slate-900/[0.04] dark:group-hover:bg-white/[0.06] focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
+          data-testid="dropdown-view-profile"
+        />
+        <div className="pointer-events-none relative flex items-center gap-3">
           <span className="block rounded-full p-[2px] bg-gradient-to-tr from-brand-deep via-brand-accent to-brand-deep shrink-0">
             <Avatar className="h-11 w-11">
               {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "User"} className="object-cover" /> : null}
@@ -175,8 +202,9 @@ export function AccountMenuBody({ user, isAdmin, active, onNavigate, onInvite, o
             )}
             <button
               type="button"
-              className="mt-0.5 flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 transition-colors hover:text-brand-deep dark:hover:text-brand-link"
-              onClick={async () => {
+              className="pointer-events-auto relative z-10 mt-0.5 flex items-center gap-1 rounded text-xs text-slate-500 dark:text-slate-400 transition-colors hover:text-brand-deep dark:hover:text-brand-link focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+              onClick={async (e) => {
+                e.stopPropagation();
                 await copyToClipboard(user.npub);
                 toast({ title: "Copied!", description: "npub copied to clipboard" });
               }}
@@ -186,14 +214,68 @@ export function AccountMenuBody({ user, isAdmin, active, onNavigate, onInvite, o
               <Copy className="h-3 w-3 shrink-0" />
             </button>
           </div>
+          {/* The one affordance that survives without hover. Desktop gets a
+              hover fill, but a phone has no hover at all, and losing the
+              "View profile" button took the only words saying this row goes
+              somewhere. A chevron is the universal "this navigates" mark. */}
+          <ChevronRight className="h-4 w-4 shrink-0 text-slate-300 transition-colors group-hover:text-slate-500 dark:text-slate-600 dark:group-hover:text-slate-400" />
         </div>
+
+
+      </div>
+
+      {/* Trust perspective — a LENS, not a preference.
+
+          It first shipped down beside Appearance, and that was the wrong shelf:
+          a theme changes how the app looks, this changes what every number on
+          screen MEANS. Sitting them together as two segmented rows told people
+          they were the same kind of choice. It belongs with identity — "whose
+          eyes am I looking through" — and above the destination tiles, because
+          you pick the lens and then everything you navigate to obeys it.
+
+          Presented exactly like the homepage pill, down to the "What is this?"
+          link and the absence of a label. The team's actual confusion was not
+          knowing whether the two controls were the same switch; identical
+          treatment answers that on sight, and they ARE the same component over
+          the same store, so they cannot disagree.
+
+          Same placement on desktop and mobile. A bottom sheet rewards putting
+          frequent actions low, but this is set-and-forget — discoverability
+          beats reach, and one order means nothing to keep in sync. */}
+      {canPersonalize && (
+        <div
+          className="px-3 pb-3"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          <PovToggle canPersonalize avatarUrl={user.picture} className="w-full justify-center" />
+          <button
+            type="button"
+            onClick={() => onNavigate("/personalization")}
+            className="mt-1.5 block w-full rounded text-center text-[11px] text-brand-link transition-colors hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+            data-testid="menu-pov-learn-more"
+          >
+            What is this?
+          </button>
+        </div>
+      )}
+
+      {/* "Your tags" — a page ABOUT you, so it sits with identity rather than
+          down in the Invite / Help / Settings utilities group where it started.
+
+          It arrived here as one half of a Profile | Your tags pair. The other
+          half is gone: the identity card above is now itself the link to your
+          public profile (avatar, name and chevron), so a second labelled
+          Profile button would be two controls pointing at one page. Full width
+          because it is the only one left. */}
+      <div className="px-3 pb-3">
         <button
           type="button"
-          onClick={() => onNavigate(`/p/${user.npub}`)}
-          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-full border border-slate-300/70 dark:border-white/15 bg-white/50 dark:bg-white/[0.06] px-4 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-100 transition-colors hover:bg-white/80 dark:hover:bg-white/[0.12] hover:border-brand-accent/40"
-          data-testid="dropdown-view-profile"
+          onClick={() => onNavigate("/tags/mine")}
+          className="flex w-full items-center justify-center gap-1.5 rounded-full border border-slate-300/70 dark:border-white/15 bg-white/50 dark:bg-white/[0.06] px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-100 transition-colors hover:bg-white/80 dark:hover:bg-white/[0.12] hover:border-brand-accent/40"
+          data-testid="dropdown-my-tags"
         >
-          <UserCircle className="h-4 w-4" /> View profile
+          <TagIcon className="h-4 w-4 shrink-0" /> Your tags
         </button>
       </div>
 
@@ -230,11 +312,17 @@ export function AccountMenuBody({ user, isAdmin, active, onNavigate, onInvite, o
           turning into a hard border. */}
       <div className="mx-3 border-t border-slate-900/[0.16] dark:border-white/[0.16]" />
 
-      {/* Grouped actions — Settings sits under Help & FAQ */}
+      {/* Grouped actions — Settings sits under Help & FAQ.
+
+          "What is WoT?" used to sit between them. It asked people to decode an
+          acronym before they knew whether they cared, and a definition is not a
+          thing you reach for from an account menu. The page is still there and
+          still linked from where curiosity actually starts — About, the footer,
+          onboarding, the tags explainer, the connection lists and the
+          flagged-profile banner. Ten routes in; this was the worst of them. */}
       <div className="p-1.5">
         <MenuRow icon={UserPlus} label="Invite friends" onClick={onInvite} testId="dropdown-invite" />
         <MenuRow icon={HelpCircle} label="Help & FAQ" onClick={() => onNavigate("/faq")} testId="dropdown-faq" />
-        <MenuRow icon={BookOpen} label="What is WoT?" onClick={() => onNavigate("/what-is-wot")} testId="dropdown-wot" />
         <MenuRow icon={SettingsIcon} label="Settings" onClick={() => onNavigate("/settings")} testId="dropdown-settings" />
       </div>
 

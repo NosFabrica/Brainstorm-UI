@@ -1,0 +1,546 @@
+import { useEffect, useMemo, useState } from "react";
+import { useRoute, Redirect, Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
+import { ArrowLeft, Bookmark, BookmarkCheck, Check, Loader2, Plus, Tag as TagIcon, Users } from "lucide-react";
+import NotFound from "@/pages/not-found";
+import { PublicPageHeader } from "@/components/PublicPageHeader";
+import { PageHeader } from "@/components/PageHeader";
+import { PersonListRow, PersonListSkeleton } from "@/components/PersonListRow";
+import { EmptyState } from "@/components/ui/empty-state";
+import { useScorePov } from "@/components/score/TrustScorePov";
+import { fetchProfileMap, hasLocalSecretKey } from "@/services/nostr";
+import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useTagDetail, useTagVote, usePinnedTags, useTogglePin } from "@/hooks/useTags";
+import { TagVoteButton } from "@/components/share/TagVoteButton";
+import { TagComments } from "@/components/share/TagComments";
+import { TAG_COMMENTS_ENABLED, TAG_PINS_ENABLED } from "@/config/tagging";
+
+
+import { CarrierMeta } from "@/components/share/CarrierMeta";
+import { TaggedNotes } from "@/components/share/TaggedNotes";
+import { LinkedText } from "@/components/LinkedText";
+import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
+import { onlySelfDeclared } from "@/lib/tagCounts";
+
+/**
+ * `/tags/:author/:slug` — everyone the network says carries one tag.
+ *
+ * This is the view that makes tagging legible as *lists*: a tag isn't a label
+ * sitting on one profile, it's the set of people carrying it, and this is that
+ * set. Every chip on a profile links here.
+ *
+ * Public and anon-viewable. The read is relays-only (see services/tags.ts), so
+ * a logged-out visitor sees exactly what a signed-in one does — the counts come
+ * from the configured trust perspective, not from who's looking.
+ *
+ * `:author` accepts hex or npub, since the tag's author is a pubkey like any
+ * other and people will paste whichever form they have.
+ */
+
+/**
+ * Set/reset the document title + OG meta for shareable previews.
+ *
+ * `active` gates the whole effect on the tag being REAL (issue #41 B3). The
+ * name here comes from the URL until the relays say otherwise, so writing it
+ * eagerly put an attacker's string into the tab title and the OG tags of a page
+ * that turned out not to exist. Nothing derived from the path reaches the
+ * document until the tag is confirmed.
+ */
+function useTagMeta(name: string, count: number, active: boolean) {
+  useEffect(() => {
+    if (!active) return;
+    const title = `${name} · Brainstorm`;
+    const desc =
+      count > 0
+        ? `${count} ${count === 1 ? "person" : "people"} the network says are ${name}, on Brainstorm.`
+        : `People the network says are ${name}, on Brainstorm.`;
+    const prevTitle = document.title;
+    document.title = title;
+    const set = (sel: string, attr: string, val: string) => {
+      const el = document.querySelector(sel);
+      const prev = el?.getAttribute(attr) ?? null;
+      el?.setAttribute(attr, val);
+      return () => { if (prev != null) el?.setAttribute(attr, prev); };
+    };
+    const undo = [
+      set('meta[name="description"]', "content", desc),
+      set('meta[property="og:title"]', "content", title),
+      set('meta[property="og:description"]', "content", desc),
+    ];
+    return () => { document.title = prevTitle; undo.forEach((u) => u()); };
+  }, [name, count, active]);
+}
+
+/** Below this many people a filter bar is furniture; badges carry it instead. */
+const FILTER_THRESHOLD = 10;
+
+type CarrierSort = "vouched" | "recent";
+
+export default function TagPage() {
+  const [, params] = useRoute("/tags/:author/:slug");
+  const [sort, setSort] = useState<CarrierSort>("vouched");
+  const [hideSelfDeclared, setHideSelfDeclared] = useState(false);
+  const [hideContested, setHideContested] = useState(false);
+  const [showDisputed, setShowDisputed] = useState(false);
+  const rawAuthor = params?.author;
+  const slug = params?.slug;
+  const { pov: scorePov } = useScorePov();
+
+  const authorPubkey = useMemo(() => {
+    if (!rawAuthor) return undefined;
+    try { return decodeShareId(rawAuthor)?.pubkey; } catch { return undefined; }
+  }, [rawAuthor]);
+
+  const detailQuery = useTagDetail(authorPubkey, slug);
+  const vote = useTagVote(authorPubkey, slug);
+  const carriers = detailQuery.data?.carriers ?? [];
+  const disputed = detailQuery.data?.disputed ?? [];
+  const elementId = detailQuery.data?.elementId ?? "";
+
+  // Saving a tag to your own list. Off unless TAG_PINS_ENABLED — the kit puts
+  // pinning out of scope, so this is a declared deviation (DECISIONS §8).
+  const { data: pinned } = usePinnedTags(TAG_PINS_ENABLED);
+  const togglePin = useTogglePin();
+  const myPin = pinned?.find((p) => p.authorPubkey === authorPubkey && p.slug === slug);
+  /**
+   * The headline. Falls back to a neutral word, NOT to the slug (#41 B3).
+   *
+   * The slug is whatever the link's author typed. Echoing it as an h1 under
+   * Brainstorm's chrome before the relays have confirmed the tag exists is the
+   * screenshot the issue is about, and "it's only visible for a second while
+   * loading" is not a defence against a screenshot. Once the tag resolves, the
+   * element's own name — or its real slug — is safe to show.
+   */
+  const tagName = detailQuery.data?.tag.name || "Tag";
+
+  // Voting needs a SIGNER, not just a session — same rule as the profile
+  // picker, for the same reason: a token can't sign an event.
+  const [currentUser] = useCurrentUser();
+  const viewerPubkey = currentUser?.pubkey;
+  const canVote =
+    !!viewerPubkey &&
+    (hasLocalSecretKey() || (typeof window !== "undefined" && !!(window as unknown as { nostr?: unknown }).nostr));
+
+  // The tag's author rides along with the carriers so their name resolves in
+  // the same round-trip — the alternative was a second query for one pubkey.
+  const pubkeys = useMemo(() => {
+    // Carriers, the tag's author, and everyone who vouched — one round-trip
+    // resolves every name and face the page shows.
+    const list = new Set([...carriers, ...disputed].map((c) => c.pubkey));
+    for (const c of [...carriers, ...disputed]) for (const a of c.asserters) list.add(a);
+    if (authorPubkey) list.add(authorPubkey);
+    return Array.from(list);
+  }, [carriers, disputed, authorPubkey]);
+  const profilesQuery = useQuery({
+    queryKey: ["tag-profiles", pubkeys.join(",")],
+    queryFn: () => fetchProfileMap(pubkeys),
+    enabled: pubkeys.length > 0,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const profileMap = profilesQuery.data;
+
+  const status = detailQuery.data?.status;
+  useTagMeta(tagName, carriers.length, status === "ok");
+
+  // Params read null on the first render after an in-app navigation, so bail
+  // quietly rather than firing a redirect that would corrupt the back stack.
+  // Only redirect once we know the author genuinely won't decode. (wouter's
+  // <Redirect> pushes by default — `replace` is load-bearing here.)
+  if (!rawAuthor || !slug) return null;
+  if (!authorPubkey) return <Redirect to="/" replace />;
+
+  const loading = detailQuery.isLoading;
+  // Distinct accounts who vouched for SOMEONE ELSE. `asserters` now includes
+  // the subject's own assertion (the kit counts it), but "added by N accounts"
+  // is a brigading tell about third parties — self-taggers inflating it would
+  // undo the point of showing it.
+  const distinctVouchers = new Set(
+    carriers.flatMap((c) => c.asserters.filter((pk) => pk !== c.pubkey)),
+  ).size;
+  const iAmListed = !!viewerPubkey && carriers.some((c) => c.pubkey === viewerPubkey && c.myStance !== "dispute");
+
+  /**
+   * Filters appear only once a list is big enough to need them. 27 of the 39
+   * tags on the hub have fewer than four people — a filter bar over three rows
+   * is furniture, and the row badges already do the job at that size.
+   */
+  const showFilters = carriers.length >= FILTER_THRESHOLD;
+  const visible = useMemo(() => {
+    let list = carriers;
+    if (hideSelfDeclared) list = list.filter((c) => !onlySelfDeclared(c));
+    if (hideContested) list = list.filter((c) => c.disputes === 0 && !c.subjectDisagreed);
+    if (sort === "recent") list = [...list].sort((a, b) => b.addedAt - a.addedAt);
+    return list;
+  }, [carriers, hideSelfDeclared, hideContested, sort]);
+  const authorProfile = profileMap?.get(authorPubkey);
+  let authorNpub = "";
+  try { authorNpub = npubFromPubkey(authorPubkey); } catch { /* leave unlinked */ }
+
+  /**
+   * The tag does not exist — someone typed or forged the URL (issue #41 B3).
+   *
+   * Hand off to the app's own not-found page rather than rendering a tag-shaped
+   * empty state. That is the point: the slug is an arbitrary string supplied by
+   * whoever made the link, and the `:author` npub belongs to a real person who
+   * had nothing to do with it. Neither may appear anywhere on screen, in the tab
+   * title, or in the meta tags — a branded page reading "no such tag called
+   * <accusation>, by <real name>" is still the screenshot.
+   *
+   * `unavailable` deliberately does NOT land here; it gets the "can't load"
+   * empty state below. Telling someone a real tag doesn't exist because a relay
+   * blinked is the mirror-image mistake.
+   *
+   * MUST stay below every hook. `status` starts undefined and becomes "absent"
+   * only once the query resolves, so returning earlier changes the hook count
+   * between renders — React throws "Rendered fewer hooks than expected" and the
+   * page goes blank. The two guards above are safe there only because their
+   * conditions are fixed for the life of the mount.
+   */
+  if (status === "absent") return <NotFound />;
+
+  return (
+    <div className="min-h-[100dvh] bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col">
+      <PublicPageHeader maxWidthClass="max-w-2xl" />
+      <main className="w-full max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex-1" data-testid="tag-page">
+        <button
+          type="button"
+          onClick={() => history.back()}
+          className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-primary dark:text-slate-400 transition-colors"
+          data-testid="tag-back"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back
+        </button>
+
+        <PageHeader
+          kicker="Tag"
+          title={tagName}
+          subtitle={
+            // Descriptions are user-authored and several carry links — the AOS
+            // tag points at its own event site. Plain text made those
+            // un-followable. No link PREVIEW though: fetching a page's OG tags
+            // needs a server, and this app has none — the browser can't read
+            // cross-origin HTML. A preview card would mean a backend, so it's
+            // a deliberate omission rather than an oversight.
+            detailQuery.data?.tag.description ? (
+              <LinkedText text={detailQuery.data.tag.description} />
+            ) : (
+              "People the network says this describes."
+            )
+          }
+          testId="tag-header"
+        />
+
+        {/* Who defined this tag. Tags aren't owned by the app — someone minted
+            this one, and saying who is part of the point. Show their NAME: a
+            truncated npub tells a normal reader nothing except that this is
+            complicated. Falls back to the npub only when there's no profile. */}
+        {/* Gated on a CONFIRMED tag, not just on having an npub to render.
+            "Tag created by <real person>" is the line that gets screenshotted
+            (#41 B3), and until the relays confirm the element exists, the only
+            thing linking that person to this slug is the URL someone typed.
+            `absent` already returns not-found above; this also covers the
+            unconfirmed states — loading, and relays-didn't-answer. */}
+        {authorNpub && status === "ok" && (
+          <p className="mt-2 text-xs text-slate-400 dark:text-slate-500" data-testid="tag-author">
+            Tag created by{" "}
+            <Link href={`/p/${authorNpub}`} className="font-medium text-brand-link hover:underline">
+              {authorProfile?.display_name || authorProfile?.name || `${authorNpub.slice(0, 12)}…`}
+            </Link>
+          </p>
+        )}
+
+        {/* Adoption lives or dies here. People arrive at this page from search,
+            a chip or a shared link — sending them off to a profile to act was
+            the whole distance between "I see this list" and "I'm on it".
+            Web-of-trust can only rank assertions people actually make. */}
+        {canVote && !loading && (
+          <div className="mt-4" data-testid="tag-self-add">
+            {iAmListed ? (
+              <p className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-300">
+                <Check className="h-3.5 w-3.5" />
+                You're on this list
+              </p>
+            ) : (
+              <button
+                type="button"
+                onClick={() => vote.mutate({ targetPubkey: viewerPubkey!, polarity: 1 })}
+                disabled={vote.isPending}
+                className="inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-3.5 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-50"
+                data-testid="tag-add-me"
+              >
+                {vote.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+                Add me to this tag
+              </button>
+            )}
+          </div>
+        )}
+
+        <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+          <Link href="/how-tags-work" className="font-semibold text-brand-link hover:underline" data-testid="tag-page-guide">
+            How tags work →
+          </Link>
+        </p>
+
+        {TAG_PINS_ENABLED && canVote && elementId && (
+          <div className="mt-4" data-testid="tag-pin">
+            <button
+              type="button"
+              onClick={() =>
+                togglePin.mutate(
+                  myPin
+                    ? { pinEventId: myPin.pinEventId }
+                    : { authorPubkey, slug, tagEventId: elementId },
+                )
+              }
+              disabled={togglePin.isPending}
+              className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold text-slate-600 transition-colors hover:border-brand-primary hover:text-brand-primary disabled:opacity-50 dark:border-slate-700 dark:text-slate-300"
+              data-testid="tag-pin-toggle"
+            >
+              {togglePin.isPending ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : myPin ? (
+                <BookmarkCheck className="h-3.5 w-3.5" />
+              ) : (
+                <Bookmark className="h-3.5 w-3.5" />
+              )}
+              {myPin ? "Saved" : "Save this tag"}
+            </button>
+          </div>
+        )}
+
+        <div className="mt-5 mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+          <span className="flex items-center gap-1.5">
+            <Users className="h-3.5 w-3.5" />
+            {loading ? "Loading" : `${carriers.length} ${carriers.length === 1 ? "person" : "people"}`}
+          </span>
+          {/* How many DISTINCT accounts built this list. Without it, a list one
+              account assembled reads exactly like a list two dozen people
+              agreed on — and on this hub that's the common case, not the edge
+              one. Cheapest brigading tell available while trust is inert. */}
+          {!loading && distinctVouchers > 0 && (
+            <span className="font-medium normal-case tracking-normal" data-testid="tag-voucher-count">
+              · added by {distinctVouchers}{" "}
+              {distinctVouchers === 1 ? "account" : "accounts"}
+            </span>
+          )}
+        </div>
+
+        {/* The trust source gave us nothing, so nobody here was filtered.
+            ACCEPTANCE C7 wants that to degrade quietly rather than error — but
+            quietly isn't the same as invisibly, and a list that looks vetted
+            when it wasn't is the one failure worth a line of text. */}
+        {!loading && detailQuery.data?.trustUnverified && carriers.length > 0 && (
+          <p
+            className="mb-3 text-xs text-slate-400 dark:text-slate-500"
+            data-testid="tag-trust-unverified"
+          >
+            We couldn't check who's reputable right now, so everyone who added a
+            name is counted here.
+          </p>
+        )}
+
+        {!loading && carriers.length > 1 && (
+          <div className="mb-2 flex flex-wrap items-center gap-1.5" data-testid="tag-controls">
+            <SortChip active={sort === "vouched"} onClick={() => setSort("vouched")} testId="tag-sort-vouched">
+              Most vouched
+            </SortChip>
+            <SortChip active={sort === "recent"} onClick={() => setSort("recent")} testId="tag-sort-recent">
+              Recently added
+            </SortChip>
+            {showFilters && (
+              <>
+                <span className="mx-1 h-3 w-px bg-slate-200 dark:bg-slate-700" />
+                <SortChip
+                  active={hideSelfDeclared}
+                  onClick={() => setHideSelfDeclared((v) => !v)}
+                  testId="tag-filter-self"
+                >
+                  Vouched only
+                </SortChip>
+                <SortChip
+                  active={hideContested}
+                  onClick={() => setHideContested((v) => !v)}
+                  testId="tag-filter-contested"
+                >
+                  Hide contested
+                </SortChip>
+              </>
+            )}
+          </div>
+        )}
+
+        <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm divide-y divide-slate-100 dark:divide-slate-800/60 overflow-hidden">
+          {loading ? (
+            <PersonListSkeleton testId="tag-skeleton" />
+          ) : visible.length === 0 && carriers.length > 0 ? (
+            <div className="px-4 py-8">
+              <EmptyState
+                icon={TagIcon}
+                compact
+                title="Nothing matches those filters"
+                description="Turn one off to see the rest of the list."
+              />
+            </div>
+          ) : carriers.length === 0 ? (
+            <div className="px-4 py-8">
+              {/* "Nobody has this tag" is a claim about the world, and we can
+                  only make it if we actually got an answer. When the relays
+                  didn't respond we know nothing, and saying the tag is empty
+                  would be inventing a fact — the same mistake in the other
+                  direction from rendering a tag that doesn't exist (#41 B3). */}
+              {status === "unavailable" ? (
+                <EmptyState
+                  icon={TagIcon}
+                  compact
+                  title="Can't load this tag right now"
+                  description="The connection didn't come back. Reload in a moment and it should be here."
+                />
+              ) : (
+                <EmptyState
+                  icon={TagIcon}
+                  compact
+                  title="Nobody has this tag yet"
+                  description="When someone adds it, they'll show up here."
+                />
+              )}
+            </div>
+          ) : (
+            visible.map((c) => {
+              const p = profileMap?.get(c.pubkey);
+              return (
+                <PersonListRow
+                  key={c.pubkey}
+                  pubkey={c.pubkey}
+                  displayName={p?.display_name || p?.name}
+                  picture={p?.picture}
+                  nip05={p?.nip05}
+                  pov={scorePov}
+                  testId={`tag-row-${c.pubkey.slice(0, 8)}`}
+                  actions={
+                    canVote ? (
+                      <TagVoteButton
+                        stance={c.myStance}
+                        pending={vote.isPending && vote.variables?.targetPubkey === c.pubkey}
+                        onVote={(polarity) => vote.mutate({ targetPubkey: c.pubkey, polarity })}
+                        testId={`tag-vote-${c.pubkey.slice(0, 8)}`}
+                      />
+                    ) : undefined
+                  }
+                  meta={
+                    // Not `tag-row-count`: that would match a `tag-row-*`
+                    // prefix selector and double-count every row.
+                    <CarrierMeta
+                      carrier={c}
+                      profileMap={profileMap}
+                      isViewer={c.pubkey === viewerPubkey}
+                    />
+                  }
+                />
+              );
+            })
+          )}
+        </div>
+
+        {/* Voted down, kept reachable. Hiding a disputed claim outright would
+            make the page look tidier than the network actually is, and you
+            can't judge a dispute you're not allowed to see. */}
+        {!loading && disputed.length > 0 && (
+          <div className="mt-3" data-testid="tag-disputed">
+            <button
+              type="button"
+              onClick={() => setShowDisputed((v) => !v)}
+              aria-expanded={showDisputed}
+              className="text-xs font-semibold text-slate-500 transition-colors hover:text-brand-primary dark:text-slate-400"
+              data-testid="tag-disputed-toggle"
+            >
+              {showDisputed ? "Hide" : "Show"} {disputed.length} disputed
+            </button>
+
+            {showDisputed && (
+              <div className="mt-2 overflow-hidden rounded-2xl border border-amber-200/60 bg-white shadow-sm dark:border-amber-500/20 dark:bg-slate-900">
+                <p className="border-b border-amber-200/60 bg-amber-50/60 px-4 py-2 text-[11px] text-amber-700 dark:border-amber-500/20 dark:bg-amber-500/[0.06] dark:text-amber-500">
+                  More people disagreed than agreed, so these don't count toward
+                  the tag.
+                </p>
+                <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+                  {disputed.map((c) => {
+                    const p = profileMap?.get(c.pubkey);
+                    return (
+                      <PersonListRow
+                        key={c.pubkey}
+                        pubkey={c.pubkey}
+                        displayName={p?.display_name || p?.name}
+                        picture={p?.picture}
+                        nip05={p?.nip05}
+                        pov={scorePov}
+                        testId={`tag-disputed-row-${c.pubkey.slice(0, 8)}`}
+                        actions={
+                          canVote ? (
+                            <TagVoteButton
+                              stance={c.myStance}
+                              pending={vote.isPending && vote.variables?.targetPubkey === c.pubkey}
+                              onVote={(polarity) => vote.mutate({ targetPubkey: c.pubkey, polarity })}
+                              testId={`tag-disputed-vote-${c.pubkey.slice(0, 8)}`}
+                            />
+                          ) : undefined
+                        }
+                        meta={
+                          <CarrierMeta
+                            carrier={c}
+                            profileMap={profileMap}
+                            isViewer={c.pubkey === viewerPubkey}
+                          />
+                        }
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Posts carrying this tag. Renders nothing when there are none, which
+            is most tags — see TaggedNotes. */}
+        <TaggedNotes authorPubkey={authorPubkey} slug={slug} />
+
+        {/* Off by default — a comment layer isn't in any kit document, so it
+            must not be live during an acceptance run. See TAG_COMMENTS_ENABLED. */}
+        {TAG_COMMENTS_ENABLED && (
+          <TagComments authorPubkey={authorPubkey} slug={slug} canPost={canVote} />
+        )}
+      </main>
+    </div>
+  );
+}
+
+/** A sort or filter toggle. Same pill for both — they're the same gesture. */
+function SortChip({
+  active,
+  onClick,
+  children,
+  testId,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: React.ReactNode;
+  testId?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded-full px-2.5 py-1 text-xs font-semibold transition-colors ${
+        active
+          ? "bg-brand-primary text-white"
+          : "text-slate-500 hover:text-brand-primary dark:text-slate-400"
+      }`}
+      data-testid={testId}
+    >
+      {children}
+    </button>
+  );
+}

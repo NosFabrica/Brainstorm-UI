@@ -50,7 +50,7 @@ const WIDER: Record<TrustPreset, TrustPreset | null> = { strict: "default", defa
 function useHashtagMeta(tag: string) {
   useEffect(() => {
     const title = `#${tag} · Brainstorm`;
-    const desc = `Trusted notes and articles tagged #${tag}, ranked by Web of Trust on Brainstorm.`;
+    const desc = `Notes and articles tagged #${tag}, ranked by your network on Brainstorm.`;
     const prevTitle = document.title;
     document.title = title;
     const set = (sel: string, attr: string, val: string) => {
@@ -198,7 +198,7 @@ export default function HashtagPage() {
           <PageHeader
             kicker="Topic"
             title={<><Hash className="inline-block h-7 w-7 -mt-1 text-brand-accent" />{tag}</>}
-            subtitle="Trusted notes and articles on this topic — ranked by Web of Trust, spam filtered out."
+            subtitle="Notes and articles on this topic — ranked by your network, spam filtered out."
           />
 
           {/* Related topics */}

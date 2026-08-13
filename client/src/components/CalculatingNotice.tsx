@@ -36,7 +36,7 @@ export function CalculatingNotice({
     <div className="flex items-start gap-2 text-xs text-slate-500 dark:text-slate-400" data-testid="calculating-notice">
       <Loader2 className="mt-px h-3.5 w-3.5 shrink-0 animate-spin text-brand-link" />
       <span>
-        Building your trust scores — usually{" "}
+        Building your scores — usually{" "}
         <span className="font-semibold text-slate-700 dark:text-slate-300">about 5 minutes</span>
         {typeof queueAhead === "number" && queueAhead > 0 && <> · {queueAhead} ahead of you</>}
         {searchHint && <> · you can search while it runs</>}

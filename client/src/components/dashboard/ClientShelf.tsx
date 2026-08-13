@@ -51,7 +51,7 @@ export function ClientShelf({
               has FAILED, where a "while you wait" framing would be wrong. */}
           <SectionHeader kicker="Supported clients" />
           <p className="text-slate-500 dark:text-slate-400">
-            Your trust scores publish over NIP-85 — they show up in the Nostr apps you already read.
+            Your scores publish over NIP-85 — they show up in the Nostr apps you already read.
           </p>
           <SupportedClientsGrid testIdPrefix="dashboard-app" />
         </>
