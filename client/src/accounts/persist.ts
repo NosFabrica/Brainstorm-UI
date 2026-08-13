@@ -210,6 +210,48 @@ export function createPersistence(
     for (const entry of entries) restore(store, entry, remembered);
   }
 
+  /**
+   * Try the parked entries against the types this build registered.
+   *
+   * The quarantine was write-only: entries went in, nothing read the key back,
+   * and every later `save()` excluded them — so it held the only copy of an
+   * Account that would never be opened again. Someone who booted once on a build
+   * that didn't know their Account type stayed signed out of it permanently,
+   * including after the build that understands it shipped.
+   *
+   * Entries that still don't deserialise stay exactly where they are. Nothing is
+   * ever deleted from here except by being successfully adopted.
+   */
+  function recoverQuarantined(store: StorageLike, remembered: boolean): void {
+    const parked = readJSON(store, QUARANTINE_KEY);
+    if (!Array.isArray(parked) || parked.length === 0) return;
+
+    const stillUnreadable = parked.filter((entry) => !adoptQuarantined(store, entry, remembered));
+    if (stillUnreadable.length === parked.length) return;
+    store.setItem(QUARANTINE_KEY, JSON.stringify(stillUnreadable));
+  }
+
+  /**
+   * Deserialise a parked entry without re-parking it on failure — it is already
+   * parked, and `restore`'s catch would append a duplicate.
+   */
+  function adoptQuarantined(store: StorageLike, entry: unknown, remembered: boolean): boolean {
+    try {
+      const account = AccountManager.deserialize([...manager.types.values()], entry as any);
+      // Already restored from the main blob. The parked copy is an older
+      // serialisation of the same identity, so it needs dropping, not adopting
+      // over the top of the live one — `addAccount` would no-op anyway, but
+      // `lastGood` would take the stale JSON.
+      if (manager.getAccount(account.id)) return true;
+      account.metadata = { remembered, ...(account.metadata ?? {}) };
+      manager.addAccount(account);
+      lastGood.set(account.id, account.toJSON());
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   function adopt(id: string): BrainstormAccount | null {
     const held = manager.getAccount(id);
     if (held) return held as BrainstormAccount;
@@ -271,6 +313,10 @@ export function createPersistence(
   function load(): void {
     loadFrom(storage.device, true);
     loadFrom(storage.tab, false);
+    // After both blobs, so an entry that is in the main blob *and* parked is
+    // adopted from the blob first and the parked copy simply deduped away.
+    recoverQuarantined(storage.device, true);
+    recoverQuarantined(storage.tab, false);
 
     const activeId = storage.device.getItem(ACTIVE_KEY);
     if (activeId && manager.getAccount(activeId)) manager.setActive(activeId);

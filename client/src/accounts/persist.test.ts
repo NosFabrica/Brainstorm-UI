@@ -354,3 +354,95 @@ describe("an account that loses its last at-rest form", () => {
     expect(read(storage.device, ACCOUNTS_KEY)).toEqual([]);
   });
 });
+
+/**
+ * The quarantine was write-only. Entries went in, `load()` never read the key
+ * back, and every subsequent `save()` excluded them — so the quarantine held the
+ * only copy of an Account nothing would ever open again. A user who booted once
+ * on a build that didn't know their Account type stayed signed out of it forever,
+ * including after the build that understands it shipped.
+ */
+describe("an account this build could not read, on a build that can", () => {
+  const pubkey = getPublicKey(generateSecretKey());
+  const futureEntry = { id: "future", type: "some-future-signer", pubkey, signer: { secret: "x" } };
+
+  /** The type that build was missing, as `manager.registerType` would supply it. */
+  class FutureAccount {
+    static readonly type = "some-future-signer";
+    id = "future";
+    metadata: Record<string, unknown> = {};
+    constructor(public pubkey: string, public signer: unknown) {}
+    static fromJSON(json: any) {
+      const account = new FutureAccount(json.pubkey, json.signer);
+      account.id = json.id;
+      account.metadata = json.metadata ?? {};
+      return account;
+    }
+    toJSON() {
+      return { id: this.id, type: "some-future-signer", pubkey: this.pubkey, signer: this.signer, metadata: this.metadata };
+    }
+  }
+
+  function withFutureType(storage: StorageSeam) {
+    const made = createManager({ storage, unlockCache: createFakeUnlockCache(), autoStart: false });
+    made.manager.registerType(FutureAccount as never);
+    made.persistence.load();
+    return made;
+  }
+
+  it("adopts it on the next boot and empties the quarantine", () => {
+    const storage = createTestStorage();
+    storage.device.setItem(QUARANTINE_KEY, JSON.stringify([futureEntry]));
+
+    const { manager } = withFutureType(storage);
+
+    expect(manager.accounts.map((a) => a.id)).toEqual(["future"]);
+    expect(read(storage.device, QUARANTINE_KEY)).toEqual([]);
+  });
+
+  it("puts it back in the area it was parked in, not a more durable one", () => {
+    const storage = createTestStorage();
+    storage.tab.setItem(QUARANTINE_KEY, JSON.stringify([futureEntry]));
+
+    const { manager } = withFutureType(storage);
+
+    // parked from sessionStorage, so it is not Remembered and must not be promoted
+    expect(manager.accounts.map((a) => a.id)).toEqual(["future"]);
+    expect(manager.getAccount("future")?.metadata?.remembered).toBeFalsy();
+    expect(read(storage.tab, QUARANTINE_KEY)).toEqual([]);
+  });
+
+  it("leaves an entry it still cannot read exactly where it was", () => {
+    const storage = createTestStorage();
+    const stillUnknown = { id: "later", type: "even-later-signer", pubkey };
+    storage.device.setItem(QUARANTINE_KEY, JSON.stringify([futureEntry, stillUnknown]));
+
+    const { manager } = withFutureType(storage);
+
+    expect(manager.accounts.map((a) => a.id)).toEqual(["future"]);
+    expect(read(storage.device, QUARANTINE_KEY)).toEqual([stillUnknown]);
+  });
+
+  it("drops a parked copy of an identity the main blob already restored", () => {
+    const storage = createTestStorage();
+    storage.device.setItem(ACCOUNTS_KEY, JSON.stringify([futureEntry]));
+    // an older serialisation of the same identity, parked by some earlier boot
+    storage.device.setItem(QUARANTINE_KEY, JSON.stringify([{ ...futureEntry, signer: { secret: "stale" } }]));
+
+    const { manager } = withFutureType(storage);
+
+    expect(manager.accounts).toHaveLength(1);
+    expect((manager.getAccount("future") as any)?.signer).toEqual({ secret: "x" });
+    expect(read(storage.device, QUARANTINE_KEY)).toEqual([]);
+  });
+
+  it("does not touch the backup blob on its way through", () => {
+    const storage = createTestStorage();
+    storage.device.setItem(ACCOUNTS_KEY, JSON.stringify([]));
+    storage.device.setItem(QUARANTINE_KEY, JSON.stringify([futureEntry]));
+
+    withFutureType(storage).stop();
+
+    expect(read(storage.device, BACKUP_KEY)).toEqual([]);
+  });
+});
