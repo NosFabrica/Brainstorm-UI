@@ -27,7 +27,8 @@ import { decodeShareId, npubFromPubkey, nostrUriFor, eventPath } from "@/lib/sha
 import { relativeTime } from "@/lib/relativeTime";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useActiveAccount } from "applesauce-react/hooks";
-import { fetchProfileForShare, fetchRecentByKinds, fetchLiveStreams, fetchEventsByIds, fetchAddressableEvents, fetchProfileMap, fetchExternalIdentities, fetchOutboxRelayList, fetchProfilePrefs, publishProfilePrefs, PROFILE_RELAYS } from "@/services/nostr";
+import { fetchProfileForShare, fetchRecentByKinds, fetchLiveStreams, fetchEventsByIds, fetchAddressableEvents, fetchProfileMap, fetchExternalIdentities, fetchOutboxRelayList, fetchProfilePrefs, publishProfilePrefs } from "@/services/nostr";
+import { PROFILE_RELAYS } from "@/lib/relays";
 import { parseIdentities } from "@/lib/externalIdentity";
 import { ExternalIdentities } from "@/components/share/ExternalIdentities";
 import { FollowedByRow } from "@/components/share/FollowedByRow";

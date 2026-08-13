@@ -15,7 +15,8 @@ import { initialsFor } from "@/lib/profileDefaults";
 import { useActiveAccount } from "applesauce-react/hooks";
 import { signAs } from "@/accounts/signing";
 import { isUnlockCancelled } from "@/accounts/local-signer";
-import { signEventWithEphemeralKey, getVerifiedProfileLud16, PROFILE_RELAYS } from "@/services/nostr";
+import { signEventWithEphemeralKey, getVerifiedProfileLud16 } from "@/services/nostr";
+import { PROFILE_RELAYS } from "@/lib/relays";
 import {
   acceptsZaps,
   canAttributeZap,

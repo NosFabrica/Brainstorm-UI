@@ -13,13 +13,8 @@
  * `services/api.ts`: `/p/:id` is anon-viewable and `authenticatedFetch` wipes
  * auth storage and hard-redirects on 401 (.agents/memory/anon-public-data-fetch.md).
  */
-import {
-  pool,
-  fetchEventsByFilter,
-  loadOutboxRelayListFromDb,
-  publishToRelays,
-  PROFILE_RELAYS,
-} from "./nostr";
+import { pool, fetchEventsByFilter, loadOutboxRelayListFromDb, publishToRelays } from "./nostr";
+import { PROFILE_RELAYS } from "@/lib/relays";
 import { resolveHouseObserver, resolveTrustSource } from "./trustSource";
 import {
   applyProfileTagging,

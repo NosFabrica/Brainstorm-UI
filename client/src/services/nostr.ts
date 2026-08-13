@@ -2,7 +2,9 @@ import { nip19, finalizeEvent, generateSecretKey, verifyEvent } from "nostr-tool
 import { env } from "@/lib/runtimeEnv";
 import { pool } from "@/lib/relayPool";
 import { eventStore } from "@/lib/eventStore";
+import { CONTENT_RELAYS, PROFILE_RELAYS } from "@/lib/relays";
 import { requestAll, requestNewest, requestOne } from "@/lib/relayRequest";
+import { addressLoader, loadReplaceable } from "@/lib/loaders";
 
 const RAW_NIP85_RELAY_URL = env.VITE_NIP85_RELAY_URL;
 const NIP85_RELAY_URL = RAW_NIP85_RELAY_URL.trim().replace(/\/+$/, "");
@@ -114,55 +116,41 @@ export function signEventWithEphemeralKey(event: Record<string, unknown>): Recor
   } catch {}
 })();
 
-export const PROFILE_RELAYS = [
-  "wss://relay.damus.io/",
-  "wss://nos.lol/",
-  "wss://relay.primal.net/",
-  "wss://purplepag.es/",
-  "wss://nostr.wine/",
-];
 
-/** Relays that actually carry note/article content (dropping purplepag.es, which
- *  is a profile-only relay). Used for hashtag / content queries. */
-export const CONTENT_RELAYS = [
-  "wss://relay.damus.io/",
-  "wss://nos.lol/",
-  "wss://relay.primal.net/",
-  "wss://nostr.wine/",
-];
 
 
 /**
- * Unlike its neighbours this one streams: `onProfile` fires per profile as the
- * relays answer, so a caller can paint each avatar the moment it lands rather
- * than after the slowest relay. That is why it subscribes rather than awaiting
- * one of the `relayRequest` helpers — they resolve once, at the end.
+ * Unlike its neighbours this one streams: `onProfile` fires per profile as each
+ * arrives, so a caller can paint each avatar the moment it lands rather than
+ * after the slowest relay.
+ *
+ * Per pubkey rather than one filter over all of them, because that is what lets
+ * the loader answer from the store for the ones it already holds and merge the
+ * rest into whatever batch is forming. A single `authors: [...]` filter would
+ * fetch every one of them again.
  */
 export function fetchProfiles(
   pubkeys: string[],
   onProfile?: (pubkey: string, profile: ProfileContent) => void
 ): Promise<void> {
-  return new Promise<void>((resolve) => {
-    pool.request(PROFILE_RELAYS, { kinds: [0], authors: pubkeys }, { eventStore }).subscribe({
-      next: (event) => {
-        try {
-          if (onProfile && isValidProfile(event)) {
-            const content = getProfileContent(event);
-            if (content) onProfile(event.pubkey, content);
-          }
-        } catch {}
-      },
-      error: () => resolve(),
-      complete: () => resolve(),
-    });
-  });
+  const unique = Array.from(new Set(pubkeys));
+  return Promise.all(
+    unique.map(async (pubkey) => {
+      const event = await loadReplaceable(0, pubkey);
+      try {
+        if (!event || !onProfile || !isValidProfile(event)) return;
+        const content = getProfileContent(event);
+        if (content) onProfile(event.pubkey, content);
+      } catch {}
+    }),
+  ).then(() => undefined);
 }
 
 export async function fetchOutboxRelayList(pubkey: string, timeoutMs = 10000): Promise<NostrEvent | undefined> {
   try {
     const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
 
-    return await requestOne(writeRelays, { kinds: [10002], authors: [pubkey] }, timeoutMs);
+    return await loadReplaceable(10002, pubkey, { relays: writeRelays, timeoutMs });
   } catch {}
 
   return undefined;
@@ -172,7 +160,7 @@ export async function fetchTrustProviderList(pubkey: string, timeoutMs = 10000):
   try {
     const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
 
-    return await requestOne(writeRelays, { kinds: [10040], authors: [pubkey] }, timeoutMs);
+    return await loadReplaceable(10040, pubkey, { relays: writeRelays, timeoutMs });
   } catch {}
 
   return undefined;
@@ -372,11 +360,11 @@ export async function fetchAssistantPointer(
     // NIP-78 events are addressable/replaceable — different relays may hold
     // different versions, so this waits out the window for the newest rather
     // than hydrating from whichever relay answered first.
-    const newest = await requestNewest(
-      writeRelays,
-      { kinds: [30078], authors: [userPubkey], "#d": [ASSISTANT_POINTER_D_TAG] },
+    const newest = await loadReplaceable(30078, userPubkey, {
+      identifier: ASSISTANT_POINTER_D_TAG,
+      relays: writeRelays,
       timeoutMs,
-    );
+    });
 
     if (!newest) return null;
 
@@ -433,11 +421,11 @@ export async function fetchProfilePrefs(
 ): Promise<Record<string, unknown> | null> {
   try {
     const relays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS);
-    const newest = await requestNewest(
+    const newest = await loadReplaceable(30078, pubkey, {
+      identifier: PROFILE_PREFS_D_TAG,
       relays,
-      { kinds: [30078], authors: [pubkey], "#d": [PROFILE_PREFS_D_TAG] },
       timeoutMs,
-    );
+    });
     if (!newest) return null;
     try { return JSON.parse((newest as any).content || "{}"); } catch { return null; }
   } catch {
@@ -483,11 +471,11 @@ export async function fetchAlertPrefs(timeoutMs = 6000, dTag: string = ALERT_PRE
   if (!(await canSignSilently(account))) return null;
   try {
     const relays = loadOutboxRelayListFromDb(account.pubkey, PROFILE_RELAYS);
-    const newest = await requestNewest(
+    const newest = await loadReplaceable(30078, account.pubkey, {
+      identifier: dTag,
       relays,
-      { kinds: [30078], authors: [account.pubkey], "#d": [dTag] },
       timeoutMs,
-    );
+    });
     const content = newest?.content;
     if (!content) return null;
     const plain = await decryptFromSelf(account, content);
@@ -532,7 +520,7 @@ export async function fetchProfileEvent(
     const baseRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS);
     const extras = extraRelays.map((r) => r.trim()).filter((r) => r.length > 0);
     const writeRelays = Array.from(new Set([...baseRelays, ...extras]));
-    return await requestOne(writeRelays, { kinds: [0], authors: [pubkey] }, timeoutMs);
+    return await loadReplaceable(0, pubkey, { relays: writeRelays, timeoutMs });
   } catch {}
   return undefined;
 }
@@ -791,16 +779,14 @@ export async function fetchProfileMap(
   const unique = Array.from(new Set(pubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk))));
   const map = new Map<string, ProfileContent>();
   if (!unique.length) return map;
-  // One profile per pubkey is all there is to find, so a full set ends it early.
-  // Counted by pubkey rather than by event: two relays holding different versions
-  // of one kind-0 are two events, and stopping on that would abandon the window
-  // while another pubkey's profile was still in flight.
-  const events = await requestAll(PROFILE_RELAYS, { kinds: [0], authors: unique }, timeoutMs, {
-    enough: (collected) => new Set(Array.from(collected.values(), (e) => e.pubkey)).size >= unique.length,
-  });
+  // Per pubkey, so the ones already in the store cost nothing and the rest join
+  // whatever batch is forming rather than opening a request of their own.
+  const events = await Promise.all(
+    unique.map((pubkey) => loadReplaceable(0, pubkey, { timeoutMs })),
+  );
   for (const event of events) {
     try {
-      if (!isValidProfile(event as any)) continue;
+      if (!event || !isValidProfile(event as any)) continue;
       const content = getProfileContent(event as any);
       if (content) map.set(event.pubkey, content);
     } catch {}

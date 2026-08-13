@@ -13,13 +13,8 @@
 import { nip19, getPublicKey, generateSecretKey } from "nostr-tools";
 import { ExtensionMissingError } from "applesauce-signers";
 
-import {
-  PROFILE_RELAYS,
-  cacheProfile,
-  fetchProfile,
-  publishProfile,
-  publishRelayList,
-} from "@/services/nostr";
+import { cacheProfile, fetchProfile, publishProfile, publishRelayList } from "@/services/nostr";
+import { PROFILE_RELAYS } from "@/lib/relays";
 import { sessions, SessionTransportError } from "@/accounts/session";
 import { LocalAccount } from "@/accounts/local-account";
 import { activeAccount } from "@/accounts/signing";

@@ -1,4 +1,5 @@
-import { pool, PROFILE_RELAYS, publishToRelays, loadOutboxRelayListFromDb } from "./nostr";
+import { pool, publishToRelays, loadOutboxRelayListFromDb } from "./nostr";
+import { PROFILE_RELAYS } from "@/lib/relays";
 import { activeAccount, signAs, signingFailure, type PublishOutcome } from "@/accounts/signing";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import { apiClient } from "./api";
