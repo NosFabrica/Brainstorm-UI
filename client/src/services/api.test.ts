@@ -27,7 +27,11 @@ vi.mock("@/accounts/session", async (original) => ({
   refreshSession: (...args: unknown[]) => refreshSession(...args),
   ensureSession: (...args: unknown[]) => ensureSession(...args),
 }));
-vi.mock("@/accounts/login", () => ({ waitForExtension: async () => undefined }));
+const waitForExtension = vi.fn(async () => undefined);
+vi.mock("@/accounts/login", async (original) => ({
+  ...(await original<typeof import("@/accounts/login")>()),
+  waitForExtension: (...args: unknown[]) => waitForExtension(...(args as [])),
+}));
 
 let account: StubAccount;
 
@@ -168,5 +172,61 @@ describe("resuming a deferred session", () => {
 
     await resumeSession();
     expect(ensureSession).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * A token expiring while several queries are in flight used to cost one signer
+ * prompt per query: each 401 called `refreshSession`, which clears the Session
+ * before minting — wiping the token a sibling had just written and defeating the
+ * "did one arrive while I waited?" guard inside `authenticate`.
+ */
+describe("several requests meeting the same expired token", () => {
+  it("adopts the token a sibling just minted rather than asking the signer again", async () => {
+    holdsSession("stale");
+    const fetchMock = vi.fn(async () => {
+      if (fetchMock.mock.calls.length === 1) {
+        // a sibling request's re-auth lands while this one is in flight
+        holdsSession("fresh");
+        return unauthorized();
+      }
+      return ok();
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(apiClient.getUserHistory()).resolves.toEqual({ data: [] });
+
+    expect(refreshSession).not.toHaveBeenCalled();
+    expect(fetchMock.mock.calls[1]?.[1]).toMatchObject({ headers: { access_token: "fresh" } });
+  });
+
+  it("still mints when the token really is the one that failed", async () => {
+    holdsSession("stale");
+    mintsToken("fresh");
+    stubFetch(unauthorized(), ok());
+
+    await expect(apiClient.getUserHistory()).resolves.toEqual({ data: [] });
+
+    expect(refreshSession).toHaveBeenCalled();
+  });
+});
+
+/**
+ * A cold boot with an expired token races the extension's own injection. Alby and
+ * nos2x on a cold profile routinely inject after ~1s, and giving up first ends in
+ * a cleared Session and, for a single-account user, a redirect home.
+ */
+describe("a 401 that beats the extension into the page", () => {
+  it("waits longer than the interactive paths do", async () => {
+    account.type = "extension";
+    holdsSession("stale");
+    mintsToken("fresh");
+    stubFetch(unauthorized(), ok());
+
+    await apiClient.getUserHistory();
+
+    const { EXTENSION_COLD_BOOT_WAIT_MS, EXTENSION_WAIT_MS } = await import("@/accounts/login");
+    expect(EXTENSION_COLD_BOOT_WAIT_MS).toBeGreaterThan(EXTENSION_WAIT_MS);
+    expect(waitForExtension).toHaveBeenCalledWith(EXTENSION_COLD_BOOT_WAIT_MS);
   });
 });

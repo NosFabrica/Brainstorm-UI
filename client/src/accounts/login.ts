@@ -30,6 +30,15 @@ declare global {
 /** Extensions inject `window.nostr` whenever they like, often after first paint. */
 export const EXTENSION_WAIT_MS = 800;
 
+/**
+ * What a background 401 waits instead. The interactive paths can't stall on an
+ * extension that may not exist — 800ms is already a long time to hold a login
+ * picker. A cold boot has the opposite problem: Alby and nos2x on a cold profile
+ * routinely inject after ~1s, and giving up first costs the Session and, for a
+ * single-account user, the route. This is what v1 waited here.
+ */
+export const EXTENSION_COLD_BOOT_WAIT_MS = 3000;
+
 export function waitForExtension(
   maxWaitMs = EXTENSION_WAIT_MS,
   intervalMs = 100,

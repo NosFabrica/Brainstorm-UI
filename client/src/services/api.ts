@@ -7,7 +7,7 @@ import {
   refreshSession,
   SessionDeferredError,
 } from "@/accounts/session";
-import { waitForExtension } from "@/accounts/login";
+import { EXTENSION_COLD_BOOT_WAIT_MS, waitForExtension } from "@/accounts/login";
 import { accountManager } from "@/accounts";
 import { activeAccount } from "@/accounts/signing";
 
@@ -78,11 +78,19 @@ type ReauthResult = "ok" | "deferred" | "failed";
  * user-initiated action mints one. Concurrent 401s share one exchange, so a
  * signer is asked to approve at most once.
  */
-async function silentReauth(): Promise<ReauthResult> {
+async function silentReauth(staleToken?: string): Promise<ReauthResult> {
   const account = activeAccount();
   if (!account) return "failed";
+  // Someone else got here first. When a token expires with several queries in
+  // flight they all 401, and the ones landing after the first exchange settled
+  // are complaining about a token that no longer exists — minting again would
+  // cost one signer approval per stale request, and `refreshSession` would clear
+  // the fresh token on its way to doing it.
+  if (staleToken !== undefined && currentToken() !== undefined && currentToken() !== staleToken) {
+    return "ok";
+  }
   // A 401 on a cold boot can beat the extension's own injection; v1 waited here too.
-  if (account.type === "extension") await waitForExtension();
+  if (account.type === "extension") await waitForExtension(EXTENSION_COLD_BOOT_WAIT_MS);
   try {
     await refreshSession(account, { background: true });
     return "ok";
@@ -132,7 +140,7 @@ async function authenticatedFetch(
   if (response.status === 401) {
     const data = await response.json().catch(() => null);
     const detail = data?.detail || data?.message || "";
-    const reauth = await silentReauth();
+    const reauth = await silentReauth(token);
     if (reauth === "deferred") throw new SessionDeferredError();
     if (reauth === "ok") {
       const newToken = currentToken();
