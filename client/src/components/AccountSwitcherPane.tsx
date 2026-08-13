@@ -34,7 +34,10 @@ export type AccountSwitcherProps = Omit<AccountSwitcherPaneProps, "identities" |
  * cache decrypt per local key — don't run behind every panel that mounts.
  */
 export function AccountSwitcher(props: AccountSwitcherProps) {
-  const { identities } = useLoginPicker();
+  // Session-only Accounts included: they are held in this tab with their keys
+  // unlocked, and a pane that hides them leaves the user signed into an identity
+  // they cannot get back to without pasting the key again.
+  const { identities } = useLoginPicker({ includeSessionOnly: true });
   const account = useActiveAccount() as BrainstormAccount | undefined;
   return (
     <AccountSwitcherPane

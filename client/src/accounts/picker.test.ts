@@ -124,8 +124,37 @@ describe("an account this device didn't keep", () => {
     expect(identity.npub).toBe("npub1alice");
     // signing right now, so it is well — and not a way to switch to itself
     expect(identity.rows).toEqual([
-      { account, signer: "key", health: "ok", selectable: false },
+      { account, signer: "key", health: "ok", selectable: false, sessionOnly: true },
     ]);
+  });
+
+  /**
+   * The switcher asks a different question from the login picker: not "what will
+   * be here next launch" but "what are you holding right now". Hiding a
+   * session-only Account the moment it stops being Active left it signed in, with
+   * its key unlocked in memory, and no way back to it but pasting the key again.
+   */
+  it("is listed in the switcher, marked as this tab's, even when it is not the active one", async () => {
+    const { pubkey, unlockCache, envelope } = await keyFixture();
+    const account = localRow({ envelope }, unlockCache, pubkey) as unknown as BrainstormAccount;
+    updateMetadata(account, { remembered: false, name: "Alice", npub: "npub1alice" });
+
+    const [identity] = pickerIdentities([account], () => "ok", { includeSessionOnly: true });
+
+    expect(identity.rows).toEqual([
+      { account, signer: "key", health: "ok", selectable: true, sessionOnly: true },
+    ]);
+  });
+
+  it("is not confused with a kept one: only the unkept row is marked", async () => {
+    const { pubkey, unlockCache, envelope } = await keyFixture();
+    const kept = remembered(extensionRow(pubkey), "Alice");
+    const unkept = localRow({ envelope }, unlockCache, pubkey) as unknown as BrainstormAccount;
+    updateMetadata(unkept, { remembered: false });
+
+    const [identity] = pickerIdentities([kept, unkept], () => "ok", { includeSessionOnly: true });
+
+    expect(identity.rows.map((row) => row.sessionOnly)).toEqual([false, true]);
   });
 
   it("joins its identity rather than repeating the same face under a second heading", async () => {

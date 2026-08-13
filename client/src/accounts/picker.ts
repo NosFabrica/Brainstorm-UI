@@ -41,6 +41,8 @@ export type PickerRow = {
   signer: SignerKind;
   health: RowHealth;
   selectable: boolean;
+  /** Signed in without "remember me": held for this tab, gone when it closes. */
+  sessionOnly: boolean;
 };
 
 export type PickerIdentity = {
@@ -113,11 +115,11 @@ export async function healthOf(
 /**
  * The same list, guaranteed to contain the Active Account.
  *
- * A Remembered Account is the only kind anything lists: the rest die with the tab,
- * and offering one at sign-in would be offering something that won't be there. But
- * the switcher asks a different question, and one that doesn't contain the person
- * reading it looks broken — so an Account signed in without "remember me" gets a
- * row anyway, healthy by construction because it is signing right now.
+ * The login picker lists Remembered Accounts only: the rest die with the tab, and
+ * offering one at sign-in would be offering something that won't be there. The
+ * switcher passes `includeSessionOnly`, so this is the backstop rather than the
+ * rule — an Active Account with no row at all would make the pane look broken,
+ * and this one is healthy by construction because it is signing right now.
  *
  * It joins its identity where that identity is already listed under another
  * Signer, rather than appearing as a second heading for the same face.
@@ -131,7 +133,13 @@ export function withActiveAccount(
     return identities;
   }
 
-  const row: PickerRow = { account: active, signer: signerKindOf(active), health: "ok", selectable: false };
+  const row: PickerRow = {
+    account: active,
+    signer: signerKindOf(active),
+    health: "ok",
+    selectable: false,
+    sessionOnly: !isRemembered(active),
+  };
   const listed = identities.find((identity) => identity.pubkey === active.pubkey);
   if (listed) {
     return identities.map((identity) =>
@@ -160,11 +168,12 @@ export function withActiveAccount(
 export function pickerIdentities(
   accounts: BrainstormAccount[],
   health: (account: BrainstormAccount) => RowHealth,
+  { includeSessionOnly = false }: { includeSessionOnly?: boolean } = {},
 ): PickerIdentity[] {
   const identities = new Map<string, PickerIdentity>();
 
   for (const account of accounts) {
-    if (!isRemembered(account)) continue;
+    if (!isRemembered(account) && !includeSessionOnly) continue;
 
     const metadata = getMetadata(account);
     const identity = identities.get(account.pubkey) ?? {
@@ -184,6 +193,7 @@ export function pickerIdentities(
       signer: signerKindOf(account),
       health: state,
       selectable: isSelectable(state),
+      sessionOnly: !isRemembered(account),
     });
   }
 

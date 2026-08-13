@@ -63,6 +63,11 @@ export function AccountRowChips({ row }: { row: PickerRow }) {
       <Chip tone={signer.tone} size="sm" icon={signer.icon}>
         {signer.label}
       </Chip>
+      {row.sessionOnly && (
+        <Chip tone="slate" size="sm" data-testid={`chip-session-only-${row.account.id}`}>
+          This tab only
+        </Chip>
+      )}
       {health && (
         <Chip
           tone={health.tone}
