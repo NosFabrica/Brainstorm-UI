@@ -14,10 +14,14 @@ import { createFakeUnlockCache } from "@/accounts/test-fakes";
 import type { LocalAccount } from "@/accounts/local-account";
 
 const ensureSession = vi.fn(async () => "token.eyJhbGciOiJIUzI1NiJ9.sig");
+const authenticate = vi.fn(async () => "token.eyJhbGciOiJIUzI1NiJ9.sig");
 const clear = vi.fn();
 
 vi.mock("@/accounts/session", () => ({
-  sessions: { ensureSession: (account: BrainstormAccount) => ensureSession(account) },
+  sessions: {
+    ensureSession: (account: BrainstormAccount) => ensureSession(account),
+    authenticate: (account: BrainstormAccount) => authenticate(account),
+  },
   SessionTransportError: class SessionTransportError extends Error {},
 }));
 vi.mock("@/lib/queryClient", () => ({ queryClient: { clear: () => clear() } }));
@@ -123,5 +127,31 @@ describe("removing an account from this device", () => {
 
     expect(accountManager.accounts).not.toContain(other as any);
     expect(accountManager.active?.id).toBe(signedIn.id);
+  });
+});
+
+/**
+ * Adding an identity is not switching to one, so it went down a different path —
+ * and that path never emptied the cache. The dashboard then rendered the previous
+ * account's connections, scores and settings under the new name.
+ */
+describe("adding another account while signed in", () => {
+  it("empties the cache, the way switching to one does", async () => {
+    const { signInWithExternalSigner } = await import("./nostr");
+    await held();
+    const added = await localAccount(generateSecretKey(), { unlockCache: createFakeUnlockCache() });
+
+    await signInWithExternalSigner(added as unknown as BrainstormAccount);
+
+    expect(clear).toHaveBeenCalled();
+  });
+
+  it("leaves the cache alone when the account signing in is already the active one", async () => {
+    const { signInWithExternalSigner } = await import("./nostr");
+    const signedIn = await held();
+
+    await signInWithExternalSigner(signedIn as unknown as BrainstormAccount);
+
+    expect(clear).not.toHaveBeenCalled();
   });
 });

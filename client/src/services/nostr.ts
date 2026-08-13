@@ -1001,6 +1001,13 @@ async function signIn(account: BrainstormAccount, metadata: AccountMetadata): Pr
   const token = await sessions.authenticate(account);
   // The previous Account stays: signing in adds an identity rather than replacing
   // one, which is what the login picker lists. Sign-out is what lets one go.
+  //
+  // Its cached answers don't stay, though. `adoptAccount` makes this Account the
+  // Active one, so every query still holding the previous identity's connections,
+  // scores and settings would answer for it under the new name until something
+  // happened to refetch. Cleared before the swap, not after, for the same reason
+  // `signInWithAccount` does: afterwards is already too late.
+  if (activePubkey() !== account.pubkey) queryClient.clear();
   adoptAccount(account, { ...metadata, npub: nip19.npubEncode(account.pubkey) });
   return completeLogin(account, token);
 }
