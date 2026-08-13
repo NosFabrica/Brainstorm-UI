@@ -24,7 +24,7 @@ import { AccountSwitcher } from "@/components/AccountSwitcherPane";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useToast } from "@/hooks/use-toast";
 import { removeAccountFromDevice } from "@/accounts/login-flow";
-import { isUnbackedUp } from "@/accounts/picker";
+import { removalLosesKey } from "@/accounts/picker";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import type { AccountDisplay } from "@/accounts/display";
 import { apiClient } from "@/services/api";
@@ -111,14 +111,14 @@ export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close
       />
 
       {/* The wall decision 10 moved off sign-out and onto removal. Whether it says
-          "you'll lose this" or "you can add it back" turns on the same question the
-          switcher's rows answer: is there a Backup behind this key? */}
+          "you'll lose this" or "you can add it back" turns on whether the User has
+          a copy of this key off this device — not on whether one could be made. */}
       <AlertDialog open={removing !== null} onOpenChange={(open) => !open && setRemoving(null)}>
         <AlertDialogContent data-testid="remove-account-confirm">
           {/* "Save backup" is only honest for the Account that is signing: the
               Settings backup section acts on the Active Account, so offering it
               while removing a different one would back up the wrong key. */}
-          {removing && isUnbackedUp(removing.account) && removing.isActive ? (
+          {removing && removalLosesKey(removing.account) && removing.isActive ? (
             <>
               <AlertDialogHeader>
                 <AlertDialogTitle>Save a backup before you remove this account?</AlertDialogTitle>
@@ -149,7 +149,7 @@ export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close
               <AlertDialogHeader>
                 <AlertDialogTitle>Remove this account from this device?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  {removing && isUnbackedUp(removing.account)
+                  {removing && removalLosesKey(removing.account)
                     ? "This account's key lives in this browser and nowhere else, and removing it deletes the key. Without a backup file it can't be recovered, here or anywhere."
                     : "Everything this browser holds for it goes, including its npub. Anyone holding the key elsewhere can add it again; nobody else can."}
                 </AlertDialogDescription>

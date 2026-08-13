@@ -7,7 +7,7 @@ import { generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import { LocalAccount } from "./local-account";
 import { LocalSigner } from "./local-signer";
 import { updateMetadata, type BrainstormAccount } from "./metadata";
-import { healthOf, isSelectable, pickerIdentities, signerKindOf, withActiveAccount } from "./picker";
+import { healthOf, isSelectable, isUnbackedUp, pickerIdentities, removalLosesKey, signerKindOf, withActiveAccount } from "./picker";
 import { createFakeUnlockCache, keyFixture, type FakeUnlockCache } from "./test-fakes";
 
 function localRow(
@@ -101,6 +101,37 @@ describe("the health of a local key", () => {
     await healthOf(account, "present");
 
     expect(account.locked).toBe(true);
+  });
+});
+
+/**
+ * The two questions look alike and are not: `isUnbackedUp` asks whether the key
+ * is portable, `removalLosesKey` whether the User has a copy of it anywhere but
+ * here. A Backup minted at signup and never downloaded splits them, and that is
+ * the state a skipped backup step leaves behind.
+ */
+describe("what removing an account costs", () => {
+  it("loses the key where the Backup was minted but never taken", async () => {
+    const { pubkey, unlockCache, envelope } = await keyFixture();
+    const account = localRow({ envelope, ncryptsec: "ncryptsec1minted" }, unlockCache, pubkey);
+    updateMetadata(account as unknown as BrainstormAccount, { remembered: true });
+
+    expect(isUnbackedUp(account as unknown as BrainstormAccount)).toBe(false); // portable in principle
+    expect(removalLosesKey(account as unknown as BrainstormAccount)).toBe(true); // and only here in fact
+  });
+
+  it("does not once the Backup has been handed over", async () => {
+    const { pubkey, unlockCache, envelope } = await keyFixture();
+    const account = localRow({ envelope, ncryptsec: "ncryptsec1minted" }, unlockCache, pubkey);
+    updateMetadata(account as unknown as BrainstormAccount, { remembered: true, backedUp: true });
+
+    expect(removalLosesKey(account as unknown as BrainstormAccount)).toBe(false);
+  });
+
+  it("says nothing about a key this browser never held", () => {
+    const account = remembered(extensionRow("a".repeat(64)));
+
+    expect(removalLosesKey(account)).toBe(false);
   });
 });
 

@@ -93,6 +93,20 @@ export function isUnbackedUp(account: BrainstormAccount | LocalAccount): boolean
 }
 
 /**
+ * Whether removing this Account destroys the only copy of its key.
+ *
+ * Not `isUnbackedUp`, which asks whether the key is *portable*. A Backup minted
+ * at signup and never downloaded is portable in principle and lives in this
+ * browser in fact, so removing the row loses the key exactly as removing one with
+ * no Backup at all does. A row chip can afford the finer question; a destructive
+ * confirmation cannot, and this is the state the product steers people into —
+ * the backup step is skippable and the card that follows it says "later".
+ */
+export function removalLosesKey(account: BrainstormAccount): boolean {
+  return account instanceof LocalAccount && !getMetadata(account).backedUp;
+}
+
+/**
  * A Backup means the row works — it just asks for a password. Only without one
  * does the Unlock cache decide, and only then is it opened.
  */

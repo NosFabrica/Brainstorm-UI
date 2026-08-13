@@ -9,7 +9,8 @@ import { AccountMenuBody, useAccountMenu } from "./AccountMenuBody";
 
 const removeAccountFromDevice = vi.fn(() => false);
 const navigate = vi.fn();
-const unbacked = vi.fn(() => false);
+/** The dialog turns on whether a copy of the key exists off this device. */
+const losesKey = vi.fn(() => false);
 const identities: PickerIdentity[] = [];
 
 vi.mock("@/accounts/login-flow", () => ({
@@ -21,7 +22,7 @@ vi.mock("@/hooks/useLoginPicker", () => ({
 vi.mock("applesauce-react/hooks", () => ({ useActiveAccount: () => ({ id: "alice-key" }) }));
 vi.mock("@/accounts/picker", async (original) => ({
   ...(await original<typeof import("@/accounts/picker")>()),
-  isUnbackedUp: () => unbacked(),
+  removalLosesKey: () => losesKey(),
 }));
 vi.mock("wouter", () => ({ useLocation: () => ["/dashboard", (to: string) => navigate(to)] }));
 vi.mock("@/components/ShareProfileModal", () => ({ ShareProfileModal: () => null }));
@@ -60,7 +61,7 @@ function Panel({ onLogout = () => {}, close = () => {} }: { onLogout?: () => voi
 
 beforeEach(() => {
   vi.clearAllMocks();
-  unbacked.mockReturnValue(false);
+  losesKey.mockReturnValue(false);
   removeAccountFromDevice.mockReturnValue(false);
 });
 
@@ -162,7 +163,7 @@ describe("removing an account", () => {
 
   // The wall decision 10 moved off sign-out: it stands where a key really dies.
   it("warns first where losing this browser is losing the account", () => {
-    unbacked.mockReturnValue(true);
+    losesKey.mockReturnValue(true);
     renderWithProviders(<Panel />);
 
     fireEvent.click(screen.getByTestId("ask-remove"));
@@ -179,7 +180,7 @@ describe("removing an account", () => {
   // Settings' backup section acts on the Active Account, so offering it here for
   // somebody else would send the user off to back up the wrong key.
   it("does not offer to back up an account it cannot back up", () => {
-    unbacked.mockReturnValue(true);
+    losesKey.mockReturnValue(true);
     renderWithProviders(<Panel />);
 
     fireEvent.click(screen.getByTestId("ask-remove-other"));
@@ -189,7 +190,7 @@ describe("removing an account", () => {
   });
 
   it("takes the answer anyway, once it has been given", () => {
-    unbacked.mockReturnValue(true);
+    losesKey.mockReturnValue(true);
     renderWithProviders(<Panel />);
 
     fireEvent.click(screen.getByTestId("ask-remove"));
