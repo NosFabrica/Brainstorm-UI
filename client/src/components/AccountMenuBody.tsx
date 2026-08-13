@@ -10,7 +10,6 @@ import {
   UserCircle,
   UserPlus,
   HelpCircle,
-  BookOpen,
   Settings as SettingsIcon,
   Shield,
   LogOut,
@@ -234,7 +233,7 @@ export function AccountMenuBody({
   return (
     <div className="relative">
       {/* Identity card — and the switcher's trigger */}
-      <div className="p-4 pb-3">
+      <div className="px-3 pt-4 pb-3">
         <button
           type="button"
           onClick={() => setPane("switcher")}
@@ -280,7 +279,7 @@ export function AccountMenuBody({
         <button
           type="button"
           onClick={() => onNavigate(`/p/${user.npub}`)}
-          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-full border border-slate-300/70 dark:border-white/15 bg-white/50 dark:bg-white/[0.06] px-4 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-100 transition-colors hover:bg-white/80 dark:hover:bg-white/[0.12] hover:border-brand-accent/40"
+          className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-full border border-slate-300/70 dark:border-white/15 bg-white/50 dark:bg-white/[0.06] px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-100 transition-colors hover:bg-white/80 dark:hover:bg-white/[0.12] hover:border-brand-accent/40"
           data-testid="dropdown-view-profile"
         >
           <UserCircle className="h-4 w-4" /> View profile
@@ -371,11 +370,17 @@ export function AccountMenuBody({
 
       <MenuDivider />
 
-      {/* Grouped actions — Settings sits under Help & FAQ */}
+      {/* Grouped actions — Settings sits under Help & FAQ.
+
+          "What is WoT?" used to sit between them. It asked people to decode an
+          acronym before they knew whether they cared, and a definition is not a
+          thing you reach for from an account menu. The page is still there and
+          still linked from where curiosity actually starts — About, the footer,
+          onboarding, the tags explainer, the connection lists and the
+          flagged-profile banner. Ten routes in; this was the worst of them. */}
       <div className="p-1.5">
         <MenuRow icon={UserPlus} label="Invite friends" onClick={onInvite} testId="dropdown-invite" />
         <MenuRow icon={HelpCircle} label="Help & FAQ" onClick={() => onNavigate("/faq")} testId="dropdown-faq" />
-        <MenuRow icon={BookOpen} label="What is WoT?" onClick={() => onNavigate("/what-is-wot")} testId="dropdown-wot" />
         <MenuRow icon={SettingsIcon} label="Settings" onClick={() => onNavigate("/settings")} testId="dropdown-settings" />
       </div>
 
