@@ -5,10 +5,12 @@ import { useMutation } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import { motion } from "framer-motion";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { useProfile } from "@/hooks/useProfile";
+import { getProfilePicture, type ProfileContent } from "applesauce-core/helpers/profile";
 import { ArrowRight, Copy, ExternalLink, Globe, Info, Loader2, Quote, RefreshCw, Sparkles, Wand2 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { apiClient } from "@/services/api";
-import { fetchProfile, fetchAssistantPointer } from "@/services/nostr";
+import { fetchAssistantPointer } from "@/services/nostr";
 import { activePubkey } from "@/accounts/display";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { followUser } from "@/services/socialActions";
@@ -30,6 +32,24 @@ import {
   type AssistantProfile,
   type PublishedAssistantState as PublishedState,
 } from "@/lib/assistantStorage";
+
+/**
+ * A kind-0 as this card stores it. `AssistantProfile` is a storage shape — it is
+ * written to localStorage for the synchronous first paint — so it is a plain
+ * subset of `ProfileContent` rather than a second idea of what a profile is.
+ */
+function toAssistantProfile(content: ProfileContent): AssistantProfile {
+  const text = (value: unknown) => (typeof value === "string" && value ? value : undefined);
+  return {
+    name: text(content.name),
+    display_name: text(content.display_name),
+    about: text(content.about),
+    website: text(content.website),
+    picture: text(getProfilePicture(content) || content.picture),
+    banner: text((content as { banner?: unknown }).banner),
+    nip05: text(content.nip05),
+  };
+}
 
 const DEFAULT_ASSISTANT_PICTURE_PATH = "/assistant-default.webp";
 const DEFAULT_ASSISTANT_BANNER_PATH = "/assistant-banner.webp";
@@ -131,24 +151,17 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
     return () => { cancelled = true; };
   }, [userPubkey, published]);
 
-  // Hydrate the assistant's kind-0 profile from relays so we can render
-  // display name, about, and website elegantly in the active state.
+  // The assistant's kind-0, live. A subscription rather than a fetch: the store
+  // answers immediately for one it already holds, its loader gets one it doesn't,
+  // and a later republish reaches this card without a reload.
+  const assistantProfile = useProfile(published?.pubkey);
+
   useEffect(() => {
-    if (!published?.pubkey) return;
+    if (!published?.pubkey || !assistantProfile) return;
     let cancelled = false;
     (async () => {
       try {
-        const p = await fetchProfile(published.pubkey);
-        if (!p || cancelled) return;
-        const next: AssistantProfile = {
-          name: typeof (p as any).name === "string" ? (p as any).name : undefined,
-          display_name: typeof (p as any).display_name === "string" ? (p as any).display_name : undefined,
-          about: typeof (p as any).about === "string" ? (p as any).about : undefined,
-          website: typeof (p as any).website === "string" ? (p as any).website : undefined,
-          picture: typeof (p as any).picture === "string" ? (p as any).picture : undefined,
-          banner: typeof (p as any).banner === "string" ? (p as any).banner : undefined,
-          nip05: typeof (p as any).nip05 === "string" ? (p as any).nip05 : undefined,
-        };
+        const next = toAssistantProfile(assistantProfile);
         setProfile(next);
         writeAssistantProfile(next);
 
@@ -183,7 +196,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
       } catch {}
     })();
     return () => { cancelled = true; };
-  }, [published?.pubkey, published?.publishedAt]);
+  }, [published?.pubkey, published?.publishedAt, assistantProfile]);
 
   const publishMutation = useMutation({
     // Explicit user action: always (re)publish, and DO follow the bot (consent).
