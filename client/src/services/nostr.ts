@@ -908,6 +908,10 @@ export async function publishProfile(
     res = await publishToRelays(signed);
   }
   if (res.success) {
+    // The store outranks the display cache in `useActiveAccountDisplay`, and it is
+    // store-first, so without this the edit reverts on the next render and the old
+    // kind-0 is written back over the cache. Reload was the only way out.
+    eventStore.add(signed);
     try { cacheProfile(content as unknown as ProfileContent, account.pubkey); } catch {}
     // Pinned to the same Account, for the reason the profile publish above is:
     // this fires after the backoff, and `publishRelayList` would otherwise
@@ -935,7 +939,11 @@ async function publishRelayListAs(
   try {
     const signed = await signAs(account, { kind: 10002, tags, content: "" });
     if (signed.kind !== 10002) return { success: false, error: "Signer returned an unexpected event kind" };
-    return await publishToRelays(signed);
+    const res = await publishToRelays(signed);
+    // After the publish, not before: `publishToRelays` routes by the list in the
+    // store, so the new list would otherwise decide where it is itself announced.
+    if (res.success) eventStore.add(signed);
+    return res;
   } catch (e) {
     return signingFailure(e);
   }

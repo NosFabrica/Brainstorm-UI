@@ -1,12 +1,16 @@
-// @vitest-environment jsdom
+// @vitest-environment node
 /**
  * `publishProfile` retries because propagation is often thin — a kind-0 that only
  * one relay accepted may as well not exist to the clients that read from the
  * others. The retry is about the relays, so it must not drag the signer back in
  * with it: re-signing meant a profile save against an unresponsive bunker cost
  * three approval prompts and three 30-second deadlines before it gave up.
+ *
+ * Node, not jsdom: the events are really signed so the store will verify them,
+ * and jsdom's foreign-realm Uint8Array fails @noble's checks (see `test/setup.ts`).
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { finalizeEvent, getPublicKey } from "nostr-tools/pure";
 
 const publish = vi.fn();
 const signAs = vi.fn();
@@ -23,7 +27,9 @@ vi.mock("@/accounts/signing", async (original) => ({
   signAs: (...args: unknown[]) => signAs(...args),
 }));
 
-const PUBKEY = "a".repeat(64);
+/** Really signed: what the publish stores has to survive the store's own verify. */
+const SECRET = new Uint8Array(32).fill(1);
+const PUBKEY = getPublicKey(SECRET);
 const OTHER = "b".repeat(64);
 
 /** What `pool.publish` answers: one relay accepting is "thin", two is enough. */
@@ -38,13 +44,9 @@ beforeEach(async () => {
   vi.useFakeTimers();
   delete cachedFor.pubkey;
   activeAccount.mockReturnValue({ pubkey: PUBKEY, type: "test" });
-  signAs.mockImplementation(async (_account: unknown, template: { kind: number }) => ({
-    ...template,
-    id: "e".repeat(64),
-    pubkey: PUBKEY,
-    sig: "s",
-    created_at: 0,
-  }));
+  signAs.mockImplementation(async (_account: unknown, template: { kind: number }) =>
+    finalizeEvent({ created_at: 0, tags: [], content: "", ...template } as never, SECRET),
+  );
   nostr = await import("./nostr");
 });
 
@@ -89,6 +91,27 @@ describe("saving a profile that the relays barely accept", () => {
 
     const sent = profilePublishes().map((call) => call[1]);
     expect(new Set(sent).size).toBe(1);
+  });
+
+  /**
+   * The store outranks the display cache and is store-first, so a save the store
+   * never hears about reverts on the next render and stays reverted until reload.
+   */
+  it("puts what it published in the store, for both events", async () => {
+    publish.mockResolvedValue(accepted(2));
+
+    await settle(nostr.publishProfile({ name: "ana" }));
+
+    expect(nostr.eventStore.getReplaceable(0, PUBKEY)?.content).toContain("ana");
+    expect(nostr.eventStore.getReplaceable(10002, PUBKEY)).toBeTruthy();
+  });
+
+  it("leaves the store alone when the relays all refuse", async () => {
+    publish.mockResolvedValue(accepted(0));
+
+    await settle(nostr.publishProfile({ name: "ana" }));
+
+    expect(nostr.eventStore.getReplaceable(0, PUBKEY)).toBeUndefined();
   });
 
   it("gives up without publishing at all when the signer refuses", async () => {
