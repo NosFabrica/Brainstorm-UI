@@ -24,10 +24,13 @@ export function AutoScoreReturning() {
   // Only decide once the /user/history query has actually settled, so we never
   // mistake "still loading" for "unscored".
   const history = useSelfHistory(pk);
-  const fired = useRef(false);
+  // The pubkey it fired for, not a boolean. These live at the App root and no
+  // longer remount when the Account changes, so a boolean meant firing once per
+  // *tab* — a second account added in the same session never got its turn.
+  const firedFor = useRef<string | null>(null);
 
   useEffect(() => {
-    if (fired.current || !pk || !history.isSuccess) return;
+    if (firedFor.current === pk || !pk || !history.isSuccess) return;
 
     const scored = !!(history.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey;
     if (scored) return; // already has a Web of Trust
@@ -58,7 +61,7 @@ export function AutoScoreReturning() {
     try { alreadyKicked = localStorage.getItem(accountKey("brainstorm_auto_score_kicked", pk)) === "true"; } catch { /* ignore */ }
     if (alreadyKicked) return;
 
-    fired.current = true;
+    firedFor.current = pk;
     try { localStorage.setItem(accountKey("brainstorm_auto_score_kicked", pk), "true"); } catch { /* ignore */ }
     void triggerScoringAndAnchor(pk);
   }, [pk, history.isSuccess, history.data]);

@@ -26,10 +26,13 @@ export function AutoPublishAssistant() {
   const pk = useHasSession() ? user?.pubkey : undefined;
   // Wait for /user/history to settle so we don't act before ta_pubkey is known.
   const history = useSelfHistory(pk);
-  const fired = useRef(false);
+  // The pubkey it fired for, not a boolean. These live at the App root and no
+  // longer remount when the Account changes, so a boolean meant firing once per
+  // *tab* — a second account added in the same session never got its turn.
+  const firedFor = useRef<string | null>(null);
 
   useEffect(() => {
-    if (fired.current || !pk || !history.isSuccess) return;
+    if (firedFor.current === pk || !pk || !history.isSuccess) return;
 
     const createdInApp = identityHas(pk, "createdInApp");
     if (!createdInApp) return; // existing user — manual publish only
@@ -38,7 +41,7 @@ export function AutoPublishAssistant() {
     const taPubkey = (history.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey;
     if (!taPubkey) return; // not scored yet — nothing for the bot to speak
 
-    fired.current = true;
+    firedFor.current = pk;
     void ensureAssistantPublished({ follow: false, background: true }).catch(() => { /* retries next load */ });
   }, [pk, history.isSuccess, history.data]);
 

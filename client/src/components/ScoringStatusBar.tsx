@@ -4,6 +4,7 @@ import { Loader2, ArrowRight, X, ShieldCheck, Clock } from "lucide-react";
 import { useScoringStatus } from "@/hooks/useScoringStatus";
 import { accountKey } from "@/lib/accountStorage";
 import { useHasSession } from "@/hooks/useHasSession";
+import { useActiveAccount } from "applesauce-react/hooks";
 
 // Per-account. These were global strings, so with more than one account on a device
 // one account's calc/ready state leaked into another's UI.
@@ -25,6 +26,14 @@ const STALL_MS = 6 * 60_000;
  * persisted so the nudge survives navigation. Self-gates when logged out / idle.
  */
 export function ScoringStatusBar() {
+  // Keyed on the Account: every dismissal below is a judgement about one
+  // identity's scoring run, and this bar sits at the App root, so without the
+  // key those judgements outlive the account that made them.
+  const account = useActiveAccount();
+  return <ScoringStatusBarFor key={account?.pubkey ?? "anon"} />;
+}
+
+function ScoringStatusBarFor() {
   const hasSession = useHasSession();
   const [location, navigate] = useLocation();
   const { isCalculating, isReady, status, elapsedMs, triggeredAt, pubkey } = useScoringStatus();
