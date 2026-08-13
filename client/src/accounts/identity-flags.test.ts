@@ -85,3 +85,33 @@ describe("two Accounts for one identity", () => {
     expect(identityHas(undefined, "createdInApp")).toBe(false);
   });
 });
+
+/**
+ * The read above is `some()` across every row; the NIP-85 writes used to touch
+ * one. Deactivating in Settings wrote the local row, `isNip85Activated` still
+ * found `true` on the extension row, and the CTA never came back.
+ */
+describe("the NIP-85 activation flag", () => {
+  it("clears every row, so a deactivation actually reads as one", async () => {
+    const { markNip85Activated, clearNip85Activated, isNip85Activated } = await import("@/lib/nip85Activation");
+    add(Extensionish, {});
+    add(Localish, {});
+
+    markNip85Activated(PUBKEY);
+    expect(isNip85Activated(PUBKEY)).toBe(true);
+
+    clearNip85Activated(PUBKEY);
+    expect(isNip85Activated(PUBKEY)).toBe(false);
+  });
+
+  it("marks every row, so the answer doesn't depend on which one is asked", async () => {
+    const { markNip85Activated } = await import("@/lib/nip85Activation");
+    const extension = add(Extensionish, {});
+    const local = add(Localish, {});
+
+    markNip85Activated(PUBKEY);
+
+    expect(extension.metadata?.nip85Activated).toBe(true);
+    expect(local.metadata?.nip85Activated).toBe(true);
+  });
+});

@@ -219,6 +219,9 @@ export function useAlertActions(observer: string, current?: { pubkey: string; ve
     const res = action === "unfollow" ? await unfollowUser(pubkey) : await muteUser(pubkey);
     setBusy(false);
     setPending(null);
+    // A declined unlock is a deliberate no, not a failure — and it carries no
+    // `error`, so the destructive branch would toast an empty description.
+    if (res.cancelled) return;
     if (res.success) {
       setDismissed(markActed(observer, pubkey));
       toast({ title: action === "unfollow" ? `Unfollowed ${name}` : `Muted ${name}`, duration: 4000 });
@@ -234,6 +237,7 @@ export function useAlertActions(observer: string, current?: { pubkey: string; ve
     const res = await reportUser(pubkey, reportType, reportNote);
     setReporting(false);
     setReportTarget(null);
+    if (res.cancelled) return;
     if (res.success) {
       setDismissed(markActed(observer, pubkey));
       toast({ title: `Reported ${name}`, description: "Your report was published to Nostr.", duration: 4000 });

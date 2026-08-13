@@ -340,3 +340,59 @@ describe("the cross-tab lock", () => {
     vi.unstubAllGlobals();
   });
 });
+
+/**
+ * Latent until now: `adoptAccount` always calls `setActive`, so a new Account
+ * reached the other tab as a side effect of `active-changed` adopting it from the
+ * blob. Nothing guarantees that stays true, and the failure if it stops is the
+ * other tab's `save()` rewriting the blob without the Account it never heard about.
+ */
+describe("mirroring an added account", () => {
+  it("tells the other tab, without making it switch", () => {
+    const tabs = twoTabs();
+    sharedAccounts(tabs.a.manager, tabs.b.manager, ["alice"]);
+    tabs.a.manager.setActive(tabs.a.manager.getAccount("alice") as any);
+    tabs.b.manager.setActive(tabs.b.manager.getAccount("alice") as any);
+    tabs.settled();
+
+    tabs.a.manager.addAccount(testAccount("bob") as any);
+
+    expect(tabs.bus.sent).toContainEqual({ type: "account-added", accountId: "bob" });
+    // adding is not switching — alice is still the one signing in both tabs
+    expect(tabs.b.manager.active?.id).toBe("alice");
+  });
+
+  it("picks the new account up from the blob", () => {
+    const bus = createBus();
+    const manager = new AccountManager<AccountMetadata>();
+    const bob = testAccount("bob");
+    const adopt = vi.fn(() => {
+      manager.addAccount(bob as any);
+      return bob;
+    });
+    createMirror({ manager, channel: bus.open(), persistence: { adopt } });
+
+    bus.open().post({ type: "account-added", accountId: "bob" });
+
+    expect(adopt).toHaveBeenCalledWith("bob");
+    expect(manager.getAccount("bob")).toBe(bob);
+    expect(manager.active).toBeFalsy(); // adopted, not switched to
+  });
+
+  it("does not echo the account it was just told about", () => {
+    const bus = createBus();
+    const manager = new AccountManager<AccountMetadata>();
+    const bob = testAccount("bob");
+    createMirror({
+      manager,
+      channel: bus.open(),
+      persistence: { adopt: () => (manager.addAccount(bob as any), bob) },
+    });
+
+    const told = { type: "account-added", accountId: "bob" } as const;
+    bus.open().post(told);
+
+    // only what the other tab said — adopting it must not announce it back
+    expect(bus.sent).toEqual([told]);
+  });
+});

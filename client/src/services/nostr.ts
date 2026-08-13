@@ -1291,21 +1291,40 @@ export async function publishProfile(
   content: Record<string, unknown>,
   tags: string[][] = [],
 ): Promise<PublishOutcome> {
-  const template = { kind: 0, tags, content: JSON.stringify(content) };
-  let res = await signAndPublish(template, 0);
+  // Pinned. The backoff below runs for seconds, which is long enough for an
+  // account switch, and re-reading the Active Account per attempt would sign and
+  // cache A's profile as B — the same reason `runInitialSetup` pins.
+  const account = activeAccount();
+  if (!account) return { success: false, error: "Not logged in" };
+
+  // Signed once, published up to three times. The retry is for thin propagation,
+  // which is the relays' problem and not the signature's; kind 0 is replaceable,
+  // so rebroadcasting the same event is idempotent. Re-signing meant a profile
+  // save against an unresponsive bunker cost three approval prompts and three
+  // 30-second deadlines before it gave up.
+  let signed: Awaited<ReturnType<typeof signAs>>;
+  try {
+    signed = await signAs(account, { kind: 0, tags, content: JSON.stringify(content) });
+    if (signed.kind !== 0) return { success: false, error: "Signer returned an unexpected event kind" };
+  } catch (e) {
+    return signingFailure(e);
+  }
+
+  let res = await publishToRelays(signed);
   for (let attempt = 0; attempt < PROFILE_PUBLISH_BACKOFF_MS.length; attempt++) {
-    if (res.cancelled) break; // they declined to unlock — don't ask again
     if ((res.accepted ?? (res.success ? 1 : 0)) >= 2) break; // broad enough
     await new Promise((r) => setTimeout(r, PROFILE_PUBLISH_BACKOFF_MS[attempt]));
-    res = await signAndPublish(template, 0);
+    res = await publishToRelays(signed);
   }
   if (res.success) {
-    try { cacheProfile(content as unknown as ProfileContent); } catch {}
+    try { cacheProfile(content as unknown as ProfileContent, account.pubkey); } catch {}
     // Keep the outbox list fresh (the signup publish may have silently failed),
     // so other clients can locate this kind-0. Best-effort.
     void publishRelayList(PROFILE_RELAYS).catch(() => {});
   }
-  return { success: res.success, error: res.error, cancelled: res.cancelled };
+  // No `cancelled` here: signing already succeeded, so what's left is the relays'
+  // answer. A declined unlock leaves above, through `signingFailure`.
+  return { success: res.success, error: res.error };
 }
 
 /** Publish a NIP-65 relay list (kind 10002). */

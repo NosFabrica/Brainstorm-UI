@@ -27,6 +27,7 @@ type Perspective = NonNullable<AccountMetadata["perspective"]>;
 
 export type CrossTabMessage =
   | { type: "active-changed"; accountId: string | null }
+  | { type: "account-added"; accountId: string }
   | { type: "account-removed"; accountId: string }
   | { type: "session-updated"; accountId: string; session: SessionRecord | null }
   | { type: "perspective-changed"; accountId: string; perspective: Perspective | null };
@@ -40,6 +41,7 @@ export interface TabChannel {
 
 const MESSAGE_TYPES: CrossTabMessage["type"][] = [
   "active-changed",
+  "account-added",
   "account-removed",
   "session-updated",
   "perspective-changed",
@@ -152,6 +154,14 @@ export function createMirror({
         announcedPerspectives.delete(id);
         post({ type: "account-removed", accountId: id });
       }
+      // Additions travelled as a side effect of `active-changed` adopting them
+      // from the blob, which held only because `adoptAccount` always calls
+      // `setActive`. Said outright now: if that ever stops being true, the tab
+      // that never heard is the one whose `save()` drops the new Account.
+      for (const id of ids) {
+        if (known.has(id)) continue;
+        post({ type: "account-added", accountId: id });
+      }
       known = ids;
     }),
   );
@@ -223,6 +233,12 @@ export function createMirror({
     changes.next({ account, previous });
   }
 
+  /** Adding is not switching: take the Account, leave the Active one alone. */
+  function applyAdded(accountId: string): void {
+    if (manager.getAccount(accountId)) return;
+    held(accountId);
+  }
+
   function applyRemoved(accountId: string): void {
     const account = manager.getAccount(accountId) as BrainstormAccount | undefined;
     if (!account) return;
@@ -256,6 +272,9 @@ export function createMirror({
       switch (message.type) {
         case "active-changed":
           applyActive(message.accountId);
+          break;
+        case "account-added":
+          applyAdded(message.accountId);
           break;
         case "account-removed":
           applyRemoved(message.accountId);
