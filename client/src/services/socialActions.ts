@@ -1,4 +1,8 @@
-import { pool, publishToRelays, loadOutboxRelayListFromDb } from "./nostr";
+import { ContactsFactory } from "applesauce-common/factories";
+import { MuteListFactory } from "applesauce-common/factories";
+
+import { publishToRelays, loadOutboxRelayListFromDb } from "./nostr";
+import { requestAll, requestNewest } from "@/lib/relayRequest";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { activeAccount, signAs, signingFailure, type PublishOutcome } from "@/accounts/signing";
 import type { BrainstormAccount } from "@/accounts/metadata";
@@ -66,37 +70,18 @@ function pickAuthoritativeBase(candidates: (NostrEvent | null | undefined)[]): N
   return best;
 }
 
-function fetchReplaceableEvent(pubkey: string, kind: number, timeoutMs = 10000): Promise<NostrEvent | null> {
-  return new Promise((resolve) => {
-    const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
-
-    let latest: NostrEvent | null = null;
-    const timer = setTimeout(() => resolve(latest), timeoutMs);
-
-    pool.request(writeRelays, { kinds: [kind], authors: [pubkey], limit: 5 }).subscribe({
-      next: (event: any) => {
-        if (!latest || event.created_at > latest.created_at) {
-          latest = {
-            id: event.id,
-            pubkey: event.pubkey,
-            created_at: event.created_at,
-            kind: event.kind,
-            tags: event.tags,
-            content: event.content,
-            sig: event.sig,
-          };
-        }
-      },
-      error: () => {
-        clearTimeout(timer);
-        resolve(latest);
-      },
-      complete: () => {
-        clearTimeout(timer);
-        resolve(latest);
-      },
-    });
-  });
+/**
+ * The newest kind-3 or kind-10000 across the user's write relays.
+ *
+ * This was the same hand-rolled shape alignment 03 removed from
+ * `services/nostr.ts` — a `setTimeout` resolving alongside a `pool.request` that
+ * nothing unsubscribed, so the REQ stayed open until EOSE. It survived that sweep
+ * by living in this file rather than that one.
+ */
+async function fetchReplaceableEvent(pubkey: string, kind: number, timeoutMs = 10000): Promise<NostrEvent | null> {
+  const relays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS);
+  const newest = await requestNewest(relays, { kinds: [kind], authors: [pubkey], limit: 5 }, timeoutMs);
+  return (newest as NostrEvent) ?? null;
 }
 
 export async function fetchContactList(pubkey: string): Promise<NostrEvent | null> {
@@ -152,15 +137,35 @@ const NOT_LOGGED_IN: PublishOutcome = { success: false, error: "Not logged in" }
 /** A `p` tag naming this pubkey — how every follow and mute list is indexed. */
 const isPTagFor = (pubkey: string) => (tag: string[]) => tag[0] === "p" && tag[1] === pubkey;
 
+/**
+ * The library builds the tags; we keep everything around them.
+ *
+ * `ContactsFactory` is used for its `addContact`/`removeContact` alone — it
+ * constructs a NIP-02 `p` tag properly, relay hint and petname included, which
+ * appending `["p", pubkey]` by hand does not. Awaiting the factory yields the
+ * template; it is a Promise subclass.
+ *
+ * What is deliberately NOT used is `applesauce-actions`' `FollowUser`. Its
+ * `modifyContacts` races the store for one second and, on a miss, calls
+ * `ContactsFactory.create()` — a fresh, empty list, signed and published over the
+ * user's real one. That is the exact wipe `resolveContactBase` exists to prevent,
+ * and the base event is the one thing we will not delegate. (Its sibling
+ * `NewContacts` does guard the mirror-image case, so this reads as a bug in that
+ * action rather than anything inherent; worth revisiting if it grows the same
+ * check.)
+ */
 async function publishContactList(
   account: BrainstormAccount,
   base: NostrEvent | null,
-  newTags: string[][],
+  build: (factory: ContactsFactory) => ContactsFactory,
 ): Promise<PublishOutcome> {
   try {
+    const draft = await build(
+      base ? ContactsFactory.modify(base as never) : ContactsFactory.create(),
+    );
     const signed = await signAs(account, {
       kind: 3,
-      tags: withClientTag(newTags),
+      tags: withClientTag(draft.tags),
       content: base?.content || "",
     });
     const res = await publishToRelays(signed);
@@ -191,8 +196,7 @@ export async function followUser(targetPubkey: string, cachedContactList?: Nostr
 
   if (baseTags.some(isPTagFor(targetPubkey))) return { success: true };
 
-  const newTags = [...baseTags, ["p", targetPubkey]];
-  return publishContactList(account, base, newTags);
+  return publishContactList(account, base, (f) => f.addContact(targetPubkey));
 }
 
 export async function unfollowUser(targetPubkey: string, cachedContactList?: NostrEvent | null): Promise<PublishOutcome> {
@@ -207,8 +211,7 @@ export async function unfollowUser(targetPubkey: string, cachedContactList?: Nos
 
   if (!base.tags.some(isPTagFor(targetPubkey))) return { success: true };
 
-  const newTags = base.tags.filter((t) => !isPTagFor(targetPubkey)(t));
-  return publishContactList(account, base, newTags);
+  return publishContactList(account, base, (f) => f.removeContact(targetPubkey));
 }
 
 /**
@@ -229,24 +232,31 @@ export async function followPubkeys(targetPubkeys: string[]): Promise<PublishOut
   }
   if (base) recordFollowList(account.pubkey, base as any);
   const baseTags = base?.tags ?? [];
-  const have = new Set(baseTags.filter(t => t[0] === "p").map(t => t[1]));
-  const additions = wanted.filter(pk => !have.has(pk)).map(pk => ["p", pk]);
+  const have = new Set(baseTags.filter((t) => t[0] === "p").map((t) => t[1]));
+  const additions = wanted.filter((pk) => !have.has(pk));
   if (!additions.length) return { success: true };
 
-  const newTags = [...baseTags, ...additions];
-  return publishContactList(account, base, newTags);
+  return publishContactList(account, base, (f) =>
+    additions.reduce((acc, pk) => acc.addContact(pk), f),
+  );
 }
 
 /** The mute list, replaced wholesale — the kind-3 path's `publishContactList`. */
+/**
+ * Same shape as the contact list, and the same reason: `mutePubkey` /
+ * `unmutePubkey` touch only the `p` tags, leaving the muted words, hashtags and
+ * threads that also live in a kind-10000 exactly where they were.
+ */
 async function publishMuteList(
   account: BrainstormAccount,
   base: NostrEvent,
-  newTags: string[][],
+  build: (factory: MuteListFactory) => MuteListFactory,
 ): Promise<PublishOutcome> {
   try {
+    const draft = await build(MuteListFactory.modify(base as never));
     const signed = await signAs(account, {
       kind: 10000,
-      tags: withClientTag(newTags),
+      tags: withClientTag(draft.tags),
       content: base.content || "",
     });
     return await publishToRelays(signed);
@@ -265,7 +275,7 @@ export async function muteUser(targetPubkey: string, cachedMuteList?: NostrEvent
 
   if (current.tags.some(isPTagFor(targetPubkey))) return { success: true };
 
-  return publishMuteList(account, current, [...current.tags, ["p", targetPubkey]]);
+  return publishMuteList(account, current, (f) => f.mutePubkey(targetPubkey));
 }
 
 export async function unmuteUser(targetPubkey: string, cachedMuteList?: NostrEvent | null): Promise<PublishOutcome> {
@@ -277,7 +287,7 @@ export async function unmuteUser(targetPubkey: string, cachedMuteList?: NostrEve
 
   if (!current.tags.some(isPTagFor(targetPubkey))) return { success: true };
 
-  return publishMuteList(account, current, current.tags.filter((t) => !isPTagFor(targetPubkey)(t)));
+  return publishMuteList(account, current, (f) => f.unmutePubkey(targetPubkey));
 }
 
 export async function reportUser(targetPubkey: string, reason: string, note?: string): Promise<PublishOutcome> {
@@ -317,16 +327,12 @@ export interface MyReport {
 export async function fetchMyReport(targetPubkey: string, timeoutMs = 8000): Promise<MyReport | null> {
   const account = activeAccount();
   if (!account) return null;
-  const events: any[] = [];
-  const seen = new Set<string>();
-  const collected = await new Promise<any[]>((resolve) => {
-    const timer = setTimeout(() => resolve(events), timeoutMs);
-    pool.request(PROFILE_RELAYS, { kinds: [1984], authors: [account.pubkey], "#p": [targetPubkey] }).subscribe({
-      next: (ev: any) => { const id = ev?.id; if (id && !seen.has(id)) { seen.add(id); events.push(ev); } },
-      error: () => { clearTimeout(timer); resolve(events); },
-      complete: () => { clearTimeout(timer); resolve(events); },
-    });
-  });
+  // Third instance of the leak alignment 03 swept out of `services/nostr.ts`.
+  const collected = await requestAll(
+    PROFILE_RELAYS,
+    { kinds: [1984], authors: [account.pubkey], "#p": [targetPubkey] },
+    timeoutMs,
+  );
   if (!collected.length) return null;
   collected.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
   const latest = collected[0];
