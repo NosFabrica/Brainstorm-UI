@@ -11,7 +11,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useIgnoreSyncState } from "@/hooks/useIgnoreSyncState";
-import { logout, fetchProfileMap } from "@/services/nostr";
+import { fetchProfileMap } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
 import { useNetworkAlerts, selectFlaggedAlerts } from "@/hooks/useNetworkAlerts";
 import { AlertRow, useAlertActions } from "@/components/dashboard/NetworkAlertsModule";
 import type { NetworkAlertEntry } from "@/services/api";

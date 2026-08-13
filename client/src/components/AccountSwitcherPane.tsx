@@ -23,7 +23,7 @@ import { withActiveAccount, type PickerIdentity, type PickerRow } from "@/accoun
 import { AccountFace, AccountNames, AccountRowChips } from "@/components/AccountRow";
 import { useToast } from "@/hooks/use-toast";
 import { useLoginPicker } from "@/hooks/useLoginPicker";
-import { signInWithAccount } from "@/services/nostr";
+import { signInWithAccount } from "@/accounts/login-flow";
 import { cn } from "@/lib/utils";
 
 export type AccountSwitcherProps = Omit<AccountSwitcherPaneProps, "identities" | "activeId">;

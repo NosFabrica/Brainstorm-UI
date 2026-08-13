@@ -9,7 +9,7 @@ import { AccountSwitcherPane } from "./AccountSwitcherPane";
 const signInWithAccount = vi.fn();
 const toast = vi.fn();
 
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/accounts/login-flow", () => ({
   signInWithAccount: (account: BrainstormAccount) => signInWithAccount(account),
 }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));

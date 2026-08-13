@@ -10,7 +10,7 @@ import { tierForScore01, type VerificationTier } from "@/lib/verificationTier";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
-import { logout } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
 import { apiClient } from "@/services/api";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { presetToBackend } from "@/services/trustThreshold";

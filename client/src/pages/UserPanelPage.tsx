@@ -69,7 +69,8 @@ import {
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { ImageUpload } from "@/components/ImageUpload";
-import { logout, fetchProfiles, isUsingBrainstorm, getNip85RelayUrl } from "@/services/nostr";
+import { fetchProfiles, isUsingBrainstorm, getNip85RelayUrl } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { AdminBadge } from "@/components/AdminBadge";
 import { apiClient, isAuthRedirecting } from "@/services/api";

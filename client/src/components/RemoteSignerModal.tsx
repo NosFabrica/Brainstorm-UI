@@ -38,7 +38,7 @@ import { appMetadata } from "@/accounts/remote-signer";
 import type { Observable } from "rxjs";
 import { relaysReachable$ } from "@/accounts/remote-transport";
 import type { BrainstormAccount } from "@/accounts/metadata";
-import { signInWithExternalSigner } from "@/services/nostr";
+import { signInWithExternalSigner } from "@/accounts/login-flow";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";

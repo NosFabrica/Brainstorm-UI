@@ -113,7 +113,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { logout, cacheProfile, fetchProfile, fetchOutboxRelayList, isUsingBrainstorm } from "@/services/nostr";
+import { cacheProfile, fetchProfile, fetchOutboxRelayList, isUsingBrainstorm } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";

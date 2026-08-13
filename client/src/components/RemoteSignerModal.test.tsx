@@ -49,7 +49,7 @@ vi.mock("@/accounts/remote-login", () => ({
   remoteSignerMessage: (error: unknown) => (error as Error)?.message ?? "",
 }));
 vi.mock("@/accounts/remote-transport", () => ({ relaysReachable$: () => reachable$ }));
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/accounts/login-flow", () => ({
   signInWithExternalSigner: (account: unknown) => signInWithExternalSigner(account),
 }));
 vi.mock("@/hooks/use-mobile", () => ({ useIsMobile: () => mobile }));

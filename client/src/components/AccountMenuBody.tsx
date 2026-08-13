@@ -23,7 +23,7 @@ import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { AccountSwitcher } from "@/components/AccountSwitcherPane";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useToast } from "@/hooks/use-toast";
-import { removeAccountFromDevice } from "@/services/nostr";
+import { removeAccountFromDevice } from "@/accounts/login-flow";
 import { isUnbackedUp } from "@/accounts/picker";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import type { AccountDisplay } from "@/accounts/display";

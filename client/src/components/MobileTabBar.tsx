@@ -6,7 +6,7 @@ import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { AccountMenuBody, useAccountMenu } from "@/components/AccountMenuBody";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { logout } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
 import type { AccountDisplay } from "@/accounts/display";
 import { useAccountSheetOpen, openAccountSheet, closeAccountSheet, setAccountSheet } from "@/lib/accountSheetStore";
 import { cn } from "@/lib/utils";

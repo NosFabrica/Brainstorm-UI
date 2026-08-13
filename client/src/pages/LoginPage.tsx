@@ -9,12 +9,7 @@ import {
   Radio,
   Smartphone,
 } from "lucide-react";
-import {
-  handleLogin,
-  signInWithExternalSigner,
-  LoginError,
-  type LoginErrorCode,
-} from "@/services/nostr";
+import { handleLogin, signInWithExternalSigner, LoginError, type LoginErrorCode } from "@/accounts/login-flow";
 import { amberAccount, isAmberSupported } from "@/accounts/amber";
 import { RemoteSignerModal } from "@/components/RemoteSignerModal";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";

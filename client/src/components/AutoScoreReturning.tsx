@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { triggerScoringAndAnchor } from "@/services/nostr";
+import { triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { knownFollowCount } from "@/lib/followStore";
 import { useSelfHistory } from "@/hooks/useSelf";

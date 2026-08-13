@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { ensureBrainstormTrustAnchor } from "@/services/nostr";
+import { ensureBrainstormTrustAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { isNip85Activated } from "@/lib/nip85Activation";
 import { useSelfHistory } from "@/hooks/useSelf";

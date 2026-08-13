@@ -4,7 +4,8 @@ import { Loader2, ArrowRight, Search as SearchIcon, X, Users } from "lucide-reac
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { PersonRow, type PersonLite } from "@/components/PersonRow";
 import { SUGGESTED_ACCOUNTS } from "@/lib/suggestedAccounts";
-import { fetchProfileMap, triggerScoringAndAnchor, SEED_FOLLOW_HEX } from "@/services/nostr";
+import { fetchProfileMap, SEED_FOLLOW_HEX } from "@/services/nostr";
+import { triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { followPubkeys } from "@/services/socialActions";
 import { searchByText, type SearchResult } from "@/lib/profileSearch";

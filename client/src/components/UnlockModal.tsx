@@ -6,7 +6,7 @@ import { KeyRound, Trash2 } from "lucide-react";
 import { installUnlockPrompt, unlockPrompt$ } from "@/accounts/unlock-request";
 import { localAccountFor } from "@/accounts/login";
 import type { UnlockFailure } from "@/accounts/restore";
-import { removeAccountFromDevice } from "@/services/nostr";
+import { removeAccountFromDevice } from "@/accounts/login-flow";
 import { afterPaint } from "@/lib/afterPaint";
 import { Button } from "@/components/ui/button";
 import {

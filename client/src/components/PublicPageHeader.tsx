@@ -6,7 +6,7 @@ import { BrainLogo } from "@/components/BrainLogo";
 import { HeaderSearchBox } from "@/components/HeaderSearchBox";
 import { AccountMenu } from "@/components/AccountMenu";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { logout } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
 
 /**
  * Shared header for the public / shared-link pages (/p, /e, /a, /t). Uniform

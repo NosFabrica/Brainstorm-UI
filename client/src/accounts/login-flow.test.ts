@@ -7,17 +7,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { generateSecretKey } from "nostr-tools/pure";
 
 import { accountManager } from "@/accounts";
-import { adoptAccount, localAccount } from "@/accounts/login";
+import { adoptAccount, localAccount } from "./login";
 import { accountKey } from "@/lib/accountStorage";
-import { getMetadata, type BrainstormAccount } from "@/accounts/metadata";
-import { createFakeUnlockCache } from "@/accounts/test-fakes";
+import { getMetadata, type BrainstormAccount } from "./metadata";
+import { createFakeUnlockCache } from "./test-fakes";
 import type { LocalAccount } from "@/accounts/local-account";
 
 const ensureSession = vi.fn(async () => "token.eyJhbGciOiJIUzI1NiJ9.sig");
 const authenticate = vi.fn(async () => "token.eyJhbGciOiJIUzI1NiJ9.sig");
 const clear = vi.fn();
 
-vi.mock("@/accounts/session", () => ({
+vi.mock("./session", () => ({
   sessions: {
     ensureSession: (account: BrainstormAccount) => ensureSession(account),
     authenticate: (account: BrainstormAccount) => authenticate(account),
@@ -25,7 +25,7 @@ vi.mock("@/accounts/session", () => ({
   SessionTransportError: class SessionTransportError extends Error {},
 }));
 vi.mock("@/lib/queryClient", () => ({ queryClient: { clear: () => clear() } }));
-vi.mock("./api", () => ({ apiClient: {} }));
+vi.mock("@/services/api", () => ({ apiClient: {} }));
 
 async function held(): Promise<LocalAccount> {
   const account = await localAccount(generateSecretKey(), { unlockCache: createFakeUnlockCache() });
@@ -44,7 +44,7 @@ afterEach(() => {
 
 describe("switching to another account", () => {
   it("empties the cache before the new identity is the one asking", async () => {
-    const { signInWithAccount } = await import("./nostr");
+    const { signInWithAccount } = await import("./login-flow");
     const other = await held();
     const signedIn = await held();
     expect(accountManager.active?.id).toBe(signedIn.id);
@@ -57,7 +57,7 @@ describe("switching to another account", () => {
   });
 
   it("leaves the cache alone where the account was already the one signing", async () => {
-    const { signInWithAccount } = await import("./nostr");
+    const { signInWithAccount } = await import("./login-flow");
     const account = await held();
 
     await signInWithAccount(account as unknown as BrainstormAccount);
@@ -68,7 +68,7 @@ describe("switching to another account", () => {
 
 describe("signing out", () => {
   it("ends the session but keeps the account, so signing back in is one tap", async () => {
-    const { logout } = await import("./nostr");
+    const { logout } = await import("./login-flow");
     const account = await held();
 
     logout();
@@ -82,7 +82,7 @@ describe("signing out", () => {
 
 describe("removing an account from this device", () => {
   it("signs out first where it was the one signing, and says so", async () => {
-    const { removeAccountFromDevice } = await import("./nostr");
+    const { removeAccountFromDevice } = await import("./login-flow");
     const account = await held();
 
     expect(removeAccountFromDevice(account as unknown as BrainstormAccount)).toBe(true);
@@ -92,7 +92,7 @@ describe("removing an account from this device", () => {
   });
 
   it("takes the rows that identity kept on this device", async () => {
-    const { removeAccountFromDevice } = await import("./nostr");
+    const { removeAccountFromDevice } = await import("./login-flow");
     const account = await held();
     localStorage.setItem(accountKey("brainstorm_known_follows", account.pubkey), "{}");
 
@@ -102,7 +102,7 @@ describe("removing an account from this device", () => {
   });
 
   it("keeps those rows while another Account still signs as that identity", async () => {
-    const { removeAccountFromDevice } = await import("./nostr");
+    const { removeAccountFromDevice } = await import("./login-flow");
     const key = generateSecretKey();
     const first = await localAccount(key, { unlockCache: createFakeUnlockCache() });
     const second = await localAccount(key, { unlockCache: createFakeUnlockCache() });
@@ -119,7 +119,7 @@ describe("removing an account from this device", () => {
   });
 
   it("lets a locked account nobody is signed in as go, without disturbing the one who is", async () => {
-    const { removeAccountFromDevice } = await import("./nostr");
+    const { removeAccountFromDevice } = await import("./login-flow");
     const other = await held();
     const signedIn = await held();
 
@@ -137,7 +137,7 @@ describe("removing an account from this device", () => {
  */
 describe("adding another account while signed in", () => {
   it("empties the cache, the way switching to one does", async () => {
-    const { signInWithExternalSigner } = await import("./nostr");
+    const { signInWithExternalSigner } = await import("./login-flow");
     await held();
     const added = await localAccount(generateSecretKey(), { unlockCache: createFakeUnlockCache() });
 
@@ -147,7 +147,7 @@ describe("adding another account while signed in", () => {
   });
 
   it("leaves the cache alone when the account signing in is already the active one", async () => {
-    const { signInWithExternalSigner } = await import("./nostr");
+    const { signInWithExternalSigner } = await import("./login-flow");
     const signedIn = await held();
 
     await signInWithExternalSigner(signedIn as unknown as BrainstormAccount);

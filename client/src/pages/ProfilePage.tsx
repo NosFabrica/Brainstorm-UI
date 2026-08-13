@@ -69,7 +69,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { logout, fetchProfile, fetchProfiles, eventStore, fetchReportsForPubkey, fetchReportsByPubkey, fetchMuteListTimestamp, type ReportMetadata, type MuteMetadata } from "@/services/nostr";
+import { fetchProfile, fetchProfiles, eventStore, fetchReportsForPubkey, fetchReportsByPubkey, fetchMuteListTimestamp, type ReportMetadata, type MuteMetadata } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 import { getProfileContent, isValidProfile } from "applesauce-core/helpers/profile";

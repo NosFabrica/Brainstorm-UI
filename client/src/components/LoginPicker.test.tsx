@@ -10,7 +10,7 @@ const signInWithAccount = vi.fn();
 const removeAccountFromDevice = vi.fn();
 const toast = vi.fn();
 
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/accounts/login-flow", () => ({
   signInWithAccount: (account: BrainstormAccount) => signInWithAccount(account),
   removeAccountFromDevice: (account: BrainstormAccount) => removeAccountFromDevice(account),
 }));

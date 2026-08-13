@@ -95,7 +95,8 @@ import {
 import { Area, AreaChart, Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip as RcTooltip, XAxis, YAxis } from "recharts";
 import { AgentIcon } from "@/components/AgentIcon";
 import { FEATURES } from "@/config/featureFlags";
-import { logout, fetchProfile, searchNostrProfiles, PROFILE_RELAYS, type NostrSearchResult } from "@/services/nostr";
+import { fetchProfile, searchNostrProfiles, PROFILE_RELAYS, type NostrSearchResult } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { useActiveAccount } from "applesauce-react/hooks";

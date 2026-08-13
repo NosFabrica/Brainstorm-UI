@@ -30,7 +30,7 @@ import {
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { useTheme } from "@/lib/theme";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { logout } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useToast } from "@/hooks/use-toast";
 

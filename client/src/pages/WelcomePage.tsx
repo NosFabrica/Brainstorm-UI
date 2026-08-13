@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { useLocation } from "wouter";
 import { BrainLogo } from "@/components/BrainLogo";
 import { FollowPicker } from "@/components/FollowPicker";
-import { triggerScoringAndAnchor } from "@/services/nostr";
+import { triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { followPubkeys } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";

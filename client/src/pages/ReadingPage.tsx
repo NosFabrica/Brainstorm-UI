@@ -6,7 +6,8 @@ import { AppHeader } from "@/components/AppHeader";
 import { Footer } from "@/components/Footer";
 import { NetworkArticleCard } from "@/components/dashboard/NetworkArticleCard";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { logout, fetchProfileMap } from "@/services/nostr";
+import { fetchProfileMap } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
 import { useNetworkArticles, type ArticleSort } from "@/hooks/useNetworkArticles";
 import { cn } from "@/lib/utils";
 

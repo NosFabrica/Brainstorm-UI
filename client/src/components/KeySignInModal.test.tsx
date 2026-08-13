@@ -33,7 +33,7 @@ const onRetryExtension = vi.fn();
 /** jsdom is not a secure context, so the real check would answer for us. */
 const vaultSupported = vi.fn(() => true);
 
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/accounts/login-flow", () => ({
   loginWithPastedKey: (...args: unknown[]) => loginWithPastedKey(...(args as [])),
 }));
 vi.mock("@/accounts/backup", () => ({

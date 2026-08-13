@@ -1,6 +1,6 @@
 import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { triggerScoringAndAnchor } from "@/services/nostr";
+import { triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { followPubkeys } from "@/services/socialActions";
 import { useSelfHistory } from "@/hooks/useSelf";

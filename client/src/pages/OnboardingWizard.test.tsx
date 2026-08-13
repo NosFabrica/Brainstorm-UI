@@ -17,6 +17,8 @@ vi.mock("@/hooks/useActiveAccountDisplay", () => ({
 }));
 vi.mock("@/services/nostr", () => ({
   publishProfile: vi.fn(async () => {}),
+}));
+vi.mock("@/services/trustAnchor", () => ({
   triggerScoringAndAnchor: vi.fn(async () => {}),
 }));
 vi.mock("@/services/socialActions", () => ({

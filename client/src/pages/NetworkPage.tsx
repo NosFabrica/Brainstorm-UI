@@ -39,11 +39,8 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import {
-  logout,
-  fetchProfiles,
-  eventStore,
-} from "@/services/nostr";
+import { fetchProfiles, eventStore } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { DeferredSessionNotice } from "@/components/DeferredSession";
 import {

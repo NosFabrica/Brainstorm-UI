@@ -7,7 +7,8 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { Check, AlertCircle, ArrowRight } from "lucide-react";
-import { createAccount, triggerScoringAndAnchor, type NostrUser } from "@/services/nostr";
+import { createAccount, type NostrUser } from "@/accounts/login-flow";
+import { triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { followPubkeys } from "@/services/socialActions";
 import { afterPaint } from "@/lib/afterPaint";
 import { MIN_RECOVERY_PASSWORD_LENGTH } from "@/accounts/backup";

@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 import { useLocation } from "wouter";
-import { logout } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { isAuthRedirecting } from "@/services/api";
 import { Wordmark } from "@/components/Wordmark";

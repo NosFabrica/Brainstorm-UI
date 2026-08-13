@@ -12,7 +12,7 @@ const navigate = vi.fn();
 const unbacked = vi.fn(() => false);
 const identities: PickerIdentity[] = [];
 
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/accounts/login-flow", () => ({
   removeAccountFromDevice: (account: BrainstormAccount) => removeAccountFromDevice(account),
 }));
 vi.mock("@/hooks/useLoginPicker", () => ({

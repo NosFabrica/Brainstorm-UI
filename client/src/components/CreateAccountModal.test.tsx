@@ -12,8 +12,10 @@ const triggerScoringAndAnchor = vi.fn(async () => {});
 const followPubkeys = vi.fn(async () => ({ success: true }));
 const onCreated = vi.fn();
 
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/accounts/login-flow", () => ({
   createAccount: (...args: unknown[]) => createAccount(...(args as [])),
+}));
+vi.mock("@/services/trustAnchor", () => ({
   triggerScoringAndAnchor: (...args: unknown[]) => triggerScoringAndAnchor(...(args as [])),
 }));
 vi.mock("@/services/socialActions", () => ({

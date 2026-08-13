@@ -16,7 +16,7 @@ import {
   ArrowRight,
   ShieldCheck,
 } from "lucide-react";
-import { loginWithPastedKey, type LoginErrorCode } from "@/services/nostr";
+import { loginWithPastedKey, type LoginErrorCode } from "@/accounts/login-flow";
 import { MIN_RECOVERY_PASSWORD_LENGTH, setRecoveryPassword } from "@/accounts/backup";
 import { BACKUP_LOGN } from "@/accounts/local-signer";
 import {

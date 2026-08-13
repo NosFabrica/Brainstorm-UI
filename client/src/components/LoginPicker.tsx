@@ -28,7 +28,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { removeAccountFromDevice, signInWithAccount } from "@/services/nostr";
+import { removeAccountFromDevice, signInWithAccount } from "@/accounts/login-flow";
 import { cn } from "@/lib/utils";
 
 /** What a row that can't sign here offers instead. Removal is never the first thing. */

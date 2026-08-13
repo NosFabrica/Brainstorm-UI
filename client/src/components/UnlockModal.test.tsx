@@ -17,7 +17,7 @@ const removeAccountFromDevice = vi.fn();
 const navigate = vi.fn();
 const heldAccount = { id: "local-1", pubkey: "a".repeat(64) };
 
-vi.mock("@/services/nostr", () => ({
+vi.mock("@/accounts/login-flow", () => ({
   removeAccountFromDevice: (account: unknown) => removeAccountFromDevice(account),
 }));
 vi.mock("@/accounts/login", () => ({ localAccountFor: () => heldAccount }));
