@@ -201,7 +201,17 @@ export function hasUnsyncedIgnores(observer: string): boolean {
   return isDirty(observer);
 }
 
-function persist(observer: string, entries: IgnoredEntry[]): Map<string, number | null> {
+/**
+ * `background` is about who asked. The user-facing callers below are all
+ * deliberate acts and may prompt a Locked Account for its Recovery password; the
+ * two reached from `NetworkAlertsModule`'s mount effects asked for nothing and
+ * must not.
+ */
+function persist(
+  observer: string,
+  entries: IgnoredEntry[],
+  { background = false }: { background?: boolean } = {},
+): Map<string, number | null> {
   const byKey = new Map<string, IgnoredEntry>();
   for (const e of entries) byKey.set(e.pubkey, e);
   const next = Array.from(byKey.values());
@@ -212,7 +222,7 @@ function persist(observer: string, entries: IgnoredEntry[]): Map<string, number 
       // ignore (private mode / SSR)
     }
   }
-  void flushIgnoredToNostr(observer);
+  void flushIgnoredToNostr(observer, { background });
   return new Map(next.map((e) => [e.pubkey, e.atReports]));
 }
 
@@ -277,7 +287,7 @@ export function backfillIgnoredBaselines(
     changed = true;
     return { ...e, atReports: at };
   });
-  return changed ? persist(observer, next) : null;
+  return changed ? persist(observer, next, { background: true }) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -329,5 +339,5 @@ export async function hydrateIgnoredFromNostr(observer: string): Promise<Map<str
   for (const e of local) merged.set(e.pubkey, e);
   const list = Array.from(merged.values());
   if (list.length === local.length) return new Map(local.map((e) => [e.pubkey, e.atReports]));
-  return persist(observer, list);
+  return persist(observer, list, { background: true });
 }

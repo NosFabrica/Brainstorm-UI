@@ -118,3 +118,46 @@ describe("the flush that runs on app load", () => {
     expect(askedInBackground()).toBe(false);
   });
 });
+
+/**
+ * The dirty re-flush above is only one of the publishes a page load can trigger.
+ * Both mount effects in `NetworkAlertsModule` end at `persist()`, which published
+ * in the foreground — so a Locked Account opening the dashboard with one
+ * remote-only ignore entry got the Recovery-password modal having asked for
+ * nothing.
+ */
+describe("the publishes the dashboard's mount effects trigger", () => {
+  const REMOTE = "b".repeat(64);
+
+  it("merges a remote ignore list without asking a locked account to unlock", async () => {
+    fetchAlertPrefs.mockResolvedValue({ entries: [{ pubkey: REMOTE, atReports: 3 }] });
+
+    await lib.hydrateIgnoredFromNostr(OBSERVER);
+    await lib.whenIgnoreSyncSettles();
+
+    expect(publishAlertPrefs).toHaveBeenCalled();
+    expect(askedInBackground()).toBe(true);
+  });
+
+  it("backfills a missing baseline without asking a locked account to unlock", async () => {
+    fetchAlertPrefs.mockResolvedValue({ pubkeys: [REMOTE] }); // legacy shape → atReports null
+    await lib.hydrateIgnoredFromNostr(OBSERVER);
+    await lib.whenIgnoreSyncSettles();
+    publishAlertPrefs.mockClear();
+
+    lib.backfillIgnoredBaselines(OBSERVER, [{ pubkey: REMOTE, verifiedReporterCount: 7 }]);
+    await lib.whenIgnoreSyncSettles();
+
+    expect(publishAlertPrefs).toHaveBeenCalled();
+    expect(askedInBackground()).toBe(true);
+  });
+
+  // Ignoring an account is a deliberate act, and that one may still prompt.
+  it("still asks when the user ignores an account themselves", async () => {
+    lib.ignoreAlert(OBSERVER, REMOTE, 3);
+    await lib.whenIgnoreSyncSettles();
+
+    expect(publishAlertPrefs).toHaveBeenCalled();
+    expect(askedInBackground()).toBe(false);
+  });
+});
