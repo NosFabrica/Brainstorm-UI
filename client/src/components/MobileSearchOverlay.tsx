@@ -3,11 +3,14 @@ import { useLocation } from "wouter";
 import { Search, X, Clock, ArrowUpRight } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { VerificationCoin } from "@/components/score/VerificationCoin";
 import { getRecentItems, recentKey, pushRecentQuery, pushRecentProfile, removeRecentItem, clearRecentSearches, type RecentItem } from "@/lib/recentSearches";
 import { searchByText, isLikelyNpub, isHexPubkey, isNip05Handle, type SearchResult } from "@/lib/profileSearch";
 import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-
+import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
+import { useTagMatches } from "@/hooks/useTags";
+import { npubFromPubkey } from "@/lib/shareId";
 /** Fire from anywhere (a header magnifier) to open mobile search. */
 export const OPEN_MOBILE_SEARCH_EVENT = "open-mobile-search";
 
@@ -34,11 +37,15 @@ export function openMobileSearch() {
  */
 export function MobileSearchOverlay() {
   const [, navigate] = useLocation();
+  // Note this overlay has never handled `#topic` queries the way the other two
+  // search surfaces do; tags are wired in here regardless so the three don't
+  // drift further apart.
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
   const [recents, setRecents] = useState<RecentItem[]>([]);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const tagMatches = useTagMatches(q);
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<number | undefined>(undefined);
   // Bumped on every keystroke so a slow earlier response can never overwrite a
@@ -172,9 +179,27 @@ export function MobileSearchOverlay() {
             showing nothing. */}
         {q.trim().length > 0 ? (
           <>
+            {/* Tags before people: fewer of them, and a different kind of answer
+                — "who is known for this" rather than "who is called this". */}
+            {tagMatches.length > 0 && (
+              <div className="mb-1 border-b border-slate-100 pb-1 dark:border-slate-800/60" data-testid="mobile-search-tags">
+                {tagMatches.map((t) => (
+                  <TagSuggestionRow
+                    key={t.key}
+                    tag={t}
+                    onSelect={() => {
+                      const path = tagSuggestionPath(t, npubFromPubkey);
+                      if (!path) return;
+                      setOpen(false);
+                      navigate(path);
+                    }}
+                    testId="mobile-search-tag"
+                  />
+                ))}
+              </div>
+            )}
             {results.map((r) => {
               const label = r.displayName || r.name || `${r.npub.slice(0, 12)}…`;
-              const score = typeof r.wotRank === "number" ? Math.round(r.wotRank * 100) : null;
               return (
                 <button
                   key={r.pubkey}
@@ -191,10 +216,16 @@ export function MobileSearchOverlay() {
                     <span className="block truncate text-sm font-semibold text-slate-800 dark:text-slate-200">{label}</span>
                     {r.nip05 && <span className="block truncate text-xs text-brand-primary dark:text-brand-link">{r.nip05.replace(/^_@/, "")}</span>}
                   </span>
-                  {score != null && (
-                    <span className="shrink-0 rounded-full bg-brand-primary/[0.08] px-2 py-0.5 font-mono text-[11px] font-bold tabular-nums text-brand-primary dark:text-brand-link" data-testid="mobile-search-result-score">
-                      {score}
-                    </span>
+                  {/* The same coin as the results page and the desktop
+                      dropdown — this was the third bespoke rendering of one
+                      number. */}
+                  {r.wotRank != null && (
+                    <VerificationCoin
+                      score01={r.wotRank}
+                      pov={pov === "mywot" ? "personalized" : "global"}
+                      size={22}
+                      className="shrink-0"
+                    />
                   )}
                 </button>
               );
@@ -218,7 +249,7 @@ export function MobileSearchOverlay() {
           </>
         ) : visible.length === 0 ? (
           <p className="px-1 py-6 text-center text-sm text-slate-400 dark:text-slate-500" data-testid="mobile-search-empty">
-            Search anyone on Nostr — results are ranked by your web of trust.
+            Search anyone on Nostr — results are ranked by your network.
           </p>
         ) : (
           <>

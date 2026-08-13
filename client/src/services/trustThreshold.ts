@@ -53,6 +53,29 @@ export const TRUST_TIER_COLORS = {
   flagged: "#ef4444", // red (semantic danger — unchanged; public pages surface this as the flag banner)
 } as const;
 
+/**
+ * What each tier is CALLED on screen. One place, because the labels had drifted
+ * into three copies — `share/TrustScoreBadge`, `share/EventThread` and
+ * `ConnectionListPage` each carried their own list, with different key
+ * vocabularies, and renaming a tier meant finding all three.
+ *
+ * The words moved off "trust" deliberately (team feedback): a tier label is the
+ * app telling you a PERSON is "Trusted", which is exactly the claim a user is
+ * entitled to argue with — and it contradicted the score's own name, which has
+ * been "Verification Score" all along. "Verified" is what the explainer already
+ * says the number measures.
+ *
+ * These are LABELS ONLY. The keys they hang off feed colour lookup and
+ * thresholds; never rename those to match.
+ */
+export const TIER_LABELS = {
+  high: "Highly verified",
+  trusted: "Verified",
+  neutral: "Neutral",
+  low: "Limited",
+  unverified: "Unverified",
+} as const;
+
 const BACKEND_TO_PRESET: Record<string, TrustPreset> = {
   PERMISSIVE: "relax",
   DEFAULT: "default",

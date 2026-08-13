@@ -349,7 +349,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
               data-testid={`tooltip-assistant-info-${variant}`}
             >
               <p className="font-bold text-white mb-1.5">What is this?</p>
-              <p className="mb-2">A small bot that publishes <span className="font-semibold text-brand-link">your trust scores</span> to Nostr, so any compatible client can read them as you.</p>
+              <p className="mb-2">A small bot that publishes <span className="font-semibold text-brand-link">your scores</span> to Nostr, so any compatible client can read them as you.</p>
               <p className="font-bold text-white mb-1">It does NOT</p>
               <p className="mb-2">touch your main Nostr identity, sign on your behalf, or post anything else.</p>
               <p className="font-bold text-white mb-1">You stay in control</p>
@@ -358,7 +358,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
           </Popover>
         </div>
         <p className={(variant === "settings" ? "text-sm sm:text-base " : "text-xs sm:text-sm ") + "text-slate-500 dark:text-slate-400 leading-relaxed mb-4"} data-testid={`text-assistant-tagline-${variant}`}>
-          {isActive ? "Your sidekick is publishing your trust scores." : "Give your trust scores a voice — one click."}
+          {isActive ? "Your sidekick is publishing your scores." : "Give your scores a voice — one click."}
         </p>
 
         {isActive ? (

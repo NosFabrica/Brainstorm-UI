@@ -90,8 +90,8 @@ export default function WelcomePage() {
           Follow a few accounts <span className="text-brand-link">to begin</span>.
         </h1>
         <p className="mt-5 text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-          Your Web of Trust is built from who you follow. Pick at least one account so Brainstorm can
-          calculate your trust scores and personalize your results.
+          Your network is built from who you follow. Pick at least one account so Brainstorm can
+          calculate your scores and personalize your results.
         </p>
 
         <div className="mt-6">

@@ -43,6 +43,14 @@ export const ROLES: Role[] = [
   { key: "photographer", label: "Photographer" },
 ];
 
+/**
+ * key → label, for reading back roles people saved before tags replaced them.
+ * The vocabulary itself lives on as the tag picker's suggestions.
+ */
+export const ROLE_LABELS: ReadonlyMap<string, string> = new Map(
+  ROLES.map((r) => [r.key, r.label]),
+);
+
 export interface PersonalizationPrefs {
   contentTypes: string[];
   roles: string[];

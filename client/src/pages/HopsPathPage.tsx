@@ -286,7 +286,7 @@ export default function HopsPathPage() {
                                 </span>
                               )}
                               {isEntryBad && (
-                                <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-rose-100 dark:bg-rose-500/20 border border-rose-300 dark:border-rose-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700 dark:text-rose-300" data-testid={`hops-flagged-${i}`} title="Low-trust account (scored low in your Web of Trust) — reporting it disconnects it and anything downstream. This reflects its score, not an existing report.">
+                                <span className="shrink-0 inline-flex items-center gap-1 rounded-full bg-rose-100 dark:bg-rose-500/20 border border-rose-300 dark:border-rose-500/30 px-1.5 py-0.5 text-[10px] font-semibold text-rose-700 dark:text-rose-300" data-testid={`hops-flagged-${i}`} title="Scored low in your network — reporting it disconnects it and anything downstream. This reflects its score, not an existing report.">
                                   Low trust
                                 </span>
                               )}
@@ -503,7 +503,7 @@ function NodeReport({ pubkey, name, emphasize }: { pubkey: string; name: string;
     if (res.cancelled) return;
     if (res.success) {
       setDone(true);
-      toast({ title: `Reported ${name}`, description: "Their score drops in your Web of Trust — accounts trusted only through them lose trust too." });
+      toast({ title: `Reported ${name}`, description: "Their score drops in your network — so does anyone whose standing came only through them." });
     } else {
       toast({ variant: "destructive", title: "Couldn't report", description: res.error || "Try again." });
     }

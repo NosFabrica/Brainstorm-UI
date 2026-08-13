@@ -16,8 +16,10 @@ import {
   LogOut,
   ChevronRight,
   BadgeCheck,
+  Tag as TagIcon,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { PovToggle } from "@/components/score/TrustScorePov";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { AccountSwitcher } from "@/components/AccountSwitcherPane";
 import { copyToClipboard } from "@/lib/clipboard";
@@ -210,6 +212,13 @@ export function AccountMenuBody({
   // identity — show just the domain rather than the placeholder underscore.
   const rawNip05 = user.nip05?.trim();
   const nip05 = rawNip05 ? rawNip05.replace(/^_@/, "") : "";
+  // Same gate every other PovToggle uses: you need a finished calculation
+  // before "my perspective" means anything. Without it the control renders as
+  // an honest single Brainstorm chip rather than a switch that does nothing.
+  const calcDone = (() => {
+    try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; }
+  })();
+  const canPersonalize = !!user.pubkey && calcDone;
 
   if (pane === "switcher") {
     return (
@@ -275,6 +284,61 @@ export function AccountMenuBody({
           data-testid="dropdown-view-profile"
         >
           <UserCircle className="h-4 w-4" /> View profile
+        </button>
+      </div>
+
+      {/* Trust perspective — a LENS, not a preference.
+
+          It first shipped down beside Appearance, and that was the wrong shelf:
+          a theme changes how the app looks, this changes what every number on
+          screen MEANS. Sitting them together as two segmented rows told people
+          they were the same kind of choice. It belongs with identity — "whose
+          eyes am I looking through" — and above the destination tiles, because
+          you pick the lens and then everything you navigate to obeys it.
+
+          Presented exactly like the homepage pill, down to the "What is this?"
+          link and the absence of a label. The team's actual confusion was not
+          knowing whether the two controls were the same switch; identical
+          treatment answers that on sight, and they ARE the same component over
+          the same store, so they cannot disagree.
+
+          Same placement on desktop and mobile. A bottom sheet rewards putting
+          frequent actions low, but this is set-and-forget — discoverability
+          beats reach, and one order means nothing to keep in sync. */}
+      {canPersonalize && (
+        <div
+          className="px-3 pb-3"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          <PovToggle canPersonalize avatarUrl={user.picture} className="w-full justify-center" />
+          <button
+            type="button"
+            onClick={() => onNavigate("/personalization")}
+            className="mt-1.5 block w-full rounded text-center text-[11px] text-brand-link transition-colors hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+            data-testid="menu-pov-learn-more"
+          >
+            What is this?
+          </button>
+        </div>
+      )}
+
+      {/* "Your tags" — a page ABOUT you, so it sits with identity rather than
+          down in the Invite / Help / Settings utilities group where it started.
+
+          It arrived as one half of a Profile | Your tags pair, and upstream
+          dropped the other half because the identity card had become the link to
+          your public profile. Here that card is the account switcher's trigger
+          instead — multi-account needs a way in, and it is the obvious one — so
+          "View profile" stays above and this sits beside it. */}
+      <div className="px-3 pb-3">
+        <button
+          type="button"
+          onClick={() => onNavigate("/tags/mine")}
+          className="flex w-full items-center justify-center gap-1.5 rounded-full border border-slate-300/70 dark:border-white/15 bg-white/50 dark:bg-white/[0.06] px-3 py-1.5 text-sm font-medium text-slate-700 dark:text-slate-100 transition-colors hover:bg-white/80 dark:hover:bg-white/[0.12] hover:border-brand-accent/40"
+          data-testid="dropdown-my-tags"
+        >
+          <TagIcon className="h-4 w-4 shrink-0" /> Your tags
         </button>
       </div>
 

@@ -219,7 +219,7 @@ export default function OnboardingWizard() {
               Follow a few accounts <span className="text-brand-link">to begin</span>.
             </h1>
             <p className="mt-4 text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-              Your Web of Trust is built from who you follow. Pick at least one so Brainstorm can calculate your trust scores.
+              Your network is built from who you follow. Pick at least one so Brainstorm can calculate your scores.
             </p>
             <div className="mt-6">
               <FollowPicker onContinue={followAndNext} continueLabel="Follow & continue" />

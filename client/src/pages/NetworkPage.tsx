@@ -71,6 +71,7 @@ import {
   type NetworkCardActions,
   type NetworkCardView,
 } from "@/components/network/cardContext";
+import { TIER_LABELS } from "@/services/trustThreshold";
 
 const floatingNodes = Array.from({ length: 10 }, (_, i) => ({
   id: i,
@@ -1272,7 +1273,7 @@ export default function NetworkPage() {
                         Verified
                       </div>
                       <div className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
-                        Show only WoT-verified accounts
+                        Show only verified accounts
                       </div>
                     </div>
                   </div>
@@ -1342,11 +1343,13 @@ export default function NetworkPage() {
                     data-testid="select-trust-filter-mobile"
                   >
                     <option value="all">All</option>
-                    <option value="high">Highly Trusted</option>
-                    <option value="medium">Trusted</option>
-                    <option value="neutral">Neutral</option>
-                    <option value="low">Low Trust</option>
-                    <option value="unverified">Unverified</option>
+                    {/* Labels from TIER_LABELS; the `value` keys are this page's
+                        own filter vocabulary and must not follow the rename. */}
+                    <option value="high">{TIER_LABELS.high}</option>
+                    <option value="medium">{TIER_LABELS.trusted}</option>
+                    <option value="neutral">{TIER_LABELS.neutral}</option>
+                    <option value="low">{TIER_LABELS.low}</option>
+                    <option value="unverified">{TIER_LABELS.unverified}</option>
                     {getGroupPubkeys("flagged").length > 0 && (
                       <option value="flagged">Flagged</option>
                     )}
@@ -1451,19 +1454,19 @@ export default function NetworkPage() {
                     },
                     {
                       key: "high" as TrustTier,
-                      label: "Highly Trusted",
+                      label: TIER_LABELS.high,
                       shortLabel: "High",
                       icon: "text-emerald-600",
                       ringFill: 0.9,
-                      tooltip: "Highest trust score in your network",
+                      tooltip: "Highest Verification Score in your network",
                     },
                     {
                       key: "medium" as TrustTier,
-                      label: "Trusted",
+                      label: TIER_LABELS.trusted,
                       shortLabel: "Med",
                       icon: "text-sky-500",
                       ringFill: 0.65,
-                      tooltip: "Above-average trust score",
+                      tooltip: "Above-average Verification Score",
                     },
                     {
                       key: "neutral" as TrustTier,
@@ -1471,15 +1474,15 @@ export default function NetworkPage() {
                       shortLabel: "Neutral",
                       icon: "text-brand-link",
                       ringFill: 0.37,
-                      tooltip: "Average trust score",
+                      tooltip: "Average Verification Score",
                     },
                     {
                       key: "low" as TrustTier,
-                      label: "Low Trust",
+                      label: TIER_LABELS.low,
                       shortLabel: "Low",
                       icon: "text-amber-500",
                       ringFill: 0.12,
-                      tooltip: "Below-average trust score",
+                      tooltip: "Below-average Verification Score",
                     },
                     {
                       key: "unverified" as TrustTier,
@@ -1487,7 +1490,7 @@ export default function NetworkPage() {
                       shortLabel: "Unverified",
                       icon: "text-zinc-400",
                       ringFill: 0,
-                      tooltip: "No trust score calculated yet",
+                      tooltip: "No Verification Score calculated yet",
                     },
                     {
                       key: "flagged" as TrustTier,
@@ -1724,7 +1727,7 @@ export default function NetworkPage() {
                   data-testid="text-network-empty-body"
                 >
                   {searchFilter || trustFilter !== "all"
-                    ? "Try a different search term, trust score range, or group filter."
+                    ? "Try a different search term, Verification Score range, or group filter."
                     : "Your network data will appear here once your social graph is populated."}
                 </p>
               </div>

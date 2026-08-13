@@ -4241,7 +4241,7 @@ export default function AdminPage() {
                       <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 mb-2">What happens when you confirm</p>
                       <ul className="text-xs text-amber-900 dark:text-amber-200 space-y-1.5 list-disc list-inside">
                         <li>A GrapeRank calculation request is sent to the Brainstorm server for this user's pubkey</li>
-                        <li>The server crawls the user's Nostr social graph — follows, mutes, and interactions — to compute personalized trust scores</li>
+                        <li>The server crawls the user's Nostr social graph — follows, mutes, and interactions — to compute personalized scores</li>
                         <li>This is <span className="font-semibold">resource-intensive</span> and may take several minutes depending on graph size</li>
                         <li>Progress and results will appear in the <span className="font-semibold">Activity tab</span> once processing begins</li>
                         <li>If a calculation is already running for this user, a duplicate request may be queued</li>
@@ -4249,7 +4249,7 @@ export default function AdminPage() {
                     </div>
                     <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/25">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300 mb-1.5">Good to know</p>
-                      <p className="text-xs text-blue-800 dark:text-blue-300">GrapeRank scores are calculated relative to the user's own social graph. Each user's Web of Trust is unique. Triggering this does not affect other users' scores.</p>
+                      <p className="text-xs text-blue-800 dark:text-blue-300">GrapeRank scores are calculated relative to the user's own social graph. Each user's network is unique. Triggering this does not affect other users' scores.</p>
                     </div>
                     <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Target Pubkey</p>

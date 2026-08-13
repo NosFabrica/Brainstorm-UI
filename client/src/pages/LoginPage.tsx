@@ -227,7 +227,7 @@ export default function LoginPage() {
               Sign in to your <span className="text-brand-link">Brainstorm</span> account
             </h2>
             <p className="text-base text-muted-foreground leading-relaxed">
-              Pick up where you left off and keep building your web of trust.
+              Pick up where you left off and keep building your network.
             </p>
           </div>
 

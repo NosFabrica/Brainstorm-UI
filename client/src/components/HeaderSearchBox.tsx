@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type Keyboard
 import { useLocation } from "wouter";
 import { Search, Loader2, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { BrainLogo } from "@/components/BrainLogo";
+import { VerificationCoin } from "@/components/score/VerificationCoin";
 import { searchByText, isLikelyNpub, isHexPubkey, isNip05Handle, type SearchResult } from "@/lib/profileSearch";
 import { npubFromPubkey } from "@/lib/shareId";
 import { initialsFor } from "@/lib/profileDefaults";
@@ -10,7 +10,9 @@ import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useActivePerspective } from "@/hooks/useActivePerspective";
-import { useHasMywot } from "@/hooks/useHasMywot";
+import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
+import { useTagMatches } from "@/hooks/useTags";
+import type { TagSummary } from "@/services/tags";import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
 
 /**
@@ -111,6 +113,13 @@ export function HeaderSearchBox({
     navigate(topicPath(tag));
   };
 
+  const goTag = (tag: TagSummary) => {
+    const path = tagSuggestionPath(tag, npubFromPubkey);
+    if (!path) return;
+    setOpen(false);
+    navigate(path);
+  };
+
   const submit = (e?: FormEvent) => {
     e?.preventDefault();
     const topic = parseTopicQuery(q);
@@ -135,6 +144,8 @@ export function HeaderSearchBox({
   };
 
   const topic = parseTopicQuery(q);
+  // `#topic` queries already route to the hashtag feed — don't offer a second answer.
+  const tagMatches = useTagMatches(topic.isTopic ? "" : q);
 
   return (
     <div ref={containerRef} className={`relative ${className}`} data-testid="header-search">
@@ -167,16 +178,29 @@ export function HeaderSearchBox({
           )}
         </div>
       </form>
-      {open && (topic.isTopic || loading || suggestions.length > 0) && (
+      {open && (topic.isTopic || loading || suggestions.length > 0 || tagMatches.length > 0) && (
         <div className="absolute left-0 right-0 top-full z-50 mt-2 overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xl shadow-slate-900/10" role="listbox" data-testid="header-search-suggestions">
           {topic.isTopic ? (
             <TopicSuggestionRow tag={topic.tag} active onSelect={() => goTopic(topic.tag)} testId="header-search-topic" />
-          ) : loading && suggestions.length === 0 ? (
+          ) : loading && suggestions.length === 0 && tagMatches.length === 0 ? (
             <div className="flex items-center gap-2 px-4 py-3 text-sm text-slate-400 dark:text-slate-500">
               <Loader2 className="h-4 w-4 animate-spin" /> Searching…
             </div>
           ) : (
-            suggestions.map((r, i) => (
+            <>
+            {tagMatches.length > 0 && (
+              <div className="border-b border-slate-100 dark:border-slate-800/60" data-testid="header-search-tags">
+                {tagMatches.map((t) => (
+                  <TagSuggestionRow
+                    key={t.key}
+                    tag={t}
+                    onSelect={() => goTag(t)}
+                    testId="header-search-tag"
+                  />
+                ))}
+              </div>
+            )}
+            {suggestions.map((r, i) => (
               <button
                 key={r.pubkey}
                 type="button"
@@ -195,17 +219,21 @@ export function HeaderSearchBox({
                   <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{nameOf(r)}</p>
                   {r.nip05 && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{r.nip05}</p>}
                 </div>
+                {/* Same coin as the results page, the profile hero and every
+                    people list. It also fixes a scale bug this pill had: it
+                    printed `wotRank` raw, which is 0..1, so a 93 would have read
+                    "0.93". The coin does the ×100 in one place. */}
                 {r.wotRank != null && (
-                  <span
-                    className="inline-flex shrink-0 items-center gap-0.5 rounded-full border border-brand-primary/15 dark:border-white/15 bg-brand-primary/10 dark:bg-white/10 px-1.5 py-0.5 text-[10px] font-medium text-brand-primary dark:text-slate-100"
-                    data-testid={`header-search-rank-${i}`}
-                  >
-                    <BrainLogo mono size={10} className="shrink-0" />
-                    {r.wotRank}
-                  </span>
+                  <VerificationCoin
+                    score01={r.wotRank}
+                    pov={effectivePov === "mywot" ? "personalized" : "global"}
+                    size={22}
+                    className="shrink-0"
+                  />
                 )}
               </button>
-            ))
+            ))}
+            </>
           )}
         </div>
       )}

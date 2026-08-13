@@ -37,7 +37,7 @@ export function ShareOgCard({
         {/* Eyebrow: wordmark + context label */}
         <div className="flex items-center justify-between">
           <img src="/brand/wordmark.svg" alt="Brainstorm" draggable={false} className="h-[5cqw] w-auto select-none" />
-          <span className="text-[2.4cqw] font-bold uppercase tracking-[0.18em] text-slate-400">Web of Trust</span>
+          <span className="text-[2.4cqw] font-bold uppercase tracking-[0.18em] text-slate-400">Verification Score</span>
         </div>
 
         {/* Identity + the trust standing */}
@@ -71,7 +71,7 @@ export function ShareOgCard({
         {/* What the score means — credibility for a first-time recipient. */}
         <div className="text-[3cqw] text-slate-500 font-medium leading-snug">
           {hasScore
-            ? "Web of Trust score — from real human connections, not an algorithm."
+            ? "Scored by real human connections, not an algorithm."
             : "Reputation from real human connections — not an algorithm."}
         </div>
       </div>

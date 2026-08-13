@@ -1,4 +1,4 @@
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { copyToClipboard } from "@/lib/clipboard";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { getRecentItems, pushRecentQuery, pushRecentProfile, removeRecentItem, clearRecentSearches, recentKey, type RecentItem } from "@/lib/recentSearches";
@@ -26,6 +26,7 @@ import { SignInButton } from "@/components/SignInButton";
 import { AccountMenu } from "@/components/AccountMenu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { VerificationCoin } from "@/components/score/VerificationCoin";
 import { EmptyState } from "@/components/ui/empty-state";
 import { fetchProfile, logout } from "@/services/nostr";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
@@ -47,6 +48,9 @@ import {
 } from "@/lib/profileSearch";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
+import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
+import { useTagMatches } from "@/hooks/useTags";
+import { npubFromPubkey } from "@/lib/shareId";
 import { resolveEntityToPath } from "@/lib/resolveNostrEntity";
 
 // Anonymous visitors search from the NosFabrica ("house") POV. Logged-in users
@@ -574,7 +578,11 @@ export default function Landing() {
   // the dropdown's action row resolves it straight to the right landing page.
   const entityMatch = useMemo(() => resolveEntityToPath(query.trim()), [query]);
   const topicMatch = useMemo(() => parseTopicQuery(query), [query]);
-  const dropdownOpen = showSuggestions && (suggestions.length > 0 || isSuggesting || topicMatch.isTopic);
+  // Tags the query matches. Skipped entirely for `#topic` queries — those are
+  // already routed at the hashtag feed and shouldn't offer a second answer.
+  const tagMatches = useTagMatches(topicMatch.isTopic ? "" : query);
+  const dropdownOpen =
+    showSuggestions && (suggestions.length > 0 || isSuggesting || topicMatch.isTopic || tagMatches.length > 0);
   // "Recent" shows under an empty, focused box before any search this session —
   // never alongside the suggestions dropdown or a results list.
   const showRecent = focused && query.trim() === "" && !hasSearched && !dropdownOpen && recent.length > 0;
@@ -842,12 +850,32 @@ export default function Landing() {
                     onSelect={() => { setShowSuggestions(false); if (topicMatch.tag) setLocation(topicPath(topicMatch.tag)); }}
                     testId="home-topic"
                   />
-                ) : isSuggesting && suggestions.length === 0 ? (
+                ) : isSuggesting && suggestions.length === 0 && tagMatches.length === 0 ? (
                   <div className="px-4 py-3 flex items-center gap-2 text-slate-400 dark:text-slate-500 text-xs" data-testid="home-suggestions-loading">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…
                   </div>
                 ) : (
                   <>
+                    {/* Tags first: far fewer of them than people, and they're a
+                        different kind of answer — "who is known for this"
+                        rather than "who is called this". */}
+                    {tagMatches.length > 0 && (
+                      <div className="shrink-0 border-b border-slate-100 dark:border-slate-800/60" data-testid="home-tag-matches">
+                        {tagMatches.map((t) => (
+                          <TagSuggestionRow
+                            key={t.key}
+                            tag={t}
+                            onSelect={() => {
+                              const path = tagSuggestionPath(t, npubFromPubkey);
+                              if (!path) return;
+                              setShowSuggestions(false);
+                              setLocation(path);
+                            }}
+                            testId="home-tag-suggestion"
+                          />
+                        ))}
+                      </div>
+                    )}
                     <div className="flex-1 overflow-y-auto overscroll-contain min-h-0" data-testid="list-home-suggestions">
                     {suggestions.map((s, i) => {
                       const handle = s.nip05 ? s.nip05.replace(/^_@/, "") : null;
@@ -998,6 +1026,12 @@ export default function Landing() {
               </div>
             )}
           </div>
+
+          {/* No browse link here on purpose. Tags reach this page through the
+              search box itself — type two characters and matching tags appear
+              in the dropdown above the people. A second, static CTA under the
+              field competed with the one thing this screen asks you to do.
+              The catalogue's home entry point is /tags/mine instead. */}
 
           {!user ? (
             <div className="mt-6 flex flex-col items-center gap-2.5 rounded-2xl backdrop-blur-[2px]" data-testid="text-home-hint">
@@ -1151,12 +1185,27 @@ export default function Landing() {
                     data-testid={`result-profile-${idx}`}
                   >
                     <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4">
-                      <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2 shrink-0 border-slate-200/80 dark:border-slate-800/80">
-                        {result.picture ? <AvatarImage src={result.picture} alt={getDisplayLabel(result)} className="object-cover" /> : null}
-                        <AvatarFallback className="overflow-hidden">
-                          <DefaultAvatarImg />
-                        </AvatarFallback>
-                      </Avatar>
+                      {/* Avatar + score coin, the same pairing as the profile
+                          hero and every people-list row. This used to be a
+                          bespoke pill further down the card, which meant the one
+                          number the product is about looked different here than
+                          anywhere else. Team feedback, and they were right. */}
+                      <div className="relative shrink-0">
+                        <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2 border-slate-200/80 dark:border-slate-800/80">
+                          {result.picture ? <AvatarImage src={result.picture} alt={getDisplayLabel(result)} className="object-cover" /> : null}
+                          <AvatarFallback className="overflow-hidden">
+                            <DefaultAvatarImg />
+                          </AvatarFallback>
+                        </Avatar>
+                        {result.wotRank != null && (
+                          <VerificationCoin
+                            score01={result.wotRank}
+                            pov={effectivePov === "mywot" ? "personalized" : "global"}
+                            size={22}
+                            className="absolute -bottom-1 -right-1"
+                          />
+                        )}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors truncate" data-testid={`text-result-name-${idx}`}>
@@ -1195,12 +1244,8 @@ export default function Landing() {
                           </p>
                         )}
                         <div className="flex items-center gap-1.5 sm:gap-2 mt-2 flex-wrap">
-                          {result.wotRank != null && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand-primary/10 dark:bg-white/10 text-brand-primary dark:text-slate-100 border border-brand-primary/15 dark:border-white/15" data-testid={`badge-rank-${idx}`}>
-                              <BrainLogo mono size={10} className="shrink-0" />
-                              {result.wotRank}
-                            </span>
-                          )}
+                          {/* The rank pill that lived here is now the coin on the
+                              avatar above — one badge for the score, sitewide. */}
                           {result.wotFollowers != null && (
                             <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800/60" data-testid={`badge-followers-${idx}`}>
                               <Users className="h-2.5 w-2.5" />

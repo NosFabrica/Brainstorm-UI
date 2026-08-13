@@ -65,7 +65,7 @@ export default function ActivatePage() {
     if (pubkey) {
       try { localStorage.setItem(accountKey("brainstorm_calc_triggered_at", pubkey), String(Date.now())); } catch {}
     }
-    toast({ title: "Calculating your Web of Trust", description: "We're scoring your network — explore while it runs." });
+    toast({ title: "Calculating your network", description: "We're scoring it now — explore while it runs." });
     navigate("/", { replace: true });
     if (pubkey) void triggerScoringAndAnchor(pubkey).catch(() => {});
   };
@@ -146,7 +146,7 @@ export default function ActivatePage() {
           className="mt-6 w-full h-12 rounded-xl bg-brand-primary hover:bg-brand-primary-hover disabled:opacity-50 text-white font-semibold text-sm shadow-sm transition-colors flex items-center justify-center gap-2"
           data-testid="activate-calculate"
         >
-          Calculate my Web of Trust <ArrowRight className="h-4 w-4" />
+          Calculate my scores <ArrowRight className="h-4 w-4" />
         </button>
         <p className="mt-2 text-center text-xs text-slate-400 dark:text-slate-500">
           We read your existing follows — nothing to set up. This can take a few minutes; you can search while it runs.

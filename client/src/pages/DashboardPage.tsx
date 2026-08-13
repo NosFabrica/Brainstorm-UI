@@ -19,6 +19,7 @@ import { NetworkAlertsModule } from "@/components/dashboard/NetworkAlertsModule"
 import { DashboardLookup } from "@/components/dashboard/DashboardLookup";
 import { YourNetworkCard } from "@/components/dashboard/YourNetworkCard";
 import { SetupProgressCard } from "@/components/dashboard/SetupProgressCard";
+import { TaggedYouModule } from "@/components/dashboard/TaggedYouModule";
 import { useNetworkFaces } from "@/hooks/useNetworkFaces";
 import { NetworkArticlesModule } from "@/components/dashboard/NetworkArticlesModule";
 import { ClientShelf } from "@/components/dashboard/ClientShelf";
@@ -117,6 +118,7 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
 import { apiClient, isAuthRedirecting } from "@/services/api";
+import { TIER_LABELS } from "@/services/trustThreshold";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
 import { toPubkeys } from "../services/graphHelpers";
 import { ActivateBrainstormModal } from "@/components/ActivateBrainstormModal";
@@ -236,7 +238,7 @@ export default function DashboardPage() {
       setAssistantPubkey(getCurrentAssistantPubkey()); // collapse the prompt immediately
       toast({
         title: `${name} is live on Nostr!`,
-        description: "Speaking your trust scores to compatible Nostr apps.",
+        description: "Speaking your scores to compatible Nostr apps.",
         action: (
           <ToastAction altText="Customize your assistant" onClick={() => navigate("/settings?tab=trust")}>
             Customize
@@ -338,7 +340,7 @@ export default function DashboardPage() {
       let hadPrev = false;
       try { hadPrev = localStorage.getItem("brainstorm_calc_completed") === "true"; } catch {}
       toast({
-        title: hadPrev ? "Refreshing your trust scores" : "Calculating your Web of Trust",
+        title: hadPrev ? "Refreshing your scores" : "Calculating your network",
         description: hadPrev
           ? "Your scores are being recalculated — results will update shortly."
           : "We're scoring your network for the first time. You can keep exploring while it runs.",
@@ -535,11 +537,11 @@ export default function DashboardPage() {
   };
 
   const TIER_CONFIG = [
-    { key: "high", name: "Highly Trusted", color: TRUST_TIER_COLORS.highlyTrusted },
-    { key: "medium_high", name: "Trusted", color: TRUST_TIER_COLORS.trusted },
-    { key: "medium", name: "Neutral", color: TRUST_TIER_COLORS.neutral },
-    { key: "medium_low", name: "Low Trust", color: TRUST_TIER_COLORS.lowTrust },
-    { key: "low", name: "Unverified", color: TRUST_TIER_COLORS.unverified },
+    { key: "high", name: TIER_LABELS.high, color: TRUST_TIER_COLORS.highlyTrusted },
+    { key: "medium_high", name: TIER_LABELS.trusted, color: TRUST_TIER_COLORS.trusted },
+    { key: "medium", name: TIER_LABELS.neutral, color: TRUST_TIER_COLORS.neutral },
+    { key: "medium_low", name: TIER_LABELS.low, color: TRUST_TIER_COLORS.lowTrust },
+    { key: "low", name: TIER_LABELS.unverified, color: TRUST_TIER_COLORS.unverified },
     { key: "low_and_reported_by_2_or_more_trusted_pubkeys", name: "Flagged", color: TRUST_TIER_COLORS.flagged },
   ] as const;
 
@@ -614,20 +616,20 @@ export default function DashboardPage() {
       }).filter(d => d.value > 0 || d.name === "Flagged");
     }
     const fallback = [
-      { label: "Highly Trusted", count: followersCount, color: TRUST_TIER_COLORS.highlyTrusted },
-      { label: "Trusted", count: followingCount, color: TRUST_TIER_COLORS.trusted },
-      { label: "Neutral", count: Math.max(100, followersCount * 2), color: TRUST_TIER_COLORS.neutral },
-      { label: "Low Trust", count: mutedByCount + mutingCount, color: TRUST_TIER_COLORS.lowTrust },
+      { label: TIER_LABELS.high, count: followersCount, color: TRUST_TIER_COLORS.highlyTrusted },
+      { label: TIER_LABELS.trusted, count: followingCount, color: TRUST_TIER_COLORS.trusted },
+      { label: TIER_LABELS.neutral, count: Math.max(100, followersCount * 2), color: TRUST_TIER_COLORS.neutral },
+      { label: TIER_LABELS.low, count: mutedByCount + mutingCount, color: TRUST_TIER_COLORS.lowTrust },
       { label: "Unverified", count: Math.max(10, mutedByCount), color: TRUST_TIER_COLORS.unverified },
       { label: "Flagged", count: flaggedCount, color: TRUST_TIER_COLORS.flagged },
     ];
     const currentHops = hopRange[1];
     return fallback.map((d) => {
       let multiplier = 1;
-      if (d.label === "Highly Trusted") multiplier = Math.max(0.2, 1 - (currentHops - 1) * 0.15);
-      else if (d.label === "Trusted") multiplier = Math.max(0.4, 1 - (currentHops - 1) * 0.08);
-      else if (d.label === "Neutral") multiplier = 1 + (currentHops - 1) * 0.4;
-      else if (d.label === "Low Trust") multiplier = 1 + (currentHops - 1) * 0.6;
+      if (d.label === TIER_LABELS.high) multiplier = Math.max(0.2, 1 - (currentHops - 1) * 0.15);
+      else if (d.label === TIER_LABELS.trusted) multiplier = Math.max(0.4, 1 - (currentHops - 1) * 0.08);
+      else if (d.label === TIER_LABELS.neutral) multiplier = 1 + (currentHops - 1) * 0.4;
+      else if (d.label === TIER_LABELS.low) multiplier = 1 + (currentHops - 1) * 0.6;
       else if (d.label === "Flagged") multiplier = 1;
       else multiplier = 1 + (currentHops - 1) * 0.8;
       return { name: d.label, value: Math.floor(d.count * multiplier), color: d.color };
@@ -816,7 +818,7 @@ export default function DashboardPage() {
                   <div className="h-7 w-7 rounded-lg bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center shrink-0">
                     <BrainLogo size={14} className="text-brand-deep" />
                   </div>
-                  <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 shrink-0" style={{ fontFamily: "var(--font-display)" }}>Web of Trust</span>
+                  <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 shrink-0" style={{ fontFamily: "var(--font-display)" }}>Your network</span>
                   <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 shrink-0">
                     <span className="relative flex h-1.5 w-1.5">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
@@ -869,7 +871,7 @@ export default function DashboardPage() {
                               Publish your assistant
                             </p>
                             <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight truncate">
-                              Speak your trust scores to compatible apps
+                              Speak your scores to compatible apps
                             </p>
                           </div>
                           <button
@@ -919,7 +921,7 @@ export default function DashboardPage() {
                               <Info className="h-2 w-2" />
                             </button>
                             <div className="fixed left-4 right-4 top-1/2 -translate-y-1/2 sm:absolute sm:top-auto sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:translate-y-0 sm:bottom-full sm:mb-2 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-[100] pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-compatible-clients">
-                              Apps that read the personalized trust scores Brainstorm publishes for you — so your Web of Trust travels with you across the apps you use.
+                              Apps that read the personalized Verification Scores Brainstorm publishes for you — so your network travels with you across the apps you use.
                             </div>
                           </div>
                         </div>
@@ -1105,8 +1107,8 @@ export default function DashboardPage() {
                   <Loader2 className="h-5 w-5 animate-spin" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-[15px] font-bold text-slate-900 dark:text-slate-100">Building your Web of Trust</div>
-                  <div className="text-[13px] text-slate-500 dark:text-slate-400">You're all set — your trust scores are calculating. This can take a few minutes.</div>
+                  <div className="text-[15px] font-bold text-slate-900 dark:text-slate-100">Building your network</div>
+                  <div className="text-[13px] text-slate-500 dark:text-slate-400">You're all set — your scores are calculating. This can take a few minutes.</div>
                 </div>
               </div>
             )}
@@ -1135,7 +1137,7 @@ export default function DashboardPage() {
                     </div>
                     <p className="min-w-0 text-[13px] text-slate-600 dark:text-slate-300 leading-snug">
                       <span className="font-semibold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }} data-testid="text-invite-grow-title">Your network is live.</span>{" "}
-                      <span className="text-slate-500 dark:text-slate-400">Invite people — they join connected to you, strengthening everyone's Web of Trust.</span>
+                      <span className="text-slate-500 dark:text-slate-400">Invite people — they join connected to you, and everyone's network gets stronger.</span>
                     </p>
                   </div>
                   <button
@@ -1190,6 +1192,10 @@ export default function DashboardPage() {
             {showOnboarding && (
               <SetupProgressCard queueAhead={queuePosition} showStatus={!isErrorState} />
             )}
+
+            {/* Someone put a public label on you. Nothing else in the app would
+                ever tell you — self-hides when there's nothing new. */}
+            <TaggedYouModule />
           </div>
 
           {publishDone && !isRecalculating && !nip85Activated && !nip85Dismissed && !nip85CreatedInApp && (
@@ -1211,10 +1217,10 @@ export default function DashboardPage() {
 
                   <div className="flex-1 min-w-0">
                     <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-nip85-cta-title">
-                      Select Brainstorm as your Web of Trust Service Provider
+                      Use your Brainstorm scores in other apps
                     </h3>
                     <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed" data-testid="text-nip85-cta-subtitle">
-                      Sign a nostr note that tells compatible clients where to find your personalized trust scores.
+                      Sign a nostr note that tells other apps where to find your personalized scores.
                     </p>
                   </div>
 
@@ -1255,7 +1261,7 @@ export default function DashboardPage() {
             onActivated={() => {
               setNip85Activated(true);
               setNip85ModalOpen(false);
-              toast({ title: "Brainstorm activated!", description: "Your trust scores are now available across the nostr ecosystem." });
+              toast({ title: "Brainstorm activated!", description: "Your scores are now available across the nostr ecosystem." });
             }}
           />
 

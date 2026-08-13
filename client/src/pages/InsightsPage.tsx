@@ -18,9 +18,10 @@ import { getScoreJournal, hydrateScoreJournal, recordScore, withDeltas, type Sco
 import { readPublishedAssistant, readAssistantProfile } from "@/lib/assistantStorage";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { TIER_LABELS } from "@/services/trustThreshold";
 
 const TIER_LABEL: Record<VerificationTier, string> = {
-  high: "Highly Trusted", trusted: "Trusted", neutral: "Neutral", low: "Low Trust", unverified: "Unverified",
+  high: TIER_LABELS.high, trusted: TIER_LABELS.trusted, neutral: TIER_LABELS.neutral, low: TIER_LABELS.low, unverified: TIER_LABELS.unverified,
 };
 
 const isDone = (s: unknown) => typeof s === "string" && s.toLowerCase() === "success";
@@ -187,7 +188,7 @@ export default function InsightsPage() {
           </div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>My Insights</h1>
         </div>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Your account standing, and exactly how and when your trust scores were computed.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Your account standing, and exactly how and when your scores were computed.</p>
 
         <DeferredSessionNotice className="mb-6" />
 

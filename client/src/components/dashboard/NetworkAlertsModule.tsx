@@ -468,7 +468,7 @@ export function NetworkAlertsModule({ observer, enabled, onEmptyChange }: {
     isNew: newSet.has(e.pubkey),
     following: e.hops <= 1,
     escalatedFrom: isEscalated(e.pubkey, e.verifiedReporterCount) ? ignoredBaseline(e.pubkey) : null,
-    onDeepDive: () => navigate(`/profile/${npubFromPubkey(e.pubkey)}`),
+    onDeepDive: () => navigate(`/p/${npubFromPubkey(e.pubkey)}`),
     onWhy: () => navigate(`/p/${npubFromPubkey(e.pubkey)}/reporters`),
     ...actionsFor(e.pubkey, nameFor(e.pubkey), e.verifiedReporterCount, {
       picture: profiles.get(e.pubkey)?.picture,
@@ -550,7 +550,7 @@ export function NetworkAlertsModule({ observer, enabled, onEmptyChange }: {
           </div>
           <p className="text-sm font-semibold text-slate-800 dark:text-slate-200">Your safety radar is warming up</p>
           <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400">
-            As soon as your trust scores finish calculating, we'll flag anyone in your network that people you trust have reported or muted — so you can act on it right here.
+            As soon as your scores finish calculating, we'll flag anyone in your network that people you trust have reported or muted — so you can act on it right here.
           </p>
         </div>
       ) : q.isLoading ? (

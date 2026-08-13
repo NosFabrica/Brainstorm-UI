@@ -37,7 +37,7 @@ export default function PersonalizationPage() {
             size="hero"
             kicker="Your perspective"
             title={<>Every search has a <span className="text-brand-link">point of view</span>.</>}
-            subtitle="By default, you see the network through a trusted community curated by the house. Sign in, and you can see it through your own Web of Trust — here's how Brainstorm decides whose trust shapes what you see."
+            subtitle="By default, you see the network through a trusted community curated by the house. Sign in, and you can see it through your own network — here's how Brainstorm decides whose opinions shape what you see."
             testId="section-personalization-header"
           />
 
@@ -116,7 +116,7 @@ export default function PersonalizationPage() {
                 </div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight mb-1.5">House Point of View</h3>
                 <p className="text-[15px] text-slate-600 dark:text-slate-300 dark:text-slate-600 leading-relaxed">
-                  Uses trust scores selected by the operator of this instance — the "house." Available to
+                  Uses scores selected by the operator of this instance — the "house." Available to
                   everyone, with no account and no sign-in required.
                 </p>
               </Card>
@@ -135,7 +135,7 @@ export default function PersonalizationPage() {
                 </div>
                 <h3 className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight mb-1.5">My Point of View</h3>
                 <p className="text-[15px] text-slate-600 dark:text-slate-300 dark:text-slate-600 leading-relaxed">
-                  Your personalized perspective. Uses trust scores derived from your extended community,
+                  Your personalized perspective. Uses scores derived from your extended community,
                   calculated and made available to platforms like{" "}
                   <a
                     href="https://amethyst.social/"

@@ -73,7 +73,7 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
   });
   const score01 = typeof scoreQuery.data === "number" ? scoreQuery.data : null;
   const tier = score01 != null ? tierForScore(score01) : null;
-  const povCaption = usePersonal ? "Through your Web of Trust" : "Brainstorm network score";
+  const povCaption = usePersonal ? "Through your network" : "Brainstorm network score";
 
   // Hashtags go straight to their trust-ranked content feed (no confirm — it's an
   // internal navigation). Profile mentions still show the confirm dialog below.

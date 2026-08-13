@@ -59,7 +59,7 @@ Defined in `client/src/config/personalization.ts`:
 | `hidden`          | `string[]` | Section/hero keys the owner hid |
 | `order`           | `string[]` | Section keys in display order; missing keys fall back to default order |
 | `pinnedFollowers` | `string[]` | Hand-picked pubkeys for the "Followed by" row; empty ⇒ auto top-trusted |
-| `roles`           | `string[]` | Self-declared role keys (Vendor, Musician, Developer, …) |
+| `roles`           | `string[]` | **Retired 2026-08-05** — self-declared role keys. No longer rendered or editable; decentralized tags replaced them (`docs/decentralized-tagging/DECISIONS.md` §3). Still parsed and re-serialized so existing users' saved values survive a save, and offered back to the owner as one-tap tags. |
 
 Customizable surfaces:
 
@@ -91,7 +91,8 @@ Customizable surfaces:
 3. Coerce through `parseProfilePrefs` (`client/src/lib/personalization.ts`) —
    defensive validation, since it's untrusted public JSON.
 4. `SharePage` applies it: `isHidden(key)`, reordered sections,
-   `pinnedFollowers || auto`, role chips.
+   `pinnedFollowers || auto`. (Role chips used to render here; decentralized
+   tags replaced them.)
 
 ## 6. Editor UX
 
@@ -132,7 +133,8 @@ Related NIPs on the same page: **NIP-65** (which relays to publish/read),
 - **App-namespaced** (`brainstorm.world/…`) ⇒ no other client reads it yet.
   Generalizing this is the point of [nips/profile-presentation.md](nips/profile-presentation.md).
 - The **roles** vocabulary is Brainstorm-defined; the `kind` mappings in
-  `config/personalization.ts` are marked "indicative."
+  `config/personalization.ts` are marked "indicative." `ROLES` outlived the role
+  chips — it now seeds the tag picker's suggestions.
 - A **separate** system — search "Personalization" (`PersonalizationPrefs`) — is
   **localStorage-only**, *not* on Nostr yet (`client/src/lib/personalization.ts`,
   `loadPersonalization`/`savePersonalization`). Don't conflate the two.

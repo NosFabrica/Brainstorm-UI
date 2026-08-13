@@ -9,7 +9,7 @@ import { apiClient } from "@/services/api";
 import { collectRefs, type MinimalEvent } from "@/lib/noteRefs";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { eventPath } from "@/lib/shareId";
-import { TIER_THRESHOLDS } from "@/services/trustThreshold";
+import { TIER_THRESHOLDS, TIER_LABELS } from "@/services/trustThreshold";
 import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
@@ -24,8 +24,8 @@ type ProfileLite = { name?: string; display_name?: string; picture?: string; nip
 const TEASER_COUNT = 5;
 const TRUST_FILTERS = [
   { key: "all", label: "All", min: 0 },
-  { key: "trusted", label: "Trusted+", min: TIER_THRESHOLDS.medium_high },
-  { key: "high", label: "Highly Trusted", min: TIER_THRESHOLDS.high },
+  { key: "trusted", label: `${TIER_LABELS.trusted}+`, min: TIER_THRESHOLDS.medium_high },
+  { key: "high", label: TIER_LABELS.high, min: TIER_THRESHOLDS.high },
 ] as const;
 
 /**
@@ -220,7 +220,7 @@ export function EventThread({
       {loggedIn && !usePersonal && (
         <p className="mb-2 text-xs text-slate-500 dark:text-slate-400" data-testid="thread-filter-unlock">
           {calcTriggered ? (
-            <span className="inline-flex items-center gap-1 text-brand-deep"><Loader2 className="h-3 w-3 animate-spin" /> Calculating your Web of Trust — the filter switches to your perspective when it's ready.</span>
+            <span className="inline-flex items-center gap-1 text-brand-deep"><Loader2 className="h-3 w-3 animate-spin" /> Calculating your network — the filter switches to your perspective when it's ready.</span>
           ) : myFollows > 0 ? (
             <>Filtering by the Brainstorm network.{" "}
               <button
@@ -229,12 +229,12 @@ export function EventThread({
                 className="font-semibold text-brand-link hover:underline"
                 data-testid="thread-calc-wot"
               >
-                Calculate your Web of Trust to filter by who YOU trust →
+                Use your own network to filter these →
               </button>
             </>
           ) : (
             <>Filtering by the Brainstorm network.{" "}
-              <Link href={buildWotHref} className="font-semibold text-brand-link hover:underline">Follow people to filter by your own Web of Trust →</Link>
+              <Link href={buildWotHref} className="font-semibold text-brand-link hover:underline">Follow a few people to filter by your own network →</Link>
             </>
           )}
         </p>
@@ -243,9 +243,9 @@ export function EventThread({
       {loggedIn && minTrust > 0 && (
         <p className="mb-2 text-xs text-slate-500 dark:text-slate-400" data-testid="thread-filter-status">
           {scoring ? (
-            <span className="inline-flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Scoring commenters in {usePersonal ? "your Web of Trust" : "the Brainstorm network"}…</span>
+            <span className="inline-flex items-center gap-1"><Loader2 className="h-3 w-3 animate-spin" /> Scoring commenters in {usePersonal ? "your network" : "the Brainstorm network"}…</span>
           ) : (
-            <>{hiddenCount} {hiddenCount === 1 ? "comment" : "comments"} hidden by your trust filter ({usePersonal ? "your Web of Trust" : "Brainstorm network"}).</>
+            <>{hiddenCount} {hiddenCount === 1 ? "comment" : "comments"} hidden by your filter ({usePersonal ? "your network" : "the Brainstorm network"}).</>
           )}
         </p>
       )}
@@ -267,7 +267,7 @@ export function EventThread({
         <div className="mt-3 rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] p-5 text-center" data-testid="thread-gate">
           <p className="text-sm font-bold text-slate-900 dark:text-slate-100">See the whole conversation</p>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 max-w-md mx-auto">
-            Create a free account to read all {replies.length} comments, see who engaged, and <span className="font-semibold text-brand-deep">filter the thread through your own Web of Trust</span>.
+            Create a free account to read all {replies.length} comments, see who engaged, and <span className="font-semibold text-brand-deep">filter the thread through your own network</span>.
           </p>
           <Link
             href={loginHref}
@@ -285,12 +285,12 @@ export function EventThread({
       <AlertDialog open={confirmCalc} onOpenChange={setConfirmCalc}>
         <AlertDialogContent data-testid="modal-confirm-thread-calc">
           <AlertDialogHeader>
-            <AlertDialogTitle>Calculate your Web of Trust?</AlertDialogTitle>
+            <AlertDialogTitle>Build your network?</AlertDialogTitle>
             {/* Deliberately NOT the dashboard's wording: nothing is being replaced
                 here, this is a first run. What it shares is the honest cost — the
                 wait — and the same ask-before-you-start contract. */}
             <AlertDialogDescription>
-              This builds your personal trust scores from the accounts you follow. It takes
+              This builds your personal scores from the accounts you follow. It takes
               about 5 minutes, and this filter switches to your own perspective as soon as
               it's ready.
             </AlertDialogDescription>

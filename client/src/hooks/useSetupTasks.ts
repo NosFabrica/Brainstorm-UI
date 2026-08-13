@@ -67,7 +67,7 @@ export function useSetupTasks(): SetupState {
       {
         key: "network",
         label: "Follow a few accounts",
-        detail: "Your trust scores are built from who you follow.",
+        detail: "Your Verification Score is built from who you follow.",
         done: networkStarted,
       },
       {
