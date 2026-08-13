@@ -138,7 +138,7 @@ function YouTab({ user, active, onClick }: { user: AccountDisplay; active: boole
     >
       <span className={cn("block rounded-full p-[1.5px] transition-colors", active ? "bg-gradient-to-tr from-brand-deep via-brand-accent to-brand-deep" : "bg-transparent")}>
         <Avatar className="h-[22px] w-[22px]">
-          {user.picture ? <AvatarImage src={user.picture} alt="" className="object-cover" /> : null}
+          <AvatarImage src={user.picture} alt="" className="object-cover" />
           <AvatarFallback className="bg-white text-[10px] font-bold text-[#0A0E18]">
             {user.displayName?.charAt(0)?.toUpperCase() || "U"}
           </AvatarFallback>

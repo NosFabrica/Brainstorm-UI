@@ -41,7 +41,11 @@ export function AccountMenu({ user, onLogout, active }: AccountMenuProps) {
           >
             <span className="block rounded-full p-[2px] bg-gradient-to-tr from-brand-deep via-brand-accent to-brand-deep shadow-[0_0_0_1px_rgb(var(--brand-primary)/0.15)] transition-all duration-300 group-hover:from-brand-link group-hover:via-brand-accent group-hover:to-brand-link group-hover:shadow-[0_0_16px_2px_rgb(var(--brand-accent)/0.5)]">
               <Avatar className="h-9 w-9" data-testid="img-user-avatar">
-                {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "User"} className="object-cover" /> : null}
+                {/* Mounted even with no picture: Radix keeps the loaded status on
+                    the Root, so unmounting the image after it loaded suppresses the
+                    fallback and leaves an empty circle. A falsy src reads as an
+                    error, which is what lets the letter come back. */}
+                <AvatarImage src={user.picture} alt={user.displayName || "User"} className="object-cover" />
                 <AvatarFallback className="bg-white text-[#0A0E18] font-bold">
                   {user.displayName?.charAt(0)?.toUpperCase() || "U"}
                 </AvatarFallback>

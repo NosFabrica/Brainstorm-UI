@@ -242,7 +242,7 @@ export function AccountMenuBody({
         >
           <span className="block rounded-full p-[2px] bg-gradient-to-tr from-brand-deep via-brand-accent to-brand-deep shrink-0">
             <Avatar className="h-11 w-11">
-              {user.picture ? <AvatarImage src={user.picture} alt={user.displayName || "User"} className="object-cover" /> : null}
+              <AvatarImage src={user.picture} alt={user.displayName || "User"} className="object-cover" />
               <AvatarFallback className="bg-white text-[#0A0E18] font-bold">
                 {user.displayName?.charAt(0)?.toUpperCase() || "U"}
               </AvatarFallback>
