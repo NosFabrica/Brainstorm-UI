@@ -179,4 +179,33 @@ describe("a newer kind-0 arriving after the first paint", () => {
 
     expect(held.metadata?.picture).toBeUndefined();
   });
+
+  /**
+   * The switch is where the write-back turns dangerous. The subscribed value is a
+   * commit behind — eager observable state holds the previous identity's profile
+   * until the new subscription emits — and a `ProfileContent` carries no author,
+   * so a guard on "is this still the Active Account" passes while the value in
+   * hand belongs to the account just left. It then persists: two accounts, one
+   * name, surviving reload.
+   */
+  it("does not write the profile it was showing onto the account switched to", () => {
+    const first = withKey();
+    const second = withKey();
+    const manager = new AccountManager<AccountMetadata>();
+    manager.addAccount(first.account as never);
+    manager.addAccount(second.account as never);
+    manager.setActive(first.account as never);
+
+    renderWith(manager);
+    act(() => {
+      eventStore.add(kind0(first.pubkey, { name: "From the relay" }));
+    });
+    expect(screen.getByText("From the relay")).toBeTruthy();
+
+    // The second has no kind-0 anywhere: nothing may name it.
+    act(() => manager.setActive(second.account as never));
+
+    expect(second.account.metadata?.name).toBeUndefined();
+    expect(screen.getByText("Anon")).toBeTruthy();
+  });
 });

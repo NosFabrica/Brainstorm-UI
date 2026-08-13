@@ -1,9 +1,10 @@
 import { useEffect } from "react";
 import { use$, useAccountManager } from "applesauce-react/hooks";
-import { getDisplayName, getProfilePicture } from "applesauce-core/helpers/profile";
+import { getDisplayName, getProfilePicture, getProfileContent, isValidProfile } from "applesauce-core/helpers/profile";
 
 import { displayStream, rememberProfile, type AccountDisplay } from "@/accounts/display";
 import type { BrainstormAccount } from "@/accounts/metadata";
+import { eventStore } from "@/lib/eventStore";
 import { useProfile } from "@/hooks/useProfile";
 
 /**
@@ -22,7 +23,15 @@ export function useActiveAccountDisplay(): AccountDisplay | null {
   const manager = useAccountManager();
   const cached = use$(() => displayStream(manager), [manager]) ?? null;
   const pubkey = cached?.pubkey;
-  const live = useProfile(pubkey);
+
+  // Subscribed for the re-render only. Its *value* is a commit behind on a switch
+  // — the eager observable state keeps the previous identity's profile until the
+  // new subscription emits — and a `ProfileContent` carries no author, so nothing
+  // downstream can tell whose it is. Reading the store by pubkey can't mismatch,
+  // and this value is written back to metadata: a stale one persists.
+  useProfile(pubkey);
+  const event = pubkey ? eventStore.getReplaceable(0, pubkey) : undefined;
+  const live = event && isValidProfile(event) ? getProfileContent(event) : undefined;
 
   useEffect(() => {
     if (!live || !pubkey) return;
