@@ -16,6 +16,11 @@ import { describe, expect, it } from "vitest";
  * a source edit — somebody writing `new EventStore()` in a second module. At
  * runtime the two stores would both work perfectly, separately, which is the
  * whole problem.
+ *
+ * The owner is `lib/eventStore.ts`, beside the pool. It used to be
+ * `services/nostr.ts`; it moved down when `lib/relayRequest.ts` came to need it,
+ * for the same reason the pool lives there — `services/nostr.ts` may import from
+ * `lib/`, and not the other way about.
  */
 const SOURCE_ROOT = new URL("../", import.meta.url).pathname;
 
@@ -33,6 +38,6 @@ describe("the app's event store", () => {
       /\bnew EventStore\s*\(/.test(readFileSync(file, "utf8")),
     );
 
-    expect(built.map((file) => file.slice(SOURCE_ROOT.length))).toEqual(["services/nostr.ts"]);
+    expect(built.map((file) => file.slice(SOURCE_ROOT.length))).toEqual(["lib/eventStore.ts"]);
   });
 });

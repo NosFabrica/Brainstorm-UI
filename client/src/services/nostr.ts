@@ -1,6 +1,8 @@
 import { nip19, finalizeEvent, getPublicKey, generateSecretKey, verifyEvent } from "nostr-tools";
 import { env } from "@/lib/runtimeEnv";
 import { pool } from "@/lib/relayPool";
+import { eventStore } from "@/lib/eventStore";
+import { requestAll, requestNewest, requestOne } from "@/lib/relayRequest";
 
 const RAW_NIP85_RELAY_URL = env.VITE_NIP85_RELAY_URL;
 const NIP85_RELAY_URL = RAW_NIP85_RELAY_URL.trim().replace(/\/+$/, "");
@@ -23,7 +25,6 @@ export function getNip85RelayUrl(): string {
   return NIP85_RELAY_URL;
 }
 
-import { EventStore, firstValueFrom } from "applesauce-core";
 import {
   getProfileContent,
   getDisplayName,
@@ -106,7 +107,6 @@ export interface NostrUser {
   isAdmin?: boolean;
 }
 
-const eventStore = new EventStore();
 
 // One-time cleanup of pre-Task-#85 unscoped Brainstorm Assistant keys.
 // These were stored globally so that one account's assistant identity bled
@@ -155,20 +155,24 @@ export const CONTENT_RELAYS = [
 ];
 
 
+/**
+ * Unlike its neighbours this one streams: `onProfile` fires per profile as the
+ * relays answer, so a caller can paint each avatar the moment it lands rather
+ * than after the slowest relay. That is why it subscribes rather than awaiting
+ * one of the `relayRequest` helpers — they resolve once, at the end.
+ */
 export function fetchProfiles(
   pubkeys: string[],
   onProfile?: (pubkey: string, profile: ProfileContent) => void
 ): Promise<void> {
   return new Promise<void>((resolve) => {
-    pool.request(PROFILE_RELAYS, { kinds: [0], authors: pubkeys }).subscribe({
+    pool.request(PROFILE_RELAYS, { kinds: [0], authors: pubkeys }, { eventStore }).subscribe({
       next: (event) => {
-        try { 
-          if (eventStore.add(event)) {
-            if (onProfile && isValidProfile(event)) {
-              const content = getProfileContent(event);
-              if (content) onProfile(event.pubkey, content);
-            }
-          }; 
+        try {
+          if (onProfile && isValidProfile(event)) {
+            const content = getProfileContent(event);
+            if (content) onProfile(event.pubkey, content);
+          }
         } catch {}
       },
       error: () => resolve(),
@@ -181,18 +185,7 @@ export async function fetchOutboxRelayList(pubkey: string, timeoutMs = 10000): P
   try {
     const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
 
-    const event = await Promise.race([
-      firstValueFrom(pool.request(writeRelays, { kinds: [10002], authors: [pubkey] })),
-      new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), timeoutMs)),
-    ]);
-
-    if (!event) return undefined;
-
-    try {
-      eventStore.add(event as any);
-    } catch {}
-
-    return event as NostrEvent;
+    return await requestOne(writeRelays, { kinds: [10002], authors: [pubkey] }, timeoutMs);
   } catch {}
 
   return undefined;
@@ -202,18 +195,7 @@ export async function fetchTrustProviderList(pubkey: string, timeoutMs = 10000):
   try {
     const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
 
-    const event = await Promise.race([
-      firstValueFrom(pool.request(writeRelays, { kinds: [10040], authors: [pubkey] })),
-      new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), timeoutMs)),
-    ]);
-
-    if (!event) return undefined;
-
-    try {
-      eventStore.add(event as any);
-    } catch {}
-
-    return event as NostrEvent;
+    return await requestOne(writeRelays, { kinds: [10040], authors: [pubkey] }, timeoutMs);
   } catch {}
 
   return undefined;
@@ -411,27 +393,13 @@ export async function fetchAssistantPointer(
     const writeRelays = loadOutboxRelayListFromDb(userPubkey, PROFILE_RELAYS);
 
     // NIP-78 events are addressable/replaceable — different relays may hold
-    // different versions. Collect candidates across relays for the duration
-    // of the timeout and pick the newest by `created_at` so we hydrate from
-    // the most recent pointer rather than whichever relay answered first.
-    const newest = await new Promise<any | null>((resolve) => {
-      let best: any = null;
-      const sub = pool.request(writeRelays, {
-        kinds: [30078],
-        authors: [userPubkey],
-        "#d": [ASSISTANT_POINTER_D_TAG],
-      }).subscribe({
-        next: (event: any) => {
-          try { eventStore.add(event); } catch {}
-          if (!best || (event?.created_at ?? 0) > (best?.created_at ?? 0)) {
-            best = event;
-          }
-        },
-        error: () => { try { sub.unsubscribe(); } catch {} resolve(best); },
-        complete: () => resolve(best),
-      });
-      setTimeout(() => { try { sub.unsubscribe(); } catch {} resolve(best); }, timeoutMs);
-    });
+    // different versions, so this waits out the window for the newest rather
+    // than hydrating from whichever relay answered first.
+    const newest = await requestNewest(
+      writeRelays,
+      { kinds: [30078], authors: [userPubkey], "#d": [ASSISTANT_POINTER_D_TAG] },
+      timeoutMs,
+    );
 
     if (!newest) return null;
 
@@ -488,22 +456,11 @@ export async function fetchProfilePrefs(
 ): Promise<Record<string, unknown> | null> {
   try {
     const relays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS);
-    const newest = await new Promise<any | null>((resolve) => {
-      let best: any = null;
-      const sub = pool.request(relays, {
-        kinds: [30078],
-        authors: [pubkey],
-        "#d": [PROFILE_PREFS_D_TAG],
-      }).subscribe({
-        next: (event: any) => {
-          try { eventStore.add(event); } catch {}
-          if (!best || (event?.created_at ?? 0) > (best?.created_at ?? 0)) best = event;
-        },
-        error: () => { try { sub.unsubscribe(); } catch {} resolve(best); },
-        complete: () => resolve(best),
-      });
-      setTimeout(() => { try { sub.unsubscribe(); } catch {} resolve(best); }, timeoutMs);
-    });
+    const newest = await requestNewest(
+      relays,
+      { kinds: [30078], authors: [pubkey], "#d": [PROFILE_PREFS_D_TAG] },
+      timeoutMs,
+    );
     if (!newest) return null;
     try { return JSON.parse((newest as any).content || "{}"); } catch { return null; }
   } catch {
@@ -549,22 +506,12 @@ export async function fetchAlertPrefs(timeoutMs = 6000, dTag: string = ALERT_PRE
   if (!(await canSignSilently(account))) return null;
   try {
     const relays = loadOutboxRelayListFromDb(account.pubkey, PROFILE_RELAYS);
-    const newest = await new Promise<any | null>((resolve) => {
-      let best: any = null;
-      const sub = pool.request(relays, {
-        kinds: [30078],
-        authors: [account.pubkey],
-        "#d": [dTag],
-      }).subscribe({
-        next: (event: any) => {
-          if (!best || (event?.created_at ?? 0) > (best?.created_at ?? 0)) best = event;
-        },
-        error: () => { try { sub.unsubscribe(); } catch {} resolve(best); },
-        complete: () => resolve(best),
-      });
-      setTimeout(() => { try { sub.unsubscribe(); } catch {} resolve(best); }, timeoutMs);
-    });
-    const content = (newest as any)?.content;
+    const newest = await requestNewest(
+      relays,
+      { kinds: [30078], authors: [account.pubkey], "#d": [dTag] },
+      timeoutMs,
+    );
+    const content = newest?.content;
     if (!content) return null;
     const plain = await decryptFromSelf(account, content);
     if (!plain) return null;
@@ -608,13 +555,7 @@ export async function fetchProfileEvent(
     const baseRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS);
     const extras = extraRelays.map((r) => r.trim()).filter((r) => r.length > 0);
     const writeRelays = Array.from(new Set([...baseRelays, ...extras]));
-    const event = await Promise.race([
-      firstValueFrom(pool.request(writeRelays, { kinds: [0], authors: [pubkey] })),
-      new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), timeoutMs)),
-    ]);
-    if (!event) return undefined;
-    try { eventStore.add(event as any); } catch {}
-    return event as NostrEvent;
+    return await requestOne(writeRelays, { kinds: [0], authors: [pubkey] }, timeoutMs);
   } catch {}
   return undefined;
 }
@@ -721,31 +662,8 @@ export async function fetchRecentByKinds(
     ...(opts.relayHints ?? []).map((r) => r.trim()).filter((r) => r.length > 0),
   ]));
 
-  return new Promise<NostrEvent[]>((resolve) => {
-    const collected = new Map<string, NostrEvent>();
-    let done = false;
-
-    const finish = () => {
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      try { sub.unsubscribe(); } catch {}
-      const arr = Array.from(collected.values())
-        .sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
-        .slice(0, limit);
-      resolve(arr);
-    };
-
-    const timer = setTimeout(finish, timeoutMs);
-    const sub = pool.request(relays, { kinds, authors: [pubkey], limit }).subscribe({
-      next: (event) => {
-        try { eventStore.add(event); } catch {}
-        collected.set((event as NostrEvent).id, event as NostrEvent);
-      },
-      error: () => finish(),
-      complete: () => finish(),
-    });
-  });
+  const events = await requestAll(relays, { kinds, authors: [pubkey], limit }, timeoutMs);
+  return events.sort((a, b) => (b.created_at || 0) - (a.created_at || 0)).slice(0, limit);
 }
 
 /**
@@ -771,38 +689,25 @@ export async function fetchLiveStreams(
     "wss://relay.nostr.band/",
   ]));
 
-  return new Promise<NostrEvent[]>((resolve) => {
-    const collected = new Map<string, NostrEvent>();
-    let done = false;
-    let completed = 0;
+  // Two filters rather than one, because a platform-hosted stream names the
+  // streamer in a `p` tag while a self-hosted one authors it. They share the
+  // window: both start now, and neither waits on the other.
+  const [authored, hosted] = await Promise.all([
+    requestAll(relays, { kinds: [30311], authors: [pubkey], limit: 8 }, timeoutMs),
+    requestAll(relays, { kinds: [30311], "#p": [pubkey], limit: 8 }, timeoutMs),
+  ]);
 
-    const finish = () => {
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      try { subA.unsubscribe(); } catch {}
-      try { subP.unsubscribe(); } catch {}
-      // Keep the latest version per addressable coordinate (kind:pubkey:d).
-      const byCoord = new Map<string, NostrEvent>();
-      for (const ev of collected.values()) {
-        const d = ev.tags.find((t) => t[0] === "d")?.[1] || "";
-        const coord = `${ev.kind}:${ev.pubkey}:${d}`;
-        const prev = byCoord.get(coord);
-        if (!prev || (ev.created_at || 0) > (prev.created_at || 0)) byCoord.set(coord, ev);
-      }
-      resolve(Array.from(byCoord.values()).sort((a, b) => (b.created_at || 0) - (a.created_at || 0)).slice(0, 8));
-    };
-
-    const onComplete = () => { if (++completed >= 2) finish(); };
-    const handler = {
-      next: (event: unknown) => { try { eventStore.add(event as NostrEvent); } catch {} collected.set((event as NostrEvent).id, event as NostrEvent); },
-      error: onComplete,
-      complete: onComplete,
-    };
-    const timer = setTimeout(finish, timeoutMs);
-    const subA = pool.request(relays, { kinds: [30311], authors: [pubkey], limit: 8 }).subscribe(handler);
-    const subP = pool.request(relays, { kinds: [30311], "#p": [pubkey], limit: 8 }).subscribe(handler);
-  });
+  // Keep the latest version per addressable coordinate (kind:pubkey:d).
+  const byCoord = new Map<string, NostrEvent>();
+  for (const event of [...authored, ...hosted]) {
+    const d = event.tags.find((tag) => tag[0] === "d")?.[1] || "";
+    const coord = `${event.kind}:${event.pubkey}:${d}`;
+    const previous = byCoord.get(coord);
+    if (!previous || (event.created_at || 0) > (previous.created_at || 0)) byCoord.set(coord, event);
+  }
+  return Array.from(byCoord.values())
+    .sort((a, b) => (b.created_at || 0) - (a.created_at || 0))
+    .slice(0, 8);
 }
 
 /**
@@ -818,26 +723,10 @@ export async function fetchEventsByIds(
   const unique = Array.from(new Set(ids.filter((id) => /^[0-9a-f]{64}$/i.test(id))));
   if (!unique.length) return [];
   const targetRelays = relays.length ? relays : PROFILE_RELAYS;
-  return new Promise<NostrEvent[]>((resolve) => {
-    const collected = new Map<string, NostrEvent>();
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      try { sub.unsubscribe(); } catch {}
-      resolve(Array.from(collected.values()));
-    };
-    const timer = setTimeout(finish, timeoutMs);
-    const sub = pool.request(targetRelays, { ids: unique }).subscribe({
-      next: (event) => {
-        try { eventStore.add(event); } catch {}
-        collected.set((event as NostrEvent).id, event as NostrEvent);
-        if (collected.size >= unique.length) finish();
-      },
-      error: () => finish(),
-      complete: () => finish(),
-    });
+  // Asking by id means the answer set is known up front: once every one has
+  // arrived there is nothing left to wait for.
+  return requestAll(targetRelays, { ids: unique }, timeoutMs, {
+    enough: (collected) => collected.size >= unique.length,
   });
 }
 
@@ -852,26 +741,7 @@ export async function fetchEventsByFilter(
   timeoutMs = 6000,
 ): Promise<NostrEvent[]> {
   const targetRelays = relays.length ? relays : PROFILE_RELAYS;
-  return new Promise<NostrEvent[]>((resolve) => {
-    const collected = new Map<string, NostrEvent>();
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      clearTimeout(timer);
-      try { sub.unsubscribe(); } catch {}
-      resolve(Array.from(collected.values()));
-    };
-    const timer = setTimeout(finish, timeoutMs);
-    const sub = pool.request(targetRelays, filter as Parameters<typeof pool.request>[1]).subscribe({
-      next: (event) => {
-        try { eventStore.add(event); } catch {}
-        collected.set((event as NostrEvent).id, event as NostrEvent);
-      },
-      error: () => finish(),
-      complete: () => finish(),
-    });
-  });
+  return requestAll(targetRelays, filter as Parameters<typeof pool.request>[1], timeoutMs);
 }
 
 /**
@@ -919,26 +789,21 @@ export async function fetchAddressableEvents(
   const kinds = Array.from(new Set(valid.map((c) => c.kind)));
   const authors = Array.from(new Set(valid.map((c) => c.pubkey)));
   const identifiers = Array.from(new Set(valid.map((c) => c.identifier)));
-  return new Promise<Map<string, NostrEvent>>((resolve) => {
-    let done = false;
-    const finish = () => { if (done) return; done = true; clearTimeout(timer); try { sub.unsubscribe(); } catch {}; resolve(result); };
-    const timer = setTimeout(finish, timeoutMs);
-    const sub = pool
-      .request(targetRelays.length ? targetRelays : PROFILE_RELAYS, { kinds, authors, "#d": identifiers })
-      .subscribe({
-        next: (event) => {
-          try { eventStore.add(event); } catch {}
-          const ev = event as NostrEvent;
-          const d = ev.tags.find((t) => t[0] === "d")?.[1] ?? "";
-          const key = `${ev.kind}:${ev.pubkey}:${d}`;
-          if (!wanted.has(key)) return;
-          const existing = result.get(key);
-          if (!existing || (ev.created_at || 0) > (existing.created_at || 0)) result.set(key, ev);
-        },
-        error: () => finish(),
-        complete: () => finish(),
-      });
-  });
+  const events = await requestAll(
+    targetRelays.length ? targetRelays : PROFILE_RELAYS,
+    { kinds, authors, "#d": identifiers },
+    timeoutMs,
+  );
+  // The filter is a cross-product of the requested kinds, authors and d-tags, so
+  // it matches coordinates nobody asked for; `wanted` is what narrows it back.
+  for (const event of events) {
+    const d = event.tags.find((tag) => tag[0] === "d")?.[1] ?? "";
+    const key = `${event.kind}:${event.pubkey}:${d}`;
+    if (!wanted.has(key)) continue;
+    const existing = result.get(key);
+    if (!existing || (event.created_at || 0) > (existing.created_at || 0)) result.set(key, event);
+  }
+  return result;
 }
 
 /** Fetch kind-0 profiles for many pubkeys, returning a pubkey→content map. */
@@ -949,25 +814,21 @@ export async function fetchProfileMap(
   const unique = Array.from(new Set(pubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk))));
   const map = new Map<string, ProfileContent>();
   if (!unique.length) return map;
-  return new Promise<Map<string, ProfileContent>>((resolve) => {
-    let done = false;
-    const finish = () => { if (done) return; done = true; clearTimeout(timer); try { sub.unsubscribe(); } catch {}; resolve(map); };
-    const timer = setTimeout(finish, timeoutMs);
-    const sub = pool.request(PROFILE_RELAYS, { kinds: [0], authors: unique }).subscribe({
-      next: (event) => {
-        try { eventStore.add(event); } catch {}
-        try {
-          if (isValidProfile(event as any)) {
-            const content = getProfileContent(event as any);
-            if (content) map.set((event as NostrEvent).pubkey, content);
-          }
-        } catch {}
-        if (map.size >= unique.length) finish();
-      },
-      error: () => finish(),
-      complete: () => finish(),
-    });
+  // One profile per pubkey is all there is to find, so a full set ends it early.
+  // Counted by pubkey rather than by event: two relays holding different versions
+  // of one kind-0 are two events, and stopping on that would abandon the window
+  // while another pubkey's profile was still in flight.
+  const events = await requestAll(PROFILE_RELAYS, { kinds: [0], authors: unique }, timeoutMs, {
+    enough: (collected) => new Set(Array.from(collected.values(), (e) => e.pubkey)).size >= unique.length,
   });
+  for (const event of events) {
+    try {
+      if (!isValidProfile(event as any)) continue;
+      const content = getProfileContent(event as any);
+      if (content) map.set(event.pubkey, content);
+    } catch {}
+  }
+  return map;
 }
 
 /**
@@ -1531,76 +1392,34 @@ export async function fetchReportsForPubkey(
   targetPubkey: string,
   timeoutMs = 12000
 ): Promise<ReportMetadata[]> {
-  const reports: ReportMetadata[] = [];
-  const seen = new Set<string>();
-
-  return new Promise<ReportMetadata[]>((resolve) => {
-    const timer = setTimeout(() => resolve(reports), timeoutMs);
-
-    pool.request(PROFILE_RELAYS, { kinds: [1984], "#p": [targetPubkey] }).subscribe({
-      next: (event) => {
-        try {
-          const eventId = (event as any).id || `${event.pubkey}-${event.created_at}`;
-          if (seen.has(eventId)) return;
-          seen.add(eventId);
-
-          let reportType = "other";
-          for (const tag of event.tags) {
-            if (tag[0] === "p" && tag[1] === targetPubkey && tag[2]) {
-              reportType = tag[2];
-              break;
-            }
-          }
-
-          reports.push({
-            reporterPubkey: event.pubkey,
-            targetPubkey,
-            reportType,
-            timestamp: event.created_at,
-            reason: event.content || "",
-          });
-        } catch {}
-      },
-      error: () => { clearTimeout(timer); resolve(reports); },
-      complete: () => { clearTimeout(timer); resolve(reports); },
-    });
-  });
+  const events = await requestAll(PROFILE_RELAYS, { kinds: [1984], "#p": [targetPubkey] }, timeoutMs);
+  return events.map((event) => ({
+    reporterPubkey: event.pubkey,
+    targetPubkey,
+    // The `p` tag naming the target carries the NIP-56 report type.
+    reportType: event.tags.find((tag) => tag[0] === "p" && tag[1] === targetPubkey && tag[2])?.[2] ?? "other",
+    timestamp: event.created_at,
+    reason: event.content || "",
+  }));
 }
 
 export async function fetchReportsByPubkey(
   reporterPubkey: string,
   timeoutMs = 12000
 ): Promise<ReportMetadata[]> {
-  const reports: ReportMetadata[] = [];
-  const seen = new Set<string>();
-
-  return new Promise<ReportMetadata[]>((resolve) => {
-    const timer = setTimeout(() => resolve(reports), timeoutMs);
-
-    pool.request(PROFILE_RELAYS, { kinds: [1984], authors: [reporterPubkey] }).subscribe({
-      next: (event) => {
-        try {
-          const eventId = (event as any).id || `${event.pubkey}-${event.created_at}`;
-          if (seen.has(eventId)) return;
-          seen.add(eventId);
-
-          for (const tag of event.tags) {
-            if (tag[0] === "p" && tag[1]) {
-              reports.push({
-                reporterPubkey: event.pubkey,
-                targetPubkey: tag[1],
-                reportType: tag[2] || "other",
-                timestamp: event.created_at,
-                reason: event.content || "",
-              });
-            }
-          }
-        } catch {}
-      },
-      error: () => { clearTimeout(timer); resolve(reports); },
-      complete: () => { clearTimeout(timer); resolve(reports); },
-    });
-  });
+  const events = await requestAll(PROFILE_RELAYS, { kinds: [1984], authors: [reporterPubkey] }, timeoutMs);
+  // One report event can name several targets, so this is a flatMap, not a map.
+  return events.flatMap((event) =>
+    event.tags
+      .filter((tag) => tag[0] === "p" && tag[1])
+      .map((tag) => ({
+        reporterPubkey: event.pubkey,
+        targetPubkey: tag[1],
+        reportType: tag[2] || "other",
+        timestamp: event.created_at,
+        reason: event.content || "",
+      })),
+  );
 }
 
 export async function fetchMuteListTimestamp(
@@ -1608,10 +1427,7 @@ export async function fetchMuteListTimestamp(
   timeoutMs = 10000
 ): Promise<MuteMetadata | undefined> {
   try {
-    const event = await Promise.race([
-      firstValueFrom(pool.request(PROFILE_RELAYS, { kinds: [10000], authors: [muterPubkey] })),
-      new Promise<undefined>((resolve) => setTimeout(() => resolve(undefined), timeoutMs)),
-    ]);
+    const event = await requestOne(PROFILE_RELAYS, { kinds: [10000], authors: [muterPubkey] }, timeoutMs);
 
     if (!event) return undefined;
 
