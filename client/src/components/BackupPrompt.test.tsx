@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { useState } from "react";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 
 import { renderWithProviders } from "@/test/utils";
@@ -148,5 +149,63 @@ describe("an account with nothing left to ask", () => {
     const { container } = renderWithProviders(<BackupPrompt need={null} />);
 
     expect(container.textContent).toBe("");
+  });
+});
+
+/**
+ * The highest-severity item in ticket 39, and the one a remounting test cannot
+ * see. `credential` is component state and `if (credential)` is tested before
+ * `if (!need)`, so after delivering A's backup the delivered panel stayed up
+ * under B's name — with "Download again" and "Copy recovery key" still holding
+ * **A's** ncryptsec.
+ *
+ * `AccountCards` fixes this by keying the strip on the Account. This proves it at
+ * the component that held the secret, against a *mounted* instance: RTL's own
+ * `rerender` drops the provider wrapper and remounts, which would hide the bug
+ * rather than test it.
+ */
+describe("delivering a backup, then switching account", () => {
+  const OTHERS = "ncryptsec1zzzzz";
+
+  /** Switches the account under a mounted tree, the way an in-app switch does. */
+  function Host({ keyed }: { keyed: boolean }) {
+    const [id, setId] = useState("alice");
+    return (
+      <>
+        <button data-testid="switch" onClick={() => setId("bob")} />
+        <BackupPrompt key={keyed ? id : undefined} need="download" onDelivered={onDelivered} />
+      </>
+    );
+  }
+
+  async function deliverThenSwitch(keyed: boolean) {
+    renderWithProviders(<Host keyed={keyed} />);
+    fireEvent.click(screen.getByTestId("backup-prompt-download"));
+    await waitFor(() => expect(screen.getByTestId("backup-prompt-delivered")).toBeTruthy());
+    deliverBackup.mockReturnValue({ npub: "npub1bob", ncryptsec: OTHERS });
+    fireEvent.click(screen.getByTestId("switch"));
+  }
+
+  it("does not carry the first account's key into the second's panel", async () => {
+    await deliverThenSwitch(true);
+
+    // B is asked for its own backup rather than shown A's delivered panel
+    expect(screen.queryByTestId("backup-prompt-delivered")).toBeNull();
+
+    // and once B delivers, the key behind "Download again" is B's
+    downloadBackupFile.mockClear();
+    fireEvent.click(screen.getByTestId("backup-prompt-download"));
+    await waitFor(() => expect(screen.getByTestId("backup-prompt-delivered")).toBeTruthy());
+    fireEvent.click(screen.getByTestId("backup-prompt-download-again"));
+    await waitFor(() => expect(downloadBackupFile).toHaveBeenCalled());
+    const handed = JSON.stringify(downloadBackupFile.mock.calls[0]);
+    expect(handed).toContain(OTHERS);
+    expect(handed).not.toContain(NCRYPTSEC);
+  });
+
+  it("keeps it without the key — the bug the key exists to stop", async () => {
+    await deliverThenSwitch(false);
+
+    expect(screen.getByTestId("backup-prompt-delivered")).toBeTruthy();
   });
 });
