@@ -119,6 +119,35 @@ describe("three callers asking for overlapping authors in one tick", () => {
   });
 });
 
+/**
+ * The admin health card passes operator-entered relays to `fetchProfileEvent` to
+ * find out whether *those relays* carry the kind-0. Store-first turned that into
+ * a question about memory.
+ */
+describe("a caller asking about specific relays", () => {
+  it("goes to them even when the store already has the profile", async () => {
+    const held = profile("ana");
+    eventStore.add(held);
+    relayHas.set(held.pubkey, held);
+
+    const found = await loadReplaceable(0, held.pubkey, { relays: ["wss://probe"], fromRelays: true });
+
+    expect(found?.id).toBe(held.id);
+    expect(requests).toHaveLength(1);
+    // normalised by the loader, hence the trailing slash
+    expect(requests[0][0]).toEqual(["wss://probe/"]);
+  });
+
+  it("still answers from the store for an ordinary read", async () => {
+    const held = profile("ana");
+    eventStore.add(held);
+
+    await loadReplaceable(0, held.pubkey, { relays: ["wss://probe"] });
+
+    expect(requests).toHaveLength(0);
+  });
+});
+
 describe("the loader observable", () => {
   it("requests nothing until it is subscribed", async () => {
     const wanted = profile("cold");

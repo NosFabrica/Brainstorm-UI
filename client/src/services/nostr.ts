@@ -520,7 +520,10 @@ export async function fetchProfileEvent(
     const baseRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS);
     const extras = extraRelays.map((r) => r.trim()).filter((r) => r.length > 0);
     const writeRelays = Array.from(new Set([...baseRelays, ...extras]));
-    return await loadReplaceable(0, pubkey, { relays: writeRelays, timeoutMs });
+    // Explicit relays mean somebody is asking about those relays — the admin
+    // health card passes operator-entered ones to find out whether they carry
+    // this kind-0. A cached answer is not an answer to that.
+    return await loadReplaceable(0, pubkey, { relays: writeRelays, timeoutMs, fromRelays: extras.length > 0 });
   } catch {}
   return undefined;
 }
@@ -906,21 +909,36 @@ export async function publishProfile(
   }
   if (res.success) {
     try { cacheProfile(content as unknown as ProfileContent, account.pubkey); } catch {}
-    // Keep the outbox list fresh (the signup publish may have silently failed),
-    // so other clients can locate this kind-0. Best-effort.
-    void publishRelayList(PROFILE_RELAYS).catch(() => {});
+    // Pinned to the same Account, for the reason the profile publish above is:
+    // this fires after the backoff, and `publishRelayList` would otherwise
+    // re-read the Active one and stamp A's outbox list with B's key.
+    void publishRelayListAs(account, PROFILE_RELAYS).catch(() => {});
   }
   // No `cancelled` here: signing already succeeded, so what's left is the relays'
   // answer. A declined unlock leaves above, through `signingFailure`.
   return { success: res.success, error: res.error };
 }
 
-/** Publish a NIP-65 relay list (kind 10002). */
-export async function publishRelayList(
+/** Publish a NIP-65 relay list (kind 10002) as the Active Account. */
+export async function publishRelayList(relays: string[]): Promise<PublishOutcome> {
+  const account = activeAccount();
+  if (!account) return { success: false, error: "Not logged in" };
+  return publishRelayListAs(account, relays);
+}
+
+/** The same, for a caller that has already pinned which Account is publishing. */
+async function publishRelayListAs(
+  account: BrainstormAccount,
   relays: string[],
 ): Promise<PublishOutcome> {
   const tags = relays.filter(Boolean).map((r) => ["r", r]);
-  return signAndPublish({ kind: 10002, tags, content: "" }, 10002);
+  try {
+    const signed = await signAs(account, { kind: 10002, tags, content: "" });
+    if (signed.kind !== 10002) return { success: false, error: "Signer returned an unexpected event kind" };
+    return await publishToRelays(signed);
+  } catch (e) {
+    return signingFailure(e);
+  }
 }
 
 
@@ -975,7 +993,6 @@ export async function fetchReportsByPubkey(
   timeoutMs = 12000
 ): Promise<ReportMetadata[]> {
   const events = await requestAll(PROFILE_RELAYS, { kinds: [1984], authors: [reporterPubkey] }, timeoutMs);
-  // One report event can name several targets, so this is a flatMap, not a map.
   return events.flatMap((event) =>
     event.tags
       .filter((tag) => tag[0] === "p" && tag[1])

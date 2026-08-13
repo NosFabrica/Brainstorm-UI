@@ -370,14 +370,7 @@ export function AccountMenuBody({
 
       <MenuDivider />
 
-      {/* Grouped actions — Settings sits under Help & FAQ.
-
-          "What is WoT?" used to sit between them. It asked people to decode an
-          acronym before they knew whether they cared, and a definition is not a
-          thing you reach for from an account menu. The page is still there and
-          still linked from where curiosity actually starts — About, the footer,
-          onboarding, the tags explainer, the connection lists and the
-          flagged-profile banner. Ten routes in; this was the worst of them. */}
+      {/* Grouped actions — Settings sits under Help & FAQ. */}
       <div className="p-1.5">
         <MenuRow icon={UserPlus} label="Invite friends" onClick={onInvite} testId="dropdown-invite" />
         <MenuRow icon={HelpCircle} label="Help & FAQ" onClick={() => onNavigate("/faq")} testId="dropdown-faq" />

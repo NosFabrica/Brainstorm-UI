@@ -1,16 +1,10 @@
 /**
- * Relay reads, over the pool's own machinery.
+ * Relay reads, over the pool's own machinery — its timeout, its de-duplication,
+ * its teardown.
  *
- * Sixteen call sites in `services/nostr.ts` each hand-rolled the same three
- * things: a `setTimeout` racing the request, a `try { eventStore.add } catch {}`
- * per event, and a de-dupe Map. The pool does all three. Worse, the racing form
- * leaked — when the timer won, nothing unsubscribed the request observable, so
- * the REQ stayed open until EOSE.
- *
- * Three shapes, because the sites genuinely want three different things:
- * whichever answer arrives first, the newest answer across relays, or all of
- * them. They differ in how the deadline is spent, which is the whole reason this
- * isn't one function with flags.
+ * Three shapes rather than one with flags: callers want the first answer, the
+ * newest across relays, or all of them, and those differ in how the deadline is
+ * spent.
  */
 import { EMPTY, catchError, lastValueFrom, map, reduce, scan, take, takeUntil, takeWhile, timer } from "rxjs";
 import type { NostrEvent } from "nostr-tools";

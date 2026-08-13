@@ -107,6 +107,19 @@ describe("saving a profile that the relays barely accept", () => {
  * happens to be Active when the relays finally answer.
  */
 describe("switching accounts while a profile save is in flight", () => {
+  it("republishes the outbox list as the same account, not the one that arrived", async () => {
+    publish.mockResolvedValue(accepted(2));
+
+    const pending = nostr.publishProfile({ name: "ana" });
+    activeAccount.mockReturnValue({ pubkey: OTHER, type: "test" });
+    await settle(pending);
+
+    // the kind-10002 fires after the profile lands; it must carry the same key
+    const relayListSignings = ofKind(signAs.mock.calls, 10002);
+    expect(relayListSignings).toHaveLength(1);
+    expect(relayListSignings[0]?.[0]).toMatchObject({ pubkey: PUBKEY });
+  });
+
   it("signs as the account that asked, not the one that arrives mid-flight", async () => {
     publish.mockResolvedValue(accepted(1));
 

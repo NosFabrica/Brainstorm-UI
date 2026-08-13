@@ -303,9 +303,9 @@ export function logout() {
 }
 
 /**
- * The "magic finish": after an account exists, best-effort publish profile,
- * relay list and a seed follow, then kick off scoring and (in the background)
- * publish the trust anchor. Idempotent per pubkey; never blocks or throws.
+ * The "magic finish": after an account exists, best-effort publish its profile and
+ * relay list. Idempotent per pubkey; never blocks or throws. Deliberately does
+ * not follow anyone or trigger scoring — see the NOTE below.
  */
 export async function runInitialSetup(
   pubkey: string,

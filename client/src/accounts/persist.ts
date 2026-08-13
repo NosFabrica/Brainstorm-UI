@@ -211,16 +211,11 @@ export function createPersistence(
   }
 
   /**
-   * Try the parked entries against the types this build registered.
+   * Try the parked entries against the types this build registered, so an Account
+   * a previous build couldn't read is recovered once one can.
    *
-   * The quarantine was write-only: entries went in, nothing read the key back,
-   * and every later `save()` excluded them — so it held the only copy of an
-   * Account that would never be opened again. Someone who booted once on a build
-   * that didn't know their Account type stayed signed out of it permanently,
-   * including after the build that understands it shipped.
-   *
-   * Entries that still don't deserialise stay exactly where they are. Nothing is
-   * ever deleted from here except by being successfully adopted.
+   * Entries that still don't deserialise stay where they are. Nothing leaves the
+   * quarantine except by being adopted.
    */
   function recoverQuarantined(store: StorageLike, remembered: boolean): void {
     const parked = readJSON(store, QUARANTINE_KEY);
@@ -238,10 +233,8 @@ export function createPersistence(
   function adoptQuarantined(store: StorageLike, entry: unknown, remembered: boolean): boolean {
     try {
       const account = AccountManager.deserialize([...manager.types.values()], entry as any);
-      // Already restored from the main blob. The parked copy is an older
-      // serialisation of the same identity, so it needs dropping, not adopting
-      // over the top of the live one — `addAccount` would no-op anyway, but
-      // `lastGood` would take the stale JSON.
+      // Already restored from the main blob: the parked copy is an older
+      // serialisation, so drop it rather than let `lastGood` take the stale JSON.
       if (manager.getAccount(account.id)) return true;
       account.metadata = { remembered, ...(account.metadata ?? {}) };
       manager.addAccount(account);

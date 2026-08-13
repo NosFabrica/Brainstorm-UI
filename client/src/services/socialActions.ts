@@ -70,14 +70,7 @@ function pickAuthoritativeBase(candidates: (NostrEvent | null | undefined)[]): N
   return best;
 }
 
-/**
- * The newest kind-3 or kind-10000 across the user's write relays.
- *
- * This was the same hand-rolled shape alignment 03 removed from
- * `services/nostr.ts` — a `setTimeout` resolving alongside a `pool.request` that
- * nothing unsubscribed, so the REQ stayed open until EOSE. It survived that sweep
- * by living in this file rather than that one.
- */
+/** The newest kind-3 or kind-10000 across the user's write relays. */
 async function fetchReplaceableEvent(pubkey: string, kind: number, timeoutMs = 10000): Promise<NostrEvent | null> {
   const relays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS);
   const newest = await requestNewest(relays, { kinds: [kind], authors: [pubkey], limit: 5 }, timeoutMs);
@@ -138,21 +131,12 @@ const NOT_LOGGED_IN: PublishOutcome = { success: false, error: "Not logged in" }
 const isPTagFor = (pubkey: string) => (tag: string[]) => tag[0] === "p" && tag[1] === pubkey;
 
 /**
- * The library builds the tags; we keep everything around them.
+ * The factory builds the tags; the base event stays ours.
  *
- * `ContactsFactory` is used for its `addContact`/`removeContact` alone — it
- * constructs a NIP-02 `p` tag properly, relay hint and petname included, which
- * appending `["p", pubkey]` by hand does not. Awaiting the factory yields the
- * template; it is a Promise subclass.
- *
- * What is deliberately NOT used is `applesauce-actions`' `FollowUser`. Its
- * `modifyContacts` races the store for one second and, on a miss, calls
- * `ContactsFactory.create()` — a fresh, empty list, signed and published over the
- * user's real one. That is the exact wipe `resolveContactBase` exists to prevent,
- * and the base event is the one thing we will not delegate. (Its sibling
- * `NewContacts` does guard the mirror-image case, so this reads as a bug in that
- * action rather than anything inherent; worth revisiting if it grows the same
- * check.)
+ * `applesauce-actions`' `FollowUser` is deliberately not used: its
+ * `modifyContacts` races the store for a second and, on a miss, publishes a fresh
+ * empty list over the user's real one — the wipe `resolveContactBase` exists to
+ * prevent.
  */
 async function publishContactList(
   account: BrainstormAccount,
@@ -241,12 +225,7 @@ export async function followPubkeys(targetPubkeys: string[]): Promise<PublishOut
   );
 }
 
-/** The mute list, replaced wholesale — the kind-3 path's `publishContactList`. */
-/**
- * Same shape as the contact list, and the same reason: `mutePubkey` /
- * `unmutePubkey` touch only the `p` tags, leaving the muted words, hashtags and
- * threads that also live in a kind-10000 exactly where they were.
- */
+/** `mutePubkey` touches only `p` tags — a kind-10000 also holds words and threads. */
 async function publishMuteList(
   account: BrainstormAccount,
   base: NostrEvent,
@@ -327,7 +306,6 @@ export interface MyReport {
 export async function fetchMyReport(targetPubkey: string, timeoutMs = 8000): Promise<MyReport | null> {
   const account = activeAccount();
   if (!account) return null;
-  // Third instance of the leak alignment 03 swept out of `services/nostr.ts`.
   const collected = await requestAll(
     PROFILE_RELAYS,
     { kinds: [1984], authors: [account.pubkey], "#p": [targetPubkey] },
