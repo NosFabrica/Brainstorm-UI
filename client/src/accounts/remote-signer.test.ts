@@ -19,6 +19,7 @@ import {
   withTimeout,
 } from "./remote-signer";
 import { installRemoteTransport } from "./remote-transport";
+import { signerApproval$ } from "./signer-approval";
 
 describe("what we ask a signer for", () => {
   it("names every kind the app signs, so nothing becomes a later prompt", () => {
@@ -225,6 +226,45 @@ describe("the pairing secret", () => {
     const signer = new RemoteSigner({ relays: ["wss://fake.relay"], remote: fake.remotePubkey });
 
     await expect(signer.connect()).resolves.toBe("ack");
+  });
+});
+
+/**
+ * The one thing no unit of ours could reach and no live signer can prove today:
+ * nsec.app's relay is gone, and Amber and Amethyst approve in-app without ever
+ * sending an `auth_url`. So the wiring is pinned here instead — that a real
+ * `auth_url` on the wire lands in our prompt rather than applesauce's
+ * `window.open`, which fires from an async relay handler with no user gesture
+ * and is eaten silently by blockers.
+ */
+describe("a signer that wants approving in a browser", () => {
+  it("routes the auth_url to the app, and leaves the request outstanding", async () => {
+    const fake = createFakeRemoteSigner();
+    installRemoteTransport(fake.pool);
+    const seen: (string | null)[] = [];
+    const watching = signerApproval$.subscribe((approval) => {
+      seen.push(approval?.url ?? null);
+      // The user follows the link; the signer answers over the relay afterwards.
+      approval?.opened();
+    });
+
+    // `sign_event`, not `get_public_key`: the library answers that one from
+    // memory once the pubkey is known, so it never reaches the wire.
+    fake.demandAuth("sign_event", "https://bunker.example/approve?id=1");
+    const signer = new RemoteSigner({
+      relays: ["wss://fake.relay"],
+      remote: fake.remotePubkey,
+      pubkey: fake.userPubkey,
+    });
+    await signer.connect();
+
+    const signed = await signer.signEvent({ kind: 1, content: "hi", tags: [], created_at: 1 });
+
+    // the prompt was raised...
+    expect(seen).toContain("https://bunker.example/approve?id=1");
+    // ...and the request it interrupted still completed
+    expect(signed.pubkey).toBe(fake.userPubkey);
+    watching.unsubscribe();
   });
 });
 

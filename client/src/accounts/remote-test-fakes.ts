@@ -32,6 +32,12 @@ export type FakeRemoteSigner = {
   ackAsSigner(uri: string): Promise<void>;
   /** Fail the next request of this method with this error string. */
   failWith(method: string, error: string): void;
+  /**
+   * Answer the next request of this method with NIP-46's `auth_url` — "approve
+   * this in a browser first" — and then answer it properly, as a signer does
+   * once its owner has. nsecbunker and nsec.app both work this way.
+   */
+  demandAuth(method: string, url: string): void;
   /** Say nothing at all, as Amber does for an un-remembered request. */
   goSilent(): void;
   /**
@@ -60,6 +66,7 @@ export function createFakeRemoteSigner(): FakeRemoteSigner {
   const wire = new Subject<NostrEvent>();
   const received: { method: string; params: string[] }[] = [];
   const failures = new Map<string, string>();
+  const auths = new Map<string, string>();
   let silent = false;
 
   async function sendAs(key: Uint8Array, client: string, payload: unknown): Promise<void> {
@@ -98,6 +105,15 @@ export function createFakeRemoteSigner(): FakeRemoteSigner {
     const request = JSON.parse(await remote.nip44.decrypt(event.pubkey, event.content));
     received.push({ method: request.method, params: request.params });
     if (silent || swallowed.has(request.method)) return;
+
+    const auth = auths.get(request.method);
+    if (auth) {
+      auths.delete(request.method);
+      // The same id is answered twice: the prompt, then the real result. The
+      // request stays outstanding across both, which is why `onAuth` must not
+      // reject it.
+      await send(event.pubkey, { id: request.id, result: "auth_url", error: auth });
+    }
 
     const failure = failures.get(request.method);
     if (failure) {
@@ -184,6 +200,9 @@ export function createFakeRemoteSigner(): FakeRemoteSigner {
     },
     failWith(method, error) {
       failures.set(method, error);
+    },
+    demandAuth(method, url) {
+      auths.set(method, url);
     },
     goSilent() {
       silent = true;
