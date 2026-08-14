@@ -1,7 +1,8 @@
 import { AccountManager, type SerializedAccount } from "applesauce-accounts";
-import { AmberClipboardAccount, ExtensionAccount } from "applesauce-accounts/accounts";
+import { ExtensionAccount } from "applesauce-accounts/accounts";
 import type { NostrPool } from "applesauce-signers";
 
+import { AmberAccount } from "./amber";
 import { LocalAccount } from "./local-account";
 import type { LocalSignerData, LocalSignerOptions } from "./local-signer";
 import type { AccountMetadata } from "./metadata";
@@ -71,7 +72,7 @@ export function createManager({
   // One type for every remote signer — nsec.app, Amber's bunker mode, Keycast
   // and anything self-hosted. Their differences live at transport, not here.
   manager.registerType(RemoteAccount);
-  manager.registerType(AmberClipboardAccount);
+  manager.registerType(AmberAccount);
 
   const persistence = createPersistence(manager, storage);
 
