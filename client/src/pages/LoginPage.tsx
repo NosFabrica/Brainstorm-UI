@@ -7,10 +7,8 @@ import {
   KeyRound,
   ArrowRight,
   Radio,
-  Smartphone,
 } from "lucide-react";
-import { handleLogin, signInWithExternalSigner, LoginError, type LoginErrorCode } from "@/accounts/login-flow";
-import { amberAccount, isAmberSupported } from "@/accounts/amber";
+import { handleLogin, LoginError, type LoginErrorCode } from "@/accounts/login-flow";
 import { RemoteSignerModal } from "@/components/RemoteSignerModal";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useLoginPicker } from "@/hooks/useLoginPicker";
@@ -67,10 +65,8 @@ export default function LoginPage() {
   const [failureCode, setFailureCode] = useState<LoginErrorCode | null>(null);
   const [failureMessage, setFailureMessage] = useState("");
   const [remoteOpen, setRemoteOpen] = useState(false);
-  const [amberBusy, setAmberBusy] = useState(false);
 
   // Read once: `SUPPORTED` is settled at module load and can't change under us.
-  const amberSupported = useRef(isAmberSupported()).current;
 
   const signedIn = useActiveAccountDisplay();
   const { identities, recheckExtension } = useLoginPicker();
@@ -128,24 +124,6 @@ export default function LoginPage() {
     }
   };
 
-  // Amber answers through the clipboard after an app switch, so this settles
-  // only once the user comes back — including when they come back having said no.
-  const onAmberLogin = async () => {
-    setError(null);
-    setAmberBusy(true);
-    try {
-      await signInWithExternalSigner(await amberAccount());
-      routeAfterLogin();
-    } catch (err) {
-      setError(
-        err instanceof Error && /cancel/i.test(err.message)
-          ? "Amber didn't hand anything back. Approve the request and try again."
-          : "Couldn't sign in with Amber. Make sure it's installed, then try again.",
-      );
-    } finally {
-      setAmberBusy(false);
-    }
-  };
 
   const openNsec = () => {
     setFailureCode("NO_EXTENSION");
@@ -296,23 +274,25 @@ export default function LoginPage() {
               <Radio /> Sign in with a signer app
             </Button>
 
-            {/* Only where it works. It is the one option for Amber's offline
-                build, which ships with networking removed and cannot do NIP-46
-                at all — and the alternative for those users is a raw key. */}
-            {amberSupported && (
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
-                onClick={onAmberLogin}
-                disabled={amberBusy}
-                className="w-full"
-                data-testid="button-signin-amber"
-              >
-                {amberBusy ? <Loader2 className="animate-spin" /> : <Smartphone />}
-                {amberBusy ? "Waiting for Amber…" : "Sign in with Amber on this phone"}
-              </Button>
-            )}
+            {/* No NIP-55 row. It used to sit here, as the one option for Amber's
+                offline build — networking removed, so NIP-46 is impossible and the
+                alternative is a raw key. It came out because it does not work:
+                applesauce returns Amber's answer through the clipboard, read on the
+                next `visibilitychange`, and on Android Chrome that read needed the
+                browser closed and reopened to fire at all. Sign-in got a pubkey and
+                then dropped back to this screen, because the login challenge is a
+                second request and one lost read undoes the first.
+
+                Same-device Amber is already served: "Sign in with a signer app"
+                opens Amber over NIP-46 and works, on this phone as well as another.
+                What is genuinely lost is the offline build, and the way back is
+                NIP-55's callback URL — Amber redirects to it with the result, which
+                needs no visibility event, no clipboard permission and no race. That
+                is a signer we would have to write; applesauce's carries no
+                `callbackUrl` at all. See `.scratch/applesauce-accounts/issues`.
+
+                `AmberAccount` stays registered in `accounts/manager.ts`: rows
+                created before this still deserialise, restore and sign. */}
 
             <Button
               type="button"
