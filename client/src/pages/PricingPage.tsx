@@ -63,9 +63,9 @@ export default function PricingPage() {
         <section className="mt-12" data-testid="section-roadmap">
           <SectionHeader kicker="What your support funds" />
           <p className="mt-3 text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl">
-            None of this exists yet. It's what we're building next, and it's why
-            the supporter tier is worth having now rather than later. Supporters
-            get it first, at the price they signed up at.
+            None of this exists yet — it's what we're building next. Most of it
+            comes down to one idea: the scoring should be yours to shape, not
+            ours. Supporters get it first, at the price they signed up at.
           </p>
           <ul className="mt-5 grid gap-2.5 sm:grid-cols-2" data-testid="roadmap-list">
             {plannedFeatures().map((f) => (
