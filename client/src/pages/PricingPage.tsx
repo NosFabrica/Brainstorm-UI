@@ -11,7 +11,7 @@ import {
   TIER_ORDER,
   PAID_TIER,
   liveFeatures,
-  plannedFeatures,
+  plannedByTheme,
   formatPrice,
   type TierId,
 } from "@/lib/plans";
@@ -63,25 +63,43 @@ export default function PricingPage() {
         <section className="mt-12" data-testid="section-roadmap">
           <SectionHeader kicker="What your support funds" />
           <p className="mt-3 text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl">
-            None of this exists yet — it's what we're building next. Most of it
-            comes down to one idea: the scoring should be yours to shape, not
-            ours. Supporters get it first, at the price they signed up at.
+            None of this exists yet — it's what supporters are paying for. Three
+            directions, and they're the same bet each time: that a network of
+            real people is a better filter than an algorithm optimising for
+            attention. Supporters get all of it first, at the price they joined
+            at.
           </p>
-          <ul className="mt-5 grid gap-2.5 sm:grid-cols-2" data-testid="roadmap-list">
-            {plannedFeatures().map((f) => (
-              <li
-                key={f.key}
-                className="flex items-start gap-2.5 text-sm text-slate-600 dark:text-slate-300"
-                data-testid={`roadmap-${f.key}`}
-              >
-                <span
-                  className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-slate-300 dark:bg-slate-600"
-                  aria-hidden
-                />
-                {f.label}
-              </li>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-3" data-testid="roadmap-list">
+            {plannedByTheme().map((group) => (
+              <Card key={group.key} className="p-5 h-full" data-testid={`roadmap-theme-${group.key}`}>
+                <h3
+                  className="text-[15px] font-bold text-slate-900 dark:text-slate-100 tracking-tight"
+                  style={{ fontFamily: "var(--font-display)" }}
+                >
+                  {group.title}
+                </h3>
+                <p className="mt-1.5 text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
+                  {group.blurb}
+                </p>
+                <ul className="mt-4 space-y-2.5">
+                  {group.items.map((f) => (
+                    <li
+                      key={f.key}
+                      className="flex items-start gap-2.5 text-[13.5px] leading-snug text-slate-700 dark:text-slate-200"
+                      data-testid={`roadmap-${f.key}`}
+                    >
+                      <span
+                        className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-brand-accent/50"
+                        aria-hidden
+                      />
+                      {f.label}
+                    </li>
+                  ))}
+                </ul>
+              </Card>
             ))}
-          </ul>
+          </div>
         </section>
 
         <p className="mt-10 text-xs text-slate-400 dark:text-slate-500 leading-relaxed max-w-2xl">
