@@ -16,7 +16,7 @@ import {
   BadgeCheck,
   Tag as TagIcon,
   ChevronRight,
-  Zap,
+  CalendarClock,
   CreditCard,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -335,7 +335,11 @@ export function AccountMenuBody({ user, isAdmin, active, onNavigate, onInvite, o
         {isPaid ? (
           <MenuRow icon={CreditCard} label="Billing" onClick={() => onNavigate("/pricing")} testId="dropdown-billing" />
         ) : (
-          <MenuRow icon={Zap} label={`Get ${TIERS[PAID_TIER].name}`} onClick={() => onNavigate("/pricing")} testId="dropdown-get-priority" />
+          // NOT a lightning bolt. On a Nostr client ⚡ means zaps and Lightning,
+          // and Priority is billed by card — the icon implied a payment rail we
+          // haven't wired. A calendar-clock says what the tier actually is: a
+          // recalculation schedule.
+          <MenuRow icon={CalendarClock} label={`Get ${TIERS[PAID_TIER].name}`} onClick={() => onNavigate("/pricing")} testId="dropdown-get-priority" />
         )}
         <MenuRow icon={HelpCircle} label="Help & FAQ" onClick={() => onNavigate("/faq")} testId="dropdown-faq" />
         <MenuRow icon={SettingsIcon} label="Settings" onClick={() => onNavigate("/settings")} testId="dropdown-settings" />
