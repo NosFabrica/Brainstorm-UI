@@ -788,7 +788,7 @@ export const apiClient = {
    * ---- subscription ----
    *
    * The backend's record of what the user is paying for. Note this only
-   * *reports* entitlement — what a supporter actually gets is a scheduling
+   * *reports* entitlement — what a paying account actually gets is a scheduling
    * policy applied server-side, so a failure here costs a label, not a benefit.
    * See docs/payments/FLASH-INTEGRATION.md.
    */

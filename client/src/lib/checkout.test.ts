@@ -15,7 +15,7 @@ async function withEnv(vars: Record<string, string>) {
   vi.doMock("@/lib/runtimeEnv", () => ({
     env: {
       VITE_FLASH_BASE_URL: "",
-      VITE_FLASH_SUPPORTER_CARD: "",
+      VITE_FLASH_PRIORITY_CARD: "",
       ...vars,
     },
   }));
@@ -32,9 +32,9 @@ describe("resolveCheckout", () => {
   it("deep-links to the plan, not the service interstitial", async () => {
     const { resolveCheckout } = await withEnv({
       VITE_FLASH_BASE_URL: VAULT,
-      VITE_FLASH_SUPPORTER_CARD: PLAN,
+      VITE_FLASH_PRIORITY_CARD: PLAN,
     });
-    const t = resolveCheckout("supporter", { rail: "card" });
+    const t = resolveCheckout("priority", { rail: "card" });
 
     expect(t.external).toBe(true);
     expect(t.url).toBe(`${VAULT}/subscriptions/signup/${PLAN}`);
@@ -45,17 +45,17 @@ describe("resolveCheckout", () => {
   it("carries no query string — Flash ignores every pre-fill param", async () => {
     const { resolveCheckout } = await withEnv({
       VITE_FLASH_BASE_URL: VAULT,
-      VITE_FLASH_SUPPORTER_CARD: PLAN,
+      VITE_FLASH_PRIORITY_CARD: PLAN,
     });
-    expect(resolveCheckout("supporter", { rail: "card" }).url).not.toContain("?");
+    expect(resolveCheckout("priority", { rail: "card" }).url).not.toContain("?");
   });
 
   it("tolerates stray slashes in configured values", async () => {
     const { resolveCheckout } = await withEnv({
       VITE_FLASH_BASE_URL: `${VAULT}/`,
-      VITE_FLASH_SUPPORTER_CARD: `/${PLAN}/`,
+      VITE_FLASH_PRIORITY_CARD: `/${PLAN}/`,
     });
-    expect(resolveCheckout("supporter", { rail: "card" }).url).toBe(
+    expect(resolveCheckout("priority", { rail: "card" }).url).toBe(
       `${VAULT}/subscriptions/signup/${PLAN}`,
     );
   });
@@ -65,7 +65,7 @@ describe("resolveCheckout", () => {
     // answer is "not here" — a fake in-app checkout page would be worse than
     // an empty state.
     const { resolveCheckout } = await withEnv({});
-    const t = resolveCheckout("supporter", { rail: "card" });
+    const t = resolveCheckout("priority", { rail: "card" });
     expect(t.external).toBe(false);
     expect(t.url).toBe("");
   });
@@ -73,17 +73,17 @@ describe("resolveCheckout", () => {
   it("falls back for Lightning, which has no Flash plan yet", async () => {
     const { resolveCheckout } = await withEnv({
       VITE_FLASH_BASE_URL: VAULT,
-      VITE_FLASH_SUPPORTER_CARD: PLAN,
+      VITE_FLASH_PRIORITY_CARD: PLAN,
     });
-    const t = resolveCheckout("supporter", { rail: "flash-lightning" });
+    const t = resolveCheckout("priority", { rail: "flash-lightning" });
     expect(t.external).toBe(false);
   });
 
   it("defaults to the card rail", async () => {
     const { resolveCheckout } = await withEnv({
       VITE_FLASH_BASE_URL: VAULT,
-      VITE_FLASH_SUPPORTER_CARD: PLAN,
+      VITE_FLASH_PRIORITY_CARD: PLAN,
     });
-    expect(resolveCheckout("supporter").url).toContain(PLAN);
+    expect(resolveCheckout("priority").url).toContain(PLAN);
   });
 });

@@ -8,8 +8,8 @@
 //
 // ## The rule this file exists to enforce
 //
-// The UI never decides who has paid; it asks. What a supporter actually gets
-// is a scheduling policy applied server-side (see
+// The UI never decides who has paid; it asks. What a paying account actually
+// gets is a scheduling policy applied server-side (see
 // docs/payments/FLASH-INTEGRATION.md), so this is a *report* of state, not the
 // state itself. That is why every failure path below resolves to the free tier
 // rather than throwing: a backend hiccup must never read as "paid", and equally
@@ -38,7 +38,7 @@ export const DEFAULT_SUBSCRIPTION: Subscription = {
 
 const MOCK_KEY = "brainstorm_mock_subscription";
 
-const TIERS: readonly TierId[] = ["free", "supporter"];
+const TIERS: readonly TierId[] = ["free", "priority"];
 const STATUSES: readonly SubscriptionStatus[] = [
   "none",
   "active",

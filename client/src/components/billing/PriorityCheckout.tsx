@@ -44,7 +44,7 @@ import { PAID_TIER, TIERS, formatPrice, liveFeatures } from "@/lib/plans";
  * `window.open` runs directly in the click handler so popup blockers allow it —
  * do not move it behind an await.
  */
-export function SupporterCheckout({
+export function PriorityCheckout({
   open,
   onOpenChange,
 }: {
@@ -75,11 +75,11 @@ export function SupporterCheckout({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md" data-testid="supporter-checkout">
+      <DialogContent className="sm:max-w-md" data-testid="priority-checkout">
         {!sent ? (
           <>
             <DialogHeader>
-              <DialogTitle>Become a supporter</DialogTitle>
+              <DialogTitle>Get Priority</DialogTitle>
               <DialogDescription>
                 {price} a month. Cancel any time.
               </DialogDescription>

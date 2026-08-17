@@ -35,7 +35,7 @@ describe("plans — the promise boundary", () => {
     // appear as a tick.
     const planned = plannedFeatures()[0];
     expect(planned).toBeDefined();
-    const withPlanned = [...TIERS.supporter.featureKeys, planned.key];
+    const withPlanned = [...TIERS.priority.featureKeys, planned.key];
     const rendered = withPlanned
       .map((k) => TIER_FEATURES[k])
       .filter((f) => f && f.status === "live");
@@ -80,8 +80,8 @@ describe("plans — price", () => {
 
 describe("plans — ranking", () => {
   it("orders free below the paid tier", () => {
-    expect(tierMeetsRequirement("supporter", "free")).toBe(true);
-    expect(tierMeetsRequirement("free", "supporter")).toBe(false);
+    expect(tierMeetsRequirement("priority", "free")).toBe(true);
+    expect(tierMeetsRequirement("free", "priority")).toBe(false);
     expect(tierMeetsRequirement("free", "free")).toBe(true);
   });
 });

@@ -30,7 +30,7 @@ user clicks Subscribe
   → new tab to Flash's hosted signup page (card details never touch us)
   → Flash charges the card
   → Flash POSTs a webhook to us
-  → we move that pubkey onto the Supporter scheduling policy
+  → we move that pubkey onto the Priority scheduling policy
   → GET /user/subscription reports the new state; the UI follows
 ```
 
@@ -39,17 +39,20 @@ payment to an account, and what that account then gets.
 
 ---
 
-## What a Supporter actually gets
+## What Priority actually gets you
 
 **The paid tier is a scheduling policy.** No new entitlement system is needed —
 the scheduler already does all of this:
 
 | `SchedulingItem` field | what it buys |
 | --- | --- |
-| `schedule_interval_seconds` | automatic weekly recalculation |
+| `schedule_interval_seconds` | **Priority 7 days / free default 60 days** |
 | `priority` | position in the calculation queue |
-| `manual_quota_limit` / `manual_quota_window_seconds` | manual recalcs allowed per window |
 | `is_default` | the free tier's policy |
+
+`manual_quota_limit` is deliberately NOT a tier difference. Manual recalculation
+stays unlimited on both, rate-limited only to stop abuse — the default of 20 per
+week already does that. Selling a smaller allowance would be selling friction.
 
 So entitlement enforcement is one existing call:
 
@@ -57,10 +60,10 @@ So entitlement enforcement is one existing call:
 PUT /admin/users/{pubkey}/scheduling     → move a pubkey between policies
 ```
 
-**Prerequisite:** a Supporter policy has to exist, created in the admin panel
-with the weekly interval, its priority and its manual quota set. The free
-default's numbers need deciding at the same time, because the pricing page
-quotes both and should quote them truthfully.
+**Prerequisite:** a Priority policy has to exist, created in the admin panel at a
+**7-day** interval with its queue priority set, and the free default confirmed at
+**60 days**. The pricing page quotes both numbers, so they should be real before
+it ships.
 
 ---
 
@@ -91,7 +94,7 @@ nothing.
 2. **The user pays**, typing their email once, on Flash's page.
 3. **The webhook arrives** with an email we have never seen. Match it to the
    pending intent — the one within a recent window (30 minutes is generous).
-   - exactly one candidate → bind, apply the Supporter policy, store the email
+   - exactly one candidate → bind, apply the Priority policy, store the email
    - zero or more than one → **hold, and alert**. Never guess: the failure mode
      must be "a human looks at it", not "the wrong account is upgraded".
 4. **On return**, the client polls (it already refetches on window focus). If a
@@ -177,9 +180,9 @@ Settings tab in the dashboard is currently greyed out.
 
 | event | action |
 | --- | --- |
-| `user_signed_up` | resolve email → pubkey; `PUT /admin/users/{pubkey}/scheduling` → Supporter; record period end |
-| `renewal_successful` | extend period end; ensure still on Supporter |
-| `renewal_failed` | mark `past_due`; **stay on Supporter through the 7-day grace** |
+| `user_signed_up` | resolve email → pubkey; `PUT /admin/users/{pubkey}/scheduling` → Priority; record period end |
+| `renewal_successful` | extend period end; ensure still on Priority |
+| `renewal_failed` | mark `past_due`; **stay on Priority through the 7-day grace** |
 | `user_paused_subscription` | → default policy |
 | `user_cancelled_subscription` | → default policy at end of the current period, not immediately |
 
@@ -196,7 +199,7 @@ two will disagree about who is paid.
 | --- | --- |
 | `pubkey` | the account; the key everything else hangs off |
 | `email` | the join key from Flash, and how support finds them |
-| `tier` | `free` \| `supporter` |
+| `tier` | `free` \| `priority` |
 | `status` | `none` \| `active` \| `past_due` \| `grace` \| `canceled` |
 | `current_period_end` | drives renewal display and the grace window |
 | `rail` | `card` now, `flash-lightning` later |
@@ -231,7 +234,7 @@ actually get, and this endpoint only reports it.
 Most of this already exists. `AdminUser` carries `scheduling_id` and
 `scheduling_name`, the Users table renders a schedule chip per row,
 `UserTierPicker` reassigns a user inline, and `PolicyUsersInline` lists everyone
-on a policy. Since the paid tier *is* a scheduling policy, "who is on Supporter"
+on a policy. Since the paid tier *is* a scheduling policy, "who is on Priority"
 is answerable today. What's missing is the billing half and the failure states.
 
 ### Admin: show both columns, not one
@@ -243,16 +246,16 @@ someone paying who isn't being recalculated weekly, or someone on the paid polic
 who stopped paying. It should be findable by sorting a column rather than by
 someone complaining.
 
-Legitimate combinations: `free` + default, `supporter` + Supporter, `comped` +
-Supporter. Anything else is a fault.
+Legitimate combinations: `free` + default, `priority` + Priority, `comped` +
+Priority. Anything else is a fault.
 
 ### `comped` is an explicit status
 
-An admin moving someone onto the Supporter policy by hand — a teammate, an early
+An admin moving someone onto the Priority policy by hand — a teammate, an early
 tester, goodwill after a billing mess — otherwise produces a row that is
 character-for-character identical to a bug. The admin action writes a
 subscription record with `status: "comped"` rather than leaving it empty, so the
-divergence report above stays meaningful and "why is this person on Supporter"
+divergence report above stays meaningful and "why is this person on Priority"
 doesn't require archaeology.
 
 ### Held payments need a queue that alerts
@@ -282,8 +285,8 @@ never, which is exactly why it cannot depend on someone remembering to look.
   status, checkable any time. Confirm whether Flash emails a receipt and, if so,
   say on the checkout screen that one is coming. Not building email
   infrastructure for a $2 subscription at this volume.
-- **Upgrade** is free → Supporter and nothing else, so it is the pricing page and
-  the existing checkout. The account menu already routes non-supporters there.
+- **Upgrade** is free → Priority and nothing else, so it is the pricing page and
+  the existing checkout. The account menu already routes non-prioritys there.
 
 ## Configuration
 
@@ -293,7 +296,7 @@ and must never reach the client.
 
 ```
 VITE_FLASH_BASE_URL=https://dev.server.vault.paywithflash.com
-VITE_FLASH_SUPPORTER_CARD=019eb7e1-c789-731e-9c9a-e84e83500097/019ef08a-3c5f-7228-a15b-4838937045f5
+VITE_FLASH_PRIORITY_CARD=019eb7e1-c789-731e-9c9a-e84e83500097/019ef08a-3c5f-7228-a15b-4838937045f5
 VITE_FEATURE_SUBSCRIPTION_API=false
 ```
 
