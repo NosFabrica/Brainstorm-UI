@@ -63,11 +63,10 @@ export default function PricingPage() {
         <section className="mt-12" data-testid="section-roadmap">
           <SectionHeader kicker="What your support funds" />
           <p className="mt-3 text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl">
-            None of this exists yet — it's what supporters are paying for. Three
-            directions, and they're the same bet each time: that a network of
-            real people is a better filter than an algorithm optimising for
-            attention. Supporters get all of it first, at the price they joined
-            at.
+            Our roadmap, in three directions. Each follows the same principle:
+            a network of real people is a better filter than an algorithm built
+            to hold your attention. Supporters get first access, and keep the
+            price they joined at.
           </p>
 
           <div className="mt-6 grid gap-4 md:grid-cols-3" data-testid="roadmap-list">
