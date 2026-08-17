@@ -186,7 +186,7 @@ export const TIERS: Record<TierId, TierInfo> = {
     order: 0,
     usdMinorPerMonth: 0,
     satsPerMonth: 0,
-    tagline: "the whole product, on a slower schedule",
+    tagline: "nothing held back, just less often",
     featureKeys: [
       "recalc-60d",
       "manual-unlimited",
