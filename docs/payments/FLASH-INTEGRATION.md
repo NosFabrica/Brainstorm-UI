@@ -66,32 +66,52 @@ quotes both and should quote them truthfully.
 
 ## Identity: how a payment finds an account
 
-**Email is the join key.** This is a constraint, not a preference.
+**This is the hardest part of the integration, and it needs a pending-checkout
+record rather than an email lookup.**
 
 VERIFIED: the vault signup form collects only `email` (required), `name`
 (optional), card details and a billing address. There is **no `external_uuid`,
-`npub`, or any other external-id field**, and the page ignores every pre-fill
-parameter — the documented `?params=<base64 JSON>` and plain
-`?email=&npub=&external_uuid=` were all tested and all left the fields empty.
+`npub`, or any other external-id field**. And the page reads no query string at
+all — it contains no `URLSearchParams`, no `location.search`, no parameter
+handling of any kind, so the documented `?params=<base64 JSON>` pre-fill and
+every plain-parameter form are inert. **Nothing can be carried into that page.**
 
-So the flow is:
+The obvious workaround — ask for the email on our side first and match on it —
+was built and then removed. It made someone type the same address twice, on two
+pages, to buy one thing, which is the worst possible friction to add at the
+moment of payment. It also only ever produced a guess: nothing stops a person
+typing a different address on Flash's page, and then they have paid and received
+nothing.
 
-1. Brainstorm collects the email **before** redirecting and persists
-   `pubkey ↔ email`.
-2. The user types the same address on Flash's page.
-3. The webhook arrives carrying that email; we look up the pubkey.
+### The design instead
 
-**This is the most fragile link in the chain.** If someone types a different
-address at Flash, the payment succeeds and the entitlement never lands. It needs:
+1. **On "Continue to payment"**, the client tells the backend a checkout is
+   starting: `POST /user/checkout-intent` with the authenticated pubkey.
+   Backend records `(pubkey, created_at, status=pending)`.
+2. **The user pays**, typing their email once, on Flash's page.
+3. **The webhook arrives** with an email we have never seen. Match it to the
+   pending intent — the one within a recent window (30 minutes is generous).
+   - exactly one candidate → bind, apply the Supporter policy, store the email
+   - zero or more than one → **hold, and alert**. Never guess: the failure mode
+     must be "a human looks at it", not "the wrong account is upgraded".
+4. **On return**, the client polls (it already refetches on window focus). If a
+   held payment matches their pending intent, offer a one-click confirmation —
+   *"we matched a $2 payment from b•••@example.com, is that you?"* — which is
+   both less work than typing and a firmer binding than two strings agreeing.
 
-- a lookup that is exact but case-insensitive and whitespace-trimmed;
-- a **loud** failure path — an unmatched paying webhook is a person who paid and
-  got nothing, so it must alert rather than log and move on;
-- a way for support to bind an orphaned payment to an account by hand.
+At first-paid-user volume, step 3 collides essentially never, and it degrades
+safely when it does.
 
-Ask Flash whether an external id can be attached to a subscription (pre-fill, a
-form field, or an API that creates it server-side). The moment that exists, the
-join key should become the hex pubkey and this whole section gets simpler.
+Store the email from the webhook regardless — it is how support finds someone,
+and it is what the ticket system keys on. It just isn't the *join*.
+
+### Ask Flash
+
+Whether an external id can be attached to a subscription — pre-fill, a form
+field, or an API that creates it server-side with one attached. Their older
+surface supported `npub` and `external_uuid` pre-fill, so this may be an
+unported feature rather than a deliberate omission. The moment it exists, the
+join key becomes the hex pubkey and this whole section collapses to one line.
 
 ---
 
