@@ -226,6 +226,65 @@ actually get, and this endpoint only reports it.
 
 ---
 
+## Operating it: admins and self-service
+
+Most of this already exists. `AdminUser` carries `scheduling_id` and
+`scheduling_name`, the Users table renders a schedule chip per row,
+`UserTierPicker` reassigns a user inline, and `PolicyUsersInline` lists everyone
+on a policy. Since the paid tier *is* a scheduling policy, "who is on Supporter"
+is answerable today. What's missing is the billing half and the failure states.
+
+### Admin: show both columns, not one
+
+Three systems hold an opinion — Flash took the money, our record says what the
+webhook wrote, the policy says what they actually receive. **Show billing status
+and scheduling policy as separate columns.** When they disagree, that IS the bug:
+someone paying who isn't being recalculated weekly, or someone on the paid policy
+who stopped paying. It should be findable by sorting a column rather than by
+someone complaining.
+
+Legitimate combinations: `free` + default, `supporter` + Supporter, `comped` +
+Supporter. Anything else is a fault.
+
+### `comped` is an explicit status
+
+An admin moving someone onto the Supporter policy by hand — a teammate, an early
+tester, goodwill after a billing mess — otherwise produces a row that is
+character-for-character identical to a bug. The admin action writes a
+subscription record with `status: "comped"` rather than leaving it empty, so the
+divergence report above stays meaningful and "why is this person on Supporter"
+doesn't require archaeology.
+
+### Held payments need a queue that alerts
+
+The identity design holds rather than guesses when a webhook can't be matched.
+**A held payment is the worst state in the system** — a card was charged and the
+person received nothing. It needs a visible admin list (email, amount, timestamp,
+candidate pubkeys) with one-click bind to an account, reusing the
+`UserTierPicker` pattern. And it must **alert**: nobody refreshes an admin tab
+hoping to find someone they have wronged. At this volume it should fire almost
+never, which is exactly why it cannot depend on someone remembering to look.
+
+### Self-service
+
+- **Billing lives in Settings → Billing**, beside the other account-level
+  settings (relays, verified threshold, NIP-85 provider). `/billing` stays as a
+  short alias onto that tab so receipts, support replies and the account menu
+  have a stable URL. `BillingPanel` on `pricing-flow` already renders tier,
+  status, renewal date and rail from the subscription seam.
+- **Cancellation happens in our UI**, with the backend calling Flash's
+  `/cancel_user_subscription`. A card-only subscriber gives an email and a card
+  — no password, so there is probably nothing for them to log into on Flash's
+  side. Cancelling as easily as subscribing is close to a legal requirement in
+  several jurisdictions. This depends on Flash's cancel endpoint, which is
+  **unverified** — confirm it before shipping the button.
+- **The Billing tab is the receipt.** Amount, last payment, next renewal and
+  status, checkable any time. Confirm whether Flash emails a receipt and, if so,
+  say on the checkout screen that one is coming. Not building email
+  infrastructure for a $2 subscription at this volume.
+- **Upgrade** is free → Supporter and nothing else, so it is the pricing page and
+  the existing checkout. The account menu already routes non-supporters there.
+
 ## Configuration
 
 Client-side, three runtime vars. None are secrets — the signup page is public
