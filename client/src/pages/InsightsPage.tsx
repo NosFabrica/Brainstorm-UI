@@ -23,6 +23,7 @@ import { readPublishedAssistant, readAssistantProfile } from "@/lib/assistantSto
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { TIER_LABELS } from "@/services/trustThreshold";
+import { PlanCard } from "@/components/billing/PlanCard";
 
 // Ladder order for tier-movement arrows in non-number display modes.
 const TIER_ORDER_ASC: VerificationTier[] = ["unverified", "low", "neutral", "trusted", "high"];
@@ -199,6 +200,11 @@ export default function InsightsPage() {
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>My Insights</h1>
         </div>
         <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Your account standing, and exactly how and when your scores were computed.</p>
+
+        {/* Plan first: it sets the frame for everything under it. "Recalculated
+            every 60 days" is what makes the "last calculated" date below mean
+            something rather than just being a date. */}
+        <PlanCard lastCalculatedMs={lastCalcMs} />
 
         <DeferredSessionNotice className="mb-6" />
 

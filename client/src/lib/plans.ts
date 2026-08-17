@@ -101,6 +101,13 @@ export interface TierInfo {
   usdMinorPerMonth: number;
   /** Lightning equivalent, for when that rail lands. Not charged today. */
   satsPerMonth: number;
+  /**
+   * Days between automatic recalculations — the SAME number the feature label
+   * quotes and the same one the scheduling policy is configured with. Here so
+   * "next scheduled" can be derived instead of guessed, and so the label and the
+   * arithmetic cannot drift apart.
+   */
+  recalcIntervalDays: number;
   /** Short line under the price. */
   tagline: string;
   /** Supporting line — framing, not a feature claim. */
@@ -186,6 +193,7 @@ export const TIERS: Record<TierId, TierInfo> = {
     order: 0,
     usdMinorPerMonth: 0,
     satsPerMonth: 0,
+    recalcIntervalDays: 60,
     tagline: "for checking someone occasionally",
     featureKeys: [
       "recalc-60d",
@@ -205,6 +213,7 @@ export const TIERS: Record<TierId, TierInfo> = {
     order: 1,
     usdMinorPerMonth: 200,
     satsPerMonth: 2100,
+    recalcIntervalDays: 7,
     tagline: "for acting on what you see",
     // Set-and-forget is what weekly scheduling MEANS, so it belongs here rather
     // than as a fourth bullet restating the first. Stating both intervals makes
@@ -259,6 +268,30 @@ export function plannedByTheme(): { key: RoadmapTheme; title: string; blurb: str
     ...t,
     items: planned.filter((f) => f.theme === t.key),
   })).filter((g) => g.items.length > 0);
+}
+
+/**
+ * When the next automatic recalculation is due, in words.
+ *
+ * Derived from the plan's interval and the last run — there is no user-facing
+ * next-run field on the backend today, so this is arithmetic, not a report. That
+ * is why the UI labels it "next scheduled" rather than "will run at": the
+ * scheduler decides the moment, this says which window it falls in. Prefer a
+ * real next-run field over this the day one exists.
+ *
+ * Returns null with no last run, because a next-run guess with nothing behind it
+ * is fiction rather than an estimate.
+ */
+export function nextScheduledLabel(
+  lastRunMs: number | null,
+  tier: TierId,
+  nowMs: number = Date.now(),
+): string | null {
+  if (!lastRunMs) return null;
+  const dueMs = lastRunMs + TIERS[tier].recalcIntervalDays * 86_400_000;
+  const days = Math.round((dueMs - nowMs) / 86_400_000);
+  if (days <= 0) return "due now";
+  return days === 1 ? "in 1 day" : `in ${days} days`;
 }
 
 /** "$2" / "Free" — from minor units, so it can't drift from what Flash charges. */
