@@ -206,6 +206,27 @@ actually get, and this endpoint only reports it.
 
 ---
 
+## Configuration
+
+Client-side, three runtime vars. None are secrets — the signup page is public
+and its ids are visible in the URL. The **webhook secret is not one of these**
+and must never reach the client.
+
+```
+VITE_FLASH_BASE_URL=https://dev.server.vault.paywithflash.com
+VITE_FLASH_SUPPORTER_CARD=019eb7e1-c789-731e-9c9a-e84e83500097/019ef08a-3c5f-7228-a15b-4838937045f5
+VITE_FEATURE_SUBSCRIPTION_API=false
+```
+
+Locally these go in **`client/.env`** — not the repo root. Vite's `root` is
+`client/`, so a root-level `.env` is silently ignored and everything reads as
+unconfigured. For staging and production they belong in the k8s chart
+(`charts/brainstorm/staging-values.yaml` → `ui.env`), which renders `config.js`.
+
+With `VITE_FLASH_BASE_URL` unset the UI says payments aren't configured in this
+environment rather than pretending — that is the intended state anywhere the
+vault isn't wired.
+
 ## Open questions for Flash
 
 1. Can an external id (our hex pubkey) be attached to a subscription? Everything
