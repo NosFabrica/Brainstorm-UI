@@ -17,7 +17,7 @@ import {
   Tag as TagIcon,
   ChevronRight,
   CalendarClock,
-  CreditCard,
+  Gauge,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PovToggle } from "@/components/score/TrustScorePov";
@@ -328,13 +328,18 @@ export function AccountMenuBody({ user, isAdmin, active, onNavigate, onInvite, o
           flagged-profile banner. Ten routes in; this was the worst of them. */}
       <div className="p-1.5">
         <MenuRow icon={UserPlus} label="Invite friends" onClick={onInvite} testId="dropdown-invite" />
-        {/* Reads differently either side of the decision. Someone already paying
-            wants to manage a payment, and offering to sell them the thing they
-            bought is the classic tell of a menu that doesn't know who it's
-            talking to. Someone who isn't paying has nothing to bill. */}
-        {isPaid ? (
-          <MenuRow icon={CreditCard} label="Billing" onClick={() => onNavigate("/pricing")} testId="dropdown-billing" />
-        ) : (
+        {/* Insights is ALWAYS here. It is the account page — plan, next
+            recalculation, history — and it is meaningful from the first minute
+            even when scores aren't ready. Its only other entry point is an 11px
+            link on the dashboard, gated behind NIP-85 activation, so a free
+            account that hasn't published could not reach its own plan at all. */}
+        <MenuRow icon={Gauge} label="Insights" onClick={() => onNavigate("/insights")} testId="dropdown-insights" />
+        {/* Only for people who aren't paying. There is no "Billing" row: someone
+            already paying reads their plan on Insights and changes it in
+            Settings → Billing, and two rows leading to the same place is a menu
+            that doesn't know what it's for. Offering to sell the thing they
+            already bought is worse. */}
+        {!isPaid && (
           // NOT a lightning bolt. On a Nostr client ⚡ means zaps and Lightning,
           // and Priority is billed by card — the icon implied a payment rail we
           // haven't wired. A calendar-clock says what the tier actually is: a
