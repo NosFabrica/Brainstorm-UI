@@ -119,9 +119,14 @@ export interface TierInfo {
  */
 export const TIER_FEATURES: Record<string, FeatureDef> = {
   // --- Live, and free for everyone -----------------------------------------
-  // Free states its own schedule rather than leaving it implied by the absence
-  // of Priority's. "About every two months" is the 60-day default policy.
-  "bimonthly-recalc": { key: "bimonthly-recalc", label: "Scores recalculated about every two months", status: "live" },
+  // Both tiers state an exact interval. "About every two months" was hedging —
+  // it reads as an estimate we might miss, when it is a configured number
+  // (`schedule_interval_seconds`) that either holds or is a bug. A figure someone
+  // can check is worth more than a range that sounds safe.
+  "recalc-60d": { key: "recalc-60d", label: "Scores recalculated every 60 days", status: "live" },
+  // Concrete, and the thing that stops "slower schedule" reading as "crippled":
+  // you can always refresh yourself, on either tier.
+  "manual-unlimited": { key: "manual-unlimited", label: "Unlimited manual recalculation", status: "live" },
   "ranked-search": { key: "ranked-search", label: "Search ranked by your network", status: "live" },
   "spam-filter": { key: "spam-filter", label: "Spam and impersonator filtering", status: "live" },
   reporting: { key: "reporting", label: "Report accounts that shouldn't be trusted", status: "live" },
@@ -137,8 +142,8 @@ export const TIER_FEATURES: Record<string, FeatureDef> = {
   // gone because manual is unlimited for everyone now. "This price stays yours"
   // is gone because it means "you're early, be rewarded" — the framing they
   // rejected — and it quietly commits us never to reprice early payers.
-  "weekly-recalc": { key: "weekly-recalc", label: "Scores recalculated every week, automatically", status: "live" },
-  "queue-priority": { key: "queue-priority", label: "Your runs go first when the queue is busy", status: "live" },
+  "weekly-recalc": { key: "weekly-recalc", label: "Scores recalculated every 7 days", status: "live" },
+  "queue-priority": { key: "queue-priority", label: "Your recalculations run ahead of the free queue", status: "live" },
   "priority-support": { key: "priority-support", label: "Priority support", status: "live" },
 
   // --- Planned. Roadmap only. Never listed as included. ---------------------
@@ -181,9 +186,10 @@ export const TIERS: Record<TierId, TierInfo> = {
     order: 0,
     usdMinorPerMonth: 0,
     satsPerMonth: 0,
-    tagline: "everything you need to start",
+    tagline: "the whole product, on a slower schedule",
     featureKeys: [
-      "bimonthly-recalc",
+      "recalc-60d",
+      "manual-unlimited",
       "ranked-search",
       "spam-filter",
       "reporting",
@@ -199,10 +205,11 @@ export const TIERS: Record<TierId, TierInfo> = {
     order: 1,
     usdMinorPerMonth: 200,
     satsPerMonth: 2100,
-    tagline: "your scores, kept current",
+    tagline: "recalculated weekly, without asking",
     // Set-and-forget is what weekly scheduling MEANS, so it belongs here rather
-    // than as a fourth bullet restating the first.
-    note: "Everything in Free, on a weekly schedule you never have to remember.",
+    // than as a fourth bullet restating the first. Stating both intervals makes
+    // the difference arithmetic instead of adjectival.
+    note: "Everything in Free, recalculated every 7 days instead of every 60.",
     featureKeys: [
       "weekly-recalc",
       "queue-priority",
