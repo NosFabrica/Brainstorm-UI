@@ -785,6 +785,42 @@ export const apiClient = {
 
   /**
    * Look up a single profile's NosFabrica ("house") perspective trust score —
+   * ---- subscription ----
+   *
+   * The backend's record of what the user is paying for. Note this only
+   * *reports* entitlement — what a supporter actually gets is a scheduling
+   * policy applied server-side, so a failure here costs a label, not a benefit.
+   * See docs/payments/FLASH-INTEGRATION.md.
+   */
+  async getSubscription(timeoutMs: number = 15000): Promise<{
+    tier: string;
+    status: string;
+    current_period_end: string | null;
+    rail: string | null;
+  }> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/user/subscription`,
+      { signal: AbortSignal.timeout(timeoutMs) },
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to fetch subscription (${response.status})`);
+    }
+    const json = await response.json();
+    return json?.data;
+  },
+
+  /** Cancel at period end. Flash's own policy decides when it takes effect. */
+  async cancelSubscription(timeoutMs: number = 15000): Promise<void> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/user/subscription`,
+      { method: "DELETE", signal: AbortSignal.timeout(timeoutMs) },
+    );
+    if (!response.ok) {
+      throw new Error(`Failed to cancel subscription (${response.status})`);
+    }
+  },
+
+  /**
    * `influence` (0..1) — from our own backend. Issues an *unauthenticated*
    * `/user/{pubkey}/overview` request so the result is always the house POV
    * (the default observer), regardless of whether a viewer is logged in. Used
