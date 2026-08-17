@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 
 /**
  * The tag-relay override — `core/ACCEPTANCE.md` Hygiene: "The tag-relay list is
@@ -8,31 +8,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
  * auth-gated and a faked session gets 401-wiped in preview
  * (.claude memory: preview-authed-surface-verification). The layering and the
  * round-trip through storage are the part that can actually be wrong.
- *
- * Node 26 exposes a native `localStorage` global that jsdom doesn't populate,
- * so the module's reads are guarded and would silently no-op here. We install a
- * real Storage-shaped stub so the persistence path is genuinely exercised.
  */
-
-function installStorage(seed: Record<string, string> = {}) {
-  const map = new Map(Object.entries(seed));
-  const storage = {
-    getItem: (k: string) => map.get(k) ?? null,
-    setItem: (k: string, v: string) => void map.set(k, v),
-    removeItem: (k: string) => void map.delete(k),
-    clear: () => map.clear(),
-    key: (i: number) => Array.from(map.keys())[i] ?? null,
-    get length() {
-      return map.size;
-    },
-  };
-  Object.defineProperty(window, "localStorage", {
-    value: storage,
-    configurable: true,
-    writable: true,
-  });
-  return map;
-}
 
 const KEY = "brainstorm.tagRelays";
 
@@ -43,8 +19,6 @@ async function loadConfig() {
 }
 
 describe("tag relay override", () => {
-  beforeEach(() => installStorage());
-
   it("ships the kit's defaults when nothing is saved", async () => {
     const { tagRelays, DEFAULT_TAG_RELAYS, isTagRelayOverrideActive } = await loadConfig();
     expect(tagRelays()).toEqual(DEFAULT_TAG_RELAYS);
@@ -97,11 +71,11 @@ describe("tag relay override", () => {
   it("ignores a saved list that is empty or corrupt", async () => {
     // An empty override would leave the app with nowhere to read tags from and
     // no way to tell that apart from "this person has no tags".
-    installStorage({ [KEY]: "[]" });
+    localStorage.setItem(KEY, "[]");
     const empty = await loadConfig();
     expect(empty.tagRelays()).toEqual(empty.DEFAULT_TAG_RELAYS);
 
-    installStorage({ [KEY]: "{not json" });
+    localStorage.setItem(KEY, "{not json");
     const corrupt = await loadConfig();
     expect(corrupt.tagRelays()).toEqual(corrupt.DEFAULT_TAG_RELAYS);
   });

@@ -24,10 +24,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Node pin is consistent
+        run: |
+          pin="$(tr -d '[:space:]' < .nvmrc)"
+          grep -q "^FROM node:${pin}-alpine" Dockerfile \
+            || { echo "Dockerfile base image != .nvmrc ($pin)"; exit 1; }
+          grep -q "\">=${pin}\"" package.json \
+            || { echo "package.json engines != .nvmrc ($pin)"; exit 1; }
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version-file: .nvmrc
           cache: npm
 
       - name: Install dependencies
