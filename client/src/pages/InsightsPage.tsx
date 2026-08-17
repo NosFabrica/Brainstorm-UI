@@ -17,6 +17,7 @@ import { readPublishedAssistant, readAssistantProfile } from "@/lib/assistantSto
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { TIER_LABELS } from "@/services/trustThreshold";
+import { PlanCard } from "@/components/billing/PlanCard";
 
 const TIER_LABEL: Record<VerificationTier, string> = {
   high: TIER_LABELS.high, trusted: TIER_LABELS.trusted, neutral: TIER_LABELS.neutral, low: TIER_LABELS.low, unverified: TIER_LABELS.unverified,
@@ -187,6 +188,11 @@ export default function InsightsPage() {
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>My Insights</h1>
         </div>
         <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Your account standing, and exactly how and when your scores were computed.</p>
+
+        {/* Plan first: it sets the frame for everything under it. "Recalculated
+            every 60 days" is what makes the "last calculated" date below mean
+            something rather than just being a date. */}
+        <PlanCard lastCalculatedMs={lastCalcMs} />
 
         {/* Calculation */}
         <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 mb-4">

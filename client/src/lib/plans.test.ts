@@ -9,6 +9,7 @@ import {
   plannedByTheme,
   formatPrice,
   tierMeetsRequirement,
+  nextScheduledLabel,
 } from "./plans";
 
 /**
@@ -83,5 +84,39 @@ describe("plans — ranking", () => {
     expect(tierMeetsRequirement("priority", "free")).toBe(true);
     expect(tierMeetsRequirement("free", "priority")).toBe(false);
     expect(tierMeetsRequirement("free", "free")).toBe(true);
+  });
+});
+
+describe("nextScheduledLabel", () => {
+  const NOW = Date.UTC(2026, 7, 17);
+  const daysAgo = (n: number) => NOW - n * 86_400_000;
+
+  it("counts down from the plan's own interval", () => {
+    // Free is 60 days: a run 47 days ago is due in 13.
+    expect(nextScheduledLabel(daysAgo(47), "free", NOW)).toBe("in 13 days");
+    // Priority is 7: a run 2 days ago is due in 5.
+    expect(nextScheduledLabel(daysAgo(2), "priority", NOW)).toBe("in 5 days");
+  });
+
+  it("says due now once the interval has passed, and never goes negative", () => {
+    // The worst failure here would be "in -4 days" on someone's account page.
+    expect(nextScheduledLabel(daysAgo(64), "free", NOW)).toBe("due now");
+    expect(nextScheduledLabel(daysAgo(60), "free", NOW)).toBe("due now");
+  });
+
+  it("singularises one day", () => {
+    expect(nextScheduledLabel(daysAgo(59), "free", NOW)).toBe("in 1 day");
+  });
+
+  it("returns null with no last run — a guess with nothing behind it is fiction", () => {
+    expect(nextScheduledLabel(null, "free", NOW)).toBeNull();
+    expect(nextScheduledLabel(0, "priority", NOW)).toBeNull();
+  });
+
+  it("uses the interval the tier advertises, so label and arithmetic can't drift", () => {
+    // Same elapsed time, different plan → different answer, both from
+    // recalcIntervalDays rather than a hardcoded number in the component.
+    expect(nextScheduledLabel(daysAgo(5), "free", NOW)).toBe("in 55 days");
+    expect(nextScheduledLabel(daysAgo(5), "priority", NOW)).toBe("in 2 days");
   });
 });
