@@ -11,6 +11,10 @@ const boolEnv = (value: string | undefined, fallback: boolean): boolean => {
 export const FEATURES = {
   agentSuite: boolEnv(env.VITE_FEATURE_AGENT_SUITE, false),
   assistantsAdmin: boolEnv(env.VITE_FEATURE_ASSISTANTS_ADMIN, false),
+  // When off (default), services/subscription.ts uses its local mock and
+  // never hits the backend — the whole pricing/billing surface is buildable
+  // and demo-able before the subscription endpoint exists.
+  subscriptionApi: boolEnv(env.VITE_FEATURE_SUBSCRIPTION_API, false),
 } as const;
 
 export type FeatureFlag = keyof typeof FEATURES;
