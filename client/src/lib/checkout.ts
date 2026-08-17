@@ -1,4 +1,4 @@
-// Where "Become a supporter" goes.
+// Where "Get Priority" goes.
 //
 // ## What Flash actually accepts (measured, 2026-08-17)
 //
@@ -24,7 +24,7 @@
 // Lightning will need its own Flash plan when that rail lands, and dev and
 // production are separate vaults with different UUIDs. A single scalar cannot
 // express `tier × rail → plan`, and discovering that later means touching every
-// caller. `VITE_FLASH_SUPPORTER_CARD` holds "<serviceId>/<planId>".
+// caller. `VITE_FLASH_PRIORITY_CARD` holds "<serviceId>/<planId>".
 
 import { env } from "@/lib/runtimeEnv";
 import type { TierId, Rail } from "@/lib/plans";
@@ -41,8 +41,8 @@ export interface CheckoutTarget {
 
 /** "<serviceId>/<planId>" per purchasable tier+rail, from runtime env. */
 function planPath(tier: TierId, rail: Rail): string {
-  if (tier === "supporter" && rail === "card") {
-    return (env.VITE_FLASH_SUPPORTER_CARD || "").trim().replace(/^\/+|\/+$/g, "");
+  if (tier === "priority" && rail === "card") {
+    return (env.VITE_FLASH_PRIORITY_CARD || "").trim().replace(/^\/+|\/+$/g, "");
   }
   return ""; // Lightning has no plan yet.
 }

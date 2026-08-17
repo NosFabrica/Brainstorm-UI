@@ -59,6 +59,9 @@ export function Footer({ minimal = false }: { minimal?: boolean }) {
             <button type="button" onClick={() => setLocation('/pricing')} className={linkClass} data-testid="link-pricing">
               Pricing
             </button>
+            <button type="button" onClick={() => setLocation('/roadmap')} className={linkClass} data-testid="link-roadmap">
+              Roadmap
+            </button>
           </nav>
 
           {/* Partners — NosFabrica badge → Megistus lockup (black art; Megistus inverts in dark) */}

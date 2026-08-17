@@ -1,22 +1,21 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { Check, ArrowRight, Loader2 } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
-import { SectionHeader } from "@/components/ui/section-header";
 import { Button } from "@/components/ui/button";
 import {
   TIERS,
   TIER_ORDER,
   PAID_TIER,
   liveFeatures,
-  plannedByTheme,
   formatPrice,
   type TierId,
 } from "@/lib/plans";
 import { useSubscription } from "@/hooks/useSubscription";
-import { SupporterCheckout } from "@/components/billing/SupporterCheckout";
+import { PriorityCheckout } from "@/components/billing/PriorityCheckout";
 
 /**
  * Two tiers, and a hard line between what exists and what doesn't.
@@ -24,9 +23,9 @@ import { SupporterCheckout } from "@/components/billing/SupporterCheckout";
  * The previous version of this page listed 21 features across three paid tiers,
  * of which the nine "Sovereign" ones did not exist in any form. This page can't
  * repeat that: the included lists come from `liveFeatures()`, which drops
- * anything marked `planned`, and the roadmap below is rendered from a different
- * accessor entirely and never uses ticks. If someone adds an unbuilt feature to
- * a tier, it silently doesn't render rather than becoming a promise.
+ * anything marked `planned`. Anything unbuilt lives on /roadmap, rendered from a
+ * different accessor entirely and never with ticks. If someone adds an unbuilt
+ * feature to a tier it silently doesn't render, rather than becoming a promise.
  *
  * There is no third "coming soon" column on purpose — that is just more unbuilt
  * promises in a wider layout.
@@ -40,8 +39,8 @@ export default function PricingPage() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
         <PageHeader
           kicker="Pricing"
-          title={<>Free to use. <span className="text-brand-link">Supported by people who use it.</span></>}
-          subtitle="Brainstorm scores reputation from real human connections. The core is free and stays free — supporters fund the work and get a head start."
+          title={<>Free to use. <span className="text-brand-link">$2 to keep it current.</span></>}
+          subtitle="Scores recalculated about every two months on Free, every week on Priority. Everything else is the same, and manual recalculation is unlimited either way."
           testId="section-pricing-header"
         />
 
@@ -57,58 +56,24 @@ export default function PricingPage() {
           ))}
         </div>
 
-        {/* Roadmap. Deliberately NOT ticks, NOT inside a tier card, and NOT
-            counted anywhere — it is a statement of intent, and it has to read
-            like one. */}
-        <section className="mt-12" data-testid="section-roadmap">
-          <SectionHeader kicker="What your support funds" />
-          <p className="mt-3 text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl">
-            Our roadmap, in three directions. Each follows the same principle:
-            a network of real people is a better filter than an algorithm built
-            to hold your attention. Supporters get first access, and keep the
-            price they joined at.
-          </p>
-
-          <div className="mt-6 grid gap-4 md:grid-cols-3" data-testid="roadmap-list">
-            {plannedByTheme().map((group) => (
-              <Card key={group.key} className="p-5 h-full" data-testid={`roadmap-theme-${group.key}`}>
-                <h3
-                  className="text-[15px] font-bold text-slate-900 dark:text-slate-100 tracking-tight"
-                  style={{ fontFamily: "var(--font-display)" }}
-                >
-                  {group.title}
-                </h3>
-                <p className="mt-1.5 text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
-                  {group.blurb}
-                </p>
-                <ul className="mt-4 space-y-2.5">
-                  {group.items.map((f) => (
-                    <li
-                      key={f.key}
-                      className="flex items-start gap-2.5 text-[13.5px] leading-snug text-slate-700 dark:text-slate-200"
-                      data-testid={`roadmap-${f.key}`}
-                    >
-                      <span
-                        className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-brand-accent/50"
-                        aria-hidden
-                      />
-                      {f.label}
-                    </li>
-                  ))}
-                </ul>
-              </Card>
-            ))}
-          </div>
-        </section>
+        {/* The roadmap lived here until the team's review: ten unbuilt items one
+            click from the buy button, and nobody deciding on $2 wants to read
+            them first. One line and a link — the page is now a decision, not a
+            document. */}
+        <p className="mt-8 text-sm text-slate-600 dark:text-slate-300" data-testid="roadmap-link-line">
+          Curious what's coming?{" "}
+          <Link href="/roadmap" className="font-semibold text-brand-link hover:underline">
+            See the roadmap →
+          </Link>
+        </p>
 
         <p className="mt-10 text-xs text-slate-400 dark:text-slate-500 leading-relaxed max-w-2xl">
-          Cancel any time — your support runs to the end of the period you've
-          paid for. Payments are handled by Flash; we never see your card
-          details.
+          Cancel any time — Priority runs to the end of the period you've paid
+          for. Payments are handled by Flash; we never see your card details.
         </p>
       </div>
 
-      <SupporterCheckout open={checkoutOpen} onOpenChange={setCheckoutOpen} />
+      <PriorityCheckout open={checkoutOpen} onOpenChange={setCheckoutOpen} />
     </InfoPageLayout>
   );
 }

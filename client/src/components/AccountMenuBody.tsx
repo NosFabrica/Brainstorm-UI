@@ -16,7 +16,7 @@ import {
   ChevronRight,
   BadgeCheck,
   Tag as TagIcon,
-  Heart,
+  Zap,
   CreditCard,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
@@ -24,7 +24,7 @@ import { PovToggle } from "@/components/score/TrustScorePov";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { AccountSwitcher } from "@/components/AccountSwitcherPane";
 import { useSubscription } from "@/hooks/useSubscription";
-import { PAID_TIER } from "@/lib/plans";
+import { PAID_TIER, TIERS } from "@/lib/plans";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useToast } from "@/hooks/use-toast";
 import { removeAccountFromDevice } from "@/accounts/login-flow";
@@ -212,7 +212,7 @@ export function AccountMenuBody({
   const { toast } = useToast();
   const [pane, setPane] = useState<"menu" | "switcher">("menu");
   const { tier } = useSubscription();
-  const isSupporter = tier === PAID_TIER;
+  const isPaid = tier === PAID_TIER;
   // Verified handle for the identity line. A "_@domain" nip05 is a bare-domain
   // identity — show just the domain rather than the placeholder underscore.
   const rawNip05 = user.nip05?.trim();
@@ -379,15 +379,14 @@ export function AccountMenuBody({
       {/* Grouped actions — Settings sits under Help & FAQ. */}
       <div className="p-1.5">
         <MenuRow icon={UserPlus} label="Invite friends" onClick={onInvite} testId="dropdown-invite" />
-        {/* Reads differently either side of the decision. Someone who already
-            supports wants to manage a payment, and offering to sell them the
-            thing they bought is the classic tell of a menu that doesn't know who
-            it's talking to. Someone who doesn't isn't looking for "Billing" —
-            they have nothing to bill. */}
-        {isSupporter ? (
+        {/* Reads differently either side of the decision. Someone already paying
+            wants to manage a payment, and offering to sell them the thing they
+            bought is the classic tell of a menu that doesn't know who it's
+            talking to. Someone who isn't paying has nothing to bill. */}
+        {isPaid ? (
           <MenuRow icon={CreditCard} label="Billing" onClick={() => onNavigate("/pricing")} testId="dropdown-billing" />
         ) : (
-          <MenuRow icon={Heart} label="Support Brainstorm" onClick={() => onNavigate("/pricing")} testId="dropdown-support" />
+          <MenuRow icon={Zap} label={`Get ${TIERS[PAID_TIER].name}`} onClick={() => onNavigate("/pricing")} testId="dropdown-get-priority" />
         )}
         <MenuRow icon={HelpCircle} label="Help & FAQ" onClick={() => onNavigate("/faq")} testId="dropdown-faq" />
         <MenuRow icon={SettingsIcon} label="Settings" onClick={() => onNavigate("/settings")} testId="dropdown-settings" />

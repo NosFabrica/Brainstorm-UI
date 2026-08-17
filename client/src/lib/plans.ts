@@ -2,7 +2,7 @@
 //
 // Consumed by the pricing page, the billing UI and the checkout flow.
 //
-// ## Why there are only two, and why the paid one is called Supporter
+// ## Why there are only two, and why the paid one is called Priority
 //
 // The earlier three-tier version (Grapevine / Sovereign / Guardian) listed 21
 // features across the paid tiers. An audit against the codebase found that
@@ -14,20 +14,31 @@
 // So: one free tier, one paid tier, and a hard rule enforced by the types below
 // — a feature that does not exist cannot appear in a list of what you get.
 //
+// The paid tier was briefly called "Supporter" and pitched as funding the work.
+// The team rejected that (along with "Early Access"): people are buying a
+// service, not backing a project, and the name should say which service. Hence
+// "Priority" — it names the thing you actually get when the queue is busy.
+//
 // ## What the paid tier actually buys
 //
 // A scheduling policy. `SchedulingItem` in services/api.ts already carries
-// `schedule_interval_seconds`, `priority` and `manual_quota_limit`, and
+// `schedule_interval_seconds` and `priority`, and
 // `PUT /admin/users/{pubkey}/scheduling` already moves people between policies.
-// So the difference is enforced server-side — supporters really are recalculated
-// weekly and really do run ahead of the free lane. Nothing here is cosmetic, and
-// there is deliberately no client-side gating in this module: see
+// So the difference is enforced server-side — Priority really is recalculated
+// weekly (7 days) against the free default's ~2 months (60 days), and really
+// does run ahead of the free lane. Nothing here is cosmetic, and there is
+// deliberately no client-side gating in this module: see
 // docs/payments/FLASH-INTEGRATION.md.
+//
+// NOT a difference: manual recalculation. It stays unlimited on both tiers,
+// rate-limited only to stop abuse (`manual_quota_limit` already defaults to 20
+// per week server-side). A quota that makes someone think before clicking is
+// friction we are choosing not to sell.
 //
 // Prices are USD-primary in **minor units** to match Flash (`data-amount="200"`
 // → $2.00). `satsPerMonth` is kept for the Lightning rail, which is not wired.
 
-export type TierId = "free" | "supporter";
+export type TierId = "free" | "priority";
 
 /** Subscription lifecycle state. Mirrors Flash's dunning + our backend record. */
 export type SubscriptionStatus = "none" | "active" | "past_due" | "grace" | "canceled";
@@ -108,6 +119,9 @@ export interface TierInfo {
  */
 export const TIER_FEATURES: Record<string, FeatureDef> = {
   // --- Live, and free for everyone -----------------------------------------
+  // Free states its own schedule rather than leaving it implied by the absence
+  // of Priority's. "About every two months" is the 60-day default policy.
+  "bimonthly-recalc": { key: "bimonthly-recalc", label: "Scores recalculated about every two months", status: "live" },
   "ranked-search": { key: "ranked-search", label: "Search ranked by your network", status: "live" },
   "spam-filter": { key: "spam-filter", label: "Spam and impersonator filtering", status: "live" },
   reporting: { key: "reporting", label: "Report accounts that shouldn't be trusted", status: "live" },
@@ -115,14 +129,17 @@ export const TIER_FEATURES: Record<string, FeatureDef> = {
   "score-badges": { key: "score-badges", label: "Verification Scores on every profile", status: "live" },
   "network-discovery": { key: "network-discovery", label: "Discover who's new in your network", status: "live" },
 
-  // --- Live, and what supporting gets you ----------------------------------
-  // Each of these is a field on the Supporter scheduling policy, so they are
+  // --- Live, and what Priority gets you ------------------------------------
+  // Each of these is a field on the Priority scheduling policy, so they are
   // enforced by the scheduler rather than by the UI.
-  "weekly-recalc": { key: "weekly-recalc", label: "Your scores recalculated every week, automatically", status: "live" },
-  "queue-priority": { key: "queue-priority", label: "Priority in the calculation queue", status: "live" },
-  "manual-allowance": { key: "manual-allowance", label: "More on-demand recalculations", status: "live" },
+  //
+  // Two came off after the team's review. "More on-demand recalculations" is
+  // gone because manual is unlimited for everyone now. "This price stays yours"
+  // is gone because it means "you're early, be rewarded" — the framing they
+  // rejected — and it quietly commits us never to reprice early payers.
+  "weekly-recalc": { key: "weekly-recalc", label: "Scores recalculated every week, automatically", status: "live" },
+  "queue-priority": { key: "queue-priority", label: "Your runs go first when the queue is busy", status: "live" },
   "priority-support": { key: "priority-support", label: "Priority support", status: "live" },
-  "locked-price": { key: "locked-price", label: "This price stays yours as more ships", status: "live" },
 
   // --- Planned. Roadmap only. Never listed as included. ---------------------
   //
@@ -166,6 +183,7 @@ export const TIERS: Record<TierId, TierInfo> = {
     satsPerMonth: 0,
     tagline: "everything you need to start",
     featureKeys: [
+      "bimonthly-recalc",
       "ranked-search",
       "spam-filter",
       "reporting",
@@ -175,30 +193,30 @@ export const TIERS: Record<TierId, TierInfo> = {
     ],
     cta: { current: "Your plan", upgrade: "Get started free" },
   },
-  supporter: {
-    id: "supporter",
-    name: "Supporter",
+  priority: {
+    id: "priority",
+    name: "Priority",
     order: 1,
     usdMinorPerMonth: 200,
     satsPerMonth: 2100,
-    tagline: "help build it, and get there first",
-    note: "Early supporters fund the work. Everything in Free, plus a head start.",
+    tagline: "your scores, kept current",
+    // Set-and-forget is what weekly scheduling MEANS, so it belongs here rather
+    // than as a fourth bullet restating the first.
+    note: "Everything in Free, on a weekly schedule you never have to remember.",
     featureKeys: [
       "weekly-recalc",
       "queue-priority",
-      "manual-allowance",
       "priority-support",
-      "locked-price",
     ],
-    cta: { current: "Your plan", upgrade: "Become a supporter" },
+    cta: { current: "Your plan", upgrade: "Get Priority" },
   },
 };
 
 /** Tiers low → high. Drives rendering order. */
-export const TIER_ORDER: TierId[] = ["free", "supporter"];
+export const TIER_ORDER: TierId[] = ["free", "priority"];
 
 /** The one tier that can be bought. */
-export const PAID_TIER: TierId = "supporter";
+export const PAID_TIER: TierId = "priority";
 
 export function tierRank(id: TierId): number {
   return TIERS[id].order;
