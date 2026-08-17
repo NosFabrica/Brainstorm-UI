@@ -288,6 +288,56 @@ never, which is exactly why it cannot depend on someone remembering to look.
 - **Upgrade** is free → Priority and nothing else, so it is the pricing page and
   the existing checkout. The account menu already routes non-prioritys there.
 
+## Where users and admins see all this
+
+### Users: `/insights` is the account page
+
+It already calls itself one — *"your account standing, and exactly how and when
+your scores were computed"* — and already shows last calculated, duration, status
+and publication state. Plan, next scheduled run and calculation history join it
+there. The split to hold: **Settings holds what you CHANGE, Insights holds what
+you CHECK.**
+
+`GET /user/history` already exists in `api.ts` and nothing renders it. That is
+the calculation history, already built and unused.
+
+**Only show what we can stand behind.** No transactions or receipt panel until
+Flash's `/get_user_subscription_details` transactions array is verified — an
+unverified receipt is worse than no receipt. Plan, status, renewal date, run
+history: all things we know.
+
+**The free user's plan row states facts and links once.** Last calculated, next
+run, and a quiet "Priority recalculates every 7 days". No urgency, no colour, no
+repetition — someone seeing "47 days ago" next to "next run in 13 days" already
+has the argument. This is the page people open when something feels wrong; it
+must not sell at them.
+
+### Admins: link out to Flash rather than mirroring it
+
+Give the admin user view a **deep link into the Flash vault** so anyone
+investigating a payment lands on the authoritative source in one click, instead
+of reading our copy of it. Service detail today:
+
+```
+https://dev.vault.paywithflash.com/subscriptions/services/{serviceId}
+```
+
+A per-subscriber deep link would be better — ask Flash whether one exists.
+
+This is deliberately not a proxy. Flash took the money, so Flash is authoritative
+about it; a second ledger we maintain is a reconciliation problem invented to
+solve a display problem.
+
+### Not building: user-chosen run timing
+
+`schedule_interval_seconds` lives on the **policy**, not the user, and
+`PUT /admin/users/{pubkey}/scheduling` assigns a policy rather than a time. Per-user
+timing is a new backend concept, it fights the scheduler's job of spreading load,
+and manual recalculation is already unlimited — so "run it when I want" is a
+button anyone can press. The valuable thing in that space is a **completion
+notice** ("recalculated, 3 people moved into your verified range"), which needs no
+scheduling concept and fits the assistant direction already on the roadmap.
+
 ## Configuration
 
 Client-side, three runtime vars. None are secrets — the signup page is public
