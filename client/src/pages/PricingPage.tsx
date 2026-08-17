@@ -42,7 +42,12 @@ export default function PricingPage() {
           // Short on purpose, but not bare. The second sentence earns its place
           // by answering the thought "60 days" provokes, at the moment it lands —
           // without it the free tier reads as rationed rather than unhurried.
-          title={<>Same product. <span className="text-brand-link">Two speeds.</span></>}
+          // "Same product" was our word for the thing, not the reader's — it
+          // appears nowhere else in user-facing copy, only in comments and legal
+          // boilerplate. "Everything included" was the other candidate and is an
+          // overclaim: Free lacks queue priority and priority support. Features
+          // are what's genuinely identical; speed and support are what differ.
+          title={<>Same features. <span className="text-brand-link">Two speeds.</span></>}
           subtitle="Scores recalculated every 60 days on Free, every 7 on Priority. You can recalculate manually any time, on either plan."
           testId="section-pricing-header"
         />
