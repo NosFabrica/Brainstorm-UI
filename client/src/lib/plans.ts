@@ -96,14 +96,29 @@ export const TIER_FEATURES: Record<string, FeatureDef> = {
   "locked-price": { key: "locked-price", label: "This price stays yours as more ships", status: "live" },
 
   // --- Planned. Roadmap only. Never listed as included. ---------------------
-  "fresh-scores": { key: "fresh-scores", label: "Scores that update continuously", status: "planned" },
-  "full-history": { key: "full-history", label: "Your full history, searchable", status: "planned" },
-  "semantic-search": { key: "semantic-search", label: "Search your notes by meaning", status: "planned" },
-  "network-alerts": { key: "network-alerts", label: "Alerts and saved searches", status: "planned" },
-  "custom-roots": { key: "custom-roots", label: "Choose whose judgement counts most", status: "planned" },
-  "algorithm-knobs": { key: "algorithm-knobs", label: "Tune how scoring works for you", status: "planned" },
-  "identity-watch": { key: "identity-watch", label: "Watch for accounts impersonating you", status: "planned" },
-  "portable-credential": { key: "portable-credential", label: "Take your reputation to other apps", status: "planned" },
+  //
+  // Every item here is an argument GrapeRank already accepts and we don't yet
+  // expose. `GrapeRankParams` is a per-run record carrying rigor, the
+  // attenuation factor, and a rating + confidence for each of follow / mute /
+  // report; the engine takes an `observer` as the seed. So this is surfacing
+  // knobs that exist, not inventing capabilities — which is why it can be
+  // written down without hedging.
+  //
+  // Four things were cut from the earlier list rather than reworded:
+  //   • "Scores that update continuously" — that is the paid tier's weekly
+  //     recalculation with a bigger number on it. Selling both makes what you
+  //     actually buy look like a lesser version of what you don't.
+  //   • "Alerts" — the dashboard already flags accounts in your network, free.
+  //   • "Search your notes by meaning" — needs an embedding index that does not
+  //     exist anywhere in the stack.
+  //   • "Take your reputation to other apps" — already shipped; Settings
+  //     publishes the NIP-85 declaration today.
+  "custom-roots": { key: "custom-roots", label: "Choose whose follows your scores start from", status: "planned" },
+  "signal-weights": { key: "signal-weights", label: "Decide how much a mute or a report counts", status: "planned" },
+  "trust-distance": { key: "trust-distance", label: "Decide how far trust travels from you", status: "planned" },
+  "score-preview": { key: "score-preview", label: "Try a change and see who it moves, before you keep it", status: "planned" },
+  "impersonation-watch": { key: "impersonation-watch", label: "Hear when someone starts copying your profile", status: "planned" },
+  "saved-searches": { key: "saved-searches", label: "Save a search and hear when someone new matches it", status: "planned" },
 };
 
 export const TIERS: Record<TierId, TierInfo> = {
