@@ -43,6 +43,7 @@ import {
   Clock,
   RefreshCw,
   Info,
+  CreditCard,
   Code2,
   Mail,
   HelpCircle,
@@ -114,10 +115,11 @@ import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
 import nostrLogo from "@assets/download_1774042580188.png";
+import { BillingCard } from "@/components/billing/BillingCard";
 import { BrainstormAssistantCard } from "@/components/BrainstormAssistantCard";
 import { TagRelaysCard } from "@/components/settings/TagRelaysCard";
 
-type SettingsTab = "profile" | "trust" | "about";
+type SettingsTab = "profile" | "trust" | "billing" | "about";
 
 // Placeholder agent prompts (the dev team will supply the final, working copy).
 const AGENT_SELFHOST_PROMPT = `You're helping me run my own copy of Brainstorm, an open-source
@@ -153,6 +155,11 @@ const inputCls =
 const TABS: { key: SettingsTab; label: string; icon: typeof User }[] = [
   { key: "profile", label: "Profile", icon: User },
   { key: "trust", label: "Trust & search", icon: ShieldCheck },
+  // Billing lives in Settings because Settings is where you CHANGE things —
+  // cancelling is the most consequential account action in the product, and it
+  // belongs next to the other irreversible ones rather than on a status page
+  // someone lands on while checking a date. The read-only half is on /insights.
+  { key: "billing", label: "Billing", icon: CreditCard },
   { key: "about", label: "About", icon: Info },
 ];
 
@@ -161,7 +168,7 @@ export default function SettingsPage() {
   const search = useSearch();
   const tabParam = new URLSearchParams(search).get("tab");
   const activeTab: SettingsTab =
-    tabParam === "trust" || tabParam === "about" ? tabParam : "profile";
+    tabParam === "trust" || tabParam === "billing" || tabParam === "about" ? tabParam : "profile";
   // Deep links into a specific control, so a "you can change this in Settings"
   // sentence elsewhere lands ON the thing rather than at the top of a tab:
   //   ?focus=backup      → Account > Back up
@@ -1754,6 +1761,12 @@ export default function SettingsPage() {
               <BrainstormAssistantCard variant="settings" lastCalculated={lastCalculated} />
               {networkAlertsCard}
               {advancedSection}
+            </div>
+          )}
+
+          {activeTab === "billing" && (
+            <div className="space-y-6" data-testid="tab-content-billing">
+              <BillingCard />
             </div>
           )}
 
