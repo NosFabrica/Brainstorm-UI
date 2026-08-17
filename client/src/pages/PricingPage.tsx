@@ -39,11 +39,11 @@ export default function PricingPage() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
         <PageHeader
           kicker="Pricing"
-          // Short on purpose. "Every other feature is identical" and "manual
-          // recalculation is unlimited" were both already bullets on the cards
-          // below — saying them here too is the over-explaining, not the detail.
+          // Short on purpose, but not bare. The second sentence earns its place
+          // by answering the thought "60 days" provokes, at the moment it lands —
+          // without it the free tier reads as rationed rather than unhurried.
           title={<>Same product. <span className="text-brand-link">Two speeds.</span></>}
-          subtitle="Scores recalculated every 60 days on Free, every 7 on Priority."
+          subtitle="Scores recalculated every 60 days on Free, every 7 on Priority. You can recalculate manually any time, on either plan."
           testId="section-pricing-header"
         />
 
