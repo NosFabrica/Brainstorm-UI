@@ -42,18 +42,24 @@ export default function PricingPage() {
           // Leads with what staleness costs rather than with a rate, because the
           // rate was never the reason to pay — a filter that lags reality is.
           //
+          // Says it in both directions on purpose. The first draft only described
+          // a bad actor slipping through, which made the pitch fear and made Free
+          // sound unsafe — but the lag is symmetrical: someone EARNING your
+          // network's trust is equally invisible until the next run. Leading with
+          // the gain is both nicer and more accurate about what a recalculation
+          // is for.
+          //
           // This is the one line on the page written to persuade rather than
-          // describe, so it is held to a harder standard: it is checkable. On the
-          // 60-day free policy someone reported today genuinely is invisible to
-          // you until the next run. If either interval changes, this sentence
-          // changes with it or it becomes a lie.
+          // describe, so it is held to a harder standard: it is checkable. Both
+          // halves are literally true of a 60-day interval. If either interval
+          // changes, this sentence changes with it or it becomes a lie.
           //
           // The old header spent its second sentence telling people they could
           // recalculate manually and needn't pay. True, and still true — it is a
           // bullet in Free's list — but prime real estate is the wrong place to
           // rebut your own pitch.
           title={<>Your scores are only as current as <span className="text-brand-link">their last update.</span></>}
-          subtitle="Someone your network reports today still looks clean to you until your next recalculation. On Free that can be 60 days. On Priority, 7."
+          subtitle="People earn your network's trust every day, and some lose it. Free catches up every 60 days. Priority, every 7."
           testId="section-pricing-header"
         />
 
