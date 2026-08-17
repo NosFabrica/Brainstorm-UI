@@ -52,6 +52,13 @@ export function Footer({ minimal = false }: { minimal?: boolean }) {
             <button type="button" onClick={() => setLocation('/what-is-wot')} className={linkClass} data-testid="button-learn-more">
               What is Web of Trust?
             </button>
+            {/* The footer is where people look to find out whether something
+                costs money. Sits here rather than in the signup funnel on
+                purpose: a price shown before the product has demonstrated
+                itself loses people who would have paid a week later. */}
+            <button type="button" onClick={() => setLocation('/pricing')} className={linkClass} data-testid="link-pricing">
+              Pricing
+            </button>
           </nav>
 
           {/* Partners — NosFabrica badge → Megistus lockup (black art; Megistus inverts in dark) */}
