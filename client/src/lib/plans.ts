@@ -186,7 +186,7 @@ export const TIERS: Record<TierId, TierInfo> = {
     order: 0,
     usdMinorPerMonth: 0,
     satsPerMonth: 0,
-    tagline: "nothing held back, just less often",
+    tagline: "for checking someone occasionally",
     featureKeys: [
       "recalc-60d",
       "manual-unlimited",
@@ -205,7 +205,7 @@ export const TIERS: Record<TierId, TierInfo> = {
     order: 1,
     usdMinorPerMonth: 200,
     satsPerMonth: 2100,
-    tagline: "recalculated weekly, without asking",
+    tagline: "for acting on what you see",
     // Set-and-forget is what weekly scheduling MEANS, so it belongs here rather
     // than as a fourth bullet restating the first. Stating both intervals makes
     // the difference arithmetic instead of adjectival.

@@ -39,16 +39,21 @@ export default function PricingPage() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
         <PageHeader
           kicker="Pricing"
-          // Short on purpose, but not bare. The second sentence earns its place
-          // by answering the thought "60 days" provokes, at the moment it lands —
-          // without it the free tier reads as rationed rather than unhurried.
-          // "Same product" was our word for the thing, not the reader's — it
-          // appears nowhere else in user-facing copy, only in comments and legal
-          // boilerplate. "Everything included" was the other candidate and is an
-          // overclaim: Free lacks queue priority and priority support. Features
-          // are what's genuinely identical; speed and support are what differ.
-          title={<>Same features. <span className="text-brand-link">Two speeds.</span></>}
-          subtitle="Scores recalculated every 60 days on Free, every 7 on Priority. You can recalculate manually any time, on either plan."
+          // Leads with what staleness costs rather than with a rate, because the
+          // rate was never the reason to pay — a filter that lags reality is.
+          //
+          // This is the one line on the page written to persuade rather than
+          // describe, so it is held to a harder standard: it is checkable. On the
+          // 60-day free policy someone reported today genuinely is invisible to
+          // you until the next run. If either interval changes, this sentence
+          // changes with it or it becomes a lie.
+          //
+          // The old header spent its second sentence telling people they could
+          // recalculate manually and needn't pay. True, and still true — it is a
+          // bullet in Free's list — but prime real estate is the wrong place to
+          // rebut your own pitch.
+          title={<>Your scores are only as current as <span className="text-brand-link">their last update.</span></>}
+          subtitle="Someone your network reports today still looks clean to you until your next recalculation. On Free that can be 60 days. On Priority, 7."
           testId="section-pricing-header"
         />
 
