@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, Sparkles, ArrowRight, Loader2 } from "lucide-react";
+import { Check, ArrowRight, Loader2 } from "lucide-react";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
 import { PageHeader } from "@/components/PageHeader";
 import { Card } from "@/components/ui/card";
@@ -61,7 +61,7 @@ export default function PricingPage() {
             counted anywhere — it is a statement of intent, and it has to read
             like one. */}
         <section className="mt-12" data-testid="section-roadmap">
-          <SectionHeader kicker="What your support funds" icon={Sparkles} />
+          <SectionHeader kicker="What your support funds" />
           <p className="mt-3 text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl">
             None of this exists yet. It's what we're building next, and it's why
             the supporter tier is worth having now rather than later. Supporters
