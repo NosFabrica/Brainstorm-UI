@@ -50,7 +50,36 @@ export interface FeatureDef {
    * something unbuilt — `liveFeatures()` is the only accessor the page uses.
    */
   status: "live" | "planned";
+  /**
+   * Roadmap grouping. Planned items only — a flat list of ten reads as a wish
+   * list, where three named directions read as a plan.
+   */
+  theme?: RoadmapTheme;
 }
+
+export type RoadmapTheme = "search" | "assistant" | "scoring";
+
+/** Heading + one line of framing per roadmap group, in display order. */
+export const ROADMAP_THEMES: { key: RoadmapTheme; title: string; blurb: string }[] = [
+  {
+    key: "search",
+    title: "Search that reaches past profiles",
+    blurb:
+      "Today you can find people. Next you'll be able to find what they actually wrote — ranked the same way, by the network you trust rather than by whoever shouted loudest.",
+  },
+  {
+    key: "assistant",
+    title: "An assistant of your own",
+    blurb:
+      "Every account gets an assistant with its own identity on Nostr. Its job is to watch the parts of your network you don't have time to, and to tell you the things worth knowing — on your terms, not a feed's.",
+  },
+  {
+    key: "scoring",
+    title: "Scoring you can shape",
+    blurb:
+      "The scoring engine already takes these as settings; today they're ours and not yours. Opening them up is what makes a score yours instead of one you're handed.",
+  },
+];
 
 export interface TierInfo {
   id: TierId;
@@ -113,12 +142,19 @@ export const TIER_FEATURES: Record<string, FeatureDef> = {
   //     exist anywhere in the stack.
   //   • "Take your reputation to other apps" — already shipped; Settings
   //     publishes the NIP-85 declaration today.
-  "custom-roots": { key: "custom-roots", label: "Choose whose follows your scores start from", status: "planned" },
-  "signal-weights": { key: "signal-weights", label: "Decide how much a mute or a report counts", status: "planned" },
-  "trust-distance": { key: "trust-distance", label: "Decide how far trust travels from you", status: "planned" },
-  "score-preview": { key: "score-preview", label: "Try a change and see who it moves, before you keep it", status: "planned" },
-  "impersonation-watch": { key: "impersonation-watch", label: "Hear when someone starts copying your profile", status: "planned" },
-  "saved-searches": { key: "saved-searches", label: "Save a search and hear when someone new matches it", status: "planned" },
+  "content-search": { key: "content-search", label: "Search what people wrote, not just who they are", status: "planned", theme: "search" },
+  "search-ranking": { key: "search-ranking", label: "Results ordered by the people you trust, not by volume", status: "planned", theme: "search" },
+  "saved-searches": { key: "saved-searches", label: "Save a search and hear when something new matches it", status: "planned", theme: "search" },
+
+  "assistant-watch": { key: "assistant-watch", label: "An assistant that watches your network while you're away", status: "planned", theme: "assistant" },
+  "assistant-trends": { key: "assistant-trends", label: "What's moving in your corner of Nostr, before it's obvious", status: "planned", theme: "assistant" },
+  "assistant-rules": { key: "assistant-rules", label: "Tell it what to watch for — and how loudly to tell you", status: "planned", theme: "assistant" },
+  "impersonation-watch": { key: "impersonation-watch", label: "Hear the moment someone starts copying your profile", status: "planned", theme: "assistant" },
+
+  "custom-roots": { key: "custom-roots", label: "Choose whose follows your scores start from", status: "planned", theme: "scoring" },
+  "signal-weights": { key: "signal-weights", label: "Decide how much a mute or a report counts", status: "planned", theme: "scoring" },
+  "trust-distance": { key: "trust-distance", label: "Decide how far trust travels from you", status: "planned", theme: "scoring" },
+  "score-preview": { key: "score-preview", label: "Try a change and see who it moves, before you keep it", status: "planned", theme: "scoring" },
 };
 
 export const TIERS: Record<TierId, TierInfo> = {
@@ -189,6 +225,15 @@ export function liveFeatures(id: TierId): FeatureDef[] {
 /** Everything planned, for the "what your support funds" section. */
 export function plannedFeatures(): FeatureDef[] {
   return Object.values(TIER_FEATURES).filter((f) => f.status === "planned");
+}
+
+/** Planned work grouped by direction, in `ROADMAP_THEMES` order. */
+export function plannedByTheme(): { key: RoadmapTheme; title: string; blurb: string; items: FeatureDef[] }[] {
+  const planned = plannedFeatures();
+  return ROADMAP_THEMES.map((t) => ({
+    ...t,
+    items: planned.filter((f) => f.theme === t.key),
+  })).filter((g) => g.items.length > 0);
 }
 
 /** "$2" / "Free" — from minor units, so it can't drift from what Flash charges. */

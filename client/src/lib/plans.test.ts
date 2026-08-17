@@ -6,6 +6,7 @@ import {
   PAID_TIER,
   liveFeatures,
   plannedFeatures,
+  plannedByTheme,
   formatPrice,
   tierMeetsRequirement,
 } from "./plans";
@@ -39,6 +40,15 @@ describe("plans — the promise boundary", () => {
       .map((k) => TIER_FEATURES[k])
       .filter((f) => f && f.status === "live");
     expect(rendered.map((f) => f.key)).not.toContain(planned.key);
+  });
+
+  it("gives every planned item a theme, so none vanishes from the roadmap", () => {
+    // plannedByTheme() filters by theme; an item without one renders nowhere,
+    // which is a silent disappearance rather than a visible mistake.
+    const themed = plannedByTheme().flatMap((g) => g.items.map((f) => f.key));
+    for (const f of plannedFeatures()) {
+      expect(themed, `${f.key} has no theme`).toContain(f.key);
+    }
   });
 
   it("every tier lists at least one real thing", () => {
