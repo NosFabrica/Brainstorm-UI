@@ -39,8 +39,11 @@ export default function PricingPage() {
       <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-10">
         <PageHeader
           kicker="Pricing"
-          title={<>Every account gets the full product. <span className="text-brand-link">Plans differ only in pace.</span></>}
-          subtitle="Brainstorm recalculates your Verification Score across your network on a fixed schedule — every 60 days on Free, every 7 days on Priority. Every other feature is identical, and manual recalculation is unlimited on both."
+          // Short on purpose. "Every other feature is identical" and "manual
+          // recalculation is unlimited" were both already bullets on the cards
+          // below — saying them here too is the over-explaining, not the detail.
+          title={<>Same product. <span className="text-brand-link">Two speeds.</span></>}
+          subtitle="Scores recalculated every 60 days on Free, every 7 on Priority."
           testId="section-pricing-header"
         />
 
