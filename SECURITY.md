@@ -25,6 +25,13 @@ Brainstorm runs across several hostnames. They share a small number of open-sour
 different release stages, which is why they resemble one another — **they are not clones of one
 another operated by different parties.** Every host below is operated by the same team.
 
+The canonical inventory of the estate — organizations, repositories, and hostnames — is
+[`ECOSYSTEM.md`](https://github.com/NosFabrica/protocols/blob/main/ECOSYSTEM.md) in
+[`NosFabrica/protocols`](https://github.com/NosFabrica/protocols), the repository that also houses
+the estate's shared protocol specifications. The tables below are the security-facing attestation of
+that inventory, scoped to this document's purpose; if they ever disagree with `ECOSYSTEM.md`, that
+file is right and this one has a bug.
+
 ### Product UI — [`NosFabrica/Brainstorm-UI`](https://github.com/NosFabrica/Brainstorm-UI) (this repository)
 
 | Host | Role |
