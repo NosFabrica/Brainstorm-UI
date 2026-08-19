@@ -326,19 +326,25 @@ export function AccountMenuBody({ user, isAdmin, active, onNavigate, onInvite, o
           still linked from where curiosity actually starts — About, the footer,
           onboarding, the tags explainer, the connection lists and the
           flagged-profile banner. Ten routes in; this was the worst of them. */}
+      {/* Ordered by whose interest each row serves, theirs first. A menu that
+          opens with our asks (invite, upgrade) reads as serving us — fatal in a
+          trust product. So: the user's own state first, then the one offer,
+          then growth, then utilities.
+
+          1. Insights — the thing you CHECK, and the most-opened row here. Also
+             the only always-on door to the account page: the dashboard link is
+             11px and gated behind NIP-85 activation.
+          2. Get Priority — directly under Insights on purpose: Insights shows
+             the fact (your schedule, your staleness), this row is the response.
+             Fact-then-offer, the same adjacency the whole branch uses. Hidden
+             for payers — no "Billing" twin either; payers read their plan on
+             Insights and change it in Settings → Billing.
+          3. Invite friends — the growth loop, and stronger AFTER someone has
+             engaged with their own standing than as a cold opener.
+          4. Settings, then Help — utilities live at the bottom by convention,
+             ordered by frequency. */}
       <div className="p-1.5">
-        <MenuRow icon={UserPlus} label="Invite friends" onClick={onInvite} testId="dropdown-invite" />
-        {/* Insights is ALWAYS here. It is the account page — plan, next
-            recalculation, history — and it is meaningful from the first minute
-            even when scores aren't ready. Its only other entry point is an 11px
-            link on the dashboard, gated behind NIP-85 activation, so a free
-            account that hasn't published could not reach its own plan at all. */}
         <MenuRow icon={Gauge} label="Insights" onClick={() => onNavigate("/insights")} testId="dropdown-insights" />
-        {/* Only for people who aren't paying. There is no "Billing" row: someone
-            already paying reads their plan on Insights and changes it in
-            Settings → Billing, and two rows leading to the same place is a menu
-            that doesn't know what it's for. Offering to sell the thing they
-            already bought is worse. */}
         {!isPaid && (
           // NOT a lightning bolt. On a Nostr client ⚡ means zaps and Lightning,
           // and Priority is billed by card — the icon implied a payment rail we
@@ -346,8 +352,9 @@ export function AccountMenuBody({ user, isAdmin, active, onNavigate, onInvite, o
           // recalculation schedule.
           <MenuRow icon={CalendarClock} label={`Get ${TIERS[PAID_TIER].name}`} onClick={() => onNavigate("/pricing")} testId="dropdown-get-priority" />
         )}
-        <MenuRow icon={HelpCircle} label="Help & FAQ" onClick={() => onNavigate("/faq")} testId="dropdown-faq" />
+        <MenuRow icon={UserPlus} label="Invite friends" onClick={onInvite} testId="dropdown-invite" />
         <MenuRow icon={SettingsIcon} label="Settings" onClick={() => onNavigate("/settings")} testId="dropdown-settings" />
+        <MenuRow icon={HelpCircle} label="Help & FAQ" onClick={() => onNavigate("/faq")} testId="dropdown-faq" />
       </div>
 
       {/* Appearance — compact full-width segmented row */}
