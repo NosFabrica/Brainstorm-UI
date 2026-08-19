@@ -182,10 +182,10 @@ export function VerificationCoin({
   // tier as a compact status dot, level as a slim pill hugging its five pips.
   const pipCount = TIER_STEP[tier];
   const dotSize = Math.max(12, Math.round(size * 0.55));
-  const pillH = Math.max(14, Math.round(size * 0.55));
-  const pipSize = Math.max(3, Math.round(pillH * 0.28));
-  const pipGap = Math.max(2, Math.round(pillH * 0.16));
-  const pillPadX = Math.round(pillH * 0.38);
+  const pillH = Math.max(12, Math.round(size * 0.44));
+  const pipSize = Math.max(3, Math.round(pillH * 0.26));
+  const pipGap = Math.max(2, Math.round(pillH * 0.15));
+  const pillPadX = Math.round(pillH * 0.32);
   const compact = hasScore && displayMode !== "number";
   const frame =
     !compact
