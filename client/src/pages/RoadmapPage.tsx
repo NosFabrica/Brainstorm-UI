@@ -29,9 +29,10 @@ import { plannedByTheme, type RoadmapTheme } from "@/lib/plans";
  *
  * - A large faint numeral per card. The closing note says "the order we think
  *   matters" — the numbering SHOWS that instead of asking anyone to read it.
- * - One hue per direction (cyan / purple / emerald), used on the icon tile and
- *   the item icons. Colour as category, per the brand rule — communicate, not
- *   decorate. Three directions is exactly the scale where hue still reads.
+ * - One hue per direction (cyan / purple / emerald), carried by the item
+ *   icons. Colour as category, per the brand rule — communicate, not decorate.
+ *   (Header icon tiles existed briefly; Benjamin cut them — the numeral and
+ *   the title do that job, and the tiles were one identity too many.)
  * - An icon per item. Eleven small glyphs beat eleven identical dots because
  *   they give each line a shape to remember it by before it's been read.
  *
@@ -46,28 +47,25 @@ import { plannedByTheme, type RoadmapTheme } from "@/lib/plans";
 const THEME_META: Record<
   RoadmapTheme,
   {
+    /** Per-item fallback when a feature key has no glyph of its own. */
     icon: ComponentType<{ className?: string }>;
     numeral: string;
-    tile: string;
     itemIcon: string;
   }
 > = {
   search: {
     icon: Search,
     numeral: "01",
-    tile: "bg-brand-accent/10 text-brand-accent",
     itemIcon: "text-brand-accent",
   },
   assistant: {
     icon: Bot,
     numeral: "02",
-    tile: "bg-brand-primary/10 text-brand-primary dark:text-brand-link",
     itemIcon: "text-brand-primary dark:text-brand-link",
   },
   scoring: {
     icon: SlidersHorizontal,
     numeral: "03",
-    tile: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400",
     itemIcon: "text-emerald-600 dark:text-emerald-400",
   },
 };
@@ -101,7 +99,6 @@ export default function RoadmapPage() {
         <div className="mt-8 grid gap-4 md:grid-cols-3" data-testid="roadmap-list">
           {plannedByTheme().map((group) => {
             const meta = THEME_META[group.key];
-            const ThemeIcon = meta.icon;
             return (
               <Card
                 key={group.key}
@@ -117,12 +114,8 @@ export default function RoadmapPage() {
                   {meta.numeral}
                 </span>
 
-                <div className={`inline-flex h-9 w-9 items-center justify-center rounded-xl ${meta.tile}`}>
-                  <ThemeIcon className="h-[18px] w-[18px]" />
-                </div>
-
                 <h2
-                  className="mt-3 text-[15px] font-bold text-slate-900 dark:text-slate-100 tracking-tight"
+                  className="text-[15px] font-bold text-slate-900 dark:text-slate-100 tracking-tight"
                   style={{ fontFamily: "var(--font-display)" }}
                 >
                   {group.title}
