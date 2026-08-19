@@ -23,7 +23,7 @@ import { TIERS, PAID_TIER, formatPrice, nextScheduledLabel, type SubscriptionSta
  * wrong into a page that sells at them.
  */
 export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null }) {
-  const { tier, status, currentPeriodEnd, isLoading } = useSubscription();
+  const { tier, status, currentPeriodEnd, rail, isLoading } = useSubscription();
   const info = TIERS[tier];
   const paid = tier === PAID_TIER;
 
@@ -70,6 +70,10 @@ export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null
           <Row label={status === "canceled" ? "Access until" : "Renews"}>
             {fmtDate(currentPeriodEnd)}
           </Row>
+        )}
+
+        {paid && rail && (
+          <Row label="Paid by">{rail === "card" ? "Card" : "Lightning"}</Row>
         )}
       </dl>
 
