@@ -104,6 +104,7 @@ export async function cancelSubscription(): Promise<void> {
 export function setMockSubscription(
   tier: TierId,
   status: SubscriptionStatus = "active",
+  rail: Rail = "card",
 ): void {
   const paid = tier !== "free";
   const sub: Subscription = {
@@ -112,7 +113,7 @@ export function setMockSubscription(
     currentPeriodEnd: paid
       ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
       : null,
-    rail: paid ? "card" : null,
+    rail: paid ? rail : null,
   };
   try {
     localStorage.setItem(MOCK_KEY, JSON.stringify(sub));

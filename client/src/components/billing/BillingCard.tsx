@@ -31,7 +31,7 @@ import { TIERS, PAID_TIER, formatPrice, type SubscriptionStatus } from "@/lib/pl
  * this button in production.
  */
 export function BillingCard() {
-  const { tier, status, currentPeriodEnd, isLoading } = useSubscription();
+  const { tier, status, currentPeriodEnd, rail, isLoading } = useSubscription();
   const info = TIERS[tier];
   const paid = tier === PAID_TIER;
   const qc = useQueryClient();
@@ -85,6 +85,9 @@ export function BillingCard() {
         {paid && <> at {formatPrice(tier)} a month</>}
         {paid && currentPeriodEnd && (
           <>, {status === "canceled" ? "ending" : "renewing"} {fmtDate(currentPeriodEnd)}</>
+        )}
+        {paid && rail && (
+          <> — paid by {rail === "card" ? "card" : "Lightning"}</>
         )}
         .{" "}
         <Link href="/insights" className="font-medium text-brand-link hover:underline" data-testid="billing-insights-link">
