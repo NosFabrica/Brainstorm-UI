@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { Loader2, ArrowRight } from "lucide-react";
+import { Loader2, ArrowRight, CreditCard, Zap, Receipt } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
@@ -8,27 +8,33 @@ import { Button } from "@/components/ui/button";
 import { useSubscription } from "@/hooks/useSubscription";
 import { cancelSubscription } from "@/services/subscription";
 import { useToast } from "@/hooks/use-toast";
-import { TIERS, PAID_TIER, formatPrice, type SubscriptionStatus } from "@/lib/plans";
+import { TIERS, PAID_TIER, type SubscriptionStatus, type Rail } from "@/lib/plans";
 
 /**
  * Billing in Settings, because Settings is where you CHANGE things.
  *
- * The read-only half — plan, next scheduled run, renewal date, calculation
- * history — lives on /insights, which is where you CHECK things. That split is
- * the whole reason this card is short: it carries the two actions (change plan,
- * cancel) and a one-line statement of what you're on, then points at Insights
- * for the detail rather than duplicating it.
+ * The read-only half — schedule, next run, calculation history — lives on
+ * /insights, which is where you CHECK things. What belongs HERE is the money:
+ * and money surfaces have their own genre. People trust a billing page that
+ * looks like a statement — labelled rows, tabular figures, a payment method
+ * with an icon, cents on the amounts — and distrust one that chats at them.
+ * So this reads like a receipt, not a paragraph.
  *
- * Cancelling sits here rather than on Insights deliberately. It is the most
- * consequential account action in the product, and every other irreversible one
- * — key backup, provider deactivation — already lives in Settings. Somewhere
- * people arrive on purpose, not somewhere they land while checking a date.
+ * ## What the payments section can honestly show
  *
- * NOTE: cancellation calls our own `DELETE /user/subscription`, and the backend
- * then calls Flash. A card-only subscriber has no Flash login, so this is the
- * only path that can work — and it depends on Flash's cancel endpoint, which is
- * UNVERIFIED (docs/payments/FLASH-INTEGRATION.md). Confirm it before trusting
- * this button in production.
+ * We have no verified transaction feed yet (Flash's transactions endpoint is
+ * UNVERIFIED — docs/payments/FLASH-INTEGRATION.md). But an active paid period
+ * IMPLIES its opening payment: if your period ends Sep 18, you paid $2.00 a
+ * month before. That one derived row is shown, labelled as the current period.
+ * Full history arrives when the Flash integration is verified — the note says
+ * so rather than padding the table with fabricated rows.
+ *
+ * ## Cancellation
+ *
+ * Calls our own `DELETE /user/subscription`; the backend then calls Flash. A
+ * card-only subscriber has no Flash login, so this is the only path that can
+ * work — and it depends on Flash's cancel endpoint, which is UNVERIFIED.
+ * Confirm before trusting this button in production.
  */
 export function BillingCard() {
   const { tier, status, currentPeriodEnd, rail, isLoading } = useSubscription();
@@ -42,6 +48,11 @@ export function BillingCard() {
   // Past-due and grace can still cancel: someone whose card failed may want out
   // rather than to fix it, and refusing until they pay would be indefensible.
   const canCancel = paid && status !== "canceled" && status !== "none";
+
+  const amount = (info.usdMinorPerMonth / 100).toFixed(2);
+  const periodEnd = currentPeriodEnd ? new Date(currentPeriodEnd) : null;
+  // Monthly billing: the current period opened one month before it closes.
+  const periodStart = periodEnd ? addMonths(periodEnd, -1) : null;
 
   const doCancel = async () => {
     setBusy(true);
@@ -65,37 +76,104 @@ export function BillingCard() {
   };
 
   return (
-    <Card className="p-5 sm:p-6" data-testid="settings-billing-card">
-      <div className="flex items-center gap-2.5">
-        <h2
-          className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight"
-          style={{ fontFamily: "var(--font-display)" }}
+    <Card className="overflow-hidden" data-testid="settings-billing-card">
+      {/* Statement header */}
+      <div className="flex items-center justify-between gap-3 px-5 sm:px-6 pt-5 sm:pt-6 pb-4 border-b border-slate-100 dark:border-slate-800/60">
+        <div className="flex items-center gap-2.5">
+          <h2
+            className="text-base font-bold text-slate-900 dark:text-slate-100 tracking-tight"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            Billing
+          </h2>
+          {!isLoading && (
+            <Chip
+              tone={status === "active" ? "success" : status === "canceled" ? "neutral" : "warning"}
+              size="sm"
+              data-testid="billing-status"
+            >
+              {paid ? STATUS_LABEL[status] : "Free plan"}
+            </Chip>
+          )}
+        </div>
+        <Link
+          href="/insights"
+          className="text-[13px] font-medium text-brand-link hover:underline"
+          data-testid="billing-insights-link"
         >
-          Billing
-        </h2>
-        {!isLoading && status !== "active" && (
-          <Chip tone={status === "canceled" ? "neutral" : "warning"} size="sm" data-testid="billing-status">
-            {STATUS_LABEL[status]}
-          </Chip>
+          Schedule & history →
+        </Link>
+      </div>
+
+      {/* Account summary — labelled rows, statement-style */}
+      <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-3 px-5 sm:px-6 py-5 text-sm">
+        <Row label="Plan">
+          <span className="font-semibold" data-testid="billing-plan">{info.name}</span>
+        </Row>
+        <Row label="Amount">
+          <span className="tabular-nums" data-testid="billing-amount">
+            {paid ? `$${amount} / month` : "$0.00"}
+          </span>
+        </Row>
+        <Row label="Payment method">
+          {paid && rail ? <RailBadge rail={rail} /> : <span className="text-slate-400">—</span>}
+        </Row>
+        <Row label={status === "canceled" ? "Access until" : "Next invoice"}>
+          <span className="tabular-nums" data-testid="billing-next-invoice">
+            {paid && periodEnd ? (status === "canceled" ? fmtDate(periodEnd) : `${fmtDate(periodEnd)} · $${amount}`) : "—"}
+          </span>
+        </Row>
+      </dl>
+
+      {/* Payments — a real table, with only the row we can actually stand behind. */}
+      <div className="px-5 sm:px-6 pb-5">
+        <div className="flex items-center gap-1.5 mb-2">
+          <Receipt className="h-3.5 w-3.5 text-slate-400" />
+          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            Payments
+          </span>
+        </div>
+        <div className="rounded-xl border border-slate-100 dark:border-slate-800/60 overflow-hidden">
+          <table className="w-full text-[13px]">
+            <thead>
+              <tr className="bg-slate-50 dark:bg-slate-900/60 text-left text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                <th className="px-3 py-2 font-semibold">Date</th>
+                <th className="px-3 py-2 font-semibold">Description</th>
+                <th className="px-3 py-2 font-semibold">Method</th>
+                <th className="px-3 py-2 font-semibold text-right">Amount</th>
+              </tr>
+            </thead>
+            <tbody>
+              {paid && periodStart ? (
+                <tr className="text-slate-700 dark:text-slate-200" data-testid="billing-payment-row">
+                  <td className="px-3 py-2.5 tabular-nums whitespace-nowrap">{fmtDate(periodStart)}</td>
+                  <td className="px-3 py-2.5">
+                    {info.name} — {fmtDate(periodStart)} to {fmtDate(periodEnd!)}
+                  </td>
+                  <td className="px-3 py-2.5">{rail ? <RailBadge rail={rail} compact /> : "—"}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums font-medium">${amount}</td>
+                </tr>
+              ) : (
+                <tr>
+                  <td colSpan={4} className="px-3 py-5 text-center text-slate-400 dark:text-slate-500" data-testid="billing-no-payments">
+                    No payments — you're on the free plan.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {paid && (
+          <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
+            Full payment history will appear here once the Flash integration is
+            complete. Payments are processed by Flash — we never hold your card
+            details.
+          </p>
         )}
       </div>
 
-      <p className="mt-2 text-sm text-slate-600 dark:text-slate-300" data-testid="billing-summary">
-        You're on <span className="font-semibold text-slate-900 dark:text-slate-100">{info.name}</span>
-        {paid && <> at {formatPrice(tier)} a month</>}
-        {paid && currentPeriodEnd && (
-          <>, {status === "canceled" ? "ending" : "renewing"} {fmtDate(currentPeriodEnd)}</>
-        )}
-        {paid && rail && (
-          <> — paid by {rail === "card" ? "card" : "Lightning"}</>
-        )}
-        .{" "}
-        <Link href="/insights" className="font-medium text-brand-link hover:underline" data-testid="billing-insights-link">
-          See your schedule and history →
-        </Link>
-      </p>
-
-      <div className="mt-4 flex flex-wrap items-center gap-2">
+      {/* Actions */}
+      <div className="flex flex-wrap items-center gap-2 px-5 sm:px-6 py-4 border-t border-slate-100 dark:border-slate-800/60 bg-slate-50/60 dark:bg-slate-900/40">
         <Button asChild variant={paid ? "outline" : "primary"} className="gap-1.5">
           <Link href="/pricing" data-testid="billing-change-plan">
             {paid ? "Change plan" : `Get ${TIERS[PAID_TIER].name}`}
@@ -125,24 +203,40 @@ export function BillingCard() {
             </Button>
           </div>
         )}
+
+        {confirming && (
+          <p className="w-full text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
+            You'll keep {info.name} until {periodEnd ? fmtDate(periodEnd) : "the end of the period you've paid for"} —
+            nothing stops today. After that your scores go back to the free schedule.
+          </p>
+        )}
       </div>
-
-      {confirming && (
-        <p className="mt-3 text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
-          You'll keep {info.name} until the end of the period you've already paid
-          for — nothing stops today. After that your scores go back to the free
-          schedule.
-        </p>
-      )}
-
-      {paid && (
-        <p className="mt-4 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
-          Payments are handled by Flash. To change the card you pay with, cancel
-          and subscribe again — we never hold your card details, so we can't
-          update them for you.
-        </p>
-      )}
     </Card>
+  );
+}
+
+/** Payment-method chip: the icon carries the rail, the text names the processor. */
+function RailBadge({ rail, compact = false }: { rail: Rail; compact?: boolean }) {
+  const card = rail === "card";
+  const Icon = card ? CreditCard : Zap;
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-0.5 font-medium text-slate-700 dark:text-slate-200"
+      data-testid="billing-rail"
+    >
+      <Icon className={`h-3.5 w-3.5 ${card ? "text-slate-500" : "text-amber-500"}`} />
+      {card ? "Card" : "Lightning"}
+      {!compact && <span className="text-slate-400 dark:text-slate-500 font-normal">· Flash</span>}
+    </span>
+  );
+}
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <dt className="text-slate-500 dark:text-slate-400">{label}</dt>
+      <dd className="text-right text-slate-900 dark:text-slate-100">{children}</dd>
+    </div>
   );
 }
 
@@ -154,8 +248,13 @@ const STATUS_LABEL: Record<SubscriptionStatus, string> = {
   canceled: "Cancelled",
 };
 
-function fmtDate(iso: string): string {
-  const d = new Date(iso);
+function addMonths(d: Date, n: number): Date {
+  const out = new Date(d);
+  out.setMonth(out.getMonth() + n);
+  return out;
+}
+
+function fmtDate(d: Date): string {
   return Number.isNaN(d.getTime())
     ? "—"
     : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
