@@ -75,20 +75,17 @@ export const ROADMAP_THEMES: { key: RoadmapTheme; title: string; blurb: string }
   {
     key: "search",
     title: "Search that reaches past profiles",
-    blurb:
-      "Today you can find people. Next you'll be able to find what they actually wrote — ranked the same way, by the network you trust rather than by whoever shouted loudest.",
+    blurb: "Find what people wrote, ranked by the network you trust — not by whoever shouted loudest.",
   },
   {
     key: "assistant",
     title: "An assistant of your own",
-    blurb:
-      "Every account gets an assistant with its own identity on Nostr. Its job is to watch the parts of your network you don't have time to, and to tell you the things worth knowing — on your terms, not a feed's.",
+    blurb: "Your own assistant on Nostr, watching your network so you don't have to.",
   },
   {
     key: "scoring",
     title: "Scoring you can shape",
-    blurb:
-      "The scoring engine already takes these as settings; today they're ours and not yours. Opening them up is what makes a score yours instead of one you're handed.",
+    blurb: "The engine already has these knobs. We're handing them to you.",
   },
 ];
 
