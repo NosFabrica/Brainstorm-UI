@@ -1,4 +1,5 @@
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { getScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { BadgeCheck } from "lucide-react";
 import { initialsFor } from "@/lib/profileDefaults";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
@@ -62,7 +63,9 @@ export function ShareOgCard({
               >
                 <span className="rounded-full h-[1.8cqw] w-[1.8cqw]" style={{ backgroundColor: tier.color }} />
                 <span className="text-[3cqw] font-bold uppercase tracking-[0.1em]" style={{ color: tier.color }}>{tier.name}</span>
-                <span className="text-[3cqw] font-bold tabular-nums" style={{ color: tier.color }}>· {pct}</span>
+                {getScoreDisplayMode() === "number" && (
+                  <span className="text-[3cqw] font-bold tabular-nums" style={{ color: tier.color }}>· {pct}</span>
+                )}
               </div>
             )}
           </div>

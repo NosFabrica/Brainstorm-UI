@@ -1,4 +1,5 @@
-import { DEFAULT_VERIFIED_LINE, TIER_THRESHOLDS, TRUST_TIER_COLORS } from "@/services/trustThreshold";
+import { DEFAULT_VERIFIED_LINE, TIER_THRESHOLDS, TIER_LABELS, TRUST_TIER_COLORS } from "@/services/trustThreshold";
+import { useScoreDisplayMode, type ScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import type { ScorePov } from "@/components/score/TrustScorePov";
 
 /**
@@ -40,6 +41,19 @@ import type { ScorePov } from "@/components/score/TrustScorePov";
  */
 
 export type VerificationTier = "high" | "trusted" | "neutral" | "low" | "unverified";
+
+/**
+ * The tier as a POSITION on the five-step ladder, for level mode's pips.
+ * Derived from the tier and only the tier — deriving pips from score01 would
+ * be the number in costume, which is the one thing DECISIONS.md forbids.
+ */
+export const TIER_STEP: Record<VerificationTier, number> = {
+  unverified: 1,
+  low: 2,
+  neutral: 3,
+  trusted: 4,
+  high: 5,
+};
 
 // The coin is handed a bare score with no observer context (note cards, search
 // rows, OG images), so its low/unverified boundary is the DEFAULT line rather
@@ -113,6 +127,7 @@ export function VerificationCoin({
   onClick,
   className = "",
   ring = true,
+  mode,
 }: {
   /** Influence 0–1 (backend scale); rendered as 0–100. Null → unrated ("—"). */
   score01: number | null | undefined;
@@ -129,7 +144,15 @@ export function VerificationCoin({
    * option is labelled "Personalized" / "Global" in text beside the coin.
    */
   ring?: boolean;
+  /**
+   * Display-mode override. Leave unset to follow the viewer's setting — the
+   * normal case. Pass explicitly only where a React hook can't reach the live
+   * setting or the render is frozen at generation time (the OG share card).
+   */
+  mode?: ScoreDisplayMode;
 }) {
+  const [viewerMode] = useScoreDisplayMode();
+  const displayMode = mode ?? viewerMode;
   const hasScore = typeof score01 === "number" && Number.isFinite(score01);
   const clamped = hasScore ? Math.max(0, Math.min(1, score01 as number)) : 0;
   const tier = tierForScore01(clamped);
@@ -143,9 +166,21 @@ export function VerificationCoin({
   const darkText = !hasScore || DARK_TEXT_TIERS.has(tier);
 
   const povLabel = pov === "personalized" ? "personalized" : "global";
+  // The accessible label ALWAYS carries the tier word; the value rides along
+  // only in number mode. Someone who turned digits off has turned them off for
+  // their screen reader too — leaking the number through aria would make the
+  // setting cosmetic.
   const label = hasScore
-    ? `Verification score ${pct} out of 100, ${povLabel} view`
+    ? displayMode === "number"
+      ? `Verification score ${pct} out of 100 (${TIER_LABELS[tier]}), ${povLabel} view`
+      : `Verification: ${TIER_LABELS[tier]}, ${povLabel} view`
     : `Unrated, ${povLabel} view`;
+
+  // Level mode's pips need ~3px per dot plus gaps to stay legible; below 26px
+  // the coin falls back to plain hue, which still carries the tier. Dots take
+  // the same contrast-computed ink as the digits they replace.
+  const pipsFit = size >= 26;
+  const pipCount = TIER_STEP[tier];
 
   const Comp = onClick ? "button" : "div";
   return (
@@ -166,11 +201,36 @@ export function VerificationCoin({
       data-testid="verification-coin"
       data-pov={pov}
       data-tier={hasScore ? tier : "unrated"}
+      data-display={displayMode}
       // Whether the perspective ring is actually drawn — `pov` alone doesn't say,
       // since an unrated coin and a `ring={false}` coin both suppress it.
       data-pov-ring={ring && hasScore ? pov : "none"}
     >
-      {hasScore ? pct : "—"}
+      {!hasScore ? (
+        "—"
+      ) : displayMode === "number" ? (
+        pct
+      ) : displayMode === "level" && pipsFit ? (
+        <span
+          className="inline-flex items-center"
+          style={{ gap: Math.max(1, Math.round(size * 0.045)) }}
+          data-testid="coin-pips"
+          aria-hidden
+        >
+          {[1, 2, 3, 4, 5].map((step) => (
+            <span
+              key={step}
+              className="rounded-full"
+              style={{
+                width: Math.max(3, Math.round(size * 0.09)),
+                height: Math.max(3, Math.round(size * 0.09)),
+                backgroundColor: "currentColor",
+                opacity: step <= pipCount ? 1 : 0.3,
+              }}
+            />
+          ))}
+        </span>
+      ) : null}
     </Comp>
   );
 }

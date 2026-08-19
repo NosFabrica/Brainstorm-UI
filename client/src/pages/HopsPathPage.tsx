@@ -1,4 +1,5 @@
 import { useMemo, useState, type MouseEvent } from "react";
+import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { useRoute, Redirect, Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Shuffle, ShieldAlert, Flag, UserPlus, Check, ChevronDown } from "lucide-react";
@@ -28,6 +29,7 @@ function shortNpub(npub: string): string {
  * downstream of it drops out of your trust network. Signed-in + scored viewers only.
  */
 export default function HopsPathPage() {
+  const [displayMode] = useScoreDisplayMode();
   const [, navigate] = useLocation();
   const [, params] = useRoute("/p/:id/hops");
   const rawId = params?.id || "";
@@ -302,7 +304,7 @@ export default function HopsPathPage() {
                             >
                               <div className={`flex items-center justify-end gap-1 text-sm font-bold tabular-nums leading-tight ${tier.text}`}>
                                 <PovIcon pov={scorePov} className="h-2.5 w-2.5" />
-                                {Math.round((score as number) * 100)}%
+                                {displayMode === "number" ? `${Math.round((score as number) * 100)}%` : ""}
                               </div>
                               <div className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">{tier.name}</div>
                               {(() => {
@@ -311,6 +313,7 @@ export default function HopsPathPage() {
                                 const both = scoresQuery.data?.get(pk);
                                 const other = scorePov === "personalized" ? both?.house : both?.mine;
                                 if (typeof other !== "number") return null;
+                                if (displayMode !== "number") return null;
                                 const shownPct = Math.round((score as number) * 100);
                                 const otherPct = Math.round(other * 100);
                                 if (otherPct === shownPct) return null;
