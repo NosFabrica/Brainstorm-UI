@@ -1171,7 +1171,10 @@ export default function SettingsPage() {
             drawn your way, or not at all. Flag warnings stay either way.
             Saved on this device.
           </p>
-          <div className="mt-3 grid grid-cols-3 gap-2" data-testid="row-score-display-modes">
+          {/* Five options, one row on desktop; stacked full-width rows on
+              mobile (label left, description right) — five centered columns
+              don't fit a phone, and 3-over-2 wrapping looked broken. */}
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-5 gap-2" data-testid="row-score-display-modes">
             {SCORE_DISPLAY_CHOICES.map((choice) => {
               const isActive = scoreDisplayMode === choice.key;
               return (
@@ -1179,17 +1182,17 @@ export default function SettingsPage() {
                   key={choice.key}
                   onClick={() => setScoreDisplayModeChoice(choice.key)}
                   className={
-                    "rounded-xl border px-3 py-2.5 text-center transition-all duration-200 cursor-pointer " +
+                    "rounded-xl border px-3 py-2.5 transition-all duration-200 cursor-pointer flex items-baseline justify-between gap-2 text-left sm:block sm:text-center " +
                     (isActive
                       ? "border-brand-accent/30 bg-brand-deep/5 ring-1 ring-brand-accent/20"
                       : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800")
                   }
                   data-testid={`chip-score-display-${choice.key}`}
                 >
-                  <span className={"text-xs font-bold block " + (isActive ? "text-brand-deep" : "text-slate-500 dark:text-slate-400")}>
+                  <span className={"text-xs font-bold " + (isActive ? "text-brand-deep" : "text-slate-500 dark:text-slate-400")}>
                     {choice.label}
                   </span>
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block mt-0.5">{choice.desc}</span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 sm:block sm:mt-0.5">{choice.desc}</span>
                 </button>
               );
             })}
