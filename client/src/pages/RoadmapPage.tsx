@@ -99,6 +99,21 @@ export default function RoadmapPage() {
         />
 
         <div className="relative mt-10" data-testid="roadmap-list">
+          {/* The texture, held to Google's register: no washes, no noise — a
+              faint engineering dot grid, the one pattern Google itself reaches
+              for on developer surfaces. `currentColor` in the gradient lets one
+              element carry both themes; the radial mask pools it around the
+              journey and lets it dissolve before the edges, so it reads as
+              graph paper under the plan rather than wallpaper behind it. */}
+          <div
+            aria-hidden
+            className="absolute -inset-x-8 -inset-y-4 text-slate-500/[0.13] dark:text-white/[0.07] [mask-image:radial-gradient(ellipse_60%_55%_at_38%_45%,black,transparent)]"
+            style={{
+              backgroundImage: "radial-gradient(circle at 1px 1px, currentColor 1.2px, transparent 1.2px)",
+              backgroundSize: "20px 20px",
+            }}
+          />
+
           {/* The road. Gradient walks the three stops' hues, then fades out
               below the last one — the journey doesn't end, it continues. */}
           <div
@@ -108,7 +123,7 @@ export default function RoadmapPage() {
 
           {/* Where the journey starts: the product you're already using. */}
           <div className="relative flex items-center gap-5 pb-10">
-            <span className="relative z-10 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950">
+            <span className="relative z-10 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 shadow-sm">
               <MapPin className="h-4 w-4 text-slate-400 dark:text-slate-500" />
             </span>
             <p className="text-[13px] text-slate-500 dark:text-slate-400">
@@ -127,7 +142,7 @@ export default function RoadmapPage() {
               >
                 {/* The stop: a numeral node on the rail. */}
                 <span
-                  className={`relative z-10 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 bg-white dark:bg-slate-950 text-[15px] font-bold tabular-nums ${meta.node}`}
+                  className={`relative z-10 inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 bg-white dark:bg-slate-950 text-[15px] font-bold tabular-nums shadow-sm ${meta.node}`}
                   style={{ fontFamily: "var(--font-display)" }}
                   aria-hidden
                 >
