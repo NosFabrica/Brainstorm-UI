@@ -199,7 +199,7 @@ export default function InsightsPage() {
           </div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>My Insights</h1>
         </div>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Your account standing, and exactly how and when your scores were computed.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Your plan, your calculations, and how Brainstorm sees you.</p>
 
         {/* Plan first: it sets the frame for everything under it. "Recalculated
             every 60 days" is what makes the "last calculated" date below mean
@@ -212,7 +212,7 @@ export default function InsightsPage() {
         <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 mb-4">
           <div className="flex items-center gap-2 mb-3">
             <Clock className="h-4 w-4 text-brand-deep dark:text-brand-accent" />
-            <span className="text-sm font-bold text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>Trust calculation</span>
+            <span className="text-sm font-bold text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>Calculation</span>
             {grapeRankQuery.isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />}
           </div>
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm">
@@ -301,15 +301,15 @@ export default function InsightsPage() {
         <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 mb-4" data-testid="insights-score-history">
           <div className="flex items-center gap-2 mb-3">
             <Clock className="h-4 w-4 text-brand-deep dark:text-brand-accent" />
-            <span className="text-sm font-bold text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>Score history</span>
+            <span className="text-sm font-bold text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>Calculation history</span>
             {scoreHistory.length > 0 && (
               <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">{scoreHistory.length} calculation{scoreHistory.length !== 1 ? "s" : ""}</span>
             )}
           </div>
           {scoreHistory.length === 0 ? (
             <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400" data-testid="insights-score-history-empty">
-              Nothing recorded yet. We start tracking your score from now on — after your
-              next calculation completes, you'll see how it moved and why.
+              Nothing recorded yet. Tracking starts now — after your next calculation
+              completes, you'll see how your number moved and why.
             </p>
           ) : (
             <ul className="divide-y divide-slate-100 dark:divide-slate-800/60">
@@ -431,7 +431,7 @@ export default function InsightsPage() {
                   of trust computes a different number for you. Saying so is also
                   the product thesis, not a caveat. */}
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Brainstorm's own perspective. There's no universal score — everyone computes their own number for you from their own network.
+                Brainstorm's own perspective — everyone computes their own number for you from their own network.
               </p>
             </div>
           </div>
@@ -447,9 +447,9 @@ export default function InsightsPage() {
 
         {/* Explainer */}
         <Card className="border border-brand-accent/25 bg-brand-accent/[0.06] rounded-xl p-4">
-          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">How your trust is computed</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">How your number is computed</p>
           <p className="text-[13px] leading-relaxed text-[#0A0E18] dark:text-slate-100">
-            Your score is built only from signals of already-verified accounts — their follows, mutes, and reports — so bots and brand-new accounts carry no weight. That's what makes it resistant to manipulation.{" "}
+            It's built only from what already-verified accounts do — their follows, mutes, and reports — so bots and brand-new accounts carry no weight. That's what makes it resistant to manipulation.{" "}
             <button type="button" onClick={() => navigate("/how-search-works")} className="inline-flex items-center gap-0.5 font-semibold text-brand-link hover:underline">Learn more <ArrowRight className="h-3 w-3" /></button>
           </p>
         </Card>

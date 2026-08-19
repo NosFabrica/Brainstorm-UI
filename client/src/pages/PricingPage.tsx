@@ -42,24 +42,14 @@ export default function PricingPage() {
           // Leads with what staleness costs rather than with a rate, because the
           // rate was never the reason to pay — a filter that lags reality is.
           //
-          // Says it in both directions on purpose. The first draft only described
-          // a bad actor slipping through, which made the pitch fear and made Free
-          // sound unsafe — but the lag is symmetrical: someone EARNING your
-          // network's trust is equally invisible until the next run. Leading with
-          // the gain is both nicer and more accurate about what a recalculation
-          // is for.
-          //
-          // This is the one line on the page written to persuade rather than
-          // describe, so it is held to a harder standard: it is checkable. Both
-          // halves are literally true of a 60-day interval. If either interval
-          // changes, this sentence changes with it or it becomes a lie.
-          //
-          // The old header spent its second sentence telling people they could
-          // recalculate manually and needn't pay. True, and still true — it is a
-          // bullet in Free's list — but prime real estate is the wrong place to
-          // rebut your own pitch.
-          title={<>Your scores are only as current as <span className="text-brand-link">their last update.</span></>}
-          subtitle="People earn your network's trust every day, and some lose it. Free catches up every 60 days. Priority, every 7."
+          // The staleness argument, minus the jargon: "your network changes every
+          // day" carries the whole premise (what you see lags reality between
+          // runs) without the words "scores" or "trust" — Benjamin's call, and
+          // right: those words were doing scatter, not work. Still checkable —
+          // the intervals are the configured numbers — and if either changes,
+          // this changes with it or becomes a lie.
+          title={<>Your network changes <span className="text-brand-link">every day.</span></>}
+          subtitle="Brainstorm catches up on a schedule — every 60 days on Free, every 7 on Priority."
           testId="section-pricing-header"
         />
 

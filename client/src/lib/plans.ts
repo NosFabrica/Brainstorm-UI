@@ -130,13 +130,13 @@ export const TIER_FEATURES: Record<string, FeatureDef> = {
   // it reads as an estimate we might miss, when it is a configured number
   // (`schedule_interval_seconds`) that either holds or is a bug. A figure someone
   // can check is worth more than a range that sounds safe.
-  "recalc-60d": { key: "recalc-60d", label: "Scores recalculated every 60 days", status: "live" },
+  "recalc-60d": { key: "recalc-60d", label: "Recalculated every 60 days", status: "live" },
   // Concrete, and the thing that stops "slower schedule" reading as "crippled":
   // you can always refresh yourself, on either tier.
   "manual-unlimited": { key: "manual-unlimited", label: "Unlimited manual recalculation", status: "live" },
   "ranked-search": { key: "ranked-search", label: "Search ranked by your network", status: "live" },
   "spam-filter": { key: "spam-filter", label: "Spam and impersonator filtering", status: "live" },
-  reporting: { key: "reporting", label: "Report accounts that shouldn't be trusted", status: "live" },
+  reporting: { key: "reporting", label: "Report suspicious accounts", status: "live" },
   "trust-path": { key: "trust-path", label: "See how you're connected to anyone", status: "live" },
   "score-badges": { key: "score-badges", label: "Verification Scores on every profile", status: "live" },
   "network-discovery": { key: "network-discovery", label: "Discover who's new in your network", status: "live" },
@@ -149,7 +149,7 @@ export const TIER_FEATURES: Record<string, FeatureDef> = {
   // gone because manual is unlimited for everyone now. "This price stays yours"
   // is gone because it means "you're early, be rewarded" — the framing they
   // rejected — and it quietly commits us never to reprice early payers.
-  "weekly-recalc": { key: "weekly-recalc", label: "Scores recalculated every 7 days", status: "live" },
+  "weekly-recalc": { key: "weekly-recalc", label: "Recalculated every 7 days", status: "live" },
   "queue-priority": { key: "queue-priority", label: "Your recalculations run ahead of the free queue", status: "live" },
   "priority-support": { key: "priority-support", label: "Priority support", status: "live" },
 
