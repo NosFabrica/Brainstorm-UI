@@ -359,16 +359,45 @@ With `VITE_FLASH_BASE_URL` unset the UI says payments aren't configured in this
 environment rather than pretending — that is the intended state anywhere the
 vault isn't wired.
 
-## Open questions for Flash
+## Open questions for Flash (meeting list, ordered by what blocks launch)
 
-1. Can an external id (our hex pubkey) be attached to a subscription? Everything
-   about billing identity currently rests on a user-typed email.
-2. What is the vault's actual webhook payload, and where are the URL and secret
-   configured? The Settings tab is greyed out and the documented contract belongs
-   to the older surface.
-3. Is there a return/redirect URL after payment? None is documented and none
-   appears in the form.
+**Blockers**
+
+1. What is the vault's actual webhook contract, and where are the URL and secret
+   configured? The dashboard's Settings tab is greyed out, and the documented
+   five-event/JWT contract belongs to the older surface. This is the answer the
+   backend build waits on.
+2. Can an external id (our hex pubkey) be attached to a subscription — pre-fill,
+   a form field, or a server-side create API? Billing identity currently rests
+   on correlating a user-typed email. The older surface supported `npub` and
+   `external_uuid` pre-fill; is that unported or removed?
+3. Does `/cancel_user_subscription` work as documented, called from our backend?
+   Our cancel button depends on it, subscribers have no Flash login of their
+   own, and cancel-as-easily-as-subscribe is close to a legal requirement.
 4. Does the dev vault accept a test card, or does it charge a real processor?
-5. Can this plan be paid over Lightning today? The Connections tab shows both
-   Fiat (Card & ACH) and Bitcoin (Lightning) wallets connected.
-6. Confirm dev and production are separate vaults with separate ids.
+
+**Money and rails**
+
+5. Can this plan be paid over Lightning today? Connections shows both Fiat
+   (Card & ACH) and Bitcoin (Lightning) wallets connected — checkout rails, or
+   treasury only?
+6. For a USD-denominated plan paid over Lightning, who sets the sats amount?
+   If Flash converts at spot, our fixed "2,100 sats" display must become an
+   approximation or the plan needs sats denomination.
+
+**Operations**
+
+7. Does Flash email subscribers a receipt? Decides whether our checkout screen
+   promises one and whether the Billing tab is the only record.
+8. Is `/get_user_subscription_details` (and its transactions array) real on the
+   vault? It is the source for the payment-history panel and the reconciliation
+   backstop for missed webhooks.
+9. Is there a per-subscriber deep link into the vault, for admins investigating
+   a payment? The service-level URL lands on a list.
+10. Confirm dev and production are separate vaults with separate ids — and the
+    path to production credentials.
+
+**Designed around, but ask**
+
+11. Is there a return/redirect URL after payment? The new-tab + refetch-on-focus
+    flow assumes no; an answer of yes lets us simplify.
