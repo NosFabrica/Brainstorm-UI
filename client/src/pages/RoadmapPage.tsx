@@ -107,9 +107,9 @@ export default function RoadmapPage() {
               graph paper under the plan rather than wallpaper behind it. */}
           <div
             aria-hidden
-            className="absolute -inset-x-8 -inset-y-4 text-slate-500/[0.13] dark:text-white/[0.07] [mask-image:radial-gradient(ellipse_60%_55%_at_38%_45%,black,transparent)]"
+            className="absolute -inset-x-10 -inset-y-4 text-slate-500/[0.28] dark:text-white/[0.14] [mask-image:radial-gradient(ellipse_75%_65%_at_40%_45%,black,transparent)]"
             style={{
-              backgroundImage: "radial-gradient(circle at 1px 1px, currentColor 1.2px, transparent 1.2px)",
+              backgroundImage: "radial-gradient(circle at 1px 1px, currentColor 1.5px, transparent 1.5px)",
               backgroundSize: "20px 20px",
             }}
           />
