@@ -95,6 +95,7 @@ import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfOverview, useSelfHistory } from "@/hooks/useSelf";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { useScoreDisplayMode, type ScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import type { Granularity } from "@/lib/trustLadder";
@@ -233,12 +234,29 @@ export default function SettingsPage() {
       const previousUsedLabel = presetDisplayLabelFromBackend(lastResult?.data?.graperank_preset_used);
       const newLabel = presetDisplayLabel(preset);
       const description = previousUsedLabel
-        ? `Next calculation will use ${newLabel}. Current scores were calculated with ${previousUsedLabel}.`
-        : `Next calculation will use ${newLabel}.`;
+        ? `Your pages use ${newLabel} now. Published numbers still reflect ${previousUsedLabel} until your next calculation.`
+        : `Your pages use ${newLabel} now.`;
+      // Offer — never demand — a recalculation. The switch already worked
+      // in-app (every preset-driven read was just invalidated), so a blocking
+      // "are you sure?" would imply it hadn't, and would punish the
+      // flip-and-compare loop these three buttons invite. But the published
+      // Trusted Assertions — the numbers OTHER apps show — keep the old preset
+      // until the next run, which on the free schedule can be 60 days out.
+      // One click in the toast closes that gap at the moment of highest
+      // intent, and manual recalculation is unlimited so it costs nothing.
       toast({
         title: "Trust perspective updated",
         description,
-        duration: 4000,
+        duration: 8000,
+        action: (
+          <ToastAction
+            altText="Recalculate now"
+            onClick={() => triggerGrapeRankMutation.mutate()}
+            data-testid="toast-recalc-now"
+          >
+            Recalculate now
+          </ToastAction>
+        ),
       });
     },
     onError: (error, _preset, context) => {
@@ -351,7 +369,7 @@ export default function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["/user/graperankResult"] });
       toast({
         title: "Recalculation started",
-        description: "Your scores are being recalculated. Redirecting to dashboard...",
+        description: "Recalculating now — redirecting to your dashboard.",
         duration: 4000,
       });
       setTimeout(() => navigate("/dashboard"), 600);
