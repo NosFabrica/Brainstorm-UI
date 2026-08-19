@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useGoBack } from "@/hooks/useGoBack";
 import { ArrowLeft, Clock, Gauge, ShieldCheck, RefreshCw, CheckCircle2, Loader2, ArrowRight } from "lucide-react";
@@ -95,6 +95,21 @@ export default function InsightsPage() {
     queryFn: () => apiClient.getGrapeRankResult(),
     enabled: !!pubkey,
     staleTime: 60_000,
+    // The app's query defaults never refetch (staleTime Infinity, no focus
+    // refetch), which is right almost everywhere — but THIS page is the one
+    // people open to watch a run they just triggered, and without a poll the
+    // card said "In progress" forever after the server had finished. Poll only
+    // while a run is actually in flight; go quiet the moment it settles.
+    refetchInterval: (query) => {
+      const raw = query.state.data as any;
+      const g = raw?.internal_publication_status !== undefined ? raw : raw?.data;
+      if (!g) return false;
+      const settled =
+        isDone(g.internal_publication_status) ||
+        isFail(g.status) ||
+        isFail(g.internal_publication_status);
+      return settled ? false : 15_000;
+    },
   });
   // Your OWN perspective always scores you 100 — meaningless here. Fetch the
   // GLOBAL (house) score instead: Brainstorm's own vantage point, which is the
@@ -167,6 +182,21 @@ export default function InsightsPage() {
   const publishComplete = calcComplete && isDone(grapeRank?.ta_status);
   const calcFailed = isFail(grapeRank?.status) || isFail(grapeRank?.internal_publication_status);
   const queueAhead = typeof grapeRank?.how_many_others_with_priority === "number" ? grapeRank.how_many_others_with_priority : null;
+
+  // When the poll above watches a run FINISH, the neighbours go stale together:
+  // "Last calculated" (history) and the standing number (house influence) both
+  // describe the run that just completed. Transition-guarded so the initial
+  // page load — where the last run is usually already complete — doesn't
+  // trigger a redundant refetch of data we just fetched.
+  const qc = useQueryClient();
+  const wasComplete = useRef(calcComplete);
+  useEffect(() => {
+    if (calcComplete && !wasComplete.current) {
+      qc.invalidateQueries({ queryKey: ["/user/history"] });
+      qc.invalidateQueries({ queryKey: ["insights-house-influence"] });
+    }
+    wasComplete.current = calcComplete;
+  }, [calcComplete, qc]);
 
   // Self-scoped calculation history — renders only when /user/history exposes a
   // records array (admins get the full table via /admin/users/:pubkey/history;
