@@ -3,7 +3,7 @@ import { CalendarClock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { useSubscription } from "@/hooks/useSubscription";
-import { TIERS, PAID_TIER, formatPrice, nextScheduledLabel, type SubscriptionStatus } from "@/lib/plans";
+import { TIERS, PAID_TIER, formatPrice, formatSats, nextScheduledLabel, type SubscriptionStatus } from "@/lib/plans";
 
 /**
  * "What plan am I on, and when do my scores update next?" — on /insights,
@@ -50,7 +50,11 @@ export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null
         <Row label="Plan">
           <span data-testid="insights-plan-name">
             {info.name}
-            {paid && <span className="text-slate-500 dark:text-slate-400"> · {formatPrice(tier)}/mo</span>}
+            {paid && (
+              <span className="text-slate-500 dark:text-slate-400">
+                {" "}· {rail === "flash-lightning" ? formatSats(tier) : formatPrice(tier)}/mo
+              </span>
+            )}
           </span>
         </Row>
 
