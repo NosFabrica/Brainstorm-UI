@@ -9,7 +9,7 @@ import { LinkChip } from "@/components/share/LinkPreview";
 import { nip19 } from "nostr-tools";
 import { ArrowLeft, ArrowRight, BadgeCheck, Smartphone, Loader2, FileText } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { VerificationCoin, useTierRing } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing, TierWordChip } from "@/components/score/VerificationCoin";
 import { fetchAddressableEvents, fetchProfile } from "@/services/nostr";
 import { apiClient, hasSessionToken } from "@/services/api";
 import { openArticleInApp } from "@/lib/articleLinks";
@@ -199,6 +199,7 @@ export default function ArticlePage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{authorName}</span>
+                    <TierWordChip score01={score01} />
                     {profile.nip05 && <BadgeCheck className="h-4 w-4 text-sky-500 shrink-0" />}
                   </div>
                   <span className="text-xs text-slate-400 dark:text-slate-500">{publishedAgo(ev)}</span>

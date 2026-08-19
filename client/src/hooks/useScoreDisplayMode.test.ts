@@ -24,6 +24,10 @@ describe("score display mode store", () => {
     expect(getScoreDisplayMode()).toBe("level");
     setScoreDisplayMode("tier");
     expect(getScoreDisplayMode()).toBe("tier");
+    setScoreDisplayMode("word");
+    expect(getScoreDisplayMode()).toBe("word");
+    setScoreDisplayMode("off");
+    expect(getScoreDisplayMode()).toBe("off");
   });
 
   it("scopes per account, so a second login keeps its own choice", () => {

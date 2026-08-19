@@ -10,7 +10,10 @@ import { useCallback, useEffect, useState } from "react";
  *
  *   "number" — today's display, digits on the coin          (default)
  *   "level"  — five pips that count the TIER, in tier hue
- *   "tier"   — hue and tier word only, no digits anywhere
+ *   "tier"   — hue only: a tier-colored ring around the photo
+ *   "word"   — the tier ring plus the tier WORD by the name, where it fits
+ *   "off"    — no verification shown at all. Flag/report warnings are a
+ *              separate safety channel and stay regardless
  *
  * The constraint that keeps "level" honest: pips are derived from the tier,
  * never from score01. Five segments filled to score/100 would just be the
@@ -21,15 +24,15 @@ import { useCallback, useEffect, useState } from "react";
  * "how trust renders for me", both device-local until the NIP-78 prefs sync
  * exists, and a second pattern would be one pattern too many.
  */
-export type ScoreDisplayMode = "number" | "level" | "tier";
+export type ScoreDisplayMode = "number" | "level" | "tier" | "word" | "off";
 
 const STORAGE_KEY = "brainstorm_score_display";
 const EVENT_NAME = "brainstorm-score-display-changed";
 
-export const SCORE_DISPLAY_MODES: ScoreDisplayMode[] = ["number", "level", "tier"];
+export const SCORE_DISPLAY_MODES: ScoreDisplayMode[] = ["number", "level", "tier", "word", "off"];
 
 function isMode(v: unknown): v is ScoreDisplayMode {
-  return v === "number" || v === "level" || v === "tier";
+  return (SCORE_DISPLAY_MODES as unknown[]).includes(v);
 }
 
 // Per-account (or "anon") so a second account on the same browser keeps its own

@@ -87,7 +87,9 @@ import { useScoreDisplayMode, type ScoreDisplayMode } from "@/hooks/useScoreDisp
 const SCORE_DISPLAY_CHOICES: { key: ScoreDisplayMode; label: string; desc: string }[] = [
   { key: "number", label: "Number", desc: "0\u2013100 score" },
   { key: "level", label: "Level", desc: "5-step dots" },
-  { key: "tier", label: "Tier", desc: "words & color only" },
+  { key: "tier", label: "Tier", desc: "color ring, no words" },
+  { key: "word", label: "Word", desc: "ring + tier label" },
+  { key: "off", label: "Off", desc: "nothing shown" },
 ];
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
@@ -1166,7 +1168,8 @@ export default function SettingsPage() {
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-relaxed" data-testid="text-score-display-desc">
             Some people prefer not to see others as a number. This changes how
             it's shown to you, everywhere in Brainstorm — the same standing,
-            three ways to draw it. Saved on this device.
+            drawn your way, or not at all. Flag warnings stay either way.
+            Saved on this device.
           </p>
           <div className="mt-3 grid grid-cols-3 gap-2" data-testid="row-score-display-modes">
             {SCORE_DISPLAY_CHOICES.map((choice) => {

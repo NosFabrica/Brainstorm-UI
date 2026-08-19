@@ -58,7 +58,7 @@ import { ProfileActions, OwnerActions } from "@/components/share/ProfileActions"
 import { Stat, StatLensToggle, type StatLens } from "@/components/share/StatToggle";
 import { NegativeSignalStats } from "@/components/share/NegativeSignalStats";
 import { useScorePov, TrustScoreModal } from "@/components/score/TrustScorePov";
-import { VerificationCoin, useTierRing } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing, TierWordChip } from "@/components/score/VerificationCoin";
 import { extractImageUrls, extractVideoUrls, extractVideoPoster } from "@/lib/noteContent";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
@@ -943,6 +943,7 @@ export default function SharePage() {
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="share-name">
               {displayName}
             </h1>
+            <TierWordChip score01={coinScore01} />
             {profile.nip05 && (
               <span className="inline-flex items-center gap-1 text-sm text-brand-link font-medium">
                 <BadgeCheck className="h-4 w-4" /> {profile.nip05.replace(/^_@/, "")}

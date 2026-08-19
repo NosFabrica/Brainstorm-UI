@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import { ArrowLeft, BadgeCheck, Smartphone, Loader2, MessageSquare, ArrowRight, Share2, Check, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { VerificationCoin, useTierRing } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing, TierWordChip } from "@/components/score/VerificationCoin";
 import { fetchEventsByIds, fetchAddressableEvents, fetchProfile, fetchProfileMap, getCurrentUser, hasLocalSecretKey, hasPersistentKey, PROFILE_RELAYS } from "@/services/nostr";
 import { NoteTagChips } from "@/components/share/NoteTagChips";
 import { apiClient, hasSessionToken } from "@/services/api";
@@ -333,6 +333,7 @@ export default function EventPage() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{authorName}</span>
+                    <TierWordChip score01={score01} />
                     {profile.nip05 && <BadgeCheck className="h-4 w-4 text-sky-500 shrink-0" />}
                   </div>
                   <span className="text-xs text-slate-400 dark:text-slate-500">{ago(note.created_at)}</span>

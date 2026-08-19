@@ -37,6 +37,8 @@ const MODES: { key: ScoreDisplayMode; label: string; hint: string }[] = [
   { key: "number", label: "Number", hint: "0–100 coins — the default" },
   { key: "level", label: "Level", hint: "five-step dots, no digits" },
   { key: "tier", label: "Tier", hint: "color ring around the photo" },
+  { key: "word", label: "Word", hint: "ring + tier word by the name" },
+  { key: "off", label: "Off", hint: "no verification anywhere" },
 ];
 
 export function DemoScoreDisplaySwitcher() {

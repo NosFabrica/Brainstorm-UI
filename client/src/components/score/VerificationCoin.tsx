@@ -155,7 +155,7 @@ const TIER_AVATAR_RING: Record<VerificationTier, string> = {
 export function useTierRing(): (score01: number | null | undefined) => string | null {
   const [mode] = useScoreDisplayMode();
   return (score01) => {
-    if (mode !== "tier") return null;
+    if (mode !== "tier" && mode !== "word") return null;
     if (typeof score01 !== "number" || !Number.isFinite(score01)) return null;
     return TIER_AVATAR_RING[tierForScore01(Math.max(0, Math.min(1, score01)))];
   };
@@ -194,6 +194,9 @@ export function VerificationCoin({
 }) {
   const [viewerMode] = useScoreDisplayMode();
   const displayMode = mode ?? viewerMode;
+  // "off" means off: no mark, no aria, no explainer button. The one rendering
+  // where absence of the coin IS the display.
+  if (displayMode === "off") return null;
   const hasScore = typeof score01 === "number" && Number.isFinite(score01);
   const clamped = hasScore ? Math.max(0, Math.min(1, score01 as number)) : 0;
   const tier = tierForScore01(clamped);
@@ -231,9 +234,9 @@ export function VerificationCoin({
   const frame =
     !compact
       ? { width: size, height: size }
-      : displayMode === "tier"
-        ? { width: dotSize, height: dotSize }
-        : { height: pillH, paddingLeft: pillPadX, paddingRight: pillPadX };
+      : displayMode === "level"
+        ? { height: pillH, paddingLeft: pillPadX, paddingRight: pillPadX }
+        : { width: dotSize, height: dotSize };
 
   const Comp = onClick ? "button" : "div";
   return (
@@ -284,5 +287,36 @@ export function VerificationCoin({
         </span>
       ) : null}
     </Comp>
+  );
+}
+
+/**
+ * Word mode's chip: the tier WORD, tinted in the tier color, sitting next to
+ * the person's name. Renders only in "word" mode and only where a call site
+ * placed it — the mode's contract is "ring everywhere, word where it fits",
+ * so dense rows carry just the ring while heroes and headers add the label.
+ * aria-hidden because the sr-only coin at the same surface already announces
+ * the tier; the chip is its visual twin, not a second fact.
+ */
+export function TierWordChip({
+  score01,
+  className = "",
+}: {
+  score01: number | null | undefined;
+  className?: string;
+}) {
+  const [mode] = useScoreDisplayMode();
+  if (mode !== "word") return null;
+  if (typeof score01 !== "number" || !Number.isFinite(score01)) return null;
+  const tier = tierForScore01(Math.max(0, Math.min(1, score01)));
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold leading-none ${className}`}
+      style={{ color: TIER_FILL[tier], backgroundColor: `${TIER_FILL[tier]}1a` }}
+      data-testid="tier-word-chip"
+      aria-hidden
+    >
+      {TIER_LABELS[tier]}
+    </span>
   );
 }

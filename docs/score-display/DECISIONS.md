@@ -64,3 +64,21 @@ that page must follow the mode.
 
 Publishing the preference to relays, per-subject opt-outs, changing what the
 backend computes or publishes, and any change to tier thresholds.
+
+## Addendum (same day): two more modes, five total
+
+Reviewing the built three, the user added two:
+
+- **word** — the tier ring everywhere, plus the tier WORD as a small tinted
+  chip next to the name where there's room (profile hero, search results,
+  article/event author headers). Dense rows carry just the ring. "Zero
+  learning curve, the most literal reading of tier words."
+- **off** — no verification shown at all: no coin, no ring, no chip, no aria.
+  The honest endpoint of the feature — for someone who doesn't want people
+  graded, color-only is still a grade. Flag/report warnings are a separate
+  safety channel and stay regardless. Dedicated analytics surfaces (share
+  badge, strength card, Insights history) degrade to the color/word-only
+  treatment rather than breaking their layout.
+
+Demo: `?demo=display` on any URL shows a floating switcher (payments-demo
+pattern) that flips the real setting live across every page.
