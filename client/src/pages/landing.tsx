@@ -19,7 +19,6 @@ import {
   Clock,
 } from "lucide-react";
 import { GlossBackground } from "@/components/GlossBackground";
-import { BrainLogo } from "@/components/BrainLogo";
 import { Wordmark } from "@/components/Wordmark";
 import { SignInButton } from "@/components/SignInButton";
 import { AccountMenu } from "@/components/AccountMenu";
@@ -921,11 +920,17 @@ export default function Landing() {
                               </p>
                             )}
                           </div>
+                          {/* Same coin as the results list below and every people
+                              list — it follows the viewer's display mode where
+                              this pill couldn't, and fixes the pill's scale bug:
+                              it printed `wotRank` raw (0..1), so 81 read "0.81". */}
                           {s.wotRank != null && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand-primary/10 dark:bg-white/10 text-brand-primary dark:text-slate-100 border border-brand-primary/15 dark:border-white/15 shrink-0" data-testid={`home-suggestion-rank-${i}`}>
-                              <BrainLogo mono size={10} className="shrink-0" />
-                              {s.wotRank}
-                            </span>
+                            <VerificationCoin
+                              score01={s.wotRank}
+                              pov={effectivePov === "mywot" ? "personalized" : "global"}
+                              size={22}
+                              className="shrink-0"
+                            />
                           )}
                         </button>
                       );
