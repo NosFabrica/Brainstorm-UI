@@ -176,11 +176,23 @@ export function VerificationCoin({
       : `Verification: ${TIER_LABELS[tier]}, ${povLabel} view`
     : `Unrated, ${povLabel} view`;
 
-  // Level mode's pips need ~3px per dot plus gaps to stay legible; below 26px
-  // the coin falls back to plain hue, which still carries the tier. Dots take
-  // the same contrast-computed ink as the digits they replace.
-  const pipsFit = size >= 26;
+  // Without a digit to hold, the coin doesn't keep the digit's footprint —
+  // a full-size disc with nothing in it reads as a blob next to the avatar.
+  // `size` stays the caller's layout budget; non-number modes render inside it:
+  // tier as a compact status dot, level as a slim pill hugging its five pips.
   const pipCount = TIER_STEP[tier];
+  const dotSize = Math.max(12, Math.round(size * 0.55));
+  const pillH = Math.max(14, Math.round(size * 0.55));
+  const pipSize = Math.max(3, Math.round(pillH * 0.28));
+  const pipGap = Math.max(2, Math.round(pillH * 0.16));
+  const pillPadX = Math.round(pillH * 0.38);
+  const compact = hasScore && displayMode !== "number";
+  const frame =
+    !compact
+      ? { width: size, height: size }
+      : displayMode === "tier"
+        ? { width: dotSize, height: dotSize }
+        : { height: pillH, paddingLeft: pillPadX, paddingRight: pillPadX };
 
   const Comp = onClick ? "button" : "div";
   return (
@@ -191,8 +203,7 @@ export function VerificationCoin({
       title={label}
       className={`inline-flex items-center justify-center rounded-full font-bold leading-none tabular-nums ${hasScore ? "" : "border-2 border-dashed border-slate-300 dark:border-slate-600"} ${ring && hasScore ? POV_RING[pov] : ""} ${onClick ? "transition-transform hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary" : ""} ${className}`}
       style={{
-        width: size,
-        height: size,
+        ...frame,
         backgroundColor: fill,
         color: hasScore ? (darkText ? "#1e293b" : "#ffffff") : "#94a3b8",
         fontFamily: "var(--font-display)",
@@ -210,10 +221,10 @@ export function VerificationCoin({
         "—"
       ) : displayMode === "number" ? (
         pct
-      ) : displayMode === "level" && pipsFit ? (
+      ) : displayMode === "level" ? (
         <span
           className="inline-flex items-center"
-          style={{ gap: Math.max(1, Math.round(size * 0.045)) }}
+          style={{ gap: pipGap }}
           data-testid="coin-pips"
           aria-hidden
         >
@@ -222,8 +233,8 @@ export function VerificationCoin({
               key={step}
               className="rounded-full"
               style={{
-                width: Math.max(3, Math.round(size * 0.09)),
-                height: Math.max(3, Math.round(size * 0.09)),
+                width: pipSize,
+                height: pipSize,
                 backgroundColor: "currentColor",
                 opacity: step <= pipCount ? 1 : 0.3,
               }}
