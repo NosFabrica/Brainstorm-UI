@@ -291,6 +291,16 @@ export function nextScheduledLabel(
   return days === 1 ? "in 1 day" : `in ${days} days`;
 }
 
+/**
+ * The Lightning price, in sats — "2,100 sats". A configured price, not a
+ * conversion: Lightning subscribers are quoted in their own unit, because a
+ * sats payer shown "$2.00" is being shown someone else's money. (Benjamin's
+ * call, and the same courtesy card payers already get in reverse.)
+ */
+export function formatSats(id: TierId): string {
+  return `${TIERS[id].satsPerMonth.toLocaleString("en-US")} sats`;
+}
+
 /** "$2" / "Free" — from minor units, so it can't drift from what Flash charges. */
 export function formatPrice(id: TierId): string {
   const minor = TIERS[id].usdMinorPerMonth;

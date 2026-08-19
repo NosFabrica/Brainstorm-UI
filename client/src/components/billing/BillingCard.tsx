@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { useSubscription } from "@/hooks/useSubscription";
 import { cancelSubscription } from "@/services/subscription";
 import { useToast } from "@/hooks/use-toast";
-import { TIERS, PAID_TIER, type SubscriptionStatus, type Rail } from "@/lib/plans";
+import { TIERS, PAID_TIER, formatSats, type SubscriptionStatus, type Rail } from "@/lib/plans";
 
 /**
  * Billing in Settings, because Settings is where you CHANGE things.
@@ -49,7 +49,11 @@ export function BillingCard() {
   // rather than to fix it, and refusing until they pay would be indefensible.
   const canCancel = paid && status !== "canceled" && status !== "none";
 
+  // A sats payer is quoted in sats everywhere an amount appears; a card payer
+  // in dollars-and-cents. One label, three call sites, no mixed currencies.
+  const lightning = rail === "flash-lightning";
   const amount = (info.usdMinorPerMonth / 100).toFixed(2);
+  const amountLabel = lightning ? formatSats(tier) : `$${amount}`;
   const periodEnd = currentPeriodEnd ? new Date(currentPeriodEnd) : null;
   // Monthly billing: the current period opened one month before it closes.
   const periodStart = periodEnd ? addMonths(periodEnd, -1) : null;
@@ -112,7 +116,7 @@ export function BillingCard() {
         </Row>
         <Row label="Amount">
           <span className="tabular-nums" data-testid="billing-amount">
-            {paid ? `$${amount} / month` : "$0.00"}
+            {paid ? `${amountLabel} / month` : "$0.00"}
           </span>
         </Row>
         <Row label="Payment method">
@@ -120,7 +124,7 @@ export function BillingCard() {
         </Row>
         <Row label={status === "canceled" ? "Access until" : "Next invoice"}>
           <span className="tabular-nums" data-testid="billing-next-invoice">
-            {paid && periodEnd ? (status === "canceled" ? fmtDate(periodEnd) : `${fmtDate(periodEnd)} · $${amount}`) : "—"}
+            {paid && periodEnd ? (status === "canceled" ? fmtDate(periodEnd) : `${fmtDate(periodEnd)} · ${amountLabel}`) : "—"}
           </span>
         </Row>
       </dl>
@@ -151,7 +155,7 @@ export function BillingCard() {
                     {info.name} — {fmtDate(periodStart)} to {fmtDate(periodEnd!)}
                   </td>
                   <td className="px-3 py-2.5">{rail ? <RailBadge rail={rail} compact /> : "—"}</td>
-                  <td className="px-3 py-2.5 text-right tabular-nums font-medium">${amount}</td>
+                  <td className="px-3 py-2.5 text-right tabular-nums font-medium">{amountLabel}</td>
                 </tr>
               ) : (
                 <tr>
