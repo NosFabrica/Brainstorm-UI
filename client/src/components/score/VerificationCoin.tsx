@@ -120,6 +120,47 @@ const POV_RING: Record<ScorePov, string> = {
     "shadow-[0_0_0_2px_#ffffff,0_0_0_4px_#cbd5e1] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_4px_#475569]",
 };
 
+/**
+ * Tier mode's ring around the profile picture itself — the user's preferred
+ * expression of "words and color only": no floating indicator, the color rides
+ * the avatar (a pattern people already read from story rings).
+ *
+ * Deliberately NOT the POV ring's silhouette. That ring is thin and floats 2px
+ * off the coin (2px surface gap + 2px color); this one hugs the photo with a
+ * 2px gap and a 3px band, so the two devices never read as each other even
+ * though both are circles of color. Class strings are static per tier because
+ * Tailwind's JIT needs literals, and inline box-shadow can't carry `dark:`.
+ */
+const TIER_AVATAR_RING: Record<VerificationTier, string> = {
+  high: "shadow-[0_0_0_2px_#ffffff,0_0_0_5px_#7237ff] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_5px_#7237ff]",
+  trusted: "shadow-[0_0_0_2px_#ffffff,0_0_0_5px_#13d2e5] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_5px_#13d2e5]",
+  neutral: "shadow-[0_0_0_2px_#ffffff,0_0_0_5px_#665487] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_5px_#665487]",
+  low: "shadow-[0_0_0_2px_#ffffff,0_0_0_5px_#f59e0b] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_5px_#f59e0b]",
+  unverified: "shadow-[0_0_0_2px_#ffffff,0_0_0_5px_#8c929e] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_5px_#8c929e]",
+};
+
+/**
+ * Call-site helper for the avatar ring. Returns the ring's class for the given
+ * score ONLY in tier mode (null otherwise, and null for unrated — no ring is
+ * the unrated state, like absence of fill is on the coin).
+ *
+ * The contract at every call site is the same pair of moves:
+ *   const tierRing = useTierRing();
+ *   const ring = tierRing(score01);
+ *   <Avatar className={ring ?? ""} />           // ring the photo
+ *   <VerificationCoin className={ring ? "sr-only" : "…"} />  // hide the coin
+ * The coin goes `sr-only` rather than unmounted so its aria-label (the tier
+ * word) and any onClick (the explainer modal) survive the visual swap.
+ */
+export function useTierRing(): (score01: number | null | undefined) => string | null {
+  const [mode] = useScoreDisplayMode();
+  return (score01) => {
+    if (mode !== "tier") return null;
+    if (typeof score01 !== "number" || !Number.isFinite(score01)) return null;
+    return TIER_AVATAR_RING[tierForScore01(Math.max(0, Math.min(1, score01)))];
+  };
+}
+
 export function VerificationCoin({
   score01,
   pov,

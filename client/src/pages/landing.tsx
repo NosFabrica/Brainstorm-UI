@@ -24,7 +24,7 @@ import { SignInButton } from "@/components/SignInButton";
 import { AccountMenu } from "@/components/AccountMenu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing } from "@/components/score/VerificationCoin";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getCurrentUser, fetchProfile, logout, type NostrUser } from "@/services/nostr";
 import { useCurrentUser } from "@/hooks/useCurrentUser";
@@ -102,6 +102,7 @@ async function resolveNip05(handle: string): Promise<string> {
 }
 
 export default function Landing() {
+  const tierRing = useTierRing();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [query, setQuery] = useState(() => {
@@ -903,7 +904,7 @@ export default function Landing() {
                           onClick={() => goToProfile(s)}
                           data-testid={`home-suggestion-${i}`}
                         >
-                          <Avatar className="h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 shrink-0">
+                          <Avatar className={`h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 shrink-0 ${tierRing(s.wotRank) ?? ""}`}>
                             {s.picture ? <AvatarImage src={s.picture} alt={getDisplayLabel(s)} className="object-cover" /> : null}
                             <AvatarFallback className="overflow-hidden">
                               <DefaultAvatarImg />
@@ -929,7 +930,7 @@ export default function Landing() {
                               score01={s.wotRank}
                               pov={effectivePov === "mywot" ? "personalized" : "global"}
                               size={22}
-                              className="shrink-0"
+                              className={tierRing(s.wotRank) ? "sr-only" : "shrink-0"}
                             />
                           )}
                         </button>
@@ -1208,7 +1209,7 @@ export default function Landing() {
                           number the product is about looked different here than
                           anywhere else. Team feedback, and they were right. */}
                       <div className="relative shrink-0">
-                        <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2 border-slate-200/80 dark:border-slate-800/80">
+                        <Avatar className={`h-10 w-10 sm:h-12 sm:w-12 border-2 border-slate-200/80 dark:border-slate-800/80 ${tierRing(result.wotRank) ?? ""}`}>
                           {result.picture ? <AvatarImage src={result.picture} alt={getDisplayLabel(result)} className="object-cover" /> : null}
                           <AvatarFallback className="overflow-hidden">
                             <DefaultAvatarImg />
@@ -1219,7 +1220,7 @@ export default function Landing() {
                             score01={result.wotRank}
                             pov={effectivePov === "mywot" ? "personalized" : "global"}
                             size={22}
-                            className="absolute -bottom-1 -right-1"
+                            className={tierRing(result.wotRank) ? "sr-only" : "absolute -bottom-1 -right-1"}
                           />
                         )}
                       </div>

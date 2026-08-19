@@ -58,7 +58,7 @@ import { ProfileActions, OwnerActions } from "@/components/share/ProfileActions"
 import { Stat, StatLensToggle, type StatLens } from "@/components/share/StatToggle";
 import { NegativeSignalStats } from "@/components/share/NegativeSignalStats";
 import { useScorePov, TrustScoreModal } from "@/components/score/TrustScorePov";
-import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing } from "@/components/score/VerificationCoin";
 import { extractImageUrls, extractVideoUrls, extractVideoPoster } from "@/lib/noteContent";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
@@ -86,6 +86,7 @@ function timeAgo(ts?: number): string {
 }
 
 export default function SharePage() {
+  const tierRing = useTierRing();
   const [, params] = useRoute("/p/:id");
   const rawId = params?.id || "";
   const decoded = useMemo(() => decodeShareId(rawId), [rawId]);
@@ -914,7 +915,7 @@ export default function SharePage() {
               profile to a pictureless one, hiding the fallback. */}
           <div className="flex items-end justify-between gap-3">
             <div className="relative inline-block">
-              <Avatar key={pubkey} className="h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white shadow-lg bg-white dark:bg-slate-900">
+              <Avatar key={pubkey} className={`h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white bg-white dark:bg-slate-900 ${tierRing(coinScore01) ?? "shadow-lg"}`}>
                 {profile.picture ? <AvatarImage src={profile.picture} alt={displayName} className="object-cover" /> : null}
                 <AvatarFallback className="overflow-hidden rounded-full">
                   <DefaultAvatarImg flagged={isFlagged} />
@@ -927,7 +928,7 @@ export default function SharePage() {
                 pov={scorePov}
                 size={32}
                 onClick={() => setScoreModalOpen(true)}
-                className="absolute -bottom-1 -right-1"
+                className={tierRing(coinScore01) ? "sr-only" : "absolute -bottom-1 -right-1"}
               />
             </div>
             {/* Desktop: chip + icons + Follow/⋯. Mobile: just the contact icons

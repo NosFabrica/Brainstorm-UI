@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { BadgeCheck, MessageSquare } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { NoteContent } from "@/components/share/NoteContent";
-import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing } from "@/components/score/VerificationCoin";
 import { npubFromPubkey } from "@/lib/shareId";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { analyzeNote, type MinimalEvent } from "@/lib/noteRefs";
@@ -45,6 +45,8 @@ export function EmbeddedNoteCard({
    *  Off by default so quoted-note embeds stay uncluttered. */
   showReplyContext?: boolean;
 }) {
+  const tierRing = useTierRing();
+  const ring = tierRing(trustScore01);
   const [, navigate] = useLocation();
   const name = author?.display_name || author?.name || "Unknown";
   let npub = "";
@@ -73,7 +75,7 @@ export function EmbeddedNoteCard({
     >
       <div className="flex items-center gap-2 mb-1.5">
         <a href={npub ? `/p/${npub}` : undefined} className="flex items-center gap-2 min-w-0 hover:opacity-80">
-          <Avatar className="h-6 w-6 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+          <Avatar className={`h-6 w-6 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 ${ring ?? ""}`}>
             {author?.picture ? <AvatarImage src={author.picture} alt={name} className="object-cover" /> : null}
             <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
           </Avatar>
@@ -82,7 +84,7 @@ export function EmbeddedNoteCard({
         </a>
         <div className="ml-auto flex items-center gap-2 shrink-0">
           {typeof trustScore01 === "number" && Number.isFinite(trustScore01) && (
-            <VerificationCoin score01={trustScore01} pov="global" size={22} />
+            <VerificationCoin score01={trustScore01} pov="global" size={22} className={ring ? "sr-only" : ""} />
           )}
           <span className="text-xs text-slate-400 dark:text-slate-500">{ago(event.created_at)}</span>
         </div>
