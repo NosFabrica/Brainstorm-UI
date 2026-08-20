@@ -1,3 +1,22 @@
+# Brainstorm UI
+
+## Prerequisites
+
+- **Node 24** — the pin lives in `.nvmrc`, so `nvm use` picks it up. `package.json`
+  declares `engines.node: ">=24"`.
+
+## Local development
+
+```
+nvm use          # reads .nvmrc -> Node 24
+npm ci           # install from the lockfile
+npm run dev      # vite dev server
+npm test         # vitest
+npm run check    # tsc typecheck
+```
+
+## Docker
+
 `docker build -t brnstui --build-arg VITE_API_URL=https://api.example123.com --build-arg VITE_NIP85_RELAY_URL=wss://nip85.example.com .`
 
 `docker run -d -p 3000:3000 --name brainstorm-ui brnstui`
