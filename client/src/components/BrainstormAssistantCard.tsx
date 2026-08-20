@@ -3,11 +3,16 @@ import { copyToClipboard } from "@/lib/clipboard";
 import { useLocation } from "wouter";
 import { useMutation } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { useProfile } from "@/hooks/useProfile";
+import { getProfilePicture, type ProfileContent } from "applesauce-core/helpers/profile";
 import { ArrowRight, Copy, ExternalLink, Globe, Info, Loader2, Quote, RefreshCw, Sparkles, Wand2 } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { apiClient } from "@/services/api";
-import { fetchProfile, fetchAssistantPointer, getCurrentUser } from "@/services/nostr";
+import { fetchAssistantPointer } from "@/services/nostr";
+import { activePubkey } from "@/accounts/display";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { followUser } from "@/services/socialActions";
 import { ensureAssistantPublished } from "@/lib/assistantPublish";
 import { FEATURES } from "@/config/featureFlags";
@@ -16,7 +21,6 @@ import { Tooltip as UITooltip, TooltipContent, TooltipProvider, TooltipTrigger }
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   ASSISTANT_UPDATED_EVENT,
-  USER_CHANGED_EVENT,
   readAssistantProfile,
   writeAssistantProfile,
   readPublishedAssistant,
@@ -28,6 +32,24 @@ import {
   type AssistantProfile,
   type PublishedAssistantState as PublishedState,
 } from "@/lib/assistantStorage";
+
+/**
+ * A kind-0 as this card stores it. `AssistantProfile` is a storage shape — it is
+ * written to localStorage for the synchronous first paint — so it is a plain
+ * subset of `ProfileContent` rather than a second idea of what a profile is.
+ */
+function toAssistantProfile(content: ProfileContent): AssistantProfile {
+  const text = (value: unknown) => (typeof value === "string" && value ? value : undefined);
+  return {
+    name: text(content.name),
+    display_name: text(content.display_name),
+    about: text(content.about),
+    website: text(content.website),
+    picture: text(getProfilePicture(content) || content.picture),
+    banner: text((content as { banner?: unknown }).banner),
+    nip05: text(content.nip05),
+  };
+}
 
 const DEFAULT_ASSISTANT_PICTURE_PATH = "/assistant-default.webp";
 const DEFAULT_ASSISTANT_BANNER_PATH = "/assistant-banner.webp";
@@ -71,10 +93,10 @@ export interface BrainstormAssistantCardProps {
 export function BrainstormAssistantCard({ variant, prominence = "default", onDismiss, lastCalculated }: BrainstormAssistantCardProps) {
   const [, navigate] = useLocation();
   const { toast } = useToast();
-  const reduceMotion = useReducedMotion();
+  const reduceMotion = usePrefersReducedMotion();
   const [published, setPublished] = useState<PublishedState | null>(() => readPublishedAssistant());
   const [profile, setProfile] = useState<AssistantProfile | null>(() => readAssistantProfile());
-  const [userPubkey, setUserPubkey] = useState<string | null>(() => getCurrentUser()?.pubkey ?? null);
+  const userPubkey = useActiveAccountDisplay()?.pubkey ?? null;
   const [error, setError] = useState<string | null>(null);
   const [showInfo, setShowInfo] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
@@ -83,7 +105,6 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
     const refresh = () => {
       setPublished(readPublishedAssistant());
       setProfile(readAssistantProfile());
-      setUserPubkey(getCurrentUser()?.pubkey ?? null);
     };
     // Cross-tab key changes still arrive via the legacy `storage` listener,
     // and the per-user keys we now use share the same `brainstorm_assistant:`
@@ -91,15 +112,14 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
     const onStorage = (e: StorageEvent) => {
       if (e.key && e.key.startsWith("brainstorm_assistant:")) refresh();
     };
+    refresh();
     window.addEventListener("storage", onStorage);
     window.addEventListener(ASSISTANT_UPDATED_EVENT, refresh as EventListener);
-    window.addEventListener(USER_CHANGED_EVENT, refresh as EventListener);
     return () => {
       window.removeEventListener("storage", onStorage);
       window.removeEventListener(ASSISTANT_UPDATED_EVENT, refresh as EventListener);
-      window.removeEventListener(USER_CHANGED_EVENT, refresh as EventListener);
     };
-  }, []);
+  }, [userPubkey]);
 
   // Cross-device sync (Task #86): when this device has no local pointer for
   // the current user, query Nostr for the user's NIP-78 assistant pointer
@@ -114,8 +134,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
       // Re-check local in case a publish raced us.
       if (readPublishedAssistant()) return;
       // Make sure the user hasn't changed while we were awaiting.
-      const stillCurrent = getCurrentUser()?.pubkey ?? null;
-      if (stillCurrent !== userPubkey) return;
+      if (activePubkey() !== userPubkey) return;
       let npub = remote.pubkey;
       try { npub = nip19.npubEncode(remote.pubkey); } catch {}
       const state: PublishedState = {
@@ -132,24 +151,17 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
     return () => { cancelled = true; };
   }, [userPubkey, published]);
 
-  // Hydrate the assistant's kind-0 profile from relays so we can render
-  // display name, about, and website elegantly in the active state.
+  // The assistant's kind-0, live. A subscription rather than a fetch: the store
+  // answers immediately for one it already holds, its loader gets one it doesn't,
+  // and a later republish reaches this card without a reload.
+  const assistantProfile = useProfile(published?.pubkey);
+
   useEffect(() => {
-    if (!published?.pubkey) return;
+    if (!published?.pubkey || !assistantProfile) return;
     let cancelled = false;
     (async () => {
       try {
-        const p = await fetchProfile(published.pubkey);
-        if (!p || cancelled) return;
-        const next: AssistantProfile = {
-          name: typeof (p as any).name === "string" ? (p as any).name : undefined,
-          display_name: typeof (p as any).display_name === "string" ? (p as any).display_name : undefined,
-          about: typeof (p as any).about === "string" ? (p as any).about : undefined,
-          website: typeof (p as any).website === "string" ? (p as any).website : undefined,
-          picture: typeof (p as any).picture === "string" ? (p as any).picture : undefined,
-          banner: typeof (p as any).banner === "string" ? (p as any).banner : undefined,
-          nip05: typeof (p as any).nip05 === "string" ? (p as any).nip05 : undefined,
-        };
+        const next = toAssistantProfile(assistantProfile);
         setProfile(next);
         writeAssistantProfile(next);
 
@@ -184,7 +196,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
       } catch {}
     })();
     return () => { cancelled = true; };
-  }, [published?.pubkey, published?.publishedAt]);
+  }, [published?.pubkey, published?.publishedAt, assistantProfile]);
 
   const publishMutation = useMutation({
     // Explicit user action: always (re)publish, and DO follow the bot (consent).
@@ -562,9 +574,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                     className="group/cta relative w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-white text-sm font-bold transition-[filter,background-position] duration-300 disabled:opacity-60 disabled:pointer-events-none min-h-[48px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/70 focus-visible:ring-offset-2 focus-visible:ring-offset-white overflow-hidden bg-[length:200%_100%] bg-[linear-gradient(110deg,rgb(var(--brand-primary))_0%,rgb(var(--brand-primary-hover))_40%,rgb(var(--brand-accent))_100%)] hover:bg-[position:100%_0] hover:brightness-110"
                     data-testid={`button-assistant-publish-${variant}`}
                   >
-                    {!reduceMotion && (
-                      <span aria-hidden="true" className="pointer-events-none absolute inset-0 -translate-x-full group-hover/cta:translate-x-full transition-transform duration-700 ease-out bg-[linear-gradient(120deg,transparent_30%,rgba(255,255,255,0.35)_50%,transparent_70%)]" />
-                    )}
+                    <span aria-hidden="true" className="pointer-events-none absolute inset-0 -translate-x-full group-hover/cta:translate-x-full transition-transform duration-700 ease-out bg-[linear-gradient(120deg,transparent_30%,rgba(255,255,255,0.35)_50%,transparent_70%)] motion-reduce:hidden" />
                     {isPending ? (
                       <>
                         <Loader2 className="h-4 w-4 animate-spin relative z-10" />

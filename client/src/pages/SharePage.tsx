@@ -26,7 +26,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { decodeShareId, npubFromPubkey, nostrUriFor, eventPath } from "@/lib/shareId";
 import { relativeTime } from "@/lib/relativeTime";
 import { copyToClipboard } from "@/lib/clipboard";
-import { fetchProfileForShare, fetchRecentByKinds, fetchLiveStreams, fetchEventsByIds, fetchAddressableEvents, fetchProfileMap, fetchExternalIdentities, fetchOutboxRelayList, fetchProfilePrefs, publishProfilePrefs, hasLocalSecretKey, PROFILE_RELAYS } from "@/services/nostr";
+import { useActiveAccount } from "applesauce-react/hooks";
+import { fetchProfileForShare, fetchRecentByKinds, fetchLiveStreams, fetchEventsByIds, fetchAddressableEvents, fetchProfileMap, fetchExternalIdentities, fetchOutboxRelayList, fetchProfilePrefs, publishProfilePrefs } from "@/services/nostr";
+import { PROFILE_RELAYS } from "@/lib/relays";
 import { parseIdentities } from "@/lib/externalIdentity";
 import { ExternalIdentities } from "@/components/share/ExternalIdentities";
 import { FollowedByRow } from "@/components/share/FollowedByRow";
@@ -47,11 +49,11 @@ import { PinIcon } from "@/components/PinIcon";
 import { parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
 import { EventRow } from "@/components/share/EventRow";
 import { OpenInApp } from "@/components/share/OpenInApp";
-import { apiClient, hasSessionToken } from "@/services/api";
+import { apiClient } from "@/services/api";
 import { parseProfilePrefs, loadProfilePrefsDraft, saveProfilePrefsDraft, clearProfilePrefsDraft } from "@/lib/personalization";
 import { SECTION_KEYS, ROLE_LABELS, EMPTY_PROFILE_PREFS, type SectionKey, type ProfilePrefs } from "@/config/personalization";
 import { ProfileCustomizer } from "@/components/share/ProfileCustomizer";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { DegreeChip } from "@/components/DegreeChip";
 import { useRelationshipBadges } from "@/hooks/useRelationshipBadges";
 import { ProfileActions, OwnerActions } from "@/components/share/ProfileActions";
@@ -72,6 +74,7 @@ import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC } from "@/lib/profileDefaults";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { useHasSession } from "@/hooks/useHasSession";
 
 type ProfileContentLike = Record<string, string | undefined>;
 
@@ -92,7 +95,7 @@ export default function SharePage() {
   const pubkey = decoded?.pubkey || "";
   const relayHints = decoded?.relays || [];
   const npub = pubkey ? safeNpub(pubkey) : "";
-  const loggedIn = hasSessionToken();
+  const loggedIn = useHasSession();
   const [shareOpen, setShareOpen] = useState(false);
   const [zapOpen, setZapOpen] = useState(false);
   const [npubCopied, setNpubCopied] = useState(false);
@@ -132,18 +135,19 @@ export default function SharePage() {
   const publishedPrefs = useMemo(() => parseProfilePrefs(prefsQuery.data ?? {}), [prefsQuery.data]);
 
   // Owner-only inline editing — while editing, the page previews the DRAFT live.
-  const [currentUser] = useCurrentUser();
-  // Owner = the logged-in user IS this profile and can sign (publish prefs).
-  const isOwner = !!currentUser?.pubkey && currentUser.pubkey === pubkey &&
-    (hasSessionToken() || hasLocalSecretKey() || (typeof window !== "undefined" && !!(window as unknown as { nostr?: unknown }).nostr));
+  const currentUser = useActiveAccountDisplay();
+  // Owner = the Account that signs IS this profile — which is also what makes
+  // publishing prefs possible, so there is nothing else to check.
+  const isOwner = useActiveAccount()?.pubkey === pubkey;
   // Tagging needs a SIGNER, which is a stricter thing than being signed in: a
-  // session token is backend auth and can't sign an event. Deliberately not
-  // reusing `isOwner`'s check, which counts a session token — that's fine for
-  // the prefs flows it gates, but here it would show an "Add a tag" button that
-  // throws "No signer available" the moment it's used. Anyone with a signer can
-  // tag anyone, including themselves.
-  const canTag = !!currentUser?.pubkey &&
-    (hasLocalSecretKey() || (typeof window !== "undefined" && !!(window as unknown as { nostr?: unknown }).nostr));
+  // session token is backend auth and can't sign an event, so gating on one
+  // would show an "Add a tag" button that throws the moment it is used. Anyone
+  // with a signer can tag anyone, including themselves.
+  //
+  // Under the accounts model an Account *is* a Signer, so holding one is the
+  // test. Upstream asked `hasLocalSecretKey() || window.nostr`, which quietly
+  // excluded every remote signer; this includes them.
+  const canTag = !!currentUser?.pubkey;
   // Read-only relationship state (follow/mute/report/follows-you) for a logged-in
   // viewer — drives the at-a-glance badges next to the actions (which now live
   // here on /p; /profile is the tucked-away advanced view).
@@ -175,6 +179,7 @@ export default function SharePage() {
     setPrefsError(null);
     const res = await publishProfilePrefs(draft);
     setSavingPrefs(false);
+    if (res.cancelled) return;
     if (res.success) {
       clearProfilePrefsDraft(pubkey);
       setEditing(false);
@@ -482,6 +487,7 @@ export default function SharePage() {
   // The muter/reporter counts themselves render in <NegativeSignalStats>; the
   // reporter count is read here too, for the flag banner.
   const verifiedReporters = num(stats?.reported_by?.verified);
+  const allReporters = num(stats?.reported_by?.total);
   // Flagged = reported by more than 5 verified accounts, +1 forgiven per 750
   // verified followers (house POV → same verdict for every viewer).
   const isFlagged = isFlaggedByReporters(verifiedReporters ?? 0, verifiedFollowers ?? 0);

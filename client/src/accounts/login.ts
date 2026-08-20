@@ -1,0 +1,216 @@
+/**
+ * One function per login method, each returning an Account, plus the two acts
+ * that change who signs: adopting an Account and letting one go.
+ *
+ * There is exactly **one** extension-wait here. v1 had two copies with different
+ * timeouts, and neither built anything the rest of the app could hold onto — the
+ * extension was re-discovered at every signature instead.
+ */
+import { ExtensionAccount } from "applesauce-accounts/accounts";
+
+import { accountManager } from "@/accounts";
+import { LocalAccount } from "./local-account";
+import type { LocalSignerOptions } from "./local-signer";
+import {
+  getMetadata,
+  updateMetadata,
+  type AccountMetadata,
+  type BrainstormAccount,
+} from "./metadata";
+
+declare global {
+  interface Window {
+    nostr?: {
+      getPublicKey(): Promise<string>;
+      signEvent(event: Record<string, unknown>): Promise<Record<string, unknown>>;
+    };
+  }
+}
+
+/** Extensions inject `window.nostr` whenever they like, often after first paint. */
+export const EXTENSION_WAIT_MS = 800;
+
+/**
+ * What a background 401 waits instead. The interactive paths can't stall on an
+ * extension that may not exist — 800ms is already a long time to hold a login
+ * picker. A cold boot has the opposite problem: Alby and nos2x on a cold profile
+ * routinely inject after ~1s, and giving up first costs the Session and, for a
+ * single-account user, the route. This is what v1 waited here.
+ */
+export const EXTENSION_COLD_BOOT_WAIT_MS = 3000;
+
+export function waitForExtension(
+  maxWaitMs = EXTENSION_WAIT_MS,
+  intervalMs = 100,
+): Promise<boolean> {
+  if (typeof window !== "undefined" && window.nostr) return Promise.resolve(true);
+  const deadline = Date.now() + maxWaitMs;
+  return new Promise((resolve) => {
+    const poll = setInterval(() => {
+      if (typeof window !== "undefined" && window.nostr) {
+        clearInterval(poll);
+        resolve(true);
+      } else if (Date.now() >= deadline) {
+        clearInterval(poll);
+        resolve(false);
+      }
+    }, intervalMs);
+  });
+}
+
+/**
+ * The Account behind a NIP-07 extension, from the library's own constructor —
+ * which asks the extension for its pubkey, so this both waits for it and proves
+ * it will answer.
+ *
+ * @throws {ExtensionMissingError} when no extension appears, or it refuses.
+ */
+export async function extensionAccount(): Promise<ExtensionAccount<AccountMetadata>> {
+  await waitForExtension();
+  return ExtensionAccount.fromExtension<AccountMetadata>();
+}
+
+/**
+ * An Account over a key this app holds.
+ *
+ * Persistence is not required here. Where there is no Unlock cache and no
+ * Recovery password the Account lives for this tab only — worse than staying
+ * signed in, but better than refusing a login outright, and until ticket 17
+ * v1's own copy of the key is still written and still migrates on the next boot.
+ * Ticket 12's signup password is what closes this properly.
+ */
+export function localAccount(
+  key: Uint8Array,
+  options: LocalSignerOptions & { password?: string; logn?: number; ncryptsec?: string } = {},
+): Promise<LocalAccount> {
+  return LocalAccount.fromKey(key, { ...options, requirePersistable: false });
+}
+
+/**
+ * The Backup follows the identity, not the row.
+ *
+ * `backedUp: true` carries across a replacement, and that flag is a promise: the
+ * nag never returns once it is set. But the Backup it refers to lives in the
+ * signer, so a row replaced by one holding only a device envelope keeps the
+ * promise and loses the thing — and the ordinary way there is re-pasting an nsec
+ * on a browser where the vault works, which mints no `ncryptsec` at all. Clear
+ * site data after that and the account is unrecoverable, while its owner still
+ * has the file and the password that opens it.
+ *
+ * Only fills a gap. A row that brought its own Backup keeps it: that one was
+ * minted under a password the user chose more recently.
+ */
+function carryBackup(from: BrainstormAccount, to: BrainstormAccount): void {
+  if (!(from instanceof LocalAccount) || !(to instanceof LocalAccount)) return;
+  if (to.signer.data.ncryptsec || !from.signer.data.ncryptsec) return;
+  to.signer.data.ncryptsec = from.signer.data.ncryptsec;
+}
+
+/**
+ * Hold this Account, and make it the one that signs.
+ *
+ * One row per identity per Signer: signing in again with the same extension, or
+ * re-pasting the same key, replaces what this device already held rather than
+ * leaving the picker with two rows carrying the same face and the same badge —
+ * the indistinguishable pair that grouping exists to prevent. What the old row
+ * knew about itself comes across; its Session doesn't, since the new one has
+ * just authenticated.
+ */
+export function adoptAccount(account: BrainstormAccount, metadata: AccountMetadata): void {
+  let carried: Partial<AccountMetadata> = {};
+  for (const held of [...accountManager.accounts]) {
+    if (held === account || held.pubkey !== account.pubkey || held.type !== account.type) continue;
+    const { session, remembered, ...rest } = getMetadata(held as BrainstormAccount);
+    carried = rest;
+    carryBackup(held as BrainstormAccount, account);
+    forgetAccount(held as BrainstormAccount);
+  }
+
+  // metadata first: adding is what triggers a save, and one save is enough
+  updateMetadata(account, { ...carried, ...metadata });
+  accountManager.addAccount(account);
+  accountManager.setActive(account);
+}
+
+/**
+ * The Account this device holds for an identity, whichever Signer it signs
+ * through — the Active one where it is this identity.
+ *
+ * One identity can hold several Accounts: `adoptAccount` dedupes on Signer type,
+ * so an extension row and a local row for one key both stand. Taking whichever
+ * came first would answer from an arbitrary row *and* change its answer when a
+ * re-login reorders them, so per-identity state would appear to come and go.
+ */
+export function accountFor(pubkey: string): BrainstormAccount | undefined {
+  const active = accountManager.active;
+  if (active?.pubkey === pubkey) return active as BrainstormAccount;
+  return accountManager.accounts.find((account) => account.pubkey === pubkey) as
+    | BrainstormAccount
+    | undefined;
+}
+
+/** Every Account this device holds for an identity. */
+export function accountsFor(pubkey: string): BrainstormAccount[] {
+  return accountManager.accounts.filter((account) => account.pubkey === pubkey) as BrainstormAccount[];
+}
+
+/**
+ * The Account this device holds the *key* for, by identity. An identity may sign
+ * through several Signers, but only one of them keeps a key here.
+ */
+export function localAccountFor(pubkey: string): LocalAccount | undefined {
+  return accountManager.accounts.find(
+    (account) => account.pubkey === pubkey && account instanceof LocalAccount,
+  ) as LocalAccount | undefined;
+}
+
+/** Make an Account this device already holds the one that signs — the picker's act. */
+export function activateAccount(account: BrainstormAccount): void {
+  accountManager.setActive(account);
+}
+
+/**
+ * Let an Account go: it leaves this device, keys and all, and the in-memory copy
+ * goes with it — nothing may still sign as an identity this browser no longer
+ * holds.
+ *
+ * For a Signer that reaches outside this module that means shutting it down too,
+ * not just dropping the reference. A remote signer holds a live relay
+ * subscription that would otherwise run for the life of the tab; Amber's holds a
+ * `visibilitychange` listener that would read the clipboard on every return to
+ * the app, for an identity we no longer have.
+ */
+export function forgetAccount(account: BrainstormAccount): void {
+  accountManager.removeAccount(account);
+  if (account instanceof LocalAccount) account.signer.lock();
+  // `logout` is a courtesy the spec makes optional and nsec.app doesn't
+  // implement, so it is sent without waiting and without caring.
+  releaseSigner(account);
+}
+
+/** Shut down whatever the Signer was holding open. Best effort, always. */
+function releaseSigner(account: BrainstormAccount): void {
+  const signer = account.signer as { logout?: () => Promise<void>; destroy?: () => void };
+  try {
+    signer.destroy?.();
+    void signer.logout?.().catch(() => {});
+  } catch {
+    /* a Signer that can't be shut down cleanly still has to leave */
+  }
+}
+
+/**
+ * Sign out: the Session ends and nobody signs, but the Account stays listed with
+ * its key at rest, so the picker can offer it back in one tap. v1's sign-out
+ * deleted the key instead, which left a signed-out device with nothing to offer.
+ *
+ * The in-memory key goes with the Session, but only where an at-rest form could
+ * bring it back — for a key with neither, locking it would be losing it.
+ */
+export function signOutActiveAccount(): void {
+  const account = accountManager.active as BrainstormAccount | undefined;
+  if (!account) return;
+  updateMetadata(account, { session: undefined });
+  accountManager.clearActive();
+  if (account instanceof LocalAccount && account.persistable) account.signer.lock();
+}

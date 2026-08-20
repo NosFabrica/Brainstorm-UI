@@ -12,9 +12,14 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { FlashIcon } from "@/components/FlashIcon";
 import { copyToClipboard } from "@/lib/clipboard";
 import { initialsFor } from "@/lib/profileDefaults";
-import { hasSessionToken } from "@/services/api";
-import { getCurrentUser, hasLocalSecretKey, signEventLocally, signEventWithEphemeralKey, getVerifiedProfileLud16, PROFILE_RELAYS } from "@/services/nostr";
+import { useActiveAccount } from "applesauce-react/hooks";
+import { signAs } from "@/accounts/signing";
+import { isUnlockCancelled } from "@/accounts/local-signer";
+import { signEventWithEphemeralKey, getVerifiedProfileLud16 } from "@/services/nostr";
+import { PROFILE_RELAYS } from "@/lib/relays";
 import {
+  acceptsZaps,
+  canAttributeZap,
   lnurlpFromAddress,
   buildZapRequest,
   requestInvoice,
@@ -53,14 +58,14 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
   // kind-0 — the only address we resolve/pay (never the unverified prop).
   const [verifiedLud16, setVerifiedLud16] = useState<string | null>(null);
 
-  const hasSigner = typeof window !== "undefined" && (!!window.nostr || hasLocalSecretKey());
-  const senderPubkey = getCurrentUser()?.pubkey;
+  // Whoever is signed in signs the zap request; with nobody, it goes out anonymously.
+  const account = useActiveAccount();
   // If the recipient's provider supports zaps we ALWAYS send a NIP-57 zap (so it
   // shows on nostr) — attributed to the viewer when signed in, otherwise an
   // anonymous zap signed with a throwaway key. Plain wallet-only payment is the
   // last resort, only when the provider doesn't support zaps.
-  const recipientSupportsZaps = !!(params?.allowsNostr && params?.nostrPubkey);
-  const isAttributed = recipientSupportsZaps && hasSessionToken() && hasSigner && !!senderPubkey;
+  const recipientSupportsZaps = acceptsZaps(params);
+  const isAttributed = canAttributeZap(params, account);
   // Address shown / paid: the verified one once known, the prop only as a
   // pre-verification placeholder in the header.
   const displayAddr = verifiedLud16 ?? lud16;
@@ -115,16 +120,20 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
       const commentText = comment.trim() || undefined;
       const anonZap = () =>
         signEventWithEphemeralKey(
-          buildZapRequest({ recipientPubkey, senderPubkey: "", amountMsat, lnurl: params.lnurlUrl, relays, comment: commentText, anon: true }),
+          buildZapRequest({ recipientPubkey, amountMsat, lnurl: params.lnurlUrl, relays, comment: commentText, anon: true }),
         );
       let signedZapRequest: Record<string, unknown> | undefined;
       if (recipientSupportsZaps) {
-        if (isAttributed && senderPubkey) {
+        if (isAttributed && account) {
           try {
-            signedZapRequest = await signEventLocally(
-              buildZapRequest({ recipientPubkey, senderPubkey, amountMsat, lnurl: params.lnurlUrl, relays, comment: commentText }),
+            signedZapRequest = await signAs(
+              account,
+              buildZapRequest({ recipientPubkey, amountMsat, lnurl: params.lnurlUrl, relays, comment: commentText }),
             );
-          } catch {
+          } catch (e) {
+            // They declined to unlock: abandon the zap rather than quietly sending
+            // an anonymous one they didn't ask for.
+            if (isUnlockCancelled(e)) { setStep("compose"); return; }
             // Signer rejected → still send it, anonymously, so it appears on nostr.
             signedZapRequest = anonZap();
           }

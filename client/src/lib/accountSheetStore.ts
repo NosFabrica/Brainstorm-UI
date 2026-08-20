@@ -1,37 +1,26 @@
-import { useSyncExternalStore } from "react";
+import { BehaviorSubject } from "rxjs";
+import { use$ } from "applesauce-react/hooks";
 
 /**
  * Open-state for the mobile account bottom sheet, kept outside React so the
  * "You" tab in {@link MobileTabBar} and any other trigger can open it without
- * prop-drilling. Mirrors mobileMenuStore's shape.
+ * prop-drilling. A `BehaviorSubject` rather than a hand-rolled listener set —
+ * the rest of the app's out-of-React state is already observables.
  */
-let open = false;
-const listeners = new Set<() => void>();
-const notify = () => listeners.forEach((l) => l());
+const open$ = new BehaviorSubject(false);
 
 export function openAccountSheet() {
-  if (open) return;
-  open = true;
-  notify();
+  setAccountSheet(true);
 }
 
 export function closeAccountSheet() {
-  if (!open) return;
-  open = false;
-  notify();
+  setAccountSheet(false);
 }
 
 export function setAccountSheet(next: boolean) {
-  if (open === next) return;
-  open = next;
-  notify();
+  if (open$.value !== next) open$.next(next);
 }
 
-function subscribe(cb: () => void) {
-  listeners.add(cb);
-  return () => { listeners.delete(cb); };
-}
-
-export function useAccountSheetOpen() {
-  return useSyncExternalStore(subscribe, () => open, () => open);
+export function useAccountSheetOpen(): boolean {
+  return use$(open$);
 }

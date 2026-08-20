@@ -6,14 +6,20 @@ import { cn } from "@/lib/utils"
 // "Card"). Uses semantic tokens so it's theme-aware by construction. The
 // hover-lift is opt-in via `interactive` — static cards should stay quiet
 // ("Use colour to communicate, not decorate").
+//
+// `accent` is the exception the principle allows: an Aurora wash + glow for a
+// card that genuinely has to be noticed (the backup nag). Dark gets its own
+// values — `--brand-deep` flips to a light violet there (design-system.md).
 const Card = React.forwardRef<
   HTMLDivElement,
-  React.HTMLAttributes<HTMLDivElement> & { interactive?: boolean }
->(({ className, interactive = false, ...props }, ref) => (
+  React.HTMLAttributes<HTMLDivElement> & { interactive?: boolean; accent?: boolean }
+>(({ className, interactive = false, accent = false, ...props }, ref) => (
   <div
     ref={ref}
     className={cn(
       "rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none",
+      accent &&
+        "border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.03] to-brand-accent/[0.06] shadow-[0_0_15px_rgb(var(--brand-accent)/0.07)] dark:border-brand-accent/25 dark:from-brand-primary/[0.14] dark:to-brand-accent/[0.10] dark:shadow-[0_0_15px_rgb(var(--brand-accent)/0.10)]",
       interactive && "cursor-pointer transition-all hover:shadow-md hover:border-brand-accent/40",
       className
     )}

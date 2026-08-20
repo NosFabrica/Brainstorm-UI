@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { copyToClipboard } from "@/lib/clipboard";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { getRecentItems, pushRecentQuery, pushRecentProfile, removeRecentItem, clearRecentSearches, recentKey, type RecentItem } from "@/lib/recentSearches";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type FormEvent } from "react";
 import { nip19 } from "nostr-tools";
@@ -27,15 +28,15 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
 import { EmptyState } from "@/components/ui/empty-state";
-import { getCurrentUser, fetchProfile, logout, type NostrUser } from "@/services/nostr";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { fetchProfile } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { queryClient } from "@/lib/queryClient";
 import { apiClient } from "@/services/api";
-import { useActivePov } from "@/hooks/useActivePov";
+import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
-import { PostSignupCard } from "@/components/PostSignupCard";
-import { BackupReminder } from "@/components/BackupReminder";
+import { AccountCards } from "@/components/AccountCards";
 import { useToast } from "@/hooks/use-toast";
 import { setProfileSeed, setStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
 import {
@@ -114,7 +115,7 @@ export default function Landing() {
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
   const [phIndex, setPhIndex] = useState(0);
   const [phVisible, setPhVisible] = useState(true);
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const prefersReducedMotion = usePrefersReducedMotion();
   // First-time visitors get the rotating hints (a gentle "here's what you can
   // search" onboarding); returning visitors get the calm static placeholder.
   // Read once at mount so the current visit reflects prior visits, then persist
@@ -148,11 +149,10 @@ export default function Landing() {
   const didInitFromUrlRef = useRef(false);
   const prefetchTimersRef = useRef<Map<string, number>>(new Map());
 
-  // Live current-user state: re-reads when the profile metadata (avatar/name)
-  // arrives shortly after login, so the header avatar appears on first load
-  // without needing a refresh. See useCurrentUser.
-  const [user, setUser] = useCurrentUser();
-  const [pov, setPov] = useActivePov();
+  // Live identity: the header avatar appears as soon as the profile metadata
+  // lands after login, without a refresh.
+  const user = useActiveAccountDisplay();
+  const [pov, setPov] = useActivePerspective();
   const { hasMywot } = useHasMywot();
   // Permission to search from one's own perspective, per GET /user/isSearchObserver.
   const { isSearchObserver } = useIsSearchObserver();
@@ -170,7 +170,6 @@ export default function Landing() {
 
   const handleLogout = useCallback(() => {
     logout();
-    setUser(null);
   }, []);
 
   // Gate the Network app tile until a trust graph has been calculated. We read
@@ -183,16 +182,6 @@ export default function Landing() {
       return false;
     }
   }, [user]);
-
-  // Honor the OS "reduce motion" setting — those users see a single static
-  // placeholder with no cycling.
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setPrefersReducedMotion(mq.matches);
-    const onChange = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
 
   // Mark this browser as having seen the search hints, so the next visit is
   // treated as returning (calm static placeholder). Set once, on first mount.
@@ -723,7 +712,7 @@ export default function Landing() {
           desktop padding both have to be neutralised by height, not width. `!`
           because these override `sm:` utilities of equal specificity. */}
       <main className={`relative z-10 flex-1 flex flex-col items-center px-4 ${dropdownOpen || lifted ? "justify-start pt-6 sm:pt-10 short:!pt-2" : "justify-center -mt-10 sm:-mt-16 short:justify-start short:!mt-0 short:pt-2"}`}>
-        <div className="w-full max-w-2xl mx-auto text-center" style={prefersReducedMotion ? undefined : { animation: "homeFadeUp 0.5s ease-out" }}>
+        <div className="w-full max-w-2xl mx-auto text-center motion-safe:animate-[homeFadeUp_0.5s_ease-out]">
           <style>{`@keyframes homeFadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }`}</style>
 
           <div className="flex flex-col items-center mb-8 short:mb-3.5">
@@ -1143,7 +1132,8 @@ export default function Landing() {
           )}
         </div>
 
-        <PostSignupCard />
+        {/* One account-level card at a time: unlock → backup → post-signup. */}
+        <AccountCards />
         {/* WelcomeBackCard ("someone just joined & followed you") stays unmounted.
             New users still auto-follow the profile they join from (see SharePage) —
             that connection is benign. But this owner-facing notification was the scam
@@ -1151,7 +1141,6 @@ export default function Landing() {
             edge that carries the owner's weight. It fired for ANY brand-new inbound
             follower, so it can't be re-enabled safely until a backend invite-record
             gates it to genuine, owner-issued invites. */}
-        <BackupReminder />
 
         {isSearching && (
           <div className="w-full max-w-2xl mx-auto mt-6 sm:mt-8 text-left">

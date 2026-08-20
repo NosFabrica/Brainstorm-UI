@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { Play, Volume2, VolumeX } from "lucide-react";
 import { usePipAwareAutoStop } from "@/lib/audioPlayer";
-import { useAutoplayInView, usePrefersReducedMotion } from "@/lib/feedVideo";
+import { useAutoplayInView } from "@/lib/feedVideo";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 
 /**
  * An inline note video that behaves like X: it autoplays **muted** when it

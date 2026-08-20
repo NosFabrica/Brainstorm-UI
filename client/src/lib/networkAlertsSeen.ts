@@ -7,13 +7,14 @@
  * First-ever visit establishes a silent baseline (nothing is "new" when there's
  * no prior visit to compare against).
  */
+import { accountKey } from "@/lib/accountStorage";
 
 interface SeenAlerts {
   pubkeys: string[];
   updated_at: number;
 }
 
-const storageKey = (observer: string) => `brainstorm_network_alerts_seen:${observer}`;
+const storageKey = (observer: string) => accountKey("brainstorm_network_alerts_seen", observer);
 
 function load(observer: string): SeenAlerts | null {
   if (!observer) return null;

@@ -1,7 +1,9 @@
 import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { apiClient, hasSessionToken } from "@/services/api";
-import { getCurrentUser } from "@/services/nostr";
+import { apiClient } from "@/services/api";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { accountKey } from "@/lib/accountStorage";
+import { useHasSession } from "@/hooks/useHasSession";
 
 export type ScoringStatus = "idle" | "calculating" | "publishing" | "ready" | "failed";
 
@@ -24,8 +26,9 @@ export function useScoringStatus(): {
   triggeredAt: number;
   pubkey?: string;
 } {
-  const user = getCurrentUser();
-  const enabled = hasSessionToken() && !!user?.pubkey;
+  const user = useActiveAccountDisplay();
+  const hasSession = useHasSession();
+  const enabled = hasSession && !!user?.pubkey;
 
   const q = useQuery({
     queryKey: ["/user/graperankResult"],
@@ -54,13 +57,13 @@ export function useScoringStatus(): {
     if (!publishDone) return;
     try {
       localStorage.setItem("brainstorm_calc_completed", "true");
-      if (user?.pubkey) localStorage.setItem(`brainstorm_calc_completed:${user.pubkey}`, "true");
+      if (user?.pubkey) localStorage.setItem(accountKey("brainstorm_calc_completed", user.pubkey), "true");
     } catch { /* ignore */ }
   }, [publishDone, user?.pubkey]);
 
   let triggeredAt = 0;
   try {
-    triggeredAt = Number(localStorage.getItem(`brainstorm_calc_triggered_at:${user?.pubkey}`) || 0);
+    triggeredAt = Number(localStorage.getItem(accountKey("brainstorm_calc_triggered_at", user?.pubkey ?? "")) || 0);
   } catch {
     /* ignore */
   }

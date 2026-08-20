@@ -2,20 +2,24 @@ import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { MessageSquare, ArrowRight, SlidersHorizontal, Loader2 } from "lucide-react";
-import { fetchEventsByFilter, fetchProfileMap, getCurrentUser, triggerScoringAndAnchor, PROFILE_RELAYS } from "@/services/nostr";
+import { fetchEventsByFilter, fetchProfileMap } from "@/services/nostr";
+import { PROFILE_RELAYS } from "@/lib/relays";
+import { triggerScoringAndAnchor } from "@/services/trustAnchor";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { knownFollowCount } from "@/lib/followStore";
-import { apiClient, hasSessionToken } from "@/services/api";
+import { apiClient } from "@/services/api";
 import { collectRefs, type MinimalEvent } from "@/lib/noteRefs";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { eventPath } from "@/lib/shareId";
 import { TIER_THRESHOLDS, TIER_LABELS } from "@/services/trustThreshold";
-import { useActivePov } from "@/hooks/useActivePov";
+import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useHasSession } from "@/hooks/useHasSession";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -50,8 +54,8 @@ export function EventThread({
       own (now-redundant) funnel. */
   onGateChange?: (gated: boolean) => void;
 }) {
-  const loggedIn = hasSessionToken();
-  const [pov] = useActivePov();
+  const loggedIn = useHasSession();
+  const [pov] = useActivePerspective();
   const { hasMywot } = useHasMywot();
   const { isSearchObserver } = useIsSearchObserver();
   const usePersonal = loggedIn && hasMywot && isSearchObserver && pov === "mywot";
@@ -67,7 +71,7 @@ export function EventThread({
   // Existing users with follows just need to CALCULATE; brand-new accounts need to
   // build a network first. (`knownFollowCount` is populated at login from their
   // existing kind-3 contact list.)
-  const myPubkey = getCurrentUser()?.pubkey || "";
+  const myPubkey = useActiveAccountDisplay()?.pubkey || "";
   const myFollows = myPubkey ? knownFollowCount(myPubkey) : 0;
   const [calcTriggered, setCalcTriggered] = useState(false);
   // Kicking off a calculation is a ~5-minute, queue-consuming operation, so it

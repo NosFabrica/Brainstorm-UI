@@ -1,4 +1,6 @@
-import { exportEncryptedKey, exportNsec, getCurrentUser } from "@/services/nostr";
+import { heldBackup, markBackedUp, mintBackup, revealSecretKey } from "@/accounts/backup";
+import { activeDisplay } from "@/accounts/display";
+import { storePasswordCredential } from "@/lib/credentialManager";
 
 /**
  * Build the human-readable contents of the account backup `.txt`. The file is
@@ -6,6 +8,11 @@ import { exportEncryptedKey, exportNsec, getCurrentUser } from "@/services/nostr
  * restore, and the password caveat. The raw nsec is intentionally NOT included —
  * the `ncryptsec` is the key already encrypted with the user's password, which is
  * the only safe way to put a key in a file.
+ *
+ * **The restore steps are a compatibility surface.** Every file ever downloaded
+ * carries them and none can be edited afterwards, so the sign-in affordance has
+ * to stay findable as `"Use your key"` however it is renamed internally — it is
+ * printed below, and lives in `LoginPage` and `KeySignInModal`.
  */
 export function buildAccountBackupFileContent(ncryptsec: string, npub: string): string {
   return [
@@ -30,7 +37,7 @@ export function buildAccountBackupFileContent(ncryptsec: string, npub: string): 
     "HOW TO RESTORE",
     '1. Open Brainstorm and choose Sign in -> "Use your key".',
     '2. Paste the encrypted recovery key line above (it starts with "ncryptsec").',
-    "3. Enter the password you set when you saved this backup.",
+    "3. Enter your recovery password - the one you chose for this account.",
     "It also works in any Nostr app that supports encrypted keys",
     "(NIP-49, the standard encrypted-key format).",
     "",
@@ -45,20 +52,19 @@ export function buildAccountBackupFileContent(ncryptsec: string, npub: string): 
   ].join("\n");
 }
 
+export type BackupCredential = { npub: string; ncryptsec: string };
+
 /**
- * Encrypt the stored key with `password`, build the readable backup file, and
- * trigger a local download. All client-side; nothing is sent to a server.
- * Throws if no key is available (callers wrap in try/catch).
+ * The (npub, ncryptsec) pair the backup is made of: what goes in the file, and
+ * what the password manager stores (username=npub, password=ncryptsec).
+ *
+ * Async because minting waits for the Account to unlock; rejects when this
+ * Account keeps its key elsewhere.
  */
-/**
- * The (npub, ncryptsec) pair for the encrypted backup, derived from `password`.
- * Single source of truth for both the downloadable file and the password-manager
- * credential we store (username=npub, password=ncryptsec). Throws if no key.
- */
-export function getEncryptedBackupCredential(password: string): { npub: string; ncryptsec: string } {
+export async function getEncryptedBackupCredential(password: string): Promise<BackupCredential> {
   return {
-    npub: getCurrentUser()?.npub ?? "",
-    ncryptsec: exportEncryptedKey(password),
+    npub: activeDisplay()?.npub ?? "",
+    ncryptsec: await mintBackup(password),
   };
 }
 
@@ -69,7 +75,7 @@ export function getEncryptedBackupCredential(password: string): { npub: string; 
  * back to the bare `${base}.txt` when there's no usable name.
  */
 function backupFileName(base: string): string {
-  const slug = (getCurrentUser()?.displayName ?? "")
+  const slug = (activeDisplay()?.displayName ?? "")
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-") // spaces/punctuation/emoji/non-ASCII → hyphen
     .replace(/^-+|-+$/g, "")
@@ -78,20 +84,69 @@ function backupFileName(base: string): string {
   return slug ? `${base}-${slug}.txt` : `${base}.txt`;
 }
 
-export function downloadAccountBackup(password: string): boolean {
-  const { npub, ncryptsec } = getEncryptedBackupCredential(password);
-  const content = buildAccountBackupFileContent(ncryptsec, npub);
-
+/** Trigger a local download of `content`. All client-side; nothing reaches a server. */
+function downloadTextFile(content: string, name: string): void {
   const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
-  a.download = backupFileName("brainstorm-account-backup");
+  a.download = name;
   document.body.appendChild(a);
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
-  return true;
+}
+
+/**
+ * The Backup this account already holds, as a credential. No minting: where the
+ * password has just been checked *against* the stored ncryptsec, that ciphertext
+ * is the artefact, and a re-mint would only cost another derivation.
+ */
+export function heldBackupCredential(): BackupCredential | null {
+  const ncryptsec = heldBackup();
+  return ncryptsec ? { npub: activeDisplay()?.npub ?? "", ncryptsec } : null;
+}
+
+/** Write a credential out as the backup `.txt`. */
+export function downloadBackupFile(credential: BackupCredential): void {
+  downloadTextFile(
+    buildAccountBackupFileContent(credential.ncryptsec, credential.npub),
+    backupFileName("brainstorm-account-backup"),
+  );
+}
+
+/**
+ * Hand the Backup the Account already holds over, every way there is: the file,
+ * the password manager, and the Account marked as having been given it.
+ *
+ * The one hand-over every surface in the backup chain performs — the onboarding
+ * step, the post-signup card and the recurring reminder — so none of them can
+ * mark an Account backed up without also producing the file that claim is about.
+ * Null where there is nothing to hand over.
+ */
+export function deliverBackup(): BackupCredential | null {
+  const credential = heldBackupCredential();
+  if (!credential) return null;
+  downloadBackupFile(credential);
+  // Best-effort and Chromium-only; the file is what matters, so never block on it.
+  if (credential.npub && credential.ncryptsec) {
+    void storePasswordCredential(credential.npub, credential.ncryptsec, credential.npub);
+  }
+  // "Backed up" means we offered and they accepted — browsers report nothing
+  // about whether the file arrived.
+  markBackedUp();
+  return credential;
+}
+
+/**
+ * Download the encrypted backup file, and hand back the credential it was built
+ * from so a caller that also stores it in the password manager doesn't mint a
+ * second one — minting costs a NIP-49 derivation, and two of them would differ.
+ */
+export async function downloadAccountBackup(password: string): Promise<BackupCredential> {
+  const credential = await getEncryptedBackupCredential(password);
+  downloadBackupFile(credential);
+  return credential;
 }
 
 /**
@@ -136,21 +191,13 @@ export function buildRawKeyBackupFileContent(nsec: string, npub: string): string
  * Export the raw nsec to a downloadable `.txt` — a no-password recovery option so
  * a forgotten encryption password can't permanently lock a user out. Less safe
  * than the encrypted backup (the file is the key); the UI must warn accordingly.
- * Client-side only; throws if no key is available.
+ * Client-side only; rejects if the key can't be reached.
  */
-export function downloadRawKeyBackup(): boolean {
-  const nsec = exportNsec();
-  const npub = getCurrentUser()?.npub ?? "";
-  const content = buildRawKeyBackupFileContent(nsec, npub);
-
-  const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = backupFileName("brainstorm-account-key");
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-  return true;
+export async function downloadRawKeyBackup(): Promise<void> {
+  const nsec = await revealSecretKey();
+  const npub = activeDisplay()?.npub ?? "";
+  downloadTextFile(
+    buildRawKeyBackupFileContent(nsec, npub),
+    backupFileName("brainstorm-account-key"),
+  );
 }

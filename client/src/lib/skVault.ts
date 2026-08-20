@@ -147,6 +147,26 @@ export async function encryptSecret(secret: Uint8Array, pubkeyHex: string): Prom
  * `pubkeyHex` (AAD). Throws on a bad/foreign/corrupt envelope or wrong account —
  * callers treat a throw as "no usable key" (re-login).
  */
+/**
+ * The cache could not be asked — as opposed to answering no.
+ *
+ * Reaching the device key goes through IndexedDB, which fails for reasons that
+ * say nothing about the envelope: a rejected `open()`, a broken transaction, a
+ * corrupt stored value, storage evicted mid-session. A caller that treats those
+ * as "this envelope is stale" and drops it destroys the only at-rest copy of a
+ * key over a bad afternoon for the browser.
+ */
+export class UnlockCacheUnavailableError extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options);
+    this.name = "UnlockCacheUnavailableError";
+  }
+}
+
+export function isUnlockCacheUnavailable(error: unknown): boolean {
+  return (error as { name?: string })?.name === "UnlockCacheUnavailableError";
+}
+
 export async function decryptSecret(envelope: string, pubkeyHex: string): Promise<Uint8Array> {
   const parts = envelope.split(":");
   if (parts.length !== 3 || parts[0] !== VERSION) {
@@ -154,7 +174,16 @@ export async function decryptSecret(envelope: string, pubkeyHex: string): Promis
   }
   const iv = b64decode(parts[1]);
   const ct = b64decode(parts[2]);
-  const key = await getDeviceKey();
+
+  // Only the AES-GCM step below can say the envelope is stale. Everything before
+  // it is infrastructure, and its failures must not be mistaken for that.
+  let key: CryptoKey;
+  try {
+    key = await getDeviceKey();
+  } catch (cause) {
+    throw new UnlockCacheUnavailableError("skVault: could not reach the device key", { cause });
+  }
+
   const aad = new TextEncoder().encode(pubkeyHex);
   const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv, additionalData: aad }, key, ct);
   return new Uint8Array(pt);

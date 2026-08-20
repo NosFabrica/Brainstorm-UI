@@ -1,10 +1,12 @@
 import { useCallback, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { hasSessionToken } from "@/services/api";
-import { getCurrentUser, triggerScoringAndAnchor } from "@/services/nostr";
+import { triggerScoringAndAnchor } from "@/services/trustAnchor";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { followPubkeys } from "@/services/socialActions";
 import { useSelfHistory } from "@/hooks/useSelf";
 import { fetchNewJoiners, acknowledgeJoiners, type NewJoiner } from "@/services/inviteAcceptance";
+import { identityHas } from "@/accounts/display";
+import { useHasSession } from "@/hooks/useHasSession";
 
 const QUERY_KEY = "invite/new-joiners";
 
@@ -19,7 +21,8 @@ const QUERY_KEY = "invite/new-joiners";
 const DEMO_PUBKEY = "d0a1b2c3d4e5f60718293a4b5c6d7e8f90112233445566778899aabbccddeeff";
 
 export function useNewJoiners() {
-  const user = getCurrentUser();
+  const user = useActiveAccountDisplay();
+  const hasSession = useHasSession();
   const qc = useQueryClient();
   const [busy, setBusy] = useState(false);
 
@@ -32,13 +35,13 @@ export function useNewJoiners() {
   })();
   // Demo mode (QA-only, guarded by a localStorage key never set in prod) falls back
   // to a placeholder pubkey so the card renders in the auth-gated preview.
-  const pk = hasSessionToken() ? user?.pubkey : demo ? DEMO_PUBKEY : undefined;
-  const history = useSelfHistory(hasSessionToken() ? pk : undefined);
+  const pk = hasSession ? user?.pubkey : demo ? DEMO_PUBKEY : undefined;
+  const history = useSelfHistory(hasSession ? pk : undefined);
 
   const scored = !!(history.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey;
   let createdInApp = false;
   try {
-    if (pk) createdInApp = localStorage.getItem(`brainstorm_created_inapp:${pk}`) === "true";
+    createdInApp = identityHas(pk, "createdInApp");
   } catch {
     /* ignore */
   }
@@ -67,7 +70,8 @@ export function useNewJoiners() {
       if (!pk || !pks.length) return;
       setBusy(true);
       try {
-        await followPubkeys(pks);
+        const res = await followPubkeys(pks);
+        if (res.cancelled) return;
         settle(pks);
         if (!demo) void triggerScoringAndAnchor(pk); // refresh the sender's Web of Trust
       } finally {
