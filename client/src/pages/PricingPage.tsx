@@ -100,32 +100,28 @@ function TierCard({
 }) {
   const tier = TIERS[id];
   const paid = id === PAID_TIER;
-  const features = liveFeatures(id);
-  const inherited = tier.inherits ? liveFeatures(tier.inherits) : [];
+  // The interval line is the hero number, not a bullet — said once.
+  const features = liveFeatures(id).filter((f) => !f.interval);
+  const inheritsName = tier.inherits ? TIERS[tier.inherits].name : null;
+  // 60 / 7 = 8.57 — floored, so the claim understates rather than rounds up.
+  const timesMoreOften = tier.inherits
+    ? Math.floor(TIERS[tier.inherits].recalcIntervalDays / tier.recalcIntervalDays)
+    : null;
 
-  // Three things make the paid card READ as the bigger offer without a single
-  // invented line (team review, Aug 21 — "it should feel like you get more"):
-  //   1. the interval is the hero number, not a bullet — 60 vs 7 is the product;
-  //   2. the inherited Free list is drawn, dimmed, above a "Plus" section, so the
-  //      card visibly contains Free and rises above it;
-  //   3. the paid surface is tinted and carries a true kicker.
+  // What makes the paid card read as the bigger offer without repeating itself
+  // (team review, Aug 21): the interval as the hero with a true multiplier, one
+  // "Everything in Free" line that counts as a line, three lines that each say
+  // a different thing, a tinted surface — and both CTAs pinned to the card
+  // bottom so the two buttons sit on one line.
   return (
     <Card
-      className={`p-6 sm:p-7 h-full ${
+      className={`flex h-full flex-col p-6 sm:p-7 ${
         paid
           ? "border-brand-accent/40 bg-brand-deep/[0.035] dark:bg-brand-primary/10 ring-1 ring-brand-accent/20"
           : ""
       }`}
       data-testid={`tier-card-${id}`}
     >
-      {tier.kicker && (
-        <p
-          className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-brand-link"
-          data-testid={`tier-kicker-${id}`}
-        >
-          {tier.kicker}
-        </p>
-      )}
       <div className="flex items-center gap-2.5">
         <h2
           className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight"
@@ -133,64 +129,55 @@ function TierCard({
         >
           {tier.name}
         </h2>
+        {tier.kicker && (
+          <Chip tone="brand" size="sm" data-testid={`tier-kicker-${id}`}>
+            {tier.kicker}
+          </Chip>
+        )}
         {current && !loading && (
           <Chip tone="success" size="sm" data-testid={`tier-current-${id}`}>
             Your plan
           </Chip>
         )}
       </div>
+      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{tier.tagline}</p>
 
       {/* The hero: the interval, as a wait people can feel. */}
-      <div className="mt-4" data-testid={`tier-interval-${id}`}>
+      <div className="mt-5" data-testid={`tier-interval-${id}`}>
         <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
           New follows show up within
         </p>
-        <p
-          className={`mt-0.5 text-4xl font-bold tracking-tight tabular-nums ${
-            paid ? "text-brand-deep dark:text-brand-link" : "text-slate-900 dark:text-slate-100"
-          }`}
-          style={{ fontFamily: "var(--font-display)" }}
-        >
-          {tier.recalcIntervalDays} days
-        </p>
+        <div className="mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <p
+            className={`text-4xl font-bold tracking-tight tabular-nums ${
+              paid ? "text-brand-deep dark:text-brand-link" : "text-slate-900 dark:text-slate-100"
+            }`}
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            {tier.recalcIntervalDays} days
+          </p>
+          {timesMoreOften != null && timesMoreOften > 1 && (
+            <span className="text-sm font-semibold text-brand-deep dark:text-brand-link" data-testid={`tier-multiplier-${id}`}>
+              {timesMoreOften}× more often than {inheritsName}
+            </span>
+          )}
+        </div>
       </div>
 
       <div className="mt-4 flex items-baseline gap-1.5">
         <span className="text-2xl font-bold text-slate-900 dark:text-slate-100 tabular-nums">
-          {formatPrice(id)}
+          {paid ? formatPrice(id) : "$0"}
         </span>
-        {paid && (
-          <span className="text-sm text-slate-500 dark:text-slate-400">/ month</span>
-        )}
+        <span className="text-sm text-slate-500 dark:text-slate-400">/ month</span>
       </div>
-      <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{tier.tagline}</p>
 
-      {tier.note && (
-        <p className="mt-3 text-[13px] leading-relaxed text-slate-600 dark:text-slate-300">
-          {tier.note}
-        </p>
-      )}
-
-      {inherited.length > 0 && (
-        <>
-          <p className="mt-5 text-[11px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-            Everything in {TIERS[tier.inherits!].name}
-          </p>
-          <ul className="mt-2 space-y-1.5" data-testid={`tier-inherited-${id}`}>
-            {inherited.map((f) => (
-              <li key={f.key} className="flex items-start gap-2.5 text-[13px] text-slate-500 dark:text-slate-400">
-                <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-slate-500" />
-                {f.label}
-              </li>
-            ))}
-          </ul>
-          <p className="mt-5 text-[11px] font-bold uppercase tracking-wide text-brand-deep dark:text-brand-link">
-            Plus
-          </p>
-        </>
-      )}
-
-      <ul className={`${inherited.length > 0 ? "mt-2" : "mt-5"} space-y-2.5`} data-testid={`tier-features-${id}`}>
+      <ul className="mt-5 space-y-2.5" data-testid={`tier-features-${id}`}>
+        {inheritsName && (
+          <li className="flex items-start gap-2.5 text-sm font-semibold text-slate-900 dark:text-slate-100" data-testid={`tier-inherits-${id}`}>
+            <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-deep dark:text-brand-link" />
+            Everything in {inheritsName}
+          </li>
+        )}
         {features.map((f) => (
           <li key={f.key} className="flex items-start gap-2.5 text-sm text-slate-700 dark:text-slate-200">
             <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
@@ -199,7 +186,8 @@ function TierCard({
         ))}
       </ul>
 
-      <div className="mt-6">
+      {/* mt-auto: both cards' buttons land on the same line regardless of list length. */}
+      <div className="mt-auto pt-6">
         {current ? (
           <Button variant="outline" className="w-full" disabled data-testid={`cta-${id}`}>
             {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : tier.cta.current}
