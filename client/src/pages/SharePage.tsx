@@ -931,6 +931,7 @@ export default function SharePage() {
                   the avatar. Tap opens the shared explainer/compare modal. */}
               <VerificationCoin
                 score01={coinScore01}
+                flagged={isFlagged}
                 pov={scorePov}
                 size={32}
                 onClick={() => setScoreModalOpen(true)}
@@ -949,7 +950,7 @@ export default function SharePage() {
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="share-name">
               {displayName}
             </h1>
-            <TierWordChip score01={coinScore01} />
+            <TierWordChip score01={coinScore01} flagged={isFlagged} />
             {profile.nip05 && (
               <span className="inline-flex items-center gap-1 text-sm text-brand-link font-medium">
                 <BadgeCheck className="h-4 w-4" /> {profile.nip05.replace(/^_@/, "")}

@@ -8,6 +8,8 @@ import { PresetBadge } from "@/components/PresetBadge";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
 import { tierForScore01, type VerificationTier } from "@/lib/verificationTier";
 import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
+import { rungFor } from "@/lib/trustLadder";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
@@ -77,6 +79,7 @@ function Stat({ label, value }: { label: string; value: number | string }) {
  */
 export default function InsightsPage() {
   const [displayMode] = useScoreDisplayMode();
+  const [granularity] = useTierGranularity();
   const [, navigate] = useLocation();
   const user = useActiveAccountDisplay();
   const pubkey = user?.pubkey;
@@ -342,13 +345,13 @@ export default function InsightsPage() {
                       // when the tier actually changed between runs — "whether it
                       // moved", since "how much" is the number we're not showing.
                       (() => {
-                        const rowTier = tierForScore01(Math.max(0, Math.min(1, e.score)));
-                        const prevTier = e.previous != null ? tierForScore01(Math.max(0, Math.min(1, e.previous))) : null;
-                        const tierMoved = prevTier != null && prevTier !== rowTier;
-                        const tierUp = tierMoved && TIER_ORDER_ASC.indexOf(rowTier) > TIER_ORDER_ASC.indexOf(prevTier!);
+                        const rowRung = rungFor(e.score, false, granularity);
+                        const prevRung = e.previous != null ? rungFor(e.previous, false, granularity) : null;
+                        const tierMoved = prevRung != null && prevRung.key !== rowRung.key;
+                        const tierUp = tierMoved && rowRung.rung > prevRung!.rung;
                         return (
                           <div className="flex shrink-0 items-center gap-2 sm:gap-3" data-testid="insights-row-tier">
-                            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{TIER_LABEL[rowTier]}</span>
+                            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{rowRung.label}</span>
                             <span className={`w-5 text-right text-xs font-semibold ${!tierMoved ? "text-slate-400 dark:text-slate-500" : tierUp ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
                               {!tierMoved ? "—" : tierUp ? "▲" : "▼"}
                             </span>
@@ -413,7 +416,7 @@ export default function InsightsPage() {
           <div className="flex items-center gap-3 mb-3 rounded-lg bg-brand-accent/[0.06] border border-brand-accent/20 px-3 py-2.5">
             <VerificationCoin score01={globalInfluence} pov="global" size={40} />
             <div>
-              <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{tier ? TIER_LABEL[tier] : houseQuery.isLoading ? "Loading…" : "Not yet scored"}</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{tier ? (granularity === "simple" ? rungFor(globalInfluence, false, "simple").label : TIER_LABEL[tier]) : houseQuery.isLoading ? "Loading…" : "Not yet scored"}</p>
               {/* This number is getHouseInfluence — BRAINSTORM's vantage point, not
                   a universal verdict. It used to claim "the number others see on
                   your profile", which is exactly wrong: anyone with their own web

@@ -1,6 +1,8 @@
 import { DEFAULT_VERIFIED_LINE, TIER_THRESHOLDS, TIER_LABELS, TRUST_TIER_COLORS } from "@/services/trustThreshold";
 import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
-import { TIER_STEP, tierForScore01 } from "@/components/score/VerificationCoin";
+import { tierForScore01 } from "@/components/score/VerificationCoin";
+import { rungFraction } from "@/lib/trustLadder";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
 
 /**
  * Lean trust-score ring for the public share page. Takes a 0–1 influence score
@@ -28,6 +30,7 @@ export function tierForScore(score01: number) {
 
 export function TrustScoreBadge({ score01, size = 96 }: { score01: number | null | undefined; size?: number }) {
   const [displayMode] = useScoreDisplayMode();
+  const [granularity] = useTierGranularity();
   const hasScore = typeof score01 === "number" && !Number.isNaN(score01);
   const score = hasScore ? Math.max(0, Math.min(1, score01 as number)) : 0;
   const tier = tierForScore(score);
@@ -38,7 +41,7 @@ export function TrustScoreBadge({ score01, size = 96 }: { score01: number | null
   // and the word below carries the meaning.
   const arcFrac =
     displayMode === "number" ? score :
-    displayMode === "level" ? TIER_STEP[tierForScore01(score)] / 5 : 1;
+    displayMode === "level" ? rungFraction(score, false, granularity) : 1;
 
   const stroke = 7;
   const r = (size - stroke) / 2;

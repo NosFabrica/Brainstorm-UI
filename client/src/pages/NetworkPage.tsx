@@ -69,6 +69,7 @@ import {
   type NetworkCardView,
 } from "@/components/network/cardContext";
 import { TIER_LABELS } from "@/services/trustThreshold";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
 
 const floatingNodes = Array.from({ length: 10 }, (_, i) => ({
   id: i,
@@ -244,6 +245,10 @@ export default function NetworkPage() {
   const [searchFilter, setSearchFilter] = useState("");
   type TrustTier =
     | "all"
+    // Simple-ladder "Verified": every tier at or above the preset's line. Not
+    // a backend bucket — it maps to `verified_only`, which the server resolves
+    // against the same cutoff, so the list and the header count agree.
+    | "verified"
     | "high"
     | "medium"
     | "neutral"
@@ -254,6 +259,7 @@ export default function NetworkPage() {
     const params = new URLSearchParams(window.location.search);
     const t = params.get("trust");
     const valid: TrustTier[] = [
+      "verified",
       "high",
       "medium",
       "neutral",
@@ -278,6 +284,7 @@ export default function NetworkPage() {
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [verifiedOnly, setVerifiedOnly] = useState(true);
+  const [granularity] = useTierGranularity();
   const [sortDirection, setSortDirection] = useState<"desc" | "asc">("desc");
   const [expandedPubkey, setExpandedPubkey] = useState<string | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -388,15 +395,15 @@ export default function NetworkPage() {
     flagged: "low_and_reported_by_2_or_more_trusted_pubkeys",
   };
   const mappedTier =
-    isFlaggedView || trustFilter === "all"
+    isFlaggedView || trustFilter === "all" || trustFilter === "verified"
       ? undefined
-      : UI_TO_GR_TIER[trustFilter];
+      : UI_TO_GR_TIER[trustFilter as keyof typeof UI_TO_GR_TIER];
   // `verified_only` filters on the preset's cutoff for that section, so the
   // list and the stats-derived header count agree by construction.
   const filterOpts = {
     order: sortDirection,
     tier: mappedTier,
-    verifiedOnly: !isFlaggedView && verifiedOnly && mappedTier === undefined,
+    verifiedOnly: !isFlaggedView && (verifiedOnly || trustFilter === "verified") && mappedTier === undefined,
     // Pager needs the filtered total per section (overview/stats can't express
     // arbitrary tier filters). Requested on the first page only (see useSelf).
     withTotal: true,
@@ -1342,11 +1349,20 @@ export default function NetworkPage() {
                     <option value="all">All</option>
                     {/* Labels from TIER_LABELS; the `value` keys are this page's
                         own filter vocabulary and must not follow the rename. */}
-                    <option value="high">{TIER_LABELS.high}</option>
-                    <option value="medium">{TIER_LABELS.trusted}</option>
-                    <option value="neutral">{TIER_LABELS.neutral}</option>
-                    <option value="low">{TIER_LABELS.low}</option>
-                    <option value="unverified">{TIER_LABELS.unverified}</option>
+                    {granularity === "simple" ? (
+                      <>
+                        <option value="verified">Verified</option>
+                        <option value="unverified">Unknown</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="high">{TIER_LABELS.high}</option>
+                        <option value="medium">{TIER_LABELS.trusted}</option>
+                        <option value="neutral">{TIER_LABELS.neutral}</option>
+                        <option value="low">{TIER_LABELS.low}</option>
+                        <option value="unverified">{TIER_LABELS.unverified}</option>
+                      </>
+                    )}
                     {getGroupPubkeys("flagged").length > 0 && (
                       <option value="flagged">Flagged</option>
                     )}
@@ -1450,6 +1466,14 @@ export default function NetworkPage() {
                       tooltip: "Show all trust levels",
                     },
                     {
+                      key: "verified" as TrustTier,
+                      label: "Verified",
+                      shortLabel: "Verified",
+                      icon: "text-cyan-500",
+                      ringFill: 1,
+                      tooltip: "At or above your verified line",
+                    },
+                    {
                       key: "high" as TrustTier,
                       label: TIER_LABELS.high,
                       shortLabel: "High",
@@ -1483,8 +1507,8 @@ export default function NetworkPage() {
                     },
                     {
                       key: "unverified" as TrustTier,
-                      label: "Unverified",
-                      shortLabel: "Unverified",
+                      label: granularity === "simple" ? "Unknown" : "Unverified",
+                      shortLabel: granularity === "simple" ? "Unknown" : "Unverified",
                       icon: "text-zinc-400",
                       ringFill: 0,
                       tooltip: "No Verification Score calculated yet",
@@ -1499,6 +1523,10 @@ export default function NetworkPage() {
                         "Low trust accounts reported by 2+ of your trusted contacts",
                     },
                   ] as const
+                ).filter((tier) =>
+                  granularity === "simple"
+                    ? tier.key === "all" || tier.key === "verified" || tier.key === "unverified" || tier.key === "flagged"
+                    : tier.key !== "verified",
                 ).map((tier) => {
                   const isActive = trustFilter === tier.key;
                   return (

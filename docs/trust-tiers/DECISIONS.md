@@ -77,3 +77,21 @@ highly verified?" (Jon). Give users actionable information, not gradations.
 
 Colorblind presets; any change to backend tiers or thresholds; whole-page
 tinting; renaming the Relax/Default/Strict presets.
+
+## Build notes (2026-08-21)
+
+- **Filters that can't express a union.** The connection-list page sends one
+  backend `tier` bucket at a time, so "Verified = every tier above the line"
+  isn't expressible there; under Simple its five-shade chips are hidden (the
+  rows' coins already show the bucket). The Network page CAN express it: a
+  Simple "Verified" chip maps to the server's `verified_only`, which resolves
+  against the same preset cutoff, so list and header count agree. Its Simple
+  set is All · Verified · Unknown · Flagged.
+- **Composition chart** folds client-side: Verified = high + medium_high +
+  medium + medium_low (the `medium_low` bucket's lower bound IS the verified
+  line), Unknown = low, Flagged unchanged.
+- **Store scoping bug fixed on the way.** Both viewer stores (display mode,
+  granularity) keyed on the legacy `nostr_user` entry, which the accounts
+  rework no longer writes — every signed-in user was sharing the `:anon` slot.
+  They now key on the Active Account, with `nostr_user` as a migration fallback.
+- Admin user panel untouched (decision 7).

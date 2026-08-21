@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { activePubkey } from "@/accounts/display";
 
 /**
  * How Verification Scores are displayed to THIS viewer, everywhere at once.
@@ -38,10 +39,16 @@ function isMode(v: unknown): v is ScoreDisplayMode {
 // Per-account (or "anon") so a second account on the same browser keeps its own
 // choice. Pubkey read from the stored session directly to avoid a service
 // import cycle — same trade `useActivePov` documents.
+// Per-account (or "anon"). The Active Account is the source of truth since the
+// accounts rework; the legacy `nostr_user` entry is read only as a fallback so
+// a choice made before the migration isn't lost.
 function scopedKey(): string {
-  let who = "anon";
-  try { who = JSON.parse(localStorage.getItem("nostr_user") || "{}")?.pubkey || "anon"; } catch {}
-  return `${STORAGE_KEY}:${who}`;
+  let who: string | null = null;
+  try { who = activePubkey(); } catch {}
+  if (!who) {
+    try { who = JSON.parse(localStorage.getItem("nostr_user") || "{}")?.pubkey || null; } catch {}
+  }
+  return `${STORAGE_KEY}:${who || "anon"}`;
 }
 
 function readStored(): ScoreDisplayMode | null {

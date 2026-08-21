@@ -4,7 +4,9 @@ import { BrainLogo } from "@/components/BrainLogo";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { TrustScoreModal, PovTag, povChrome, useScorePov } from "@/components/score/TrustScorePov";
 import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
-import { TIER_STEP, tierForScore01 } from "@/components/score/VerificationCoin";
+import { tierForScore01 } from "@/components/score/VerificationCoin";
+import { rungFraction } from "@/lib/trustLadder";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
 
 /**
  * The Web-of-Trust card — a LinkedIn-style segmented "strength" meter driven by
@@ -36,6 +38,7 @@ export function WotStrengthCard({
   footer?: ReactNode;
 }) {
   const [displayMode] = useScoreDisplayMode();
+  const [granularity] = useTierGranularity();
   const { pov } = useScorePov();
   const [explainOpen, setExplainOpen] = useState(false);
 
@@ -64,7 +67,7 @@ export function WotStrengthCard({
         const showDigits = displayMode === "number";
         const modeFrac =
           displayMode === "number" ? null :
-          displayMode === "level" ? (TIER_STEP[tierForScore01(score01)] / 5) * 100 : 100;
+          displayMode === "level" ? rungFraction(score01, false, granularity) * 100 : 100;
         // Continuous bar filled to the actual score (dashboard-style) so the bar
         // agrees with the number — 27 fills 27%, not "4 of 5". A small floor keeps
         // very low scores visible as a tier-colored nub rather than nothing.

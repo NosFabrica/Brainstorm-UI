@@ -4,6 +4,8 @@ import {
   useScoreDisplayMode,
   type ScoreDisplayMode,
 } from "@/hooks/useScoreDisplayMode";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
+import type { Granularity } from "@/lib/trustLadder";
 
 /**
  * Walkthrough control for "How people's verification is shown" — the same job
@@ -41,10 +43,16 @@ const MODES: { key: ScoreDisplayMode; label: string; hint: string }[] = [
   { key: "off", label: "Off", hint: "no verification anywhere" },
 ];
 
+const LADDERS: { key: Granularity; label: string; hint: string }[] = [
+  { key: "simple", label: "Simple", hint: "Verified · Unknown · Flagged" },
+  { key: "detailed", label: "Detailed", hint: "five tiers + Flagged" },
+];
+
 export function DemoScoreDisplaySwitcher() {
   const [enabled, setEnabled] = useState(demoRequested);
   const [open, setOpen] = useState(false);
   const [mode, setMode] = useScoreDisplayMode();
+  const [granularity, setGranularity] = useTierGranularity();
 
   if (!enabled) return null;
 
@@ -89,6 +97,25 @@ export function DemoScoreDisplaySwitcher() {
               >
                 <span className="block text-[13px] font-semibold text-slate-800 dark:text-slate-100">{m.label}</span>
                 <span className="block text-[11px] text-slate-500 dark:text-slate-400">{m.hint}</span>
+              </button>
+            ))}
+          </div>
+          <p className="mt-3 mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Tiers</p>
+          <div className="grid grid-cols-2 gap-1">
+            {LADDERS.map((l) => (
+              <button
+                key={l.key}
+                type="button"
+                onClick={() => setGranularity(l.key)}
+                data-testid={`demo-ladder-${l.key}`}
+                className={`rounded-lg px-2.5 py-1.5 text-left transition-colors ${
+                  granularity === l.key
+                    ? "bg-brand-primary/10 ring-1 ring-brand-primary/30"
+                    : "hover:bg-slate-100 dark:hover:bg-slate-800"
+                }`}
+              >
+                <span className="block text-[13px] font-semibold text-slate-800 dark:text-slate-100">{l.label}</span>
+                <span className="block text-[11px] text-slate-500 dark:text-slate-400">{l.hint}</span>
               </button>
             ))}
           </div>

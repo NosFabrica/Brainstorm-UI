@@ -1,6 +1,8 @@
 import { useState, useMemo, memo } from "react";
 import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
-import { TIER_STEP, tierForScore01 } from "@/components/score/VerificationCoin";
+import { tierForScore01 } from "@/components/score/VerificationCoin";
+import { rungFraction } from "@/lib/trustLadder";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { nip19 } from "nostr-tools";
 import {
   Search as SearchIcon,
@@ -73,6 +75,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
   isFlagged,
 }: NetworkProfileCardProps) {
   const [displayMode] = useScoreDisplayMode();
+  const [granularity] = useTierGranularity();
   const {
     trustCacheRef,
     activeGroupRef,
@@ -204,7 +207,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
     // Ring follows the display mode: exact / 5-step quantized / full-hue.
     const arcFrac =
       displayMode === "number" ? score :
-      displayMode === "level" ? TIER_STEP[tierForScore01(score)] / 5 : 1;
+      displayMode === "level" ? rungFraction(score, false, granularity) : 1;
     const ringColor =
       pct >= 50
         ? "stroke-emerald-500"
