@@ -61,6 +61,9 @@ export interface FeatureDef {
    * something unbuilt — `liveFeatures()` is the only accessor the page uses.
    */
   status: "live" | "planned";
+  /** This line states the tier's interval. The pricing card shows it as the
+   *  hero number instead of a bullet, so it is never said twice. */
+  interval?: true;
   /**
    * Roadmap grouping. Planned items only — a flat list of ten reads as a wish
    * list, where three named directions read as a plan.
@@ -137,17 +140,13 @@ export const TIER_FEATURES: Record<string, FeatureDef> = {
   // it reads as an estimate we might miss, when it is a configured number
   // (`schedule_interval_seconds`) that either holds or is a bug. A figure someone
   // can check is worth more than a range that sounds safe.
-  "recalc-60d": { key: "recalc-60d", label: "New follows show up within 60 days", status: "live" },
+  "recalc-60d": { key: "recalc-60d", label: "New follows show up within 60 days", status: "live", interval: true },
   // Concrete, and the thing that stops "slower schedule" reading as "crippled":
   // you can always refresh yourself, on either tier.
   "manual-unlimited": { key: "manual-unlimited", label: "Unlimited manual recalculation", status: "live" },
   "ranked-search": { key: "ranked-search", label: "Search ranked by your network", status: "live" },
   "verified-followers": { key: "verified-followers", label: "Verified follower count", status: "live" },
   "network-alerts": { key: "network-alerts", label: "Network alerts", status: "live" },
-  reporting: { key: "reporting", label: "Report suspicious accounts", status: "live" },
-  "trust-path": { key: "trust-path", label: "See how you're connected to anyone", status: "live" },
-  "score-badges": { key: "score-badges", label: "Verification Scores on every profile", status: "live" },
-  "network-discovery": { key: "network-discovery", label: "Discover who's new in your network", status: "live" },
   // NIP-85 Trusted Assertions (kind 30382) are published for every account —
   // the Developers page has described them as "any client can fetch and
   // verify them" since before pricing existed. Live, not a promise.
@@ -161,14 +160,12 @@ export const TIER_FEATURES: Record<string, FeatureDef> = {
   // gone because manual is unlimited for everyone now. "This price stays yours"
   // is gone because it means "you're early, be rewarded" — the framing they
   // rejected — and it quietly commits us never to reprice early payers.
-  // One fact — the network is recalculated weekly — and its real consequences
-  // for the things on the Free list. Each line is a consequence, not a feature
-  // invented to lengthen the card; that's what keeps this honest.
-  "weekly-recalc": { key: "weekly-recalc", label: "New follows show up within 7 days, not 60", status: "live" },
-  "fresh-followers": { key: "fresh-followers", label: "Your verified follower count refreshes every week", status: "live" },
-  "fresh-alerts": { key: "fresh-alerts", label: "Network alerts reach you within the week, not two months later", status: "live" },
-  "fresh-portability": { key: "fresh-portability", label: "Supporting clients see your current web of trust, not last season's", status: "live" },
-  "queue-priority": { key: "queue-priority", label: "Your recalculations run ahead of the free queue", status: "live" },
+  // Weekly recalculation, said once as the hero and once as what it touches.
+  // Four consequences spelled out line by line read as repetition (team
+  // review, Aug 21), so they are one line here.
+  "weekly-recalc": { key: "weekly-recalc", label: "New follows show up within 7 days, not 60", status: "live", interval: true },
+  "weekly-fresh": { key: "weekly-fresh", label: "Weekly updates to your followers, alerts and web of trust", status: "live" },
+  "queue-priority": { key: "queue-priority", label: "Ahead of the free queue when Brainstorm is busy", status: "live" },
   "priority-support": { key: "priority-support", label: "Priority support", status: "live" },
 
   // --- Planned. Roadmap only. Never listed as included. ---------------------
@@ -213,18 +210,13 @@ export const TIERS: Record<TierId, TierInfo> = {
     satsPerMonth: 0,
     recalcIntervalDays: 60,
     tagline: "for checking someone occasionally",
-    // Team review, Aug 21: "less is more" — the lines that bring people back.
-    // Reporting came off with the spam line; it's a utility, and alerts are the
-    // face of that whole loop now.
+    // Team review, Aug 21: "less is more" — exactly the lines they named.
     featureKeys: [
       "recalc-60d",
       "manual-unlimited",
       "verified-followers",
       "ranked-search",
       "network-alerts",
-      "trust-path",
-      "score-badges",
-      "network-discovery",
       "portability",
     ],
     cta: { current: "Your plan", upgrade: "Get started free" },
@@ -244,9 +236,7 @@ export const TIERS: Record<TierId, TierInfo> = {
     inherits: "free",
     featureKeys: [
       "weekly-recalc",
-      "fresh-followers",
-      "fresh-alerts",
-      "fresh-portability",
+      "weekly-fresh",
       "queue-priority",
       "priority-support",
     ],
