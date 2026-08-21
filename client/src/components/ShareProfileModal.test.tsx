@@ -14,7 +14,7 @@ vi.mock("wouter", () => ({ useLocation: () => ["/", navigate] }));
 vi.mock("@/components/ShareOgCard", () => ({ ShareOgCard: ({ displayName }: { displayName: string }) => <div data-testid="og-card">{displayName}</div> }));
 
 const URL = "https://brainstorm.world/p/npub1joe";
-const base = { open: true, onOpenChange: vi.fn(), npub: "npub1joe", displayName: "Joe Martin", canonicalUrl: URL };
+const base = { open: true, onOpenChange: vi.fn(), npub: "npub1joe", displayName: "Joe Martin", shareUrl: URL };
 
 beforeEach(() => {
   copyMock.mockClear();

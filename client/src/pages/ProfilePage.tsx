@@ -2072,7 +2072,7 @@ export default function ProfilePage() {
         displayName={displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 18) + "…"}
         picture={displayNostrProfile?.picture}
         nip05={displayNostrProfile?.nip05}
-        canonicalUrl={profileShareUrl}
+        shareUrl={profileShareUrl}
         score01={typeof nosfabricaRankQuery.data === "number" ? nosfabricaRankQuery.data : null}
       />
 

@@ -10,7 +10,7 @@ interface ShareProfileModalProps {
   displayName: string;
   picture?: string;
   nip05?: string;
-  canonicalUrl: string;
+  shareUrl: string;
   /** House Web-of-Trust score (0–1) — shown as the trust pill on the preview card. */
   score01?: number | null;
   /** Invite framing (for sharing your OWN profile to bring people in). */
@@ -24,16 +24,21 @@ interface ShareProfileModalProps {
  * The profile's share sheet: the generic ShareModal (link, copy, QR, native
  * share) with a preview of the link-unfurl (OG) card on top, and — when
  * inviting from a profile with no photo — a nudge to add one, since the
- * share moment is exactly when a photo pays off. The link is the canonical
- * `/p/:npub` URL today; when the short-URL service lands it swaps in here.
+ * share moment is exactly when a photo pays off.
+ *
+ * `shareUrl` is whatever the caller decided to hand out — a short `/s/:code`
+ * link when the shortener obliged, the canonical `/p/:npub` otherwise. It is
+ * deliberately NOT named canonical: the page's own canonical URL (its `og:url`)
+ * is the `/p/` one, and that is a different thing from the link people share.
+ * `useShareUrl` is the one place that decides.
  */
-export function ShareProfileModal({ open, onOpenChange, displayName, picture, nip05, canonicalUrl, score01, invite = false, onOwnPage = false }: ShareProfileModalProps) {
+export function ShareProfileModal({ open, onOpenChange, displayName, picture, nip05, shareUrl, score01, invite = false, onOwnPage = false }: ShareProfileModalProps) {
   const [, navigate] = useLocation();
   return (
     <ShareModal
       open={open}
       onOpenChange={onOpenChange}
-      url={canonicalUrl}
+      url={shareUrl}
       title={`${displayName} on Brainstorm`}
       testId="modal-share-profile"
       kicker={invite ? "Grow your network" : "Verification Score"}
@@ -43,7 +48,7 @@ export function ShareProfileModal({ open, onOpenChange, displayName, picture, ni
       preview={
         // The OG preview — clickable: opens the live share page in a new tab.
         <a
-          href={canonicalUrl}
+          href={shareUrl}
           target="_blank"
           rel="noopener"
           className="block rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm hover:border-brand-primary/25 hover:shadow-md transition-all"

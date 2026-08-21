@@ -1464,9 +1464,9 @@ export default function SharePage() {
 }
 
 /** The profile's share sheet, minting a short link only once it is open. */
-function ProfileShareSheet({ relays, ...props }: Omit<React.ComponentProps<typeof ShareProfileModal>, "canonicalUrl"> & { relays: string[] }) {
+function ProfileShareSheet({ relays, ...props }: Omit<React.ComponentProps<typeof ShareProfileModal>, "shareUrl"> & { relays: string[] }) {
   const shareUrl = useShareUrl({ npub: props.npub, relays, enabled: props.open });
-  return <ShareProfileModal {...props} canonicalUrl={shareUrl} />;
+  return <ShareProfileModal {...props} shareUrl={shareUrl} />;
 }
 
 function ShareShell({ children, actions }: { children: React.ReactNode; actions?: React.ReactNode }) {

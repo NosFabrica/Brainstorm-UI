@@ -1261,7 +1261,7 @@ export default function DashboardPage() {
                 displayName={user.displayName || "You"}
                 picture={user.picture}
                 nip05={user.nip05}
-                canonicalUrl={inviteShareUrl}
+                shareUrl={inviteShareUrl}
                 // No trust pill on an invite: the score is self-referential (your own POV
                 // ≈ 100) and meaningless for a brand-new account — the invite is about
                 // "join & start connected to you", not a score flex.

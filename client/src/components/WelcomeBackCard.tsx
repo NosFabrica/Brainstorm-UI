@@ -222,7 +222,7 @@ function InviteCta() {
         displayName={displayName}
         picture={user?.picture}
         nip05={user?.nip05}
-        canonicalUrl={inviteUrl}
+        shareUrl={inviteUrl}
       />
     </div>
   );

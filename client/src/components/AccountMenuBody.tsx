@@ -111,7 +111,7 @@ export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close
         displayName={user.displayName || "You"}
         picture={user.picture}
         nip05={user.nip05}
-        canonicalUrl={inviteUrl}
+        shareUrl={inviteUrl}
         score01={typeof houseScoreQuery.data === "number" ? houseScoreQuery.data : null}
       />
 
