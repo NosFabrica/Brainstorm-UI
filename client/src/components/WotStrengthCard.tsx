@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { ShieldCheck } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
-import { tierForScore } from "@/components/share/TrustScoreBadge";
+import { shareTierFor } from "@/components/share/TrustScoreBadge";
 import { TrustScoreModal, PovTag, povChrome, useScorePov } from "@/components/score/TrustScorePov";
 import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { tierForScore01 } from "@/components/score/VerificationCoin";
@@ -60,7 +60,7 @@ export function WotStrengthCard({
         <PovTag pov={pov} />
       </div>
       {score01 != null ? (() => {
-        const tier = tierForScore(score01);
+        const tier = shareTierFor(score01, granularity);
         const pct = Math.round(score01 * 100);
         // Mode-aware: number → exact bar + digits; level → bar quantized to the
         // 5-step ladder, no digits; tier → full tier-colored band, word only.
@@ -99,7 +99,7 @@ export function WotStrengthCard({
               </div>
             )}
             {showSecondary && (() => {
-              const secTier = tierForScore(secondaryScore01!);
+              const secTier = shareTierFor(secondaryScore01!, granularity);
               return (
                 <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between text-xs" data-testid="wot-secondary">
                   <span className="text-slate-500 dark:text-slate-400 font-medium">{secondaryLabel}</span>

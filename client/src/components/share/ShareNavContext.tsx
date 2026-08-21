@@ -8,7 +8,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { apiClient } from "@/services/api";
 import { decodeShareId } from "@/lib/shareId";
-import { tierForScore } from "@/components/share/TrustScoreBadge";
+import { TierTile } from "@/components/score/TierTile";
 import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
@@ -74,7 +74,7 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
     retry: false,
   });
   const score01 = typeof scoreQuery.data === "number" ? scoreQuery.data : null;
-  const tier = score01 != null ? tierForScore(score01) : null;
+  const hasTier = score01 != null;
   const povCaption = usePersonal ? "Through your network" : "Brainstorm network score";
 
   // Hashtags go straight to their trust-ranked content feed (no confirm — it's an
@@ -135,25 +135,12 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
                 </div>
               </div>
             </DialogHeader>
-            {isProfile && (scoreQuery.isLoading || tier) && (
-              <div className="mt-3">
-                {tier ? (
-                  <div
-                    className="flex items-center gap-2.5 rounded-xl border p-2.5"
-                    style={{ borderColor: `${tier.color}40`, backgroundColor: `${tier.color}0d` }}
-                    data-testid="nav-confirm-score"
-                  >
-                    <span
-                      className="h-9 w-9 shrink-0 rounded-lg flex items-center justify-center text-sm font-bold font-mono tabular-nums"
-                      style={{ color: tier.color, backgroundColor: `${tier.color}1a` }}
-                    >
-                      {displayMode === "number" ? Math.round((score01 ?? 0) * 100) : ""}
-                    </span>
-                    <div className="min-w-0">
-                      <div className="text-sm font-bold leading-tight" style={{ color: tier.color }}>{tier.name}</div>
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400">{povCaption}</div>
-                    </div>
-                  </div>
+            {/* The tile follows both Trust Perspective settings — the ladder's word,
+                the display mode's coin — and is absent when verification is off. */}
+            {isProfile && displayMode !== "off" && (scoreQuery.isLoading || hasTier) && (
+              <div className="mt-3" data-testid="nav-confirm-score">
+                {hasTier ? (
+                  <TierTile score01={score01} pov={usePersonal ? "personalized" : "global"} caption={povCaption} />
                 ) : (
                   <div className="h-[3.25rem] rounded-xl bg-slate-100 dark:bg-slate-800 animate-pulse" />
                 )}

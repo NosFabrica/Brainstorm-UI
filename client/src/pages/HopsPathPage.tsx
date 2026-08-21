@@ -15,7 +15,8 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Wordmark } from "@/components/Wordmark";
 import { ordinal } from "@/components/DegreeChip";
-import { tierForScore } from "@/components/share/TrustScoreBadge";
+import { tierForScore, shareTierFor } from "@/components/share/TrustScoreBadge";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { TrustScoreModal, PovIcon, povChrome, useScorePov } from "@/components/score/TrustScorePov";
 import { useHasSession } from "@/hooks/useHasSession";
 
@@ -32,6 +33,7 @@ function shortNpub(npub: string): string {
  */
 export default function HopsPathPage() {
   const [displayMode] = useScoreDisplayMode();
+  const [granularity] = useTierGranularity();
   const [, navigate] = useLocation();
   const [, params] = useRoute("/p/:id/hops");
   const rawId = params?.id || "";
@@ -254,7 +256,7 @@ export default function HopsPathPage() {
                 const name = subj?.display_name || subj?.name || p?.display_name || p?.name || shortNpub(npub);
                 const roleLabel = isMe ? "You" : isSubject ? "Them" : "Connector";
                 const score = scores?.get(pk);
-                const tier = typeof score === "number" ? tierForScore(score) : null;
+                const tier = typeof score === "number" ? shareTierFor(score, granularity) : null;
                 const isWeakLink = i === weakLinkIndex; // decision-maker (authentic)
                 const isEntryBad = i === entryBadIndex; // low-trust account to report (score-derived, NOT an existing report/mute)
                 const tint = isWeakLink
