@@ -213,6 +213,7 @@ export const TIERS: Record<TierId, TierInfo> = {
     // Team review, Aug 21: "less is more" — exactly the lines they named.
     featureKeys: [
       "recalc-60d",
+      "manual-unlimited",
       "verified-followers",
       "ranked-search",
       "network-alerts",
@@ -233,12 +234,8 @@ export const TIERS: Record<TierId, TierInfo> = {
     // does. The interval itself is the card's hero number, so no note repeats it.
     kicker: "For active accounts",
     inherits: "free",
-    // Listed under Priority at the team's direction (Aug 21). Note the backend
-    // quota applies to every account; if Free keeps unlimited manual runs in
-    // practice, this line overstates the difference.
     featureKeys: [
       "weekly-recalc",
-      "manual-unlimited",
       "weekly-fresh",
       "queue-priority",
       "priority-support",
