@@ -812,6 +812,11 @@ export default function SharePage() {
   // toggle): personalized → the viewer's own score; global → the network (house)
   // score. Logged-out visitors are always global. Null → unrated coin ("—").
   const coinScore01 = scorePov === "personalized" ? score01 : houseScore01 ?? score01;
+  // Loading ≠ unrated. Until the score that feeds the coin has settled, the coin
+  // shows its mode-aware placeholder (or nothing, in modes that never draw a
+  // coin) instead of the dashed "—", which is a verdict.
+  const coinLoading =
+    scorePov === "personalized" ? overviewQuery.isLoading : houseRankQuery.isLoading && overviewQuery.isLoading;
   // Contact as compact clickable icons — website, lightning address, external
   // identities. Lives top-right with the actions (and has a mobile fallback row),
   // never as verbose text at the bottom.
@@ -931,6 +936,7 @@ export default function SharePage() {
                   the avatar. Tap opens the shared explainer/compare modal. */}
               <VerificationCoin
                 score01={coinScore01}
+                loading={coinLoading}
                 flagged={isFlagged}
                 pov={scorePov}
                 size={32}

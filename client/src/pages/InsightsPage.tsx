@@ -414,7 +414,7 @@ export default function InsightsPage() {
             <span className="text-sm font-bold text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>How Brainstorm sees you</span>
           </div>
           <div className="flex items-center gap-3 mb-3 rounded-lg bg-brand-accent/[0.06] border border-brand-accent/20 px-3 py-2.5">
-            <VerificationCoin score01={globalInfluence} pov="global" size={40} />
+            <VerificationCoin score01={globalInfluence} pov="global" size={40} loading={houseQuery.isLoading} />
             <div>
               <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{tier ? (granularity === "simple" ? rungFor(globalInfluence, false, "simple").label : TIER_LABEL[tier]) : houseQuery.isLoading ? "Loading…" : "Not yet scored"}</p>
               {/* This number is getHouseInfluence — BRAINSTORM's vantage point, not

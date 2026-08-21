@@ -64,6 +64,20 @@ describe("VerificationCoin (simple ladder — the default, decision 8)", () => {
     expect(screen.getByTestId("coin-glyph-question")).toBeInTheDocument();
   });
 
+  it("while loading, shows a pulse only where a coin will appear — never the unrated dash", () => {
+    const { unmount } = render(<VerificationCoin score01={null} loading pov="global" />);
+    expect(screen.getByTestId("coin-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("verification-coin")).toBeNull();
+    unmount();
+    for (const mode of ["tier", "word", "off"]) {
+      localStorage.setItem("brainstorm_score_display:anon", mode);
+      const r = render(<VerificationCoin score01={null} loading pov="global" />);
+      expect(screen.queryByTestId("coin-loading")).toBeNull();
+      expect(screen.queryByTestId("verification-coin")).toBeNull();
+      r.unmount();
+    }
+  });
+
   it("draws three pips in level mode — the ladder's length, not a hard-coded five", () => {
     localStorage.setItem("brainstorm_score_display:anon", "level");
     render(<VerificationCoin score01={0.9} pov="global" />);

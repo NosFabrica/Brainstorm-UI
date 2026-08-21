@@ -162,6 +162,7 @@ export function VerificationCoin({
   ring = true,
   mode,
   flagged = false,
+  loading = false,
 }: {
   /** Influence 0–1 (backend scale); rendered as 0–100. Null → unrated ("—"). */
   score01: number | null | undefined;
@@ -190,6 +191,14 @@ export function VerificationCoin({
    * fallback on bare-score surfaces. Flagged wins over any score.
    */
   flagged?: boolean;
+  /**
+   * The score hasn't arrived yet. Distinct from `score01 == null`, which means
+   * "unrated" and draws the dashed "—" — a loading coin must never look like a
+   * verdict. What shows depends on the display mode: a quiet pulse of the
+   * coin's footprint where a coin WILL appear (number, level), and nothing at
+   * all where it won't (tier and word ring the avatar instead; off is off).
+   */
+  loading?: boolean;
 }) {
   const [viewerMode] = useScoreDisplayMode();
   const [granularity] = useTierGranularity();
@@ -197,6 +206,19 @@ export function VerificationCoin({
   // "off" means off: no mark, no aria, no explainer button. The one rendering
   // where absence of the coin IS the display.
   if (displayMode === "off") return null;
+  if (loading) {
+    if (displayMode !== "number" && displayMode !== "level") return null;
+    const px = displayMode === "number" ? size : Math.max(12, Math.round(size * 0.44));
+    return (
+      <span
+        aria-hidden
+        className={`inline-block animate-pulse rounded-full bg-slate-200 dark:bg-slate-700 ${className}`}
+        style={{ width: px, height: px }}
+        data-testid="coin-loading"
+        data-display={displayMode}
+      />
+    );
+  }
   const hasScore = typeof score01 === "number" && Number.isFinite(score01);
   const clamped = hasScore ? Math.max(0, Math.min(1, score01 as number)) : 0;
   const pct = Math.round(clamped * 100);
