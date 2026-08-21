@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import { PresetBadge } from "@/components/PresetBadge";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
 import { tierForScore01, type VerificationTier } from "@/lib/verificationTier";
+import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
@@ -19,6 +20,9 @@ import { readPublishedAssistant, readAssistantProfile } from "@/lib/assistantSto
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { TIER_LABELS } from "@/services/trustThreshold";
+
+// Ladder order for tier-movement arrows in non-number display modes.
+const TIER_ORDER_ASC: VerificationTier[] = ["unverified", "low", "neutral", "trusted", "high"];
 
 const TIER_LABEL: Record<VerificationTier, string> = {
   high: TIER_LABELS.high, trusted: TIER_LABELS.trusted, neutral: TIER_LABELS.neutral, low: TIER_LABELS.low, unverified: TIER_LABELS.unverified,
@@ -72,6 +76,7 @@ function Stat({ label, value }: { label: string; value: number | string }) {
  * graperankResult) — no new backend.
  */
 export default function InsightsPage() {
+  const [displayMode] = useScoreDisplayMode();
   const [, navigate] = useLocation();
   const user = useActiveAccountDisplay();
   const pubkey = user?.pubkey;
@@ -317,19 +322,40 @@ export default function InsightsPage() {
                         <PresetBadge preset={e.preset} size="xs" variant={isActiveRun ? "pill" : "quiet"} className="shrink-0" />
                       )}
                     </div>
-                    <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-                      {e.previous != null && (
-                        <span className="font-mono text-xs text-slate-400 dark:text-slate-500 tabular-nums">{score100(e.previous)} →</span>
-                      )}
-                      <span className="font-mono text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">{score100(e.score)}</span>
-                      <span
-                        className={`w-11 text-right font-mono text-xs font-semibold tabular-nums ${
-                          flat ? "text-slate-400 dark:text-slate-500" : up ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
-                        }`}
-                      >
-                        {flat ? "—" : `${up ? "▲+" : "▼"}${score100(Math.abs(e.delta ?? 0))}`}
-                      </span>
-                    </div>
+                    {displayMode === "number" ? (
+                      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+                        {e.previous != null && (
+                          <span className="font-mono text-xs text-slate-400 dark:text-slate-500 tabular-nums">{score100(e.previous)} →</span>
+                        )}
+                        <span className="font-mono text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">{score100(e.score)}</span>
+                        <span
+                          className={`w-11 text-right font-mono text-xs font-semibold tabular-nums ${
+                            flat ? "text-slate-400 dark:text-slate-500" : up ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
+                          }`}
+                        >
+                          {flat ? "—" : `${up ? "▲+" : "▼"}${score100(Math.abs(e.delta ?? 0))}`}
+                        </span>
+                      </div>
+                    ) : (
+                      // Decision 6, one rule no exceptions: your own numbers hide
+                      // too. Each run shows its TIER, with a movement marker only
+                      // when the tier actually changed between runs — "whether it
+                      // moved", since "how much" is the number we're not showing.
+                      (() => {
+                        const rowTier = tierForScore01(Math.max(0, Math.min(1, e.score)));
+                        const prevTier = e.previous != null ? tierForScore01(Math.max(0, Math.min(1, e.previous))) : null;
+                        const tierMoved = prevTier != null && prevTier !== rowTier;
+                        const tierUp = tierMoved && TIER_ORDER_ASC.indexOf(rowTier) > TIER_ORDER_ASC.indexOf(prevTier!);
+                        return (
+                          <div className="flex shrink-0 items-center gap-2 sm:gap-3" data-testid="insights-row-tier">
+                            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{TIER_LABEL[rowTier]}</span>
+                            <span className={`w-5 text-right text-xs font-semibold ${!tierMoved ? "text-slate-400 dark:text-slate-500" : tierUp ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
+                              {!tierMoved ? "—" : tierUp ? "▲" : "▼"}
+                            </span>
+                          </div>
+                        );
+                      })()
+                    )}
                   </li>
                 );
               })}

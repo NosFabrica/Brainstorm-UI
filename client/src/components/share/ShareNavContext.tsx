@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useMemo, type ReactNode } from "react";
+import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
@@ -36,6 +37,7 @@ export function useShareNav() {
 }
 
 export function ShareNavProvider({ children }: { children: ReactNode }) {
+  const [displayMode] = useScoreDisplayMode();
   const [, navigate] = useLocation();
   const [intent, setIntent] = useState<NavIntent | null>(null);
 
@@ -145,7 +147,7 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
                       className="h-9 w-9 shrink-0 rounded-lg flex items-center justify-center text-sm font-bold font-mono tabular-nums"
                       style={{ color: tier.color, backgroundColor: `${tier.color}1a` }}
                     >
-                      {Math.round((score01 ?? 0) * 100)}
+                      {displayMode === "number" ? Math.round((score01 ?? 0) * 100) : ""}
                     </span>
                     <div className="min-w-0">
                       <div className="text-sm font-bold leading-tight" style={{ color: tier.color }}>{tier.name}</div>

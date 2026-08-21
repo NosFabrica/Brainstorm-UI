@@ -1,10 +1,11 @@
 import { useState, useMemo, type MouseEvent } from "react";
+import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { useLocation } from "wouter";
 import { Repeat2, MessageSquare } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
-import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing } from "@/components/score/VerificationCoin";
 import { NoteContent } from "@/components/share/NoteContent";
 import { parseNoteContent } from "@/lib/noteContent";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
@@ -103,6 +104,8 @@ export function ShareNoteCard({
    *  query, not one per card — see ACCEPTANCE C2 and `useEventTagsBatch`. */
   tags?: NoteTag[];
 }) {
+  const [displayMode] = useScoreDisplayMode();
+  const tierRing = useTierRing();
   const [expanded, setExpanded] = useState(false);
   const [, navigate] = useLocation();
   const onCardClick = openOnCardClick(href, navigate);
@@ -207,7 +210,7 @@ export function ShareNoteCard({
                     className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg font-mono text-base font-bold tabular-nums"
                     style={{ color: authorTier.color, backgroundColor: `${authorTier.color}1a` }}
                   >
-                    {Math.round(authorScore * 100)}
+                    {displayMode === "number" ? Math.round(authorScore * 100) : ""}
                   </span>
                   <div className="min-w-0">
                     <p className="text-sm font-bold leading-tight" style={{ color: authorTier.color }}>{authorTier.name}</p>
@@ -219,7 +222,7 @@ export function ShareNoteCard({
             )}
           </HoverCard>
           {typeof authorScore === "number" && (
-            <VerificationCoin score01={authorScore} pov="global" size={24} className="ml-auto" />
+            <VerificationCoin score01={authorScore} pov="global" size={24} className={tierRing(authorScore) ? "sr-only ml-auto" : "ml-auto"} />
           )}
           <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">{ago(event.created_at)}</span>
         </div>

@@ -1,4 +1,6 @@
 import { DEFAULT_VERIFIED_LINE, TIER_THRESHOLDS, TIER_LABELS, TRUST_TIER_COLORS } from "@/services/trustThreshold";
+import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
+import { TIER_STEP, tierForScore01 } from "@/components/score/VerificationCoin";
 
 /**
  * Lean trust-score ring for the public share page. Takes a 0–1 influence score
@@ -25,15 +27,23 @@ export function tierForScore(score01: number) {
 }
 
 export function TrustScoreBadge({ score01, size = 96 }: { score01: number | null | undefined; size?: number }) {
+  const [displayMode] = useScoreDisplayMode();
   const hasScore = typeof score01 === "number" && !Number.isNaN(score01);
   const score = hasScore ? Math.max(0, Math.min(1, score01 as number)) : 0;
   const tier = tierForScore(score);
   const pct = Math.round(score * 100);
+  // The arc follows the display mode: exact in number mode, quantized to the
+  // 5-step tier ladder in level mode (an arc filled to score/100 with no digits
+  // is still the number), and FULL in tier mode — there the ring is hue only,
+  // and the word below carries the meaning.
+  const arcFrac =
+    displayMode === "number" ? score :
+    displayMode === "level" ? TIER_STEP[tierForScore01(score)] / 5 : 1;
 
   const stroke = 7;
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
-  const dash = hasScore ? c * score : 0;
+  const dash = hasScore ? c * arcFrac : 0;
 
   return (
     <div className="flex flex-col items-center gap-2" data-testid="share-trust-badge">
@@ -58,7 +68,7 @@ export function TrustScoreBadge({ score01, size = 96 }: { score01: number | null
             className="font-bold text-slate-900 dark:text-slate-100 leading-none tabular-nums"
             style={{ fontFamily: "var(--font-display)", fontSize: Math.round(size * 0.34) }}
           >
-            {hasScore ? pct : "—"}
+            {hasScore ? (displayMode === "number" ? pct : "") : "—"}
           </span>
         </div>
       </div>

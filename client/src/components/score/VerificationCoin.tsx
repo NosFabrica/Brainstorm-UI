@@ -1,11 +1,8 @@
-import { TRUST_TIER_COLORS } from "@/services/trustThreshold";
+import { TIER_LABELS, TRUST_TIER_COLORS } from "@/services/trustThreshold";
+import { useScoreDisplayMode, type ScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import type { ScorePov } from "@/components/score/TrustScorePov";
 import { tierForScore01, type VerificationTier } from "@/lib/verificationTier";
 
-// Re-exported because this component was their home before they were extracted,
-// and callers upstream — including this file's own test — still import them from
-// here. One definition, two doors.
-export { tierForScore01, type VerificationTier };
 
 /**
  * VerificationCoin — the sitewide, label-less Verification Score badge.
@@ -44,6 +41,21 @@ export { tierForScore01, type VerificationTier };
  * explainer/modal, never on the coin. Reused everywhere (profile avatar corner,
  * search rows, note cards, lists) so it's recognizable by shape alone.
  */
+
+export { tierForScore01, type VerificationTier } from "@/lib/verificationTier";
+
+/**
+ * The tier as a POSITION on the five-step ladder, for level mode's pips.
+ * Derived from the tier and only the tier — deriving pips from score01 would
+ * be the number in costume, which is the one thing DECISIONS.md forbids.
+ */
+export const TIER_STEP: Record<VerificationTier, number> = {
+  unverified: 1,
+  low: 2,
+  neutral: 3,
+  trusted: 4,
+  high: 5,
+};
 
 const TIER_FILL: Record<VerificationTier, string> = {
   high: TRUST_TIER_COLORS.highlyTrusted, // Aurora Purple
@@ -98,6 +110,47 @@ const POV_RING: Record<ScorePov, string> = {
     "shadow-[0_0_0_2px_#ffffff,0_0_0_4px_#cbd5e1] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_4px_#475569]",
 };
 
+/**
+ * Tier mode's ring around the profile picture itself — the user's preferred
+ * expression of "words and color only": no floating indicator, the color rides
+ * the avatar (a pattern people already read from story rings).
+ *
+ * Deliberately NOT the POV ring's silhouette. That ring is thin and floats 2px
+ * off the coin (2px surface gap + 2px color); this one hugs the photo with a
+ * 2px gap and a 3px band, so the two devices never read as each other even
+ * though both are circles of color. Class strings are static per tier because
+ * Tailwind's JIT needs literals, and inline box-shadow can't carry `dark:`.
+ */
+const TIER_AVATAR_RING: Record<VerificationTier, string> = {
+  high: "shadow-[0_0_0_2px_#ffffff,0_0_0_5px_#7237ff] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_5px_#7237ff]",
+  trusted: "shadow-[0_0_0_2px_#ffffff,0_0_0_5px_#13d2e5] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_5px_#13d2e5]",
+  neutral: "shadow-[0_0_0_2px_#ffffff,0_0_0_5px_#665487] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_5px_#665487]",
+  low: "shadow-[0_0_0_2px_#ffffff,0_0_0_5px_#f59e0b] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_5px_#f59e0b]",
+  unverified: "shadow-[0_0_0_2px_#ffffff,0_0_0_5px_#8c929e] dark:shadow-[0_0_0_2px_#0f172a,0_0_0_5px_#8c929e]",
+};
+
+/**
+ * Call-site helper for the avatar ring. Returns the ring's class for the given
+ * score ONLY in tier mode (null otherwise, and null for unrated — no ring is
+ * the unrated state, like absence of fill is on the coin).
+ *
+ * The contract at every call site is the same pair of moves:
+ *   const tierRing = useTierRing();
+ *   const ring = tierRing(score01);
+ *   <Avatar className={ring ?? ""} />           // ring the photo
+ *   <VerificationCoin className={ring ? "sr-only" : "…"} />  // hide the coin
+ * The coin goes `sr-only` rather than unmounted so its aria-label (the tier
+ * word) and any onClick (the explainer modal) survive the visual swap.
+ */
+export function useTierRing(): (score01: number | null | undefined) => string | null {
+  const [mode] = useScoreDisplayMode();
+  return (score01) => {
+    if (mode !== "tier" && mode !== "word") return null;
+    if (typeof score01 !== "number" || !Number.isFinite(score01)) return null;
+    return TIER_AVATAR_RING[tierForScore01(Math.max(0, Math.min(1, score01)))];
+  };
+}
+
 export function VerificationCoin({
   score01,
   pov,
@@ -105,6 +158,7 @@ export function VerificationCoin({
   onClick,
   className = "",
   ring = true,
+  mode,
 }: {
   /** Influence 0–1 (backend scale); rendered as 0–100. Null → unrated ("—"). */
   score01: number | null | undefined;
@@ -121,7 +175,18 @@ export function VerificationCoin({
    * option is labelled "Personalized" / "Global" in text beside the coin.
    */
   ring?: boolean;
+  /**
+   * Display-mode override. Leave unset to follow the viewer's setting — the
+   * normal case. Pass explicitly only where a React hook can't reach the live
+   * setting or the render is frozen at generation time (the OG share card).
+   */
+  mode?: ScoreDisplayMode;
 }) {
+  const [viewerMode] = useScoreDisplayMode();
+  const displayMode = mode ?? viewerMode;
+  // "off" means off: no mark, no aria, no explainer button. The one rendering
+  // where absence of the coin IS the display.
+  if (displayMode === "off") return null;
   const hasScore = typeof score01 === "number" && Number.isFinite(score01);
   const clamped = hasScore ? Math.max(0, Math.min(1, score01 as number)) : 0;
   const tier = tierForScore01(clamped);
@@ -135,9 +200,33 @@ export function VerificationCoin({
   const darkText = !hasScore || DARK_TEXT_TIERS.has(tier);
 
   const povLabel = pov === "personalized" ? "personalized" : "global";
+  // The accessible label ALWAYS carries the tier word; the value rides along
+  // only in number mode. Someone who turned digits off has turned them off for
+  // their screen reader too — leaking the number through aria would make the
+  // setting cosmetic.
   const label = hasScore
-    ? `Verification score ${pct} out of 100, ${povLabel} view`
+    ? displayMode === "number"
+      ? `Verification score ${pct} out of 100 (${TIER_LABELS[tier]}), ${povLabel} view`
+      : `Verification: ${TIER_LABELS[tier]}, ${povLabel} view`
     : `Unrated, ${povLabel} view`;
+
+  // Without a digit to hold, the coin doesn't keep the digit's footprint —
+  // a full-size disc with nothing in it reads as a blob next to the avatar.
+  // `size` stays the caller's layout budget; non-number modes render inside it:
+  // tier as a compact status dot, level as a slim pill hugging its five pips.
+  const pipCount = TIER_STEP[tier];
+  const dotSize = Math.max(12, Math.round(size * 0.55));
+  const pillH = Math.max(12, Math.round(size * 0.44));
+  const pipSize = Math.max(3, Math.round(pillH * 0.26));
+  const pipGap = Math.max(2, Math.round(pillH * 0.15));
+  const pillPadX = Math.round(pillH * 0.32);
+  const compact = hasScore && displayMode !== "number";
+  const frame =
+    !compact
+      ? { width: size, height: size }
+      : displayMode === "level"
+        ? { height: pillH, paddingLeft: pillPadX, paddingRight: pillPadX }
+        : { width: dotSize, height: dotSize };
 
   const Comp = onClick ? "button" : "div";
   return (
@@ -148,8 +237,7 @@ export function VerificationCoin({
       title={label}
       className={`inline-flex items-center justify-center rounded-full font-bold leading-none tabular-nums ${hasScore ? "" : "border-2 border-dashed border-slate-300 dark:border-slate-600"} ${ring && hasScore ? POV_RING[pov] : ""} ${onClick ? "transition-transform hover:scale-105 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-primary" : ""} ${className}`}
       style={{
-        width: size,
-        height: size,
+        ...frame,
         backgroundColor: fill,
         color: hasScore ? (darkText ? "#1e293b" : "#ffffff") : "#94a3b8",
         fontFamily: "var(--font-display)",
@@ -158,11 +246,67 @@ export function VerificationCoin({
       data-testid="verification-coin"
       data-pov={pov}
       data-tier={hasScore ? tier : "unrated"}
+      data-display={displayMode}
       // Whether the perspective ring is actually drawn — `pov` alone doesn't say,
       // since an unrated coin and a `ring={false}` coin both suppress it.
       data-pov-ring={ring && hasScore ? pov : "none"}
     >
-      {hasScore ? pct : "—"}
+      {!hasScore ? (
+        "—"
+      ) : displayMode === "number" ? (
+        pct
+      ) : displayMode === "level" ? (
+        <span
+          className="inline-flex items-center"
+          style={{ gap: pipGap }}
+          data-testid="coin-pips"
+          aria-hidden
+        >
+          {[1, 2, 3, 4, 5].map((step) => (
+            <span
+              key={step}
+              className="rounded-full"
+              style={{
+                width: pipSize,
+                height: pipSize,
+                backgroundColor: "currentColor",
+                opacity: step <= pipCount ? 1 : 0.3,
+              }}
+            />
+          ))}
+        </span>
+      ) : null}
     </Comp>
+  );
+}
+
+/**
+ * Word mode's chip: the tier WORD, tinted in the tier color, sitting next to
+ * the person's name. Renders only in "word" mode and only where a call site
+ * placed it — the mode's contract is "ring everywhere, word where it fits",
+ * so dense rows carry just the ring while heroes and headers add the label.
+ * aria-hidden because the sr-only coin at the same surface already announces
+ * the tier; the chip is its visual twin, not a second fact.
+ */
+export function TierWordChip({
+  score01,
+  className = "",
+}: {
+  score01: number | null | undefined;
+  className?: string;
+}) {
+  const [mode] = useScoreDisplayMode();
+  if (mode !== "word") return null;
+  if (typeof score01 !== "number" || !Number.isFinite(score01)) return null;
+  const tier = tierForScore01(Math.max(0, Math.min(1, score01)));
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-semibold leading-none ${className}`}
+      style={{ color: TIER_FILL[tier], backgroundColor: `${TIER_FILL[tier]}1a` }}
+      data-testid="tier-word-chip"
+      aria-hidden
+    >
+      {TIER_LABELS[tier]}
+    </span>
   );
 }

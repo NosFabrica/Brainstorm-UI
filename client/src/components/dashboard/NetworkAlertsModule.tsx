@@ -5,7 +5,7 @@ import { ShieldAlert, ShieldCheck, VolumeX, UserMinus, ArrowRight, Loader2, Chev
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing } from "@/components/score/VerificationCoin";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -642,6 +642,8 @@ export function AlertRow({ entry, name, picture, isNew, following, escalatedFrom
   onDeepDive: () => void; onWhy: () => void; onIgnore: () => void; onUnfollow: () => void; onMute: () => void; onReport: () => void;
 }) {
   const actionBtn = "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40";
+  const tierRing = useTierRing();
+  const ring = tierRing(entry.influence);
   const ignoredView = !!onUnignore;
   return (
     // Red left-edge accent + faint wash marks the whole row as a flagged/negative
@@ -654,7 +656,7 @@ export function AlertRow({ entry, name, picture, isNew, following, escalatedFrom
     >
       <div className="flex items-center gap-2.5">
         <button type="button" onClick={onDeepDive} className="relative shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40" aria-label={`View ${name}'s profile`}>
-          <Avatar className="h-8 w-8 rounded-full border border-slate-200 dark:border-slate-800">
+          <Avatar className={`h-8 w-8 rounded-full border border-slate-200 dark:border-slate-800 ${ring ?? ""}`}>
             {picture ? <AvatarImage src={picture} alt={name} className="object-cover" /> : null}
             <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
           </Avatar>
@@ -684,7 +686,7 @@ export function AlertRow({ entry, name, picture, isNew, following, escalatedFrom
               : `${entry.verifiedReporterCount} verified reports${entry.verifiedMuterCount > 0 ? ` · muted by ${entry.verifiedMuterCount}` : ""}`} · why?
           </button>
         </div>
-        <VerificationCoin score01={entry.influence} pov="global" size={22} className="shrink-0" />
+        <VerificationCoin score01={entry.influence} pov="global" size={22} className={ring ? "sr-only" : "shrink-0"} />
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5 pl-10">

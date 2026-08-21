@@ -3,6 +3,8 @@ import { ShieldCheck } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { TrustScoreModal, PovTag, povChrome, useScorePov } from "@/components/score/TrustScorePov";
+import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
+import { TIER_STEP, tierForScore01 } from "@/components/score/VerificationCoin";
 
 /**
  * The Web-of-Trust card — a LinkedIn-style segmented "strength" meter driven by
@@ -33,6 +35,7 @@ export function WotStrengthCard({
   /** Optional action row rendered inside the card, below the score, with a divider. */
   footer?: ReactNode;
 }) {
+  const [displayMode] = useScoreDisplayMode();
   const { pov } = useScorePov();
   const [explainOpen, setExplainOpen] = useState(false);
 
@@ -56,10 +59,16 @@ export function WotStrengthCard({
       {score01 != null ? (() => {
         const tier = tierForScore(score01);
         const pct = Math.round(score01 * 100);
+        // Mode-aware: number → exact bar + digits; level → bar quantized to the
+        // 5-step ladder, no digits; tier → full tier-colored band, word only.
+        const showDigits = displayMode === "number";
+        const modeFrac =
+          displayMode === "number" ? null :
+          displayMode === "level" ? (TIER_STEP[tierForScore01(score01)] / 5) * 100 : 100;
         // Continuous bar filled to the actual score (dashboard-style) so the bar
         // agrees with the number — 27 fills 27%, not "4 of 5". A small floor keeps
         // very low scores visible as a tier-colored nub rather than nothing.
-        const fillPct = Math.min(100, Math.max(4, pct));
+        const fillPct = modeFrac ?? Math.min(100, Math.max(4, pct));
         // Secondary (other-POV) score — shown only when it differs from primary.
         const secPct = secondaryScore01 != null ? Math.round(secondaryScore01 * 100) : null;
         const showSecondary = secPct != null && secPct !== pct && secondaryScore01 != null;
@@ -76,14 +85,14 @@ export function WotStrengthCard({
                 <span className="inline-flex items-center gap-1.5">
                   <ShieldCheck className="h-4 w-4 shrink-0" style={{ color: tier.color }} />
                   <span className="text-sm font-bold" style={{ color: tier.color }}>{tier.name}</span>
-                  <span className="text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">{pct}</span>
+                  {showDigits && <span className="text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">{pct}</span>}
                 </span>
               </div>
             ) : (
               <div className="inline-flex items-center gap-1.5" data-testid="wot-primary">
                 <ShieldCheck className="h-4 w-4 shrink-0" style={{ color: tier.color }} />
                 <span className="text-sm font-bold" style={{ color: tier.color }}>{tier.name}</span>
-                <span className="text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">{pct}</span>
+                {showDigits && <span className="text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">{pct}</span>}
               </div>
             )}
             {showSecondary && (() => {
@@ -93,7 +102,7 @@ export function WotStrengthCard({
                   <span className="text-slate-500 dark:text-slate-400 font-medium">{secondaryLabel}</span>
                   <span className="inline-flex items-center gap-1.5">
                     <span className="font-semibold" style={{ color: secTier.color }}>{secTier.name}</span>
-                    <span className="font-bold text-slate-700 dark:text-slate-200 tabular-nums">{secPct}</span>
+                    {showDigits && <span className="font-bold text-slate-700 dark:text-slate-200 tabular-nums">{secPct}</span>}
                   </span>
                 </div>
               );

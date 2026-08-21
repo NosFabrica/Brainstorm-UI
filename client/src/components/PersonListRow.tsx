@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { BadgeCheck, ChevronRight } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing } from "@/components/score/VerificationCoin";
 import type { ScorePov } from "@/components/score/TrustScorePov";
 import { npubFromPubkey } from "@/lib/shareId";
 
@@ -36,16 +36,18 @@ export function TrustAvatar({
   score: number | null;
   pov: ScorePov;
 }) {
+  const tierRing = useTierRing();
+  const ring = tierRing(score);
   return (
     <div className="relative shrink-0">
-      <Avatar className="h-12 w-12 rounded-full bg-white dark:bg-slate-900" style={{ boxShadow: "0 0 0 1px #e2e8f0" }}>
+      <Avatar className={`h-12 w-12 rounded-full bg-white dark:bg-slate-900 ${ring ?? ""}`} style={ring ? undefined : { boxShadow: "0 0 0 1px #e2e8f0" }}>
         {picture ? <AvatarImage src={picture} alt={name} className="object-cover" /> : null}
         <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
       </Avatar>
       {/* The Verification Score coin — same label-less badge as the profile hero,
           POV-aware (colored personalized / grey global). */}
       {score != null && (
-        <VerificationCoin score01={score} pov={pov} size={24} className="absolute -bottom-1 -right-1" />
+        <VerificationCoin score01={score} pov={pov} size={24} className={ring ? "sr-only" : "absolute -bottom-1 -right-1"} />
       )}
     </div>
   );
