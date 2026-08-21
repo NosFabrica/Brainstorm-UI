@@ -12,4 +12,23 @@ if [ -f "$CONFIG_FILE" ]; then
   done
 fi
 
+# nginx does not read /etc/resolv.conf, but it needs a resolver to look up the
+# brainstorm-og upstream lazily (which is what lets nginx boot when that service
+# is absent). The first nameserver here is 127.0.0.11 under compose and the
+# kube-dns ClusterIP in k8s, so one line covers both.
+: "${OG_RESOLVER:=$(awk '/^nameserver/ {print $2; exit}' /etc/resolv.conf)}"
+: "${OG_RESOLVER:=127.0.0.11}"
+
+# Defaults to the compose service name. Kubernetes MUST override it: the chart
+# names the Service `<release>-brainstorm-og`, so the bare name does not resolve
+# there — and because an unresolvable upstream falls back to the SPA, getting
+# this wrong fails silently as "unfurls don't work".
+: "${OG_UPSTREAM:=brainstorm-og:8080}"
+export OG_RESOLVER OG_UPSTREAM
+
+TEMPLATE="/etc/nginx/templates/default.conf.template"
+if [ -f "$TEMPLATE" ]; then
+  envsubst '${OG_RESOLVER} ${OG_UPSTREAM}' < "$TEMPLATE" > /etc/nginx/conf.d/default.conf
+fi
+
 exec "$@"
