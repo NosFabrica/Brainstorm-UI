@@ -107,8 +107,18 @@ export interface TierInfo {
   recalcIntervalDays: number;
   /** Short line under the price. */
   tagline: string;
+  /** Small true label over the name — "For active accounts". Never "Most
+   *  popular" until it is. */
+  kicker?: string;
   /** Supporting line — framing, not a feature claim. */
   note?: string;
+  /**
+   * The tier whose features this one includes. The pricing card draws that
+   * tier's list, dimmed, above this tier's own under a "Plus" heading — so the
+   * card visibly CONTAINS the lower tier instead of asserting it in a sentence
+   * nobody counts. `featureKeys` stays this tier's own lines only.
+   */
+  inherits?: TierId;
   /** Feature keys this tier includes. Not cumulative — each list is complete. */
   featureKeys: string[];
   cta: { current: string; upgrade: string };
@@ -151,7 +161,13 @@ export const TIER_FEATURES: Record<string, FeatureDef> = {
   // gone because manual is unlimited for everyone now. "This price stays yours"
   // is gone because it means "you're early, be rewarded" — the framing they
   // rejected — and it quietly commits us never to reprice early payers.
-  "weekly-recalc": { key: "weekly-recalc", label: "New follows show up within 7 days", status: "live" },
+  // One fact — the network is recalculated weekly — and its real consequences
+  // for the things on the Free list. Each line is a consequence, not a feature
+  // invented to lengthen the card; that's what keeps this honest.
+  "weekly-recalc": { key: "weekly-recalc", label: "New follows show up within 7 days, not 60", status: "live" },
+  "fresh-followers": { key: "fresh-followers", label: "Your verified follower count refreshes every week", status: "live" },
+  "fresh-alerts": { key: "fresh-alerts", label: "Network alerts reach you within the week, not two months later", status: "live" },
+  "fresh-portability": { key: "fresh-portability", label: "Supporting clients see your current web of trust, not last season's", status: "live" },
   "queue-priority": { key: "queue-priority", label: "Your recalculations run ahead of the free queue", status: "live" },
   "priority-support": { key: "priority-support", label: "Priority support", status: "live" },
 
@@ -221,12 +237,16 @@ export const TIERS: Record<TierId, TierInfo> = {
     satsPerMonth: 2100,
     recalcIntervalDays: 7,
     tagline: "for acting on what you see",
-    // Set-and-forget is what weekly scheduling MEANS, so it belongs here rather
-    // than as a fourth bullet restating the first. Stating both intervals makes
-    // the difference arithmetic instead of adjectival.
-    note: "Everything in Free — new follows show up within 7 days instead of 60.",
+    // The "Everything in Free" sentence became a drawn, dimmed list on the card
+    // (`inherits`) — a sentence nobody counts versus nine checkmarks everyone
+    // does. The interval itself is the card's hero number, so no note repeats it.
+    kicker: "For active accounts",
+    inherits: "free",
     featureKeys: [
       "weekly-recalc",
+      "fresh-followers",
+      "fresh-alerts",
+      "fresh-portability",
       "queue-priority",
       "priority-support",
     ],

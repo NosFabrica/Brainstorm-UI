@@ -101,12 +101,31 @@ function TierCard({
   const tier = TIERS[id];
   const paid = id === PAID_TIER;
   const features = liveFeatures(id);
+  const inherited = tier.inherits ? liveFeatures(tier.inherits) : [];
 
+  // Three things make the paid card READ as the bigger offer without a single
+  // invented line (team review, Aug 21 — "it should feel like you get more"):
+  //   1. the interval is the hero number, not a bullet — 60 vs 7 is the product;
+  //   2. the inherited Free list is drawn, dimmed, above a "Plus" section, so the
+  //      card visibly contains Free and rises above it;
+  //   3. the paid surface is tinted and carries a true kicker.
   return (
     <Card
-      className={`p-6 sm:p-7 h-full ${paid ? "border-brand-accent/40" : ""}`}
+      className={`p-6 sm:p-7 h-full ${
+        paid
+          ? "border-brand-accent/40 bg-brand-deep/[0.035] dark:bg-brand-primary/10 ring-1 ring-brand-accent/20"
+          : ""
+      }`}
       data-testid={`tier-card-${id}`}
     >
+      {tier.kicker && (
+        <p
+          className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-brand-link"
+          data-testid={`tier-kicker-${id}`}
+        >
+          {tier.kicker}
+        </p>
+      )}
       <div className="flex items-center gap-2.5">
         <h2
           className="text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight"
@@ -121,8 +140,23 @@ function TierCard({
         )}
       </div>
 
-      <div className="mt-3 flex items-baseline gap-1.5">
-        <span className="text-3xl font-bold text-slate-900 dark:text-slate-100 tabular-nums">
+      {/* The hero: the interval, as a wait people can feel. */}
+      <div className="mt-4" data-testid={`tier-interval-${id}`}>
+        <p className="text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
+          New follows show up within
+        </p>
+        <p
+          className={`mt-0.5 text-4xl font-bold tracking-tight tabular-nums ${
+            paid ? "text-brand-deep dark:text-brand-link" : "text-slate-900 dark:text-slate-100"
+          }`}
+          style={{ fontFamily: "var(--font-display)" }}
+        >
+          {tier.recalcIntervalDays} days
+        </p>
+      </div>
+
+      <div className="mt-4 flex items-baseline gap-1.5">
+        <span className="text-2xl font-bold text-slate-900 dark:text-slate-100 tabular-nums">
           {formatPrice(id)}
         </span>
         {paid && (
@@ -137,7 +171,26 @@ function TierCard({
         </p>
       )}
 
-      <ul className="mt-5 space-y-2.5" data-testid={`tier-features-${id}`}>
+      {inherited.length > 0 && (
+        <>
+          <p className="mt-5 text-[11px] font-bold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+            Everything in {TIERS[tier.inherits!].name}
+          </p>
+          <ul className="mt-2 space-y-1.5" data-testid={`tier-inherited-${id}`}>
+            {inherited.map((f) => (
+              <li key={f.key} className="flex items-start gap-2.5 text-[13px] text-slate-500 dark:text-slate-400">
+                <Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-slate-500" />
+                {f.label}
+              </li>
+            ))}
+          </ul>
+          <p className="mt-5 text-[11px] font-bold uppercase tracking-wide text-brand-deep dark:text-brand-link">
+            Plus
+          </p>
+        </>
+      )}
+
+      <ul className={`${inherited.length > 0 ? "mt-2" : "mt-5"} space-y-2.5`} data-testid={`tier-features-${id}`}>
         {features.map((f) => (
           <li key={f.key} className="flex items-start gap-2.5 text-sm text-slate-700 dark:text-slate-200">
             <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
