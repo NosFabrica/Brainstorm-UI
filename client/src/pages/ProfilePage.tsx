@@ -48,6 +48,7 @@ import {
 } from "lucide-react";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
+import { useShareUrl } from "@/hooks/useShareUrl";
 import { ZapModal } from "@/components/ZapModal";
 import { FlashIcon } from "@/components/FlashIcon";
 import { WotStrengthCard } from "@/components/WotStrengthCard";
@@ -1973,6 +1974,8 @@ export default function ProfilePage() {
     try { return nip19.npubEncode(npubParam); } catch { return npubParam; }
   }, [npubParam]);
 
+  const profileShareUrl = useShareUrl({ npub: displayNpub, enabled: shareOpen });
+
   // Fetch the NosFabrica ("house") perspective influence (0..1) for the viewed
   // profile on mount, so the dual-meter widget renders regardless of entry point
   // (Search, Network, deep link, etc). Uses an unauthenticated overview request
@@ -2069,7 +2072,7 @@ export default function ProfilePage() {
         displayName={displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 18) + "…"}
         picture={displayNostrProfile?.picture}
         nip05={displayNostrProfile?.nip05}
-        canonicalUrl={typeof window !== "undefined" && displayNpub ? `${window.location.origin}/p/${displayNpub}` : ""}
+        canonicalUrl={profileShareUrl}
         score01={typeof nosfabricaRankQuery.data === "number" ? nosfabricaRankQuery.data : null}
       />
 

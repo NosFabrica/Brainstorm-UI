@@ -27,6 +27,7 @@ import { NetworkArticlesModule } from "@/components/dashboard/NetworkArticlesMod
 import { ClientShelf } from "@/components/dashboard/ClientShelf";
 import { NetworkThreadModule } from "@/components/dashboard/NetworkThreadModule";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
+import { useShareUrl } from "@/hooks/useShareUrl";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -208,6 +209,7 @@ export default function DashboardPage() {
   // "Your network is live — invite friends" card: shown once, the first time the
   // user's scores go ready (publishDone). Persisted per-account so it never nags.
   const [inviteShareOpen, setInviteShareOpen] = useState(false);
+  const inviteShareUrl = useShareUrl({ npub: user?.npub ?? "", enabled: inviteShareOpen });
   const [inviteCardSeen, setInviteCardSeen] = useState<boolean>(() => readInviteCardSeen(user?.pubkey));
 
   // Lazy initialisers run once, and switching accounts in-app does not remount
@@ -1259,7 +1261,7 @@ export default function DashboardPage() {
                 displayName={user.displayName || "You"}
                 picture={user.picture}
                 nip05={user.nip05}
-                canonicalUrl={typeof window !== "undefined" ? `${window.location.origin}/p/${user.npub}` : ""}
+                canonicalUrl={inviteShareUrl}
                 // No trust pill on an invite: the score is self-referential (your own POV
                 // ≈ 100) and meaningless for a brand-new account — the invite is about
                 // "join & start connected to you", not a score flex.
