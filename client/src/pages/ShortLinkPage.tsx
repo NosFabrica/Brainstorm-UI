@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { apiClient } from "@/services/api";
 import { profilePath } from "@/lib/shareId";
+import { SHORT_LINK_ROUTE } from "@/lib/shortLink";
 import NotFound from "@/pages/not-found";
 
 /** Long enough that a normal resolve never flashes a spinner. */
@@ -17,7 +18,7 @@ const SPINNER_DELAY_MS = 400;
  * case folding and length.
  */
 export default function ShortLinkPage() {
-  const [, params] = useRoute("/s/:code");
+  const [, params] = useRoute(SHORT_LINK_ROUTE);
   const [, navigate] = useLocation();
   const code = params?.code ?? "";
 

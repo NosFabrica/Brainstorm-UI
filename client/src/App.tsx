@@ -17,6 +17,7 @@ import { AutoActivateBrainstorm } from "@/components/AutoActivateBrainstorm";
 import { AutoPublishAssistant } from "@/components/AutoPublishAssistant";
 import NotFound from "@/pages/not-found";
 import ShortLinkPage from "@/pages/ShortLinkPage";
+import { SHORT_LINK_ROUTE } from "@/lib/shortLink";
 import Landing from "@/pages/landing";
 import SharePage from "@/pages/SharePage";
 import { ScoringStatusBar } from "@/components/ScoringStatusBar";
@@ -217,7 +218,7 @@ function Router() {
         {/* Deprecated for users — see ProfileRoute. /p/:id is THE profile page. */}
         <Route path="/profile/:npub">{() => <RequireAuth component={ProfileRoute} />}</Route>
         {/* Short share links resolve here, then continue to /p/. */}
-        <Route path="/s/:code" component={ShortLinkPage} />
+        <Route path={SHORT_LINK_ROUTE} component={ShortLinkPage} />
         <Route path="/p/:id/hops" component={HopsPathPage} />
         <Route path="/p/:id/selling" component={SellingPage} />
         <Route path="/p/:id/:type" component={ConnectionListPage} />
