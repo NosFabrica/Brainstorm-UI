@@ -49,7 +49,7 @@ export default function PricingPage() {
           // the intervals are the configured numbers — and if either changes,
           // this changes with it or becomes a lie.
           title={<>Your network changes <span className="text-brand-link">every day.</span></>}
-          subtitle="Brainstorm catches up on a schedule — every 60 days on Free, every 7 on Priority."
+          subtitle="New follows show up in Brainstorm within 60 days on Free, 7 on Priority."
           testId="section-pricing-header"
         />
 
