@@ -29,9 +29,8 @@ import {
 } from "@/components/ui/command";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { useTheme } from "@/lib/theme";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { logout } from "@/services/nostr";
-import { isAdminPubkey } from "@/config/adminAccess";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { logout } from "@/accounts/login-flow";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useToast } from "@/hooks/use-toast";
 
@@ -49,9 +48,9 @@ export function CommandPalette() {
   const [inviteOpen, setInviteOpen] = useState(false);
   const [, navigate] = useLocation();
   const { choice, setChoice } = useTheme();
-  const [user, setUser] = useCurrentUser();
+  const user = useActiveAccountDisplay();
   const { toast } = useToast();
-  const isAdmin = isAdminPubkey(user?.pubkey);
+  const isAdmin = user?.isAdmin === true;
 
   // ⌘K / Ctrl-K toggles the palette anywhere; a custom event opens it (so a
   // visible trigger can be wired later without importing this component's state).
@@ -171,7 +170,7 @@ export function CommandPalette() {
                 <CommandItem
                   keywords={["log out", "exit"]}
                   className="text-red-600 data-[selected=true]:text-red-600 dark:text-red-400 dark:data-[selected=true]:text-red-400"
-                  onSelect={() => run(() => { logout(); setUser(null); navigate("/"); })}
+                  onSelect={() => run(() => { logout(); navigate("/"); })}
                 >
                   <LogOut /> Sign out
                 </CommandItem>
@@ -189,7 +188,7 @@ export function CommandPalette() {
           npub={user.npub}
           displayName={user.displayName || "You"}
           picture={user.picture}
-          nip05={user.profile?.nip05}
+          nip05={user.nip05}
           canonicalUrl={inviteUrl}
         />
       )}

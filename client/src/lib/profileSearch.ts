@@ -1,8 +1,8 @@
 import { nip19 } from "nostr-tools";
 import { apiClient } from "@/services/api";
-import type { ActivePov } from "@/hooks/useActivePov";
+import type { ActivePerspective } from "@/hooks/useActivePerspective";
 
-export type SearchPov = ActivePov;
+export type SearchPov = ActivePerspective;
 
 export interface SearchResult {
   pubkey: string;

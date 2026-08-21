@@ -4,10 +4,10 @@ import { Search, Home, Users, LogIn } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
 import { AccountMenuBody, useAccountMenu } from "@/components/AccountMenuBody";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { isAdminPubkey } from "@/config/adminAccess";
-import { logout, type NostrUser } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
+import type { AccountDisplay } from "@/accounts/display";
 import { useAccountSheetOpen, openAccountSheet, closeAccountSheet, setAccountSheet } from "@/lib/accountSheetStore";
 import { cn } from "@/lib/utils";
 
@@ -20,7 +20,7 @@ import { cn } from "@/lib/utils";
  */
 export function MobileTabBar() {
   const isMobile = useIsMobile();
-  const [user, setUser] = useCurrentUser();
+  const user = useActiveAccountDisplay();
   const [location, navigate] = useLocation();
   const sheetOpen = useAccountSheetOpen();
 
@@ -88,7 +88,7 @@ export function MobileTabBar() {
       </nav>
 
       {user && (
-        <MobileAccountSheet user={user} onLogout={() => { logout(); setUser(null); navigate("/"); }} />
+        <MobileAccountSheet user={user} onLogout={() => { logout(); navigate("/"); }} />
       )}
     </>
   );
@@ -124,7 +124,7 @@ function TabButton({
   );
 }
 
-function YouTab({ user, active, onClick }: { user: NostrUser; active: boolean; onClick: () => void }) {
+function YouTab({ user, active, onClick }: { user: AccountDisplay; active: boolean; onClick: () => void }) {
   return (
     <button
       type="button"
@@ -138,7 +138,7 @@ function YouTab({ user, active, onClick }: { user: NostrUser; active: boolean; o
     >
       <span className={cn("block rounded-full p-[1.5px] transition-colors", active ? "bg-gradient-to-tr from-brand-deep via-brand-accent to-brand-deep" : "bg-transparent")}>
         <Avatar className="h-[22px] w-[22px]">
-          {user.picture ? <AvatarImage src={user.picture} alt="" className="object-cover" /> : null}
+          <AvatarImage src={user.picture} alt="" className="object-cover" />
           <AvatarFallback className="bg-white text-[10px] font-bold text-[#0A0E18]">
             {user.displayName?.charAt(0)?.toUpperCase() || "U"}
           </AvatarFallback>
@@ -149,10 +149,10 @@ function YouTab({ user, active, onClick }: { user: NostrUser; active: boolean; o
   );
 }
 
-function MobileAccountSheet({ user, onLogout }: { user: NostrUser; onLogout: () => void }) {
+function MobileAccountSheet({ user, onLogout }: { user: AccountDisplay; onLogout: () => void }) {
   const open = useAccountSheetOpen();
-  const isAdmin = isAdminPubkey(user.pubkey);
-  const { onNavigate, onInvite, onRequestLogout, modals } = useAccountMenu(user, onLogout, closeAccountSheet);
+  const isAdmin = user.isAdmin;
+  const { onNavigate, onInvite, onRequestLogout, onRequestRemove, modals } = useAccountMenu(user, onLogout, closeAccountSheet);
 
   return (
     <>
@@ -169,6 +169,8 @@ function MobileAccountSheet({ user, onLogout }: { user: NostrUser; onLogout: () 
               onNavigate={onNavigate}
               onInvite={onInvite}
               onRequestLogout={onRequestLogout}
+              onRequestRemove={onRequestRemove}
+              close={closeAccountSheet}
             />
           </div>
         </DrawerContent>

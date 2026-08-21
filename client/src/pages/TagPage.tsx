@@ -8,8 +8,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { PersonListRow, PersonListSkeleton } from "@/components/PersonListRow";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useScorePov } from "@/components/score/TrustScorePov";
-import { fetchProfileMap, hasLocalSecretKey } from "@/services/nostr";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { fetchProfileMap } from "@/services/nostr";
 import { useTagDetail, useTagVote, usePinnedTags, useTogglePin } from "@/hooks/useTags";
 import { TagVoteButton } from "@/components/share/TagVoteButton";
 import { TagComments } from "@/components/share/TagComments";
@@ -21,6 +20,7 @@ import { TaggedNotes } from "@/components/share/TaggedNotes";
 import { LinkedText } from "@/components/LinkedText";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 import { onlySelfDeclared } from "@/lib/tagCounts";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 
 /**
  * `/tags/:author/:slug` — everyone the network says carries one tag.
@@ -115,11 +115,13 @@ export default function TagPage() {
 
   // Voting needs a SIGNER, not just a session — same rule as the profile
   // picker, for the same reason: a token can't sign an event.
-  const [currentUser] = useCurrentUser();
+  const currentUser = useActiveAccountDisplay();
   const viewerPubkey = currentUser?.pubkey;
-  const canVote =
-    !!viewerPubkey &&
-    (hasLocalSecretKey() || (typeof window !== "undefined" && !!(window as unknown as { nostr?: unknown }).nostr));
+  // An Account *is* a Signer under the accounts model — local key, extension,
+  // bunker or Amber — so holding one is the whole test. Upstream asked
+  // `hasLocalSecretKey() || window.nostr`, which quietly excluded every remote
+  // signer; this includes them.
+  const canVote = !!viewerPubkey;
 
   // The tag's author rides along with the carriers so their name resolves in
   // the same round-trip — the alternative was a second query for one pubkey.

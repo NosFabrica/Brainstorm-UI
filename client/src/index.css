@@ -630,7 +630,7 @@ html.dark.admin-scrollbars *::-webkit-scrollbar-thumb {
  * Password-manager autofill detection. Chrome applies :-webkit-autofill the
  * instant a field is filled but does NOT fire a React onChange, so controlled
  * inputs miss the value. This no-op keyframe fires an `animationstart` event we
- * listen for (see LoginFailureModal) to reconcile the DOM value into state.
+ * listen for (see KeySignInModal) to reconcile the DOM value into state.
  */
 @keyframes onAutoFillStart {
   from { /* noop */ }

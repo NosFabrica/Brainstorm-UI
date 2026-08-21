@@ -7,12 +7,12 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { useActivePov } from "@/hooks/useActivePov";
-import { hasSessionToken } from "@/services/api";
+import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { VerificationCoin } from "@/components/score/VerificationCoin";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { cn } from "@/lib/utils";
+import { useHasSession } from "@/hooks/useHasSession";
 
 /**
  * The sitewide "whose view is this score?" system (team feedback):
@@ -23,7 +23,7 @@ import { cn } from "@/lib/utils";
  * a glance. Tier colors (green/amber/…) stay on the NUMBER; POV styles the
  * CONTAINER — two independent visual channels.
  *
- * One source of truth: the existing `useActivePov` store ("mywot"/"nosfabrica"),
+ * One source of truth: the existing `useActivePerspective` store ("mywot"/"nosfabrica"),
  * shared with the account-menu "Trust perspective" switcher. The shared
  * TrustScoreModal explains the score, states the current view, and holds the
  * toggle — every score surface opens the same modal.
@@ -32,10 +32,10 @@ export type ScorePov = "personalized" | "global";
 
 /** Effective POV for score display: personalized only when signed in AND the store says "mywot". */
 export function useScorePov(): { pov: ScorePov; loggedIn: boolean; setPersonalized: (on: boolean) => void } {
-  const [activePov, setActivePov] = useActivePov();
-  const loggedIn = hasSessionToken();
+  const [activePov, setActivePerspective] = useActivePerspective();
+  const loggedIn = useHasSession();
   const pov: ScorePov = loggedIn && activePov === "mywot" ? "personalized" : "global";
-  return { pov, loggedIn, setPersonalized: (on) => setActivePov(on ? "mywot" : "nosfabrica") };
+  return { pov, loggedIn, setPersonalized: (on) => setActivePerspective(on ? "mywot" : "nosfabrica") };
 }
 
 /** Container chrome for a score chip/card. Personalized = soft indigo fill; global = neutral outline. */

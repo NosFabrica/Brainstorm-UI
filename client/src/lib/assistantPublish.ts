@@ -33,7 +33,12 @@ export interface EnsureAssistantResult {
  * published identity on success.
  */
 export async function ensureAssistantPublished(
-  { follow, skipIfPublished = true }: { follow: boolean; skipIfPublished?: boolean },
+  { follow, skipIfPublished = true, background = false }: {
+    follow: boolean;
+    skipIfPublished?: boolean;
+    /** Nobody asked: the pointer publish defers rather than raising the unlock modal. */
+    background?: boolean;
+  },
 ): Promise<EnsureAssistantResult> {
   if (skipIfPublished) {
     const existing = getCurrentAssistantPubkey();
@@ -69,7 +74,10 @@ export async function ensureAssistantPublished(
   writePublishedAssistant(state);
 
   // Cross-device sync: NIP-78 kind-30078 pointer under the user's own key.
-  publishAssistantPointer({ pubkey: state.pubkey, eventId: state.eventId, publishedAt: state.publishedAt }).catch(() => {});
+  publishAssistantPointer(
+    { pubkey: state.pubkey, eventId: state.eventId, publishedAt: state.publishedAt },
+    { background },
+  ).catch(() => {});
 
   // Only follow on explicit user action — never silently mutate kind-3.
   if (follow) followUser(state.pubkey).catch(() => {});

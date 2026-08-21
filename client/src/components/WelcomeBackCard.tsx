@@ -3,10 +3,11 @@ import { Link } from "wouter";
 import { X, UserPlus, Check, Loader2, Users, ArrowRight, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNewJoiners } from "@/hooks/useNewJoiners";
-import { getCurrentUser } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { nip19 } from "nostr-tools";
 import type { NewJoiner } from "@/services/inviteAcceptance";
+import { accountKey } from "@/lib/accountStorage";
 
 const DEMO_PK = "d0a1b2c3d4e5f60718293a4b5c6d7e8f90112233445566778899aabbccddeeff";
 function isDemo(): boolean {
@@ -152,13 +153,13 @@ export function WelcomeBackCard() {
 
 /** Empty-state growth loop: prompt the sender to invite more people. */
 function InviteCta() {
-  const user = getCurrentUser();
+  const user = useActiveAccountDisplay();
   const demo = isDemo();
   // Real logged-in sender; in QA-demo (no session) fall back to a placeholder id.
   const npub = user?.npub || (demo ? nip19.npubEncode(DEMO_PK) : "");
   const pubkey = user?.pubkey || (demo ? DEMO_PK : "");
   const displayName = user?.displayName || (demo ? "Demo Sender" : "You");
-  const dismissFlag = pubkey ? `brainstorm_invite_cta_dismissed:${pubkey}` : "";
+  const dismissFlag = pubkey ? accountKey("brainstorm_invite_cta_dismissed", pubkey) : "";
   const [dismissed, setDismissed] = useState(() => {
     try {
       return !!dismissFlag && localStorage.getItem(dismissFlag) === "true";

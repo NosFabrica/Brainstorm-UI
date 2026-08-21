@@ -6,12 +6,13 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ArrowRight, UserRound, Search } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { apiClient, hasSessionToken } from "@/services/api";
+import { apiClient } from "@/services/api";
 import { decodeShareId } from "@/lib/shareId";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
-import { useActivePov } from "@/hooks/useActivePov";
+import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
+import { useHasSession } from "@/hooks/useHasSession";
 
 /**
  * The share page is a teaser, not a full client — so clicking a @mention or
@@ -42,10 +43,11 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
 
   // Show the target's trust score in the viewer's current perspective: their own
   // Web of Trust when logged in + using the mywot POV, otherwise the house score.
-  const [pov] = useActivePov();
+  const [pov] = useActivePerspective();
   const { hasMywot } = useHasMywot();
   const { isSearchObserver } = useIsSearchObserver();
-  const usePersonal = hasSessionToken() && hasMywot && isSearchObserver && pov === "mywot";
+  const hasSession = useHasSession();
+  const usePersonal = hasSession && hasMywot && isSearchObserver && pov === "mywot";
 
   const targetPubkey = useMemo(() => {
     if (intent?.kind !== "profile") return null;

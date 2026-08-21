@@ -30,8 +30,8 @@ import {
   type MyAssertion,
   type PinnedTag,
 } from "@/services/tags";
-import { getCurrentUser } from "@/services/nostr";
-import { useActivePov } from "@/hooks/useActivePov";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { useActivePerspective } from "@/hooks/useActivePerspective";
 import type { TrustObserver } from "@/services/tags";
 
 /**
@@ -57,8 +57,8 @@ import type { TrustObserver } from "@/services/tags";
  * previous perspective's answer cached on screen.
  */
 export function useTagObserver(): TrustObserver {
-  const [activePov] = useActivePov();
-  const viewerPubkey = getCurrentUser()?.pubkey;
+  const [activePov] = useActivePerspective();
+  const viewerPubkey = useActiveAccountDisplay()?.pubkey;
   return activePov === "mywot" && viewerPubkey ? viewerPubkey : "house";
 }
 
@@ -74,7 +74,7 @@ export const profileTagsKey = (pubkey: string, viewerPubkey?: string, observer?:
  * and must not leak between accounts via a shared cache entry.
  */
 export function useProfileTags(pubkey: string | undefined) {
-  const viewerPubkey = getCurrentUser()?.pubkey;
+  const viewerPubkey = useActiveAccountDisplay()?.pubkey;
   const observer = useTagObserver();
   return useQuery<ProfileTagsResult>({
     queryKey: profileTagsKey(pubkey ?? "", viewerPubkey, observer),
@@ -101,7 +101,7 @@ export const tagIndexKey = ["tag-index"] as const;
 export function useTagIndex(enabled = true) {
   // The viewer is in the key because their OWN tags are never hidden from the
   // discovery gate — so two accounts can legitimately see different catalogues.
-  const viewerPubkey = getCurrentUser()?.pubkey;
+  const viewerPubkey = useActiveAccountDisplay()?.pubkey;
   const observer = useTagObserver();
   return useQuery<TagSummary[]>({
     queryKey: [...tagIndexKey, viewerPubkey ?? "anon", observer],
@@ -118,7 +118,7 @@ export function useTagIndex(enabled = true) {
  * tags that describe people lead, tags the split says are for notes follow.
  */
 export function usePickerTags(enabled = true) {
-  const viewerPubkey = getCurrentUser()?.pubkey;
+  const viewerPubkey = useActiveAccountDisplay()?.pubkey;
   const observer = useTagObserver();
   return useQuery<PickerTag[]>({
     queryKey: ["tag-picker-options", viewerPubkey ?? "anon", observer],
@@ -164,7 +164,7 @@ export function useTagComments(authorPubkey: string | undefined, slug: string | 
  */
 export function usePostTagComment(authorPubkey: string | undefined, slug: string | undefined) {
   const queryClient = useQueryClient();
-  const viewerPubkey = getCurrentUser()?.pubkey;
+  const viewerPubkey = useActiveAccountDisplay()?.pubkey;
   const key = tagCommentsKey(authorPubkey ?? "", slug ?? "");
 
   return useMutation({
@@ -205,7 +205,7 @@ export const tagDetailKey = (authorPubkey: string, slug: string, viewerPubkey?: 
  * is the same for everyone under the configured POV.
  */
 export function useTagDetail(authorPubkey: string | undefined, slug: string | undefined) {
-  const viewerPubkey = getCurrentUser()?.pubkey;
+  const viewerPubkey = useActiveAccountDisplay()?.pubkey;
   const observer = useTagObserver();
   return useQuery<TagDetail>({
     queryKey: tagDetailKey(authorPubkey ?? "", slug ?? "", viewerPubkey, observer),
@@ -227,7 +227,7 @@ export const eventTagsKey = (eventId: string, viewerPubkey?: string, observer?: 
  * own stances ride along and must not leak between accounts via a shared entry.
  */
 export function useEventTags(eventId: string | undefined) {
-  const viewerPubkey = getCurrentUser()?.pubkey;
+  const viewerPubkey = useActiveAccountDisplay()?.pubkey;
   const observer = useTagObserver();
   return useQuery<NoteTagsResult>({
     queryKey: eventTagsKey(eventId ?? "", viewerPubkey, observer),
@@ -251,7 +251,7 @@ export function useEventTags(eventId: string | undefined) {
  * once for the new set rather than per note.
  */
 export function useEventTagsBatch(eventIds: string[]) {
-  const viewerPubkey = getCurrentUser()?.pubkey;
+  const viewerPubkey = useActiveAccountDisplay()?.pubkey;
   const ids = useMemo(
     () => Array.from(new Set(eventIds.filter(Boolean))).sort(),
     [eventIds],
@@ -274,7 +274,7 @@ export function useEventTagsBatch(eventIds: string[]) {
  * pages the viewer's whole assertion history, and the answer barely moves.
  */
 export function useMyAssertions() {
-  const viewerPubkey = getCurrentUser()?.pubkey;
+  const viewerPubkey = useActiveAccountDisplay()?.pubkey;
   return useQuery<MyAssertion[]>({
     queryKey: ["my-assertions", viewerPubkey ?? "anon"],
     queryFn: () => fetchMyAssertions(viewerPubkey!),
@@ -287,7 +287,7 @@ export function useMyAssertions() {
 
 /** The viewer's pinned tags. Off unless `TAG_PINS_ENABLED` — see the config. */
 export function usePinnedTags(enabled = true) {
-  const viewerPubkey = getCurrentUser()?.pubkey;
+  const viewerPubkey = useActiveAccountDisplay()?.pubkey;
   return useQuery<PinnedTag[]>({
     queryKey: ["pinned-tags", viewerPubkey ?? "anon"],
     queryFn: () => fetchPinnedTags(viewerPubkey!),
@@ -304,7 +304,7 @@ export function usePinnedTags(enabled = true) {
  */
 export function useTogglePin() {
   const queryClient = useQueryClient();
-  const viewerPubkey = getCurrentUser()?.pubkey;
+  const viewerPubkey = useActiveAccountDisplay()?.pubkey;
 
   return useMutation({
     mutationFn: (args: { authorPubkey: string; slug: string; tagEventId: string } | { pinEventId: string }) =>
@@ -328,7 +328,7 @@ export const tagNotesKey = (authorPubkey: string, slug: string, viewerPubkey?: s
  * a tag only becomes note-taggable once somebody mints its tagging header.
  */
 export function useTagNotes(authorPubkey: string | undefined, slug: string | undefined) {
-  const viewerPubkey = getCurrentUser()?.pubkey;
+  const viewerPubkey = useActiveAccountDisplay()?.pubkey;
   const observer = useTagObserver();
   return useQuery<TaggedNote[]>({
     queryKey: tagNotesKey(authorPubkey ?? "", slug ?? "", viewerPubkey, observer),
@@ -351,7 +351,7 @@ export function useTagNotes(authorPubkey: string | undefined, slug: string | und
  */
 export function useApplyEventTag(eventId: string | undefined, relayHint?: string) {
   const queryClient = useQueryClient();
-  const viewerPubkey = getCurrentUser()?.pubkey;
+  const viewerPubkey = useActiveAccountDisplay()?.pubkey;
   const observer = useTagObserver();
 
   return useMutation({
@@ -394,7 +394,7 @@ export function useApplyEventTag(eventId: string | undefined, relayHint?: string
  */
 export function useTagVote(authorPubkey: string | undefined, slug: string | undefined) {
   const queryClient = useQueryClient();
-  const viewerPubkey = getCurrentUser()?.pubkey;
+  const viewerPubkey = useActiveAccountDisplay()?.pubkey;
   const observer = useTagObserver();
   const key = tagDetailKey(authorPubkey ?? "", slug ?? "", viewerPubkey, observer);
 
@@ -505,7 +505,7 @@ export interface ApplyTagVariables extends Omit<ApplyTagArgs, "targetPubkey"> {
  */
 export function useApplyTag(targetPubkey: string | undefined) {
   const queryClient = useQueryClient();
-  const viewerPubkey = getCurrentUser()?.pubkey;
+  const viewerPubkey = useActiveAccountDisplay()?.pubkey;
   const observer = useTagObserver();
   const key = profileTagsKey(targetPubkey ?? "", viewerPubkey, observer);
 

@@ -5,11 +5,13 @@ import { ArrowLeft, Clock, Gauge, ShieldCheck, RefreshCw, CheckCircle2, Loader2,
 import { AppHeader } from "@/components/AppHeader";
 import { Card } from "@/components/ui/card";
 import { PresetBadge } from "@/components/PresetBadge";
-import { VerificationCoin, tierForScore01, type VerificationTier } from "@/components/score/VerificationCoin";
+import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { tierForScore01, type VerificationTier } from "@/lib/verificationTier";
 import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
-import { logout } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
 import { apiClient } from "@/services/api";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { presetToBackend } from "@/services/trustThreshold";
@@ -76,7 +78,7 @@ function Stat({ label, value }: { label: string; value: number | string }) {
 export default function InsightsPage() {
   const [displayMode] = useScoreDisplayMode();
   const [, navigate] = useLocation();
-  const [user, setUser] = useCurrentUser();
+  const user = useActiveAccountDisplay();
   const pubkey = user?.pubkey;
 
   const overviewQuery = useSelfOverview(pubkey);
@@ -170,7 +172,7 @@ export default function InsightsPage() {
       ? (history as any).records
       : [];
 
-  const handleLogout = () => { logout(); setUser(null); };
+  const handleLogout = () => logout();
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950 flex flex-col">
@@ -192,6 +194,8 @@ export default function InsightsPage() {
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>My Insights</h1>
         </div>
         <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Your account standing, and exactly how and when your scores were computed.</p>
+
+        <DeferredSessionNotice className="mb-6" />
 
         {/* Calculation */}
         <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 mb-4">

@@ -4,18 +4,20 @@ import { useRoute, Redirect, Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Shuffle, ShieldAlert, Flag, UserPlus, Check, ChevronDown } from "lucide-react";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
-import { fetchProfileForShare, fetchProfileMap, logout } from "@/services/nostr";
+import { fetchProfileForShare, fetchProfileMap } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
 import { AccountMenu } from "@/components/AccountMenu";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { reportUser, followUser, fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
-import { apiClient, hasSessionToken } from "@/services/api";
+import { apiClient } from "@/services/api";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Wordmark } from "@/components/Wordmark";
 import { ordinal } from "@/components/DegreeChip";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { TrustScoreModal, PovIcon, povChrome, useScorePov } from "@/components/score/TrustScorePov";
+import { useHasSession } from "@/hooks/useHasSession";
 
 function shortNpub(npub: string): string {
   return `${npub.slice(0, 10)}…${npub.slice(-4)}`;
@@ -36,11 +38,11 @@ export default function HopsPathPage() {
   const decoded = useMemo(() => decodeShareId(rawId), [rawId]);
   const relayHints = decoded?.relays || [];
 
-  const [me, setMe] = useCurrentUser();
-  const handleLogout = () => { logout(); setMe(null); };
+  const me = useActiveAccountDisplay();
+  const handleLogout = () => logout();
   const fromPubkey = me?.pubkey || "";
   const toPubkey = decoded?.pubkey || "";
-  const signedIn = hasSessionToken();
+  const signedIn = useHasSession();
   const calcDone = (() => {
     try {
       return localStorage.getItem("brainstorm_calc_completed") === "true";
@@ -456,6 +458,7 @@ function NodeFollow({ pubkey, name, alreadyFollowing }: { pubkey: string; name: 
     setBusy(true);
     const res = await followUser(pubkey);
     setBusy(false);
+    if (res.cancelled) return;
     if (res.success) {
       setJustFollowed(true);
       toast({ title: `Following ${name}` });
@@ -501,6 +504,7 @@ function NodeReport({ pubkey, name, emphasize }: { pubkey: string; name: string;
     const res = await reportUser(pubkey, reason);
     setBusy(false);
     setOpen(false);
+    if (res.cancelled) return;
     if (res.success) {
       setDone(true);
       toast({ title: `Reported ${name}`, description: "Their score drops in your network — so does anyone whose standing came only through them." });

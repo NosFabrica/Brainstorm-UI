@@ -1,6 +1,8 @@
-import { DEFAULT_VERIFIED_LINE, TIER_THRESHOLDS, TIER_LABELS, TRUST_TIER_COLORS } from "@/services/trustThreshold";
+import { TIER_LABELS, TRUST_TIER_COLORS } from "@/services/trustThreshold";
 import { useScoreDisplayMode, type ScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import type { ScorePov } from "@/components/score/TrustScorePov";
+import { tierForScore01, type VerificationTier } from "@/lib/verificationTier";
+
 
 /**
  * VerificationCoin — the sitewide, label-less Verification Score badge.
@@ -40,7 +42,7 @@ import type { ScorePov } from "@/components/score/TrustScorePov";
  * search rows, note cards, lists) so it's recognizable by shape alone.
  */
 
-export type VerificationTier = "high" | "trusted" | "neutral" | "low" | "unverified";
+export { tierForScore01, type VerificationTier } from "@/lib/verificationTier";
 
 /**
  * The tier as a POSITION on the five-step ladder, for level mode's pips.
@@ -54,18 +56,6 @@ export const TIER_STEP: Record<VerificationTier, number> = {
   trusted: 4,
   high: 5,
 };
-
-// The coin is handed a bare score with no observer context (note cards, search
-// rows, OG images), so its low/unverified boundary is the DEFAULT line rather
-// than the viewer's preset — see DEFAULT_VERIFIED_LINE. Surfaces that DO have a
-// backend response render its `tier` instead.
-export function tierForScore01(score01: number): VerificationTier {
-  if (score01 >= TIER_THRESHOLDS.high) return "high";
-  if (score01 >= TIER_THRESHOLDS.medium_high) return "trusted";
-  if (score01 >= TIER_THRESHOLDS.medium) return "neutral";
-  if (score01 >= DEFAULT_VERIFIED_LINE) return "low";
-  return "unverified";
-}
 
 const TIER_FILL: Record<VerificationTier, string> = {
   high: TRUST_TIER_COLORS.highlyTrusted, // Aurora Purple

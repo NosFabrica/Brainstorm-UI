@@ -1,4 +1,5 @@
-FROM node:22-alpine AS builder
+# Keep in sync with .nvmrc (checked in CI).
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 

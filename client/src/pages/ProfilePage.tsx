@@ -69,9 +69,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { getCurrentUser, logout, fetchProfile, fetchProfiles, eventStore, fetchReportsForPubkey, fetchReportsByPubkey, fetchMuteListTimestamp, type NostrUser, type ReportMetadata, type MuteMetadata } from "@/services/nostr";
+import { fetchProfile, fetchProfiles, eventStore, fetchReportsForPubkey, fetchReportsByPubkey, fetchMuteListTimestamp, type ReportMetadata, type MuteMetadata } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
-import { isAdminPubkey } from "@/config/adminAccess";
 import { getProfileContent, isValidProfile } from "applesauce-core/helpers/profile";
 import {
   Dialog,
@@ -81,7 +82,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { apiClient, isAuthRedirecting, hasSessionToken } from "@/services/api";
+import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfConnections, flattenConnections } from "@/hooks/useSelf";
 import { getProfileSeed, setProfileSeed, clearProfileSeed, consumeStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "../services/graphHelpers";
@@ -96,10 +97,11 @@ import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { DegreeChip } from "@/components/DegreeChip";
 import { SignInButton } from "@/components/SignInButton";
-import { useActivePov, type ActivePov } from "@/hooks/useActivePov";
+import { useActivePerspective, type ActivePerspective } from "@/hooks/useActivePerspective";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { fetchContactList, getFollowedPubkeys, fetchMyReport, type MyReport } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
+import { useHasSession } from "@/hooks/useHasSession";
 import { TIER_LABELS } from "@/services/trustThreshold";
 
 interface AdminHistoryItem {
@@ -816,7 +818,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
               data-testid={`expand-profile-${pk.slice(0,8)}`}
             >
               <Avatar className="h-7 w-7 border border-slate-200/60 dark:border-slate-800/60 shrink-0">
-                {profile?.picture ? <AvatarImage src={profile.picture} /> : null}
+                <AvatarImage src={profile?.picture} />
                 <AvatarFallback className="bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link text-xs font-bold">
                   {displayName.charAt(0).toUpperCase()}
                 </AvatarFallback>
@@ -936,7 +938,8 @@ export default function ProfilePage() {
   const [, params] = useRoute("/profile/:npub");
   const npubParam = params?.npub || "";
 
-  const [user, setUser] = useState<NostrUser | null>(null);
+  const user = useActiveAccountDisplay();
+  const hasSession = useHasSession();
 
   const [copied, setCopied] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -1018,7 +1021,7 @@ export default function ProfilePage() {
     staleTime: 30_000,
   });
 
-  const isAdmin = isAdminPubkey(user?.pubkey);
+  const isAdmin = user?.isAdmin === true;
 
   const adminHistoryQuery = useQuery<{ items: AdminHistoryItem[]; total: number; page: number; pages: number }>({
     queryKey: ["/api/admin/users", hexPubkey, "history"],
@@ -1036,19 +1039,20 @@ export default function ProfilePage() {
     try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; }
   }, [calcDoneNow]);
 
-  useEffect(() => {
-    // Capture the signed-in user so personalized sections + the account menu render.
-    setUser(getCurrentUser());
-  }, [navigate]);
-
   // Members-only gate: /profile is the personalized (signed-in) surface. Logged-out
   // visitors are redirected to the PUBLIC share page (/p/:npub) — the join-funnel
   // view — no matter how they arrived (search, a shared link, a bookmark).
+  //
+  // "Logged out" means holding no Account, not holding no Session. An Account
+  // stays active with its Session cleared — a deferred re-auth, or a 401 that
+  // `handleUnauthorized` decided not to redirect over — and `RequireAuth` lets
+  // that in. Bouncing on the Session sent those users to a public page that
+  // carries no unlock prompt, and every attempt to come back bounced again.
   useEffect(() => {
-    if (npubParam && !hasSessionToken()) {
+    if (npubParam && !user) {
       navigate(`/p/${npubParam}`, { replace: true });
     }
-  }, [npubParam, navigate]);
+  }, [npubParam, navigate, user]);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -1068,7 +1072,7 @@ export default function ProfilePage() {
   // wipe-and-redirect (Profile is a public page). Gate the pubkey on a real
   // session token — anon and stale-token visitors see the public overview
   // without their browsing being hijacked.
-  const selfMutualsPubkey = hasSessionToken() ? user?.pubkey : undefined;
+  const selfMutualsPubkey = hasSession ? user?.pubkey : undefined;
   const selfFollowedByConn = useSelfConnections(selfMutualsPubkey, "followed_by", { enabled: !!selfMutualsPubkey });
   const selfFollowingConn = useSelfConnections(selfMutualsPubkey, "following", { enabled: !!selfMutualsPubkey });
   const selfFollowedByList = useMemo(() => flattenConnections(selfFollowedByConn.data?.pages), [selfFollowedByConn.data?.pages]);
@@ -1373,13 +1377,11 @@ export default function ProfilePage() {
   // so your own avatar shows immediately instead of the initials fallback.
   const ownProfileFallback = useMemo<ProfileContent | null>(() => {
     if (!user || !hexPubkey || user.pubkey !== hexPubkey) return null;
-    if (user.profile) return user.profile;
     if (user.picture || user.displayName) {
       return {
         name: user.displayName,
         display_name: user.displayName,
         picture: user.picture,
-        about: user.about,
         nip05: user.nip05,
       } as ProfileContent;
     }
@@ -2267,7 +2269,7 @@ export default function ProfilePage() {
                     const effectivePicture = displayNostrProfile?.picture || (isOwnAssistant ? assistantDefaultPicture : undefined);
                     return (
                       <Avatar className="h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white dark:border-slate-900 shadow-lg bg-white dark:bg-slate-900 shrink-0 -mt-12 sm:-mt-16">
-                        {effectivePicture && <AvatarImage src={effectivePicture} alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"} className="object-cover" />}
+                        <AvatarImage src={effectivePicture} alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"} className="object-cover" />
                         <AvatarFallback className="bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link text-base sm:text-lg font-bold">
                           {(displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 2)).charAt(0).toUpperCase()}
                         </AvatarFallback>
@@ -2326,7 +2328,7 @@ export default function ProfilePage() {
                     <span className="text-slate-500 dark:text-slate-400 ml-1">Mutual</span>
                   </span>
                   {/* Degree (1st/2nd/3rd) — signed-in + scored viewers, not your own profile. */}
-                  {hasSessionToken() && !isOwnProfile && user?.pubkey && hexPubkey &&
+                  {hasSession && !isOwnProfile && user?.pubkey && hexPubkey &&
                     localStorage.getItem("brainstorm_calc_completed") === "true" && (
                       <DegreeChip fromPubkey={user.pubkey} toPubkey={hexPubkey} rawId={npubParam} variant="bold" />
                     )}
@@ -2354,6 +2356,8 @@ export default function ProfilePage() {
                             onMouseLeave={() => setFollowHovered(false)}
                             onClick={async () => {
                               const result = following ? await social.unfollow(hexPubkey) : await social.follow(hexPubkey);
+                              // A declined unlock is a deliberate no — say nothing.
+                              if (result.cancelled) { setFollowHovered(false); return; }
                               if (result.success) {
                                 toast({ title: following ? "Unfollowed" : "Followed", description: following ? "Removed from your contact list" : "Added to your contact list" });
                               } else {
@@ -2412,6 +2416,7 @@ export default function ProfilePage() {
                                 className="cursor-pointer"
                                 onClick={async () => {
                                   const result = muted ? await social.unmute(hexPubkey) : await social.mute(hexPubkey);
+                                  if (result.cancelled) return;
                                   if (result.success) {
                                     toast({ title: muted ? "Unmuted" : "Muted", description: muted ? "Removed from your mute list" : "Added to your mute list" });
                                   } else {
@@ -2432,6 +2437,7 @@ export default function ProfilePage() {
                                 const snapshot = myReport;
                                 setMyReport(null); // optimistic: chip + menu flip instantly
                                 const result = await social.unreport(hexPubkey);
+                                if (result.cancelled) { setMyReport(snapshot); return; }
                                 if (result.success) {
                                   toast({ title: "Report removed", description: "Scores may take a little while to reflect this." });
                                 } else {
@@ -3290,6 +3296,7 @@ export default function ProfilePage() {
               disabled={social.isPending("report", hexPubkey) || social.isAnyPending}
               onClick={async () => {
                 const result = await social.report(hexPubkey, reportReason);
+                if (result.cancelled) return;
                 if (result.success) {
                   // Show the "you reported this" state immediately — the dialog's
                   // own spinner already covered the publish; don't wait on a relay refetch.

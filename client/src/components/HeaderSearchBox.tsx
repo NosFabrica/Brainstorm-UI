@@ -8,12 +8,11 @@ import { npubFromPubkey } from "@/lib/shareId";
 import { initialsFor } from "@/lib/profileDefaults";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
 import { useTagMatches } from "@/hooks/useTags";
-import type { TagSummary } from "@/services/tags";
-import { getCurrentUser } from "@/services/nostr";
-import { useActivePov } from "@/hooks/useActivePov";
-import { useHasMywot } from "@/hooks/useHasMywot";
+import type { TagSummary } from "@/services/tags";import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
 
 /**
@@ -54,11 +53,11 @@ export function HeaderSearchBox({
   // personalized Web of Trust only when the viewer turned "My perspective" on
   // AND is eligible (has a personalized graph + is permitted to be their own
   // search observer); otherwise fall back to the house ("nosfabrica") view.
-  const [pov] = useActivePov();
+  const [pov] = useActivePerspective();
   const { hasMywot } = useHasMywot();
   const { isSearchObserver } = useIsSearchObserver();
   const effectivePov = pov === "mywot" && hasMywot && isSearchObserver ? "mywot" : "nosfabrica";
-  const observerPubkey = getCurrentUser()?.pubkey;
+  const observerPubkey = useActiveAccountDisplay()?.pubkey;
 
   // Live suggestions, debounced. A request token is bumped every keystroke so a
   // slow earlier response can't overwrite newer results. Direct identifiers

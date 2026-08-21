@@ -13,8 +13,9 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { followUser, unfollowUser, muteUser, unmuteUser, reportUser } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
-import { getCurrentUser } from "@/services/nostr";
+
 import { isAdminPubkey } from "@/config/adminAccess";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 
 const REPORT_REASONS = ["spam", "impersonation", "other"] as const;
 
@@ -47,7 +48,7 @@ export function ProfileActions({
   alreadyReported: boolean;
 }) {
   // Gates the "Advanced view" link — see the note on this component.
-  const viewerIsAdmin = isAdminPubkey(getCurrentUser()?.pubkey);
+  const viewerIsAdmin = isAdminPubkey(useActiveAccountDisplay()?.pubkey);
   const { toast } = useToast();
   const [following, setFollowing] = useState(initialFollowing);
   const [muted, setMuted] = useState(initialMuted);
@@ -58,6 +59,7 @@ export function ProfileActions({
     setBusy("follow");
     const res = following ? await unfollowUser(targetPubkey) : await followUser(targetPubkey);
     setBusy(null);
+    if (res.cancelled) return;
     if (res.success) {
       setFollowing((v) => !v);
       toast({ title: following ? "Unfollowed" : "Following" });
@@ -70,6 +72,7 @@ export function ProfileActions({
     setBusy("mute");
     const res = muted ? await unmuteUser(targetPubkey) : await muteUser(targetPubkey);
     setBusy(null);
+    if (res.cancelled) return;
     if (res.success) {
       setMuted((v) => !v);
       toast({ title: muted ? "Unmuted" : "Muted" });
@@ -80,6 +83,7 @@ export function ProfileActions({
 
   const submitReport = async (reason: string) => {
     const res = await reportUser(targetPubkey, reason);
+    if (res.cancelled) return;
     if (res.success) {
       setReported(true);
       toast({ title: "Reported", description: "This lowers their standing in your network." });
@@ -172,7 +176,7 @@ export function ProfileActions({
  * a ⋯ button that opens an empty menu is worse than no button.
  */
 export function OwnerActions({ npub }: { npub: string }) {
-  if (!isAdminPubkey(getCurrentUser()?.pubkey)) return null;
+  if (!isAdminPubkey(useActiveAccountDisplay()?.pubkey)) return null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

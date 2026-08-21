@@ -5,9 +5,11 @@ import { nip19 } from "nostr-tools";
 import { ArrowLeft, BadgeCheck, Smartphone, Loader2, MessageSquare, ArrowRight, Share2, Check, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin, useTierRing, TierWordChip } from "@/components/score/VerificationCoin";
-import { fetchEventsByIds, fetchAddressableEvents, fetchProfile, fetchProfileMap, getCurrentUser, hasLocalSecretKey, hasPersistentKey, PROFILE_RELAYS } from "@/services/nostr";
+import { fetchEventsByIds, fetchAddressableEvents, fetchProfile, fetchProfileMap } from "@/services/nostr";
+import { PROFILE_RELAYS } from "@/lib/relays";
 import { NoteTagChips } from "@/components/share/NoteTagChips";
-import { apiClient, hasSessionToken } from "@/services/api";
+import { useBackupNeed } from "@/hooks/useBackupNeed";
+import { apiClient } from "@/services/api";
 import { collectRefs, addrCoord, replyRefs, type MinimalEvent } from "@/lib/noteRefs";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { NoteContent } from "@/components/share/NoteContent";
@@ -25,6 +27,8 @@ import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { BrainLogo } from "@/components/BrainLogo";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
+import { useHasSession } from "@/hooks/useHasSession";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 
 type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string };
 type EventPointer = { id: string; relays?: string[]; author?: string };
@@ -95,12 +99,15 @@ export default function EventPage() {
   const raw = (params?.id || "").replace(/^nostr:/, "");
   const ptr = useMemo(() => decodeEventId(raw), [raw]);
   const relayHints = ptr?.relays || [];
-  const loggedIn = hasSessionToken();
+  const loggedIn = useHasSession();
   // Tagging needs a SIGNER, not a session: a session token is backend auth and
   // cannot sign an event, so gating on it would show a button that throws.
-  const canTagNote =
-    !!getCurrentUser()?.pubkey &&
-    (hasLocalSecretKey() || (typeof window !== "undefined" && !!(window as unknown as { nostr?: unknown }).nostr));
+  //
+  // Under the accounts model an Account *is* a Signer — local, extension, bunker
+  // or Amber — so holding one is the whole test. Upstream asked
+  // `hasLocalSecretKey() || window.nostr`, which quietly excluded every remote
+  // signer; this includes them.
+  const canTagNote = !!useActiveAccountDisplay()?.pubkey;
   const fromSearch = new URLSearchParams(useSearch()).get("fromSearch") === "1";
   const [, navigate] = useLocation();
 
@@ -243,16 +250,11 @@ export default function EventPage() {
   const galleryImages = mediaUrls.filter((u) => !VID_RE.test(u));
 
   // New in-app accounts that landed here (e.g. via the thread gate) haven't saved
-  // a backup yet — surface a slim, dismissible safety + discovery nudge.
-  const me = getCurrentUser();
+  // a backup yet — surface a slim, dismissible safety + discovery nudge. It asks
+  // the same question the rest of the chain does, so it goes quiet for anyone the
+  // chain has nothing to ask.
   const [setupDismissed, setSetupDismissed] = useState(false);
-  const showSetupNudge = (() => {
-    try {
-      return hasPersistentKey() && !!me?.pubkey && localStorage.getItem(`brainstorm_backup_done:${me.pubkey}`) !== "true" && !setupDismissed;
-    } catch {
-      return false;
-    }
-  })();
+  const showSetupNudge = useBackupNeed() !== null && !setupDismissed;
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950">
