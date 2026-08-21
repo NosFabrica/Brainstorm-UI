@@ -1,5 +1,11 @@
-import { DEFAULT_VERIFIED_LINE, TIER_THRESHOLDS, TRUST_TIER_COLORS } from "@/services/trustThreshold";
+import { TRUST_TIER_COLORS } from "@/services/trustThreshold";
 import type { ScorePov } from "@/components/score/TrustScorePov";
+import { tierForScore01, type VerificationTier } from "@/lib/verificationTier";
+
+// Re-exported because this component was their home before they were extracted,
+// and callers upstream — including this file's own test — still import them from
+// here. One definition, two doors.
+export { tierForScore01, type VerificationTier };
 
 /**
  * VerificationCoin — the sitewide, label-less Verification Score badge.
@@ -38,20 +44,6 @@ import type { ScorePov } from "@/components/score/TrustScorePov";
  * explainer/modal, never on the coin. Reused everywhere (profile avatar corner,
  * search rows, note cards, lists) so it's recognizable by shape alone.
  */
-
-export type VerificationTier = "high" | "trusted" | "neutral" | "low" | "unverified";
-
-// The coin is handed a bare score with no observer context (note cards, search
-// rows, OG images), so its low/unverified boundary is the DEFAULT line rather
-// than the viewer's preset — see DEFAULT_VERIFIED_LINE. Surfaces that DO have a
-// backend response render its `tier` instead.
-export function tierForScore01(score01: number): VerificationTier {
-  if (score01 >= TIER_THRESHOLDS.high) return "high";
-  if (score01 >= TIER_THRESHOLDS.medium_high) return "trusted";
-  if (score01 >= TIER_THRESHOLDS.medium) return "neutral";
-  if (score01 >= DEFAULT_VERIFIED_LINE) return "low";
-  return "unverified";
-}
 
 const TIER_FILL: Record<VerificationTier, string> = {
   high: TRUST_TIER_COLORS.highlyTrusted, // Aurora Purple

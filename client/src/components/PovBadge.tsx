@@ -7,7 +7,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
-import { useActivePov, hasStoredPov, type ActivePov } from "@/hooks/useActivePov";
+import { useActivePerspective, hasStoredPerspective, type ActivePerspective } from "@/hooks/useActivePerspective";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
 
@@ -30,11 +30,11 @@ interface PovMenuSectionProps {
 }
 
 export function PovMenuSection({ user, scope = "global" }: PovMenuSectionProps) {
-  const [pov, setPov] = useActivePov();
+  const [pov, setPov] = useActivePerspective();
   const { hasMywot } = useHasMywot();
   const [, navigate] = useLocation();
 
-  const effective: ActivePov = pov === "mywot" && !hasMywot ? "nosfabrica" : pov;
+  const effective: ActivePerspective = pov === "mywot" && !hasMywot ? "nosfabrica" : pov;
 
   return (
     <>
@@ -140,10 +140,10 @@ export function PovMenuSection({ user, scope = "global" }: PovMenuSectionProps) 
  * inside App.tsx so this runs regardless of which page is active.
  */
 export function PovAutoDefault() {
-  const [, setPov] = useActivePov();
+  const [, setPov] = useActivePerspective();
   const { hasMywot } = useHasMywot();
   useEffect(() => {
-    if (!hasStoredPov() && hasMywot) {
+    if (!hasStoredPerspective() && hasMywot) {
       setPov("mywot");
     }
   }, [hasMywot, setPov]);

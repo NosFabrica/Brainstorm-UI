@@ -39,13 +39,10 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import {
-  getCurrentUser,
-  logout,
-  fetchProfiles,
-  eventStore,
-  type NostrUser,
-} from "@/services/nostr";
+import { fetchProfiles, eventStore } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { DeferredSessionNotice } from "@/components/DeferredSession";
 import {
   getProfileContent,
   isValidProfile,
@@ -222,7 +219,7 @@ function prefetchProfileOverview(pk: string): void {
 
 export default function NetworkPage() {
   const [, navigate] = useLocation();
-  const [user, setUser] = useState<NostrUser | null>(null);
+  const user = useActiveAccountDisplay();
 
   const [activeGroup, setActiveGroup] = useState<GroupKey>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -358,13 +355,8 @@ export default function NetworkPage() {
   }, []);
 
   useEffect(() => {
-    const u = getCurrentUser();
-    if (!u) {
-      navigate("/", { replace: true });
-      return;
-    }
-    setUser(u);
-  }, [navigate]);
+    if (!user) navigate("/", { replace: true });
+  }, [user, navigate]);
 
   const { preset: trustPreset } = useTrustPresetSync(!!user);
 
@@ -870,6 +862,7 @@ export default function NetworkPage() {
   const handleSocialFollow = useCallback(
     async (pk: string) => {
       const result = await social.follow(pk);
+      if (result.cancelled) return result;
       if (result.success)
         toast({ title: "Followed", description: "Added to your contact list" });
       else
@@ -886,6 +879,7 @@ export default function NetworkPage() {
   const handleSocialUnfollow = useCallback(
     async (pk: string) => {
       const result = await social.unfollow(pk);
+      if (result.cancelled) return result;
       if (result.success)
         toast({
           title: "Unfollowed",
@@ -905,6 +899,7 @@ export default function NetworkPage() {
   const handleSocialMute = useCallback(
     async (pk: string) => {
       const result = await social.mute(pk);
+      if (result.cancelled) return result;
       if (result.success)
         toast({ title: "Muted", description: "Added to your mute list" });
       else
@@ -921,6 +916,7 @@ export default function NetworkPage() {
   const handleSocialUnmute = useCallback(
     async (pk: string) => {
       const result = await social.unmute(pk);
+      if (result.cancelled) return result;
       if (result.success)
         toast({ title: "Unmuted", description: "Removed from your mute list" });
       else
@@ -1167,6 +1163,7 @@ export default function NetworkPage() {
       />
 
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
+        <DeferredSessionNotice className="mb-8" />
         <div className="space-y-8 animate-fade-up">
           <div
             className="text-left relative z-10 mb-8 pt-2"

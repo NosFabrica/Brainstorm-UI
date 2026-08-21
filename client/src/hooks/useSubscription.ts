@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { hasSessionToken } from "@/services/api";
+import { useHasSession } from "@/hooks/useHasSession";
 import { fetchSubscription, DEFAULT_SUBSCRIPTION, type Subscription } from "@/services/subscription";
 import type { TierId } from "@/lib/plans";
 
@@ -8,7 +8,7 @@ import type { TierId } from "@/lib/plans";
  * `services/subscription.ts` (mock until the backend + Flash webhook sync ship).
  *
  * Defaults to the free tier when logged out, loading, or on error, so anonymous
- * and public surfaces never see a locked state. Gated on `hasSessionToken()` so
+ * and public surfaces never see a locked state. Gated on `useHasSession()` so
  * it never fires for anonymous visitors — the real path uses
  * `authenticatedFetch`, which 401-redirects public pages.
  *
@@ -27,10 +27,11 @@ export function useSubscription(): {
   isLoading: boolean;
   refetch: () => void;
 } {
+  const signedIn = useHasSession();
   const query = useQuery({
     queryKey: ["/user/subscription"],
     queryFn: fetchSubscription,
-    enabled: hasSessionToken(),
+    enabled: signedIn,
     staleTime: 60_000,
     refetchOnWindowFocus: true,
   });
@@ -46,7 +47,7 @@ export function useSubscription(): {
     // Grace counts as active: a failed renewal inside Flash's 7-day grace window
     // must not read as "you've lost it" while retries are still running.
     isActive: subscription.status === "active" || subscription.status === "grace",
-    isLoading: hasSessionToken() && query.isPending,
+    isLoading: signedIn && query.isPending,
     refetch: () => void query.refetch(),
   };
 }

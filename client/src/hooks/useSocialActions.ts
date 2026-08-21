@@ -1,5 +1,7 @@
 import { useState, useCallback, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+
+import { signingFailure } from "@/accounts/signing";
 import {
   fetchContactList,
   fetchMuteList,
@@ -84,9 +86,9 @@ export function useSocialActions(myPubkey: string | undefined) {
       const result = await followUser(targetPk, contactList);
       if (!result.success) queryClient.setQueryData(["nostr-contacts", myPubkey], snapshot);
       return result;
-    } catch (e: any) {
+    } catch (e) {
       queryClient.setQueryData(["nostr-contacts", myPubkey], snapshot);
-      return { success: false, error: e?.message || "Follow failed" };
+      return signingFailure(e, "Follow failed");
     } finally {
       setPendingAction(null);
     }
@@ -101,9 +103,9 @@ export function useSocialActions(myPubkey: string | undefined) {
       const result = await unfollowUser(targetPk, contactList);
       if (!result.success) queryClient.setQueryData(["nostr-contacts", myPubkey], snapshot);
       return result;
-    } catch (e: any) {
+    } catch (e) {
       queryClient.setQueryData(["nostr-contacts", myPubkey], snapshot);
-      return { success: false, error: e?.message || "Unfollow failed" };
+      return signingFailure(e, "Unfollow failed");
     } finally {
       setPendingAction(null);
     }
@@ -118,9 +120,9 @@ export function useSocialActions(myPubkey: string | undefined) {
       const result = await muteUser(targetPk, muteList);
       if (!result.success) queryClient.setQueryData(["nostr-mutes", myPubkey], snapshot);
       return result;
-    } catch (e: any) {
+    } catch (e) {
       queryClient.setQueryData(["nostr-mutes", myPubkey], snapshot);
-      return { success: false, error: e?.message || "Mute failed" };
+      return signingFailure(e, "Mute failed");
     } finally {
       setPendingAction(null);
     }
@@ -135,9 +137,9 @@ export function useSocialActions(myPubkey: string | undefined) {
       const result = await unmuteUser(targetPk, muteList);
       if (!result.success) queryClient.setQueryData(["nostr-mutes", myPubkey], snapshot);
       return result;
-    } catch (e: any) {
+    } catch (e) {
       queryClient.setQueryData(["nostr-mutes", myPubkey], snapshot);
-      return { success: false, error: e?.message || "Unmute failed" };
+      return signingFailure(e, "Unmute failed");
     } finally {
       setPendingAction(null);
     }

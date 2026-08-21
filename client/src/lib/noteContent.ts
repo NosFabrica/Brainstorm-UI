@@ -1,9 +1,10 @@
 /**
- * Lightweight tokenizer for Nostr kind-1 note content. There is no
- * `applesauce-content` parser installed, so this turns a raw `content` string
+ * Lightweight tokenizer for Nostr kind-1 note content: a raw `content` string
  * into renderable tokens — text, links, inline images/video, `nostr:` mentions,
  * and hashtags — for the share page's note teasers. Intentionally minimal: a
  * taste of the note, not a full client renderer.
+ *
+ * Predates `applesauce-content`; slated to be replaced by it.
  */
 
 import { nip19 } from "nostr-tools";

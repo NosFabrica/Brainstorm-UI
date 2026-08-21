@@ -5,6 +5,8 @@
 // Always convert at the boundary. These functions are framework-free; the React
 // layer (ZapModal) handles signing via the app's signer and the UI state.
 
+import type { EventTemplate } from "applesauce-core/helpers";
+
 export const satsToMsat = (sats: number) => Math.round(sats * 1000);
 export const msatToSats = (msat: number) => Math.floor(msat / 1000);
 
@@ -19,6 +21,21 @@ export interface LnurlPayParams {
   domain: string;
   lnurlUrl: string; // the raw https lnurlp URL (used in the zap-request `lnurl` tag)
 }
+
+/** Whether the recipient's provider accepts a NIP-57 zap at all. */
+export const acceptsZaps = (params: LnurlPayParams | null | undefined): boolean =>
+  !!(params?.allowsNostr && params?.nostrPubkey);
+
+/**
+ * Whether this zap can carry the zapper's name. A kind-9734 is signed by the
+ * zapper, so an Account that can sign is the whole requirement — deliberately
+ * **not** a Session question: a lapsed Session would otherwise anonymise every
+ * zap silently, with nothing on screen to say so.
+ */
+export const canAttributeZap = (
+  params: LnurlPayParams | null | undefined,
+  signer: unknown,
+): boolean => acceptsZaps(params) && !!signer;
 
 /** Thrown when the lightning provider can't be reached or returns bad data —
  *  the modal treats this as "fall back to the address QR", not a hard error. */
@@ -64,13 +81,12 @@ export async function lnurlpFromAddress(lud16: string): Promise<LnurlPayParams> 
  *  "Anonymous" instead of the throwaway npub). */
 export function buildZapRequest(opts: {
   recipientPubkey: string;
-  senderPubkey: string;
   amountMsat: number;
   lnurl: string;
   relays: string[];
   comment?: string;
   anon?: boolean;
-}): Record<string, unknown> {
+}): EventTemplate {
   const tags: string[][] = [
     ["relays", ...opts.relays], // one tag, URLs spread inline (NIP-57)
     ["amount", String(opts.amountMsat)], // millisats, string
@@ -78,11 +94,11 @@ export function buildZapRequest(opts: {
     ["p", opts.recipientPubkey], // hex
   ];
   if (opts.anon) tags.push(["anon", ""]); // anonymous-zap convention (Damus/Amethyst)
+  // No `pubkey` — whoever signs stamps their own.
   return {
     kind: 9734,
     content: opts.comment ?? "",
     created_at: Math.floor(Date.now() / 1000),
-    pubkey: opts.senderPubkey,
     tags,
   };
 }

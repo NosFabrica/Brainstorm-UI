@@ -10,14 +10,14 @@
 // browser, signing in as a different account — or creating a new one — must not
 // inherit or overwrite the previous person's search history. Each identity keeps
 // its own list, so switching back restores it untouched.
-import { getCurrentUser } from "@/services/nostr";
+import { activePubkey } from "@/accounts/display";
 
 const KEY_PREFIX = "brainstorm_recent_searches";
 const MAX = 6;
 
 function storageKey(): string {
   let who = "anon";
-  try { who = getCurrentUser()?.pubkey || "anon"; } catch { /* SSR / no storage */ }
+  try { who = activePubkey() || "anon"; } catch { /* SSR / no storage */ }
   return `${KEY_PREFIX}:${who}`;
 }
 

@@ -19,5 +19,12 @@ export default defineConfig({
     setupFiles: ["./client/src/test/setup.ts"],
     include: ["client/src/**/*.test.{ts,tsx}"],
     css: false,
+    pool: "forks",
+    poolOptions: {
+      // Node ≥25 enables Web Storage by default; its native localStorage global
+      // shadows jsdom's (populateGlobal skips keys already on globalThis).
+      // Turning it off restores real jsdom Storage, sessionStorage included.
+      forks: { execArgv: ["--no-experimental-webstorage"] },
+    },
   },
 });

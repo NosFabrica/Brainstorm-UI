@@ -1,8 +1,11 @@
-import { useEffect, useRef } from "react";
-import { hasSessionToken } from "@/services/api";
-import { getCurrentUser, ensureBrainstormTrustAnchor } from "@/services/nostr";
+import {useEffect} from "react";
+import { useOncePerPubkey } from "@/hooks/useOncePerPubkey";
+import { ensureBrainstormTrustAnchor } from "@/services/trustAnchor";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { isNip85Activated } from "@/lib/nip85Activation";
 import { useSelfHistory } from "@/hooks/useSelf";
+import { identityHas } from "@/accounts/display";
+import { useHasSession } from "@/hooks/useHasSession";
 
 /**
  * New (in-app-created) accounts select Brainstorm as their Web-of-Trust provider
@@ -21,25 +24,22 @@ import { useSelfHistory } from "@/hooks/useSelf";
  * Renders nothing; mount once at the app root.
  */
 export function AutoActivateBrainstorm() {
-  const user = getCurrentUser();
-  const pk = hasSessionToken() ? user?.pubkey : undefined;
+  const user = useActiveAccountDisplay();
+  const pk = useHasSession() ? user?.pubkey : undefined;
   // Wait for /user/history to settle so we don't act before ta_pubkey is known.
   const history = useSelfHistory(pk);
-  const fired = useRef(false);
+  const once = useOncePerPubkey();
 
   useEffect(() => {
-    if (fired.current || !pk || !history.isSuccess) return;
+    if (!pk || once.done(pk) || !history.isSuccess) return;
 
-    let createdInApp = false;
-    try {
-      createdInApp = localStorage.getItem(`brainstorm_created_inapp:${pk}`) === "true";
-    } catch { /* ignore */ }
+    const createdInApp = identityHas(pk, "createdInApp");
     if (!createdInApp || isNip85Activated(pk)) return; // existing user, or already activated
 
     const taPubkey = (history.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey;
     if (!taPubkey) return; // not scored yet — nothing to anchor
 
-    fired.current = true;
+    once.mark(pk);
     void ensureBrainstormTrustAnchor(pk, taPubkey);
   }, [pk, history.isSuccess, history.data]);
 

@@ -84,7 +84,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { BrainLogo } from "@/components/BrainLogo";
 import {
   ASSISTANT_UPDATED_EVENT,
-  USER_CHANGED_EVENT,
   getCurrentAssistantPubkey,
   readAssistantDismissed,
   setAssistantDismissed as setAssistantDismissedStorage,
@@ -114,9 +113,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { getCurrentUser, logout, updateCurrentUser, fetchProfile, fetchOutboxRelayList, applyProfileToUser, type NostrUser, isUsingBrainstorm } from "@/services/nostr";
+import { cacheProfile, fetchProfile, fetchOutboxRelayList, isUsingBrainstorm } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
-import { isAdminPubkey } from "@/config/adminAccess";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { TIER_LABELS } from "@/services/trustThreshold";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
@@ -127,6 +128,8 @@ import protocolDevImg from "@/assets/stock_images/protocol_dev.jpg";
 import bitcoinImg from "@/assets/stock_images/bitcoin_network.jpg";
 import digitalArtImg from "@/assets/stock_images/digital_art.jpg";
 import musicSceneImg from "@/assets/stock_images/music_scene.jpg";
+import { identityHas } from "@/accounts/display";
+import { accountKey } from "@/lib/accountStorage";
 
 
 const isStatusDone = (s: unknown): boolean => typeof s === "string" && s.toLowerCase() === "success";
@@ -155,8 +158,17 @@ const NIP85_DISMISS_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 function nip85DismissedRecently(pubkey?: string): boolean {
   if (!pubkey) return false;
   try {
-    const at = Number(localStorage.getItem(`brainstorm_nip85_dismissed_at:${pubkey}`) || 0);
+    const at = Number(localStorage.getItem(accountKey("brainstorm_nip85_dismissed_at", pubkey)) || 0);
     return at > 0 && Date.now() - at < NIP85_DISMISS_COOLDOWN_MS;
+  } catch {
+    return false;
+  }
+}
+
+/** Whether this account has already been shown the invite card. */
+function readInviteCardSeen(pubkey?: string): boolean {
+  try {
+    return !!pubkey && localStorage.getItem(accountKey("brainstorm_invite_card_seen", pubkey)) === "true";
   } catch {
     return false;
   }
@@ -165,7 +177,7 @@ function nip85DismissedRecently(pubkey?: string): boolean {
 export default function DashboardPage() {
   const [location, navigate] = useLocation();
   const { toast } = useToast();
-  const [user, setUser] = useState<NostrUser | null>(null);
+  const user = useActiveAccountDisplay();
   const [recalcConfirmOpen, setRecalcConfirmOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [hopRange, setHopRange] = useState([1, 3]);
@@ -173,47 +185,49 @@ export default function DashboardPage() {
   const [networkViewMode, setNetworkViewMode] = useState<"trust" | "activity">("trust");
   const [nip85ModalOpen, setNip85ModalOpen] = useState(false);
   const [wotExpanded, setWotExpanded] = useState(false);
-  const [nip85Activated, setNip85Activated] = useState(() => isNip85Activated(getCurrentUser()?.pubkey));
-  const [nip85Dismissed, setNip85Dismissed] = useState(() => nip85DismissedRecently(getCurrentUser()?.pubkey));
+  const [nip85Activated, setNip85Activated] = useState(() => isNip85Activated(user?.pubkey));
+  const [nip85Dismissed, setNip85Dismissed] = useState(() => nip85DismissedRecently(user?.pubkey));
   // In-app-created accounts auto-activate Brainstorm silently (see
   // AutoActivateBrainstorm) — they never get the consent card.
   const nip85CreatedInApp = (() => {
-    try { return !!user?.pubkey && localStorage.getItem(`brainstorm_created_inapp:${user.pubkey}`) === "true"; } catch { return false; }
+    return identityHas(user?.pubkey, "createdInApp");
   })();
   const [assistantDismissed, setAssistantDismissed] = useState<boolean>(() => readAssistantDismissed());
   const [assistantPubkey, setAssistantPubkey] = useState<string | null>(() => getCurrentAssistantPubkey());
   // "Your network is live — invite friends" card: shown once, the first time the
   // user's scores go ready (publishDone). Persisted per-account so it never nags.
   const [inviteShareOpen, setInviteShareOpen] = useState(false);
-  const [inviteCardSeen, setInviteCardSeen] = useState<boolean>(() => {
-    try { const pk = getCurrentUser()?.pubkey; return !!pk && localStorage.getItem(`brainstorm_invite_card_seen:${pk}`) === "true"; } catch { return false; }
-  });
+  const [inviteCardSeen, setInviteCardSeen] = useState<boolean>(() => readInviteCardSeen(user?.pubkey));
+
+  // Lazy initialisers run once, and switching accounts in-app does not remount
+  // this page — so without re-reading them, B renders with A's per-account flags:
+  // B's consent card suppressed by A's dismissal, B's invite card already "seen".
+  useEffect(() => {
+    setNip85Activated(isNip85Activated(user?.pubkey));
+    setNip85Dismissed(nip85DismissedRecently(user?.pubkey));
+    setInviteCardSeen(readInviteCardSeen(user?.pubkey));
+  }, [user?.pubkey]);
   const markInviteCardSeen = () => {
-    try { const pk = getCurrentUser()?.pubkey; if (pk) localStorage.setItem(`brainstorm_invite_card_seen:${pk}`, "true"); } catch { /* ignore */ }
+    try { const pk = user?.pubkey; if (pk) localStorage.setItem(accountKey("brainstorm_invite_card_seen", pk), "true"); } catch { /* ignore */ }
     setInviteCardSeen(true);
   };
   useEffect(() => {
     const sync = () => {
       setAssistantPubkey(getCurrentAssistantPubkey());
       setAssistantDismissed(readAssistantDismissed());
-      // Keep the local user copy in sync with late-arriving profile metadata
-      // (e.g. the avatar/name fetched right after login) so the header updates
-      // reactively and the profile fallback query below stays suppressed.
-      const fresh = getCurrentUser();
-      if (fresh) setUser((prev) => (prev ? { ...prev, ...fresh } : fresh));
     };
     const onStorage = (e: StorageEvent) => {
       if (e.key && e.key.startsWith("brainstorm_assistant:")) sync();
     };
+    // The assistant's storage is namespaced per owner, so a switch re-reads it.
+    sync();
     window.addEventListener("storage", onStorage);
     window.addEventListener(ASSISTANT_UPDATED_EVENT, sync as EventListener);
-    window.addEventListener(USER_CHANGED_EVENT, sync as EventListener);
     return () => {
       window.removeEventListener("storage", onStorage);
       window.removeEventListener(ASSISTANT_UPDATED_EVENT, sync as EventListener);
-      window.removeEventListener(USER_CHANGED_EVENT, sync as EventListener);
     };
-  }, []);
+  }, [user?.pubkey]);
 
   // Inline "Publish your assistant" prompt (existing users): publish in place
   // rather than navigating to the wrong settings page. Explicit click = consent,
@@ -244,35 +258,22 @@ export default function DashboardPage() {
   });
 
   useEffect(() => {
-    const u = getCurrentUser();
-    if (!u) {
-      navigate("/", { replace: true });
-      return;
-    }
-    setUser(u);
-  }, [navigate]);
+    if (!user) navigate("/", { replace: true });
+  }, [user, navigate]);
 
   const { preset: trustPreset } = useTrustPresetSync(!!user);
 
   const needsProfile = !!user && !user.displayName && !user.picture;
-  const profileQuery = useQuery({
+  useQuery({
     queryKey: ["profile", user?.pubkey],
     queryFn: async () => {
       if (!user?.pubkey) return null;
-      // The login-time profile fetch may have resolved after this query was
-      // already enabled (React Query won't cancel an in-flight query). If the
-      // metadata is already present, reuse it instead of re-hitting relays.
-      const fresh = getCurrentUser();
-      if (fresh && (fresh.picture || fresh.displayName)) {
-        setUser((prev) => (prev ? { ...prev, ...fresh } : fresh));
-        return fresh.profile ?? null;
-      }
       await fetchOutboxRelayList(user.pubkey);
       const content = await fetchProfile(user.pubkey);
       if (content) {
-        const updates = applyProfileToUser(content);
-        updateCurrentUser(updates);
-        setUser((prev) => prev ? { ...prev, ...updates } : prev);
+        // Caching it on the Account is what re-renders the header — this query's
+        // own result is only the profile page's fallback copy.
+        cacheProfile(content, user.pubkey);
         return content;
       }
       throw new Error("Profile not found");
@@ -383,7 +384,7 @@ export default function DashboardPage() {
     // so we never downgrade here (that caused the badge to flicker right after an
     // auto-publish). Deactivation is explicit, via Settings.
     if (trustServiceProvider.data !== true) return;
-    markNip85Activated(getCurrentUser()?.pubkey);
+    markNip85Activated(user?.pubkey);
     if (!nip85Activated) setNip85Activated(true);
   }, [trustServiceProvider.data, nip85Activated]);
 
@@ -456,7 +457,7 @@ export default function DashboardPage() {
   // followed) lets us stop re-nagging them to "follow to begin" and instead show
   // a calm "calculating" state until the count catches up.
   const calcTriggered = (() => {
-    try { return !!user?.pubkey && !!localStorage.getItem(`brainstorm_calc_triggered_at:${user.pubkey}`); }
+    try { return !!user?.pubkey && !!localStorage.getItem(accountKey("brainstorm_calc_triggered_at", user.pubkey)); }
     catch { return false; }
   })();
 
@@ -711,7 +712,7 @@ export default function DashboardPage() {
   // the next account on the same browser (making a brand-new user look like a
   // recalculation). Keep the legacy global key in sync for back-compat readers.
   const hadPreviousScores = useMemo(() => {
-    const k = user?.pubkey ? `brainstorm_calc_completed:${user.pubkey}` : "";
+    const k = user?.pubkey ? accountKey("brainstorm_calc_completed", user.pubkey) : "";
     if (calcDone) {
       try { if (k) localStorage.setItem(k, "true"); localStorage.setItem("brainstorm_calc_completed", "true"); } catch {}
       return true;
@@ -778,6 +779,8 @@ export default function DashboardPage() {
         <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="dashboard" />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1">
+
+          <DeferredSessionNotice className="mb-6" />
 
           <div className="flex flex-col gap-6 mb-8">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -1169,7 +1172,7 @@ export default function DashboardPage() {
                 npub={user.npub}
                 displayName={user.displayName || "You"}
                 picture={user.picture}
-                nip05={user.profile?.nip05}
+                nip05={user.nip05}
                 canonicalUrl={typeof window !== "undefined" ? `${window.location.origin}/p/${user.npub}` : ""}
                 // No trust pill on an invite: the score is self-referential (your own POV
                 // ≈ 100) and meaningless for a brand-new account — the invite is about
@@ -1236,8 +1239,8 @@ export default function DashboardPage() {
                       type="button"
                       onClick={() => {
                         try {
-                          const pk = getCurrentUser()?.pubkey;
-                          if (pk) localStorage.setItem(`brainstorm_nip85_dismissed_at:${pk}`, String(Date.now()));
+                          const pk = user?.pubkey;
+                          if (pk) localStorage.setItem(accountKey("brainstorm_nip85_dismissed_at", pk), String(Date.now()));
                         } catch { /* ignore */ }
                         setNip85Dismissed(true);
                       }}

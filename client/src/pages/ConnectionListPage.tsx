@@ -3,15 +3,18 @@ import { useRoute, Redirect, Link, useLocation } from "wouter";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Users, SlidersHorizontal } from "lucide-react";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
-import { fetchProfileForShare, fetchProfileMap, fetchReportsForPubkey, logout, type ReportMetadata } from "@/services/nostr";
+import { fetchProfileForShare, fetchProfileMap, fetchReportsForPubkey, type ReportMetadata } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
 import { AccountMenu } from "@/components/AccountMenu";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { REPORT_TYPE_BADGE_COLORS, formatReportTime } from "@/lib/reportMeta";
-import { apiClient, hasSessionToken } from "@/services/api";
+import { apiClient } from "@/services/api";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "@/services/graphHelpers";
 import { Wordmark } from "@/components/Wordmark";
 import { InfoHint } from "@/components/InfoHint";
-import { TrustScoreModal, useScorePov, PovToggle } from "@/components/score/TrustScorePov";
+import { TrustScoreModal, useScorePov, PovToggle, type ScorePov } from "@/components/score/TrustScorePov";
+import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { useHasSession } from "@/hooks/useHasSession";
 import { PersonListRow } from "@/components/PersonListRow";
 import { TIER_LABELS } from "@/services/trustThreshold";
 
@@ -32,8 +35,8 @@ const PAGE = 20;
 export default function ConnectionListPage() {
   const [, navigate] = useLocation();
   const [, params] = useRoute("/p/:id/:type");
-  const [me, setMe] = useCurrentUser();
-  const handleLogout = () => { logout(); setMe(null); };
+  const me = useActiveAccountDisplay();
+  const handleLogout = () => logout();
   const rawId = params?.id || "";
   const type = params?.type || "";
   const decoded = useMemo(() => decodeShareId(rawId), [rawId]);
@@ -44,7 +47,7 @@ export default function ConnectionListPage() {
   // POV: honors the sitewide score-POV toggle. Personalized needs a signed-in
   // viewer with calculated scores; otherwise (or when the viewer chose Global)
   // the house perspective serves — `house: true` forces the unauthenticated view.
-  const signedIn = hasSessionToken();
+  const signedIn = useHasSession();
   const calcDone = (() => { try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; } })();
   const { pov: scorePov } = useScorePov();
   const [scoreExplainOpen, setScoreExplainOpen] = useState(false);

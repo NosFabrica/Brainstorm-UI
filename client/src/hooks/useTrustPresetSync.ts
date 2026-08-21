@@ -6,7 +6,7 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 import { apiClient } from "@/services/api";
-import { getCurrentUser } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import {
   presetFromBackend,
   presetToBackend,
@@ -73,7 +73,7 @@ export function useTrustPresetSync(enabled: boolean): {
   preset: TrustPreset | null;
   isLoading: boolean;
 } {
-  const pubkey = getCurrentUser()?.pubkey ?? null;
+  const pubkey = useActiveAccountDisplay()?.pubkey ?? null;
   const query = useQuery({
     queryKey: trustPresetQueryKey(pubkey),
     queryFn: () => apiClient.getGrapeRankPreset(),

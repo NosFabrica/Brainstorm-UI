@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { HERO_SCENES, type HeroScene } from "@/lib/heroScenes";
 
 /**
@@ -21,19 +22,6 @@ function useIsDark(): boolean {
     return () => obs.disconnect();
   }, []);
   return isDark;
-}
-
-function usePrefersReducedMotion(): boolean {
-  const [reduced, setReduced] = useState(false);
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mql = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const on = () => setReduced(mql.matches);
-    on();
-    mql.addEventListener("change", on);
-    return () => mql.removeEventListener("change", on);
-  }, []);
-  return reduced;
 }
 
 /**
@@ -161,7 +149,8 @@ export function HeroSceneRotator({
           }}
           className={cn(
             "absolute inset-0 h-full w-full object-cover select-none transition-opacity ease-in-out",
-            reduced ? "duration-0" : "duration-[2000ms]",
+            // Explicit property: tailwindcss-animate also claims `duration-*`.
+            "[transition-duration:2000ms] motion-reduce:[transition-duration:0ms]",
             i === index ? "opacity-100" : "opacity-0",
           )}
         />

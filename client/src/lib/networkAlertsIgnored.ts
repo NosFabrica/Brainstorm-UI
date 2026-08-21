@@ -1,4 +1,6 @@
 import { fetchAlertPrefs, publishAlertPrefs } from "@/services/nostr";
+import type { PublishOutcome } from "@/accounts/signing";
+import { accountKey } from "@/lib/accountStorage";
 
 /**
  * "Ignored" store for Network Alerts.
@@ -34,7 +36,7 @@ interface IgnoredAlerts {
   updated_at: number;
 }
 
-const storageKey = (observer: string) => `brainstorm_network_alerts_ignored:${observer}`;
+const storageKey = (observer: string) => accountKey("brainstorm_network_alerts_ignored", observer);
 
 /** Re-surface once reports double, or grow by 5 — whichever is the higher bar. */
 export function hasEscalated(atReports: number | null, currentReports: number): boolean {
@@ -100,12 +102,17 @@ function setSyncState(next: IgnoreSyncState) {
   for (const fn of syncListeners) { try { fn(next); } catch { /* a listener must not break the others */ } }
 }
 
-/** Errors that another attempt cannot fix — worth telling the user about. */
+/**
+ * Errors another attempt cannot fix — worth telling the user about.
+ *
+ * `publishAlertPrefs` can no longer return "No signer available"; a Signer that
+ * isn't there now comes back as `deferred`, handled on its own branch below.
+ */
 function isPermanentFailure(error?: string): boolean {
-  return error === "No signer available" || error === "Could not encrypt";
+  return error === "Could not encrypt";
 }
 
-const dirtyKey = (observer: string) => `brainstorm_alert_prefs_dirty:${observer}`;
+const dirtyKey = (observer: string) => accountKey("brainstorm_alert_prefs_dirty", observer);
 const isDirty = (observer: string) => {
   try { return !!observer && localStorage.getItem(dirtyKey(observer)) === "1"; } catch { return false; }
 };
@@ -126,18 +133,38 @@ let retryTimer: ReturnType<typeof setTimeout> | null = null;
  * always ships the newest state instead of resurrecting whatever was pending
  * when the failure happened.
  */
-export function flushIgnoredToNostr(observer: string): Promise<IgnoreSyncState> {
+export function flushIgnoredToNostr(
+  observer: string,
+  { background = false }: { background?: boolean } = {},
+): Promise<IgnoreSyncState> {
   inFlight = (async () => {
-    const res = await publishAlertPrefs({ entries: load(observer) }).catch(() => ({
-      success: false as const,
-      error: "All relays failed",
-    }));
+    const res = await publishAlertPrefs({ entries: load(observer) }, undefined, {
+      background,
+    }).catch((): PublishOutcome => ({ success: false, error: "All relays failed" }));
     if (res.success) {
       setDirty(observer, false);
       setSyncState("ok");
       return "ok" as const;
     }
     if (res.error === "Not logged in") return syncState; // nothing to sync to
+    // Waiting on the user, not on the network — the Account is Locked and nobody
+    // asked (`deferred`), they were asked and said no (`cancelled`), or their
+    // remote signer has gone quiet and needs opening or re-pairing
+    // (`signerUnreachable`, which on a timer would be an endless loop of NIP-46
+    // requests each waiting out a 30s deadline). A timer against either is a modal on a fifteen-second loop,
+    // which is what this used to do: a cancel carries no `error`, so it fell
+    // through to the transient branch and re-armed. The next mutation or app open
+    // is the retry, and that one the user will have initiated.
+    if (res.deferred || res.cancelled || res.signerUnreachable) {
+      setDirty(observer, true);
+      setSyncState("retrying");
+      // And disarm anything an earlier transient failure left armed: that timer
+      // would fire fifteen seconds later and put the prompt back in front of
+      // someone who has just declined it.
+      if (retryTimer) clearTimeout(retryTimer);
+      retryTimer = null;
+      return "retrying" as const;
+    }
     if (isPermanentFailure(res.error)) {
       setDirty(observer, true);
       setSyncState("local-only");
@@ -148,7 +175,9 @@ export function flushIgnoredToNostr(observer: string): Promise<IgnoreSyncState> 
     setDirty(observer, true);
     setSyncState("retrying");
     if (retryTimer) clearTimeout(retryTimer);
-    retryTimer = setTimeout(() => { void flushIgnoredToNostr(observer); }, 15_000);
+    // Carries the mode: a background flush that hit a relay blip must not come
+    // back fifteen seconds later as a password prompt.
+    retryTimer = setTimeout(() => { void flushIgnoredToNostr(observer, { background }); }, 15_000);
     return "retrying" as const;
   })();
   return inFlight;
@@ -172,7 +201,17 @@ export function hasUnsyncedIgnores(observer: string): boolean {
   return isDirty(observer);
 }
 
-function persist(observer: string, entries: IgnoredEntry[]): Map<string, number | null> {
+/**
+ * `background` is about who asked. The user-facing callers below are all
+ * deliberate acts and may prompt a Locked Account for its Recovery password; the
+ * two reached from `NetworkAlertsModule`'s mount effects asked for nothing and
+ * must not.
+ */
+function persist(
+  observer: string,
+  entries: IgnoredEntry[],
+  { background = false }: { background?: boolean } = {},
+): Map<string, number | null> {
   const byKey = new Map<string, IgnoredEntry>();
   for (const e of entries) byKey.set(e.pubkey, e);
   const next = Array.from(byKey.values());
@@ -183,7 +222,7 @@ function persist(observer: string, entries: IgnoredEntry[]): Map<string, number 
       // ignore (private mode / SSR)
     }
   }
-  void flushIgnoredToNostr(observer);
+  void flushIgnoredToNostr(observer, { background });
   return new Map(next.map((e) => [e.pubkey, e.atReports]));
 }
 
@@ -248,7 +287,7 @@ export function backfillIgnoredBaselines(
     changed = true;
     return { ...e, atReports: at };
   });
-  return changed ? persist(observer, next) : null;
+  return changed ? persist(observer, next, { background: true }) : null;
 }
 
 // ---------------------------------------------------------------------------
@@ -258,7 +297,7 @@ export function backfillIgnoredBaselines(
 // the dashboard module and the /alerts page (each mounts its own hook), so a
 // report on one surface hides it on the other and survives a reload — instead of
 // reappearing until the backend's next recalculation drops it from the feed.
-const actedKey = (observer: string) => `brainstorm_network_alerts_acted:${observer}`;
+const actedKey = (observer: string) => accountKey("brainstorm_network_alerts_acted", observer);
 
 export function actedAlertSet(observer: string): Set<string> {
   if (!observer) return new Set();
@@ -288,7 +327,9 @@ export async function hydrateIgnoredFromNostr(observer: string): Promise<Map<str
   // still only on this device, and this runs on mount, so it's the natural place
   // to try again. Fire-and-forget — a stale local copy shouldn't delay the read
   // below, and a second failure just re-arms the flag.
-  if (isDirty(observer)) void flushIgnoredToNostr(observer);
+  // In background: this rides along with a page load, so a Locked Account waits
+  // for a later one rather than being shown a password prompt it never asked for.
+  if (isDirty(observer)) void flushIgnoredToNostr(observer, { background: true });
   const prefs = await fetchAlertPrefs();
   const remote = normalize(prefs);
   if (remote.length === 0) return new Map(local.map((e) => [e.pubkey, e.atReports]));
@@ -298,5 +339,5 @@ export async function hydrateIgnoredFromNostr(observer: string): Promise<Map<str
   for (const e of local) merged.set(e.pubkey, e);
   const list = Array.from(merged.values());
   if (list.length === local.length) return new Map(local.map((e) => [e.pubkey, e.atReports]));
-  return persist(observer, list);
+  return persist(observer, list, { background: true });
 }

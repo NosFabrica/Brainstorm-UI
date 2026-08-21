@@ -8,7 +8,10 @@ import {
 } from "@/components/ui/dialog";
 import { BrainLogo } from "@/components/BrainLogo";
 import { ChevronDown, Check, Loader2, ExternalLink, AlertCircle, FileSignature, HeartHandshake, Rocket } from "lucide-react";
-import { publishToRelays, getCurrentUser, signNip85, getNip85RelayUrl, fetchTrustProviderList } from "@/services/nostr";
+import type { NostrEvent } from "applesauce-core/helpers";
+import { publishToRelays, signNip85, getNip85RelayUrl, fetchTrustProviderList } from "@/services/nostr";
+import { isUnlockCancelled } from "@/accounts/local-signer";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { markNip85Activated } from "@/lib/nip85Activation";
 
 interface ActivateBrainstormModalProps {
@@ -23,6 +26,7 @@ const NIP85_URL = "https://github.com/nostr-protocol/nips/blob/master/85.md";
 type ActivateState = "idle" | "signing" | "publishing" | "success" | "cancelled" | "error";
 
 export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActivated }: ActivateBrainstormModalProps) {
+  const user = useActiveAccountDisplay();
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [activateState, setActivateState] = useState<ActivateState>("idle");
   const [errorMessage, setErrorMessage] = useState("");
@@ -32,11 +36,15 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
   const [hasOtherProvider, setHasOtherProvider] = useState(false);
 
   useEffect(() => {
-    if (!open) { setHasOtherProvider(false); return; }
+    // Cleared on every run, not only on close. Now that the Account is a
+    // dependency, a switch re-runs the fetch — and leaving the previous answer
+    // standing would show B "this replaces your existing provider" for a provider
+    // that is A's.
+    setHasOtherProvider(false);
+    if (!open) return;
     let cancelled = false;
     (async () => {
       try {
-        const user = getCurrentUser();
         if (!user?.pubkey) return;
         const event = await fetchTrustProviderList(user.pubkey);
         if (cancelled || !event) return;
@@ -46,7 +54,11 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
       } catch { /* best-effort — fall back to the generic disclaimer */ }
     })();
     return () => { cancelled = true; };
-  }, [open, serviceKey]);
+    // `user` is stream-backed and null for the first renders, so the effect bails
+    // early. Without it in the deps it never re-runs, `hasOtherProvider` stays
+    // false, and the "this replaces your existing provider" warning is skipped
+    // before overwriting kind-10040 — the one thing this check is here to catch.
+  }, [open, serviceKey, user?.pubkey]);
 
   const toggleSection = (key: string) => {
     setExpandedSection((prev) => (prev === key ? null : key));
@@ -56,7 +68,6 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
     setActivateState("signing");
     setErrorMessage("");
 
-    const user = getCurrentUser();
     if (!user?.pubkey) {
       setActivateState("error");
       setErrorMessage("Not logged in.");
@@ -72,10 +83,16 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
       return;
     }
 
-    let signedEvent: Record<string, unknown>;
+    let signedEvent: NostrEvent;
     try {
       signedEvent = await signNip85(serviceKey, nip85Relay);
     } catch (err: any) {
+      // A declined unlock never shows as an error; an extension refusal keeps the
+      // "cancelled" note it always had.
+      if (isUnlockCancelled(err)) {
+        setActivateState("idle");
+        return;
+      }
       setActivateState("cancelled");
       setTimeout(() => setActivateState("idle"), 3000);
       return;

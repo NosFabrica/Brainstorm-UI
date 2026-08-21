@@ -13,15 +13,8 @@
  * `services/api.ts`: `/p/:id` is anon-viewable and `authenticatedFetch` wipes
  * auth storage and hard-redirects on 401 (.agents/memory/anon-public-data-fetch.md).
  */
-import {
-  pool,
-  fetchEventsByFilter,
-  signEventLocally,
-  loadOutboxRelayListFromDb,
-  getCurrentUser,
-  publishToRelays,
-  PROFILE_RELAYS,
-} from "./nostr";
+import { pool, fetchEventsByFilter, loadOutboxRelayListFromDb, publishToRelays } from "./nostr";
+import { PROFILE_RELAYS } from "@/lib/relays";
 import { resolveHouseObserver, resolveTrustSource } from "./trustSource";
 import {
   applyProfileTagging,
@@ -62,6 +55,7 @@ import {
   TRUST_SETTINGS,
   TAG_FOR_NOSTR_PUBKEY_Z,
 } from "@/config/tagging";
+import { activeAccount, requireActiveAccount, signAs } from "@/accounts/signing";
 
 export interface NostrEvent {
   id: string;
@@ -1547,7 +1541,7 @@ export async function publishTagComment(
   slug: string,
   content: string,
 ): Promise<void> {
-  const user = getCurrentUser();
+  const user = activeAccount();
   if (!user?.pubkey) throw new Error("Sign in to comment.");
   const text = content.trim();
   if (!text) throw new Error("Write something first.");
@@ -1571,7 +1565,7 @@ export async function publishTagComment(
     ],
   };
 
-  const signed = await signEventLocally(unsigned);
+  const signed = await signAs(requireActiveAccount(), unsigned as never);
   // The app's normal publish path (author's outbox ∪ PROFILE_RELAYS), NOT the
   // tag-hub one — see fetchCommentEvents above for why.
   const result = await publishToRelays(signed);
@@ -1689,7 +1683,7 @@ export async function applyTagToProfile({
   targetPubkey,
   polarity = 1,
 }: ApplyTagArgs): Promise<ApplyProfileTaggingResult> {
-  const user = getCurrentUser();
+  const user = activeAccount();
   if (!user?.pubkey) throw new Error("Sign in to tag.");
 
   return applyProfileTagging({
@@ -1699,7 +1693,7 @@ export async function applyTagToProfile({
     asserterPubkey: user.pubkey,
     zHandlePubkeys: Z_HANDLE_PUBKEYS,
     deps: {
-      sign: signEventLocally,
+      sign: (template: unknown) => signAs(requireActiveAccount(), template as never),
       publish: publishTagEvent,
       now: () => Math.floor(Date.now() / 1000),
       buildTagElement,
@@ -1814,7 +1808,7 @@ export async function pinTag({
   slug: string;
   tagEventId: string;
 }): Promise<void> {
-  const user = getCurrentUser();
+  const user = activeAccount();
   if (!user?.pubkey) throw new Error("Sign in to pin.");
 
   const unsigned = {
@@ -1828,7 +1822,7 @@ export async function pinTag({
     pubkey: user.pubkey,
     created_at: Math.floor(Date.now() / 1000),
   };
-  const signed = await signEventLocally(unsigned as Record<string, unknown>);
+  const signed = await signAs(requireActiveAccount(), unsigned as never);
   await publishTagEvent(signed);
 }
 
@@ -1852,7 +1846,7 @@ export async function pinTag({
  * the pin forever. Filed as KIT-FEEDBACK §15; this is a workaround, not a fix.
  */
 export async function unpinTag(pinEventId: string): Promise<void> {
-  const user = getCurrentUser();
+  const user = activeAccount();
   if (!user?.pubkey) throw new Error("Sign in to unpin.");
 
   const unsigned = {
@@ -1862,7 +1856,7 @@ export async function unpinTag(pinEventId: string): Promise<void> {
     tags: [["e", pinEventId]],
     content: "",
   };
-  const signed = await signEventLocally(unsigned as Record<string, unknown>);
+  const signed = await signAs(requireActiveAccount(), unsigned as never);
   // General relays, NOT publishTagEvent — the hub would reject this outright.
   const result = await publishToRelays(signed);
   if (!result.success) throw new Error(result.error || "No relay accepted the unpin");
@@ -2442,7 +2436,7 @@ export async function applyTagToEvent({
   relayHint?: string;
   polarity?: Polarity;
 }) {
-  const user = getCurrentUser();
+  const user = activeAccount();
   if (!user?.pubkey) throw new Error("Sign in to tag.");
 
   return applyEventTagging({
@@ -2473,7 +2467,7 @@ export async function applyTagToEvent({
         }
         return Array.from(byAuthor.values());
       },
-      sign: signEventLocally,
+      sign: (template: unknown) => signAs(requireActiveAccount(), template as never),
       publish: publishTagEvent,
       now: () => Math.floor(Date.now() / 1000),
     },
