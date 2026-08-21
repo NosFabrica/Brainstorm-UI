@@ -63,6 +63,7 @@ import { ZapModal } from "@/components/ZapModal";
 import { SellingBlock } from "@/components/share/SellingBlock";
 import { ContentTeaserBlock } from "@/components/share/ContentTeaserBlock";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
+import { MAX_SHARE_RELAYS, shortLinkUrl } from "@/lib/shortLink";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { BrainLogo } from "@/components/BrainLogo";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
@@ -946,7 +947,7 @@ export default function SharePage() {
           url={canonicalUrl}
           title={`${displayName} on Brainstorm`}
           modal={(ctl) => (
-            <ShareProfileModal {...ctl} npub={npub} displayName={displayName} picture={profile.picture} nip05={profile.nip05} canonicalUrl={canonicalUrl} score01={houseScore01} onOwnPage />
+            <ProfileShareSheet {...ctl} pubkey={pubkey} relays={relayHints} npub={npub} displayName={displayName} picture={profile.picture} nip05={profile.nip05} canonicalUrl={canonicalUrl} score01={houseScore01} onOwnPage />
           )}
         />
       }
@@ -1460,6 +1461,32 @@ export default function SharePage() {
       </ShareNavProvider>
     </ShareShell>
   );
+}
+
+/** The profile's share sheet, minting a short link only once it is open. */
+function ProfileShareSheet({ pubkey, relays, canonicalUrl, ...props }: Omit<React.ComponentProps<typeof ShareProfileModal>, "canonicalUrl"> & { pubkey: string; relays: string[]; canonicalUrl: string }) {
+  // The link we hand out. Minting is best-effort — the sheet opens on the
+  // canonical URL and swaps in the short one if it arrives.
+  //
+  // The query deliberately lets failure BE a failure rather than resolving to
+  // the fallback: resolving would let `staleTime: Infinity` cache a blip (a 429
+  // from the 1 req/s limit, say) and pin the long URL for the rest of the
+  // session, with reopening the sheet unable to recover.
+  const shortRelays = relays.slice(0, MAX_SHARE_RELAYS);
+  const shareUrlQuery = useQuery({
+    queryKey: ["share-url", pubkey, shortRelays],
+    queryFn: async () =>
+      shortLinkUrl(
+        window.location.origin,
+        await apiClient.createShortUrl(pubkey, shortRelays),
+      ),
+    enabled: props.open && !!pubkey && !!canonicalUrl,
+    staleTime: Infinity,
+    retry: 1,
+  });
+  const shareUrl = shareUrlQuery.data || canonicalUrl;
+
+  return <ShareProfileModal {...props} canonicalUrl={shareUrl} />;
 }
 
 function ShareShell({ children, actions }: { children: React.ReactNode; actions?: React.ReactNode }) {
