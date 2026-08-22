@@ -1,25 +1,24 @@
 import {useEffect} from "react";
 import { useOncePerPubkey } from "@/hooks/useOncePerPubkey";
-import { ensureBrainstormTrustAnchor } from "@/services/trustAnchor";
+import { ensureBrainstormTrustAnchor, shouldAutoPublishNip85 } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { isNip85Activated } from "@/lib/nip85Activation";
 import { useSelfHistory } from "@/hooks/useSelf";
-import { identityHas } from "@/accounts/display";
 import { useHasSession } from "@/hooks/useHasSession";
 
 /**
- * New (in-app-created) accounts select Brainstorm as their Web-of-Trust provider
- * automatically — signing up here IS the consent. The kind-10040 declaration can
- * only be published once the backend assigns a `ta_pubkey` (after their first
- * score), and because these users never see the dashboard "Select Brainstorm"
- * card, a failed/interrupted publish must self-heal: on each app load, once a
- * ta_pubkey exists and the declaration isn't confirmed yet, (re)publish it.
- * `ensureBrainstormTrustAnchor` is idempotent (flag + relay check), so this is a
- * no-op once done.
+ * The cross-session self-heal for the NIP-85 declaration of any account that
+ * consented (the calculate-step consent card, or in-app signup for accounts
+ * never shown it — see `shouldAutoPublishNip85`). The calculate surfaces
+ * publish the kind-10040 immediately; when that publish was interrupted — a
+ * locked local key that couldn't sign silently, a closed tab — this effect
+ * finishes it: on each app load, once a `ta_pubkey` exists and the declaration
+ * isn't confirmed yet, (re)publish it. `ensureBrainstormTrustAnchor` is
+ * idempotent (flag + relay check), so this is a no-op once done.
  *
- * Existing / login-with-key accounts are intentionally excluded — they select
- * Brainstorm explicitly (with a replace-warning), so we never overwrite a
- * provider choice they didn't make here.
+ * Accounts that declined (or were never asked and didn't sign up here) are
+ * excluded — they select Brainstorm explicitly via the dashboard card (with a
+ * replace-warning), so we never overwrite a provider choice they didn't make.
  *
  * Renders nothing; mount once at the app root.
  */
@@ -33,8 +32,7 @@ export function AutoActivateBrainstorm() {
   useEffect(() => {
     if (!pk || once.done(pk) || !history.isSuccess) return;
 
-    const createdInApp = identityHas(pk, "createdInApp");
-    if (!createdInApp || isNip85Activated(pk)) return; // existing user, or already activated
+    if (!shouldAutoPublishNip85(pk) || isNip85Activated(pk)) return; // no consent, or already activated
 
     const taPubkey = (history.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey;
     if (!taPubkey) return; // not scored yet — nothing to anchor

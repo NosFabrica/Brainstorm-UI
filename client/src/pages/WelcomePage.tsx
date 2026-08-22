@@ -1,9 +1,12 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { BrainLogo } from "@/components/BrainLogo";
 import { FollowPicker } from "@/components/FollowPicker";
-import { triggerScoringAndAnchor } from "@/services/trustAnchor";
+import { Nip85ConsentCard } from "@/components/Nip85ConsentCard";
+import { publishBrainstormTrustAnchor, triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { useSelfHistory } from "@/hooks/useSelf";
+import { isNip85Activated } from "@/lib/nip85Activation";
 import { followPubkeys } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
 import { accountKey } from "@/lib/accountStorage";
@@ -33,6 +36,14 @@ export default function WelcomePage() {
     return "/";
   })();
 
+  // The NIP-85 ask sits beside the follow list. Their service key already
+  // exists (minted at first auth, independent of scoring), so with consent the
+  // kind-10040 is signed right after the kind-3 — the signer is already warm —
+  // instead of a background prompt minutes later.
+  const [nip85Consent, setNip85Consent] = useState(true);
+  const historyQuery = useSelfHistory(user?.pubkey);
+  const taPubkey = (historyQuery.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey;
+
   // Navigate home IMMEDIATELY, then publish the follow list + trigger scoring in
   // the background (the global ScoringStatusBar keeps the "calculating" state
   // visible after this page unmounts). `followPubkeys` ingests the signed kind-3
@@ -50,7 +61,16 @@ export default function WelcomePage() {
           toast({ variant: "destructive", title: "Couldn't save your follows", description: res.error || "Try again from your dashboard." });
           return;
         }
-        if (user?.pubkey) await triggerScoringAndAnchor(user.pubkey);
+        if (!user?.pubkey) return;
+        await triggerScoringAndAnchor(user.pubkey, { nip85Consent });
+        if (nip85Consent && taPubkey && !isNip85Activated(user.pubkey)) {
+          // Cancelled/failed publishes stay quiet — the consent-gated background
+          // poll and app-load self-heal finish the job.
+          const published = await publishBrainstormTrustAnchor(user.pubkey, taPubkey);
+          if (published.status === "success") {
+            toast({ title: "Scores shared", description: "Other apps can now find your Brainstorm scores." });
+          }
+        }
       } catch {
         /* the status chip + dashboard reflect the outcome */
       }
@@ -94,7 +114,14 @@ export default function WelcomePage() {
           calculate your scores and personalize your results.
         </p>
 
-        <div className="mt-6">
+        <Nip85ConsentCard
+          pubkey={user?.pubkey}
+          taPubkey={taPubkey}
+          value={nip85Consent}
+          onChange={setNip85Consent}
+          className="mt-6"
+        />
+        <div className="mt-4">
           <FollowPicker onContinue={finish} continueLabel="Follow & calculate my scores" />
         </div>
       </main>

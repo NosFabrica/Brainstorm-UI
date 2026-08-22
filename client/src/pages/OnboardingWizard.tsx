@@ -4,10 +4,13 @@ import { Loader2, ArrowRight } from "lucide-react";
 import { Wordmark } from "@/components/Wordmark";
 import { ImageUpload } from "@/components/ImageUpload";
 import { FollowPicker } from "@/components/FollowPicker";
+import { Nip85ConsentCard } from "@/components/Nip85ConsentCard";
 import { OnboardingBackupStep } from "@/components/OnboardingBackupStep";
 import { publishProfile } from "@/services/nostr";
-import { triggerScoringAndAnchor } from "@/services/trustAnchor";
+import { publishBrainstormTrustAnchor, triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { useSelfHistory } from "@/hooks/useSelf";
+import { isNip85Activated } from "@/lib/nip85Activation";
 import { followPubkeys } from "@/services/socialActions";
 import { canBackUp } from "@/accounts/backup";
 import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC, initialsFor } from "@/lib/profileDefaults";
@@ -79,6 +82,13 @@ export default function OnboardingWizard() {
   };
 
   // --- Follow step → publish kind-3 + trigger scoring in background, advance ---
+  // The NIP-85 ask lives beside the follow list; consent rides along with the
+  // calculate trigger, and when the backend has already minted the service key
+  // (it does so at first auth, independent of scoring) the kind-10040 publishes
+  // right here — a freshly created key signs silently, no waiting on scores.
+  const [nip85Consent, setNip85Consent] = useState(true);
+  const historyQuery = useSelfHistory(user?.pubkey);
+  const taPubkey = (historyQuery.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey;
   const followAndNext = (pks: string[]) => {
     if (!pks.length) return;
     if (user?.pubkey) { try { localStorage.setItem(accountKey("brainstorm_calc_triggered_at", user.pubkey), String(Date.now())); } catch {} }
@@ -90,7 +100,16 @@ export default function OnboardingWizard() {
           toast({ variant: "destructive", title: "Couldn't save your follows", description: res.error || "Try again from your dashboard." });
           return;
         }
-        if (user?.pubkey) await triggerScoringAndAnchor(user.pubkey);
+        if (!user?.pubkey) return;
+        await triggerScoringAndAnchor(user.pubkey, { nip85Consent });
+        if (nip85Consent && taPubkey && !isNip85Activated(user.pubkey)) {
+          // Cancelled/failed publishes stay quiet — the consent-gated background
+          // poll and app-load self-heal finish the job.
+          const published = await publishBrainstormTrustAnchor(user.pubkey, taPubkey);
+          if (published.status === "success") {
+            toast({ title: "Scores shared", description: "Other apps can now find your Brainstorm scores." });
+          }
+        }
       } catch { /* the status chip reflects the outcome */ }
     })();
     if (backupOffered) setStep("backup");
@@ -222,7 +241,16 @@ export default function OnboardingWizard() {
             <p className="mt-4 text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
               Your network is built from who you follow. Pick at least one so Brainstorm can calculate your scores.
             </p>
-            <div className="mt-6">
+            {/* A key created here minutes ago can't have a 10040 — skip the relay pre-check. */}
+            <Nip85ConsentCard
+              pubkey={user?.pubkey}
+              taPubkey={taPubkey}
+              value={nip85Consent}
+              onChange={setNip85Consent}
+              skipProviderCheck
+              className="mt-5"
+            />
+            <div className="mt-4">
               <FollowPicker onContinue={followAndNext} continueLabel="Follow & continue" />
             </div>
           </div>

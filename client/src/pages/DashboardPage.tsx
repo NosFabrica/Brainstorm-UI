@@ -118,6 +118,7 @@ import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
+import { hasDeclinedNip85 } from "@/lib/nip85Consent";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { TIER_LABELS } from "@/services/trustThreshold";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
@@ -187,8 +188,10 @@ export default function DashboardPage() {
   const [wotExpanded, setWotExpanded] = useState(false);
   const [nip85Activated, setNip85Activated] = useState(() => isNip85Activated(user?.pubkey));
   const [nip85Dismissed, setNip85Dismissed] = useState(() => nip85DismissedRecently(user?.pubkey));
-  // In-app-created accounts auto-activate Brainstorm silently (see
-  // AutoActivateBrainstorm) — they never get the consent card.
+  // In-app-created accounts consent at the calculate step (or implicitly, for
+  // accounts that predate the consent card) and publish from there — the CTA
+  // card would only nag them. The exception is an explicit decline on that
+  // card: then this CTA is the one re-surface path, after the dismiss cooldown.
   const nip85CreatedInApp = (() => {
     return identityHas(user?.pubkey, "createdInApp");
   })();
@@ -1199,7 +1202,7 @@ export default function DashboardPage() {
             <TaggedYouModule />
           </div>
 
-          {publishDone && !isRecalculating && !nip85Activated && !nip85Dismissed && !nip85CreatedInApp && (
+          {publishDone && !isRecalculating && !nip85Activated && !nip85Dismissed && (!nip85CreatedInApp || hasDeclinedNip85(user?.pubkey)) && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
