@@ -4,6 +4,7 @@ import { X, Check, ArrowRight, Users } from "lucide-react";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
 import { useSetupTasks } from "@/hooks/useSetupTasks";
+import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
 import { BACKUP_MESSAGE, BackupPrompt } from "@/components/BackupPrompt";
 import { dismissPostSignup, usePostSignupDismissed } from "@/lib/postSignupDismissal";
 
@@ -66,7 +67,12 @@ export function PostSignupCard() {
   // over completes the checklist, and unmounting on that click would take the
   // confirmation — and the offer to download it again — with it.
   const showFullCard = setup.eligible && (!setup.allDone || delivered);
-  const returningNeedsFollow = !setup.eligible && !networkStarted;
+  // `networkStarted` reads the local floor, which is 0 whenever the login-time
+  // kind-3 fetch failed — don't nag a user who really follows people. Only the
+  // relay-verified "none" shows the nudge; "checking" renders nothing (it's a
+  // nudge, nothing is lost) and "has-follows" suppresses it for good.
+  const followVerification = useVerifiedNoFollows(pubkey || undefined);
+  const returningNeedsFollow = !setup.eligible && !networkStarted && followVerification === "none";
 
   if (!user || dismissed) return null;
   if (!showFullCard && !returningNeedsFollow) return null;

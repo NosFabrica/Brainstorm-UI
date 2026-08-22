@@ -118,6 +118,8 @@ import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
+import { hasDeclinedNip85 } from "@/lib/nip85Consent";
+import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { TIER_LABELS } from "@/services/trustThreshold";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
@@ -187,8 +189,10 @@ export default function DashboardPage() {
   const [wotExpanded, setWotExpanded] = useState(false);
   const [nip85Activated, setNip85Activated] = useState(() => isNip85Activated(user?.pubkey));
   const [nip85Dismissed, setNip85Dismissed] = useState(() => nip85DismissedRecently(user?.pubkey));
-  // In-app-created accounts auto-activate Brainstorm silently (see
-  // AutoActivateBrainstorm) — they never get the consent card.
+  // In-app-created accounts consent at the calculate step (or implicitly, for
+  // accounts that predate the consent card) and publish from there — the CTA
+  // card would only nag them. The exception is an explicit decline on that
+  // card: then this CTA is the one re-surface path, after the dismiss cooldown.
   const nip85CreatedInApp = (() => {
     return identityHas(user?.pubkey, "createdInApp");
   })();
@@ -448,7 +452,14 @@ export default function DashboardPage() {
     ? typeof (grapeRank as any).ta_status === "string" && (grapeRank as any).ta_status.toLowerCase() === "failure"
     : false;
 
-  const hasNoFollowing = overviewQuery.isSuccess && followingCount === 0;
+  // The backend count alone lied here: it reads 0 until GrapeRank first ingests
+  // the contact list, so an existing user on a fresh device was handed the
+  // new-user follow picker. Only believe "no follows" once the relay-side
+  // verification agrees (it also repairs the local floor when a list is found,
+  // which lets AutoScoreReturning take over).
+  const followVerification = useVerifiedNoFollows(user?.pubkey);
+  const hasNoFollowing = overviewQuery.isSuccess && followingCount === 0 && followVerification === "none";
+  const followsChecking = overviewQuery.isSuccess && followingCount === 0 && followVerification === "checking";
 
   // The backend `following` count lags for brand-new accounts — it only fills in
   // after the first GrapeRank pass ingests the contact list. So a user who has
@@ -757,11 +768,14 @@ export default function DashboardPage() {
   // follows". For a brand-new account grapeRank resolves first, every other term
   // passes, and the onboarding panel flashed on screen for that window before
   // overview landed and yanked it away. Waiting for overview to settle closes it.
-  const showOnboarding = overviewQuery.isSuccess && !grapeRankQuery.isLoading && !publishDone && !hasNoFollowing && !isRecalculating && !hadPreviousScores;
+  // `followsChecking` closes the same flash for the relay verification window:
+  // while it's running, hasNoFollowing reads FALSE too, and without the guard
+  // the onboarding panel would show for a user about to get the follow picker.
+  const showOnboarding = overviewQuery.isSuccess && !grapeRankQuery.isLoading && !publishDone && !hasNoFollowing && !followsChecking && !isRecalculating && !hadPreviousScores;
   // No-follows is NOT an error — it's the "start here" state (handled by the
   // inline follow-picker). Only real GrapeRank/publish failures are errors, and
   // we suppress those right after a fresh follow+calculate.
-  const isErrorState = (isGrapeRankFailed || isPublishFailed) && !hasNoFollowing && !justFollowed;
+  const isErrorState = (isGrapeRankFailed || isPublishFailed) && !hasNoFollowing && !followsChecking && !justFollowed;
   // A "recalculation" requires PRIOR completed scores — not merely an in-progress
   // result object (which exists during a first-time calc too). Using `grapeRank`
   // here made a never-scored user's first calc read as "Refreshing / previous
@@ -1070,7 +1084,7 @@ export default function DashboardPage() {
             </AlertDialog>
 
             <AnimatePresence>
-              {(isGrapeRankFailed || isPublishFailed) && !hasNoFollowing && !justFollowed && !triggerGrapeRankMutation.isError && !triggerGrapeRankMutation.isPending && !triggerGrapeRankMutation.isSuccess && (
+              {(isGrapeRankFailed || isPublishFailed) && !hasNoFollowing && !followsChecking && !justFollowed && !triggerGrapeRankMutation.isError && !triggerGrapeRankMutation.isPending && !triggerGrapeRankMutation.isSuccess && (
                 <motion.div
                   initial={{ opacity: 0, y: -8, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -1199,7 +1213,7 @@ export default function DashboardPage() {
             <TaggedYouModule />
           </div>
 
-          {publishDone && !isRecalculating && !nip85Activated && !nip85Dismissed && !nip85CreatedInApp && (
+          {publishDone && !isRecalculating && !nip85Activated && !nip85Dismissed && (!nip85CreatedInApp || hasDeclinedNip85(user?.pubkey)) && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}

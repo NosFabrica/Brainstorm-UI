@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, screen } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 
 import { renderWithProviders } from "@/test/utils";
 import OnboardingWizard from "./OnboardingWizard";
@@ -18,8 +18,20 @@ vi.mock("@/hooks/useActiveAccountDisplay", () => ({
 vi.mock("@/services/nostr", () => ({
   publishProfile: vi.fn(async () => {}),
 }));
+const triggerScoringAndAnchor = vi.fn(async () => {});
 vi.mock("@/services/trustAnchor", () => ({
-  triggerScoringAndAnchor: vi.fn(async () => {}),
+  triggerScoringAndAnchor: (...args: unknown[]) => triggerScoringAndAnchor(...(args as [])),
+  publishBrainstormTrustAnchor: vi.fn(async () => ({ status: "success" })),
+  checkExistingTrustProvider: vi.fn(async () => "none"),
+}));
+// The wizard reads ta_pubkey through useSelfHistory; the real hook needs an
+// applesauce AccountsProvider these tests don't mount.
+vi.mock("@/hooks/useSelf", () => ({
+  useSelfHistory: () => ({ data: undefined, isSuccess: false }),
+}));
+// Real module drags in the account manager; the wizard only asks the flag.
+vi.mock("@/lib/nip85Activation", () => ({
+  isNip85Activated: () => false,
 }));
 vi.mock("@/services/socialActions", () => ({
   followPubkeys: vi.fn(async () => ({ success: true })),
@@ -84,5 +96,31 @@ describe("where the backup step sits", () => {
     fireEvent.click(screen.getByTestId("onboarding-backup-skip"));
 
     expect(navigate).toHaveBeenCalledWith("/", { replace: true });
+  });
+});
+
+describe("the NIP-85 ask on the follow step", () => {
+  it("consents by default — calculate carries {nip85Consent: true}", async () => {
+    renderWithProviders(<OnboardingWizard />);
+    fireEvent.click(screen.getByTestId("onboarding-profile-skip"));
+    expect(screen.getByTestId("nip85-consent-card")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("fake-follow-continue"));
+
+    await waitFor(() =>
+      expect(triggerScoringAndAnchor).toHaveBeenCalledWith(PUBKEY, { nip85Consent: true }),
+    );
+  });
+
+  it("an unchecked switch travels as {nip85Consent: false}", async () => {
+    renderWithProviders(<OnboardingWizard />);
+    fireEvent.click(screen.getByTestId("onboarding-profile-skip"));
+    fireEvent.click(screen.getByTestId("nip85-consent-toggle"));
+
+    fireEvent.click(screen.getByTestId("fake-follow-continue"));
+
+    await waitFor(() =>
+      expect(triggerScoringAndAnchor).toHaveBeenCalledWith(PUBKEY, { nip85Consent: false }),
+    );
   });
 });
