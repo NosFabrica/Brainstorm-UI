@@ -21,10 +21,19 @@ const activeAccount = vi.fn();
 const submitFollowList = vi.fn(async () => undefined);
 /** What the relays answer with, per kind. */
 const relayHas = new Map<number, unknown[]>();
+/** The outbox warm — tests make it "reveal" the real list by seeding relayHas. */
+const fetchOutboxRelayList = vi.fn(async () => undefined as unknown);
+/** Whether the active key was minted in this app (createdInApp). */
+const createdInApp = vi.fn(() => false);
 
 vi.mock("./nostr", () => ({
   publishToRelays: (...args: unknown[]) => publishToRelays(...(args as [])),
   loadOutboxRelayListFromDb: () => ["wss://one"],
+  fetchOutboxRelayList: (...args: unknown[]) => fetchOutboxRelayList(...(args as [])),
+}));
+
+vi.mock("@/accounts/display", () => ({
+  identityHas: () => createdInApp(),
 }));
 
 // The relay reads go through `lib/relayRequest` now, which reaches the pool
@@ -81,6 +90,7 @@ beforeEach(async () => {
   relayHas.clear();
   activeAccount.mockReturnValue({ pubkey: ME });
   publishToRelays.mockResolvedValue({ success: true });
+  createdInApp.mockReturnValue(false);
   social = await import("./socialActions");
 });
 
@@ -108,7 +118,11 @@ describe("following", () => {
     expect(signAs).not.toHaveBeenCalled();
   });
 
-  it("publishes an empty list for a genuinely new account", async () => {
+  // From-scratch without friction is reserved for keys minted in this app — the
+  // only case where "no list exists anywhere" is a fact rather than a guess.
+  it("publishes an empty list for an account created in this app", async () => {
+    createdInApp.mockReturnValue(true);
+
     const res = await social.followUser(THEM, null);
 
     expect(res.success).toBe(true);
@@ -190,6 +204,81 @@ describe("unfollowing", () => {
     const res = await social.unfollowUser(THEM, null);
 
     expect(res.success).toBe(false);
+    expect(signAs).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The from-scratch guard. A missing base for an imported key is ambiguous —
+ * "no list exists" and "no relay answered" look identical — and publishing a
+ * fresh kind-3 on a guess is how a real list gets replaced. Only a key minted
+ * in this app, or an explicit user confirmation, may create a first list.
+ */
+describe("creating a first follow list", () => {
+  it("refuses for an imported key when nothing was found anywhere", async () => {
+    const res = await social.followPubkeys([THEM]);
+
+    expect(res.success).toBe(false);
+    expect(res.needsBaseConfirmation).toBe(true);
+    expect(signAs).not.toHaveBeenCalled();
+  });
+
+  it("warms the outbox list and retries before giving up", async () => {
+    // The first fetch (hardcoded profile relays) finds nothing; the warm makes
+    // the user's real write relays reachable, and the retry finds the list.
+    fetchOutboxRelayList.mockImplementation(async () => {
+      relayHas.set(3, [listEvent(3, [OTHER])]);
+      return undefined;
+    });
+
+    const res = await social.followPubkeys([THEM]);
+
+    expect(fetchOutboxRelayList).toHaveBeenCalledTimes(1);
+    expect(res.success).toBe(true);
+    expect(signedPubkeys()).toEqual([OTHER, THEM]); // merged, not from scratch
+  });
+
+  it("creates the list once the user has explicitly confirmed", async () => {
+    const res = await social.followPubkeys([THEM], { allowFromScratch: true });
+
+    expect(res.success).toBe(true);
+    expect(signedPubkeys()).toEqual([THEM]);
+  });
+
+  it("never asks a key created in this app for confirmation", async () => {
+    createdInApp.mockReturnValue(true);
+
+    const res = await social.followPubkeys([THEM]);
+
+    expect(res.success).toBe(true);
+    expect(res.needsBaseConfirmation).toBeUndefined();
+    expect(fetchOutboxRelayList).not.toHaveBeenCalled();
+    expect(signedPubkeys()).toEqual([THEM]);
+  });
+
+  it("applies the same guard to a single follow", async () => {
+    const refused = await social.followUser(THEM, null);
+    expect(refused.success).toBe(false);
+    expect(refused.needsBaseConfirmation).toBe(true);
+    expect(signAs).not.toHaveBeenCalled();
+
+    const confirmed = await social.followUser(THEM, null, { allowFromScratch: true });
+    expect(confirmed.success).toBe(true);
+    expect(signedPubkeys()).toEqual([THEM]);
+  });
+
+  it("a known floor still beats everything — refusal, not a dialog", async () => {
+    // The store has a count but no usable event (corrupt row): unsafe wins and
+    // the outcome is a retryable failure, never a from-scratch confirmation.
+    localStorage.setItem(
+      `brainstorm_known_follows:${ME}`,
+      JSON.stringify({ event: { tags: [["p", OTHER]] }, count: 5, updated_at: 1 }),
+    );
+
+    const res = await social.followPubkeys([THEM]);
+
+    expect(res.success).toBe(false);
+    expect(res.needsBaseConfirmation).toBeUndefined();
     expect(signAs).not.toHaveBeenCalled();
   });
 });

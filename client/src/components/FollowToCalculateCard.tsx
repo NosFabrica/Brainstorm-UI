@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2, ArrowRight, Search as SearchIcon, X, Users } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { PersonRow, type PersonLite } from "@/components/PersonRow";
+import { ConfirmNewFollowListDialog } from "@/components/ConfirmNewFollowListDialog";
 import { Nip85ConsentCard } from "@/components/Nip85ConsentCard";
 import { SUGGESTED_ACCOUNTS } from "@/lib/suggestedAccounts";
 import { fetchProfileMap, SEED_FOLLOW_HEX } from "@/services/nostr";
@@ -119,20 +120,12 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
   const historyQuery = useSelfHistory(identity?.pubkey);
   const taPubkey = (historyQuery.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey;
 
-  const commit = async () => {
-    const pks = Array.from(selected);
-    if (!pks.length || busy) return;
-    setBusy(true);
-    const res = await followPubkeys(pks);
-    if (res.cancelled) {
-      setBusy(false);
-      return;
-    }
-    if (!res.success) {
-      setBusy(false);
-      toast({ variant: "destructive", title: "Couldn't save your follows", description: res.error || "Please try again." });
-      return;
-    }
+  // followPubkeys refused to create a first-ever list without the user's say-so
+  // (imported key, nothing found on relays) — the pending picks wait on the
+  // confirmation dialog.
+  const [confirmPks, setConfirmPks] = useState<string[] | null>(null);
+
+  const afterPublish = () => {
     if (identity?.pubkey) {
       const pk = identity.pubkey;
       try { localStorage.setItem(accountKey("brainstorm_calc_triggered_at", pk), String(Date.now())); } catch { /* ignore */ }
@@ -151,6 +144,32 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
     toast({ title: "Calculating your trust network", description: "We're scoring your follows — this can take a few minutes." });
     onDone?.();
     // leave `busy` true: the card is about to be replaced by the calculating state.
+  };
+
+  const runCommit = async (pks: string[], opts?: { allowFromScratch?: boolean }) => {
+    setBusy(true);
+    const res = await followPubkeys(pks, opts);
+    if (res.cancelled) {
+      setBusy(false);
+      return;
+    }
+    if (res.needsBaseConfirmation) {
+      setBusy(false);
+      setConfirmPks(pks);
+      return;
+    }
+    if (!res.success) {
+      setBusy(false);
+      toast({ variant: "destructive", title: "Couldn't save your follows", description: res.error || "Please try again." });
+      return;
+    }
+    afterPublish();
+  };
+
+  const commit = () => {
+    const pks = Array.from(selected);
+    if (!pks.length || busy) return;
+    void runCommit(pks);
   };
 
   return (
@@ -240,6 +259,17 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
           {busy ? <><Loader2 className="h-4 w-4 animate-spin" /> Starting…</> : <>Follow {count > 0 ? count : ""} &amp; calculate my scores <ArrowRight className="h-4 w-4" /></>}
         </button>
       </div>
+
+      <ConfirmNewFollowListDialog
+        open={confirmPks !== null}
+        busy={busy}
+        onCancel={() => setConfirmPks(null)}
+        onConfirm={() => {
+          const pks = confirmPks;
+          setConfirmPks(null);
+          if (pks) void runCommit(pks, { allowFromScratch: true });
+        }}
+      />
     </div>
   );
 }

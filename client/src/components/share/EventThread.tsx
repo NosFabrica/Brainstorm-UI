@@ -6,7 +6,7 @@ import { fetchEventsByFilter, fetchProfileMap } from "@/services/nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { knownFollowCount } from "@/lib/followStore";
+import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
 import { apiClient } from "@/services/api";
 import { collectRefs, type MinimalEvent } from "@/lib/noteRefs";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
@@ -69,10 +69,13 @@ export function EventThread({
   const buildWotHref = `/welcome${nextQ ? `?${nextQ}` : ""}`;
 
   // Existing users with follows just need to CALCULATE; brand-new accounts need to
-  // build a network first. (`knownFollowCount` is populated at login from their
-  // existing kind-3 contact list.)
+  // build a network first. Relay-verified rather than the raw local floor (which
+  // is 0 whenever the login-time fetch failed); while the check runs, offer the
+  // calculate CTA — /welcome is guarded now anyway, so misrouting there is the
+  // cheaper mistake than telling a connected user to start over.
   const myPubkey = useActiveAccountDisplay()?.pubkey || "";
-  const myFollows = myPubkey ? knownFollowCount(myPubkey) : 0;
+  const followVerification = useVerifiedNoFollows(myPubkey || undefined);
+  const hasFollows = followVerification !== "none";
   const [calcTriggered, setCalcTriggered] = useState(false);
   // Kicking off a calculation is a ~5-minute, queue-consuming operation, so it
   // asks first — same contract as the dashboard's Recalculate. This link used to
@@ -223,7 +226,7 @@ export function EventThread({
         <p className="mb-2 text-xs text-slate-500 dark:text-slate-400" data-testid="thread-filter-unlock">
           {calcTriggered ? (
             <span className="inline-flex items-center gap-1 text-brand-deep"><Loader2 className="h-3 w-3 animate-spin" /> Calculating your network — the filter switches to your perspective when it's ready.</span>
-          ) : myFollows > 0 ? (
+          ) : hasFollows ? (
             <>Filtering by the Brainstorm network.{" "}
               <button
                 type="button"

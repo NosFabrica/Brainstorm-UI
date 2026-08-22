@@ -1,13 +1,17 @@
 import { useEffect, useState } from "react";
 import { useLocation } from "wouter";
 import { BrainLogo } from "@/components/BrainLogo";
+import { ConfirmNewFollowListDialog } from "@/components/ConfirmNewFollowListDialog";
 import { FollowPicker } from "@/components/FollowPicker";
 import { Nip85ConsentCard } from "@/components/Nip85ConsentCard";
 import { publishBrainstormTrustAnchor, triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useSelfHistory } from "@/hooks/useSelf";
+import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
+import { identityHas } from "@/accounts/display";
 import { isNip85Activated } from "@/lib/nip85Activation";
-import { followPubkeys } from "@/services/socialActions";
+import { knownFollowCount } from "@/lib/followStore";
+import { followPubkeys, type FollowOptions } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
 import { accountKey } from "@/lib/accountStorage";
 
@@ -44,23 +48,23 @@ export default function WelcomePage() {
   const historyQuery = useSelfHistory(user?.pubkey);
   const taPubkey = (historyQuery.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey;
 
-  // Navigate home IMMEDIATELY, then publish the follow list + trigger scoring in
-  // the background (the global ScoringStatusBar keeps the "calculating" state
-  // visible after this page unmounts). `followPubkeys` ingests the signed kind-3
-  // into the backend before returning, so scoring runs on fresh follows.
-  const finish = (pks: string[]) => {
-    if (!pks.length) return;
+  // Mount-time relay verification: repairs the local follow floor for imported
+  // keys (so the at-risk path below almost never engages) and warms the outbox
+  // list so the commit-time kind-3 read asks the user's real write relays.
+  useVerifiedNoFollows(user?.pubkey);
+
+  const [submitting, setSubmitting] = useState(false);
+  const [confirmPks, setConfirmPks] = useState<string[] | null>(null);
+
+  // Fire the toast + navigation + background scoring/NIP-85 chain — everything
+  // that happens after the kind-3 is (or is about to be) safely published.
+  const proceedHome = (publishFollows: null | (() => Promise<void>)) => {
     if (user?.pubkey) { try { localStorage.setItem(accountKey("brainstorm_calc_triggered_at", user.pubkey), String(Date.now())); } catch {} }
     toast({ title: "You're all set!", description: "Your trust network is calculating — explore and finish setting up in the meantime." });
     navigate(returnPath, { replace: true });
     void (async () => {
       try {
-        const res = await followPubkeys(pks);
-        if (res.cancelled) return;
-        if (!res.success) {
-          toast({ variant: "destructive", title: "Couldn't save your follows", description: res.error || "Try again from your dashboard." });
-          return;
-        }
+        if (publishFollows) await publishFollows();
         if (!user?.pubkey) return;
         await triggerScoringAndAnchor(user.pubkey, { nip85Consent });
         if (nip85Consent && taPubkey && !isNip85Activated(user.pubkey)) {
@@ -75,6 +79,51 @@ export default function WelcomePage() {
         /* the status chip + dashboard reflect the outcome */
       }
     })();
+  };
+
+  // At-risk cohort (imported key, no confirmed follows anywhere): the publish is
+  // AWAITED before navigating, because followPubkeys may come back asking for
+  // from-scratch confirmation and the user has to still be here to answer it.
+  const finishAtRisk = async (pks: string[], opts?: FollowOptions) => {
+    setSubmitting(true);
+    const res = await followPubkeys(pks, opts);
+    if (res.cancelled) {
+      setSubmitting(false);
+      return;
+    }
+    if (res.needsBaseConfirmation) {
+      setSubmitting(false);
+      setConfirmPks(pks);
+      return;
+    }
+    if (!res.success) {
+      setSubmitting(false);
+      toast({ variant: "destructive", title: "Couldn't save your follows", description: res.error || "Please try again." });
+      return;
+    }
+    proceedHome(null); // already published
+  };
+
+  // Everyone else navigates home IMMEDIATELY and publishes in the background
+  // (the global ScoringStatusBar keeps the "calculating" state visible after
+  // this page unmounts). `followPubkeys` ingests the signed kind-3 into the
+  // backend before returning, so scoring runs on fresh follows.
+  const finish = (pks: string[]) => {
+    if (!pks.length || submitting) return;
+    const pk = user?.pubkey;
+    const atRisk = !!pk && !identityHas(pk, "createdInApp") && knownFollowCount(pk) === 0;
+    if (atRisk) {
+      void finishAtRisk(pks);
+      return;
+    }
+    proceedHome(async () => {
+      const res = await followPubkeys(pks);
+      if (res.cancelled) throw new Error("cancelled");
+      if (!res.success) {
+        toast({ variant: "destructive", title: "Couldn't save your follows", description: res.error || "Try again from your dashboard." });
+        throw new Error(res.error || "follow publish failed");
+      }
+    });
   };
 
   return (
@@ -122,9 +171,20 @@ export default function WelcomePage() {
           className="mt-6"
         />
         <div className="mt-4">
-          <FollowPicker onContinue={finish} continueLabel="Follow & calculate my scores" />
+          <FollowPicker onContinue={finish} continueLabel="Follow & calculate my scores" busy={submitting} />
         </div>
       </main>
+
+      <ConfirmNewFollowListDialog
+        open={confirmPks !== null}
+        busy={submitting}
+        onCancel={() => setConfirmPks(null)}
+        onConfirm={() => {
+          const pks = confirmPks;
+          setConfirmPks(null);
+          if (pks) void finishAtRisk(pks, { allowFromScratch: true });
+        }}
+      />
     </div>
   );
 }
