@@ -91,6 +91,9 @@ beforeEach(async () => {
   activeAccount.mockReturnValue({ pubkey: ME });
   publishToRelays.mockResolvedValue({ success: true });
   createdInApp.mockReturnValue(false);
+  // clearAllMocks keeps implementations — restore the inert default so a
+  // test's relay-seeding warm can't leak into its neighbours.
+  fetchOutboxRelayList.mockImplementation(async () => undefined);
   social = await import("./socialActions");
 });
 
@@ -226,7 +229,7 @@ describe("creating a first follow list", () => {
   it("warms the outbox list and retries before giving up", async () => {
     // The first fetch (hardcoded profile relays) finds nothing; the warm makes
     // the user's real write relays reachable, and the retry finds the list.
-    fetchOutboxRelayList.mockImplementation(async () => {
+    fetchOutboxRelayList.mockImplementationOnce(async () => {
       relayHas.set(3, [listEvent(3, [OTHER])]);
       return undefined;
     });
