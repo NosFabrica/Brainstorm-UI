@@ -3,10 +3,14 @@ import { useQuery } from "@tanstack/react-query";
 import { Loader2, ArrowRight, Search as SearchIcon, X, Users } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { PersonRow, type PersonLite } from "@/components/PersonRow";
+import { ConfirmNewFollowListDialog } from "@/components/ConfirmNewFollowListDialog";
+import { Nip85ConsentCard } from "@/components/Nip85ConsentCard";
 import { SUGGESTED_ACCOUNTS } from "@/lib/suggestedAccounts";
 import { fetchProfileMap, SEED_FOLLOW_HEX } from "@/services/nostr";
-import { triggerScoringAndAnchor } from "@/services/trustAnchor";
+import { publishBrainstormTrustAnchor, triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { useSelfHistory } from "@/hooks/useSelf";
+import { isNip85Activated } from "@/lib/nip85Activation";
 import { followPubkeys } from "@/services/socialActions";
 import { searchByText, type SearchResult } from "@/lib/profileSearch";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -109,13 +113,49 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
 
   const count = selected.size;
 
-  const commit = async () => {
-    const pks = Array.from(selected);
-    if (!pks.length || busy) return;
+  // The NIP-85 ask rides with the calculate commit (see Nip85ConsentCard). The
+  // service key already exists server-side, so with consent the kind-10040 is
+  // signed right here while the signer is warm from the kind-3.
+  const [nip85Consent, setNip85Consent] = useState(true);
+  const historyQuery = useSelfHistory(identity?.pubkey);
+  const taPubkey = (historyQuery.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey;
+
+  // followPubkeys refused to create a first-ever list without the user's say-so
+  // (imported key, nothing found on relays) — the pending picks wait on the
+  // confirmation dialog.
+  const [confirmPks, setConfirmPks] = useState<string[] | null>(null);
+
+  const afterPublish = () => {
+    if (identity?.pubkey) {
+      const pk = identity.pubkey;
+      try { localStorage.setItem(accountKey("brainstorm_calc_triggered_at", pk), String(Date.now())); } catch { /* ignore */ }
+      void (async () => {
+        await triggerScoringAndAnchor(pk, { nip85Consent });
+        if (nip85Consent && taPubkey && !isNip85Activated(pk)) {
+          // Cancelled/failed publishes stay quiet — the consent-gated background
+          // poll and app-load self-heal finish the job.
+          const published = await publishBrainstormTrustAnchor(pk, taPubkey);
+          if (published.status === "success") {
+            toast({ title: "Scores shared", description: "Other apps can now find your Brainstorm scores." });
+          }
+        }
+      })();
+    }
+    toast({ title: "Calculating your trust network", description: "We're scoring your follows — this can take a few minutes." });
+    onDone?.();
+    // leave `busy` true: the card is about to be replaced by the calculating state.
+  };
+
+  const runCommit = async (pks: string[], opts?: { allowFromScratch?: boolean }) => {
     setBusy(true);
-    const res = await followPubkeys(pks);
+    const res = await followPubkeys(pks, opts);
     if (res.cancelled) {
       setBusy(false);
+      return;
+    }
+    if (res.needsBaseConfirmation) {
+      setBusy(false);
+      setConfirmPks(pks);
       return;
     }
     if (!res.success) {
@@ -123,13 +163,13 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
       toast({ variant: "destructive", title: "Couldn't save your follows", description: res.error || "Please try again." });
       return;
     }
-    if (identity?.pubkey) {
-      try { localStorage.setItem(accountKey("brainstorm_calc_triggered_at", identity.pubkey), String(Date.now())); } catch { /* ignore */ }
-      void triggerScoringAndAnchor(identity.pubkey);
-    }
-    toast({ title: "Calculating your trust network", description: "We're scoring your follows — this can take a few minutes." });
-    onDone?.();
-    // leave `busy` true: the card is about to be replaced by the calculating state.
+    afterPublish();
+  };
+
+  const commit = () => {
+    const pks = Array.from(selected);
+    if (!pks.length || busy) return;
+    void runCommit(pks);
   };
 
   return (
@@ -176,6 +216,14 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
         </div>
       )}
 
+      <Nip85ConsentCard
+        pubkey={identity?.pubkey}
+        taPubkey={taPubkey}
+        value={nip85Consent}
+        onChange={setNip85Consent}
+        className="mt-3"
+      />
+
       {/* Selected tray + commit */}
       <div className="mt-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3">
         <p className="text-[10px] font-bold tracking-[0.12em] text-slate-400 dark:text-slate-500 uppercase mb-2">Following {count}</p>
@@ -211,6 +259,17 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
           {busy ? <><Loader2 className="h-4 w-4 animate-spin" /> Starting…</> : <>Follow {count > 0 ? count : ""} &amp; calculate my scores <ArrowRight className="h-4 w-4" /></>}
         </button>
       </div>
+
+      <ConfirmNewFollowListDialog
+        open={confirmPks !== null}
+        busy={busy}
+        onCancel={() => setConfirmPks(null)}
+        onConfirm={() => {
+          const pks = confirmPks;
+          setConfirmPks(null);
+          if (pks) void runCommit(pks, { allowFromScratch: true });
+        }}
+      />
     </div>
   );
 }

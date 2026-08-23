@@ -74,6 +74,7 @@ import type { NostrEvent } from "applesauce-core/helpers";
 import { signNip85, signNip85Deactivation, publishToRelays, getNip85RelayUrl } from "@/services/nostr";
 import { logout } from "@/accounts/login-flow";
 import { isNip85Activated, markNip85Activated, clearNip85Activated } from "@/lib/nip85Activation";
+import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
 import { DeferredSessionNotice } from "@/components/DeferredSession";
@@ -227,8 +228,6 @@ export default function SettingsPage() {
     if (preset === activePreset || setPresetMutation.isPending) return;
     setPresetMutation.mutate(preset);
   }, [activePreset, setPresetMutation]);
-
-  const nip85Activated = isNip85Activated(user?.pubkey);
 
   useEffect(() => {
     if (!user) navigate("/", { replace: true });
@@ -384,6 +383,7 @@ export default function SettingsPage() {
 
     if (result.success) {
       markNip85Activated(user.pubkey);
+      queryClient.invalidateQueries({ queryKey: ["trust-provider-status"] });
       setRepublishState("success");
       toast({ title: "NIP-85 event updated", description: "Your service provider declaration has been re-published.", duration: 4000 });
       setTimeout(() => setRepublishState("idle"), 3000);
@@ -421,6 +421,7 @@ export default function SettingsPage() {
 
     if (result.success) {
       clearNip85Activated(user.pubkey);
+      queryClient.invalidateQueries({ queryKey: ["trust-provider-status"] });
       setDeactivateState("success");
       toast({ title: "Provider deactivated", description: "Brainstorm no longer publishes your scores for other apps to use.", duration: 4000 });
       setTimeout(() => {
@@ -449,6 +450,16 @@ export default function SettingsPage() {
   const taPubkey = historyData?.data?.ta_pubkey || null;
   const followingCount = overviewData?.data?.counts?.following ?? null;
   const hasNoFollowing = !selfLoading && followingCount === 0;
+
+  // "Status: Active / Provider: Brainstorm" must answer for the on-relay
+  // 10040, not the local flag alone — the flag never downgrades on a relay
+  // miss, so after the user activates a different provider elsewhere it would
+  // keep this card lying. A definitive foreign declaration ("other") reads as
+  // not activated; absence/silence keeps the flag's answer.
+  const trustProviderStatus = useTrustProviderStatus(user?.pubkey, taPubkey);
+  const nip85Activated =
+    trustProviderStatus.data === "brainstorm" ||
+    (trustProviderStatus.data !== "other" && isNip85Activated(user?.pubkey));
 
   if (!user || isAuthRedirecting()) return null;
 

@@ -50,6 +50,7 @@ const NAMESPACES = {
   brainstorm_invite_cta_dismissed: "device",
   brainstorm_activate_seen: "device",
   brainstorm_nip85_dismissed_at: "device",
+  brainstorm_nip85_consent: "device",
   brainstorm_assistant: "device",
 } as const satisfies Record<string, Lifetime>;
 

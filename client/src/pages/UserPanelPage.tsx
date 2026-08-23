@@ -69,7 +69,8 @@ import {
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { ImageUpload } from "@/components/ImageUpload";
-import { fetchProfiles, isUsingBrainstorm, getNip85RelayUrl } from "@/services/nostr";
+import { fetchProfiles, getNip85RelayUrl } from "@/services/nostr";
+import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
 import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { AdminBadge } from "@/components/AdminBadge";
@@ -288,18 +289,14 @@ export default function UserPanelPage() {
   });
 
   const taPubkey = historyData?.data?.ta_pubkey;
-  const trustServiceProvider = useQuery({
-    queryKey: ["trustServiceProvider", user?.pubkey, taPubkey],
-    queryFn: async () => {
-      if (!user?.pubkey || !taPubkey) return false;
-      return await isUsingBrainstorm(user.pubkey, taPubkey);
-    },
-    enabled: !!user && !!taPubkey,
-    retry: 2,
-    staleTime: Infinity,
-  });
+  const trustServiceProvider = useTrustProviderStatus(user?.pubkey, taPubkey);
 
-  const nip85Activated = trustServiceProvider.data === true || isNip85Activated(user?.pubkey);
+  // The on-relay 10040 wins: a declaration naming a different assistant reads
+  // as NOT activated no matter what the local flag says; absence/silence keeps
+  // the flag's answer (a relay miss is not a deactivation).
+  const nip85Activated =
+    trustServiceProvider.data === "brainstorm" ||
+    (trustServiceProvider.data !== "other" && isNip85Activated(user?.pubkey));
   const socialActions = useSocialActions(user?.pubkey);
 
   const followingList = useMemo(

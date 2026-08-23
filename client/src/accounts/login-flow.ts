@@ -97,11 +97,23 @@ async function completeLogin(account: BrainstormAccount, token: string): Promise
 
   // Load the authoritative contact list (kind 3) once at login and persist it as
   // the known-follows floor, so the follow handlers can never publish a list
-  // shorter than what the user actually follows (wipe guard). Fire-and-forget.
-  void import("@/services/socialActions")
-    .then((m) => m.fetchContactList(pubkey))
-    .then((ev) => { if (ev) recordFollowList(pubkey, ev as any); })
-    .catch(() => {});
+  // shorter than what the user actually follows (wipe guard). Fire-and-forget,
+  // but not one-shot: a miss warms the outbox relay list (so the retry asks the
+  // user's real write relays, not just the hardcoded profile set) and looks once
+  // more — a silently empty floor is what used to hand existing users the
+  // new-user follow picker.
+  void (async () => {
+    try {
+      const { fetchContactList } = await import("@/services/socialActions");
+      let ev = await fetchContactList(pubkey);
+      if (!ev) {
+        const { fetchOutboxRelayList } = await import("@/services/nostr");
+        await fetchOutboxRelayList(pubkey).catch(() => undefined);
+        ev = await fetchContactList(pubkey);
+      }
+      if (ev) recordFollowList(pubkey, ev as any);
+    } catch { /* the dashboard's relay verification is the fallback */ }
+  })();
 
   // Start fetching the user's profile metadata (kind 0) immediately at login
   // instead of deferring it to the dashboard. This removes the dashboard-mount

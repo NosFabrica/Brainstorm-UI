@@ -1,9 +1,10 @@
 import { ContactsFactory } from "applesauce-common/factories";
 import { MuteListFactory } from "applesauce-common/factories";
 
-import { publishToRelays, loadOutboxRelayListFromDb } from "./nostr";
+import { publishToRelays, loadOutboxRelayListFromDb, fetchOutboxRelayList } from "./nostr";
 import { requestAll, requestNewest } from "@/lib/relayRequest";
 import { PROFILE_RELAYS } from "@/lib/relays";
+import { identityHas } from "@/accounts/display";
 import { activeAccount, signAs, signingFailure, type PublishOutcome } from "@/accounts/signing";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import { apiClient } from "./api";
@@ -109,23 +110,61 @@ export function getMutedPubkeys(muteList: NostrEvent | null): Set<string> {
  * snapshot}. Returns `{ base: null }` when we can't confirm a base AND the user
  * is known to follow people — the caller MUST abort rather than publish, or it
  * would wipe the list.
+ *
+ * `unverifiedNew` is the residual hole `unsafe` can't see: nothing found
+ * anywhere AND the floor is 0 AND the key was NOT minted in this app. That is
+ * either a genuinely-new key or an existing user whose list we simply failed to
+ * reach (fresh device, relays down, kind-10002 not loaded) — and the two are
+ * indistinguishable from here, because a relay timeout and "no kind-3 exists"
+ * both come back empty. Before concluding, we warm the outbox list (ingests the
+ * kind-10002 into the eventStore, so the retry asks the user's REAL write
+ * relays, not just the hardcoded PROFILE_RELAYS) and look once more. Still
+ * nothing → the caller must NOT publish from scratch without explicit user
+ * confirmation: a from-scratch kind-3 carries a newer created_at and would
+ * replace whatever list actually exists.
  */
 async function resolveContactBase(
   pubkey: string,
   cached?: NostrEvent | null,
-): Promise<{ base: NostrEvent | null; known: number; unsafe: boolean }> {
+): Promise<{ base: NostrEvent | null; known: number; unsafe: boolean; unverifiedNew: boolean }> {
   const known = knownFollowCount(pubkey);
   const fresh = cached ?? (await fetchContactList(pubkey));
   const stored = loadKnownFollowList(pubkey)?.event as NostrEvent | undefined;
-  const base = pickAuthoritativeBase([cached, fresh, stored]);
+  let base = pickAuthoritativeBase([cached, fresh, stored]);
+  const mintedHere = identityHas(pubkey, "createdInApp");
+  if (!base && !mintedHere) {
+    try { await fetchOutboxRelayList(pubkey); } catch { /* best-effort warm */ }
+    base = pickAuthoritativeBase([await fetchContactList(pubkey), stored]);
+  }
   // Unsafe = we have no usable base, or the best base is shorter than what we
   // know the user follows (a stale/short relay read). Either way, don't publish.
   const baseCount = base ? countFollows(base.tags) : 0;
   const unsafe = (!base && known > 0) || (known > 0 && baseCount < known);
-  return { base, known, unsafe };
+  const unverifiedNew = !base && known === 0 && !mintedHere;
+  return { base, known, unsafe, unverifiedNew };
 }
 
 const NOT_LOGGED_IN: PublishOutcome = { success: false, error: "Not logged in" };
+
+/**
+ * A follow publish can fail one way no other publish can: we couldn't confirm
+ * whether this key already has a follow list somewhere. `needsBaseConfirmation`
+ * means nothing was published and the caller must either retry later or ask the
+ * user the one question only they can answer — "have you ever followed anyone
+ * with this key?" — and re-call with `allowFromScratch: true`.
+ */
+export type FollowOutcome = PublishOutcome & { needsBaseConfirmation?: boolean };
+
+export interface FollowOptions {
+  /** The user explicitly confirmed this key has no prior follow list. */
+  allowFromScratch?: boolean;
+}
+
+const UNCONFIRMED_BASE: FollowOutcome = {
+  success: false,
+  needsBaseConfirmation: true,
+  error: "We couldn't confirm an existing follow list for this key — try again in a moment.",
+};
 
 /** A `p` tag naming this pubkey — how every follow and mute list is indexed. */
 const isPTagFor = (pubkey: string) => (tag: string[]) => tag[0] === "p" && tag[1] === pubkey;
@@ -159,6 +198,9 @@ async function publishContactList(
       // the caller's subsequent GrapeRank trigger scores fresh follows (not stale
       // relay-propagation state). Best-effort — never fails the follow.
       await ingestFollowList(signed);
+      // "Accepted" is a relay's OK frame, not proof our event is now the newest
+      // kind-3 out there. Verify in the background and warn if it isn't.
+      void verifyPublishedContactList(signed as unknown as NostrEvent);
     }
     return res;
   } catch (e) {
@@ -166,17 +208,47 @@ async function publishContactList(
   }
 }
 
-export async function followUser(targetPubkey: string, cachedContactList?: NostrEvent | null): Promise<PublishOutcome> {
+/**
+ * Post-publish check that our kind-3 actually became the user's newest contact
+ * list on their write relays. If the newest event out there is someone else's
+ * (a race with another client) or ours vanished AND what's there is shorter
+ * than what we published, the follows the user just made may not stick — say
+ * so instead of leaving them to find out weeks later. Never throws; the floor
+ * is NOT touched here (recordFollowList already stored our own signed event).
+ */
+async function verifyPublishedContactList(published: NostrEvent): Promise<void> {
+  try {
+    // Give propagation a beat; an instant read mostly measures relay latency.
+    await new Promise((r) => setTimeout(r, 3000));
+    const newest = await fetchContactList(published.pubkey);
+    if (!newest) return; // relays quiet — nothing to conclude
+    if (newest.id && published.id && newest.id === published.id) return; // landed
+    if (countFollows(newest.tags) >= countFollows(published.tags)) return; // superseded by a longer list — fine
+    const { toast } = await import("@/hooks/use-toast");
+    toast({
+      variant: "destructive",
+      title: "Your follow list may not have saved",
+      description: "A relay is still serving an older list. Check your follows in a moment and retry if anything is missing.",
+    });
+  } catch { /* best-effort */ }
+}
+
+export async function followUser(
+  targetPubkey: string,
+  cachedContactList?: NostrEvent | null,
+  opts: FollowOptions = {},
+): Promise<FollowOutcome> {
   const account = activeAccount();
   if (!account) return NOT_LOGGED_IN;
   if (account.pubkey === targetPubkey) return { success: false, error: "Cannot follow yourself" };
 
-  const { base, unsafe } = await resolveContactBase(account.pubkey, cachedContactList);
+  const { base, unsafe, unverifiedNew } = await resolveContactBase(account.pubkey, cachedContactList);
   if (unsafe) {
     return { success: false, error: "Couldn't load your full follow list — try again in a moment." };
   }
+  if (unverifiedNew && !opts.allowFromScratch) return UNCONFIRMED_BASE;
   if (base) recordFollowList(account.pubkey, base as any); // remember the largest seen
-  const baseTags = base?.tags ?? []; // brand-new account: genuinely empty list
+  const baseTags = base?.tags ?? []; // confirmed new key (or user-confirmed): genuinely empty list
 
   if (baseTags.some(isPTagFor(targetPubkey))) return { success: true };
 
@@ -204,16 +276,20 @@ export async function unfollowUser(targetPubkey: string, cachedContactList?: Nos
  * authoritative base (empty for a brand-new account) and never shrinks an
  * existing list.
  */
-export async function followPubkeys(targetPubkeys: string[]): Promise<PublishOutcome> {
+export async function followPubkeys(
+  targetPubkeys: string[],
+  opts: FollowOptions = {},
+): Promise<FollowOutcome> {
   const account = activeAccount();
   if (!account) return NOT_LOGGED_IN;
   const wanted = targetPubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk) && pk !== account.pubkey);
   if (!wanted.length) return { success: false, error: "No valid accounts to follow" };
 
-  const { base, unsafe } = await resolveContactBase(account.pubkey);
+  const { base, unsafe, unverifiedNew } = await resolveContactBase(account.pubkey);
   if (unsafe) {
     return { success: false, error: "Couldn't load your full follow list — try again in a moment." };
   }
+  if (unverifiedNew && !opts.allowFromScratch) return UNCONFIRMED_BASE;
   if (base) recordFollowList(account.pubkey, base as any);
   const baseTags = base?.tags ?? [];
   const have = new Set(baseTags.filter((t) => t[0] === "p").map((t) => t[1]));
