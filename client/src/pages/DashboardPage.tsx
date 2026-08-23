@@ -1210,7 +1210,13 @@ export default function DashboardPage() {
             <TaggedYouModule />
           </div>
 
-          {publishDone && !isRecalculating && !nip85Activated && !nip85Dismissed && (!nip85CreatedInApp || hasDeclinedNip85(user?.pubkey)) && (
+          {/* The ask must land while the user is still HERE — the 10040 is
+              independent of scoring (their assistant key exists from first
+              auth), so a returning user with follows signs it during the
+              "Calculating…" wait instead of having to come back after
+              publishDone. Gated off the no-follows states: that cohort gets
+              the consent card inside the follow picker instead. */}
+          {!!taPubkey && !isRecalculating && !hasNoFollowing && !followsChecking && !nip85Activated && !nip85Dismissed && (!nip85CreatedInApp || hasDeclinedNip85(user?.pubkey)) && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
