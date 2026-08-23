@@ -74,6 +74,15 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
       return;
     }
 
+    // Signing with an empty service key would publish a 10040 pointing at
+    // nothing. The dashboard disables its buttons until ta_pubkey exists, but
+    // never rely on callers for that.
+    if (!serviceKey) {
+      setActivateState("error");
+      setErrorMessage("Your account is still being prepared — please try again in a few minutes.");
+      return;
+    }
+
     let nip85Relay: string;
     try {
       nip85Relay = getNip85RelayUrl();

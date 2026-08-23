@@ -1,5 +1,6 @@
 import { nip19, finalizeEvent, generateSecretKey, verifyEvent } from "nostr-tools";
 import { env } from "@/lib/runtimeEnv";
+import { declaresTrustProvider } from "@/lib/nip85Declaration";
 import { pool } from "@/lib/relayPool";
 import { eventStore } from "@/lib/eventStore";
 import { CONTENT_RELAYS, PROFILE_RELAYS } from "@/lib/relays";
@@ -304,24 +305,8 @@ export async function checkNip85Health(
 }
 
 export async function isUsingBrainstorm(pubkey: string, innerPubkey: string, timeoutMs = 10000): Promise<boolean> {
-  console.log("isUsingBrainstorm", pubkey, innerPubkey)
   const event = await fetchTrustProviderList(pubkey, timeoutMs)
-
-  let isUsingRank = false
-  let isUsingFollowers = false
-
-  if (event) {
-    for (const tag of event.tags) {
-      if (tag[0] === "30382:rank" && tag[1] === innerPubkey && tag[2] == NIP85_RELAY_URL) {
-        isUsingRank = true
-      }
-      if (tag[0] === "30382:followers" && tag[1] === innerPubkey && tag[2] == NIP85_RELAY_URL) {
-        isUsingFollowers = true
-      }
-    }
-  }
-
-  return isUsingRank && isUsingFollowers
+  return !!event && declaresTrustProvider(event, innerPubkey, NIP85_RELAY_URL)
 }
 
 export function loadOutboxRelayListFromDb(pubkey: string, currentRelays: string[]): string[] {
