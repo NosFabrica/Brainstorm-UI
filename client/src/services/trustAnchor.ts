@@ -21,7 +21,8 @@ import { activeAccount, canSignSilently } from "@/accounts/signing";
 import { isUnlockCancelled } from "@/accounts/local-signer";
 import { identityHas } from "@/accounts/display";
 import { accountKey } from "@/lib/accountStorage";
-import { isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
+import { queryClient } from "@/lib/queryClient";
+import { clearNip85Activated, isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
 import { hasDeclinedNip85, hasNip85Consent, recordNip85Consent } from "@/lib/nip85Consent";
 
 /**
@@ -99,6 +100,15 @@ export async function checkExistingTrustProvider(
     const event = await fetchTrustProviderList(pubkey);
     const rankTarget = event?.tags.find((t) => t[0] === "30382:rank")?.[1];
     if (!rankTarget) return "none";
+    if (taPubkey && rankTarget !== taPubkey) {
+      // Definitive contrary evidence: a 10040 exists and names a different
+      // assistant. Unlike a relay MISS (absence, never a downgrade), presence
+      // of a foreign declaration means the local "activated" flag is now a
+      // lie — the on-relay 10040 takes precedence, so drop the flag and let
+      // every surface reflect the truth.
+      clearNip85Activated(pubkey);
+      return "other";
+    }
     return rankTarget === taPubkey ? "brainstorm" : "other";
   } catch {
     return "unknown";
@@ -141,6 +151,8 @@ export async function publishBrainstormTrustAnchor(
   const result = await publishToRelays(signed);
   if (result.success) {
     markNip85Activated(pubkey);
+    // The on-relay answer changed — every badge/status reading it must re-ask.
+    void queryClient.invalidateQueries({ queryKey: ["trust-provider-status"] });
     return { status: "success" };
   }
   return { status: "error", message: result.error || "Failed to publish to relays. Please try again." };
@@ -162,19 +174,23 @@ export async function ensureBrainstormTrustAnchor(pubkey: string, taPubkey: stri
   const account = activeAccount();
   if (!account || account.pubkey !== pubkey) return;
   if (!(await canSignSilently(account))) return;
-  // Already declared Brainstorm on relays (e.g. published from another device)?
-  // Record it locally and stop — nothing to publish.
+  // What does their 10040 on relays say? "brainstorm" → recorded, done (e.g.
+  // published from another device). "other" → THEIR DECLARATION WINS: this is
+  // the automatic path, and it must never replace a provider the user chose —
+  // `isUsingBrainstorm === false` alone can't tell "no declaration" from
+  // "declared someone else", which is how a foreign 10040 could get silently
+  // overwritten. Replacement happens only on the explicit surfaces (consent
+  // card / modal), behind the replace warning.
   try {
-    if (await isUsingBrainstorm(pubkey, taPubkey)) {
-      markNip85Activated(pubkey);
-      return;
-    }
+    const existing = await checkExistingTrustProvider(pubkey, taPubkey);
+    if (existing === "brainstorm" || existing === "other") return;
   } catch {}
   try {
     const signed = await signNip85(taPubkey, getNip85RelayUrl());
     const res = await publishToRelays(signed);
     if (res.success) {
       markNip85Activated(pubkey);
+      void queryClient.invalidateQueries({ queryKey: ["trust-provider-status"] });
     }
   } catch {}
 }

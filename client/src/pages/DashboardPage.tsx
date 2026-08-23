@@ -113,7 +113,8 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { cacheProfile, fetchProfile, fetchOutboxRelayList, isUsingBrainstorm } from "@/services/nostr";
+import { cacheProfile, fetchProfile, fetchOutboxRelayList } from "@/services/nostr";
+import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
 import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { DeferredSessionNotice } from "@/components/DeferredSession";
@@ -369,27 +370,23 @@ export default function DashboardPage() {
   const stats = statsQuery.data?.data ?? null;
 
   const taPubkey = history?.ta_pubkey;
-  const trustServiceProvider = useQuery({
-    queryKey: ["trustServiceProvider", user?.pubkey, taPubkey],
-    queryFn: async () => {
-      if (!user?.pubkey || !taPubkey) return false;
-      return await isUsingBrainstorm(user.pubkey, taPubkey);
-    },
-    enabled: !!user && !!taPubkey,
-    retry: 2,
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
-    staleTime: Infinity,
-  });
+  const trustServiceProvider = useTrustProviderStatus(user?.pubkey, taPubkey);
 
   useEffect(() => {
-    // Upgrade-only: a relay confirmation (isUsingBrainstorm === true) marks this
-    // account activated and shows the badge. A `false`/undefined is treated as
-    // "not propagated yet", NOT a deactivation — relays are eventually-consistent,
-    // so we never downgrade here (that caused the badge to flicker right after an
-    // auto-publish). Deactivation is explicit, via Settings.
-    if (trustServiceProvider.data !== true) return;
-    markNip85Activated(user?.pubkey);
-    if (!nip85Activated) setNip85Activated(true);
+    // The on-relay 10040 is the authority. "brainstorm" marks this account
+    // activated and shows the badge; "other" (a declaration naming a DIFFERENT
+    // assistant — definitive presence, not a miss) downgrades it, because a
+    // green "Active" badge over a foreign declaration is a lie. "none"/
+    // "unknown" are absence/silence and never downgrade — relays are
+    // eventually-consistent, and that flicker right after an auto-publish is
+    // what upgrade-only-on-miss protects against.
+    if (trustServiceProvider.data === "brainstorm") {
+      markNip85Activated(user?.pubkey);
+      if (!nip85Activated) setNip85Activated(true);
+    } else if (trustServiceProvider.data === "other") {
+      // The flag itself was cleared inside checkExistingTrustProvider.
+      if (nip85Activated) setNip85Activated(false);
+    }
   }, [trustServiceProvider.data, nip85Activated]);
 
   const grapeRankRaw = grapeRankQuery.data?.data;

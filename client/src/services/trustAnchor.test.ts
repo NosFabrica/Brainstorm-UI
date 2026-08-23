@@ -17,6 +17,9 @@ const isUnlockCancelled = vi.fn(() => false);
 const identityHas = vi.fn(() => false);
 const isNip85Activated = vi.fn(() => false);
 const markNip85Activated = vi.fn();
+const clearNip85Activated = vi.fn();
+const activeAccount = vi.fn((): { pubkey: string } | null => null);
+const canSignSilently = vi.fn(async () => false);
 
 vi.mock("./api", () => ({
   apiClient: {
@@ -33,8 +36,8 @@ vi.mock("./nostr", () => ({
   signNip85: (...a: unknown[]) => signNip85(...(a as [])),
 }));
 vi.mock("@/accounts/signing", () => ({
-  activeAccount: () => null,
-  canSignSilently: async () => false,
+  activeAccount: () => activeAccount(),
+  canSignSilently: () => canSignSilently(),
 }));
 vi.mock("@/accounts/local-signer", () => ({
   isUnlockCancelled: (e: unknown) => isUnlockCancelled(e),
@@ -45,10 +48,12 @@ vi.mock("@/accounts/display", () => ({
 vi.mock("@/lib/nip85Activation", () => ({
   isNip85Activated: (...a: unknown[]) => isNip85Activated(...(a as [])),
   markNip85Activated: (...a: unknown[]) => markNip85Activated(...(a as [])),
+  clearNip85Activated: (...a: unknown[]) => clearNip85Activated(...(a as [])),
 }));
 
 import {
   checkExistingTrustProvider,
+  ensureBrainstormTrustAnchor,
   publishBrainstormTrustAnchor,
   shouldAutoPublishNip85,
   triggerScoringAndAnchor,
@@ -154,10 +159,13 @@ describe("checkExistingTrustProvider — the consent card's pre-check", () => {
     expect(markNip85Activated).toHaveBeenCalledWith(ME);
   });
 
-  it("a declaration naming someone else → other", async () => {
+  it("a declaration naming someone else → other, and the local flag is dropped", async () => {
     fetchTrustProviderList.mockResolvedValueOnce({ tags: [["30382:rank", "c".repeat(64), "wss://elsewhere"]] });
     expect(await checkExistingTrustProvider(ME, TA)).toBe("other");
     expect(markNip85Activated).not.toHaveBeenCalled();
+    // A foreign declaration is definitive presence — the "activated" cache must
+    // not keep claiming Brainstorm over it.
+    expect(clearNip85Activated).toHaveBeenCalledWith(ME);
   });
 
   // Any 10040 is not enough — assistants are per-user keys, so even a
@@ -168,6 +176,9 @@ describe("checkExistingTrustProvider — the consent card's pre-check", () => {
     fetchTrustProviderList.mockResolvedValue({ tags: [["30382:rank", "c".repeat(64), "wss://nip85.example"]] });
     expect(await checkExistingTrustProvider(ME)).toBe("other");
     expect(markNip85Activated).not.toHaveBeenCalled();
+    // …but with no assistant key to compare against, "other" is a guess, not
+    // evidence — the flag must survive it.
+    expect(clearNip85Activated).not.toHaveBeenCalled();
   });
 
   it("rank pubkey equal to the assistant counts even when the strict relay check fails", async () => {
@@ -175,5 +186,50 @@ describe("checkExistingTrustProvider — the consent card's pre-check", () => {
     expect(await checkExistingTrustProvider(ME, TA)).toBe("brainstorm");
     // …but only the strict both-tags+relay match is recorded as published fact.
     expect(markNip85Activated).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The automatic publish path (background poll + app-load self-heal) versus a
+ * foreign declaration. `isUsingBrainstorm === false` alone cannot tell "no
+ * 10040" from "a 10040 naming someone else" — and only the second must stop
+ * the publish: the user's on-relay declaration takes precedence over anything
+ * this app decided in the background.
+ */
+describe("ensureBrainstormTrustAnchor — the on-relay 10040 wins", () => {
+  beforeEach(() => {
+    isNip85Activated.mockReturnValue(false);
+    activeAccount.mockReturnValue({ pubkey: ME });
+    canSignSilently.mockResolvedValue(true);
+    // clearAllMocks keeps implementations — pin the inert defaults so a
+    // persistent mockResolvedValue can't leak between these tests.
+    fetchTrustProviderList.mockResolvedValue(undefined);
+    isUsingBrainstorm.mockResolvedValue(false);
+  });
+
+  it("backs off from a declaration naming a different assistant — never a silent replace", async () => {
+    fetchTrustProviderList.mockResolvedValue({ tags: [["30382:rank", "c".repeat(64), "wss://elsewhere"]] });
+
+    await ensureBrainstormTrustAnchor(ME, TA);
+
+    expect(signNip85).not.toHaveBeenCalled();
+    expect(publishToRelays).not.toHaveBeenCalled();
+    expect(markNip85Activated).not.toHaveBeenCalled();
+  });
+
+  it("records an existing Brainstorm declaration and stops", async () => {
+    isUsingBrainstorm.mockResolvedValueOnce(true);
+
+    await ensureBrainstormTrustAnchor(ME, TA);
+
+    expect(markNip85Activated).toHaveBeenCalledWith(ME);
+    expect(signNip85).not.toHaveBeenCalled();
+  });
+
+  it("publishes when relays hold no declaration at all", async () => {
+    await ensureBrainstormTrustAnchor(ME, TA);
+
+    expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example");
+    expect(markNip85Activated).toHaveBeenCalledWith(ME);
   });
 });
