@@ -75,6 +75,7 @@ import { signNip85, signNip85Deactivation, publishToRelays, getNip85RelayUrl } f
 import { logout } from "@/accounts/login-flow";
 import { isNip85Activated, markNip85Activated, clearNip85Activated } from "@/lib/nip85Activation";
 import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
+import { recordTrustProviderStatus } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
 import { DeferredSessionNotice } from "@/components/DeferredSession";
@@ -383,7 +384,7 @@ export default function SettingsPage() {
 
     if (result.success) {
       markNip85Activated(user.pubkey);
-      queryClient.invalidateQueries({ queryKey: ["trust-provider-status"] });
+      recordTrustProviderStatus(user.pubkey, "brainstorm");
       setRepublishState("success");
       toast({ title: "NIP-85 event updated", description: "Your service provider declaration has been re-published.", duration: 4000 });
       setTimeout(() => setRepublishState("idle"), 3000);
@@ -421,7 +422,7 @@ export default function SettingsPage() {
 
     if (result.success) {
       clearNip85Activated(user.pubkey);
-      queryClient.invalidateQueries({ queryKey: ["trust-provider-status"] });
+      recordTrustProviderStatus(user.pubkey, "none");
       setDeactivateState("success");
       toast({ title: "Provider deactivated", description: "Brainstorm no longer publishes your scores for other apps to use.", duration: 4000 });
       setTimeout(() => {

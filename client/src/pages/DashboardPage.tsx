@@ -126,6 +126,11 @@ import { TIER_LABELS } from "@/services/trustThreshold";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
 import { toPubkeys } from "../services/graphHelpers";
 import { ActivateBrainstormModal } from "@/components/ActivateBrainstormModal";
+import {
+  ActivateBrainstormPanel,
+  needsActivationPrompt,
+} from "@/components/ActivateBrainstormPanel";
+import { ActivateBrainstormInterstitial } from "@/components/ActivateBrainstormInterstitial";
 
 import protocolDevImg from "@/assets/stock_images/protocol_dev.jpg";
 import bitcoinImg from "@/assets/stock_images/bitcoin_network.jpg";
@@ -388,6 +393,32 @@ export default function DashboardPage() {
       if (nip85Activated) setNip85Activated(false);
     }
   }, [trustServiceProvider.data, nip85Activated]);
+
+  const showActivatePrompt = needsActivationPrompt({
+    status: trustServiceProvider.data,
+    locallyActivated: nip85Activated,
+    createdInApp: nip85CreatedInApp,
+  });
+
+  // Note: ta_pubkey needs no waiting — the backend creates it during login
+  // itself (authChallenge verify), so for any session-holder the first
+  // /user/history response already carries it. Signing is always performable.
+
+  // The full-page activation takeover. "Maybe later" is deliberately
+  // component state, not storage: it reveals the dashboard for THIS visit
+  // only, and navigating away and back re-raises the takeover.
+  const [activationGateDismissed, setActivationGateDismissed] = useState(false);
+  // Brief first-paint hold for accounts that LOOK un-activated (local flag),
+  // so the takeover doesn't rug-pull a fully rendered dashboard once the
+  // relay check settles ~1–3s in. Activated accounts skip the hold via the
+  // flag; the cap lets the dashboard through if relays are slow (the
+  // takeover then swaps in late, which is the lesser evil).
+  const [activationHoldExpired, setActivationHoldExpired] = useState(false);
+  useEffect(() => {
+    if (trustServiceProvider.isFetched) return;
+    const t = setTimeout(() => setActivationHoldExpired(true), 4000);
+    return () => clearTimeout(t);
+  }, [trustServiceProvider.isFetched]);
 
   const grapeRankRaw = grapeRankQuery.data?.data;
   const grapeRank = grapeRankRaw && typeof grapeRankRaw === "object" ? grapeRankRaw : null;
@@ -782,6 +813,69 @@ export default function DashboardPage() {
   // flag — both caused brand-new accounts to read as "Recalculating".
   const isRecalculation = !publishDone && hadPreviousScores;
 
+  // One modal instance, reachable from both the takeover and the dashboard.
+  const activateModal = (
+    <ActivateBrainstormModal
+      open={nip85ModalOpen}
+      onOpenChange={setNip85ModalOpen}
+      serviceKey={history?.ta_pubkey || ""}
+      onActivated={() => {
+        setNip85Activated(true);
+        // The provider-status cache was seeded to "brainstorm" by the publish
+        // itself (publishBrainstormTrustAnchor) — the 10040 we just published
+        // IS the new relay state, so nothing refetches into propagation lag
+        // and re-raises the prompt we're dismissing.
+        setNip85ModalOpen(false);
+        toast({ title: "Brainstorm activated!", description: "Your scores are now available across the nostr ecosystem." });
+      }}
+    />
+  );
+
+  // Zero-follow accounts are exempt from the takeover: their critical path is
+  // the follow-picker (scores can't exist without follows), and stacking two
+  // mandatory-feeling flows helps neither. They keep the inline panel below.
+  // `followsChecking` counts as zero-follow-maybe — no takeover until the
+  // relay verification says they really have a network.
+  const showActivationGate = showActivatePrompt && !activationGateDismissed && !hasNoFollowing && !followsChecking;
+  const holdForActivationCheck =
+    !trustServiceProvider.isFetched &&
+    !activationHoldExpired &&
+    !nip85Activated &&
+    !nip85CreatedInApp &&
+    !activationGateDismissed &&
+    !hasNoFollowing &&
+    !followsChecking;
+
+  if (showActivationGate || holdForActivationCheck) {
+    return (
+      <TooltipProvider>
+        <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-primary/[0.3] flex flex-col relative overflow-hidden" data-testid="page-dashboard">
+          <PageBackground />
+
+          <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="dashboard" />
+
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1 flex flex-col">
+            {showActivationGate ? (
+              <ActivateBrainstormInterstitial
+                scoresReady={calcDone}
+                onActivate={() => setNip85ModalOpen(true)}
+                onDismiss={() => setActivationGateDismissed(true)}
+              />
+            ) : (
+              <div className="flex-1 flex items-center justify-center" data-testid="activation-check-hold">
+                <Loader2 className="h-6 w-6 animate-spin text-brand-primary/50" />
+              </div>
+            )}
+          </div>
+
+          {activateModal}
+
+          <Footer minimal />
+        </div>
+      </TooltipProvider>
+    );
+  }
+
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-primary/[0.3] flex flex-col relative overflow-hidden" data-testid="page-dashboard">
@@ -975,6 +1069,14 @@ export default function DashboardPage() {
                       <Loader2 className="w-3 h-3 animate-spin" />
                       Recalculating...
                     </span>
+                  ) : publishDone && showActivatePrompt ? (
+                    // Scores exist but no kind-10040 points at them — "Score:
+                    // 47" / "Complete" would be the very hunky-dory signals
+                    // that buried the activation prompt. Say what's missing;
+                    // outranks the score readout on purpose.
+                    <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold" data-testid="text-overall-trust-score-sub">
+                      Not visible in apps yet
+                    </span>
                   ) : grapeRankScore ? (
                     <span className="text-xs text-slate-700 dark:text-slate-200 font-semibold" data-testid="text-overall-trust-score-sub">
                       Score: {grapeRankScore}
@@ -1044,6 +1146,14 @@ export default function DashboardPage() {
               )}
 
             </div>
+
+            {/* Activation prompt — the one thing a signed-in user may still have
+                to DO (sign their kind-10040) before their scores are visible in
+                other apps. Full-width, above everything, and deliberately not
+                waiting on any calculation state; see needsActivationPrompt. */}
+            {showActivatePrompt && (
+              <ActivateBrainstormPanel onActivate={() => setNip85ModalOpen(true)} />
+            )}
 
             <AlertDialog open={recalcConfirmOpen} onOpenChange={setRecalcConfirmOpen}>
               <AlertDialogContent
@@ -1210,7 +1320,13 @@ export default function DashboardPage() {
             <TaggedYouModule />
           </div>
 
-          {publishDone && !isRecalculating && !nip85Activated && !nip85Dismissed && (!nip85CreatedInApp || hasDeclinedNip85(user?.pubkey)) && (
+          {/* Legacy consent card — superseded by ActivateBrainstormPanel above,
+              which prompts without waiting for publishDone; it never renders
+              alongside the panel. Two cohorts still land here: in-app accounts
+              that explicitly DECLINED the consent card (needsActivationPrompt
+              skips createdInApp entirely; the post-cooldown re-ask lives here)
+              and accounts whose relay check couldn't settle. */}
+          {publishDone && !isRecalculating && !nip85Activated && !nip85Dismissed && (!nip85CreatedInApp || hasDeclinedNip85(user?.pubkey)) && !showActivatePrompt && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1266,16 +1382,7 @@ export default function DashboardPage() {
             </motion.div>
           )}
 
-          <ActivateBrainstormModal
-            open={nip85ModalOpen}
-            onOpenChange={setNip85ModalOpen}
-            serviceKey={history?.ta_pubkey || ""}
-            onActivated={() => {
-              setNip85Activated(true);
-              setNip85ModalOpen(false);
-              toast({ title: "Brainstorm activated!", description: "Your scores are now available across the nostr ecosystem." });
-            }}
-          />
+          {activateModal}
 
           {/* Investigate command bar — research entry point into the deep-dive
               analytics (/profile/:npub) for anyone in your network. */}
