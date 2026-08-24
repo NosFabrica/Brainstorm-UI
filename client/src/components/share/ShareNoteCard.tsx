@@ -170,10 +170,14 @@ export function ShareNoteCard({
   const authorHandle = authorProfile?.nip05
     ? authorProfile.nip05.replace(/^_@/, "@")
     : authorNpub ? `@${authorNpub.slice(0, 12)}…` : "";
-  const authorTier = typeof authorScore === "number" ? shareTierFor(authorScore, granularity) : null;
+  // Same fallback as EmbeddedNoteCard: callers that fetched a score pass it,
+  // the rest (more-from-author, tagged notes) ride the shared house cache.
+  const authorFallbackOf = useAuthorScores(authorScore == null ? [event.pubkey] : []);
+  const effectiveAuthorScore = authorScore ?? authorFallbackOf(event.pubkey);
+  const authorTier = typeof effectiveAuthorScore === "number" ? shareTierFor(effectiveAuthorScore, granularity) : null;
   // Through the hook, not an inline boxShadow — the old style drew in EVERY
   // display mode (number and off included); the ring is tier/word chrome.
-  const authorRing = tierRing(authorScore) ?? "";
+  const authorRing = tierRing(effectiveAuthorScore) ?? "";
 
   return (
     <div data-testid="note-card" onClick={onCardClick} className={clickable}>
@@ -198,7 +202,7 @@ export function ShareNoteCard({
                 </div>
               </div>
             </HoverCardTrigger>
-            {authorTier && typeof authorScore === "number" && (
+            {authorTier && typeof effectiveAuthorScore === "number" && (
               <HoverCardContent align="start" className="w-64 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xl" data-testid="note-author-trust">
                 <div className="flex items-center gap-3">
                   <Avatar className={`h-10 w-10 shrink-0 ${authorRing}`}>
@@ -210,13 +214,13 @@ export function ShareNoteCard({
                     {authorHandle && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{authorHandle}</p>}
                   </div>
                 </div>
-                <TierTile score01={authorScore} pov="global" caption="Verification Score" className="mt-3" />
+                <TierTile score01={effectiveAuthorScore} pov="global" caption="Verification Score" className="mt-3" />
                 <p className="mt-2.5 text-[11px] leading-snug text-slate-400 dark:text-slate-500">Ranked into this topic by trusted accounts — not follower counts.</p>
               </HoverCardContent>
             )}
           </HoverCard>
-          {typeof authorScore === "number" && (
-            <VerificationCoin score01={authorScore} pov="global" size={24} className={tierRing(authorScore) ? "sr-only ml-auto" : "ml-auto"} />
+          {typeof effectiveAuthorScore === "number" && (
+            <VerificationCoin score01={effectiveAuthorScore} pov="global" size={24} className={tierRing(effectiveAuthorScore) ? "sr-only ml-auto" : "ml-auto"} />
           )}
           <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">{ago(event.created_at)}</span>
         </div>

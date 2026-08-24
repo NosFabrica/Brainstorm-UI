@@ -4,6 +4,7 @@ import { BadgeCheck, MessageSquare } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { NoteContent } from "@/components/share/NoteContent";
 import { VerificationCoin, useTierRing } from "@/components/score/VerificationCoin";
+import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { npubFromPubkey } from "@/lib/shareId";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { analyzeNote, type MinimalEvent } from "@/lib/noteRefs";
@@ -46,7 +47,12 @@ export function EmbeddedNoteCard({
   showReplyContext?: boolean;
 }) {
   const tierRing = useTierRing();
-  const ring = tierRing(trustScore01);
+  // Callers that fetched a POV-aware score pass it; everyone else (thread
+  // ancestors, more-from-author, quoted embeds) gets the shared house cache,
+  // so no embedded note's author sits bare while its neighbours wear rings.
+  const fallbackScoreOf = useAuthorScores(trustScore01 == null ? [event.pubkey] : []);
+  const effectiveScore01 = trustScore01 ?? fallbackScoreOf(event.pubkey);
+  const ring = tierRing(effectiveScore01);
   const [, navigate] = useLocation();
   const name = author?.display_name || author?.name || "Unknown";
   let npub = "";
@@ -83,8 +89,8 @@ export function EmbeddedNoteCard({
           {author?.nip05 && <BadgeCheck className="h-3.5 w-3.5 text-sky-500 shrink-0" />}
         </a>
         <div className="ml-auto flex items-center gap-2 shrink-0">
-          {typeof trustScore01 === "number" && Number.isFinite(trustScore01) && (
-            <VerificationCoin score01={trustScore01} pov="global" size={22} className={ring ? "sr-only" : ""} />
+          {typeof effectiveScore01 === "number" && Number.isFinite(effectiveScore01) && (
+            <VerificationCoin score01={effectiveScore01} pov="global" size={22} className={ring ? "sr-only" : ""} />
           )}
           <span className="text-xs text-slate-400 dark:text-slate-500">{ago(event.created_at)}</span>
         </div>
