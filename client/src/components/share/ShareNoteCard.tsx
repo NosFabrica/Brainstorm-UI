@@ -2,6 +2,7 @@ import { useState, useMemo, type MouseEvent } from "react";
 import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { TierTile } from "@/components/score/TierTile";
+import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useLocation } from "wouter";
 import { Repeat2, MessageSquare } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -51,6 +52,8 @@ function ago(ts?: number): string {
 /** A reply-to chip: small avatar + clickable @name (opens the nav confirm). */
 function ReplyTarget({ pubkey, profiles }: { pubkey: string; profiles: Map<string, ProfileLite> }) {
   const requestNav = useShareNav();
+  const tierRing = useTierRing();
+  const scoreOf = useAuthorScores([pubkey]);
   const p = profiles.get(pubkey);
   const name = p?.display_name || p?.name || "someone";
   let npub = "";
@@ -61,7 +64,7 @@ function ReplyTarget({ pubkey, profiles }: { pubkey: string; profiles: Map<strin
       onClick={() => requestNav({ kind: "profile", target: npub || pubkey, label: name, picture: p?.picture })}
       className="inline-flex items-center gap-1 hover:underline"
     >
-      <Avatar className="h-4 w-4 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+      <Avatar className={`h-4 w-4 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 ${tierRing(scoreOf(pubkey), false, "sm") ?? ""}`}>
         {p?.picture ? <AvatarImage src={p.picture} alt={name} className="object-cover" /> : null}
         <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
       </Avatar>
