@@ -1,6 +1,7 @@
 // @vitest-environment node
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 /**
@@ -22,7 +23,9 @@ import { describe, expect, it } from "vitest";
  * for the same reason the pool lives there — `services/nostr.ts` may import from
  * `lib/`, and not the other way about.
  */
-const SOURCE_ROOT = new URL("../", import.meta.url).pathname;
+// fileURLToPath, not `.pathname`: a checkout under a directory with a space in
+// its name gives `Project%20B`, which readdirSync cannot open.
+const SOURCE_ROOT = fileURLToPath(new URL("../", import.meta.url));
 
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
