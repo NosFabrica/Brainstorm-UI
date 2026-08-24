@@ -1,5 +1,6 @@
 import { useMemo, useState, type MouseEvent } from "react";
 import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
+import { useTierRing } from "@/components/score/VerificationCoin";
 import { useHopsOrigin } from "@/hooks/useHopsOrigin";
 import { useRoute, Redirect, Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
@@ -35,6 +36,7 @@ function shortNpub(npub: string): string {
 export default function HopsPathPage() {
   const [displayMode] = useScoreDisplayMode();
   const [granularity] = useTierGranularity();
+  const tierRing = useTierRing();
   const [, navigate] = useLocation();
   const [, params] = useRoute("/p/:id/hops");
   const rawId = params?.id || "";
@@ -291,7 +293,7 @@ export default function HopsPathPage() {
                         the row height, connecting down to the next avatar. */}
                     <div className="flex flex-col items-center shrink-0">
                       <Link href={`/p/${npub}`} className="group">
-                        <Avatar className="h-10 w-10 ring-1 ring-slate-200 dark:ring-slate-800">
+                        <Avatar className={`h-10 w-10 ${tierRing(score) ?? "ring-1 ring-slate-200 dark:ring-slate-800"}`}>
                           {picture ? <AvatarImage src={picture} alt="" className="object-cover" /> : null}
                           <AvatarFallback className="bg-transparent p-0"><DefaultAvatarImg flagged={isEntryBad} /></AvatarFallback>
                         </Avatar>

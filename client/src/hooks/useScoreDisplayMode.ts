@@ -60,9 +60,14 @@ function readStored(): ScoreDisplayMode | null {
   }
 }
 
-/** The active mode; "number" until someone chooses otherwise (decision 5). */
+/**
+ * The active mode; "word" until someone chooses otherwise. Decision 5 shipped
+ * "number" as the default; the team review of the built modes (Aug 21)
+ * superseded it — the ring + tier word is the product's face now, and the
+ * 0–100 score is the opt-in for people who want the number.
+ */
 export function getScoreDisplayMode(): ScoreDisplayMode {
-  return readStored() ?? "number";
+  return readStored() ?? "word";
 }
 
 export function setScoreDisplayMode(mode: ScoreDisplayMode): void {

@@ -166,13 +166,15 @@ export function EventThread({
     setScoring(false);
   }, [povTag, usePersonal]);
 
-  // Score every commenter as soon as a logged-in viewer loads the thread — the
-  // per-comment trust pill is always-on, not gated behind the filter.
+  // Score every commenter as soon as the thread loads — the per-comment trust
+  // ring/pill is always-on, not gated behind the filter. Anonymous viewers get
+  // house scores (getHouseInfluence is unauthenticated), so their comment
+  // avatars wear rings too.
   useEffect(() => {
-    if (loggedIn && replies.length) {
+    if (replies.length) {
       void fetchScores(Array.from(new Set(replies.map((r) => r.pubkey))));
     }
-  }, [loggedIn, replies, fetchScores]);
+  }, [replies, fetchScores]);
 
   const scoreFor = (pk: string) => scoreCache.current.get(`${povTag}:${pk}`);
 
@@ -270,7 +272,7 @@ export function EventThread({
             author={profiles.get(reply.pubkey)}
             profiles={profiles}
             href={eventPath(reply, relayHints)}
-            trustScore01={loggedIn ? scoreFor(reply.pubkey) : undefined}
+            trustScore01={scoreFor(reply.pubkey)}
           />
         ))}
       </div>

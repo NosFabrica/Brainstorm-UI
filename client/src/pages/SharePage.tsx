@@ -223,8 +223,11 @@ export default function SharePage() {
         verified_only: true,
         house: true,
       });
-      const items = (res?.data?.items ?? []) as Array<string | { pubkey?: string }>;
-      return items.map((e) => (typeof e === "string" ? e : e?.pubkey)).filter((p): p is string => !!p);
+      const items = (res?.data?.items ?? []) as Array<string | { pubkey?: string; influence?: number | null }>;
+      // Keep the per-item influence — the cluster's tier rings ride on it free.
+      return items
+        .map((e) => (typeof e === "string" ? { pubkey: e, influence: null } : { pubkey: e?.pubkey ?? "", influence: typeof e?.influence === "number" ? e.influence : null }))
+        .filter((e) => !!e.pubkey);
     },
     enabled: !!pubkey,
     staleTime: 5 * 60_000,
@@ -232,7 +235,7 @@ export default function SharePage() {
   });
   // Owner can hand-pick the "Followed by" faces; otherwise auto top-trusted.
   const effectiveFollowerPubkeys = useMemo(
-    () => (prefs.pinnedFollowers.length > 0 ? prefs.pinnedFollowers : (followedByQuery.data ?? [])),
+    () => (prefs.pinnedFollowers.length > 0 ? prefs.pinnedFollowers : (followedByQuery.data ?? []).map((e) => e.pubkey)),
     [prefs.pinnedFollowers, followedByQuery.data],
   );
   const followedByProfilesQuery = useQuery({
@@ -242,10 +245,15 @@ export default function SharePage() {
     staleTime: 5 * 60_000,
     retry: false,
   });
+  const followedByScores = useMemo(
+    () => new Map((followedByQuery.data ?? []).map((e) => [e.pubkey, e.influence])),
+    [followedByQuery.data],
+  );
   const topFollowers = useMemo(() => {
     const profs = followedByProfilesQuery.data;
     return effectiveFollowerPubkeys.map((pk) => ({
       pubkey: pk,
+      score01: followedByScores.get(pk) ?? null,
       name: profs?.get(pk)?.display_name || profs?.get(pk)?.name,
       picture: profs?.get(pk)?.picture,
     }));
@@ -1146,7 +1154,7 @@ export default function SharePage() {
                 {/* Personal connection + value */}
                 <div className="flex items-start gap-3 min-w-0 flex-1">
                   {profile.picture && (
-                    <img src={profile.picture} alt="" className="hidden sm:block h-12 w-12 rounded-full object-cover ring-2 ring-white shadow shrink-0" />
+                    <img src={profile.picture} alt="" className={`hidden sm:block h-12 w-12 rounded-full object-cover shrink-0 ${tierRing(houseScore01) ?? "ring-2 ring-white shadow"}`} />
                   )}
                   <div className="min-w-0">
                     <div className="text-[11px] font-mono font-bold tracking-[0.2em] text-brand-link dark:text-brand-link uppercase">Join Brainstorm</div>

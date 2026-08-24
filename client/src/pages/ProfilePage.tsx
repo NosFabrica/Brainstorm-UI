@@ -104,6 +104,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useHasSession } from "@/hooks/useHasSession";
 import { TIER_LABELS } from "@/services/trustThreshold";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
+import { useTierRing } from "@/components/score/VerificationCoin";
 
 interface AdminHistoryItem {
   created_at: string;
@@ -626,6 +627,7 @@ interface ExpandedPanelProps {
 }
 
 const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
+  const tierRing = useTierRing();
   const [granularity] = useTierGranularity();
   // Decision 7: under Simple the menu offers the three buckets' worth of choices
   // — All / Verified / Unknown — not five shades it never draws.
@@ -827,7 +829,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
               onClick={() => navigateToProfile(pk)}
               data-testid={`expand-profile-${pk.slice(0,8)}`}
             >
-              <Avatar className="h-7 w-7 border border-slate-200/60 dark:border-slate-800/60 shrink-0">
+              <Avatar className={`h-7 w-7 border border-slate-200/60 dark:border-slate-800/60 shrink-0 ${tierRing(trustScore) ?? ""}`}>
                 <AvatarImage src={profile?.picture} />
                 <AvatarFallback className="bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link text-xs font-bold">
                   {displayName.charAt(0).toUpperCase()}
@@ -944,6 +946,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
 });
 
 export default function ProfilePage() {
+  const tierRing = useTierRing();
   const [location, navigate] = useLocation();
   const [, params] = useRoute("/profile/:npub");
   const npubParam = params?.npub || "";
@@ -2202,7 +2205,7 @@ export default function ProfilePage() {
             <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none rounded-2xl overflow-hidden relative">
               <div className="p-5 sm:p-6">
                 <div className="flex items-start gap-3 sm:gap-4 mb-4">
-                  <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 border-brand-primary/15 dark:border-brand-primary/25 shadow-md shrink-0">
+                  <Avatar className={`h-12 w-12 sm:h-16 sm:w-16 border-2 border-brand-primary/15 dark:border-brand-primary/25 shadow-md shrink-0 ${tierRing(houseInfluence01) ?? ""}`}>
                     {displayNostrProfile?.picture && (
                       <AvatarImage src={displayNostrProfile.picture} alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"} className="object-cover" />
                     )}
@@ -2293,7 +2296,7 @@ export default function ProfilePage() {
                     const assistantDefaultPicture = typeof window !== "undefined" ? `${window.location.origin}/assistant-default.webp` : "/assistant-default.webp";
                     const effectivePicture = displayNostrProfile?.picture || (isOwnAssistant ? assistantDefaultPicture : undefined);
                     return (
-                      <Avatar className="h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white dark:border-slate-900 shadow-lg bg-white dark:bg-slate-900 shrink-0 -mt-12 sm:-mt-16">
+                      <Avatar className={`h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white dark:border-slate-900 shadow-lg bg-white dark:bg-slate-900 shrink-0 -mt-12 sm:-mt-16 ${tierRing(profileResult?.influence ?? houseInfluence01) ?? ""}`}>
                         <AvatarImage src={effectivePicture} alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"} className="object-cover" />
                         <AvatarFallback className="bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link text-base sm:text-lg font-bold">
                           {(displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 2)).charAt(0).toUpperCase()}

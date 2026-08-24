@@ -1,5 +1,6 @@
 import { useState, useMemo, memo } from "react";
 import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
+import { useTierRing } from "@/components/score/VerificationCoin";
 import { tierForScore01 } from "@/components/score/VerificationCoin";
 import { rungFraction } from "@/lib/trustLadder";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
@@ -74,6 +75,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
   isMutedUser,
   isFlagged,
 }: NetworkProfileCardProps) {
+  const tierRing = useTierRing();
   const [displayMode] = useScoreDisplayMode();
   const [granularity] = useTierGranularity();
   const {
@@ -339,7 +341,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
         <div className="p-5">
           <div className="flex items-start justify-between gap-3 mb-4">
             <div className="flex items-center gap-3 min-w-0">
-              <Avatar className="h-12 w-12 border-2 border-brand-accent/20 shrink-0 shadow-sm dark:shadow-none">
+              <Avatar className={`h-12 w-12 border-2 border-brand-accent/20 shrink-0 shadow-sm dark:shadow-none ${tierRing(trustScore) ?? ""}`}>
                 {profile?.picture ? (
                   <AvatarImage
                     src={profile.picture}
@@ -758,7 +760,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
           onMouseLeave={() => onPrefetchLeave?.(pk)}
           data-testid={`card-profile-${pkShort}`}
         >
-          <Avatar className="h-7 w-7 border border-slate-200/60 dark:border-slate-800/60 shrink-0">
+          <Avatar className={`h-7 w-7 border border-slate-200/60 dark:border-slate-800/60 shrink-0 ${tierRing(trustScore) ?? ""}`}>
             {profile?.picture ? (
               <AvatarImage
                 src={profile.picture}
@@ -846,7 +848,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
         data-testid={`card-profile-${pkShort}`}
       >
         <div className="flex items-center gap-3">
-          <Avatar className="h-8 w-8 border border-slate-200/60 dark:border-slate-800/60">
+          <Avatar className={`h-8 w-8 border border-slate-200/60 dark:border-slate-800/60 ${tierRing(trustScore) ?? ""}`}>
             {profile?.picture ? (
               <AvatarImage
                 src={profile.picture}

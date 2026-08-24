@@ -130,6 +130,18 @@ const RING_BY_HUE: Record<string, string> = {
 
 const GLYPH_ICON: Record<Exclude<Glyph, "none">, typeof Check> = { check: Check, question: HelpCircle, flag: Flag };
 
+// Compact variant for micro avatars (face piles, h-6 clusters): 1px surface
+// step + 2px band. The full ring's 2+3px is ~40% of a 24px face and clips
+// against neighbours in overlapped piles.
+const RING_BY_HUE_SM: Record<string, string> = {
+  [TRUST_TIER_COLORS.highlyTrusted]: "shadow-[0_0_0_1px_#ffffff,0_0_0_3px_#7237ff] dark:shadow-[0_0_0_1px_#0f172a,0_0_0_3px_#7237ff]",
+  [TRUST_TIER_COLORS.trusted]: "shadow-[0_0_0_1px_#ffffff,0_0_0_3px_#13d2e5] dark:shadow-[0_0_0_1px_#0f172a,0_0_0_3px_#13d2e5]",
+  [TRUST_TIER_COLORS.neutral]: "shadow-[0_0_0_1px_#ffffff,0_0_0_3px_#665487] dark:shadow-[0_0_0_1px_#0f172a,0_0_0_3px_#665487]",
+  [TRUST_TIER_COLORS.lowTrust]: "shadow-[0_0_0_1px_#ffffff,0_0_0_3px_#f59e0b] dark:shadow-[0_0_0_1px_#0f172a,0_0_0_3px_#f59e0b]",
+  [TRUST_TIER_COLORS.unverified]: "shadow-[0_0_0_1px_#ffffff,0_0_0_3px_#8c929e] dark:shadow-[0_0_0_1px_#0f172a,0_0_0_3px_#8c929e]",
+  [TRUST_TIER_COLORS.flagged]: "shadow-[0_0_0_1px_#ffffff,0_0_0_3px_#ef4444] dark:shadow-[0_0_0_1px_#0f172a,0_0_0_3px_#ef4444]",
+};
+
 /**
  * Call-site helper for the avatar ring. Returns the ring's class for the given
  * score ONLY in tier mode (null otherwise, and null for unrated — no ring is
@@ -143,13 +155,14 @@ const GLYPH_ICON: Record<Exclude<Glyph, "none">, typeof Check> = { check: Check,
  * The coin goes `sr-only` rather than unmounted so its aria-label (the tier
  * word) and any onClick (the explainer modal) survive the visual swap.
  */
-export function useTierRing(): (score01: number | null | undefined, flagged?: boolean) => string | null {
+export function useTierRing(): (score01: number | null | undefined, flagged?: boolean, size?: "md" | "sm") => string | null {
   const [mode] = useScoreDisplayMode();
   const [granularity] = useTierGranularity();
-  return (score01, flagged = false) => {
+  return (score01, flagged = false, size = "md") => {
     if (mode !== "tier" && mode !== "word") return null;
     if (!flagged && (typeof score01 !== "number" || !Number.isFinite(score01))) return null;
-    return RING_BY_HUE[rungFor(score01, flagged, granularity).color] ?? null;
+    const table = size === "sm" ? RING_BY_HUE_SM : RING_BY_HUE;
+    return table[rungFor(score01, flagged, granularity).color] ?? null;
   };
 }
 

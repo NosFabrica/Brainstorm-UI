@@ -65,6 +65,7 @@ describe("VerificationCoin (simple ladder — the default, decision 8)", () => {
   });
 
   it("while loading, shows a pulse only where a coin will appear — never the unrated dash", () => {
+    localStorage.setItem("brainstorm_score_display:anon", "number");
     const { unmount } = render(<VerificationCoin score01={null} loading pov="global" />);
     expect(screen.getByTestId("coin-loading")).toBeInTheDocument();
     expect(screen.queryByTestId("verification-coin")).toBeNull();
@@ -189,6 +190,7 @@ describe("VerificationCoin (detailed ladder)", () => {
   });
 
   it("clamps out-of-range scores rather than printing them", () => {
+    localStorage.setItem("brainstorm_score_display:anon", "number");
     const { unmount } = render(<VerificationCoin score01={1.4} pov="global" />);
     expect(coin()).toHaveTextContent("100");
     unmount();
