@@ -2355,7 +2355,7 @@ export default function ProfilePage() {
                   {/* Degree (1st/2nd/3rd) — signed-in + scored viewers, not your own profile. */}
                   {hasSession && !isOwnProfile && user?.pubkey && hexPubkey &&
                     localStorage.getItem("brainstorm_calc_completed") === "true" && (
-                      <DegreeChip fromPubkey={user.pubkey} toPubkey={hexPubkey} rawId={npubParam} variant="bold" />
+                      <DegreeChip fromPubkey={user.pubkey} toPubkey={hexPubkey} rawId={npubParam} pov="personalized" variant="bold" />
                     )}
                   {theyFollowMe && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-brand-primary/10 dark:bg-brand-primary/10 px-2 py-0.5 text-[11px] font-semibold text-brand-link" data-testid="badge-follows-you">

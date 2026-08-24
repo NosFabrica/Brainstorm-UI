@@ -75,6 +75,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC } from "@/lib/profileDefaults";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useHasSession } from "@/hooks/useHasSession";
+import { useHopsOrigin } from "@/hooks/useHopsOrigin";
 
 type ProfileContentLike = Record<string, string | undefined>;
 
@@ -817,6 +818,9 @@ export default function SharePage() {
   // coin) instead of the dashed "—", which is a verdict.
   const coinLoading =
     scorePov === "personalized" ? overviewQuery.isLoading : houseRankQuery.isLoading && overviewQuery.isLoading;
+  // Whose distance the DegreeChip measures — follows the perspective toggle,
+  // falls back to House, works logged out. See useHopsOrigin.
+  const hopsOrigin = useHopsOrigin();
   // Contact as compact clickable icons — website, lightning address, external
   // identities. Lives top-right with the actions (and has a mobile fallback row),
   // never as verbose text at the bottom.
@@ -1062,11 +1066,13 @@ export default function SharePage() {
                   />
                 )}
                 {/* Degree (LinkedIn-style 1st/2nd/3rd) — a "good" metric, so it sits
-                    on line 1. Signed-in + scored viewers only (needs my pubkey as the
-                    path origin); hidden on your own profile. */}
-                {loggedIn && currentUser?.pubkey && pubkey && currentUser.pubkey !== pubkey &&
-                  localStorage.getItem("brainstorm_calc_completed") === "true" && (
-                    <DegreeChip fromPubkey={currentUser.pubkey} toPubkey={pubkey} rawId={rawId} />
+                    on line 1. Measured from the ACTIVE perspective: the viewer under
+                    personalized (when usable), House otherwise — including logged
+                    out. Own profile shows only under House ("how far is Brainstorm
+                    from me?"), and hides under personalized where from === to. */}
+                {hopsOrigin.origin && pubkey &&
+                  (hopsOrigin.origin !== pubkey || hopsOrigin.originPov === "global") && (
+                    <DegreeChip fromPubkey={hopsOrigin.origin} toPubkey={pubkey} rawId={rawId} pov={hopsOrigin.originPov} />
                   )}
               </div>
               <NegativeSignalStats
