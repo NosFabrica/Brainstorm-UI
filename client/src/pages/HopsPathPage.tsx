@@ -330,11 +330,22 @@ export default function HopsPathPage() {
                               title="What does this score mean?"
                               data-testid={`hops-score-${i}`}
                             >
-                              <div className={`flex items-center justify-end gap-1 text-sm font-bold tabular-nums leading-tight ${tier.text}`}>
-                                <PovIcon pov={scorePov} className="h-2.5 w-2.5" />
-                                {displayMode === "number" ? `${Math.round((score as number) * 100)}%` : ""}
-                              </div>
-                              <div className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">{tier.name}</div>
+                              {displayMode === "number" ? (
+                                <>
+                                  <div className={`flex items-center justify-end gap-1 text-sm font-bold tabular-nums leading-tight ${tier.text}`}>
+                                    <PovIcon pov={scorePov} className="h-2.5 w-2.5" />
+                                    {`${Math.round((score as number) * 100)}%`}
+                                  </div>
+                                  <div className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">{tier.name}</div>
+                                </>
+                              ) : (
+                                // No digits, no two-storey layout: one line, the
+                                // word in the tier's own color.
+                                <div className="flex items-center justify-end gap-1.5 text-xs font-semibold leading-tight" style={{ color: tier.color }}>
+                                  <PovIcon pov={scorePov} className="h-2.5 w-2.5" />
+                                  {tier.name}
+                                </div>
+                              )}
                               {(() => {
                                 // Subtle hint when the OTHER view disagrees (after
                                 // rounding): its number + which way it moves.
