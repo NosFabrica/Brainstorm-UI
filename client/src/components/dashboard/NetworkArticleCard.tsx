@@ -1,4 +1,5 @@
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
+import { useAuthorScores } from "@/hooks/useAuthorScores";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import type { NetworkArticle } from "@/hooks/useNetworkArticles";
 
@@ -22,10 +23,13 @@ export function NetworkArticleCard({
   profile?: ProfileLite;
 }) {
   const { event, author } = article;
+  // House score for the ring on the author chip — shared session cache, one
+  // request per author across the dashboard and /reading.
+  const scoreOf = useAuthorScores([event.pubkey]);
   return (
     <div className="flex h-full flex-col gap-1" data-testid="network-article">
       <div className="flex-1 [&>*]:!mt-0 [&>*]:h-full">
-        <EmbeddedArticleCard event={event as MinimalEvent} author={profile} />
+        <EmbeddedArticleCard event={event as MinimalEvent} author={profile} trustScore01={scoreOf(event.pubkey)} />
       </div>
       {/* Why you're seeing this — the one line no other client can print. The
           count is literally what it says: how many accounts you FOLLOW also follow
