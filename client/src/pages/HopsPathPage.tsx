@@ -319,7 +319,10 @@ export default function HopsPathPage() {
                             </div>
                             <div className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">{roleLabel}</div>
                           </Link>
-                          {!isOrigin && tier && (
+                          {/* Off means off — no score chip at all, same as the
+                              coin everywhere else. The path itself stays: degree
+                              is connection distance, not a verification score. */}
+                          {displayMode !== "off" && !isOrigin && tier && (
                             <button
                               type="button"
                               onClick={() => setScoreExplainOpen(true)}
