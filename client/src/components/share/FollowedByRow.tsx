@@ -43,7 +43,7 @@ export function FollowedByRow({ people, total, href, stacked = false }: { people
     >
       <div className="flex -space-x-1">
         {people.slice(0, 5).map((p) => (
-          <Avatar key={p.pubkey} className={`h-6 w-6 rounded-full bg-white dark:bg-slate-900 ${tierRing(p.score01, false, "sm") ?? "ring-2 ring-white dark:ring-slate-900"}`}>
+          <Avatar key={p.pubkey} className={`h-6 w-6 rounded-full bg-white dark:bg-slate-900 ${tierRing(p.score01, false, "sm", true) ?? "ring-2 ring-white dark:ring-slate-900"}`}>
             {p.picture ? <AvatarImage src={p.picture} alt="" className="object-cover" /> : null}
             <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
           </Avatar>

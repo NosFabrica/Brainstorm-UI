@@ -155,11 +155,24 @@ const RING_BY_HUE_SM: Record<string, string> = {
  * The coin goes `sr-only` rather than unmounted so its aria-label (the tier
  * word) and any onClick (the explainer modal) survive the visual swap.
  */
-export function useTierRing(): (score01: number | null | undefined, flagged?: boolean, size?: "md" | "sm") => string | null {
+export function useTierRing(): (
+  score01: number | null | undefined,
+  flagged?: boolean,
+  size?: "md" | "sm",
+  /**
+   * Micro surfaces (face piles, article/reply chips) have no coin, so without
+   * this they'd show NOTHING under Number and Level — breaking the promise
+   * that the chosen setting is represented everywhere. `always` makes the
+   * ring their rendering in every mode except Off. It rides the same channel
+   * number mode already uses: the coin's fill is the tier hue too.
+   */
+  always?: boolean,
+) => string | null {
   const [mode] = useScoreDisplayMode();
   const [granularity] = useTierGranularity();
-  return (score01, flagged = false, size = "md") => {
-    if (mode !== "tier" && mode !== "word") return null;
+  return (score01, flagged = false, size = "md", always = false) => {
+    if (mode === "off") return null;
+    if (!always && mode !== "tier" && mode !== "word") return null;
     if (!flagged && (typeof score01 !== "number" || !Number.isFinite(score01))) return null;
     const table = size === "sm" ? RING_BY_HUE_SM : RING_BY_HUE;
     return table[rungFor(score01, flagged, granularity).color] ?? null;

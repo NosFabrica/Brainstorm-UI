@@ -64,7 +64,7 @@ function ReplyTarget({ pubkey, profiles }: { pubkey: string; profiles: Map<strin
       onClick={() => requestNav({ kind: "profile", target: npub || pubkey, label: name, picture: p?.picture })}
       className="inline-flex items-center gap-1 hover:underline"
     >
-      <Avatar className={`h-4 w-4 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 ${tierRing(scoreOf(pubkey), false, "sm") ?? ""}`}>
+      <Avatar className={`h-4 w-4 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 ${tierRing(scoreOf(pubkey), false, "sm", true) ?? ""}`}>
         {p?.picture ? <AvatarImage src={p.picture} alt={name} className="object-cover" /> : null}
         <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
       </Avatar>

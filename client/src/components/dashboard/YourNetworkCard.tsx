@@ -132,7 +132,7 @@ export function YourNetworkCard({
                 className="rounded-full outline-none transition-transform hover:z-10 hover:-translate-y-0.5 focus-visible:z-10 focus-visible:ring-2 focus-visible:ring-brand-accent/50"
                 data-testid="your-network-face"
               >
-                <Avatar className={`h-6 w-6 rounded-full border border-slate-200 dark:border-slate-800 ${tierRing(f.score01, false, "sm") ?? "ring-2 ring-white dark:ring-slate-900"}`}>
+                <Avatar className={`h-6 w-6 rounded-full border border-slate-200 dark:border-slate-800 ${tierRing(f.score01, false, "sm", true) ?? "ring-2 ring-white dark:ring-slate-900"}`}>
                   {f.picture ? <AvatarImage src={f.picture} alt="" className="object-cover" /> : null}
                   <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
                 </Avatar>
