@@ -3,7 +3,7 @@ import { Link } from "wouter";
 import { BadgeCheck, ChevronRight } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { VerificationCoin, useTierRing } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import type { ScorePov } from "@/components/score/TrustScorePov";
 import { npubFromPubkey } from "@/lib/shareId";
 
@@ -37,6 +37,7 @@ export function TrustAvatar({
   pov: ScorePov;
 }) {
   const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
   const ring = tierRing(score);
   return (
     <div className="relative shrink-0">
@@ -47,7 +48,7 @@ export function TrustAvatar({
       {/* The Verification Score coin — same label-less badge as the profile hero,
           POV-aware (colored personalized / grey global). */}
       {score != null && (
-        <VerificationCoin score01={score} pov={pov} size={24} className={ring ? "sr-only" : "absolute -bottom-1 -right-1"} />
+        <VerificationCoin score01={score} pov={pov} size={24} className={ring && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1"} />
       )}
     </div>
   );

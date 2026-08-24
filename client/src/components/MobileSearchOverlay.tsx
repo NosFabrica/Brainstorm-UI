@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { Search, X, Clock, ArrowUpRight } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { VerificationCoin, useTierRing } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { getRecentItems, recentKey, pushRecentQuery, pushRecentProfile, removeRecentItem, clearRecentSearches, type RecentItem } from "@/lib/recentSearches";
 import { searchByText, isLikelyNpub, isHexPubkey, isNip05Handle, type SearchResult } from "@/lib/profileSearch";
 import { useActivePerspective } from "@/hooks/useActivePerspective";
@@ -37,6 +37,7 @@ export function openMobileSearch() {
  */
 export function MobileSearchOverlay() {
   const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
   const [, navigate] = useLocation();
   // Note this overlay has never handled `#topic` queries the way the other two
   // search surfaces do; tags are wired in here regardless so the three don't
@@ -225,7 +226,7 @@ export function MobileSearchOverlay() {
                       score01={r.wotRank}
                       pov={pov === "mywot" ? "personalized" : "global"}
                       size={22}
-                      className={tierRing(r.wotRank) ? "sr-only" : "shrink-0"}
+                      className={tierRing(r.wotRank) && coinReplaced ? "sr-only" : "shrink-0"}
                     />
                   )}
                 </button>

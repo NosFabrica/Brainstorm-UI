@@ -60,7 +60,7 @@ import { ProfileActions, OwnerActions } from "@/components/share/ProfileActions"
 import { Stat, StatLensToggle, type StatLens } from "@/components/share/StatToggle";
 import { NegativeSignalStats } from "@/components/share/NegativeSignalStats";
 import { useScorePov, TrustScoreModal } from "@/components/score/TrustScorePov";
-import { VerificationCoin, useTierRing, TierWordChip } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { extractImageUrls, extractVideoUrls, extractVideoPoster } from "@/lib/noteContent";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
@@ -91,6 +91,7 @@ function timeAgo(ts?: number): string {
 
 export default function SharePage() {
   const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
   const [, params] = useRoute("/p/:id");
   const rawId = params?.id || "";
   const decoded = useMemo(() => decodeShareId(rawId), [rawId]);
@@ -983,7 +984,7 @@ export default function SharePage() {
                 pov={scorePov}
                 size={32}
                 onClick={() => setScoreModalOpen(true)}
-                className={tierRing(coinScore01) ? "sr-only" : "absolute -bottom-1 -right-1"}
+                className={tierRing(coinScore01) && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1"}
               />
             </div>
             {/* Desktop: chip + icons + Follow/⋯. Mobile: just the contact icons

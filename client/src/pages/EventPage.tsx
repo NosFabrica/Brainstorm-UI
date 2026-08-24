@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import { ArrowLeft, BadgeCheck, Smartphone, Loader2, MessageSquare, ArrowRight, Share2, Check, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { VerificationCoin, useTierRing, TierWordChip } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { fetchEventsByIds, fetchAddressableEvents, fetchProfile, fetchProfileMap } from "@/services/nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { NoteTagChips } from "@/components/share/NoteTagChips";
@@ -95,6 +95,7 @@ function eventMediaUrls(ev: MinimalEvent): string[] {
  */
 export default function EventPage() {
   const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
   const [, params] = useRoute("/e/:id");
   const raw = (params?.id || "").replace(/^nostr:/, "");
   const ptr = useMemo(() => decodeEventId(raw), [raw]);
@@ -329,7 +330,7 @@ export default function EventPage() {
                     <AvatarFallback className="rounded-full bg-brand-primary/15 text-brand-primary text-sm font-bold">{initialsFor(authorName)}</AvatarFallback>
                   </Avatar>
                   {typeof score01 === "number" && Number.isFinite(score01) && (
-                    <VerificationCoin score01={score01} pov="global" size={22} className={tierRing(score01) ? "sr-only" : "absolute -bottom-1 -right-1 ring-2 ring-white dark:ring-slate-900 rounded-full"} />
+                    <VerificationCoin score01={score01} pov="global" size={22} className={tierRing(score01) && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1 ring-2 ring-white dark:ring-slate-900 rounded-full"} />
                   )}
                 </span>
                 <div className="min-w-0">

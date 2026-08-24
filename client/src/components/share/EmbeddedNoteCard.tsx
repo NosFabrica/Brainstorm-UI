@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { BadgeCheck, MessageSquare } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { NoteContent } from "@/components/share/NoteContent";
-import { VerificationCoin, useTierRing } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { npubFromPubkey } from "@/lib/shareId";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -47,6 +47,7 @@ export function EmbeddedNoteCard({
   showReplyContext?: boolean;
 }) {
   const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
   // Callers that fetched a POV-aware score pass it; everyone else (thread
   // ancestors, more-from-author, quoted embeds) gets the shared house cache,
   // so no embedded note's author sits bare while its neighbours wear rings.
@@ -90,7 +91,7 @@ export function EmbeddedNoteCard({
         </a>
         <div className="ml-auto flex items-center gap-2 shrink-0">
           {typeof effectiveScore01 === "number" && Number.isFinite(effectiveScore01) && (
-            <VerificationCoin score01={effectiveScore01} pov="global" size={22} className={ring ? "sr-only" : ""} />
+            <VerificationCoin score01={effectiveScore01} pov="global" size={22} className={ring && coinReplaced ? "sr-only" : ""} />
           )}
           <span className="text-xs text-slate-400 dark:text-slate-500">{ago(event.created_at)}</span>
         </div>

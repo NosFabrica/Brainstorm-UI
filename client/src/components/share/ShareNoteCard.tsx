@@ -8,7 +8,7 @@ import { Repeat2, MessageSquare } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
 import { shareTierFor } from "@/components/share/TrustScoreBadge";
-import { VerificationCoin, useTierRing } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { NoteContent } from "@/components/share/NoteContent";
 import { parseNoteContent } from "@/lib/noteContent";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
@@ -53,6 +53,7 @@ function ago(ts?: number): string {
 function ReplyTarget({ pubkey, profiles }: { pubkey: string; profiles: Map<string, ProfileLite> }) {
   const requestNav = useShareNav();
   const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
   const scoreOf = useAuthorScores([pubkey]);
   const p = profiles.get(pubkey);
   const name = p?.display_name || p?.name || "someone";
@@ -111,6 +112,7 @@ export function ShareNoteCard({
 }) {
   const [displayMode] = useScoreDisplayMode();
   const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
   const [granularity] = useTierGranularity();
   const [expanded, setExpanded] = useState(false);
   const [, navigate] = useLocation();
@@ -220,7 +222,7 @@ export function ShareNoteCard({
             )}
           </HoverCard>
           {typeof effectiveAuthorScore === "number" && (
-            <VerificationCoin score01={effectiveAuthorScore} pov="global" size={24} className={tierRing(effectiveAuthorScore) ? "sr-only ml-auto" : "ml-auto"} />
+            <VerificationCoin score01={effectiveAuthorScore} pov="global" size={24} className={tierRing(effectiveAuthorScore) && coinReplaced ? "sr-only ml-auto" : "ml-auto"} />
           )}
           <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">{ago(event.created_at)}</span>
         </div>

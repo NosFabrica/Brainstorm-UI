@@ -5,7 +5,7 @@ import { ShieldAlert, ShieldCheck, VolumeX, UserMinus, ArrowRight, Loader2, Chev
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { VerificationCoin, useTierRing } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { isFlaggedAlert } from "@/services/api";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
@@ -644,6 +644,7 @@ export function AlertRow({ entry, name, picture, isNew, following, escalatedFrom
 }) {
   const actionBtn = "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40";
   const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
   // Decision 2: the backend's reporter threshold is the flag.
   const flagged = isFlaggedAlert(entry);
   const ring = tierRing(entry.influence, flagged);
@@ -689,7 +690,7 @@ export function AlertRow({ entry, name, picture, isNew, following, escalatedFrom
               : `${entry.verifiedReporterCount} verified reports${entry.verifiedMuterCount > 0 ? ` · muted by ${entry.verifiedMuterCount}` : ""}`} · why?
           </button>
         </div>
-        <VerificationCoin score01={entry.influence} flagged={flagged} pov="global" size={22} className={ring ? "sr-only" : "shrink-0"} />
+        <VerificationCoin score01={entry.influence} flagged={flagged} pov="global" size={22} className={ring && coinReplaced ? "sr-only" : "shrink-0"} />
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5 pl-10">

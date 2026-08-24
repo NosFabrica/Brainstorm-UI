@@ -172,7 +172,11 @@ export function useTierRing(): (
   const [granularity] = useTierGranularity();
   return (score01, flagged = false, size = "md", always = false) => {
     if (mode === "off") return null;
-    if (!always && mode !== "tier" && mode !== "word") return null;
+    // The ring is the ambient tier layer in every mode except Off (uniformity
+    // review): Level wears it around the avatar with the pips on top; only
+    // Number keeps big avatars bare, since the digit coin already carries the
+    // tier in its fill. (Micro surfaces pass `always` and ring under Number too.)
+    if (!always && mode !== "tier" && mode !== "word" && mode !== "level") return null;
     if (!flagged && (typeof score01 !== "number" || !Number.isFinite(score01))) return null;
     const table = size === "sm" ? RING_BY_HUE_SM : RING_BY_HUE;
     return table[rungFor(score01, flagged, granularity).color] ?? null;
@@ -357,6 +361,16 @@ export function VerificationCoin({
  * aria-hidden because the sr-only coin at the same surface already announces
  * the tier; the chip is its visual twin, not a second fact.
  */
+/**
+ * Whether the avatar ring REPLACES the visible coin (tier/word — the ring and
+ * chip are the rendering) or accompanies it (level — the pips stay visible on
+ * the ring). Ring call sites use this instead of `ring ? "sr-only" : …`.
+ */
+export function useCoinReplacedByRing(): boolean {
+  const [mode] = useScoreDisplayMode();
+  return mode === "tier" || mode === "word";
+}
+
 export function TierWordChip({
   score01,
   flagged = false,

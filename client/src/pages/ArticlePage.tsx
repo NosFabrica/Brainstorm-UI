@@ -9,7 +9,7 @@ import { LinkChip } from "@/components/share/LinkPreview";
 import { nip19 } from "nostr-tools";
 import { ArrowLeft, ArrowRight, BadgeCheck, Smartphone, Loader2, FileText } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { VerificationCoin, useTierRing, TierWordChip } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { fetchAddressableEvents, fetchProfile } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 import { openArticleInApp } from "@/lib/articleLinks";
@@ -83,6 +83,7 @@ function publishedAgo(ev: { tags: string[][]; created_at: number }): string {
  */
 export default function ArticlePage() {
   const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
   const [, params] = useRoute("/a/:id");
   const naddr = (params?.id || "").replace(/^nostr:/, "");
   const ptr = useMemo(() => decodeNaddr(naddr), [naddr]);
@@ -194,7 +195,7 @@ export default function ArticlePage() {
                     <AvatarFallback className="rounded-full bg-brand-primary/15 text-brand-primary text-sm font-bold">{initialsFor(authorName)}</AvatarFallback>
                   </Avatar>
                   {typeof score01 === "number" && Number.isFinite(score01) && (
-                    <VerificationCoin score01={score01} pov="global" size={20} className={tierRing(score01) ? "sr-only" : "absolute -bottom-1 -right-1 ring-2 ring-white dark:ring-slate-900 rounded-full"} />
+                    <VerificationCoin score01={score01} pov="global" size={20} className={tierRing(score01) && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1 ring-2 ring-white dark:ring-slate-900 rounded-full"} />
                   )}
                 </span>
                 <div className="min-w-0">

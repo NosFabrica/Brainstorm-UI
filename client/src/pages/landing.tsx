@@ -25,7 +25,7 @@ import { SignInButton } from "@/components/SignInButton";
 import { AccountMenu } from "@/components/AccountMenu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { VerificationCoin, useTierRing, TierWordChip } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { EmptyState } from "@/components/ui/empty-state";
 import { fetchProfile } from "@/services/nostr";
 import { logout } from "@/accounts/login-flow";
@@ -104,6 +104,7 @@ async function resolveNip05(handle: string): Promise<string> {
 
 export default function Landing() {
   const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [query, setQuery] = useState(() => {
@@ -919,7 +920,7 @@ export default function Landing() {
                               score01={s.wotRank}
                               pov={effectivePov === "mywot" ? "personalized" : "global"}
                               size={22}
-                              className={tierRing(s.wotRank) ? "sr-only" : "shrink-0"}
+                              className={tierRing(s.wotRank) && coinReplaced ? "sr-only" : "shrink-0"}
                             />
                           )}
                         </button>
@@ -1209,7 +1210,7 @@ export default function Landing() {
                             score01={result.wotRank}
                             pov={effectivePov === "mywot" ? "personalized" : "global"}
                             size={22}
-                            className={tierRing(result.wotRank) ? "sr-only" : "absolute -bottom-1 -right-1"}
+                            className={tierRing(result.wotRank) && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1"}
                           />
                         )}
                       </div>

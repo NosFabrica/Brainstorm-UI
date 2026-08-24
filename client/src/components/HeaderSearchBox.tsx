@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type Keyboard
 import { useLocation } from "wouter";
 import { Search, Loader2, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { VerificationCoin, useTierRing } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { searchByText, isLikelyNpub, isHexPubkey, isNip05Handle, type SearchResult } from "@/lib/profileSearch";
 import { npubFromPubkey } from "@/lib/shareId";
 import { initialsFor } from "@/lib/profileDefaults";
@@ -37,6 +37,7 @@ export function HeaderSearchBox({
   resolveDirect?: boolean;
 }) {
   const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
   const [, navigate] = useLocation();
   const [q, setQ] = useState("");
   const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
@@ -229,7 +230,7 @@ export function HeaderSearchBox({
                     score01={r.wotRank}
                     pov={effectivePov === "mywot" ? "personalized" : "global"}
                     size={22}
-                    className={tierRing(r.wotRank) ? "sr-only" : "shrink-0"}
+                    className={tierRing(r.wotRank) && coinReplaced ? "sr-only" : "shrink-0"}
                   />
                 )}
               </button>
