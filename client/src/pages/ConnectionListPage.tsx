@@ -17,6 +17,7 @@ import { VerificationCoin } from "@/components/score/VerificationCoin";
 import { useHasSession } from "@/hooks/useHasSession";
 import { PersonListRow } from "@/components/PersonListRow";
 import { TIER_LABELS } from "@/services/trustThreshold";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
 
 type ConnKind = "followed_by" | "following" | "muted_by" | "reported_by";
 
@@ -58,6 +59,11 @@ export default function ConnectionListPage() {
   // stays honest (no client-side reshuffling of partial pages).
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [tierFilter, setTierFilter] = useState<"all" | "high" | "medium_high" | "medium" | "medium_low">("all");
+  // Decision 7, with a constraint: the backend's `tier` filter is one bucket at a
+  // time and can't express "Verified = every tier above the line", so under
+  // Simple the five-shade chips are hidden rather than mislabelled. The rows'
+  // coins already show the bucket.
+  const [granularity] = useTierGranularity();
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
 
   // Subject profile — reuse SharePage's cache key so a click from /p/:id is warm.
@@ -261,6 +267,7 @@ export default function ConnectionListPage() {
                   narrower phone. `-mx-3 px-3` bleeds the scroll area to the card
                   edge so it reads as scrollable; from `sm:` up there's room, so it
                   reverts to a plain wrapping row. Scrollbars are hidden app-wide. */}
+              {granularity === "detailed" && (
               <div>
                 <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Trust level</span>
                 <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
@@ -277,6 +284,7 @@ export default function ConnectionListPage() {
                   ))}
                 </div>
               </div>
+              )}
               <div>
                 <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Sort</span>
                 <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">

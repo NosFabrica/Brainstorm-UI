@@ -1,10 +1,13 @@
 import { useState, useMemo, type MouseEvent } from "react";
+import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
+import { TierTile } from "@/components/score/TierTile";
 import { useLocation } from "wouter";
 import { Repeat2, MessageSquare } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
-import { tierForScore } from "@/components/share/TrustScoreBadge";
-import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { shareTierFor } from "@/components/share/TrustScoreBadge";
+import { VerificationCoin, useTierRing } from "@/components/score/VerificationCoin";
 import { NoteContent } from "@/components/share/NoteContent";
 import { parseNoteContent } from "@/lib/noteContent";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
@@ -103,6 +106,9 @@ export function ShareNoteCard({
    *  query, not one per card — see ACCEPTANCE C2 and `useEventTagsBatch`. */
   tags?: NoteTag[];
 }) {
+  const [displayMode] = useScoreDisplayMode();
+  const tierRing = useTierRing();
+  const [granularity] = useTierGranularity();
   const [expanded, setExpanded] = useState(false);
   const [, navigate] = useLocation();
   const onCardClick = openOnCardClick(href, navigate);
@@ -161,7 +167,7 @@ export function ShareNoteCard({
   const authorHandle = authorProfile?.nip05
     ? authorProfile.nip05.replace(/^_@/, "@")
     : authorNpub ? `@${authorNpub.slice(0, 12)}…` : "";
-  const authorTier = typeof authorScore === "number" ? tierForScore(authorScore) : null;
+  const authorTier = typeof authorScore === "number" ? shareTierFor(authorScore, granularity) : null;
   const ringStyle = authorTier ? { boxShadow: `0 0 0 2px #fff, 0 0 0 3.5px ${authorTier.ring}` } : undefined;
 
   return (
@@ -199,27 +205,13 @@ export function ShareNoteCard({
                     {authorHandle && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{authorHandle}</p>}
                   </div>
                 </div>
-                <div
-                  className="mt-3 flex items-center gap-3 rounded-xl border p-2.5"
-                  style={{ borderColor: `${authorTier.color}40`, backgroundColor: `${authorTier.color}0d` }}
-                >
-                  <span
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg font-mono text-base font-bold tabular-nums"
-                    style={{ color: authorTier.color, backgroundColor: `${authorTier.color}1a` }}
-                  >
-                    {Math.round(authorScore * 100)}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold leading-tight" style={{ color: authorTier.color }}>{authorTier.name}</p>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Verification Score</p>
-                  </div>
-                </div>
+                <TierTile score01={authorScore} pov="global" caption="Verification Score" className="mt-3" />
                 <p className="mt-2.5 text-[11px] leading-snug text-slate-400 dark:text-slate-500">Ranked into this topic by trusted accounts — not follower counts.</p>
               </HoverCardContent>
             )}
           </HoverCard>
           {typeof authorScore === "number" && (
-            <VerificationCoin score01={authorScore} pov="global" size={24} className="ml-auto" />
+            <VerificationCoin score01={authorScore} pov="global" size={24} className={tierRing(authorScore) ? "sr-only ml-auto" : "ml-auto"} />
           )}
           <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">{ago(event.created_at)}</span>
         </div>

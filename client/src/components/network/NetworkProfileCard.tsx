@@ -1,4 +1,8 @@
 import { useState, useMemo, memo } from "react";
+import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
+import { tierForScore01 } from "@/components/score/VerificationCoin";
+import { rungFraction } from "@/lib/trustLadder";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { nip19 } from "nostr-tools";
 import {
   Search as SearchIcon,
@@ -70,6 +74,8 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
   isMutedUser,
   isFlagged,
 }: NetworkProfileCardProps) {
+  const [displayMode] = useScoreDisplayMode();
+  const [granularity] = useTierGranularity();
   const {
     trustCacheRef,
     activeGroupRef,
@@ -198,6 +204,10 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
     if (trustScore === null) return null;
     const score = Math.min(1, Math.max(0, trustScore));
     const pct = Math.round(score * 100);
+    // Ring follows the display mode: exact / 5-step quantized / full-hue.
+    const arcFrac =
+      displayMode === "number" ? score :
+      displayMode === "level" ? rungFraction(score, false, granularity) : 1;
     const ringColor =
       pct >= 50
         ? "stroke-emerald-500"
@@ -207,7 +217,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
             ? "stroke-orange-300"
             : "stroke-amber-500";
     const circumference = 2 * Math.PI * 18;
-    const offset = circumference - score * circumference;
+    const offset = circumference - arcFrac * circumference;
     const size = compact ? "w-7 h-7" : "w-9 h-9";
     const textSize = compact ? "text-[10px]" : "text-xs";
     const guidance = getVerificationGuidance(pct, displayName);
@@ -252,7 +262,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
               <span
                 className={`${textSize} font-bold font-mono tabular-nums text-brand-primary dark:text-brand-link`}
               >
-                {pct}
+                {displayMode === "number" ? pct : ""}
               </span>
             </div>
           </div>

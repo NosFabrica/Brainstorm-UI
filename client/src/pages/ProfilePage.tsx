@@ -103,6 +103,7 @@ import { fetchContactList, getFollowedPubkeys, fetchMyReport, type MyReport } fr
 import { useToast } from "@/hooks/use-toast";
 import { useHasSession } from "@/hooks/useHasSession";
 import { TIER_LABELS } from "@/services/trustThreshold";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
 
 interface AdminHistoryItem {
   created_at: string;
@@ -625,6 +626,15 @@ interface ExpandedPanelProps {
 }
 
 const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
+  const [granularity] = useTierGranularity();
+  // Decision 7: under Simple the menu offers the three buckets' worth of choices
+  // — All / Verified / Unknown — not five shades it never draws.
+  const visibleFilterOptions =
+    granularity === "simple"
+      ? FILTER_OPTIONS.filter((o) => o.value === "all" || o.value === "verified" || o.value === "unverified").map((o) =>
+          o.value === "unverified" ? { ...o, label: "Unknown" } : o,
+        )
+      : FILTER_OPTIONS;
   const {
     sectionKey: key, pubkeys, filter, sort, search, reportTypeFilter, visibleCount,
     sectionTotal,
@@ -681,14 +691,14 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
               data-testid={`filter-toggle-${key}`}
             >
               <Filter className="h-3 w-3" />
-              {filter !== "all" ? FILTER_OPTIONS.find(f => f.value === filter)?.label : "Filter"}
+              {filter !== "all" ? visibleFilterOptions.find(f => f.value === filter)?.label : "Filter"}
               <ChevronDown className="h-2.5 w-2.5" />
             </button>
             {filterDropdownOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); onToggleFilterDropdown(key, false); }} />
                 <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-900 rounded-lg shadow-lg border border-slate-200 dark:border-slate-800 py-1 min-w-[140px]">
-                  {FILTER_OPTIONS.map(opt => (
+                  {visibleFilterOptions.map(opt => (
                     <button
                       key={opt.value}
                       onClick={(e) => {
@@ -1673,10 +1683,18 @@ export default function ProfilePage() {
     { key: "unverified", name: "Unverified", color: "#8c929e", bg: "bg-slate-100 dark:bg-slate-800", text: "text-slate-500 dark:text-slate-400", border: "border-slate-200 dark:border-slate-800", ring: "stroke-slate-400" },
   ];
 
+  const [granularity] = useTierGranularity();
   const profileTier = useMemo(() => {
     const backendTier = profileOverviewQuery.data?.tier;
     if (!backendTier) return null;
     const uiKey = GR_TIER_TO_UI[backendTier] ?? "unverified";
+    // Decision 1/7: under Simple the backend's verdict folds to Verified (any
+    // tier at or above the line) or Unknown — Flagged is the banner's job here.
+    if (granularity === "simple") {
+      return uiKey === "unverified"
+        ? { key: "unknown", name: "Unknown", color: "#8c929e", bg: "bg-slate-100 dark:bg-slate-800", text: "text-slate-500 dark:text-slate-400", border: "border-slate-200 dark:border-slate-800", ring: "stroke-slate-400" }
+        : { key: "verified", name: "Verified", color: "#13d2e5", bg: "bg-cyan-50 dark:bg-cyan-500/10", text: "text-cyan-700 dark:text-cyan-300", border: "border-cyan-200 dark:border-cyan-500/25", ring: "stroke-cyan-500" };
+    }
     return TIER_DISPLAY_CONFIG.find(t => t.key === uiKey) ?? null;
   }, [profileOverviewQuery.data]);
 
@@ -1756,8 +1774,15 @@ export default function ProfilePage() {
       { tier: "low", label: "Low", color: "text-amber-500" },
       { tier: "unverified", label: "Unverified", color: "text-zinc-400" },
     ];
-    return tierDefs.filter(t => counts[t.tier] > 0).map(t => ({ tier: t.label, count: counts[t.tier], color: t.color }));
-  }, [sectionStats]);
+    const rows = tierDefs.filter(t => counts[t.tier] > 0).map(t => ({ tier: t.label, count: counts[t.tier], color: t.color }));
+    if (granularity !== "simple") return rows;
+    const verified = tierDefs.filter(t => t.tier !== "unverified").reduce((a, t) => a + (counts[t.tier] ?? 0), 0);
+    const unknown = counts.unverified ?? 0;
+    return [
+      { tier: "Verified", count: verified, color: "text-cyan-600" },
+      { tier: "Unknown", count: unknown, color: "text-zinc-400" },
+    ].filter(r => r.count > 0);
+  }, [sectionStats, granularity]);
 
   const seedTrustForSection = useCallback((key: string, pubkeys: string[]) => {
     // Seed expandTrustCache from already-known influence values so we never
@@ -2330,7 +2355,7 @@ export default function ProfilePage() {
                   {/* Degree (1st/2nd/3rd) — signed-in + scored viewers, not your own profile. */}
                   {hasSession && !isOwnProfile && user?.pubkey && hexPubkey &&
                     localStorage.getItem("brainstorm_calc_completed") === "true" && (
-                      <DegreeChip fromPubkey={user.pubkey} toPubkey={hexPubkey} rawId={npubParam} variant="bold" />
+                      <DegreeChip fromPubkey={user.pubkey} toPubkey={hexPubkey} rawId={npubParam} pov="personalized" variant="bold" />
                     )}
                   {theyFollowMe && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-brand-primary/10 dark:bg-brand-primary/10 px-2 py-0.5 text-[11px] font-semibold text-brand-link" data-testid="badge-follows-you">

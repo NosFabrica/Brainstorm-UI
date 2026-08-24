@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import { ArrowLeft, BadgeCheck, Smartphone, Loader2, MessageSquare, ArrowRight, Share2, Check, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing, TierWordChip } from "@/components/score/VerificationCoin";
 import { fetchEventsByIds, fetchAddressableEvents, fetchProfile, fetchProfileMap } from "@/services/nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { NoteTagChips } from "@/components/share/NoteTagChips";
@@ -94,6 +94,7 @@ function eventMediaUrls(ev: MinimalEvent): string[] {
  * tier (our differentiator), and funnels anonymous readers into signup.
  */
 export default function EventPage() {
+  const tierRing = useTierRing();
   const [, params] = useRoute("/e/:id");
   const raw = (params?.id || "").replace(/^nostr:/, "");
   const ptr = useMemo(() => decodeEventId(raw), [raw]);
@@ -323,17 +324,18 @@ export default function EventPage() {
             <div className="flex items-center gap-3 mb-4">
               <Link href={authorNpub ? `/p/${authorNpub}` : "#"} className="flex items-center gap-2.5 min-w-0 hover:opacity-80">
                 <span className="relative shrink-0">
-                  <Avatar className="h-12 w-12 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                  <Avatar className={`h-12 w-12 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 ${tierRing(score01) ?? ""}`}>
                     {profile.picture ? <AvatarImage src={profile.picture} alt={authorName} className="object-cover" /> : null}
                     <AvatarFallback className="rounded-full bg-brand-primary/15 text-brand-primary text-sm font-bold">{initialsFor(authorName)}</AvatarFallback>
                   </Avatar>
                   {typeof score01 === "number" && Number.isFinite(score01) && (
-                    <VerificationCoin score01={score01} pov="global" size={22} className="absolute -bottom-1 -right-1 ring-2 ring-white dark:ring-slate-900 rounded-full" />
+                    <VerificationCoin score01={score01} pov="global" size={22} className={tierRing(score01) ? "sr-only" : "absolute -bottom-1 -right-1 ring-2 ring-white dark:ring-slate-900 rounded-full"} />
                   )}
                 </span>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{authorName}</span>
+                    <TierWordChip score01={score01} />
                     {profile.nip05 && <BadgeCheck className="h-4 w-4 text-sky-500 shrink-0" />}
                   </div>
                   <span className="text-xs text-slate-400 dark:text-slate-500">{ago(note.created_at)}</span>

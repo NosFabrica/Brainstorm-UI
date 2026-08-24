@@ -2,6 +2,8 @@ import { useEffect, useState, useRef, useMemo } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { PageHeader } from "@/components/PageHeader";
 import { TRUST_TIER_COLORS } from "@/services/trustThreshold";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
+import { ladderFor, type Bucket } from "@/lib/trustLadder";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
 import { PresetBadge } from "@/components/PresetBadge";
@@ -585,6 +587,12 @@ export default function DashboardPage() {
     { key: "low_and_reported_by_2_or_more_trusted_pubkeys", name: "Flagged", color: TRUST_TIER_COLORS.flagged },
   ] as const;
 
+  // Decision 7: the composition chart follows the viewer's ladder. Under Simple
+  // the five tiers fold into Verified (at or above the verified line — the
+  // `medium_low` bucket's lower bound IS that line) and Unknown (`low`); Flagged
+  // stays its own slice.
+  const [granularity] = useTierGranularity();
+
   const countValues = useMemo(() => {
     if (!grapeRank) return null;
     const raw = (grapeRank as any).count_values;
@@ -599,7 +607,7 @@ export default function DashboardPage() {
   // Direct flagged count (DISTINCT flagged users across all of your
   // relationships), from /overview — preserves the legacy /self graph's flagged
   // semantics and matches NetworkPage. Only consumed by the pre-calc
-  // `enhancedPieData` fallback slice (the post-calc pie reads count_values via
+  // `pieData` fallback slice (the post-calc pie reads count_values via
   // aggregateByHopRange).
   const flaggedCount = overview?.flagged_count ?? 0;
 
@@ -676,7 +684,20 @@ export default function DashboardPage() {
     }).filter(d => d.value > 0 || d.name === "Flagged");
   }, [countValues, hopRange, followersCount, followingCount, mutedByCount, mutingCount, flaggedCount]);
 
-  const totalNetworkProfiles = enhancedPieData.reduce((acc: number, curr: { value: number }) => acc + curr.value, 0);
+  const pieData = useMemo(() => {
+    if (granularity !== "simple") return enhancedPieData;
+    const ladder = ladderFor("simple");
+    const rung = (k: Bucket) => ladder.find((r) => r.key === k)!;
+    const verifiedNames = new Set<string>([TIER_LABELS.high, TIER_LABELS.trusted, TIER_LABELS.neutral, TIER_LABELS.low]);
+    const sum = (pick: (name: string) => boolean) => enhancedPieData.filter((d) => pick(d.name)).reduce((a, d) => a + d.value, 0);
+    return [
+      { name: rung("verified").label, value: sum((n) => verifiedNames.has(n)), color: rung("verified").color },
+      { name: rung("unknown").label, value: sum((n) => n === TIER_LABELS.unverified || n === "Unverified"), color: rung("unknown").color },
+      { name: rung("flagged").label, value: sum((n) => n === "Flagged"), color: rung("flagged").color },
+    ].filter((d) => d.value > 0 || d.name === "Flagged");
+  }, [enhancedPieData, granularity]);
+
+  const totalNetworkProfiles = pieData.reduce((acc: number, curr: { value: number }) => acc + curr.value, 0);
 
   const activityBreakdown = [
     { name: "Very active (7 days)", value: Math.floor(extendedNetworkCount * 0.18), color: "#059669" },
@@ -697,7 +718,7 @@ export default function DashboardPage() {
 
   const totalActivityProfiles = activityBreakdown.reduce((acc, curr) => acc + curr.value, 0);
 
-  const currentPieData: Array<{ name: string; value: number; color: string }> = networkViewMode === "trust" ? enhancedPieData : activityBreakdown;
+  const currentPieData: Array<{ name: string; value: number; color: string }> = networkViewMode === "trust" ? pieData : activityBreakdown;
   const totalCurrentProfiles = networkViewMode === "trust" ? totalNetworkProfiles : totalActivityProfiles;
 
   // Stats `tier_counts` field names now match the GR `count_values` keys

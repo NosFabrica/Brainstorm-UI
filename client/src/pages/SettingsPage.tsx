@@ -94,6 +94,22 @@ import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfOverview, useSelfHistory } from "@/hooks/useSelf";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useScoreDisplayMode, type ScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
+import type { Granularity } from "@/lib/trustLadder";
+
+// The three renderings of the one tier ladder (docs/score-display/DECISIONS.md).
+const TIER_GRANULARITY_CHOICES: { key: Granularity; label: string; desc: string }[] = [
+  { key: "simple", label: "Simple", desc: "Verified · Unknown · Flagged" },
+  { key: "detailed", label: "Detailed", desc: "the full six-step ladder" },
+];
+const SCORE_DISPLAY_CHOICES: { key: ScoreDisplayMode; label: string; desc: string }[] = [
+  { key: "number", label: "Number", desc: "0\u2013100 score" },
+  { key: "level", label: "Level", desc: "5-step dots" },
+  { key: "tier", label: "Tier", desc: "color ring, no words" },
+  { key: "word", label: "Word", desc: "ring + tier label" },
+  { key: "off", label: "Off", desc: "nothing shown" },
+];
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
@@ -192,6 +208,10 @@ export default function SettingsPage() {
   const { preset: serverPreset, isLoading: presetLoading } = useTrustPresetSync(!!user);
   const [optimisticPreset, setOptimisticPreset] = useState<TrustPreset | null>(null);
   const activePreset: TrustPreset = optimisticPreset ?? serverPreset ?? "default";
+
+  // Rendered from one list so labels can't drift from the store's values.
+  const [scoreDisplayMode, setScoreDisplayModeChoice] = useScoreDisplayMode();
+  const [tierGranularity, setTierGranularityChoice] = useTierGranularity();
 
   const setPresetMutation = useSetTrustPreset({
     pubkey: user?.pubkey,
@@ -1196,6 +1216,86 @@ export default function SettingsPage() {
             })}
           </div>
         )}
+
+        {/* How people's verification is SHOWN — sibling of the preset above:
+            both are "how trust renders for me", which is why it lives in this
+            card rather than under Appearance (that's app chrome; this is
+            meaning). Viewer-side only, this device only — the coin, search
+            rows, profiles and Insights all follow it instantly. Decisions in
+            docs/score-display/DECISIONS.md. */}
+        {/* Decision 6/8 (docs/trust-tiers/DECISIONS.md): how many rungs the
+            ladder has is a data choice, separate from how a rung is drawn. */}
+        <div className="pt-4 border-t border-slate-100 dark:border-slate-800/60">
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200" data-testid="text-tier-granularity-title">
+            How many levels of verification you see
+          </p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-relaxed" data-testid="text-tier-granularity-desc">
+            Simple answers the only question that matters — is this account
+            verified, unknown, or flagged? Detailed shows the full ladder
+            underneath. Saved on this device.
+          </p>
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2" data-testid="row-tier-granularity">
+            {TIER_GRANULARITY_CHOICES.map((choice) => {
+              const isActive = tierGranularity === choice.key;
+              return (
+                <button
+                  key={choice.key}
+                  onClick={() => setTierGranularityChoice(choice.key)}
+                  className={
+                    "rounded-xl border px-3 py-2.5 transition-all duration-200 cursor-pointer flex items-baseline justify-between gap-2 text-left sm:block sm:text-center " +
+                    (isActive
+                      ? "border-brand-accent/30 bg-brand-deep/5 ring-1 ring-brand-accent/20"
+                      : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800")
+                  }
+                  data-testid={`chip-tier-granularity-${choice.key}`}
+                >
+                  <span className={"text-xs font-bold " + (isActive ? "text-brand-deep" : "text-slate-500 dark:text-slate-400")}>
+                    {choice.label}
+                  </span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 sm:block sm:mt-0.5">{choice.desc}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="pt-4 border-t border-slate-100 dark:border-slate-800/60">
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200" data-testid="text-score-display-title">
+            How people's verification is shown
+          </p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-relaxed" data-testid="text-score-display-desc">
+            Some people prefer not to see others as a number. This changes how
+            it's shown to you, everywhere in Brainstorm — the same standing,
+            drawn your way, or not at all. Flag warnings stay either way.
+            Saved on this device.
+          </p>
+          {/* Five options, one row on desktop; stacked full-width rows on
+              mobile (label left, description right) — five centered columns
+              don't fit a phone, and 3-over-2 wrapping looked broken. */}
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-5 gap-2" data-testid="row-score-display-modes">
+            {SCORE_DISPLAY_CHOICES.map((choice) => {
+              const isActive = scoreDisplayMode === choice.key;
+              return (
+                <button
+                  key={choice.key}
+                  onClick={() => setScoreDisplayModeChoice(choice.key)}
+                  className={
+                    "rounded-xl border px-3 py-2.5 transition-all duration-200 cursor-pointer flex items-baseline justify-between gap-2 text-left sm:block sm:text-center " +
+                    (isActive
+                      ? "border-brand-accent/30 bg-brand-deep/5 ring-1 ring-brand-accent/20"
+                      : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800")
+                  }
+                  data-testid={`chip-score-display-${choice.key}`}
+                >
+                  <span className={"text-xs font-bold " + (isActive ? "text-brand-deep" : "text-slate-500 dark:text-slate-400")}>
+                    {choice.label}
+                  </span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 sm:block sm:mt-0.5">{choice.desc}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
       </div>
     </div>

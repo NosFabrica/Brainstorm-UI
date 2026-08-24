@@ -1,4 +1,6 @@
 import { useMemo, useState, type MouseEvent } from "react";
+import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
+import { useHopsOrigin } from "@/hooks/useHopsOrigin";
 import { useRoute, Redirect, Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Shuffle, ShieldAlert, Flag, UserPlus, Check, ChevronDown } from "lucide-react";
@@ -14,7 +16,8 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Wordmark } from "@/components/Wordmark";
 import { ordinal } from "@/components/DegreeChip";
-import { tierForScore } from "@/components/share/TrustScoreBadge";
+import { tierForScore, shareTierFor } from "@/components/share/TrustScoreBadge";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { TrustScoreModal, PovIcon, povChrome, useScorePov } from "@/components/score/TrustScorePov";
 import { useHasSession } from "@/hooks/useHasSession";
 
@@ -30,6 +33,8 @@ function shortNpub(npub: string): string {
  * downstream of it drops out of your trust network. Signed-in + scored viewers only.
  */
 export default function HopsPathPage() {
+  const [displayMode] = useScoreDisplayMode();
+  const [granularity] = useTierGranularity();
   const [, navigate] = useLocation();
   const [, params] = useRoute("/p/:id/hops");
   const rawId = params?.id || "";
@@ -38,17 +43,18 @@ export default function HopsPathPage() {
 
   const me = useActiveAccountDisplay();
   const handleLogout = () => logout();
-  const fromPubkey = me?.pubkey || "";
+  const myPubkey = me?.pubkey || "";
+  // The path ORIGIN follows the perspective toggle — the viewer under
+  // personalized (when usable), House otherwise, logged out included. The
+  // VIEWER (`myPubkey`) still owns the follow-ticks and the action buttons;
+  // conflating the two would show Brainstorm's follows as yours.
+  const { origin, originPov, loading: originLoading } = useHopsOrigin();
+  const fromPubkey = origin || "";
   const toPubkey = decoded?.pubkey || "";
   const signedIn = useHasSession();
-  const calcDone = (() => {
-    try {
-      return localStorage.getItem("brainstorm_calc_completed") === "true";
-    } catch {
-      return false;
-    }
-  })();
-  const eligible = signedIn && calcDone && !!fromPubkey && !!toPubkey && fromPubkey !== toPubkey;
+  // No signed-in or calc gate any more: the origin hook already resolved a
+  // usable start (falling back to House), and the endpoint is public.
+  const eligible = !!fromPubkey && !!toPubkey && fromPubkey !== toPubkey;
 
   // Shuffle: each bump re-fetches, and the endpoint returns a different random path.
   const [nonce, setNonce] = useState(0);
@@ -119,9 +125,11 @@ export default function HopsPathPage() {
 
   // My own follow list once → know which path nodes I already follow.
   const followingQuery = useQuery({
-    queryKey: ["my-following", fromPubkey],
-    queryFn: async () => getFollowedPubkeys(await fetchContactList(fromPubkey)),
-    enabled: eligible && !!fromPubkey,
+    // Keyed to the LOGGED-IN viewer, never the path origin — under House the
+    // origin is Brainstorm, and its follows must not render as your ticks.
+    queryKey: ["my-following", myPubkey],
+    queryFn: async () => getFollowedPubkeys(await fetchContactList(myPubkey)),
+    enabled: signedIn && !!myPubkey,
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -131,7 +139,10 @@ export default function HopsPathPage() {
   // Same as ConnectionListPage: an unresolved route is not an invalid one.
   if (!rawId) return null;
   if (!toPubkey) return <Redirect to="/" replace />;
-  // v1 is signed-in + scored only; send everyone else back to the profile.
+  // An unresolved ORIGIN is not an invalid one either — the house pubkey
+  // resolves async on first load, and redirecting during that beat bounced
+  // every visitor back to the profile. Hold; redirect only once we know.
+  if (originLoading) return null;
   if (!eligible) return <Redirect to={`/p/${rawId}`} replace />;
 
   const subjectName =
@@ -148,7 +159,9 @@ export default function HopsPathPage() {
   //     whose takedown disconnects the swarm downstream of it (David's scammer hub).
   // If YOU follow the first bad node directly, there's no intermediate decision-maker.
   let entryBadIndex = -1;
-  if (d?.path && scores) {
+  // Weak-link analysis is a personalized promise ("report it and it drops out
+  // of YOUR network") — under House the path is explanatory, nothing more.
+  if (originPov === "personalized" && d?.path && scores) {
     for (let i = 1; i < d.path.length; i++) {
       const s = scores.get(d.path[i]);
       if (typeof s !== "number") continue;
@@ -205,25 +218,30 @@ export default function HopsPathPage() {
         </div>
 
         <h1 className="text-2xl sm:text-3xl font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }}>
-          Your connection to <span className="text-brand-link">{subjectName}</span>
+          {originPov === "personalized" ? "Your connection to " : "Brainstorm's connection to "}
+          <span className="text-brand-link">{subjectName}</span>
         </h1>
 
         {pathQuery.isPending ? (
-          <div className="mt-8 flex items-center gap-2 text-slate-400 dark:text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> Finding your connection…</div>
+          <div className="mt-8 flex items-center gap-2 text-slate-400 dark:text-slate-500"><Loader2 className="h-4 w-4 animate-spin" /> {originPov === "personalized" ? "Finding your connection…" : "Finding the connection…"}</div>
         ) : !d || !d.reachable || d.hops === 0 ? (
           <p className="mt-4 text-slate-600 dark:text-slate-300" data-testid="hops-unreachable">
             {d && d.hops === 0
               ? "That's you."
-              : `Not connected — ${subjectName} can't be reached through the people you follow.`}
+              : originPov === "personalized"
+                ? `Not connected — ${subjectName} can't be reached through the people you follow.`
+                : `Not connected — ${subjectName} can't be reached through the accounts Brainstorm follows.`}
           </p>
         ) : (
           <>
             <p className="mt-3 text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">
               <span className="font-semibold text-slate-900 dark:text-slate-100">{ordinal(d.hops)} degree</span> —{" "}
               {d.hops === 1 ? (
-                <>you follow {subjectName} directly.</>
-              ) : (
+                originPov === "personalized" ? <>you follow {subjectName} directly.</> : <>Brainstorm follows {subjectName} directly.</>
+              ) : originPov === "personalized" ? (
                 <>you're connected to {subjectName} through <span className="font-semibold">{d.hops - 1}</span> {d.hops - 1 === 1 ? "person" : "people"}.</>
+              ) : (
+                <>Brainstorm reaches {subjectName} through <span className="font-semibold">{d.hops - 1}</span> {d.hops - 1 === 1 ? "person" : "people"}.</>
               )}{" "}
               {d.pathCount === 1 ? (
                 <>This is the only connection this direct:</>
@@ -241,7 +259,8 @@ export default function HopsPathPage() {
               {d.path.map((pk, i) => {
                 const p = profs?.get(pk);
                 const npub = npubFromPubkey(pk);
-                const isMe = i === 0;
+                const isOrigin = i === 0;
+                const isMe = pk === myPubkey;
                 const isSubject = i === d.path.length - 1;
                 // The target's kind-0 usually lives on its own relays, which the
                 // bulk profile map (fixed relay set) misses — so for the subject
@@ -249,10 +268,16 @@ export default function HopsPathPage() {
                 // fetched. Keeps name + avatar consistent with the header/SharePage.
                 const subj = isSubject ? subjectQuery.data : undefined;
                 const picture = subj?.picture || p?.picture;
-                const name = subj?.display_name || subj?.name || p?.display_name || p?.name || shortNpub(npub);
-                const roleLabel = isMe ? "You" : isSubject ? "Them" : "Connector";
+                // Node 0 under House is named by OUR copy — the fetched kind-0
+                // says "nosfabrica", which would contradict the rest of the UI.
+                const name = isOrigin && originPov === "global"
+                  ? "Brainstorm"
+                  : subj?.display_name || subj?.name || p?.display_name || p?.name || shortNpub(npub);
+                const roleLabel = isOrigin
+                  ? (originPov === "personalized" ? "You" : "Brainstorm")
+                  : isMe ? "You" : isSubject ? "Them" : "Connector";
                 const score = scores?.get(pk);
-                const tier = typeof score === "number" ? tierForScore(score) : null;
+                const tier = typeof score === "number" ? shareTierFor(score, granularity) : null;
                 const isWeakLink = i === weakLinkIndex; // decision-maker (authentic)
                 const isEntryBad = i === entryBadIndex; // low-trust account to report (score-derived, NOT an existing report/mute)
                 const tint = isWeakLink
@@ -294,7 +319,10 @@ export default function HopsPathPage() {
                             </div>
                             <div className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">{roleLabel}</div>
                           </Link>
-                          {!isMe && tier && (
+                          {/* Off means off — no score chip at all, same as the
+                              coin everywhere else. The path itself stays: degree
+                              is connection distance, not a verification score. */}
+                          {displayMode !== "off" && !isOrigin && tier && (
                             <button
                               type="button"
                               onClick={() => setScoreExplainOpen(true)}
@@ -302,17 +330,29 @@ export default function HopsPathPage() {
                               title="What does this score mean?"
                               data-testid={`hops-score-${i}`}
                             >
-                              <div className={`flex items-center justify-end gap-1 text-sm font-bold tabular-nums leading-tight ${tier.text}`}>
-                                <PovIcon pov={scorePov} className="h-2.5 w-2.5" />
-                                {Math.round((score as number) * 100)}%
-                              </div>
-                              <div className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">{tier.name}</div>
+                              {displayMode === "number" ? (
+                                <>
+                                  <div className={`flex items-center justify-end gap-1 text-sm font-bold tabular-nums leading-tight ${tier.text}`}>
+                                    <PovIcon pov={scorePov} className="h-2.5 w-2.5" />
+                                    {`${Math.round((score as number) * 100)}%`}
+                                  </div>
+                                  <div className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight">{tier.name}</div>
+                                </>
+                              ) : (
+                                // No digits, no two-storey layout: one line, the
+                                // word in the tier's own color.
+                                <div className="flex items-center justify-end gap-1.5 text-xs font-semibold leading-tight" style={{ color: tier.color }}>
+                                  <PovIcon pov={scorePov} className="h-2.5 w-2.5" />
+                                  {tier.name}
+                                </div>
+                              )}
                               {(() => {
                                 // Subtle hint when the OTHER view disagrees (after
                                 // rounding): its number + which way it moves.
                                 const both = scoresQuery.data?.get(pk);
                                 const other = scorePov === "personalized" ? both?.house : both?.mine;
                                 if (typeof other !== "number") return null;
+                                if (displayMode !== "number") return null;
                                 const shownPct = Math.round((score as number) * 100);
                                 const otherPct = Math.round(other * 100);
                                 if (otherPct === shownPct) return null;
@@ -331,10 +371,12 @@ export default function HopsPathPage() {
                           )}
                         </div>
 
-                        {!isMe && (
+                        {/* Follow is meaningful in both modes for signed-in viewers;
+                            Report belongs to the personalized promise only. */}
+                        {!isOrigin && !isMe && signedIn && (
                           <div className="mt-2 flex flex-wrap items-center gap-2">
                             <NodeFollow pubkey={pk} name={name} alreadyFollowing={myFollows?.has(pk) ?? false} />
-                            <NodeReport pubkey={pk} name={name} emphasize={isEntryBad} />
+                            {originPov === "personalized" && <NodeReport pubkey={pk} name={name} emphasize={isEntryBad} />}
                           </div>
                         )}
 
@@ -369,18 +411,29 @@ export default function HopsPathPage() {
           <div className="flex items-center gap-2 font-semibold text-slate-800 dark:text-slate-200">
             <ShieldAlert className="h-4 w-4 text-brand-accent" /> What "degree" means
           </div>
-          <p className="mt-1.5">
-            Your degree shows how closely you're connected to someone.{" "}
-            <span className="font-medium text-slate-700 dark:text-slate-200">1st degree</span> means you follow them directly.{" "}
-            <span className="font-medium text-slate-700 dark:text-slate-200">2nd degree</span> means someone you follow, follows them — and so on.
-            Being connected, even a few steps out, means they're part of your trusted network.
-          </p>
-          <p className="mt-2">
-            It's also a safety tool. Scam accounts usually get into your network because{" "}
-            <span className="font-medium text-slate-700 dark:text-slate-200">one person you trust followed them</span> — often by mistake. That
-            person is the <span className="font-medium text-slate-700 dark:text-slate-200">weak link</span>. Report the scam account itself and it —
-            plus everything hiding behind it — drops out of your network.
-          </p>
+          {originPov === "personalized" ? (
+            <>
+              <p className="mt-1.5">
+                Your degree shows how closely you're connected to someone.{" "}
+                <span className="font-medium text-slate-700 dark:text-slate-200">1st degree</span> means you follow them directly.{" "}
+                <span className="font-medium text-slate-700 dark:text-slate-200">2nd degree</span> means someone you follow, follows them — and so on.
+                Being connected, even a few steps out, means they're part of your trusted network.
+              </p>
+              <p className="mt-2">
+                It's also a safety tool. Scam accounts usually get into your network because{" "}
+                <span className="font-medium text-slate-700 dark:text-slate-200">one person you trust followed them</span> — often by mistake. That
+                person is the <span className="font-medium text-slate-700 dark:text-slate-200">weak link</span>. Report the scam account itself and it —
+                plus everything hiding behind it — drops out of your network.
+              </p>
+            </>
+          ) : (
+            <p className="mt-1.5">
+              The degree shows how closely Brainstorm's network reaches someone.{" "}
+              <span className="font-medium text-slate-700 dark:text-slate-200">1st degree</span> means Brainstorm follows them directly.{" "}
+              <span className="font-medium text-slate-700 dark:text-slate-200">2nd degree</span> means someone Brainstorm follows, follows them — and
+              so on. Sign in and run your own calculation to measure this from your account instead.
+            </p>
+          )}
         </div>
       </main>
       <TrustScoreModal open={scoreExplainOpen} onOpenChange={setScoreExplainOpen} />
