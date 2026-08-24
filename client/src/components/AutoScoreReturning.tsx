@@ -30,8 +30,16 @@ export function AutoScoreReturning() {
   useEffect(() => {
     if (!pk || once.done(pk) || !history.isSuccess) return;
 
-    const scored = !!(history.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey;
-    if (scored) return; // already has a Web of Trust
+    // `ta_pubkey` is NOT evidence of scoring: the backend mints the assistant
+    // key during login itself (authChallenge verify), so every session-holder
+    // has one before any calculation ran. The graperank timestamps are the real
+    // signal — null until a calc was actually triggered for this account.
+    const h = (history.data as { data?: {
+      last_time_calculated_graperank?: string | null;
+      last_time_triggered_graperank?: string | null;
+    } } | undefined)?.data;
+    const scored = !!(h?.last_time_calculated_graperank || h?.last_time_triggered_graperank);
+    if (scored) return; // a calc was already triggered for this account
 
     const createdInApp = identityHas(pk, "createdInApp");
     let recentlyTriggered = false;
@@ -44,13 +52,13 @@ export function AutoScoreReturning() {
 
     // At most ONE automatic kick per account, ever.
     //
-    // `scored` is the only durable guard, and it reads ta_pubkey — which stays null
-    // if the Trusted Assertions publish never lands. When that happens the other
-    // guard (recentlyTriggered) expires after 30 minutes, so EVERY app open past
-    // that window silently enqueued another full network recalculation: the calc
-    // ran, the "ready" nudge fired again, and dismissing it only lasted until the
-    // next launch. Reported from an iOS PWA as the app re-announcing "your Web of
-    // Trust is ready" on every open.
+    // `scored` (the graperank trigger timestamps) is the durable, cross-device
+    // guard — but it only flips once the backend records the trigger. If that
+    // write never lands, the other guard (recentlyTriggered) expires after 30
+    // minutes, so EVERY app open past that window silently enqueued another full
+    // network recalculation: the calc ran, the "ready" nudge fired again, and
+    // dismissing it only lasted until the next launch. Reported from an iOS PWA
+    // as the app re-announcing "your Web of Trust is ready" on every open.
     //
     // An automatic retry loop is the wrong response to scoring not producing a
     // result anyway — it burns queue capacity for every affected user at once. One

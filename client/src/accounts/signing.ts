@@ -133,3 +133,14 @@ export function canSignSilently(account: BrainstormAccount): Promise<boolean> {
   if (!(account instanceof LocalAccount) || !account.locked) return Promise.resolve(true);
   return account.unlockSilently();
 }
+
+/**
+ * Whether signing goes through an EXTERNAL signer (extension/bunker) that shows
+ * its own approval prompt. Distinct from `canSignSilently`, which answers "will
+ * OUR unlock modal appear" — extension accounts are "silent" by that measure
+ * while still prompting in their own app. Copy that says "your signer will ask"
+ * must key off this, not off canSignSilently.
+ */
+export function hasExternalSigner(account: BrainstormAccount): boolean {
+  return !(account instanceof LocalAccount);
+}

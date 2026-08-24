@@ -241,13 +241,15 @@ export default function OnboardingWizard() {
             <p className="mt-4 text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
               Your network is built from who you follow. Pick at least one so Brainstorm can calculate your scores.
             </p>
-            {/* A key created here minutes ago can't have a 10040 — skip the relay pre-check. */}
+            {/* A key created here minutes ago can't have a 10040 — skip the relay pre-check.
+                The wizard key was minted in-app, so no external signer will prompt. */}
             <Nip85ConsentCard
               pubkey={user?.pubkey}
               taPubkey={taPubkey}
               value={nip85Consent}
               onChange={setNip85Consent}
               skipProviderCheck
+              silentSigner
               className="mt-5"
             />
             <div className="mt-4">
