@@ -153,6 +153,15 @@ export default function SharePage() {
   // here on /p; /profile is the tucked-away advanced view).
   const rel = useRelationshipBadges(pubkey);
   const { pov: scorePov } = useScorePov();
+  // A USABLE personal point of view — the same rule ConnectionListPage applies
+  // to the follower lists, so a count and the list behind it can never come
+  // from different perspectives. `brainstorm_calc_completed` is a localStorage
+  // breadcrumb, not server truth; without it the personalized stats would be
+  // an empty perspective pretending to be one.
+  const calcDone = (() => {
+    try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; }
+  })();
+  const myPov = loggedIn && calcDone && scorePov === "personalized";
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ProfilePrefs>(EMPTY_PROFILE_PREFS);
@@ -292,14 +301,26 @@ export default function SharePage() {
     retry: false,
   });
 
-  // Per-section stats: total/verified counts per relationship. A shared link is
-  // public, so we always read the HOUSE (network) POV — the same numbers and the
-  // same "flagged" verdict every viewer sees, never the logged-in viewer's
-  // personalized perspective.
-  const statsQuery = useQuery({
-    queryKey: ["share-stats", pubkey],
+  // Per-section stats: total/verified counts per relationship — one query per
+  // point of view, the same shape the coin uses (overviewQuery/houseRankQuery).
+  //
+  // House is fetched ALWAYS: it serves logged-out viewers and it is the ledger
+  // the flag verdict reads (a verdict must be the same for every viewer). The
+  // personalized query runs only when the viewer has a usable personal PoV,
+  // and the DISPLAYED counts select between the two at render time — this
+  // used to be pinned `house: true` from the share-page era, which is why the
+  // coin followed the toggle and these numbers didn't (David's report).
+  const houseStatsQuery = useQuery({
+    queryKey: ["share-stats", pubkey, "house"],
     queryFn: () => apiClient.getUserStats(pubkey, { house: true }),
     enabled: !!pubkey,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const myStatsQuery = useQuery({
+    queryKey: ["share-stats", pubkey, "mine"],
+    queryFn: () => apiClient.getUserStats(pubkey),
+    enabled: !!pubkey && myPov,
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -465,17 +486,20 @@ export default function SharePage() {
   // The overview score is viewer-relative: house/network POV when logged out,
   // the viewer's own web-of-trust POV when logged in. That's the primary ring.
   const score01 = typeof overview?.influence === "number" ? overview.influence : null;
-  // Counts from the per-section stats endpoint (house POV). Followers/muters/
-  // reporters use the VERIFIED (web-of-trust) count; "following" uses the raw
-  // total (per CEO: total following is more meaningful than verified following).
-  const stats = statsQuery.data?.data as
-    | {
-        followed_by?: { verified?: number; total?: number };
-        following?: { total?: number; verified?: number };
-        muted_by?: { verified?: number; total?: number };
-        reported_by?: { verified?: number; total?: number };
-      }
-    | undefined;
+  // Counts from the per-section stats endpoint. Followers/muters/reporters use
+  // the VERIFIED (web-of-trust) count; "following" uses the raw total (per CEO:
+  // total following is more meaningful than verified following).
+  type ShareStats = {
+    followed_by?: { verified?: number; total?: number };
+    following?: { total?: number; verified?: number };
+    muted_by?: { verified?: number; total?: number };
+    reported_by?: { verified?: number; total?: number };
+  };
+  const houseStats = houseStatsQuery.data?.data as ShareStats | undefined;
+  const myStats = myStatsQuery.data?.data as ShareStats | undefined;
+  // The DISPLAYED counts follow the perspective toggle; house fills in while
+  // the personalized query is in flight so the row never blanks.
+  const stats = myPov ? myStats ?? houseStats : houseStats;
   const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
   // Each stat carries BOTH the web-of-trust-filtered (`verified`) and raw
   // (`total`, includes bots) count in one response — the StatToggle flips between
@@ -489,8 +513,14 @@ export default function SharePage() {
   const verifiedReporters = num(stats?.reported_by?.verified);
   const allReporters = num(stats?.reported_by?.total);
   // Flagged = reported by more than 5 verified accounts, +1 forgiven per 750
-  // verified followers (house POV → same verdict for every viewer).
-  const isFlagged = isFlaggedByReporters(verifiedReporters ?? 0, verifiedFollowers ?? 0);
+  // verified followers. The verdict reads the HOUSE ledger regardless of the
+  // toggle — same verdict for every viewer — and so does the banner's evidence
+  // count below, because a verdict and its evidence must come from one ledger.
+  const houseVerifiedReporters = num(houseStats?.reported_by?.verified);
+  const isFlagged = isFlaggedByReporters(
+    houseVerifiedReporters ?? 0,
+    num(houseStats?.followed_by?.verified) ?? 0,
+  );
   // House influence (0–1) from the backend, house POV.
   const houseScore01 = useMemo(() => {
     const r = houseRankQuery.data;
@@ -1015,7 +1045,7 @@ export default function SharePage() {
               <AlertTriangle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
               <div className="min-w-0 text-xs leading-relaxed">
                 <span className="font-bold text-red-700">Flagged by the network</span>
-                <span className="text-red-700/90"> — reported by {verifiedReporters} verified {verifiedReporters === 1 ? "account" : "accounts"} in the network.</span>{" "}
+                <span className="text-red-700/90"> — reported by {houseVerifiedReporters} verified {houseVerifiedReporters === 1 ? "account" : "accounts"} in the network.</span>{" "}
                 <Link href={`/p/${rawId}/reporters`} className="font-semibold text-red-700 underline underline-offset-2 hover:text-red-800" data-testid="share-flag-reporters">See who</Link>
                 <span className="text-red-700/60"> · </span>
                 {/* TODO(phase2): point at /what-are-degrees once the explainer exists */}

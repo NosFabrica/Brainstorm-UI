@@ -9,6 +9,9 @@
  * Both inputs come from the house/network POV (`getUserStats({ house: true })`)
  * so the verdict is the same for every viewer of a shared link.
  */
+// The profile's DISPLAYED counts follow the perspective toggle since the
+// stats-PoV fix, but this verdict (and the flag banner's evidence count) keep
+// reading the house ledger — a verdict and its evidence come from one ledger.
 export function isFlaggedByReporters(
   verifiedReporters: number,
   verifiedFollowers: number,
