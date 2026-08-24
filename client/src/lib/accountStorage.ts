@@ -47,6 +47,7 @@ const NAMESPACES = {
   brainstorm_recent_searches: "device",
   brainstorm_trust_preset: "device",
   brainstorm_postsignup_dismissed: "device",
+  brainstorm_activate_nudge_dismissed: "device",
   brainstorm_invite_cta_dismissed: "device",
   brainstorm_activate_seen: "device",
   brainstorm_nip85_dismissed_at: "device",

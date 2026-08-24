@@ -18,6 +18,12 @@ interface Nip85ConsentCardProps {
    * in the middle of onboarding.
    */
   skipProviderCheck?: boolean;
+  /**
+   * The account signs without an external signer prompt (a key held by this
+   * app), so drop the "Your signer will ask you to approve it" sentence — on
+   * the in-app wizard there is no signer to ask.
+   */
+  silentSigner?: boolean;
   className?: string;
 }
 
@@ -37,6 +43,7 @@ export function Nip85ConsentCard({
   value,
   onChange,
   skipProviderCheck = false,
+  silentSigner = false,
   className = "",
 }: Nip85ConsentCardProps) {
   const [providerStatus, setProviderStatus] = useState<TrustProviderStatus | "checking">(
@@ -91,7 +98,8 @@ export function Nip85ConsentCard({
           </p>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
             Also signs one nostr note (NIP-85) telling compatible apps like Amethyst and Nostria
-            where to find your personalized scores. Your signer will ask you to approve it.
+            where to find your personalized scores.
+            {silentSigner ? "" : " Your signer will ask you to approve it."}
           </p>
         </div>
         <Switch

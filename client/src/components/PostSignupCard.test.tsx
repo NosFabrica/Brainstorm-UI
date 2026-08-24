@@ -20,7 +20,33 @@ const backupNeed = vi.fn<() => BackupNeed | null>(() => "download");
 const allDone = vi.fn(() => false);
 const cardDismissed = vi.fn(() => false);
 const dismissPostSignup = vi.fn();
+const setupEligible = vi.fn(() => true);
+const navigate = vi.fn();
+// The activation-nudge branch's inputs, defaulted to "not this cohort".
+const followVerification = vi.fn<() => "checking" | "none" | "has-follows">(() => "checking");
+const createdInApp = vi.fn(() => false);
+const nip85Activated = vi.fn(() => false);
+const trustProviderStatus = vi.fn<() => string | undefined>(() => undefined);
+const activateNudgeDismissed = vi.fn(() => false);
+const dismissActivateNudge = vi.fn();
 
+// Stateful like the real thing: navigating re-renders the tree, which the
+// backup-tile tests lean on as their "any re-render" trigger.
+vi.mock("wouter", async () => {
+  const { useState } = await import("react");
+  return {
+    useLocation: () => {
+      const [loc, setLoc] = useState("/");
+      return [
+        loc,
+        (to: string) => {
+          navigate(to);
+          setLoc(to);
+        },
+      ] as const;
+    },
+  };
+});
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
 vi.mock("@/accounts/backup", () => ({
   MIN_RECOVERY_PASSWORD_LENGTH: 8,
@@ -35,9 +61,29 @@ vi.mock("@/hooks/useBackupNeed", () => ({ useBackupNeed: () => backupNeed() }));
 vi.mock("@/lib/postSignupDismissal", () => ({
   usePostSignupDismissed: () => cardDismissed(),
   dismissPostSignup: (...args: unknown[]) => dismissPostSignup(...(args as [])),
+  useActivateNudgeDismissed: () => activateNudgeDismissed(),
+  dismissActivateNudge: (...args: unknown[]) => dismissActivateNudge(...(args as [])),
 }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({
   useActiveAccountDisplay: () => ({ pubkey: PUBKEY, npub: NPUB, displayName: "Lira" }),
+}));
+vi.mock("@/hooks/useVerifiedNoFollows", () => ({
+  useVerifiedNoFollows: () => followVerification(),
+}));
+vi.mock("@/accounts/display", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  identityHas: () => createdInApp(),
+}));
+vi.mock("@/lib/nip85Activation", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  isNip85Activated: () => nip85Activated(),
+}));
+vi.mock("@/hooks/useSelf", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  useSelfHistory: () => ({ isSuccess: true, data: { data: { ta_pubkey: "b".repeat(64) } } }),
+}));
+vi.mock("@/hooks/useTrustProviderStatus", () => ({
+  useTrustProviderStatus: () => ({ data: trustProviderStatus() }),
 }));
 // A brand-new in-app account with everything still to do — the card's own case.
 vi.mock("@/hooks/useSetupTasks", () => ({
@@ -47,7 +93,7 @@ vi.mock("@/hooks/useSetupTasks", () => ({
     done: { network: false, backup: backupNeed() === null, photo: false },
     doneCount: 0,
     allDone: allDone(),
-    eligible: true,
+    eligible: setupEligible(),
   }),
 }));
 
@@ -63,6 +109,12 @@ beforeEach(() => {
   allDone.mockReturnValue(false);
   cardDismissed.mockReturnValue(false);
   deliverBackup.mockReturnValue({ npub: NPUB, ncryptsec: NCRYPTSEC });
+  setupEligible.mockReturnValue(true);
+  followVerification.mockReturnValue("checking");
+  createdInApp.mockReturnValue(false);
+  nip85Activated.mockReturnValue(false);
+  trustProviderStatus.mockReturnValue(undefined);
+  activateNudgeDismissed.mockReturnValue(false);
 });
 
 describe("the backup tile, as the chain's second surface", () => {
@@ -165,5 +217,93 @@ describe("putting the card away", () => {
     renderWithProviders(<PostSignupCard />);
 
     expect(screen.queryByTestId("card-post-signup")).toBeNull();
+  });
+});
+
+describe("the activation nudge, for signer accounts that already follow people", () => {
+  /** A returning NIP-07 user with a follow list and no kind-10040 anywhere. */
+  const signerWithFollows = () => {
+    setupEligible.mockReturnValue(false);
+    createdInApp.mockReturnValue(false);
+    followVerification.mockReturnValue("has-follows");
+    trustProviderStatus.mockReturnValue("none");
+    nip85Activated.mockReturnValue(false);
+  };
+
+  it("shows once the relay check settles on no declaration", () => {
+    signerWithFollows();
+
+    renderWithProviders(<PostSignupCard />);
+
+    expect(screen.getByTestId("card-activate-nudge")).toBeInTheDocument();
+  });
+
+  it("routes to the dashboard, where the interstitial takes over", () => {
+    signerWithFollows();
+    renderWithProviders(<PostSignupCard />);
+
+    fireEvent.click(screen.getByTestId("tile-activate-brainstorm"));
+
+    expect(navigate).toHaveBeenCalledWith("/dashboard");
+  });
+
+  // Never flash the ask at someone who may already be activated.
+  it("shows nothing while the provider check hasn't settled", () => {
+    signerWithFollows();
+    trustProviderStatus.mockReturnValue(undefined);
+
+    renderWithProviders(<PostSignupCard />);
+
+    expect(screen.queryByTestId("card-activate-nudge")).toBeNull();
+  });
+
+  it("stays away once the declaration already names Brainstorm", () => {
+    signerWithFollows();
+    trustProviderStatus.mockReturnValue("brainstorm");
+
+    renderWithProviders(<PostSignupCard />);
+
+    expect(screen.queryByTestId("card-activate-nudge")).toBeNull();
+  });
+
+  // The zero-follow cohort's critical path is the follow picker, not activation.
+  it("leaves the follow nudge to its own card when the user follows nobody", () => {
+    signerWithFollows();
+    followVerification.mockReturnValue("none");
+
+    renderWithProviders(<PostSignupCard />);
+
+    expect(screen.queryByTestId("card-activate-nudge")).toBeNull();
+    expect(screen.getByTestId("card-returning-follow-nudge")).toBeInTheDocument();
+  });
+
+  it("never shows for in-app accounts — their consent card is the surface", () => {
+    signerWithFollows();
+    createdInApp.mockReturnValue(true);
+
+    renderWithProviders(<PostSignupCard />);
+
+    expect(screen.queryByTestId("card-activate-nudge")).toBeNull();
+  });
+
+  // Its own flag, not the shared post-signup one: putting the setup checklist
+  // away months ago must not swallow a NEW ask that only just became relevant.
+  it("outlives a long-ago dismissal of the setup card", () => {
+    signerWithFollows();
+    cardDismissed.mockReturnValue(true);
+
+    renderWithProviders(<PostSignupCard />);
+
+    expect(screen.getByTestId("card-activate-nudge")).toBeInTheDocument();
+  });
+
+  it("dismisses via its own flag", () => {
+    signerWithFollows();
+    renderWithProviders(<PostSignupCard />);
+
+    fireEvent.click(screen.getByTestId("button-activate-nudge-dismiss"));
+
+    expect(dismissActivateNudge).toHaveBeenCalledWith(PUBKEY);
+    expect(dismissPostSignup).not.toHaveBeenCalled();
   });
 });

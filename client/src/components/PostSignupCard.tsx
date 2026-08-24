@@ -1,12 +1,23 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import { X, Check, ArrowRight, Users } from "lucide-react";
+import { identityHas } from "@/accounts/display";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
+import { useSelfHistory } from "@/hooks/useSelf";
 import { useSetupTasks } from "@/hooks/useSetupTasks";
+import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
 import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
 import { BACKUP_MESSAGE, BackupPrompt } from "@/components/BackupPrompt";
-import { dismissPostSignup, usePostSignupDismissed } from "@/lib/postSignupDismissal";
+import { BrainLogo } from "@/components/BrainLogo";
+import { needsActivationPrompt } from "@/components/ActivateBrainstormPanel";
+import { isNip85Activated } from "@/lib/nip85Activation";
+import {
+  dismissActivateNudge,
+  dismissPostSignup,
+  useActivateNudgeDismissed,
+  usePostSignupDismissed,
+} from "@/lib/postSignupDismissal";
 
 /** Profile icon (from supplied profile.svg), recolored via currentColor. */
 function ProfileIcon({ className }: { className?: string }) {
@@ -74,10 +85,30 @@ export function PostSignupCard() {
   const followVerification = useVerifiedNoFollows(pubkey || undefined);
   const returningNeedsFollow = !setup.eligible && !networkStarted && followVerification === "none";
 
-  if (!user || dismissed) return null;
-  if (!showFullCard && !returningNeedsFollow) return null;
+  // Returning user (own key) who already follows people: their remaining step is
+  // ACTIVATION — signing the kind-10040 that lets other apps find their scores.
+  // The landing page is the only page they reliably see, so the nudge lives
+  // here; the tile routes to /dashboard, where the activation interstitial and
+  // NIP-85 modal do the actual work. `needsActivationPrompt` carries the safe
+  // semantics (nothing until the relay check settles, never over a live
+  // Brainstorm declaration); both queries stay idle without a session/ta_pubkey,
+  // so this branch is inert for anonymous visitors.
+  const historyQuery = useSelfHistory(pubkey || undefined);
+  const taPubkey = (historyQuery.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data
+    ?.ta_pubkey;
+  const trustProvider = useTrustProviderStatus(pubkey || undefined, taPubkey);
+  const createdInApp = !!pubkey && identityHas(pubkey, "createdInApp");
+  const activationDismissed = useActivateNudgeDismissed(pubkey);
+  const returningNeedsActivation =
+    !createdInApp &&
+    followVerification === "has-follows" &&
+    needsActivationPrompt({
+      status: trustProvider.data,
+      locallyActivated: isNip85Activated(pubkey),
+      createdInApp,
+    });
 
-  const handleDismiss = () => dismissPostSignup(pubkey);
+  if (!user) return null;
 
   // Apple-style "material" tiles: soft translucent panel + hairline border +
   // subtle frost + whisper of shadow, so they read as refined inset surfaces
@@ -85,6 +116,61 @@ export function PostSignupCard() {
   const tileBase =
     "group relative w-full text-left rounded-2xl bg-white/70 dark:bg-white/[0.07] backdrop-blur-sm border border-white/60 dark:border-white/[0.10] shadow-sm dark:shadow-none p-4 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40";
   const tileClickable = tileBase + " hover:bg-white/85 dark:hover:bg-white/[0.11] hover:border-brand-accent/40 hover:shadow-md active:scale-[0.995]";
+
+  if (returningNeedsActivation && !activationDismissed) {
+    return (
+      <div
+        className="relative w-full max-w-3xl mx-auto mt-6 sm:mt-8 overflow-hidden rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] shadow-sm dark:shadow-none"
+        data-testid="card-activate-nudge"
+      >
+        <div className="relative p-5 sm:p-6">
+          <button
+            type="button"
+            onClick={() => dismissActivateNudge(pubkey)}
+            className="absolute top-0 right-0 h-9 w-9 rounded-lg flex items-center justify-center text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+            aria-label="Dismiss"
+            data-testid="button-activate-nudge-dismiss"
+          >
+            <X className="h-4 w-4" />
+          </button>
+          <div className="flex items-center gap-2.5 mb-2">
+            <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link dark:text-brand-link uppercase">Your scores</span>
+          </div>
+          <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
+            Activate your scores
+          </h3>
+          <p className="mt-1.5 text-[15px] text-slate-700 dark:text-slate-200 leading-relaxed max-w-xl">
+            Brainstorm calculates scores from your network. Sign one note so other Nostr apps can
+            find them.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate("/dashboard")}
+            className={`${tileClickable} mt-4 !border-brand-accent/50 !bg-brand-accent/[0.06]`}
+            data-testid="tile-activate-brainstorm"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-brand-primary flex items-center justify-center text-white shrink-0">
+                <BrainLogo mono size={20} className="text-white" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-[15px] font-bold text-slate-900 dark:text-slate-100">Activate Brainstorm</div>
+                <div className="text-[13px] font-semibold text-brand-link dark:text-brand-link inline-flex items-center gap-1">
+                  One signature in your signer
+                  <ArrowRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform" />
+                </div>
+              </div>
+            </div>
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  if (dismissed) return null;
+  if (!showFullCard && !returningNeedsFollow) return null;
+
+  const handleDismiss = () => dismissPostSignup(pubkey);
 
   // Returning user (own key) whose profile + backup are already theirs and just
   // hasn't built a Web of Trust yet → one focused nudge, no "Welcome / new
@@ -184,8 +270,9 @@ export function PostSignupCard() {
             {user.displayName ? `, ${user.displayName}` : ""}!
           </h3>
           <p className="mt-1.5 text-[15px] text-slate-700 dark:text-slate-200 leading-relaxed max-w-xl">
-            Follow a few accounts to switch on your scores — then back up your account and add a
-            photo so people recognize you.
+            {networkStarted
+              ? "Back up your account and add a photo so people recognize you."
+              : "Follow a few accounts to switch on your scores — then back up your account and add a photo so people recognize you."}
           </p>
 
           {/* Step 1 (payload-first): build your network — the activation step. */}

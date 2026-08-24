@@ -37,6 +37,20 @@ describe("the ask", () => {
     render(<Nip85ConsentCard pubkey={ME} taPubkey={TA} value={true} onChange={() => {}} />);
     expect(screen.getByTestId("nip85-consent-toggle")).toBeInTheDocument();
   });
+
+  it("mentions the signer prompt only where a signer will actually prompt", () => {
+    const { unmount } = render(
+      <Nip85ConsentCard pubkey={ME} value={true} onChange={() => {}} skipProviderCheck />,
+    );
+    expect(screen.getByText(/your signer will ask you to approve it/i)).toBeInTheDocument();
+    unmount();
+
+    // The in-app wizard's key signs silently — there is no signer to ask.
+    render(
+      <Nip85ConsentCard pubkey={ME} value={true} onChange={() => {}} skipProviderCheck silentSigner />,
+    );
+    expect(screen.queryByText(/your signer will ask/i)).toBeNull();
+  });
 });
 
 describe("the pre-check verdicts", () => {
