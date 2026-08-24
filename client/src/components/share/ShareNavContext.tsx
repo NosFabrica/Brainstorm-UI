@@ -9,6 +9,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { apiClient } from "@/services/api";
 import { decodeShareId } from "@/lib/shareId";
 import { TierTile } from "@/components/score/TierTile";
+import { useTierRing } from "@/components/score/VerificationCoin";
 import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
@@ -75,6 +76,7 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
   });
   const score01 = typeof scoreQuery.data === "number" ? scoreQuery.data : null;
   const hasTier = score01 != null;
+  const tierRing = useTierRing();
   const povCaption = usePersonal ? "Through your network" : "Brainstorm network score";
 
   // Hashtags go straight to their trust-ranked content feed (no confirm — it's an
@@ -114,7 +116,7 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
             <DialogHeader className="space-y-0 text-left">
               <div className="flex items-start gap-3">
                 {isProfile && intent?.picture ? (
-                  <Avatar className="h-10 w-10 shrink-0 rounded-xl border border-brand-accent/20">
+                  <Avatar className={`h-10 w-10 shrink-0 rounded-xl border border-brand-accent/20 ${tierRing(score01) ?? ""}`}>
                     <AvatarImage src={intent.picture} alt={intent.label} className="object-cover" />
                     <AvatarFallback className="overflow-hidden rounded-xl"><DefaultAvatarImg /></AvatarFallback>
                   </Avatar>

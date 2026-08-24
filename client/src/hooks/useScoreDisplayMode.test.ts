@@ -15,8 +15,8 @@ describe("score display mode store", () => {
     localStorage.clear();
   });
 
-  it("defaults to number — decision 5: ship the choice, keep today's face", () => {
-    expect(getScoreDisplayMode()).toBe("number");
+  it("defaults to word — team review: ring + tier label is the face now", () => {
+    expect(getScoreDisplayMode()).toBe("word");
   });
 
   it("round-trips a choice", () => {
@@ -36,11 +36,11 @@ describe("score display mode store", () => {
     expect(getScoreDisplayMode()).toBe("tier");
     // Switch accounts: the other account never chose, so the default applies.
     localStorage.setItem("nostr_user", JSON.stringify({ pubkey: "bbb" }));
-    expect(getScoreDisplayMode()).toBe("number");
+    expect(getScoreDisplayMode()).toBe("word");
   });
 
   it("treats garbage in storage as unset rather than crashing or trusting it", () => {
     localStorage.setItem("brainstorm_score_display:anon", "percentage");
-    expect(getScoreDisplayMode()).toBe("number");
+    expect(getScoreDisplayMode()).toBe("word");
   });
 });

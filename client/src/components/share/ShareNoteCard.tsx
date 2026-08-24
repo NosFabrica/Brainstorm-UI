@@ -168,7 +168,9 @@ export function ShareNoteCard({
     ? authorProfile.nip05.replace(/^_@/, "@")
     : authorNpub ? `@${authorNpub.slice(0, 12)}…` : "";
   const authorTier = typeof authorScore === "number" ? shareTierFor(authorScore, granularity) : null;
-  const ringStyle = authorTier ? { boxShadow: `0 0 0 2px #fff, 0 0 0 3.5px ${authorTier.ring}` } : undefined;
+  // Through the hook, not an inline boxShadow — the old style drew in EVERY
+  // display mode (number and off included); the ring is tier/word chrome.
+  const authorRing = tierRing(authorScore) ?? "";
 
   return (
     <div data-testid="note-card" onClick={onCardClick} className={clickable}>
@@ -183,7 +185,7 @@ export function ShareNoteCard({
                 onClick={(e) => { e.stopPropagation(); if (authorNpub) navigate(`/p/${authorNpub}`); }}
                 className="group/author flex min-w-0 flex-1 cursor-pointer items-center gap-2.5"
               >
-                <Avatar className="h-9 w-9 shrink-0 border border-slate-200 dark:border-slate-800" style={ringStyle}>
+                <Avatar className={`h-9 w-9 shrink-0 border border-slate-200 dark:border-slate-800 ${authorRing}`}>
                   {authorProfile?.picture ? <AvatarImage src={authorProfile.picture} alt={authorName} className="object-cover" /> : null}
                   <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
                 </Avatar>
@@ -196,7 +198,7 @@ export function ShareNoteCard({
             {authorTier && typeof authorScore === "number" && (
               <HoverCardContent align="start" className="w-64 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xl" data-testid="note-author-trust">
                 <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10 shrink-0" style={ringStyle}>
+                  <Avatar className={`h-10 w-10 shrink-0 ${authorRing}`}>
                     {authorProfile?.picture ? <AvatarImage src={authorProfile.picture} alt={authorName} className="object-cover" /> : null}
                     <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
                   </Avatar>

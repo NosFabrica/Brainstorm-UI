@@ -95,3 +95,13 @@ tinting; renaming the Relax/Default/Strict presets.
   rework no longer writes — every signed-in user was sharing the `:anon` slot.
   They now key on the Active Account, with `nostr_user` as a migration fallback.
 - Admin user panel untouched (decision 7).
+
+## Team review addendum (Aug 21, after staging)
+
+Defaults confirmed and tightened: **Simple** stays the ladder default, and the
+display-mode default flips from Number to **Word** (ring + tier label) — the
+ring on the photo with the tier word beside the name is the product's face;
+the 0–100 score is the opt-in. Rings are to appear consistently wherever
+profile pictures show **and a score is available**; sites with no score in
+scope stay unringed (unrated) until a backend bulk-scores endpoint (pubkey
+list → influence map) exists — recorded as the backend ask.

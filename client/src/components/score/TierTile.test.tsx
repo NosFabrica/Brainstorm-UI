@@ -7,11 +7,17 @@ import { setTierGranularity } from "@/hooks/useTierGranularity";
 describe("TierTile follows both viewer settings", () => {
   beforeEach(() => localStorage.clear());
 
-  it("says the Simple word and shows digits by default", () => {
+  it("defaults to the word rendering on the Simple ladder — no digits anywhere", () => {
     render(<TierTile score01={0.9} pov="global" caption="Brainstorm network score" />);
     expect(screen.getByTestId("tier-tile-word")).toHaveTextContent("Verified");
-    expect(screen.getByTestId("verification-coin")).toHaveTextContent("90");
+    expect(screen.getByTestId("verification-coin")).not.toHaveTextContent("90");
     expect(screen.getByTestId("tier-tile").getAttribute("data-ladder")).toBe("simple");
+  });
+
+  it("shows digits when the viewer opted into number mode", () => {
+    setScoreDisplayMode("number");
+    render(<TierTile score01={0.9} pov="global" caption="Brainstorm network score" />);
+    expect(screen.getByTestId("verification-coin")).toHaveTextContent("90");
   });
 
   it("says the Detailed word when the viewer chose the full ladder", () => {
