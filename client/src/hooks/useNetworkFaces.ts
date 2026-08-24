@@ -80,6 +80,18 @@ export function useNetworkFaces(observer: string, enabled: boolean) {
 
       const need = Array.from(new Set([...followingTop, ...followersTop]));
       const profiles = need.length ? await fetchProfileMap(need).catch(() => new Map()) : new Map();
+      // The following-side faces come from the contact list with no score. At
+      // most FACES×2 of them made the cut, so fetching house influence for the
+      // gaps is bounded (≤10 unauthenticated calls, cached with this query) —
+      // without it, half the pile would sit unringed next to a ringed half.
+      await Promise.allSettled(
+        need
+          .filter((pk) => scoreByPk.get(pk) == null)
+          .map(async (pk) => {
+            const s = await apiClient.getHouseInfluence(pk).catch(() => null);
+            if (typeof s === "number" && Number.isFinite(s)) scoreByPk.set(pk, s);
+          }),
+      );
       const toFace = (pk: string): NetworkFace => ({
         pubkey: pk,
         picture: profiles.get(pk)?.picture,
