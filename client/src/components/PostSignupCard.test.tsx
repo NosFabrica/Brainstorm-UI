@@ -85,6 +85,10 @@ vi.mock("@/hooks/useSelf", async (importOriginal) => ({
 vi.mock("@/hooks/useTrustProviderStatus", () => ({
   useTrustProviderStatus: () => ({ data: trustProviderStatus() }),
 }));
+vi.mock("@/components/ActivateBrainstormModal", () => ({
+  ActivateBrainstormModal: ({ open, serviceKey }: { open: boolean; serviceKey: string }) =>
+    open ? <div data-testid="stub-activate-modal" data-servicekey={serviceKey} /> : null,
+}));
 // A brand-new in-app account with everything still to do — the card's own case.
 vi.mock("@/hooks/useSetupTasks", () => ({
   useSetupTasks: (): SetupState => ({
@@ -238,13 +242,17 @@ describe("the activation nudge, for signer accounts that already follow people",
     expect(screen.getByTestId("card-activate-nudge")).toBeInTheDocument();
   });
 
-  it("routes to the dashboard, where the interstitial takes over", () => {
+  // The tile promises "one signature" — it must open the modal right here, not
+  // detour through a dashboard that spends its first ~7 minutes calculating.
+  it("opens the activation modal in place, with the assistant key", () => {
     signerWithFollows();
     renderWithProviders(<PostSignupCard />);
+    expect(screen.queryByTestId("stub-activate-modal")).toBeNull();
 
     fireEvent.click(screen.getByTestId("tile-activate-brainstorm"));
 
-    expect(navigate).toHaveBeenCalledWith("/dashboard");
+    expect(screen.getByTestId("stub-activate-modal").getAttribute("data-servicekey")).toBe("b".repeat(64));
+    expect(navigate).not.toHaveBeenCalled();
   });
 
   // Never flash the ask at someone who may already be activated.

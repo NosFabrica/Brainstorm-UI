@@ -1210,7 +1210,12 @@ export default function DashboardPage() {
             <TaggedYouModule />
           </div>
 
-          {publishDone && !isRecalculating && !nip85Activated && !nip85Dismissed && (!nip85CreatedInApp || hasDeclinedNip85(user?.pubkey)) && (
+          {/* `showOnboarding` keeps the signature available DURING the first
+              calculation (~7 min): signing needs only ta_pubkey, which exists
+              from login — black-box testing showed users lost in exactly that
+              gap when the card waited for publishDone. showOnboarding already
+              excludes zero-follow / unsettled / recalculating states. */}
+          {(publishDone || showOnboarding) && !isRecalculating && !nip85Activated && !nip85Dismissed && (!nip85CreatedInApp || hasDeclinedNip85(user?.pubkey)) && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}

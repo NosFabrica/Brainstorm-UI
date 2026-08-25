@@ -8,9 +8,11 @@ import { useSelfHistory } from "@/hooks/useSelf";
 import { useSetupTasks } from "@/hooks/useSetupTasks";
 import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
 import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
+import { ActivateBrainstormModal } from "@/components/ActivateBrainstormModal";
 import { BACKUP_MESSAGE, BackupPrompt } from "@/components/BackupPrompt";
 import { BrainLogo } from "@/components/BrainLogo";
 import { isNip85Activated } from "@/lib/nip85Activation";
+import { useToast } from "@/hooks/use-toast";
 import type { TrustProviderStatus } from "@/services/trustAnchor";
 import {
   dismissActivateNudge,
@@ -114,11 +116,14 @@ export function PostSignupCard() {
   // Returning user (own key) who already follows people: their remaining step is
   // ACTIVATION — signing the kind-10040 that lets other apps find their scores.
   // The landing page is the only page they reliably see, so the nudge lives
-  // here; the tile routes to /dashboard, where the activation interstitial and
-  // NIP-85 modal do the actual work. `needsActivationPrompt` carries the safe
-  // semantics (nothing until the relay check settles, never over a live
-  // Brainstorm declaration); both queries stay idle without a session/ta_pubkey,
-  // so this branch is inert for anonymous visitors.
+  // here, and its tile opens the NIP-85 modal RIGHT HERE: signing needs only
+  // `ta_pubkey`, which exists from login, so the promise "one signature" must
+  // never detour through a page that's busy calculating. `needsActivationPrompt`
+  // carries the safe semantics (nothing until the relay check settles, never
+  // over a live Brainstorm declaration); both queries stay idle without a
+  // session/ta_pubkey, so this branch is inert for anonymous visitors.
+  const { toast } = useToast();
+  const [activateOpen, setActivateOpen] = useState(false);
   const historyQuery = useSelfHistory(pubkey || undefined);
   const taPubkey = (historyQuery.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data
     ?.ta_pubkey;
@@ -171,7 +176,7 @@ export function PostSignupCard() {
           </p>
           <button
             type="button"
-            onClick={() => navigate("/dashboard")}
+            onClick={() => setActivateOpen(true)}
             className={`${tileClickable} mt-4 !border-brand-accent/50 !bg-brand-accent/[0.06]`}
             data-testid="tile-activate-brainstorm"
           >
@@ -189,6 +194,17 @@ export function PostSignupCard() {
             </div>
           </button>
         </div>
+        {/* On success the publish path seeds the shared provider-status cache
+            ("brainstorm"), so this whole card self-hides reactively. */}
+        <ActivateBrainstormModal
+          open={activateOpen}
+          onOpenChange={setActivateOpen}
+          serviceKey={taPubkey || ""}
+          onActivated={() => {
+            setActivateOpen(false);
+            toast({ title: "Brainstorm activated!", description: "Your scores are now available across the nostr ecosystem." });
+          }}
+        />
       </div>
     );
   }
