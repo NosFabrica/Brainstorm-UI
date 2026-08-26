@@ -84,6 +84,12 @@ identical to the copy circulated).
   ($2/month, both rails, trial 0) still needs creating in the dashboard,
   with real description/features — the checkout page renders that copy
   verbatim.
-- **Open incident**: two Lightning checkouts (Rizful NWC) stuck `pending`
-  past the guide's ~30-minute resolution window, wallets never debited.
-  Flash team notified; suspect NWC budget/permission or Rizful relay.
+- **Resolved incident** (Flash team, 2026-08-26): the two `pending`
+  Lightning checkouts weren't stuck — the wallet returned an *ambiguous*
+  NWC error, so Flash couldn't fail the checkout immediately and let the
+  invoice expire instead. Pending signups with no charge behind them are
+  auto-cleaned after ~30 minutes. Usual client-side causes: NWC budget
+  exhausted, missing `pay_invoice` permission, or insufficient balance —
+  and Alby reports budget-exhausted and insufficient-balance as the *same*
+  error, so check both. Retest with a fresh connection with a sufficient
+  budget; if it still lands pending, Flash can pull logs for the attempt.
