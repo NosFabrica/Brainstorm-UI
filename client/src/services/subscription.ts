@@ -200,8 +200,9 @@ export function setMockSubscription(
       ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
       : null,
     rail: paid ? rail : null,
-    // A fake portal so the cancel-follows-manage_url flow is demoable.
-    manageUrl: paid ? "https://flash.example/portal/mock" : null,
+    // The REAL dev-vault portal, so the manage/cancel demo clicks through to
+    // the actual magic-link page (guide §2: portal/{serviceId}).
+    manageUrl: paid ? "https://dev.server.vault.paywithflash.com/subscriptions/portal/019eb7e1-c789-731e-9c9a-e84e83500097" : null,
   };
   try {
     localStorage.setItem(MOCK_KEY, JSON.stringify(sub));

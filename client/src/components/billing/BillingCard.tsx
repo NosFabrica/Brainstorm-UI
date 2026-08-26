@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { Loader2, ArrowRight, CreditCard, Zap, Receipt } from "lucide-react";
+import { Loader2, ArrowRight, CreditCard, Zap, Receipt , ExternalLink } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
@@ -194,6 +194,21 @@ export function BillingCard() {
             <ArrowRight className="h-4 w-4" />
           </Link>
         </Button>
+
+        {/* The portal is also where an expiring card or a Lightning connection
+            gets updated — the most common billing event there is, so it can't
+            be reachable only by starting a cancel. New tab: the portal is
+            Flash's page, and the app stays alive behind it. */}
+        {paid && manageUrl && (
+          <Button
+            variant="outline"
+            className="gap-1.5"
+            onClick={() => window.open(manageUrl, "_blank", "noopener,noreferrer")}
+            data-testid="billing-manage"
+          >
+            <ExternalLink className="h-4 w-4" /> Manage payment method
+          </Button>
+        )}
 
         {canCancel && !confirming && (
           <Button

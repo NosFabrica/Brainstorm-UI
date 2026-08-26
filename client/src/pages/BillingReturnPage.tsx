@@ -27,9 +27,9 @@ import { PAID_TIER, TIERS } from "@/lib/plans";
  */
 export default function BillingReturnPage() {
   const signedIn = useHasSession();
-  const { tier } = useSubscription();
+  const { tier, status } = useSubscription();
   const qc = useQueryClient();
-  const [phase, setPhase] = useState<"checking" | "confirming" | "done">("checking");
+  const [phase, setPhase] = useState<"checking" | "confirming" | "done" | "none">("checking");
   const ran = useRef(false);
 
   const outcome = (() => {
@@ -40,11 +40,17 @@ export default function BillingReturnPage() {
     }
   })();
 
+  // "Return without subscribing" on Flash's page comes back here with NO
+  // status at all — that person made no payment and must not see a payment
+  // spinner. Treat unknown statuses the same way (the guide says the set is
+  // open): one quiet refresh in case a new success-ish status exists, then a
+  // calm no-payment state. Only a real outcome starts the confirming poll.
+  const paidOutcome = outcome === "active" || outcome === "trial";
   useEffect(() => {
     if (!signedIn || ran.current) return;
     ran.current = true;
     // Mock mode: apply the outcome so the demo flow round-trips end to end.
-    if (!FEATURES.subscriptionApi && (outcome === "active" || outcome === "trial")) {
+    if (!FEATURES.subscriptionApi && paidOutcome) {
       setMockSubscription(PAID_TIER, "active");
     }
     if (!FEATURES.subscriptionApi && outcome === "pending") {
@@ -55,21 +61,28 @@ export default function BillingReturnPage() {
         qc.setQueryData(["/user/subscription"], sub);
         if (sub.tier !== "free" && sub.status !== "pending") {
           setPhase("done");
-        } else {
+        } else if (paidOutcome || outcome === "pending") {
           setPhase("confirming");
           startCheckoutPoll(qc);
+        } else {
+          setPhase("none");
         }
       })
       .catch(() => {
-        setPhase("confirming");
-        startCheckoutPoll(qc);
+        if (paidOutcome || outcome === "pending") {
+          setPhase("confirming");
+          startCheckoutPoll(qc);
+        } else {
+          setPhase("none");
+        }
       });
-  }, [signedIn, outcome, qc]);
+  }, [signedIn, outcome, paidOutcome, qc]);
 
-  // The poll writes into the cache; when the tier flips, flip the page.
+  // The poll writes into the cache; flip the page when the subscription has
+  // actually SETTLED — a paid tier still carrying `pending` isn't done yet.
   useEffect(() => {
-    if (phase === "confirming" && tier !== "free") setPhase("done");
-  }, [phase, tier]);
+    if (phase === "confirming" && tier !== "free" && status !== "pending") setPhase("done");
+  }, [phase, tier, status]);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-start justify-center px-4 pt-24">
@@ -105,6 +118,21 @@ export default function BillingReturnPage() {
               </Button>
             </div>
           </>
+        ) : phase === "none" ? (
+          <>
+            <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">No payment was made</h1>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300" data-testid="billing-return-none">
+              That's fine — nothing was charged. You can subscribe any time.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button asChild className="gap-1.5">
+                <Link href="/pricing">Back to pricing <ArrowRight className="h-4 w-4" /></Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/">Home</Link>
+              </Button>
+            </div>
+          </>
         ) : (
           <>
             <div className="flex items-center gap-2.5">
@@ -112,9 +140,9 @@ export default function BillingReturnPage() {
               <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">Confirming your payment</h1>
             </div>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300" data-testid="billing-return-pending">
-              We haven't seen your payment land yet — this can take a minute, and up to ten with
-              Lightning. This page updates on its own, and it's safe to leave; your plan switches
-              the moment it clears.
+              We haven't seen your payment land yet — usually this takes a minute or two, though
+              Lightning can take up to half an hour. This page updates on its own, and it's safe to
+              leave; your plan switches the moment it clears.
             </p>
           </>
         )}
