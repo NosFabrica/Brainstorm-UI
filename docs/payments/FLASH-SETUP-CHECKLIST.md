@@ -9,11 +9,12 @@ identical to the copy circulated).
 1. **Checkout links to the PLAN, not the service** — one plan means the
    service page is a click offering no choice. Revisit when a second plan
    (e.g. annual) exists; the server owns the URL so switching is trivial.
-2. **Redirect URLs: register ONLY staging for now** —
-   `https://brainstorm-staging.nosfabrica.com/billing/return`, exact,
-   no trailing slash, no query. Add production when the release nears.
-   (HTTPS-only rule means localhost can never be registered — local
-   return-flow testing stays manual; staging is the first real round trip.)
+2. **Redirect URLs: staging + localhost, both registered 2026-08-26** —
+   `https://brainstorm-staging.nosfabrica.com/billing/return` and
+   `http://localhost:5001/billing/return`, exact, no trailing slash, no
+   query. Add production when the release nears. (The guide says
+   HTTPS-only, but the dashboard's own field hint allows `http://localhost`
+   for development — verified working end-to-end 2026-08-26.)
    Must stay character-identical to the `redirect_uri` the server builds
    into `checkout_url` — one decision, two places.
 3. **No `email`/`name` prefills, permanently** — we store neither; the
@@ -52,3 +53,23 @@ identical to the copy circulated).
   10-minute poll.
 - The API response has `currentPeriodStart` — passing it through
   `/user/subscription` someday would replace the UI's derived period start.
+
+## Live-testing findings (2026-08-26, dev vault)
+
+- **"Return without subscribing" redirects with `status=canceled`** — a
+  value the guide's redirect table omits (it lists only
+  `active`/`trial`/`pending`). The UI's open-set handling renders the
+  no-payment state for it; the server's translator should treat it (and
+  any other unknown) as "change nothing". Reported to Flash as a docs gap.
+- **Plans can be sats-denominated natively** (the test plan renders
+  "SAT 1.00 / daily") — a future sats-priced plan needs no USD conversion.
+  Display quirk: the dashboard lists the same plan as "100 sats / day";
+  asked Flash which is authoritative.
+- **Current plan `01a039cc-…` is a throwaway test plan** ("Staging –
+  Daily", 1 sat/day, placeholder copy). The real Priority plan
+  ($2/month, both rails, trial 0) still needs creating in the dashboard,
+  with real description/features — the checkout page renders that copy
+  verbatim.
+- **Open incident**: two Lightning checkouts (Rizful NWC) stuck `pending`
+  past the guide's ~30-minute resolution window, wallets never debited.
+  Flash team notified; suspect NWC budget/permission or Rizful relay.
