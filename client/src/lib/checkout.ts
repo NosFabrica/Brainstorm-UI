@@ -1,73 +1,47 @@
 // Where "Get Priority" goes.
 //
-// ## What Flash actually accepts (measured, 2026-08-17)
+// ## The current Flash surface (UI-HANDOFF.md, supersedes the 2026-08-17 probes)
 //
-// Flash's public docs describe an older surface — `app.paywithflash.com/
-// subscription-page?flashId=459&params=<base64 JSON>`. Our vault is a different
-// product, and it takes NONE of that. Fetching our real signup page and probing
-// it showed:
+// The earlier probes hit an older product: that page read no query string, so
+// this file used to build a bare deep link from two VITE_FLASH_* vars and a
+// long comment explained why no parameter would ever work. Our account is on a
+// newer product now:
 //
-//   • the URL is path-based:  /subscriptions/signup/{serviceId}/{planId}
-//   • the documented `?params=<base64>` pre-fill does nothing
-//   • plain `?email=&npub=&external_uuid=` does nothing either
-//   • there is no external-id field on the form at all
+//   • the SERVER builds the checkout URL (GET /billing/plans → `checkout_url`),
+//     carrying the service id, plan id and the exactly-matched `redirect_uri` —
+//     exact to the character, which is why the server owns it;
+//   • the UI appends ONE parameter: `ref=<hex pubkey>` (≤200 chars; a pubkey is
+//     64). Flash echoes it back on the redirect, and it is the entire identity
+//     design — the pending-checkout/email-correlation machinery is gone;
+//   • one plan takes both rails; the subscriber picks card vs Lightning on
+//     Flash's page, so there is no rail parameter here;
+//   • checkout is IDEMPOTENT on `ref`: an existing subscriber gets redirected
+//     back with their subscription instead of charged twice.
 //
-// So there is no payload to build — just a deep link. Everything the earlier
-// `resolveCheckout()` did (tier/rail/pubkey/return query params) was addressed
-// to an API that does not exist on this surface.
-//
-// Link to the PLAN, not the service: the service-level URL is a "Get started"
-// interstitial listing plans, and with one plan it is a click offering no choice.
-//
-// ## Why a map rather than one env var
-//
-// Lightning will need its own Flash plan when that rail lands, and dev and
-// production are separate vaults with different UUIDs. A single scalar cannot
-// express `tier × rail → plan`, and discovering that later means touching every
-// caller. `VITE_FLASH_PRIORITY_CARD` holds "<serviceId>/<planId>".
+// `window.open` must stay synchronous inside the click handler (popup
+// blockers); optional `&email=` / `&name=` prefills exist but we don't store
+// either, so we send neither.
 
-import { env } from "@/lib/runtimeEnv";
-import type { TierId, Rail } from "@/lib/plans";
+import type { BillingPlan } from "@/services/subscription";
 
 export interface CheckoutTarget {
   /**
-   * false → this environment has no Flash vault configured. Callers must show
-   * that plainly rather than navigating: there is no in-app way to take a
-   * payment, and a fake checkout page would be a worse lie than an empty state.
+   * false → nothing to open: this instance has no billing (empty plans), the
+   * plan carries no checkout_url, or there's no signed-in pubkey to bind the
+   * payment to. Callers show that plainly rather than navigating — a fake
+   * checkout page would be a worse lie than an empty state.
    */
   external: boolean;
   url: string;
 }
 
-/** "<serviceId>/<planId>" per purchasable tier+rail, from runtime env. */
-function planPath(tier: TierId, rail: Rail): string {
-  if (tier === "priority" && rail === "card") {
-    return (env.VITE_FLASH_PRIORITY_CARD || "").trim().replace(/^\/+|\/+$/g, "");
-  }
-  return ""; // Lightning has no plan yet.
-}
-
-export function buildFlashCheckoutUrl(planPathSegment: string): string {
-  const base = (env.VITE_FLASH_BASE_URL || "").trim().replace(/\/+$/, "");
-  return `${base}/subscriptions/signup/${planPathSegment}`;
-}
-
-/**
- * Resolve where Subscribe goes. Falls back to the in-app preview route when the
- * vault isn't configured, so the whole flow stays clickable without credentials
- * — which is also how it behaves in local dev and in tests.
- */
+/** The URL Subscribe opens: the server's checkout_url plus our one parameter. */
 export function resolveCheckout(
-  tier: TierId,
-  opts?: { rail?: Rail },
+  plan: BillingPlan | undefined,
+  pubkey: string | null | undefined,
 ): CheckoutTarget {
-  const rail: Rail = opts?.rail ?? "card";
-  const path = planPath(tier, rail);
-  const base = (env.VITE_FLASH_BASE_URL || "").trim();
-
-  if (base && path) {
-    return { external: true, url: buildFlashCheckoutUrl(path) };
-  }
-  // No vault configured (local dev, or before creds land). No URL to give.
-  return { external: false, url: "" };
+  const base = plan?.checkoutUrl;
+  if (!base || !pubkey) return { external: false, url: "" };
+  const sep = base.includes("?") ? "&" : "?";
+  return { external: true, url: `${base}${sep}ref=${encodeURIComponent(pubkey)}` };
 }

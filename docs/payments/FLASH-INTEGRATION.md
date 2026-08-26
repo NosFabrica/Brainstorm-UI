@@ -26,7 +26,7 @@ before relying on it — that is the one piece we could not test from outside.
 
 ```
 user clicks Subscribe
-  → Brainstorm collects their email, stores pubkey ↔ email
+  → Brainstorm collected an email in an earlier design (superseded — see below), stores pubkey ↔ email
   → new tab to Flash's hosted signup page (card details never touch us)
   → Flash charges the card
   → Flash POSTs a webhook to us
@@ -273,7 +273,7 @@ never, which is exactly why it cannot depend on someone remembering to look.
 - **Billing lives in Settings → Billing**, beside the other account-level
   settings (relays, verified threshold, NIP-85 provider). `/billing` stays as a
   short alias onto that tab so receipts, support replies and the account menu
-  have a stable URL. `BillingPanel` on `pricing-flow` already renders tier,
+  have a stable URL. `BillingCard` on `pricing-flow` already renders tier,
   status, renewal date and rail from the subscription seam.
 - **Cancellation happens in our UI**, with the backend calling Flash's
   `/cancel_user_subscription`. A card-only subscriber gives an email and a card
@@ -401,3 +401,17 @@ vault isn't wired.
 
 11. Is there a return/redirect URL after payment? The new-tab + refetch-on-focus
     flow assumes no; an answer of yes lets us simplify.
+
+
+## Superseded by UI-HANDOFF.md (2026-08-26)
+
+Flash's current product (newer than the surface probed on 2026-08-17) accepts
+a `ref` query parameter carrying our hex pubkey and echoes it back on a real
+`redirect_uri`. **The entire email-correlation identity design above is
+superseded**: no pending-checkout record, no correlation window, no
+hold-and-alert queue — the join key is the pubkey in the URL. The server owns
+the checkout URL via public `GET /billing/plans`; the UI appends `ref` only.
+Cancel follows `manage_url`. Cadences are served live from the `scheduling`
+row. See `UI-HANDOFF.md` (the authoritative contract) — the old public docs at
+docs.paywithflash.com describe an older product again and are wrong for our
+account.

@@ -24,6 +24,7 @@ import { PovToggle } from "@/components/score/TrustScorePov";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { AccountSwitcher } from "@/components/AccountSwitcherPane";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useBillingPlans } from "@/hooks/useBillingPlans";
 import { PAID_TIER, TIERS } from "@/lib/plans";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useToast } from "@/hooks/use-toast";
@@ -213,6 +214,7 @@ export function AccountMenuBody({
   const [pane, setPane] = useState<"menu" | "switcher">("menu");
   const { tier } = useSubscription();
   const isPaid = tier === PAID_TIER;
+  const { billingAvailable } = useBillingPlans();
   // Verified handle for the identity line. A "_@domain" nip05 is a bare-domain
   // identity — show just the domain rather than the placeholder underscore.
   const rawNip05 = user.nip05?.trim();
@@ -396,7 +398,7 @@ export function AccountMenuBody({
              ordered by frequency. */}
       <div className="p-1.5">
         <MenuRow icon={Gauge} label="Insights" onClick={() => onNavigate("/insights")} testId="dropdown-insights" />
-        {!isPaid && (
+        {!isPaid && billingAvailable !== false && (
           // NOT a lightning bolt. On a Nostr client ⚡ means zaps and Lightning,
           // and Priority is billed by card — the icon implied a payment rail we
           // haven't wired. A calendar-clock says what the tier actually is: a

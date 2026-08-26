@@ -41,6 +41,7 @@ import HowSearchWorksPage from "@/pages/HowSearchWorksPage";
 import PersonalizationPage from "@/pages/PersonalizationPage";
 import AboutPage from "@/pages/AboutPage";
 import PricingPage from "@/pages/PricingPage";
+import BillingReturnPage from "@/pages/BillingReturnPage";
 import RoadmapPage from "@/pages/RoadmapPage";
 import DevelopersPage from "@/pages/DevelopersPage";
 import DeveloperNip50Page from "@/pages/DeveloperNip50Page";
@@ -262,6 +263,11 @@ function Router() {
         <Route path="/personalization" component={PersonalizationPage} />
         <Route path="/about" component={AboutPage} />
         <Route path="/pricing" component={PricingPage} />
+        {/* Flash's registered redirect target — a bare path on purpose
+            (redirect_uri matching is exact, query string included). */}
+        <Route path="/billing/return" component={BillingReturnPage} />
+        {/* The alias receipts and support links point at. */}
+        <Route path="/billing">{() => <Redirect to="/settings?tab=billing" replace />}</Route>
         <Route path="/roadmap" component={RoadmapPage} />
         <Route path="/developers" component={DevelopersPage} />
         <Route path="/developers/nip-50" component={DeveloperNip50Page} />

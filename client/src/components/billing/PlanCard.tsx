@@ -4,6 +4,7 @@ import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { useSubscription } from "@/hooks/useSubscription";
 import { TIERS, PAID_TIER, formatPrice, formatSats, nextScheduledLabel, type SubscriptionStatus } from "@/lib/plans";
+import { useBillingPlans } from "@/hooks/useBillingPlans";
 
 /**
  * "What plan am I on, and when do my scores update next?" — on /insights,
@@ -27,7 +28,9 @@ export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null
   const info = TIERS[tier];
   const paid = tier === PAID_TIER;
 
-  const next = nextScheduledLabel(lastCalculatedMs, tier);
+  const { recalcDays } = useBillingPlans();
+  // Live cadence off /billing/plans; the tier constant is only the fallback.
+  const next = nextScheduledLabel(lastCalculatedMs, tier, Date.now(), recalcDays(tier));
 
   return (
     <Card className="p-4 mb-4" data-testid="insights-plan-card">
@@ -59,7 +62,7 @@ export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null
         </Row>
 
         <Row label="Recalculated">
-          every {info.recalcIntervalDays} days
+          every {recalcDays(tier)} days
         </Row>
 
         {/* Derived from the plan's interval and the last run, not reported by the
@@ -84,7 +87,7 @@ export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null
       {!paid && !isLoading && (
         <p className="mt-3.5 text-[13px] text-slate-500 dark:text-slate-400">
           <Link href="/pricing" className="font-medium text-brand-link hover:underline" data-testid="insights-plan-link">
-            {TIERS[PAID_TIER].name} recalculates every {TIERS[PAID_TIER].recalcIntervalDays} days →
+            {TIERS[PAID_TIER].name} recalculates every {recalcDays(PAID_TIER)} days →
           </Link>
         </p>
       )}
@@ -103,6 +106,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 const STATUS_LABEL: Record<SubscriptionStatus, string> = {
   none: "—",
+  pending: "Confirming payment",
   active: "Active",
   past_due: "Payment due",
   grace: "Grace period",

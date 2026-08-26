@@ -15,6 +15,7 @@ import {
   type TierId,
 } from "@/lib/plans";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useBillingPlans } from "@/hooks/useBillingPlans";
 import { PriorityCheckout } from "@/components/billing/PriorityCheckout";
 
 /**
@@ -32,7 +33,26 @@ import { PriorityCheckout } from "@/components/billing/PriorityCheckout";
  */
 export default function PricingPage() {
   const { tier: currentTier, isLoading } = useSubscription();
+  const { billingAvailable, recalcDays } = useBillingPlans();
   const [checkoutOpen, setCheckoutOpen] = useState(false);
+
+  // A confirmed-empty plans array is the "this instance has no billing"
+  // signal (self-hosts). Only then does the page stand down — loading or a
+  // failed call keeps selling with the fallback numbers (handoff A8, fail open).
+  if (billingAvailable === false) {
+    return (
+      <InfoPageLayout testId="page-pricing">
+        <div className="max-w-2xl mx-auto px-4 sm:px-6 py-16 text-center" data-testid="pricing-unavailable">
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
+            This Brainstorm doesn't offer paid plans
+          </h1>
+          <p className="mt-3 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+            You're on a self-hosted instance — every feature here is simply on.
+          </p>
+        </div>
+      </InfoPageLayout>
+    );
+  }
 
   return (
     <InfoPageLayout testId="page-pricing">
@@ -49,7 +69,7 @@ export default function PricingPage() {
           // the intervals are the configured numbers — and if either changes,
           // this changes with it or becomes a lie.
           title={<>Your network changes <span className="text-brand-link">every day.</span></>}
-          subtitle="New follows show up in Brainstorm within 60 days on Free, 7 on Priority."
+          subtitle={`New follows show up in Brainstorm within ${recalcDays("free")} days on Free, ${recalcDays("priority")} on Priority.`}
           testId="section-pricing-header"
         />
 
@@ -100,12 +120,17 @@ function TierCard({
 }) {
   const tier = TIERS[id];
   const paid = id === PAID_TIER;
+  // LIVE cadence from /billing/plans — the build-time constant is only the
+  // render-before-fetch fallback, so a retuned policy can't leave this page
+  // advertising a stale number.
+  const { recalcDays } = useBillingPlans();
+  const liveDays = recalcDays(id);
   // The interval line is the hero number, not a bullet — said once.
   const features = liveFeatures(id).filter((f) => !f.interval);
   const inheritsName = tier.inherits ? TIERS[tier.inherits].name : null;
   // 60 / 7 = 8.57 — floored, so the claim understates rather than rounds up.
   const timesMoreOften = tier.inherits
-    ? Math.floor(TIERS[tier.inherits].recalcIntervalDays / tier.recalcIntervalDays)
+    ? Math.floor(recalcDays(tier.inherits) / Math.max(1, liveDays))
     : null;
 
   // What makes the paid card read as the bigger offer without repeating itself
@@ -154,7 +179,7 @@ function TierCard({
             }`}
             style={{ fontFamily: "var(--font-display)" }}
           >
-            {tier.recalcIntervalDays} days
+            {liveDays} days
           </p>
           {timesMoreOften != null && timesMoreOften > 1 && (
             <span className="text-sm font-semibold text-brand-deep dark:text-brand-link" data-testid={`tier-multiplier-${id}`}>

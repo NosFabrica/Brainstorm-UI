@@ -1,89 +1,41 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, expect, it } from "vitest";
+import { resolveCheckout } from "./checkout";
+import type { BillingPlan } from "@/services/subscription";
 
-/**
- * The thing worth testing here is the shape of the URL, because it was wrong
- * before: the previous resolver built `?tier=&rail=&pubkey=&return=` against
- * Flash's older documented surface, and our vault accepts none of it. A test
- * that pins the path form is what stops that regressing when someone reads the
- * public docs again and "fixes" it back.
- *
- * `env` is read at module scope in runtimeEnv, so each case re-imports with a
- * fresh mock rather than mutating a frozen object.
- */
-async function withEnv(vars: Record<string, string>) {
-  vi.resetModules();
-  vi.doMock("@/lib/runtimeEnv", () => ({
-    env: {
-      VITE_FLASH_BASE_URL: "",
-      VITE_FLASH_PRIORITY_CARD: "",
-      ...vars,
-    },
-  }));
-  return await import("./checkout");
-}
-
-const VAULT = "https://dev.server.vault.paywithflash.com";
-const PLAN = "019eb7e1-c789-731e-9c9a-e84e83500097/019ef08a-3c5f-7228-a15b-4838937045f5";
-
-beforeEach(() => vi.resetModules());
-afterEach(() => vi.doUnmock("@/lib/runtimeEnv"));
+const PLAN: BillingPlan = {
+  tier: "priority",
+  name: "Priority",
+  amountMinor: 200,
+  currency: "USD",
+  scheduleIntervalSeconds: 7 * 86_400,
+  checkoutUrl: "https://vault.example/subscriptions/signup/svc/plan?redirect_uri=https%3A%2F%2Fapp%2Fbilling%2Freturn",
+};
+const PUBKEY = "a".repeat(64);
 
 describe("resolveCheckout", () => {
-  it("deep-links to the plan, not the service interstitial", async () => {
-    const { resolveCheckout } = await withEnv({
-      VITE_FLASH_BASE_URL: VAULT,
-      VITE_FLASH_PRIORITY_CARD: PLAN,
-    });
-    const t = resolveCheckout("priority", { rail: "card" });
-
+  it("appends ref — the entire identity design — to the server-built URL", () => {
+    const t = resolveCheckout(PLAN, PUBKEY);
     expect(t.external).toBe(true);
-    expect(t.url).toBe(`${VAULT}/subscriptions/signup/${PLAN}`);
-    // Both ids present → it's the plan URL, not the service one.
-    expect(t.url.split("/subscriptions/signup/")[1].split("/")).toHaveLength(2);
+    expect(t.url).toBe(`${PLAN.checkoutUrl}&ref=${PUBKEY}`);
   });
 
-  it("carries no query string — Flash ignores every pre-fill param", async () => {
-    const { resolveCheckout } = await withEnv({
-      VITE_FLASH_BASE_URL: VAULT,
-      VITE_FLASH_PRIORITY_CARD: PLAN,
-    });
-    expect(resolveCheckout("priority", { rail: "card" }).url).not.toContain("?");
+  it("uses ? when the server URL carries no query yet", () => {
+    const t = resolveCheckout({ ...PLAN, checkoutUrl: "https://vault.example/signup/svc/plan" }, PUBKEY);
+    expect(t.url).toBe(`https://vault.example/signup/svc/plan?ref=${PUBKEY}`);
   });
 
-  it("tolerates stray slashes in configured values", async () => {
-    const { resolveCheckout } = await withEnv({
-      VITE_FLASH_BASE_URL: `${VAULT}/`,
-      VITE_FLASH_PRIORITY_CARD: `/${PLAN}/`,
-    });
-    expect(resolveCheckout("priority", { rail: "card" }).url).toBe(
-      `${VAULT}/subscriptions/signup/${PLAN}`,
-    );
+  it("refuses to open without a pubkey — an unbindable payment is worse than none", () => {
+    expect(resolveCheckout(PLAN, null)).toEqual({ external: false, url: "" });
+    expect(resolveCheckout(PLAN, undefined)).toEqual({ external: false, url: "" });
   });
 
-  it("reports unconfigured rather than inventing an in-app checkout", async () => {
-    // There is no way to take a payment without the vault, so the honest
-    // answer is "not here" — a fake in-app checkout page would be worse than
-    // an empty state.
-    const { resolveCheckout } = await withEnv({});
-    const t = resolveCheckout("priority", { rail: "card" });
-    expect(t.external).toBe(false);
-    expect(t.url).toBe("");
+  it("refuses when the instance has no billing (no plan / no checkout_url)", () => {
+    expect(resolveCheckout(undefined, PUBKEY).external).toBe(false);
+    expect(resolveCheckout({ ...PLAN, checkoutUrl: null }, PUBKEY).external).toBe(false);
   });
 
-  it("falls back for Lightning, which has no Flash plan yet", async () => {
-    const { resolveCheckout } = await withEnv({
-      VITE_FLASH_BASE_URL: VAULT,
-      VITE_FLASH_PRIORITY_CARD: PLAN,
-    });
-    const t = resolveCheckout("priority", { rail: "flash-lightning" });
-    expect(t.external).toBe(false);
-  });
-
-  it("defaults to the card rail", async () => {
-    const { resolveCheckout } = await withEnv({
-      VITE_FLASH_BASE_URL: VAULT,
-      VITE_FLASH_PRIORITY_CARD: PLAN,
-    });
-    expect(resolveCheckout("priority").url).toContain(PLAN);
+  it("url-encodes the ref", () => {
+    const t = resolveCheckout(PLAN, "npub with spaces");
+    expect(t.url.endsWith("ref=npub%20with%20spaces")).toBe(true);
   });
 });

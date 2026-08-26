@@ -9,37 +9,32 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useQueryClient } from "@tanstack/react-query";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useBillingPlans } from "@/hooks/useBillingPlans";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { resolveCheckout } from "@/lib/checkout";
-import { PAID_TIER, TIERS, formatPrice, liveFeatures } from "@/lib/plans";
+import { startCheckoutPoll } from "@/lib/checkoutPoll";
+import { PAID_TIER, TIERS, formatPrice, liveFeatures, recalcFeatureLabel } from "@/lib/plans";
 
 /**
  * The hand-off to Flash's payment page.
  *
- * ## Why this does NOT ask for an email
+ * ## Identity is one query parameter
  *
- * It used to, on the theory that capturing the address before the redirect was
- * the only way to tie a payment back to an account. Two things killed that:
+ * The checkout URL comes from GET /billing/plans, complete except `ref` — we
+ * append the signed-in hex pubkey, Flash echoes it back on the redirect, and
+ * that's the entire binding (UI-HANDOFF.md). The email-correlation design this
+ * replaced is gone. Checkout is idempotent on `ref`: an existing subscriber
+ * who clicks again is redirected back, not charged twice.
  *
- * 1. Flash's page cannot be pre-filled — it contains no `URLSearchParams`, no
- *    `location.search`, no query-string reading of any kind, so no parameter of
- *    any name will ever populate it. Asking here therefore meant typing the same
- *    address twice, on two different pages, to buy one thing.
- * 2. Nothing consumed what we collected. It went to localStorage and stopped.
+ * ## Return is belt and braces
  *
- * So the field was pure friction on the one screen where friction costs the
- * most. The binding belongs on the server instead: record a pending checkout
- * against the pubkey when this opens, and match the webhook's email to it on
- * arrival (docs/payments/FLASH-INTEGRATION.md). That is one entry rather than
- * two, and a firmer link than hoping two typed strings agree.
- *
- * ## Why a new tab
- *
- * Flash publishes no return URL. A redirect would strand people on their domain
- * when they finish; a tab keeps Brainstorm alive behind it, so focus coming back
- * is our "payment finished" signal (`useSubscription` refetches on focus). It
- * also leaves Flash's real domain in the address bar, which is where it belongs
- * while someone types card details.
+ * Flash redirects to /billing/return (primary). This dialog also invalidates
+ * the subscription query when it opens Flash — so the focus refetch actually
+ * fires (it never does inside the staleTime window; handoff A3) — and starts
+ * the in-flight poll (lib/checkoutPoll), which survives this dialog closing
+ * because Lightning `pending` can take ~10 minutes.
  *
  * `window.open` runs directly in the click handler so popup blockers allow it —
  * do not move it behind an await.
@@ -52,6 +47,9 @@ export function PriorityCheckout({
   onOpenChange: (open: boolean) => void;
 }) {
   const { tier, refetch } = useSubscription();
+  const { planFor, recalcDays } = useBillingPlans();
+  const me = useActiveAccountDisplay();
+  const qc = useQueryClient();
   const [sent, setSent] = useState(false);
 
   useEffect(() => {
@@ -63,14 +61,22 @@ export function PriorityCheckout({
     if (sent && tier === PAID_TIER) onOpenChange(false);
   }, [sent, tier, onOpenChange]);
 
-  const target = resolveCheckout(PAID_TIER, { rail: "card" });
+  const target = resolveCheckout(planFor(PAID_TIER), me?.pubkey);
   const price = formatPrice(PAID_TIER);
-  const perks = liveFeatures(PAID_TIER);
+  // The interval line renders from the LIVE cadence; static labels are fallbacks.
+  const perks = [
+    { key: "recalc-live", label: recalcFeatureLabel(recalcDays(PAID_TIER), recalcDays("free")) },
+    ...liveFeatures(PAID_TIER).filter((f) => !f.interval),
+  ];
 
   const go = () => {
     setSent(true);
     // Directly in the handler — see the note above about popup blockers.
-    if (target.external) window.open(target.url, "_blank", "noopener,noreferrer");
+    let w: Window | null = null;
+    if (target.external) w = window.open(target.url, "_blank", "noopener,noreferrer");
+    // A3: mark the query stale so the focus refetch really fires; A4: poll.
+    void qc.invalidateQueries({ queryKey: ["/user/subscription"] });
+    startCheckoutPoll(qc, { checkoutWindow: w });
   };
 
   return (

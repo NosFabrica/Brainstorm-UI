@@ -7,6 +7,7 @@ import { Chip } from "@/components/ui/chip";
 import { Button } from "@/components/ui/button";
 import { useSubscription } from "@/hooks/useSubscription";
 import { cancelSubscription } from "@/services/subscription";
+import { FEATURES } from "@/config/featureFlags";
 import { useToast } from "@/hooks/use-toast";
 import { TIERS, PAID_TIER, formatSats, type SubscriptionStatus, type Rail } from "@/lib/plans";
 
@@ -31,13 +32,15 @@ import { TIERS, PAID_TIER, formatSats, type SubscriptionStatus, type Rail } from
  *
  * ## Cancellation
  *
- * Calls our own `DELETE /user/subscription`; the backend then calls Flash. A
- * card-only subscriber has no Flash login, so this is the only path that can
- * work — and it depends on Flash's cancel endpoint, which is UNVERIFIED.
- * Confirm before trusting this button in production.
+ * Follows `subscription.manageUrl` — Flash's hosted portal today; if Flash
+ * ever confirms a cancel API, the server starts returning a URL into our own
+ * app and this code doesn't change (handoff A6). The portal signs people in
+ * with a magic-link email, so the confirm copy warns about that — generically,
+ * because we deliberately don't store the subscriber's address. Mock mode
+ * keeps the local cancel so the demo flow works. The old DELETE is gone.
  */
 export function BillingCard() {
-  const { tier, status, currentPeriodEnd, rail, isLoading } = useSubscription();
+  const { tier, status, currentPeriodEnd, rail, manageUrl, isLoading } = useSubscription();
   const info = TIERS[tier];
   const paid = tier === PAID_TIER;
   const qc = useQueryClient();
@@ -59,6 +62,13 @@ export function BillingCard() {
   const periodStart = periodEnd ? addMonths(periodEnd, -1) : null;
 
   const doCancel = async () => {
+    // Real mode: hand over to the portal, straight away — more friction than
+    // subscribing is already the wrong side of several jurisdictions' rules,
+    // so no interstitial beyond this confirm row.
+    if (FEATURES.subscriptionApi && manageUrl) {
+      window.location.href = manageUrl;
+      return;
+    }
     setBusy(true);
     try {
       await cancelSubscription();
@@ -212,6 +222,7 @@ export function BillingCard() {
           <p className="w-full text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
             You'll keep {info.name} until {periodEnd ? fmtDate(periodEnd) : "the end of the period you've paid for"} —
             nothing stops today. After that your scores go back to the free schedule.
+            {FEATURES.subscriptionApi && manageUrl ? " Cancelling happens on Flash's page — they'll sign you in with a link sent to the email you subscribed with." : ""}
           </p>
         )}
       </div>
@@ -246,6 +257,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 
 const STATUS_LABEL: Record<SubscriptionStatus, string> = {
   none: "—",
+  pending: "Confirming payment",
   active: "Active",
   past_due: "Payment due",
   grace: "Grace period",

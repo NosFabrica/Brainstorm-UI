@@ -776,6 +776,7 @@ export const apiClient = {
     status: string;
     current_period_end: string | null;
     rail: string | null;
+    manage_url?: string | null;
   }> {
     const response = await authenticatedFetch(
       `${getBrainstormApi()}/user/subscription`,
@@ -789,15 +790,48 @@ export const apiClient = {
   },
 
   /** Cancel at period end. Flash's own policy decides when it takes effect. */
-  async cancelSubscription(timeoutMs: number = 15000): Promise<void> {
+  /**
+   * "Did my payment land?" — re-reads Flash directly and applies the result
+   * (handoff A2/A4). Empty body ON PURPOSE: the caller is authenticated, so
+   * the server syncs whoever is signed in; the redirect's `subscriptionId`
+   * and `ref` are informational and must never be sent as authority.
+   * Rate-limited server-side — poll with a floor, not a hammer.
+   */
+  async refreshSubscription(timeoutMs: number = 15000): Promise<{
+    tier: string;
+    status: string;
+    current_period_end: string | null;
+    rail: string | null;
+    manage_url?: string | null;
+  }> {
     const response = await authenticatedFetch(
-      `${getBrainstormApi()}/user/subscription`,
-      { method: "DELETE", signal: AbortSignal.timeout(timeoutMs) },
+      `${getBrainstormApi()}/user/subscription/refresh`,
+      { method: "POST", signal: AbortSignal.timeout(timeoutMs) },
     );
     if (!response.ok) {
-      throw new Error(`Failed to cancel subscription (${response.status})`);
+      throw new Error(`Failed to refresh subscription (${response.status})`);
     }
+    const json = await response.json();
+    return json?.data;
   },
+
+  /**
+   * What's on offer — public, unauthenticated (the pricing page's audience is
+   * logged-out visitors). An empty `plans` array means this instance has no
+   * billing configured, which is the signal that hides the entry points.
+   */
+  async getBillingPlans(timeoutMs: number = 15000): Promise<{ plans: unknown[] }> {
+    const response = await fetch(`${getBrainstormApi()}/billing/plans`, {
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to load billing plans (${response.status})`);
+    }
+    const json = await response.json();
+    return json?.data ?? { plans: [] };
+  },
+
+
 
   /**
    * `influence` (0..1) — from our own backend. Issues an *unauthenticated*

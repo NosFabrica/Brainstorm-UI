@@ -41,7 +41,10 @@
 export type TierId = "free" | "priority";
 
 /** Subscription lifecycle state. Mirrors Flash's dunning + our backend record. */
-export type SubscriptionStatus = "none" | "active" | "past_due" | "grace" | "canceled";
+// "pending": a real payment awaiting confirmation (Lightning can take ~10
+// minutes). Without it the server is forced to send "none" and a genuinely
+// paying user reads as free — handoff A5.
+export type SubscriptionStatus = "none" | "pending" | "active" | "past_due" | "grace" | "canceled";
 
 /** Payment rail a subscription is billed on. Lightning is not wired yet. */
 export type Rail = "card" | "flash-lightning";
@@ -140,7 +143,12 @@ export const TIER_FEATURES: Record<string, FeatureDef> = {
   // it reads as an estimate we might miss, when it is a configured number
   // (`schedule_interval_seconds`) that either holds or is a bug. A figure someone
   // can check is worth more than a range that sounds safe.
-  "recalc-60d": { key: "recalc-60d", label: "New follows show up within 60 days", status: "live", interval: true },
+  // The label here is a FALLBACK — the live interval comes from
+  // GET /billing/plans (`schedule_interval_seconds`) and surfaces render
+  // `recalcFeatureLabel(days)` instead, so retuning a policy can't leave the
+  // pricing page advertising a stale number. Keys lost their baked-in numbers
+  // for the same reason (was `recalc-60d` / `weekly-recalc`).
+  "recalc-interval": { key: "recalc-interval", label: recalcFeatureLabel(60), status: "live", interval: true },
   // Concrete, and the thing that stops "slower schedule" reading as "crippled":
   // you can always refresh yourself, on either tier.
   "manual-unlimited": { key: "manual-unlimited", label: "Unlimited manual recalculation", status: "live" },
@@ -163,9 +171,10 @@ export const TIER_FEATURES: Record<string, FeatureDef> = {
   // Weekly recalculation, said once as the hero and once as what it touches.
   // Four consequences spelled out line by line read as repetition (team
   // review, Aug 21), so they are one line here.
-  "weekly-recalc": { key: "weekly-recalc", label: "New follows show up within 7 days, not 60", status: "live", interval: true },
-  "weekly-fresh": { key: "weekly-fresh", label: "Weekly updates to your followers, alerts and web of trust", status: "live" },
-  "queue-priority": { key: "queue-priority", label: "Ahead of the free queue when Brainstorm is busy", status: "live" },
+  "recalc-interval-paid": { key: "recalc-interval-paid", label: recalcFeatureLabel(7, 60), status: "live", interval: true },
+  // Cadence-neutral on purpose — "Weekly" would drift the day an admin retunes
+  // the policy, and the interval is the hero number elsewhere.
+  "auto-fresh": { key: "auto-fresh", label: "Automatic updates to your followers, alerts and web of trust", status: "live" },
   "priority-support": { key: "priority-support", label: "Priority support", status: "live" },
 
   // --- Planned. Roadmap only. Never listed as included. ---------------------
@@ -201,6 +210,23 @@ export const TIER_FEATURES: Record<string, FeatureDef> = {
   "score-preview": { key: "score-preview", label: "Try a change and see who it moves, before you keep it", status: "planned", theme: "scoring" },
 };
 
+/**
+ * Build-time cadence FALLBACKS. The truth is the live `scheduling` row,
+ * served per-plan by GET /billing/plans as `schedule_interval_seconds` —
+ * admins retune it without a deploy, so anything baked here can silently
+ * drift. These exist only so the pricing page renders before that call
+ * resolves (or if it fails). Prefer `useBillingPlans().recalcDays(tier)`.
+ */
+export const FALLBACK_RECALC_DAYS: Record<TierId, number> = { free: 60, priority: 7 };
+
+/** The cadence sentence, from the LIVE interval. */
+export function recalcFeatureLabel(days: number, comparedToDays?: number): string {
+  const d = (n: number) => (n === 1 ? "1 day" : `${n} days`);
+  return comparedToDays != null
+    ? `New follows show up within ${d(days)}, not ${comparedToDays}`
+    : `New follows show up within ${d(days)}`;
+}
+
 export const TIERS: Record<TierId, TierInfo> = {
   free: {
     id: "free",
@@ -212,7 +238,7 @@ export const TIERS: Record<TierId, TierInfo> = {
     tagline: "for checking someone occasionally",
     // Team review, Aug 21: "less is more" — exactly the lines they named.
     featureKeys: [
-      "recalc-60d",
+      "recalc-interval",
       "manual-unlimited",
       "verified-followers",
       "ranked-search",
@@ -234,10 +260,12 @@ export const TIERS: Record<TierId, TierInfo> = {
     // does. The interval itself is the card's hero number, so no note repeats it.
     kicker: "For active accounts",
     inherits: "free",
+    // `queue-priority` came off at the team's direction (handoff A9): the tier
+    // DOES get queue priority, but we're not advertising it — an evocative
+    // name without an explicit claim.
     featureKeys: [
-      "weekly-recalc",
-      "weekly-fresh",
-      "queue-priority",
+      "recalc-interval-paid",
+      "auto-fresh",
       "priority-support",
     ],
     cta: { current: "Your plan", upgrade: "Get Priority" },
@@ -302,9 +330,11 @@ export function nextScheduledLabel(
   lastRunMs: number | null,
   tier: TierId,
   nowMs: number = Date.now(),
+  /** Live interval from /billing/plans; the tier constant is the fallback. */
+  intervalDays?: number,
 ): string | null {
   if (!lastRunMs) return null;
-  const dueMs = lastRunMs + TIERS[tier].recalcIntervalDays * 86_400_000;
+  const dueMs = lastRunMs + (intervalDays ?? TIERS[tier].recalcIntervalDays) * 86_400_000;
   const days = Math.round((dueMs - nowMs) / 86_400_000);
   if (days <= 0) return "due now";
   return days === 1 ? "in 1 day" : `in ${days} days`;

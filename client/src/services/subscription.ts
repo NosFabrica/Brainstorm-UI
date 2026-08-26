@@ -26,6 +26,20 @@ export interface Subscription {
   /** ISO timestamp of the next renewal, or null on the free tier. */
   currentPeriodEnd: string | null;
   rail: Rail | null;
+  /** Where the user goes to cancel/manage (Flash's portal today), or null. */
+  manageUrl: string | null;
+}
+
+/** One purchasable (or free) plan, as served by public GET /billing/plans. */
+export interface BillingPlan {
+  tier: TierId;
+  name: string;
+  amountMinor: number;
+  currency: string;
+  /** Live cadence off the `scheduling` row — the number the pricing page shows. */
+  scheduleIntervalSeconds: number | null;
+  /** Complete except `ref` — the click handler appends `&ref=<pubkey>`. Null on free. */
+  checkoutUrl: string | null;
 }
 
 /** The safe default: everyone is free until something says otherwise. */
@@ -34,6 +48,7 @@ export const DEFAULT_SUBSCRIPTION: Subscription = {
   status: "active",
   currentPeriodEnd: null,
   rail: null,
+  manageUrl: null,
 };
 
 const MOCK_KEY = "brainstorm_mock_subscription";
@@ -41,6 +56,7 @@ const MOCK_KEY = "brainstorm_mock_subscription";
 const TIERS: readonly TierId[] = ["free", "priority"];
 const STATUSES: readonly SubscriptionStatus[] = [
   "none",
+  "pending",
   "active",
   "past_due",
   "grace",
@@ -62,7 +78,8 @@ function normalize(raw: unknown): Subscription {
     : "active";
   const periodEnd = (r.current_period_end ?? r.currentPeriodEnd) as string | null | undefined;
   const rail = RAILS.includes(r.rail as Rail) ? (r.rail as Rail) : null;
-  return { tier, status, currentPeriodEnd: periodEnd ?? null, rail };
+  const manageUrl = (r.manage_url ?? r.manageUrl) as string | null | undefined;
+  return { tier, status, currentPeriodEnd: periodEnd ?? null, rail, manageUrl: typeof manageUrl === "string" && manageUrl ? manageUrl : null };
 }
 
 function readMock(): Subscription {
@@ -84,13 +101,74 @@ export async function fetchSubscription(): Promise<Subscription> {
   return readMock();
 }
 
-/** Cancel — real endpoint when enabled, else mutate the mock. */
-export async function cancelSubscription(): Promise<void> {
+/**
+ * Ask the server to re-read Flash NOW and return the result — the redirect
+ * landing call and the in-flight poll (handoff A2/A4). Mock mode just re-reads
+ * the mock; the /billing/return page mutates it first so the demo flow works.
+ */
+export async function refreshSubscription(): Promise<Subscription> {
   if (FEATURES.subscriptionApi) {
-    await apiClient.cancelSubscription();
-    return;
+    return normalize(await apiClient.refreshSubscription());
   }
+  return readMock();
+}
+
+/**
+ * Cancel, MOCK ONLY. The real path is `subscription.manageUrl` — follow it
+ * (handoff A6); there is no cancel API to call, and the old DELETE is gone.
+ */
+export async function cancelSubscription(): Promise<void> {
   setMockSubscription(readMock().tier, "canceled");
+}
+
+const MOCK_PLANS_KEY = "brainstorm_mock_plans";
+
+/**
+ * The plans on offer. Real mode asks the public endpoint; an EMPTY array is
+ * the "this instance has no billing" signal that hides every entry point
+ * (handoff A8). Mock mode serves the documented two-plan shape — override by
+ * setting localStorage `brainstorm_mock_plans` to a JSON array (e.g. `[]` to
+ * rehearse the self-hosted, no-billing state).
+ */
+export async function fetchPlans(): Promise<BillingPlan[]> {
+  if (FEATURES.subscriptionApi) {
+    const raw = await apiClient.getBillingPlans();
+    const items = (raw?.plans ?? []) as Array<Record<string, unknown>>;
+    return items
+      .map((r) => normalizePlan(r))
+      .filter((pl): pl is BillingPlan => pl !== null);
+  }
+  try {
+    const raw = localStorage.getItem(MOCK_PLANS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) return parsed.map(normalizePlan).filter((pl): pl is BillingPlan => pl !== null);
+    }
+  } catch { /* fall through to defaults */ }
+  return [
+    { tier: "free", name: "Free", amountMinor: 0, currency: "USD", scheduleIntervalSeconds: 60 * 86_400, checkoutUrl: null },
+    {
+      tier: "priority", name: "Priority", amountMinor: 200, currency: "USD",
+      scheduleIntervalSeconds: 7 * 86_400,
+      checkoutUrl: "https://flash.example/subscriptions/signup/mock-service/mock-plan?redirect_uri=" + encodeURIComponent(window.location.origin + "/billing/return"),
+    },
+  ];
+}
+
+function normalizePlan(r: Record<string, unknown> | BillingPlan): BillingPlan | null {
+  const o = r as Record<string, unknown>;
+  const tier = (o.tier === "free" || o.tier === "priority") ? (o.tier as TierId) : null;
+  if (!tier) return null;
+  const seconds = (o.schedule_interval_seconds ?? o.scheduleIntervalSeconds) as number | undefined;
+  const checkout = (o.checkout_url ?? o.checkoutUrl) as string | null | undefined;
+  return {
+    tier,
+    name: typeof o.name === "string" ? o.name : tier,
+    amountMinor: typeof (o.amount_minor ?? o.amountMinor) === "number" ? ((o.amount_minor ?? o.amountMinor) as number) : 0,
+    currency: typeof o.currency === "string" ? o.currency : "USD",
+    scheduleIntervalSeconds: typeof seconds === "number" && Number.isFinite(seconds) ? seconds : null,
+    checkoutUrl: typeof checkout === "string" && checkout ? checkout : null,
+  };
 }
 
 // --- Dev / QA helpers (mock mode only) ---------------------------------------
@@ -114,6 +192,8 @@ export function setMockSubscription(
       ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
       : null,
     rail: paid ? rail : null,
+    // A fake portal so the cancel-follows-manage_url flow is demoable.
+    manageUrl: paid ? "https://flash.example/portal/mock" : null,
   };
   try {
     localStorage.setItem(MOCK_KEY, JSON.stringify(sub));

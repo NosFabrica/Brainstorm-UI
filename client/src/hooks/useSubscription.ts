@@ -12,10 +12,12 @@ import type { TierId } from "@/lib/plans";
  * it never fires for anonymous visitors — the real path uses
  * `authenticatedFetch`, which 401-redirects public pages.
  *
- * `refetchOnWindowFocus` is load-bearing, not a default left switched on. Flash
- * publishes no return URL, so checkout opens in a new tab and the only signal
- * that someone finished paying is the browser handing focus back to us. This
- * one option is the entire "return from checkout" mechanism.
+ * Return-from-checkout is belt and braces: Flash redirects to
+ * /billing/return (the primary), the in-flight poll re-reads Flash directly
+ * (lib/checkoutPoll), and `refetchOnWindowFocus` remains as the backstop for
+ * a tab someone left open — the checkout flow invalidates this query when it
+ * opens Flash, so the focus refetch actually fires (it never does inside the
+ * staleTime window; handoff A3).
  */
 export function useSubscription(): {
   subscription: Subscription;
@@ -23,6 +25,8 @@ export function useSubscription(): {
   status: Subscription["status"];
   currentPeriodEnd: string | null;
   rail: Subscription["rail"];
+  /** Flash's portal (or, later, our own flow) — where Cancel goes. */
+  manageUrl: string | null;
   isActive: boolean;
   isLoading: boolean;
   refetch: () => void;
@@ -43,6 +47,7 @@ export function useSubscription(): {
     status: subscription.status,
     currentPeriodEnd: subscription.currentPeriodEnd,
     rail: subscription.rail,
+    manageUrl: subscription.manageUrl,
     // Grace counts as active: a failed renewal inside Flash's 7-day grace window
     // must not read as "you've lost it" while retries are still running.
     isActive: subscription.status === "active" || subscription.status === "grace",
