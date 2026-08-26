@@ -20,13 +20,12 @@ import {
   Clock,
 } from "lucide-react";
 import { GlossBackground } from "@/components/GlossBackground";
-import { BrainLogo } from "@/components/BrainLogo";
 import { Wordmark } from "@/components/Wordmark";
 import { SignInButton } from "@/components/SignInButton";
 import { AccountMenu } from "@/components/AccountMenu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { EmptyState } from "@/components/ui/empty-state";
 import { fetchProfile } from "@/services/nostr";
 import { logout } from "@/accounts/login-flow";
@@ -104,6 +103,8 @@ async function resolveNip05(handle: string): Promise<string> {
 }
 
 export default function Landing() {
+  const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [query, setQuery] = useState(() => {
@@ -893,7 +894,7 @@ export default function Landing() {
                           onClick={() => goToProfile(s)}
                           data-testid={`home-suggestion-${i}`}
                         >
-                          <Avatar className="h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 shrink-0">
+                          <Avatar className={`h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 shrink-0 ${tierRing(s.wotRank) ?? ""}`}>
                             {s.picture ? <AvatarImage src={s.picture} alt={getDisplayLabel(s)} className="object-cover" /> : null}
                             <AvatarFallback className="overflow-hidden">
                               <DefaultAvatarImg />
@@ -910,11 +911,17 @@ export default function Landing() {
                               </p>
                             )}
                           </div>
+                          {/* Same coin as the results list below and every people
+                              list — it follows the viewer's display mode where
+                              this pill couldn't, and fixes the pill's scale bug:
+                              it printed `wotRank` raw (0..1), so 81 read "0.81". */}
                           {s.wotRank != null && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand-primary/10 dark:bg-white/10 text-brand-primary dark:text-slate-100 border border-brand-primary/15 dark:border-white/15 shrink-0" data-testid={`home-suggestion-rank-${i}`}>
-                              <BrainLogo mono size={10} className="shrink-0" />
-                              {s.wotRank}
-                            </span>
+                            <VerificationCoin
+                              score01={s.wotRank}
+                              pov={effectivePov === "mywot" ? "personalized" : "global"}
+                              size={22}
+                              className={tierRing(s.wotRank) && coinReplaced ? "sr-only" : "shrink-0"}
+                            />
                           )}
                         </button>
                       );
@@ -1192,7 +1199,7 @@ export default function Landing() {
                           number the product is about looked different here than
                           anywhere else. Team feedback, and they were right. */}
                       <div className="relative shrink-0">
-                        <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2 border-slate-200/80 dark:border-slate-800/80">
+                        <Avatar className={`h-10 w-10 sm:h-12 sm:w-12 border-2 border-slate-200/80 dark:border-slate-800/80 ${tierRing(result.wotRank) ?? ""}`}>
                           {result.picture ? <AvatarImage src={result.picture} alt={getDisplayLabel(result)} className="object-cover" /> : null}
                           <AvatarFallback className="overflow-hidden">
                             <DefaultAvatarImg />
@@ -1203,7 +1210,7 @@ export default function Landing() {
                             score01={result.wotRank}
                             pov={effectivePov === "mywot" ? "personalized" : "global"}
                             size={22}
-                            className="absolute -bottom-1 -right-1"
+                            className={tierRing(result.wotRank) && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1"}
                           />
                         )}
                       </div>
@@ -1212,6 +1219,7 @@ export default function Landing() {
                           <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors truncate" data-testid={`text-result-name-${idx}`}>
                             {getDisplayLabel(result)}
                           </span>
+                          <TierWordChip score01={result.wotRank} />
                         </div>
                         {result.nip05 && (
                           <p className="text-xs text-brand-primary dark:text-brand-link truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-nip05-${idx}`}>

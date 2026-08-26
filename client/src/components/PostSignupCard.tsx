@@ -11,9 +11,9 @@ import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
 import { ActivateBrainstormModal } from "@/components/ActivateBrainstormModal";
 import { BACKUP_MESSAGE, BackupPrompt } from "@/components/BackupPrompt";
 import { BrainLogo } from "@/components/BrainLogo";
+import { needsActivationPrompt } from "@/components/ActivateBrainstormPanel";
 import { isNip85Activated } from "@/lib/nip85Activation";
 import { useToast } from "@/hooks/use-toast";
-import type { TrustProviderStatus } from "@/services/trustAnchor";
 import {
   dismissActivateNudge,
   dismissPostSignup,
@@ -30,32 +30,6 @@ function ProfileIcon({ className }: { className?: string }) {
       <path d="M17 22.75H7C3.83 22.75 1.25 20.17 1.25 17V7C1.25 3.83 3.83 1.25 7 1.25H17C20.17 1.25 22.75 3.83 22.75 7V17C22.75 20.17 20.17 22.75 17 22.75ZM7 2.75C4.66 2.75 2.75 4.66 2.75 7V17C2.75 19.34 4.66 21.25 7 21.25H17C19.34 21.25 21.25 19.34 21.25 17V7C21.25 4.66 19.34 2.75 17 2.75H7Z" />
     </svg>
   );
-}
-
-/**
- * Whether an account still needs to sign its kind-10040, from the on-relay
- * provider verdict. Same semantics as `needsActivationPrompt` on the
- * activation-interstitial branch (PR #59) — swap to the shared helper when it
- * lands:
- * - undefined (not settled) / "unknown" (check errored) → never flash the ask
- *   at someone who may already be activated;
- * - in-app accounts → their consent card is the surface, and the background
- *   publish covers them;
- * - "brainstorm" → done; "other" → prompt even over a local activated flag
- *   (their on-relay declaration names someone else — re-choosing is the
- *   remedy); "none" → prompt unless locally activated (absence can be relay
- *   lag; never downgrade on a miss).
- */
-function needsActivationPrompt(opts: {
-  status: TrustProviderStatus | undefined;
-  locallyActivated: boolean;
-  createdInApp: boolean;
-}): boolean {
-  const { status, locallyActivated, createdInApp } = opts;
-  if (!status || status === "unknown" || createdInApp) return false;
-  if (status === "brainstorm") return false;
-  if (status === "other") return true;
-  return !locallyActivated;
 }
 
 /** Lock-in-circle icon (from supplied temp-lock.svg), recolored via currentColor. */

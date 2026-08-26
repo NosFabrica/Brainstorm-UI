@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { Search, X, Clock, ArrowUpRight } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { getRecentItems, recentKey, pushRecentQuery, pushRecentProfile, removeRecentItem, clearRecentSearches, type RecentItem } from "@/lib/recentSearches";
 import { searchByText, isLikelyNpub, isHexPubkey, isNip05Handle, type SearchResult } from "@/lib/profileSearch";
 import { useActivePerspective } from "@/hooks/useActivePerspective";
@@ -36,6 +36,8 @@ export function openMobileSearch() {
  * Recent PROFILES skip that and open directly, since the destination is unambiguous.
  */
 export function MobileSearchOverlay() {
+  const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
   const [, navigate] = useLocation();
   // Note this overlay has never handled `#topic` queries the way the other two
   // search surfaces do; tags are wired in here regardless so the three don't
@@ -208,7 +210,7 @@ export function MobileSearchOverlay() {
                   className="flex w-full items-center gap-3 rounded-lg px-2 py-2.5 text-left transition-colors hover:bg-slate-50 dark:hover:bg-slate-900"
                   data-testid="mobile-search-result"
                 >
-                  <Avatar className="h-9 w-9 shrink-0 rounded-full border border-slate-200 dark:border-slate-800">
+                  <Avatar className={`h-9 w-9 shrink-0 rounded-full border border-slate-200 dark:border-slate-800 ${tierRing(r.wotRank) ?? ""}`}>
                     {r.picture ? <AvatarImage src={r.picture} alt="" className="object-cover" /> : null}
                     <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
                   </Avatar>
@@ -224,7 +226,7 @@ export function MobileSearchOverlay() {
                       score01={r.wotRank}
                       pov={pov === "mywot" ? "personalized" : "global"}
                       size={22}
-                      className="shrink-0"
+                      className={tierRing(r.wotRank) && coinReplaced ? "sr-only" : "shrink-0"}
                     />
                   )}
                 </button>

@@ -60,7 +60,7 @@ import { ProfileActions, OwnerActions } from "@/components/share/ProfileActions"
 import { Stat, StatLensToggle, type StatLens } from "@/components/share/StatToggle";
 import { NegativeSignalStats } from "@/components/share/NegativeSignalStats";
 import { useScorePov, TrustScoreModal } from "@/components/score/TrustScorePov";
-import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { extractImageUrls, extractVideoUrls, extractVideoPoster } from "@/lib/noteContent";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
@@ -75,6 +75,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC } from "@/lib/profileDefaults";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useHasSession } from "@/hooks/useHasSession";
+import { useHopsOrigin } from "@/hooks/useHopsOrigin";
 
 type ProfileContentLike = Record<string, string | undefined>;
 
@@ -89,6 +90,8 @@ function timeAgo(ts?: number): string {
 }
 
 export default function SharePage() {
+  const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
   const [, params] = useRoute("/p/:id");
   const rawId = params?.id || "";
   const decoded = useMemo(() => decodeShareId(rawId), [rawId]);
@@ -221,8 +224,11 @@ export default function SharePage() {
         verified_only: true,
         house: true,
       });
-      const items = (res?.data?.items ?? []) as Array<string | { pubkey?: string }>;
-      return items.map((e) => (typeof e === "string" ? e : e?.pubkey)).filter((p): p is string => !!p);
+      const items = (res?.data?.items ?? []) as Array<string | { pubkey?: string; influence?: number | null }>;
+      // Keep the per-item influence — the cluster's tier rings ride on it free.
+      return items
+        .map((e) => (typeof e === "string" ? { pubkey: e, influence: null } : { pubkey: e?.pubkey ?? "", influence: typeof e?.influence === "number" ? e.influence : null }))
+        .filter((e) => !!e.pubkey);
     },
     enabled: !!pubkey,
     staleTime: 5 * 60_000,
@@ -230,7 +236,7 @@ export default function SharePage() {
   });
   // Owner can hand-pick the "Followed by" faces; otherwise auto top-trusted.
   const effectiveFollowerPubkeys = useMemo(
-    () => (prefs.pinnedFollowers.length > 0 ? prefs.pinnedFollowers : (followedByQuery.data ?? [])),
+    () => (prefs.pinnedFollowers.length > 0 ? prefs.pinnedFollowers : (followedByQuery.data ?? []).map((e) => e.pubkey)),
     [prefs.pinnedFollowers, followedByQuery.data],
   );
   const followedByProfilesQuery = useQuery({
@@ -240,10 +246,15 @@ export default function SharePage() {
     staleTime: 5 * 60_000,
     retry: false,
   });
+  const followedByScores = useMemo(
+    () => new Map((followedByQuery.data ?? []).map((e) => [e.pubkey, e.influence])),
+    [followedByQuery.data],
+  );
   const topFollowers = useMemo(() => {
     const profs = followedByProfilesQuery.data;
     return effectiveFollowerPubkeys.map((pk) => ({
       pubkey: pk,
+      score01: followedByScores.get(pk) ?? null,
       name: profs?.get(pk)?.display_name || profs?.get(pk)?.name,
       picture: profs?.get(pk)?.picture,
     }));
@@ -841,6 +852,14 @@ export default function SharePage() {
   // toggle): personalized → the viewer's own score; global → the network (house)
   // score. Logged-out visitors are always global. Null → unrated coin ("—").
   const coinScore01 = scorePov === "personalized" ? score01 : houseScore01 ?? score01;
+  // Loading ≠ unrated. Until the score that feeds the coin has settled, the coin
+  // shows its mode-aware placeholder (or nothing, in modes that never draw a
+  // coin) instead of the dashed "—", which is a verdict.
+  const coinLoading =
+    scorePov === "personalized" ? overviewQuery.isLoading : houseRankQuery.isLoading && overviewQuery.isLoading;
+  // Whose distance the DegreeChip measures — follows the perspective toggle,
+  // falls back to House, works logged out. See useHopsOrigin.
+  const hopsOrigin = useHopsOrigin();
   // Contact as compact clickable icons — website, lightning address, external
   // identities. Lives top-right with the actions (and has a mobile fallback row),
   // never as verbose text at the bottom.
@@ -950,7 +969,7 @@ export default function SharePage() {
               profile to a pictureless one, hiding the fallback. */}
           <div className="flex items-end justify-between gap-3">
             <div className="relative inline-block">
-              <Avatar key={pubkey} className="h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white shadow-lg bg-white dark:bg-slate-900">
+              <Avatar key={pubkey} className={`h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white bg-white dark:bg-slate-900 ${tierRing(coinScore01) ?? "shadow-lg"}`}>
                 {profile.picture ? <AvatarImage src={profile.picture} alt={displayName} className="object-cover" /> : null}
                 <AvatarFallback className="overflow-hidden rounded-full">
                   <DefaultAvatarImg flagged={isFlagged} />
@@ -960,10 +979,12 @@ export default function SharePage() {
                   the avatar. Tap opens the shared explainer/compare modal. */}
               <VerificationCoin
                 score01={coinScore01}
+                loading={coinLoading}
+                flagged={isFlagged}
                 pov={scorePov}
                 size={32}
                 onClick={() => setScoreModalOpen(true)}
-                className="absolute -bottom-1 -right-1"
+                className={tierRing(coinScore01) && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1"}
               />
             </div>
             {/* Desktop: chip + icons + Follow/⋯. Mobile: just the contact icons
@@ -978,6 +999,7 @@ export default function SharePage() {
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="share-name">
               {displayName}
             </h1>
+            <TierWordChip score01={coinScore01} flagged={isFlagged} />
             {profile.nip05 && (
               <span className="inline-flex items-center gap-1 text-sm text-brand-link font-medium">
                 <BadgeCheck className="h-4 w-4" /> {profile.nip05.replace(/^_@/, "")}
@@ -1083,11 +1105,13 @@ export default function SharePage() {
                   />
                 )}
                 {/* Degree (LinkedIn-style 1st/2nd/3rd) — a "good" metric, so it sits
-                    on line 1. Signed-in + scored viewers only (needs my pubkey as the
-                    path origin); hidden on your own profile. */}
-                {loggedIn && currentUser?.pubkey && pubkey && currentUser.pubkey !== pubkey &&
-                  localStorage.getItem("brainstorm_calc_completed") === "true" && (
-                    <DegreeChip fromPubkey={currentUser.pubkey} toPubkey={pubkey} rawId={rawId} />
+                    on line 1. Measured from the ACTIVE perspective: the viewer under
+                    personalized (when usable), House otherwise — including logged
+                    out. Own profile shows only under House ("how far is Brainstorm
+                    from me?"), and hides under personalized where from === to. */}
+                {hopsOrigin.origin && pubkey &&
+                  (hopsOrigin.origin !== pubkey || hopsOrigin.originPov === "global") && (
+                    <DegreeChip fromPubkey={hopsOrigin.origin} toPubkey={pubkey} rawId={rawId} pov={hopsOrigin.originPov} />
                   )}
               </div>
               <NegativeSignalStats
@@ -1131,7 +1155,7 @@ export default function SharePage() {
                 {/* Personal connection + value */}
                 <div className="flex items-start gap-3 min-w-0 flex-1">
                   {profile.picture && (
-                    <img src={profile.picture} alt="" className="hidden sm:block h-12 w-12 rounded-full object-cover ring-2 ring-white shadow shrink-0" />
+                    <img src={profile.picture} alt="" className={`hidden sm:block h-12 w-12 rounded-full object-cover shrink-0 ${tierRing(houseScore01) ?? "ring-2 ring-white shadow"}`} />
                   )}
                   <div className="min-w-0">
                     <div className="text-[11px] font-mono font-bold tracking-[0.2em] text-brand-link dark:text-brand-link uppercase">Join Brainstorm</div>

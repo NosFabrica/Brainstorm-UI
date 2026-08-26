@@ -151,11 +151,21 @@ export async function publishBrainstormTrustAnchor(
   const result = await publishToRelays(signed);
   if (result.success) {
     markNip85Activated(pubkey);
-    // The on-relay answer changed — every badge/status reading it must re-ask.
-    void queryClient.invalidateQueries({ queryKey: ["trust-provider-status"] });
+    recordTrustProviderStatus(pubkey, "brainstorm");
     return { status: "success" };
   }
   return { status: "error", message: result.error || "Failed to publish to relays. Please try again." };
+}
+
+/**
+ * Seed the shared provider-status cache with a state we KNOW, instead of
+ * invalidating — a refetch right after our own publish races relay
+ * propagation, and a lagging relay answering "none" would re-raise the very
+ * activation prompt the publish just satisfied. The partial key matches every
+ * taPubkey variant for this account.
+ */
+export function recordTrustProviderStatus(pubkey: string, status: TrustProviderStatus): void {
+  queryClient.setQueriesData({ queryKey: ["trust-provider-status", pubkey] }, status);
 }
 
 /**
@@ -190,7 +200,7 @@ export async function ensureBrainstormTrustAnchor(pubkey: string, taPubkey: stri
     const res = await publishToRelays(signed);
     if (res.success) {
       markNip85Activated(pubkey);
-      void queryClient.invalidateQueries({ queryKey: ["trust-provider-status"] });
+      recordTrustProviderStatus(pubkey, "brainstorm");
     }
   } catch {}
 }

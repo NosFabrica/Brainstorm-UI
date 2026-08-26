@@ -4,6 +4,7 @@ import { useLocation } from "wouter";
 import { MessagesSquare, Loader2, Flame, Clock, Heart, Repeat2, MessageSquare } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
+import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { fetchEventsByFilter, fetchProfileMap, fetchEventsByIds } from "@/services/nostr";
 import { fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
@@ -152,6 +153,9 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
     retry: false,
   });
   const profiles = profilesQuery.data ?? new Map();
+  // Trust scores for the feed's authors (the module's own `scores` map is
+  // ENGAGEMENT, not trust). Shared session cache; house POV.
+  const authorScoreOf = useAuthorScores(useMemo(() => notes.map((n) => n.pubkey), [notes]));
 
   const loading = followsQuery.isLoading || (authors.length > 0 && notesQuery.isLoading);
   if (!enabled || (!loading && candidates.length === 0)) return null;
@@ -206,7 +210,7 @@ export function NetworkThreadModule({ observer, enabled }: { observer: string; e
             const s = scores.get(e.id);
             return (
               <div key={e.id} className="py-2 first:pt-0" data-testid="network-thread-note">
-                <ShareNoteCard event={e} profiles={profiles} eventsById={eventsById} href={eventPath(e)} showAuthor />
+                <ShareNoteCard event={e} profiles={profiles} eventsById={eventsById} href={eventPath(e)} showAuthor authorScore={authorScoreOf(e.pubkey)} />
                 {mode === "trending" && s && s.score > 0 && (
                   <div className="mt-1 flex items-center gap-3 px-1 text-[11px] text-slate-400 dark:text-slate-500" data-testid="network-thread-engagement">
                     {s.replies > 0 && <span className="inline-flex items-center gap-1"><MessageSquare className="h-3 w-3" />{s.replies}</span>}

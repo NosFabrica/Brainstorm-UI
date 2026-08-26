@@ -103,6 +103,8 @@ import { fetchContactList, getFollowedPubkeys, fetchMyReport, type MyReport } fr
 import { useToast } from "@/hooks/use-toast";
 import { useHasSession } from "@/hooks/useHasSession";
 import { TIER_LABELS } from "@/services/trustThreshold";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
+import { useTierRing } from "@/components/score/VerificationCoin";
 
 interface AdminHistoryItem {
   created_at: string;
@@ -625,6 +627,16 @@ interface ExpandedPanelProps {
 }
 
 const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
+  const tierRing = useTierRing();
+  const [granularity] = useTierGranularity();
+  // Decision 7: under Simple the menu offers the three buckets' worth of choices
+  // — All / Verified / Unknown — not five shades it never draws.
+  const visibleFilterOptions =
+    granularity === "simple"
+      ? FILTER_OPTIONS.filter((o) => o.value === "all" || o.value === "verified" || o.value === "unverified").map((o) =>
+          o.value === "unverified" ? { ...o, label: "Unknown" } : o,
+        )
+      : FILTER_OPTIONS;
   const {
     sectionKey: key, pubkeys, filter, sort, search, reportTypeFilter, visibleCount,
     sectionTotal,
@@ -681,14 +693,14 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
               data-testid={`filter-toggle-${key}`}
             >
               <Filter className="h-3 w-3" />
-              {filter !== "all" ? FILTER_OPTIONS.find(f => f.value === filter)?.label : "Filter"}
+              {filter !== "all" ? visibleFilterOptions.find(f => f.value === filter)?.label : "Filter"}
               <ChevronDown className="h-2.5 w-2.5" />
             </button>
             {filterDropdownOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); onToggleFilterDropdown(key, false); }} />
                 <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-900 rounded-lg shadow-lg border border-slate-200 dark:border-slate-800 py-1 min-w-[140px]">
-                  {FILTER_OPTIONS.map(opt => (
+                  {visibleFilterOptions.map(opt => (
                     <button
                       key={opt.value}
                       onClick={(e) => {
@@ -817,7 +829,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
               onClick={() => navigateToProfile(pk)}
               data-testid={`expand-profile-${pk.slice(0,8)}`}
             >
-              <Avatar className="h-7 w-7 border border-slate-200/60 dark:border-slate-800/60 shrink-0">
+              <Avatar className={`h-7 w-7 border border-slate-200/60 dark:border-slate-800/60 shrink-0 ${tierRing(trustScore) ?? ""}`}>
                 <AvatarImage src={profile?.picture} />
                 <AvatarFallback className="bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link text-xs font-bold">
                   {displayName.charAt(0).toUpperCase()}
@@ -934,6 +946,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
 });
 
 export default function ProfilePage() {
+  const tierRing = useTierRing();
   const [location, navigate] = useLocation();
   const [, params] = useRoute("/profile/:npub");
   const npubParam = params?.npub || "";
@@ -1673,10 +1686,18 @@ export default function ProfilePage() {
     { key: "unverified", name: "Unverified", color: "#8c929e", bg: "bg-slate-100 dark:bg-slate-800", text: "text-slate-500 dark:text-slate-400", border: "border-slate-200 dark:border-slate-800", ring: "stroke-slate-400" },
   ];
 
+  const [granularity] = useTierGranularity();
   const profileTier = useMemo(() => {
     const backendTier = profileOverviewQuery.data?.tier;
     if (!backendTier) return null;
     const uiKey = GR_TIER_TO_UI[backendTier] ?? "unverified";
+    // Decision 1/7: under Simple the backend's verdict folds to Verified (any
+    // tier at or above the line) or Unknown — Flagged is the banner's job here.
+    if (granularity === "simple") {
+      return uiKey === "unverified"
+        ? { key: "unknown", name: "Unknown", color: "#8c929e", bg: "bg-slate-100 dark:bg-slate-800", text: "text-slate-500 dark:text-slate-400", border: "border-slate-200 dark:border-slate-800", ring: "stroke-slate-400" }
+        : { key: "verified", name: "Verified", color: "#13d2e5", bg: "bg-cyan-50 dark:bg-cyan-500/10", text: "text-cyan-700 dark:text-cyan-300", border: "border-cyan-200 dark:border-cyan-500/25", ring: "stroke-cyan-500" };
+    }
     return TIER_DISPLAY_CONFIG.find(t => t.key === uiKey) ?? null;
   }, [profileOverviewQuery.data]);
 
@@ -1756,8 +1777,15 @@ export default function ProfilePage() {
       { tier: "low", label: "Low", color: "text-amber-500" },
       { tier: "unverified", label: "Unverified", color: "text-zinc-400" },
     ];
-    return tierDefs.filter(t => counts[t.tier] > 0).map(t => ({ tier: t.label, count: counts[t.tier], color: t.color }));
-  }, [sectionStats]);
+    const rows = tierDefs.filter(t => counts[t.tier] > 0).map(t => ({ tier: t.label, count: counts[t.tier], color: t.color }));
+    if (granularity !== "simple") return rows;
+    const verified = tierDefs.filter(t => t.tier !== "unverified").reduce((a, t) => a + (counts[t.tier] ?? 0), 0);
+    const unknown = counts.unverified ?? 0;
+    return [
+      { tier: "Verified", count: verified, color: "text-cyan-600" },
+      { tier: "Unknown", count: unknown, color: "text-zinc-400" },
+    ].filter(r => r.count > 0);
+  }, [sectionStats, granularity]);
 
   const seedTrustForSection = useCallback((key: string, pubkeys: string[]) => {
     // Seed expandTrustCache from already-known influence values so we never
@@ -2177,7 +2205,7 @@ export default function ProfilePage() {
             <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none rounded-2xl overflow-hidden relative">
               <div className="p-5 sm:p-6">
                 <div className="flex items-start gap-3 sm:gap-4 mb-4">
-                  <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 border-brand-primary/15 dark:border-brand-primary/25 shadow-md shrink-0">
+                  <Avatar className={`h-12 w-12 sm:h-16 sm:w-16 border-2 border-brand-primary/15 dark:border-brand-primary/25 shadow-md shrink-0 ${tierRing(houseInfluence01) ?? ""}`}>
                     {displayNostrProfile?.picture && (
                       <AvatarImage src={displayNostrProfile.picture} alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"} className="object-cover" />
                     )}
@@ -2268,7 +2296,7 @@ export default function ProfilePage() {
                     const assistantDefaultPicture = typeof window !== "undefined" ? `${window.location.origin}/assistant-default.webp` : "/assistant-default.webp";
                     const effectivePicture = displayNostrProfile?.picture || (isOwnAssistant ? assistantDefaultPicture : undefined);
                     return (
-                      <Avatar className="h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white dark:border-slate-900 shadow-lg bg-white dark:bg-slate-900 shrink-0 -mt-12 sm:-mt-16">
+                      <Avatar className={`h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white dark:border-slate-900 shadow-lg bg-white dark:bg-slate-900 shrink-0 -mt-12 sm:-mt-16 ${tierRing(profileResult?.influence ?? houseInfluence01) ?? ""}`}>
                         <AvatarImage src={effectivePicture} alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"} className="object-cover" />
                         <AvatarFallback className="bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link text-base sm:text-lg font-bold">
                           {(displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 2)).charAt(0).toUpperCase()}
@@ -2330,7 +2358,7 @@ export default function ProfilePage() {
                   {/* Degree (1st/2nd/3rd) — signed-in + scored viewers, not your own profile. */}
                   {hasSession && !isOwnProfile && user?.pubkey && hexPubkey &&
                     localStorage.getItem("brainstorm_calc_completed") === "true" && (
-                      <DegreeChip fromPubkey={user.pubkey} toPubkey={hexPubkey} rawId={npubParam} variant="bold" />
+                      <DegreeChip fromPubkey={user.pubkey} toPubkey={hexPubkey} rawId={npubParam} pov="personalized" variant="bold" />
                     )}
                   {theyFollowMe && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-brand-primary/10 dark:bg-brand-primary/10 px-2 py-0.5 text-[11px] font-semibold text-brand-link" data-testid="badge-follows-you">
