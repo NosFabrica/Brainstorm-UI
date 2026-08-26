@@ -30,18 +30,32 @@ identical to the copy circulated).
    after the final failure. Matches the UI's existing "grace" copy
    (past_due → grace, still entitled while retries run).
 
-## The checklist (dashboard, in order)
+## The checklist (dashboard, done 2026-08-26 unless noted)
 
-- [ ] Wallet connected to receive payments
-- [ ] Service: name "Brainstorm Priority", description matches the pricing
-      card's three lines (no queue-priority claim)
-- [ ] Plan `01a039cc-105d-7608-a9f0-6725aaae9933`: $2.00/month, both rails,
-      **trial days = 0** (no-trial decision), no setup fee
-- [ ] Subscriptions → Settings: redirect URL (decision 2)
-- [ ] Settings → API: key (decision 4) → server secret manager
-- [ ] Settings → Webhooks: endpoint URL from the server team; `whsec_…`
-      → server secret manager; events: all five subscription.* events
-- [ ] Dunning policy (decision 5)
+- [x] Wallets connected: NosFabrica Wallet (Lightning) + Maverick (card)
+- [x] Service stays "Brainstorm" ("Running your web of trust scores on
+      Nostr") — it's LIVE with subscribers, so the *plan* carries the
+      Priority identity instead of renaming the service
+- [x] **Real Priority plan = `019ef08a-3c5f-7228-a15b-4838937045f5`**
+      (renamed from "Brainstorm Monthly"): "Priority", $2.00 USD/month,
+      both rails, trial 0, no setup fee, description "For acting on what
+      you see", features = Everything in Free / 7-days-not-60 / automatic
+      updates / priority support. Verified rendering on the public signup
+      page. → This id (not the `01a039cc…` test plan) belongs in the
+      server's `/billing/plans` checkout_url.
+- [x] Redirect URLs registered: staging + localhost (decision 2)
+- [x] Account-wide allowed payment methods: card was disabled — enabled
+      2026-08-26 so plans can offer both rails
+- [x] Dunning policy: 3 attempts, 3 days apart, 7-day grace, cancel after
+      final failure (decision 5)
+- [x] Webhook endpoint already registered (by the server team):
+      `https://brainstormserver-staging.nosfabrica.com/webhook…`, 5 events
+- [ ] Settings → API: `brainstorm-server-staging` key (view-only) — form
+      filled, Benjamin clicks Create and moves the secret to the server
+      team's secret manager
+- [ ] Follow-up: two pre-existing keys ("Brainstorm API -", "Brainstorm
+      Staging API") are 3-scope and never used — candidates for revocation,
+      team's call
 
 ## Server-side flags carried from the guide QA
 
