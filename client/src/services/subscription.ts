@@ -157,7 +157,7 @@ export async function fetchPlans(): Promise<BillingPlan[]> {
       tier: "priority", name: "Priority", amountMinor: 200, currency: "USD",
       scheduleIntervalSeconds: 7 * 86_400,
       checkoutUrl:
-        "https://dev.server.vault.paywithflash.com/subscriptions/signup/019eb7e1-c789-731e-9c9a-e84e83500097/019ef08a-3c5f-7228-a15b-4838937045f5?redirect_uri=" +
+        "https://dev.server.vault.paywithflash.com/subscriptions/signup/019eb7e1-c789-731e-9c9a-e84e83500097/01a039cc-105d-7608-a9f0-6725aaae9933?redirect_uri=" +
         encodeURIComponent(window.location.origin + "/billing/return"),
     },
   ];
