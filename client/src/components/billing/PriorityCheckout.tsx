@@ -121,8 +121,9 @@ export function PriorityCheckout({
             </Button>
 
             <p className="mt-3 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
-              Opens in a new tab. Payment is handled by Flash — your card details
-              never reach Brainstorm.
+              Opens in a new tab. Pay by card, or by Lightning — you'll connect
+              your wallet there, so have it handy. Payment is handled by Flash —
+              your card details never reach Brainstorm.
             </p>
           </>
         ) : (
