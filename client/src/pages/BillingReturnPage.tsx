@@ -142,7 +142,8 @@ export default function BillingReturnPage() {
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300" data-testid="billing-return-pending">
               We haven't seen your payment land yet — usually this takes a minute or two, though
               Lightning can take up to half an hour. This page updates on its own, and it's safe to
-              leave; your plan switches the moment it clears.
+              leave; your plan switches the moment it clears. If it hasn't cleared after half an
+              hour, the payment didn't go through — nothing was charged, and it's safe to try again.
             </p>
           </>
         )}
