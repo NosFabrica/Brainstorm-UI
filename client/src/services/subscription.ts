@@ -145,12 +145,20 @@ export async function fetchPlans(): Promise<BillingPlan[]> {
       if (Array.isArray(parsed)) return parsed.map(normalizePlan).filter((pl): pl is BillingPlan => pl !== null);
     }
   } catch { /* fall through to defaults */ }
+  // The mock's checkout_url points at the REAL Flash dev vault (the ids the
+  // deleted VITE_FLASH_PRIORITY_CARD carried), so clicking through shows the
+  // actual signup page instead of a dead placeholder domain. CAUTION: there is
+  // no Flash sandbox — completing THIS page charges a real card. The
+  // redirect_uri here is an approximation; the registered one (and therefore a
+  // working redirect) arrives with the server's /billing/plans.
   return [
     { tier: "free", name: "Free", amountMinor: 0, currency: "USD", scheduleIntervalSeconds: 60 * 86_400, checkoutUrl: null },
     {
       tier: "priority", name: "Priority", amountMinor: 200, currency: "USD",
       scheduleIntervalSeconds: 7 * 86_400,
-      checkoutUrl: "https://flash.example/subscriptions/signup/mock-service/mock-plan?redirect_uri=" + encodeURIComponent(window.location.origin + "/billing/return"),
+      checkoutUrl:
+        "https://dev.server.vault.paywithflash.com/subscriptions/signup/019eb7e1-c789-731e-9c9a-e84e83500097/019ef08a-3c5f-7228-a15b-4838937045f5?redirect_uri=" +
+        encodeURIComponent(window.location.origin + "/billing/return"),
     },
   ];
 }
