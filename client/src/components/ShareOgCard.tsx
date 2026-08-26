@@ -1,7 +1,9 @@
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import { getScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
+import { getTierGranularity } from "@/hooks/useTierGranularity";
 import { BadgeCheck } from "lucide-react";
 import { initialsFor } from "@/lib/profileDefaults";
-import { tierForScore } from "@/components/share/TrustScoreBadge";
+import { shareTierFor } from "@/components/share/TrustScoreBadge";
 
 /**
  * The Open Graph preview card for a shared profile (the rich card that should
@@ -23,7 +25,7 @@ export function ShareOgCard({
   score01?: number | null;
 }) {
   const hasScore = typeof score01 === "number" && Number.isFinite(score01);
-  const tier = hasScore ? tierForScore(score01 as number) : null;
+  const tier = hasScore ? shareTierFor(score01 as number, getTierGranularity()) : null;
   const pct = hasScore ? Math.round(Math.max(0, Math.min(1, score01 as number)) * 100) : null;
 
   return (
@@ -62,7 +64,9 @@ export function ShareOgCard({
               >
                 <span className="rounded-full h-[1.8cqw] w-[1.8cqw]" style={{ backgroundColor: tier.color }} />
                 <span className="text-[3cqw] font-bold uppercase tracking-[0.1em]" style={{ color: tier.color }}>{tier.name}</span>
-                <span className="text-[3cqw] font-bold tabular-nums" style={{ color: tier.color }}>· {pct}</span>
+                {getScoreDisplayMode() === "number" && (
+                  <span className="text-[3cqw] font-bold tabular-nums" style={{ color: tier.color }}>· {pct}</span>
+                )}
               </div>
             )}
           </div>

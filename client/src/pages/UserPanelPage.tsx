@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useTierRing } from "@/components/score/VerificationCoin";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
@@ -190,6 +191,7 @@ function StatusLevelBar({ currentLevel }: { currentLevel: number }) {
 }
 
 export default function UserPanelPage() {
+  const tierRing = useTierRing();
   const [location, navigate] = useLocation();
   const { toast } = useToast();
   const user = useActiveAccountDisplay();
@@ -1306,7 +1308,7 @@ export default function UserPanelPage() {
                       const tierInfo = getTier(u.influence);
                       return (
                         <div key={u.pubkey} className="grid grid-cols-1 sm:grid-cols-[auto_1fr_100px_100px_40px] gap-2 sm:gap-3 px-3 py-2.5 hover:bg-slate-50/80 transition-colors cursor-pointer rounded-lg dark:hover:bg-slate-900/80" onClick={() => navigate(`/p/${u.npub}`)} data-testid={`row-score-${u.pubkey.slice(0, 8)}`}>
-                          <Avatar className="h-8 w-8 border border-slate-100 dark:border-slate-800/60">
+                          <Avatar className={`h-8 w-8 border border-slate-100 dark:border-slate-800/60 ${tierRing(u.influence) ?? ""}`}>
                             {u.picture ? <AvatarImage src={u.picture} alt={u.displayName || "User"} className="object-cover" /> : null}
                             <AvatarFallback className="bg-brand-primary/10 text-brand-primary text-xs font-bold">{(u.displayName?.charAt(0) || "?").toUpperCase()}</AvatarFallback>
                           </Avatar>

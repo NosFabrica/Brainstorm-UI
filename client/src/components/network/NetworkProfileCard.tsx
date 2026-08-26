@@ -1,4 +1,9 @@
 import { useState, useMemo, memo } from "react";
+import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
+import { useTierRing } from "@/components/score/VerificationCoin";
+import { tierForScore01 } from "@/components/score/VerificationCoin";
+import { rungFraction } from "@/lib/trustLadder";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { nip19 } from "nostr-tools";
 import {
   Search as SearchIcon,
@@ -70,6 +75,9 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
   isMutedUser,
   isFlagged,
 }: NetworkProfileCardProps) {
+  const tierRing = useTierRing();
+  const [displayMode] = useScoreDisplayMode();
+  const [granularity] = useTierGranularity();
   const {
     trustCacheRef,
     activeGroupRef,
@@ -198,6 +206,10 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
     if (trustScore === null) return null;
     const score = Math.min(1, Math.max(0, trustScore));
     const pct = Math.round(score * 100);
+    // Ring follows the display mode: exact / 5-step quantized / full-hue.
+    const arcFrac =
+      displayMode === "number" ? score :
+      displayMode === "level" ? rungFraction(score, false, granularity) : 1;
     const ringColor =
       pct >= 50
         ? "stroke-emerald-500"
@@ -207,7 +219,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
             ? "stroke-orange-300"
             : "stroke-amber-500";
     const circumference = 2 * Math.PI * 18;
-    const offset = circumference - score * circumference;
+    const offset = circumference - arcFrac * circumference;
     const size = compact ? "w-7 h-7" : "w-9 h-9";
     const textSize = compact ? "text-[10px]" : "text-xs";
     const guidance = getVerificationGuidance(pct, displayName);
@@ -252,7 +264,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
               <span
                 className={`${textSize} font-bold font-mono tabular-nums text-brand-primary dark:text-brand-link`}
               >
-                {pct}
+                {displayMode === "number" ? pct : ""}
               </span>
             </div>
           </div>
@@ -329,7 +341,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
         <div className="p-5">
           <div className="flex items-start justify-between gap-3 mb-4">
             <div className="flex items-center gap-3 min-w-0">
-              <Avatar className="h-12 w-12 border-2 border-brand-accent/20 shrink-0 shadow-sm dark:shadow-none">
+              <Avatar className={`h-12 w-12 border-2 border-brand-accent/20 shrink-0 shadow-sm dark:shadow-none ${tierRing(trustScore) ?? ""}`}>
                 {profile?.picture ? (
                   <AvatarImage
                     src={profile.picture}
@@ -748,7 +760,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
           onMouseLeave={() => onPrefetchLeave?.(pk)}
           data-testid={`card-profile-${pkShort}`}
         >
-          <Avatar className="h-7 w-7 border border-slate-200/60 dark:border-slate-800/60 shrink-0">
+          <Avatar className={`h-7 w-7 border border-slate-200/60 dark:border-slate-800/60 shrink-0 ${tierRing(trustScore) ?? ""}`}>
             {profile?.picture ? (
               <AvatarImage
                 src={profile.picture}
@@ -836,7 +848,7 @@ export const NetworkProfileCard = memo(function NetworkProfileCard({
         data-testid={`card-profile-${pkShort}`}
       >
         <div className="flex items-center gap-3">
-          <Avatar className="h-8 w-8 border border-slate-200/60 dark:border-slate-800/60">
+          <Avatar className={`h-8 w-8 border border-slate-200/60 dark:border-slate-800/60 ${tierRing(trustScore) ?? ""}`}>
             {profile?.picture ? (
               <AvatarImage
                 src={profile.picture}

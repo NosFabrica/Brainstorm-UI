@@ -11,7 +11,8 @@ import { apiClient } from "@/services/api";
 import { collectRefs, type MinimalEvent } from "@/lib/noteRefs";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { eventPath } from "@/lib/shareId";
-import { TIER_THRESHOLDS, TIER_LABELS } from "@/services/trustThreshold";
+import { DEFAULT_VERIFIED_LINE, TIER_THRESHOLDS, TIER_LABELS } from "@/services/trustThreshold";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
@@ -28,6 +29,11 @@ const TRUST_FILTERS = [
   { key: "all", label: "All", min: 0 },
   { key: "trusted", label: `${TIER_LABELS.trusted}+`, min: TIER_THRESHOLDS.medium_high },
   { key: "high", label: TIER_LABELS.high, min: TIER_THRESHOLDS.high },
+] as const;
+// Decision 7: under the Simple ladder there is one line worth filtering on.
+const SIMPLE_TRUST_FILTERS = [
+  { key: "all", label: "All", min: 0 },
+  { key: "verified", label: "Verified", min: DEFAULT_VERIFIED_LINE },
 ] as const;
 
 /**
@@ -130,6 +136,7 @@ export function EventThread({
 
   // --- Trust filter (logged-in) -------------------------------------------
   const [minTrust, setMinTrust] = useState(0);
+  const [granularity] = useTierGranularity();
   const scoreCache = useRef(new Map<string, number | null>());
   const [scoreVersion, setScoreVersion] = useState(0);
   const [scoring, setScoring] = useState(false);
@@ -159,13 +166,15 @@ export function EventThread({
     setScoring(false);
   }, [povTag, usePersonal]);
 
-  // Score every commenter as soon as a logged-in viewer loads the thread — the
-  // per-comment trust pill is always-on, not gated behind the filter.
+  // Score every commenter as soon as the thread loads — the per-comment trust
+  // ring/pill is always-on, not gated behind the filter. Anonymous viewers get
+  // house scores (getHouseInfluence is unauthenticated), so their comment
+  // avatars wear rings too.
   useEffect(() => {
-    if (loggedIn && replies.length) {
+    if (replies.length) {
       void fetchScores(Array.from(new Set(replies.map((r) => r.pubkey))));
     }
-  }, [loggedIn, replies, fetchScores]);
+  }, [replies, fetchScores]);
 
   const scoreFor = (pk: string) => scoreCache.current.get(`${povTag}:${pk}`);
 
@@ -207,7 +216,7 @@ export function EventThread({
         {loggedIn && (
           <div className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-0.5" data-testid="thread-trust-filter" title="Filter comments by trust in your current perspective">
             <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 ml-1.5" />
-            {TRUST_FILTERS.map((f) => (
+            {(granularity === "simple" ? SIMPLE_TRUST_FILTERS : TRUST_FILTERS).map((f) => (
               <button
                 key={f.key}
                 type="button"
@@ -263,7 +272,7 @@ export function EventThread({
             author={profiles.get(reply.pubkey)}
             profiles={profiles}
             href={eventPath(reply, relayHints)}
-            trustScore01={loggedIn ? scoreFor(reply.pubkey) : undefined}
+            trustScore01={scoreFor(reply.pubkey)}
           />
         ))}
       </div>

@@ -10,6 +10,9 @@ export interface NetworkFace {
   name?: string;
   /** Epoch seconds of their most recent note we saw. */
   lastActive: number;
+  /** House influence from the connections response — free, no extra request.
+   *  null for faces that only came from the contact list. */
+  score01?: number | null;
 }
 
 export interface NetworkFaces {
@@ -23,9 +26,13 @@ const MAX_AUTHORS = 120;
 const FACES = 5;
 
 /** `followed_by` items are bare pubkey strings or `{ pubkey }` objects. */
-function parseFollowerPubkeys(res: unknown): string[] {
-  const items = (res as { data?: { items?: Array<string | { pubkey?: string }> } })?.data?.items ?? [];
-  return items.map((e) => (typeof e === "string" ? e : e?.pubkey)).filter((p): p is string => !!p);
+// Keep the influence the connections endpoint already returns per item — the
+// face-pile tier rings ride on it for free (there is no batch score endpoint).
+function parseFollowerEntries(res: unknown): { pubkey: string; influence: number | null }[] {
+  const items = (res as { data?: { items?: Array<string | { pubkey?: string; influence?: number | null }> } })?.data?.items ?? [];
+  return items
+    .map((e) => (typeof e === "string" ? { pubkey: e, influence: null } : { pubkey: e?.pubkey ?? "", influence: typeof e?.influence === "number" ? e.influence : null }))
+    .filter((e) => !!e.pubkey);
 }
 
 /**
@@ -50,7 +57,9 @@ export function useNetworkFaces(observer: string, enabled: boolean) {
         fetchContactList(observer).then((c) => Array.from(getFollowedPubkeys(c))).catch(() => [] as string[]),
         apiClient.getUserConnections(observer, "followed_by", { limit: 100, order: "desc" }).catch(() => null),
       ]);
-      const followers = parseFollowerPubkeys(followersRes).filter((p) => p && p !== observer);
+      const followerEntries = parseFollowerEntries(followersRes).filter((e) => e.pubkey !== observer);
+      const followers = followerEntries.map((e) => e.pubkey);
+      const scoreByPk = new Map(followerEntries.map((e) => [e.pubkey, e.influence]));
       const authors = Array.from(new Set([...following, ...followers])).slice(0, MAX_AUTHORS);
       if (authors.length === 0) return { following: [], followers: [] };
 
@@ -71,11 +80,24 @@ export function useNetworkFaces(observer: string, enabled: boolean) {
 
       const need = Array.from(new Set([...followingTop, ...followersTop]));
       const profiles = need.length ? await fetchProfileMap(need).catch(() => new Map()) : new Map();
+      // The following-side faces come from the contact list with no score. At
+      // most FACES×2 of them made the cut, so fetching house influence for the
+      // gaps is bounded (≤10 unauthenticated calls, cached with this query) —
+      // without it, half the pile would sit unringed next to a ringed half.
+      await Promise.allSettled(
+        need
+          .filter((pk) => scoreByPk.get(pk) == null)
+          .map(async (pk) => {
+            const s = await apiClient.getHouseInfluence(pk).catch(() => null);
+            if (typeof s === "number" && Number.isFinite(s)) scoreByPk.set(pk, s);
+          }),
+      );
       const toFace = (pk: string): NetworkFace => ({
         pubkey: pk,
         picture: profiles.get(pk)?.picture,
         name: profiles.get(pk)?.display_name || profiles.get(pk)?.name,
         lastActive: lastActive.get(pk) ?? 0,
+        score01: scoreByPk.get(pk) ?? null,
       });
       return { following: followingTop.map(toFace), followers: followersTop.map(toFace) };
     },

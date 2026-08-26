@@ -1,7 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { VerificationCoin, tierForScore01 } from "./VerificationCoin";
 import { TRUST_TIER_COLORS } from "@/services/trustThreshold";
+import { setTierGranularity } from "@/hooks/useTierGranularity";
 
 /**
  * The coin's contract after POV came off it. The load-bearing test is
@@ -27,7 +28,70 @@ describe("tierForScore01", () => {
   });
 });
 
-describe("VerificationCoin", () => {
+describe("VerificationCoin (simple ladder — the default, decision 8)", () => {
+  beforeEach(() => localStorage.clear());
+
+  it("buckets a strong score as Verified: cyan, a check, the word in the label", () => {
+    render(<VerificationCoin score01={0.9} pov="global" />);
+    expect(coin().getAttribute("data-ladder")).toBe("simple");
+    expect(coin().getAttribute("data-tier")).toBe("verified");
+    expect(coin().style.backgroundColor).toBe(rgb(TRUST_TIER_COLORS.trusted));
+    expect(coin().getAttribute("aria-label")).toContain("Verified");
+  });
+
+  it("buckets everything under the verified line as Unknown, and says why", () => {
+    render(<VerificationCoin score01={0.0} pov="global" />);
+    expect(coin().getAttribute("data-tier")).toBe("unknown");
+    expect(coin().style.backgroundColor).toBe(rgb(TRUST_TIER_COLORS.unverified));
+    expect(coin().getAttribute("title")).toContain("vouched");
+  });
+
+  it("lets Flagged win over any score, in red, even with no score at all", () => {
+    const { unmount } = render(<VerificationCoin score01={0.95} flagged pov="global" />);
+    expect(coin().getAttribute("data-tier")).toBe("flagged");
+    expect(coin().style.backgroundColor).toBe(rgb(TRUST_TIER_COLORS.flagged));
+    unmount();
+    render(<VerificationCoin score01={null} flagged pov="global" />);
+    expect(coin().getAttribute("data-tier")).toBe("flagged");
+  });
+
+  it("carries a glyph outside number mode, so the three buckets survive greyscale", () => {
+    localStorage.setItem("brainstorm_score_display:anon", "tier");
+    const { unmount } = render(<VerificationCoin score01={0.9} pov="global" />);
+    expect(screen.getByTestId("coin-glyph-check")).toBeInTheDocument();
+    unmount();
+    render(<VerificationCoin score01={0.0} pov="global" />);
+    expect(screen.getByTestId("coin-glyph-question")).toBeInTheDocument();
+  });
+
+  it("while loading, shows a pulse only where a coin will appear — never the unrated dash", () => {
+    localStorage.setItem("brainstorm_score_display:anon", "number");
+    const { unmount } = render(<VerificationCoin score01={null} loading pov="global" />);
+    expect(screen.getByTestId("coin-loading")).toBeInTheDocument();
+    expect(screen.queryByTestId("verification-coin")).toBeNull();
+    unmount();
+    for (const mode of ["tier", "word", "off"]) {
+      localStorage.setItem("brainstorm_score_display:anon", mode);
+      const r = render(<VerificationCoin score01={null} loading pov="global" />);
+      expect(screen.queryByTestId("coin-loading")).toBeNull();
+      expect(screen.queryByTestId("verification-coin")).toBeNull();
+      r.unmount();
+    }
+  });
+
+  it("draws three pips in level mode — the ladder's length, not a hard-coded five", () => {
+    localStorage.setItem("brainstorm_score_display:anon", "level");
+    render(<VerificationCoin score01={0.9} pov="global" />);
+    expect(screen.getByTestId("coin-pips").children.length).toBe(3);
+  });
+});
+
+describe("VerificationCoin (detailed ladder)", () => {
+  beforeEach(() => {
+    localStorage.clear();
+    setTierGranularity("detailed");
+  });
+
   it("renders the same FILL in both views — hue is tier, never point of view", () => {
     // The regression this guards: when hue meant POV, a 95 and a 12 were the
     // same colour in global view, and a teammate read grey as "scores badly".
@@ -126,6 +190,7 @@ describe("VerificationCoin", () => {
   });
 
   it("clamps out-of-range scores rather than printing them", () => {
+    localStorage.setItem("brainstorm_score_display:anon", "number");
     const { unmount } = render(<VerificationCoin score01={1.4} pov="global" />);
     expect(coin()).toHaveTextContent("100");
     unmount();

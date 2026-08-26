@@ -1,10 +1,14 @@
 import { useState, useMemo, type MouseEvent } from "react";
+import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
+import { TierTile } from "@/components/score/TierTile";
+import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useLocation } from "wouter";
 import { Repeat2, MessageSquare } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
-import { tierForScore } from "@/components/share/TrustScoreBadge";
-import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { shareTierFor } from "@/components/share/TrustScoreBadge";
+import { VerificationCoin, useTierRing , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { NoteContent } from "@/components/share/NoteContent";
 import { parseNoteContent } from "@/lib/noteContent";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
@@ -48,6 +52,9 @@ function ago(ts?: number): string {
 /** A reply-to chip: small avatar + clickable @name (opens the nav confirm). */
 function ReplyTarget({ pubkey, profiles }: { pubkey: string; profiles: Map<string, ProfileLite> }) {
   const requestNav = useShareNav();
+  const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
+  const scoreOf = useAuthorScores([pubkey]);
   const p = profiles.get(pubkey);
   const name = p?.display_name || p?.name || "someone";
   let npub = "";
@@ -58,7 +65,7 @@ function ReplyTarget({ pubkey, profiles }: { pubkey: string; profiles: Map<strin
       onClick={() => requestNav({ kind: "profile", target: npub || pubkey, label: name, picture: p?.picture })}
       className="inline-flex items-center gap-1 hover:underline"
     >
-      <Avatar className="h-4 w-4 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+      <Avatar className={`h-4 w-4 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 ${tierRing(scoreOf(pubkey), false, "sm", true) ?? ""}`}>
         {p?.picture ? <AvatarImage src={p.picture} alt={name} className="object-cover" /> : null}
         <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
       </Avatar>
@@ -103,6 +110,10 @@ export function ShareNoteCard({
    *  query, not one per card — see ACCEPTANCE C2 and `useEventTagsBatch`. */
   tags?: NoteTag[];
 }) {
+  const [displayMode] = useScoreDisplayMode();
+  const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
+  const [granularity] = useTierGranularity();
   const [expanded, setExpanded] = useState(false);
   const [, navigate] = useLocation();
   const onCardClick = openOnCardClick(href, navigate);
@@ -161,8 +172,14 @@ export function ShareNoteCard({
   const authorHandle = authorProfile?.nip05
     ? authorProfile.nip05.replace(/^_@/, "@")
     : authorNpub ? `@${authorNpub.slice(0, 12)}…` : "";
-  const authorTier = typeof authorScore === "number" ? tierForScore(authorScore) : null;
-  const ringStyle = authorTier ? { boxShadow: `0 0 0 2px #fff, 0 0 0 3.5px ${authorTier.ring}` } : undefined;
+  // Same fallback as EmbeddedNoteCard: callers that fetched a score pass it,
+  // the rest (more-from-author, tagged notes) ride the shared house cache.
+  const authorFallbackOf = useAuthorScores(authorScore == null ? [event.pubkey] : []);
+  const effectiveAuthorScore = authorScore ?? authorFallbackOf(event.pubkey);
+  const authorTier = typeof effectiveAuthorScore === "number" ? shareTierFor(effectiveAuthorScore, granularity) : null;
+  // Through the hook, not an inline boxShadow — the old style drew in EVERY
+  // display mode (number and off included); the ring is tier/word chrome.
+  const authorRing = tierRing(effectiveAuthorScore) ?? "";
 
   return (
     <div data-testid="note-card" onClick={onCardClick} className={clickable}>
@@ -177,7 +194,7 @@ export function ShareNoteCard({
                 onClick={(e) => { e.stopPropagation(); if (authorNpub) navigate(`/p/${authorNpub}`); }}
                 className="group/author flex min-w-0 flex-1 cursor-pointer items-center gap-2.5"
               >
-                <Avatar className="h-9 w-9 shrink-0 border border-slate-200 dark:border-slate-800" style={ringStyle}>
+                <Avatar className={`h-9 w-9 shrink-0 border border-slate-200 dark:border-slate-800 ${authorRing}`}>
                   {authorProfile?.picture ? <AvatarImage src={authorProfile.picture} alt={authorName} className="object-cover" /> : null}
                   <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
                 </Avatar>
@@ -187,10 +204,10 @@ export function ShareNoteCard({
                 </div>
               </div>
             </HoverCardTrigger>
-            {authorTier && typeof authorScore === "number" && (
+            {authorTier && typeof effectiveAuthorScore === "number" && (
               <HoverCardContent align="start" className="w-64 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xl" data-testid="note-author-trust">
                 <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10 shrink-0" style={ringStyle}>
+                  <Avatar className={`h-10 w-10 shrink-0 ${authorRing}`}>
                     {authorProfile?.picture ? <AvatarImage src={authorProfile.picture} alt={authorName} className="object-cover" /> : null}
                     <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
                   </Avatar>
@@ -199,27 +216,13 @@ export function ShareNoteCard({
                     {authorHandle && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{authorHandle}</p>}
                   </div>
                 </div>
-                <div
-                  className="mt-3 flex items-center gap-3 rounded-xl border p-2.5"
-                  style={{ borderColor: `${authorTier.color}40`, backgroundColor: `${authorTier.color}0d` }}
-                >
-                  <span
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg font-mono text-base font-bold tabular-nums"
-                    style={{ color: authorTier.color, backgroundColor: `${authorTier.color}1a` }}
-                  >
-                    {Math.round(authorScore * 100)}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold leading-tight" style={{ color: authorTier.color }}>{authorTier.name}</p>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Verification Score</p>
-                  </div>
-                </div>
+                <TierTile score01={effectiveAuthorScore} pov="global" caption="Verification Score" className="mt-3" />
                 <p className="mt-2.5 text-[11px] leading-snug text-slate-400 dark:text-slate-500">Ranked into this topic by trusted accounts — not follower counts.</p>
               </HoverCardContent>
             )}
           </HoverCard>
-          {typeof authorScore === "number" && (
-            <VerificationCoin score01={authorScore} pov="global" size={24} className="ml-auto" />
+          {typeof effectiveAuthorScore === "number" && (
+            <VerificationCoin score01={effectiveAuthorScore} pov="global" size={24} className={tierRing(effectiveAuthorScore) && coinReplaced ? "sr-only ml-auto" : "ml-auto"} />
           )}
           <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">{ago(event.created_at)}</span>
         </div>
