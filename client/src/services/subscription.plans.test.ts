@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
-import { fetchPlans, refreshSubscription, setMockSubscription } from "./subscription";
+import { cancelSubscription, fetchPlans, refreshSubscription, setMockSubscription } from "./subscription";
 
 /** Mock mode throughout (VITE_FEATURE_SUBSCRIPTION_API unset in tests). */
 describe("the plans seam (mock mode)", () => {
@@ -31,6 +31,16 @@ describe("the plans seam (mock mode)", () => {
     const plans = await fetchPlans();
     expect(plans).toHaveLength(1);
     expect(plans[0]).toMatchObject({ tier: "priority", amountMinor: 300, scheduleIntervalSeconds: 86400, checkoutUrl: "https://x/y" });
+  });
+
+  // Canceling changes WHETHER they're subscribed, not HOW they paid — a
+  // Lightning sub must not read "Card" the moment it's canceled.
+  it("canceling keeps the rail it actually knew", async () => {
+    setMockSubscription("priority", "active", "flash-lightning");
+    await cancelSubscription();
+    const sub = await refreshSubscription();
+    expect(sub.status).toBe("canceled");
+    expect(sub.rail).toBe("flash-lightning");
   });
 
   it("round-trips pending — the status that used to be forced to none", async () => {

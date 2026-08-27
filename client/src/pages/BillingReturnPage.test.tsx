@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import BillingReturnPage from "./BillingReturnPage";
+import { fetchSubscription } from "@/services/subscription";
 
 vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => true }));
 
@@ -32,6 +33,17 @@ describe("BillingReturnPage outcomes", () => {
   it("status=active lands on success (mock applies the outcome)", async () => {
     renderAt("?status=active&subscriptionId=x&ref=y");
     await waitFor(() => expect(screen.getByTestId("billing-return-success")).toBeInTheDocument());
+  });
+
+  // The redirect says a payment landed, never HOW it was paid — a Lightning
+  // subscriber must not read "Paid by Card" on their billing page.
+  it("records the payment without inventing a payment method", async () => {
+    renderAt("?status=active&subscriptionId=x&ref=y");
+    await waitFor(() => expect(screen.getByTestId("billing-return-success")).toBeInTheDocument());
+
+    const sub = await fetchSubscription();
+    expect(sub.tier).toBe("priority");
+    expect(sub.rail).toBeNull();
   });
 
   it("status=pending shows confirming with the honest half-hour copy", async () => {

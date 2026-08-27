@@ -118,7 +118,9 @@ export async function refreshSubscription(): Promise<Subscription> {
  * (handoff A6); there is no cancel API to call, and the old DELETE is gone.
  */
 export async function cancelSubscription(): Promise<void> {
-  setMockSubscription(readMock().tier, "canceled");
+  // Cancel changes WHETHER they're subscribed, not HOW they paid.
+  const current = readMock();
+  setMockSubscription(current.tier, "canceled", current.rail);
 }
 
 const MOCK_PLANS_KEY = "brainstorm_mock_plans";
@@ -183,14 +185,16 @@ function normalizePlan(r: Record<string, unknown> | BillingPlan): BillingPlan | 
 
 /**
  * Set the mock so QA can flip tiers and watch billing follow. Paid gets a
- * ~30-day period end on the card rail, matching what a real first payment
- * produces. A no-op in practice when the real API flag is on — the mock is
- * simply never read.
+ * ~30-day period end. The rail defaults to null — "we don't know how they
+ * paid" — because nothing outside the demo switcher actually knows: the
+ * checkout redirect never says, and claiming "Card" at a Lightning payer is
+ * a lie the UI already knows how to avoid (it renders "—" for null). A no-op
+ * in practice when the real API flag is on — the mock is simply never read.
  */
 export function setMockSubscription(
   tier: TierId,
   status: SubscriptionStatus = "active",
-  rail: Rail = "card",
+  rail: Rail | null = null,
 ): void {
   const paid = tier !== "free";
   const sub: Subscription = {
