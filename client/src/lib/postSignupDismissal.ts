@@ -10,10 +10,8 @@ import { accountKey, type AccountNamespace } from "@/lib/accountStorage";
  * re-rendered. Read live, too, because the Account arrives after the first
  * render and a value snapshotted before it lands answers for nobody.
  *
- * One store per flag, not one flag for every card: the setup checklist and the
- * activation nudge answer different questions ("stop showing me setup tasks" vs
- * "stop asking me to activate"), and a user who put the first away months ago
- * must still see the second once it becomes relevant.
+ * Kept as a store factory: earlier flags (the activation nudge) came and went,
+ * and per-flag stores let each card own its answer without sharing state.
  */
 
 function createDismissalStore(flagName: AccountNamespace) {
@@ -64,7 +62,3 @@ const postSignup = createDismissalStore("brainstorm_postsignup_dismissed");
 export const isPostSignupDismissed = postSignup.isDismissed;
 export const dismissPostSignup = postSignup.dismiss;
 export const usePostSignupDismissed = postSignup.useDismissed;
-
-const activateNudge = createDismissalStore("brainstorm_activate_nudge_dismissed");
-export const dismissActivateNudge = activateNudge.dismiss;
-export const useActivateNudgeDismissed = activateNudge.useDismissed;
