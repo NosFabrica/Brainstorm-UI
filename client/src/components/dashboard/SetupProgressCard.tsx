@@ -14,7 +14,7 @@ import { useFinishSetup } from "@/hooks/useFinishSetup";
  * surfaces can disagree about what's left. Pending rows only appear once
  * relays have CONFIRMED the gap — a signer user whose follow list hasn't
  * loaded yet is never nagged. Profile photo and backup left the critical path
- * with the old wizard; they live on in Settings and the landing-page nudge.
+ * with the old wizard; they live on in Settings and the backup reminder.
  *
  * Collapses as they go: finish the tasks and the card reduces to just the
  * status line, so the page visibly gets shorter — progress you can feel rather

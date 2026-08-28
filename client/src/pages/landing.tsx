@@ -1148,7 +1148,9 @@ export default function Landing() {
           )}
         </div>
 
-        {/* One account-level card at a time: unlock → backup → post-signup. */}
+        {/* One account-level card at a time: unlock → backup. Setup nudging
+            (follow list, activation) lives ONLY in the header's
+            FinishSetupBanner — nothing setup-shaped renders under the search. */}
         <AccountCards />
         {/* WelcomeBackCard ("someone just joined & followed you") stays unmounted.
             New users still auto-follow the profile they join from (see SharePage) —
