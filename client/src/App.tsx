@@ -30,7 +30,8 @@ import HopsPathPage from "@/pages/HopsPathPage";
 import ArticlePage from "@/pages/ArticlePage";
 import EventPage from "@/pages/EventPage";
 import WelcomePage from "@/pages/WelcomePage";
-import OnboardingWizard from "@/pages/OnboardingWizard";
+import FinishSetupPage from "@/pages/FinishSetupPage";
+import ActivateBrainstormPage from "@/pages/ActivateBrainstormPage";
 import HeroLab from "@/pages/HeroLab";
 import ActivatePage from "@/pages/ActivatePage";
 import { ScoringStatusBar } from "@/components/ScoringStatusBar";
@@ -238,7 +239,8 @@ function Router() {
         <Route path="/tags/:author/:slug" component={TagPage} />
         <Route path="/hero-lab" component={HeroLab} />
         <Route path="/welcome" component={WelcomePage} />
-        <Route path="/setup">{() => <RequireAuth component={OnboardingWizard} />}</Route>
+        <Route path="/setup/activate">{() => <RequireAuth component={ActivateBrainstormPage} />}</Route>
+        <Route path="/setup">{() => <RequireAuth component={FinishSetupPage} />}</Route>
         <Route path="/activate" component={ActivatePage} />
         <Route path="/settings">{() => <RequireAuth component={SettingsRoute} />}</Route>
         <Route path="/network">{() => <RequireAuth component={NetworkPage} />}</Route>
