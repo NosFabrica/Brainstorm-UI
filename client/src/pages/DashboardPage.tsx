@@ -132,7 +132,6 @@ import {
   ActivateBrainstormPanel,
   needsActivationPrompt,
 } from "@/components/ActivateBrainstormPanel";
-import { ActivateBrainstormInterstitial } from "@/components/ActivateBrainstormInterstitial";
 
 import protocolDevImg from "@/assets/stock_images/protocol_dev.jpg";
 import bitcoinImg from "@/assets/stock_images/bitcoin_network.jpg";
@@ -405,22 +404,6 @@ export default function DashboardPage() {
   // Note: ta_pubkey needs no waiting — the backend creates it during login
   // itself (authChallenge verify), so for any session-holder the first
   // /user/history response already carries it. Signing is always performable.
-
-  // The full-page activation takeover. "Maybe later" is deliberately
-  // component state, not storage: it reveals the dashboard for THIS visit
-  // only, and navigating away and back re-raises the takeover.
-  const [activationGateDismissed, setActivationGateDismissed] = useState(false);
-  // Brief first-paint hold for accounts that LOOK un-activated (local flag),
-  // so the takeover doesn't rug-pull a fully rendered dashboard once the
-  // relay check settles ~1–3s in. Activated accounts skip the hold via the
-  // flag; the cap lets the dashboard through if relays are slow (the
-  // takeover then swaps in late, which is the lesser evil).
-  const [activationHoldExpired, setActivationHoldExpired] = useState(false);
-  useEffect(() => {
-    if (trustServiceProvider.isFetched) return;
-    const t = setTimeout(() => setActivationHoldExpired(true), 4000);
-    return () => clearTimeout(t);
-  }, [trustServiceProvider.isFetched]);
 
   const grapeRankRaw = grapeRankQuery.data?.data;
   const grapeRank = grapeRankRaw && typeof grapeRankRaw === "object" ? grapeRankRaw : null;
@@ -852,50 +835,11 @@ export default function DashboardPage() {
     />
   );
 
-  // Zero-follow accounts are exempt from the takeover: their critical path is
-  // the follow-picker (scores can't exist without follows), and stacking two
-  // mandatory-feeling flows helps neither. They keep the inline panel below.
-  // `followsChecking` counts as zero-follow-maybe — no takeover until the
-  // relay verification says they really have a network.
-  const showActivationGate = showActivatePrompt && !activationGateDismissed && !hasNoFollowing && !followsChecking;
-  const holdForActivationCheck =
-    !trustServiceProvider.isFetched &&
-    !activationHoldExpired &&
-    !nip85Activated &&
-    !nip85CreatedInApp &&
-    !activationGateDismissed &&
-    !hasNoFollowing &&
-    !followsChecking;
-
-  if (showActivationGate || holdForActivationCheck) {
-    return (
-      <TooltipProvider>
-        <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-primary/[0.3] flex flex-col relative overflow-hidden" data-testid="page-dashboard">
-          <PageBackground />
-
-          <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="dashboard" />
-
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1 flex flex-col">
-            {showActivationGate ? (
-              <ActivateBrainstormInterstitial
-                scoresReady={calcDone}
-                onActivate={() => setNip85ModalOpen(true)}
-                onDismiss={() => setActivationGateDismissed(true)}
-              />
-            ) : (
-              <div className="flex-1 flex items-center justify-center" data-testid="activation-check-hold">
-                <Loader2 className="h-6 w-6 animate-spin text-brand-primary/50" />
-              </div>
-            )}
-          </div>
-
-          {activateModal}
-
-          <Footer minimal />
-        </div>
-      </TooltipProvider>
-    );
-  }
+  // The full-page activation takeover (ActivateBrainstormInterstitial) and its
+  // first-paint hold used to live here — a signer user with follows but no
+  // kind-10040 met a spinner, then a wall. The finish-setup flow replaced
+  // them: the header banner + setup card carry the nudge, and the dashboard
+  // always renders.
 
   return (
     <TooltipProvider>
@@ -1173,7 +1117,7 @@ export default function DashboardPage() {
                 other apps. Full-width, above everything, and deliberately not
                 waiting on any calculation state; see needsActivationPrompt. */}
             {showActivatePrompt && (
-              <ActivateBrainstormPanel onActivate={() => setNip85ModalOpen(true)} />
+              <ActivateBrainstormPanel onActivate={() => navigate("/setup/activate")} />
             )}
 
             <AlertDialog open={recalcConfirmOpen} onOpenChange={setRecalcConfirmOpen}>

@@ -23,6 +23,7 @@ import { GlossBackground } from "@/components/GlossBackground";
 import { Wordmark } from "@/components/Wordmark";
 import { SignInButton } from "@/components/SignInButton";
 import { AccountMenu } from "@/components/AccountMenu";
+import { FinishSetupBanner } from "@/components/FinishSetupBanner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
@@ -697,6 +698,14 @@ export default function Landing() {
             <img src="/brand/symbol-white.svg" alt="Brainstorm" draggable={false} className="hidden h-7 w-auto select-none dark:block" />
           </a>
         )}
+
+        {/* Center: the finish-setup nudge — this is the page a fresh sign-in
+            lands on, so the one persistent reminder has to live here too.
+            Absolutely centered because the left mark only exists after a
+            search; self-hides once setup is done. */}
+        <div className="absolute left-1/2 top-1/2 z-10 flex max-w-[55vw] -translate-x-1/2 -translate-y-1/2 justify-center">
+          <FinishSetupBanner />
+        </div>
 
         {/* Right: actions — apps + avatar when signed in, else Sign in. */}
         <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">

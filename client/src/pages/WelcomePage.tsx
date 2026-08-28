@@ -4,15 +4,9 @@ import { Check, Info } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { ConfirmNewFollowListDialog } from "@/components/ConfirmNewFollowListDialog";
 import { FollowPicker } from "@/components/FollowPicker";
-import { Nip85ConsentCard } from "@/components/Nip85ConsentCard";
-import { useActiveAccount } from "applesauce-react/hooks";
-import { publishBrainstormTrustAnchor, triggerScoringAndAnchor } from "@/services/trustAnchor";
+import { triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { useSelfHistory } from "@/hooks/useSelf";
 import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
-import { hasExternalSigner } from "@/accounts/signing";
-import type { BrainstormAccount } from "@/accounts/metadata";
-import { isNip85Activated } from "@/lib/nip85Activation";
 import { followPubkeys, type FollowOptions } from "@/services/socialActions";
 import { useFinishSetup } from "@/hooks/useFinishSetup";
 import { useToast } from "@/hooks/use-toast";
@@ -28,7 +22,6 @@ export default function WelcomePage() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const user = useActiveAccountDisplay();
-  const account = useActiveAccount() as BrainstormAccount | undefined;
 
   useEffect(() => {
     if (!user) navigate("/login", { replace: true });
@@ -45,14 +38,6 @@ export default function WelcomePage() {
     } catch { /* ignore */ }
     return "/setup";
   })();
-
-  // The NIP-85 ask sits beside the follow list. Their service key already
-  // exists (minted at first auth, independent of scoring), so with consent the
-  // kind-10040 is signed right after the kind-3 — the signer is already warm —
-  // instead of a background prompt minutes later.
-  const [nip85Consent, setNip85Consent] = useState(true);
-  const historyQuery = useSelfHistory(user?.pubkey);
-  const taPubkey = (historyQuery.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey;
 
   // Mount-time relay verification: repairs the local follow floor for imported
   // keys (so the at-risk path below almost never engages) and warms the outbox
@@ -76,18 +61,12 @@ export default function WelcomePage() {
         : { title: "Follow list published", description: "Your trust network is calculating — usually about 5 minutes." },
     );
     navigate(returnPath, { replace: true });
+    // The kind-10040 no longer rides along here: activation is its own step on
+    // the /setup checklist (→ /setup/activate), which the returnPath lands on.
     void (async () => {
       try {
         if (!user?.pubkey) return;
-        await triggerScoringAndAnchor(user.pubkey, { nip85Consent });
-        if (nip85Consent && taPubkey && !isNip85Activated(user.pubkey)) {
-          // Cancelled/failed publishes stay quiet — the consent-gated background
-          // poll and app-load self-heal finish the job.
-          const published = await publishBrainstormTrustAnchor(user.pubkey, taPubkey);
-          if (published.status === "success") {
-            toast({ title: "Scores shared", description: "Other apps can now find your Brainstorm scores." });
-          }
-        }
+        await triggerScoringAndAnchor(user.pubkey);
       } catch {
         /* the status chip + dashboard reflect the outcome */
       }
@@ -189,15 +168,7 @@ export default function WelcomePage() {
           </div>
         )}
 
-        <Nip85ConsentCard
-          pubkey={user?.pubkey}
-          taPubkey={taPubkey}
-          value={nip85Consent}
-          onChange={setNip85Consent}
-          silentSigner={!!account && !hasExternalSigner(account)}
-          className="mt-6"
-        />
-        <div className="mt-4">
+        <div className="mt-6">
           <FollowPicker
             onContinue={finish}
             continueLabel={alreadyCommitted ? "Update my follow list" : "Follow & calculate my scores"}

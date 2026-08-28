@@ -4,13 +4,10 @@ import { Loader2, ArrowRight, Search as SearchIcon, X, Users } from "lucide-reac
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { PersonRow, type PersonLite } from "@/components/PersonRow";
 import { ConfirmNewFollowListDialog } from "@/components/ConfirmNewFollowListDialog";
-import { Nip85ConsentCard } from "@/components/Nip85ConsentCard";
 import { SUGGESTED_ACCOUNTS } from "@/lib/suggestedAccounts";
 import { fetchProfileMap, SEED_FOLLOW_HEX } from "@/services/nostr";
-import { publishBrainstormTrustAnchor, triggerScoringAndAnchor } from "@/services/trustAnchor";
+import { triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { useSelfHistory } from "@/hooks/useSelf";
-import { isNip85Activated } from "@/lib/nip85Activation";
 import { followPubkeys } from "@/services/socialActions";
 import { searchByText, type SearchResult } from "@/lib/profileSearch";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -113,13 +110,6 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
 
   const count = selected.size;
 
-  // The NIP-85 ask rides with the calculate commit (see Nip85ConsentCard). The
-  // service key already exists server-side, so with consent the kind-10040 is
-  // signed right here while the signer is warm from the kind-3.
-  const [nip85Consent, setNip85Consent] = useState(true);
-  const historyQuery = useSelfHistory(identity?.pubkey);
-  const taPubkey = (historyQuery.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey;
-
   // followPubkeys refused to create a first-ever list without the user's say-so
   // (imported key, nothing found on relays) — the pending picks wait on the
   // confirmation dialog.
@@ -129,17 +119,9 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
     if (identity?.pubkey) {
       const pk = identity.pubkey;
       try { localStorage.setItem(accountKey("brainstorm_calc_triggered_at", pk), String(Date.now())); } catch { /* ignore */ }
-      void (async () => {
-        await triggerScoringAndAnchor(pk, { nip85Consent });
-        if (nip85Consent && taPubkey && !isNip85Activated(pk)) {
-          // Cancelled/failed publishes stay quiet — the consent-gated background
-          // poll and app-load self-heal finish the job.
-          const published = await publishBrainstormTrustAnchor(pk, taPubkey);
-          if (published.status === "success") {
-            toast({ title: "Scores shared", description: "Other apps can now find your Brainstorm scores." });
-          }
-        }
-      })();
+      // The kind-10040 no longer rides along: activation is its own step on
+      // the /setup checklist, nudged by the header banner and setup card.
+      void triggerScoringAndAnchor(pk);
     }
     toast({ title: "Calculating your trust network", description: "We're scoring your follows — this can take a few minutes." });
     onDone?.();
@@ -215,14 +197,6 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
           ))}
         </div>
       )}
-
-      <Nip85ConsentCard
-        pubkey={identity?.pubkey}
-        taPubkey={taPubkey}
-        value={nip85Consent}
-        onChange={setNip85Consent}
-        className="mt-3"
-      />
 
       {/* Selected tray + commit */}
       <div className="mt-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-3">
