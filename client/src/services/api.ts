@@ -202,6 +202,22 @@ async function extractApiError(response: Response): Promise<string> {
   return data?.detail || data?.message || "";
 }
 
+/**
+ * One row of the admin Billing tab. `ref` is the hex pubkey we appended at
+ * checkout; null means a bypass signup (Flash's plain link, no attribution) —
+ * exactly the rows admins need to notice. Statuses are Flash's open set.
+ */
+export interface AdminBillingSubscription {
+  subscription_id: string;
+  ref: string | null;
+  plan_id: string | null;
+  plan_name: string | null;
+  status: string;
+  current_period_end: string | null;
+  next_billing_date: string | null;
+  created_at: string | null;
+}
+
 export interface SchedulingItem {
   id: number;
   name: string;
@@ -829,6 +845,28 @@ export const apiClient = {
     }
     const json = await response.json();
     return json?.data ?? { plans: [] };
+  },
+
+  /**
+   * Admin view of every Flash subscription on this service — the server maps
+   * Flash's `GET /api/v1/external/subscriptions` into this shape (contract:
+   * docs/payments/ADMIN-BILLING-CONTRACT.md). View-only by design; anything
+   * write-shaped happens in the Flash dashboard.
+   */
+  async getAdminBillingSubscriptions(): Promise<AdminBillingSubscription[]> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/billing/subscriptions`,
+      { signal: AbortSignal.timeout(15000) },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to fetch billing subscriptions (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    const body = json?.data ?? json;
+    return (body?.subscriptions ?? []) as AdminBillingSubscription[];
   },
 
 
