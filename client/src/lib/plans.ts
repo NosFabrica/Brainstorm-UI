@@ -357,3 +357,20 @@ export function formatPrice(id: TierId): string {
   const major = minor / 100;
   return `$${Number.isInteger(major) ? major : major.toFixed(2)}`;
 }
+
+/**
+ * The price the user should actually see: the LIVE plan's amount when one has
+ * loaded (admins retune prices in the Flash dashboard without a UI deploy),
+ * the build-time constant only as a render-before-fetch / API-failure
+ * fallback. `useBillingPlans().priceLabel` serves this pre-bound.
+ */
+export function planPriceLabel(
+  plan: { amountMinor: number; currency: string } | undefined,
+  tier: TierId,
+): string {
+  if (!plan) return formatPrice(tier);
+  if (plan.amountMinor === 0) return "Free";
+  const major = plan.amountMinor / 100;
+  const num = Number.isInteger(major) ? String(major) : major.toFixed(2);
+  return plan.currency === "USD" ? `$${num}` : `${num} ${plan.currency}`;
+}

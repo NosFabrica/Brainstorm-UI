@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchPlans, type BillingPlan } from "@/services/subscription";
-import { FALLBACK_RECALC_DAYS, type TierId } from "@/lib/plans";
+import { FALLBACK_RECALC_DAYS, planPriceLabel, type TierId } from "@/lib/plans";
 
 /**
  * The plans this instance offers, shared app-wide (pricing page, footer link,
@@ -23,6 +23,8 @@ export function useBillingPlans(): {
   /** false ONLY on a confirmed empty array; undefined while unknown. */
   billingAvailable: boolean | undefined;
   recalcDays: (tier: TierId) => number;
+  /** "$2" / "2 EUR" / "Free" — live plan price, constants as fallback. */
+  priceLabel: (tier: TierId) => string;
   isLoading: boolean;
 } {
   const query = useQuery({
@@ -44,6 +46,7 @@ export function useBillingPlans(): {
     planFor,
     billingAvailable: plans === undefined ? undefined : plans.length > 0,
     recalcDays,
+    priceLabel: (tier: TierId) => planPriceLabel(planFor(tier), tier),
     isLoading: query.isPending,
   };
 }

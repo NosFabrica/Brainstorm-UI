@@ -8,6 +8,7 @@ import {
   plannedFeatures,
   plannedByTheme,
   formatPrice,
+  planPriceLabel,
   tierMeetsRequirement,
   nextScheduledLabel,
 } from "./plans";
@@ -76,6 +77,20 @@ describe("plans — price", () => {
     expect(TIERS[PAID_TIER].usdMinorPerMonth).toBe(200);
     expect(formatPrice(PAID_TIER)).toBe("$2");
     expect(formatPrice("free")).toBe("Free");
+  });
+
+  // Admins retune prices in the Flash dashboard without a UI deploy — the
+  // LIVE plan wins wherever one is loaded; the constant is only a fallback.
+  it("prefers the live plan's price over the build-time constant", () => {
+    expect(planPriceLabel({ amountMinor: 300, currency: "USD" }, PAID_TIER)).toBe("$3");
+    expect(planPriceLabel({ amountMinor: 250, currency: "USD" }, PAID_TIER)).toBe("$2.50");
+    expect(planPriceLabel({ amountMinor: 0, currency: "USD" }, "free")).toBe("Free");
+    expect(planPriceLabel({ amountMinor: 200, currency: "EUR" }, PAID_TIER)).toBe("2 EUR");
+  });
+
+  it("falls back to the constant when no plan has loaded", () => {
+    expect(planPriceLabel(undefined, PAID_TIER)).toBe("$2");
+    expect(planPriceLabel(undefined, "free")).toBe("Free");
   });
 });
 

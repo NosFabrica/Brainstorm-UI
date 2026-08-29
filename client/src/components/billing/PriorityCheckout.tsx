@@ -15,7 +15,7 @@ import { useBillingPlans } from "@/hooks/useBillingPlans";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { resolveCheckout } from "@/lib/checkout";
 import { startCheckoutPoll } from "@/lib/checkoutPoll";
-import { PAID_TIER, TIERS, formatPrice, liveFeatures, recalcFeatureLabel } from "@/lib/plans";
+import { PAID_TIER, TIERS, liveFeatures, recalcFeatureLabel } from "@/lib/plans";
 
 /**
  * The hand-off to Flash's payment page.
@@ -47,7 +47,7 @@ export function PriorityCheckout({
   onOpenChange: (open: boolean) => void;
 }) {
   const { tier, refetch } = useSubscription();
-  const { planFor, recalcDays } = useBillingPlans();
+  const { planFor, recalcDays, priceLabel } = useBillingPlans();
   const me = useActiveAccountDisplay();
   const qc = useQueryClient();
   const [sent, setSent] = useState(false);
@@ -62,7 +62,7 @@ export function PriorityCheckout({
   }, [sent, tier, onOpenChange]);
 
   const target = resolveCheckout(planFor(PAID_TIER), me?.pubkey);
-  const price = formatPrice(PAID_TIER);
+  const price = priceLabel(PAID_TIER);
   // The interval line renders from the LIVE cadence; static labels are fallbacks.
   const perks = [
     { key: "recalc-live", label: recalcFeatureLabel(recalcDays(PAID_TIER), recalcDays("free")) },

@@ -3,7 +3,7 @@ import { CalendarClock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { useSubscription } from "@/hooks/useSubscription";
-import { TIERS, PAID_TIER, formatPrice, formatSats, nextScheduledLabel, type SubscriptionStatus } from "@/lib/plans";
+import { TIERS, PAID_TIER, formatSats, nextScheduledLabel, type SubscriptionStatus } from "@/lib/plans";
 import { useBillingPlans } from "@/hooks/useBillingPlans";
 
 /**
@@ -28,7 +28,7 @@ export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null
   const info = TIERS[tier];
   const paid = tier === PAID_TIER;
 
-  const { recalcDays } = useBillingPlans();
+  const { recalcDays, priceLabel } = useBillingPlans();
   // Live cadence off /billing/plans; the tier constant is only the fallback.
   const next = nextScheduledLabel(lastCalculatedMs, tier, Date.now(), recalcDays(tier));
 
@@ -55,7 +55,7 @@ export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null
             {info.name}
             {paid && (
               <span className="text-slate-500 dark:text-slate-400">
-                {" "}· {rail === "flash-lightning" ? formatSats(tier) : formatPrice(tier)}/mo
+                {" "}· {rail === "flash-lightning" ? formatSats(tier) : priceLabel(tier)}/mo
               </span>
             )}
           </span>

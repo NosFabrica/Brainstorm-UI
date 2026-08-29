@@ -11,7 +11,6 @@ import {
   TIER_ORDER,
   PAID_TIER,
   liveFeatures,
-  formatPrice,
   type TierId,
 } from "@/lib/plans";
 import { useSubscription } from "@/hooks/useSubscription";
@@ -123,7 +122,7 @@ function TierCard({
   // LIVE cadence from /billing/plans — the build-time constant is only the
   // render-before-fetch fallback, so a retuned policy can't leave this page
   // advertising a stale number.
-  const { recalcDays } = useBillingPlans();
+  const { recalcDays, priceLabel } = useBillingPlans();
   const liveDays = recalcDays(id);
   // The interval line is the hero number, not a bullet — said once.
   const features = liveFeatures(id).filter((f) => !f.interval);
@@ -191,7 +190,7 @@ function TierCard({
 
       <div className="mt-4 flex items-baseline gap-1.5">
         <span className="text-2xl font-bold text-slate-900 dark:text-slate-100 tabular-nums">
-          {paid ? formatPrice(id) : "$0"}
+          {paid ? priceLabel(id) : "$0"}
         </span>
         <span className="text-sm text-slate-500 dark:text-slate-400">/ month</span>
       </div>

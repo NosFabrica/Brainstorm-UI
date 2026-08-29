@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { Button } from "@/components/ui/button";
 import { useSubscription } from "@/hooks/useSubscription";
+import { useBillingPlans } from "@/hooks/useBillingPlans";
 import { cancelSubscription } from "@/services/subscription";
 import { FEATURES } from "@/config/featureFlags";
 import { useToast } from "@/hooks/use-toast";
@@ -53,10 +54,11 @@ export function BillingCard() {
   const canCancel = paid && status !== "canceled" && status !== "none";
 
   // A sats payer is quoted in sats everywhere an amount appears; a card payer
-  // in dollars-and-cents. One label, three call sites, no mixed currencies.
+  // in dollars-and-cents. One label, three call sites, no mixed currencies —
+  // and the dollar figure follows the LIVE plan, not the build-time constant.
+  const { priceLabel } = useBillingPlans();
   const lightning = rail === "flash-lightning";
-  const amount = (info.usdMinorPerMonth / 100).toFixed(2);
-  const amountLabel = lightning ? formatSats(tier) : `$${amount}`;
+  const amountLabel = lightning ? formatSats(tier) : priceLabel(tier);
   const periodEnd = currentPeriodEnd ? new Date(currentPeriodEnd) : null;
   // Monthly billing: the current period opened one month before it closes.
   const periodStart = periodEnd ? addMonths(periodEnd, -1) : null;
