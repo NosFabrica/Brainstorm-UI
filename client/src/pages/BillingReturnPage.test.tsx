@@ -35,15 +35,15 @@ describe("BillingReturnPage outcomes", () => {
     await waitFor(() => expect(screen.getByTestId("billing-return-success")).toBeInTheDocument());
   });
 
-  // The redirect says a payment landed, never HOW it was paid — a Lightning
-  // subscriber must not read "Paid by Card" on their billing page.
-  it("records the payment without inventing a payment method", async () => {
+  // The redirect says a payment landed, never HOW it was paid, and never which
+  // tier — it records the policy the server reports and nothing else.
+  it("records the policy the server reports, inventing nothing", async () => {
     renderAt("?status=active&subscriptionId=x&ref=y");
     await waitFor(() => expect(screen.getByTestId("billing-return-success")).toBeInTheDocument());
 
     const sub = await fetchSubscription();
-    expect(sub.tier).toBe("priority");
-    expect(sub.rail).toBeNull();
+    expect(sub.policy?.isDefault).toBe(false);
+    expect(sub.policy?.name).toBe("Priority");
   });
 
   it("status=pending shows confirming with the honest half-hour copy", async () => {

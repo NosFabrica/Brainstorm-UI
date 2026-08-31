@@ -1,16 +1,13 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { Loader2, ArrowRight, CreditCard, Zap, Receipt , ExternalLink } from "lucide-react";
-import { useQueryClient } from "@tanstack/react-query";
+import { AlertTriangle, ArrowRight, ExternalLink, Receipt } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { Button } from "@/components/ui/button";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useBillingPlans } from "@/hooks/useBillingPlans";
-import { cancelSubscription } from "@/services/subscription";
-import { FEATURES } from "@/config/featureFlags";
-import { useToast } from "@/hooks/use-toast";
-import { TIERS, PAID_TIER, formatSats, type SubscriptionStatus, type Rail } from "@/lib/plans";
+import { formatAmount, formatBillingPeriod, SUBSCRIPTION_STATUS_LABEL } from "@/lib/plans";
 
 /**
  * Billing in Settings, because Settings is where you CHANGE things.
@@ -18,88 +15,70 @@ import { TIERS, PAID_TIER, formatSats, type SubscriptionStatus, type Rail } from
  * The read-only half — schedule, next run, calculation history — lives on
  * /insights, which is where you CHECK things. What belongs HERE is the money:
  * and money surfaces have their own genre. People trust a billing page that
- * looks like a statement — labelled rows, tabular figures, a payment method
- * with an icon, cents on the amounts — and distrust one that chats at them.
- * So this reads like a receipt, not a paragraph.
+ * looks like a statement — labelled rows, tabular figures, cents on the
+ * amounts — and distrust one that chats at them. So this reads like a receipt.
  *
- * ## What the payments section can honestly show
+ * ## Every number here was reported, not worked out
  *
- * We have no verified transaction feed yet (Flash's transactions endpoint is
- * UNVERIFIED — docs/payments/FLASH-INTEGRATION.md). But an active paid period
- * IMPLIES its opening payment: if your period ends Sep 18, you paid $2.00 a
- * month before. That one derived row is shown, labelled as the current period.
- * Full history arrives when the Flash integration is verified — the note says
- * so rather than padding the table with fabricated rows.
+ * This card used to derive the period start by subtracting a month from the
+ * end, which was wrong for the daily rehearsal plan and wrong for a yearly one.
+ * The subscription row carries `current_period_start`, `current_period_end` and
+ * `next_billing_date`, so all three are rendered as sent. The amount is the
+ * PLAN the subscriber bought — not their policy's current list price, because
+ * someone on a retired or repriced mapping still pays what they signed up for.
+ *
+ * There is no payment-method row: Flash's subscription object carries no such
+ * field, so any badge here would be a guess dressed as a fact.
  *
  * ## Cancellation
  *
- * Follows `subscription.manageUrl` — Flash's hosted portal today; if Flash
- * ever confirms a cancel API, the server starts returning a URL into our own
- * app and this code doesn't change (handoff A6). The portal signs people in
- * with a magic-link email, so the confirm copy warns about that — generically,
- * because we deliberately don't store the subscriber's address. Mock mode
- * keeps the local cancel so the demo flow works. The old DELETE is gone.
+ * Follows `subscription.manageUrl` — Flash's hosted portal today; if Flash ever
+ * confirms a cancel API, the server starts returning a URL into our own app and
+ * this code doesn't change (handoff A6). Its PRESENCE is also the gate: the
+ * server says whether cancelling is possible, so nothing here asks a feature
+ * flag. The portal signs people in with a magic-link email, so the confirm copy
+ * warns about that — generically, because we deliberately don't store the
+ * subscriber's address.
  */
 export function BillingCard() {
-  const { tier, status, currentPeriodEnd, cancelEffectiveDate, rail, manageUrl, isLoading } =
-    useSubscription();
-  const info = TIERS[tier];
-  const paid = tier === PAID_TIER;
-  const qc = useQueryClient();
-  const { toast } = useToast();
+  const {
+    policy,
+    plan,
+    status,
+    currentPeriodStart,
+    currentPeriodEnd,
+    nextBillingDate,
+    cancelEffectiveDate,
+    manageUrl,
+    isPaid: paid,
+    isLoading,
+  } = useSubscription();
+  const { plans, billingAvailable, solePurchasableName } = useBillingPlans();
   const [confirming, setConfirming] = useState(false);
-  const [busy, setBusy] = useState(false);
+
+  const planName = policy?.name ?? "—";
+  // `is_active: false` means the mapping is no longer sellable. The subscriber
+  // keeps the policy and the price; what they lose is the ability to re-buy it.
+  const retired = plan !== null && !plan.isActive;
+
+  // A free holder has no billing row, so their price is the default plan's own
+  // amount — a number the server sends, not a "$0.00" typed in here.
+  const priced = plan ?? plans?.find((p) => p.isDefault) ?? null;
+  const amountLabel = priced ? formatAmount(priced.amountMinor, priced.currency) : "—";
+  const period = priced ? formatBillingPeriod(priced.billingPeriodUnit, priced.billingPeriodCount) : null;
 
   // Flash reports a cancellation that has not taken effect yet as `active` —
   // the subscriber IS still entitled and the status is right — so the date is
   // the only thing that distinguishes "renews then" from "ends then".
-  const cancelAt = cancelEffectiveDate ? new Date(cancelEffectiveDate) : null;
-  const cancelPending =
-    paid && cancelAt !== null && !Number.isNaN(cancelAt.getTime()) && cancelAt.getTime() > Date.now();
+  const cancelAt = parseDate(cancelEffectiveDate);
+  const cancelPending = paid && cancelAt !== null && cancelAt.getTime() > Date.now();
   const ending = status === "canceled" || cancelPending;
 
   // Past-due and grace can still cancel: someone whose card failed may want out
   // rather than to fix it, and refusing until they pay would be indefensible.
   // Already cancelling is the one case that cannot: there is nothing to cancel.
-  const canCancel = paid && status !== "canceled" && status !== "none" && !cancelPending;
-
-  // A sats payer is quoted in sats everywhere an amount appears; a card payer
-  // in dollars-and-cents. One label, three call sites, no mixed currencies —
-  // and the dollar figure follows the LIVE plan, not the build-time constant.
-  const { priceLabel } = useBillingPlans();
-  const lightning = rail === "flash-lightning";
-  const amountLabel = lightning ? formatSats(tier) : priceLabel(tier);
-  const periodEnd = currentPeriodEnd ? new Date(currentPeriodEnd) : null;
-  // Monthly billing: the current period opened one month before it closes.
-  const periodStart = periodEnd ? addMonths(periodEnd, -1) : null;
-
-  const doCancel = async () => {
-    // Real mode: hand over to the portal, straight away — more friction than
-    // subscribing is already the wrong side of several jurisdictions' rules,
-    // so no interstitial beyond this confirm row.
-    if (FEATURES.subscriptionApi && manageUrl) {
-      window.location.href = manageUrl;
-      return;
-    }
-    setBusy(true);
-    try {
-      await cancelSubscription();
-      await qc.invalidateQueries({ queryKey: ["/user/subscription"] });
-      toast({
-        title: "Subscription cancelled",
-        description: `${info.name} runs to the end of the period you've paid for.`,
-      });
-    } catch (e) {
-      toast({
-        title: "Couldn't cancel",
-        description: e instanceof Error ? e.message : "Please try again, or get in touch.",
-        variant: "destructive",
-      });
-    } finally {
-      setBusy(false);
-      setConfirming(false);
-    }
-  };
+  const canCancel = paid && !ending && status !== "none" && manageUrl !== null;
+  const accessEnds = cancelEffectiveDate ?? currentPeriodEnd;
 
   return (
     <Card className="overflow-hidden" data-testid="settings-billing-card">
@@ -118,7 +97,7 @@ export function BillingCard() {
               size="sm"
               data-testid="billing-status"
             >
-              {!paid ? "Free plan" : cancelPending ? "Cancelling" : STATUS_LABEL[status]}
+              {!paid ? "Free plan" : cancelPending ? "Cancelling" : SUBSCRIPTION_STATUS_LABEL[status]}
             </Chip>
           )}
         </div>
@@ -134,30 +113,61 @@ export function BillingCard() {
       {/* Account summary — labelled rows, statement-style */}
       <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-3 px-5 sm:px-6 py-5 text-sm">
         <Row label="Plan">
-          <span className="font-semibold" data-testid="billing-plan">{info.name}</span>
+          <span className="font-semibold" data-testid="billing-plan">{planName}</span>
         </Row>
         <Row label="Amount">
           <span className="tabular-nums" data-testid="billing-amount">
-            {paid ? `${amountLabel} / month` : "$0.00"}
+            {amountLabel}
+            {period && <span className="text-slate-500 dark:text-slate-400"> {period}</span>}
           </span>
         </Row>
-        <Row label="Payment method">
-          {paid && rail ? <RailBadge rail={rail} /> : <span className="text-slate-400">—</span>}
-        </Row>
-        <Row label={ending ? "Access until" : "Next invoice"}>
+        <Row label={ending ? "Access until" : "Next invoice"} testId="billing-next-label">
           <span className="tabular-nums" data-testid="billing-next-invoice">
             {!paid
               ? "—"
               : ending
-                ? fmtDate(cancelAt ?? periodEnd!)
-                : periodEnd
-                  ? `${fmtDate(periodEnd)} · ${amountLabel}`
+                ? fmtDate(accessEnds)
+                : nextBillingDate
+                  ? `${fmtDate(nextBillingDate)} · ${amountLabel}`
                   : "—"}
           </span>
         </Row>
       </dl>
 
-      {/* Payments — a real table, with only the row we can actually stand behind. */}
+      {retired && (
+        <div className="px-5 sm:px-6 pb-5">
+          <Alert variant="warning" data-testid="billing-plan-retired">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>This plan is no longer offered</AlertTitle>
+            <AlertDescription>
+              You keep {planName} — and the price you signed up at — for as long as you stay on it.
+              To move to a plan that is currently on sale,{" "}
+              <Link href="/pricing" className="font-medium underline" data-testid="billing-retired-pricing">
+                see what's available
+              </Link>
+              {manageUrl ? (
+                <>
+                  . To stop this one,{" "}
+                  <a
+                    href={manageUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-medium underline"
+                    data-testid="billing-retired-manage"
+                  >
+                    cancel it on Flash's page
+                  </a>
+                  .
+                </>
+              ) : (
+                "."
+              )}
+            </AlertDescription>
+          </Alert>
+        </div>
+      )}
+
+      {/* Payments — the current period, with both of its dates as reported. */}
       <div className="px-5 sm:px-6 pb-5">
         <div className="flex items-center gap-1.5 mb-2">
           <Receipt className="h-3.5 w-3.5 text-slate-400" />
@@ -171,24 +181,22 @@ export function BillingCard() {
               <tr className="bg-slate-50 dark:bg-slate-900/60 text-left text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 <th className="px-3 py-2 font-semibold">Date</th>
                 <th className="px-3 py-2 font-semibold">Description</th>
-                <th className="px-3 py-2 font-semibold">Method</th>
                 <th className="px-3 py-2 font-semibold text-right">Amount</th>
               </tr>
             </thead>
             <tbody>
-              {paid && periodStart ? (
+              {paid && currentPeriodStart ? (
                 <tr className="text-slate-700 dark:text-slate-200" data-testid="billing-payment-row">
-                  <td className="px-3 py-2.5 tabular-nums whitespace-nowrap">{fmtDate(periodStart)}</td>
+                  <td className="px-3 py-2.5 tabular-nums whitespace-nowrap">{fmtDate(currentPeriodStart)}</td>
                   <td className="px-3 py-2.5">
-                    {info.name} — {fmtDate(periodStart)} to {fmtDate(periodEnd!)}
+                    {planName} — {fmtDate(currentPeriodStart)} to {fmtDate(currentPeriodEnd)}
                   </td>
-                  <td className="px-3 py-2.5">{rail ? <RailBadge rail={rail} compact /> : "—"}</td>
                   <td className="px-3 py-2.5 text-right tabular-nums font-medium">{amountLabel}</td>
                 </tr>
               ) : (
                 <tr>
-                  <td colSpan={4} className="px-3 py-5 text-center text-slate-400 dark:text-slate-500" data-testid="billing-no-payments">
-                    No payments — you're on the free plan.
+                  <td colSpan={3} className="px-3 py-5 text-center text-slate-400 dark:text-slate-500" data-testid="billing-no-payments">
+                    {paid ? "No payments recorded for this period yet." : "No payments — you're on the free plan."}
                   </td>
                 </tr>
               )}
@@ -206,12 +214,14 @@ export function BillingCard() {
 
       {/* Actions */}
       <div className="flex flex-wrap items-center gap-2 px-5 sm:px-6 py-4 border-t border-slate-100 dark:border-slate-800/60 bg-slate-50/60 dark:bg-slate-900/40">
-        <Button asChild variant={paid ? "outline" : "primary"} className="gap-1.5">
-          <Link href="/pricing" data-testid="billing-change-plan">
-            {paid ? "Change plan" : `Get ${TIERS[PAID_TIER].name}`}
-            <ArrowRight className="h-4 w-4" />
-          </Link>
-        </Button>
+        {billingAvailable !== false && (
+          <Button asChild variant={paid ? "outline" : "primary"} className="gap-1.5">
+            <Link href="/pricing" data-testid="billing-change-plan">
+              {paid ? "Change plan" : solePurchasableName ? `Get ${solePurchasableName}` : "See plans"}
+              <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+        )}
 
         {/* The portal is also where an expiring card or a Lightning connection
             gets updated — the most common billing event there is, so it can't
@@ -241,11 +251,18 @@ export function BillingCard() {
 
         {canCancel && confirming && (
           <div className="flex flex-wrap items-center gap-2" data-testid="billing-cancel-confirm-row">
-            <Button variant="destructive" disabled={busy} onClick={doCancel} data-testid="billing-cancel-confirm">
-              {busy && <Loader2 className="h-4 w-4 animate-spin" />}
-              Yes, cancel
+            {/* Straight to the portal — more friction than subscribing is
+                already the wrong side of several jurisdictions' rules. */}
+            <Button
+              variant="destructive"
+              onClick={() => {
+                window.location.href = manageUrl;
+              }}
+              data-testid="billing-cancel-confirm"
+            >
+              Continue to cancel
             </Button>
-            <Button variant="ghost" disabled={busy} onClick={() => setConfirming(false)}>
+            <Button variant="ghost" onClick={() => setConfirming(false)}>
               Keep it
             </Button>
           </div>
@@ -253,9 +270,9 @@ export function BillingCard() {
 
         {confirming && (
           <p className="w-full text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
-            You'll keep {info.name} until {periodEnd ? fmtDate(periodEnd) : "the end of the period you've paid for"} —
+            You'll keep {planName} until {accessEnds ? fmtDate(accessEnds) : "the end of the period you've paid for"} —
             nothing stops today. After that your scores go back to the free schedule.
-            {FEATURES.subscriptionApi && manageUrl ? " Cancelling happens on Flash's page — they'll sign you in with a link sent to the email you subscribed with." : ""}
+            Cancelling happens on Flash's page — they'll sign you in with a link sent to the email you subscribed with.
           </p>
         )}
       </div>
@@ -263,48 +280,24 @@ export function BillingCard() {
   );
 }
 
-/** Payment-method chip: the icon carries the rail, the text names the processor. */
-function RailBadge({ rail, compact = false }: { rail: Rail; compact?: boolean }) {
-  const card = rail === "card";
-  const Icon = card ? CreditCard : Zap;
-  return (
-    <span
-      className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2 py-0.5 font-medium text-slate-700 dark:text-slate-200"
-      data-testid="billing-rail"
-    >
-      <Icon className={`h-3.5 w-3.5 ${card ? "text-slate-500" : "text-amber-500"}`} />
-      {card ? "Card" : "Lightning"}
-      {!compact && <span className="text-slate-400 dark:text-slate-500 font-normal">· Flash</span>}
-    </span>
-  );
-}
-
-function Row({ label, children }: { label: string; children: React.ReactNode }) {
+function Row({ label, testId, children }: { label: string; testId?: string; children: React.ReactNode }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <dt className="text-slate-500 dark:text-slate-400">{label}</dt>
+      <dt className="text-slate-500 dark:text-slate-400" data-testid={testId}>{label}</dt>
       <dd className="text-right text-slate-900 dark:text-slate-100">{children}</dd>
     </div>
   );
 }
 
-const STATUS_LABEL: Record<SubscriptionStatus, string> = {
-  none: "—",
-  pending: "Confirming payment",
-  active: "Active",
-  past_due: "Payment due",
-  grace: "Grace period",
-  canceled: "Cancelled",
-};
-
-function addMonths(d: Date, n: number): Date {
-  const out = new Date(d);
-  out.setMonth(out.getMonth() + n);
-  return out;
+function parseDate(iso: string | null): Date | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function fmtDate(d: Date): string {
-  return Number.isNaN(d.getTime())
+function fmtDate(iso: string | null): string {
+  const d = parseDate(iso);
+  return d === null
     ? "—"
     : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }

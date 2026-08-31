@@ -3,13 +3,25 @@ import { CalendarClock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { useSubscription } from "@/hooks/useSubscription";
-import { TIERS, PAID_TIER, formatSats, nextScheduledLabel, type SubscriptionStatus } from "@/lib/plans";
+import {
+  cadenceDays,
+  formatAmount,
+  formatBillingPeriod,
+  nextScheduledLabel,
+  SUBSCRIPTION_STATUS_LABEL,
+  type SubscriptionStatus,
+} from "@/lib/plans";
 import { useBillingPlans } from "@/hooks/useBillingPlans";
 
 /**
  * "What plan am I on, and when do my scores update next?" — on /insights,
  * because that page already calls itself the account page and already answers
  * the two questions either side of this one.
+ *
+ * Everything here comes off the POLICY the person holds and the PLAN they
+ * bought: the name, the price they are actually charged, and the cadence, which
+ * is the live `schedule_interval_seconds` rather than a number compiled in. An
+ * admin retuning a policy changes this card without a deploy.
  *
  * ## Why there is no pitch here
  *
@@ -24,13 +36,26 @@ import { useBillingPlans } from "@/hooks/useBillingPlans";
  * wrong into a page that sells at them.
  */
 export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null }) {
-  const { tier, status, currentPeriodEnd, rail, isLoading } = useSubscription();
-  const info = TIERS[tier];
-  const paid = tier === PAID_TIER;
+  const { policy, plan, status, currentPeriodEnd, cancelEffectiveDate, isPaid: paid, isLoading } =
+    useSubscription();
+  const { plans, billingAvailable, solePurchasableName, recalcDaysFor } = useBillingPlans();
 
-  const { recalcDays, priceLabel } = useBillingPlans();
-  // Live cadence off /billing/plans; the tier constant is only the fallback.
-  const next = nextScheduledLabel(lastCalculatedMs, tier, Date.now(), recalcDays(tier));
+  const days = cadenceDays(policy?.scheduleIntervalSeconds);
+  const next = nextScheduledLabel(lastCalculatedMs, days, Date.now());
+
+  const price = plan ? formatAmount(plan.amountMinor, plan.currency) : null;
+  const period = plan ? formatBillingPeriod(plan.billingPeriodUnit, plan.billingPeriodCount) : null;
+
+  // Flash reports a cancellation that has not taken effect yet as `active`, so
+  // the date — not the status — is what turns "Renews" into "Access until".
+  const cancelAt = cancelEffectiveDate ? new Date(cancelEffectiveDate) : null;
+  const cancelPending = paid && cancelAt !== null && !Number.isNaN(cancelAt.getTime()) && cancelAt.getTime() > Date.now();
+  const ending = status === "canceled" || cancelPending;
+  const endsOn = cancelEffectiveDate ?? currentPeriodEnd;
+
+  // The one thing on sale, when there is exactly one. Several, or none we can
+  // name, and the link says "see plans" rather than picking one arbitrarily.
+  const upsell = plans?.find((p) => p.checkoutUrl && p.policyName === solePurchasableName);
 
   return (
     <Card className="p-4 mb-4" data-testid="insights-plan-card">
@@ -44,7 +69,7 @@ export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null
         </span>
         {!isLoading && status !== "active" && (
           <Chip tone={statusTone(status)} size="sm" data-testid="insights-plan-status">
-            {STATUS_LABEL[status]}
+            {SUBSCRIPTION_STATUS_LABEL[status]}
           </Chip>
         )}
       </div>
@@ -52,42 +77,40 @@ export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null
       <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm">
         <Row label="Plan">
           <span data-testid="insights-plan-name">
-            {info.name}
-            {paid && (
+            {policy?.name ?? "—"}
+            {price && (
               <span className="text-slate-500 dark:text-slate-400">
-                {" "}· {rail === "flash-lightning" ? formatSats(tier) : priceLabel(tier)}/mo
+                {" "}· {price}{period ? ` ${period}` : ""}
               </span>
             )}
           </span>
         </Row>
 
         <Row label="Recalculated">
-          every {recalcDays(tier)} days
+          <span data-testid="insights-recalc">{days ? everyDays(days) : "—"}</span>
         </Row>
 
-        {/* Derived from the plan's interval and the last run, not reported by the
-            scheduler — there is no user-facing next-run field today. Labelled
-            "scheduled" rather than "will run" for that reason. If the backend
-            ever exposes a real next-run, prefer it over this arithmetic. */}
+        {/* Derived from the policy's interval and the last run, not reported by
+            the scheduler — there is no user-facing next-run field today.
+            Labelled "scheduled" rather than "will run" for that reason. If the
+            backend ever exposes a real next-run, prefer it over this. */}
         <Row label="Next scheduled">
           <span data-testid="insights-next-run">{next ?? "—"}</span>
         </Row>
 
-        {paid && currentPeriodEnd && (
-          <Row label={status === "canceled" ? "Access until" : "Renews"}>
-            {fmtDate(currentPeriodEnd)}
+        {paid && endsOn && (
+          <Row label={ending ? "Access until" : "Renews"}>
+            <span data-testid="insights-renews">{fmtDate(endsOn)}</span>
           </Row>
-        )}
-
-        {paid && rail && (
-          <Row label="Paid by">{rail === "card" ? "Card" : "Lightning"}</Row>
         )}
       </dl>
 
-      {!paid && !isLoading && (
+      {!paid && !isLoading && billingAvailable !== false && (
         <p className="mt-3.5 text-[13px] text-slate-500 dark:text-slate-400">
           <Link href="/pricing" className="font-medium text-brand-link hover:underline" data-testid="insights-plan-link">
-            {TIERS[PAID_TIER].name} recalculates every {recalcDays(PAID_TIER)} days →
+            {upsell && solePurchasableName
+              ? `${solePurchasableName} recalculates ${everyDays(recalcDaysFor(upsell))}`
+              : "See what's on offer"} →
           </Link>
         </p>
       )}
@@ -104,14 +127,10 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-const STATUS_LABEL: Record<SubscriptionStatus, string> = {
-  none: "—",
-  pending: "Confirming payment",
-  active: "Active",
-  past_due: "Payment due",
-  grace: "Grace period",
-  canceled: "Canceled",
-};
+/** "every day" for the daily rehearsal plan, "every 7 days" for the rest. */
+function everyDays(days: number): string {
+  return days === 1 ? "every day" : `every ${days} days`;
+}
 
 function statusTone(s: SubscriptionStatus) {
   if (s === "past_due" || s === "grace") return "warning" as const;

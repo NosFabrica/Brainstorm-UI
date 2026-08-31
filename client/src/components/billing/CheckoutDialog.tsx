@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Loader2, ExternalLink, ArrowRight, ShieldCheck } from "lucide-react";
+import { Loader2, ExternalLink } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -15,18 +15,27 @@ import { useBillingPlans } from "@/hooks/useBillingPlans";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { resolveCheckout } from "@/lib/checkout";
 import { startCheckoutPoll } from "@/lib/checkoutPoll";
-import { PAID_TIER, TIERS, liveFeatures, recalcFeatureLabel } from "@/lib/plans";
+import { PlanPicker } from "@/components/billing/PlanPicker";
+import type { BillingPlan } from "@/services/subscription";
 
 /**
  * The hand-off to Flash's payment page.
+ *
+ * ## It is the picker, in a dialog
+ *
+ * The dialog and /pricing were always answering one question — what's on offer
+ * — so they share `PlanPicker`. Open it with a `plan` and it confirms that one
+ * row; open it with none and it shows everything purchasable. Either way the
+ * row's own button is what starts checkout, which is what keeps `window.open`
+ * inside the click.
  *
  * ## Identity is one query parameter
  *
  * The checkout URL comes from GET /billing/plans, complete except `ref` — we
  * append the signed-in hex pubkey, Flash echoes it back on the redirect, and
- * that's the entire binding (UI-HANDOFF.md). The email-correlation design this
- * replaced is gone. Checkout is idempotent on `ref`: an existing subscriber
- * who clicks again is redirected back, not charged twice.
+ * that's the entire binding (UI-HANDOFF.md). Checkout is idempotent on `ref`:
+ * an existing subscriber who clicks again is redirected back, not charged
+ * twice.
  *
  * ## Return is belt and braces
  *
@@ -39,38 +48,41 @@ import { PAID_TIER, TIERS, liveFeatures, recalcFeatureLabel } from "@/lib/plans"
  * `window.open` runs directly in the click handler so popup blockers allow it —
  * do not move it behind an await.
  */
-export function PriorityCheckout({
+export function CheckoutDialog({
   open,
   onOpenChange,
+  plan,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Preselected from /pricing. Null opens the full purchasable list. */
+  plan?: BillingPlan | null;
 }) {
-  const { tier, refetch } = useSubscription();
-  const { planFor, recalcDays, priceLabel } = useBillingPlans();
+  const { policy, refetch } = useSubscription();
+  const { plans } = useBillingPlans();
   const me = useActiveAccountDisplay();
   const qc = useQueryClient();
-  const [sent, setSent] = useState(false);
+  const [sent, setSent] = useState<BillingPlan | null>(null);
 
   useEffect(() => {
-    if (open) setSent(false);
+    if (open) setSent(null);
   }, [open]);
 
   // Once they're back and it's landed, get out of the way.
   useEffect(() => {
-    if (sent && tier === PAID_TIER) onOpenChange(false);
-  }, [sent, tier, onOpenChange]);
+    if (sent && policy && policy.id === sent.policyId) onOpenChange(false);
+  }, [sent, policy, onOpenChange]);
 
-  const target = resolveCheckout(planFor(PAID_TIER), me?.pubkey);
-  const price = priceLabel(PAID_TIER);
-  // The interval line renders from the LIVE cadence; static labels are fallbacks.
-  const perks = [
-    { key: "recalc-live", label: recalcFeatureLabel(recalcDays(PAID_TIER), recalcDays("free")) },
-    ...liveFeatures(PAID_TIER).filter((f) => !f.interval),
-  ];
+  const offered = plan ? [plan] : (plans ?? []).filter((p) => p.checkoutUrl);
+  const sentTarget = sent ? resolveCheckout(sent, me?.pubkey) : null;
+  // Nothing to open: no signed-in pubkey to bind the payment to, or no row
+  // carrying a checkout_url. Say so rather than navigating — a fake checkout
+  // page is a worse lie than an empty state.
+  const canBuy = !!me?.pubkey && offered.some((p) => p.checkoutUrl);
 
-  const go = () => {
-    setSent(true);
+  const go = (chosen: BillingPlan) => {
+    const target = resolveCheckout(chosen, me?.pubkey);
+    setSent(chosen);
     // Directly in the handler — see the note above about popup blockers.
     let w: Window | null = null;
     if (target.external) w = window.open(target.url, "_blank", "noopener,noreferrer");
@@ -81,29 +93,24 @@ export function PriorityCheckout({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md" data-testid="priority-checkout">
+      <DialogContent className="sm:max-w-lg" data-testid="checkout-dialog">
         {!sent ? (
           <>
             <DialogHeader>
-              <DialogTitle>Get Priority</DialogTitle>
+              <DialogTitle>{plan ? `Get ${plan.policyName}` : "Choose a plan"}</DialogTitle>
               <DialogDescription>
-                {price} a month. Cancel any time.
+                Cancel any time — you keep it to the end of the period you've paid for.
               </DialogDescription>
             </DialogHeader>
 
-            <ul className="mt-3 space-y-2" data-testid="checkout-perks">
-              {perks.map((f) => (
-                <li
-                  key={f.key}
-                  className="flex items-start gap-2.5 text-sm text-slate-700 dark:text-slate-200"
-                >
-                  <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-                  {f.label}
-                </li>
-              ))}
-            </ul>
+            <PlanPicker
+              plans={offered}
+              currentPolicyId={policy?.id ?? null}
+              onChoose={go}
+              className="mt-3"
+            />
 
-            {!target.external && (
+            {!canBuy && (
               <Alert variant="warning" className="mt-4" data-testid="checkout-unconfigured">
                 <AlertDescription className="text-sm">
                   Payments aren't set up in this environment, so there's nothing
@@ -111,14 +118,6 @@ export function PriorityCheckout({
                 </AlertDescription>
               </Alert>
             )}
-
-            <Button
-              className="mt-4 w-full gap-1.5"
-              onClick={go}
-              data-testid="button-continue-to-payment"
-            >
-              Continue to payment <ArrowRight className="h-4 w-4" />
-            </Button>
 
             <p className="mt-3 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
               Opens in a new tab. Pay by card, or by Lightning — you'll connect
@@ -142,11 +141,11 @@ export function PriorityCheckout({
             </div>
 
             <div className="mt-4 flex flex-wrap gap-2">
-              {target.external && (
+              {sentTarget?.external && (
                 <Button
                   variant="outline"
                   className="gap-1.5"
-                  onClick={() => window.open(target.url, "_blank", "noopener,noreferrer")}
+                  onClick={() => window.open(sentTarget.url, "_blank", "noopener,noreferrer")}
                   data-testid="button-reopen-payment"
                 >
                   <ExternalLink className="h-4 w-4" /> Reopen payment page
@@ -158,9 +157,9 @@ export function PriorityCheckout({
             </div>
 
             <p className="mt-3 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
-              {TIERS[PAID_TIER].name} starts as soon as the payment clears. If it
-              doesn't show up within a few minutes, get in touch and we'll sort it
-              out.
+              {sent.policyName} starts as soon as the payment clears. If it
+              doesn't show up within a few minutes, get in touch and we'll sort
+              it out.
             </p>
           </>
         )}

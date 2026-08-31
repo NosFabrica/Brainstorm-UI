@@ -39,7 +39,8 @@ export function startCheckoutPoll(
   const done = (sub: Subscription | null) =>
     stopFlag ||
     Date.now() - startedAt > CAP_MS ||
-    (sub !== null && (sub.tier !== "free" || sub.status === "canceled"));
+    (sub !== null &&
+      ((sub.policy !== null && !sub.policy.isDefault) || sub.status === "canceled"));
 
   const tick = async (): Promise<void> => {
     let sub: Subscription | null = null;

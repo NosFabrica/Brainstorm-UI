@@ -1,31 +1,41 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchPlans, type BillingPlan } from "@/services/subscription";
-import { FALLBACK_RECALC_DAYS, planPriceLabel, type TierId } from "@/lib/plans";
+import { cadenceDays, FALLBACK_RECALC_DAYS } from "@/lib/plans";
 
 /**
- * The plans this instance offers, shared app-wide (pricing page, footer link,
- * account menu, checkout, Insights cadence copy).
+ * The plans this instance offers, shared app-wide (pricing page, account menu,
+ * checkout dialog, Insights cadence copy).
  *
- * Two rules from the handoff, both encoded here rather than at call sites:
+ * Three rules, all encoded here rather than at call sites:
  *
+ * - **The order is the server's.** `plans` is rendered as given and never
+ *   sorted — the default policy comes first because the server puts it first,
+ *   and `sort_order` is an admin field, not a client heuristic.
  * - **Availability fails OPEN.** `billingAvailable` is `false` only on a
  *   confirmed empty `plans` array — the deliberate "this instance has no
  *   billing" signal (self-hosts). While loading, or if the call errors, it is
- *   `undefined`/`true`-ish and entry points stay visible with fallback copy: a
- *   transient API failure must not unsell the product.
- * - **Cadences are runtime data.** `recalcDays()` prefers the live
- *   `schedule_interval_seconds`; the build-time constant is a clearly-named
- *   last resort, not the truth.
+ *   `undefined` and entry points stay visible: a transient API failure must
+ *   not unsell the product.
+ * - **Cadences are runtime data.** `recalcDaysFor()` reads the plan's own
+ *   `schedule_interval_seconds`; the build-time scalar is a clearly-named last
+ *   resort, not the truth.
  */
 export function useBillingPlans(): {
+  /** In server order. Do not sort. */
   plans: BillingPlan[] | undefined;
-  planFor: (tier: TierId) => BillingPlan | undefined;
   /** false ONLY on a confirmed empty array; undefined while unknown. */
   billingAvailable: boolean | undefined;
-  recalcDays: (tier: TierId) => number;
-  /** "$2" / "2 EUR" / "Free" — live plan price, constants as fallback. */
-  priceLabel: (tier: TierId) => string;
+  /** Cadence in days for one row, from its own interval. */
+  recalcDaysFor: (plan: BillingPlan | undefined) => number;
+  /**
+   * The single policy name on sale, when there is exactly one — the account
+   * menu's "Get X". Null when nothing is purchasable or several things are, so
+   * the caller can say "See plans" instead of naming one arbitrarily.
+   */
+  solePurchasableName: string | null;
   isLoading: boolean;
+  /** The call failed. Distinct from "nothing on sale", which is an empty array. */
+  loadFailed: boolean;
 } {
   const query = useQuery({
     queryKey: ["billing-plans"],
@@ -34,19 +44,20 @@ export function useBillingPlans(): {
     retry: 1,
   });
   const plans = query.data;
-  const planFor = (tier: TierId) => plans?.find((p) => p.tier === tier);
-  const recalcDays = (tier: TierId) => {
-    const secs = planFor(tier)?.scheduleIntervalSeconds;
-    return typeof secs === "number" && secs > 0
-      ? Math.max(1, Math.round(secs / 86_400))
-      : FALLBACK_RECALC_DAYS[tier];
-  };
+
+  const recalcDaysFor = (plan: BillingPlan | undefined) =>
+    cadenceDays(plan?.scheduleIntervalSeconds) ?? FALLBACK_RECALC_DAYS;
+
+  const purchasableNames = Array.from(
+    new Set((plans ?? []).filter((p) => p.checkoutUrl).map((p) => p.policyName)),
+  );
+
   return {
     plans,
-    planFor,
     billingAvailable: plans === undefined ? undefined : plans.length > 0,
-    recalcDays,
-    priceLabel: (tier: TierId) => planPriceLabel(planFor(tier), tier),
+    recalcDaysFor,
+    solePurchasableName: purchasableNames.length === 1 ? purchasableNames[0] : null,
     isLoading: query.isPending,
+    loadFailed: query.isError,
   };
 }

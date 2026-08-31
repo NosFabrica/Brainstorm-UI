@@ -22,10 +22,9 @@ import {
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PovToggle } from "@/components/score/TrustScorePov";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
-import { AccountSwitcher } from "@/components/AccountSwitcherPane";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useBillingPlans } from "@/hooks/useBillingPlans";
-import { PAID_TIER, TIERS } from "@/lib/plans";
+import { AccountSwitcher } from "@/components/AccountSwitcherPane";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useToast } from "@/hooks/use-toast";
 import { removeAccountFromDevice } from "@/accounts/login-flow";
@@ -211,10 +210,9 @@ export function AccountMenuBody({
   close,
 }: AccountMenuBodyProps) {
   const { toast } = useToast();
+  const { isPaid } = useSubscription();
+  const { billingAvailable, solePurchasableName } = useBillingPlans();
   const [pane, setPane] = useState<"menu" | "switcher">("menu");
-  const { tier } = useSubscription();
-  const isPaid = tier === PAID_TIER;
-  const { billingAvailable } = useBillingPlans();
   // Verified handle for the identity line. A "_@domain" nip05 is a bare-domain
   // identity — show just the domain rather than the placeholder underscore.
   const rawNip05 = user.nip05?.trim();
@@ -378,7 +376,6 @@ export function AccountMenuBody({
 
       <MenuDivider />
 
-      {/* Grouped actions — Settings sits under Help & FAQ. */}
       {/* Ordered by whose interest each row serves, theirs first. A menu that
           opens with our asks (invite, upgrade) reads as serving us — fatal in a
           trust product. So: the user's own state first, then the one offer,
@@ -400,10 +397,13 @@ export function AccountMenuBody({
         <MenuRow icon={Gauge} label="Insights" onClick={() => onNavigate("/insights")} testId="dropdown-insights" />
         {!isPaid && billingAvailable !== false && (
           // NOT a lightning bolt. On a Nostr client ⚡ means zaps and Lightning,
-          // and Priority is billed by card — the icon implied a payment rail we
-          // haven't wired. A calendar-clock says what the tier actually is: a
+          // and plans are billed by card — the icon implied a payment rail we
+          // haven't wired. A calendar-clock says what a plan actually is: a
           // recalculation schedule.
-          <MenuRow icon={CalendarClock} label={`Get ${TIERS[PAID_TIER].name}`} onClick={() => onNavigate("/pricing")} testId="dropdown-get-priority" />
+          //
+          // The label names the policy only when exactly one thing is on sale;
+          // with several, naming one would be picking a favourite in a menu row.
+          <MenuRow icon={CalendarClock} label={solePurchasableName ? `Get ${solePurchasableName}` : "See plans"} onClick={() => onNavigate("/pricing")} testId="dropdown-get-priority" />
         )}
         <MenuRow icon={UserPlus} label="Invite friends" onClick={onInvite} testId="dropdown-invite" />
         <MenuRow icon={SettingsIcon} label="Settings" onClick={() => onNavigate("/settings")} testId="dropdown-settings" />

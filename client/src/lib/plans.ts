@@ -1,44 +1,46 @@
-// Single source of truth for Brainstorm's two subscription tiers.
+// Marketing copy, the roadmap, and the formatters every billing surface shares.
 //
-// Consumed by the pricing page, the billing UI and the checkout flow.
+// ## There is no tier set here any more
 //
-// ## Why there are only two, and why the paid one is called Priority
+// What is on offer is whatever GET /billing/plans says is on offer: a flat
+// list of plans, each carrying its own policy name, price and billing period.
+// What a subscriber HOLDS is the policy on /user/subscription. Neither is a
+// vocabulary this file knows in advance — see `components/billing/PlanPicker.tsx`
+// and `hooks/useSubscription.ts`. Do not reintroduce a constant for a plan;
+// add a field to the server response instead.
 //
-// The earlier three-tier version (Grapevine / Sovereign / Guardian) listed 21
+// What belongs here: `TIER_FEATURES` (the promise boundary), `productClaims()`
+// (what Brainstorm does, on any plan), `ROADMAP_THEMES` / `plannedByTheme()`
+// (/roadmap), and the formatters — amounts, billing periods, cadences and the
+// one status-label map both billing cards render.
+//
+// ## The promise boundary
+//
+// An earlier three-tier version (Grapevine / Sovereign / Guardian) listed 21
 // features across the paid tiers. An audit against the codebase found that
 // NONE of the nine "Sovereign" features existed — no semantic search, no saved
 // searches, no custom roots, no personal archive, no portable credential; the
 // "algorithm knobs" were a `useState` slider on the explainer page wired to
 // nothing. It would have sold a roadmap while reading like an inventory.
 //
-// So: one free tier, one paid tier, and a hard rule enforced by the types below
-// — a feature that does not exist cannot appear in a list of what you get.
+// Hence `status: "live" | "planned"` and the accessors below: a feature that
+// does not exist cannot appear in a list of what you get.
 //
-// The paid tier was briefly called "Supporter" and pitched as funding the work.
-// The team rejected that (along with "Early Access"): people are buying a
-// service, not backing a project, and the name should say which service. Hence
-// "Priority" — it names the thing you actually get when the queue is busy.
+// ## What a paid policy actually buys
 //
-// ## What the paid tier actually buys
-//
-// A scheduling policy. `SchedulingItem` in services/api.ts already carries
+// A scheduling policy. `SchedulingItem` in services/api.ts carries
 // `schedule_interval_seconds` and `priority`, and
-// `PUT /admin/users/{pubkey}/scheduling` already moves people between policies.
-// So the difference is enforced server-side — Priority really is recalculated
-// weekly (7 days) against the free default's ~2 months (60 days), and really
-// does run ahead of the free lane. Nothing here is cosmetic, and there is
-// deliberately no client-side gating in this module: see
+// `PUT /admin/users/{pubkey}/scheduling` moves people between policies. The
+// difference is enforced server-side, and the cadence a surface quotes comes
+// from the live policy — never from a number baked in here. See
 // docs/payments/FLASH-INTEGRATION.md.
 //
-// NOT a difference: manual recalculation. It stays unlimited on both tiers,
+// NOT a difference: manual recalculation. It stays unlimited on every policy,
 // rate-limited only to stop abuse (`manual_quota_limit` already defaults to 20
 // per week server-side). A quota that makes someone think before clicking is
 // friction we are choosing not to sell.
 //
-// Prices are USD-primary in **minor units** to match Flash (`data-amount="200"`
-// → $2.00). `satsPerMonth` is kept for the Lightning rail, which is not wired.
-
-export type TierId = "free" | "priority";
+// Prices are minor units, to match Flash (`data-amount="200"` → $2.00).
 
 /** Subscription lifecycle state. Mirrors Flash's dunning + our backend record. */
 // "pending": a real payment awaiting confirmation (Lightning can take ~10
@@ -46,8 +48,21 @@ export type TierId = "free" | "priority";
 // paying user reads as free — handoff A5.
 export type SubscriptionStatus = "none" | "pending" | "active" | "past_due" | "grace" | "canceled";
 
-/** Payment rail a subscription is billed on. Lightning is not wired yet. */
-export type Rail = "card" | "flash-lightning";
+/**
+ * The one status wording, for every surface that shows it.
+ *
+ * Settings and Insights each kept their own copy of this and they had already
+ * drifted ("Cancelled" vs "Canceled") — two labels for one server value is a
+ * bug the moment anyone reads both pages.
+ */
+export const SUBSCRIPTION_STATUS_LABEL: Record<SubscriptionStatus, string> = {
+  none: "—",
+  pending: "Confirming payment",
+  active: "Active",
+  past_due: "Payment due",
+  grace: "Grace period",
+  canceled: "Cancelled",
+};
 
 export interface FeatureDef {
   /** Stable key (kebab-case). */
@@ -59,13 +74,13 @@ export interface FeatureDef {
    *
    * The whole point of this field: `planned` items may only ever render inside
    * the roadmap section. They must never be counted, ticked, or listed as
-   * something a tier includes. Keeping it in the data rather than in the copy
+   * something a plan includes. Keeping it in the data rather than in the copy
    * means the next person to edit the pricing page cannot accidentally promise
-   * something unbuilt — `liveFeatures()` is the only accessor the page uses.
+   * something unbuilt — `productClaims()` is the only accessor the page uses.
    */
   status: "live" | "planned";
-  /** This line states the tier's interval. The pricing card shows it as the
-   *  hero number instead of a bullet, so it is never said twice. */
+  /** This line states a cadence. A surface showing the interval as its hero
+   *  number skips the bullet, so it is never said twice. */
   interval?: true;
   /**
    * Roadmap grouping. Planned items only — a flat list of ten reads as a wish
@@ -94,41 +109,6 @@ export const ROADMAP_THEMES: { key: RoadmapTheme; title: string; blurb: string }
     blurb: "The engine already has these knobs. We're handing them to you.",
   },
 ];
-
-export interface TierInfo {
-  id: TierId;
-  name: string;
-  /** 0 = free, ascending. */
-  order: number;
-  /** Recurring price in USD **minor units** (cents). 0 for free. */
-  usdMinorPerMonth: number;
-  /** Lightning equivalent, for when that rail lands. Not charged today. */
-  satsPerMonth: number;
-  /**
-   * Days between automatic recalculations — the SAME number the feature label
-   * quotes and the same one the scheduling policy is configured with. Here so
-   * "next scheduled" can be derived instead of guessed, and so the label and the
-   * arithmetic cannot drift apart.
-   */
-  recalcIntervalDays: number;
-  /** Short line under the price. */
-  tagline: string;
-  /** Small true label over the name — "For active accounts". Never "Most
-   *  popular" until it is. */
-  kicker?: string;
-  /** Supporting line — framing, not a feature claim. */
-  note?: string;
-  /**
-   * The tier whose features this one includes. The pricing card draws that
-   * tier's list, dimmed, above this tier's own under a "Plus" heading — so the
-   * card visibly CONTAINS the lower tier instead of asserting it in a sentence
-   * nobody counts. `featureKeys` stays this tier's own lines only.
-   */
-  inherits?: TierId;
-  /** Feature keys this tier includes. Not cumulative — each list is complete. */
-  featureKeys: string[];
-  cta: { current: string; upgrade: string };
-}
 
 /**
  * Every feature key → its label and whether it exists.
@@ -211,13 +191,25 @@ export const TIER_FEATURES: Record<string, FeatureDef> = {
 };
 
 /**
- * Build-time cadence FALLBACKS. The truth is the live `scheduling` row,
+ * A LAST RESORT, not the truth. The cadence is the live `scheduling` row,
  * served per-plan by GET /billing/plans as `schedule_interval_seconds` —
- * admins retune it without a deploy, so anything baked here can silently
- * drift. These exist only so the pricing page renders before that call
- * resolves (or if it fails). Prefer `useBillingPlans().recalcDays(tier)`.
+ * admins retune it without a deploy, so anything baked here can drift
+ * silently. One scalar rather than a per-plan map on purpose: there is no
+ * fixed set of plans to key a map by, and a wrong number that is obviously a
+ * placeholder beats a wrong number that looks authoritative.
  */
-export const FALLBACK_RECALC_DAYS: Record<TierId, number> = { free: 60, priority: 7 };
+export const FALLBACK_RECALC_DAYS = 60;
+
+/**
+ * A cadence in seconds — how every policy stores it — as whole days, which is
+ * how every surface says it. Null when there is no usable interval, so callers
+ * show "—" instead of "every 0 days".
+ */
+export function cadenceDays(seconds: number | null | undefined): number | null {
+  return typeof seconds === "number" && Number.isFinite(seconds) && seconds > 0
+    ? Math.max(1, Math.round(seconds / 86_400))
+    : null;
+}
 
 /** The cadence sentence, from the LIVE interval. */
 export function recalcFeatureLabel(days: number, comparedToDays?: number): string {
@@ -227,77 +219,26 @@ export function recalcFeatureLabel(days: number, comparedToDays?: number): strin
     : `New follows show up within ${d(days)}`;
 }
 
-export const TIERS: Record<TierId, TierInfo> = {
-  free: {
-    id: "free",
-    name: "Free",
-    order: 0,
-    usdMinorPerMonth: 0,
-    satsPerMonth: 0,
-    recalcIntervalDays: 60,
-    tagline: "for checking someone occasionally",
-    // Team review, Aug 21: "less is more" — exactly the lines they named.
-    featureKeys: [
-      "recalc-interval",
-      "manual-unlimited",
-      "verified-followers",
-      "ranked-search",
-      "network-alerts",
-      "portability",
-    ],
-    cta: { current: "Your plan", upgrade: "Get started free" },
-  },
-  priority: {
-    id: "priority",
-    name: "Priority",
-    order: 1,
-    usdMinorPerMonth: 200,
-    satsPerMonth: 2100,
-    recalcIntervalDays: 7,
-    tagline: "for acting on what you see",
-    // The "Everything in Free" sentence became a drawn, dimmed list on the card
-    // (`inherits`) — a sentence nobody counts versus nine checkmarks everyone
-    // does. The interval itself is the card's hero number, so no note repeats it.
-    kicker: "For active accounts",
-    inherits: "free",
-    // `queue-priority` came off at the team's direction (handoff A9): the tier
-    // DOES get queue priority, but we're not advertising it — an evocative
-    // name without an explicit claim.
-    featureKeys: [
-      "recalc-interval-paid",
-      "auto-fresh",
-      "priority-support",
-    ],
-    cta: { current: "Your plan", upgrade: "Get Priority" },
-  },
-};
-
-/** Tiers low → high. Drives rendering order. */
-export const TIER_ORDER: TierId[] = ["free", "priority"];
-
-/** The one tier that can be bought. */
-export const PAID_TIER: TierId = "priority";
-
-export function tierRank(id: TierId): number {
-  return TIERS[id].order;
-}
-
-/** True when `userTier` is at or above `required`. */
-export function tierMeetsRequirement(userTier: TierId, required: TierId): boolean {
-  return tierRank(userTier) >= tierRank(required);
-}
-
 /**
- * The features a tier includes — **live ones only**.
+ * What Brainstorm does, for everyone, on any plan.
  *
- * This is the ONLY accessor the pricing page should use for "what you get".
- * A `planned` key sitting in a tier's `featureKeys` is silently dropped here
- * rather than rendered as a promise, which is the safe direction to fail.
+ * These four were bullets on the old free tier card, but none of them is tier
+ * copy — they are true of the product, so they survive the tier set as one
+ * static section on /pricing rather than vanishing with the card that happened
+ * to list them. Routed through `TIER_FEATURES` so the promise boundary still
+ * applies: a key marked `planned` is dropped rather than rendered as a claim.
  */
-export function liveFeatures(id: TierId): FeatureDef[] {
-  return TIERS[id].featureKeys
-    .map((key) => TIER_FEATURES[key])
-    .filter((f): f is FeatureDef => !!f && f.status === "live");
+export const PRODUCT_CLAIM_KEYS = [
+  "ranked-search",
+  "verified-followers",
+  "portability",
+  "network-alerts",
+] as const;
+
+export function productClaims(): FeatureDef[] {
+  return PRODUCT_CLAIM_KEYS.map((key) => TIER_FEATURES[key]).filter(
+    (f): f is FeatureDef => !!f && f.status === "live",
+  );
 }
 
 /** Everything planned, for the "what your support funds" section. */
@@ -328,49 +269,48 @@ export function plannedByTheme(): { key: RoadmapTheme; title: string; blurb: str
  */
 export function nextScheduledLabel(
   lastRunMs: number | null,
-  tier: TierId,
+  /** Days between runs — the holder's own policy cadence, in days. */
+  intervalDays: number | null,
   nowMs: number = Date.now(),
-  /** Live interval from /billing/plans; the tier constant is the fallback. */
-  intervalDays?: number,
 ): string | null {
-  if (!lastRunMs) return null;
-  const dueMs = lastRunMs + (intervalDays ?? TIERS[tier].recalcIntervalDays) * 86_400_000;
+  if (!lastRunMs || !intervalDays || intervalDays <= 0) return null;
+  const dueMs = lastRunMs + intervalDays * 86_400_000;
   const days = Math.round((dueMs - nowMs) / 86_400_000);
   if (days <= 0) return "due now";
   return days === 1 ? "in 1 day" : `in ${days} days`;
 }
 
 /**
- * The Lightning price, in sats — "2,100 sats". A configured price, not a
- * conversion: Lightning subscribers are quoted in their own unit, because a
- * sats payer shown "$2.00" is being shown someone else's money. (Benjamin's
- * call, and the same courtesy card payers already get in reverse.)
+ * "$2" / "$2.50" / "2 EUR" / "Free" — from a plan's own minor units, so it
+ * cannot drift from what Flash charges. Takes the numbers rather than a tier,
+ * because the numbers are what the server sends.
  */
-export function formatSats(id: TierId): string {
-  return `${TIERS[id].satsPerMonth.toLocaleString("en-US")} sats`;
-}
-
-/** "$2" / "Free" — from minor units, so it can't drift from what Flash charges. */
-export function formatPrice(id: TierId): string {
-  const minor = TIERS[id].usdMinorPerMonth;
-  if (minor === 0) return "Free";
-  const major = minor / 100;
-  return `$${Number.isInteger(major) ? major : major.toFixed(2)}`;
+export function formatAmount(amountMinor: number, currency: string): string {
+  if (!Number.isFinite(amountMinor) || amountMinor <= 0) return "Free";
+  const major = amountMinor / 100;
+  const num = Number.isInteger(major) ? String(major) : major.toFixed(2);
+  return currency === "USD" ? `$${num}` : `${num} ${currency}`;
 }
 
 /**
- * The price the user should actually see: the LIVE plan's amount when one has
- * loaded (admins retune prices in the Flash dashboard without a UI deploy),
- * the build-time constant only as a render-before-fetch / API-failure
- * fallback. `useBillingPlans().priceLabel` serves this pre-bound.
+ * "per month", "every 2 weeks", "one-time" — computed from the unit and the
+ * count, never matched against a known string.
+ *
+ * That is the whole point: a closed vocabulary crossing the wire is a value a
+ * client has to recognise, and one it doesn't recognise disappears. An
+ * unfamiliar unit renders honestly here ("per fortnight") and an absent one
+ * returns null so the caller can show a price with no cadence — a purchasable
+ * plan must never be hidden because we didn't know a word.
  */
-export function planPriceLabel(
-  plan: { amountMinor: number; currency: string } | undefined,
-  tier: TierId,
-): string {
-  if (!plan) return formatPrice(tier);
-  if (plan.amountMinor === 0) return "Free";
-  const major = plan.amountMinor / 100;
-  const num = Number.isInteger(major) ? String(major) : major.toFixed(2);
-  return plan.currency === "USD" ? `$${num}` : `${num} ${plan.currency}`;
+export function formatBillingPeriod(
+  unit: string | null | undefined,
+  count: number | null | undefined,
+): string | null {
+  const u = typeof unit === "string" ? unit.trim() : "";
+  if (!u) return null;
+  // Reserved for Flash's coming one-off type: no lifecycle, so no cadence.
+  if (u === "once") return "one-time";
+  const n = typeof count === "number" && Number.isFinite(count) && count > 0 ? Math.round(count) : 1;
+  return n === 1 ? `per ${u}` : `every ${n} ${u}s`;
 }
+

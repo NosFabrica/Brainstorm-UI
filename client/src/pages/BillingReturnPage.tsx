@@ -9,7 +9,6 @@ import { useSubscription } from "@/hooks/useSubscription";
 import { refreshSubscription, setMockSubscription } from "@/services/subscription";
 import { startCheckoutPoll } from "@/lib/checkoutPoll";
 import { FEATURES } from "@/config/featureFlags";
-import { PAID_TIER, TIERS } from "@/lib/plans";
 
 /**
  * Where Flash's redirect lands: /billing/return?status=&subscriptionId=&ref=.
@@ -27,7 +26,7 @@ import { PAID_TIER, TIERS } from "@/lib/plans";
  */
 export default function BillingReturnPage() {
   const signedIn = useHasSession();
-  const { tier, status } = useSubscription();
+  const { policy, isPaid, status } = useSubscription();
   const qc = useQueryClient();
   const [phase, setPhase] = useState<"checking" | "confirming" | "done" | "none">("checking");
   const ran = useRef(false);
@@ -51,15 +50,15 @@ export default function BillingReturnPage() {
     ran.current = true;
     // Mock mode: apply the outcome so the demo flow round-trips end to end.
     if (!FEATURES.subscriptionApi && paidOutcome) {
-      setMockSubscription(PAID_TIER, "active");
+      setMockSubscription(true, "active");
     }
     if (!FEATURES.subscriptionApi && outcome === "pending") {
-      setMockSubscription(PAID_TIER, "pending");
+      setMockSubscription(true, "pending");
     }
     void refreshSubscription()
       .then((sub) => {
         qc.setQueryData(["/user/subscription"], sub);
-        if (sub.tier !== "free" && sub.status !== "pending") {
+        if (sub.policy && !sub.policy.isDefault && sub.status !== "pending") {
           setPhase("done");
         } else if (paidOutcome || outcome === "pending") {
           setPhase("confirming");
@@ -78,11 +77,16 @@ export default function BillingReturnPage() {
       });
   }, [signedIn, outcome, paidOutcome, qc]);
 
+  // The policy they landed on, named by the server. Never a constant: the tier
+  // set is gone, and a hardcoded "Priority" would be wrong the day a second
+  // paid policy exists.
+  const planName = policy?.name ?? "Your plan";
+
   // The poll writes into the cache; flip the page when the subscription has
   // actually SETTLED — a paid tier still carrying `pending` isn't done yet.
   useEffect(() => {
-    if (phase === "confirming" && tier !== "free" && status !== "pending") setPhase("done");
-  }, [phase, tier, status]);
+    if (phase === "confirming" && isPaid && status !== "pending") setPhase("done");
+  }, [phase, isPaid, status]);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-start justify-center px-4 pt-24">
@@ -102,11 +106,11 @@ export default function BillingReturnPage() {
             <div className="flex items-center gap-2.5">
               <CheckCircle2 className="h-6 w-6 text-emerald-500" />
               <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">
-                {TIERS[PAID_TIER].name} is on
+                {planName} is on
               </h1>
             </div>
             <p className="mt-2 text-sm text-slate-600 dark:text-slate-300" data-testid="billing-return-success">
-              Payment received. Your scores now refresh on the {TIERS[PAID_TIER].name} schedule —
+              Payment received. Your scores now refresh on the {planName} schedule —
               nothing else to do.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">

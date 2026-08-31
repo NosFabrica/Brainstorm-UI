@@ -3,12 +3,18 @@ import { resolveCheckout } from "./checkout";
 import type { BillingPlan } from "@/services/subscription";
 
 const PLAN: BillingPlan = {
-  tier: "priority",
-  name: "Priority",
+  policyId: 2,
+  policyName: "Priority",
   amountMinor: 200,
   currency: "USD",
   scheduleIntervalSeconds: 7 * 86_400,
+  isDefault: false,
+  billingPeriodUnit: "month",
+  billingPeriodCount: 1,
   checkoutUrl: "https://vault.example/subscriptions/signup/svc/plan?redirect_uri=https%3A%2F%2Fapp%2Fbilling%2Freturn",
+  blurb: null,
+  includes: null,
+  excludes: null,
 };
 const PUBKEY = "a".repeat(64);
 

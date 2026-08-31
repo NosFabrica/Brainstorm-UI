@@ -22,10 +22,8 @@ import {
  * same flag that turns this off. Not gated to dev builds on purpose: staging
  * runs mock mode too, and staging is where the team looks.
  *
- * The Lightning state is the one place the demo shows something the product
- * cannot do yet: there is no Flash Lightning plan. It exists to show how a
- * Lightning subscription would RENDER, and the label says "preview" so nobody
- * in the room mistakes it for a wired rail.
+ * There is no rail state: Flash's subscription object carries no payment-method
+ * field, so the contract dropped it rather than shipping a permanent null.
  */
 const STATES: {
   key: string;
@@ -40,34 +38,28 @@ const STATES: {
     apply: () => clearMockSubscription(),
   },
   {
-    key: "priority-card",
-    label: "Priority · card",
+    key: "paid",
+    label: "Priority",
     hint: "paid, renews in 30 days",
-    apply: () => setMockSubscription("priority", "active", "card"),
-  },
-  {
-    key: "priority-ln",
-    label: "Priority · Lightning (preview)",
-    hint: "how the unwired rail would render",
-    apply: () => setMockSubscription("priority", "active", "flash-lightning"),
+    apply: () => setMockSubscription(true, "active"),
   },
   {
     key: "past-due",
     label: "Payment due",
     hint: "a renewal failed; grace running",
-    apply: () => setMockSubscription("priority", "past_due", "card"),
+    apply: () => setMockSubscription(true, "past_due"),
   },
   {
     key: "cancelling",
     label: "Cancelling",
     hint: "still active; ends tomorrow",
-    apply: () => setMockSubscription("priority", "active", "card", 1),
+    apply: () => setMockSubscription(true, "active", 1),
   },
   {
     key: "canceled",
     label: "Cancelled",
     hint: "access until period end",
-    apply: () => setMockSubscription("priority", "canceled", "card"),
+    apply: () => setMockSubscription(true, "canceled"),
   },
 ];
 
