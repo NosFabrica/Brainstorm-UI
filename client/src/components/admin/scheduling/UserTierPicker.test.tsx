@@ -26,7 +26,9 @@ describe("UserTierPicker", () => {
     expect(screen.getByRole("combobox")).toHaveValue("1");
   });
 
-  it("assigns the chosen policy on change", async () => {
+  // A tier change alters what someone receives (and what they're effectively
+  // paying for) — it must never happen from one stray dropdown click.
+  it("asks the admin to agree before assigning anything", async () => {
     const spy = vi.spyOn(apiClient, "assignUserScheduling").mockResolvedValue({});
 
     renderWithProviders(
@@ -34,7 +36,27 @@ describe("UserTierPicker", () => {
     );
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "2" } });
 
+    // Nothing applied yet — the confirm dialog carries the from → to change.
+    expect(spy).not.toHaveBeenCalled();
+    const dialog = await screen.findByTestId("tier-confirm");
+    expect(dialog.textContent).toContain("Weekly");
+    expect(dialog.textContent).toContain("Daily");
+
+    fireEvent.click(screen.getByTestId("tier-confirm-agree"));
     await waitFor(() => expect(spy).toHaveBeenCalledWith(PK, 2));
+  });
+
+  it("cancelling leaves the tier untouched", async () => {
+    const spy = vi.spyOn(apiClient, "assignUserScheduling").mockResolvedValue({});
+
+    renderWithProviders(
+      <UserTierPicker pubkey={PK} schedulingId={1} schedulingName="Weekly" policies={POLICIES} />,
+    );
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "2" } });
+    fireEvent.click(await screen.findByTestId("tier-confirm-cancel"));
+
+    expect(spy).not.toHaveBeenCalled();
+    expect(screen.getByRole("combobox")).toHaveValue("1");
   });
 
   it("reverts the selection when assignment fails", async () => {
@@ -46,6 +68,7 @@ describe("UserTierPicker", () => {
       <UserTierPicker pubkey={PK} schedulingId={1} schedulingName="Weekly" policies={POLICIES} />,
     );
     fireEvent.change(screen.getByRole("combobox"), { target: { value: "2" } });
+    fireEvent.click(await screen.findByTestId("tier-confirm-agree"));
 
     await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue("1"));
   });

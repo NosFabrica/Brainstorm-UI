@@ -3,6 +3,15 @@ import { Loader2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiClient, type SchedulingItem } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const POLICIES_KEY = ["/api/admin/scheduling"];
 const USERS_KEY = ["/api/admin/users"];
@@ -31,11 +40,16 @@ export function UserTierPicker({
   const { toast } = useToast();
   const [override, setOverride] = useState<number | null>(null);
   const [busy, setBusy] = useState(false);
+  // A tier change alters what someone receives — it must never ride on one
+  // stray dropdown click. The pick is held here until the admin agrees.
+  const [pendingId, setPendingId] = useState<number | null>(null);
 
   const defaultId = policies.find((p) => p.is_default)?.id;
   const value = override ?? schedulingId ?? defaultId;
+  const currentName = policies.find((p) => p.id === value)?.name ?? "current tier";
+  const pendingName = policies.find((p) => p.id === pendingId)?.name ?? "";
 
-  async function handleChange(nextId: number) {
+  async function applyChange(nextId: number) {
     setOverride(nextId);
     setBusy(true);
     try {
@@ -66,13 +80,45 @@ export function UserTierPicker({
         className="h-8 rounded border px-1 text-xs dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100"
         value={value != null ? String(value) : ""}
         disabled={busy}
-        onChange={(e) => handleChange(Number(e.target.value))}
+        onChange={(e) => {
+          const nextId = Number(e.target.value);
+          if (nextId !== value) setPendingId(nextId);
+        }}
       >
         {policies.map((p) => (
           <option key={p.id} value={p.id}>{p.name}</option>
         ))}
       </select>
       {busy && <Loader2 className="h-3 w-3 animate-spin text-slate-400 dark:text-slate-500" />}
+
+      <Dialog open={pendingId !== null} onOpenChange={(open) => { if (!open) setPendingId(null); }}>
+        <DialogContent className="sm:max-w-sm" data-testid="tier-confirm">
+          <DialogHeader>
+            <DialogTitle>Change this user's tier?</DialogTitle>
+            <DialogDescription>
+              <span className="font-mono text-xs">{pubkey.slice(0, 12)}…</span> moves from{" "}
+              <span className="font-semibold">{currentName}</span> to{" "}
+              <span className="font-semibold">{pendingName}</span>. Their recalculation
+              schedule changes immediately.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setPendingId(null)} data-testid="tier-confirm-cancel">
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                const id = pendingId;
+                setPendingId(null);
+                if (id !== null) void applyChange(id);
+              }}
+              data-testid="tier-confirm-agree"
+            >
+              Agree &amp; change
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </span>
   );
 }
