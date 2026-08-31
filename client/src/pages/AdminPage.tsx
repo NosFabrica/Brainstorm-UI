@@ -15,6 +15,7 @@ import { SchedulingStatsPanel } from "@/components/admin/scheduling/SchedulingSt
 import { AdminBillingCards } from "@/components/admin/billing/AdminBillingCards";
 import { UserTierPicker } from "@/components/admin/scheduling/UserTierPicker";
 import { ResyncControl } from "@/components/admin/ResyncControl";
+import { UserActionsMenu } from "@/components/admin/UserActionsMenu";
 import type { SchedulingItem } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -4020,34 +4021,17 @@ export default function AdminPage() {
                                 )}
                               </td>
                               <td className="px-2 py-2.5 text-center sticky right-0 z-10 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-900 shadow-[-8px_0_10px_-8px_rgba(15,23,42,0.15)]">
-                                <div className="flex items-center gap-1 justify-center">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-[10px] text-emerald-600 hover:text-emerald-800 dark:text-emerald-300 no-default-hover-elevate no-default-active-elevate px-2 h-6"
-                                    disabled={isTriggering || bulkRunning || bulkStatuses.get(u.pubkey) === "running"}
-                                    title={bulkRunning || bulkStatuses.get(u.pubkey) === "running" ? "Bulk re-trigger in progress" : undefined}
-                                    onClick={(e) => { e.stopPropagation(); setTriggerConfirmPubkey(u.pubkey); }}
-                                    data-testid={`button-trigger-graperank-${i}`}
-                                  >
-                                    {isTriggering ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Play className="h-3 w-3 mr-1" />}
-                                    {isTriggering ? "..." : "Trigger"}
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-[10px] text-brand-accent hover:text-brand-deep no-default-hover-elevate no-default-active-elevate px-2 h-6"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      window.history.replaceState({}, "", `/admin?tab=users&highlight=${u.pubkey}`);
-                                      navigate(`/profile/${npub}?from=admin&pubkey=${u.pubkey}`);
-                                    }}
-                                    data-testid={`button-view-user-${i}`}
-                                  >
-                                    <Eye className="h-3 w-3 mr-1" /> View
-                                  </Button>
-                                  <ResyncControl pubkey={u.pubkey} />
-                                </div>
+                                <UserActionsMenu
+                                  pubkey={u.pubkey}
+                                  triggering={isTriggering}
+                                  triggerDisabled={bulkRunning || bulkStatuses.get(u.pubkey) === "running"}
+                                  onTrigger={() => setTriggerConfirmPubkey(u.pubkey)}
+                                  onView={() => {
+                                    window.history.replaceState({}, "", `/admin?tab=users&highlight=${u.pubkey}`);
+                                    navigate(`/profile/${npub}?from=admin&pubkey=${u.pubkey}`);
+                                  }}
+                                  testIdSuffix={i}
+                                />
                               </td>
                             </tr>
                             {(isFailedStatus(u.latest_status) || isFailedStatus(u.latest_ta_status)) && !isExpanded && (
@@ -4159,28 +4143,18 @@ export default function AdminPage() {
                           <span className="text-[9px] text-slate-400 dark:text-slate-500">· Updated {timeAgo(u.last_updated) || formatTimestamp(u.last_updated)}</span>
                         </div>
 
-                        <div className="flex items-center gap-1 mt-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-[11px] text-emerald-600 hover:text-emerald-800 dark:text-emerald-300 no-default-hover-elevate no-default-active-elevate px-2 h-7"
-                            disabled={isTriggering || bulkRunning || bulkStatuses.get(u.pubkey) === "running"}
-                            onClick={(e) => { e.stopPropagation(); setTriggerConfirmPubkey(u.pubkey); }}
-                            data-testid={`card-button-trigger-${i}`}
-                          >
-                            {isTriggering ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Play className="h-3 w-3 mr-1" />}
-                            {isTriggering ? "..." : "Trigger"}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-[11px] text-brand-accent hover:text-brand-deep no-default-hover-elevate no-default-active-elevate px-2 h-7"
-                            onClick={(e) => { e.stopPropagation(); window.history.replaceState({}, "", `/admin?tab=users&highlight=${u.pubkey}`); navigate(`/profile/${npub}?from=admin&pubkey=${u.pubkey}`); }}
-                            data-testid={`card-button-view-${i}`}
-                          >
-                            <Eye className="h-3 w-3 mr-1" /> View
-                          </Button>
-                          <ResyncControl pubkey={u.pubkey} />
+                        <div className="flex items-center justify-end mt-2">
+                          <UserActionsMenu
+                            pubkey={u.pubkey}
+                            triggering={isTriggering}
+                            triggerDisabled={bulkRunning || bulkStatuses.get(u.pubkey) === "running"}
+                            onTrigger={() => setTriggerConfirmPubkey(u.pubkey)}
+                            onView={() => {
+                              window.history.replaceState({}, "", `/admin?tab=users&highlight=${u.pubkey}`);
+                              navigate(`/profile/${npub}?from=admin&pubkey=${u.pubkey}`);
+                            }}
+                            testIdSuffix={`card-${i}`}
+                          />
                         </div>
                       </div>
                     );
