@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ChevronDown,
@@ -20,6 +20,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { useToast } from "@/hooks/use-toast";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -43,9 +53,8 @@ const SUBS_KEY = ["/api/admin/billing/subscriptions"];
 const DIVERGENCE_KEY = ["/api/admin/billing/divergence"];
 
 /**
- * Where write actions live. The server exposes resync/block/plan-mapping
- * verbs, but v1 keeps the tab view-only — admins act in the Flash dashboard
- * (or via the server's /docs) until the team asks for buttons.
+ * Money still lives in Flash — invoices, refunds and cancellation. Block is the
+ * one write this tab owns, and it deliberately does *not* touch the charge.
  */
 const FLASH_VAULT_URL = "https://dev.vault.paywithflash.com";
 const FLASH_DASHBOARD_URL = `${FLASH_VAULT_URL}/subscriptions`;
@@ -61,6 +70,29 @@ function statusTone(status: string): Tone {
   if (status === "pending" || status === "past_due" || status === "paused") return "warning";
   if (status === "canceled" || status === "expired") return "neutral";
   return "neutral";
+}
+
+/**
+ * The server's EntitlementReason, in words. Most of these are *decisions*, not
+ * errors — "held" and "unknown_plan" mean it looked and deliberately left the
+ * tier alone, which is easy to misread as the call having done nothing.
+ */
+const RESYNC_REASONS: Record<string, string> = {
+  granted: "Flash says they're entitled; the paid tier is applied.",
+  revoked: "The subscription has ended — they're back on the default tier.",
+  held: "Nothing certain enough to act on (dunning, or a cancellation still inside its paid period). Tier left as-is.",
+  blocked: "They're blocked from paid entitlement, so nothing was granted.",
+  admin_override: "An admin assignment holds this tier; billing didn't take it away.",
+  no_reference: "The subscription carries no reference to a user.",
+  unknown_user: "No account matches this pubkey.",
+  unknown_plan: "Flash's plan isn't mapped to an entitlement here — map it under plans.",
+  unknown_subscription: "Flash has no subscription for this user.",
+  reference_mismatch: "Flash's record names a different user. Nothing was changed — worth investigating.",
+  busy: "Something else is reconciling this user right now. Try again shortly.",
+};
+
+function resyncReasonText(reason: string): string {
+  return RESYNC_REASONS[reason] ?? `Server reported "${reason}".`;
 }
 
 function fmtDate(iso: string | null | undefined): string {
@@ -196,7 +228,21 @@ function filterAndSort(
   return out;
 }
 
-function SubscriberRow({ s, profile }: { s: AdminBillingSubscription; profile?: ProfileBits }) {
+function SubscriberRow({
+  s,
+  profile,
+  busy,
+  onBlock,
+  onUnblock,
+  onResync,
+}: {
+  s: AdminBillingSubscription;
+  profile?: ProfileBits;
+  busy: boolean;
+  onBlock: (s: AdminBillingSubscription) => void;
+  onUnblock: (s: AdminBillingSubscription) => void;
+  onResync: (s: AdminBillingSubscription) => void;
+}) {
   const who = shortNpub(s.pubkey);
   // What the subscription grants vs what the user is actually in — the
   // payments→scheduler connection this tab exists to make visible.
@@ -243,10 +289,9 @@ function SubscriberRow({ s, profile }: { s: AdminBillingSubscription; profile?: 
         </span>
       </td>
       <td className={`${td} text-right`}>
-        {/* Admin verbs live here. Only "View in Flash" is wired today; resync
-            and block exist server-side and get connected by the dev — shown
-            disabled so admins know they're coming, unclickable so nobody
-            falls into a void. */}
+        {/* Admin verbs live here. View-in-Flash and block/unblock are wired;
+            resync is still server-side only, shown disabled so admins know it's
+            coming rather than falling into a void. */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
@@ -255,10 +300,10 @@ function SubscriberRow({ s, profile }: { s: AdminBillingSubscription; profile?: 
               aria-label="Subscription actions"
               data-testid={`billing-actions-${s.pubkey.slice(0, 8)}`}
             >
-              <MoreHorizontal className="h-4 w-4" />
+              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
             </button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
+          <DropdownMenuContent align="end" className="w-72">
             <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Actions</DropdownMenuLabel>
             <DropdownMenuItem
               disabled={!s.flash_subscription_id}
@@ -271,13 +316,38 @@ function SubscriberRow({ s, profile }: { s: AdminBillingSubscription; profile?: 
               <ExternalLink className="mr-2 h-3.5 w-3.5" /> View in Flash
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled data-testid="billing-action-resync">
-              <RefreshCw className="mr-2 h-3.5 w-3.5" /> Resync from Flash
-              <span className="ml-auto pl-3 text-[10px] text-slate-400 dark:text-slate-500">soon</span>
+            {/* Each write says what it does inline — these verbs are rare enough
+                that nobody remembers, and both have non-obvious edges (resync
+                can legitimately change nothing; block keeps charging). */}
+            <DropdownMenuItem
+              disabled={busy}
+              onSelect={() => onResync(s)}
+              className="flex-col items-start gap-0.5"
+              data-testid="billing-action-resync"
+            >
+              <span className="flex items-center">
+                <RefreshCw className="mr-2 h-3.5 w-3.5" /> Resync from Flash
+              </span>
+              <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+                Re-reads this subscription from Flash and re-applies the tier. Use it when
+                a webhook was missed or the row looks stale. Safe to repeat; it may
+                deliberately change nothing.
+              </span>
             </DropdownMenuItem>
-            <DropdownMenuItem disabled data-testid="billing-action-block">
-              <Ban className="mr-2 h-3.5 w-3.5" /> {s.billing_blocked ? "Unblock billing" : "Block billing"}
-              <span className="ml-auto pl-3 text-[10px] text-slate-400 dark:text-slate-500">soon</span>
+            <DropdownMenuItem
+              disabled={busy}
+              onSelect={() => (s.billing_blocked ? onUnblock(s) : onBlock(s))}
+              className={`flex-col items-start gap-0.5 ${s.billing_blocked ? "" : "text-red-600 dark:text-red-400"}`}
+              data-testid="billing-action-block"
+            >
+              <span className="flex items-center">
+                <Ban className="mr-2 h-3.5 w-3.5" /> {s.billing_blocked ? "Unblock billing" : "Block billing"}
+              </span>
+              <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+                {s.billing_blocked
+                  ? "Lets them be granted again. Doesn't re-grant by itself — the next Flash event or a resync does."
+                  : "Withholds the paid tier however they pay, and takes back a tier billing granted. The subscription keeps charging until it's cancelled in Flash."}
+              </span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -293,6 +363,8 @@ function SubscriberRow({ s, profile }: { s: AdminBillingSubscription; profile?: 
  * receive, including signups that couldn't be matched to an account.
  */
 export function AdminBillingCards({ active }: { active: boolean }) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const subsQuery = useQuery({
     queryKey: SUBS_KEY,
     queryFn: () => apiClient.getAdminBillingSubscriptions(),
@@ -313,8 +385,51 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [sort, setSort] = useState<SortState>(null);
+  const [confirmBlock, setConfirmBlock] = useState<AdminBillingSubscription | null>(null);
+  const [busyPk, setBusyPk] = useState<string | null>(null);
   const toggleSort = (key: SortKey) =>
     setSort((prev) => (prev?.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
+
+  async function runAction(pubkey: string, fn: () => Promise<void>) {
+    setBusyPk(pubkey);
+    try {
+      await fn();
+      await queryClient.invalidateQueries({ queryKey: SUBS_KEY });
+      await queryClient.invalidateQueries({ queryKey: DIVERGENCE_KEY });
+    } catch (e) {
+      toast({
+        title: "Action failed",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setBusyPk(null);
+    }
+  }
+
+  const handleResync = (s: AdminBillingSubscription) =>
+    runAction(s.pubkey, async () => {
+      const out = await apiClient.resyncAdminBillingSubscription(s.pubkey);
+      toast({
+        // `applied: false` is a normal answer, not a failure — say which it was
+        // rather than leaving the admin to guess from an unchanged row.
+        title: out.applied ? "Re-applied from Flash" : "Nothing changed",
+        description: resyncReasonText(out.reason),
+      });
+    });
+
+  const handleSetBlock = (s: AdminBillingSubscription, blocked: boolean) =>
+    runAction(s.pubkey, async () => {
+      const out = await apiClient.setAdminBillingBlock(s.pubkey, blocked);
+      toast({
+        title: blocked ? "Billing blocked" : "Billing unblocked",
+        description: blocked
+          ? out.revoked
+            ? "Their billing-granted tier was taken back. Flash is still charging them — cancel or refund there."
+            : "No billing-granted tier to take back. Flash is still charging them — cancel or refund there."
+          : "They can be granted again. The next Flash event or a resync applies it.",
+      });
+    });
 
   if (subsQuery.isPending) {
     return (
@@ -423,7 +538,15 @@ export function AdminBillingCards({ active }: { active: boolean }) {
               </thead>
               <tbody>
                 {filtered.map((s) => (
-                  <SubscriberRow key={s.pubkey} s={s} profile={profiles.get(s.pubkey)} />
+                  <SubscriberRow
+                    key={s.pubkey}
+                    s={s}
+                    profile={profiles.get(s.pubkey)}
+                    busy={busyPk === s.pubkey}
+                    onBlock={setConfirmBlock}
+                    onUnblock={(sub) => handleSetBlock(sub, false)}
+                    onResync={handleResync}
+                  />
                 ))}
               </tbody>
             </table>
@@ -472,6 +595,37 @@ export function AdminBillingCards({ active }: { active: boolean }) {
           </div>
         )}
       </div>
+
+      {/* Blocking is confirmed because of the part that surprises people: the
+          money keeps moving. Unblocking isn't — it only re-opens a door. */}
+      <Dialog open={!!confirmBlock} onOpenChange={(o) => !o && setConfirmBlock(null)}>
+        <DialogContent data-testid="dialog-billing-block-confirm">
+          <DialogHeader>
+            <DialogTitle>Block billing for this subscriber?</DialogTitle>
+            <DialogDescription>
+              {confirmBlock
+                ? `“${shortNpub(confirmBlock.pubkey).short}” will be withheld from paid entitlement no matter what they pay, and any tier billing granted them is taken back now. This does not cancel or refund anything — Flash keeps charging them until you cancel it there.`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmBlock(null)} data-testid="button-billing-block-cancel">
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                const sub = confirmBlock;
+                setConfirmBlock(null);
+                if (sub) await handleSetBlock(sub, true);
+              }}
+              data-testid="button-billing-block-confirm"
+            >
+              Block billing
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

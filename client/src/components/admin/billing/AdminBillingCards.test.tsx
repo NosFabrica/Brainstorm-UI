@@ -9,12 +9,21 @@ const getAdminBillingSubscriptions =
   vi.fn<() => Promise<{ items: AdminBillingSubscription[]; total: number; pages: number }>>();
 const getAdminBillingDivergence =
   vi.fn<() => Promise<Record<string, AdminBillingDivergenceSection>>>();
+const setAdminBillingBlock =
+  vi.fn<(pubkey: string, blocked: boolean) => Promise<{ pubkey: string; blocked: boolean; revoked: boolean }>>();
+const resyncAdminBillingSubscription =
+  vi.fn<(pubkey: string) => Promise<{ applied: boolean; reason: string }>>();
 vi.mock("@/services/api", () => ({
   apiClient: {
     getAdminBillingSubscriptions: () => getAdminBillingSubscriptions(),
     getAdminBillingDivergence: () => getAdminBillingDivergence(),
+    setAdminBillingBlock: (pubkey: string, blocked: boolean) => setAdminBillingBlock(pubkey, blocked),
+    resyncAdminBillingSubscription: (pubkey: string) => resyncAdminBillingSubscription(pubkey),
   },
 }));
+
+const toast = vi.fn();
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
 
 // Kind-0 enrichment, same seam the scheduling admin uses.
 const fetchProfileMap = vi.fn(async (_pubkeys: string[]) => new Map<string, { name?: string; display_name?: string; picture?: string }>());
@@ -91,7 +100,7 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     expect(screen.getByTestId(`billing-blocked-${"b".repeat(8)}`)).toBeInTheDocument();
   });
 
-  it("opens the actions menu: Flash link live, server verbs parked for the dev", async () => {
+  it("opens the actions menu: every verb live, each explaining itself", async () => {
     getAdminBillingSubscriptions.mockResolvedValue({
       total: 2,
       pages: 1,
@@ -107,16 +116,117 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
     const view = await screen.findByTestId("billing-action-view-flash");
     expect(view.getAttribute("aria-disabled")).not.toBe("true");
-    // Wired later by the dev — visible so admins know they're coming, disabled
-    // so nobody clicks into a void.
-    expect(screen.getByTestId("billing-action-resync").getAttribute("aria-disabled")).toBe("true");
-    expect(screen.getByTestId("billing-action-block").getAttribute("aria-disabled")).toBe("true");
+    const resync = screen.getByTestId("billing-action-resync");
+    expect(resync.getAttribute("aria-disabled")).not.toBe("true");
+    expect(resync.textContent).toContain("Re-reads this subscription from Flash");
+    const block = screen.getByTestId("billing-action-block");
+    expect(block.getAttribute("aria-disabled")).not.toBe("true");
+    // The surprise is spelled out where the decision is made.
+    expect(block.textContent).toContain("keeps charging");
     await userEvent.keyboard("{Escape}");
 
     // No subscription id → nothing in Flash to view; that item disables too.
     await userEvent.click(screen.getByTestId(`billing-actions-${"b".repeat(8)}`));
     const view2 = await screen.findByTestId("billing-action-view-flash");
     expect(view2.getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("blocks only after confirmation, and says the charge continues", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [{ pubkey: PUBKEY, flash_status: "active", scheduling_source: "billing", billing_blocked: false }],
+    });
+    setAdminBillingBlock.mockResolvedValue({ pubkey: PUBKEY, blocked: true, revoked: true });
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-block"));
+
+    // Nothing has happened yet — the dialog is the gate.
+    const dialog = await screen.findByTestId("dialog-billing-block-confirm");
+    expect(dialog.textContent).toContain("keeps charging them");
+    expect(setAdminBillingBlock).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByTestId("button-billing-block-confirm"));
+    await waitFor(() => expect(setAdminBillingBlock).toHaveBeenCalledWith(PUBKEY, true));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ description: expect.stringContaining("still charging") }),
+      ),
+    );
+  });
+
+  it("unblocks straight away, and admits it doesn't re-grant by itself", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [{ pubkey: PUBKEY, flash_status: "active", scheduling_source: "default", billing_blocked: true }],
+    });
+    setAdminBillingBlock.mockResolvedValue({ pubkey: PUBKEY, blocked: false, revoked: false });
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-block"));
+
+    // No confirmation for lifting a bar.
+    expect(screen.queryByTestId("dialog-billing-block-confirm")).toBeNull();
+    await waitFor(() => expect(setAdminBillingBlock).toHaveBeenCalledWith(PUBKEY, false));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ description: expect.stringContaining("resync applies it") }),
+      ),
+    );
+  });
+
+  it("resyncs, and translates a no-op reason instead of looking broken", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [{ pubkey: PUBKEY, flash_status: "past_due", scheduling_source: "billing", billing_blocked: false }],
+    });
+    resyncAdminBillingSubscription.mockResolvedValue({ applied: false, reason: "held" });
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-resync"));
+
+    await waitFor(() => expect(resyncAdminBillingSubscription).toHaveBeenCalledWith(PUBKEY));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Nothing changed",
+          description: expect.stringContaining("Tier left as-is"),
+        }),
+      ),
+    );
+  });
+
+  it("surfaces a failed write instead of silently doing nothing", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [{ pubkey: PUBKEY, flash_status: "active", scheduling_source: "billing", billing_blocked: false }],
+    });
+    resyncAdminBillingSubscription.mockRejectedValue(new Error("Failed to resync subscription (502)"));
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-resync"));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: "destructive", description: "Failed to resync subscription (502)" }),
+      ),
+    );
   });
 
   it("searches by profile name or npub, and sorts by column", async () => {

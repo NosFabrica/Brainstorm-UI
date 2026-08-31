@@ -873,9 +873,8 @@ export const apiClient = {
 
   /**
    * Admin billing roster — the server's paginated Page[BillingSubscriptionItem]
-   * (`{items, total, page, size, pages}`; see the server's /docs). View-mostly:
-   * the write-shaped admin verbs (resync/block/plan mappings) exist server-side
-   * but aren't wired into the UI yet.
+   * (`{items, total, page, size, pages}`; see the server's /docs). Resync and
+   * block/unblock are wired below; plan mappings stay Flash-dashboard work.
    */
   async getAdminBillingSubscriptions(
     page: number = 1,
@@ -919,6 +918,57 @@ export const apiClient = {
     const body = json?.data ?? json;
     const list = Array.isArray(body) ? body : (body?.plans ?? body?.items ?? []);
     return list as AdminBillingPlanMapping[];
+  },
+
+  /**
+   * Re-read one subscriber from Flash now and re-apply entitlement. Nothing is
+   * granted from a cached value: the server fetches Flash's own view, decides,
+   * and writes. `reason` is the server's EntitlementReason — `applied` false
+   * with a reason like `held` or `unknown_plan` means it deliberately changed
+   * nothing, not that the call failed.
+   */
+  async resyncAdminBillingSubscription(
+    pubkey: string,
+  ): Promise<{ applied: boolean; reason: string }> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/billing/subscriptions/${pubkey}/resync`,
+      { method: "POST", signal: AbortSignal.timeout(30000) },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to resync subscription (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  /**
+   * Bar a subscriber from paid entitlement, or lift the bar. Blocking also
+   * revokes a policy *billing* granted (`revoked` says whether it did); an
+   * admin-assigned one is left alone. Unblocking never re-grants on its own —
+   * the next Flash event or a resync does.
+   *
+   * The subscription is untouched either way: they keep being charged until
+   * someone cancels or refunds in Flash.
+   */
+  async setAdminBillingBlock(
+    pubkey: string,
+    blocked: boolean,
+  ): Promise<{ pubkey: string; blocked: boolean; revoked: boolean }> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/billing/subscriptions/${pubkey}/block`,
+      { method: blocked ? "POST" : "DELETE", signal: AbortSignal.timeout(15000) },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to ${blocked ? "block" : "unblock"} billing (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    return json?.data ?? json;
   },
 
   /**
