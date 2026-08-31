@@ -230,6 +230,18 @@ export interface AdminBillingDivergenceSection {
   rows: Record<string, unknown>[];
 }
 
+/** One Flash plan → entitlement mapping (server's BillingPlanItem). */
+export interface AdminBillingPlanMapping {
+  id: number;
+  flash_service_id: string;
+  flash_plan_id: string;
+  subscription_tier: string;
+  scheduling_id: number;
+  amount_minor: number;
+  currency: string;
+  is_active: boolean;
+}
+
 export interface SchedulingItem {
   id: number;
   name: string;
@@ -886,6 +898,27 @@ export const apiClient = {
       total: typeof body?.total === "number" ? body.total : 0,
       pages: typeof body?.pages === "number" ? body.pages : 1,
     };
+  },
+
+  /**
+   * Every Flash plan → entitlement mapping, active or not — lets the
+   * Scheduling tab badge the policies that paid plans grant.
+   */
+  async getAdminBillingPlanMappings(): Promise<AdminBillingPlanMapping[]> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/billing/plans`,
+      { signal: AbortSignal.timeout(15000) },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to fetch billing plan mappings (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    const body = json?.data ?? json;
+    const list = Array.isArray(body) ? body : (body?.plans ?? body?.items ?? []);
+    return list as AdminBillingPlanMapping[];
   },
 
   /**

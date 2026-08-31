@@ -7,6 +7,7 @@ import {
   Trash2,
   Users2,
   Loader2,
+  Receipt,
   ChevronLeft,
   ChevronRight,
   Search,
@@ -38,6 +39,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { PolicyFormDialog } from "./PolicyFormDialog";
+import { paidSchedulingIds } from "./paidPolicies";
 import { UserResultRow } from "./UserResultRow";
 import { UserTierPicker } from "./UserTierPicker";
 import { AssignUsersDialog } from "./AssignUsersDialog";
@@ -282,6 +284,8 @@ function PolicyUsersInline({
                       schedulingName={policy.name}
                       policies={policies}
                       onChanged={refetchUsers}
+                      displayName={m.name}
+                      picture={m.picture}
                     />
                     <button
                       type="button"
@@ -383,6 +387,18 @@ export function SchedulingCard({ active }: { active: boolean }) {
     enabled: active,
   });
   const policies = data ?? [];
+
+  // Which policies a PAID billing plan grants — badge them so admins can tell
+  // "subscribers pay for this cadence" from ordinary policies. Best-effort:
+  // if the billing endpoint isn't live, nothing is badged and nothing breaks.
+  const mappingsQuery = useQuery({
+    queryKey: ["/api/admin/billing/plans"],
+    queryFn: () => apiClient.getAdminBillingPlanMappings(),
+    enabled: active,
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+  const paidPolicyIds = paidSchedulingIds(mappingsQuery.data ?? []);
 
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -560,6 +576,15 @@ export function SchedulingCard({ active }: { active: boolean }) {
                           {p.is_default && (
                             <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-brand-accent/10 text-brand-deep border border-brand-accent/20">
                               Default
+                            </span>
+                          )}
+                          {paidPolicyIds.has(p.id) && (
+                            <span
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-500/25"
+                              title="Granted by a paid billing plan — subscribers pay for this cadence"
+                              data-testid={`policy-paid-${p.id}`}
+                            >
+                              <Receipt className="h-2.5 w-2.5" /> Paid
                             </span>
                           )}
                         </div>
