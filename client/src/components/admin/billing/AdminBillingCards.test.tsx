@@ -15,6 +15,12 @@ vi.mock("@/services/api", () => ({
   },
 }));
 
+// Kind-0 enrichment, same seam the scheduling admin uses.
+const fetchProfileMap = vi.fn(async (_pubkeys: string[]) => new Map<string, { name?: string; display_name?: string; picture?: string }>());
+vi.mock("@/services/nostr", () => ({
+  fetchProfileMap: (pubkeys: string[]) => fetchProfileMap(pubkeys),
+}));
+
 const PUBKEY = "a".repeat(64);
 
 function renderCards() {
@@ -29,6 +35,7 @@ function renderCards() {
 beforeEach(() => {
   vi.clearAllMocks();
   getAdminBillingDivergence.mockResolvedValue({});
+  fetchProfileMap.mockResolvedValue(new Map());
 });
 
 describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", () => {
@@ -60,10 +67,15 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
       ],
     });
 
+    // The first subscriber has a kind-0; the second doesn't.
+    fetchProfileMap.mockResolvedValue(new Map([[PUBKEY, { display_name: "Lira Flint", picture: "https://x/p.jpg" }]]));
+
     renderCards();
 
     await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    // Profile name replaces the bare npub once kind-0 resolves (npub stays as detail).
     const row1 = screen.getByTestId(`billing-sub-${PUBKEY.slice(0, 8)}`);
+    await waitFor(() => expect(row1.textContent).toContain("Lira Flint"));
     expect(row1.textContent).toContain("npub1");
     expect(row1.textContent).toContain("priority-weekly");
     expect(row1.textContent).toContain("via billing");

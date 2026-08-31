@@ -1,10 +1,13 @@
+import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ExternalLink, Loader2 } from "lucide-react";
+import { AlertTriangle, ExternalLink, Loader2, User } from "lucide-react";
 import {
   apiClient,
   type AdminBillingDivergenceSection,
   type AdminBillingSubscription,
 } from "@/services/api";
+import { fetchProfileMap } from "@/services/nostr";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Chip } from "@/components/ui/chip";
 import type { Tone } from "@/lib/tones";
 import { npubFromPubkey } from "@/lib/shareId";
@@ -48,14 +51,68 @@ function shortNpub(pubkey: string): { short: string; full: string } {
 const th = "px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400";
 const td = "px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200";
 
-function SubscriberRow({ s }: { s: AdminBillingSubscription }) {
+type ProfileBits = { name?: string; picture?: string };
+
+/**
+ * Kind-0 enrichment for the roster, same seam the scheduling admin uses
+ * (usePolicyMembers): render immediately with npubs, fill names/avatars in
+ * as profiles arrive. Best-effort — a relay miss just leaves the npub.
+ */
+function useRosterProfiles(pubkeys: string[]): Map<string, ProfileBits> {
+  const [profiles, setProfiles] = useState<Map<string, ProfileBits>>(new Map());
+  const key = pubkeys.join(",");
+  useEffect(() => {
+    const targets = key ? key.split(",") : [];
+    if (!targets.length) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const map = await fetchProfileMap(targets);
+        if (cancelled) return;
+        setProfiles((prev) => {
+          const next = new Map(prev);
+          for (const pk of targets) {
+            const c = map.get(pk);
+            if (c) next.set(pk, { name: c.display_name || c.name, picture: c.picture });
+          }
+          return next;
+        });
+      } catch {
+        /* best-effort — npubs stay */
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [key]);
+  return profiles;
+}
+
+function SubscriberRow({ s, profile }: { s: AdminBillingSubscription; profile?: ProfileBits }) {
   const who = shortNpub(s.pubkey);
   // What the subscription grants vs what the user is actually in — the
   // payments→scheduler connection this tab exists to make visible.
   const scheduling = s.granted_scheduling_name ?? s.scheduling_name ?? "—";
   return (
     <tr className="border-b border-brand-accent/5" data-testid={`billing-sub-${s.pubkey.slice(0, 8)}`}>
-      <td className={`${td} font-mono text-xs`} title={who.full}>{who.short}</td>
+      <td className={td} title={profile?.name ? `${profile.name} — ${who.full}` : who.full}>
+        <span className="flex items-center gap-2 min-w-0">
+          <Avatar className="h-6 w-6 shrink-0">
+            {profile?.picture ? (
+              <AvatarImage src={profile.picture} alt={profile?.name || "Subscriber"} className="object-cover" />
+            ) : null}
+            <AvatarFallback className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-[10px] text-slate-400 dark:text-slate-500">
+              {profile?.name?.charAt(0)?.toUpperCase() || <User className="h-3 w-3 text-slate-300 dark:text-slate-600" />}
+            </AvatarFallback>
+          </Avatar>
+          <span className="flex flex-col min-w-0 leading-tight">
+            <span className="truncate max-w-[160px] font-medium">{profile?.name || who.short}</span>
+            {profile?.name && (
+              <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 truncate max-w-[160px]">{who.short}</span>
+            )}
+          </span>
+        </span>
+      </td>
       <td className={td}>
         <span className="inline-flex items-center gap-1.5">
           <Chip tone={statusTone(s.flash_status)} size="sm">{s.flash_status}</Chip>
@@ -104,6 +161,8 @@ export function AdminBillingCards({ active }: { active: boolean }) {
     staleTime: 60_000,
     retry: 1,
   });
+  // Before the early returns — hook order must not change between renders.
+  const profiles = useRosterProfiles((subsQuery.data?.items ?? []).map((s) => s.pubkey));
 
   if (subsQuery.isPending) {
     return (
@@ -150,7 +209,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
               </thead>
               <tbody>
                 {items.map((s) => (
-                  <SubscriberRow key={s.pubkey} s={s} />
+                  <SubscriberRow key={s.pubkey} s={s} profile={profiles.get(s.pubkey)} />
                 ))}
               </tbody>
             </table>
