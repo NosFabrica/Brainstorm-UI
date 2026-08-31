@@ -1,10 +1,25 @@
 # Admin billing endpoint — UI ↔ server contract
 
 For Enes (server) — the UI's admin Billing tab is already built against this
-shape (behind `FEATURES.subscriptionApi`, view-only). It's deliberately a thin
-map of Flash's `GET /api/v1/external/subscriptions`, which the
-`brainstorm-server-staging` API key (scope `subscriptions:view`) can already
-call. Nothing here requires Flash to build anything.
+shape (behind `FEATURES.subscriptionApi`, view-only).
+
+## Sourcing (corrected 2026-08-30 — Enes's catch)
+
+Flash's `GET /api/v1/external/subscriptions` is a **lookup** (`?ref=` /
+`?subscriptionId=`), not a list — there is no roster endpoint today, and
+ref-less plain-link signups can't even be looked up (no key to query by).
+So the server sources this response from its own data:
+
+- **Webhook ledger** (works today): persist every `subscription.*` event —
+  each carries `subscriptionId` + `externalRef` (null for plain-link
+  signups). Serve the roster from that ledger; use the per-ref lookup for
+  reconciliation. Subs predating the webhook surface on their next event.
+- **Flash list endpoint** (asked 2026-08-30): `?serviceId=`/`?planId=`
+  filter on the same endpoint. If/when it ships, the ledger becomes a
+  cache and backfill gets trivial.
+
+The response shape below is unchanged either way — the UI doesn't care
+where the rows come from.
 
 ## Request
 
