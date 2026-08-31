@@ -97,15 +97,15 @@ describe("plans — the billing period, formatted not matched", () => {
 
 describe("plans — amounts come off the plan", () => {
   it("formats from minor units, in the plan's own currency", () => {
-    expect(formatAmount(200, "USD")).toBe("$2");
+    expect(formatAmount(200, "USD")).toBe("$2.00");
     expect(formatAmount(250, "USD")).toBe("$2.50");
     expect(formatAmount(10, "USD")).toBe("$0.10");
-    expect(formatAmount(200, "EUR")).toBe("2 EUR");
+    expect(formatAmount(200, "EUR")).toBe("€2.00");
   });
 
   it("says Free rather than $0 — and never NaN", () => {
     expect(formatAmount(0, "USD")).toBe("Free");
-    expect(formatAmount(Number.NaN, "USD")).toBe("Free");
+    expect(formatAmount(Number.NaN, "USD")).toBe("—");
   });
 });
 

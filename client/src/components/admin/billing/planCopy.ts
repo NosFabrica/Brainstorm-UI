@@ -11,6 +11,7 @@
  */
 
 /** Textarea → the server's array. Blank lines are dropped; null means "no copy". */
+import { formatCurrency } from "@/lib/plans";
 export function linesToList(text: string): string[] | null {
   const lines = text
     .split("\n")
@@ -39,18 +40,7 @@ export function sameList(
  * verifies this against Flash — it only catches the transcription that is off
  * by a factor of a hundred, which is the error that actually happens.
  */
-export function formatMinor(amountMinor: number, currency: string): string {
-  if (!Number.isFinite(amountMinor)) return "—";
-  const code = currency.trim().toUpperCase();
-  try {
-    return new Intl.NumberFormat(undefined, {
-      style: "currency",
-      currency: code,
-    }).format(amountMinor / 100);
-  } catch {
-    return `${(amountMinor / 100).toFixed(2)} ${code}`;
-  }
-}
+export const formatMinor = formatCurrency;
 
 /** "every 2 weeks", "/month", "once" — formatted from a unit and a count, never a matched string. */
 export function formatPeriod(

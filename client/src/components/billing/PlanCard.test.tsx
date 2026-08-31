@@ -108,7 +108,7 @@ describe("PlanCard — the policy they hold, at its live cadence", () => {
   it("names the policy and prices the plan they bought", () => {
     renderWithProviders(<PlanCard lastCalculatedMs={null} />);
     expect(screen.getByTestId("insights-plan-name")).toHaveTextContent("Priority");
-    expect(screen.getByTestId("insights-plan-name")).toHaveTextContent("$2 per month");
+    expect(screen.getByTestId("insights-plan-name")).toHaveTextContent("$2.00 per month");
   });
 
   it("takes the cadence from the policy, so retuning it needs no deploy", () => {

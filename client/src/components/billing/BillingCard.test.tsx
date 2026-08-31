@@ -137,7 +137,7 @@ describe("BillingCard — every date is reported, never worked out", () => {
     renderWithProviders(<BillingCard />);
     expect(screen.getByTestId("billing-payment-row")).toHaveTextContent("Jan 1, 2026");
     expect(screen.getByTestId("billing-next-invoice")).toHaveTextContent("Jan 1, 2027");
-    expect(screen.getByTestId("billing-amount")).toHaveTextContent("$20 per year");
+    expect(screen.getByTestId("billing-amount")).toHaveTextContent("$20.00 per year");
   });
 
   it("bills the next invoice from next_billing_date, not from the period end", () => {
@@ -152,7 +152,7 @@ describe("BillingCard — the price is what this subscriber is charged", () => {
     // Repriced since they signed up: the picker says $3, their row says $2.
     plans = [FREE_ROW, { ...PAID_ROW, amountMinor: 300 }];
     renderWithProviders(<BillingCard />);
-    expect(screen.getByTestId("billing-amount")).toHaveTextContent("$2 per month");
+    expect(screen.getByTestId("billing-amount")).toHaveTextContent("$2.00 per month");
   });
 
   it("names the policy they hold", () => {
@@ -177,7 +177,7 @@ describe("BillingCard — the price is what this subscriber is charged", () => {
       plan: { amountMinor: 500, currency: "EUR", isActive: true, billingPeriodUnit: "month", billingPeriodCount: 1 },
     });
     renderWithProviders(<BillingCard />);
-    expect(screen.getByTestId("billing-amount")).toHaveTextContent("5 EUR per month");
+    expect(screen.getByTestId("billing-amount")).toHaveTextContent("€5.00 per month");
   });
 });
 
@@ -194,7 +194,7 @@ describe("BillingCard — retired plans, cancellation and what we cannot know", 
       "https://vault.example/portal/svc",
     );
     // They keep paying what they signed up at.
-    expect(screen.getByTestId("billing-amount")).toHaveTextContent("$2 per month");
+    expect(screen.getByTestId("billing-amount")).toHaveTextContent("$2.00 per month");
   });
 
   it("says nothing about retirement for a plan still on sale", () => {

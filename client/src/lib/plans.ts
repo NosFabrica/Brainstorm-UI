@@ -285,11 +285,22 @@ export function nextScheduledLabel(
  * cannot drift from what Flash charges. Takes the numbers rather than a tier,
  * because the numbers are what the server sends.
  */
+export function formatCurrency(amountMinor: number, currency: string): string {
+  if (!Number.isFinite(amountMinor)) return "—";
+  const code = currency.trim().toUpperCase();
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: code,
+    }).format(amountMinor / 100);
+  } catch {
+    return `${(amountMinor / 100).toFixed(2)} ${code}`;
+  }
+}
+
 export function formatAmount(amountMinor: number, currency: string): string {
-  if (!Number.isFinite(amountMinor) || amountMinor <= 0) return "Free";
-  const major = amountMinor / 100;
-  const num = Number.isInteger(major) ? String(major) : major.toFixed(2);
-  return currency === "USD" ? `$${num}` : `${num} ${currency}`;
+  if (Number.isFinite(amountMinor) && amountMinor <= 0) return "Free";
+  return formatCurrency(amountMinor, currency);
 }
 
 /**

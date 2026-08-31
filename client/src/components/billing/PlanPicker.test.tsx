@@ -48,7 +48,7 @@ describe("PlanPicker — the page is whatever the server says", () => {
     );
     expect(screen.getByTestId("plan-name-0")).toHaveTextContent("Free");
     expect(screen.getByTestId("plan-name-1")).toHaveTextContent("Wildcard");
-    expect(screen.getByTestId("plan-price-1")).toHaveTextContent("42 CAD");
+    expect(screen.getByTestId("plan-price-1")).toHaveTextContent("CA$42.00");
   });
 
   // Two rows on one policy is the monthly/yearly case — and the reason the
@@ -64,9 +64,9 @@ describe("PlanPicker — the page is whatever the server says", () => {
         onChoose={() => {}}
       />,
     );
-    expect(screen.getByTestId("plan-price-0")).toHaveTextContent("$2");
+    expect(screen.getByTestId("plan-price-0")).toHaveTextContent("$2.00");
     expect(screen.getByTestId("plan-period-0")).toHaveTextContent("per month");
-    expect(screen.getByTestId("plan-price-1")).toHaveTextContent("$20");
+    expect(screen.getByTestId("plan-price-1")).toHaveTextContent("$20.00");
     expect(screen.getByTestId("plan-period-1")).toHaveTextContent("per year");
   });
 
