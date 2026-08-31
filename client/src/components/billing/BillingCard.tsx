@@ -41,7 +41,8 @@ import { TIERS, PAID_TIER, formatSats, type SubscriptionStatus, type Rail } from
  * keeps the local cancel so the demo flow works. The old DELETE is gone.
  */
 export function BillingCard() {
-  const { tier, status, currentPeriodEnd, rail, manageUrl, isLoading } = useSubscription();
+  const { tier, status, currentPeriodEnd, cancelEffectiveDate, rail, manageUrl, isLoading } =
+    useSubscription();
   const info = TIERS[tier];
   const paid = tier === PAID_TIER;
   const qc = useQueryClient();
@@ -49,9 +50,18 @@ export function BillingCard() {
   const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
 
+  // Flash reports a cancellation that has not taken effect yet as `active` —
+  // the subscriber IS still entitled and the status is right — so the date is
+  // the only thing that distinguishes "renews then" from "ends then".
+  const cancelAt = cancelEffectiveDate ? new Date(cancelEffectiveDate) : null;
+  const cancelPending =
+    paid && cancelAt !== null && !Number.isNaN(cancelAt.getTime()) && cancelAt.getTime() > Date.now();
+  const ending = status === "canceled" || cancelPending;
+
   // Past-due and grace can still cancel: someone whose card failed may want out
   // rather than to fix it, and refusing until they pay would be indefensible.
-  const canCancel = paid && status !== "canceled" && status !== "none";
+  // Already cancelling is the one case that cannot: there is nothing to cancel.
+  const canCancel = paid && status !== "canceled" && status !== "none" && !cancelPending;
 
   // A sats payer is quoted in sats everywhere an amount appears; a card payer
   // in dollars-and-cents. One label, three call sites, no mixed currencies —
@@ -104,11 +114,11 @@ export function BillingCard() {
           </h2>
           {!isLoading && (
             <Chip
-              tone={status === "active" ? "success" : status === "canceled" ? "neutral" : "warning"}
+              tone={ending ? "neutral" : status === "active" ? "success" : "warning"}
               size="sm"
               data-testid="billing-status"
             >
-              {paid ? STATUS_LABEL[status] : "Free plan"}
+              {!paid ? "Free plan" : cancelPending ? "Cancelling" : STATUS_LABEL[status]}
             </Chip>
           )}
         </div>
@@ -134,9 +144,15 @@ export function BillingCard() {
         <Row label="Payment method">
           {paid && rail ? <RailBadge rail={rail} /> : <span className="text-slate-400">—</span>}
         </Row>
-        <Row label={status === "canceled" ? "Access until" : "Next invoice"}>
+        <Row label={ending ? "Access until" : "Next invoice"}>
           <span className="tabular-nums" data-testid="billing-next-invoice">
-            {paid && periodEnd ? (status === "canceled" ? fmtDate(periodEnd) : `${fmtDate(periodEnd)} · ${amountLabel}`) : "—"}
+            {!paid
+              ? "—"
+              : ending
+                ? fmtDate(cancelAt ?? periodEnd!)
+                : periodEnd
+                  ? `${fmtDate(periodEnd)} · ${amountLabel}`
+                  : "—"}
           </span>
         </Row>
       </dl>

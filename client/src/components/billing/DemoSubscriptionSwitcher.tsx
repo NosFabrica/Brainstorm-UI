@@ -58,6 +58,12 @@ const STATES: {
     apply: () => setMockSubscription("priority", "past_due", "card"),
   },
   {
+    key: "cancelling",
+    label: "Cancelling",
+    hint: "still active; ends tomorrow",
+    apply: () => setMockSubscription("priority", "active", "card", 1),
+  },
+  {
     key: "canceled",
     label: "Cancelled",
     hint: "access until period end",

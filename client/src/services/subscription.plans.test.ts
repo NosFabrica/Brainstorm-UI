@@ -50,4 +50,33 @@ describe("the plans seam (mock mode)", () => {
     expect(sub.tier).toBe("priority");
     expect(sub.manageUrl).toContain("portal");
   });
+
+  // Flash reports a cancellation that has not taken effect as `active` with a
+  // date, and the subscriber really is still entitled — so the date has to
+  // survive the seam, or the UI shows "renews" to someone who just cancelled.
+  it("keeps a scheduled cancellation date alongside an active status", async () => {
+    setMockSubscription("priority", "active", "card", 1);
+    const sub = await refreshSubscription();
+    expect(sub.status).toBe("active");
+    expect(sub.cancelEffectiveDate).not.toBeNull();
+    expect(new Date(sub.cancelEffectiveDate!).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it("reads the backend's snake_case cancel date", async () => {
+    localStorage.setItem(
+      "brainstorm_mock_subscription",
+      JSON.stringify({
+        tier: "priority",
+        status: "active",
+        cancel_effective_date: "2026-09-01T00:00:00Z",
+      }),
+    );
+    const sub = await refreshSubscription();
+    expect(sub.cancelEffectiveDate).toBe("2026-09-01T00:00:00Z");
+  });
+
+  it("is null when nothing is scheduled", async () => {
+    setMockSubscription("priority", "active", "card");
+    expect((await refreshSubscription()).cancelEffectiveDate).toBeNull();
+  });
 });

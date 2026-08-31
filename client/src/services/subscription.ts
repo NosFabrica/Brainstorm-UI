@@ -25,6 +25,13 @@ export interface Subscription {
   status: SubscriptionStatus;
   /** ISO timestamp of the next renewal, or null on the free tier. */
   currentPeriodEnd: string | null;
+  /**
+   * ISO timestamp at which a cancellation takes effect, or null if none is
+   * scheduled. Flash reports a cancelled-but-still-running subscription as
+   * `active` — the subscriber IS still entitled — so this, not `status`, is
+   * what separates "renews then" from "ends then".
+   */
+  cancelEffectiveDate: string | null;
   rail: Rail | null;
   /** Where the user goes to cancel/manage (Flash's portal today), or null. */
   manageUrl: string | null;
@@ -47,6 +54,7 @@ export const DEFAULT_SUBSCRIPTION: Subscription = {
   tier: "free",
   status: "active",
   currentPeriodEnd: null,
+  cancelEffectiveDate: null,
   rail: null,
   manageUrl: null,
 };
@@ -77,9 +85,20 @@ function normalize(raw: unknown): Subscription {
     ? (r.status as SubscriptionStatus)
     : "active";
   const periodEnd = (r.current_period_end ?? r.currentPeriodEnd) as string | null | undefined;
+  const cancelAt = (r.cancel_effective_date ?? r.cancelEffectiveDate) as
+    | string
+    | null
+    | undefined;
   const rail = RAILS.includes(r.rail as Rail) ? (r.rail as Rail) : null;
   const manageUrl = (r.manage_url ?? r.manageUrl) as string | null | undefined;
-  return { tier, status, currentPeriodEnd: periodEnd ?? null, rail, manageUrl: typeof manageUrl === "string" && manageUrl ? manageUrl : null };
+  return {
+    tier,
+    status,
+    currentPeriodEnd: periodEnd ?? null,
+    cancelEffectiveDate: cancelAt ?? null,
+    rail,
+    manageUrl: typeof manageUrl === "string" && manageUrl ? manageUrl : null,
+  };
 }
 
 function readMock(): Subscription {
@@ -197,6 +216,8 @@ export function setMockSubscription(
   tier: TierId,
   status: SubscriptionStatus = "active",
   rail: Rail | null = null,
+  /** Days until a scheduled cancellation takes effect; null = not cancelling. */
+  cancelInDays: number | null = null,
 ): void {
   const paid = tier !== "free";
   const sub: Subscription = {
@@ -205,6 +226,10 @@ export function setMockSubscription(
     currentPeriodEnd: paid
       ? new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString()
       : null,
+    cancelEffectiveDate:
+      paid && cancelInDays !== null
+        ? new Date(Date.now() + cancelInDays * 24 * 60 * 60 * 1000).toISOString()
+        : null,
     rail: paid ? rail : null,
     // The REAL dev-vault portal, so the manage/cancel demo clicks through to
     // the actual magic-link page (guide §2: portal/{serviceId}).

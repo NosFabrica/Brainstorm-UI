@@ -24,6 +24,8 @@ export function useSubscription(): {
   tier: TierId;
   status: Subscription["status"];
   currentPeriodEnd: string | null;
+  /** When a scheduled cancellation takes effect; null if none. Still active. */
+  cancelEffectiveDate: string | null;
   rail: Subscription["rail"];
   /** Flash's portal (or, later, our own flow) — where Cancel goes. */
   manageUrl: string | null;
@@ -46,6 +48,7 @@ export function useSubscription(): {
     tier: subscription.tier,
     status: subscription.status,
     currentPeriodEnd: subscription.currentPeriodEnd,
+    cancelEffectiveDate: subscription.cancelEffectiveDate,
     rail: subscription.rail,
     manageUrl: subscription.manageUrl,
     // Grace counts as active: a failed renewal inside Flash's 7-day grace window
