@@ -13,12 +13,16 @@ const setAdminBillingBlock =
   vi.fn<(pubkey: string, blocked: boolean) => Promise<{ pubkey: string; blocked: boolean; revoked: boolean }>>();
 const resyncAdminBillingSubscription =
   vi.fn<(pubkey: string) => Promise<{ applied: boolean; reason: string }>>();
+const getAdminBillingFlashRecordForSubscriber =
+  vi.fn<(pubkey: string) => Promise<unknown>>();
 vi.mock("@/services/api", () => ({
   apiClient: {
     getAdminBillingSubscriptions: () => getAdminBillingSubscriptions(),
     getAdminBillingDivergence: () => getAdminBillingDivergence(),
     setAdminBillingBlock: (pubkey: string, blocked: boolean) => setAdminBillingBlock(pubkey, blocked),
     resyncAdminBillingSubscription: (pubkey: string) => resyncAdminBillingSubscription(pubkey),
+    getAdminBillingFlashRecordForSubscriber: (pubkey: string) =>
+      getAdminBillingFlashRecordForSubscriber(pubkey),
   },
 }));
 
@@ -227,6 +231,62 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
         expect.objectContaining({ variant: "destructive", description: "Failed to resync subscription (502)" }),
       ),
     );
+  });
+
+  it("shows Flash's own record, every row of it, without changing anything", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [{ pubkey: PUBKEY, flash_status: "active", flash_subscription_id: "7d3b", scheduling_source: "billing", billing_blocked: false }],
+    });
+    // The multi-row case a resync would disambiguate away — the reason to look.
+    getAdminBillingFlashRecordForSubscriber.mockResolvedValue({
+      livemode: true,
+      subscriptions: [
+        { id: "old", status: "expired", ref: PUBKEY },
+        { id: "7d3b", status: "active", ref: PUBKEY },
+      ],
+    });
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-flash-record"));
+
+    await waitFor(() => expect(getAdminBillingFlashRecordForSubscriber).toHaveBeenCalledWith(PUBKEY));
+    const json = await screen.findByTestId("billing-flash-record-json");
+    expect(json.textContent).toContain("\"old\"");
+    expect(json.textContent).toContain("\"7d3b\"");
+    expect(json.textContent).toContain("livemode");
+    // Both rows are called out, so the disagreement is visible at a glance.
+    expect(screen.getByTestId("dialog-billing-flash-record").textContent).toContain("2 rows");
+    // Looking is not acting.
+    expect(resyncAdminBillingSubscription).not.toHaveBeenCalled();
+    expect(setAdminBillingBlock).not.toHaveBeenCalled();
+  });
+
+  it("keeps \"Flash has no such subscription\" apart from \"couldn't reach Flash\"", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [{ pubkey: PUBKEY, flash_status: "active", scheduling_source: "billing", billing_blocked: false }],
+    });
+    getAdminBillingFlashRecordForSubscriber.mockRejectedValue(
+      new Error("Could not reach Flash, so we do not know what it says. Nothing was changed."),
+    );
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-flash-record"));
+
+    // The server's wording survives to the admin — dismissing a real customer
+    // because an outage read as an absence is the failure this prevents.
+    const error = await screen.findByTestId("billing-flash-record-error");
+    expect(error.textContent).toContain("Could not reach Flash");
+    expect(error.textContent).not.toContain("no subscription");
   });
 
   it("searches by profile name or npub, and sorts by column", async () => {

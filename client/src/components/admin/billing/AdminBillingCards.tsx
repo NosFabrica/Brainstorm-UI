@@ -6,6 +6,7 @@ import {
   ChevronUp,
   ChevronsUpDown,
   ExternalLink,
+  FileJson,
   Loader2,
   MoreHorizontal,
   RefreshCw,
@@ -228,6 +229,77 @@ function filterAndSort(
   return out;
 }
 
+/**
+ * What Flash itself says, beside what we stored. The divergence report claims
+ * the two disagree; this is where that claim is checked at the source, without
+ * a shell or a live API key.
+ *
+ * Read-only — it applies no entitlement and touches no stored row — and the
+ * body is Flash's own, so the extra rows a resync would disambiguate away are
+ * visible here.
+ */
+function FlashRecordDialog({
+  subscriber,
+  onClose,
+}: {
+  subscriber: AdminBillingSubscription | null;
+  onClose: () => void;
+}) {
+  const query = useQuery({
+    queryKey: ["/api/admin/billing/flash-record", subscriber?.pubkey],
+    queryFn: () => apiClient.getAdminBillingFlashRecordForSubscriber(subscriber!.pubkey),
+    enabled: !!subscriber,
+    // Every read spends our Flash quota, so don't re-ask on a reopen or a retry.
+    staleTime: 60_000,
+    retry: false,
+    gcTime: 0,
+  });
+  const rows = (query.data as { subscriptions?: unknown[] } | undefined)?.subscriptions;
+
+  return (
+    <Dialog open={!!subscriber} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-2xl" data-testid="dialog-billing-flash-record">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            Flash's record
+            {Array.isArray(rows) && (
+              <Chip tone={rows.length > 1 ? "warning" : "neutral"} size="sm">
+                {rows.length} {rows.length === 1 ? "row" : "rows"}
+              </Chip>
+            )}
+          </DialogTitle>
+          <DialogDescription>
+            Exactly what Flash returned for{" "}
+            {subscriber ? shortNpub(subscriber.pubkey).short : ""} — every row, not
+            just the one entitlement uses. Nothing was changed by looking.
+          </DialogDescription>
+        </DialogHeader>
+        {query.isPending ? (
+          <div className="flex items-center gap-2 py-6 text-sm text-slate-500 dark:text-slate-400">
+            <Loader2 className="h-4 w-4 animate-spin" /> Asking Flash…
+          </div>
+        ) : query.isError ? (
+          <p className="py-4 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-flash-record-error">
+            {(query.error as Error)?.message}
+          </p>
+        ) : (
+          <pre
+            className="max-h-[50vh] overflow-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 p-3 font-mono text-xs text-slate-700 dark:text-slate-200"
+            data-testid="billing-flash-record-json"
+          >
+            {JSON.stringify(query.data, null, 2)}
+          </pre>
+        )}
+        <DialogFooter>
+          <Button variant="outline" onClick={onClose} data-testid="button-billing-flash-record-close">
+            Close
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function SubscriberRow({
   s,
   profile,
@@ -235,6 +307,7 @@ function SubscriberRow({
   onBlock,
   onUnblock,
   onResync,
+  onViewFlashRecord,
 }: {
   s: AdminBillingSubscription;
   profile?: ProfileBits;
@@ -242,6 +315,7 @@ function SubscriberRow({
   onBlock: (s: AdminBillingSubscription) => void;
   onUnblock: (s: AdminBillingSubscription) => void;
   onResync: (s: AdminBillingSubscription) => void;
+  onViewFlashRecord: (s: AdminBillingSubscription) => void;
 }) {
   const who = shortNpub(s.pubkey);
   // What the subscription grants vs what the user is actually in — the
@@ -315,6 +389,21 @@ function SubscriberRow({
             >
               <ExternalLink className="mr-2 h-3.5 w-3.5" /> View in Flash
             </DropdownMenuItem>
+            {/* Sits beside the deep link because it answers the same question
+                without leaving the tab or holding a Flash login. */}
+            <DropdownMenuItem
+              onSelect={() => onViewFlashRecord(s)}
+              className="flex-col items-start gap-0.5"
+              data-testid="billing-action-flash-record"
+            >
+              <span className="flex items-center">
+                <FileJson className="mr-2 h-3.5 w-3.5" /> Flash's raw record
+              </span>
+              <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+                Exactly what Flash says right now, beside what we stored. Read-only —
+                it changes nothing.
+              </span>
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             {/* Each write says what it does inline — these verbs are rare enough
                 that nobody remembers, and both have non-obvious edges (resync
@@ -386,6 +475,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   const [sourceFilter, setSourceFilter] = useState("all");
   const [sort, setSort] = useState<SortState>(null);
   const [confirmBlock, setConfirmBlock] = useState<AdminBillingSubscription | null>(null);
+  const [flashRecordFor, setFlashRecordFor] = useState<AdminBillingSubscription | null>(null);
   const [busyPk, setBusyPk] = useState<string | null>(null);
   const toggleSort = (key: SortKey) =>
     setSort((prev) => (prev?.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
@@ -546,6 +636,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
                     onBlock={setConfirmBlock}
                     onUnblock={(sub) => handleSetBlock(sub, false)}
                     onResync={handleResync}
+                    onViewFlashRecord={setFlashRecordFor}
                   />
                 ))}
               </tbody>
@@ -595,6 +686,8 @@ export function AdminBillingCards({ active }: { active: boolean }) {
           </div>
         )}
       </div>
+
+      <FlashRecordDialog subscriber={flashRecordFor} onClose={() => setFlashRecordFor(null)} />
 
       {/* Blocking is confirmed because of the part that surprises people: the
           money keeps moving. Unblocking isn't — it only re-opens a door. */}

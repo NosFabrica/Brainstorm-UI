@@ -203,6 +203,31 @@ async function extractApiError(response: Response): Promise<string> {
 }
 
 /**
+ * Flash's own record for one subscription. The body is returned verbatim (no
+ * `data` unwrap — it's Flash's, not ours).
+ *
+ * The failure the caller must not misread is 404 vs 503: "Flash has no such
+ * subscription" is grounds for dismissing a row, "we couldn't reach Flash" is
+ * grounds for trying later. The server's `detail` already says which; this only
+ * keeps the two from collapsing into one generic message.
+ */
+async function readFlashRecord(path: string): Promise<unknown> {
+  const response = await authenticatedFetch(`${getBrainstormApi()}${path}`, {
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!response.ok) {
+    const detail = await extractApiError(response);
+    if (detail) throw new Error(detail);
+    throw new Error(
+      response.status === 404
+        ? "Flash has no subscription for this record."
+        : `Couldn't read Flash's record (${response.status}).`,
+    );
+  }
+  return await response.json();
+}
+
+/**
  * One row of the admin Billing tab — the server's BillingSubscriptionItem
  * (see /docs on the server). Pubkey-keyed, so every row is an attributed
  * subscriber; the unsettled/unmatched cases live in /admin/billing/divergence.
@@ -969,6 +994,24 @@ export const apiClient = {
     }
     const json = await response.json();
     return json?.data ?? json;
+  },
+
+  /**
+   * What Flash itself says about one record, unmodified — `livemode` plus the
+   * whole `subscriptions` array, including the extra rows the server's normal
+   * lookup disambiguates away. Read-only: nothing is applied.
+   *
+   * Two sub-resources because each row has exactly one handle: a subscriber is
+   * looked up by pubkey, an unresolved signup only by its Flash id.
+   */
+  async getAdminBillingFlashRecordForSubscriber(pubkey: string): Promise<unknown> {
+    return readFlashRecord(`/admin/billing/subscriptions/${pubkey}/flash`);
+  },
+
+  async getAdminBillingFlashRecordForUnresolved(subscriptionId: string): Promise<unknown> {
+    return readFlashRecord(
+      `/admin/billing/unresolved/${encodeURIComponent(subscriptionId)}/flash`,
+    );
   },
 
   /**
