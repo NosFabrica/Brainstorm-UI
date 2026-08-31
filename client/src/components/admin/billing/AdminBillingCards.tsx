@@ -7,6 +7,9 @@ import {
   ChevronsUpDown,
   ExternalLink,
   Loader2,
+  MoreHorizontal,
+  RefreshCw,
+  Ban,
   User,
   XCircle,
 } from "lucide-react";
@@ -17,6 +20,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   apiClient,
   type AdminBillingDivergenceSection,
@@ -231,19 +242,45 @@ function SubscriberRow({ s, profile }: { s: AdminBillingSubscription; profile?: 
           )}
         </span>
       </td>
-      <td className={td}>
-        {s.flash_subscription_id && (
-          <a
-            href={flashSubscriptionUrl(s.flash_subscription_id)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs font-medium text-brand-link hover:underline"
-            title={`Open subscription ${s.flash_subscription_id} in Flash`}
-            data-testid={`billing-flash-link-${s.pubkey.slice(0, 8)}`}
-          >
-            Flash <ExternalLink className="h-3 w-3" />
-          </a>
-        )}
+      <td className={`${td} text-right`}>
+        {/* Admin verbs live here. Only "View in Flash" is wired today; resync
+            and block exist server-side and get connected by the dev — shown
+            disabled so admins know they're coming, unclickable so nobody
+            falls into a void. */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+              aria-label="Subscription actions"
+              data-testid={`billing-actions-${s.pubkey.slice(0, 8)}`}
+            >
+              <MoreHorizontal className="h-4 w-4" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Actions</DropdownMenuLabel>
+            <DropdownMenuItem
+              disabled={!s.flash_subscription_id}
+              onSelect={() => {
+                if (s.flash_subscription_id)
+                  window.open(flashSubscriptionUrl(s.flash_subscription_id), "_blank", "noopener,noreferrer");
+              }}
+              data-testid="billing-action-view-flash"
+            >
+              <ExternalLink className="mr-2 h-3.5 w-3.5" /> View in Flash
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem disabled data-testid="billing-action-resync">
+              <RefreshCw className="mr-2 h-3.5 w-3.5" /> Resync from Flash
+              <span className="ml-auto pl-3 text-[10px] text-slate-400 dark:text-slate-500">soon</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled data-testid="billing-action-block">
+              <Ban className="mr-2 h-3.5 w-3.5" /> {s.billing_blocked ? "Unblock billing" : "Block billing"}
+              <span className="ml-auto pl-3 text-[10px] text-slate-400 dark:text-slate-500">soon</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </td>
     </tr>
   );

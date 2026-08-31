@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { AdminBillingDivergenceSection, AdminBillingSubscription } from "@/services/api";
 import { AdminBillingCards } from "./AdminBillingCards";
@@ -81,16 +82,41 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     // Source is its own column, not folded into the scheduling cell.
     expect(screen.getByTestId(`billing-source-${PUBKEY.slice(0, 8)}`).textContent).toBe("billing");
     expect(screen.getByTestId(`billing-source-${"b".repeat(8)}`).textContent).toBe("manual");
-    // The subscription id deep-links to Flash's detail page; a row without an
-    // id (second subscriber) gets no dead link.
-    expect(screen.getByTestId(`billing-flash-link-${PUBKEY.slice(0, 8)}`).getAttribute("href")).toBe(
-      "https://dev.vault.paywithflash.com/subscriptions/active/7d3b",
-    );
-    expect(screen.queryByTestId(`billing-flash-link-${"b".repeat(8)}`)).toBeNull();
+    // Every row carries the admin actions menu.
+    expect(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`)).toBeInTheDocument();
+    expect(screen.getByTestId(`billing-actions-${"b".repeat(8)}`)).toBeInTheDocument();
     // Unknown statuses render, blocked shows its flag — nothing crashes.
     const row2 = screen.getByTestId(`billing-sub-${"b".repeat(8)}`);
     expect(row2.textContent).toContain("some_future_status");
     expect(screen.getByTestId(`billing-blocked-${"b".repeat(8)}`)).toBeInTheDocument();
+  });
+
+  it("opens the actions menu: Flash link live, server verbs parked for the dev", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 2,
+      pages: 1,
+      items: [
+        { pubkey: PUBKEY, flash_status: "active", flash_subscription_id: "7d3b", scheduling_source: "billing", billing_blocked: false },
+        { pubkey: "b".repeat(64), flash_status: "pending", scheduling_source: "manual", billing_blocked: false },
+      ],
+    });
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    const view = await screen.findByTestId("billing-action-view-flash");
+    expect(view.getAttribute("aria-disabled")).not.toBe("true");
+    // Wired later by the dev — visible so admins know they're coming, disabled
+    // so nobody clicks into a void.
+    expect(screen.getByTestId("billing-action-resync").getAttribute("aria-disabled")).toBe("true");
+    expect(screen.getByTestId("billing-action-block").getAttribute("aria-disabled")).toBe("true");
+    await userEvent.keyboard("{Escape}");
+
+    // No subscription id → nothing in Flash to view; that item disables too.
+    await userEvent.click(screen.getByTestId(`billing-actions-${"b".repeat(8)}`));
+    const view2 = await screen.findByTestId("billing-action-view-flash");
+    expect(view2.getAttribute("aria-disabled")).toBe("true");
   });
 
   it("searches by profile name or npub, and sorts by column", async () => {
