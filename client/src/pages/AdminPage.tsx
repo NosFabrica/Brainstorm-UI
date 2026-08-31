@@ -13,6 +13,7 @@ import { ScrollableTable } from "@/components/admin/ScrollableTable";
 import { SchedulingCard } from "@/components/admin/scheduling/SchedulingCard";
 import { SchedulingStatsPanel } from "@/components/admin/scheduling/SchedulingStatsPanel";
 import { AdminBillingCards } from "@/components/admin/billing/AdminBillingCards";
+import { PlanMappingsCard } from "@/components/admin/billing/PlanMappingsCard";
 import { UserTierPicker } from "@/components/admin/scheduling/UserTierPicker";
 import { ResyncControl } from "@/components/admin/ResyncControl";
 import { UserActionsMenu } from "@/components/admin/UserActionsMenu";
@@ -1763,7 +1764,7 @@ export default function AdminPage() {
     const tab = params.get("tab");
     if (tab === "users" || tab === "activity" || tab === "health" || tab === "scheduling") return tab;
     if (tab === "assistants" && FEATURES.assistantsAdmin) return tab;
-    if (tab === "billing" && FEATURES.subscriptionApi) return tab;
+    if (tab === "billing") return tab;
     return "overview";
   });
   const [userSearch, setUserSearch] = useState("");
@@ -2635,9 +2636,12 @@ export default function AdminPage() {
     { key: "overview", label: "Overview", icon: BarChart3 },
     { key: "activity", label: "Activity", icon: Activity },
     { key: "scheduling", label: "Scheduling", icon: CalendarClock },
-    // Billing appears with the same flip that makes billing real (mock mode
-    // has nothing an admin can act on).
-    ...(FEATURES.subscriptionApi ? [{ key: "billing" as AdminTab, label: "Billing", icon: Receipt }] : []),
+    // Gated on nothing. A fresh instance has billing enabled and zero plan
+    // mappings, which is exactly when an admin needs this tab to create the
+    // first one — gating on plans existing would be a bootstrap deadlock, and
+    // the mock flag answers an unrelated question. Where billing isn't
+    // configured the endpoints 404 and the cards say so.
+    { key: "billing" as AdminTab, label: "Billing", icon: Receipt },
     { key: "users", label: "Users", icon: Users },
     ...(FEATURES.assistantsAdmin ? [{ key: "assistants" as AdminTab, label: "Assistants", icon: Sparkles }] : []),
     { key: "health", label: "System Health", icon: Server },
@@ -4303,6 +4307,15 @@ export default function AdminPage() {
                 </div>
                 <div className="px-5 py-4">
                   <AdminBillingCards active={activeTab === "billing"} />
+                </div>
+              </div>
+              <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-billing-plans">
+                <div className="px-5 py-4 border-b border-brand-accent/10">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Plans on sale</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Which Flash plan buys which scheduling policy, and what it costs</p>
+                </div>
+                <div className="px-5 py-4">
+                  <PlanMappingsCard active={activeTab === "billing"} />
                 </div>
               </div>
             </div>

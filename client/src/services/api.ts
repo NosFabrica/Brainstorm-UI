@@ -255,17 +255,53 @@ export interface AdminBillingDivergenceSection {
   rows: Record<string, unknown>[];
 }
 
-/** One Flash plan → entitlement mapping (server's BillingPlanItem). */
+/**
+ * One Flash plan → entitlement mapping (server's BillingPlanItem).
+ *
+ * Every value below the ids is transcribed by hand: Flash exposes no way to
+ * read a plan back, so nothing here has been verified against anything.
+ */
 export interface AdminBillingPlanMapping {
   id: number;
   flash_service_id: string;
   flash_plan_id: string;
-  subscription_tier: string;
+  /** The policy this plan grants. It *is* the tier — there is no tier string. */
   scheduling_id: number;
   amount_minor: number;
   currency: string;
+  /** A unit and a count, never a matched string: "every 2 weeks" formats from the pair. */
+  billing_period_unit: string | null;
+  billing_period_count: number | null;
+  sort_order: number;
+  /** Plan copy. Plain text — render it, never interpret it. */
+  blurb: string | null;
+  includes: string[] | null;
+  excludes: string[] | null;
+  /** Sellable, and nothing else. Retiring a plan does not change what subscribers receive. */
   is_active: boolean;
 }
+
+export interface CreateAdminBillingPlanBody {
+  flash_service_id: string;
+  flash_plan_id: string;
+  scheduling_id: number;
+  amount_minor: number;
+  currency: string;
+  billing_period_unit?: string | null;
+  billing_period_count?: number | null;
+  sort_order?: number;
+  blurb?: string | null;
+  includes?: string[] | null;
+  excludes?: string[] | null;
+  is_active?: boolean;
+}
+
+/**
+ * A PATCH writes every field it includes, so callers must send only what the
+ * admin actually changed — an untouched form is how a staging scheduling policy
+ * ended up named "string" with a zero cadence.
+ */
+export type UpdateAdminBillingPlanBody = Partial<CreateAdminBillingPlanBody>;
 
 export interface SchedulingItem {
   id: number;
@@ -274,6 +310,12 @@ export interface SchedulingItem {
   priority: number;
   enabled: boolean;
   is_default: boolean;
+  /**
+   * Whether the policy may reach a public response at all. A plan pointed at a
+   * non-public policy is dropped from `/billing/plans`, so it sells nothing —
+   * optional here because older servers don't send it.
+   */
+  is_public?: boolean;
   manual_quota_limit: number;
   manual_quota_window_seconds: number;
 }
@@ -925,8 +967,8 @@ export const apiClient = {
   },
 
   /**
-   * Every Flash plan → entitlement mapping, active or not — lets the
-   * Scheduling tab badge the policies that paid plans grant.
+   * Every Flash plan → entitlement mapping, active or not — the plan editor's
+   * list, and what lets the Scheduling tab badge the policies paid plans grant.
    */
   async getAdminBillingPlanMappings(): Promise<AdminBillingPlanMapping[]> {
     const response = await authenticatedFetch(
@@ -943,6 +985,60 @@ export const apiClient = {
     const body = json?.data ?? json;
     const list = Array.isArray(body) ? body : (body?.plans ?? body?.items ?? []);
     return list as AdminBillingPlanMapping[];
+  },
+
+  /** Map a Flash plan to what it grants. It is for sale as soon as this lands. */
+  async createAdminBillingPlan(
+    body: CreateAdminBillingPlanBody,
+  ): Promise<AdminBillingPlanMapping> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/billing/plans`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to create billing plan mapping (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    return (json?.data ?? json) as AdminBillingPlanMapping;
+  },
+
+  /**
+   * Correct a mapping in place — the only repair mechanism there is, since
+   * nothing can read a Flash plan back to check it.
+   *
+   * Send only changed fields: every field included is written. The Flash ids
+   * are refused with a 409 once anyone has bought the mapping, because
+   * rewriting them would retroactively change what those people bought.
+   */
+  async updateAdminBillingPlan(
+    id: number,
+    body: UpdateAdminBillingPlanBody,
+  ): Promise<AdminBillingPlanMapping> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/billing/plans/${id}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15000),
+      },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to update billing plan mapping (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    return (json?.data ?? json) as AdminBillingPlanMapping;
   },
 
   /**
