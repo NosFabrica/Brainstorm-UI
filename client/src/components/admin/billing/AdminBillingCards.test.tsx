@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { AdminBillingDivergenceSection, AdminBillingSubscription } from "@/services/api";
 import { AdminBillingCards } from "./AdminBillingCards";
@@ -91,6 +91,36 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     const row2 = screen.getByTestId(`billing-sub-${"b".repeat(8)}`);
     expect(row2.textContent).toContain("some_future_status");
     expect(screen.getByTestId(`billing-blocked-${"b".repeat(8)}`)).toBeInTheDocument();
+  });
+
+  it("searches by profile name or npub, and sorts by column", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 2,
+      pages: 1,
+      items: [
+        { pubkey: PUBKEY, flash_status: "active", current_period_end: "2026-09-25T00:00:00Z", scheduling_source: "billing", billing_blocked: false },
+        { pubkey: "b".repeat(64), flash_status: "expired", current_period_end: "2026-08-01T00:00:00Z", scheduling_source: "default", billing_blocked: false },
+      ],
+    });
+    fetchProfileMap.mockResolvedValue(new Map([[PUBKEY, { display_name: "Lira Flint" }]]));
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId(`billing-sub-${PUBKEY.slice(0, 8)}`).textContent).toContain("Lira Flint"));
+
+    // Search by name narrows to the matching row.
+    fireEvent.change(screen.getByTestId("input-billing-search"), { target: { value: "lira" } });
+    expect(screen.queryByTestId(`billing-sub-${"b".repeat(8)}`)).toBeNull();
+    expect(screen.getByTestId(`billing-sub-${PUBKEY.slice(0, 8)}`)).toBeInTheDocument();
+
+    // Clearing restores; sorting by status reorders (asc puts "active" first, desc flips).
+    fireEvent.change(screen.getByTestId("input-billing-search"), { target: { value: "" } });
+    fireEvent.click(screen.getByTestId("sort-billing-status"));
+    let rows = screen.getAllByTestId(/^billing-sub-/);
+    expect(rows[0].textContent).toContain("active");
+    fireEvent.click(screen.getByTestId("sort-billing-status"));
+    rows = screen.getAllByTestId(/^billing-sub-/);
+    expect(rows[0].textContent).toContain("expired");
   });
 
   it("surfaces the divergence report, honoring its truncation admission", async () => {

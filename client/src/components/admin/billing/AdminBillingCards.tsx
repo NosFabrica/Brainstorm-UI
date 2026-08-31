@@ -1,6 +1,22 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AlertTriangle, ExternalLink, Loader2, User } from "lucide-react";
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronUp,
+  ChevronsUpDown,
+  ExternalLink,
+  Loader2,
+  User,
+  XCircle,
+} from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   apiClient,
   type AdminBillingDivergenceSection,
@@ -59,6 +75,34 @@ const td = "px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200";
 
 type ProfileBits = { name?: string; picture?: string };
 
+type SortKey = "subscriber" | "status" | "scheduling" | "source" | "period" | "synced";
+type SortState = { key: SortKey; dir: "asc" | "desc" } | null;
+
+/** Same affordance as the Users tab's SortHeader: label + direction chevrons. */
+function BillingSortHeader({ label, sortKey, sort, onSort }: {
+  label: string;
+  sortKey: SortKey;
+  sort: SortState;
+  onSort: (key: SortKey) => void;
+}) {
+  const active = sort?.key === sortKey;
+  return (
+    <button
+      type="button"
+      className="flex items-center gap-1 uppercase tracking-wide font-semibold hover:text-slate-800 dark:hover:text-slate-200 transition-colors whitespace-nowrap"
+      onClick={() => onSort(sortKey)}
+      data-testid={`sort-billing-${sortKey}`}
+    >
+      {label}
+      {active ? (
+        sort!.dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
+      ) : (
+        <ChevronsUpDown className="h-3 w-3 opacity-40" />
+      )}
+    </button>
+  );
+}
+
 /**
  * Kind-0 enrichment for the roster, same seam the scheduling admin uses
  * (usePolicyMembers): render immediately with npubs, fill names/avatars in
@@ -92,6 +136,53 @@ function useRosterProfiles(pubkeys: string[]): Map<string, ProfileBits> {
     };
   }, [key]);
   return profiles;
+}
+
+/** Search matches who they are (name/npub/pubkey) or what they're granted; filters are exact. */
+function filterAndSort(
+  items: AdminBillingSubscription[],
+  profiles: Map<string, ProfileBits>,
+  search: string,
+  statusFilter: string,
+  sourceFilter: string,
+  sort: SortState,
+): AdminBillingSubscription[] {
+  const q = search.trim().toLowerCase();
+  let out = items.filter((s) => {
+    if (statusFilter !== "all" && s.flash_status !== statusFilter) return false;
+    if (sourceFilter !== "all" && s.scheduling_source !== sourceFilter) return false;
+    if (!q) return true;
+    const name = profiles.get(s.pubkey)?.name?.toLowerCase() ?? "";
+    const scheduling = (s.granted_scheduling_name ?? s.scheduling_name ?? "").toLowerCase();
+    return (
+      name.includes(q) ||
+      shortNpub(s.pubkey).full.toLowerCase().includes(q) ||
+      s.pubkey.toLowerCase().includes(q) ||
+      scheduling.includes(q)
+    );
+  });
+  if (sort) {
+    const value = (s: AdminBillingSubscription): string => {
+      switch (sort.key) {
+        case "subscriber":
+          return (profiles.get(s.pubkey)?.name ?? shortNpub(s.pubkey).full).toLowerCase();
+        case "status":
+          return s.flash_status;
+        case "scheduling":
+          return (s.granted_scheduling_name ?? s.scheduling_name ?? "").toLowerCase();
+        case "source":
+          return s.scheduling_source;
+        // ISO timestamps sort correctly as strings; missing dates sink to the bottom.
+        case "period":
+          return s.current_period_end ?? "";
+        case "synced":
+          return s.last_synced_at ?? "";
+      }
+    };
+    const dir = sort.dir === "asc" ? 1 : -1;
+    out = [...out].sort((a, b) => value(a).localeCompare(value(b)) * dir);
+  }
+  return out;
 }
 
 function SubscriberRow({ s, profile }: { s: AdminBillingSubscription; profile?: ProfileBits }) {
@@ -181,6 +272,12 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   });
   // Before the early returns — hook order must not change between renders.
   const profiles = useRosterProfiles((subsQuery.data?.items ?? []).map((s) => s.pubkey));
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [sourceFilter, setSourceFilter] = useState("all");
+  const [sort, setSort] = useState<SortState>(null);
+  const toggleSort = (key: SortKey) =>
+    setSort((prev) => (prev?.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
 
   if (subsQuery.isPending) {
     return (
@@ -203,32 +300,92 @@ export function AdminBillingCards({ active }: { active: boolean }) {
 
   const { items, total } = subsQuery.data;
   const divergence = divergenceQuery.data ?? {};
+
+  const filtered = filterAndSort(items, profiles, search, statusFilter, sourceFilter, sort);
+  const statuses = Array.from(new Set(items.map((s) => s.flash_status))).sort();
+  const sources = Array.from(new Set(items.map((s) => s.scheduling_source))).sort();
+  const filtering = search.trim() !== "" || statusFilter !== "all" || sourceFilter !== "all";
   const divergenceEntries = Object.entries(divergence).filter(([, s]) => s.count > 0);
 
   return (
     <div className="space-y-6">
       {/* Subscriber roster — attributed by construction (pubkey-keyed). */}
       <div>
+        {items.length > 0 && (
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <div className="relative w-full sm:w-56">
+              <input
+                type="text"
+                placeholder="Search name, npub, scheduling…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                className="w-full px-3 py-1.5 pr-7 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40"
+                data-testid="input-billing-search"
+              />
+              {search && (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                  data-testid="button-billing-clear-search"
+                >
+                  <XCircle className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger className="w-32 h-8 text-xs rounded-xl border-slate-200 dark:border-slate-800" data-testid="select-billing-status">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All statuses</SelectItem>
+                {statuses.map((s) => (
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={sourceFilter} onValueChange={setSourceFilter}>
+              <SelectTrigger className="w-32 h-8 text-xs rounded-xl border-slate-200 dark:border-slate-800" data-testid="select-billing-source">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All sources</SelectItem>
+                {sources.map((s) => (
+                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {filtering && (
+              <span className="text-xs text-slate-400 dark:text-slate-500" data-testid="billing-filter-count">
+                {filtered.length} of {items.length}
+              </span>
+            )}
+          </div>
+        )}
         {items.length === 0 ? (
           <p className="py-4 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-subscribers-empty">
             No subscribers yet.
+          </p>
+        ) : filtered.length === 0 ? (
+          <p className="py-4 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-subscribers-no-match">
+            No subscribers match your filters.
           </p>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px]" data-testid="table-billing-subscribers">
               <thead>
                 <tr className="border-b border-brand-accent/10">
-                  <th className={th}>Subscriber</th>
-                  <th className={th}>Status</th>
-                  <th className={th}>Scheduling</th>
-                  <th className={th}>Source</th>
-                  <th className={th}>Period ends</th>
-                  <th className={th}>Last synced</th>
+                  <th className={th}><BillingSortHeader label="Subscriber" sortKey="subscriber" sort={sort} onSort={toggleSort} /></th>
+                  <th className={th}><BillingSortHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} /></th>
+                  <th className={th}><BillingSortHeader label="Scheduling" sortKey="scheduling" sort={sort} onSort={toggleSort} /></th>
+                  <th className={th}><BillingSortHeader label="Source" sortKey="source" sort={sort} onSort={toggleSort} /></th>
+                  <th className={th}><BillingSortHeader label="Period ends" sortKey="period" sort={sort} onSort={toggleSort} /></th>
+                  <th className={th}><BillingSortHeader label="Last synced" sortKey="synced" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}></th>
                 </tr>
               </thead>
               <tbody>
-                {items.map((s) => (
+                {filtered.map((s) => (
                   <SubscriberRow key={s.pubkey} s={s} profile={profiles.get(s.pubkey)} />
                 ))}
               </tbody>
