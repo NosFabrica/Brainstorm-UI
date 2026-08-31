@@ -78,7 +78,9 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     await waitFor(() => expect(row1.textContent).toContain("Lira Flint"));
     expect(row1.textContent).toContain("npub1");
     expect(row1.textContent).toContain("priority-weekly");
-    expect(row1.textContent).toContain("via billing");
+    // Source is its own column, not folded into the scheduling cell.
+    expect(screen.getByTestId(`billing-source-${PUBKEY.slice(0, 8)}`).textContent).toBe("billing");
+    expect(screen.getByTestId(`billing-source-${"b".repeat(8)}`).textContent).toBe("manual");
     // The subscription id deep-links to Flash's detail page; a row without an
     // id (second subscriber) gets no dead link.
     expect(screen.getByTestId(`billing-flash-link-${PUBKEY.slice(0, 8)}`).getAttribute("href")).toBe(

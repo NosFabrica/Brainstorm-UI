@@ -127,10 +127,8 @@ function SubscriberRow({ s, profile }: { s: AdminBillingSubscription; profile?: 
           )}
         </span>
       </td>
-      <td className={td}>
-        {scheduling}
-        <span className="ml-1.5 text-[11px] text-slate-400 dark:text-slate-500">via {s.scheduling_source}</span>
-      </td>
+      <td className={td}>{scheduling}</td>
+      <td className={td} data-testid={`billing-source-${s.pubkey.slice(0, 8)}`}>{s.scheduling_source}</td>
       <td className={`${td} tabular-nums`}>{fmtDate(s.current_period_end)}</td>
       <td className={`${td} tabular-nums`}>
         <span className="inline-flex items-center gap-1.5">
@@ -223,6 +221,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
                   <th className={th}>Subscriber</th>
                   <th className={th}>Status</th>
                   <th className={th}>Scheduling</th>
+                  <th className={th}>Source</th>
                   <th className={th}>Period ends</th>
                   <th className={th}>Last synced</th>
                   <th className={th}></th>
