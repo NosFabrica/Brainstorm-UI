@@ -4015,6 +4015,8 @@ export default function AdminPage() {
                                     schedulingId={u.scheduling_id}
                                     schedulingName={u.scheduling_name}
                                     policies={schedulingPolicies}
+                                    displayName={prof?.name}
+                                    picture={prof?.picture}
                                   />
                                 ) : (
                                   <span className="text-[9px] text-slate-500 dark:text-slate-400">{u.scheduling_name}</span>
@@ -4125,7 +4127,7 @@ export default function AdminPage() {
                           </div>
                           <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
                             {schedulingPolicies.length > 0 ? (
-                              <UserTierPicker pubkey={u.pubkey} schedulingId={u.scheduling_id} schedulingName={u.scheduling_name} policies={schedulingPolicies} />
+                              <UserTierPicker pubkey={u.pubkey} schedulingId={u.scheduling_id} schedulingName={u.scheduling_name} policies={schedulingPolicies} displayName={prof?.name} picture={prof?.picture} />
                             ) : (
                               <span className="text-[10px] text-slate-500 dark:text-slate-400">{u.scheduling_name}</span>
                             )}

@@ -41,9 +41,25 @@ describe("UserTierPicker", () => {
     const dialog = await screen.findByTestId("tier-confirm");
     expect(dialog.textContent).toContain("Weekly");
     expect(dialog.textContent).toContain("Daily");
+    // The admin agrees to a person, not a hex string.
+    expect(screen.getByTestId("tier-confirm-who").textContent).toContain("npub1");
+    expect(dialog.textContent).not.toContain(PK.slice(0, 12));
 
     fireEvent.click(screen.getByTestId("tier-confirm-agree"));
     await waitFor(() => expect(spy).toHaveBeenCalledWith(PK, 2));
+    // The row reflects the change immediately — no manual refresh, no snap-back
+    // to the stale prop while the list refetch races the write.
+    await waitFor(() => expect(screen.getByRole("combobox")).toHaveValue("2"));
+  });
+
+  it("names the person in the dialog when a profile is known", async () => {
+    vi.spyOn(apiClient, "assignUserScheduling").mockResolvedValue({});
+    renderWithProviders(
+      <UserTierPicker pubkey={PK} schedulingId={1} schedulingName="Weekly" policies={POLICIES} displayName="Dr Martha Liz" />,
+    );
+    fireEvent.change(screen.getByRole("combobox"), { target: { value: "2" } });
+
+    expect((await screen.findByTestId("tier-confirm-who")).textContent).toContain("Dr Martha Liz");
   });
 
   it("cancelling leaves the tier untouched", async () => {
