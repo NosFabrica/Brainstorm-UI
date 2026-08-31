@@ -1,3 +1,10 @@
+> **SUPERSEDED 2026-08-31**: Enes shipped the real API — richer than this
+> contract. The authoritative schema is the server's own OpenAPI docs at
+> `https://brainstormserver-staging.nosfabrica.com/docs` (GET
+> /admin/billing/subscriptions returns Page[BillingSubscriptionItem];
+> divergence, resync, block and plan-mapping endpoints also exist). The UI
+> now consumes that schema directly.
+
 # Admin billing endpoint — UI ↔ server contract
 
 For Enes (server) — the UI's admin Billing tab is already built against this

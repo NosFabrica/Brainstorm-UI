@@ -1,16 +1,21 @@
 import { useQuery } from "@tanstack/react-query";
-import { ExternalLink, Loader2 } from "lucide-react";
-import { apiClient, type AdminBillingSubscription } from "@/services/api";
+import { AlertTriangle, ExternalLink, Loader2 } from "lucide-react";
+import {
+  apiClient,
+  type AdminBillingDivergenceSection,
+  type AdminBillingSubscription,
+} from "@/services/api";
 import { Chip } from "@/components/ui/chip";
 import type { Tone } from "@/lib/tones";
 import { npubFromPubkey } from "@/lib/shareId";
 
 const SUBS_KEY = ["/api/admin/billing/subscriptions"];
+const DIVERGENCE_KEY = ["/api/admin/billing/divergence"];
 
 /**
- * Where write actions live. We deliberately don't build manage/cancel/comp
- * here (conservative scope: only what the server's read endpoint provides) —
- * admins resolve anything hands-on in the Flash dashboard itself.
+ * Where write actions live. The server exposes resync/block/plan-mapping
+ * verbs, but v1 keeps the tab view-only — admins act in the Flash dashboard
+ * (or via the server's /docs) until the team asks for buttons.
  */
 const FLASH_DASHBOARD_URL = "https://dev.vault.paywithflash.com/subscriptions";
 
@@ -22,7 +27,7 @@ function statusTone(status: string): Tone {
   return "neutral";
 }
 
-function fmtDate(iso: string | null): string {
+function fmtDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
   return Number.isFinite(d.getTime())
@@ -43,26 +48,64 @@ function shortNpub(pubkey: string): { short: string; full: string } {
 const th = "px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400";
 const td = "px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200";
 
+function SubscriberRow({ s }: { s: AdminBillingSubscription }) {
+  const who = shortNpub(s.pubkey);
+  // What the subscription grants vs what the user is actually in — the
+  // payments→scheduler connection this tab exists to make visible.
+  const scheduling = s.granted_scheduling_name ?? s.scheduling_name ?? "—";
+  return (
+    <tr className="border-b border-brand-accent/5" data-testid={`billing-sub-${s.pubkey.slice(0, 8)}`}>
+      <td className={`${td} font-mono text-xs`} title={who.full}>{who.short}</td>
+      <td className={td}>
+        <span className="inline-flex items-center gap-1.5">
+          <Chip tone={statusTone(s.flash_status)} size="sm">{s.flash_status}</Chip>
+          {s.billing_blocked && (
+            <Chip tone="danger" size="sm" data-testid={`billing-blocked-${s.pubkey.slice(0, 8)}`}>blocked</Chip>
+          )}
+        </span>
+      </td>
+      <td className={td}>
+        {scheduling}
+        <span className="ml-1.5 text-[11px] text-slate-400 dark:text-slate-500">via {s.scheduling_source}</span>
+      </td>
+      <td className={`${td} tabular-nums`}>{fmtDate(s.current_period_end)}</td>
+      <td className={`${td} tabular-nums`}>
+        <span className="inline-flex items-center gap-1.5">
+          {fmtDate(s.last_synced_at)}
+          {s.last_sync_error && (
+            <span title={s.last_sync_error}>
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-500" aria-label="sync error" />
+            </span>
+          )}
+        </span>
+      </td>
+    </tr>
+  );
+}
+
 /**
- * The admin Billing tab's two cards: every subscription the server sees via
- * Flash's API (view-only), and — separately — the ref-less "bypass" signups
- * that came through Flash's plain link and therefore aren't attached to any
- * account. Those need an admin's eyes; resolution is manual, in Flash.
+ * The admin Billing tab: the server's subscriber roster (pubkey-keyed — every
+ * row is attributed by construction), and its divergence report — "everything
+ * nobody has settled": disagreements between Flash and what users actually
+ * receive, including signups that couldn't be matched to an account.
  */
 export function AdminBillingCards({ active }: { active: boolean }) {
-  const query = useQuery({
+  const subsQuery = useQuery({
     queryKey: SUBS_KEY,
     queryFn: () => apiClient.getAdminBillingSubscriptions(),
     enabled: active,
     staleTime: 60_000,
     retry: 1,
   });
+  const divergenceQuery = useQuery({
+    queryKey: DIVERGENCE_KEY,
+    queryFn: () => apiClient.getAdminBillingDivergence(),
+    enabled: active,
+    staleTime: 60_000,
+    retry: 1,
+  });
 
-  const subs = query.data ?? [];
-  const attributed = subs.filter((s) => s.ref);
-  const unattributed = subs.filter((s) => !s.ref);
-
-  if (query.isPending) {
+  if (subsQuery.isPending) {
     return (
       <div className="flex items-center gap-2 py-6 text-sm text-slate-500 dark:text-slate-400">
         <Loader2 className="h-4 w-4 animate-spin" /> Loading subscriptions…
@@ -70,24 +113,28 @@ export function AdminBillingCards({ active }: { active: boolean }) {
     );
   }
 
-  if (query.isError) {
+  if (subsQuery.isError) {
     return (
       <div className="py-6 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-subscribers-error">
         Couldn't load subscriptions — the server's billing endpoint may not be live yet.
         <div className="mt-1 text-xs text-slate-400 dark:text-slate-500">
-          {(query.error as Error)?.message}
+          {(subsQuery.error as Error)?.message}
         </div>
       </div>
     );
   }
 
+  const { items, total } = subsQuery.data;
+  const divergence = divergenceQuery.data ?? {};
+  const divergenceEntries = Object.entries(divergence).filter(([, s]) => s.count > 0);
+
   return (
     <div className="space-y-6">
-      {/* Subscribers — attributed to an account via the checkout `ref`. */}
+      {/* Subscriber roster — attributed by construction (pubkey-keyed). */}
       <div>
-        {attributed.length === 0 ? (
+        {items.length === 0 ? (
           <p className="py-4 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-subscribers-empty">
-            No attributed subscriptions yet.
+            No subscribers yet.
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -95,29 +142,23 @@ export function AdminBillingCards({ active }: { active: boolean }) {
               <thead>
                 <tr className="border-b border-brand-accent/10">
                   <th className={th}>Subscriber</th>
-                  <th className={th}>Plan</th>
                   <th className={th}>Status</th>
+                  <th className={th}>Scheduling</th>
                   <th className={th}>Period ends</th>
-                  <th className={th}>Next billing</th>
-                  <th className={th}>Since</th>
+                  <th className={th}>Last synced</th>
                 </tr>
               </thead>
               <tbody>
-                {attributed.map((s) => {
-                  const who = shortNpub(s.ref as string);
-                  return (
-                    <tr key={s.subscription_id} className="border-b border-brand-accent/5" data-testid={`billing-sub-${s.subscription_id}`}>
-                      <td className={`${td} font-mono text-xs`} title={who.full}>{who.short}</td>
-                      <td className={td}>{s.plan_name ?? s.plan_id ?? "—"}</td>
-                      <td className={td}><Chip tone={statusTone(s.status)} size="sm">{s.status}</Chip></td>
-                      <td className={`${td} tabular-nums`}>{fmtDate(s.current_period_end)}</td>
-                      <td className={`${td} tabular-nums`}>{fmtDate(s.next_billing_date)}</td>
-                      <td className={`${td} tabular-nums`}>{fmtDate(s.created_at)}</td>
-                    </tr>
-                  );
-                })}
+                {items.map((s) => (
+                  <SubscriberRow key={s.pubkey} s={s} />
+                ))}
               </tbody>
             </table>
+            {total > items.length && (
+              <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
+                Showing {items.length} of {total}.
+              </p>
+            )}
           </div>
         )}
         <a
@@ -132,33 +173,58 @@ export function AdminBillingCards({ active }: { active: boolean }) {
         </a>
       </div>
 
-      {/* Bypass signups — paid, but attached to no account. */}
+      {/* Divergence — the server's "everything nobody has settled" report. */}
       <div
         className="rounded-xl border border-amber-200/60 dark:border-amber-400/20 bg-amber-50/50 dark:bg-amber-400/[0.06] px-4 py-3"
-        data-testid="card-billing-unattributed"
+        data-testid="card-billing-divergence"
       >
-        <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">Unattributed subscriptions</h4>
+        <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">Needs attention</h4>
         <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-          Signups through Flash's plain link carry no <code>ref</code>, so they aren't connected to any
-          account and get no Priority scheduling. Resolve manually in the Flash dashboard.
+          Disagreements between Flash and what users receive — unmatched signups included. Resolve in
+          the Flash dashboard or via the server's admin tools.
         </p>
-        {unattributed.length === 0 ? (
-          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-unattributed-empty">
-            None — every signup is attributed.
+        {divergenceQuery.isError ? (
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-divergence-error">
+            Couldn't load the divergence report.
+          </p>
+        ) : divergenceEntries.length === 0 ? (
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-divergence-empty">
+            Nothing unsettled — Flash and the scheduler agree.
           </p>
         ) : (
-          <ul className="mt-2 space-y-1.5">
-            {unattributed.map((s) => (
-              <li key={s.subscription_id} className="flex flex-wrap items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-                <span className="font-mono text-xs">{s.subscription_id}</span>
-                <span>{s.plan_name ?? s.plan_id ?? "—"}</span>
-                <Chip tone={statusTone(s.status)} size="sm">{s.status}</Chip>
-                <span className="text-xs text-slate-400 dark:text-slate-500">since {fmtDate(s.created_at)}</span>
-              </li>
+          <div className="mt-2 space-y-3">
+            {divergenceEntries.map(([kind, section]) => (
+              <DivergenceBlock key={kind} kind={kind} section={section} />
             ))}
-          </ul>
+          </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/** Rows are server-defined free-form objects — render the values, don't guess a schema. */
+function DivergenceBlock({ kind, section }: { kind: string; section: AdminBillingDivergenceSection }) {
+  return (
+    <div data-testid={`billing-divergence-${kind}`}>
+      <div className="flex items-center gap-2">
+        <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">
+          {kind.replaceAll("_", " ")}
+        </span>
+        <Chip tone="warning" size="sm">{section.count}</Chip>
+        {section.truncated && (
+          <span className="text-[11px] text-slate-400 dark:text-slate-500">list capped — more exist</span>
+        )}
+      </div>
+      <ul className="mt-1 space-y-1">
+        {section.rows.map((row, i) => (
+          <li key={i} className="font-mono text-xs text-slate-600 dark:text-slate-300 break-all">
+            {Object.entries(row)
+              .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`)
+              .join("  ")}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

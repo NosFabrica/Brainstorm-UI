@@ -203,19 +203,31 @@ async function extractApiError(response: Response): Promise<string> {
 }
 
 /**
- * One row of the admin Billing tab. `ref` is the hex pubkey we appended at
- * checkout; null means a bypass signup (Flash's plain link, no attribution) —
- * exactly the rows admins need to notice. Statuses are Flash's open set.
+ * One row of the admin Billing tab — the server's BillingSubscriptionItem
+ * (see /docs on the server). Pubkey-keyed, so every row is an attributed
+ * subscriber; the unsettled/unmatched cases live in /admin/billing/divergence.
+ * `flash_status` is Flash's open status set, passed through verbatim.
  */
 export interface AdminBillingSubscription {
-  subscription_id: string;
-  ref: string | null;
-  plan_id: string | null;
-  plan_name: string | null;
-  status: string;
-  current_period_end: string | null;
-  next_billing_date: string | null;
-  created_at: string | null;
+  pubkey: string;
+  flash_status: string;
+  flash_subscription_id?: string | null;
+  current_period_end?: string | null;
+  last_synced_at?: string | null;
+  last_sync_error?: string | null;
+  granted_scheduling_id?: number | null;
+  granted_scheduling_name?: string | null;
+  scheduling_id?: number | null;
+  scheduling_name?: string | null;
+  scheduling_source: string;
+  billing_blocked: boolean;
+}
+
+/** One kind of billing disagreement; `truncated` means the list admits it's capped. */
+export interface AdminBillingDivergenceSection {
+  count: number;
+  truncated: boolean;
+  rows: Record<string, unknown>[];
 }
 
 export interface SchedulingItem {
@@ -848,14 +860,17 @@ export const apiClient = {
   },
 
   /**
-   * Admin view of every Flash subscription on this service — the server maps
-   * Flash's `GET /api/v1/external/subscriptions` into this shape (contract:
-   * docs/payments/ADMIN-BILLING-CONTRACT.md). View-only by design; anything
-   * write-shaped happens in the Flash dashboard.
+   * Admin billing roster — the server's paginated Page[BillingSubscriptionItem]
+   * (`{items, total, page, size, pages}`; see the server's /docs). View-mostly:
+   * the write-shaped admin verbs (resync/block/plan mappings) exist server-side
+   * but aren't wired into the UI yet.
    */
-  async getAdminBillingSubscriptions(): Promise<AdminBillingSubscription[]> {
+  async getAdminBillingSubscriptions(
+    page: number = 1,
+    size: number = 100,
+  ): Promise<{ items: AdminBillingSubscription[]; total: number; pages: number }> {
     const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/billing/subscriptions`,
+      `${getBrainstormApi()}/admin/billing/subscriptions?page=${page}&size=${size}`,
       { signal: AbortSignal.timeout(15000) },
     );
     if (!response.ok) {
@@ -866,7 +881,31 @@ export const apiClient = {
     }
     const json = await response.json();
     const body = json?.data ?? json;
-    return (body?.subscriptions ?? []) as AdminBillingSubscription[];
+    return {
+      items: (body?.items ?? []) as AdminBillingSubscription[],
+      total: typeof body?.total === "number" ? body.total : 0,
+      pages: typeof body?.pages === "number" ? body.pages : 1,
+    };
+  },
+
+  /**
+   * "Everything nobody has settled" — sections of billing disagreements keyed
+   * by kind (server-defined), each with free-form rows. This is where
+   * unattributed/unmatched signups surface, since the roster is pubkey-keyed.
+   */
+  async getAdminBillingDivergence(): Promise<Record<string, AdminBillingDivergenceSection>> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/billing/divergence`,
+      { signal: AbortSignal.timeout(15000) },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) ||
+          `Failed to fetch billing divergence (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    return (json?.data ?? json ?? {}) as Record<string, AdminBillingDivergenceSection>;
   },
 
 

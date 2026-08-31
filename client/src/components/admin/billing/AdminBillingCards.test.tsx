@@ -1,13 +1,17 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { AdminBillingSubscription } from "@/services/api";
+import type { AdminBillingDivergenceSection, AdminBillingSubscription } from "@/services/api";
 import { AdminBillingCards } from "./AdminBillingCards";
 
-const getAdminBillingSubscriptions = vi.fn<() => Promise<AdminBillingSubscription[]>>();
+const getAdminBillingSubscriptions =
+  vi.fn<() => Promise<{ items: AdminBillingSubscription[]; total: number; pages: number }>>();
+const getAdminBillingDivergence =
+  vi.fn<() => Promise<Record<string, AdminBillingDivergenceSection>>>();
 vi.mock("@/services/api", () => ({
   apiClient: {
     getAdminBillingSubscriptions: () => getAdminBillingSubscriptions(),
+    getAdminBillingDivergence: () => getAdminBillingDivergence(),
   },
 }));
 
@@ -24,51 +28,79 @@ function renderCards() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  getAdminBillingDivergence.mockResolvedValue({});
 });
 
-describe("AdminBillingCards", () => {
-  it("lists attributed subscribers and quarantines ref-less signups separately", async () => {
-    getAdminBillingSubscriptions.mockResolvedValue([
-      {
-        subscription_id: "sub_1",
-        ref: PUBKEY,
-        plan_id: "plan_a",
-        plan_name: "Priority",
-        status: "active",
-        current_period_end: "2026-09-25T00:00:00.000Z",
-        next_billing_date: "2026-09-25T00:00:00.000Z",
-        created_at: "2026-08-25T00:00:00.000Z",
-      },
-      {
-        subscription_id: "sub_2",
-        ref: null,
-        plan_id: "plan_a",
-        plan_name: "Priority",
-        status: "active",
-        current_period_end: null,
-        next_billing_date: null,
-        created_at: "2026-08-20T00:00:00.000Z",
-      },
-    ]);
+describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", () => {
+  it("renders the roster: npub, open-set status, blocked flag, scheduler linkage", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 2,
+      pages: 1,
+      items: [
+        {
+          pubkey: PUBKEY,
+          flash_status: "active",
+          flash_subscription_id: "7d3b",
+          current_period_end: "2026-09-25T00:00:00Z",
+          last_synced_at: "2026-08-31T00:00:00Z",
+          last_sync_error: null,
+          granted_scheduling_name: "priority-weekly",
+          scheduling_source: "billing",
+          billing_blocked: false,
+        },
+        {
+          pubkey: "b".repeat(64),
+          flash_status: "some_future_status",
+          current_period_end: null,
+          granted_scheduling_name: null,
+          scheduling_name: "default",
+          scheduling_source: "manual",
+          billing_blocked: true,
+        },
+      ],
+    });
 
     renderCards();
 
     await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
-    // The attributed row shows the subscriber as an npub, not raw hex.
-    expect(screen.getByTestId("billing-sub-sub_1").textContent).toContain("npub1");
-    expect(screen.getByTestId("billing-sub-sub_1").textContent).toContain("Priority");
-    // The bypass signup appears ONLY in the unattributed card.
-    expect(screen.getByTestId("card-billing-unattributed").textContent).toContain("sub_2");
-    expect(screen.queryByTestId("billing-sub-sub_2")).toBeNull();
+    const row1 = screen.getByTestId(`billing-sub-${PUBKEY.slice(0, 8)}`);
+    expect(row1.textContent).toContain("npub1");
+    expect(row1.textContent).toContain("priority-weekly");
+    expect(row1.textContent).toContain("via billing");
+    // Unknown statuses render, blocked shows its flag — nothing crashes.
+    const row2 = screen.getByTestId(`billing-sub-${"b".repeat(8)}`);
+    expect(row2.textContent).toContain("some_future_status");
+    expect(screen.getByTestId(`billing-blocked-${"b".repeat(8)}`)).toBeInTheDocument();
   });
 
-  it("says so plainly when every signup is attributed", async () => {
-    getAdminBillingSubscriptions.mockResolvedValue([]);
+  it("surfaces the divergence report, honoring its truncation admission", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue({
+      unmatched_signups: {
+        count: 3,
+        truncated: true,
+        rows: [{ flash_subscription_id: "sub_pierre", status: "active" }],
+      },
+      settled_kind: { count: 0, truncated: false, rows: [] },
+    });
 
     renderCards();
 
-    await waitFor(() => expect(screen.getByTestId("billing-subscribers-empty")).toBeInTheDocument());
-    expect(screen.getByTestId("billing-unattributed-empty")).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("billing-divergence-unmatched_signups")).toBeInTheDocument());
+    const block = screen.getByTestId("billing-divergence-unmatched_signups");
+    expect(block.textContent).toContain("sub_pierre");
+    expect(block.textContent).toContain("list capped");
+    // Zero-count sections don't clutter the card.
+    expect(screen.queryByTestId("billing-divergence-settled_kind")).toBeNull();
+    expect(screen.getByTestId("billing-subscribers-empty")).toBeInTheDocument();
+  });
+
+  it("says so plainly when nothing is unsettled", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+
+    renderCards();
+
+    await waitFor(() => expect(screen.getByTestId("billing-divergence-empty")).toBeInTheDocument());
   });
 
   it("shows an honest error state when the endpoint isn't there yet", async () => {
