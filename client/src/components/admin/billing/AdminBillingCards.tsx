@@ -20,7 +20,13 @@ const DIVERGENCE_KEY = ["/api/admin/billing/divergence"];
  * verbs, but v1 keeps the tab view-only — admins act in the Flash dashboard
  * (or via the server's /docs) until the team asks for buttons.
  */
-const FLASH_DASHBOARD_URL = "https://dev.vault.paywithflash.com/subscriptions";
+const FLASH_VAULT_URL = "https://dev.vault.paywithflash.com";
+const FLASH_DASHBOARD_URL = `${FLASH_VAULT_URL}/subscriptions`;
+
+/** Deep link to one subscription's detail page in the Flash dashboard. */
+function flashSubscriptionUrl(subscriptionId: string): string {
+  return `${FLASH_VAULT_URL}/subscriptions/active/${subscriptionId}`;
+}
 
 /** Flash's statuses are an open set — color the ones we know, never crash on new ones. */
 function statusTone(status: string): Tone {
@@ -136,6 +142,20 @@ function SubscriberRow({ s, profile }: { s: AdminBillingSubscription; profile?: 
           )}
         </span>
       </td>
+      <td className={td}>
+        {s.flash_subscription_id && (
+          <a
+            href={flashSubscriptionUrl(s.flash_subscription_id)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs font-medium text-brand-link hover:underline"
+            title={`Open subscription ${s.flash_subscription_id} in Flash`}
+            data-testid={`billing-flash-link-${s.pubkey.slice(0, 8)}`}
+          >
+            Flash <ExternalLink className="h-3 w-3" />
+          </a>
+        )}
+      </td>
     </tr>
   );
 }
@@ -205,6 +225,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
                   <th className={th}>Scheduling</th>
                   <th className={th}>Period ends</th>
                   <th className={th}>Last synced</th>
+                  <th className={th}></th>
                 </tr>
               </thead>
               <tbody>
@@ -278,9 +299,26 @@ function DivergenceBlock({ kind, section }: { kind: string; section: AdminBillin
       <ul className="mt-1 space-y-1">
         {section.rows.map((row, i) => (
           <li key={i} className="font-mono text-xs text-slate-600 dark:text-slate-300 break-all">
-            {Object.entries(row)
-              .map(([k, v]) => `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`)
-              .join("  ")}
+            {Object.entries(row).map(([k, v], j) => (
+              <span key={k}>
+                {j > 0 && "  "}
+                {k === "flash_subscription_id" && typeof v === "string" && v ? (
+                  <>
+                    {k}=
+                    <a
+                      href={flashSubscriptionUrl(v)}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-brand-link hover:underline"
+                    >
+                      {v}
+                    </a>
+                  </>
+                ) : (
+                  `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`
+                )}
+              </span>
+            ))}
           </li>
         ))}
       </ul>

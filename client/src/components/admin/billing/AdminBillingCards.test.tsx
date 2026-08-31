@@ -79,6 +79,12 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     expect(row1.textContent).toContain("npub1");
     expect(row1.textContent).toContain("priority-weekly");
     expect(row1.textContent).toContain("via billing");
+    // The subscription id deep-links to Flash's detail page; a row without an
+    // id (second subscriber) gets no dead link.
+    expect(screen.getByTestId(`billing-flash-link-${PUBKEY.slice(0, 8)}`).getAttribute("href")).toBe(
+      "https://dev.vault.paywithflash.com/subscriptions/active/7d3b",
+    );
+    expect(screen.queryByTestId(`billing-flash-link-${"b".repeat(8)}`)).toBeNull();
     // Unknown statuses render, blocked shows its flag — nothing crashes.
     const row2 = screen.getByTestId(`billing-sub-${"b".repeat(8)}`);
     expect(row2.textContent).toContain("some_future_status");
