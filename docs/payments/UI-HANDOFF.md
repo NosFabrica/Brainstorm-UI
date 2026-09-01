@@ -162,7 +162,7 @@ the server starts returning a URL into our own app — or we swap it for a real 
 doesn't change**. That's the point of handing back a URL rather than a boolean: the open question stops
 being yours.
 
-`cancelSubscription()` in `api.ts` can go; it calls a `DELETE` that won't exist.
+`cancelSubscription()` is gone; it called a `DELETE` that doesn't exist.
 
 Two copy notes for the portal path, which is where we'll start:
 
@@ -183,13 +183,12 @@ was ever added — so in a container they'd resolve to undefined and the UI woul
 configured in this environment", which looks exactly like intended behaviour rather than a wiring bug.
 That afternoon is now nobody's, because the server serves those ids instead.
 
-**Settled: `VITE_FEATURE_SUBSCRIPTION_API` now defaults to `true` and needs no wiring at all.** It was
-never added to `config.js`, the entrypoint substitution list or `ui.yaml`, so a deployment would have
-resolved it to the old `false` default and served the localStorage mock — fabricated subscription state
-that looks like working software rather than an error. Defaulting to the real server means no
-environment can forget it; a developer opts into the mock with `VITE_FEATURE_SUBSCRIPTION_API=false` in
-`client/.env`. The flag is a
-convenience for local work, not a requirement.
+**Settled: `VITE_FEATURE_SUBSCRIPTION_API` is gone, along with the mock it selected.** It was never
+added to `config.js`, the entrypoint substitution list or `ui.yaml`, so a deployment resolved it to the
+mock — fabricated subscription state that looks like working software rather than an error. Removing
+the mock outright means no environment can forget it and none can fabricate state. To see `past_due`,
+`grace`, `canceled` or `pending`, use the LOCAL-gated `POST /admin/billing/dev/emit-webhook`, which
+drives the real verify → dedupe → translate → entitlement path.
 
 Locally these go in **`client/.env`**, not the repo root — Vite's `root` is `client/`, so a root-level
 `.env` is silently ignored.
@@ -410,10 +409,8 @@ server maps explicitly and treats unknown values as "change nothing".
 Note `past_due` → **`grace`**, not `past_due`: `useSubscription.isActive` counts `active` and `grace` but
 not `past_due`, so passing it through would display a still-entitled user as lapsed.
 
-The flag now defaults to `true`, so deployments talk to the real server and the demo pill disappears on
-its own — `DemoSubscriptionSwitcher` renders `null` when the flag is on. Set
-`VITE_FEATURE_SUBSCRIPTION_API=false` in `client/.env` to work against the mock, which is still the only
-free way to see `past_due`, `grace` and `canceled` given there is no Flash sandbox.
+Every build talks to the real server; the mock and the demo pill no longer exist. Rehearse a status with
+the LOCAL-gated `POST /admin/billing/dev/emit-webhook`.
 
 ---
 

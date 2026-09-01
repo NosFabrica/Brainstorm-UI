@@ -60,7 +60,6 @@ import UserPanelPage from "@/pages/UserPanelPage";
 import LoginPage from "@/pages/LoginPage";
 import { FEATURES } from "@/config/featureFlags";
 import { PovAutoDefault } from "@/components/PovBadge";
-import { DemoSubscriptionSwitcher } from "@/components/billing/DemoSubscriptionSwitcher";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { CommandPalette } from "@/components/CommandPalette";
 import { MobileSearchOverlay } from "@/components/MobileSearchOverlay";
@@ -297,8 +296,6 @@ function App() {
             <SignerApprovalModal />
             <CrossTabIdentity />
             <PovAutoDefault />
-            {/* Mock-mode only; self-removing once real billing ships. */}
-            <DemoSubscriptionSwitcher />
             <MobileTabBar />
             <CommandPalette />
             <MobileSearchOverlay />

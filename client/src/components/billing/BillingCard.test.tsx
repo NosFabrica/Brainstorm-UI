@@ -223,8 +223,7 @@ describe("BillingCard — retired plans, cancellation and what we cannot know", 
     expect(screen.getByTestId("billing-cancel")).toBeInTheDocument();
   });
 
-  // The old gate was `FEATURES.subscriptionApi`, which answers a different
-  // question entirely — whether this build reads the mock.
+  // Cancel is gated on having a portal to send them to, and nothing else.
   it("offers no cancel at all when there is no portal to send them to", () => {
     sub = paidSub({ manageUrl: null });
     renderWithProviders(<BillingCard />);

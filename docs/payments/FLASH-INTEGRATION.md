@@ -224,8 +224,8 @@ Both authenticated as the current user. `snake_case` is fine — the client's
 casing and coerces unknown values to safe defaults, so a partial or unexpected
 response degrades to "free" rather than throwing.
 
-Until this ships the UI runs on a local mock; `VITE_FEATURE_SUBSCRIPTION_API=true`
-switches it to the real endpoint and nothing else in the client changes.
+The client talks to these endpoints and nothing else — there is no mock seam
+and no flag to switch away from the server.
 
 **One caution:** the free tier must be what an *error* resolves to. A backend
 timeout should never read as "paid", and equally should never strip a paying
@@ -352,7 +352,6 @@ and must never reach the client.
 ```
 VITE_FLASH_BASE_URL=https://dev.server.vault.paywithflash.com
 VITE_FLASH_PRIORITY_CARD=019eb7e1-c789-731e-9c9a-e84e83500097/019ef08a-3c5f-7228-a15b-4838937045f5
-VITE_FEATURE_SUBSCRIPTION_API=false
 ```
 
 Locally these go in **`client/.env`** — not the repo root. Vite's `root` is

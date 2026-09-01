@@ -2,9 +2,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import BillingReturnPage from "./BillingReturnPage";
-import { fetchSubscription } from "@/services/subscription";
+import { apiClient } from "@/services/api";
 
 vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => true }));
+vi.mock("@/services/api", () => ({
+  apiClient: { getSubscription: vi.fn(), refreshSubscription: vi.fn() },
+}));
+
+const api = apiClient as unknown as {
+  getSubscription: ReturnType<typeof vi.fn>;
+  refreshSubscription: ReturnType<typeof vi.fn>;
+};
+
+const FREE = { status: "none", policy: { id: 1, name: "Free", is_default: true } };
+const PAID = { status: "active", policy: { id: 2, name: "Priority", is_default: false } };
 
 function renderAt(query: string) {
   window.history.pushState({}, "", `/billing/return${query}`);
@@ -17,7 +28,11 @@ function renderAt(query: string) {
 }
 
 describe("BillingReturnPage outcomes", () => {
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => {
+    vi.resetAllMocks();
+    api.getSubscription.mockResolvedValue(FREE);
+    api.refreshSubscription.mockResolvedValue(FREE);
+  });
 
   it('treats "Return without subscribing" (no status) as no payment, never a spinner', async () => {
     renderAt("");
@@ -30,20 +45,18 @@ describe("BillingReturnPage outcomes", () => {
     await waitFor(() => expect(screen.getByTestId("billing-return-none")).toBeInTheDocument());
   });
 
-  it("status=active lands on success (mock applies the outcome)", async () => {
+  // The page grants nothing from the redirect: success is what the SERVER
+  // reports on refresh, not what the query string claims.
+  it("lands on success only once the server reports a paid policy", async () => {
+    api.refreshSubscription.mockResolvedValue(PAID);
     renderAt("?status=active&subscriptionId=x&ref=y");
     await waitFor(() => expect(screen.getByTestId("billing-return-success")).toBeInTheDocument());
+    expect(screen.getByText("Priority is on")).toBeInTheDocument();
   });
 
-  // The redirect says a payment landed, never HOW it was paid, and never which
-  // tier — it records the policy the server reports and nothing else.
-  it("records the policy the server reports, inventing nothing", async () => {
+  it("keeps confirming when the redirect says paid but the server has not caught up", async () => {
     renderAt("?status=active&subscriptionId=x&ref=y");
-    await waitFor(() => expect(screen.getByTestId("billing-return-success")).toBeInTheDocument());
-
-    const sub = await fetchSubscription();
-    expect(sub.policy?.isDefault).toBe(false);
-    expect(sub.policy?.name).toBe("Priority");
+    await waitFor(() => expect(screen.getByTestId("billing-return-pending")).toBeInTheDocument());
   });
 
   it("status=pending shows confirming, and promises only as long as the poll runs", async () => {

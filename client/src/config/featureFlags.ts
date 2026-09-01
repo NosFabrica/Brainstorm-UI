@@ -1,23 +1,25 @@
 import { env } from "@/lib/runtimeEnv";
 
-const boolEnv = (value: string | undefined, fallback: boolean): boolean => {
+/**
+ * An EMPTY value means UNSET, not `false`.
+ *
+ * `runtimeEnv` coerces every missing key to `""`, never `undefined`, so
+ * treating `""` as an explicit `false` made the `fallback` argument
+ * unreachable for every VITE_* flag in this app — a flag that needed to
+ * default ON silently stayed off. Only an explicit falsey word turns a flag
+ * off; anything else falls through to the fallback.
+ */
+export const boolEnv = (value: string | undefined, fallback: boolean): boolean => {
   if (value === undefined) return fallback;
   const v = value.trim().toLowerCase();
   if (v === "true" || v === "1" || v === "yes" || v === "on") return true;
-  if (v === "false" || v === "0" || v === "no" || v === "off" || v === "") return false;
+  if (v === "false" || v === "0" || v === "no" || v === "off") return false;
   return fallback;
 };
 
 export const FEATURES = {
   agentSuite: boolEnv(env.VITE_FEATURE_AGENT_SUITE, false),
   assistantsAdmin: boolEnv(env.VITE_FEATURE_ASSISTANTS_ADMIN, false),
-  // Defaults ON: this only chooses the local mock over the real server, and a
-  // developer convenience must not be something a deployment has to remember —
-  // forgetting it fails invisibly, serving fabricated subscription state that
-  // looks like working software. Set VITE_FEATURE_SUBSCRIPTION_API=false in
-  // client/.env to work against the mock, which is also the only free way to
-  // see past_due, grace and canceled given there is no Flash sandbox.
-  subscriptionApi: boolEnv(env.VITE_FEATURE_SUBSCRIPTION_API, true),
 } as const;
 
 export type FeatureFlag = keyof typeof FEATURES;

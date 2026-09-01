@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
 import PricingPage from "./PricingPage";
+import { apiClient } from "@/services/api";
 
 vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => false }));
+vi.mock("@/services/api", () => ({ apiClient: { getBillingPlans: vi.fn() } }));
 // The chrome and the dialog need an AccountsProvider; neither is what these
 // tests are about. The dialog has its own seam — see CheckoutDialog.
 vi.mock("@/components/InfoPageLayout", () => ({
@@ -12,25 +14,28 @@ vi.mock("@/components/InfoPageLayout", () => ({
 }));
 vi.mock("@/components/billing/CheckoutDialog", () => ({ CheckoutDialog: () => null }));
 
-// Real hook by default; one test needs the failure it cannot produce in mock
-// mode, where `fetchPlans` always resolves.
+// Real hook by default; one test needs the load failure, which is easier to
+// state here than to provoke through the query.
 let billingOverride: ReturnType<typeof import("@/hooks/useBillingPlans").useBillingPlans> | null = null;
 vi.mock("@/hooks/useBillingPlans", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/hooks/useBillingPlans")>();
   return { useBillingPlans: () => billingOverride ?? actual.useBillingPlans() };
 });
 
-/**
- * Mock mode reads `brainstorm_mock_plans`, so the whole page can be driven by
- * the array the server would have sent — which is the point of the change.
- */
+const TWO_PLANS = [
+  { policy_id: 1, policy_name: "Free", is_default: true, amount_minor: 0, schedule_interval_seconds: 5_184_000 },
+  { policy_id: 2, policy_name: "Priority", amount_minor: 200, currency: "USD", billing_period_unit: "month", billing_period_count: 1, schedule_interval_seconds: 604_800, checkout_url: "https://vault.example/signup/a/b" },
+];
+
+/** The whole page is driven by the array the server sends — that's the point. */
 function servePlans(rows: unknown[]) {
-  localStorage.setItem("brainstorm_mock_plans", JSON.stringify(rows));
+  (apiClient.getBillingPlans as ReturnType<typeof vi.fn>).mockResolvedValue({ plans: rows });
 }
 
 describe("PricingPage renders whatever is on offer", () => {
   beforeEach(() => {
-    localStorage.clear();
+    vi.resetAllMocks();
+    servePlans(TWO_PLANS);
     billingOverride = null;
   });
 

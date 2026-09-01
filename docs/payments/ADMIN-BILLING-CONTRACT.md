@@ -8,7 +8,7 @@
 # Admin billing endpoint — UI ↔ server contract
 
 For Enes (server) — the UI's admin Billing tab is already built against this
-shape (behind `FEATURES.subscriptionApi`, view-only).
+shape (view-only).
 
 ## Sourcing (corrected 2026-08-30 — Enes's catch)
 

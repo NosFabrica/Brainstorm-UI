@@ -6,9 +6,8 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useSubscription } from "@/hooks/useSubscription";
-import { refreshSubscription, setMockSubscription } from "@/services/subscription";
+import { refreshSubscription } from "@/services/subscription";
 import { startCheckoutPoll } from "@/lib/checkoutPoll";
-import { FEATURES } from "@/config/featureFlags";
 
 /**
  * Where Flash's redirect lands: /billing/return?status=&subscriptionId=&ref=.
@@ -48,13 +47,6 @@ export default function BillingReturnPage() {
   useEffect(() => {
     if (!signedIn || ran.current) return;
     ran.current = true;
-    // Mock mode: apply the outcome so the demo flow round-trips end to end.
-    if (!FEATURES.subscriptionApi && paidOutcome) {
-      setMockSubscription(true, "active");
-    }
-    if (!FEATURES.subscriptionApi && outcome === "pending") {
-      setMockSubscription(true, "pending");
-    }
     void refreshSubscription()
       .then((sub) => {
         qc.setQueryData(["/user/subscription"], sub);
