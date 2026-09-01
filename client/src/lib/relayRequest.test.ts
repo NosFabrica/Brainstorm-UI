@@ -139,9 +139,13 @@ describe("asking for the newest event", () => {
  */
 describe("asking an untrusted relay for the newest event", () => {
   it("never hands the pool the shared event store", () => {
-    controllable();
+    const { subject } = controllable();
 
-    void requestNewestRaw(RELAYS, FILTER, 1000);
+    // Settled deliberately: without `catchError`, an abandoned call would
+    // reject later and leak an unhandled rejection into whichever test is
+    // advancing the clock by then.
+    void requestNewestRaw(RELAYS, FILTER, 1000).catch(() => {});
+    subject.complete();
 
     expect(request.mock.calls[0][2]).not.toHaveProperty("eventStore");
   });
@@ -150,9 +154,11 @@ describe("asking an untrusted relay for the newest event", () => {
     const { subject } = controllable();
 
     const pending = requestNewestRaw(RELAYS, FILTER, 1000);
+    // handler first, trigger second — a rejection must never sit unobserved
+    const rejected = expect(pending).rejects.toThrow("connection refused");
     subject.error(new Error("connection refused"));
 
-    await expect(pending).rejects.toThrow("connection refused");
+    await rejected;
   });
 
   it("still picks the newest, and tears down at the collection cap", async () => {
@@ -171,10 +177,12 @@ describe("asking an untrusted relay for the newest event", () => {
     controllable();
 
     const pending = requestNewestRaw(RELAYS, FILTER, 1000);
+    // handler attached BEFORE the clock moves, so the rejection is observed
+    // the moment the pool's `timeout` fires — before the 2× collection cap
+    const rejected = expect(pending).rejects.toThrow();
     await vi.advanceTimersByTimeAsync(1000);
 
-    // the pool's `timeout` fires before the 2× collection cap — deterministically
-    await expect(pending).rejects.toThrow();
+    await rejected;
   });
 
   it("resolves undefined when the relay answers EOSE with nothing", async () => {
