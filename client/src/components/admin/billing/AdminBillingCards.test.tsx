@@ -355,8 +355,6 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
             event: "subscription.activated",
             process_error: "no_reference",
             flash_subscription_id: "sub_pierre",
-            subscriber_email: "jane@example.com",
-            subscriber_name: "Jane",
           },
         ],
       },
@@ -384,12 +382,12 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     // Headers read as English off the key alone.
     expect(signups.textContent).toContain("unresolved signups");
     expect(plans.textContent).toContain("unmapped plans");
-    // Each section shows the fields its own fix needs...
-    expect(signups.textContent).toContain("jane@example.com");
+    // Each section shows the fields its own fix needs: the service/plan pair an
+    // admin would map, and — for a signup that named nobody — nothing but the
+    // Flash id, because Flash's payload carries no contact details to show.
     expect(plans.textContent).toContain("9c1e");
     expect(plans.textContent).toContain("4f2a");
-    // ...and the contact details stay out of the section that doesn't need them.
-    expect(plans.textContent).not.toContain("@example.com");
+    expect(signups.textContent).not.toContain("9c1e");
     // The one value the block does treat specially still links out, in both.
     for (const [block, id] of [
       [signups, "sub_pierre"],
