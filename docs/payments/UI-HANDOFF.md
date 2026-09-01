@@ -179,9 +179,12 @@ was ever added — so in a container they'd resolve to undefined and the UI woul
 configured in this environment", which looks exactly like intended behaviour rather than a wiring bug.
 That afternoon is now nobody's, because the server serves those ids instead.
 
-What's left is `VITE_FEATURE_SUBSCRIPTION_API`, the mock/real switch. It still needs the three-file
-treatment if you want to flip it without a rebuild — **or you can drop it too** and let the presence of
-plans decide, since an instance with no billing now returns an empty array. Your call; the flag is a
+**Settled: `VITE_FEATURE_SUBSCRIPTION_API` now defaults to `true` and needs no wiring at all.** It was
+never added to `config.js`, the entrypoint substitution list or `ui.yaml`, so a deployment would have
+resolved it to the old `false` default and served the localStorage mock — fabricated subscription state
+that looks like working software rather than an error. Defaulting to the real server means no
+environment can forget it; a developer opts into the mock with `VITE_FEATURE_SUBSCRIPTION_API=false` in
+`client/.env`. The flag is a
 convenience for local work, not a requirement.
 
 Locally these go in **`client/.env`**, not the repo root — Vite's `root` is `client/`, so a root-level
@@ -403,9 +406,10 @@ server maps explicitly and treats unknown values as "change nothing".
 Note `past_due` → **`grace`**, not `past_due`: `useSubscription.isActive` counts `active` and `grace` but
 not `past_due`, so passing it through would display a still-entitled user as lapsed.
 
-Until the server ships, `VITE_FEATURE_SUBSCRIPTION_API=false` keeps the existing mock. Flipping it to
-`true` also removes the demo pill automatically — `DemoSubscriptionSwitcher` renders `null` when the flag
-is on. Worth knowing, since it's otherwise not dev-gated and renders on staging by design.
+The flag now defaults to `true`, so deployments talk to the real server and the demo pill disappears on
+its own — `DemoSubscriptionSwitcher` renders `null` when the flag is on. Set
+`VITE_FEATURE_SUBSCRIPTION_API=false` in `client/.env` to work against the mock, which is still the only
+free way to see `past_due`, `grace` and `canceled` given there is no Flash sandbox.
 
 ---
 
