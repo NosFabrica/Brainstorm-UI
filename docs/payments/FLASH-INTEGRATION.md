@@ -1,3 +1,8 @@
+> **SUPERSEDED 2026-09-01.** It still documents the email-correlation identity design, a `rail` field, a `tier`-shaped
+> `/user/subscription` and a `/cancel_user_subscription` endpoint — none of which are real.
+> The live contract is the server's own OpenAPI; the design and its reasoning are in
+> `.scratch/payments-flash/`. Kept for history — do not build from it.
+
 # Flash subscriptions — backend integration
 
 What the backend needs to build so a Brainstorm account becomes a paying one.

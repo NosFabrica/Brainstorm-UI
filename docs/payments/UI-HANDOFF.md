@@ -1,3 +1,7 @@
+> **SUPERSEDED 2026-09-01.** The tier model, the `rail` field and the two status maps described below no longer exist.
+> The live contract is the server's own OpenAPI; the design and its reasoning are in
+> `.scratch/payments-flash/`. Kept for history — do not build from it.
+
 # Flash payments — UI handoff
 
 **For:** whoever owns `Brainstorm-UI`, branch `feat/flash-payments`
