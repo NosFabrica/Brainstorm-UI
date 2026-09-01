@@ -341,6 +341,65 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     expect(screen.getByTestId("billing-subscribers-empty")).toBeInTheDocument();
   });
 
+  it("renders both halves of the split signup report without special-casing either", async () => {
+    // The server split one section into two; the panel is generic by design, so
+    // this asserts that generosity actually holds for the new pair of shapes.
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue({
+      unresolved_signups: {
+        count: 1,
+        truncated: false,
+        rows: [
+          {
+            id: 41,
+            event: "subscription.activated",
+            process_error: "no_reference",
+            flash_subscription_id: "sub_pierre",
+            subscriber_email: "jane@example.com",
+            subscriber_name: "Jane",
+          },
+        ],
+      },
+      unmapped_plans: {
+        count: 1,
+        truncated: false,
+        rows: [
+          {
+            id: 42,
+            event: "subscription.renewed",
+            process_error: "unknown_plan",
+            flash_subscription_id: "sub_amara",
+            external_ref: PUBKEY,
+            flash_service_id: "9c1e",
+            flash_plan_id: "4f2a",
+          },
+        ],
+      },
+    });
+
+    renderCards();
+
+    const signups = await screen.findByTestId("billing-divergence-unresolved_signups");
+    const plans = screen.getByTestId("billing-divergence-unmapped_plans");
+    // Headers read as English off the key alone.
+    expect(signups.textContent).toContain("unresolved signups");
+    expect(plans.textContent).toContain("unmapped plans");
+    // Each section shows the fields its own fix needs...
+    expect(signups.textContent).toContain("jane@example.com");
+    expect(plans.textContent).toContain("9c1e");
+    expect(plans.textContent).toContain("4f2a");
+    // ...and the contact details stay out of the section that doesn't need them.
+    expect(plans.textContent).not.toContain("@example.com");
+    // The one value the block does treat specially still links out, in both.
+    for (const [block, id] of [
+      [signups, "sub_pierre"],
+      [plans, "sub_amara"],
+    ] as const) {
+      const link = Array.from(block.querySelectorAll("a")).find((a) => a.textContent === id);
+      expect(link?.getAttribute("href")).toContain(id);
+    }
+  });
+
   it("says so plainly when nothing is unsettled", async () => {
     getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
 
