@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Check, Info } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
@@ -7,7 +7,7 @@ import { FollowPicker } from "@/components/FollowPicker";
 import { triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
-import { followPubkeys, type FollowOptions } from "@/services/socialActions";
+import { followPubkeys, recoverFollowListFromRelay, type FollowOptions } from "@/services/socialActions";
 import { useFinishSetup } from "@/hooks/useFinishSetup";
 import { useToast } from "@/hooks/use-toast";
 import { accountKey } from "@/lib/accountStorage";
@@ -46,6 +46,10 @@ export default function WelcomePage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [confirmPks, setConfirmPks] = useState<string[] | null>(null);
+  // Ref mirror for the async relay search below: by the time it resolves, the
+  // closure's `confirmPks` is stale, and a cancel-while-searching must be seen.
+  const confirmPksRef = useRef<string[] | null>(null);
+  confirmPksRef.current = confirmPks;
   const [whyOpen, setWhyOpen] = useState(false);
   // Returning to edit an existing list is a lighter action than the first
   // commit — the CTA and the toast both say so.
@@ -103,6 +107,27 @@ export default function WelcomePage() {
   const finish = (pks: string[]) => {
     if (!pks.length || submitting) return;
     void commitFollows(pks);
+  };
+
+  // The dialog's recovery path: search the relay the user named for their
+  // existing kind-3. A verified find resolves the ambiguity the dialog exists
+  // for, so on success the dialog closes and the publish resumes on the
+  // recovered base. The recovered event rides along as `cachedBase` — the
+  // floor write alone can fail silently (private mode) and would loop the
+  // dialog. Not-found/error outcomes are the dialog's to render.
+  const searchRelay = async (url: string) => {
+    if (!user?.pubkey) return { found: false as const, error: "Not signed in" };
+    const res = await recoverFollowListFromRelay(user.pubkey, url);
+    if (res.found) {
+      const pks = confirmPksRef.current; // null ⇒ the user cancelled mid-search
+      setConfirmPks(null);
+      toast({
+        title: "Follow list found",
+        description: `Recovered ${res.follows} follow${res.follows === 1 ? "" : "s"} — adding your new follows to it.`,
+      });
+      if (pks) void commitFollows(pks, { cachedBase: res.event });
+    }
+    return res;
   };
 
   return (
@@ -180,6 +205,7 @@ export default function WelcomePage() {
       <ConfirmNewFollowListDialog
         open={confirmPks !== null}
         busy={submitting}
+        onSearchRelay={searchRelay}
         onCancel={() => setConfirmPks(null)}
         onConfirm={() => {
           const pks = confirmPks;

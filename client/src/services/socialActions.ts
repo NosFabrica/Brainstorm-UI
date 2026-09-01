@@ -1,9 +1,12 @@
 import { ContactsFactory } from "applesauce-common/factories";
 import { MuteListFactory } from "applesauce-common/factories";
+import { verifyEvent } from "nostr-tools";
 
 import { publishToRelays, loadOutboxRelayListFromDb, fetchOutboxRelayList } from "./nostr";
-import { requestAll, requestNewest } from "@/lib/relayRequest";
+import { requestAll, requestNewest, requestNewestRaw } from "@/lib/relayRequest";
 import { PROFILE_RELAYS } from "@/lib/relays";
+import { eventStore } from "@/lib/eventStore";
+import { isRelayUrl } from "@/config/tagging";
 import { identityHas } from "@/accounts/display";
 import { activeAccount, signAs, signingFailure, type PublishOutcome } from "@/accounts/signing";
 import type { BrainstormAccount } from "@/accounts/metadata";
@@ -158,6 +161,12 @@ export type FollowOutcome = PublishOutcome & { needsBaseConfirmation?: boolean }
 export interface FollowOptions {
   /** The user explicitly confirmed this key has no prior follow list. */
   allowFromScratch?: boolean;
+  /**
+   * A verified kind-3 the caller already holds — e.g. one just recovered from a
+   * user-named relay. Weighed as a base candidate, so the merge builds on it
+   * even if the floor write silently failed (private mode) and relays are quiet.
+   */
+  cachedBase?: NostrEvent | null;
 }
 
 const UNCONFIRMED_BASE: FollowOutcome = {
@@ -285,7 +294,7 @@ export async function followPubkeys(
   const wanted = targetPubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk) && pk !== account.pubkey);
   if (!wanted.length) return { success: false, error: "No valid accounts to follow" };
 
-  const { base, unsafe, unverifiedNew } = await resolveContactBase(account.pubkey);
+  const { base, unsafe, unverifiedNew } = await resolveContactBase(account.pubkey, opts.cachedBase);
   if (unsafe) {
     return { success: false, error: "Couldn't load your full follow list — try again in a moment." };
   }
@@ -299,6 +308,78 @@ export async function followPubkeys(
   return publishContactList(account, base, (f) =>
     additions.reduce((acc, pk) => acc.addContact(pk), f),
   );
+}
+
+export type RecoverFollowListOutcome =
+  | { found: true; event: NostrEvent; follows: number }
+  | { found: false; error?: string };
+
+/** `found: false` with no `error` — the relay answered and simply has no list. */
+const RELAY_HAS_NO_LIST: RecoverFollowListOutcome = { found: false };
+
+/**
+ * Search ONE user-named relay for this Account's kind-3 — the recovery path out
+ * of the "we couldn't find an existing follow list" dialog, for users who know
+ * where their list lives. The relay is untrusted input, so the read bypasses
+ * the event store and nothing is kept unless it survives `verifyEvent` and was
+ * signed by this Account.
+ *
+ * On success the list is recorded as the local floor and handed to the backend
+ * (`ingestFollowList`, fire-and-forget) so scoring can run on real follows. It
+ * is deliberately NOT rebroadcast to our relays — the caller resumes the merge
+ * flow with it as `cachedBase`, and that publish puts the updated list out. A
+ * verified kind-10002 found alongside it IS ingested, so the merge publish
+ * reaches the Account's real write relays.
+ */
+export async function recoverFollowListFromRelay(
+  pubkey: string,
+  relayUrl: string,
+  timeoutMs = 8000,
+): Promise<RecoverFollowListOutcome> {
+  const url = relayUrl.trim().replace(/\/+$/, "");
+  if (!isRelayUrl(url)) {
+    return { found: false, error: "That doesn't look like a relay address — it should start with wss://" };
+  }
+
+  const fetchKind = (kind: number) =>
+    requestNewestRaw([url], { kinds: [kind], authors: [pubkey], limit: 5 }, timeoutMs);
+
+  // The kind-10002 rides along on the same connection but never gates the
+  // outcome — it only helps the later merge publish find the real write relays.
+  const outboxRide = fetchKind(10002).catch(() => undefined);
+
+  let event: NostrEvent | undefined;
+  try {
+    event = (await fetchKind(3)) as NostrEvent | undefined;
+  } catch {
+    return { found: false, error: "Couldn't reach that relay — check the address and try again." };
+  }
+  if (!event) return RELAY_HAS_NO_LIST;
+
+  // `authors` in the filter is a request, not a guarantee — the relay can
+  // return anything. Only a list provably signed by this Account counts.
+  if (!isVerifiedOwn(event, pubkey, 3)) {
+    return { found: false, error: "That relay returned an invalid copy of your follow list, so we can't use it." };
+  }
+
+  recordFollowList(pubkey, event as never); // observed read — the floor only grows
+  eventStore.add(event as never); // verified, so the shared store may have it now
+
+  const outbox = (await outboxRide) as NostrEvent | undefined;
+  if (outbox && isVerifiedOwn(outbox, pubkey, 10002)) eventStore.add(outbox as never);
+
+  void ingestFollowList(event as never); // feed scoring early; no-session/429 handled inside
+
+  return { found: true, event, follows: countFollows(event.tags) };
+}
+
+/** Cryptographically this Account's own event of the expected kind. */
+function isVerifiedOwn(event: NostrEvent, pubkey: string, kind: number): boolean {
+  try {
+    return event.kind === kind && event.pubkey === pubkey && verifyEvent(event as never);
+  } catch {
+    return false;
+  }
 }
 
 /** `mutePubkey` touches only `p` tags — a kind-10000 also holds words and threads. */

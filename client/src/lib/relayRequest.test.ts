@@ -16,7 +16,7 @@ const request = vi.fn();
 vi.mock("./relayPool", () => ({ pool: { request: (...args: unknown[]) => request(...args) } }));
 vi.mock("./eventStore", () => ({ eventStore: { add: (event: unknown) => event } }));
 
-import { requestAll, requestNewest, requestOne } from "./relayRequest";
+import { requestAll, requestNewest, requestNewestRaw, requestOne } from "./relayRequest";
 
 const RELAYS = ["wss://one", "wss://two"];
 const FILTER = { kinds: [0], authors: ["a".repeat(64)] };
@@ -127,6 +127,61 @@ describe("asking for the newest event", () => {
 
     const pending = requestNewest(RELAYS, FILTER, 1000);
     await vi.advanceTimersByTimeAsync(2000);
+
+    await expect(pending).resolves.toBeUndefined();
+  });
+});
+
+/**
+ * The untrusted variant exists for user-typed relays: nothing it receives may
+ * enter the shared store unverified, and a connection failure must be
+ * distinguishable from an empty result.
+ */
+describe("asking an untrusted relay for the newest event", () => {
+  it("never hands the pool the shared event store", () => {
+    controllable();
+
+    void requestNewestRaw(RELAYS, FILTER, 1000);
+
+    expect(request.mock.calls[0][2]).not.toHaveProperty("eventStore");
+  });
+
+  it("rejects when the source errors, instead of reading it as not-found", async () => {
+    const { subject } = controllable();
+
+    const pending = requestNewestRaw(RELAYS, FILTER, 1000);
+    subject.error(new Error("connection refused"));
+
+    await expect(pending).rejects.toThrow("connection refused");
+  });
+
+  it("still picks the newest, and tears down at the collection cap", async () => {
+    const { subject, torndown } = controllable();
+
+    const pending = requestNewestRaw(RELAYS, FILTER, 1000);
+    subject.next(event("stale", 100));
+    subject.next(event("fresh", 200));
+    await vi.advanceTimersByTimeAsync(2000); // dribbling relay, never EOSEs — the cap closes it
+
+    await expect(pending).resolves.toMatchObject({ id: "fresh" });
+    expect(torndown.count).toBe(1);
+  });
+
+  it("reads a relay that never answers as a rejection, not as not-found", async () => {
+    controllable();
+
+    const pending = requestNewestRaw(RELAYS, FILTER, 1000);
+    await vi.advanceTimersByTimeAsync(1000);
+
+    // the pool's `timeout` fires before the 2× collection cap — deterministically
+    await expect(pending).rejects.toThrow();
+  });
+
+  it("resolves undefined when the relay answers EOSE with nothing", async () => {
+    const { subject } = controllable();
+
+    const pending = requestNewestRaw(RELAYS, FILTER, 1000);
+    subject.complete();
 
     await expect(pending).resolves.toBeUndefined();
   });

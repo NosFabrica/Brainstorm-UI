@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, ArrowRight, Search as SearchIcon, X, Users } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -8,7 +8,7 @@ import { SUGGESTED_ACCOUNTS } from "@/lib/suggestedAccounts";
 import { fetchProfileMap, SEED_FOLLOW_HEX } from "@/services/nostr";
 import { triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { followPubkeys } from "@/services/socialActions";
+import { followPubkeys, recoverFollowListFromRelay, type FollowOptions } from "@/services/socialActions";
 import { searchByText, type SearchResult } from "@/lib/profileSearch";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useToast } from "@/hooks/use-toast";
@@ -114,6 +114,10 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
   // (imported key, nothing found on relays) — the pending picks wait on the
   // confirmation dialog.
   const [confirmPks, setConfirmPks] = useState<string[] | null>(null);
+  // Ref mirror for the async relay search: by the time it resolves, the
+  // closure's `confirmPks` is stale, and a cancel-while-searching must be seen.
+  const confirmPksRef = useRef<string[] | null>(null);
+  confirmPksRef.current = confirmPks;
 
   const afterPublish = () => {
     if (identity?.pubkey) {
@@ -128,7 +132,7 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
     // leave `busy` true: the card is about to be replaced by the calculating state.
   };
 
-  const runCommit = async (pks: string[], opts?: { allowFromScratch?: boolean }) => {
+  const runCommit = async (pks: string[], opts?: FollowOptions) => {
     setBusy(true);
     const res = await followPubkeys(pks, opts);
     if (res.cancelled) {
@@ -152,6 +156,25 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
     const pks = Array.from(selected);
     if (!pks.length || busy) return;
     void runCommit(pks);
+  };
+
+  // The dialog's recovery path — same contract as WelcomePage's: a verified
+  // find closes the dialog and resumes the publish on the recovered base
+  // (passed as `cachedBase`; the floor write alone can fail silently and would
+  // loop the dialog). Not-found/error outcomes are the dialog's to render.
+  const searchRelay = async (url: string) => {
+    if (!identity?.pubkey) return { found: false as const, error: "Not signed in" };
+    const res = await recoverFollowListFromRelay(identity.pubkey, url);
+    if (res.found) {
+      const pks = confirmPksRef.current; // null ⇒ the user cancelled mid-search
+      setConfirmPks(null);
+      toast({
+        title: "Follow list found",
+        description: `Recovered ${res.follows} follow${res.follows === 1 ? "" : "s"} — adding your new follows to it.`,
+      });
+      if (pks) void runCommit(pks, { cachedBase: res.event });
+    }
+    return res;
   };
 
   return (
@@ -237,6 +260,7 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
       <ConfirmNewFollowListDialog
         open={confirmPks !== null}
         busy={busy}
+        onSearchRelay={searchRelay}
         onCancel={() => setConfirmPks(null)}
         onConfirm={() => {
           const pks = confirmPks;
