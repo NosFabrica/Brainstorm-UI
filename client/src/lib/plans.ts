@@ -281,20 +281,56 @@ export function nextScheduledLabel(
 }
 
 /**
- * "$2" / "$2.50" / "2 EUR" / "Free" — from a plan's own minor units, so it
- * cannot drift from what Flash charges. Takes the numbers rather than a tier,
- * because the numbers are what the server sends.
+ * How many minor units make one major unit. NOT always 100: yen and won have
+ * none, dinar has three. Intl knows every ISO code, so ask it rather than
+ * hardcoding the divisor — `¥100` was rendering as `¥1`.
+ *
+ * `SAT` is not an ISO currency, so Intl throws on it and we answer for it here:
+ * a sat is already the smallest unit of bitcoin, so `amount_minor` holds whole
+ * sats. Flash is ambiguous about this — the dashboard shows our 1-sat test plan
+ * as both "SAT 1.00" and "100 sats", and which is authoritative is still an open
+ * question with them. It does not bind us: `billing_plan.amount_minor` is our
+ * column, transcribed by an admin, never sent by Flash. Whole sats is the
+ * convention, and the admin form's preview reads from this same function, so
+ * what someone types and what a subscriber sees cannot disagree.
+ */
+const ZERO_DECIMAL_NON_ISO = new Set(["SAT", "SATS"]);
+
+function minorUnitsPerMajor(code: string): number {
+  if (ZERO_DECIMAL_NON_ISO.has(code)) return 1;
+  try {
+    const digits = new Intl.NumberFormat(undefined, {
+      style: "currency",
+      currency: code,
+    }).resolvedOptions().maximumFractionDigits;
+    return 10 ** (digits ?? 2);
+  } catch {
+    return 100;
+  }
+}
+
+/**
+ * "$2.00" / "€2.00" / "¥100" / "1,000 sats" / "Free" — from a plan's own minor
+ * units, so it cannot drift from what Flash charges. Takes the numbers rather
+ * than a tier, because the numbers are what the server sends.
  */
 export function formatCurrency(amountMinor: number, currency: string): string {
   if (!Number.isFinite(amountMinor)) return "—";
   const code = currency.trim().toUpperCase();
+  const major = amountMinor / minorUnitsPerMajor(code);
+
+  if (ZERO_DECIMAL_NON_ISO.has(code)) {
+    const n = new Intl.NumberFormat().format(major);
+    return `${n} ${major === 1 ? "sat" : "sats"}`;
+  }
+
   try {
     return new Intl.NumberFormat(undefined, {
       style: "currency",
       currency: code,
-    }).format(amountMinor / 100);
+    }).format(major);
   } catch {
-    return `${(amountMinor / 100).toFixed(2)} ${code}`;
+    return `${major.toFixed(2)} ${code}`;
   }
 }
 

@@ -107,6 +107,27 @@ describe("plans — amounts come off the plan", () => {
     expect(formatAmount(0, "USD")).toBe("Free");
     expect(formatAmount(Number.NaN, "USD")).toBe("—");
   });
+
+  it("takes the divisor from the currency, not from a hardcoded 100", () => {
+    // Yen has no minor unit. Dividing by 100 rendered ¥100 as ¥1.
+    expect(formatAmount(100, "JPY")).toBe("¥100");
+    // Dinar has three.
+    // Intl separates the code with a non-breaking space.
+    expect(formatAmount(1000, "BHD").replace(/\u00a0/g, " ")).toBe("BHD 1.000");
+  });
+
+  it("prices a sats plan in whole sats", () => {
+    // A sat is already bitcoin's smallest unit, so amount_minor holds whole
+    // sats — our convention, since the column is transcribed by an admin and
+    // never sent by Flash. Intl has no SAT, so it would otherwise throw.
+    expect(formatAmount(1, "SAT")).toBe("1 sat");
+    expect(formatAmount(2100, "SAT")).toBe("2,100 sats");
+    expect(formatAmount(1000, "sats")).toBe("1,000 sats");
+  });
+
+  it("falls back rather than throwing on a currency nobody knows", () => {
+    expect(formatAmount(500, "ZZZ").replace(/\u00a0/g, " ")).toBe("ZZZ 5.00");
+  });
 });
 
 describe("nextScheduledLabel — the holder's own cadence, never a constant", () => {
