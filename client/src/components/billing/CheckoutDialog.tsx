@@ -86,8 +86,12 @@ export function CheckoutDialog({
     // Directly in the handler — see the note above about popup blockers.
     let w: Window | null = null;
     if (target.external) w = window.open(target.url, "_blank", "noopener,noreferrer");
-    // A3: mark the query stale so the focus refetch really fires; A4: poll.
-    void qc.invalidateQueries({ queryKey: ["/user/subscription"] });
+    // Mark stale WITHOUT refetching. A plain invalidate refetches immediately
+    // — this query is active, the dialog itself reads it — which answers "free"
+    // before they have paid and, worse, resets dataUpdatedAt so the query is
+    // fresh again for the whole staleTime. That is exactly the window the focus
+    // backstop exists for, so the plain call defeats the thing it was added for.
+    void qc.invalidateQueries({ queryKey: ["/user/subscription"], refetchType: "none" });
     startCheckoutPoll(qc, { checkoutWindow: w });
   };
 

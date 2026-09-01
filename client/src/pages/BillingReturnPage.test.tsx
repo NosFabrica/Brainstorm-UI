@@ -46,9 +46,9 @@ describe("BillingReturnPage outcomes", () => {
     expect(sub.policy?.name).toBe("Priority");
   });
 
-  it("status=pending shows confirming with the honest half-hour copy", async () => {
+  it("status=pending shows confirming, and promises only as long as the poll runs", async () => {
     renderAt("?status=pending");
     await waitFor(() => expect(screen.getByTestId("billing-return-pending")).toBeInTheDocument());
-    expect(screen.getByTestId("billing-return-pending").textContent).toContain("half an hour");
+    expect(screen.getByTestId("billing-return-pending").textContent).toContain("ten minutes");
   });
 });

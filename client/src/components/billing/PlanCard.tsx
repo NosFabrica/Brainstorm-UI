@@ -134,6 +134,9 @@ function everyDays(days: number): string {
 
 function statusTone(s: SubscriptionStatus) {
   if (s === "past_due" || s === "grace") return "warning" as const;
+  // Not settled yet, so not green: a payment still confirming is a wait, not a
+  // success, and Lightning can sit here for ten minutes.
+  if (s === "pending") return "warning" as const;
   if (s === "canceled") return "neutral" as const;
   return "success" as const;
 }

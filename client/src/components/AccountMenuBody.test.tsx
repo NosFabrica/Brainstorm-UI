@@ -38,7 +38,6 @@ vi.mock("@/hooks/useSubscription", () => ({
     isPaid: false,
     status: "none",
     currentPeriodEnd: null,
-    rail: null,
     isActive: false,
     isLoading: false,
     refetch: () => {},
