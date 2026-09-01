@@ -4,7 +4,6 @@ import { fireEvent, screen } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
 import type { BackupNeed } from "@/accounts/backup";
 import type { BrainstormAccount } from "@/accounts/metadata";
-import type { SetupState } from "@/hooks/useSetupTasks";
 import { BackupReminder } from "./BackupReminder";
 
 const NPUB = "npub1lira";
@@ -15,9 +14,6 @@ const SNOOZE_MS = 2.5 * 24 * 3600_000;
 const backupNeed = vi.fn<() => BackupNeed | null>(() => "download");
 const setRecoveryPassword = vi.fn(async () => {});
 const deliverBackup = vi.fn(() => ({ npub: NPUB, ncryptsec: NCRYPTSEC }) as { npub: string; ncryptsec: string } | null);
-const postSignupDismissed = vi.fn(() => true);
-/** Whether the post-signup card would be on screen offering the same thing. */
-const setup = vi.fn<() => Partial<SetupState>>(() => ({ eligible: false, allDone: false }));
 
 let account: BrainstormAccount;
 
@@ -32,15 +28,11 @@ vi.mock("@/lib/accountBackup", () => ({
   downloadBackupFile: vi.fn(),
 }));
 vi.mock("@/hooks/useBackupNeed", () => ({ useBackupNeed: () => backupNeed() }));
-vi.mock("@/hooks/useSetupTasks", () => ({ useSetupTasks: () => setup() }));
-vi.mock("@/lib/postSignupDismissal", () => ({ usePostSignupDismissed: () => postSignupDismissed() }));
 vi.mock("applesauce-react/hooks", () => ({ useActiveAccount: () => account }));
 
 beforeEach(() => {
   vi.clearAllMocks();
   backupNeed.mockReturnValue("download");
-  postSignupDismissed.mockReturnValue(true);
-  setup.mockReturnValue({ eligible: false, allDone: false });
   deliverBackup.mockReturnValue({ npub: NPUB, ncryptsec: NCRYPTSEC });
   account = { pubkey: "a".repeat(64), metadata: { remembered: true } } as unknown as BrainstormAccount;
 });
@@ -73,39 +65,6 @@ describe("who the reminder asks, and for what", () => {
     renderWithProviders(<BackupReminder />);
 
     expect(screen.queryByTestId("backup-reminder")).toBeNull();
-  });
-});
-
-describe("its place in the chain", () => {
-  it("waits while the post-signup card is offering the same thing", () => {
-    setup.mockReturnValue({ eligible: true, allDone: false });
-    postSignupDismissed.mockReturnValue(false);
-
-    renderWithProviders(<BackupReminder />);
-
-    expect(screen.queryByTestId("backup-reminder")).toBeNull();
-  });
-
-  it("takes over once that card has been put away", () => {
-    setup.mockReturnValue({ eligible: true, allDone: false });
-    postSignupDismissed.mockReturnValue(true);
-
-    renderWithProviders(<BackupReminder />);
-
-    expect(screen.getByTestId("backup-reminder")).toBeInTheDocument();
-  });
-
-  // A migrated account was never created in this app, so the post-signup card
-  // never runs for it — waiting on a dismissal that can't happen would leave the
-  // audience this whole chain exists for with no nag at all.
-  it("appears for an account the post-signup card never runs for", () => {
-    backupNeed.mockReturnValue("recovery-password");
-    setup.mockReturnValue({ eligible: false, allDone: false });
-    postSignupDismissed.mockReturnValue(false);
-
-    renderWithProviders(<BackupReminder />);
-
-    expect(screen.getByTestId("backup-reminder")).toBeInTheDocument();
   });
 });
 

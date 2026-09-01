@@ -7,43 +7,33 @@ import { BACKUP_MESSAGE, BackupPrompt } from "@/components/BackupPrompt";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
-import { useSetupTasks } from "@/hooks/useSetupTasks";
-import { usePostSignupDismissed } from "@/lib/postSignupDismissal";
 
 // Re-surface roughly every couple of days until backed up — present, not naggy.
 const SNOOZE_MS = 2.5 * 24 * 3600_000;
 
 /**
- * The last surface in the backup chain, and the load-bearing one: the wizard's
- * backup step is its final step, so anyone who abandoned onboarding has only this
- * and the post-signup card standing between them and an unrecoverable account.
+ * The one surface in the backup chain: backup left the setup critical path with
+ * the old wizard and post-signup card, so this reminder is all that stands
+ * between an in-app account and being unrecoverable.
  *
  * What it asks is whatever the Account is missing next — a Recovery password for
  * a migrated key, the download for one that already has a Backup — and who it
  * asks is decided by that same state, so extension and remote-signer Accounts
  * (nothing to back up) and pasted keys (their owner holds them) never see it.
  *
- * It waits for the post-signup card, which offers the same thing, and dismissing
- * it **snoozes** rather than silences: losing the browser loses the account, so
- * unlike the rest of the checklist this can't be dismissed forever.
+ * Dismissing it **snoozes** rather than silences: losing the browser loses the
+ * account, so unlike a setup checklist this can't be dismissed forever.
  */
 export function BackupReminder() {
   const account = useActiveAccount() as BrainstormAccount | undefined;
   const need = useBackupNeed();
-  const setup = useSetupTasks();
-  const cardDismissed = usePostSignupDismissed(account?.pubkey);
   const [hidden, setHidden] = useState(false);
   const [delivered, setDelivered] = useState(false);
-
-  // The post-signup card is already offering this — two nudges for one thing is
-  // worse than none. Dismissing that card hands the strip straight over, which is
-  // why its dismissal is a store and not state inside it.
-  const cardOffering = setup.eligible && !setup.allDone && !cardDismissed;
 
   const remindedAt = account ? (getMetadata(account).backupRemindedAt ?? 0) : 0;
   const snoozed = remindedAt > 0 && Date.now() - remindedAt < SNOOZE_MS;
 
-  if (hidden || cardOffering) return null;
+  if (hidden) return null;
   // `need` goes to null the moment the file is handed over, and the card stays
   // put anyway: a phone loses downloads, so the offer to take it again outlives
   // the reason the card appeared.

@@ -474,6 +474,16 @@
   animation: attention-ring 1.5s ease-out 2;
 }
 
+/* The header's finish-setup pill — a slow amber breathe, perpetual by design:
+   it lives until setup is done, and done is one click away. */
+@keyframes glow-amber {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(217, 119, 6, 0); }
+  50% { box-shadow: 0 0 22px 3px rgba(245, 158, 11, 0.42); }
+}
+.animate-glow-amber {
+  animation: glow-amber 2.6s ease-in-out infinite;
+}
+
 @keyframes aurora-shift {
   0%, 100% {
     background-position: 0% 50%;

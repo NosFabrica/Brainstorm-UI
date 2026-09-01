@@ -75,6 +75,36 @@ export function requestNewest(
 }
 
 /**
+ * The newest event from an UNTRUSTED relay — one the user typed, not one we
+ * ship. Differs from `requestNewest` in exactly the two ways trust demands:
+ *
+ * - No `eventStore`. The store has no `verifyEvent` hook, so ingesting here
+ *   would let a hostile relay plant forged replaceables (a fake kind-10002
+ *   would even steer where we publish). The caller verifies, then `add`s.
+ * - No `catchError`. A multi-relay fan-out shrugs off one dead relay; here the
+ *   relay IS the query, and "couldn't connect" must reach the caller as a
+ *   rejection, distinct from "connected, found nothing" (undefined).
+ *
+ * The collection cap sits at twice the first-event deadline on purpose: were
+ * the two equal, a relay that never answers would race the pool's error against
+ * the cap's graceful completion, and "dead" could read as "empty". The pool's
+ * timeout always loses to the cap, so no-answer is reliably a rejection; the
+ * cap only exists for a relay that keeps dribbling events without EOSE.
+ */
+export function requestNewestRaw(
+  relays: string[],
+  filter: Filter,
+  timeoutMs: number,
+): Promise<NostrEvent | undefined> {
+  return lastValueFrom(
+    pool.request(relays, filter, { timeout: timeoutMs }).pipe(
+      takeUntil(timer(timeoutMs * 2)),
+      reduce<NostrEvent, NostrEvent | undefined>((best, event) => (beats(event, best) ? event : best), undefined),
+    ),
+  );
+}
+
+/**
  * Every matching event, de-duped by id, until the relays are done or the window
  * closes — whichever comes first.
  *

@@ -1,18 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
+import { Check, Info } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { ConfirmNewFollowListDialog } from "@/components/ConfirmNewFollowListDialog";
 import { FollowPicker } from "@/components/FollowPicker";
-import { Nip85ConsentCard } from "@/components/Nip85ConsentCard";
-import { useActiveAccount } from "applesauce-react/hooks";
-import { publishBrainstormTrustAnchor, triggerScoringAndAnchor } from "@/services/trustAnchor";
+import { triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
-import { useSelfHistory } from "@/hooks/useSelf";
 import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
-import { hasExternalSigner } from "@/accounts/signing";
-import type { BrainstormAccount } from "@/accounts/metadata";
-import { isNip85Activated } from "@/lib/nip85Activation";
-import { followPubkeys, type FollowOptions } from "@/services/socialActions";
+import { followPubkeys, recoverFollowListFromRelay, type FollowOptions } from "@/services/socialActions";
+import { useFinishSetup } from "@/hooks/useFinishSetup";
 import { useToast } from "@/hooks/use-toast";
 import { accountKey } from "@/lib/accountStorage";
 
@@ -26,7 +22,6 @@ export default function WelcomePage() {
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const user = useActiveAccountDisplay();
-  const account = useActiveAccount() as BrainstormAccount | undefined;
 
   useEffect(() => {
     if (!user) navigate("/login", { replace: true });
@@ -34,21 +29,15 @@ export default function WelcomePage() {
 
   // If they reached onboarding via a value gate (e.g. the "build your WoT to
   // filter this thread" nudge with ?next=/e/…), return them there afterward.
+  // Default is the /setup checklist: publishing the list ticks a step there,
+  // and whatever's left (usually activation) is the natural next beat.
   const returnPath = (() => {
     try {
       const n = new URLSearchParams(window.location.search).get("next");
       if (n && n.startsWith("/") && !n.startsWith("//") && n !== "/login" && n !== "/welcome") return n;
     } catch { /* ignore */ }
-    return "/";
+    return "/setup";
   })();
-
-  // The NIP-85 ask sits beside the follow list. Their service key already
-  // exists (minted at first auth, independent of scoring), so with consent the
-  // kind-10040 is signed right after the kind-3 — the signer is already warm —
-  // instead of a background prompt minutes later.
-  const [nip85Consent, setNip85Consent] = useState(true);
-  const historyQuery = useSelfHistory(user?.pubkey);
-  const taPubkey = (historyQuery.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey;
 
   // Mount-time relay verification: repairs the local follow floor for imported
   // keys (so the at-risk path below almost never engages) and warms the outbox
@@ -57,25 +46,31 @@ export default function WelcomePage() {
 
   const [submitting, setSubmitting] = useState(false);
   const [confirmPks, setConfirmPks] = useState<string[] | null>(null);
+  // Ref mirror for the async relay search below: by the time it resolves, the
+  // closure's `confirmPks` is stale, and a cancel-while-searching must be seen.
+  const confirmPksRef = useRef<string[] | null>(null);
+  confirmPksRef.current = confirmPks;
+  const [whyOpen, setWhyOpen] = useState(false);
+  // Returning to edit an existing list is a lighter action than the first
+  // commit — the CTA and the toast both say so.
+  const { followDone: alreadyCommitted } = useFinishSetup();
 
   // Fire the toast + navigation + background scoring/NIP-85 chain — everything
   // that happens after the kind-3 has been published and acked.
   const proceedHome = () => {
     if (user?.pubkey) { try { localStorage.setItem(accountKey("brainstorm_calc_triggered_at", user.pubkey), String(Date.now())); } catch {} }
-    toast({ title: "You're all set!", description: "Your trust network is calculating — explore and finish setting up in the meantime." });
+    toast(
+      alreadyCommitted
+        ? { title: "Follow list updated", description: "Your scores will reflect the change on the next calculation." }
+        : { title: "Follow list published", description: "Your trust network is calculating — usually about 5 minutes." },
+    );
     navigate(returnPath, { replace: true });
+    // The kind-10040 no longer rides along here: activation is its own step on
+    // the /setup checklist (→ /setup/activate), which the returnPath lands on.
     void (async () => {
       try {
         if (!user?.pubkey) return;
-        await triggerScoringAndAnchor(user.pubkey, { nip85Consent });
-        if (nip85Consent && taPubkey && !isNip85Activated(user.pubkey)) {
-          // Cancelled/failed publishes stay quiet — the consent-gated background
-          // poll and app-load self-heal finish the job.
-          const published = await publishBrainstormTrustAnchor(user.pubkey, taPubkey);
-          if (published.status === "success") {
-            toast({ title: "Scores shared", description: "Other apps can now find your Brainstorm scores." });
-          }
-        }
+        await triggerScoringAndAnchor(user.pubkey);
       } catch {
         /* the status chip + dashboard reflect the outcome */
       }
@@ -114,6 +109,27 @@ export default function WelcomePage() {
     void commitFollows(pks);
   };
 
+  // The dialog's recovery path: search the relay the user named for their
+  // existing kind-3. A verified find resolves the ambiguity the dialog exists
+  // for, so on success the dialog closes and the publish resumes on the
+  // recovered base. The recovered event rides along as `cachedBase` — the
+  // floor write alone can fail silently (private mode) and would loop the
+  // dialog. Not-found/error outcomes are the dialog's to render.
+  const searchRelay = async (url: string) => {
+    if (!user?.pubkey) return { found: false as const, error: "Not signed in" };
+    const res = await recoverFollowListFromRelay(user.pubkey, url);
+    if (res.found) {
+      const pks = confirmPksRef.current; // null ⇒ the user cancelled mid-search
+      setConfirmPks(null);
+      toast({
+        title: "Follow list found",
+        description: `Recovered ${res.follows} follow${res.follows === 1 ? "" : "s"} — adding your new follows to it.`,
+      });
+      if (pks) void commitFollows(pks, { cachedBase: res.event });
+    }
+    return res;
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 dark:from-slate-950 to-white dark:to-slate-900">
       <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
@@ -146,27 +162,50 @@ export default function WelcomePage() {
         >
           Follow a few accounts <span className="text-brand-link">to begin</span>.
         </h1>
-        <p className="mt-5 text-lg text-slate-600 dark:text-slate-300 leading-relaxed">
-          Your network is built from who you follow. Pick at least one account so Brainstorm can
-          calculate your scores and personalize your results.
-        </p>
+        <button
+          type="button"
+          onClick={() => setWhyOpen((v) => !v)}
+          className="mt-3 text-sm font-semibold text-brand-link hover:underline"
+          aria-expanded={whyOpen}
+          data-testid="welcome-why-toggle"
+        >
+          Why do this?
+        </button>
+        {whyOpen && (
+          <div
+            className="mt-3 flex flex-col gap-2.5 rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.03] to-brand-accent/[0.06] dark:from-brand-deep/20 dark:to-brand-accent/10 bg-white dark:bg-slate-900 p-4"
+            data-testid="welcome-why-panel"
+          >
+            <div className="flex items-start gap-2.5">
+              <Info className="mt-0.5 h-4 w-4 shrink-0 text-brand-accent" />
+              <span className="text-[13px] leading-relaxed text-slate-700 dark:text-slate-300">
+                Your Verification Score — and everyone you can see through Brainstorm — is computed
+                from your follow list. No follows, no Web of Trust.
+              </span>
+            </div>
+            <div className="flex items-start gap-2.5">
+              <Check className="mt-0.5 h-4 w-4 shrink-0 text-brand-accent" />
+              <span className="text-[13px] leading-relaxed text-slate-700 dark:text-slate-300">
+                One follow is enough to start. More follows make your scores richer — and you can
+                change your list anytime.
+              </span>
+            </div>
+          </div>
+        )}
 
-        <Nip85ConsentCard
-          pubkey={user?.pubkey}
-          taPubkey={taPubkey}
-          value={nip85Consent}
-          onChange={setNip85Consent}
-          silentSigner={!!account && !hasExternalSigner(account)}
-          className="mt-6"
-        />
-        <div className="mt-4">
-          <FollowPicker onContinue={finish} continueLabel="Follow & calculate my scores" busy={submitting} />
+        <div className="mt-6">
+          <FollowPicker
+            onContinue={finish}
+            continueLabel={alreadyCommitted ? "Update my follow list" : "Follow & calculate my scores"}
+            busy={submitting}
+          />
         </div>
       </main>
 
       <ConfirmNewFollowListDialog
         open={confirmPks !== null}
         busy={submitting}
+        onSearchRelay={searchRelay}
         onCancel={() => setConfirmPks(null)}
         onConfirm={() => {
           const pks = confirmPks;
