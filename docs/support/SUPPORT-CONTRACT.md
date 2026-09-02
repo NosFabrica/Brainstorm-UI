@@ -82,6 +82,10 @@ POST /admin/support/tickets/{id}/close      { message? }
 
 ## Explicitly out of scope (v1)
 
+- Read/unread state — the UI tracks "seen" per device (localStorage), so
+  notification dots need no server surface. Server-side read-state only
+  becomes worth it if multiple support agents need shared read receipts.
+
 - Inbound email → thread parsing (the heavy helpdesk machinery).
 - Nostr-DM notifications (v2 candidate: DM from a Brainstorm support key
   as an alternative to email — the UI's contact copy already avoids

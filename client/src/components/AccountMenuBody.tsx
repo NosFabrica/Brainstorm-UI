@@ -29,6 +29,8 @@ import { removalLosesKey } from "@/accounts/picker";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import type { AccountDisplay } from "@/accounts/display";
 import { apiClient } from "@/services/api";
+import { fetchSupport } from "@/services/support";
+import { unreadCount } from "@/lib/supportSeen";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -208,6 +210,15 @@ export function AccountMenuBody({
 }: AccountMenuBodyProps) {
   const { toast } = useToast();
   const [pane, setPane] = useState<"menu" | "switcher">("menu");
+  // Unread support replies light the Support row's dot. Cheap: the query is
+  // shared with /support and only fires while the menu is open.
+  const supportQuery = useQuery({
+    queryKey: ["/user/support"],
+    queryFn: fetchSupport,
+    staleTime: 30_000,
+    retry: false,
+  });
+  const supportUnread = unreadCount("user", supportQuery.data?.tickets ?? []);
   // Verified handle for the identity line. A "_@domain" nip05 is a bare-domain
   // identity — show just the domain rather than the placeholder underscore.
   const rawNip05 = user.nip05?.trim();
@@ -374,7 +385,7 @@ export function AccountMenuBody({
       {/* Grouped actions — Settings sits under Help & FAQ. */}
       <div className="p-1.5">
         <MenuRow icon={UserPlus} label="Invite friends" onClick={onInvite} testId="dropdown-invite" />
-        <MenuRow icon={LifeBuoy} label="Support" onClick={() => onNavigate("/support")} testId="dropdown-support" />
+        <MenuRow icon={LifeBuoy} label="Support" onClick={() => onNavigate("/support")} testId="dropdown-support" dot={supportUnread > 0} />
         <MenuRow icon={HelpCircle} label="Help & FAQ" onClick={() => onNavigate("/faq")} testId="dropdown-faq" />
         <MenuRow icon={SettingsIcon} label="Settings" onClick={() => onNavigate("/settings")} testId="dropdown-settings" />
       </div>
@@ -422,12 +433,15 @@ function MenuRow({
   onClick,
   tone = "default",
   testId,
+  dot = false,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   onClick: () => void;
   tone?: "default" | "danger";
   testId?: string;
+  /** Attention dot after the label — e.g. an unread support reply. */
+  dot?: boolean;
 }) {
   const toneCls =
     tone === "danger"
@@ -442,6 +456,7 @@ function MenuRow({
     >
       <Icon className="h-4 w-4 shrink-0" />
       <span>{label}</span>
+      {dot && <span className="ml-auto h-2 w-2 shrink-0 rounded-full bg-brand-accent" aria-label="New activity" data-testid={testId ? `${testId}-dot` : undefined} />}
     </button>
   );
 }

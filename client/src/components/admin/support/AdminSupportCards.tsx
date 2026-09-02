@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ArrowLeft,
@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { npubFromPubkey } from "@/lib/shareId";
+import { isUnread, markSeen } from "@/lib/supportSeen";
 import {
   SUPPORT_CATEGORIES,
   adminCloseTicket,
@@ -351,7 +352,18 @@ export function AdminSupportCards({ active }: { active: boolean }) {
                   onClick={() => setOpenId(t.id)}
                   data-testid={`admin-ticket-${t.id}`}
                 >
-                  <td className={`${td} font-medium`}>{t.subject}</td>
+                  <td className={`${td} font-medium`}>
+                    <span className="flex items-center gap-2">
+                      {isUnread("admin", t) && (
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full bg-brand-accent"
+                          aria-label="New message from user"
+                          data-testid={`admin-unread-${t.id}`}
+                        />
+                      )}
+                      {t.subject}
+                    </span>
+                  </td>
                   <td className={td}>{categoryLabel(t.category)}</td>
                   <td className={td}>
                     <RequesterCell
@@ -402,6 +414,12 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
     ...messages.map((m) => ({ kind: "message" as const, at: m.createdAt, message: m })),
     ...events.map((e) => ({ kind: "event" as const, at: e.at, event: e })),
   ].sort((a, b) => a.at.localeCompare(b.at) || (a.kind === "event" ? -1 : 1));
+
+  // Being here IS seeing it — clears the queue dot for this ticket.
+  const lastMessageAt = ticket?.lastMessageAt;
+  useEffect(() => {
+    if (lastMessageAt) markSeen("admin", id);
+  }, [id, lastMessageAt]);
 
   const refresh = () =>
     Promise.all([

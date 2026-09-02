@@ -109,6 +109,20 @@ describe("AdminSupportCards (same mock store as the user page)", () => {
     expect(allView).toHaveLength(2);
   });
 
+  it("a waiting user earns the admin a dot; opening the thread clears it", async () => {
+    const t = await createTicket({ subject: "Waiting", body: "hello?", category: "other" });
+
+    renderWithProviders(<AdminSupportCards active />);
+    await screen.findByTestId(`admin-unread-${t.id}`);
+
+    fireEvent.click(screen.getByTestId(`admin-ticket-${t.id}`));
+    await screen.findByTestId("admin-support-thread");
+    fireEvent.click(screen.getByTestId("admin-thread-back"));
+
+    await screen.findByTestId(`admin-ticket-${t.id}`);
+    expect(screen.queryByTestId(`admin-unread-${t.id}`)).toBeNull();
+  });
+
   it("recategorizes in place and stamps it on the timeline", async () => {
     const t = await createTicket({ subject: "Mislabeled", body: "x", category: "other" });
 

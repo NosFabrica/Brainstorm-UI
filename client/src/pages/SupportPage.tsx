@@ -1,7 +1,7 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, LifeBuoy, Loader2, Plus, Send } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, LifeBuoy, Loader2, Plus, Send } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { logout } from "@/accounts/login-flow";
@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { isValidEmail } from "@/lib/email";
+import { isUnread, markSeen } from "@/lib/supportSeen";
 import {
   SUPPORT_CATEGORIES,
   categoryLabel,
@@ -67,6 +68,13 @@ function fmtDate(iso: string): string {
   const d = new Date(iso);
   return Number.isFinite(d.getTime())
     ? d.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+    : "";
+}
+
+function fmtTime(iso: string): string {
+  const d = new Date(iso);
+  return Number.isFinite(d.getTime())
+    ? d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })
     : "";
 }
 
@@ -193,7 +201,11 @@ function TicketList({
   onNew: () => void;
 }) {
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const visible = statusFilter === "all" ? tickets : tickets.filter((t) => t.status === statusFilter);
+  const [oldestFirst, setOldestFirst] = useState(false);
+  const filtered = statusFilter === "all" ? tickets : tickets.filter((t) => t.status === statusFilter);
+  const visible = [...filtered].sort((a, b) =>
+    oldestFirst ? a.createdAt.localeCompare(b.createdAt) : b.createdAt.localeCompare(a.createdAt),
+  );
 
   if (tickets.length === 0) {
     return (
@@ -210,7 +222,7 @@ function TicketList({
   }
   return (
     <div data-testid="support-ticket-list">
-      <div className="mb-3 flex flex-wrap gap-1.5" data-testid="support-status-filters">
+      <div className="mb-3 flex flex-wrap items-center gap-1.5" data-testid="support-status-filters">
         {STATUS_FILTERS.map((s) => (
           <button
             key={s}
@@ -227,6 +239,14 @@ function TicketList({
             {s}
           </button>
         ))}
+        <button
+          type="button"
+          onClick={() => setOldestFirst((v) => !v)}
+          className="ml-auto inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-800 px-3 py-1 text-xs font-medium text-slate-500 dark:text-slate-400 hover:border-brand-accent/30"
+          data-testid="sort-toggle"
+        >
+          <ArrowUpDown className="h-3 w-3" /> {oldestFirst ? "Oldest first" : "Newest first"}
+        </button>
       </div>
       {visible.length === 0 ? (
         <p className="py-4 text-sm text-slate-500 dark:text-slate-400" data-testid="support-filter-empty">
@@ -238,25 +258,47 @@ function TicketList({
             <Card
               key={t.id}
               interactive
-              className="flex items-center justify-between gap-3 p-4 cursor-pointer"
+              className="flex items-stretch gap-0 p-0 cursor-pointer overflow-hidden"
               onClick={() => onOpen(t.id)}
               data-testid={`ticket-${t.id}`}
             >
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{t.subject}</p>
-                <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
-                  {[
-                    t.category ? categoryLabel(t.category) : null,
-                    `Opened ${fmtDate(t.createdAt)}`,
-                    t.closedAt
-                      ? `Closed ${fmtWhen(t.closedAt)}`
-                      : `${t.lastMessageAuthor === "support" ? "Brainstorm Support replied" : "You"} ${fmtWhen(t.lastMessageAt)}`,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                </p>
+              {/* Date rail first — a ticket reads by WHEN before what. */}
+              <div
+                className="flex w-[4.5rem] shrink-0 flex-col items-center justify-center border-r border-slate-100 dark:border-slate-800/60 bg-slate-50/60 dark:bg-slate-900/60 px-2 py-3.5 text-center"
+                data-testid={`ticket-date-${t.id}`}
+              >
+                <span className="text-[13px] font-bold tabular-nums text-slate-700 dark:text-slate-200">
+                  {fmtDate(t.createdAt)}
+                </span>
+                <span className="mt-0.5 text-[10px] tabular-nums text-slate-400 dark:text-slate-500">
+                  {fmtTime(t.createdAt)}
+                </span>
               </div>
-              <Chip tone={statusTone(t.status)} size="sm">{t.status}</Chip>
+              <div className="flex min-w-0 flex-1 items-center justify-between gap-3 p-4">
+                <div className="min-w-0">
+                  <p className="flex items-center gap-2 text-sm font-semibold">
+                    {isUnread("user", t) && (
+                      <span
+                        className="h-2 w-2 shrink-0 rounded-full bg-brand-accent"
+                        aria-label="New reply"
+                        data-testid={`ticket-unread-${t.id}`}
+                      />
+                    )}
+                    <span className="truncate" data-testid={`ticket-subject-${t.id}`}>{t.subject}</span>
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+                    {[
+                      t.category ? categoryLabel(t.category) : null,
+                      t.closedAt
+                        ? `Closed ${fmtWhen(t.closedAt)}`
+                        : `${t.lastMessageAuthor === "support" ? "Brainstorm Support replied" : "You"} ${fmtWhen(t.lastMessageAt)}`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  </p>
+                </div>
+                <Chip tone={statusTone(t.status)} size="sm">{t.status}</Chip>
+              </div>
             </Card>
           ))}
         </div>
@@ -280,6 +322,13 @@ function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
   const messages = threadQuery.data?.messages ?? [];
   const events = threadQuery.data?.events ?? [];
   const closed = ticket?.status === "closed";
+
+  // Being here IS seeing it — the dot's whole meaning. Re-marks when a new
+  // message lands while the thread is open.
+  const lastMessageAt = ticket?.lastMessageAt;
+  useEffect(() => {
+    if (lastMessageAt) markSeen("user", id);
+  }, [id, lastMessageAt]);
 
   // One timeline: messages and lifecycle moments, in the order they happened.
   const timeline = [

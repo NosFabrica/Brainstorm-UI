@@ -53,7 +53,8 @@ describe("SupportPage (through the real mock seam)", () => {
     renderWithProviders(<SupportPage />);
     let card = await screen.findByTestId(`ticket-${t.id}`);
     expect(card.textContent).toContain("Billing & plan");
-    expect(card.textContent).toContain("Opened");
+    // The opened date leads the card from its left rail.
+    expect(screen.getByTestId(`ticket-date-${t.id}`)).toBeInTheDocument();
     expect(card.textContent).toContain("You");
 
     await adminReply(t.id, "On it.");
@@ -62,6 +63,45 @@ describe("SupportPage (through the real mock seam)", () => {
       const cards = screen.getAllByTestId(`ticket-${t.id}`);
       expect(cards.at(-1)!.textContent).toContain("Brainstorm Support replied");
     });
+  });
+
+  it("a support reply earns a dot; opening the thread clears it", async () => {
+    const t = await createTicket({ subject: "Dot check", body: "x", category: "other" });
+    await adminReply(t.id, "Here's your answer.");
+
+    renderWithProviders(<SupportPage />);
+    await screen.findByTestId(`ticket-unread-${t.id}`);
+
+    // Opening the thread is what "seeing it" means.
+    fireEvent.click(screen.getByTestId(`ticket-${t.id}`));
+    await screen.findByTestId("support-thread");
+    fireEvent.click(screen.getByTestId("thread-back"));
+
+    await screen.findByTestId(`ticket-${t.id}`);
+    expect(screen.queryByTestId(`ticket-unread-${t.id}`)).toBeNull();
+  });
+
+  it("cards lead with the date rail, and sort flips oldest-first", async () => {
+    const first = await createTicket({ subject: "First filed", body: "x", category: "other" });
+    // Backdate the first ticket so the order is unambiguous.
+    const raw = JSON.parse(localStorage.getItem("brainstorm_mock_support")!);
+    raw.tickets[0].createdAt = "2026-08-20T09:00:00.000Z";
+    raw.tickets[0].lastMessageAt = "2026-08-20T09:00:00.000Z";
+    localStorage.setItem("brainstorm_mock_support", JSON.stringify(raw));
+    await createTicket({ subject: "Second filed", body: "y", category: "other" });
+
+    renderWithProviders(<SupportPage />);
+    await screen.findByTestId("support-ticket-list");
+
+    // Date rail is the card's left edge — dates read first.
+    expect(screen.getByTestId(`ticket-date-${first.id}`).textContent).toContain("Aug 20");
+
+    // Default newest-first; the toggle flips to oldest-first.
+    let subjects = screen.getAllByTestId(/^ticket-subject-/).map((e) => e.textContent);
+    expect(subjects[0]).toBe("Second filed");
+    fireEvent.click(screen.getByTestId("sort-toggle"));
+    subjects = screen.getAllByTestId(/^ticket-subject-/).map((e) => e.textContent);
+    expect(subjects[0]).toBe("First filed");
   });
 
   it("filters the list by status with one tap", async () => {

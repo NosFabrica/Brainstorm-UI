@@ -13,6 +13,8 @@ import { ScrollableTable } from "@/components/admin/ScrollableTable";
 import { SchedulingCard } from "@/components/admin/scheduling/SchedulingCard";
 import { SchedulingStatsPanel } from "@/components/admin/scheduling/SchedulingStatsPanel";
 import { AdminSupportCards } from "@/components/admin/support/AdminSupportCards";
+import { adminListTickets } from "@/services/support";
+import { unreadCount } from "@/lib/supportSeen";
 import { UserTierPicker } from "@/components/admin/scheduling/UserTierPicker";
 import { ResyncControl } from "@/components/admin/ResyncControl";
 import type { SchedulingItem } from "@/services/api";
@@ -1914,6 +1916,17 @@ export default function AdminPage() {
     refetchOnWindowFocus: "always",
   });
 
+  // Tickets where the user spoke last and hasn't been seen — the Support
+  // tab's dot. Shares the tab's query key, so opening the tab dedupes it.
+  const adminSupportQuery = useQuery({
+    queryKey: ["/api/admin/support/tickets"],
+    queryFn: adminListTickets,
+    enabled: !!user?.isAdmin,
+    staleTime: 60_000,
+    retry: false,
+  });
+  const supportUnread = unreadCount("admin", adminSupportQuery.data ?? []);
+
   const schedulingPoliciesQuery = useQuery<SchedulingItem[]>({
     queryKey: ["/api/admin/scheduling"],
     queryFn: () => apiClient.getSchedulingPolicies(),
@@ -2770,6 +2783,13 @@ export default function AdminPage() {
                   >
                     <Icon className="h-4 w-4" />
                     {tab.label}
+                    {tab.key === "support" && supportUnread > 0 && (
+                      <span
+                        className={`h-2 w-2 rounded-full ${active ? "bg-white" : "bg-brand-accent"}`}
+                        aria-label={`${supportUnread} tickets awaiting reply`}
+                        data-testid="tab-support-dot"
+                      />
+                    )}
                   </button>
                 );
               })}
