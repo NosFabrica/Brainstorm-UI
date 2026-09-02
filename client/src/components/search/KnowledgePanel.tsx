@@ -10,6 +10,7 @@ import { ArrowRight, Check, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing, TierWordChip } from "@/components/score/VerificationCoin";
+import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { suggestProfiles, type SearchPov } from "@/services/search";
 
@@ -60,7 +61,11 @@ export function KnowledgePanel({
     };
   }, [query, pov, userPubkey]);
 
+  // Relay hits carry no rank numbers (order-only wire) — the panel's ring,
+  // coin and tier word feed from the shared author-score cache like every card.
+  const scoreOf = useAuthorScores(person && person.wotRank == null ? [person.pubkey] : []);
   if (!person) return null;
+  const effectiveRank = person.wotRank ?? scoreOf(person.pubkey) ?? null;
   const followers = person.wotFollowers;
   return (
     <aside
@@ -69,15 +74,15 @@ export function KnowledgePanel({
     >
       <div className="flex items-center gap-3">
         <div className="relative shrink-0">
-          <Avatar className={`h-14 w-14 border-2 border-slate-200/80 dark:border-slate-800/80 ${tierRing(person.wotRank) ?? ""}`}>
+          <Avatar className={`h-14 w-14 border-2 border-slate-200/80 dark:border-slate-800/80 ${tierRing(effectiveRank) ?? ""}`}>
             {person.picture ? <AvatarImage src={person.picture} alt="" className="object-cover" /> : null}
             <AvatarFallback className="overflow-hidden">
               <DefaultAvatarImg />
             </AvatarFallback>
           </Avatar>
-          {person.wotRank != null && (
+          {effectiveRank != null && (
             <VerificationCoin
-              score01={person.wotRank}
+              score01={effectiveRank}
               pov={pov === "mywot" ? "personalized" : "global"}
               size={22}
               className="absolute -bottom-1 -right-1"
@@ -89,7 +94,7 @@ export function KnowledgePanel({
             {getDisplayLabel(person)}
           </p>
           <div className="mt-0.5 flex items-center gap-1.5">
-            <TierWordChip score01={person.wotRank} />
+            <TierWordChip score01={effectiveRank} />
             {followers != null && (
               <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-500 dark:text-slate-400">
                 <Users className="h-2.5 w-2.5" /> {followers.toLocaleString()}

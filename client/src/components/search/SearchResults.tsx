@@ -268,14 +268,15 @@ export function SearchResults({
   peopleIdx.current = 0;
 
   const profiles = useMemo(() => profilesOf(hits), [hits]);
-  // House-POV rings for content authors — the relay only ORDERS by rank, so
-  // per-card scores come from the shared author-score cache (hashtag-page
-  // discipline: one batched pass, authors beyond the cap stay honest-unrated).
-  const contentAuthors = useMemo(
-    () => [...new Set(hits.filter((h) => h.event.kind !== 0).map((h) => h.event.pubkey))],
+  // The relay only ORDERS by rank — per-card scores come from the shared
+  // author-score cache (hashtag-page discipline) for EVERY hit, kind-0
+  // included: without this, people cards render bare and the user's
+  // verification-display settings have nothing to show.
+  const allAuthors = useMemo(
+    () => [...new Set(hits.map((h) => h.event.pubkey))],
     [hits],
   );
-  const scoreOf = useAuthorScores(contentAuthors);
+  const scoreOf = useAuthorScores(allAuthors);
 
   return (
     <div className="w-full max-w-2xl lg:max-w-[62rem] mx-auto mt-4 sm:mt-5 text-left" data-testid="search-results">
@@ -386,10 +387,14 @@ export function SearchResults({
               const { event } = hit;
               if (event.kind === 0 && hit.author) {
                 const idx = peopleIdx.current++;
+                const scored =
+                  hit.author.wotRank == null
+                    ? { ...hit.author, wotRank: scoreOf(event.pubkey) ?? null }
+                    : hit.author;
                 return (
                   <PersonCard
                     key={event.id}
-                    result={hit.author}
+                    result={scored}
                     idx={idx}
                     pov={pov}
                     onOpen={openProfile}

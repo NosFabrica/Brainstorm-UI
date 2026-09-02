@@ -28,6 +28,13 @@ vi.mock("@/services/search", async (importOriginal) => {
   };
 });
 
+// The relay expresses rank as ORDER only — per-author scores come from the
+// shared house-influence cache. Faked here so cards can prove they use it.
+const scoreOfMock = vi.fn<(pk: string) => number | null | undefined>(() => 0.85);
+vi.mock("@/hooks/useAuthorScores", () => ({
+  useAuthorScores: () => (pk: string) => scoreOfMock(pk),
+}));
+
 import { SearchResults } from "./SearchResults";
 
 function ev(id: string, kind: number, pubkey = "a".repeat(64), content = "", tags: string[][] = []): NostrEvent {
@@ -96,6 +103,25 @@ describe("SearchResults", () => {
     for (const t of ["everything", "people", "notes", "articles", "media", "code", "live", "lists"]) {
       expect(screen.getByTestId(`search-tab-${t}`)).toBeInTheDocument();
     }
+  });
+
+  // Benjamin's review catch: People cards rendered bare — no ring, no coin,
+  // no tier word — because relay hits carry wotRank null (rank is order-only
+  // on the wire). The verification chrome must feed from the same per-author
+  // score source the note cards already use, so the user's display settings
+  // apply on EVERY tab.
+  it("people cards get verification chrome from the author-score source", async () => {
+    render(<SearchResults query="jack" pov="nosfabrica" />);
+    const p = person("p1", "b".repeat(64), "jack");
+    emit({
+      hits: [{ event: p, author: { ...author(p.pubkey, "jack"), wotRank: null }, rank: null }],
+      eose: true,
+      timeMs: 100,
+    });
+    await screen.findByText("jack");
+    // The coin (whatever display mode renders it as) carries the accessible
+    // verification label — present only when a score reached the card.
+    expect(screen.getByLabelText(/Verification/)).toBeInTheDocument();
   });
 
   it("renders note hits as note cards with the hydrated author shown", async () => {

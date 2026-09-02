@@ -47,6 +47,7 @@ import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
 import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
 import { useTagMatches } from "@/hooks/useTags";
+import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { npubFromPubkey } from "@/lib/shareId";
 import { resolveEntityToPath } from "@/lib/resolveNostrEntity";
 
@@ -156,6 +157,9 @@ export default function Landing() {
   // Permission to search from one's own perspective, per GET /user/isSearchObserver.
   const { isSearchObserver } = useIsSearchObserver();
   const canUseMywot = hasMywot && isSearchObserver;
+  // Relay hits carry no rank numbers (order-only wire) — the dropdown's rings
+  // and coins feed from the shared author-score cache, like every card.
+  const suggestScoreOf = useAuthorScores(useMemo(() => suggestions.map((x) => x.pubkey), [suggestions]));
 
   // Logged-in users stay on this search-first home and search from their active
   // trust perspective; "My WoT" gracefully falls back to the house view unless
@@ -671,46 +675,10 @@ export default function Landing() {
           (36px) is taller than the B (28px), so the header measures 76px either
           way and the hero never shifts. */}
       <header className="relative z-20 flex items-center px-4 sm:px-8 py-5 short:py-2.5" data-testid="home-header">
-        {/* Left: the compact B symbol — the way back to a clean search page, and
-            ONLY shown once there's something to come back FROM.
-
-            This mirrors how search engines actually behave, which is not what
-            this was doing. On a results page (verified on DuckDuckGo and Bing)
-            the top-left mark is a plain `<a href="/">`: a real navigation that
-            lands you on a fresh homepage. On the pristine homepage there is no
-            such control at all — DuckDuckGo's homepage mark points at /about,
-            Google's homepage has no top-left logo, because the logo IS the
-            centred hero. Ours had one, wired to `setLocation("/")` from a page
-            that already IS "/", so clicking it did precisely nothing — and it
-            duplicated the wordmark sitting a couple of hundred pixels below it.
-
-            The reset can't be a bare anchor the way theirs is: their results
-            live at a DIFFERENT url from their homepage (/search?q= vs /), so
-            navigating genuinely changes the page. Our home is one route holding
-            both states — searching only pushState's `?q=` and re-renders in
-            place — so `href="/"` is a same-route link that wouldn't remount
-            anything and would leave the results on screen. `clearSearch` does by
-            hand what their navigation gets for free. The href stays real so
-            cmd/middle-click still opens a clean home in a new tab. */}
-        {hasSearched && (
-          <a
-            href="/"
-            onClick={(e) => {
-              // Modifier / non-primary clicks belong to the browser — that's the
-              // whole point of keeping this an anchor rather than a button.
-              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-              e.preventDefault();
-              clearSearch();
-              window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
-            }}
-            aria-label="Brainstorm home"
-            className="shrink-0 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
-            data-testid="home-brand"
-          >
-            <img src="/brand/symbol-black.svg" alt="Brainstorm" draggable={false} className="h-7 w-auto select-none dark:hidden" />
-            <img src="/brand/symbol-white.svg" alt="Brainstorm" draggable={false} className="hidden h-7 w-auto select-none dark:block" />
-          </a>
-        )}
+        {/* No top-left mark, even on results (Benjamin's call during search-
+            expansion review): the wordmark hero stays on screen in both
+            states, so a corner B duplicated it. The box's X (clearSearch) is
+            the way back to a clean page. */}
 
         {/* Center: the finish-setup nudge — this is the page a fresh sign-in
             lands on, so the one persistent reminder has to live here too.
@@ -908,6 +876,7 @@ export default function Landing() {
                     <div className="flex-1 overflow-y-auto overscroll-contain min-h-0" data-testid="list-home-suggestions">
                     {suggestions.map((s, i) => {
                       const handle = s.nip05 ? s.nip05.replace(/^_@/, "") : null;
+                      const rank = s.wotRank ?? suggestScoreOf(s.pubkey) ?? null;
                       return (
                         <button
                           key={s.pubkey}
@@ -921,7 +890,7 @@ export default function Landing() {
                           onClick={() => pickSuggestion(s)}
                           data-testid={`home-suggestion-${i}`}
                         >
-                          <Avatar className={`h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 shrink-0 ${tierRing(s.wotRank) ?? ""}`}>
+                          <Avatar className={`h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 shrink-0 ${tierRing(rank) ?? ""}`}>
                             {s.picture ? <AvatarImage src={s.picture} alt={getDisplayLabel(s)} className="object-cover" /> : null}
                             <AvatarFallback className="overflow-hidden">
                               <DefaultAvatarImg />
@@ -942,12 +911,12 @@ export default function Landing() {
                               list — it follows the viewer's display mode where
                               this pill couldn't, and fixes the pill's scale bug:
                               it printed `wotRank` raw (0..1), so 81 read "0.81". */}
-                          {s.wotRank != null && (
+                          {rank != null && (
                             <VerificationCoin
-                              score01={s.wotRank}
+                              score01={rank}
                               pov={effectivePov === "mywot" ? "personalized" : "global"}
                               size={22}
-                              className={tierRing(s.wotRank) && coinReplaced ? "sr-only" : "shrink-0"}
+                              className={tierRing(rank) && coinReplaced ? "sr-only" : "shrink-0"}
                             />
                           )}
                         </button>
