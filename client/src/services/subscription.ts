@@ -34,13 +34,15 @@ export interface SubscriptionPolicy {
 }
 
 /**
- * Which plan this person bought, priced by Flash.
+ * Which plan this person bought, priced as they bought it.
  *
  * Which one is read through their billing row rather than looked up by policy:
  * two plans can sell one policy, and matching by policy would quote a price
- * they are not charged. Everything but `isActive` is Flash's answer about that
- * plan, so all of it is null when the server could not reach Flash — a card
- * that cannot say the price must not therefore say the wrong one.
+ * they are not charged. The price is the snapshot Flash recorded at their
+ * signup, not the plan's current listing — repricing a plan must not rewrite
+ * what everyone already on it is told they pay. All three price fields are
+ * null when Flash recorded no snapshot; a card that cannot say the price must
+ * not therefore say the wrong one.
  *
  * `isActive: false` is ours, and is how the UI knows to tell them their plan
  * is no longer offered.
@@ -152,8 +154,8 @@ function normalizePlanRecord(raw: unknown): SubscriptionPlanRecord | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
   return {
-    // Null, not zero: a price the server could not read is unknown, and a card
-    // showing "Free" to someone who is charged is worse than showing nothing.
+    // Null, not zero: a price Flash snapshotted nothing for is unknown, and a
+    // card showing "Free" to someone who is charged is worse than none.
     amountMinor: num(o.amount_minor ?? o.amountMinor),
     currency: str(o.currency),
     billingInterval: str(o.billing_interval ?? o.billingInterval),

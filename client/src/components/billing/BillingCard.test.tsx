@@ -171,10 +171,11 @@ describe("BillingCard — the price is what this subscriber is charged", () => {
     expect(screen.getByTestId("billing-no-payments")).toBeInTheDocument();
   });
 
-  // The price is Flash's answer, read server-side. When the server could not
-  // reach Flash it sends nothing rather than a stale number, and "Free" for
-  // someone who is being charged is the one reading that must not happen.
-  it("says nothing about the price when the server could not read one", () => {
+  // The price is the snapshot Flash took at signup, read server-side off this
+  // subscriber's own row. Where Flash recorded none the server sends nothing
+  // rather than the plan's current price, and "Free" for someone who is being
+  // charged is the one reading that must not happen.
+  it("says nothing about the price when the server sent none", () => {
     sub = paidSub({
       plan: { amountMinor: null, currency: null, isActive: true, billingInterval: null },
     });

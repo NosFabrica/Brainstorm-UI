@@ -30,8 +30,11 @@ import {
  * end, which was wrong for the daily rehearsal plan and wrong for a yearly one.
  * The subscription row carries `current_period_start`, `current_period_end` and
  * `next_billing_date`, so all three are rendered as sent. The amount is the
- * PLAN the subscriber bought — not their policy's current list price, because
- * someone on a retired or repriced mapping still pays what they signed up for.
+ * price Flash snapshotted when this person subscribed — not their policy's
+ * current list price and not the plan's, because someone on a retired or
+ * repriced mapping still pays what they signed up for. The server sources it
+ * from their own subscription; a repricing in Flash's dashboard cannot reach
+ * this card.
  *
  * There is no payment-method row: Flash's subscription object carries no such
  * field, so any badge here would be a guess dressed as a fact.
