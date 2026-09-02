@@ -135,6 +135,23 @@ describe("the subscription seam", () => {
     expect((await refreshSubscription()).cancelEffectiveDate).toBeNull();
   });
 
+  // How they pay is Flash's word, carried through as sent. The server has
+  // already refused to answer wherever the plan left it ambiguous, so the only
+  // job here is not to invent one when it declined.
+  it("carries the payment method the server resolved", async () => {
+    api.refreshSubscription.mockResolvedValue({
+      status: "active",
+      policy: { id: 2, name: "Priority", is_default: false },
+      payment_method: "lightning",
+    });
+    expect((await refreshSubscription()).paymentMethod).toBe("lightning");
+  });
+
+  it("is null when the server would not say how they pay", async () => {
+    api.refreshSubscription.mockResolvedValue({ status: "active", policy: { id: 2, name: "Priority" } });
+    expect((await refreshSubscription()).paymentMethod).toBeNull();
+  });
+
   // A backend hiccup must never read as "paid", and an unrecognised status is
   // exactly that kind of hiccup.
   it("degrades an unrecognised payload to nothing bought", async () => {

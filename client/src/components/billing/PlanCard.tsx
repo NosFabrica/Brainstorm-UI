@@ -9,6 +9,7 @@ import {
   formatAmount,
   formatBillingDate,
   formatBillingInterval,
+  formatPaymentMethod,
   nextScheduledLabel,
   SUBSCRIPTION_STATUS_LABEL,
   type SubscriptionStatus,
@@ -38,8 +39,16 @@ import { useBillingPlans } from "@/hooks/useBillingPlans";
  * wrong into a page that sells at them.
  */
 export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null }) {
-  const { policy, plan, status, currentPeriodEnd, cancelEffectiveDate, isPaid: paid, isLoading } =
-    useSubscription();
+  const {
+    policy,
+    plan,
+    status,
+    currentPeriodEnd,
+    cancelEffectiveDate,
+    paymentMethod,
+    isPaid: paid,
+    isLoading,
+  } = useSubscription();
   const { plans, billingAvailable, solePurchasableName, recalcDaysFor } = useBillingPlans();
 
   const days = cadenceDays(policy?.scheduleIntervalSeconds);
@@ -51,6 +60,10 @@ export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null
       ? formatAmount(plan.amountMinor, plan.currency)
       : null;
   const period = formatBillingInterval(plan?.billingInterval);
+  // Null unless their plan takes exactly one method. Null means no row: an
+  // empty "Paid by" reads as a fact we have not fetched yet rather than one
+  // Flash does not publish.
+  const paidBy = formatPaymentMethod(paymentMethod);
 
   // Flash reports a cancellation that has not taken effect yet as `active`, so
   // the date — not the status — is what turns "Renews" into "Access until".
@@ -103,6 +116,12 @@ export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null
         <Row label="Next scheduled">
           <span data-testid="insights-next-run">{next ?? "—"}</span>
         </Row>
+
+        {paidBy && (
+          <Row label="Paid by">
+            <span data-testid="insights-paid-by">{paidBy}</span>
+          </Row>
+        )}
 
         {paid && endsOn && (
           <Row label={ending ? "Access until" : "Renews"}>

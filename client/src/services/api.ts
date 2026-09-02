@@ -246,6 +246,13 @@ export interface AdminBillingSubscription {
   scheduling_name?: string | null;
   scheduling_source: string;
   billing_blocked: boolean;
+  /**
+   * How they pay, in Flash's own word. Absent far more often than not: Flash
+   * publishes no payment method per subscription, so the server answers only
+   * for a plan that accepts exactly one. The column renders empty for absent —
+   * never a default, which an admin could not tell from a real answer.
+   */
+  payment_method?: string | null;
 }
 
 /** One kind of billing disagreement; `truncated` means the list admits it's capped. */

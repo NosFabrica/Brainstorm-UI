@@ -364,6 +364,29 @@ export function formatBillingInterval(interval: string | null | undefined): stri
   return BILLING_INTERVALS[word.toLowerCase()] ?? word;
 }
 
+/**
+ * "Lightning", "Card" — Flash's own word for how a subscription is paid for.
+ *
+ * Formatted, not matched, for the same reason `formatBillingInterval` is: the
+ * server passes Flash's vocabulary through untouched, and a method they add
+ * later is still a fact about how somebody pays.
+ *
+ * Their words are machine-shaped (`sepa_debit`, `bank.transfer`), so the
+ * separators become spaces and each word is capitalised. That is presentation,
+ * not recognition — nothing here holds a list of methods to match against.
+ *
+ * Null is the common case, not the edge — a free account pays nothing, and a
+ * plan accepting both Lightning and card does not say which one this
+ * subscriber used. Every caller renders null as no row at all: there is no
+ * placeholder, because a plausible payment method cannot be told apart from a
+ * real one on a billing page.
+ */
+export function formatPaymentMethod(method: string | null | undefined): string | null {
+  const words = (typeof method === "string" ? method : "").split(/[\s._-]+/).filter(Boolean);
+  if (words.length === 0) return null;
+  return words.map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
+
 const BILLING_DATE_FORMAT: Intl.DateTimeFormatOptions = {
   month: "short",
   day: "numeric",

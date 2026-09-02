@@ -22,6 +22,7 @@ vi.mock("@/hooks/useSubscription", () => ({
     nextBillingDate: sub.nextBillingDate,
     cancelEffectiveDate: sub.cancelEffectiveDate,
     manageUrl: sub.manageUrl,
+    paymentMethod: sub.paymentMethod,
     isActive: sub.status === "active" || sub.status === "grace",
     isLoading: false,
     refetch: () => {},
@@ -75,6 +76,7 @@ const FREE_SUB: Subscription = {
   nextBillingDate: null,
   cancelEffectiveDate: null,
   manageUrl: null,
+  paymentMethod: null,
 };
 
 function paidSub(over: Partial<Subscription> = {}): Subscription {
@@ -92,6 +94,7 @@ function paidSub(over: Partial<Subscription> = {}): Subscription {
     nextBillingDate: "2026-09-01T12:00:00Z",
     cancelEffectiveDate: null,
     manageUrl: "https://vault.example/portal/svc",
+    paymentMethod: "lightning",
     ...over,
   };
 }
@@ -249,13 +252,6 @@ describe("BillingCard — retired plans, cancellation and what we cannot know", 
     expect(screen.getByTestId("billing-manage")).toBeInTheDocument();
   });
 
-  it("shows no payment method, because none is knowable", () => {
-    renderWithProviders(<BillingCard />);
-    expect(screen.queryByTestId("billing-rail")).toBeNull();
-    expect(screen.getByTestId("settings-billing-card")).not.toHaveTextContent("Payment method");
-    expect(screen.getByTestId("settings-billing-card")).not.toHaveTextContent("Lightning");
-  });
-
   it("stands the plan CTA down when the instance sells nothing", () => {
     sub = FREE_SUB;
     plans = [];
@@ -289,5 +285,27 @@ describe("BillingCard — the day Flash named, wherever the viewer is", () => {
 
     expect(screen.getByTestId("billing-next-label")).toHaveTextContent("Access until");
     expect(screen.getByTestId("billing-status")).toHaveTextContent("Cancelling");
+  });
+});
+
+describe("BillingCard — how they pay, or nothing at all", () => {
+  it("names the method the server resolved", () => {
+    renderWithProviders(<BillingCard />);
+    expect(screen.getByTestId("billing-payment-method")).toHaveTextContent("Lightning");
+  });
+
+  // The reason this row was cut the first time: a permanently-empty payment
+  // method reads as "we don't know YET" and invites somebody to fill it in.
+  it("shows no row at all when the server would not say", () => {
+    sub = paidSub({ paymentMethod: null });
+    renderWithProviders(<BillingCard />);
+    expect(screen.queryByTestId("billing-payment-method")).toBeNull();
+    expect(screen.queryByText("Paid by")).toBeNull();
+  });
+
+  it("shows no row to a free account, which pays nothing", () => {
+    sub = FREE_SUB;
+    renderWithProviders(<BillingCard />);
+    expect(screen.queryByTestId("billing-payment-method")).toBeNull();
   });
 });

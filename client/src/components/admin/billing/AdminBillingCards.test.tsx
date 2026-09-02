@@ -448,3 +448,44 @@ describe("AdminBillingCards — the day Flash named, wherever the operator is", 
     expect(row).toHaveTextContent("Sep 19, 2026");
   });
 });
+
+describe("AdminBillingCards — how each subscriber pays", () => {
+  it("names the method for a subscriber whose plan leaves no doubt", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [
+        {
+          pubkey: PUBKEY,
+          flash_status: "active",
+          scheduling_source: "billing",
+          billing_blocked: false,
+          payment_method: "lightning",
+        },
+      ],
+    });
+
+    renderCards();
+
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    expect(screen.getByTestId(`billing-paid-by-${PUBKEY.slice(0, 8)}`).textContent).toBe("Lightning");
+  });
+
+  // The server declines wherever the plan accepts more than one method. An
+  // admin must be able to tell that apart from a real answer, so the cell is
+  // empty rather than carrying a plausible default.
+  it("leaves the cell empty where the server would not say", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [
+        { pubkey: PUBKEY, flash_status: "active", scheduling_source: "billing", billing_blocked: false },
+      ],
+    });
+
+    renderCards();
+
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    expect(screen.getByTestId(`billing-paid-by-${PUBKEY.slice(0, 8)}`).textContent).toBe("—");
+  });
+});

@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
-import { formatBillingDate } from "@/lib/plans";
+import { formatBillingDate, formatPaymentMethod } from "@/lib/plans";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -112,7 +112,7 @@ const td = "px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200";
 
 type ProfileBits = { name?: string; picture?: string };
 
-type SortKey = "subscriber" | "status" | "scheduling" | "source" | "period" | "synced";
+type SortKey = "subscriber" | "status" | "scheduling" | "source" | "paidBy" | "period" | "synced";
 type SortState = { key: SortKey; dir: "asc" | "desc" } | null;
 
 /** Same affordance as the Users tab's SortHeader: label + direction chevrons. */
@@ -209,6 +209,10 @@ function filterAndSort(
           return (s.granted_scheduling_name ?? s.scheduling_name ?? "").toLowerCase();
         case "source":
           return s.scheduling_source;
+        // Unanswered sinks to the bottom, where a roster sorted by method is
+        // being read to find the rows that HAVE one.
+        case "paidBy":
+          return s.payment_method ?? "";
         // ISO timestamps sort correctly as strings; missing dates sink to the bottom.
         case "period":
           return s.current_period_end ?? "";
@@ -344,6 +348,11 @@ function SubscriberRow({
       </td>
       <td className={td}>{scheduling}</td>
       <td className={td} data-testid={`billing-source-${s.pubkey.slice(0, 8)}`}>{s.scheduling_source}</td>
+      {/* Empty where the server declined — a plausible default here would be
+          indistinguishable from a resolved one. */}
+      <td className={td} data-testid={`billing-paid-by-${s.pubkey.slice(0, 8)}`}>
+        {formatPaymentMethod(s.payment_method) ?? "—"}
+      </td>
       <td className={`${td} tabular-nums`}>{formatBillingDate(s.current_period_end)}</td>
       <td className={`${td} tabular-nums`}>
         <span className="inline-flex items-center gap-1.5">
@@ -614,6 +623,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
                   <th className={th}><BillingSortHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}><BillingSortHeader label="Scheduling" sortKey="scheduling" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}><BillingSortHeader label="Source" sortKey="source" sort={sort} onSort={toggleSort} /></th>
+                  <th className={th}><BillingSortHeader label="Paid by" sortKey="paidBy" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}><BillingSortHeader label="Period ends" sortKey="period" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}><BillingSortHeader label="Last synced" sortKey="synced" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}></th>

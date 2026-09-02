@@ -20,6 +20,7 @@ vi.mock("@/hooks/useSubscription", () => ({
     nextBillingDate: sub.nextBillingDate,
     cancelEffectiveDate: sub.cancelEffectiveDate,
     manageUrl: sub.manageUrl,
+    paymentMethod: sub.paymentMethod,
     isActive: sub.status === "active" || sub.status === "grace",
     isLoading: false,
     refetch: () => {},
@@ -77,6 +78,7 @@ const FREE_SUB: Subscription = {
   nextBillingDate: null,
   cancelEffectiveDate: null,
   manageUrl: null,
+  paymentMethod: null,
 };
 
 function paidSub(over: Partial<Subscription> = {}): Subscription {
@@ -94,6 +96,7 @@ function paidSub(over: Partial<Subscription> = {}): Subscription {
     nextBillingDate: "2099-09-01T12:00:00Z",
     cancelEffectiveDate: null,
     manageUrl: "https://vault.example/portal/svc",
+    paymentMethod: "card",
     ...over,
   };
 }
@@ -155,11 +158,6 @@ describe("PlanCard — cancellation, and what we cannot know", () => {
     expect(screen.getByTestId("insights-plan-card")).toHaveTextContent("Renews");
   });
 
-  it("shows no payment method, because none is knowable", () => {
-    renderWithProviders(<PlanCard lastCalculatedMs={null} />);
-    expect(screen.getByTestId("insights-plan-card")).not.toHaveTextContent("Paid by");
-  });
-
   it("uses the one status wording the whole app shares", () => {
     sub = paidSub({ status: "canceled" });
     renderWithProviders(<PlanCard lastCalculatedMs={null} />);
@@ -218,5 +216,25 @@ describe("PlanCard — the day Flash named, wherever the viewer is", () => {
     const name = screen.getByTestId("insights-plan-name");
     expect(name).toHaveTextContent("Priority");
     expect(name).not.toHaveTextContent("Free");
+  });
+});
+
+describe("PlanCard — how they pay", () => {
+  it("names the method the server resolved", () => {
+    renderWithProviders(<PlanCard lastCalculatedMs={null} />);
+    expect(screen.getByTestId("insights-paid-by")).toHaveTextContent("Card");
+  });
+
+  it("shows no row when the server would not say", () => {
+    sub = paidSub({ paymentMethod: null });
+    renderWithProviders(<PlanCard lastCalculatedMs={null} />);
+    expect(screen.queryByTestId("insights-paid-by")).toBeNull();
+    expect(screen.queryByText("Paid by")).toBeNull();
+  });
+
+  it("shows no row to a free account, which pays nothing", () => {
+    sub = FREE_SUB;
+    renderWithProviders(<PlanCard lastCalculatedMs={null} />);
+    expect(screen.queryByTestId("insights-paid-by")).toBeNull();
   });
 });
