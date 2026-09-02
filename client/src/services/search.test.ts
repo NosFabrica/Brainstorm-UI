@@ -97,6 +97,21 @@ describe("searchStream", () => {
   });
 });
 
+describe("token lifting", () => {
+  // The relay never sees from:/to:/#tag/since:/until: — they become NIP-01
+  // filter fields (probed: sending them through matches nothing).
+  it("lifts from: into the authors field before the wire", async () => {
+    controllable();
+    const alice = "a".repeat(64);
+    searchStream(`gm from:${alice} #Nostr`, { tab: "notes", pov: "nosfabrica" }, () => {});
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter.authors).toEqual([alice]);
+    expect(filter["#t"]).toEqual(["nostr"]);
+    expect(filter.search).toBe(`gm observer:${HOUSE}`);
+  });
+});
+
 describe("cancellation", () => {
   it("tears the REQ down and never calls back after cancel", async () => {
     const { subject, torndown } = controllable();

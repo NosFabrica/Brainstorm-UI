@@ -7,6 +7,7 @@
  * out of a query the user hand-edited, with the tokens kept VISIBLE in the
  * box — users learn the grammar by watching the panel write it.
  */
+import { nip19 } from "nostr-tools";
 
 export interface SearchFilterState {
   sort: string | null; // "recent" | "rank" | "followers" | "text" | null (best match)
@@ -59,6 +60,85 @@ export function applyFilters(query: string, patch: SearchFilterPatch): string {
     .map((k) => tokenFor(k, patch[k]))
     .filter((t): t is string => t !== null);
   return [...kept, ...appended].join(" ");
+}
+
+/**
+ * What the wire actually gets. Discovered by probing the staging relay:
+ * from:/to:/#tag/since:/until: are NOT relay extensions — the reference page
+ * lifts them into plain NIP-01 filter fields and the relay never sees the
+ * prefixes (sending them through matches NOTHING against the text index).
+ * Only sort:/observer:/include:spam/filter:rank: ride the search string.
+ */
+export interface LiftedQuery {
+  search: string;
+  authors?: string[];
+  "#p"?: string[];
+  "#t"?: string[];
+  since?: number;
+  until?: number;
+}
+
+function keyToHex(raw: string): string | null {
+  if (/^[0-9a-f]{64}$/i.test(raw)) return raw.toLowerCase();
+  if (/^npub1[02-9ac-hj-np-z]+$/i.test(raw)) {
+    try {
+      const decoded = nip19.decode(raw.toLowerCase());
+      if (decoded.type === "npub" && typeof decoded.data === "string") return decoded.data;
+    } catch {
+      /* fall through */
+    }
+  }
+  return null;
+}
+
+/** Local-day epoch: since = 00:00:00, until = 23:59:59 (NIP-01 until is
+ *  inclusive — stopping at midnight would exclude the whole named day). */
+function dayEpoch(ymd: string, field: "since" | "until"): number | null {
+  const m = ymd.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return null;
+  const [y, mo, d] = [Number(m[1]), Number(m[2]), Number(m[3])];
+  const at =
+    field === "since" ? new Date(y, mo - 1, d, 0, 0, 0) : new Date(y, mo - 1, d, 23, 59, 59);
+  if (Number.isNaN(at.getTime())) return null;
+  return Math.floor(at.getTime() / 1000);
+}
+
+export function liftQuery(query: string): LiftedQuery {
+  const out: LiftedQuery = { search: "" };
+  const rest: string[] = [];
+  for (const token of query.trim().split(/\s+/).filter(Boolean)) {
+    const person = token.match(/^(from|to):(\S+)$/i);
+    if (person) {
+      const hex = keyToHex(person[2]);
+      if (hex) {
+        const field = person[1].toLowerCase() === "from" ? "authors" : "#p";
+        (out[field] ??= []).push(hex);
+        continue;
+      }
+      // An unresolvable key stays as text — visible failure beats a filter
+      // nobody asked for.
+      rest.push(token);
+      continue;
+    }
+    const day = token.match(/^(since|until):(\d{4}-\d{2}-\d{2})$/i);
+    if (day) {
+      const field = day[1].toLowerCase() as "since" | "until";
+      const at = dayEpoch(day[2], field);
+      if (at !== null) {
+        out[field] = at;
+        continue;
+      }
+      rest.push(token);
+      continue;
+    }
+    if (/^#[\w-]+$/.test(token)) {
+      (out["#t"] ??= []).push(token.slice(1).toLowerCase());
+      continue;
+    }
+    rest.push(token);
+  }
+  out.search = rest.join(" ");
+  return out;
 }
 
 export interface PersonAssist {

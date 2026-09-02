@@ -18,6 +18,7 @@ import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
 import { searchRelay } from "@/lib/searchRelay";
 import { eventStore } from "@/lib/eventStore";
+import { liftQuery } from "@/lib/searchSyntax";
 import { resolveHouseObserver } from "@/services/trustSource";
 import type { SearchResult } from "@/lib/profileSearch";
 
@@ -153,9 +154,18 @@ export function searchStream(
     if (cancelled) return;
 
     const kinds = kindsForTab(params.tab);
-    const filter: { kinds?: number[]; search: string; limit: number } = {
+    // from:/to:/#tag/since:/until: become NIP-01 filter fields (the relay
+    // never sees those prefixes — verified by probing); the relay's own
+    // extensions (sort:/include:spam/filter:rank:/observer:) stay in `search`.
+    const lifted = liftQuery(query);
+    const filter: import("nostr-tools").Filter = {
       ...(kinds ? { kinds } : {}),
-      search: withObserver(query, observer),
+      ...(lifted.authors ? { authors: lifted.authors } : {}),
+      ...(lifted["#p"] ? { "#p": lifted["#p"] } : {}),
+      ...(lifted["#t"] ? { "#t": lifted["#t"] } : {}),
+      ...(lifted.since !== undefined ? { since: lifted.since } : {}),
+      ...(lifted.until !== undefined ? { until: lifted.until } : {}),
+      search: withObserver(lifted.search, observer),
       limit: params.limit ?? DEFAULT_LIMIT,
     };
 
