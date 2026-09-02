@@ -10,8 +10,10 @@ import {
   Send,
   XCircle,
 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
+import { useProfileBits, type ProfileBits } from "@/components/admin/useProfileBits";
 import {
   Select,
   SelectContent,
@@ -19,6 +21,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { npubFromPubkey } from "@/lib/shareId";
 import {
@@ -32,6 +42,10 @@ import {
 import type { Tone } from "@/lib/tones";
 
 const ADMIN_SUPPORT_KEY = ["/api/admin/support/tickets"];
+
+/** Queued in the close dialog, editable, and sent only on the admin's press. */
+const DEFAULT_CLOSING_MESSAGE =
+  "Glad we could help! We're closing this ticket — if anything resurfaces, just reply here and it reopens.";
 
 function statusTone(status: string): Tone {
   if (status === "open") return "info";
@@ -57,11 +71,62 @@ function requesterLabel(pubkey: string | null): string {
   }
 }
 
+/**
+ * Avatar + display name (npub as detail), same treatment as the Users tab.
+ * Clicking it filters the queue to this requester — the one-tap
+ * "show me all their tickets" view.
+ */
+function RequesterCell({
+  pubkey,
+  profile,
+  onFilter,
+}: {
+  pubkey: string | null;
+  profile?: ProfileBits;
+  onFilter?: (query: string) => void;
+}) {
+  const label = requesterLabel(pubkey);
+  if (!pubkey) return <span className="font-mono text-xs">{label}</span>;
+  return (
+    <span
+      className="flex items-center gap-2 min-w-0 cursor-pointer hover:opacity-80"
+      role="button"
+      tabIndex={0}
+      title="Show all tickets from this user"
+      onClick={(e) => {
+        e.stopPropagation();
+        onFilter?.(label);
+      }}
+      data-testid={`requester-${pubkey.slice(0, 8)}`}
+    >
+      <Avatar className="h-6 w-6 shrink-0">
+        {profile?.picture ? <AvatarImage src={profile.picture} alt={profile?.name || "User"} className="object-cover" /> : null}
+        <AvatarFallback className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-[10px] text-slate-400 dark:text-slate-500">
+          {profile?.name?.charAt(0)?.toUpperCase() || "?"}
+        </AvatarFallback>
+      </Avatar>
+      <span className="flex flex-col min-w-0 leading-tight">
+        <span className="truncate max-w-[140px] font-medium">{profile?.name || label}</span>
+        {profile?.name && (
+          <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 truncate max-w-[140px]">{label}</span>
+        )}
+      </span>
+    </span>
+  );
+}
+
 const th = "px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400";
 const td = "px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200";
 
 type SortKey = "subject" | "category" | "status" | "updated";
 type SortState = { key: SortKey; dir: "asc" | "desc" } | null;
+
+const TIME_WINDOWS = [
+  { key: "all", label: "All time", ms: null },
+  { key: "24h", label: "Last 24 hours", ms: 86_400_000 },
+  { key: "7d", label: "Last 7 days", ms: 7 * 86_400_000 },
+  { key: "30d", label: "Last 30 days", ms: 30 * 86_400_000 },
+] as const;
 
 function SortHeader({ label, sortKey, sort, onSort }: {
   label: string;
@@ -87,20 +152,32 @@ function SortHeader({ label, sortKey, sort, onSort }: {
   );
 }
 
-/** Default order is the work queue: open first, newest activity first within. */
-function filterAndSort(
+/** Default order is the work queue: open first, newest activity first within.
+ *  Exported for tests — jsdom can't open Radix selects, so the windowing
+ *  behavior is verified here and the wiring visually. */
+export function filterAndSort(
   tickets: AdminSupportTicket[],
+  profiles: Map<string, ProfileBits>,
   search: string,
   statusFilter: string,
   categoryFilter: string,
+  windowFilter: string,
   sort: SortState,
 ): AdminSupportTicket[] {
   const q = search.trim().toLowerCase();
+  const windowMs = TIME_WINDOWS.find((w) => w.key === windowFilter)?.ms ?? null;
+  const cutoff = windowMs === null ? null : Date.now() - windowMs;
   let out = tickets.filter((t) => {
     if (statusFilter !== "all" && t.status !== statusFilter) return false;
     if (categoryFilter !== "all" && t.category !== categoryFilter) return false;
+    if (cutoff !== null && new Date(t.lastMessageAt).getTime() < cutoff) return false;
     if (!q) return true;
-    return t.subject.toLowerCase().includes(q) || requesterLabel(t.pubkey).toLowerCase().includes(q);
+    const name = (t.pubkey && profiles.get(t.pubkey)?.name?.toLowerCase()) || "";
+    return (
+      t.subject.toLowerCase().includes(q) ||
+      requesterLabel(t.pubkey).toLowerCase().includes(q) ||
+      name.includes(q)
+    );
   });
   if (sort) {
     const value = (t: AdminSupportTicket): string => {
@@ -130,6 +207,7 @@ export function AdminSupportCards({ active }: { active: boolean }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [windowFilter, setWindowFilter] = useState<string>("all");
   const [sort, setSort] = useState<SortState>(null);
   const toggleSort = (key: SortKey) =>
     setSort((prev) => (prev?.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
@@ -140,6 +218,8 @@ export function AdminSupportCards({ active }: { active: boolean }) {
     enabled: active,
     staleTime: 30_000,
   });
+  // Before the early returns — hook order must not change between renders.
+  const profiles = useProfileBits((listQuery.data ?? []).map((t) => t.pubkey));
 
   if (listQuery.isPending) {
     return (
@@ -170,8 +250,9 @@ export function AdminSupportCards({ active }: { active: boolean }) {
 
   const statuses = Array.from(new Set(tickets.map((t) => t.status))).sort();
   const categories = Array.from(new Set(tickets.map((t) => t.category))).sort();
-  const visible = filterAndSort(tickets, search, statusFilter, categoryFilter, sort);
-  const filtering = search.trim() !== "" || statusFilter !== "all" || categoryFilter !== "all";
+  const visible = filterAndSort(tickets, profiles, search, statusFilter, categoryFilter, windowFilter, sort);
+  const filtering =
+    search.trim() !== "" || statusFilter !== "all" || categoryFilter !== "all" || windowFilter !== "all";
 
   return (
     <div>
@@ -218,6 +299,16 @@ export function AdminSupportCards({ active }: { active: boolean }) {
             ))}
           </SelectContent>
         </Select>
+        <Select value={windowFilter} onValueChange={setWindowFilter}>
+          <SelectTrigger className="w-36 h-8 text-xs rounded-xl border-slate-200 dark:border-slate-800" data-testid="select-support-window">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TIME_WINDOWS.map((w) => (
+              <SelectItem key={w.key} value={w.key}>{w.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
         {filtering && (
           <span className="text-xs text-slate-400 dark:text-slate-500" data-testid="support-filter-count">
             {visible.length} of {tickets.length}
@@ -251,7 +342,13 @@ export function AdminSupportCards({ active }: { active: boolean }) {
                 >
                   <td className={`${td} font-medium`}>{t.subject}</td>
                   <td className={td}>{categoryLabel(t.category)}</td>
-                  <td className={`${td} font-mono text-xs`}>{requesterLabel(t.pubkey)}</td>
+                  <td className={td}>
+                    <RequesterCell
+                      pubkey={t.pubkey}
+                      profile={t.pubkey ? profiles.get(t.pubkey) : undefined}
+                      onFilter={setSearch}
+                    />
+                  </td>
                   <td className={td}><Chip tone={statusTone(t.status)} size="sm">{t.status}</Chip></td>
                   <td className={`${td} tabular-nums`}>{fmtWhen(t.lastMessageAt)}</td>
                 </tr>
@@ -269,6 +366,8 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
   const { toast } = useToast();
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [closeOpen, setCloseOpen] = useState(false);
+  const [closingMessage, setClosingMessage] = useState(DEFAULT_CLOSING_MESSAGE);
 
   const threadQuery = useQuery({
     queryKey: [...ADMIN_SUPPORT_KEY, id],
@@ -302,11 +401,16 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
     }
   };
 
-  const close = async () => {
+  const close = async (message?: string) => {
     setBusy(true);
     try {
-      await adminCloseTicket(id);
+      await adminCloseTicket(id, message);
+      setCloseOpen(false);
       await refresh();
+      toast({
+        title: "Ticket closed",
+        description: message ? "Closing message sent — replying reopens it for them." : "Closed without a message.",
+      });
     } catch (e) {
       toast({ title: "Close failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
     } finally {
@@ -326,11 +430,50 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
           <ArrowLeft className="h-4 w-4" /> All tickets
         </button>
         {ticket && !closed && (
-          <Button variant="outline" size="sm" disabled={busy} onClick={() => void close()} className="gap-1.5" data-testid="admin-close-ticket">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={() => { setClosingMessage(DEFAULT_CLOSING_MESSAGE); setCloseOpen(true); }}
+            className="gap-1.5"
+            data-testid="admin-close-ticket"
+          >
             <CheckCircle2 className="h-4 w-4" /> Close ticket
           </Button>
         )}
       </div>
+
+      {/* Confirm-with-a-final-word: the closing message is queued here,
+          editable, and goes out only on the admin's press — never silently. */}
+      <Dialog open={closeOpen} onOpenChange={(o) => !busy && setCloseOpen(o)}>
+        <DialogContent className="sm:max-w-lg" data-testid="close-ticket-dialog">
+          <DialogHeader>
+            <DialogTitle>Close this ticket?</DialogTitle>
+            <DialogDescription>
+              The user keeps the history, and replying reopens it for them. You can send a closing
+              message with it — edit it below, or close silently.
+            </DialogDescription>
+          </DialogHeader>
+          <textarea
+            value={closingMessage}
+            onChange={(e) => setClosingMessage(e.target.value.slice(0, 4000))}
+            rows={3}
+            className="w-full resize-y rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
+            data-testid="close-message-input"
+          />
+          <DialogFooter className="gap-2">
+            <Button variant="outline" disabled={busy} onClick={() => setCloseOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="outline" disabled={busy} onClick={() => void close()} data-testid="close-silent">
+              Close without message
+            </Button>
+            <Button disabled={busy || !closingMessage.trim()} onClick={() => void close(closingMessage)} data-testid="close-send">
+              {busy && <Loader2 className="mr-1 h-4 w-4 animate-spin" />} Send &amp; close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {threadQuery.isPending || !ticket ? (
         <div className="flex items-center gap-2 py-6 text-sm text-slate-500 dark:text-slate-400">

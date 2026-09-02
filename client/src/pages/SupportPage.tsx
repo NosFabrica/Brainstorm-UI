@@ -63,6 +63,13 @@ function fmtWhen(iso: string): string {
     : "";
 }
 
+function fmtDate(iso: string): string {
+  const d = new Date(iso);
+  return Number.isFinite(d.getTime())
+    ? d.toLocaleDateString(undefined, { month: "short", day: "numeric" })
+    : "";
+}
+
 const inputCls =
   "w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40";
 
@@ -229,7 +236,13 @@ function TicketList({
               <div className="min-w-0">
                 <p className="truncate text-sm font-semibold">{t.subject}</p>
                 <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
-                  {categoryLabel(t.category)} · Updated {fmtWhen(t.lastMessageAt)}
+                  {[
+                    t.category ? categoryLabel(t.category) : null,
+                    `Opened ${fmtDate(t.createdAt)}`,
+                    `${t.lastMessageAuthor === "support" ? "Brainstorm Support replied" : "You"} ${fmtWhen(t.lastMessageAt)}`,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
                 </p>
               </div>
               <Chip tone={statusTone(t.status)} size="sm">{t.status}</Chip>
@@ -322,31 +335,31 @@ function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
             ))}
           </div>
 
-          {closed ? (
+          {/* Closed is not a wall: replying IS reopening — no button to learn. */}
+          {closed && (
             <p className="mt-5 text-sm text-slate-400 dark:text-slate-500" data-testid="thread-closed-note">
-              This ticket is closed. If anything resurfaces, open a new one — the history stays here.
+              This ticket is closed — replying reopens it.
             </p>
-          ) : (
-            <div className="mt-5 flex items-end gap-2">
-              <textarea
-                value={draft}
-                onChange={(e) => setDraft(e.target.value.slice(0, BODY_MAX))}
-                placeholder="Write a reply…"
-                rows={3}
-                className={`${inputCls} resize-y`}
-                data-testid="thread-reply-input"
-              />
-              <Button
-                onClick={() => void send()}
-                disabled={sending || !draft.trim()}
-                className="gap-1.5 shrink-0"
-                data-testid="thread-reply-send"
-              >
-                {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                Send
-              </Button>
-            </div>
           )}
+          <div className={closed ? "mt-2 flex items-end gap-2" : "mt-5 flex items-end gap-2"}>
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value.slice(0, BODY_MAX))}
+              placeholder={closed ? "Reply to reopen…" : "Write a reply…"}
+              rows={3}
+              className={`${inputCls} resize-y`}
+              data-testid="thread-reply-input"
+            />
+            <Button
+              onClick={() => void send()}
+              disabled={sending || !draft.trim()}
+              className="gap-1.5 shrink-0"
+              data-testid="thread-reply-send"
+            >
+              {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+              Send
+            </Button>
+          </div>
         </>
       )}
     </div>

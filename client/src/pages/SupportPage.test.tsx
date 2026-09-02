@@ -46,6 +46,24 @@ describe("SupportPage (through the real mock seam)", () => {
     expect(screen.queryByTestId("ticket-deflection")).toBeNull();
   });
 
+  // The card answers at a glance: what's it about, when opened, who spoke last.
+  it("cards carry category, opened date, and who replied last", async () => {
+    const t = await createTicket({ subject: "Meta check", body: "hello", category: "billing" });
+
+    renderWithProviders(<SupportPage />);
+    let card = await screen.findByTestId(`ticket-${t.id}`);
+    expect(card.textContent).toContain("Billing & plan");
+    expect(card.textContent).toContain("Opened");
+    expect(card.textContent).toContain("You");
+
+    await adminReply(t.id, "On it.");
+    renderWithProviders(<SupportPage />);
+    await waitFor(() => {
+      const cards = screen.getAllByTestId(`ticket-${t.id}`);
+      expect(cards.at(-1)!.textContent).toContain("Brainstorm Support replied");
+    });
+  });
+
   it("filters the list by status with one tap", async () => {
     await createTicket({ subject: "Open one", body: "x", category: "bug" });
     const closed = await createTicket({ subject: "Closed one", body: "y", category: "other" });
@@ -92,15 +110,19 @@ describe("SupportPage (through the real mock seam)", () => {
     );
   });
 
-  it("a closed ticket is read-only with honest copy", async () => {
+  it("a closed ticket invites reopening — replying flips it back to open", async () => {
     const t = await createTicket({ subject: "Old", body: "Solved.", category: "other" });
-    await adminCloseTicket(t.id);
+    await adminCloseTicket(t.id, "Closing this out.");
 
     renderWithProviders(<SupportPage />);
     fireEvent.click(await screen.findByTestId(`ticket-${t.id}`));
 
     await screen.findByTestId("thread-closed-note");
-    expect(screen.queryByTestId("thread-reply-input")).toBeNull();
+    fireEvent.change(screen.getByTestId("thread-reply-input"), { target: { value: "It came back." } });
+    fireEvent.click(screen.getByTestId("thread-reply-send"));
+
+    await waitFor(() => expect(screen.getByTestId("thread-status").textContent).toBe("open"));
+    expect(screen.queryByTestId("thread-closed-note")).toBeNull();
   });
 
   it("rejects a malformed notification email, accepts an empty one", async () => {

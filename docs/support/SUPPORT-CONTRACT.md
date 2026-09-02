@@ -41,7 +41,8 @@ your `/docs`. The semantics below are the part that matters.
 ```
 GET  /user/support
   → { data: { allowed: boolean, tickets: [
-      { id, subject, status, created_at, last_message_at } ] } }
+      { id, subject, category, status, created_at, last_message_at,
+        last_message_author } ] } }        (author: "user" | "support")
   (allowed:false ⇒ tickets [] — the UI shows the teaser)
 
 POST /user/support/tickets
@@ -53,7 +54,9 @@ GET  /user/support/tickets/{id}
 
 POST /user/support/tickets/{id}/messages
   { body }                                → { data: message }
-  (refuse on closed tickets)
+  (ALLOWED on closed tickets — a user reply ALWAYS sets status "open":
+   replying is reopening, and any user reply puts the ticket back in
+   support's court. No separate reopen endpoint.)
 ```
 
 ## Admin endpoints (admin-authed, like /admin/scheduling)
@@ -63,7 +66,10 @@ GET  /admin/support/tickets
   → rows also carry { pubkey, notify_email } — the requester's identity
 POST /admin/support/tickets/{id}/messages   { body }   (author=support;
      triggers the notification email when notify_email is set)
-POST /admin/support/tickets/{id}/close
+POST /admin/support/tickets/{id}/close      { message? }
+     (message present ⇒ append it as a support message — and send the
+      notification email — then set closed. The UI queues an editable
+      closing note in its confirm dialog; nothing auto-sends.)
 ```
 
 ## Explicitly out of scope (v1)

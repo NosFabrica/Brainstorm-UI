@@ -60,12 +60,35 @@ describe("priority support seam (mock mode)", () => {
     expect(list.tickets[0].status).toBe("answered");
   });
 
-  it("closing a ticket ends the conversation", async () => {
+  it("closing can carry a final word — queued by the admin, sent on their press", async () => {
     const t = await createTicket({ subject: "Done", body: "Never mind, solved it.", category: "other" });
+    await adminCloseTicket(t.id, "Glad it's sorted — closing this one.");
+
+    const thread = await fetchThread(t.id);
+    expect(thread.ticket.status).toBe("closed");
+    expect(thread.messages.at(-1)).toMatchObject({ author: "support", body: "Glad it's sorted — closing this one." });
+  });
+
+  it("closing silently is one option — no message, just the status", async () => {
+    const t = await createTicket({ subject: "Quiet", body: "x", category: "other" });
     await adminCloseTicket(t.id);
 
     const thread = await fetchThread(t.id);
     expect(thread.ticket.status).toBe("closed");
+    expect(thread.messages).toHaveLength(1);
+  });
+
+  // The zero-friction reopen: no button, no state machine for the user to
+  // learn — replying IS reopening. And any user reply puts the ticket back
+  // in support's court, so the admin queue stays honest.
+  it("a user reply reopens a closed ticket", async () => {
+    const t = await createTicket({ subject: "Back again", body: "x", category: "other" });
+    await adminCloseTicket(t.id, "Closing.");
+
+    await postMessage(t.id, "Actually, it's happening again.");
+
+    const thread = await fetchThread(t.id);
+    expect(thread.ticket.status).toBe("open");
   });
 
   // The server decides entitlement; the mock rehearses a free user via the

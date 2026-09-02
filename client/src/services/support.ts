@@ -44,6 +44,8 @@ export interface SupportTicket {
   status: TicketStatus;
   createdAt: string;
   lastMessageAt: string;
+  /** Who spoke last — lets a card say "Brainstorm Support replied" at a glance. */
+  lastMessageAuthor: "user" | "support";
 }
 
 export interface SupportMessage {
@@ -76,7 +78,22 @@ function mockAllowed(): boolean {
 }
 
 interface MockStore {
-  tickets: (SupportTicket & { messages: SupportMessage[]; notifyEmail?: string })[];
+  // `pubkey` appears when a store row mimics the server's attributed shape
+  // (tests/rehearsals); tickets filed through this browser's mock have none.
+  // `lastMessageAuthor` is derived from messages at read time, not stored.
+  tickets: (Omit<SupportTicket, "lastMessageAuthor"> & {
+    messages: SupportMessage[];
+    notifyEmail?: string;
+    pubkey?: string;
+  })[];
+}
+
+type StoredTicket = MockStore["tickets"][number];
+
+/** The public ticket summary: messages stay behind fetchThread. */
+function toPublic(t: StoredTicket): SupportTicket {
+  const { messages, notifyEmail: _e, pubkey: _p, ...pub } = t;
+  return { ...pub, lastMessageAuthor: messages.at(-1)?.author ?? "user" };
 }
 
 function readStore(): MockStore {
@@ -112,7 +129,7 @@ export async function fetchSupport(): Promise<SupportState> {
   return {
     allowed: true,
     tickets: store.tickets
-      .map(({ messages: _m, notifyEmail: _e, ...t }) => t)
+      .map(toPublic)
       .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt)),
   };
 }
@@ -124,7 +141,7 @@ export async function createTicket(input: {
   notifyEmail?: string;
 }): Promise<SupportTicket> {
   const now = new Date().toISOString();
-  const ticket: SupportTicket & { messages: SupportMessage[]; notifyEmail?: string } = {
+  const ticket: StoredTicket = {
     id: mockId(),
     subject: input.subject,
     category: input.category,
@@ -137,8 +154,7 @@ export async function createTicket(input: {
   const store = readStore();
   store.tickets.push(ticket);
   writeStore(store);
-  const { messages: _m, notifyEmail: _e, ...pub } = ticket;
-  return pub;
+  return toPublic(ticket);
 }
 
 export async function fetchThread(
@@ -146,12 +162,18 @@ export async function fetchThread(
 ): Promise<{ ticket: SupportTicket; messages: SupportMessage[] }> {
   const found = readStore().tickets.find((t) => t.id === id);
   if (!found) throw new Error("Ticket not found");
-  const { messages, notifyEmail: _e, ...ticket } = found;
-  return { ticket, messages: [...messages].sort((a, b) => a.createdAt.localeCompare(b.createdAt)) };
+  return {
+    ticket: toPublic(found),
+    messages: [...found.messages].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+  };
 }
 
 export async function postMessage(id: string, body: string): Promise<SupportMessage> {
-  return appendMessage(id, "user", body);
+  const message = appendMessage(id, "user", body);
+  // A user reply always puts the ticket back in support's court — including
+  // reopening a closed one (replying IS reopening; no button to learn).
+  setStatus(id, "open");
+  return message;
 }
 
 // --- Admin seam (the Support tab; same mock store = full local demo loop) -----
@@ -165,10 +187,10 @@ export type AdminSupportTicket = SupportTicket & {
 
 export async function adminListTickets(): Promise<AdminSupportTicket[]> {
   return readStore()
-    .tickets.map(({ messages: _m, notifyEmail, ...t }) => ({
-      ...t,
-      pubkey: null,
-      notifyEmail: notifyEmail ?? null,
+    .tickets.map((t) => ({
+      ...toPublic(t),
+      pubkey: t.pubkey ?? null,
+      notifyEmail: t.notifyEmail ?? null,
     }))
     .sort((a, b) => b.lastMessageAt.localeCompare(a.lastMessageAt));
 }
@@ -179,7 +201,11 @@ export async function adminReply(id: string, body: string): Promise<SupportMessa
   return message;
 }
 
-export async function adminCloseTicket(id: string): Promise<void> {
+/** Close, optionally with a final support message (queued in the confirm
+ *  dialog and sent only on the admin's press — never auto-sent). */
+export async function adminCloseTicket(id: string, closingMessage?: string): Promise<void> {
+  const trimmed = closingMessage?.trim();
+  if (trimmed) appendMessage(id, "support", trimmed);
   setStatus(id, "closed");
 }
 
