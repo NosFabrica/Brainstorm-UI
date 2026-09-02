@@ -3,8 +3,10 @@ import { timeZoneSetter } from "@/test/utils";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { nip19 } from "nostr-tools";
 import type {
   AdminBillingDivergenceSection,
+  AdminBillingResolution,
   AdminBillingSubscription,
   AdminBillingSubscriptionAction,
 } from "@/services/api";
@@ -24,8 +26,20 @@ const cancelAdminBillingSubscription =
   vi.fn<(pubkey: string, reason?: string) => Promise<AdminBillingSubscriptionAction>>();
 const setAdminBillingSubscriptionStatus =
   vi.fn<(pubkey: string, status: "paused" | "active") => Promise<AdminBillingSubscriptionAction>>();
+const getAdminBillingFlashRecordForUnresolved =
+  vi.fn<(subscriptionId: string) => Promise<unknown>>();
+const attributeAdminBillingUnresolved =
+  vi.fn<(subscriptionId: string, pubkey: string) => Promise<AdminBillingResolution>>();
+const dismissAdminBillingUnresolved =
+  vi.fn<(subscriptionId: string) => Promise<AdminBillingResolution>>();
 vi.mock("@/services/api", () => ({
   apiClient: {
+    getAdminBillingFlashRecordForUnresolved: (subscriptionId: string) =>
+      getAdminBillingFlashRecordForUnresolved(subscriptionId),
+    attributeAdminBillingUnresolved: (subscriptionId: string, pubkey: string) =>
+      attributeAdminBillingUnresolved(subscriptionId, pubkey),
+    dismissAdminBillingUnresolved: (subscriptionId: string) =>
+      dismissAdminBillingUnresolved(subscriptionId),
     getAdminBillingSubscriptions: () => getAdminBillingSubscriptions(),
     getAdminBillingDivergence: () => getAdminBillingDivergence(),
     setAdminBillingBlock: (pubkey: string, blocked: boolean) => setAdminBillingBlock(pubkey, blocked),
@@ -778,5 +792,286 @@ describe("cancelling and pausing from the billing tab", () => {
     const row = screen.getByTestId(`billing-sub-${PUBKEY.slice(0, 8)}`);
     expect(row.textContent).toContain("active");
     expect(screen.getByTestId(`billing-ends-${PUBKEY.slice(0, 8)}`).textContent).toContain("Ends");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Resolving a signup that named nobody
+//
+// These rows have no pubkey — that absence is what makes them unresolved — so
+// the Flash subscription id is the only handle they have, and the payer's
+// identity exists nowhere but Flash's own dashboard.
+// ---------------------------------------------------------------------------
+const UNRESOLVED_ID = "01a01f88-0d7f-734b-b724-13e32b482f57";
+
+function unresolvedReport(): Record<string, AdminBillingDivergenceSection> {
+  return {
+    unresolved_signups: {
+      count: 1,
+      truncated: false,
+      rows: [
+        {
+          id: 41,
+          event: "subscription.activated",
+          created_at: "2026-08-31T15:00:00Z",
+          process_error: "no_reference",
+          flash_subscription_id: UNRESOLVED_ID,
+        },
+      ],
+    },
+  };
+}
+
+const DISMISSED: AdminBillingResolution = {
+  subscription_id: UNRESOLVED_ID,
+  resolution: "dismissed",
+  pubkey: null,
+  applied: false,
+  entitlement_reason: null,
+  events_settled: 1,
+};
+
+const ATTRIBUTED: AdminBillingResolution = {
+  subscription_id: UNRESOLVED_ID,
+  resolution: "attributed",
+  pubkey: PUBKEY,
+  applied: true,
+  entitlement_reason: "granted",
+  events_settled: 1,
+};
+
+async function openUnresolvedAction(verb: "attribute" | "dismiss" | "flash-record") {
+  await userEvent.click(await screen.findByTestId(`billing-unresolved-actions-${UNRESOLVED_ID}`));
+  await userEvent.click(await screen.findByTestId(`billing-unresolved-action-${verb}`));
+}
+
+describe("resolving a signup that named nobody", () => {
+  beforeEach(() => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue(unresolvedReport());
+  });
+
+  it("writes one off only after the admin agrees, naming the only handle it has", async () => {
+    dismissAdminBillingUnresolved.mockResolvedValue(DISMISSED);
+
+    renderCards();
+    await openUnresolvedAction("dismiss");
+
+    const dialog = await screen.findByTestId("dialog-billing-dismiss-confirm");
+    expect(dismissAdminBillingUnresolved).not.toHaveBeenCalled();
+    // There is no person on this row, so the subscription id stands in for one.
+    expect(dialog.textContent).toContain(UNRESOLVED_ID);
+
+    await userEvent.click(screen.getByTestId("button-billing-dismiss-confirm"));
+
+    await waitFor(() => expect(dismissAdminBillingUnresolved).toHaveBeenCalledWith(UNRESOLVED_ID));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Signup dismissed" })),
+    );
+  });
+
+  it("names the person before granting, and sends the hex form of an npub", async () => {
+    fetchProfileMap.mockResolvedValue(new Map([[PUBKEY, { display_name: "Lira Flint" }]]));
+    attributeAdminBillingUnresolved.mockResolvedValue(ATTRIBUTED);
+
+    renderCards();
+    await openUnresolvedAction("attribute");
+
+    // Nothing pasted yet: there is nobody to grant to, so the verb is not armed.
+    const dialog = await screen.findByTestId("dialog-billing-attribute-confirm");
+    expect(screen.getByTestId("button-billing-attribute-confirm")).toBeDisabled();
+
+    await userEvent.type(
+      screen.getByTestId("input-billing-attribute-pubkey"),
+      nip19.npubEncode(PUBKEY),
+    );
+
+    // Who they are, resolved from the key — not the key itself, and never hex.
+    await waitFor(() =>
+      expect(screen.getByTestId("billing-attribute-confirm-who").textContent).toContain(
+        "Lira Flint",
+      ),
+    );
+    expect(dialog.textContent).not.toContain(PUBKEY);
+    expect(attributeAdminBillingUnresolved).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByTestId("button-billing-attribute-confirm"));
+
+    // Flash's ref is our hex pubkey; the npub form never leaves the client.
+    await waitFor(() =>
+      expect(attributeAdminBillingUnresolved).toHaveBeenCalledWith(UNRESOLVED_ID, PUBKEY),
+    );
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Signup attributed" }),
+      ),
+    );
+  });
+
+  it("refuses a key it cannot read rather than sending it", async () => {
+    renderCards();
+    await openUnresolvedAction("attribute");
+    await userEvent.type(
+      await screen.findByTestId("input-billing-attribute-pubkey"),
+      "npub1definitelynotakey",
+    );
+
+    expect(await screen.findByTestId("billing-attribute-key-invalid")).toBeInTheDocument();
+    expect(screen.getByTestId("button-billing-attribute-confirm")).toBeDisabled();
+    expect(attributeAdminBillingUnresolved).not.toHaveBeenCalled();
+  });
+
+  it("reports an attribution that granted nothing as the answer it is", async () => {
+    attributeAdminBillingUnresolved.mockResolvedValue({
+      ...ATTRIBUTED,
+      applied: false,
+      entitlement_reason: "held",
+    });
+
+    renderCards();
+    await openUnresolvedAction("attribute");
+    await userEvent.type(await screen.findByTestId("input-billing-attribute-pubkey"), PUBKEY);
+    await userEvent.click(screen.getByTestId("button-billing-attribute-confirm"));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Attributed, but nothing was granted",
+          description: expect.stringContaining("cancellation still inside its paid period"),
+        }),
+      ),
+    );
+    // Not an error: the signup is settled, and the report is re-read.
+    expect(toast).not.toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" }));
+  });
+
+  it("does not claim nothing was applied when it was already theirs", async () => {
+    // The server skips the grant entirely in this branch, so the old fallback
+    // ("No tier was applied.") was not merely vague — it was false.
+    attributeAdminBillingUnresolved.mockResolvedValue({
+      ...ATTRIBUTED,
+      applied: false,
+      entitlement_reason: "attributed",
+    });
+
+    renderCards();
+    await openUnresolvedAction("attribute");
+    await userEvent.type(await screen.findByTestId("input-billing-attribute-pubkey"), PUBKEY);
+    await userEvent.click(screen.getByTestId("button-billing-attribute-confirm"));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          description: expect.stringContaining("already attributed to them"),
+        }),
+      ),
+    );
+  });
+
+  it("keeps the signup's id visible once a person resolves — it is the row's only handle", async () => {
+    fetchProfileMap.mockResolvedValue(new Map([[PUBKEY, { display_name: "Lira Flint" }]]));
+
+    renderCards();
+    await openUnresolvedAction("attribute");
+    await userEvent.type(await screen.findByTestId("input-billing-attribute-pubkey"), PUBKEY);
+
+    const dialog = await screen.findByTestId("dialog-billing-attribute-confirm");
+    await waitFor(() => expect(dialog.textContent).toContain("Lira Flint"));
+    // Which payment this grant lands on must not disappear behind who gets it.
+    expect(dialog.textContent).toContain(UNRESOLVED_ID);
+  });
+
+  it("calls a refusal what it is — nothing changed, not a system failure", async () => {
+    dismissAdminBillingUnresolved.mockRejectedValue(
+      new Error("No unresolved signup with this subscription id."),
+    );
+
+    renderCards();
+    await openUnresolvedAction("dismiss");
+    await userEvent.click(await screen.findByTestId("button-billing-dismiss-confirm"));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Nothing was changed" }),
+      ),
+    );
+  });
+
+  it("hands the server's refusal back as the sentence it wrote", async () => {
+    attributeAdminBillingUnresolved.mockRejectedValue(
+      new Error("Flash says this subscription already belongs to a different user."),
+    );
+
+    renderCards();
+    await openUnresolvedAction("attribute");
+    await userEvent.type(await screen.findByTestId("input-billing-attribute-pubkey"), PUBKEY);
+    await userEvent.click(screen.getByTestId("button-billing-attribute-confirm"));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: "destructive",
+          description: "Flash says this subscription already belongs to a different user.",
+        }),
+      ),
+    );
+  });
+
+  it("re-reads the report so a settled signup leaves it", async () => {
+    dismissAdminBillingUnresolved.mockResolvedValue(DISMISSED);
+
+    renderCards();
+    await openUnresolvedAction("dismiss");
+    expect(getAdminBillingDivergence).toHaveBeenCalledTimes(1);
+
+    await userEvent.click(await screen.findByTestId("button-billing-dismiss-confirm"));
+
+    await waitFor(() => expect(getAdminBillingDivergence).toHaveBeenCalledTimes(2));
+  });
+
+  it("reads Flash's own record for a row, which is the only place its state shows", async () => {
+    // The real staging case: unresolved *and* already cancelled. Nothing on the
+    // report row says so — only Flash does.
+    getAdminBillingFlashRecordForUnresolved.mockResolvedValue({
+      livemode: true,
+      subscriptions: [
+        {
+          id: UNRESOLVED_ID,
+          ref: null,
+          status: "active",
+          canceledAt: "2026-08-31T15:06:09.067Z",
+          cancelEffectiveDate: "2026-09-20",
+          pricingSnapshot: {
+            planName: "Brainstorm Supporter",
+            amount: "300",
+            currency: "USD",
+            billingInterval: "monthly",
+          },
+        },
+      ],
+    });
+
+    renderCards();
+    await openUnresolvedAction("flash-record");
+
+    const json = await screen.findByTestId("billing-flash-record-json");
+    expect(getAdminBillingFlashRecordForUnresolved).toHaveBeenCalledWith(UNRESOLVED_ID);
+    expect(json.textContent).toContain("cancelEffectiveDate");
+    expect(json.textContent).toContain("Brainstorm Supporter");
+    // The dialog names the row by its Flash id — it has no person to name.
+    expect(screen.getByTestId("dialog-billing-flash-record").textContent).toContain(UNRESOLVED_ID);
+  });
+
+  it("says a signup Flash no longer knows is absent, not that Flash is down", async () => {
+    getAdminBillingFlashRecordForUnresolved.mockRejectedValue(
+      new Error("Flash has no subscription for this record."),
+    );
+
+    renderCards();
+    await openUnresolvedAction("flash-record");
+
+    expect(await screen.findByTestId("billing-flash-record-error")).toHaveTextContent(
+      "Flash has no subscription for this record.",
+    );
   });
 });

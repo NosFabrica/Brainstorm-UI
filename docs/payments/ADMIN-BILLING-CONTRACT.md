@@ -62,7 +62,9 @@ accepts both, matching the existing endpoints' envelope convention.)
 ## Semantics the UI relies on
 
 - **`ref: null` means a bypass signup** (Flash's plain link, no attribution).
-  The UI quarantines those in an "Unattributed subscriptions" card — do NOT
+  They surface as the `unresolved_signups` section of
+  `/admin/billing/divergence`, where an admin attributes one to a person or
+  dismisses it (`POST .../unresolved/{id}/attribute` | `/dismiss`). Do NOT
   filter them out server-side; seeing them is the point (the Pierre case).
 - **`status` is an open set** — pass Flash's value through verbatim, including
   values that don't exist yet. The UI colors the ones it knows and renders the

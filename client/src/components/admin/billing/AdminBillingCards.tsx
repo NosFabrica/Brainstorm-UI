@@ -16,6 +16,7 @@ import {
   PauseCircle,
   PlayCircle,
   User,
+  UserCheck,
   XCircle,
 } from "lucide-react";
 import {
@@ -54,8 +55,8 @@ import {
 import { fetchProfileMap } from "@/services/nostr";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Chip } from "@/components/ui/chip";
-import type { Tone } from "@/lib/tones";
-import { npubFromPubkey } from "@/lib/shareId";
+import { tone, type Tone } from "@/lib/tones";
+import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 
 const SUBS_KEY = ["/api/admin/billing/subscriptions"];
 const DIVERGENCE_KEY = ["/api/admin/billing/divergence"];
@@ -89,12 +90,13 @@ function statusTone(status: string): Tone {
  * errors — "held" and "unknown_plan" mean it looked and deliberately left the
  * tier alone, which is easy to misread as the call having done nothing.
  */
-const RESYNC_REASONS: Record<string, string> = {
+const ENTITLEMENT_REASONS: Record<string, string> = {
   granted: "Flash says they're entitled; the paid tier is applied.",
   revoked: "The subscription has ended — they're back on the default tier.",
   held: "Nothing certain enough to act on (dunning, or a cancellation still inside its paid period). Tier left as-is.",
   blocked: "They're blocked from paid entitlement, so nothing was granted.",
   admin_override: "An admin assignment holds this tier; billing didn't take it away.",
+  attributed: "It was already attributed to them — they hold the tier, so nothing needed to change.",
   no_reference: "The subscription carries no reference to a user.",
   unknown_user: "No account matches this pubkey.",
   unknown_plan: "Flash's plan isn't mapped to an entitlement here — map it under plans.",
@@ -103,8 +105,8 @@ const RESYNC_REASONS: Record<string, string> = {
   busy: "Something else is reconciling this user right now. Try again shortly.",
 };
 
-function resyncReasonText(reason: string): string {
-  return RESYNC_REASONS[reason] ?? `Server reported "${reason}".`;
+function entitlementReasonText(reason: string): string {
+  return ENTITLEMENT_REASONS[reason] ?? `Server reported "${reason}".`;
 }
 
 /** "npub1abc…wxyz" — enough to recognize, full value in the title attribute. */
@@ -240,18 +242,30 @@ function filterAndSort(
  * Read-only — it applies no entitlement and touches no stored row — and the
  * body is Flash's own, so the extra rows a resync would disambiguate away are
  * visible here.
+ *
+ * One dialog, two handles: a subscriber is looked up by pubkey, an unresolved
+ * signup only by its Flash id — which is also the only way to see what state
+ * that signup is actually in, since the report row carries no status.
  */
+type FlashRecordTarget = {
+  /** Keeps one record's cached body apart from another's. */
+  key: string;
+  /** How the dialog names it: an npub for a person, the id for a signup. */
+  label: string;
+  read: () => Promise<unknown>;
+};
+
 function FlashRecordDialog({
-  subscriber,
+  target,
   onClose,
 }: {
-  subscriber: AdminBillingSubscription | null;
+  target: FlashRecordTarget | null;
   onClose: () => void;
 }) {
   const query = useQuery({
-    queryKey: ["/api/admin/billing/flash-record", subscriber?.pubkey],
-    queryFn: () => apiClient.getAdminBillingFlashRecordForSubscriber(subscriber!.pubkey),
-    enabled: !!subscriber,
+    queryKey: ["/api/admin/billing/flash-record", target?.key],
+    queryFn: () => target!.read(),
+    enabled: !!target,
     // Every read spends our Flash quota, so don't re-ask on a reopen or a retry.
     staleTime: 60_000,
     retry: false,
@@ -260,7 +274,7 @@ function FlashRecordDialog({
   const rows = (query.data as { subscriptions?: unknown[] } | undefined)?.subscriptions;
 
   return (
-    <Dialog open={!!subscriber} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={!!target} onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="max-w-2xl" data-testid="dialog-billing-flash-record">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -272,8 +286,7 @@ function FlashRecordDialog({
             )}
           </DialogTitle>
           <DialogDescription>
-            Exactly what Flash returned for{" "}
-            {subscriber ? shortNpub(subscriber.pubkey).short : ""} — every row, not
+            Exactly what Flash returned for {target?.label ?? ""} — every row, not
             just the one entitlement uses. Nothing was changed by looking.
           </DialogDescription>
         </DialogHeader>
@@ -309,34 +322,49 @@ function FlashRecordDialog({
  * gave us one, and the npub otherwise. Never the raw hex, which nobody can
  * recognize and everybody can mistype.
  *
+ * A signup that named nobody has no person to name, so it falls back to the
+ * Flash subscription id — the only handle such a row has.
+ *
  * The gate is that the action lives only on the confirm button: opening the
  * dialog does nothing at all.
  */
+type ConfirmSubject = {
+  /** Who it lands on, when there is somebody. */
+  pubkey?: string | null;
+  /** Stands in for a person when there is none. */
+  handle?: string;
+  profile?: ProfileBits;
+};
+
 function ConfirmSubscriptionAction({
-  subscriber,
-  profile,
+  subject,
   kind,
   title,
   confirmLabel,
+  confirmDisabled = false,
   destructive = true,
+  dismissLabel = "Keep it",
   onDismiss,
   onConfirm,
   children,
 }: {
-  subscriber: AdminBillingSubscription | null;
-  profile?: ProfileBits;
-  kind: "cancel" | "pause" | "resume";
+  /** Null closes the dialog — there is nothing to confirm without a subject. */
+  subject: ConfirmSubject | null;
+  kind: "cancel" | "pause" | "resume" | "attribute" | "dismiss";
   title: string;
   confirmLabel: string;
+  confirmDisabled?: boolean;
   destructive?: boolean;
+  dismissLabel?: string;
   onDismiss: () => void;
   onConfirm: () => void | Promise<void>;
   children: React.ReactNode;
 }) {
-  const who = subscriber ? shortNpub(subscriber.pubkey) : null;
+  const profile = subject?.profile;
+  const who = subject?.pubkey ? shortNpub(subject.pubkey) : null;
   const name = profile?.name || who?.short;
   return (
-    <Dialog open={!!subscriber} onOpenChange={(o) => !o && onDismiss()}>
+    <Dialog open={!!subject} onOpenChange={(o) => !o && onDismiss()}>
       <DialogContent className="sm:max-w-md" data-testid={`dialog-billing-${kind}-confirm`}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
@@ -346,15 +374,23 @@ function ConfirmSubscriptionAction({
                 className="flex items-center gap-2 mb-2"
                 data-testid={`billing-${kind}-confirm-who`}
               >
-                <Avatar className="h-7 w-7 shrink-0">
-                  {profile?.picture ? (
-                    <AvatarImage src={profile.picture} alt={name || "Subscriber"} className="object-cover" />
-                  ) : null}
-                  <AvatarFallback className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-[10px] text-slate-400 dark:text-slate-500">
-                    {profile?.name?.charAt(0)?.toUpperCase() || <User className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600" />}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="font-semibold text-slate-900 dark:text-slate-100">{name}</span>
+                {who ? (
+                  <>
+                    <Avatar className="h-7 w-7 shrink-0">
+                      {profile?.picture ? (
+                        <AvatarImage src={profile.picture} alt={name || "Subscriber"} className="object-cover" />
+                      ) : null}
+                      <AvatarFallback className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-[10px] text-slate-400 dark:text-slate-500">
+                        {profile?.name?.charAt(0)?.toUpperCase() || <User className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600" />}
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="font-semibold text-slate-900 dark:text-slate-100">{name}</span>
+                  </>
+                ) : (
+                  <span className="font-mono text-xs break-all text-slate-900 dark:text-slate-100">
+                    {subject?.handle}
+                  </span>
+                )}
               </span>
               {children}
             </div>
@@ -362,10 +398,11 @@ function ConfirmSubscriptionAction({
         </DialogHeader>
         <DialogFooter className="gap-2">
           <Button variant="outline" onClick={onDismiss} data-testid={`button-billing-${kind}-dismiss`}>
-            Keep it
+            {dismissLabel}
           </Button>
           <Button
             variant={destructive ? "destructive" : "primary"}
+            disabled={confirmDisabled}
             onClick={() => void onConfirm()}
             data-testid={`button-billing-${kind}-confirm`}
           >
@@ -374,6 +411,28 @@ function ConfirmSubscriptionAction({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** The "…" that opens a row's verbs, spinning while one of them is in flight. */
+function RowActionsTrigger({ label, busy, testId, small = false }: {
+  label: string;
+  busy: boolean;
+  testId: string;
+  small?: boolean;
+}) {
+  const size = small ? "h-3.5 w-3.5" : "h-4 w-4";
+  return (
+    <DropdownMenuTrigger asChild>
+      <button
+        type="button"
+        className={`shrink-0 ${small ? "p-1" : "p-1.5"} rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors`}
+        aria-label={label}
+        data-testid={testId}
+      >
+        {busy ? <Loader2 className={`${size} animate-spin`} /> : <MoreHorizontal className={size} />}
+      </button>
+    </DropdownMenuTrigger>
   );
 }
 
@@ -460,16 +519,11 @@ function SubscriberRow({
             resync is still server-side only, shown disabled so admins know it's
             coming rather than falling into a void. */}
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              type="button"
-              className="p-1.5 rounded-lg text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
-              aria-label="Subscription actions"
-              data-testid={`billing-actions-${s.pubkey.slice(0, 8)}`}
-            >
-              {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
-            </button>
-          </DropdownMenuTrigger>
+          <RowActionsTrigger
+            label="Subscription actions"
+            busy={busy}
+            testId={`billing-actions-${s.pubkey.slice(0, 8)}`}
+          />
           <DropdownMenuContent align="end" className="w-72">
             <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">Actions</DropdownMenuLabel>
             <DropdownMenuItem
@@ -597,8 +651,20 @@ export function AdminBillingCards({ active }: { active: boolean }) {
     staleTime: 60_000,
     retry: 1,
   });
-  // Before the early returns — hook order must not change between renders.
-  const profiles = useRosterProfiles((subsQuery.data?.items ?? []).map((s) => s.pubkey));
+  const [attributeFor, setAttributeFor] = useState<string | null>(null);
+  const [attributeKeyInput, setAttributeKeyInput] = useState("");
+  // Either common form is accepted here; only hex ever leaves. Decoding in the
+  // client means a mistyped key is refused before it costs a round trip, and
+  // the server never has to know npub exists.
+  const attributePubkey = decodeShareId(attributeKeyInput)?.pubkey ?? null;
+  // Before the early returns — hook order must not change between renders. The
+  // candidate rides along with the roster so the person about to be granted is
+  // named the same way everyone else is.
+  const profiles = useRosterProfiles([
+    ...(subsQuery.data?.items ?? []).map((s) => s.pubkey),
+    ...(attributePubkey ? [attributePubkey] : []),
+  ]);
+  const [dismissFor, setDismissFor] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
@@ -608,25 +674,27 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   const [cancelReason, setCancelReason] = useState("");
   const [confirmPause, setConfirmPause] = useState<AdminBillingSubscription | null>(null);
   const [confirmResume, setConfirmResume] = useState<AdminBillingSubscription | null>(null);
-  const [flashRecordFor, setFlashRecordFor] = useState<AdminBillingSubscription | null>(null);
-  const [busyPk, setBusyPk] = useState<string | null>(null);
+  const [flashRecordFor, setFlashRecordFor] = useState<FlashRecordTarget | null>(null);
+  // Keyed by whatever handle the row has: a pubkey for a subscriber, a Flash
+  // subscription id for a signup that named nobody.
+  const [busyKey, setBusyKey] = useState<string | null>(null);
   const toggleSort = (key: SortKey) =>
     setSort((prev) => (prev?.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
 
-  async function runAction(pubkey: string, fn: () => Promise<void>) {
-    setBusyPk(pubkey);
+  async function runAction(handle: string, fn: () => Promise<void>, failureTitle = "Action failed") {
+    setBusyKey(handle);
     try {
       await fn();
       await queryClient.invalidateQueries({ queryKey: SUBS_KEY });
       await queryClient.invalidateQueries({ queryKey: DIVERGENCE_KEY });
     } catch (e) {
       toast({
-        title: "Action failed",
+        title: failureTitle,
         description: e instanceof Error ? e.message : "Unknown error",
         variant: "destructive",
       });
     } finally {
-      setBusyPk(null);
+      setBusyKey(null);
     }
   }
 
@@ -637,7 +705,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
         // `applied: false` is a normal answer, not a failure — say which it was
         // rather than leaving the admin to guess from an unchanged row.
         title: out.applied ? "Re-applied from Flash" : "Nothing changed",
-        description: resyncReasonText(out.reason),
+        description: entitlementReasonText(out.reason),
       });
     });
 
@@ -701,6 +769,36 @@ export function AdminBillingCards({ active }: { active: boolean }) {
         description: `Flash reports them "${out.flash_status}". ${tierNote(out)}`,
       });
     });
+
+  /**
+   * Attributing can legitimately grant nothing — a blocked user, a
+   * subscription that has already lapsed. That is an answer, not a failure, so
+   * it is reported as one, with the server's own reason for it.
+   */
+  const handleAttribute = (subscriptionId: string, pubkey: string) =>
+    runAction(subscriptionId, async () => {
+      const out = await apiClient.attributeAdminBillingUnresolved(subscriptionId, pubkey);
+      toast({
+        title: out.applied ? "Signup attributed" : "Attributed, but nothing was granted",
+        description: out.applied
+          ? "It now belongs to them and the plan's tier is applied — they're in the roster above."
+          : `${out.entitlement_reason ? entitlementReasonText(out.entitlement_reason) : "No tier was applied."} The signup is settled either way, so it leaves this report.`,
+      });
+    }, "Nothing was changed");
+
+  /** A roster row as the confirm dialog wants it: who, plus their kind-0. */
+  const subjectOf = (s: AdminBillingSubscription | null): ConfirmSubject | null =>
+    s ? { pubkey: s.pubkey, profile: profiles.get(s.pubkey) } : null;
+
+  const handleDismiss = (subscriptionId: string) =>
+    runAction(subscriptionId, async () => {
+      await apiClient.dismissAdminBillingUnresolved(subscriptionId);
+      toast({
+        title: "Signup dismissed",
+        description:
+          "Written off as nobody's — nothing was granted and this leaves the report. Flash still holds the payment; cancel or refund there if it needs it.",
+      });
+    }, "Nothing was changed");
 
   if (subsQuery.isPending) {
     return (
@@ -813,11 +911,17 @@ export function AdminBillingCards({ active }: { active: boolean }) {
                     key={s.pubkey}
                     s={s}
                     profile={profiles.get(s.pubkey)}
-                    busy={busyPk === s.pubkey}
+                    busy={busyKey === s.pubkey}
                     onBlock={setConfirmBlock}
                     onUnblock={(sub) => handleSetBlock(sub, false)}
                     onResync={handleResync}
-                    onViewFlashRecord={setFlashRecordFor}
+                    onViewFlashRecord={(sub) =>
+                      setFlashRecordFor({
+                        key: sub.pubkey,
+                        label: shortNpub(sub.pubkey).short,
+                        read: () => apiClient.getAdminBillingFlashRecordForSubscriber(sub.pubkey),
+                      })
+                    }
                     onCancel={(sub) => {
                       setCancelReason("");
                       setConfirmCancel(sub);
@@ -867,20 +971,106 @@ export function AdminBillingCards({ active }: { active: boolean }) {
           </p>
         ) : (
           <div className="mt-2 space-y-3">
-            {divergenceEntries.map(([kind, section]) => (
-              <DivergenceBlock key={kind} kind={kind} section={section} />
-            ))}
+            {divergenceEntries.map(([kind, section]) =>
+              kind === "unresolved_signups" ? (
+                <UnresolvedSignupsBlock
+                  key={kind}
+                  section={section}
+                  busyId={busyKey}
+                  onViewFlashRecord={(id) =>
+                    setFlashRecordFor({
+                      key: id,
+                      label: id,
+                      read: () => apiClient.getAdminBillingFlashRecordForUnresolved(id),
+                    })
+                  }
+                  onAttribute={(id) => {
+                    setAttributeKeyInput("");
+                    setAttributeFor(id);
+                  }}
+                  onDismiss={setDismissFor}
+                />
+              ) : (
+                <DivergenceBlock key={kind} kind={kind} section={section} />
+              ),
+            )}
           </div>
         )}
       </div>
 
-      <FlashRecordDialog subscriber={flashRecordFor} onClose={() => setFlashRecordFor(null)} />
+      <FlashRecordDialog target={flashRecordFor} onClose={() => setFlashRecordFor(null)} />
+
+      {/* Attributing grants a tier, so it is confirmed like any other grant —
+          and the person is shown, not just the key that was pasted. */}
+      <ConfirmSubscriptionAction
+        subject={
+          attributeFor
+            ? {
+                pubkey: attributePubkey,
+                handle: attributeFor,
+                profile: attributePubkey ? profiles.get(attributePubkey) : undefined,
+              }
+            : null
+        }
+        kind="attribute"
+        title="Attribute this signup to someone?"
+        confirmLabel="Attribute signup"
+        confirmDisabled={!attributePubkey}
+        destructive={false}
+        dismissLabel="Cancel"
+        onDismiss={() => setAttributeFor(null)}
+        onConfirm={async () => {
+          const id = attributeFor;
+          const pubkey = attributePubkey;
+          setAttributeFor(null);
+          if (id && pubkey) await handleAttribute(id, pubkey);
+        }}
+      >
+        <>
+          Grants whatever <span className="font-mono text-[11px] break-all">{attributeFor}</span>{" "}
+          pays for, exactly as a webhook naming them would have. Who actually paid is
+          visible only in Flash's dashboard, so check there before granting.
+          <Input
+            value={attributeKeyInput}
+            onChange={(e) => setAttributeKeyInput(e.target.value)}
+            placeholder="npub1… or hex pubkey"
+            className="mt-3 font-mono text-xs"
+            data-testid="input-billing-attribute-pubkey"
+          />
+          {attributeKeyInput.trim() !== "" && !attributePubkey && (
+            <span
+              className={`mt-1.5 block text-[11px] ${tone("danger").text}`}
+              data-testid="billing-attribute-key-invalid"
+            >
+              That isn't a key we can read. Paste an npub or a 64-character hex pubkey.
+            </span>
+          )}
+        </>
+      </ConfirmSubscriptionAction>
+
+      {/* No person to name — the provider's own card tests are the common case
+          here, and the subscription id is all such a row has. */}
+      <ConfirmSubscriptionAction
+        subject={dismissFor ? { handle: dismissFor } : null}
+        kind="dismiss"
+        title="Write this signup off as nobody's?"
+        confirmLabel="Dismiss signup"
+        onDismiss={() => setDismissFor(null)}
+        onConfirm={async () => {
+          const id = dismissFor;
+          setDismissFor(null);
+          if (id) await handleDismiss(id);
+        }}
+      >
+        Grants nothing and clears it from this report, so the sweep stops re-checking
+        it. It does not cancel or refund anything — Flash took the money and that stays
+        there.
+      </ConfirmSubscriptionAction>
 
       {/* Every write that reaches Flash names the person before it happens, the
           same way a manual tier change does. */}
       <ConfirmSubscriptionAction
-        subscriber={confirmCancel}
-        profile={confirmCancel ? profiles.get(confirmCancel.pubkey) : undefined}
+        subject={subjectOf(confirmCancel)}
         kind="cancel"
         title="Cancel this subscription in Flash?"
         confirmLabel="Cancel subscription"
@@ -907,8 +1097,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
       </ConfirmSubscriptionAction>
 
       <ConfirmSubscriptionAction
-        subscriber={confirmPause}
-        profile={confirmPause ? profiles.get(confirmPause.pubkey) : undefined}
+        subject={subjectOf(confirmPause)}
         kind="pause"
         title="Pause this subscription in Flash?"
         confirmLabel="Pause subscription"
@@ -926,8 +1115,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
       {/* Resuming is confirmed too, unlike unblocking: it restarts a charge,
           and that is money moving on somebody's card. */}
       <ConfirmSubscriptionAction
-        subscriber={confirmResume}
-        profile={confirmResume ? profiles.get(confirmResume.pubkey) : undefined}
+        subject={subjectOf(confirmResume)}
         kind="resume"
         title="Resume this subscription in Flash?"
         confirmLabel="Resume subscription"
@@ -977,44 +1165,168 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   );
 }
 
+/** The section's own heading: its key as English, its count, its truncation admission. */
+function DivergenceHeading({ kind, section }: { kind: string; section: AdminBillingDivergenceSection }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">
+        {kind.replaceAll("_", " ")}
+      </span>
+      <Chip tone="warning" size="sm">{section.count}</Chip>
+      {section.truncated && (
+        <span className="text-[11px] text-slate-400 dark:text-slate-500">list capped — more exist</span>
+      )}
+    </div>
+  );
+}
+
+/** One free-form row, verbatim. The Flash id is the one value that links out. */
+function DivergenceRow({ row }: { row: Record<string, unknown> }) {
+  return (
+    <span className="font-mono text-xs text-slate-600 dark:text-slate-300 break-all">
+      {Object.entries(row).map(([k, v], j) => (
+        <span key={k}>
+          {j > 0 && "  "}
+          {k === "flash_subscription_id" && typeof v === "string" && v ? (
+            <>
+              {k}=
+              <a
+                href={flashSubscriptionUrl(v)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-brand-link hover:underline"
+              >
+                {v}
+              </a>
+            </>
+          ) : (
+            `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`
+          )}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 /** Rows are server-defined free-form objects — render the values, don't guess a schema. */
 function DivergenceBlock({ kind, section }: { kind: string; section: AdminBillingDivergenceSection }) {
   return (
     <div data-testid={`billing-divergence-${kind}`}>
-      <div className="flex items-center gap-2">
-        <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">
-          {kind.replaceAll("_", " ")}
-        </span>
-        <Chip tone="warning" size="sm">{section.count}</Chip>
-        {section.truncated && (
-          <span className="text-[11px] text-slate-400 dark:text-slate-500">list capped — more exist</span>
-        )}
-      </div>
+      <DivergenceHeading kind={kind} section={section} />
       <ul className="mt-1 space-y-1">
         {section.rows.map((row, i) => (
-          <li key={i} className="font-mono text-xs text-slate-600 dark:text-slate-300 break-all">
-            {Object.entries(row).map(([k, v], j) => (
-              <span key={k}>
-                {j > 0 && "  "}
-                {k === "flash_subscription_id" && typeof v === "string" && v ? (
-                  <>
-                    {k}=
-                    <a
-                      href={flashSubscriptionUrl(v)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-brand-link hover:underline"
-                    >
-                      {v}
-                    </a>
-                  </>
-                ) : (
-                  `${k}=${typeof v === "string" ? v : JSON.stringify(v)}`
-                )}
-              </span>
-            ))}
+          <li key={i}>
+            <DivergenceRow row={row} />
           </li>
         ))}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * The one divergence section an admin can settle from here, rather than only
+ * read: a payment that named nobody, to be attached to the person who made it
+ * or written off.
+ *
+ * Both verbs, or neither is any use — the payment provider's own card tests
+ * are dismissals, and they would otherwise sit in the report forever.
+ *
+ * The row itself carries no status, amount or dates: the server holds only the
+ * delivery, and Flash's payload has no contact details in it at all. So the
+ * raw record and the link out are the surface, not an extra — an unresolved
+ * signup can perfectly well be one Flash has already cancelled, and this is
+ * the only place that shows.
+ */
+function UnresolvedSignupsBlock({
+  section,
+  busyId,
+  onViewFlashRecord,
+  onAttribute,
+  onDismiss,
+}: {
+  section: AdminBillingDivergenceSection;
+  busyId: string | null;
+  onViewFlashRecord: (subscriptionId: string) => void;
+  onAttribute: (subscriptionId: string) => void;
+  onDismiss: (subscriptionId: string) => void;
+}) {
+  return (
+    <div data-testid="billing-divergence-unresolved_signups">
+      <DivergenceHeading kind="unresolved_signups" section={section} />
+      <p className="mt-0.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+        Payments nobody is receiving anything for. Who paid is visible only in Flash —
+        neither the payment nor the delivery carries a name or an email — so these are
+        settled when the subscriber gets in touch.
+      </p>
+      <ul className="mt-1.5 space-y-1.5">
+        {section.rows.map((row, i) => {
+          const id =
+            typeof row.flash_subscription_id === "string" ? row.flash_subscription_id : "";
+          const busy = !!id && busyId === id;
+          return (
+            <li key={id || i} className="flex items-start gap-2" data-testid={`billing-unresolved-${id}`}>
+              <DivergenceRow row={row} />
+              {id && (
+                <DropdownMenu>
+                  <RowActionsTrigger
+                    label="Signup actions"
+                    busy={busy}
+                    testId={`billing-unresolved-actions-${id}`}
+                    small
+                  />
+                  <DropdownMenuContent align="end" className="w-72">
+                    <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                      Actions
+                    </DropdownMenuLabel>
+                    <DropdownMenuItem
+                      onSelect={() => onViewFlashRecord(id)}
+                      className="flex-col items-start gap-0.5"
+                      data-testid="billing-unresolved-action-flash-record"
+                    >
+                      <span className="flex items-center">
+                        <FileJson className="mr-2 h-3.5 w-3.5" /> Flash's raw record
+                      </span>
+                      <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+                        What state this signup is actually in — it may already be cancelled.
+                        Read-only; it changes nothing.
+                      </span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      disabled={busy}
+                      onSelect={() => onAttribute(id)}
+                      className="flex-col items-start gap-0.5"
+                      data-testid="billing-unresolved-action-attribute"
+                    >
+                      <span className="flex items-center">
+                        <UserCheck className="mr-2 h-3.5 w-3.5" /> Attribute to a person
+                      </span>
+                      <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+                        Attaches this payment to an account and grants whatever its plan
+                        grants — the same way a webhook naming them would have.
+                      </span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      disabled={busy}
+                      onSelect={() => onDismiss(id)}
+                      className="flex-col items-start gap-0.5 text-red-600 dark:text-red-400"
+                      data-testid="billing-unresolved-action-dismiss"
+                    >
+                      <span className="flex items-center">
+                        <Ban className="mr-2 h-3.5 w-3.5" /> Dismiss as nobody's
+                      </span>
+                      <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+                        Clears it from this report without granting anything. Doesn't cancel
+                        or refund — that stays in Flash, which took the money.
+                      </span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

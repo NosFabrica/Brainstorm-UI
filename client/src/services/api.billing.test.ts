@@ -108,3 +108,70 @@ describe("the admin's writes to a subscription", () => {
     ).rejects.toThrow(/500/);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Resolving a signup that named nobody
+//
+// These are keyed by the Flash subscription id, not a pubkey: an unresolved
+// signup has no person on it, which is the whole reason it is unresolved.
+// ---------------------------------------------------------------------------
+const RESOLVED = {
+  subscription_id: "01a01f88-0d7f-734b-b724-13e32b482f57",
+  resolution: "attributed",
+  pubkey: PK,
+  applied: true,
+  entitlement_reason: "granted",
+  events_settled: 1,
+};
+
+describe("resolving an unresolved signup", () => {
+  beforeEach(() => {
+    active.account = stubAccount("test-token");
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("attributes by subscription id, sending only the hex key the server validates", async () => {
+    const fetchMock = mockFetchOnce(RESOLVED);
+
+    const out = await apiClient.attributeAdminBillingUnresolved(
+      "01a01f88-0d7f-734b-b724-13e32b482f57",
+      PK,
+    );
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      "http://test.local/admin/billing/unresolved/01a01f88-0d7f-734b-b724-13e32b482f57/attribute",
+    );
+    expect(options.method).toBe("POST");
+    expect(JSON.parse(options.body)).toEqual({ pubkey: PK });
+    expect(out.applied).toBe(true);
+    expect(out.entitlement_reason).toBe("granted");
+  });
+
+  it("escapes the id rather than letting it shape the path", async () => {
+    const fetchMock = mockFetchOnce({ ...RESOLVED, resolution: "dismissed" });
+
+    await apiClient.dismissAdminBillingUnresolved("sub/../subscriptions");
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      "http://test.local/admin/billing/unresolved/sub%2F..%2Fsubscriptions/dismiss",
+    );
+    expect(fetchMock.mock.calls[0][1].method).toBe("POST");
+  });
+
+  it("passes the server's refusal through as the sentence it is", async () => {
+    mockFetchOnce(
+      {
+        detail:
+          "This user already holds subscription 7d3b. Resolve that one first.",
+      },
+      { ok: false, status: 409 },
+    );
+
+    await expect(
+      apiClient.attributeAdminBillingUnresolved("7d3b", PK),
+    ).rejects.toThrow(/already holds subscription 7d3b/);
+  });
+});

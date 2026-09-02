@@ -259,6 +259,40 @@ async function writeBillingSubscription(
 }
 
 /**
+ * Settle one signup that named nobody. Separate from the write above because
+ * the handle is different: these rows have no pubkey, only a Flash id, and it
+ * comes off a report rather than out of our own roster — so it is escaped
+ * rather than trusted to be path-shaped.
+ *
+ * Every refusal here is a sentence the server wrote ("Flash says this
+ * subscription already belongs to a different user"), so it is passed through
+ * verbatim rather than restated as a status code.
+ */
+async function writeUnresolved(
+  subscriptionId: string,
+  verb: "attribute" | "dismiss",
+  body: Record<string, unknown>,
+  what: string,
+): Promise<AdminBillingResolution> {
+  const response = await authenticatedFetch(
+    `${getBrainstormApi()}/admin/billing/unresolved/${encodeURIComponent(subscriptionId)}/${verb}`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(30000),
+    },
+  );
+  if (!response.ok) {
+    throw new Error(
+      (await extractApiError(response)) || `Couldn't ${what} (${response.status}).`,
+    );
+  }
+  const json = await response.json();
+  return (json?.data ?? json) as AdminBillingResolution;
+}
+
+/**
  * One row of the admin Billing tab — the server's BillingSubscriptionItem
  * (see /docs on the server). Pubkey-keyed, so every row is an attributed
  * subscriber; the unsettled/unmatched cases live in /admin/billing/divergence.
@@ -302,6 +336,23 @@ export interface AdminBillingSubscriptionAction {
    * Flash and a stale roster here — do not report it as a failed action.
    */
   reason: string;
+}
+
+/**
+ * How a signup that named nobody was settled. `applied` false is a decision,
+ * not a failure, and `entitlement_reason` (the server's EntitlementReason) is
+ * what says which decision — so report it as an answer, never as a no-op.
+ */
+export interface AdminBillingResolution {
+  subscription_id: string;
+  /** `attributed` or `dismissed`. */
+  resolution: string;
+  pubkey: string | null;
+  applied: boolean;
+  /** Absent only on a dismissal, which runs no grant. */
+  entitlement_reason?: string | null;
+  /** How many stored webhook deliveries stopped being unsettled by this. */
+  events_settled: number;
 }
 
 /** One kind of billing disagreement; `truncated` means the list admits it's capped. */
@@ -1182,6 +1233,26 @@ export const apiClient = {
     return readFlashRecord(
       `/admin/billing/unresolved/${encodeURIComponent(subscriptionId)}/flash`,
     );
+  },
+
+  /**
+   * Attach a signup that named nobody to the person who made it. `pubkey` must
+   * already be hex — the server accepts nothing else, and the caller is where
+   * an npub gets decoded, so a bad paste is refused before it costs a round
+   * trip. Grants exactly what a webhook for the same subscription would.
+   */
+  async attributeAdminBillingUnresolved(
+    subscriptionId: string,
+    pubkey: string,
+  ): Promise<AdminBillingResolution> {
+    return writeUnresolved(subscriptionId, "attribute", { pubkey }, "attribute the signup");
+  },
+
+  /** Write a signup off as nobody's. Grants nothing and never asks Flash. */
+  async dismissAdminBillingUnresolved(
+    subscriptionId: string,
+  ): Promise<AdminBillingResolution> {
+    return writeUnresolved(subscriptionId, "dismiss", {}, "dismiss the signup");
   },
 
   /**
