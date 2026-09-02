@@ -14,6 +14,10 @@ import {
   Globe,
   UserRound,
   Clock,
+  Radio,
+  Newspaper,
+  Image as ImageIcon,
+  MessageSquare,
 } from "lucide-react";
 import { GlossBackground } from "@/components/GlossBackground";
 import { Wordmark } from "@/components/Wordmark";
@@ -125,10 +129,18 @@ export default function Landing() {
   // The SUBMITTED query — what SearchResults streams for. Distinct from
   // `query` (the live box text): results only change on submit/URL, never
   // per keystroke. SearchResults owns the stream, skeleton and count line.
-  const [submitted, setSubmitted] = useState(() => {
-    try { return new URLSearchParams(window.location.search).get("q")?.trim() || ""; } catch { return ""; }
+  // null = pristine home; "" = BROWSE mode (a vertical, no keyword — the
+  // "just show me all the live events" ask); non-empty = a real query.
+  const [submitted, setSubmitted] = useState<string | null>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const q = params.get("q")?.trim();
+      if (q) return q;
+      // ?t= without ?q= is a deep link into browsing that vertical.
+      return params.get("t") ? "" : null;
+    } catch { return null; }
   });
-  const hasSearched = submitted !== "";
+  const hasSearched = submitted !== null;
   // Brief in-box spinner while a NIP-05 handle resolves to a profile.
   const [isSearching, setIsSearching] = useState(false);
 
@@ -536,7 +548,7 @@ export default function Landing() {
         handleSearch(q);
       } else {
         searchAbortRef.current++;
-        setSubmitted("");
+        setSubmitted(new URLSearchParams(window.location.search).get("t") ? "" : null);
         setIsSearching(false);
       }
     };
@@ -580,16 +592,31 @@ export default function Landing() {
     setQuery("");
     setSuggestions([]);
     setActiveSuggestion(-1);
-    setSubmitted("");
+    setSubmitted(null);
     setIsSearching(false);
     inputRef.current?.focus();
     try {
       const url = new URL(window.location.href);
-      if (url.searchParams.has("q")) {
+      if (url.searchParams.has("q") || url.searchParams.has("t")) {
         url.searchParams.delete("q");
+        url.searchParams.delete("t");
         window.history.pushState({}, "", url.pathname + (url.search ? url.search : ""));
       }
     } catch {}
+  }, [cancelSuggest]);
+
+  // Browse a whole vertical with no keyword — Benjamin's "just show me all
+  // the live events". Deep-linkable: ?t=<tab> with no ?q=.
+  const browseVertical = useCallback((tabKey: string) => {
+    cancelSuggest();
+    setQuery("");
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("q");
+      url.searchParams.set("t", tabKey);
+      window.history.pushState({}, "", url.pathname + url.search);
+    } catch {}
+    setSubmitted("");
   }, [cancelSuggest]);
 
   // The suggestions dropdown is open whenever we have something to show.
@@ -1131,6 +1158,31 @@ export default function Landing() {
               >
                 What is this?
               </button>
+            </div>
+          )}
+
+          {/* Browse without a keyword — the "just show me all the live
+              events" entry. Only on the pristine home; once anything is
+              searched the tabs own navigation. */}
+          {!hasSearched && (
+            <div className="mt-5 flex flex-wrap items-center justify-center gap-2" data-testid="browse-chips">
+              <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">Browse</span>
+              {[
+                { tab: "live", label: "Live now", icon: Radio },
+                { tab: "articles", label: "Fresh articles", icon: Newspaper },
+                { tab: "media", label: "New media", icon: ImageIcon },
+                { tab: "notes", label: "Latest notes", icon: MessageSquare },
+              ].map((c) => (
+                <button
+                  key={c.tab}
+                  type="button"
+                  onClick={() => browseVertical(c.tab)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 hover:text-brand-deep dark:hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+                  data-testid={`browse-${c.tab}`}
+                >
+                  <c.icon className="h-3.5 w-3.5" /> {c.label}
+                </button>
+              ))}
             </div>
           )}
         </div>

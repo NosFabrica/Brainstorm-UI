@@ -141,6 +141,18 @@ describe("SearchResults", () => {
     expect(mainStreamCalls()[0][0]).toBe("bitcoin sort:rank");
   });
 
+  // Browse mode: no keyword, just "show me this vertical" — newest first.
+  it("browses a whole vertical when the query is empty", async () => {
+    setUrlTab("live");
+    render(<SearchResults query="" pov="nosfabrica" />);
+    expect(mainStreamCalls()[0][0]).toBe("sort:recent");
+    expect(mainStreamCalls()[0][1]).toMatchObject({ tab: "live" });
+
+    const live = ev("l1", 30311, "e".repeat(64), "", [["d", "s"], ["title", "NoGood Radio"], ["status", "live"]]);
+    emit({ hits: [{ event: live, author: author(live.pubkey, "radio"), rank: null }], eose: true, timeMs: 400 });
+    expect(await screen.findByText("NoGood Radio")).toBeInTheDocument();
+  });
+
   it("renders all eight verticals as tabs", () => {
     render(<SearchResults query="jack" pov="nosfabrica" />);
     for (const t of ["everything", "people", "notes", "articles", "media", "code", "live", "lists"]) {

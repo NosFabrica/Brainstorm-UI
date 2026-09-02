@@ -353,7 +353,9 @@ export function SearchResults({
   // Content tabs land on what's fresh by default; People keeps trust rank,
   // and a typed sort: is always honored verbatim.
   const effectiveQuery =
-    !userSorted && tab !== "everything" && tab !== "people" ? `${query} sort:recent` : query;
+    !userSorted && tab !== "everything" && tab !== "people"
+      ? `${query} sort:recent`.trim()
+      : query;
 
   useEffect(() => {
     if (composed) {

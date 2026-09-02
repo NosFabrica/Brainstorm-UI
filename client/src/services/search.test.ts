@@ -98,6 +98,21 @@ describe("searchStream", () => {
   });
 });
 
+describe("browse mode — no keyword at all", () => {
+  // Benjamin's ask: "what if they just want to see all the live events?"
+  // A keyword can only NARROW. An empty query with a kinds set is a valid
+  // browse — the lens still rides the search field (probed live: 8 streams
+  // in 423ms).
+  it("streams a vertical with no text — just the lens on the wire", async () => {
+    controllable();
+    searchStream("", { tab: "live", pov: "nosfabrica" }, () => {});
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as { kinds?: number[]; search: string };
+    expect(filter.kinds).toEqual(TAB_KINDS.live);
+    expect(filter.search).toBe(`observer:${HOUSE}`);
+  });
+});
+
 describe("token lifting", () => {
   // The relay never sees from:/to:/#tag/since:/until: — they become NIP-01
   // filter fields (probed: sending them through matches nothing).
