@@ -84,6 +84,22 @@ describe("ComposedResults", () => {
     expect(sectionCall("people").params.limit).toBeLessThanOrEqual(10);
   });
 
+  // The home feed: NO query at all → the composed page becomes "what's
+  // happening on Nostr right now", every content section fresh-first.
+  it("streams the whole network when the query is empty (the home feed)", async () => {
+    window.history.replaceState({}, "", "/");
+    render(<ComposedResults query="" pov="nosfabrica" onTabChange={vi.fn()} />);
+    expect(sectionCall("notes").query).toBe("sort:recent");
+    expect(sectionCall("people").query).toBe("");
+
+    sectionCall("notes").emit({
+      hits: [hitOf(ev("n1", 1, "a".repeat(64), "gm from the whole network"), "someone")],
+      eose: true,
+      timeMs: 400,
+    });
+    expect(await screen.findByTestId("serp-section-latest")).toHaveTextContent("gm from the whole network");
+  });
+
   it("renders sections as their streams answer, with More → switching tabs", async () => {
     const onTabChange = vi.fn();
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={onTabChange} />);

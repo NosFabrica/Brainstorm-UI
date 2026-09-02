@@ -464,15 +464,15 @@ export function SearchResults({
           card on mobile, the right rail on desktop (flex order). When no
           person clears the confidence bar it renders nothing and the column
           takes the full width. */}
-      <div className="flex flex-col gap-4 lg:flex-row-reverse lg:items-start lg:gap-6">
+      <div className="flex flex-col gap-4 lg:flex-row lg:justify-center lg:items-start lg:gap-6">
       <KnowledgePanel
         query={query}
         pov={pov}
         userPubkey={userPubkey}
         onOpen={onOpenProfile}
-        className="lg:w-72 lg:shrink-0 lg:sticky lg:top-4"
+        className="lg:order-2 lg:w-72 lg:shrink-0 lg:sticky lg:top-4"
       />
-      <div className="min-w-0 flex-1 lg:max-w-2xl">
+      <div className="min-w-0 w-full lg:order-1 lg:w-[42rem] lg:flex-none">
       {composed ? (
         <ComposedResults
           query={query}

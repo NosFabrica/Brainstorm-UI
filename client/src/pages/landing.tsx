@@ -634,7 +634,18 @@ export default function Landing() {
   // "Recent" shows under an empty, focused box before any search this session —
   // never alongside the suggestions dropdown or a results list.
   const showRecent = focused && query.trim() === "" && !hasSearched && !dropdownOpen && recent.length > 0;
-  const lifted = hasSearched || isSearching || query.trim().length > 0;
+  // The zero-query feed ("what's happening on Nostr") is OPT-IN: the
+  // pristine home stays the centered Google hero, one control reveals the
+  // feed, and the choice sticks per device. Hiding it is one click too.
+  const [feedOpen, setFeedOpenState] = useState(() => {
+    try { return localStorage.getItem("brainstorm_home_feed_open") === "1"; } catch { return false; }
+  });
+  const setFeedOpen = useCallback((open: boolean) => {
+    setFeedOpenState(open);
+    try { localStorage.setItem("brainstorm_home_feed_open", open ? "1" : "0"); } catch {}
+  }, []);
+  const homeFeed = submitted === null && feedOpen;
+  const lifted = hasSearched || homeFeed || isSearching || query.trim().length > 0;
 
   // Measure the room left below the search box and cap whichever panel is open.
   // Both panels are `absolute top-full`, so without a cap they run straight off
@@ -1185,6 +1196,17 @@ export default function Landing() {
               ))}
             </div>
           )}
+
+          {!hasSearched && (
+            <button
+              type="button"
+              onClick={() => setFeedOpen(!feedOpen)}
+              className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-slate-400 dark:text-slate-500 hover:text-brand-deep dark:hover:text-white transition-colors rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+              data-testid="home-feed-toggle"
+            >
+              {feedOpen ? "Hide the feed ▴" : "What's happening now ▾"}
+            </button>
+          )}
         </div>
 
         {/* One account-level card at a time: unlock → backup. Setup nudging
@@ -1199,9 +1221,9 @@ export default function Landing() {
             follower, so it can't be re-enabled safely until a backend invite-record
             gates it to genuine, owner-issued invites. */}
 
-        {hasSearched && (
+        {(hasSearched || homeFeed) && (
           <SearchResults
-            query={submitted}
+            query={submitted ?? ""}
             pov={effectivePov}
             userPubkey={user?.pubkey}
             onOpenProfile={goToProfile}
