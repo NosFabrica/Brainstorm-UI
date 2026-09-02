@@ -12,6 +12,7 @@ import type { SearchSnapshot } from "@/services/search";
 
 const streamMock = vi.fn();
 const cancelMock = vi.fn();
+const suggestMock = vi.fn<() => Promise<unknown[]>>(() => Promise.resolve([]));
 let lastOnSnapshot: ((s: SearchSnapshot) => void) | null = null;
 
 vi.mock("@/services/search", async (importOriginal) => {
@@ -23,6 +24,7 @@ vi.mock("@/services/search", async (importOriginal) => {
       streamMock(args[0], args[1]);
       return cancelMock;
     },
+    suggestProfiles: (...args: unknown[]) => suggestMock(...(args as [])),
   };
 });
 
@@ -203,6 +205,41 @@ describe("SearchResults", () => {
     fireEvent.click(screen.getByTestId("search-filters-toggle"));
     expect((screen.getByTestId("filter-sort") as HTMLSelectElement).value).toBe("rank");
     expect((screen.getByTestId("filter-spam") as HTMLInputElement).checked).toBe(true);
+  });
+
+  it("raises a knowledge panel when a person matches the query strongly", async () => {
+    suggestMock.mockResolvedValueOnce([
+      {
+        pubkey: "b".repeat(64),
+        npub: "npub1panel",
+        name: "alice",
+        about: "chief bitcoiner",
+        nip05: "alice@example.com",
+        wotRank: 0.9,
+        wotFollowers: 1234,
+      },
+    ]);
+    render(<SearchResults query="alice" pov="nosfabrica" />);
+    const panel = await screen.findByTestId("search-knowledge-panel");
+    expect(panel).toHaveTextContent("alice");
+    expect(panel).toHaveTextContent("chief bitcoiner");
+    // The deep-dive CTA links to the full profile.
+    expect(screen.getByTestId("knowledge-panel-profile").getAttribute("href")).toBe("/p/npub1panel");
+  });
+
+  it("keeps quiet when the top person is only a weak match", async () => {
+    suggestMock.mockResolvedValueOnce([
+      { pubkey: "b".repeat(64), npub: "npub1x", name: "completely different", wotRank: null, wotFollowers: null },
+    ]);
+    render(<SearchResults query="alice" pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 50 });
+    await screen.findByTestId("container-no-results");
+    expect(screen.queryByTestId("search-knowledge-panel")).toBeNull();
+  });
+
+  it("never probes for a panel when the query carries syntax", () => {
+    render(<SearchResults query="alice from:npub1abc" pov="nosfabrica" />);
+    expect(suggestMock).not.toHaveBeenCalled();
   });
 
   it("shows the relay's refusal reason when the stream errors", async () => {

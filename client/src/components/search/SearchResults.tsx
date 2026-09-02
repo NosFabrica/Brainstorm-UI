@@ -28,6 +28,7 @@ import {
 } from "@/services/search";
 
 import { LiveCard, ListCard, MediaCard, RepoCard } from "@/components/search/cards";
+import { KnowledgePanel } from "@/components/search/KnowledgePanel";
 
 const NOTE_KINDS = new Set(TAB_KINDS.notes);
 const ARTICLE_KINDS = new Set(TAB_KINDS.articles);
@@ -277,7 +278,7 @@ export function SearchResults({
   const scoreOf = useAuthorScores(contentAuthors);
 
   return (
-    <div className="w-full max-w-2xl mx-auto mt-4 sm:mt-5 text-left" data-testid="search-results">
+    <div className="w-full max-w-2xl lg:max-w-[62rem] mx-auto mt-4 sm:mt-5 text-left" data-testid="search-results">
       {/* Vertical tabs — underline style on desktop, scrollable on mobile. */}
       <div
         role="tablist"
@@ -323,6 +324,19 @@ export function SearchResults({
 
       {filtersOpen && onQueryRewrite && <FiltersPanel query={query} onQueryRewrite={onQueryRewrite} />}
 
+      {/* Google anatomy: the knowledge panel is FIRST in the DOM — the top
+          card on mobile, the right rail on desktop (flex order). When no
+          person clears the confidence bar it renders nothing and the column
+          takes the full width. */}
+      <div className="flex flex-col gap-4 lg:flex-row-reverse lg:items-start lg:gap-6">
+      <KnowledgePanel
+        query={query}
+        pov={pov}
+        userPubkey={userPubkey}
+        onOpen={onOpenProfile}
+        className="lg:w-72 lg:shrink-0 lg:sticky lg:top-4"
+      />
+      <div className="min-w-0 flex-1 lg:max-w-2xl">
       {snapshot?.error ? (
         <div
           className="rounded-xl border border-red-100 dark:border-red-500/20 bg-red-50/60 dark:bg-red-500/5 p-4 text-sm text-red-700 dark:text-red-300"
@@ -420,6 +434,8 @@ export function SearchResults({
           </div>
         </>
       )}
+      </div>
+      </div>
     </div>
   );
 }
