@@ -633,7 +633,7 @@ export default function Landing() {
     showSuggestions && (suggestions.length > 0 || isSuggesting || topicMatch.isTopic || tagMatches.length > 0);
   // "Recent" shows under an empty, focused box before any search this session —
   // never alongside the suggestions dropdown or a results list.
-  const showRecent = focused && query.trim() === "" && !hasSearched && !dropdownOpen && recent.length > 0;
+  const showRecent = focused && query.trim() === "" && !hasSearched && !dropdownOpen;
   // The zero-query feed ("what's happening on Nostr") is OPT-IN: the
   // pristine home stays the centered Google hero, one control reveals the
   // feed, and the choice sticks per device. Hiding it is one click too.
@@ -988,7 +988,29 @@ export default function Landing() {
                 style={{ maxHeight: suggestMaxH !== null ? `${suggestMaxH}px` : "min(28rem, calc(100dvh - 9rem))" }}
                 data-testid="container-home-recent"
               >
-                <div className="flex items-center justify-between px-4 pt-2.5 pb-1">
+                {/* Browse lives HERE now, not as standing page chrome — the
+                    empty focused box offers the verticals, Google-style. */}
+                <div className="flex flex-wrap items-center gap-1.5 px-4 pt-3 pb-2" data-testid="browse-chips">
+                  <span className="mr-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Browse</span>
+                  {[
+                    { tab: "live", label: "Live now", icon: Radio },
+                    { tab: "articles", label: "Articles", icon: Newspaper },
+                    { tab: "media", label: "Media", icon: ImageIcon },
+                    { tab: "notes", label: "Notes", icon: MessageSquare },
+                  ].map((c) => (
+                    <button
+                      key={c.tab}
+                      type="button"
+                      onMouseDown={(e) => { e.preventDefault(); setFocused(false); browseVertical(c.tab); }}
+                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-800 px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 hover:text-brand-deep dark:hover:text-white transition-colors"
+                      data-testid={`browse-${c.tab}`}
+                    >
+                      <c.icon className="h-3 w-3" /> {c.label}
+                    </button>
+                  ))}
+                </div>
+                {recent.length > 0 && (
+                <div className="flex items-center justify-between px-4 pt-1 pb-1">
                   <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Recent</span>
                   <button
                     type="button"
@@ -1001,6 +1023,7 @@ export default function Landing() {
                     Clear
                   </button>
                 </div>
+                )}
                 {/* Rows scroll inside the capped panel — the "Recent" header and
                     Clear stay pinned, matching the suggestions dropdown. */}
                 <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 pb-1.5">
@@ -1169,31 +1192,6 @@ export default function Landing() {
               >
                 What is this?
               </button>
-            </div>
-          )}
-
-          {/* Browse without a keyword — the "just show me all the live
-              events" entry. Only on the pristine home; once anything is
-              searched the tabs own navigation. */}
-          {!hasSearched && (
-            <div className="mt-5 flex flex-wrap items-center justify-center gap-2" data-testid="browse-chips">
-              <span className="text-[11px] font-medium text-slate-400 dark:text-slate-500">Browse</span>
-              {[
-                { tab: "live", label: "Live now", icon: Radio },
-                { tab: "articles", label: "Fresh articles", icon: Newspaper },
-                { tab: "media", label: "New media", icon: ImageIcon },
-                { tab: "notes", label: "Latest notes", icon: MessageSquare },
-              ].map((c) => (
-                <button
-                  key={c.tab}
-                  type="button"
-                  onClick={() => browseVertical(c.tab)}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/70 px-3 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 hover:text-brand-deep dark:hover:text-white transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-                  data-testid={`browse-${c.tab}`}
-                >
-                  <c.icon className="h-3.5 w-3.5" /> {c.label}
-                </button>
-              ))}
             </div>
           )}
 
