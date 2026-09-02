@@ -24,7 +24,7 @@ function prettyPath(u: URL): string {
 }
 
 /** Favicon loaded directly from the site; falls back to a globe icon if missing. */
-function Favicon({ host, className }: { host: string; className?: string }) {
+export function Favicon({ host, className }: { host: string; className?: string }) {
   const [failed, setFailed] = useState(false);
   if (failed || !host) return <Globe className={className} />;
   return (
