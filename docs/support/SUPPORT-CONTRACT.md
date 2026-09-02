@@ -47,8 +47,12 @@ GET  /user/support
    allowed:false ⇒ tickets [] — the UI shows the teaser)
 
 POST /user/support/tickets
-  { subject, body, category, notify_email? }  → { data: ticket }
-  (403 when not entitled — belt and braces with `allowed`)
+  { subject, body, category, notify_email?, diagnostics? }  → { data: ticket }
+  (403 when not entitled — belt and braces with `allowed`.
+   diagnostics: a flat {label: string} object the client collects — app
+   version, browser, page, screen, recent console errors — sent only with
+   the user's consent (default-on checkbox with a full disclosure). Store
+   verbatim, size-cap generously (~10KB); echoed on the thread read.)
 
 GET  /user/support/tickets/{id}
   → { data: { ticket, messages: [ { id, author, body, created_at } ],
@@ -85,6 +89,12 @@ POST /admin/support/tickets/{id}/close      { message? }
 - Read/unread state — the UI tracks "seen" per device (localStorage), so
   notification dots need no server surface. Server-side read-state only
   becomes worth it if multiple support agents need shared read receipts.
+- **File attachments (screenshots/video)** — needs real storage, size
+  limits, scanning, and authed serving. The diagnostics snapshot covers
+  most troubleshooting needs meanwhile. Proposed v2 shape when it's time:
+  `POST /user/support/tickets/{id}/attachments` (multipart; images +
+  short video; ~10MB cap; served authed to the ticket's user + admins) —
+  the UI adds a paperclip to both composers against whatever /docs says.
 
 - Inbound email → thread parsing (the heavy helpdesk machinery).
 - Nostr-DM notifications (v2 candidate: DM from a Brainstorm support key

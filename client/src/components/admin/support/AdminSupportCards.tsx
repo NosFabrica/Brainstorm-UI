@@ -6,6 +6,7 @@ import {
   ChevronDown,
   ChevronUp,
   ChevronsUpDown,
+  Copy,
   Loader2,
   Send,
   XCircle,
@@ -31,6 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { npubFromPubkey } from "@/lib/shareId";
+import { copyToClipboard } from "@/lib/clipboard";
 import { isUnread, markSeen } from "@/lib/supportSeen";
 import {
   SUPPORT_CATEGORIES,
@@ -62,6 +64,16 @@ function fmtWhen(iso: string): string {
   return Number.isFinite(d.getTime())
     ? d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
     : "";
+}
+
+function fmtDateOnly(iso: string): string {
+  const d = new Date(iso);
+  return Number.isFinite(d.getTime()) ? d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
+}
+
+function fmtTimeOnly(iso: string): string {
+  const d = new Date(iso);
+  return Number.isFinite(d.getTime()) ? d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "";
 }
 
 function requesterLabel(pubkey: string | null): string {
@@ -114,6 +126,23 @@ function RequesterCell({
           <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 truncate max-w-[140px]">{label}</span>
         )}
       </span>
+      <button
+        type="button"
+        title="Copy npub"
+        aria-label="Copy npub"
+        className="shrink-0 rounded p-1 text-slate-300 dark:text-slate-600 hover:text-slate-500 dark:hover:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+        onClick={(e) => {
+          e.stopPropagation();
+          try {
+            copyToClipboard(npubFromPubkey(pubkey));
+          } catch {
+            /* malformed pubkey — nothing to copy */
+          }
+        }}
+        data-testid={`copy-npub-${pubkey.slice(0, 8)}`}
+      >
+        <Copy className="h-3 w-3" />
+      </button>
     </span>
   );
 }
@@ -130,7 +159,7 @@ function adminEventLabel(e: { type: string; by: string }): string {
   return e.type.replaceAll("_", " ");
 }
 
-type SortKey = "subject" | "category" | "status" | "updated";
+type SortKey = "created" | "subject" | "category" | "status" | "updated";
 type SortState = { key: SortKey; dir: "asc" | "desc" } | null;
 
 const TIME_WINDOWS = [
@@ -175,11 +204,15 @@ export function filterAndSort(
   categoryFilter: string,
   windowFilter: string,
   sort: SortState,
+  showClosed: boolean = true,
 ): AdminSupportTicket[] {
   const q = search.trim().toLowerCase();
   const windowMs = TIME_WINDOWS.find((w) => w.key === windowFilter)?.ms ?? null;
   const cutoff = windowMs === null ? null : Date.now() - windowMs;
   let out = tickets.filter((t) => {
+    // The queue shows work by default; closed is a click away (or pick the
+    // "closed" status filter explicitly).
+    if (!showClosed && statusFilter !== "closed" && t.status === "closed") return false;
     if (statusFilter !== "all" && t.status !== statusFilter) return false;
     if (categoryFilter !== "all" && t.category !== categoryFilter) return false;
     if (cutoff !== null && new Date(t.lastMessageAt).getTime() < cutoff) return false;
@@ -194,6 +227,7 @@ export function filterAndSort(
   if (sort) {
     const value = (t: AdminSupportTicket): string => {
       switch (sort.key) {
+        case "created": return t.createdAt;
         case "subject": return t.subject.toLowerCase();
         case "category": return categoryLabel(t.category).toLowerCase();
         case "status": return t.status;
@@ -220,6 +254,7 @@ export function AdminSupportCards({ active }: { active: boolean }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [windowFilter, setWindowFilter] = useState<string>("all");
+  const [showClosed, setShowClosed] = useState(false);
   const [sort, setSort] = useState<SortState>(null);
   const toggleSort = (key: SortKey) =>
     setSort((prev) => (prev?.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
@@ -262,7 +297,8 @@ export function AdminSupportCards({ active }: { active: boolean }) {
 
   const statuses = Array.from(new Set(tickets.map((t) => t.status))).sort();
   const categories = Array.from(new Set(tickets.map((t) => t.category))).sort();
-  const visible = filterAndSort(tickets, profiles, search, statusFilter, categoryFilter, windowFilter, sort);
+  const visible = filterAndSort(tickets, profiles, search, statusFilter, categoryFilter, windowFilter, sort, showClosed);
+  const closedCount = tickets.filter((t) => t.status === "closed").length;
   const filtering =
     search.trim() !== "" || statusFilter !== "all" || categoryFilter !== "all" || windowFilter !== "all";
 
@@ -321,6 +357,16 @@ export function AdminSupportCards({ active }: { active: boolean }) {
             ))}
           </SelectContent>
         </Select>
+        {closedCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowClosed((v) => !v)}
+            className="rounded-full border border-slate-200 dark:border-slate-800 px-3 py-1 text-xs font-medium text-slate-500 dark:text-slate-400 hover:border-brand-accent/30"
+            data-testid="toggle-closed"
+          >
+            {showClosed ? "Hide closed" : `Show closed (${closedCount})`}
+          </button>
+        )}
         {filtering && (
           <span className="text-xs text-slate-400 dark:text-slate-500" data-testid="support-filter-count">
             {visible.length} of {tickets.length}
@@ -330,13 +376,16 @@ export function AdminSupportCards({ active }: { active: boolean }) {
 
       {visible.length === 0 ? (
         <p className="py-4 text-sm text-slate-500 dark:text-slate-400" data-testid="admin-support-no-match">
-          No tickets match your filters.
+          {!filtering && !showClosed && closedCount > 0
+            ? "Queue clear — nothing awaiting a reply."
+            : "No tickets match your filters."}
         </p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[640px]" data-testid="table-admin-support">
             <thead>
               <tr className="border-b border-brand-accent/10">
+                <th className={th}><SortHeader label="Opened" sortKey="created" sort={sort} onSort={toggleSort} /></th>
                 <th className={th}><SortHeader label="Subject" sortKey="subject" sort={sort} onSort={toggleSort} /></th>
                 <th className={th}><SortHeader label="Category" sortKey="category" sort={sort} onSort={toggleSort} /></th>
                 <th className={th}>From</th>
@@ -352,6 +401,12 @@ export function AdminSupportCards({ active }: { active: boolean }) {
                   onClick={() => setOpenId(t.id)}
                   data-testid={`admin-ticket-${t.id}`}
                 >
+                  <td className={`${td} whitespace-nowrap`}>
+                    <span className="flex flex-col leading-tight">
+                      <span className="text-[13px] font-semibold tabular-nums">{fmtDateOnly(t.createdAt)}</span>
+                      <span className="text-[10px] tabular-nums text-slate-400 dark:text-slate-500">{fmtTimeOnly(t.createdAt)}</span>
+                    </span>
+                  </td>
                   <td className={`${td} font-medium`}>
                     <span className="flex items-center gap-2">
                       {isUnread("admin", t) && (
@@ -408,6 +463,7 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
   const ticket = threadQuery.data?.ticket;
   const messages = threadQuery.data?.messages ?? [];
   const events = threadQuery.data?.events ?? [];
+  const diagnostics = threadQuery.data?.diagnostics ?? null;
   const closed = ticket?.status === "closed";
 
   const timeline = [
@@ -547,6 +603,19 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
               ))}
             </select>
           </div>
+
+          {diagnostics && (
+            <details className="mt-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 px-3 py-2" open data-testid="admin-diagnostics">
+              <summary className="cursor-pointer text-xs font-semibold text-slate-600 dark:text-slate-300">
+                Diagnostics (sent with the ticket)
+              </summary>
+              <pre className="mt-1.5 max-h-48 overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">
+                {Object.entries(diagnostics)
+                  .map(([k, v]) => `${k}: ${v}`)
+                  .join("\n")}
+              </pre>
+            </details>
+          )}
 
           <div className="mt-3 space-y-2.5">
             {timeline.map((item, i) =>

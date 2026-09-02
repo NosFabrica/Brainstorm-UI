@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
-import { adminCloseTicket, adminReply, createTicket } from "@/services/support";
+import { adminCloseTicket, adminReply, createTicket, fetchSupport, fetchThread } from "@/services/support";
 import SupportPage from "./SupportPage";
 
 // Peripheral chrome only — the support seam underneath is the REAL mock store,
@@ -79,6 +79,35 @@ describe("SupportPage (through the real mock seam)", () => {
 
     await screen.findByTestId(`ticket-${t.id}`);
     expect(screen.queryByTestId(`ticket-unread-${t.id}`)).toBeNull();
+  });
+
+  // Diagnostics ride along by default — support's first questions, pre-answered
+  // — with an opt-out and a disclosure of exactly what's sent.
+  it("filing attaches diagnostics unless the user opts out", async () => {
+    renderWithProviders(<SupportPage />);
+    fireEvent.click(await screen.findByTestId("button-first-ticket"));
+    fireEvent.change(screen.getByTestId("ticket-subject"), { target: { value: "With diag" } });
+    fireEvent.change(screen.getByTestId("ticket-body"), { target: { value: "x" } });
+    fireEvent.click(screen.getByTestId("category-bug"));
+    expect((screen.getByTestId("ticket-include-diagnostics") as HTMLInputElement).checked).toBe(true);
+    fireEvent.click(screen.getByTestId("ticket-submit"));
+    await screen.findByTestId("support-thread");
+
+    const withDiag = (await fetchSupport()).tickets.find((t) => t.subject === "With diag")!;
+    expect((await fetchThread(withDiag.id)).diagnostics?.Browser).toBeTruthy();
+
+    // Opting out sends nothing.
+    fireEvent.click(screen.getByTestId("thread-back"));
+    fireEvent.click(screen.getByTestId("button-new-ticket"));
+    fireEvent.change(screen.getByTestId("ticket-subject"), { target: { value: "No diag" } });
+    fireEvent.change(screen.getByTestId("ticket-body"), { target: { value: "y" } });
+    fireEvent.click(screen.getByTestId("category-bug"));
+    fireEvent.click(screen.getByTestId("ticket-include-diagnostics"));
+    fireEvent.click(screen.getByTestId("ticket-submit"));
+    await screen.findByTestId("support-thread");
+
+    const noDiag = (await fetchSupport()).tickets.find((t) => t.subject === "No diag")!;
+    expect((await fetchThread(noDiag.id)).diagnostics).toBeNull();
   });
 
   it("cards lead with the date rail, and sort flips oldest-first", async () => {

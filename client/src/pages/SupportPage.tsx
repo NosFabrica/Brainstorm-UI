@@ -19,6 +19,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { isValidEmail } from "@/lib/email";
 import { isUnread, markSeen } from "@/lib/supportSeen";
+import { collectDiagnostics } from "@/lib/supportDiagnostics";
 import {
   SUPPORT_CATEGORIES,
   categoryLabel,
@@ -458,6 +459,7 @@ function NewTicketDialog({
   const [category, setCategory] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
+  const [includeDiagnostics, setIncludeDiagnostics] = useState(true);
   const [busy, setBusy] = useState(false);
 
   const deflection = category ? (FAQ_DEFLECTION[category] ?? []) : [];
@@ -477,6 +479,7 @@ function NewTicketDialog({
         body: body.trim(),
         category,
         notifyEmail: trimmedEmail || undefined,
+        diagnostics: includeDiagnostics ? collectDiagnostics() : undefined,
       });
       setSubject("");
       setBody("");
@@ -562,6 +565,30 @@ function NewTicketDialog({
             className={`${inputCls} resize-y`}
             data-testid="ticket-body"
           />
+          <div className="rounded-xl border border-slate-200 dark:border-slate-800 px-3 py-2">
+            <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-300">
+              <input
+                type="checkbox"
+                checked={includeDiagnostics}
+                onChange={(e) => setIncludeDiagnostics(e.target.checked)}
+                className="h-3.5 w-3.5 accent-[var(--brand-primary,#7237ff)]"
+                data-testid="ticket-include-diagnostics"
+              />
+              Include diagnostic info — helps the team fix it faster
+            </label>
+            {includeDiagnostics && (
+              <details className="mt-1.5">
+                <summary className="cursor-pointer text-[11px] text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300">
+                  Exactly what's sent
+                </summary>
+                <pre className="mt-1 max-h-32 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 dark:bg-slate-900 p-2 font-mono text-[10px] leading-relaxed text-slate-500 dark:text-slate-400" data-testid="diagnostics-preview">
+                  {Object.entries(collectDiagnostics())
+                    .map(([k, v]) => `${k}: ${v}`)
+                    .join("\n")}
+                </pre>
+              </details>
+            )}
+          </div>
           <div>
             <input
               value={email}

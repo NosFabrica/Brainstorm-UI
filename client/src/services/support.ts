@@ -98,6 +98,7 @@ interface MockStore {
     notifyEmail?: string;
     pubkey?: string;
     events?: TicketEvent[];
+    diagnostics?: Record<string, string>;
   })[];
 }
 
@@ -162,6 +163,8 @@ export async function createTicket(input: {
   body: string;
   category: string;
   notifyEmail?: string;
+  /** Client-collected snapshot (lib/supportDiagnostics) — optional, opt-out. */
+  diagnostics?: Record<string, string>;
 }): Promise<SupportTicket> {
   const now = new Date().toISOString();
   const ticket: StoredTicket = {
@@ -174,6 +177,7 @@ export async function createTicket(input: {
     notifyEmail: input.notifyEmail || undefined,
     messages: [{ id: mockId(), author: "user", body: input.body, createdAt: now }],
     events: [{ type: "opened", at: now, by: "user" }],
+    diagnostics: input.diagnostics,
   };
   const store = readStore();
   store.tickets.push(ticket);
@@ -183,13 +187,19 @@ export async function createTicket(input: {
 
 export async function fetchThread(
   id: string,
-): Promise<{ ticket: SupportTicket; messages: SupportMessage[]; events: TicketEvent[] }> {
+): Promise<{
+  ticket: SupportTicket;
+  messages: SupportMessage[];
+  events: TicketEvent[];
+  diagnostics: Record<string, string> | null;
+}> {
   const found = readStore().tickets.find((t) => t.id === id);
   if (!found) throw new Error("Ticket not found");
   return {
     ticket: toPublic(found),
     messages: [...found.messages].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
     events: [...eventsOf(found)].sort((a, b) => a.at.localeCompare(b.at)),
+    diagnostics: found.diagnostics ?? null,
   };
 }
 

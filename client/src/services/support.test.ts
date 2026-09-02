@@ -109,6 +109,22 @@ describe("priority support seam (mock mode)", () => {
     expect(tickets[0].closedAt).toBe(events.at(-1)!.at);
   });
 
+  it("a ticket can carry a diagnostics snapshot, readable from the thread", async () => {
+    const t = await createTicket({
+      subject: "Broken here",
+      body: "See diagnostics.",
+      category: "bug",
+      diagnostics: { App: "v0.1.0-alpha", Browser: "TestBrowser/1.0", "Recent errors": "boom" },
+    });
+
+    const thread = await fetchThread(t.id);
+    expect(thread.diagnostics).toMatchObject({ Browser: "TestBrowser/1.0" });
+
+    // Not sending one is fine — older tickets and opted-out users.
+    const plain = await createTicket({ subject: "No diag", body: "x", category: "other" });
+    expect((await fetchThread(plain.id)).diagnostics).toBeNull();
+  });
+
   it("admins can recategorize — applied immediately, on the record", async () => {
     const t = await createTicket({ subject: "Mislabeled", body: "x", category: "other" });
     await adminSetCategory(t.id, "billing");

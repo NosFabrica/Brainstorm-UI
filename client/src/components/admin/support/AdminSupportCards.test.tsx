@@ -123,6 +123,22 @@ describe("AdminSupportCards (same mock store as the user page)", () => {
     expect(screen.queryByTestId(`admin-unread-${t.id}`)).toBeNull();
   });
 
+  it("shows the ticket's diagnostics — support's first questions, pre-answered", async () => {
+    const t = await createTicket({
+      subject: "Diag here",
+      body: "x",
+      category: "bug",
+      diagnostics: { App: "v0.1.0-alpha", Browser: "TestBrowser/1.0", "Recent errors": "render exploded" },
+    });
+
+    renderWithProviders(<AdminSupportCards active />);
+    fireEvent.click(await screen.findByTestId(`admin-ticket-${t.id}`));
+
+    const diag = await screen.findByTestId("admin-diagnostics");
+    expect(diag.textContent).toContain("TestBrowser/1.0");
+    expect(diag.textContent).toContain("render exploded");
+  });
+
   it("recategorizes in place and stamps it on the timeline", async () => {
     const t = await createTicket({ subject: "Mislabeled", body: "x", category: "other" });
 
@@ -141,7 +157,7 @@ describe("AdminSupportCards (same mock store as the user page)", () => {
     await screen.findByTestId("admin-support-empty");
   });
 
-  it("works the queue: open tickets first by default, search narrows, category shows its label", async () => {
+  it("works the queue: closed tickets tuck away by default, one click brings them back", async () => {
     const a = await createTicket({ subject: "Billing question", body: "x", category: "billing" });
     const b = await createTicket({ subject: "Score question", body: "y", category: "scores" });
     const { adminCloseTicket } = await import("@/services/support");
@@ -150,7 +166,15 @@ describe("AdminSupportCards (same mock store as the user page)", () => {
     renderWithProviders(<AdminSupportCards active />);
     await screen.findByTestId("table-admin-support");
 
-    // Default sort: the open ticket outranks the (newer-activity) closed one.
+    // The work queue shows what needs working — closed is one click away.
+    expect(screen.queryByTestId(`admin-ticket-${a.id}`)).toBeNull();
+    expect(screen.getByTestId(`admin-ticket-${b.id}`)).toBeInTheDocument();
+    const toggle = screen.getByTestId("toggle-closed");
+    expect(toggle.textContent).toContain("Show closed (1)");
+
+    fireEvent.click(toggle);
+    expect(screen.getByTestId(`admin-ticket-${a.id}`)).toBeInTheDocument();
+    // Open still outranks closed in the default sort.
     const rows = screen.getAllByTestId(/^admin-ticket-/);
     expect(rows[0].textContent).toContain("Score question");
     expect(rows[0].textContent).toContain("Scores & calculation");
@@ -158,6 +182,5 @@ describe("AdminSupportCards (same mock store as the user page)", () => {
     fireEvent.change(screen.getByTestId("input-support-search"), { target: { value: "billing" } });
     expect(screen.queryByTestId(`admin-ticket-${b.id}`)).toBeNull();
     expect(screen.getByTestId(`admin-ticket-${a.id}`)).toBeInTheDocument();
-    expect(screen.getByTestId("support-filter-count").textContent).toBe("1 of 2");
   });
 });
