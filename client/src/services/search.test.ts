@@ -27,10 +27,11 @@ vi.mock("@/services/trustSource", () => ({
   resolveHouseObserver: () => houseMock(),
 }));
 const getReplaceableMock = vi.fn<(kind: number, pubkey: string) => NostrEvent | undefined>(() => undefined);
+const storeAddMock = vi.fn((event: unknown) => event);
 vi.mock("@/lib/eventStore", () => ({
   eventStore: {
     getReplaceable: (kind: number, pubkey: string) => getReplaceableMock(kind, pubkey),
-    add: (event: unknown) => event,
+    add: (event: unknown) => storeAddMock(event),
   },
 }));
 
@@ -109,6 +110,22 @@ describe("token lifting", () => {
     expect(filter.authors).toEqual([alice]);
     expect(filter["#t"]).toEqual(["nostr"]);
     expect(filter.search).toBe(`gm observer:${HOUSE}`);
+  });
+});
+
+describe("hits reach the event store", () => {
+  // The search relay indexes a wider corpus than the general content relays —
+  // Benjamin clicked a result and the /e page said "couldn't find this note"
+  // because it only asked relays that never had it. We HAVE the event the
+  // moment it streams in: store it, and the click renders from the store.
+  it("adds every streamed hit to the event store", async () => {
+    const { subject } = controllable();
+    searchStream("bitcoin", { tab: "notes", pov: "nosfabrica" }, () => {});
+    await tick();
+    const note = ev("n1", 1, "a".repeat(64), "found only on the search relay");
+    subject.next(frame(note));
+    await tick();
+    expect(storeAddMock).toHaveBeenCalledWith(note);
   });
 });
 

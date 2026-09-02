@@ -3,6 +3,7 @@ import { env } from "@/lib/runtimeEnv";
 import { declaresTrustProvider } from "@/lib/nip85Declaration";
 import { pool } from "@/lib/relayPool";
 import { eventStore } from "@/lib/eventStore";
+import { searchRelay } from "@/lib/searchRelay";
 import { CONTENT_RELAYS, PROFILE_RELAYS } from "@/lib/relays";
 import { requestAll, requestNewest, requestOne } from "@/lib/relayRequest";
 import { addressLoader, loadReplaceable } from "@/lib/loaders";
@@ -675,11 +676,62 @@ export async function fetchEventsByIds(
 ): Promise<NostrEvent[]> {
   const unique = Array.from(new Set(ids.filter((id) => /^[0-9a-f]{64}$/i.test(id))));
   if (!unique.length) return [];
-  const targetRelays = relays.length ? relays : PROFILE_RELAYS;
-  // Asking by id means the answer set is known up front: once every one has
-  // arrived there is nothing left to wait for.
-  return requestAll(targetRelays, { ids: unique }, timeoutMs, {
-    enough: (collected) => collected.size >= unique.length,
+
+  // The store first: search results are stored on arrival, so an event found
+  // through search opens instantly — no network, no relay-coverage roulette.
+  const found = new Map<string, NostrEvent>();
+  for (const id of unique) {
+    const known = eventStore.getEvent(id);
+    if (known) found.set(id, known);
+  }
+  let missing = unique.filter((id) => !found.has(id));
+
+  if (missing.length) {
+    const targetRelays = relays.length ? relays : PROFILE_RELAYS;
+    // Asking by id means the answer set is known up front: once every one has
+    // arrived there is nothing left to wait for.
+    const fetched = await requestAll(targetRelays, { ids: missing }, timeoutMs, {
+      enough: (collected) => collected.size >= missing.length,
+    });
+    for (const event of fetched) found.set(event.id, event);
+    missing = missing.filter((id) => !found.has(id));
+  }
+
+  if (missing.length) {
+    // Last resort: the SEARCH relay, whose corpus is wider than the content
+    // relays' — an id found by search may exist nowhere else we ask. Its
+    // reads need a lens; include:spam is the "any event, unranked" one.
+    for (const event of await fetchFromSearchRelay(missing, Math.min(timeoutMs, 5000))) {
+      eventStore.add(event);
+      found.set(event.id, event);
+    }
+  }
+
+  return [...found.values()];
+}
+
+function fetchFromSearchRelay(ids: string[], timeoutMs: number): Promise<NostrEvent[]> {
+  return new Promise((resolve) => {
+    let relay: ReturnType<typeof searchRelay>;
+    try {
+      relay = searchRelay();
+    } catch {
+      relay = null;
+    }
+    if (!relay) return resolve([]);
+    const events: NostrEvent[] = [];
+    const sub = relay
+      .req({ ids, search: "include:spam", limit: ids.length })
+      .subscribe((msg: { type: string; event?: NostrEvent }) => {
+        if (msg.type === "EVENT" && msg.event) events.push(msg.event);
+        else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();
+      });
+    const timer = setTimeout(finish, timeoutMs);
+    function finish() {
+      clearTimeout(timer);
+      sub.unsubscribe();
+      resolve(events);
+    }
   });
 }
 

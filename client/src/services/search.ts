@@ -214,6 +214,10 @@ export function searchStream(
       if (cancelled) return;
       if (msg.type === "EVENT" && msg.event) {
         const event = msg.event;
+        // Into the store the moment it arrives: the search relay's corpus is
+        // wider than the content relays', so a clicked result must render
+        // from what we already hold, not from relays that may lack it.
+        eventStore.add(event);
         hits.push({ event, author: noteAuthor(event), rank: null });
         emit({});
       } else if (msg.type === "EOSE") {
