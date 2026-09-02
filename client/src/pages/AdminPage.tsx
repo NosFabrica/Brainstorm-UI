@@ -12,6 +12,7 @@ import { NostrHealthCard } from "@/components/admin/NostrHealthCard";
 import { ScrollableTable } from "@/components/admin/ScrollableTable";
 import { SchedulingCard } from "@/components/admin/scheduling/SchedulingCard";
 import { SchedulingStatsPanel } from "@/components/admin/scheduling/SchedulingStatsPanel";
+import { AdminSupportCards } from "@/components/admin/support/AdminSupportCards";
 import { UserTierPicker } from "@/components/admin/scheduling/UserTierPicker";
 import { ResyncControl } from "@/components/admin/ResyncControl";
 import type { SchedulingItem } from "@/services/api";
@@ -91,6 +92,7 @@ import {
   Maximize2,
   Sparkles,
   CalendarClock,
+  LifeBuoy,
 } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip as RcTooltip, XAxis, YAxis } from "recharts";
 import { AgentIcon } from "@/components/AgentIcon";
@@ -107,7 +109,7 @@ import { searchByText } from "@/lib/profileSearch";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 
-type AdminTab = "overview" | "users" | "health" | "activity" | "assistants" | "scheduling";
+type AdminTab = "overview" | "users" | "health" | "activity" | "assistants" | "scheduling" | "support";
 type SortDir = "asc" | "desc";
 type PageSizeOption = 25 | 50 | 100;
 type ActivityTimeRange = "1h" | "24h" | "7d" | "all";
@@ -1758,7 +1760,7 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get("tab");
-    if (tab === "users" || tab === "activity" || tab === "health") return tab;
+    if (tab === "users" || tab === "activity" || tab === "health" || tab === "support") return tab;
     if (tab === "assistants" && FEATURES.assistantsAdmin) return tab;
     return "overview";
   });
@@ -2631,6 +2633,7 @@ export default function AdminPage() {
     { key: "overview", label: "Overview", icon: BarChart3 },
     { key: "activity", label: "Activity", icon: Activity },
     { key: "scheduling", label: "Scheduling", icon: CalendarClock },
+    { key: "support", label: "Support", icon: LifeBuoy },
     { key: "users", label: "Users", icon: Users },
     ...(FEATURES.assistantsAdmin ? [{ key: "assistants" as AdminTab, label: "Assistants", icon: Sparkles }] : []),
     { key: "health", label: "System Health", icon: Server },
@@ -4287,6 +4290,20 @@ export default function AdminPage() {
             </Dialog>
 
             </>
+          )}
+
+          {activeTab === "support" && (
+            <div className="grid grid-cols-1 gap-6" data-testid="panel-support">
+              <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-support-tickets">
+                <div className="px-5 py-4 border-b border-brand-accent/10">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Priority Support</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Tickets from paid users — reply here; the in-app thread is the source of truth</p>
+                </div>
+                <div className="px-5 py-4">
+                  <AdminSupportCards active={activeTab === "support"} />
+                </div>
+              </div>
+            </div>
           )}
 
           {activeTab === "scheduling" && (
