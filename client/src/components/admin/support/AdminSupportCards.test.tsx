@@ -243,6 +243,33 @@ describe("AdminSupportCards (same mock store as the user page)", () => {
     expect(listCanned().filter((c) => c.title === starter.title)).toHaveLength(1);
   });
 
+  // Deleting a snippet is permanent (starters never re-seed), so the ⓧ arms
+  // a confirm instead of firing — one stray click can't cost a saved answer.
+  it("asks before deleting a canned reply, and cancel keeps it", async () => {
+    const t = await createTicket({ subject: "Careful", body: "x", category: "other" });
+
+    renderWithProviders(<AdminSupportCards active />);
+    fireEvent.click(await screen.findByTestId(`admin-ticket-${t.id}`));
+    await screen.findByTestId("admin-reply-input");
+
+    const { listCanned } = await import("@/lib/cannedReplies");
+    const target = listCanned()[0];
+
+    // First click arms; nothing is deleted yet.
+    fireEvent.click(screen.getByTestId(`canned-delete-${target.id}`));
+    expect(listCanned().map((c) => c.id)).toContain(target.id);
+
+    // Backing out keeps it.
+    fireEvent.click(screen.getByTestId(`canned-delete-cancel-${target.id}`));
+    expect(screen.queryByTestId(`canned-delete-confirm-${target.id}`)).toBeNull();
+    expect(listCanned().map((c) => c.id)).toContain(target.id);
+
+    // Arm again and confirm — now it's gone.
+    fireEvent.click(screen.getByTestId(`canned-delete-${target.id}`));
+    fireEvent.click(screen.getByTestId(`canned-delete-confirm-${target.id}`));
+    expect(listCanned().map((c) => c.id)).not.toContain(target.id);
+  });
+
   it("says so plainly when there are no tickets", async () => {
     renderWithProviders(<AdminSupportCards active />);
     await screen.findByTestId("admin-support-empty");

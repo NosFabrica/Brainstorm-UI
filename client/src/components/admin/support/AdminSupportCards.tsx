@@ -486,6 +486,9 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
   // save-new-then-delete-old dance. Appending into existing text doesn't.
   const [editingCannedId, setEditingCannedId] = useState<string | null>(null);
   const editingCanned = canned.find((c) => c.id === editingCannedId) ?? null;
+  // Deletion is permanent (starters never re-seed), so the ⓧ arms this row's
+  // inline confirm instead of firing straight away.
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
   const threadQuery = useQuery({
     queryKey: [...ADMIN_SUPPORT_KEY, id],
@@ -766,15 +769,40 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
                     {canned.map((c) => (
                       <li key={c.id} className="flex items-center gap-1.5">
                         <span className="truncate max-w-[220px]">{c.title}</span>
-                        <button
-                          type="button"
-                          aria-label={`Delete saved reply ${c.title}`}
-                          className="text-slate-300 dark:text-slate-600 hover:text-red-500"
-                          onClick={() => { removeCanned(c.id); setCannedTick((n) => n + 1); }}
-                          data-testid={`canned-delete-${c.id}`}
-                        >
-                          <XCircle className="h-3 w-3" />
-                        </button>
+                        {confirmDeleteId === c.id ? (
+                          <span className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              className="font-medium text-red-500 hover:text-red-600"
+                              onClick={() => {
+                                removeCanned(c.id);
+                                setConfirmDeleteId(null);
+                                setCannedTick((n) => n + 1);
+                              }}
+                              data-testid={`canned-delete-confirm-${c.id}`}
+                            >
+                              Delete — it won’t come back
+                            </button>
+                            <button
+                              type="button"
+                              className="hover:text-slate-600 dark:hover:text-slate-300"
+                              onClick={() => setConfirmDeleteId(null)}
+                              data-testid={`canned-delete-cancel-${c.id}`}
+                            >
+                              Keep
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            aria-label={`Delete saved reply ${c.title}`}
+                            className="text-slate-300 dark:text-slate-600 hover:text-red-500"
+                            onClick={() => setConfirmDeleteId(c.id)}
+                            data-testid={`canned-delete-${c.id}`}
+                          >
+                            <XCircle className="h-3 w-3" />
+                          </button>
+                        )}
                       </li>
                     ))}
                   </ul>
