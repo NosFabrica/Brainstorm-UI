@@ -34,19 +34,25 @@ export interface SubscriptionPolicy {
 }
 
 /**
- * What this person actually bought, read through their billing row.
+ * Which plan this person bought, priced by Flash.
  *
- * Deliberately not "their policy's current price": someone on a retired or
- * repriced plan still pays what they signed up for, and matching by policy
- * would quote them a price they are not charged. `isActive: false` is how the
- * UI knows to tell them their plan is no longer offered.
+ * Which one is read through their billing row rather than looked up by policy:
+ * two plans can sell one policy, and matching by policy would quote a price
+ * they are not charged. Everything but `isActive` is Flash's answer about that
+ * plan, so all of it is null when the server could not reach Flash — a card
+ * that cannot say the price must not therefore say the wrong one.
+ *
+ * `isActive: false` is ours, and is how the UI knows to tell them their plan
+ * is no longer offered.
+ *
+ * No plan name: what a subscriber is shown is the POLICY they hold, which is
+ * what they actually receive.
  */
 export interface SubscriptionPlanRecord {
-  amountMinor: number;
-  currency: string;
+  amountMinor: number | null;
+  currency: string | null;
+  billingInterval: string | null;
   isActive: boolean;
-  billingPeriodUnit: string | null;
-  billingPeriodCount: number | null;
 }
 
 export interface Subscription {
@@ -70,24 +76,32 @@ export interface Subscription {
   manageUrl: string | null;
 }
 
-/** One row of the pricing picker, as served by public GET /billing/plans. */
+/**
+ * One row of the pricing picker, as served by public GET /billing/plans.
+ *
+ * Two sources. `policy*` and `isDefault` are the server's own — what buying
+ * this actually gets you, off the live scheduling policy. Everything else is
+ * Flash's answer about the plan, so nothing here is a transcription anybody
+ * has to keep correct.
+ */
 export interface BillingPlan {
   policyId: number;
   policyName: string;
   /** Live cadence off the `scheduling` row — the number the picker shows. */
   scheduleIntervalSeconds: number | null;
   isDefault: boolean;
-  /** `day | week | month | year | once`, or null. Formatted, never matched. */
-  billingPeriodUnit: string | null;
-  billingPeriodCount: number | null;
+  /** Flash's name for the plan. Null on the free row: nothing sells it. */
+  planName: string | null;
+  /** `daily | weekly | monthly | yearly | one_off`, or null. Formatted, never matched. */
+  billingInterval: string | null;
   amountMinor: number;
   currency: string;
   /** Complete except `ref` — the click handler appends `&ref=<pubkey>`. */
   checkoutUrl: string | null;
-  /** Admin-editable plan copy. Plain text; rendered escaped, never as markup. */
-  blurb: string | null;
-  includes: string[] | null;
-  excludes: string[] | null;
+  /** Flash's plan copy. Plain text; rendered escaped, never as markup. */
+  description: string | null;
+  features: string[] | null;
+  notIncluded: string[] | null;
 }
 
 /** The safe default: no policy known, nothing bought, nothing claimed. */
@@ -138,13 +152,14 @@ function normalizePlanRecord(raw: unknown): SubscriptionPlanRecord | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
   return {
-    amountMinor: num(o.amount_minor ?? o.amountMinor) ?? 0,
-    currency: str(o.currency) ?? "USD",
+    // Null, not zero: a price the server could not read is unknown, and a card
+    // showing "Free" to someone who is charged is worse than showing nothing.
+    amountMinor: num(o.amount_minor ?? o.amountMinor),
+    currency: str(o.currency),
+    billingInterval: str(o.billing_interval ?? o.billingInterval),
     // Absent reads as active: telling a subscriber their plan was retired on
     // the strength of a missing field is the wrong direction to guess.
     isActive: (o.is_active ?? o.isActive) === undefined ? true : Boolean(o.is_active ?? o.isActive),
-    billingPeriodUnit: str(o.billing_period_unit ?? o.billingPeriodUnit),
-    billingPeriodCount: num(o.billing_period_count ?? o.billingPeriodCount),
   };
 }
 
@@ -209,14 +224,14 @@ function normalizePlan(r: Record<string, unknown> | BillingPlan): BillingPlan {
     policyName: str(o.policy_name ?? o.policyName) ?? "Plan",
     scheduleIntervalSeconds: num(o.schedule_interval_seconds ?? o.scheduleIntervalSeconds),
     isDefault: Boolean(o.is_default ?? o.isDefault),
-    billingPeriodUnit: str(o.billing_period_unit ?? o.billingPeriodUnit),
-    billingPeriodCount: num(o.billing_period_count ?? o.billingPeriodCount),
+    planName: str(o.plan_name ?? o.planName),
+    billingInterval: str(o.billing_interval ?? o.billingInterval),
     amountMinor: num(o.amount_minor ?? o.amountMinor) ?? 0,
     currency: str(o.currency) ?? "USD",
     checkoutUrl: str(o.checkout_url ?? o.checkoutUrl),
-    blurb: str(o.blurb),
-    includes: strList(o.includes),
-    excludes: strList(o.excludes),
+    description: str(o.description),
+    features: strList(o.features),
+    notIncluded: strList(o.not_included ?? o.notIncluded),
   };
 }
 

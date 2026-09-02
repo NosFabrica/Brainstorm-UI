@@ -8,7 +8,7 @@ import {
   cadenceDays,
   formatAmount,
   formatBillingDate,
-  formatBillingPeriod,
+  formatBillingInterval,
   nextScheduledLabel,
   SUBSCRIPTION_STATUS_LABEL,
   type SubscriptionStatus,
@@ -45,8 +45,12 @@ export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null
   const days = cadenceDays(policy?.scheduleIntervalSeconds);
   const next = nextScheduledLabel(lastCalculatedMs, days, Date.now());
 
-  const price = plan ? formatAmount(plan.amountMinor, plan.currency) : null;
-  const period = plan ? formatBillingPeriod(plan.billingPeriodUnit, plan.billingPeriodCount) : null;
+  // Null when the server could not reach Flash: no price rather than a wrong one.
+  const price =
+    plan && plan.amountMinor !== null && plan.currency
+      ? formatAmount(plan.amountMinor, plan.currency)
+      : null;
+  const period = formatBillingInterval(plan?.billingInterval);
 
   // Flash reports a cancellation that has not taken effect yet as `active`, so
   // the date — not the status — is what turns "Renews" into "Access until".

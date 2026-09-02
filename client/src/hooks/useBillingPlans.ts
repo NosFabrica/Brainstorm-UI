@@ -10,7 +10,7 @@ import { cadenceDays, FALLBACK_RECALC_DAYS } from "@/lib/plans";
  *
  * - **The order is the server's.** `plans` is rendered as given and never
  *   sorted — the default policy comes first because the server puts it first,
- *   and `sort_order` is an admin field, not a client heuristic.
+ *   and the rest follow Flash's own `sortOrder`, not a client heuristic.
  * - **Availability fails OPEN.** `billingAvailable` is `false` only on a
  *   confirmed empty `plans` array — the deliberate "this instance has no
  *   billing" signal (self-hosts). While loading, or if the call errors, it is

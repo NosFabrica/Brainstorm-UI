@@ -11,14 +11,14 @@ function plan(over: Partial<BillingPlan> = {}): BillingPlan {
     policyName: "Priority",
     scheduleIntervalSeconds: 7 * 86_400,
     isDefault: false,
-    billingPeriodUnit: "month",
-    billingPeriodCount: 1,
+    planName: "Monthly",
+    billingInterval: "monthly",
     amountMinor: 200,
     currency: "USD",
     checkoutUrl: "https://vault.example/signup/svc/plan",
-    blurb: null,
-    includes: null,
-    excludes: null,
+    description: null,
+    features: null,
+    notIncluded: null,
     ...over,
   };
 }
@@ -29,8 +29,9 @@ const FREE = plan({
   isDefault: true,
   scheduleIntervalSeconds: 60 * 86_400,
   amountMinor: 0,
-  billingPeriodUnit: null,
-  billingPeriodCount: null,
+  // Nothing sells the free row, so no Flash plan names or prices it.
+  planName: null,
+  billingInterval: null,
   checkoutUrl: null,
 });
 
@@ -40,12 +41,13 @@ describe("PlanPicker — the page is whatever the server says", () => {
       <PlanPicker
         plans={[
           FREE,
-          plan({ policyId: 5, policyName: "Wildcard", amountMinor: 4200, currency: "CAD" }),
+          plan({ policyId: 5, planName: "Wildcard", amountMinor: 4200, currency: "CAD" }),
         ]}
         currentPolicyId={null}
         onChoose={() => {}}
       />,
     );
+    // Flash names a plan; the free row falls back to the policy's own name.
     expect(screen.getByTestId("plan-name-0")).toHaveTextContent("Free");
     expect(screen.getByTestId("plan-name-1")).toHaveTextContent("Wildcard");
     expect(screen.getByTestId("plan-price-1")).toHaveTextContent("CA$42.00");
@@ -57,8 +59,8 @@ describe("PlanPicker — the page is whatever the server says", () => {
     renderWithProviders(
       <PlanPicker
         plans={[
-          plan({ amountMinor: 200, billingPeriodUnit: "month" }),
-          plan({ amountMinor: 2000, billingPeriodUnit: "year" }),
+          plan({ amountMinor: 200, billingInterval: "monthly" }),
+          plan({ amountMinor: 2000, billingInterval: "yearly" }),
         ]}
         currentPolicyId={null}
         onChoose={() => {}}
@@ -72,18 +74,19 @@ describe("PlanPicker — the page is whatever the server says", () => {
 
   it("renders a plan whose period is unfamiliar, and one with none at all", () => {
     // Hiding either would take a purchasable plan off the page, which is the
-    // exact failure the old tier whitelist caused.
+    // exact failure the old tier whitelist caused. Flash's interval set is
+    // theirs to grow, so an unknown word is a case that will happen.
     renderWithProviders(
       <PlanPicker
         plans={[
-          plan({ billingPeriodUnit: "fortnight", billingPeriodCount: 3 }),
-          plan({ billingPeriodUnit: null, billingPeriodCount: null }),
+          plan({ billingInterval: "fortnightly" }),
+          plan({ billingInterval: null }),
         ]}
         currentPolicyId={null}
         onChoose={() => {}}
       />,
     );
-    expect(screen.getByTestId("plan-period-0")).toHaveTextContent("every 3 fortnights");
+    expect(screen.getByTestId("plan-period-0")).toHaveTextContent("fortnightly");
     expect(screen.queryByTestId("plan-period-1")).toBeNull();
     expect(screen.getByTestId("plan-cta-1")).toBeInTheDocument();
   });
@@ -117,7 +120,7 @@ describe("PlanPicker — the page is whatever the server says", () => {
 
   it("hands the clicked plan back synchronously, so window.open survives popup blockers", () => {
     const onChoose = vi.fn();
-    const yearly = plan({ amountMinor: 2000, billingPeriodUnit: "year" });
+    const yearly = plan({ amountMinor: 2000, billingInterval: "yearly" });
     renderWithProviders(
       <PlanPicker plans={[FREE, plan(), yearly]} currentPolicyId={1} onChoose={onChoose} />,
     );
@@ -126,15 +129,15 @@ describe("PlanPicker — the page is whatever the server says", () => {
     expect(onChoose).toHaveBeenCalledWith(yearly);
   });
 
-  it("renders admin copy as text — stored markup must never become markup", () => {
+  it("renders Flash's copy as text — markup must never become markup", () => {
     renderWithProviders(
       <PlanPicker
-        plans={[plan({ blurb: "<img src=x onerror=alert(1)>", includes: ["Everything"], excludes: ["Nothing"] })]}
+        plans={[plan({ description: "<img src=x onerror=alert(1)>", features: ["Everything"], notIncluded: ["Nothing"] })]}
         currentPolicyId={null}
         onChoose={() => {}}
       />,
     );
-    expect(screen.getByTestId("plan-blurb-0")).toHaveTextContent("<img src=x onerror=alert(1)>");
+    expect(screen.getByTestId("plan-description-0")).toHaveTextContent("<img src=x onerror=alert(1)>");
     expect(document.querySelector("img")).toBeNull();
     expect(screen.getByTestId("plan-copy-0")).toHaveTextContent("Everything");
     expect(screen.getByTestId("plan-copy-0")).toHaveTextContent("Nothing");

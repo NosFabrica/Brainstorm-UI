@@ -24,15 +24,18 @@ describe("the plans seam", () => {
     api.getBillingPlans.mockResolvedValue({
       plans: [
         { policy_id: 1, policy_name: "Free", is_default: true, amount_minor: 0 },
-        { policy_id: 2, policy_name: "Priority", amount_minor: 200, currency: "USD", billing_period_unit: "month", billing_period_count: 1, checkout_url: "https://x/m", schedule_interval_seconds: 604800 },
+        { policy_id: 2, policy_name: "Priority", plan_name: "Monthly", amount_minor: 200, currency: "USD", billing_interval: "monthly", checkout_url: "https://x/m", schedule_interval_seconds: 604800 },
       ],
     });
     const plans = await fetchPlans();
     expect(plans.map((p) => p.policyName)).toEqual(["Free", "Priority"]);
     expect(plans[0].isDefault).toBe(true);
     expect(plans[0].checkoutUrl).toBeNull();
+    // Nothing sells the free row, so no Flash plan names or prices it.
+    expect(plans[0].planName).toBeNull();
     expect(plans[1].scheduleIntervalSeconds).toBe(604800);
-    expect(plans[1].billingPeriodUnit).toBe("month");
+    expect(plans[1].planName).toBe("Monthly");
+    expect(plans[1].billingInterval).toBe("monthly");
   });
 
   // An empty array is the "no billing on this instance" signal (handoff A8).
@@ -53,24 +56,27 @@ describe("the plans seam", () => {
     api.getBillingPlans.mockResolvedValue({
       plans: [
         {
-          policy_id: 7, policy_name: "Yearly", schedule_interval_seconds: 86400,
-          is_default: false, billing_period_unit: "year", billing_period_count: 1,
-          amount_minor: 2000, currency: "USD", checkout_url: "https://x/y",
-          blurb: "Two months free", includes: ["Everything"], excludes: [],
+          policy_id: 7, policy_name: "Priority", plan_name: "Yearly",
+          schedule_interval_seconds: 86400, is_default: false,
+          billing_interval: "yearly", amount_minor: 2000, currency: "USD",
+          checkout_url: "https://x/y", description: "Two months free",
+          features: ["Everything"], not_included: [],
         },
-        { policy_id: 9, policy_name: "Mystery", billing_period_unit: "eon", amount_minor: 5 },
+        { policy_id: 9, policy_name: "Mystery", billing_interval: "eon", amount_minor: 5 },
       ],
     });
     const plans = await fetchPlans();
     expect(plans).toHaveLength(2);
     expect(plans[0]).toMatchObject({
-      policyId: 7, policyName: "Yearly", amountMinor: 2000, scheduleIntervalSeconds: 86400,
-      checkoutUrl: "https://x/y", billingPeriodUnit: "year", blurb: "Two months free",
-      includes: ["Everything"],
+      policyId: 7, policyName: "Priority", planName: "Yearly", amountMinor: 2000,
+      scheduleIntervalSeconds: 86400, checkoutUrl: "https://x/y",
+      billingInterval: "yearly", description: "Two months free",
+      features: ["Everything"],
     });
-    // An empty list is copy an admin cleared, not copy to render.
-    expect(plans[0].excludes).toBeNull();
-    expect(plans[1]).toMatchObject({ policyId: 9, policyName: "Mystery", billingPeriodUnit: "eon" });
+    // An empty list is copy Flash cleared, not copy to render.
+    expect(plans[0].notIncluded).toBeNull();
+    // A cadence Flash has started sending and we have never seen still renders.
+    expect(plans[1]).toMatchObject({ policyId: 9, policyName: "Mystery", billingInterval: "eon" });
     expect(plans[1].checkoutUrl).toBeNull();
   });
 
@@ -79,8 +85,8 @@ describe("the plans seam", () => {
   it("keeps two rows that sell the same policy", async () => {
     api.getBillingPlans.mockResolvedValue({
       plans: [
-        { policy_id: 2, policy_name: "Priority", amount_minor: 200, currency: "USD", billing_period_unit: "month", billing_period_count: 1, checkout_url: "https://x/m" },
-        { policy_id: 2, policy_name: "Priority", amount_minor: 2000, currency: "USD", billing_period_unit: "year", billing_period_count: 1, checkout_url: "https://x/y" },
+        { policy_id: 2, policy_name: "Priority", plan_name: "Monthly", amount_minor: 200, currency: "USD", billing_interval: "monthly", checkout_url: "https://x/m" },
+        { policy_id: 2, policy_name: "Priority", plan_name: "Yearly", amount_minor: 2000, currency: "USD", billing_interval: "yearly", checkout_url: "https://x/y" },
       ],
     });
     const plans = await fetchPlans();
@@ -95,7 +101,7 @@ describe("the subscription seam", () => {
   it("reads the backend's snake_case shape", async () => {
     api.refreshSubscription.mockResolvedValue({
       policy: { id: 3, name: "Priority", schedule_interval_seconds: 604800, is_default: false },
-      plan: { amount_minor: 10, currency: "USD", is_active: false, billing_period_unit: "day", billing_period_count: 1 },
+      plan: { amount_minor: 10, currency: "USD", is_active: false, billing_interval: "daily" },
       status: "active",
       cancel_effective_date: "2026-09-01T00:00:00Z",
       current_period_start: "2026-08-01T00:00:00Z",
@@ -104,8 +110,8 @@ describe("the subscription seam", () => {
     });
     const sub = await refreshSubscription();
     expect(sub.policy).toEqual({ id: 3, name: "Priority", scheduleIntervalSeconds: 604800, isDefault: false });
-    // A retired mapping still prices what they signed up for, and says so.
-    expect(sub.plan).toEqual({ amountMinor: 10, currency: "USD", isActive: false, billingPeriodUnit: "day", billingPeriodCount: 1 });
+    // Which plan is still theirs; the price on it is Flash's answer about it.
+    expect(sub.plan).toEqual({ amountMinor: 10, currency: "USD", isActive: false, billingInterval: "daily" });
     expect(sub.currentPeriodStart).toBe("2026-08-01T00:00:00Z");
     expect(sub.manageUrl).toContain("portal");
   });

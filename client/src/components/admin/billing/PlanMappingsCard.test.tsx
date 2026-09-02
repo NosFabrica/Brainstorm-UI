@@ -52,14 +52,6 @@ function plan(overrides: Partial<AdminBillingPlanMapping> = {}): AdminBillingPla
     flash_service_id: "9c1e",
     flash_plan_id: "4f2a",
     scheduling_id: 7,
-    amount_minor: 200,
-    currency: "USD",
-    billing_period_unit: "month",
-    billing_period_count: 1,
-    sort_order: 0,
-    blurb: null,
-    includes: null,
-    excludes: null,
     is_active: true,
     ...overrides,
   };
@@ -86,7 +78,7 @@ describe("PlanMappingsCard", () => {
   it("lists every mapping, retired ones included, and says what each grants", async () => {
     getAdminBillingPlanMappings.mockResolvedValue([
       plan(),
-      plan({ id: 2, scheduling_id: 7, is_active: false, amount_minor: 2000, billing_period_unit: "year" }),
+      plan({ id: 2, flash_plan_id: "019e", scheduling_id: 7, is_active: false }),
     ]);
 
     renderCard();
@@ -97,8 +89,8 @@ describe("PlanMappingsCard", () => {
     expect(screen.getAllByText("Priority")).toHaveLength(2);
     expect(screen.getByText("For sale")).toBeInTheDocument();
     expect(screen.getByText("Withdrawn")).toBeInTheDocument();
-    expect(screen.getByText(/\$2\.00/)).toBeInTheDocument();
-    expect(screen.getByText(/every year/)).toBeInTheDocument();
+    // Flash prices the plan; the row identifies it and says what it grants.
+    expect(screen.getByTestId("billing-plan-1")).toHaveTextContent("4f2a");
   });
 
   it("is usable on a fresh instance with nothing mapped yet", async () => {
@@ -118,18 +110,14 @@ describe("PlanMappingsCard", () => {
     await user.click(screen.getByTestId("button-new-plan-mapping"));
     await user.type(screen.getByTestId("input-plan-service-id"), "9c1e");
     await user.type(screen.getByTestId("input-plan-plan-id"), "4f2a");
-    await user.clear(screen.getByTestId("input-plan-amount"));
-    await user.type(screen.getByTestId("input-plan-amount"), "200");
     await user.selectOptions(screen.getByTestId("select-plan-scheduling"), "7");
     await user.click(screen.getByTestId("button-plan-mapping-submit"));
 
     await waitFor(() => expect(createAdminBillingPlan).toHaveBeenCalledTimes(1));
-    expect(createAdminBillingPlan.mock.calls[0][0]).toMatchObject({
+    expect(createAdminBillingPlan.mock.calls[0][0]).toEqual({
       flash_service_id: "9c1e",
       flash_plan_id: "4f2a",
       scheduling_id: 7,
-      amount_minor: 200,
-      currency: "USD",
       is_active: true,
     });
   });
@@ -138,21 +126,20 @@ describe("PlanMappingsCard", () => {
     // A PATCH writes every field it includes; an untouched form is how a
     // staging policy ended up named "string" with a zero cadence.
     const user = userEvent.setup();
-    getAdminBillingPlanMappings.mockResolvedValue([plan({ blurb: "Best value" })]);
+    getAdminBillingPlanMappings.mockResolvedValue([plan()]);
     renderCard();
 
     await user.click(await screen.findByTestId("button-edit-plan-1"));
-    await user.clear(screen.getByTestId("input-plan-amount"));
-    await user.type(screen.getByTestId("input-plan-amount"), "1000");
+    await user.click(screen.getByTestId("checkbox-plan-active"));
     await user.click(screen.getByTestId("button-plan-mapping-submit"));
 
     await waitFor(() => expect(updateAdminBillingPlan).toHaveBeenCalledTimes(1));
-    expect(updateAdminBillingPlan.mock.calls[0][1]).toEqual({ amount_minor: 1000 });
+    expect(updateAdminBillingPlan.mock.calls[0][1]).toEqual({ is_active: false });
   });
 
   it("does not PATCH at all when nothing was touched", async () => {
     const user = userEvent.setup();
-    getAdminBillingPlanMappings.mockResolvedValue([plan({ includes: ["Faster recalculation"] })]);
+    getAdminBillingPlanMappings.mockResolvedValue([plan()]);
     renderCard();
 
     await user.click(await screen.findByTestId("button-edit-plan-1"));
@@ -186,19 +173,16 @@ describe("PlanMappingsCard", () => {
     expect(screen.getByTestId("dialog-plan-mapping-form")).toBeInTheDocument();
   });
 
-  it("renders plan copy as text — markup is displayed, never interpreted", async () => {
-    getAdminBillingPlanMappings.mockResolvedValue([
-      plan({
-        blurb: "<img src=x onerror=alert(1)>",
-        includes: ["<b>bold</b> claim"],
-      }),
-    ]);
+  // They stopped being ours to edit, so offering to edit them would offer an
+  // edit nothing would honour.
+  it("shows nothing Flash owns, because none of it is editable here", async () => {
+    getAdminBillingPlanMappings.mockResolvedValue([plan()]);
 
     renderCard();
 
-    const blurb = await screen.findByTestId("billing-plan-blurb-1");
-    expect(blurb).toHaveTextContent("<img src=x onerror=alert(1)>");
-    expect(blurb.querySelector("img")).toBeNull();
-    expect(screen.getByTestId("billing-plan-includes-1").querySelector("b")).toBeNull();
+    await screen.findByTestId("billing-plan-1");
+    expect(screen.queryByTestId("billing-plan-blurb-1")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("billing-plan-includes-1")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("billing-plan-excludes-1")).not.toBeInTheDocument();
   });
 });

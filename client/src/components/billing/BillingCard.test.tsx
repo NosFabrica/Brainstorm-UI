@@ -44,14 +44,14 @@ const FREE_ROW: BillingPlan = {
   policyName: "Free",
   scheduleIntervalSeconds: 60 * 86_400,
   isDefault: true,
-  billingPeriodUnit: null,
-  billingPeriodCount: null,
+  planName: null,
+  billingInterval: null,
   amountMinor: 0,
   currency: "USD",
   checkoutUrl: null,
-  blurb: null,
-  includes: null,
-  excludes: null,
+  description: null,
+  features: null,
+  notIncluded: null,
 };
 
 const PAID_ROW: BillingPlan = {
@@ -60,8 +60,8 @@ const PAID_ROW: BillingPlan = {
   policyName: "Priority",
   isDefault: false,
   scheduleIntervalSeconds: 7 * 86_400,
-  billingPeriodUnit: "month",
-  billingPeriodCount: 1,
+  planName: "Monthly",
+  billingInterval: "monthly",
   amountMinor: 200,
   checkoutUrl: "https://vault.example/signup/a/b",
 };
@@ -84,8 +84,7 @@ function paidSub(over: Partial<Subscription> = {}): Subscription {
       amountMinor: 200,
       currency: "USD",
       isActive: true,
-      billingPeriodUnit: "month",
-      billingPeriodCount: 1,
+      billingInterval: "monthly",
     },
     status: "active",
     currentPeriodStart: "2026-08-01T12:00:00Z",
@@ -114,7 +113,7 @@ describe("BillingCard — every date is reported, never worked out", () => {
   // for the daily rehearsal plan in one direction and a yearly one in the other.
   it("shows a one-day period for a daily plan, not a month", () => {
     sub = paidSub({
-      plan: { amountMinor: 10, currency: "USD", isActive: true, billingPeriodUnit: "day", billingPeriodCount: 1 },
+      plan: { amountMinor: 10, currency: "USD", isActive: true, billingInterval: "daily" },
       currentPeriodStart: "2026-08-16T12:00:00Z",
       currentPeriodEnd: "2026-08-17T12:00:00Z",
       nextBillingDate: "2026-08-17T12:00:00Z",
@@ -129,7 +128,7 @@ describe("BillingCard — every date is reported, never worked out", () => {
 
   it("shows a yearly period as a year", () => {
     sub = paidSub({
-      plan: { amountMinor: 2000, currency: "USD", isActive: true, billingPeriodUnit: "year", billingPeriodCount: 1 },
+      plan: { amountMinor: 2000, currency: "USD", isActive: true, billingInterval: "yearly" },
       currentPeriodStart: "2026-01-01T12:00:00Z",
       currentPeriodEnd: "2027-01-01T12:00:00Z",
       nextBillingDate: "2027-01-01T12:00:00Z",
@@ -172,9 +171,21 @@ describe("BillingCard — the price is what this subscriber is charged", () => {
     expect(screen.getByTestId("billing-no-payments")).toBeInTheDocument();
   });
 
+  // The price is Flash's answer, read server-side. When the server could not
+  // reach Flash it sends nothing rather than a stale number, and "Free" for
+  // someone who is being charged is the one reading that must not happen.
+  it("says nothing about the price when the server could not read one", () => {
+    sub = paidSub({
+      plan: { amountMinor: null, currency: null, isActive: true, billingInterval: null },
+    });
+    renderWithProviders(<BillingCard />);
+    expect(screen.getByTestId("billing-amount")).toHaveTextContent("—");
+    expect(screen.getByTestId("billing-amount")).not.toHaveTextContent("Free");
+  });
+
   it("renders a currency it was given rather than assuming dollars", () => {
     sub = paidSub({
-      plan: { amountMinor: 500, currency: "EUR", isActive: true, billingPeriodUnit: "month", billingPeriodCount: 1 },
+      plan: { amountMinor: 500, currency: "EUR", isActive: true, billingInterval: "monthly" },
     });
     renderWithProviders(<BillingCard />);
     expect(screen.getByTestId("billing-amount")).toHaveTextContent("€5.00 per month");
@@ -184,7 +195,7 @@ describe("BillingCard — the price is what this subscriber is charged", () => {
 describe("BillingCard — retired plans, cancellation and what we cannot know", () => {
   it("tells a subscriber whose plan is no longer sold, and offers both exits", () => {
     sub = paidSub({
-      plan: { amountMinor: 200, currency: "USD", isActive: false, billingPeriodUnit: "month", billingPeriodCount: 1 },
+      plan: { amountMinor: 200, currency: "USD", isActive: false, billingInterval: "monthly" },
     });
     renderWithProviders(<BillingCard />);
     expect(screen.getByTestId("billing-plan-retired")).toBeInTheDocument();

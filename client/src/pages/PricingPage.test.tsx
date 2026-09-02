@@ -42,7 +42,7 @@ describe("PricingPage renders whatever is on offer", () => {
   it("shows a plan the frontend has never heard of", async () => {
     servePlans([
       { policy_id: 1, policy_name: "Free", is_default: true, amount_minor: 0, schedule_interval_seconds: 5_184_000 },
-      { policy_id: 4, policy_name: "Rehearsal", amount_minor: 10, currency: "USD", billing_period_unit: "day", billing_period_count: 1, schedule_interval_seconds: 86_400, checkout_url: "https://vault.example/signup/a/b" },
+      { policy_id: 4, policy_name: "Priority", plan_name: "Rehearsal", amount_minor: 10, currency: "USD", billing_interval: "daily", schedule_interval_seconds: 86_400, checkout_url: "https://vault.example/signup/a/b" },
     ]);
     renderWithProviders(<PricingPage />);
 

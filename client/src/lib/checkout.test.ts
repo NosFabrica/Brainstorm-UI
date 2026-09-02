@@ -9,12 +9,12 @@ const PLAN: BillingPlan = {
   currency: "USD",
   scheduleIntervalSeconds: 7 * 86_400,
   isDefault: false,
-  billingPeriodUnit: "month",
-  billingPeriodCount: 1,
+  planName: "Monthly",
+  billingInterval: "monthly",
   checkoutUrl: "https://vault.example/subscriptions/signup/svc/plan?redirect_uri=https%3A%2F%2Fapp%2Fbilling%2Freturn",
-  blurb: null,
-  includes: null,
-  excludes: null,
+  description: null,
+  features: null,
+  notIncluded: null,
 };
 const PUBKEY = "a".repeat(64);
 

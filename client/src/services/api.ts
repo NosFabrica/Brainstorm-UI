@@ -255,44 +255,30 @@ export interface AdminBillingDivergenceSection {
   rows: Record<string, unknown>[];
 }
 
-/**
- * One Flash plan → entitlement mapping (server's BillingPlanItem).
- *
- * Every value below the ids is transcribed by hand: Flash exposes no way to
- * read a plan back, so nothing here has been verified against anything.
- */
+/** One `billing_plan` row: which Flash plan grants what, and whether we sell it. */
 export interface AdminBillingPlanMapping {
   id: number;
   flash_service_id: string;
   flash_plan_id: string;
   /** The policy this plan grants. It *is* the tier — there is no tier string. */
   scheduling_id: number;
-  amount_minor: number;
-  currency: string;
-  /** A unit and a count, never a matched string: "every 2 weeks" formats from the pair. */
-  billing_period_unit: string | null;
-  billing_period_count: number | null;
-  sort_order: number;
-  /** Plan copy. Plain text — render it, never interpret it. */
-  blurb: string | null;
-  includes: string[] | null;
-  excludes: string[] | null;
-  /** Sellable, and nothing else. Retiring a plan does not change what subscribers receive. */
+  /**
+   * Whether WE sell it — not Flash's plan status, which says whether THEY offer
+   * it. Withdrawing a plan from sale does not change what subscribers receive.
+   */
   is_active: boolean;
 }
 
+/**
+ * A mapping is two decisions and nothing else. The server REFUSES a body
+ * carrying a price, period or copy rather than ignoring it — those are read
+ * from Flash, and silently dropping them would let this form claim an edit
+ * that never happened.
+ */
 export interface CreateAdminBillingPlanBody {
   flash_service_id: string;
   flash_plan_id: string;
   scheduling_id: number;
-  amount_minor: number;
-  currency: string;
-  billing_period_unit?: string | null;
-  billing_period_count?: number | null;
-  sort_order?: number;
-  blurb?: string | null;
-  includes?: string[] | null;
-  excludes?: string[] | null;
   is_active?: boolean;
 }
 

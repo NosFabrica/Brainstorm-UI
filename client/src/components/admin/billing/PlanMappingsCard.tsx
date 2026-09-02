@@ -12,7 +12,6 @@ import {
   type SchedulingItem,
   type UpdateAdminBillingPlanBody,
 } from "@/services/api";
-import { formatMinor, formatPeriod } from "./planCopy";
 import { PlanMappingFormDialog } from "./PlanMappingFormDialog";
 
 const PLANS_KEY = ["/api/admin/billing/plans"];
@@ -21,39 +20,6 @@ const POLICIES_KEY = ["/api/admin/scheduling"];
 type DialogState =
   | { mode: "create"; plan?: undefined }
   | { mode: "edit"; plan: AdminBillingPlanMapping };
-
-/**
- * Plan copy, exactly as it was typed.
- *
- * React escapes these, and that is the point: an admin who types `<b>` gets
- * `<b>` on the pricing page. Nothing here reaches for dangerouslySetInnerHTML —
- * stored markup on a public page is stored XSS.
- */
-function CopyLines({
-  label,
-  lines,
-  testId,
-}: {
-  label: string;
-  lines: string[] | null;
-  testId: string;
-}) {
-  if (!lines?.length) return null;
-  return (
-    <div data-testid={testId}>
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-        {label}
-      </p>
-      <ul className="mt-0.5 space-y-0.5">
-        {lines.map((line, i) => (
-          <li key={i} className="text-xs text-slate-600 dark:text-slate-300">
-            {line}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
 
 function PlanRow({
   plan,
@@ -75,16 +41,7 @@ function PlanRow({
             <Chip tone={plan.is_active ? "success" : "neutral"} size="sm">
               {plan.is_active ? "For sale" : "Withdrawn"}
             </Chip>
-            <Chip tone="slate" size="sm">
-              order {plan.sort_order}
-            </Chip>
           </div>
-          <p className="mt-1 text-sm text-slate-700 dark:text-slate-200">
-            {formatMinor(plan.amount_minor, plan.currency)}{" "}
-            <span className="text-slate-500 dark:text-slate-400">
-              · {formatPeriod(plan.billing_period_unit, plan.billing_period_count)}
-            </span>
-          </p>
           <p className="mt-1 font-mono text-xs text-slate-500 dark:text-slate-400 break-all">
             service {plan.flash_service_id} · plan {plan.flash_plan_id}
           </p>
@@ -99,19 +56,6 @@ function PlanRow({
           Edit
         </Button>
       </div>
-      {(plan.blurb || plan.includes?.length || plan.excludes?.length) && (
-        <div className="mt-3 space-y-2 border-t border-brand-accent/10 pt-3">
-          {plan.blurb && (
-            <p className="text-xs text-slate-600 dark:text-slate-300" data-testid={`billing-plan-blurb-${plan.id}`}>
-              {plan.blurb}
-            </p>
-          )}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <CopyLines label="Includes" lines={plan.includes} testId={`billing-plan-includes-${plan.id}`} />
-            <CopyLines label="Excludes" lines={plan.excludes} testId={`billing-plan-excludes-${plan.id}`} />
-          </div>
-        </div>
-      )}
     </Card>
   );
 }
@@ -192,9 +136,9 @@ export function PlanMappingsCard({ active }: { active: boolean }) {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs text-slate-500 dark:text-slate-400">
-          Which Flash plan buys which scheduling policy. Price, currency and
-          period are transcribed from the Flash dashboard — nothing verifies
-          them, so this form is the only way to correct one.
+          Which Flash plan buys which scheduling policy, and whether we sell it.
+          Price, period and copy are read from Flash and shown on the pricing
+          page — they are not edited here.
         </p>
         <Button size="sm" onClick={openCreate} data-testid="button-new-plan-mapping">
           <Plus className="h-3.5 w-3.5 mr-1.5" />

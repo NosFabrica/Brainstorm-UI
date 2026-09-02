@@ -10,7 +10,7 @@ import {
   formatAmount,
   billingDeadlineMs,
   formatBillingDate,
-  formatBillingPeriod,
+  formatBillingInterval,
   nextScheduledLabel,
   SUBSCRIPTION_STATUS_LABEL,
 } from "./plans";
@@ -69,41 +69,37 @@ describe("plans — what Brainstorm does", () => {
   });
 });
 
-describe("plans — the billing period, formatted not matched", () => {
-  it("renders a unit it has never seen rather than dropping the plan", () => {
-    // The whole reason the wire carries a unit and a count instead of a
-    // "monthly" | "yearly" string: an unknown value must still render.
-    expect(formatBillingPeriod("fortnight", 1)).toBe("per fortnight");
-    expect(formatBillingPeriod("blargh", 3)).toBe("every 3 blarghs");
+describe("plans — the billing interval, formatted not matched", () => {
+  it("says every interval Flash documents", () => {
+    expect(formatBillingInterval("daily")).toBe("per day");
+    expect(formatBillingInterval("weekly")).toBe("per week");
+    expect(formatBillingInterval("monthly")).toBe("per month");
+    expect(formatBillingInterval("yearly")).toBe("per year");
+    expect(formatBillingInterval("one_off")).toBe("one-time");
   });
 
-  it("counts, so the $0.10/day plan and a 2-weekly one both read right", () => {
-    expect(formatBillingPeriod("day", 1)).toBe("per day");
-    expect(formatBillingPeriod("week", 2)).toBe("every 2 weeks");
-    expect(formatBillingPeriod("year", 1)).toBe("per year");
+  it("renders an interval it has never seen rather than dropping the plan", () => {
+    // Flash's set can grow. A word we do not know still reads as itself, where
+    // matching against a closed list would take a purchasable plan off the page.
+    expect(formatBillingInterval("fortnightly")).toBe("fortnightly");
+    expect(formatBillingInterval("BLARGH")).toBe("BLARGH");
   });
 
-  it("reserves one-time for Flash's coming one-off type", () => {
-    expect(formatBillingPeriod("once", null)).toBe("one-time");
-  });
-
-  it("returns null with no period, so the row renders with a price alone", () => {
-    expect(formatBillingPeriod(null, null)).toBeNull();
-    expect(formatBillingPeriod("", 1)).toBeNull();
-  });
-
-  it("treats a missing or nonsense count as one", () => {
-    expect(formatBillingPeriod("month", null)).toBe("per month");
-    expect(formatBillingPeriod("month", 0)).toBe("per month");
+  it("returns null with no interval, so the row renders with a price alone", () => {
+    expect(formatBillingInterval(null)).toBeNull();
+    expect(formatBillingInterval("  ")).toBeNull();
   });
 });
 
 describe("plans — amounts come off the plan", () => {
+  const amount = (minor: number, currency: string) =>
+    formatAmount(minor, currency).replace(/\u00a0/g, " ");
+
   it("formats from minor units, in the plan's own currency", () => {
-    expect(formatAmount(200, "USD")).toBe("$2.00");
-    expect(formatAmount(250, "USD")).toBe("$2.50");
-    expect(formatAmount(10, "USD")).toBe("$0.10");
-    expect(formatAmount(200, "EUR")).toBe("€2.00");
+    expect(amount(200, "USD")).toBe("$2.00");
+    expect(amount(250, "USD")).toBe("$2.50");
+    expect(amount(10, "USD")).toBe("$0.10");
+    expect(amount(200, "EUR")).toBe("€2.00");
   });
 
   it("says Free rather than $0 — and never NaN", () => {
@@ -113,23 +109,22 @@ describe("plans — amounts come off the plan", () => {
 
   it("takes the divisor from the currency, not from a hardcoded 100", () => {
     // Yen has no minor unit. Dividing by 100 rendered ¥100 as ¥1.
-    expect(formatAmount(100, "JPY")).toBe("¥100");
+    expect(amount(100, "JPY")).toBe("¥100");
     // Dinar has three.
-    // Intl separates the code with a non-breaking space.
-    expect(formatAmount(1000, "BHD").replace(/\u00a0/g, " ")).toBe("BHD 1.000");
+    expect(amount(1000, "BHD")).toBe("BHD 1.000");
   });
 
   it("prices a sats plan in whole sats", () => {
     // A sat is already bitcoin's smallest unit, so amount_minor holds whole
     // sats — our convention, since the column is transcribed by an admin and
     // never sent by Flash. Intl has no SAT, so it would otherwise throw.
-    expect(formatAmount(1, "SAT")).toBe("1 sat");
-    expect(formatAmount(2100, "SAT")).toBe("2,100 sats");
-    expect(formatAmount(1000, "sats")).toBe("1,000 sats");
+    expect(amount(1, "SAT")).toBe("1 sat");
+    expect(amount(2100, "SAT")).toBe("2,100 sats");
+    expect(amount(1000, "sats")).toBe("1,000 sats");
   });
 
   it("falls back rather than throwing on a currency nobody knows", () => {
-    expect(formatAmount(500, "ZZZ").replace(/\u00a0/g, " ")).toBe("ZZZ 5.00");
+    expect(amount(500, "ZZZ")).toBe("ZZZ 5.00");
   });
 });
 

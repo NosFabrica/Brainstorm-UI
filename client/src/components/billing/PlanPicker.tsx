@@ -2,7 +2,7 @@ import { Check, X, ArrowRight, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { Button } from "@/components/ui/button";
-import { formatAmount, formatBillingPeriod } from "@/lib/plans";
+import { formatAmount, formatBillingInterval } from "@/lib/plans";
 import type { BillingPlan } from "@/services/subscription";
 
 /**
@@ -10,15 +10,16 @@ import type { BillingPlan } from "@/services/subscription";
  *
  * One component for /pricing and the checkout dialog, because they were always
  * asking the same question. Every row is a plan and every cell is a fact off
- * `GET /billing/plans` — policy name, cadence, price, billing period, and the
- * admin-editable copy. Adding a plan, a price or a yearly option changes this
- * with no frontend release.
+ * `GET /billing/plans` — the policy name and cadence from our own scheduling
+ * row, and the plan's name, price, interval and copy from Flash. Adding a
+ * plan, a price or a yearly option changes this with no frontend release, and
+ * with no transcription for anyone to keep correct.
  *
  * ## The three rules that keep it honest
  *
- * **Render the array as given.** Order is `sort_order` on the server, with the
- * default policy first because it is the one row nobody can buy. Sorting here
- * would put a client heuristic on top of an admin's decision.
+ * **Render the array as given.** Order is Flash's `sortOrder`, applied on the
+ * server, with the default policy first because it is the one row nobody can
+ * buy. Sorting here would put a client heuristic on top of that.
  *
  * **Mark the current row by `policyId`, never by plan.** A subscriber can be on
  * a retired mapping that `/billing/plans` no longer returns; matching on the
@@ -26,17 +27,17 @@ import type { BillingPlan } from "@/services/subscription";
  * they actually receive — `BillingCard` separately shows the price they are
  * actually charged, so both are true and neither is derived.
  *
- * **Format the period, never match it.** `billingPeriodUnit` + `Count` go
- * through `formatBillingPeriod`, so "every 2 weeks" and a unit we have never
- * seen both render. A row with no period renders too: hiding it would take a
- * purchasable plan off the page.
+ * **Format the interval, never match it.** `billingInterval` goes through
+ * `formatBillingInterval`, so a word Flash has started sending and we have
+ * never seen still renders. A row with no interval renders too: hiding it
+ * would take a purchasable plan off the page.
  *
  * There is no monthly/yearly toggle. Yearly is a row — and a two-state toggle
  * could not express the $0.10/day plan that exists today.
  *
- * Copy (`blurb`, `includes`, `excludes`) is plain text from the database,
- * rendered as text by React. Never `dangerouslySetInnerHTML`: that would make
- * one admin account's edit a stored XSS on a public page.
+ * Copy (`description`, `features`, `notIncluded`) is plain text from Flash,
+ * rendered as text by React. Never `dangerouslySetInnerHTML`: it is somebody
+ * else's string on a public page of ours.
  */
 export function PlanPicker({
   plans,
@@ -103,7 +104,10 @@ function PlanRow({
   onChoose: (plan: BillingPlan) => void;
 }) {
   const price = formatAmount(plan.amountMinor, plan.currency);
-  const period = formatBillingPeriod(plan.billingPeriodUnit, plan.billingPeriodCount);
+  const period = formatBillingInterval(plan.billingInterval);
+  // Flash names the plan; the free row has no Flash plan, so the policy's own
+  // name is the only name it has.
+  const title = plan.planName ?? plan.policyName;
   const days =
     typeof plan.scheduleIntervalSeconds === "number" && plan.scheduleIntervalSeconds > 0
       ? Math.max(1, Math.round(plan.scheduleIntervalSeconds / 86_400))
@@ -126,7 +130,7 @@ function PlanRow({
               style={{ fontFamily: "var(--font-display)" }}
               data-testid={`plan-name-${index}`}
             >
-              {plan.policyName}
+              {title}
             </h3>
             {current && !loading && (
               <Chip tone="success" size="sm" data-testid={`plan-current-${index}`}>
@@ -134,12 +138,12 @@ function PlanRow({
               </Chip>
             )}
           </div>
-          {plan.blurb && (
+          {plan.description && (
             <p
               className="mt-1 text-sm text-slate-500 dark:text-slate-400"
-              data-testid={`plan-blurb-${index}`}
+              data-testid={`plan-description-${index}`}
             >
-              {plan.blurb}
+              {plan.description}
             </p>
           )}
           {days !== null && (
@@ -170,9 +174,9 @@ function PlanRow({
         </div>
       </div>
 
-      {(plan.includes || plan.excludes) && (
+      {(plan.features || plan.notIncluded) && (
         <ul className="space-y-1.5" data-testid={`plan-copy-${index}`}>
-          {plan.includes?.map((line, i) => (
+          {plan.features?.map((line, i) => (
             <li
               key={`in-${i}`}
               className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200"
@@ -181,7 +185,7 @@ function PlanRow({
               {line}
             </li>
           ))}
-          {plan.excludes?.map((line, i) => (
+          {plan.notIncluded?.map((line, i) => (
             <li
               key={`ex-${i}`}
               className="flex items-start gap-2 text-sm text-slate-400 dark:text-slate-500"
@@ -206,7 +210,7 @@ function PlanRow({
             <Loader2 className="h-4 w-4 animate-spin" />
           ) : (
             <>
-              Get {plan.policyName} <ArrowRight className="h-4 w-4" />
+              Get {title} <ArrowRight className="h-4 w-4" />
             </>
           )}
         </Button>

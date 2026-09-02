@@ -3,7 +3,8 @@
 // ## There is no tier set here any more
 //
 // What is on offer is whatever GET /billing/plans says is on offer: a flat
-// list of plans, each carrying its own policy name, price and billing period.
+// list of plans, each carrying its own policy name plus the price, name and
+// billing interval the server read from Flash.
 // What a subscriber HOLDS is the policy on /user/subscription. Neither is a
 // vocabulary this file knows in advance — see `components/billing/PlanPicker.tsx`
 // and `hooks/useSubscription.ts`. Do not reintroduce a constant for a plan;
@@ -286,13 +287,12 @@ export function nextScheduledLabel(
  * hardcoding the divisor — `¥100` was rendering as `¥1`.
  *
  * `SAT` is not an ISO currency, so Intl throws on it and we answer for it here:
- * a sat is already the smallest unit of bitcoin, so `amount_minor` holds whole
- * sats. Flash is ambiguous about this — the dashboard shows our 1-sat test plan
- * as both "SAT 1.00" and "100 sats", and which is authoritative is still an open
- * question with them. It does not bind us: `billing_plan.amount_minor` is our
- * column, transcribed by an admin, never sent by Flash. Whole sats is the
- * convention, and the admin form's preview reads from this same function, so
- * what someone types and what a subscriber sees cannot disagree.
+ * a sat is already the smallest unit of bitcoin, so the amount holds whole sats.
+ * Flash is ambiguous about this — the dashboard shows our 1-sat test plan as
+ * both "SAT 1.00" and "100 sats", and which is authoritative is still an open
+ * question with them. Now that the amount comes from Flash's own plan object
+ * rather than from a column an admin typed, that question decides what a
+ * subscriber reads: if they mean hundredths, this renders 100x.
  */
 const ZERO_DECIMAL_NON_ISO = new Set(["SAT", "SATS"]);
 
@@ -339,26 +339,29 @@ export function formatAmount(amountMinor: number, currency: string): string {
   return formatCurrency(amountMinor, currency);
 }
 
+/** Flash's documented intervals, in words. Their set is open — see below. */
+const BILLING_INTERVALS: Record<string, string> = {
+  daily: "per day",
+  weekly: "per week",
+  monthly: "per month",
+  yearly: "per year",
+  // No lifecycle, so no cadence: it sells but grants nothing automatically.
+  one_off: "one-time",
+};
+
 /**
- * "per month", "every 2 weeks", "one-time" — computed from the unit and the
- * count, never matched against a known string.
+ * "per month", "per year", "one-time" — Flash's `billingInterval`, in words.
  *
- * That is the whole point: a closed vocabulary crossing the wire is a value a
- * client has to recognise, and one it doesn't recognise disappears. An
- * unfamiliar unit renders honestly here ("per fortnight") and an absent one
- * returns null so the caller can show a price with no cadence — a purchasable
- * plan must never be hidden because we didn't know a word.
+ * Formatted, not matched. Flash documents its set as the five above but is free
+ * to add to it, and a value this file does not recognise must still render:
+ * dropping the row, or the cadence, would take a purchasable plan off the
+ * pricing page or price it with no period. So an unknown word reads as itself,
+ * and an absent one returns null so the caller shows a price alone.
  */
-export function formatBillingPeriod(
-  unit: string | null | undefined,
-  count: number | null | undefined,
-): string | null {
-  const u = typeof unit === "string" ? unit.trim() : "";
-  if (!u) return null;
-  // Reserved for Flash's coming one-off type: no lifecycle, so no cadence.
-  if (u === "once") return "one-time";
-  const n = typeof count === "number" && Number.isFinite(count) && count > 0 ? Math.round(count) : 1;
-  return n === 1 ? `per ${u}` : `every ${n} ${u}s`;
+export function formatBillingInterval(interval: string | null | undefined): string | null {
+  const word = typeof interval === "string" ? interval.trim() : "";
+  if (!word) return null;
+  return BILLING_INTERVALS[word.toLowerCase()] ?? word;
 }
 
 const BILLING_DATE_FORMAT: Intl.DateTimeFormatOptions = {

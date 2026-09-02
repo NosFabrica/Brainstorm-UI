@@ -17,14 +17,14 @@ const PLAN: BillingPlan = {
   policyName: "Priority",
   scheduleIntervalSeconds: 7 * 86_400,
   isDefault: false,
-  billingPeriodUnit: "month",
-  billingPeriodCount: 1,
+  planName: "Monthly",
+  billingInterval: "monthly",
   amountMinor: 200,
   currency: "USD",
   checkoutUrl: "https://vault.example/signup/svc/plan?redirect_uri=x",
-  blurb: null,
-  includes: null,
-  excludes: null,
+  description: null,
+  features: null,
+  notIncluded: null,
 };
 
 describe("CheckoutDialog", () => {

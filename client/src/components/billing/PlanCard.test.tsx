@@ -46,14 +46,14 @@ const PAID_ROW: BillingPlan = {
   policyName: "Priority",
   scheduleIntervalSeconds: 7 * 86_400,
   isDefault: false,
-  billingPeriodUnit: "month",
-  billingPeriodCount: 1,
+  planName: "Monthly",
+  billingInterval: "monthly",
   amountMinor: 200,
   currency: "USD",
   checkoutUrl: "https://vault.example/signup/a/b",
-  blurb: null,
-  includes: null,
-  excludes: null,
+  description: null,
+  features: null,
+  notIncluded: null,
 };
 
 const FREE_ROW: BillingPlan = {
@@ -63,8 +63,8 @@ const FREE_ROW: BillingPlan = {
   isDefault: true,
   scheduleIntervalSeconds: 60 * 86_400,
   amountMinor: 0,
-  billingPeriodUnit: null,
-  billingPeriodCount: null,
+  planName: null,
+  billingInterval: null,
   checkoutUrl: null,
 };
 
@@ -86,8 +86,7 @@ function paidSub(over: Partial<Subscription> = {}): Subscription {
       amountMinor: 200,
       currency: "USD",
       isActive: true,
-      billingPeriodUnit: "month",
-      billingPeriodCount: 1,
+      billingInterval: "monthly",
     },
     status: "active",
     currentPeriodStart: "2026-08-01T12:00:00Z",
@@ -207,5 +206,17 @@ describe("PlanCard — the day Flash named, wherever the viewer is", () => {
     renderWithProviders(<PlanCard lastCalculatedMs={null} />);
 
     expect(screen.getByTestId("insights-renews")).toHaveTextContent("Sep 20, 2099");
+  });
+
+  // A price the server could not read is unknown, not zero — the policy name
+  // still stands on its own.
+  it("names the policy with no price when the server could not read one", () => {
+    sub = paidSub({
+      plan: { amountMinor: null, currency: null, isActive: true, billingInterval: null },
+    });
+    renderWithProviders(<PlanCard lastCalculatedMs={null} />);
+    const name = screen.getByTestId("insights-plan-name");
+    expect(name).toHaveTextContent("Priority");
+    expect(name).not.toHaveTextContent("Free");
   });
 });

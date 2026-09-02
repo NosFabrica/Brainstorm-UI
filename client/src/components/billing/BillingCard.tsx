@@ -11,7 +11,7 @@ import {
   billingDeadlineMs,
   formatAmount,
   formatBillingDate,
-  formatBillingPeriod,
+  formatBillingInterval,
   SUBSCRIPTION_STATUS_LABEL,
 } from "@/lib/plans";
 
@@ -70,8 +70,11 @@ export function BillingCard() {
   // A free holder has no billing row, so their price is the default plan's own
   // amount — a number the server sends, not a "$0.00" typed in here.
   const priced = plan ?? plans?.find((p) => p.isDefault) ?? null;
-  const amountLabel = priced ? formatAmount(priced.amountMinor, priced.currency) : "—";
-  const period = priced ? formatBillingPeriod(priced.billingPeriodUnit, priced.billingPeriodCount) : null;
+  const amountLabel =
+    priced && priced.amountMinor !== null && priced.currency
+      ? formatAmount(priced.amountMinor, priced.currency)
+      : "—";
+  const period = formatBillingInterval(priced?.billingInterval);
 
   // Flash reports a cancellation that has not taken effect yet as `active` —
   // the subscriber IS still entitled and the status is right — so the date is
