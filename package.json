@@ -10,8 +10,8 @@
     "dev": "vite",
     "build": "vite build",
     "check": "tsc",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "LC_ALL=en-US vitest run",
+    "test:watch": "LC_ALL=en-US vitest"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

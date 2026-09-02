@@ -392,11 +392,16 @@ function asLocalDate(iso: string, at: [number, number, number, number]): Date {
 /**
  * The day a billing value names, for every viewer wherever they are — and the
  * one date wording for every billing surface, which had each grown its own.
+ *
+ * Formatted in the reader's own locale (`undefined`), not a fixed one: the DAY
+ * must not move, which is what `asLocalDate` guarantees, but how that day is
+ * written is a reading preference. Pinning en-US would show a European operator
+ * "Sep 20, 2026" — one inconsistency traded for a worse one.
  */
 export function formatBillingDate(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = asLocalDate(iso, [0, 0, 0, 0]);
-  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString("en-US", BILLING_DATE_FORMAT);
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString(undefined, BILLING_DATE_FORMAT);
 }
 
 /**
