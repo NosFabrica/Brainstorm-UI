@@ -127,6 +127,20 @@ describe("SearchResults", () => {
     expect(mainStreamCalls()[0][0]).toBe("liverpool sort:recent");
   });
 
+  // Content tabs land on what's fresh by default; a typed sort: always wins,
+  // and People stays trust-ranked.
+  it("content tabs default to newest-first on the wire", () => {
+    setUrlTab("notes");
+    render(<SearchResults query="bitcoin" pov="nosfabrica" />);
+    expect(mainStreamCalls()[0][0]).toBe("bitcoin sort:recent");
+  });
+
+  it("a typed sort keeps content tabs exactly as asked", () => {
+    setUrlTab("notes");
+    render(<SearchResults query="bitcoin sort:rank" pov="nosfabrica" />);
+    expect(mainStreamCalls()[0][0]).toBe("bitcoin sort:rank");
+  });
+
   it("renders all eight verticals as tabs", () => {
     render(<SearchResults query="jack" pov="nosfabrica" />);
     for (const t of ["everything", "people", "notes", "articles", "media", "code", "live", "lists"]) {
@@ -265,26 +279,74 @@ describe("SearchResults", () => {
     expect(rewrite).toHaveBeenLastCalledWith("bitcoin include:spam");
   });
 
-  it("Rank as… accepts an npub and writes the hex observer", async () => {
+  // Benjamin's UX review: nobody types an npub or a 0–100 number. People are
+  // picked by NAME; the trust floor speaks the user's own tier ladder.
+  it("Rank as… is a people picker — type a name, pick a face, never see hex", async () => {
     const rewrite = vi.fn();
+    const hex = "7".repeat(64);
+    suggestMock.mockResolvedValue([
+      { pubkey: hex, npub: "npub1fiatjaf", name: "fiatjaf", picture: "https://img.example/f.jpg", wotRank: 0.9, wotFollowers: 10 },
+    ]);
     render(<SearchResults query="jack" pov="nosfabrica" onQueryRewrite={rewrite} />);
     fireEvent.click(screen.getByTestId("search-filters-toggle"));
 
-    // An npub in the field → its hex form on the wire.
-    const { nip19 } = await import("nostr-tools");
-    const hex = "7".repeat(64);
-    const npub = nip19.npubEncode(hex);
-    const input = screen.getByTestId("filter-rank-as");
-    fireEvent.change(input, { target: { value: npub } });
-    fireEvent.click(screen.getByTestId("filter-rank-as-apply"));
+    fireEvent.change(screen.getByTestId("filter-rank-as"), { target: { value: "fia" } });
+    const option = await screen.findByTestId(`rank-as-option-${hex.slice(0, 8)}`);
+    expect(option).toHaveTextContent("fiatjaf");
+    fireEvent.click(option);
+
     expect(rewrite).toHaveBeenLastCalledWith(`jack observer:${hex}`);
   });
 
+  it("a chosen observer shows as the person, and clears with one click", async () => {
+    const rewrite = vi.fn();
+    const hex = "7".repeat(64);
+    render(
+      <SearchResults query={`jack observer:${hex}`} pov="nosfabrica" onQueryRewrite={rewrite} />,
+    );
+    fireEvent.click(screen.getByTestId("search-filters-toggle"));
+    // Selected state: a person chip (name resolves when known; npub-short
+    // degrade otherwise), not a hex input.
+    const chip = screen.getByTestId("rank-as-selected");
+    expect(chip.textContent).not.toContain(hex);
+    fireEvent.click(screen.getByTestId("rank-as-clear"));
+    expect(rewrite).toHaveBeenLastCalledWith("jack");
+  });
+
+  it("the trust floor speaks the user's tier ladder, not raw numbers", () => {
+    const rewrite = vi.fn();
+    render(<SearchResults query="bitcoin" pov="nosfabrica" onQueryRewrite={rewrite} />);
+    fireEvent.click(screen.getByTestId("search-filters-toggle"));
+
+    const select = screen.getByTestId("filter-min-tier") as HTMLSelectElement;
+    // Default (Simple) ladder: Anyone / Verified only — the user's setting.
+    const labels = [...select.options].map((o) => o.textContent);
+    expect(labels).toContain("Anyone");
+    expect(labels.some((l) => /Verified/.test(l ?? ""))).toBe(true);
+
+    fireEvent.change(select, { target: { value: "2" } });
+    expect(rewrite).toHaveBeenLastCalledWith("bitcoin filter:rank:gte:2");
+  });
+
+  it("the detailed ladder setting unlocks the full rung list", () => {
+    localStorage.setItem("brainstorm_tier_granularity:anon", "detailed");
+    render(<SearchResults query="bitcoin" pov="nosfabrica" onQueryRewrite={vi.fn()} />);
+    fireEvent.click(screen.getByTestId("search-filters-toggle"));
+    const labels = [...(screen.getByTestId("filter-min-tier") as HTMLSelectElement).options].map(
+      (o) => o.textContent,
+    );
+    expect(labels.some((l) => /Highly verified/.test(l ?? ""))).toBe(true);
+    expect(labels.some((l) => /Neutral/.test(l ?? ""))).toBe(true);
+  });
+
   it("the panel reads current filter state back from the query", () => {
-    render(<SearchResults query="btc sort:rank include:spam" pov="nosfabrica" onQueryRewrite={vi.fn()} />);
+    render(
+      <SearchResults query="btc sort:rank include:spam filter:rank:gte:2" pov="nosfabrica" onQueryRewrite={vi.fn()} />,
+    );
     fireEvent.click(screen.getByTestId("search-filters-toggle"));
     expect((screen.getByTestId("filter-sort") as HTMLSelectElement).value).toBe("rank");
     expect((screen.getByTestId("filter-spam") as HTMLInputElement).checked).toBe(true);
+    expect((screen.getByTestId("filter-min-tier") as HTMLSelectElement).value).toBe("2");
   });
 
   it("raises a knowledge panel when a person matches the query strongly", async () => {

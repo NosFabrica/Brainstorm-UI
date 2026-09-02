@@ -74,8 +74,12 @@ describe("ComposedResults", () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     const tabs = calls.map((c) => c.params.tab);
     expect(tabs).toEqual(expect.arrayContaining(["people", "notes", "articles", "live", "media"]));
-    // The news cluster asks for freshness; everything else keeps best match.
-    expect(sectionCall("notes").query).toBe("liverpool sort:recent");
+    // Benjamin's call: every CONTENT section leads with what's fresh —
+    // scattered timestamps read as random. People stays trust-ranked
+    // (no timestamps there to scatter).
+    for (const tab of ["notes", "articles", "live", "media"]) {
+      expect(sectionCall(tab).query).toBe("liverpool sort:recent");
+    }
     expect(sectionCall("people").query).toBe("liverpool");
     expect(sectionCall("people").params.limit).toBeLessThanOrEqual(10);
   });

@@ -102,7 +102,9 @@ export default function HashtagPage() {
   const tag = (params.tag || "").toLowerCase().replace(/^#/, "").trim();
   useHashtagMeta(tag);
 
-  const [sort, setSort] = useState<SortMode>("top");
+  // Latest by default (Benjamin's call): landing on a topic should mean
+  // landing on what's FRESH — Top stays one tap away for the greatest hits.
+  const [sort, setSort] = useState<SortMode>("latest");
   const [preset, setPreset] = useState<TrustPreset>(() => getActivePreset());
   const [copied, setCopied] = useState(false);
 

@@ -159,12 +159,14 @@ export function ComposedResults({
   onOpenProfile?: (person: SearchResult) => void;
 }) {
   const people = useSectionStream(query, "people", pov, userPubkey, 8);
-  // The news cluster: freshness matters most here (Google: "weights vary by
-  // the nature of the query") — the relay sorts, we just ask for recent.
-  const latest = useSectionStream(`${query} sort:recent`, "notes", pov, userPubkey, 10);
-  const articles = useSectionStream(query, "articles", pov, userPubkey, 5);
-  const happening = useSectionStream(query, "live", pov, userPubkey, 12);
-  const media = useSectionStream(query, "media", pov, userPubkey, 8);
+  // Every CONTENT section leads with what's fresh (Benjamin's call:
+  // scattered timestamps read as random) — the relay sorts, we ask for
+  // recent. People stays trust-ranked; there are no timestamps to scatter.
+  const fresh = `${query} sort:recent`;
+  const latest = useSectionStream(fresh, "notes", pov, userPubkey, 10);
+  const articles = useSectionStream(fresh, "articles", pov, userPubkey, 5);
+  const happening = useSectionStream(fresh, "live", pov, userPubkey, 12);
+  const media = useSectionStream(fresh, "media", pov, userPubkey, 8);
 
   const allHits = useMemo(
     () =>

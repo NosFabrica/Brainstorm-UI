@@ -10,6 +10,12 @@ import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import { Radar, SlidersHorizontal } from "lucide-react";
 import { applyFilters, readFilters, type SearchFilterPatch } from "@/lib/searchSyntax";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
+import { DEFAULT_VERIFIED_LINE, TIER_LABELS, TIER_THRESHOLDS } from "@/services/trustThreshold";
+import { eventStore } from "@/lib/eventStore";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { X } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PersonCard } from "@/components/search/PersonCard";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
@@ -17,9 +23,10 @@ import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { eventPath } from "@/lib/shareId";
 import type { MinimalEvent } from "@/lib/noteRefs";
-import type { SearchResult } from "@/lib/profileSearch";
+import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import {
   searchStream,
+  suggestProfiles,
   TAB_KINDS,
   type SearchHit,
   type SearchPov,
@@ -90,17 +97,46 @@ function writeTabToUrl(tab: SearchTab) {
   }
 }
 
-/** 64-hex from an observer field: accepts hex directly or decodes an npub. */
-function observerHexFrom(raw: string): string | null {
-  const v = raw.trim();
-  if (/^[0-9a-f]{64}$/i.test(v)) return v.toLowerCase();
-  try {
-    const decoded = nip19.decode(v);
-    if (decoded.type === "npub" && typeof decoded.data === "string") return decoded.data;
-  } catch {
-    /* not an npub */
+/**
+ * The trust floor in the USER'S OWN ladder vocabulary (their Settings
+ * granularity) — never a raw 0–100 ask. Values are the wire numbers the
+ * relay's filter:rank:gte: takes, derived from the one threshold source.
+ */
+function tierFloorOptions(granularity: "simple" | "detailed"): { value: string; label: string }[] {
+  const pct = (x: number) => String(Math.round(x * 100));
+  if (granularity === "simple") {
+    return [
+      { value: "", label: "Anyone" },
+      { value: pct(DEFAULT_VERIFIED_LINE), label: "Verified only" },
+    ];
   }
-  return null;
+  return [
+    { value: "", label: "Anyone" },
+    { value: pct(DEFAULT_VERIFIED_LINE), label: `${TIER_LABELS.low} and up` },
+    { value: pct(TIER_THRESHOLDS.medium), label: `${TIER_LABELS.neutral} and up` },
+    { value: pct(TIER_THRESHOLDS.medium_high), label: `${TIER_LABELS.trusted} and up` },
+    { value: pct(TIER_THRESHOLDS.high), label: `${TIER_LABELS.high} only` },
+  ];
+}
+
+/** A chosen observer shows as a PERSON — name from the store when known,
+ *  a short npub degrade when not. Never bare hex. */
+function observerDisplay(pubkey: string): { name: string; picture?: string } {
+  try {
+    const known = eventStore.getReplaceable(0, pubkey);
+    if (known) {
+      const meta = JSON.parse(known.content) as { name?: string; display_name?: string; picture?: string };
+      const name = meta.display_name || meta.name;
+      if (name) return { name, picture: meta.picture };
+    }
+  } catch {
+    /* fall through to npub */
+  }
+  try {
+    return { name: `${nip19.npubEncode(pubkey).slice(0, 12)}…` };
+  } catch {
+    return { name: `${pubkey.slice(0, 8)}…` };
+  }
 }
 
 const SORT_OPTIONS = [
@@ -115,15 +151,44 @@ const SORT_OPTIONS = [
  *  (via onQueryRewrite) — users learn the grammar by watching it appear. */
 function FiltersPanel({
   query,
+  pov,
+  userPubkey,
   onQueryRewrite,
 }: {
   query: string;
+  pov: SearchPov;
+  userPubkey?: string;
   onQueryRewrite: (next: string) => void;
 }) {
   const state = readFilters(query);
-  const [rankAsDraft, setRankAsDraft] = useState(state.rankAs ?? "");
-  const [minRankDraft, setMinRankDraft] = useState(state.minRank?.toString() ?? "");
+  const [granularity] = useTierGranularity();
+  const [rankAsDraft, setRankAsDraft] = useState("");
+  const [rankAsOptions, setRankAsOptions] = useState<SearchResult[]>([]);
   const write = (patch: SearchFilterPatch) => onQueryRewrite(applyFilters(query, patch));
+
+  // People are picked by NAME — the box that asked for "npub or hex" is gone.
+  useEffect(() => {
+    const q = rankAsDraft.trim();
+    if (q.length < 2) {
+      setRankAsOptions([]);
+      return;
+    }
+    let alive = true;
+    const timer = setTimeout(() => {
+      void suggestProfiles(q, { pov, userPubkey }, { limit: 5 }).then((people) => {
+        if (alive) setRankAsOptions(people);
+      });
+    }, 150);
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+    };
+  }, [rankAsDraft, pov, userPubkey]);
+
+  const floorOptions = tierFloorOptions(granularity);
+  const floorValue = state.minRank != null ? String(state.minRank) : "";
+  // A hand-typed value outside the ladder stays honored, shown as itself.
+  const customFloor = floorValue !== "" && !floorOptions.some((o) => o.value === floorValue);
   const field =
     "h-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-accent/30";
 
@@ -166,21 +231,18 @@ function FiltersPanel({
         />
       </label>
       <label className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-        Min trust rank (0–100)
-        <input
-          type="number"
-          min={0}
-          max={100}
-          placeholder="—"
-          className={`${field} w-24`}
-          value={minRankDraft}
-          onChange={(e) => setMinRankDraft(e.target.value)}
-          onBlur={() => {
-            const n = Number(minRankDraft);
-            write({ minRank: minRankDraft !== "" && Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : null });
-          }}
-          data-testid="filter-min-rank"
-        />
+        Show authors
+        <select
+          className={field}
+          value={floorValue}
+          onChange={(e) => write({ minRank: e.target.value === "" ? null : Number(e.target.value) })}
+          data-testid="filter-min-tier"
+        >
+          {floorOptions.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+          {customFloor && <option value={floorValue}>Custom ({floorValue})</option>}
+        </select>
       </label>
       <label className="flex items-center gap-1.5 pb-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
         <input
@@ -192,27 +254,68 @@ function FiltersPanel({
         />
         Include what your web of trust doesn't rank
       </label>
-      <div className="flex items-end gap-1.5">
-        <label className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-          Rank as… (npub or hex — see through their eyes)
-          <input
-            type="text"
-            placeholder="npub1…"
-            className={`${field} w-52 font-mono`}
-            value={rankAsDraft}
-            onChange={(e) => setRankAsDraft(e.target.value)}
-            data-testid="filter-rank-as"
-          />
-        </label>
-        <button
-          type="button"
-          className="h-8 rounded-lg border border-slate-200 dark:border-slate-800 px-2.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 disabled:opacity-40"
-          disabled={rankAsDraft.trim() !== "" && !observerHexFrom(rankAsDraft)}
-          onClick={() => write({ rankAs: rankAsDraft.trim() ? observerHexFrom(rankAsDraft) : null })}
-          data-testid="filter-rank-as-apply"
-        >
-          Apply
-        </button>
+      <div className="relative flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+        See results through someone else's eyes
+        {state.rankAs ? (
+          (() => {
+            const who = observerDisplay(state.rankAs);
+            return (
+              <span
+                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-brand-primary/30 bg-brand-primary/5 dark:bg-brand-primary/15 px-2 text-xs font-medium text-slate-700 dark:text-slate-200"
+                data-testid="rank-as-selected"
+              >
+                <Avatar className="h-5 w-5">
+                  {who.picture ? <AvatarImage src={who.picture} alt="" className="object-cover" /> : null}
+                  <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
+                </Avatar>
+                <span className="max-w-[10rem] truncate">{who.name}</span>
+                <button
+                  type="button"
+                  aria-label="Stop ranking as this person"
+                  className="rounded-full p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                  onClick={() => write({ rankAs: null })}
+                  data-testid="rank-as-clear"
+                >
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            );
+          })()
+        ) : (
+          <>
+            <input
+              type="text"
+              placeholder="Type a name…"
+              className={`${field} w-48`}
+              value={rankAsDraft}
+              onChange={(e) => setRankAsDraft(e.target.value)}
+              data-testid="filter-rank-as"
+            />
+            {rankAsOptions.length > 0 && (
+              <div className="absolute top-full z-20 mt-1 w-56 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg">
+                {rankAsOptions.map((p) => (
+                  <button
+                    key={p.pubkey}
+                    type="button"
+                    className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs hover:bg-slate-50 dark:hover:bg-slate-800"
+                    onClick={() => {
+                      setRankAsDraft("");
+                      setRankAsOptions([]);
+                      write({ rankAs: p.pubkey });
+                    }}
+                    data-testid={`rank-as-option-${p.pubkey.slice(0, 8)}`}
+                  >
+                    <Avatar className="h-5 w-5 shrink-0">
+                      {p.picture ? <AvatarImage src={p.picture} alt="" className="object-cover" /> : null}
+                      <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
+                    </Avatar>
+                    <span className="truncate font-medium text-slate-800 dark:text-slate-100">{getDisplayLabel(p)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        )}
       </div>
     </div>
   );
@@ -245,7 +348,12 @@ export function SearchResults({
 
   // Everything composes its own purpose-ranked section streams — unless the
   // user typed a sort:, which is them choosing ONE order for one list.
-  const composed = tab === "everything" && !/(^|\s)sort:/i.test(query);
+  const userSorted = /(^|\s)sort:/i.test(query);
+  const composed = tab === "everything" && !userSorted;
+  // Content tabs land on what's fresh by default; People keeps trust rank,
+  // and a typed sort: is always honored verbatim.
+  const effectiveQuery =
+    !userSorted && tab !== "everything" && tab !== "people" ? `${query} sort:recent` : query;
 
   useEffect(() => {
     if (composed) {
@@ -253,8 +361,8 @@ export function SearchResults({
       return;
     }
     setSnapshot(null);
-    return searchStream(query, { tab, pov, userPubkey }, setSnapshot);
-  }, [query, tab, pov, userPubkey, composed]);
+    return searchStream(effectiveQuery, { tab, pov, userPubkey }, setSnapshot);
+  }, [effectiveQuery, tab, pov, userPubkey, composed]);
 
   const changeTab = useCallback((next: SearchTab) => {
     setTab(next);
@@ -348,7 +456,7 @@ export function SearchResults({
         )}
       </div>
 
-      {filtersOpen && onQueryRewrite && <FiltersPanel query={query} onQueryRewrite={onQueryRewrite} />}
+      {filtersOpen && onQueryRewrite && <FiltersPanel query={query} pov={pov} userPubkey={userPubkey} onQueryRewrite={onQueryRewrite} />}
 
       {/* Google anatomy: the knowledge panel is FIRST in the DOM — the top
           card on mobile, the right rail on desktop (flex order). When no
