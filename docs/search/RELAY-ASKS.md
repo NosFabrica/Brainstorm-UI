@@ -39,6 +39,12 @@ Live findings these are based on (staging relay, 2026-09-02):
 5. **Counts per kind-group (nice-to-have).** A cheap NIP-45-style count
    per vertical would let the UI label tabs ("Notes · 120") without
    extra full REQs. supported_nips already lists 45.
+6. **`GET /api/unfurl?url=` proxy (server, not relay).** The SERP's news
+   cards currently parse metadata the news bots embed in note content —
+   which works shockingly well but only for bot-shaped notes. A tiny
+   OG-tag proxy (CORS forbids fetching them browser-side) would light up
+   title/description/image cards for EVERY shared link, sitewide
+   (`components/share/LinkPreview.tsx` was built awaiting exactly this).
 
 ## Explicitly NOT asked
 
