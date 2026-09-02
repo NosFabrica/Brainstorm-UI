@@ -3,7 +3,11 @@ import { timeZoneSetter } from "@/test/utils";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { AdminBillingDivergenceSection, AdminBillingSubscription } from "@/services/api";
+import type {
+  AdminBillingDivergenceSection,
+  AdminBillingSubscription,
+  AdminBillingSubscriptionAction,
+} from "@/services/api";
 import { AdminBillingCards } from "./AdminBillingCards";
 
 const getAdminBillingSubscriptions =
@@ -16,6 +20,10 @@ const resyncAdminBillingSubscription =
   vi.fn<(pubkey: string) => Promise<{ applied: boolean; reason: string }>>();
 const getAdminBillingFlashRecordForSubscriber =
   vi.fn<(pubkey: string) => Promise<unknown>>();
+const cancelAdminBillingSubscription =
+  vi.fn<(pubkey: string, reason?: string) => Promise<AdminBillingSubscriptionAction>>();
+const setAdminBillingSubscriptionStatus =
+  vi.fn<(pubkey: string, status: "paused" | "active") => Promise<AdminBillingSubscriptionAction>>();
 vi.mock("@/services/api", () => ({
   apiClient: {
     getAdminBillingSubscriptions: () => getAdminBillingSubscriptions(),
@@ -24,6 +32,10 @@ vi.mock("@/services/api", () => ({
     resyncAdminBillingSubscription: (pubkey: string) => resyncAdminBillingSubscription(pubkey),
     getAdminBillingFlashRecordForSubscriber: (pubkey: string) =>
       getAdminBillingFlashRecordForSubscriber(pubkey),
+    cancelAdminBillingSubscription: (pubkey: string, reason?: string) =>
+      cancelAdminBillingSubscription(pubkey, reason),
+    setAdminBillingSubscriptionStatus: (pubkey: string, status: "paused" | "active") =>
+      setAdminBillingSubscriptionStatus(pubkey, status),
   },
 }));
 
@@ -446,5 +458,325 @@ describe("AdminBillingCards — the day Flash named, wherever the operator is", 
     const row = screen.getByTestId("table-billing-subscribers");
     expect(row).toHaveTextContent("Sep 20, 2026");
     expect(row).toHaveTextContent("Sep 19, 2026");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Acting on a subscription without leaving the tab
+//
+// Subscribers still cancel in Flash's portal; this is the support path, for an
+// admin already looking at the row.
+// ---------------------------------------------------------------------------
+function rosterOf(overrides: Partial<AdminBillingSubscription> = {}) {
+  return {
+    total: 1,
+    pages: 1,
+    items: [
+      {
+        pubkey: PUBKEY,
+        flash_status: "active",
+        flash_subscription_id: "7d3b",
+        scheduling_source: "billing",
+        billing_blocked: false,
+        ...overrides,
+      } as AdminBillingSubscription,
+    ],
+  };
+}
+
+const CANCEL_SCHEDULED: AdminBillingSubscriptionAction = {
+  pubkey: PUBKEY,
+  subscription_id: "7d3b",
+  // Flash accepted the cancellation and still calls them active — the account
+  // cancels at period end.
+  flash_status: "active",
+  cancel_effective_date: "2026-09-20",
+  cancellation_scheduled: true,
+  applied: false,
+  reason: "held",
+};
+
+describe("cancelling and pausing from the billing tab", () => {
+  it("cancels only after the admin agrees, and names who it affects", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(rosterOf());
+    fetchProfileMap.mockResolvedValue(new Map([[PUBKEY, { display_name: "Lira Flint" }]]));
+    cancelAdminBillingSubscription.mockResolvedValue(CANCEL_SCHEDULED);
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-cancel"));
+
+    const dialog = await screen.findByTestId("dialog-billing-cancel-confirm");
+    expect(cancelAdminBillingSubscription).not.toHaveBeenCalled();
+    const who = screen.getByTestId("billing-cancel-confirm-who");
+    expect(who.textContent).toContain("Lira Flint");
+    // Never the raw hex — the same rule the tier picker holds to.
+    expect(dialog.textContent).not.toContain(PUBKEY);
+
+    await userEvent.click(screen.getByTestId("button-billing-cancel-confirm"));
+    await waitFor(() => expect(cancelAdminBillingSubscription).toHaveBeenCalledWith(PUBKEY, ""));
+  });
+
+  it("reports a scheduled cancellation by its date, not as a failure", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(rosterOf());
+    cancelAdminBillingSubscription.mockResolvedValue(CANCEL_SCHEDULED);
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-cancel"));
+    await userEvent.click(await screen.findByTestId("button-billing-cancel-confirm"));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Cancellation scheduled",
+          description: expect.stringContaining("Sep 20, 2026"),
+        }),
+      ),
+    );
+    // Not a destructive toast: it worked.
+    expect(toast).not.toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" }));
+  });
+
+  it("says so plainly when Flash ended it there and then", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(rosterOf());
+    cancelAdminBillingSubscription.mockResolvedValue({
+      ...CANCEL_SCHEDULED,
+      flash_status: "canceled",
+      cancel_effective_date: null,
+    });
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-cancel"));
+    await userEvent.click(await screen.findByTestId("button-billing-cancel-confirm"));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Subscription cancelled" }),
+      ),
+    );
+  });
+
+  it("does not claim success when Flash scheduled nothing", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(rosterOf());
+    cancelAdminBillingSubscription.mockResolvedValue({
+      ...CANCEL_SCHEDULED,
+      cancel_effective_date: null,
+      cancellation_scheduled: false,
+    });
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-cancel"));
+    await userEvent.click(await screen.findByTestId("button-billing-cancel-confirm"));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: "destructive" }),
+      ),
+    );
+  });
+
+  it("passes the operator's reason to the server", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(rosterOf());
+    cancelAdminBillingSubscription.mockResolvedValue(CANCEL_SCHEDULED);
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-cancel"));
+    await userEvent.type(await screen.findByTestId("input-billing-cancel-reason"), "Refunded");
+    await userEvent.click(screen.getByTestId("button-billing-cancel-confirm"));
+
+    await waitFor(() =>
+      expect(cancelAdminBillingSubscription).toHaveBeenCalledWith(PUBKEY, "Refunded"),
+    );
+  });
+
+  it("leaves the subscription alone when the admin backs out", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(rosterOf());
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-cancel"));
+    await userEvent.click(await screen.findByTestId("button-billing-cancel-dismiss"));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("dialog-billing-cancel-confirm")).not.toBeInTheDocument(),
+    );
+    expect(cancelAdminBillingSubscription).not.toHaveBeenCalled();
+  });
+
+  it("pauses after confirmation, naming the person", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(rosterOf());
+    setAdminBillingSubscriptionStatus.mockResolvedValue({
+      ...CANCEL_SCHEDULED,
+      flash_status: "paused",
+      cancel_effective_date: null,
+      cancellation_scheduled: false,
+      applied: true,
+      reason: "revoked",
+    });
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-pause"));
+
+    const dialog = await screen.findByTestId("dialog-billing-pause-confirm");
+    expect(setAdminBillingSubscriptionStatus).not.toHaveBeenCalled();
+    expect(screen.getByTestId("billing-pause-confirm-who").textContent).toContain("npub1");
+    expect(dialog.textContent).not.toContain(PUBKEY);
+
+    await userEvent.click(screen.getByTestId("button-billing-pause-confirm"));
+    await waitFor(() =>
+      expect(setAdminBillingSubscriptionStatus).toHaveBeenCalledWith(PUBKEY, "paused"),
+    );
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Subscription paused" })),
+    );
+  });
+
+  it("confirms a resume too — it restarts a charge", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(rosterOf({ flash_status: "paused" }));
+    setAdminBillingSubscriptionStatus.mockResolvedValue({
+      ...CANCEL_SCHEDULED,
+      cancel_effective_date: null,
+      cancellation_scheduled: false,
+      applied: true,
+      reason: "granted",
+    });
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-pause"));
+
+    const dialog = await screen.findByTestId("dialog-billing-resume-confirm");
+    expect(setAdminBillingSubscriptionStatus).not.toHaveBeenCalled();
+    expect(screen.getByTestId("billing-resume-confirm-who").textContent).toContain("npub1");
+    expect(dialog.textContent).not.toContain(PUBKEY);
+
+    await userEvent.click(screen.getByTestId("button-billing-resume-confirm"));
+    await waitFor(() =>
+      expect(setAdminBillingSubscriptionStatus).toHaveBeenCalledWith(PUBKEY, "active"),
+    );
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Subscription resumed" })),
+    );
+  });
+
+  it("re-reads the roster after either action", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(rosterOf());
+    cancelAdminBillingSubscription.mockResolvedValue(CANCEL_SCHEDULED);
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    expect(getAdminBillingSubscriptions).toHaveBeenCalledTimes(1);
+
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-cancel"));
+    await userEvent.click(await screen.findByTestId("button-billing-cancel-confirm"));
+
+    await waitFor(() => expect(getAdminBillingSubscriptions).toHaveBeenCalledTimes(2));
+  });
+
+  it("hands a refused key on to the operator as its own sentence", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(rosterOf());
+    cancelAdminBillingSubscription.mockRejectedValue(
+      new Error(
+        "Flash refused our credentials, so nothing was changed. The API key may not carry the scope needed to manage subscriptions; retrying will not help.",
+      ),
+    );
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-cancel"));
+    await userEvent.click(await screen.findByTestId("button-billing-cancel-confirm"));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: "destructive",
+          description: expect.stringContaining("scope needed to manage subscriptions"),
+        }),
+      ),
+    );
+  });
+
+  it("admits when the write landed but the re-read did not", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(rosterOf());
+    cancelAdminBillingSubscription.mockResolvedValue({
+      ...CANCEL_SCHEDULED,
+      applied: false,
+      reason: "reread_failed",
+    });
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-cancel"));
+    await userEvent.click(await screen.findByTestId("button-billing-cancel-confirm"));
+
+    // Cancelled in Flash — so not a failure — but the roster is a step behind
+    // and the operator is told so rather than left to believe it is current.
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Cancellation scheduled",
+          description: expect.stringContaining("a step behind"),
+        }),
+      ),
+    );
+    expect(toast).not.toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" }));
+  });
+
+  it("offers nothing to act on where we hold no Flash subscription", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(
+      rosterOf({ flash_subscription_id: null }),
+    );
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+
+    expect((await screen.findByTestId("billing-action-cancel")).getAttribute("aria-disabled")).toBe("true");
+    expect(screen.getByTestId("billing-action-pause").getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("keeps the ways of looking at Flash beside the ways of acting on it", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(rosterOf());
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+
+    expect(await screen.findByTestId("billing-action-view-flash")).toBeInTheDocument();
+    expect(screen.getByTestId("billing-action-flash-record")).toBeInTheDocument();
+    expect(screen.getByTestId("link-flash-dashboard")).toBeInTheDocument();
+  });
+
+  it("shows a scheduled cancellation on the roster, where the status cannot", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(
+      rosterOf({
+        current_period_end: "2026-09-20T00:00:00Z",
+        cancel_effective_date: "2026-09-20",
+      }),
+    );
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+
+    const row = screen.getByTestId(`billing-sub-${PUBKEY.slice(0, 8)}`);
+    expect(row.textContent).toContain("active");
+    expect(screen.getByTestId(`billing-ends-${PUBKEY.slice(0, 8)}`).textContent).toContain("Ends");
   });
 });

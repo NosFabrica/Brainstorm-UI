@@ -157,10 +157,12 @@ Without it, a genuinely-paying user reads as **free** for up to ten minutes whil
 if (subscription.manage_url) window.location.href = subscription.manage_url;
 ```
 
-Today that resolves to Flash's hosted portal, because no cancel API is documented. If Flash confirms one,
-the server starts returning a URL into our own app — or we swap it for a real `DELETE` — and **this code
-doesn't change**. That's the point of handing back a URL rather than a boolean: the open question stops
-being yours.
+Today that resolves to Flash's hosted portal. Flash *does* now document a cancel API
+(`POST /subscriptions/{id}/cancel`), and the **admin** billing tab uses it — but the subscriber path
+deliberately stays on the portal, because owning cancellation would mean owning identity and
+payment-method changes with it. If that decision is revisited, the server starts returning a URL into
+our own app and **this code doesn't change**. That's the point of handing back a URL rather than a
+boolean: the open question stops being yours.
 
 `cancelSubscription()` is gone; it called a `DELETE` that doesn't exist.
 

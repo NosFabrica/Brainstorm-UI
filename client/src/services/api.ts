@@ -228,6 +228,37 @@ async function readFlashRecord(path: string): Promise<unknown> {
 }
 
 /**
+ * One operator write against a subscription in Flash. Consequential and slow —
+ * it is a round trip to Flash and back, plus the re-read that follows — so it
+ * carries the 30s budget the other Flash-backed calls use.
+ *
+ * The server already tells a refused credential (502, "the key may not carry
+ * the scope") apart from an unreachable Flash (503) in its `detail`; passing
+ * that through verbatim is what keeps them apart here.
+ */
+async function writeBillingSubscription(
+  path: string,
+  method: "POST" | "PATCH",
+  body: Record<string, unknown>,
+  what: string,
+): Promise<AdminBillingSubscriptionAction> {
+  const response = await authenticatedFetch(`${getBrainstormApi()}${path}`, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30000),
+  });
+  if (!response.ok) {
+    throw new Error(
+      (await extractApiError(response)) ||
+        `Couldn't ${what} (${response.status}).`,
+    );
+  }
+  const json = await response.json();
+  return (json?.data ?? json) as AdminBillingSubscriptionAction;
+}
+
+/**
  * One row of the admin Billing tab — the server's BillingSubscriptionItem
  * (see /docs on the server). Pubkey-keyed, so every row is an attributed
  * subscriber; the unsettled/unmatched cases live in /admin/billing/divergence.
@@ -238,6 +269,8 @@ export interface AdminBillingSubscription {
   flash_status: string;
   flash_subscription_id?: string | null;
   current_period_end?: string | null;
+  /** Set means this subscription ends then, whatever `flash_status` says. */
+  cancel_effective_date?: string | null;
   last_synced_at?: string | null;
   last_sync_error?: string | null;
   granted_scheduling_id?: number | null;
@@ -246,6 +279,29 @@ export interface AdminBillingSubscription {
   scheduling_name?: string | null;
   scheduling_source: string;
   billing_blocked: boolean;
+}
+
+/**
+ * What Flash did, beside what the server then did about it.
+ *
+ * `cancellation_scheduled` is the field to read after a cancel — never
+ * `flash_status`, which stays `active` until `cancel_effective_date` lands
+ * because this account cancels at period end.
+ */
+export interface AdminBillingSubscriptionAction {
+  pubkey: string;
+  subscription_id: string;
+  flash_status: string;
+  cancel_effective_date?: string | null;
+  cancellation_scheduled: boolean;
+  /** Whether the re-read that followed actually moved the user's tier. */
+  applied: boolean;
+  /**
+   * The server's EntitlementReason, or `reread_failed` when the write landed in
+   * Flash and the re-read that follows it did not. That case is a success in
+   * Flash and a stale roster here — do not report it as a failed action.
+   */
+  reason: string;
 }
 
 /** One kind of billing disagreement; `truncated` means the list admits it's capped. */
@@ -1076,6 +1132,38 @@ export const apiClient = {
     }
     const json = await response.json();
     return json?.data ?? json;
+  },
+
+  /**
+   * Cancel one subscriber's subscription in Flash, on an operator's behalf.
+   *
+   * The support path only — subscribers still cancel in Flash's portal. Read
+   * `cancellation_scheduled` on the result, never `flash_status`.
+   */
+  async cancelAdminBillingSubscription(
+    pubkey: string,
+    reason?: string,
+  ): Promise<AdminBillingSubscriptionAction> {
+    const trimmed = reason?.trim();
+    return writeBillingSubscription(
+      `/admin/billing/subscriptions/${pubkey}/cancel`,
+      "POST",
+      trimmed ? { reason: trimmed } : {},
+      "cancel the subscription",
+    );
+  },
+
+  /** Pause a subscriber's subscription, or put it back. */
+  async setAdminBillingSubscriptionStatus(
+    pubkey: string,
+    status: "paused" | "active",
+  ): Promise<AdminBillingSubscriptionAction> {
+    return writeBillingSubscription(
+      `/admin/billing/subscriptions/${pubkey}/status`,
+      "PATCH",
+      { status },
+      status === "paused" ? "pause the subscription" : "resume the subscription",
+    );
   },
 
   /**

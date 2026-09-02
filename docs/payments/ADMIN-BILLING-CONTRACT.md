@@ -70,14 +70,17 @@ accepts both, matching the existing endpoints' envelope convention.)
 - **All rows, all statuses** — canceled/expired history included. The UI does
   its own grouping. If pagination becomes necessary, tell Ben; v1 assumes the
   list is small enough to return whole.
-- **View-only** — the UI links to the Flash dashboard for anything
-  write-shaped (refunds, comps, cancels). No manage endpoints needed.
+- **~~View-only~~ (superseded)** — the tab now cancels and pauses through the
+  server (`POST .../{pubkey}/cancel`, `PATCH .../{pubkey}/status`), which need
+  the `subscriptions:manage` scope. Refunds and invoices still link out. The
+  links out stayed: acting on a subscription is a different question from
+  seeing what Flash actually says about it.
 
 ## Explicitly NOT needed for v1
 
 - Invoice/payment line items (UI links out to Flash instead).
 - Per-subscription webhook history.
-- Any `subscriptions:manage`-scoped operation.
+- ~~Any `subscriptions:manage`-scoped operation.~~ Superseded — see above.
 
 UI reference: `client/src/services/api.ts` (`getAdminBillingSubscriptions`,
 `AdminBillingSubscription`), `client/src/components/admin/billing/AdminBillingCards.tsx`.

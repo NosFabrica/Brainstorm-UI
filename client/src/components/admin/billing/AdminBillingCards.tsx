@@ -1,3 +1,4 @@
+import type React from "react";
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
@@ -11,6 +12,9 @@ import {
   MoreHorizontal,
   RefreshCw,
   Ban,
+  CalendarX,
+  PauseCircle,
+  PlayCircle,
   User,
   XCircle,
 } from "lucide-react";
@@ -30,6 +34,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
 import { formatBillingDate } from "@/lib/plans";
 import {
@@ -44,6 +49,7 @@ import {
   apiClient,
   type AdminBillingDivergenceSection,
   type AdminBillingSubscription,
+  type AdminBillingSubscriptionAction,
 } from "@/services/api";
 import { fetchProfileMap } from "@/services/nostr";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -55,8 +61,12 @@ const SUBS_KEY = ["/api/admin/billing/subscriptions"];
 const DIVERGENCE_KEY = ["/api/admin/billing/divergence"];
 
 /**
- * Money still lives in Flash — invoices, refunds and cancellation. Block is the
- * one write this tab owns, and it deliberately does *not* touch the charge.
+ * Invoices and refunds still live in Flash; cancelling and pausing no longer do.
+ * The links out stay regardless — acting on a subscription is a different
+ * question from seeing what Flash actually says about it.
+ *
+ * Subscribers are untouched by any of this: they still manage their own
+ * subscription through Flash's portal.
  */
 const FLASH_VAULT_URL = "https://dev.vault.paywithflash.com";
 const FLASH_DASHBOARD_URL = `${FLASH_VAULT_URL}/subscriptions`;
@@ -293,6 +303,80 @@ function FlashRecordDialog({
   );
 }
 
+/**
+ * Confirm a consequential write, naming who it lands on — the same shape
+ * `UserTierPicker` uses on the Users tab: avatar, the profile name when kind-0
+ * gave us one, and the npub otherwise. Never the raw hex, which nobody can
+ * recognize and everybody can mistype.
+ *
+ * The gate is that the action lives only on the confirm button: opening the
+ * dialog does nothing at all.
+ */
+function ConfirmSubscriptionAction({
+  subscriber,
+  profile,
+  kind,
+  title,
+  confirmLabel,
+  destructive = true,
+  onDismiss,
+  onConfirm,
+  children,
+}: {
+  subscriber: AdminBillingSubscription | null;
+  profile?: ProfileBits;
+  kind: "cancel" | "pause" | "resume";
+  title: string;
+  confirmLabel: string;
+  destructive?: boolean;
+  onDismiss: () => void;
+  onConfirm: () => void | Promise<void>;
+  children: React.ReactNode;
+}) {
+  const who = subscriber ? shortNpub(subscriber.pubkey) : null;
+  const name = profile?.name || who?.short;
+  return (
+    <Dialog open={!!subscriber} onOpenChange={(o) => !o && onDismiss()}>
+      <DialogContent className="sm:max-w-md" data-testid={`dialog-billing-${kind}-confirm`}>
+        <DialogHeader>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription asChild>
+            <div>
+              <span
+                className="flex items-center gap-2 mb-2"
+                data-testid={`billing-${kind}-confirm-who`}
+              >
+                <Avatar className="h-7 w-7 shrink-0">
+                  {profile?.picture ? (
+                    <AvatarImage src={profile.picture} alt={name || "Subscriber"} className="object-cover" />
+                  ) : null}
+                  <AvatarFallback className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-[10px] text-slate-400 dark:text-slate-500">
+                    {profile?.name?.charAt(0)?.toUpperCase() || <User className="h-3.5 w-3.5 text-slate-300 dark:text-slate-600" />}
+                  </AvatarFallback>
+                </Avatar>
+                <span className="font-semibold text-slate-900 dark:text-slate-100">{name}</span>
+              </span>
+              {children}
+            </div>
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter className="gap-2">
+          <Button variant="outline" onClick={onDismiss} data-testid={`button-billing-${kind}-dismiss`}>
+            Keep it
+          </Button>
+          <Button
+            variant={destructive ? "destructive" : "primary"}
+            onClick={() => void onConfirm()}
+            data-testid={`button-billing-${kind}-confirm`}
+          >
+            {confirmLabel}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function SubscriberRow({
   s,
   profile,
@@ -301,6 +385,9 @@ function SubscriberRow({
   onUnblock,
   onResync,
   onViewFlashRecord,
+  onCancel,
+  onPause,
+  onResume,
 }: {
   s: AdminBillingSubscription;
   profile?: ProfileBits;
@@ -309,8 +396,12 @@ function SubscriberRow({
   onUnblock: (s: AdminBillingSubscription) => void;
   onResync: (s: AdminBillingSubscription) => void;
   onViewFlashRecord: (s: AdminBillingSubscription) => void;
+  onCancel: (s: AdminBillingSubscription) => void;
+  onPause: (s: AdminBillingSubscription) => void;
+  onResume: (s: AdminBillingSubscription) => void;
 }) {
   const who = shortNpub(s.pubkey);
+  const paused = s.flash_status === "paused";
   // What the subscription grants vs what the user is actually in — the
   // payments→scheduler connection this tab exists to make visible.
   const scheduling = s.granted_scheduling_name ?? s.scheduling_name ?? "—";
@@ -344,7 +435,16 @@ function SubscriberRow({
       </td>
       <td className={td}>{scheduling}</td>
       <td className={td} data-testid={`billing-source-${s.pubkey.slice(0, 8)}`}>{s.scheduling_source}</td>
-      <td className={`${td} tabular-nums`}>{formatBillingDate(s.current_period_end)}</td>
+      <td className={`${td} tabular-nums`}>
+        {formatBillingDate(s.current_period_end)}
+        {/* The status column cannot say this: a cancelled subscriber stays
+            `active` until the date lands. */}
+        {s.cancel_effective_date && (
+          <span className="ml-1.5 inline-flex" data-testid={`billing-ends-${s.pubkey.slice(0, 8)}`}>
+            <Chip tone="warning" size="sm">Ends {formatBillingDate(s.cancel_effective_date)}</Chip>
+          </span>
+        )}
+      </td>
       <td className={`${td} tabular-nums`}>
         <span className="inline-flex items-center gap-1.5">
           {formatBillingDate(s.last_synced_at)}
@@ -416,6 +516,42 @@ function SubscriberRow({
                 deliberately change nothing.
               </span>
             </DropdownMenuItem>
+            {/* Pause and cancel reach Flash itself, so both are gated on us
+                actually holding a subscription id to reach it with. */}
+            <DropdownMenuItem
+              disabled={busy || !s.flash_subscription_id}
+              onSelect={() => (paused ? onResume(s) : onPause(s))}
+              className="flex-col items-start gap-0.5"
+              data-testid="billing-action-pause"
+            >
+              <span className="flex items-center">
+                {paused ? (
+                  <PlayCircle className="mr-2 h-3.5 w-3.5" />
+                ) : (
+                  <PauseCircle className="mr-2 h-3.5 w-3.5" />
+                )}
+                {paused ? "Resume subscription" : "Pause subscription"}
+              </span>
+              <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+                {paused
+                  ? "Puts the subscription back to active in Flash; billing and their paid tier resume."
+                  : "Suspends the subscription in Flash. Their paid tier comes off while it's paused, and nothing is charged."}
+              </span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={busy || !s.flash_subscription_id}
+              onSelect={() => onCancel(s)}
+              className="flex-col items-start gap-0.5 text-red-600 dark:text-red-400"
+              data-testid="billing-action-cancel"
+            >
+              <span className="flex items-center">
+                <CalendarX className="mr-2 h-3.5 w-3.5" /> Cancel subscription
+              </span>
+              <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+                Ends the subscription in Flash. On this account that takes effect at the
+                end of the paid period, so they keep their tier until then.
+              </span>
+            </DropdownMenuItem>
             <DropdownMenuItem
               disabled={busy}
               onSelect={() => (s.billing_blocked ? onUnblock(s) : onBlock(s))}
@@ -428,7 +564,7 @@ function SubscriberRow({
               <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
                 {s.billing_blocked
                   ? "Lets them be granted again. Doesn't re-grant by itself — the next Flash event or a resync does."
-                  : "Withholds the paid tier however they pay, and takes back a tier billing granted. The subscription keeps charging until it's cancelled in Flash."}
+                  : "Withholds the paid tier however they pay, and takes back a tier billing granted. The subscription keeps charging until somebody cancels it."}
               </span>
             </DropdownMenuItem>
           </DropdownMenuContent>
@@ -468,6 +604,10 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   const [sourceFilter, setSourceFilter] = useState("all");
   const [sort, setSort] = useState<SortState>(null);
   const [confirmBlock, setConfirmBlock] = useState<AdminBillingSubscription | null>(null);
+  const [confirmCancel, setConfirmCancel] = useState<AdminBillingSubscription | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [confirmPause, setConfirmPause] = useState<AdminBillingSubscription | null>(null);
+  const [confirmResume, setConfirmResume] = useState<AdminBillingSubscription | null>(null);
   const [flashRecordFor, setFlashRecordFor] = useState<AdminBillingSubscription | null>(null);
   const [busyPk, setBusyPk] = useState<string | null>(null);
   const toggleSort = (key: SortKey) =>
@@ -511,6 +651,54 @@ export function AdminBillingCards({ active }: { active: boolean }) {
             ? "Their billing-granted tier was taken back. Flash is still charging them — cancel or refund there."
             : "No billing-granted tier to take back. Flash is still charging them — cancel or refund there."
           : "They can be granted again. The next Flash event or a resync applies it.",
+      });
+    });
+
+  /** Reads `cancellation_scheduled`, never the status — see the type's note. */
+  function cancelOutcomeToast(out: AdminBillingSubscriptionAction) {
+    if (!out.cancellation_scheduled) {
+      toast({
+        title: "Nothing was scheduled",
+        description:
+          "Flash accepted the request but reports no cancellation on this subscription. Check Flash's raw record before trying again.",
+        variant: "destructive",
+      });
+      return;
+    }
+    toast({
+      title: out.cancel_effective_date ? "Cancellation scheduled" : "Subscription cancelled",
+      description:
+        (out.cancel_effective_date
+          ? `Flash still reports them "${out.flash_status}" until it takes effect on ${formatBillingDate(out.cancel_effective_date)} — that is what end-of-period cancellation looks like, not a failure. They keep their tier until then. `
+          : "Flash ended it immediately. ") + tierNote(out),
+    });
+  }
+
+  /**
+   * What happened to their tier, which is a separate question from what
+   * happened in Flash. `reread_failed` means the write landed and the re-read
+   * that follows it did not — saying nothing would leave an operator believing
+   * the roster is current when it is a step behind.
+   */
+  function tierNote(out: AdminBillingSubscriptionAction): string {
+    if (out.reason === "reread_failed")
+      return "We couldn't re-read them from Flash afterwards, so their tier and the roster are a step behind — resync when Flash is back.";
+    return out.applied
+      ? "Their tier has been re-read from Flash and updated."
+      : "Their tier was left as it was — the roster shows why.";
+  }
+
+  const handleCancel = (s: AdminBillingSubscription, reason: string) =>
+    runAction(s.pubkey, async () => {
+      cancelOutcomeToast(await apiClient.cancelAdminBillingSubscription(s.pubkey, reason));
+    });
+
+  const handleSetStatus = (s: AdminBillingSubscription, status: "paused" | "active") =>
+    runAction(s.pubkey, async () => {
+      const out = await apiClient.setAdminBillingSubscriptionStatus(s.pubkey, status);
+      toast({
+        title: status === "paused" ? "Subscription paused" : "Subscription resumed",
+        description: `Flash reports them "${out.flash_status}". ${tierNote(out)}`,
       });
     });
 
@@ -630,6 +818,12 @@ export function AdminBillingCards({ active }: { active: boolean }) {
                     onUnblock={(sub) => handleSetBlock(sub, false)}
                     onResync={handleResync}
                     onViewFlashRecord={setFlashRecordFor}
+                    onCancel={(sub) => {
+                      setCancelReason("");
+                      setConfirmCancel(sub);
+                    }}
+                    onPause={setConfirmPause}
+                    onResume={setConfirmResume}
                   />
                 ))}
               </tbody>
@@ -682,6 +876,73 @@ export function AdminBillingCards({ active }: { active: boolean }) {
 
       <FlashRecordDialog subscriber={flashRecordFor} onClose={() => setFlashRecordFor(null)} />
 
+      {/* Every write that reaches Flash names the person before it happens, the
+          same way a manual tier change does. */}
+      <ConfirmSubscriptionAction
+        subscriber={confirmCancel}
+        profile={confirmCancel ? profiles.get(confirmCancel.pubkey) : undefined}
+        kind="cancel"
+        title="Cancel this subscription in Flash?"
+        confirmLabel="Cancel subscription"
+        onDismiss={() => setConfirmCancel(null)}
+        onConfirm={async () => {
+          const sub = confirmCancel;
+          const reason = cancelReason;
+          setConfirmCancel(null);
+          if (sub) await handleCancel(sub, reason);
+        }}
+      >
+        <>
+          Ends their subscription in Flash. On this account cancellation takes effect at
+          the end of the paid period, so they keep their tier until it lapses — and
+          Flash will still report them active until then. Nothing here refunds anything.
+          <Input
+            value={cancelReason}
+            onChange={(e) => setCancelReason(e.target.value)}
+            placeholder="Reason (optional) — recorded in Flash"
+            className="mt-3"
+            data-testid="input-billing-cancel-reason"
+          />
+        </>
+      </ConfirmSubscriptionAction>
+
+      <ConfirmSubscriptionAction
+        subscriber={confirmPause}
+        profile={confirmPause ? profiles.get(confirmPause.pubkey) : undefined}
+        kind="pause"
+        title="Pause this subscription in Flash?"
+        confirmLabel="Pause subscription"
+        onDismiss={() => setConfirmPause(null)}
+        onConfirm={async () => {
+          const sub = confirmPause;
+          setConfirmPause(null);
+          if (sub) await handleSetStatus(sub, "paused");
+        }}
+      >
+        Suspends billing in Flash and takes their paid tier off while it is paused.
+        Resuming puts both back.
+      </ConfirmSubscriptionAction>
+
+      {/* Resuming is confirmed too, unlike unblocking: it restarts a charge,
+          and that is money moving on somebody's card. */}
+      <ConfirmSubscriptionAction
+        subscriber={confirmResume}
+        profile={confirmResume ? profiles.get(confirmResume.pubkey) : undefined}
+        kind="resume"
+        title="Resume this subscription in Flash?"
+        confirmLabel="Resume subscription"
+        destructive={false}
+        onDismiss={() => setConfirmResume(null)}
+        onConfirm={async () => {
+          const sub = confirmResume;
+          setConfirmResume(null);
+          if (sub) await handleSetStatus(sub, "active");
+        }}
+      >
+        Puts the subscription back to active in Flash. Billing starts again on its
+        normal schedule, and their paid tier comes back.
+      </ConfirmSubscriptionAction>
+
       {/* Blocking is confirmed because of the part that surprises people: the
           money keeps moving. Unblocking isn't — it only re-opens a door. */}
       <Dialog open={!!confirmBlock} onOpenChange={(o) => !o && setConfirmBlock(null)}>
@@ -690,7 +951,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
             <DialogTitle>Block billing for this subscriber?</DialogTitle>
             <DialogDescription>
               {confirmBlock
-                ? `“${shortNpub(confirmBlock.pubkey).short}” will be withheld from paid entitlement no matter what they pay, and any tier billing granted them is taken back now. This does not cancel or refund anything — Flash keeps charging them until you cancel it there.`
+                ? `“${shortNpub(confirmBlock.pubkey).short}” will be withheld from paid entitlement no matter what they pay, and any tier billing granted them is taken back now. This does not cancel or refund anything — Flash keeps charging them until the subscription is cancelled.`
                 : ""}
             </DialogDescription>
           </DialogHeader>

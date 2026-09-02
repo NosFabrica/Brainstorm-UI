@@ -1,0 +1,110 @@
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { stubAccount } from "@/test/accountStub";
+
+const active = vi.hoisted(() => ({ account: undefined as unknown }));
+vi.mock("@/accounts/signing", () => ({ activeAccount: () => active.account }));
+
+import { apiClient } from "@/services/api";
+
+const PK = "a".repeat(64);
+
+const SCHEDULED = {
+  pubkey: PK,
+  subscription_id: "7d3b",
+  // The trap, on the wire: Flash accepted the cancellation and still reports
+  // them active, because the account cancels at period end.
+  flash_status: "active",
+  cancel_effective_date: "2026-09-20",
+  cancellation_scheduled: true,
+  applied: false,
+  reason: "held",
+};
+
+function mockFetchOnce(body: unknown, init: { ok?: boolean; status?: number } = {}) {
+  const fetchMock = vi.fn().mockResolvedValue({
+    ok: init.ok ?? true,
+    status: init.status ?? 200,
+    json: async () => body,
+    text: async () => JSON.stringify(body),
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  return fetchMock;
+}
+
+describe("the admin's writes to a subscription", () => {
+  beforeEach(() => {
+    active.account = stubAccount("test-token");
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("cancels through the subscription's own cancel path, carrying the reason", async () => {
+    const fetchMock = mockFetchOnce(SCHEDULED);
+
+    const out = await apiClient.cancelAdminBillingSubscription(PK, "Duplicate signup");
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      `http://test.local/admin/billing/subscriptions/${PK}/cancel`,
+    );
+    expect(options.method).toBe("POST");
+    expect(JSON.parse(options.body)).toEqual({ reason: "Duplicate signup" });
+    expect(out.cancellation_scheduled).toBe(true);
+    expect(out.cancel_effective_date).toBe("2026-09-20");
+  });
+
+  it("sends no reason when the operator gave none", async () => {
+    const fetchMock = mockFetchOnce(SCHEDULED);
+
+    await apiClient.cancelAdminBillingSubscription(PK, "   ");
+
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({});
+  });
+
+  it("pauses and resumes through the same status endpoint", async () => {
+    const fetchMock = mockFetchOnce({ ...SCHEDULED, flash_status: "paused" });
+
+    await apiClient.setAdminBillingSubscriptionStatus(PK, "paused");
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe(
+      `http://test.local/admin/billing/subscriptions/${PK}/status`,
+    );
+    expect(options.method).toBe("PATCH");
+    expect(JSON.parse(options.body)).toEqual({ status: "paused" });
+  });
+
+  it("says the key cannot manage subscriptions rather than that Flash is down", async () => {
+    mockFetchOnce(
+      {
+        detail:
+          "Flash refused our credentials, so nothing was changed. The API key may not carry the scope needed to manage subscriptions; retrying will not help.",
+      },
+      { ok: false, status: 502 },
+    );
+
+    await expect(
+      apiClient.cancelAdminBillingSubscription(PK),
+    ).rejects.toThrow(/scope needed to manage subscriptions/);
+  });
+
+  it("keeps an unreachable Flash apart from a refused one", async () => {
+    mockFetchOnce(
+      { detail: "Could not reach Flash, so we do not know what it says. Nothing was changed." },
+      { ok: false, status: 503 },
+    );
+
+    await expect(
+      apiClient.setAdminBillingSubscriptionStatus(PK, "paused"),
+    ).rejects.toThrow(/Could not reach Flash/);
+  });
+
+  it("still fails legibly when the server says nothing useful", async () => {
+    mockFetchOnce(null, { ok: false, status: 500 });
+
+    await expect(
+      apiClient.cancelAdminBillingSubscription(PK),
+    ).rejects.toThrow(/500/);
+  });
+});

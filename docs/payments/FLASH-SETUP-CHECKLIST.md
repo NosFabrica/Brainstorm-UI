@@ -21,11 +21,11 @@ identical to the copy circulated).
    subscriber types their email once on Flash's page (needed for the portal
    magic-link anyway). Privacy posture: Flash learns what they type, not
    what we hold.
-4. **API key: `subscriptions:view` only**, no expiry, named
-   `brainstorm-server-staging`. Shown once → straight to the server team's
-   secret manager; never near the UI repo or anything `VITE_`. Mint a
-   separate `subscriptions:manage` key only if first-party cancel ever
-   ships.
+4. **API key: `subscriptions:view` and `subscriptions:manage`**, no expiry,
+   named `brainstorm-server-staging`. Shown once → straight to the server
+   team's secret manager; never near the UI repo or anything `VITE_`.
+   `manage` is what the admin billing tab's cancel and pause need; without it
+   those two answer 502 naming the missing scope, while every read still works.
 5. **Dunning: ~7 days then cancel** — 3 attempts, 2–3 days apart, cancel
    after the final failure. Matches the UI's existing "grace" copy
    (past_due → grace, still entitled while retries run).
