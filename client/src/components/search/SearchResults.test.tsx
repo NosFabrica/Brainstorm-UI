@@ -13,14 +13,17 @@ import type { SearchSnapshot } from "@/services/search";
 const streamMock = vi.fn();
 const cancelMock = vi.fn();
 const suggestMock = vi.fn<() => Promise<unknown[]>>(() => Promise.resolve([]));
-let lastOnSnapshot: ((s: SearchSnapshot) => void) | null = null;
+// Every stream registered, with its callback. The KnowledgePanel's topic
+// probe (#query) rides the same mock — tests target the MAIN stream.
+let allStreams: { query: string; cb: (s: SearchSnapshot) => void }[] = [];
+const mainStreamCalls = () => streamMock.mock.calls.filter(([q]) => !String(q).startsWith("#"));
 
 vi.mock("@/services/search", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/search")>();
   return {
     ...actual,
     searchStream: (...args: unknown[]) => {
-      lastOnSnapshot = args[2] as (s: SearchSnapshot) => void;
+      allStreams.push({ query: args[0] as string, cb: args[2] as (s: SearchSnapshot) => void });
       streamMock(args[0], args[1]);
       return cancelMock;
     },
@@ -54,12 +57,14 @@ const author = (pubkey: string, name: string) => ({
 });
 
 function emit(partial: Partial<SearchSnapshot>) {
-  lastOnSnapshot!({ hits: [], eose: false, timeMs: null, error: null, ...partial });
+  // The most recent MAIN stream (the panel's #topic probe is not it).
+  const main = [...allStreams].reverse().find((c) => !c.query.startsWith("#"))!;
+  main.cb({ hits: [], eose: false, timeMs: null, error: null, ...partial });
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
-  lastOnSnapshot = null;
+  allStreams = [];
   window.history.replaceState({}, "", "/?q=jack");
 });
 
@@ -71,10 +76,11 @@ describe("SearchResults", () => {
     setUrlTab("people");
     render(<SearchResults query="jack" pov="nosfabrica" />);
 
-    // The stream starts for the default tab with the submitted query.
-    expect(streamMock).toHaveBeenCalledTimes(1);
-    expect(streamMock.mock.calls[0][0]).toBe("jack");
-    expect(streamMock.mock.calls[0][1]).toMatchObject({ tab: "people", pov: "nosfabrica" });
+    // The main stream starts for the tab with the submitted query (the
+    // panel's #topic probe is separate).
+    expect(mainStreamCalls()).toHaveLength(1);
+    expect(mainStreamCalls()[0][0]).toBe("jack");
+    expect(mainStreamCalls()[0][1]).toMatchObject({ tab: "people", pov: "nosfabrica" });
 
     // Before anything arrives: skeleton.
     expect(screen.getByTestId("container-search-loading")).toBeInTheDocument();
@@ -93,12 +99,12 @@ describe("SearchResults", () => {
   it("switching tabs cancels the stream and starts a new one with that tab", async () => {
     setUrlTab("people");
     render(<SearchResults query="jack" pov="nosfabrica" />);
-    expect(streamMock).toHaveBeenCalledTimes(1);
+    expect(mainStreamCalls()).toHaveLength(1);
 
     fireEvent.click(screen.getByTestId("search-tab-notes"));
     expect(cancelMock).toHaveBeenCalled();
-    expect(streamMock).toHaveBeenCalledTimes(2);
-    expect(streamMock.mock.calls[1][1]).toMatchObject({ tab: "notes" });
+    expect(mainStreamCalls()).toHaveLength(2);
+    expect(mainStreamCalls()[1][1]).toMatchObject({ tab: "notes" });
     // The tab lands in the URL so results deep-link.
     expect(new URLSearchParams(window.location.search).get("t")).toBe("notes");
   });
@@ -117,8 +123,8 @@ describe("SearchResults", () => {
   it("a typed sort: bypasses composition — flat list, order honored", () => {
     render(<SearchResults query="liverpool sort:recent" pov="nosfabrica" />);
     expect(screen.queryByTestId("composed-results")).toBeNull();
-    expect(streamMock).toHaveBeenCalledTimes(1);
-    expect(streamMock.mock.calls[0][0]).toBe("liverpool sort:recent");
+    expect(mainStreamCalls()).toHaveLength(1);
+    expect(mainStreamCalls()[0][0]).toBe("liverpool sort:recent");
   });
 
   it("renders all eight verticals as tabs", () => {

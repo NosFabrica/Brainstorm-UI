@@ -78,12 +78,47 @@ describe("the topic panel", () => {
     expect(screen.queryByTestId("search-topic-panel")).toBeNull();
   });
 
-  it("the person panel still wins the slot", async () => {
+  it("shows the person when their name matches exactly and the topic is quiet", async () => {
     suggestMock.mockResolvedValueOnce([
-      { pubkey: "b".repeat(64), npub: "npub1alice", name: "liverpool", wotRank: 0.8, wotFollowers: 10 },
+      { pubkey: "b".repeat(64), npub: "npub1jack", name: "jack", wotRank: 0.8, wotFollowers: 10 },
     ]);
-    render(<KnowledgePanel query="liverpool" pov="nosfabrica" />);
+    render(<KnowledgePanel query="jack" pov="nosfabrica" />);
     await screen.findByTestId("search-knowledge-panel");
     expect(screen.queryByTestId("search-topic-panel")).toBeNull();
+  });
+
+  // Benjamin's catch: "liverpool" prefix-matched a fan account named
+  // LiverpoolHODL and promoted it as THE match. A name-alike is not the
+  // entity — prefix matches never earn the panel.
+  it("never promotes a name-alike person (prefix matches are out)", async () => {
+    suggestMock.mockResolvedValueOnce([
+      { pubkey: "b".repeat(64), npub: "npub1hodl", name: "LiverpoolHODL", wotRank: 0.9, wotFollowers: 999 },
+    ]);
+    render(<KnowledgePanel query="liverpool" pov="nosfabrica" />);
+    await vi.waitFor(() => expect(streamCalls.length).toBeGreaterThanOrEqual(1));
+    // Topic quiet too → the slot stays empty rather than showing the wrong face.
+    streamCalls[0].emit({ hits: [], eose: true, timeMs: 60 });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByTestId("search-knowledge-panel")).toBeNull();
+    expect(screen.queryByTestId("search-topic-panel")).toBeNull();
+  });
+
+  it("an active topic outranks even an exact-named person", async () => {
+    suggestMock.mockResolvedValueOnce([
+      { pubkey: "b".repeat(64), npub: "npub1lfc", name: "liverpool", wotRank: 0.8, wotFollowers: 10 },
+    ]);
+    render(<KnowledgePanel query="liverpool" pov="nosfabrica" />);
+    await vi.waitFor(() => expect(streamCalls.length).toBeGreaterThanOrEqual(1));
+    streamCalls[0].emit({
+      hits: [
+        noteHit("t1", "1".repeat(64), "kop", NOW - 100),
+        noteHit("t2", "2".repeat(64), "anfield", NOW - 2000),
+        noteHit("t3", "3".repeat(64), "red", NOW - 5000),
+      ],
+      eose: true,
+      timeMs: 90,
+    });
+    await screen.findByTestId("search-topic-panel");
+    expect(screen.queryByTestId("search-knowledge-panel")).toBeNull();
   });
 });

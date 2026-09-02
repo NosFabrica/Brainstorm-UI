@@ -16,12 +16,13 @@ import { searchStream, suggestProfiles, type SearchHit, type SearchPov } from "@
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
-/** Exact name match always; prefix only once the query has some substance. */
+/** EXACT name match only. Prefix matching promoted "LiverpoolHODL" as THE
+ *  match for "liverpool" — a name-alike is not the entity. */
 export function isStrongMatch(query: string, person: SearchResult): boolean {
   const q = norm(query);
   if (q.length < 2) return false;
   const names = [person.name, person.displayName].filter(Boolean).map((n) => norm(n as string));
-  return names.some((n) => n === q || (q.length >= 3 && n.startsWith(q)));
+  return names.some((n) => n === q);
 }
 
 /** Plain words only — a query carrying syntax tokens or a #tag is a search,
@@ -38,6 +39,8 @@ function tagCandidate(query: string): string | null {
 }
 
 const TOPIC_MIN_NOTES = 3;
+// Only a LIVING topic earns the slot — stale tags don't outrank people.
+const TOPIC_FRESH_SECONDS = 7 * 86400;
 
 export function KnowledgePanel({
   query,
@@ -61,25 +64,23 @@ export function KnowledgePanel({
     setTopicHits(null);
     if (!isPanelableQuery(query)) return;
     let alive = true;
-    let cancelTopic: (() => void) | null = null;
+    // Both probes in parallel; the render gives an ACTIVE topic priority —
+    // a Liverpool fan searching "liverpool" wants the topic, not whichever
+    // account happens to carry the name.
+    const tag = tagCandidate(query);
+    const cancelTopic = tag
+      ? searchStream(`#${tag}`, { tab: "notes", pov, userPubkey, limit: 6 }, (snapshot) => {
+          if (!alive || !snapshot.eose) return;
+          const fresh = snapshot.hits.some(
+            (h) => h.event.created_at >= Date.now() / 1000 - TOPIC_FRESH_SECONDS,
+          );
+          if (snapshot.hits.length >= TOPIC_MIN_NOTES && fresh) setTopicHits(snapshot.hits);
+        })
+      : null;
     void suggestProfiles(query, { pov, userPubkey }, { limit: 3 }).then((people) => {
       if (!alive) return;
       const top = people[0];
-      if (top && isStrongMatch(query, top)) {
-        setPerson(top);
-        return;
-      }
-      // No person owns the slot — a live hashtag can earn it instead.
-      const tag = tagCandidate(query);
-      if (!tag) return;
-      cancelTopic = searchStream(
-        `#${tag}`,
-        { tab: "notes", pov, userPubkey, limit: 6 },
-        (snapshot) => {
-          if (!alive) return;
-          if (snapshot.eose && snapshot.hits.length >= TOPIC_MIN_NOTES) setTopicHits(snapshot.hits);
-        },
-      );
+      if (top && isStrongMatch(query, top)) setPerson(top);
     });
     return () => {
       alive = false;
@@ -91,7 +92,7 @@ export function KnowledgePanel({
   // coin and tier word feed from the shared author-score cache like every card.
   const scoreOf = useAuthorScores(person && person.wotRank == null ? [person.pubkey] : []);
 
-  if (!person && topicHits) {
+  if (topicHits) {
     const tag = tagCandidate(query)!;
     const voices = [...new Map(topicHits.filter((h) => h.author).map((h) => [h.event.pubkey, h.author!])).values()].slice(0, 4);
     const newest = Math.max(...topicHits.map((h) => h.event.created_at));
