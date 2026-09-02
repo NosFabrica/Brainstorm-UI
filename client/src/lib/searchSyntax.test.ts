@@ -6,7 +6,7 @@
  * the current state back out of a query the user may have hand-edited.
  */
 import { describe, expect, it } from "vitest";
-import { applyFilters, readFilters } from "./searchSyntax";
+import { applyFilters, personAssist, readFilters } from "./searchSyntax";
 
 describe("applyFilters", () => {
   it("appends filter tokens after the text, visibly teaching the grammar", () => {
@@ -38,6 +38,25 @@ describe("applyFilters", () => {
     expect(applyFilters("jack from:npub1abc sort:recent", { minRank: 10 })).toBe(
       "jack from:npub1abc sort:recent filter:rank:gte:10",
     );
+  });
+});
+
+describe("personAssist — the from:/to: people picker trigger", () => {
+  it("offers to complete a name fragment being typed after from: or to:", () => {
+    const assist = personAssist("bugs from:ja");
+    expect(assist).toMatchObject({ prefix: "from", fragment: "ja" });
+    expect(assist!.complete("npub1jack")).toBe("bugs from:npub1jack");
+
+    expect(personAssist("to:mar")!.complete("npub1maria")).toBe("to:npub1maria");
+  });
+
+  it("stays quiet when there's nothing to help with", () => {
+    expect(personAssist("plain words")).toBeNull();
+    expect(personAssist("from:")).toBeNull(); // nothing typed yet
+    expect(personAssist("from:npub1already sorted")).toBeNull(); // not the last token
+    // Already a key — the page wrote it; no second offer.
+    expect(personAssist("from:npub1abcdef")).toBeNull();
+    expect(personAssist(`from:${"a".repeat(64)}`)).toBeNull();
   });
 });
 

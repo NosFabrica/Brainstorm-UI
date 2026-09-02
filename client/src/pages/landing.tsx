@@ -42,6 +42,7 @@ import {
 } from "@/lib/profileSearch";
 import { suggestProfiles } from "@/services/search";
 import { SearchResults } from "@/components/search/SearchResults";
+import { personAssist, type PersonAssist } from "@/lib/searchSyntax";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
 import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
@@ -139,6 +140,9 @@ export default function Landing() {
   // Mouse hover sets the highlight for visuals/prefetch but leaves this false so
   // pressing Enter still runs a full search instead of opening a hovered profile.
   const kbdNavRef = useRef(false);
+  // Non-null while the dropdown is completing a from:/to: name fragment —
+  // picking a person then WRITES THE KEY instead of navigating.
+  const personAssistRef = useRef<PersonAssist | null>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const didInitFromUrlRef = useRef(false);
@@ -226,6 +230,34 @@ export default function Landing() {
     // Any edit to the query invalidates a prior keyboard selection so Enter
     // falls back to a full search until the user arrow-navigates again.
     kbdNavRef.current = false;
+    // Mid-typing `from:ja` / `to:ma` → offer people for the FRAGMENT; picking
+    // one writes the key into the query (nobody types an npub by hand).
+    const assist = personAssist(value);
+    personAssistRef.current = assist && assist.fragment.length >= 2 ? assist : null;
+    if (personAssistRef.current) {
+      typedSinceSearchRef.current = true;
+      setIsSuggesting(true);
+      setShowSuggestions(true);
+      suggestTimerRef.current = window.setTimeout(async () => {
+        try {
+          const people = await suggestProfiles(personAssistRef.current!.fragment, {
+            pov: effectivePov,
+            userPubkey: user?.pubkey,
+          });
+          if (suggestAbortRef.current !== reqId) return;
+          setSuggestions(people.slice(0, 7));
+          setActiveSuggestion(-1);
+          kbdNavRef.current = false;
+          setShowSuggestions(true);
+        } catch {
+          if (suggestAbortRef.current !== reqId) return;
+          setSuggestions([]);
+        } finally {
+          if (suggestAbortRef.current === reqId) setIsSuggesting(false);
+        }
+      }, 120);
+      return;
+    }
     // A `#topic` query → show the topic row (→ /t/tag), not profile suggestions.
     if (parseTopicQuery(value).isTopic) {
       typedSinceSearchRef.current = true;
@@ -359,6 +391,23 @@ export default function Landing() {
     setLocation(`/p/${result.npub}${suffix ? `?${suffix.replace(/^&/, "")}` : ""}`);
   }, [seedAndPrefetchProfile, setLocation, effectivePov, user]);
 
+  // What picking a dropdown person means depends on mode: completing a
+  // from:/to: fragment writes the key and keeps the user typing; otherwise
+  // it opens the profile as always.
+  const pickSuggestion = useCallback((result: SearchResult) => {
+    const assist = personAssistRef.current;
+    if (assist) {
+      personAssistRef.current = null;
+      setQuery(assist.complete(result.npub));
+      setSuggestions([]);
+      setActiveSuggestion(-1);
+      setShowSuggestions(false);
+      inputRef.current?.focus();
+      return;
+    }
+    goToProfile(result);
+  }, [goToProfile]);
+
   const handlePrefetchEnter = useCallback((result: SearchResult) => {
     const key = result.pubkey;
     if (!key || prefetchTimersRef.current.has(key)) return;
@@ -388,6 +437,7 @@ export default function Landing() {
     window.clearTimeout(suggestTimerRef.current);
     suggestAbortRef.current++;
     typedSinceSearchRef.current = false;
+    personAssistRef.current = null;
     setShowSuggestions(false);
     setIsSuggesting(false);
   }, []);
@@ -739,6 +789,11 @@ export default function Landing() {
                       // Only open a single profile when the user explicitly arrow-keyed
                       // to a suggestion. Plain typing + Enter (even with the mouse
                       // resting over the dropdown) always runs a full text search.
+                      if (showSuggestions && kbdNavRef.current && activeSuggestion >= 0 && suggestions[activeSuggestion] && personAssistRef.current) {
+                        e.preventDefault();
+                        pickSuggestion(suggestions[activeSuggestion]);
+                        return;
+                      }
                       if (showSuggestions && kbdNavRef.current && activeSuggestion >= 0 && suggestions[activeSuggestion]) {
                         e.preventDefault();
                         goToProfile(suggestions[activeSuggestion]);
@@ -863,7 +918,7 @@ export default function Landing() {
                           className={`w-full flex items-center gap-3 px-3 sm:px-4 py-2.5 text-left transition-colors ${i === activeSuggestion ? "bg-brand-primary/10 dark:bg-brand-primary/15" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
                           onMouseEnter={() => { kbdNavRef.current = false; setActiveSuggestion(i); handlePrefetchEnter(s); }}
                           onMouseLeave={() => handlePrefetchLeave(s)}
-                          onClick={() => goToProfile(s)}
+                          onClick={() => pickSuggestion(s)}
                           data-testid={`home-suggestion-${i}`}
                         >
                           <Avatar className={`h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 shrink-0 ${tierRing(s.wotRank) ?? ""}`}>

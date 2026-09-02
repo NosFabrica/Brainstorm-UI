@@ -61,6 +61,33 @@ export function applyFilters(query: string, patch: SearchFilterPatch): string {
   return [...kept, ...appended].join(" ");
 }
 
+export interface PersonAssist {
+  prefix: "from" | "to";
+  /** The name fragment being typed after the colon. */
+  fragment: string;
+  /** The query with the fragment completed to a picked key. */
+  complete: (key: string) => string;
+}
+
+/**
+ * The from:/to: people-picker trigger: when the LAST token is a name
+ * fragment mid-type ("from:ja"), the box offers profiles and writes the key —
+ * nobody types an npub by hand. Quiet once a key is already in place.
+ */
+export function personAssist(query: string): PersonAssist | null {
+  const match = query.match(/(^|\s)(from|to):(\S+)$/i);
+  if (!match) return null;
+  const prefix = match[2].toLowerCase() as "from" | "to";
+  const fragment = match[3];
+  if (/^npub1/i.test(fragment) || /^[0-9a-f]{64}$/i.test(fragment)) return null;
+  const head = query.slice(0, query.length - fragment.length);
+  return {
+    prefix,
+    fragment,
+    complete: (key: string) => `${head}${key}`,
+  };
+}
+
 /** The panel's state, read back out of the query. */
 export function readFilters(query: string): SearchFilterState {
   const tokens = query.trim().split(/\s+/).filter(Boolean);
