@@ -15,6 +15,22 @@ if (hasDom) {
   };
 }
 
+// jsdom has no matchMedia either, and usePrefersReducedMotion calls it at
+// MODULE LOAD (so any suite importing the share components needs it).
+if (hasDom && typeof window.matchMedia === "undefined") {
+  window.matchMedia = ((query: string) =>
+    ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener() {},
+      removeEventListener() {},
+      addListener() {},
+      removeListener() {},
+      dispatchEvent: () => false,
+    }) as unknown as MediaQueryList) as typeof window.matchMedia;
+}
+
 // jsdom has no ResizeObserver, and Radix primitives (Checkbox, Slider, …) call it
 // in a layout effect — without this they throw on mount.
 if (hasDom && typeof globalThis.ResizeObserver === "undefined") {
