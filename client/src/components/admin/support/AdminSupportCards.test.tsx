@@ -109,6 +109,19 @@ describe("AdminSupportCards (same mock store as the user page)", () => {
     expect(allView).toHaveLength(2);
   });
 
+  it("recategorizes in place and stamps it on the timeline", async () => {
+    const t = await createTicket({ subject: "Mislabeled", body: "x", category: "other" });
+
+    renderWithProviders(<AdminSupportCards active />);
+    fireEvent.click(await screen.findByTestId(`admin-ticket-${t.id}`));
+
+    const select = await screen.findByTestId("admin-category-select");
+    fireEvent.change(select, { target: { value: "billing" } });
+
+    await screen.findByTestId("admin-event-recategorized");
+    expect((await fetchThread(t.id)).ticket.category).toBe("billing");
+  });
+
   it("says so plainly when there are no tickets", async () => {
     renderWithProviders(<AdminSupportCards active />);
     await screen.findByTestId("admin-support-empty");

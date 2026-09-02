@@ -70,6 +70,15 @@ function fmtDate(iso: string): string {
     : "";
 }
 
+/** Lifecycle lines in the user's voice; unknown event types render plainly. */
+function userEventLabel(e: { type: string; by: string }): string {
+  if (e.type === "opened") return "Ticket opened";
+  if (e.type === "closed") return e.by === "support" ? "Closed by Brainstorm Support" : "Closed";
+  if (e.type === "reopened") return e.by === "user" ? "Reopened by your reply" : "Reopened";
+  if (e.type === "recategorized") return "Category updated by Brainstorm Support";
+  return e.type.replaceAll("_", " ");
+}
+
 const inputCls =
   "w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40";
 
@@ -239,7 +248,9 @@ function TicketList({
                   {[
                     t.category ? categoryLabel(t.category) : null,
                     `Opened ${fmtDate(t.createdAt)}`,
-                    `${t.lastMessageAuthor === "support" ? "Brainstorm Support replied" : "You"} ${fmtWhen(t.lastMessageAt)}`,
+                    t.closedAt
+                      ? `Closed ${fmtWhen(t.closedAt)}`
+                      : `${t.lastMessageAuthor === "support" ? "Brainstorm Support replied" : "You"} ${fmtWhen(t.lastMessageAt)}`,
                   ]
                     .filter(Boolean)
                     .join(" · ")}
@@ -267,7 +278,14 @@ function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
 
   const ticket = threadQuery.data?.ticket;
   const messages = threadQuery.data?.messages ?? [];
+  const events = threadQuery.data?.events ?? [];
   const closed = ticket?.status === "closed";
+
+  // One timeline: messages and lifecycle moments, in the order they happened.
+  const timeline = [
+    ...messages.map((m) => ({ kind: "message" as const, at: m.createdAt, message: m })),
+    ...events.map((e) => ({ kind: "event" as const, at: e.at, event: e })),
+  ].sort((a, b) => a.at.localeCompare(b.at) || (a.kind === "event" ? -1 : 1));
 
   const send = async () => {
     const body = draft.trim();
@@ -316,23 +334,33 @@ function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
           </div>
 
           <div className="mt-4 space-y-3">
-            {messages.map((m) => (
-              <div
-                key={m.id}
-                className={`max-w-[85%] rounded-2xl border p-3.5 text-sm ${
-                  m.author === "support"
-                    ? "border-brand-accent/25 bg-brand-primary/[0.05] dark:bg-brand-primary/10"
-                    : "ml-auto border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
-                }`}
-                data-testid={`message-${m.author}`}
-              >
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                  {m.author === "support" ? `Brainstorm Support · ${SUPPORT_EMAIL}` : "You"}
-                  <span className="ml-2 font-normal normal-case tracking-normal">{fmtWhen(m.createdAt)}</span>
+            {timeline.map((item, i) =>
+              item.kind === "message" ? (
+                <div
+                  key={item.message.id}
+                  className={`max-w-[85%] rounded-2xl border p-3.5 text-sm ${
+                    item.message.author === "support"
+                      ? "border-brand-accent/25 bg-brand-primary/[0.05] dark:bg-brand-primary/10"
+                      : "ml-auto border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+                  }`}
+                  data-testid={`message-${item.message.author}`}
+                >
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                    {item.message.author === "support" ? `Brainstorm Support · ${SUPPORT_EMAIL}` : "You"}
+                    <span className="ml-2 font-normal normal-case tracking-normal">{fmtWhen(item.message.createdAt)}</span>
+                  </p>
+                  <p className="mt-1.5 whitespace-pre-wrap text-slate-700 dark:text-slate-200">{item.message.body}</p>
+                </div>
+              ) : (
+                <p
+                  key={`ev-${i}`}
+                  className="text-center text-[11px] text-slate-400 dark:text-slate-500"
+                  data-testid={`ticket-event-${item.event.type}`}
+                >
+                  — {userEventLabel(item.event)} · {fmtWhen(item.event.at)} —
                 </p>
-                <p className="mt-1.5 whitespace-pre-wrap text-slate-700 dark:text-slate-200">{m.body}</p>
-              </div>
-            ))}
+              ),
+            )}
           </div>
 
           {/* Closed is not a wall: replying IS reopening — no button to learn. */}

@@ -42,15 +42,20 @@ your `/docs`. The semantics below are the part that matters.
 GET  /user/support
   → { data: { allowed: boolean, tickets: [
       { id, subject, category, status, created_at, last_message_at,
-        last_message_author } ] } }        (author: "user" | "support")
-  (allowed:false ⇒ tickets [] — the UI shows the teaser)
+        last_message_author, closed_at } ] } }
+  (author: "user" | "support"; closed_at null unless status is closed.
+   allowed:false ⇒ tickets [] — the UI shows the teaser)
 
 POST /user/support/tickets
   { subject, body, category, notify_email? }  → { data: ticket }
   (403 when not entitled — belt and braces with `allowed`)
 
 GET  /user/support/tickets/{id}
-  → { data: { ticket, messages: [ { id, author, body, created_at } ] } }
+  → { data: { ticket, messages: [ { id, author, body, created_at } ],
+              events: [ { type, at, by } ] } }
+  (events = the lifecycle on the record: "opened"/"closed"/"reopened"/
+   "recategorized", open set, by: "user"|"support". The UI renders them
+   inline in the thread timeline, timestamped to the minute.)
 
 POST /user/support/tickets/{id}/messages
   { body }                                → { data: message }
@@ -66,6 +71,9 @@ GET  /admin/support/tickets
   → rows also carry { pubkey, notify_email } — the requester's identity
 POST /admin/support/tickets/{id}/messages   { body }   (author=support;
      triggers the notification email when notify_email is set)
+PATCH /admin/support/tickets/{id}           { category }
+     (admin recategorization — users mislabel; category drives filters and
+      KB routing. Records a "recategorized" event.)
 POST /admin/support/tickets/{id}/close      { message? }
      (message present ⇒ append it as a support message — and send the
       notification email — then set closed. The UI queues an editable

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import {
   adminCloseTicket,
   adminReply,
+  adminSetCategory,
   createTicket,
   fetchSupport,
   fetchThread,
@@ -89,6 +90,32 @@ describe("priority support seam (mock mode)", () => {
 
     const thread = await fetchThread(t.id);
     expect(thread.ticket.status).toBe("open");
+  });
+
+  // The lifecycle is on the record: opened, closed, reopened — each stamped
+  // to the minute and attributed, so "when was this closed?" is never a shrug.
+  it("tracks status changes as timestamped events", async () => {
+    const t = await createTicket({ subject: "Life cycle", body: "x", category: "other" });
+    await adminCloseTicket(t.id, "Closing.");
+    await postMessage(t.id, "Reopening you.");
+    await adminCloseTicket(t.id);
+
+    const { events } = await fetchThread(t.id);
+    expect(events.map((e) => e.type)).toEqual(["opened", "closed", "reopened", "closed"]);
+    expect(events.map((e) => e.by)).toEqual(["user", "support", "user", "support"]);
+    for (const e of events) expect(Number.isFinite(new Date(e.at).getTime())).toBe(true);
+    // The summary answers "when was it closed?" directly.
+    const { tickets } = await fetchSupport();
+    expect(tickets[0].closedAt).toBe(events.at(-1)!.at);
+  });
+
+  it("admins can recategorize — applied immediately, on the record", async () => {
+    const t = await createTicket({ subject: "Mislabeled", body: "x", category: "other" });
+    await adminSetCategory(t.id, "billing");
+
+    const thread = await fetchThread(t.id);
+    expect(thread.ticket.category).toBe("billing");
+    expect(thread.events.at(-1)).toMatchObject({ type: "recategorized", by: "support" });
   });
 
   // The server decides entitlement; the mock rehearses a free user via the

@@ -118,11 +118,18 @@ describe("SupportPage (through the real mock seam)", () => {
     fireEvent.click(await screen.findByTestId(`ticket-${t.id}`));
 
     await screen.findByTestId("thread-closed-note");
+    // The lifecycle is on the record, down to the minute.
+    expect(screen.getByTestId("ticket-event-opened").textContent).toContain("Ticket opened");
+    const closedLine = screen.getByTestId("ticket-event-closed");
+    expect(closedLine.textContent).toContain("Closed by Brainstorm Support");
+    expect(closedLine.textContent).toMatch(/\d{1,2}:\d{2}/);
+
     fireEvent.change(screen.getByTestId("thread-reply-input"), { target: { value: "It came back." } });
     fireEvent.click(screen.getByTestId("thread-reply-send"));
 
     await waitFor(() => expect(screen.getByTestId("thread-status").textContent).toBe("open"));
     expect(screen.queryByTestId("thread-closed-note")).toBeNull();
+    await screen.findByTestId("ticket-event-reopened");
   });
 
   it("rejects a malformed notification email, accepts an empty one", async () => {

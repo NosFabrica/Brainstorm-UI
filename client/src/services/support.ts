@@ -46,6 +46,8 @@ export interface SupportTicket {
   lastMessageAt: string;
   /** Who spoke last — lets a card say "Brainstorm Support replied" at a glance. */
   lastMessageAuthor: "user" | "support";
+  /** When the ticket was (last) closed — null while it isn't. */
+  closedAt: string | null;
 }
 
 export interface SupportMessage {
@@ -53,6 +55,16 @@ export interface SupportMessage {
   author: "user" | "support";
   body: string;
   createdAt: string;
+}
+
+/**
+ * A lifecycle moment, on the record: opened/closed/reopened (open set),
+ * stamped and attributed — "when was this closed?" is never a shrug.
+ */
+export interface TicketEvent {
+  type: string; // known: "opened" | "closed" | "reopened"
+  at: string;
+  by: "user" | "support";
 }
 
 export interface SupportState {
@@ -80,20 +92,31 @@ function mockAllowed(): boolean {
 interface MockStore {
   // `pubkey` appears when a store row mimics the server's attributed shape
   // (tests/rehearsals); tickets filed through this browser's mock have none.
-  // `lastMessageAuthor` is derived from messages at read time, not stored.
-  tickets: (Omit<SupportTicket, "lastMessageAuthor"> & {
+  // `lastMessageAuthor`/`closedAt` are derived at read time, not stored.
+  tickets: (Omit<SupportTicket, "lastMessageAuthor" | "closedAt"> & {
     messages: SupportMessage[];
     notifyEmail?: string;
     pubkey?: string;
+    events?: TicketEvent[];
   })[];
 }
 
 type StoredTicket = MockStore["tickets"][number];
 
+/** Rows predating the event log get their opening reconstructed. */
+function eventsOf(t: StoredTicket): TicketEvent[] {
+  return t.events ?? [{ type: "opened", at: t.createdAt, by: "user" }];
+}
+
 /** The public ticket summary: messages stay behind fetchThread. */
 function toPublic(t: StoredTicket): SupportTicket {
-  const { messages, notifyEmail: _e, pubkey: _p, ...pub } = t;
-  return { ...pub, lastMessageAuthor: messages.at(-1)?.author ?? "user" };
+  const { messages, notifyEmail: _e, pubkey: _p, events: _ev, ...pub } = t;
+  const lastClosed = [...eventsOf(t)].reverse().find((e) => e.type === "closed");
+  return {
+    ...pub,
+    lastMessageAuthor: messages.at(-1)?.author ?? "user",
+    closedAt: t.status === "closed" ? (lastClosed?.at ?? null) : null,
+  };
 }
 
 function readStore(): MockStore {
@@ -150,6 +173,7 @@ export async function createTicket(input: {
     lastMessageAt: now,
     notifyEmail: input.notifyEmail || undefined,
     messages: [{ id: mockId(), author: "user", body: input.body, createdAt: now }],
+    events: [{ type: "opened", at: now, by: "user" }],
   };
   const store = readStore();
   store.tickets.push(ticket);
@@ -159,12 +183,13 @@ export async function createTicket(input: {
 
 export async function fetchThread(
   id: string,
-): Promise<{ ticket: SupportTicket; messages: SupportMessage[] }> {
+): Promise<{ ticket: SupportTicket; messages: SupportMessage[]; events: TicketEvent[] }> {
   const found = readStore().tickets.find((t) => t.id === id);
   if (!found) throw new Error("Ticket not found");
   return {
     ticket: toPublic(found),
     messages: [...found.messages].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    events: [...eventsOf(found)].sort((a, b) => a.at.localeCompare(b.at)),
   };
 }
 
@@ -172,7 +197,7 @@ export async function postMessage(id: string, body: string): Promise<SupportMess
   const message = appendMessage(id, "user", body);
   // A user reply always puts the ticket back in support's court — including
   // reopening a closed one (replying IS reopening; no button to learn).
-  setStatus(id, "open");
+  setStatus(id, "open", "user");
   return message;
 }
 
@@ -197,7 +222,7 @@ export async function adminListTickets(): Promise<AdminSupportTicket[]> {
 
 export async function adminReply(id: string, body: string): Promise<SupportMessage> {
   const message = appendMessage(id, "support", body);
-  setStatus(id, "answered");
+  setStatus(id, "answered", "support");
   return message;
 }
 
@@ -206,14 +231,37 @@ export async function adminReply(id: string, body: string): Promise<SupportMessa
 export async function adminCloseTicket(id: string, closingMessage?: string): Promise<void> {
   const trimmed = closingMessage?.trim();
   if (trimmed) appendMessage(id, "support", trimmed);
-  setStatus(id, "closed");
+  setStatus(id, "closed", "support");
 }
 
-function setStatus(id: string, status: TicketStatus): void {
+/**
+ * Admin recategorization — users miscategorize, and category drives the
+ * filters and (later) KB routing, so support keeps it accurate. Applies
+ * immediately (low-stakes, reversible) and goes on the record as an event.
+ */
+export async function adminSetCategory(id: string, category: string): Promise<void> {
   const store = readStore();
   const ticket = store.tickets.find((t) => t.id === id);
   if (!ticket) throw new Error("Ticket not found");
+  if (ticket.category === category) return;
+  ticket.category = category;
+  ticket.events = [...eventsOf(ticket), { type: "recategorized", at: new Date().toISOString(), by: "support" }];
+  writeStore(store);
+}
+
+function setStatus(id: string, status: TicketStatus, by: TicketEvent["by"]): void {
+  const store = readStore();
+  const ticket = store.tickets.find((t) => t.id === id);
+  if (!ticket) throw new Error("Ticket not found");
+  const was = ticket.status;
   ticket.status = status;
+  // Lifecycle moments go on the record; "answered" is implied by the reply
+  // itself, so only closed/reopened earn events.
+  if (status === "closed" && was !== "closed") {
+    ticket.events = [...eventsOf(ticket), { type: "closed", at: new Date().toISOString(), by }];
+  } else if (was === "closed" && status !== "closed") {
+    ticket.events = [...eventsOf(ticket), { type: "reopened", at: new Date().toISOString(), by }];
+  }
   writeStore(store);
 }
 

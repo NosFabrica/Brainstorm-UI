@@ -32,9 +32,11 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { npubFromPubkey } from "@/lib/shareId";
 import {
+  SUPPORT_CATEGORIES,
   adminCloseTicket,
   adminListTickets,
   adminReply,
+  adminSetCategory,
   categoryLabel,
   fetchThread,
   type AdminSupportTicket,
@@ -117,6 +119,15 @@ function RequesterCell({
 
 const th = "px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400";
 const td = "px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200";
+
+/** Lifecycle lines in the admin's voice; unknown event types render plainly. */
+function adminEventLabel(e: { type: string; by: string }): string {
+  if (e.type === "opened") return "Ticket opened";
+  if (e.type === "closed") return e.by === "support" ? "Closed by support" : "Closed";
+  if (e.type === "reopened") return e.by === "user" ? "Reopened by the user's reply" : "Reopened";
+  if (e.type === "recategorized") return "Recategorized by support";
+  return e.type.replaceAll("_", " ");
+}
 
 type SortKey = "subject" | "category" | "status" | "updated";
 type SortState = { key: SortKey; dir: "asc" | "desc" } | null;
@@ -349,7 +360,16 @@ export function AdminSupportCards({ active }: { active: boolean }) {
                       onFilter={setSearch}
                     />
                   </td>
-                  <td className={td}><Chip tone={statusTone(t.status)} size="sm">{t.status}</Chip></td>
+                  <td className={td}>
+                    <span className="flex flex-col items-start gap-0.5">
+                      <Chip tone={statusTone(t.status)} size="sm">{t.status}</Chip>
+                      {t.closedAt && (
+                        <span className="text-[10px] tabular-nums text-slate-400 dark:text-slate-500" data-testid={`closed-at-${t.id}`}>
+                          {fmtWhen(t.closedAt)}
+                        </span>
+                      )}
+                    </span>
+                  </td>
                   <td className={`${td} tabular-nums`}>{fmtWhen(t.lastMessageAt)}</td>
                 </tr>
               ))}
@@ -375,7 +395,13 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
   });
   const ticket = threadQuery.data?.ticket;
   const messages = threadQuery.data?.messages ?? [];
+  const events = threadQuery.data?.events ?? [];
   const closed = ticket?.status === "closed";
+
+  const timeline = [
+    ...messages.map((m) => ({ kind: "message" as const, at: m.createdAt, message: m })),
+    ...events.map((e) => ({ kind: "event" as const, at: e.at, event: e })),
+  ].sort((a, b) => a.at.localeCompare(b.at) || (a.kind === "event" ? -1 : 1));
 
   const refresh = () =>
     Promise.all([
@@ -481,29 +507,57 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
         </div>
       ) : (
         <>
-          <div className="mt-3 flex items-center gap-2.5">
+          <div className="mt-3 flex flex-wrap items-center gap-2.5">
             <h4 className="text-base font-bold" style={{ fontFamily: "var(--font-display)" }}>{ticket.subject}</h4>
             <Chip tone={statusTone(ticket.status)} size="sm" data-testid="admin-thread-status">{ticket.status}</Chip>
+            {/* Recategorize in place: low-stakes, reversible, on the record. */}
+            <select
+              aria-label="Ticket category"
+              className="h-7 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-1.5 text-xs text-slate-600 dark:text-slate-300"
+              value={SUPPORT_CATEGORIES.some((c) => c.key === ticket.category) ? ticket.category : ""}
+              onChange={(e) => {
+                const next = e.target.value;
+                if (next) void adminSetCategory(id, next).then(refresh);
+              }}
+              data-testid="admin-category-select"
+            >
+              {!SUPPORT_CATEGORIES.some((c) => c.key === ticket.category) && (
+                <option value="">{ticket.category || "uncategorized"}</option>
+              )}
+              {SUPPORT_CATEGORIES.map((c) => (
+                <option key={c.key} value={c.key}>{c.label}</option>
+              ))}
+            </select>
           </div>
 
           <div className="mt-3 space-y-2.5">
-            {messages.map((m) => (
-              <div
-                key={m.id}
-                className={`max-w-[85%] rounded-xl border p-3 text-sm ${
-                  m.author === "support"
-                    ? "ml-auto border-brand-accent/25 bg-brand-primary/[0.05] dark:bg-brand-primary/10"
-                    : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
-                }`}
-                data-testid={`admin-message-${m.author}`}
-              >
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                  {m.author === "support" ? "Support (you)" : "User"}
-                  <span className="ml-2 font-normal normal-case tracking-normal">{fmtWhen(m.createdAt)}</span>
+            {timeline.map((item, i) =>
+              item.kind === "message" ? (
+                <div
+                  key={item.message.id}
+                  className={`max-w-[85%] rounded-xl border p-3 text-sm ${
+                    item.message.author === "support"
+                      ? "ml-auto border-brand-accent/25 bg-brand-primary/[0.05] dark:bg-brand-primary/10"
+                      : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+                  }`}
+                  data-testid={`admin-message-${item.message.author}`}
+                >
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                    {item.message.author === "support" ? "Support (you)" : "User"}
+                    <span className="ml-2 font-normal normal-case tracking-normal">{fmtWhen(item.message.createdAt)}</span>
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap text-slate-700 dark:text-slate-200">{item.message.body}</p>
+                </div>
+              ) : (
+                <p
+                  key={`ev-${i}`}
+                  className="text-center text-[11px] text-slate-400 dark:text-slate-500"
+                  data-testid={`admin-event-${item.event.type}`}
+                >
+                  — {adminEventLabel(item.event)} · {fmtWhen(item.event.at)} —
                 </p>
-                <p className="mt-1 whitespace-pre-wrap text-slate-700 dark:text-slate-200">{m.body}</p>
-              </div>
-            ))}
+              ),
+            )}
           </div>
 
           {closed ? (
