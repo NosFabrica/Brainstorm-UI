@@ -29,6 +29,8 @@ import {
 
 import { LiveCard, ListCard, MediaCard, RepoCard } from "@/components/search/cards";
 import { KnowledgePanel } from "@/components/search/KnowledgePanel";
+import { ComposedResults } from "@/components/search/ComposedResults";
+import { collapseHits } from "@/lib/searchCollapse";
 
 const NOTE_KINDS = new Set(TAB_KINDS.notes);
 const ARTICLE_KINDS = new Set(TAB_KINDS.articles);
@@ -241,11 +243,18 @@ export function SearchResults({
   const [snapshot, setSnapshot] = useState<SearchSnapshot | null>(null);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
+  // Everything composes its own purpose-ranked section streams — unless the
+  // user typed a sort:, which is them choosing ONE order for one list.
+  const composed = tab === "everything" && !/(^|\s)sort:/i.test(query);
+
   useEffect(() => {
+    if (composed) {
+      setSnapshot(null);
+      return;
+    }
     setSnapshot(null);
-    const cancel = searchStream(query, { tab, pov, userPubkey }, setSnapshot);
-    return cancel;
-  }, [query, tab, pov, userPubkey]);
+    return searchStream(query, { tab, pov, userPubkey }, setSnapshot);
+  }, [query, tab, pov, userPubkey, composed]);
 
   const changeTab = useCallback((next: SearchTab) => {
     setTab(next);
@@ -266,6 +275,22 @@ export function SearchResults({
   const noResults = !!snapshot?.eose && hits.length === 0;
   const peopleIdx = useRef(0);
   peopleIdx.current = 0;
+
+  // Recurring events (the "liverpool" monthly-meetup dump) collapse on the
+  // event-shaped tabs; a chip expands the rest of each cluster.
+  const [expandedClusters, setExpandedClusters] = useState<Set<string>>(new Set());
+  const clustered = tab === "live" || tab === "lists";
+  const displayHits = useMemo(() => {
+    if (!clustered) return hits.map((h) => ({ hit: h, collapsedCount: 0, clusterId: "" }));
+    const out: { hit: SearchHit; collapsedCount: number; clusterId: string }[] = [];
+    for (const cluster of collapseHits(hits)) {
+      const id = cluster.primary.event.id;
+      const open = expandedClusters.has(id);
+      out.push({ hit: cluster.primary, collapsedCount: open ? 0 : cluster.others.length, clusterId: id });
+      if (open) for (const h of cluster.others) out.push({ hit: h, collapsedCount: 0, clusterId: "" });
+    }
+    return out;
+  }, [hits, clustered, expandedClusters]);
 
   const profiles = useMemo(() => profilesOf(hits), [hits]);
   // The relay only ORDERS by rank — per-card scores come from the shared
@@ -338,7 +363,15 @@ export function SearchResults({
         className="lg:w-72 lg:shrink-0 lg:sticky lg:top-4"
       />
       <div className="min-w-0 flex-1 lg:max-w-2xl">
-      {snapshot?.error ? (
+      {composed ? (
+        <ComposedResults
+          query={query}
+          pov={pov}
+          userPubkey={userPubkey}
+          onTabChange={changeTab}
+          onOpenProfile={openProfile}
+        />
+      ) : snapshot?.error ? (
         <div
           className="rounded-xl border border-red-100 dark:border-red-500/20 bg-red-50/60 dark:bg-red-500/5 p-4 text-sm text-red-700 dark:text-red-300"
           data-testid="search-error"
@@ -383,17 +416,35 @@ export function SearchResults({
             </div>
           )}
           <div className="space-y-2 sm:space-y-3" data-testid="container-search-results">
-            {hits.map((hit) => {
+            {displayHits.map(({ hit, collapsedCount, clusterId }) => {
               const { event } = hit;
+              const chip =
+                collapsedCount > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExpandedClusters((prev) => new Set(prev).add(clusterId))
+                    }
+                    className="ml-1 mt-1 rounded-full border border-slate-200 dark:border-slate-800 px-2.5 py-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 hover:border-brand-accent/30"
+                    data-testid={`cluster-expand-${clusterId}`}
+                  >
+                    +{collapsedCount} more like this
+                  </button>
+                ) : null;
+              const wrap = (card: React.ReactNode) => (
+                <div key={event.id}>
+                  {card}
+                  {chip}
+                </div>
+              );
               if (event.kind === 0 && hit.author) {
                 const idx = peopleIdx.current++;
                 const scored =
                   hit.author.wotRank == null
                     ? { ...hit.author, wotRank: scoreOf(event.pubkey) ?? null }
                     : hit.author;
-                return (
+                return wrap(
                   <PersonCard
-                    key={event.id}
                     result={scored}
                     idx={idx}
                     pov={pov}
@@ -404,9 +455,8 @@ export function SearchResults({
                 );
               }
               if (ARTICLE_KINDS.has(event.kind)) {
-                return (
+                return wrap(
                   <EmbeddedArticleCard
-                    key={event.id}
                     event={event as MinimalEvent}
                     author={profiles.get(event.pubkey)}
                     trustScore01={scoreOf(event.pubkey) ?? null}
@@ -414,9 +464,8 @@ export function SearchResults({
                 );
               }
               if (NOTE_KINDS.has(event.kind)) {
-                return (
+                return wrap(
                   <ShareNoteCard
-                    key={event.id}
                     event={event as MinimalEvent}
                     profiles={profiles}
                     eventsById={EMPTY_EVENTS}
@@ -427,14 +476,14 @@ export function SearchResults({
                 );
               }
               const typed = { event, author: hit.author, score: scoreOf(event.pubkey) };
-              if (LIVE_KINDS.has(event.kind)) return <LiveCard key={event.id} {...typed} />;
-              if (CODE_KINDS.has(event.kind)) return <RepoCard key={event.id} {...typed} />;
-              if (LIST_KINDS.has(event.kind)) return <ListCard key={event.id} {...typed} />;
-              if (MEDIA_KINDS.has(event.kind)) return <MediaCard key={event.id} {...typed} />;
+              if (LIVE_KINDS.has(event.kind)) return wrap(<LiveCard {...typed} />);
+              if (CODE_KINDS.has(event.kind)) return wrap(<RepoCard {...typed} />);
+              if (LIST_KINDS.has(event.kind)) return wrap(<ListCard {...typed} />);
+              if (MEDIA_KINDS.has(event.kind)) return wrap(<MediaCard {...typed} />);
               // Open-set posture: an unmapped kind renders as media-style
               // generic rather than vanishing — the relay may index new kinds
               // before this UI learns them.
-              return <MediaCard key={event.id} {...typed} />;
+              return wrap(<MediaCard {...typed} />);
             })}
           </div>
         </>

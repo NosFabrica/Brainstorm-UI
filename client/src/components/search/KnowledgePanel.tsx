@@ -6,13 +6,13 @@
  */
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { ArrowRight, Check, Users } from "lucide-react";
+import { ArrowRight, Check, Hash, Users } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing, TierWordChip } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
-import { suggestProfiles, type SearchPov } from "@/services/search";
+import { searchStream, suggestProfiles, type SearchHit, type SearchPov } from "@/services/search";
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
@@ -31,6 +31,14 @@ export function isPanelableQuery(query: string): boolean {
   return q.length >= 2 && !/(^|\s)#/.test(q) && !/\S+:\S+/.test(q);
 }
 
+/** A query that could be a hashtag: one plain word, no syntax. */
+function tagCandidate(query: string): string | null {
+  const q = query.trim().toLowerCase();
+  return /^[a-z0-9_]{2,}$/.test(q) ? q : null;
+}
+
+const TOPIC_MIN_NOTES = 3;
+
 export function KnowledgePanel({
   query,
   pov,
@@ -46,24 +54,92 @@ export function KnowledgePanel({
 }) {
   const tierRing = useTierRing();
   const [person, setPerson] = useState<SearchResult | null>(null);
+  const [topicHits, setTopicHits] = useState<SearchHit[] | null>(null);
 
   useEffect(() => {
     setPerson(null);
+    setTopicHits(null);
     if (!isPanelableQuery(query)) return;
     let alive = true;
+    let cancelTopic: (() => void) | null = null;
     void suggestProfiles(query, { pov, userPubkey }, { limit: 3 }).then((people) => {
       if (!alive) return;
       const top = people[0];
-      if (top && isStrongMatch(query, top)) setPerson(top);
+      if (top && isStrongMatch(query, top)) {
+        setPerson(top);
+        return;
+      }
+      // No person owns the slot — a live hashtag can earn it instead.
+      const tag = tagCandidate(query);
+      if (!tag) return;
+      cancelTopic = searchStream(
+        `#${tag}`,
+        { tab: "notes", pov, userPubkey, limit: 6 },
+        (snapshot) => {
+          if (!alive) return;
+          if (snapshot.eose && snapshot.hits.length >= TOPIC_MIN_NOTES) setTopicHits(snapshot.hits);
+        },
+      );
     });
     return () => {
       alive = false;
+      cancelTopic?.();
     };
   }, [query, pov, userPubkey]);
 
   // Relay hits carry no rank numbers (order-only wire) — the panel's ring,
   // coin and tier word feed from the shared author-score cache like every card.
   const scoreOf = useAuthorScores(person && person.wotRank == null ? [person.pubkey] : []);
+
+  if (!person && topicHits) {
+    const tag = tagCandidate(query)!;
+    const voices = [...new Map(topicHits.filter((h) => h.author).map((h) => [h.event.pubkey, h.author!])).values()].slice(0, 4);
+    const newest = Math.max(...topicHits.map((h) => h.event.created_at));
+    const daysAgo = Math.floor((Date.now() / 1000 - newest) / 86400);
+    return (
+      <aside
+        className={`w-full rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5 ${className}`}
+        data-testid="search-topic-panel"
+      >
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-primary/10">
+            <Hash className="h-5 w-5 text-brand-primary" />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-base font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
+              #{tag}
+            </p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              {daysAgo <= 1 ? "Active today" : daysAgo <= 7 ? "Active this week" : "Topic on Nostr"}
+            </p>
+          </div>
+        </div>
+        {voices.length > 0 && (
+          <div className="mt-3">
+            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Voices on it</p>
+            <div className="mt-1.5 flex items-center gap-1.5">
+              {voices.map((v) => (
+                <Avatar key={v.pubkey} className="h-7 w-7 border border-slate-200/80 dark:border-slate-800/80" title={getDisplayLabel(v)}>
+                  {v.picture ? <AvatarImage src={v.picture} alt="" className="object-cover" /> : null}
+                  <AvatarFallback className="overflow-hidden">
+                    <DefaultAvatarImg />
+                  </AvatarFallback>
+                </Avatar>
+              ))}
+            </div>
+          </div>
+        )}
+        <Link
+          href={`/t/${encodeURIComponent(tag)}`}
+          className="mt-3.5 inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
+          data-testid="topic-panel-feed"
+        >
+          Open the #{tag} feed <ArrowRight className="h-3 w-3" />
+        </Link>
+      </aside>
+    );
+  }
+
   if (!person) return null;
   const effectiveRank = person.wotRank ?? scoreOf(person.pubkey) ?? null;
   const followers = person.wotFollowers;

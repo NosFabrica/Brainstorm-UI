@@ -63,14 +63,18 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/?q=jack");
 });
 
+const setUrlTab = (t: string | null) =>
+  window.history.replaceState({}, "", t ? `/?q=jack&t=${t}` : "/?q=jack");
+
 describe("SearchResults", () => {
   it("streams people into profile cards, skeleton first, count line at EOSE", async () => {
+    setUrlTab("people");
     render(<SearchResults query="jack" pov="nosfabrica" />);
 
     // The stream starts for the default tab with the submitted query.
     expect(streamMock).toHaveBeenCalledTimes(1);
     expect(streamMock.mock.calls[0][0]).toBe("jack");
-    expect(streamMock.mock.calls[0][1]).toMatchObject({ tab: "everything", pov: "nosfabrica" });
+    expect(streamMock.mock.calls[0][1]).toMatchObject({ tab: "people", pov: "nosfabrica" });
 
     // Before anything arrives: skeleton.
     expect(screen.getByTestId("container-search-loading")).toBeInTheDocument();
@@ -87,6 +91,7 @@ describe("SearchResults", () => {
   });
 
   it("switching tabs cancels the stream and starts a new one with that tab", async () => {
+    setUrlTab("people");
     render(<SearchResults query="jack" pov="nosfabrica" />);
     expect(streamMock).toHaveBeenCalledTimes(1);
 
@@ -96,6 +101,24 @@ describe("SearchResults", () => {
     expect(streamMock.mock.calls[1][1]).toMatchObject({ tab: "notes" });
     // The tab lands in the URL so results deep-link.
     expect(new URLSearchParams(window.location.search).get("t")).toBe("notes");
+  });
+
+  // The SERP composition: Everything is Google's front page — sections, not
+  // a flat dump. A user-typed sort: means they chose an order, so the flat
+  // honored list returns.
+  it("Everything renders the composed sections page", () => {
+    render(<SearchResults query="liverpool" pov="nosfabrica" />);
+    expect(screen.getByTestId("composed-results")).toBeInTheDocument();
+    expect(screen.queryByTestId("container-search-loading")).toBeNull();
+    // Five parallel section streams, not one flat stream.
+    expect(streamMock.mock.calls.length).toBeGreaterThanOrEqual(5);
+  });
+
+  it("a typed sort: bypasses composition — flat list, order honored", () => {
+    render(<SearchResults query="liverpool sort:recent" pov="nosfabrica" />);
+    expect(screen.queryByTestId("composed-results")).toBeNull();
+    expect(streamMock).toHaveBeenCalledTimes(1);
+    expect(streamMock.mock.calls[0][0]).toBe("liverpool sort:recent");
   });
 
   it("renders all eight verticals as tabs", () => {
@@ -111,6 +134,7 @@ describe("SearchResults", () => {
   // score source the note cards already use, so the user's display settings
   // apply on EVERY tab.
   it("people cards get verification chrome from the author-score source", async () => {
+    setUrlTab("people");
     render(<SearchResults query="jack" pov="nosfabrica" />);
     const p = person("p1", "b".repeat(64), "jack");
     emit({
@@ -125,6 +149,7 @@ describe("SearchResults", () => {
   });
 
   it("renders note hits as note cards with the hydrated author shown", async () => {
+    setUrlTab("notes");
     render(<SearchResults query="bitcoin" pov="nosfabrica" />);
     const note = ev("n1", 1, "c".repeat(64), "gm, bitcoin is doing fine");
     emit({
@@ -138,6 +163,7 @@ describe("SearchResults", () => {
   });
 
   it("renders article hits as article cards by title", async () => {
+    setUrlTab("articles");
     render(<SearchResults query="mining" pov="nosfabrica" />);
     const article = ev("a1", 30023, "d".repeat(64), "long form body", [
       ["d", "my-article"],
@@ -148,6 +174,7 @@ describe("SearchResults", () => {
   });
 
   it("renders a live event with its status pill and title", async () => {
+    setUrlTab("live");
     render(<SearchResults query="conf" pov="nosfabrica" />);
     const live = ev("l1", 30311, "e".repeat(64), "", [
       ["d", "stream-1"],
@@ -159,7 +186,26 @@ describe("SearchResults", () => {
     expect(screen.getByTestId("live-status-l1")).toHaveTextContent(/live/i);
   });
 
+  it("collapses recurring events on the Live tab behind a +N chip", async () => {
+    setUrlTab("live");
+    render(<SearchResults query="liverpool" pov="nosfabrica" />);
+    const orange = "6".repeat(64);
+    const mk = (id: string, title: string) =>
+      ({ event: ev(id, 31923, orange, "", [["d", id], ["title", title]]), author: author(orange, "club"), rank: null });
+    emit({
+      hits: [mk("m1", "Bitcoin Liverpool Meet"), mk("m2", "Bitcoin Liverpool Meetup"), mk("m3", "Bitcoin Liverpool Meetup")],
+      eose: true,
+      timeMs: 200,
+    });
+    await screen.findByTestId("container-search-results");
+    expect(screen.getAllByTestId(/^live-card-/)).toHaveLength(1);
+
+    fireEvent.click(screen.getByTestId(/^cluster-expand-/));
+    expect(screen.getAllByTestId(/^live-card-/)).toHaveLength(3);
+  });
+
   it("renders a git repo with name and description", async () => {
+    setUrlTab("code");
     render(<SearchResults query="relay" pov="nosfabrica" />);
     const repo = ev("r1", 30617, "f".repeat(64), "", [
       ["d", "vespa-relay"],
@@ -172,6 +218,7 @@ describe("SearchResults", () => {
   });
 
   it("renders a list with its title and item count", async () => {
+    setUrlTab("lists");
     render(<SearchResults query="follows" pov="nosfabrica" />);
     const list = ev("li1", 30003, "9".repeat(64), "", [
       ["d", "reading"],
@@ -186,6 +233,7 @@ describe("SearchResults", () => {
   });
 
   it("renders media with a thumbnail from imeta", async () => {
+    setUrlTab("media");
     render(<SearchResults query="sunset" pov="nosfabrica" />);
     const pic = ev("m1", 20, "8".repeat(64), "sunset over the lake", [
       ["imeta", "url https://img.example/sunset.jpg", "m image/jpeg"],
@@ -254,6 +302,7 @@ describe("SearchResults", () => {
   });
 
   it("keeps quiet when the top person is only a weak match", async () => {
+    setUrlTab("notes");
     suggestMock.mockResolvedValueOnce([
       { pubkey: "b".repeat(64), npub: "npub1x", name: "completely different", wotRank: null, wotFollowers: null },
     ]);
@@ -269,12 +318,14 @@ describe("SearchResults", () => {
   });
 
   it("shows the relay's refusal reason when the stream errors", async () => {
+    setUrlTab("notes");
     render(<SearchResults query="jack" pov="nosfabrica" />);
     emit({ error: "auth-required: name a lens" });
     expect(await screen.findByTestId("search-error")).toHaveTextContent("auth-required");
   });
 
   it("says so plainly when a search finds nothing", async () => {
+    setUrlTab("notes");
     render(<SearchResults query="zzz" pov="nosfabrica" />);
     emit({ hits: [], eose: true, timeMs: 100 });
     expect(await screen.findByTestId("container-no-results")).toBeInTheDocument();
