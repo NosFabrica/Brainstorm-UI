@@ -64,14 +64,20 @@ describe("PricingPage renders whatever is on offer", () => {
 
   // The claims on the old free card were product claims, not tier copy — they
   // outlive the card that listed them.
-  it("keeps the headline and says what Brainstorm does, keyed to no plan", async () => {
+  it("says what Brainstorm does on the free row, not as a section of its own", async () => {
+    // What the product does is priced at nothing, so it belongs on the row that
+    // costs nothing — which is what every paid plan says "Everything in Free"
+    // about. Flash writes no copy for that row: it has no plan behind it.
     renderWithProviders(<PricingPage />);
     await waitFor(() => expect(screen.getByTestId("plan-picker")).toBeInTheDocument());
     expect(screen.getByTestId("section-pricing-header")).toBeInTheDocument();
-    const claims = screen.getByTestId("pricing-product-claims");
-    expect(claims).toHaveTextContent("Search ranked by your network");
-    expect(claims).toHaveTextContent("Verified follower count");
-    expect(claims).toHaveTextContent("Network alerts");
+
+    const free = screen.getByTestId("plan-copy-0");
+    expect(free).toHaveTextContent("Search ranked by your network");
+    expect(free).toHaveTextContent("Verified follower count");
+    expect(free).toHaveTextContent("Network alerts");
+    expect(free).toHaveTextContent("What you pay for is how often it all gets recalculated");
+    expect(screen.queryByTestId("pricing-product-claims")).toBeNull();
   });
 
   // The plans ARE what's on offer, so there is nothing to fall back to — the
@@ -89,6 +95,16 @@ describe("PricingPage renders whatever is on offer", () => {
 
     expect(screen.getByTestId("pricing-plans-error")).toBeInTheDocument();
     expect(screen.queryByTestId("plan-picker")).toBeNull();
-    expect(screen.getByTestId("pricing-product-claims")).toBeInTheDocument();
+
+    // Free survives: none of it came from the call that failed.
+    const free = screen.getByTestId("pricing-free-fallback");
+    expect(free).toHaveTextContent("Free");
+    expect(free).toHaveTextContent("$0");
+    expect(free).toHaveTextContent("Search ranked by your network");
+    expect(free).toHaveTextContent("Network alerts");
+    // But NOT a cadence — that comes from the policy we just failed to read,
+    // and an invented interval is the same fault as an invented price.
+    expect(free).not.toHaveTextContent(/New follows show up within/);
+    expect(screen.getByTestId("roadmap-link-line")).toBeInTheDocument();
   });
 });

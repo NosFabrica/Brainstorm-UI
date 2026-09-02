@@ -2,7 +2,7 @@ import { Check, X, ArrowRight, Loader2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { Button } from "@/components/ui/button";
-import { formatAmount, formatBillingInterval } from "@/lib/plans";
+import { formatAmount, formatBillingInterval, productClaims } from "@/lib/plans";
 import type { BillingPlan } from "@/services/subscription";
 
 /**
@@ -195,6 +195,30 @@ function PlanRow({
           )}
         </div>
       </div>
+
+      {/* The free row has no Flash plan, so Flash writes no copy for it — but
+          it is the row that carries what the product does at all, which every
+          paid plan then says "Everything in Free" about. Ours to state, because
+          it describes the product rather than the plan. */}
+      {plan.planId === null && (
+        <div className="space-y-1.5" data-testid={`plan-copy-${index}`}>
+          <ul className="space-y-1.5" data-testid={`plan-included-${index}`}>
+            {productClaims().map((f) => (
+              <li
+                key={f.key}
+                className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200"
+              >
+                <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                <span className="min-w-0 break-words">{f.label}</span>
+              </li>
+            ))}
+          </ul>
+          <p className="pt-1 text-xs text-slate-500 dark:text-slate-400">
+            On every plan, including this one. What you pay for is how often it
+            all gets recalculated.
+          </p>
+        </div>
+      )}
 
       {(plan.features || plan.notIncluded) && (
         <div className="space-y-1.5" data-testid={`plan-copy-${index}`}>
