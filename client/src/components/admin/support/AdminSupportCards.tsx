@@ -610,7 +610,7 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
       ) : (
         <>
           <div className="mt-3 flex flex-wrap items-center gap-2.5">
-            <h4 className="text-base font-bold" style={{ fontFamily: "var(--font-display)" }}>{ticket.subject}</h4>
+            <h4 className="min-w-0 break-words text-base font-bold" style={{ fontFamily: "var(--font-display)" }}>{ticket.subject}</h4>
             <Chip tone={statusTone(ticket.status)} size="sm" data-testid="admin-thread-status">{ticket.status}</Chip>
             {/* Recategorize in place: low-stakes, reversible, on the record. */}
             <select
@@ -692,7 +692,7 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
                     {item.message.author === "support" ? "Support (you)" : "User"}
                     <span className="ml-2 font-normal normal-case tracking-normal">{fmtWhen(item.message.createdAt)}</span>
                   </p>
-                  <p className="mt-1 whitespace-pre-wrap text-slate-700 dark:text-slate-200">{item.message.body}</p>
+                  <p className="mt-1 whitespace-pre-wrap break-words text-slate-700 dark:text-slate-200">{item.message.body}</p>
                 </div>
               ) : (
                 <p

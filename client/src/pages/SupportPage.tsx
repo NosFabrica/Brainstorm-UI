@@ -416,7 +416,7 @@ function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
       ) : (
         <>
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-lg font-bold" style={{ fontFamily: "var(--font-display)" }}>
+            <h2 className="min-w-0 break-words text-lg font-bold" style={{ fontFamily: "var(--font-display)" }}>
               {ticket.subject}
             </h2>
             <span className="flex items-center gap-2">
@@ -452,7 +452,7 @@ function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
                     {item.message.author === "support" ? `Brainstorm Support · ${SUPPORT_EMAIL}` : "You"}
                     <span className="ml-2 font-normal normal-case tracking-normal">{fmtWhen(item.message.createdAt)}</span>
                   </p>
-                  <p className="mt-1.5 whitespace-pre-wrap text-slate-700 dark:text-slate-200">{item.message.body}</p>
+                  <p className="mt-1.5 whitespace-pre-wrap break-words text-slate-700 dark:text-slate-200">{item.message.body}</p>
                 </div>
               ) : (
                 <p
