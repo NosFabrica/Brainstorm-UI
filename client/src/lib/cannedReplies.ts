@@ -15,9 +15,55 @@ export interface CannedReply {
 const KEY = "brainstorm_support_canned";
 const TITLE_MAX = 32;
 
+/**
+ * The common support moves, pre-written so a new device never starts from a
+ * blank dropdown: acknowledge, ask for detail, status update, fix shipped,
+ * feedback thanks. Seeded ONCE (key absent) as ordinary replies — edit before
+ * sending, delete in Manage; deleted starters never come back. Stored
+ * oldest-first so the newest-first listing leads with Acknowledge.
+ */
+const STARTERS: ReadonlyArray<[title: string, body: string]> = [
+  [
+    "Feedback — thank you",
+    "Thank you for the feedback — we've shared it with the team, and it genuinely shapes what we build next. Keep it coming.",
+  ],
+  [
+    "Fix shipped — please confirm",
+    "Good news — this should be fixed now. Could you give it another try and reply here if anything still looks off?",
+  ],
+  [
+    "Status update",
+    "Quick update — we've reproduced what you reported and a fix is in progress. We'll message you here the moment it lands.",
+  ],
+  [
+    "Need more info",
+    "Thanks for flagging this. Could you share a little more detail — which page you were on, what you did, and what you expected to happen? That helps us reproduce it quickly.",
+  ],
+  [
+    "Acknowledge — on it",
+    "Thanks for reaching out — your ticket is with the team now. We'll follow up right here as soon as we know more.",
+  ],
+];
+
+function seed(): CannedReply[] {
+  const now = new Date().toISOString();
+  return STARTERS.map(([title, body], i) => ({
+    id: `cnd_starter_${i}`,
+    title,
+    body,
+    createdAt: now,
+  }));
+}
+
 function read(): CannedReply[] {
   try {
-    const parsed = JSON.parse(localStorage.getItem(KEY) ?? "[]");
+    const raw = localStorage.getItem(KEY);
+    if (raw === null) {
+      const starters = seed();
+      write(starters);
+      return starters;
+    }
+    const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
   } catch {
     return [];
