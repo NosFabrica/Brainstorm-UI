@@ -11,12 +11,8 @@ import {
   Check,
   X,
   SlidersHorizontal,
-  Zap,
   Globe,
-  Users,
   UserRound,
-  Radar,
-  Copy,
   Clock,
 } from "lucide-react";
 import { GlossBackground } from "@/components/GlossBackground";
@@ -27,7 +23,6 @@ import { FinishSetupBanner } from "@/components/FinishSetupBanner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
-import { EmptyState } from "@/components/ui/empty-state";
 import { fetchProfile } from "@/services/nostr";
 import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
@@ -37,16 +32,16 @@ import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
 import { AccountCards } from "@/components/AccountCards";
-import { useToast } from "@/hooks/use-toast";
 import { setProfileSeed, setStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
 import {
-  searchByText,
   getDisplayLabel,
   isLikelyNpub,
   isHexPubkey,
   isNip05Handle,
   type SearchResult,
 } from "@/lib/profileSearch";
+import { suggestProfiles } from "@/services/search";
+import { SearchResults } from "@/components/search/SearchResults";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
 import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
@@ -78,11 +73,6 @@ const PLACEHOLDER_EXAMPLES = [
 // of the rotating hints. First-party + functional → no consent banner needed.
 const SEEN_SEARCH_HINTS_KEY = "brainstorm_seen_search_hints";
 
-function truncateAbout(text: string, maxLen = 120): string {
-  if (text.length <= maxLen) return text;
-  return text.slice(0, maxLen).trimEnd() + "...";
-}
-
 async function resolveNip05(handle: string): Promise<string> {
   const trimmed = handle.trim();
   let name: string;
@@ -107,7 +97,6 @@ export default function Landing() {
   const tierRing = useTierRing();
   const coinReplaced = useCoinReplacedByRing();
   const [, setLocation] = useLocation();
-  const { toast } = useToast();
   const [query, setQuery] = useState(() => {
     try { return new URLSearchParams(window.location.search).get("q") || ""; } catch { return ""; }
   });
@@ -131,11 +120,15 @@ export default function Landing() {
   const [focused, setFocused] = useState(false);
   const [suggestMaxH, setSuggestMaxH] = useState<number | null>(null);
 
-  // Full search results state (merged in from the retired /search page).
-  const [results, setResults] = useState<SearchResult[]>([]);
+  // The SUBMITTED query — what SearchResults streams for. Distinct from
+  // `query` (the live box text): results only change on submit/URL, never
+  // per keystroke. SearchResults owns the stream, skeleton and count line.
+  const [submitted, setSubmitted] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get("q")?.trim() || ""; } catch { return ""; }
+  });
+  const hasSearched = submitted !== "";
+  // Brief in-box spinner while a NIP-05 handle resolves to a profile.
   const [isSearching, setIsSearching] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [searchTime, setSearchTime] = useState(0);
 
   const suggestAbortRef = useRef(0);
   const searchAbortRef = useRef(0);
@@ -253,7 +246,7 @@ export default function Landing() {
     setShowSuggestions(true);
     suggestTimerRef.current = window.setTimeout(async () => {
       try {
-        const { results: suggestResults } = await searchByText(q, effectivePov, user?.pubkey, 10);
+        const suggestResults = await suggestProfiles(q, { pov: effectivePov, userPubkey: user?.pubkey });
         if (suggestAbortRef.current !== reqId) return;
         setSuggestions(suggestResults.slice(0, 7));
         setActiveSuggestion(-1);
@@ -461,14 +454,14 @@ export default function Landing() {
         return;
       } catch {
         if (searchAbortRef.current !== searchId) return;
+        // Unresolvable handle falls through to a plain text search below.
+      } finally {
+        if (searchAbortRef.current === searchId) setIsSearching(false);
       }
     }
 
-    const searchId = ++searchAbortRef.current;
-    setIsSearching(true);
-    setHasSearched(true);
-    const start = performance.now();
-
+    // Everything else is a real search: put it in the URL and hand it to
+    // SearchResults — the stream, skeleton, errors and count line live there.
     try {
       const currentUrl = new URL(window.location.href);
       if (currentUrl.searchParams.get("q") !== q) {
@@ -476,27 +469,8 @@ export default function Landing() {
         window.history.pushState({}, "", currentUrl.pathname + currentUrl.search);
       }
     } catch {}
-
-    try {
-      const { results: searchResults, timeMs } = await searchByText(q, effectivePov, user?.pubkey, 100);
-      if (searchAbortRef.current !== searchId) return;
-      setResults(searchResults);
-      setSearchTime(timeMs || Math.round(performance.now() - start));
-    } catch (err) {
-      if (searchAbortRef.current !== searchId) return;
-      setResults([]);
-      const message = err instanceof Error ? err.message : String(err ?? "");
-      toast({
-        title: "Search failed",
-        description: message || "Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      if (searchAbortRef.current === searchId) {
-        setIsSearching(false);
-      }
-    }
-  }, [query, effectivePov, user?.pubkey, setLocation, toast]);
+    setSubmitted(q);
+  }, [query, setLocation]);
 
   // Sync the back/forward buttons with the search results list.
   useEffect(() => {
@@ -508,8 +482,7 @@ export default function Landing() {
         handleSearch(q);
       } else {
         searchAbortRef.current++;
-        setResults([]);
-        setHasSearched(false);
+        setSubmitted("");
         setIsSearching(false);
       }
     };
@@ -528,26 +501,18 @@ export default function Landing() {
     }
   }, [handleSearch]);
 
-  // Re-run the active search when the global trust perspective changes so the
-  // results reflect the currently selected POV.
+  // A POV flip re-ranks the open results automatically — SearchResults
+  // restarts its stream when its `pov` prop changes. Only the mid-type
+  // suggestion dropdown needs a nudge here.
   const prevPovRef = useRef(effectivePov);
   useEffect(() => {
     if (prevPovRef.current === effectivePov) return;
     prevPovRef.current = effectivePov;
     const q = query.trim();
-    if (!q) return;
-    // Re-run the full results list if a search has already been submitted.
-    if (hasSearched) {
-      handleSearch();
-    }
-    // Also refresh the live suggestion dropdown when the user is mid-type
-    // (typed but not yet submitted), so suggestions reflect the new
-    // perspective without requiring another keystroke. scheduleSuggest owns
-    // its own request-id race protection, so stale responses can't win.
     if (typedSinceSearchRef.current && q.length >= 2) {
       scheduleSuggest(query);
     }
-  }, [effectivePov, hasSearched, query, handleSearch, scheduleSuggest]);
+  }, [effectivePov, query, scheduleSuggest]);
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -561,8 +526,7 @@ export default function Landing() {
     setQuery("");
     setSuggestions([]);
     setActiveSuggestion(-1);
-    setResults([]);
-    setHasSearched(false);
+    setSubmitted("");
     setIsSearching(false);
     inputRef.current?.focus();
     try {
@@ -634,7 +598,6 @@ export default function Landing() {
     };
   }, [dropdownOpen, showRecent]);
 
-  const showNoResults = hasSearched && results.length === 0 && !isSearching;
 
   // 100dvh, not 100vh: on iOS the toolbar eats a big share of a LANDSCAPE
   // viewport, and 100vh measures the large (toolbar-hidden) viewport — so the
@@ -1160,154 +1123,15 @@ export default function Landing() {
             follower, so it can't be re-enabled safely until a backend invite-record
             gates it to genuine, owner-issued invites. */}
 
-        {isSearching && (
-          <div className="w-full max-w-2xl mx-auto mt-6 sm:mt-8 text-left">
-            <div className="space-y-2 sm:space-y-3" data-testid="container-search-loading">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-white/70 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800/60 animate-pulse" style={{ animationDelay: `${i * 0.08}s` }}>
-                  <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-full bg-slate-200 dark:bg-slate-700 shrink-0" />
-                  <div className="flex-1 space-y-2 pt-1">
-                    <div className="h-3 sm:h-3.5 bg-slate-200 dark:bg-slate-700 rounded-full w-28 sm:w-36" />
-                    <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full w-full max-w-md" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {!isSearching && hasSearched && results.length > 0 && (
-          <div className="w-full max-w-2xl mx-auto mt-6 sm:mt-8 text-left">
-            <div className="mb-2 sm:mb-3 px-1">
-              <p className="text-xs text-slate-400 dark:text-slate-500" data-testid="text-search-stats">
-                About {results.length} result{results.length !== 1 ? "s" : ""} ({(searchTime / 1000).toFixed(2)} seconds)
-              </p>
-            </div>
-            <div className="space-y-2 sm:space-y-3" data-testid="container-search-results">
-              {results.map((result, idx) => {
-                const formatFollowers = (n: number) => n >= 10000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K` : n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
-                const websiteDisplay = result.website ? result.website.replace(/^https?:\/\//, "").replace(/\/$/, "") : null;
-                return (
-                  <div
-                    key={result.pubkey}
-                    role="button"
-                    tabIndex={0}
-                    className="w-full bg-white/70 dark:bg-slate-900/70 hover:bg-white dark:hover:bg-slate-900 border border-slate-100 dark:border-slate-800/60 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm active:bg-slate-50 dark:active:bg-slate-800 rounded-xl transition-all duration-150 text-left group cursor-pointer overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-                    onMouseEnter={() => handlePrefetchEnter(result)}
-                    onMouseLeave={() => handlePrefetchLeave(result)}
-                    onFocus={() => handlePrefetchEnter(result)}
-                    onBlur={() => handlePrefetchLeave(result)}
-                    onClick={() => goToProfile(result)}
-                    // Only the card itself (not a bubbled keypress from the inner
-                    // website link / copy button) navigates on Enter/Space.
-                    onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); goToProfile(result); } }}
-                    data-testid={`result-profile-${idx}`}
-                  >
-                    <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4">
-                      {/* Avatar + score coin, the same pairing as the profile
-                          hero and every people-list row. This used to be a
-                          bespoke pill further down the card, which meant the one
-                          number the product is about looked different here than
-                          anywhere else. Team feedback, and they were right. */}
-                      <div className="relative shrink-0">
-                        <Avatar className={`h-10 w-10 sm:h-12 sm:w-12 border-2 border-slate-200/80 dark:border-slate-800/80 ${tierRing(result.wotRank) ?? ""}`}>
-                          {result.picture ? <AvatarImage src={result.picture} alt={getDisplayLabel(result)} className="object-cover" /> : null}
-                          <AvatarFallback className="overflow-hidden">
-                            <DefaultAvatarImg />
-                          </AvatarFallback>
-                        </Avatar>
-                        {result.wotRank != null && (
-                          <VerificationCoin
-                            score01={result.wotRank}
-                            pov={effectivePov === "mywot" ? "personalized" : "global"}
-                            size={22}
-                            className={tierRing(result.wotRank) && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1"}
-                          />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors truncate" data-testid={`text-result-name-${idx}`}>
-                            {getDisplayLabel(result)}
-                          </span>
-                          <TierWordChip score01={result.wotRank} />
-                        </div>
-                        {result.nip05 && (
-                          <p className="text-xs text-brand-primary dark:text-brand-link truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-nip05-${idx}`}>
-                            <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />
-                            {result.nip05.replace(/^_@/, "")}
-                          </p>
-                        )}
-                        {result.lud16 && (
-                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-lightning-${idx}`}>
-                            <Zap className="h-2.5 w-2.5 shrink-0 text-slate-400 dark:text-slate-500" />
-                            {result.lud16}
-                          </p>
-                        )}
-                        {websiteDisplay && (
-                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-website-${idx}`}>
-                            <Globe className="h-2.5 w-2.5 shrink-0 text-slate-400 dark:text-slate-500" />
-                            <a
-                              href={result.website!.startsWith("http") ? result.website! : `https://${result.website}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="hover:underline truncate"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {websiteDisplay}
-                            </a>
-                          </p>
-                        )}
-                        {result.about && (
-                          <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2" data-testid={`text-result-about-${idx}`}>
-                            {truncateAbout(result.about)}
-                          </p>
-                        )}
-                        <div className="flex items-center gap-1.5 sm:gap-2 mt-2 flex-wrap">
-                          {/* The rank pill that lived here is now the coin on the
-                              avatar above — one badge for the score, sitewide. */}
-                          {result.wotFollowers != null && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800/60" data-testid={`badge-followers-${idx}`}>
-                              <Users className="h-2.5 w-2.5" />
-                              {formatFollowers(result.wotFollowers)}
-                            </span>
-                          )}
-                          <span className="inline-flex items-center gap-1 text-[10px] text-slate-300 dark:text-slate-600 font-mono hidden sm:inline" data-testid={`text-result-npub-${idx}`}>
-                            {result.npub.slice(0, 12)}...
-                            <button
-                              type="button"
-                              aria-label="Copy npub"
-                              className="inline-flex items-center justify-center h-4 w-4 rounded hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-200 dark:active:bg-slate-700 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-                              data-testid={`button-copy-npub-${idx}`}
-                              onClick={(e) => { e.stopPropagation(); copyToClipboard(result.npub); }}
-                            >
-                              <Copy className="h-2.5 w-2.5 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300" />
-                            </button>
-                          </span>
-                        </div>
-                      </div>
-                      <span className="text-[11px] text-slate-300 dark:text-slate-600 group-hover:text-brand-primary transition-colors shrink-0 mt-1 hidden sm:inline font-medium">
-                        View →
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {showNoResults && (
-          <div className="w-full max-w-2xl mx-auto mt-8 sm:mt-12" data-testid="container-no-results">
-            <div className="p-2 rounded-xl sm:rounded-2xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60">
-              <EmptyState
-                icon={Radar}
-                compact
-                title="No profiles found"
-                description="Try a different name, or paste an npub directly."
-              />
-            </div>
-          </div>
+        {hasSearched && (
+          <SearchResults
+            query={submitted}
+            pov={effectivePov}
+            userPubkey={user?.pubkey}
+            onOpenProfile={goToProfile}
+            onPrefetchEnter={handlePrefetchEnter}
+            onPrefetchLeave={handlePrefetchLeave}
+          />
         )}
       </main>
 
