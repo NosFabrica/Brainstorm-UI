@@ -359,7 +359,7 @@ export default function Landing() {
     // personalized /profile analysis. The Public-page / View-full-profile
     // cross-links cover anyone who wants the other view.
     if (!user) {
-      setLocation(`/p/${result.npub}?fromSearch=1`);
+      setLocation(`/p/${result.npub}`);
       return;
     }
     const suffix = persistNosfabrica ? "&showNosfabricaResult=1" : "";
@@ -399,7 +399,12 @@ export default function Landing() {
     setIsSuggesting(false);
   }, []);
 
-  const handleSearch = useCallback(async (overrideQuery?: string) => {
+  // `via` says who asked: the user (undefined), the URL on a cold load ("init"),
+  // or the back/forward buttons ("pop"). Direct identifiers (npub, hex, nip05,
+  // #tag, pasted note) leave the home for another page; that hop must not
+  // repeat on Back or the user is trapped bouncing forward, and on a cold
+  // `/?q=npub…` it replaces the entry for the same reason.
+  const handleSearch = useCallback(async (overrideQuery?: string, via?: "init" | "pop") => {
     const q = (overrideQuery ?? query).trim();
     if (!q) return;
     // Remember this query for the "Recent" list (de-duped, most-recent-first).
@@ -412,11 +417,29 @@ export default function Landing() {
     setShowSuggestions(false);
     setIsSuggesting(false);
 
+    // Put the query in the URL so Back returns to it with the box filled in —
+    // for every kind of query, not just the text search below.
+    if (!via) {
+      try {
+        const currentUrl = new URL(window.location.href);
+        if (currentUrl.searchParams.get("q") !== q) {
+          currentUrl.searchParams.set("q", q);
+          window.history.pushState({}, "", currentUrl.pathname + currentUrl.search);
+        }
+      } catch {}
+    }
+    // Leave the home for a direct identifier. Back re-runs this with the same
+    // query and must stay put.
+    const leave = (dest: string) => {
+      if (via === "pop") return;
+      setLocation(dest, { replace: via === "init" });
+    };
+
     // Pasted note/event or long-form article link → on-site landing page
     // (njump parity: "paste anything → it just works").
     const ent = resolveEntityToPath(q);
     if (ent && (ent.kind === "note" || ent.kind === "article")) {
-      setLocation(`${ent.path}?fromSearch=1`);
+      leave(ent.path);
       return;
     }
 
@@ -425,7 +448,7 @@ export default function Landing() {
     if (q.startsWith("#")) {
       const tag = q.slice(1).toLowerCase().replace(/[^a-z0-9_]/g, "");
       if (tag) {
-        setLocation(`/t/${encodeURIComponent(tag)}`);
+        leave(`/t/${encodeURIComponent(tag)}`);
         return;
       }
     }
@@ -438,7 +461,7 @@ export default function Landing() {
       try {
         const decoded = nip19.decode(q);
         if (decoded.type === "npub" && typeof decoded.data === "string") {
-          setLocation(profileDest(q));
+          leave(profileDest(q));
           return;
         }
       } catch {}
@@ -446,18 +469,20 @@ export default function Landing() {
 
     if (isHexPubkey(q)) {
       const npub = nip19.npubEncode(q.toLowerCase());
-      setLocation(profileDest(npub));
+      leave(profileDest(npub));
       return;
     }
 
-    if (isNip05Handle(q)) {
+    // On Back a handle falls through to the text search instead of resolving
+    // and leaving again.
+    if (isNip05Handle(q) && via !== "pop") {
       const searchId = ++searchAbortRef.current;
       setIsSearching(true);
       try {
         const hexPubkey = await resolveNip05(q);
         if (searchAbortRef.current !== searchId) return;
         const npub = nip19.npubEncode(hexPubkey);
-        setLocation(profileDest(npub));
+        leave(profileDest(npub));
         return;
       } catch {
         if (searchAbortRef.current !== searchId) return;
@@ -468,14 +493,6 @@ export default function Landing() {
     setIsSearching(true);
     setHasSearched(true);
     const start = performance.now();
-
-    try {
-      const currentUrl = new URL(window.location.href);
-      if (currentUrl.searchParams.get("q") !== q) {
-        currentUrl.searchParams.set("q", q);
-        window.history.pushState({}, "", currentUrl.pathname + currentUrl.search);
-      }
-    } catch {}
 
     try {
       const { results: searchResults, timeMs } = await searchByText(q, effectivePov, user?.pubkey, 100);
@@ -505,7 +522,7 @@ export default function Landing() {
       setQuery(q);
       didInitFromUrlRef.current = true;
       if (q.trim()) {
-        handleSearch(q);
+        handleSearch(q, "pop");
       } else {
         searchAbortRef.current++;
         setResults([]);
@@ -524,7 +541,7 @@ export default function Landing() {
     const q = new URLSearchParams(window.location.search).get("q") || "";
     if (q.trim()) {
       didInitFromUrlRef.current = true;
-      handleSearch(q);
+      handleSearch(q, "init");
     }
   }, [handleSearch]);
 

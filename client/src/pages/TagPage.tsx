@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useRoute, Redirect, Link } from "wouter";
+import { useRoute, useLocation, Redirect, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Bookmark, BookmarkCheck, Check, Loader2, Plus, Tag as TagIcon, Users } from "lucide-react";
 import NotFound from "@/pages/not-found";
@@ -78,6 +78,7 @@ type CarrierSort = "vouched" | "recent";
 
 export default function TagPage() {
   const [, params] = useRoute("/tags/:author/:slug");
+  const [, navigate] = useLocation();
   const [sort, setSort] = useState<CarrierSort>("vouched");
   const [hideSelfDeclared, setHideSelfDeclared] = useState(false);
   const [hideContested, setHideContested] = useState(false);
@@ -208,7 +209,11 @@ export default function TagPage() {
       <main className="w-full max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex-1" data-testid="tag-page">
         <button
           type="button"
-          onClick={() => history.back()}
+          onClick={() => {
+            // Pop history; a cold deep link has nothing to pop, so go to the hub.
+            if (typeof window !== "undefined" && window.history.length > 1) window.history.back();
+            else navigate("/tags");
+          }}
           className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-primary dark:text-slate-400 transition-colors"
           data-testid="tag-back"
         >
