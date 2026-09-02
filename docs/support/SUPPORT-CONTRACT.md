@@ -115,7 +115,13 @@ POST /admin/support/tickets/{id}/close      { message? }
 - Nostr-DM notifications (v2 candidate: DM from a Brainstorm support key
   as an alternative to email — the UI's contact copy already avoids
   promising email-only).
-- Attachments, SLA timers, canned responses, assignment/ownership.
+- **Shared canned replies** — the UI ships per-device snippets (localStorage,
+  seeded with five starters; admins save/insert/delete their own). Fine for
+  one responder; the moment two admins answer tickets, a shared library is
+  the natural v2: `GET/POST/DELETE /admin/support/canned` with
+  `{ id, title, body }` rows, and the UI's dropdown reads the server list
+  instead. Same seam, no redesign.
+- Attachments, SLA timers, assignment/ownership.
 
 ## UI reference
 
