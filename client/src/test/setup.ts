@@ -25,6 +25,21 @@ if (hasDom && typeof globalThis.ResizeObserver === "undefined") {
   };
 }
 
+// jsdom has no matchMedia either; usePrefersReducedMotion calls it at import.
+if (hasDom && typeof window.matchMedia === "undefined") {
+  window.matchMedia = (query: string) =>
+    ({
+      matches: false,
+      media: query,
+      onchange: null,
+      addEventListener() {},
+      removeEventListener() {},
+      addListener() {},
+      removeListener() {},
+      dispatchEvent: () => false,
+    }) as MediaQueryList;
+}
+
 beforeEach(() => {
   if (hasDom) localStorage.clear();
 });

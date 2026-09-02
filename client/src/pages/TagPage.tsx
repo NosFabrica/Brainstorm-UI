@@ -144,6 +144,14 @@ export default function TagPage() {
 
   const status = detailQuery.data?.status;
   useTagMeta(tagName, carriers.length, status === "ok");
+  // Last hook — the guards below must stay after every hook.
+  const visible = useMemo(() => {
+    let list = carriers;
+    if (hideSelfDeclared) list = list.filter((c) => !onlySelfDeclared(c));
+    if (hideContested) list = list.filter((c) => c.disputes === 0 && !c.subjectDisagreed);
+    if (sort === "recent") list = [...list].sort((a, b) => b.addedAt - a.addedAt);
+    return list;
+  }, [carriers, hideSelfDeclared, hideContested, sort]);
 
   // Params read null on the first render after an in-app navigation, so bail
   // quietly rather than firing a redirect that would corrupt the back stack.
@@ -168,13 +176,6 @@ export default function TagPage() {
    * is furniture, and the row badges already do the job at that size.
    */
   const showFilters = carriers.length >= FILTER_THRESHOLD;
-  const visible = useMemo(() => {
-    let list = carriers;
-    if (hideSelfDeclared) list = list.filter((c) => !onlySelfDeclared(c));
-    if (hideContested) list = list.filter((c) => c.disputes === 0 && !c.subjectDisagreed);
-    if (sort === "recent") list = [...list].sort((a, b) => b.addedAt - a.addedAt);
-    return list;
-  }, [carriers, hideSelfDeclared, hideContested, sort]);
   const authorProfile = profileMap?.get(authorPubkey);
   let authorNpub = "";
   try { authorNpub = npubFromPubkey(authorPubkey); } catch { /* leave unlinked */ }

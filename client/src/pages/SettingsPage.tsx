@@ -482,6 +482,11 @@ export default function SettingsPage() {
     trustProviderStatus.data === "brainstorm" ||
     (trustProviderStatus.data !== "other" && isNip85Activated(user?.pubkey));
 
+  // Network Alerts card inputs (see the card below). Hooks, so they live above
+  // the guard: `user` can drop to null while this page is mounted.
+  const ignoredListCount = useMemo(() => (pubkey ? ignoredAlertMap(pubkey).size : 0), [pubkey]);
+  const ignoreSync = useIgnoreSyncState();
+
   if (!user || isAuthRedirecting()) return null;
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1350,12 +1355,10 @@ export default function SettingsPage() {
   // actually arrive hunting for. Counting the raw persisted list (the Ignored
   // TAB counts what's currently hidden, which differs once something escalates)
   // — hence "on your ignore list" rather than repeating the tab's wording.
-  const ignoredListCount = useMemo(() => (pubkey ? ignoredAlertMap(pubkey).size : 0), [pubkey]);
   // The "saved to your account" half of this subtitle was an unconditional
   // claim. When the NIP-78 write can't happen it's simply untrue, and this card
   // is exactly where someone checks what they've ignored — so it has to say
   // which of the two is actually the case.
-  const ignoreSync = useIgnoreSyncState();
   // Also consult the persisted flag: this page can be loaded cold, where the
   // in-memory state has reset to "ok" but the list still never left the device.
   const ignoresUnsynced = ignoreSync === "local-only" || (pubkey ? hasUnsyncedIgnores(pubkey) : false);

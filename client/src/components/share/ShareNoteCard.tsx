@@ -116,6 +116,17 @@ export function ShareNoteCard({
   const [granularity] = useTierGranularity();
   const [expanded, setExpanded] = useState(false);
   const [, navigate] = useLocation();
+  // Every hook stays above the repost early return: this card is rendered
+  // unkeyed (featured / single-event pages), so the same instance can flip
+  // between a repost and a plain note across navigations.
+  const hasMedia = useMemo(
+    () => parseNoteContent(event.content || "").some((t) => t.type === "image" || t.type === "video" || t.type === "audio"),
+    [event.content],
+  );
+  const authorNpub = useMemo(() => { try { return npubFromPubkey(event.pubkey); } catch { return ""; } }, [event.pubkey]);
+  // Same fallback as EmbeddedNoteCard: callers that fetched a score pass it,
+  // the rest (more-from-author, tagged notes) ride the shared house cache.
+  const authorFallbackOf = useAuthorScores(authorScore == null ? [event.pubkey] : []);
   const onCardClick = openOnCardClick(href, navigate);
   const clickable = href ? "cursor-pointer" : "";
   const a = analyzeNote(event);
@@ -159,22 +170,14 @@ export function ShareNoteCard({
   // Notes with media (video/image/audio) always render expanded — collapsing a
   // post behind "Show more" would cut off its video/image. Only long text-only
   // notes get the height clamp.
-  const hasMedia = useMemo(
-    () => parseNoteContent(event.content || "").some((t) => t.type === "image" || t.type === "video" || t.type === "audio"),
-    [event.content],
-  );
   const isLong = !hasMedia && (event.content?.length ?? 0) > LONG_NOTE_CHARS;
   const collapsed = isLong && !expanded && !forceExpanded;
 
-  const authorNpub = useMemo(() => { try { return npubFromPubkey(event.pubkey); } catch { return ""; } }, [event.pubkey]);
   const authorProfile = profiles.get(event.pubkey);
   const authorName = authorProfile?.display_name || authorProfile?.name || (authorNpub ? `${authorNpub.slice(0, 10)}…` : "Someone");
   const authorHandle = authorProfile?.nip05
     ? authorProfile.nip05.replace(/^_@/, "@")
     : authorNpub ? `@${authorNpub.slice(0, 12)}…` : "";
-  // Same fallback as EmbeddedNoteCard: callers that fetched a score pass it,
-  // the rest (more-from-author, tagged notes) ride the shared house cache.
-  const authorFallbackOf = useAuthorScores(authorScore == null ? [event.pubkey] : []);
   const effectiveAuthorScore = authorScore ?? authorFallbackOf(event.pubkey);
   const authorTier = typeof effectiveAuthorScore === "number" ? shareTierFor(effectiveAuthorScore, granularity) : null;
   // Through the hook, not an inline boxShadow — the old style drew in EVERY
