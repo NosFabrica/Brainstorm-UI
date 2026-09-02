@@ -210,10 +210,15 @@ export async function fetchSubscription(): Promise<Subscription> {
 
 /**
  * Ask the server to re-read Flash NOW and return the result — the redirect
- * landing call and the in-flight poll (handoff A2/A4).
+ * landing call and the in-flight poll.
+ *
+ * `subscriptionId` is the one the checkout redirect named, when it named one.
+ * A `pending` return carries none, and neither does the poll.
  */
-export async function refreshSubscription(): Promise<Subscription> {
-  return normalize(await apiClient.refreshSubscription());
+export async function refreshSubscription(
+  subscriptionId?: string,
+): Promise<Subscription> {
+  return normalize(await apiClient.refreshSubscription(subscriptionId));
 }
 
 /**

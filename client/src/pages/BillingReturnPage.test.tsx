@@ -65,3 +65,25 @@ describe("BillingReturnPage outcomes", () => {
     expect(screen.getByTestId("billing-return-pending").textContent).toContain("ten minutes");
   });
 });
+
+describe("BillingReturnPage verification", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    api.getSubscription.mockResolvedValue(FREE);
+    api.refreshSubscription.mockResolvedValue(PAID);
+  });
+
+  // The guide's §5: verify the subscription the redirect names. The id is a
+  // handle for the server's own lookup, never an authority — the server checks
+  // it carries the signed-in caller's reference before granting anything.
+  it("passes the redirect's subscriptionId to the server to verify", async () => {
+    renderAt("?status=active&subscriptionId=7d3b&ref=abc");
+    await waitFor(() => expect(api.refreshSubscription).toHaveBeenCalledWith("7d3b"));
+  });
+
+  it("passes no id for a pending return, which carries none", async () => {
+    api.refreshSubscription.mockResolvedValue(FREE);
+    renderAt("?status=pending&ref=abc");
+    await waitFor(() => expect(api.refreshSubscription).toHaveBeenCalledWith(undefined));
+  });
+});

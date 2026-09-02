@@ -15,13 +15,18 @@ import { startCheckoutPoll } from "@/lib/checkoutPoll";
  * Registered as a BARE path — redirect_uri matching is exact including the
  * query string, so a path with its own query would be needlessly brittle.
  *
- * The parameters are INFORMATIONAL ONLY — anyone can type this URL, so nothing
- * is granted from them. The page calls POST /user/subscription/refresh (empty
- * body: the server syncs whoever is signed in, reading Flash directly) and
- * renders what comes back. `status` is a checkout outcome, not a subscription
- * status: active/trial → success; pending → confirming + the shared poll
- * (Lightning can take ~10 minutes). Failed payments never redirect at all, so
- * there is no failure screen.
+ * Nothing here is granted from the URL — anyone can type one. The page hands
+ * the `subscriptionId` to POST /user/subscription/refresh, and the SERVER asks
+ * Flash whether that subscription is real and carries this caller's reference;
+ * an id naming someone else's payment comes back having changed nothing. The
+ * page renders whatever the server then reports.
+ *
+ * `status` is a checkout outcome, not a subscription status: active/trial →
+ * success; pending → confirming + the shared poll (Lightning can take ~10
+ * minutes). A `pending` return carries no `subscriptionId` — Flash issues none
+ * until the payment confirms — so it refreshes by reference instead, which is
+ * the guide's own instruction for that case. Failed payments never redirect at
+ * all, so there is no failure screen.
  */
 export default function BillingReturnPage() {
   const signedIn = useHasSession();
@@ -30,13 +35,17 @@ export default function BillingReturnPage() {
   const [phase, setPhase] = useState<"checking" | "confirming" | "done" | "none">("checking");
   const ran = useRef(false);
 
-  const outcome = (() => {
+  const params = (() => {
     try {
-      return new URLSearchParams(window.location.search).get("status") ?? "";
+      return new URLSearchParams(window.location.search);
     } catch {
-      return "";
+      return new URLSearchParams();
     }
   })();
+  const outcome = params.get("status") ?? "";
+  // What the redirect claims was bought. A claim is all it is — the server
+  // verifies it with Flash against this caller's own reference.
+  const claimedId = params.get("subscriptionId") || undefined;
 
   // "Return without subscribing" on Flash's page comes back here with NO
   // status at all — that person made no payment and must not see a payment
@@ -47,7 +56,7 @@ export default function BillingReturnPage() {
   useEffect(() => {
     if (!signedIn || ran.current) return;
     ran.current = true;
-    void refreshSubscription()
+    void refreshSubscription(claimedId)
       .then((sub) => {
         qc.setQueryData(["/user/subscription"], sub);
         if (sub.policy && !sub.policy.isDefault && sub.status !== "pending") {
@@ -67,7 +76,7 @@ export default function BillingReturnPage() {
           setPhase("none");
         }
       });
-  }, [signedIn, outcome, paidOutcome, qc]);
+  }, [signedIn, outcome, paidOutcome, claimedId, qc]);
 
   // The policy they landed on, named by the server. Never a constant: the tier
   // set is gone, and a hardcoded "Priority" would be wrong the day a second

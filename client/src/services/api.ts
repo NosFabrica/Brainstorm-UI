@@ -991,13 +991,20 @@ export const apiClient = {
 
   /** Cancel at period end. Flash's own policy decides when it takes effect. */
   /**
-   * "Did my payment land?" — re-reads Flash directly and applies the result
-   * (handoff A2/A4). Empty body ON PURPOSE: the caller is authenticated, so
-   * the server syncs whoever is signed in; the redirect's `subscriptionId`
-   * and `ref` are informational and must never be sent as authority.
+   * "Did my payment land?" — re-reads Flash directly and applies the result.
+   *
+   * Pass the `subscriptionId` the checkout redirect named and the server
+   * verifies THAT subscription with Flash, granting only if it carries the
+   * signed-in caller's reference — so a stranger's id yields nothing. Omit it
+   * (a `pending` return, and the poll) and the server reads by reference.
+   *
+   * The redirect's `ref` is never sent: the token already says who this is.
    * Rate-limited server-side — poll with a floor, not a hammer.
    */
-  async refreshSubscription(timeoutMs: number = 15000): Promise<{
+  async refreshSubscription(
+    subscriptionId?: string,
+    timeoutMs: number = 15000,
+  ): Promise<{
     tier: string;
     status: string;
     current_period_end: string | null;
@@ -1006,7 +1013,16 @@ export const apiClient = {
   }> {
     const response = await authenticatedFetch(
       `${getBrainstormApi()}/user/subscription/refresh`,
-      { method: "POST", signal: AbortSignal.timeout(timeoutMs) },
+      {
+        method: "POST",
+        signal: AbortSignal.timeout(timeoutMs),
+        ...(subscriptionId
+          ? {
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ subscription_id: subscriptionId }),
+            }
+          : {}),
+      },
     );
     if (!response.ok) {
       throw new Error(`Failed to refresh subscription (${response.status})`);

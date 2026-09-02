@@ -175,3 +175,30 @@ describe("resolving an unresolved signup", () => {
     ).rejects.toThrow(/already holds subscription 7d3b/);
   });
 });
+
+describe("the checkout return's refresh", () => {
+  beforeEach(() => {
+    active.account = stubAccount("test-token");
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("hands the server the subscriptionId the redirect named", async () => {
+    const fetchMock = mockFetchOnce({ data: { status: "active" } });
+
+    await apiClient.refreshSubscription("7d3b");
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe("http://test.local/user/subscription/refresh");
+    expect(JSON.parse(options.body)).toEqual({ subscription_id: "7d3b" });
+  });
+
+  it("sends no body at all when there is no id — the pending poll's shape", async () => {
+    const fetchMock = mockFetchOnce({ data: { status: "pending" } });
+
+    await apiClient.refreshSubscription();
+
+    expect(fetchMock.mock.calls[0][1].body).toBeUndefined();
+  });
+});
