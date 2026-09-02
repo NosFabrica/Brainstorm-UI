@@ -37,12 +37,6 @@ export function useSubscription(): {
   cancelEffectiveDate: string | null;
   /** Flash's portal (or, later, our own flow) — where Cancel goes. */
   manageUrl: string | null;
-  /**
-   * How they pay, in Flash's own word, or null. Null far more often than not —
-   * a free account, or a plan taking both Lightning and card — and every
-   * surface renders null as no row at all rather than as a placeholder.
-   */
-  paymentMethod: string | null;
   isActive: boolean;
   isLoading: boolean;
   refetch: () => void;
@@ -70,7 +64,6 @@ export function useSubscription(): {
     nextBillingDate: subscription.nextBillingDate,
     cancelEffectiveDate: subscription.cancelEffectiveDate,
     manageUrl: subscription.manageUrl,
-    paymentMethod: subscription.paymentMethod,
     // Grace counts as active: a failed renewal inside Flash's 7-day grace window
     // must not read as "you've lost it" while retries are still running.
     isActive: subscription.status === "active" || subscription.status === "grace",

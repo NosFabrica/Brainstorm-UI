@@ -74,18 +74,6 @@ export interface Subscription {
   cancelEffectiveDate: string | null;
   /** Where the user goes to cancel/manage (Flash's portal today), or null. */
   manageUrl: string | null;
-  /**
-   * How they pay, in Flash's own word — `lightning`, `card`. FORMATTED, never
-   * matched: their set can grow, and a method we don't recognise should still
-   * render rather than vanish.
-   *
-   * Null far more often than not, and every surface renders null as no row at
-   * all. Flash publishes no payment method per subscription, so the server can
-   * only answer for a plan that accepts exactly one; a plan taking both does
-   * not say which one this subscriber used, and nor does a free account, which
-   * pays nothing. A guess here would be indistinguishable from a fact.
-   */
-  paymentMethod: string | null;
 }
 
 /**
@@ -126,7 +114,6 @@ export const DEFAULT_SUBSCRIPTION: Subscription = {
   nextBillingDate: null,
   cancelEffectiveDate: null,
   manageUrl: null,
-  paymentMethod: null,
 };
 
 // A closed set the SERVER controls and translates into — unlike a tier, this
@@ -195,7 +182,6 @@ function normalize(raw: unknown): Subscription {
     nextBillingDate: str(r.next_billing_date ?? r.nextBillingDate),
     cancelEffectiveDate: str(r.cancel_effective_date ?? r.cancelEffectiveDate),
     manageUrl: str(r.manage_url ?? r.manageUrl),
-    paymentMethod: str(r.payment_method ?? r.paymentMethod),
   };
 }
 

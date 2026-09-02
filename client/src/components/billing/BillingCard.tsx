@@ -12,7 +12,6 @@ import {
   formatAmount,
   formatBillingDate,
   formatBillingInterval,
-  formatPaymentMethod,
   SUBSCRIPTION_STATUS_LABEL,
 } from "@/lib/plans";
 
@@ -34,14 +33,8 @@ import {
  * PLAN the subscriber bought — not their policy's current list price, because
  * someone on a retired or repriced mapping still pays what they signed up for.
  *
- * ## The payment-method row is conditional, and has to stay that way
- *
- * Flash publishes no payment method per subscription, so the server can only
- * answer for a plan that accepts exactly one method. It declines for a free
- * account and for a plan taking both — and a declined answer renders as NO ROW,
- * not as an empty one. An always-present row with a dash in it reads as "we
- * don't know yet" and is how a guess ends up dressed as a fact; that is why the
- * row was cut the first time round.
+ * There is no payment-method row: Flash's subscription object carries no such
+ * field, so any badge here would be a guess dressed as a fact.
  *
  * ## Cancellation
  *
@@ -63,7 +56,6 @@ export function BillingCard() {
     nextBillingDate,
     cancelEffectiveDate,
     manageUrl,
-    paymentMethod,
     isPaid: paid,
     isLoading,
   } = useSubscription();
@@ -83,8 +75,6 @@ export function BillingCard() {
       ? formatAmount(priced.amountMinor, priced.currency)
       : "—";
   const period = formatBillingInterval(priced?.billingInterval);
-  // Null unless Flash left no doubt about it, and null means no row.
-  const paidBy = formatPaymentMethod(paymentMethod);
 
   // Flash reports a cancellation that has not taken effect yet as `active` —
   // the subscriber IS still entitled and the status is right — so the date is
@@ -140,11 +130,6 @@ export function BillingCard() {
             {period && <span className="text-slate-500 dark:text-slate-400"> {period}</span>}
           </span>
         </Row>
-        {paidBy && (
-          <Row label="Paid by">
-            <span data-testid="billing-payment-method">{paidBy}</span>
-          </Row>
-        )}
         <Row label={ending ? "Access until" : "Next invoice"} testId="billing-next-label">
           <span className="tabular-nums" data-testid="billing-next-invoice">
             {!paid

@@ -11,7 +11,6 @@ import {
   billingDeadlineMs,
   formatBillingDate,
   formatBillingInterval,
-  formatPaymentMethod,
   nextScheduledLabel,
   SUBSCRIPTION_STATUS_LABEL,
 } from "./plans";
@@ -89,30 +88,6 @@ describe("plans — the billing interval, formatted not matched", () => {
   it("returns null with no interval, so the row renders with a price alone", () => {
     expect(formatBillingInterval(null)).toBeNull();
     expect(formatBillingInterval("  ")).toBeNull();
-  });
-});
-
-describe("plans — how someone pays", () => {
-  it("renders Flash's own word for the method", () => {
-    expect(formatPaymentMethod("lightning")).toBe("Lightning");
-    expect(formatPaymentMethod("card")).toBe("Card");
-  });
-
-  it("renders a method it has never seen rather than dropping it", () => {
-    // Same rule as the billing interval: Flash's set can grow, and a method we
-    // do not recognise is still a fact about how somebody pays. Their words are
-    // machine-shaped, so the separators become spaces — enough to read, and
-    // still nothing this file had to recognise in advance.
-    expect(formatPaymentMethod("sepa_debit")).toBe("Sepa Debit");
-    expect(formatPaymentMethod("bank.transfer")).toBe("Bank Transfer");
-  });
-
-  it("returns null with nothing to say, so the caller shows no row at all", () => {
-    // The server declines far more often than it answers — a free account, or
-    // a plan taking both methods. Null must never become a rendered default.
-    expect(formatPaymentMethod(null)).toBeNull();
-    expect(formatPaymentMethod("  ")).toBeNull();
-    expect(formatPaymentMethod(undefined)).toBeNull();
   });
 });
 
