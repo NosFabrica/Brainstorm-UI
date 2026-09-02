@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
-import { renderWithProviders } from "@/test/utils";
+import { renderWithProviders, timeZoneSetter } from "@/test/utils";
 import { PlanCard } from "./PlanCard";
 import type { BillingPlan, Subscription } from "@/services/subscription";
 
@@ -194,5 +194,18 @@ describe("PlanCard — the quiet upsell", () => {
   it("is not shown to someone already paying", () => {
     renderWithProviders(<PlanCard lastCalculatedMs={null} />);
     expect(screen.queryByTestId("insights-plan-link")).toBeNull();
+  });
+});
+
+describe("PlanCard — the day Flash named, wherever the viewer is", () => {
+  const setTimeZone = timeZoneSetter();
+
+  it("shows a date-only period end as the day named, not the one before it", () => {
+    setTimeZone("America/Los_Angeles");
+    sub = paidSub({ currentPeriodEnd: "2099-09-20" });
+
+    renderWithProviders(<PlanCard lastCalculatedMs={null} />);
+
+    expect(screen.getByTestId("insights-renews")).toHaveTextContent("Sep 20, 2099");
   });
 });

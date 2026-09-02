@@ -31,6 +31,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
+import { formatBillingDate } from "@/lib/plans";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -94,14 +95,6 @@ const RESYNC_REASONS: Record<string, string> = {
 
 function resyncReasonText(reason: string): string {
   return RESYNC_REASONS[reason] ?? `Server reported "${reason}".`;
-}
-
-function fmtDate(iso: string | null | undefined): string {
-  if (!iso) return "—";
-  const d = new Date(iso);
-  return Number.isFinite(d.getTime())
-    ? d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
-    : "—";
 }
 
 /** "npub1abc…wxyz" — enough to recognize, full value in the title attribute. */
@@ -351,10 +344,10 @@ function SubscriberRow({
       </td>
       <td className={td}>{scheduling}</td>
       <td className={td} data-testid={`billing-source-${s.pubkey.slice(0, 8)}`}>{s.scheduling_source}</td>
-      <td className={`${td} tabular-nums`}>{fmtDate(s.current_period_end)}</td>
+      <td className={`${td} tabular-nums`}>{formatBillingDate(s.current_period_end)}</td>
       <td className={`${td} tabular-nums`}>
         <span className="inline-flex items-center gap-1.5">
-          {fmtDate(s.last_synced_at)}
+          {formatBillingDate(s.last_synced_at)}
           {s.last_sync_error && (
             <span title={s.last_sync_error}>
               <AlertTriangle className="h-3.5 w-3.5 text-amber-500" aria-label="sync error" />

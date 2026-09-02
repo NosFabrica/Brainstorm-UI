@@ -7,7 +7,13 @@ import { Chip } from "@/components/ui/chip";
 import { Button } from "@/components/ui/button";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useBillingPlans } from "@/hooks/useBillingPlans";
-import { formatAmount, formatBillingPeriod, SUBSCRIPTION_STATUS_LABEL } from "@/lib/plans";
+import {
+  billingDeadlineMs,
+  formatAmount,
+  formatBillingDate,
+  formatBillingPeriod,
+  SUBSCRIPTION_STATUS_LABEL,
+} from "@/lib/plans";
 
 /**
  * Billing in Settings, because Settings is where you CHANGE things.
@@ -70,8 +76,8 @@ export function BillingCard() {
   // Flash reports a cancellation that has not taken effect yet as `active` —
   // the subscriber IS still entitled and the status is right — so the date is
   // the only thing that distinguishes "renews then" from "ends then".
-  const cancelAt = parseDate(cancelEffectiveDate);
-  const cancelPending = paid && cancelAt !== null && cancelAt.getTime() > Date.now();
+  const cancelAt = billingDeadlineMs(cancelEffectiveDate);
+  const cancelPending = paid && cancelAt !== null && cancelAt > Date.now();
   const ending = status === "canceled" || cancelPending;
 
   // Past-due and grace can still cancel: someone whose card failed may want out
@@ -126,9 +132,9 @@ export function BillingCard() {
             {!paid
               ? "—"
               : ending
-                ? fmtDate(accessEnds)
+                ? formatBillingDate(accessEnds)
                 : nextBillingDate
-                  ? `${fmtDate(nextBillingDate)} · ${amountLabel}`
+                  ? `${formatBillingDate(nextBillingDate)} · ${amountLabel}`
                   : "—"}
           </span>
         </Row>
@@ -187,9 +193,9 @@ export function BillingCard() {
             <tbody>
               {paid && currentPeriodStart ? (
                 <tr className="text-slate-700 dark:text-slate-200" data-testid="billing-payment-row">
-                  <td className="px-3 py-2.5 tabular-nums whitespace-nowrap">{fmtDate(currentPeriodStart)}</td>
+                  <td className="px-3 py-2.5 tabular-nums whitespace-nowrap">{formatBillingDate(currentPeriodStart)}</td>
                   <td className="px-3 py-2.5">
-                    {planName} — {fmtDate(currentPeriodStart)} to {fmtDate(currentPeriodEnd)}
+                    {planName} — {formatBillingDate(currentPeriodStart)} to {formatBillingDate(currentPeriodEnd)}
                   </td>
                   <td className="px-3 py-2.5 text-right tabular-nums font-medium">{amountLabel}</td>
                 </tr>
@@ -270,7 +276,7 @@ export function BillingCard() {
 
         {confirming && (
           <p className="w-full text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
-            You'll keep {planName} until {accessEnds ? fmtDate(accessEnds) : "the end of the period you've paid for"} —
+            You'll keep {planName} until {accessEnds ? formatBillingDate(accessEnds) : "the end of the period you've paid for"} —
             nothing stops today. After that your scores go back to the free schedule.
             Cancelling happens on Flash's page — they'll sign you in with a link sent to the email you subscribed with.
           </p>
@@ -287,17 +293,4 @@ function Row({ label, testId, children }: { label: string; testId?: string; chil
       <dd className="text-right text-slate-900 dark:text-slate-100">{children}</dd>
     </div>
   );
-}
-
-function parseDate(iso: string | null): Date | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function fmtDate(iso: string | null): string {
-  const d = parseDate(iso);
-  return d === null
-    ? "—"
-    : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { screen, fireEvent } from "@testing-library/react";
-import { renderWithProviders } from "@/test/utils";
+import { renderWithProviders, timeZoneSetter } from "@/test/utils";
 import { BillingCard } from "./BillingCard";
 import type { BillingPlan, Subscription } from "@/services/subscription";
 
@@ -250,5 +250,33 @@ describe("BillingCard — retired plans, cancellation and what we cannot know", 
     plans = [];
     renderWithProviders(<BillingCard />);
     expect(screen.queryByTestId("billing-change-plan")).toBeNull();
+  });
+});
+
+describe("BillingCard — the day Flash named, wherever the viewer is", () => {
+  const setTimeZone = timeZoneSetter();
+
+  it("shows a date-only period as the days named, west of UTC", () => {
+    setTimeZone("America/Los_Angeles");
+    sub = paidSub({ currentPeriodStart: "2026-08-20", currentPeriodEnd: "2026-09-20" });
+
+    renderWithProviders(<BillingCard />);
+
+    const row = screen.getByTestId("billing-payment-row");
+    expect(row).toHaveTextContent("Aug 20, 2026");
+    expect(row).toHaveTextContent("Sep 20, 2026");
+  });
+
+  // Read as midnight, a cancellation dated today is already past by breakfast.
+  it("still says access is ending on the very day it ends", () => {
+    setTimeZone("America/Los_Angeles");
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    sub = paidSub({ status: "active", cancelEffectiveDate: today });
+
+    renderWithProviders(<BillingCard />);
+
+    expect(screen.getByTestId("billing-next-label")).toHaveTextContent("Access until");
+    expect(screen.getByTestId("billing-status")).toHaveTextContent("Cancelling");
   });
 });

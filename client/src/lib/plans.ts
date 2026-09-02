@@ -11,8 +11,8 @@
 //
 // What belongs here: `TIER_FEATURES` (the promise boundary), `productClaims()`
 // (what Brainstorm does, on any plan), `ROADMAP_THEMES` / `plannedByTheme()`
-// (/roadmap), and the formatters — amounts, billing periods, cadences and the
-// one status-label map both billing cards render.
+// (/roadmap), and the formatters — amounts, billing periods, cadences, billing
+// dates, and the one status-label map both billing cards render.
 //
 // ## The promise boundary
 //
@@ -361,3 +361,49 @@ export function formatBillingPeriod(
   return n === 1 ? `per ${u}` : `every ${n} ${u}s`;
 }
 
+const BILLING_DATE_FORMAT: Intl.DateTimeFormatOptions = {
+  month: "short",
+  day: "numeric",
+  year: "numeric",
+};
+
+const DATE_ONLY = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/**
+ * A billing value as a local Date: a bare date placed at `at` on its own day,
+ * anything else read as the instant it is.
+ *
+ * The shape is what decides, not a rule about which shape Flash will send —
+ * it sends bare dates today and intends to move to instants. A value with no
+ * time has nothing to localise, and `new Date("2026-09-20")` reads it as UTC
+ * midnight, which renders as the 19th for every viewer west of UTC. So a bare
+ * date is built from its own parts, where formatting cannot move the day.
+ */
+function asLocalDate(iso: string, at: [number, number, number, number]): Date {
+  const parts = DATE_ONLY.exec(iso);
+  return parts
+    ? new Date(Number(parts[1]), Number(parts[2]) - 1, Number(parts[3]), ...at)
+    : new Date(iso);
+}
+
+/**
+ * The day a billing value names, for every viewer wherever they are — and the
+ * one date wording for every billing surface, which had each grown its own.
+ */
+export function formatBillingDate(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const d = asLocalDate(iso, [0, 0, 0, 0]);
+  return Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString("en-US", BILLING_DATE_FORMAT);
+}
+
+/**
+ * When a billing deadline actually falls, for the surfaces asking "is this
+ * still ahead of us?". A deadline given as a bare date runs to the END of that
+ * day — read as midnight it retires a pending-cancellation notice a full day
+ * early, on the day the subscriber most needs to see it.
+ */
+export function billingDeadlineMs(iso: string | null | undefined): number | null {
+  if (!iso) return null;
+  const at = asLocalDate(iso, [23, 59, 59, 999]);
+  return Number.isNaN(at.getTime()) ? null : at.getTime();
+}

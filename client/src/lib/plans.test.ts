@@ -1,4 +1,5 @@
 import { describe, it, expect } from "vitest";
+import { timeZoneSetter } from "@/test/utils";
 import {
   TIER_FEATURES,
   PRODUCT_CLAIM_KEYS,
@@ -7,6 +8,8 @@ import {
   plannedByTheme,
   productClaims,
   formatAmount,
+  billingDeadlineMs,
+  formatBillingDate,
   formatBillingPeriod,
   nextScheduledLabel,
   SUBSCRIPTION_STATUS_LABEL,
@@ -189,5 +192,55 @@ describe("SUBSCRIPTION_STATUS_LABEL", () => {
     // Settings said "Cancelled" while Insights said "Canceled".
     expect(SUBSCRIPTION_STATUS_LABEL.canceled).toBe("Cancelled");
     expect(SUBSCRIPTION_STATUS_LABEL.past_due).toBe("Payment due");
+  });
+});
+
+/**
+ * The shape of the value is what decides, not a rule about which shape Flash
+ * will send. The timezone is switched deliberately: the failure being pinned
+ * only appears away from UTC, which is where nearly every viewer is.
+ */
+describe("formatBillingDate — the day, whoever is reading", () => {
+  const setTimeZone = timeZoneSetter();
+
+  const inZone = (tz: string, iso: string) => {
+    setTimeZone(tz);
+    return formatBillingDate(iso);
+  };
+
+  it("shows the day named, west and east of UTC, when no time was given", () => {
+    expect(inZone("America/Los_Angeles", "2026-09-20")).toBe("Sep 20, 2026");
+    expect(inZone("Pacific/Kiritimati", "2026-09-20")).toBe("Sep 20, 2026");
+  });
+
+  it("localises a value that carries a real time, because there is one to localise", () => {
+    expect(inZone("America/Los_Angeles", "2026-09-20T02:00:00Z")).toBe("Sep 19, 2026");
+    expect(inZone("Europe/Berlin", "2026-09-20T23:00:00Z")).toBe("Sep 21, 2026");
+  });
+
+  it("shows a dash rather than an invented day", () => {
+    expect(formatBillingDate(null)).toBe("—");
+    expect(formatBillingDate(undefined)).toBe("—");
+    expect(formatBillingDate("not a date")).toBe("—");
+  });
+});
+
+describe("billingDeadlineMs — still ahead of us?", () => {
+  const setTimeZone = timeZoneSetter();
+
+  it("runs a bare date to the end of its day, so a notice does not retire early", () => {
+    setTimeZone("America/Los_Angeles");
+
+    expect(billingDeadlineMs("2026-09-20")).toBe(new Date(2026, 8, 20, 23, 59, 59, 999).getTime());
+    expect(billingDeadlineMs("2026-09-20")!).toBeGreaterThan(new Date(2026, 8, 20, 10, 0).getTime());
+  });
+
+  it("takes a value carrying a time exactly as sent", () => {
+    expect(billingDeadlineMs("2026-09-20T14:03:11Z")).toBe(Date.parse("2026-09-20T14:03:11Z"));
+  });
+
+  it("is null when there is nothing to compare against", () => {
+    expect(billingDeadlineMs(null)).toBeNull();
+    expect(billingDeadlineMs("not a date")).toBeNull();
   });
 });

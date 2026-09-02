@@ -4,8 +4,10 @@ import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
 import { useSubscription } from "@/hooks/useSubscription";
 import {
+  billingDeadlineMs,
   cadenceDays,
   formatAmount,
+  formatBillingDate,
   formatBillingPeriod,
   nextScheduledLabel,
   SUBSCRIPTION_STATUS_LABEL,
@@ -48,8 +50,8 @@ export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null
 
   // Flash reports a cancellation that has not taken effect yet as `active`, so
   // the date — not the status — is what turns "Renews" into "Access until".
-  const cancelAt = cancelEffectiveDate ? new Date(cancelEffectiveDate) : null;
-  const cancelPending = paid && cancelAt !== null && !Number.isNaN(cancelAt.getTime()) && cancelAt.getTime() > Date.now();
+  const cancelAt = billingDeadlineMs(cancelEffectiveDate);
+  const cancelPending = paid && cancelAt !== null && cancelAt > Date.now();
   const ending = status === "canceled" || cancelPending;
   const endsOn = cancelEffectiveDate ?? currentPeriodEnd;
 
@@ -100,7 +102,7 @@ export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null
 
         {paid && endsOn && (
           <Row label={ending ? "Access until" : "Renews"}>
-            <span data-testid="insights-renews">{fmtDate(endsOn)}</span>
+            <span data-testid="insights-renews">{formatBillingDate(endsOn)}</span>
           </Row>
         )}
       </dl>
@@ -139,11 +141,4 @@ function statusTone(s: SubscriptionStatus) {
   if (s === "pending") return "warning" as const;
   if (s === "canceled") return "neutral" as const;
   return "success" as const;
-}
-
-function fmtDate(iso: string): string {
-  const d = new Date(iso);
-  return Number.isNaN(d.getTime())
-    ? "—"
-    : d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
 }

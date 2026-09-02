@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { timeZoneSetter } from "@/test/utils";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -415,5 +416,35 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     await waitFor(() => expect(screen.getByTestId("billing-subscribers-error")).toBeInTheDocument(), {
       timeout: 4000,
     });
+  });
+});
+
+describe("AdminBillingCards — the day Flash named, wherever the operator is", () => {
+  const setTimeZone = timeZoneSetter();
+
+  it("shows a date-only period end unshifted, and localises a real instant", async () => {
+    setTimeZone("America/Los_Angeles");
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [
+        {
+          pubkey: PUBKEY,
+          flash_status: "active",
+          // The period end is the day Flash named; the sync is our own instant.
+          current_period_end: "2026-09-20",
+          last_synced_at: "2026-09-20T02:00:00Z",
+          scheduling_source: "billing",
+          billing_blocked: false,
+        },
+      ],
+    });
+
+    renderCards();
+
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    const row = screen.getByTestId("table-billing-subscribers");
+    expect(row).toHaveTextContent("Sep 20, 2026");
+    expect(row).toHaveTextContent("Sep 19, 2026");
   });
 });
