@@ -15,9 +15,32 @@
 
 export type TicketStatus = string; // known values: "open" | "answered" | "closed"
 
+/**
+ * The launch category set — product-shaped, because each key is a routing and
+ * (later) knowledge-base hook: the same chip that files the ticket is where a
+ * FAQ hint or an AI answerer plugs in. Category is an OPEN SET on the wire
+ * (server stores verbatim); this list is what the composer offers.
+ */
+export const SUPPORT_CATEGORIES = [
+  { key: "billing", label: "Billing & plan" },
+  { key: "scores", label: "Scores & calculation" },
+  { key: "alerts", label: "Alerts & notifications" },
+  { key: "account", label: "Account & keys" },
+  { key: "bug", label: "Bug report" },
+  { key: "other", label: "Something else" },
+] as const;
+
+export type SupportCategoryKey = (typeof SUPPORT_CATEGORIES)[number]["key"];
+
+/** Label for a category value, tolerating unknown/legacy values (open set). */
+export function categoryLabel(key: string): string {
+  return SUPPORT_CATEGORIES.find((c) => c.key === key)?.label ?? key;
+}
+
 export interface SupportTicket {
   id: string;
   subject: string;
+  category: string;
   status: TicketStatus;
   createdAt: string;
   lastMessageAt: string;
@@ -97,12 +120,14 @@ export async function fetchSupport(): Promise<SupportState> {
 export async function createTicket(input: {
   subject: string;
   body: string;
+  category: string;
   notifyEmail?: string;
 }): Promise<SupportTicket> {
   const now = new Date().toISOString();
   const ticket: SupportTicket & { messages: SupportMessage[]; notifyEmail?: string } = {
     id: mockId(),
     subject: input.subject,
+    category: input.category,
     status: "open",
     createdAt: now,
     lastMessageAt: now,

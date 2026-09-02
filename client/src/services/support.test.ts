@@ -21,16 +21,18 @@ describe("priority support seam (mock mode)", () => {
     const created = await createTicket({
       subject: "Score seems stuck",
       body: "My score hasn't moved since Friday.",
+      category: "scores",
     });
 
     const after = await fetchSupport();
     expect(after.tickets.map((t) => t.id)).toContain(created.id);
     expect(after.tickets[0].subject).toBe("Score seems stuck");
     expect(after.tickets[0].status).toBe("open");
+    expect(after.tickets[0].category).toBe("scores");
   });
 
   it("the thread opens with the ticket body and grows as the user replies", async () => {
-    const t = await createTicket({ subject: "Alerts", body: "Not receiving alerts." });
+    const t = await createTicket({ subject: "Alerts", body: "Not receiving alerts.", category: "other" });
 
     const thread = await fetchThread(t.id);
     expect(thread.ticket.id).toBe(t.id);
@@ -47,7 +49,7 @@ describe("priority support seam (mock mode)", () => {
 
   // The admin seam writes to the same store, so the whole loop demos locally.
   it("a support reply reaches the user's thread and marks the ticket answered", async () => {
-    const t = await createTicket({ subject: "Billing", body: "Charged twice?" });
+    const t = await createTicket({ subject: "Billing", body: "Charged twice?", category: "other" });
 
     await adminReply(t.id, "Checked with Flash — you were charged once; the second row is the invoice preview.");
 
@@ -59,7 +61,7 @@ describe("priority support seam (mock mode)", () => {
   });
 
   it("closing a ticket ends the conversation", async () => {
-    const t = await createTicket({ subject: "Done", body: "Never mind, solved it." });
+    const t = await createTicket({ subject: "Done", body: "Never mind, solved it.", category: "other" });
     await adminCloseTicket(t.id);
 
     const thread = await fetchThread(t.id);

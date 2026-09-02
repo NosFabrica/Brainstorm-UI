@@ -21,12 +21,48 @@ describe("SupportPage (through the real mock seam)", () => {
 
     fireEvent.change(screen.getByTestId("ticket-subject"), { target: { value: "Score stuck" } });
     fireEvent.change(screen.getByTestId("ticket-body"), { target: { value: "No movement since Friday." } });
+    // Category is REQUIRED — submit stays disabled until a chip is picked.
+    expect(screen.getByTestId("ticket-submit")).toBeDisabled();
+    fireEvent.click(screen.getByTestId("category-scores"));
     fireEvent.click(screen.getByTestId("ticket-submit"));
 
     await screen.findByTestId("support-thread");
     expect(screen.getByText("Score stuck")).toBeInTheDocument();
     expect(screen.getByTestId("message-user").textContent).toContain("No movement since Friday.");
     expect(screen.getByTestId("thread-status").textContent).toBe("open");
+  });
+
+  // Deflection: the picked category surfaces FAQ answers BEFORE the ticket is
+  // filed — the same hook a knowledge-base/AI answerer plugs into later.
+  it("picking a covered category offers FAQ answers first", async () => {
+    renderWithProviders(<SupportPage />);
+    fireEvent.click(await screen.findByTestId("button-first-ticket"));
+
+    expect(screen.queryByTestId("ticket-deflection")).toBeNull();
+    fireEvent.click(screen.getByTestId("category-scores"));
+    expect(screen.getByTestId("ticket-deflection").textContent).toContain("GrapeRank");
+    // Uncovered categories stay quiet — no fake helpfulness.
+    fireEvent.click(screen.getByTestId("category-billing"));
+    expect(screen.queryByTestId("ticket-deflection")).toBeNull();
+  });
+
+  it("filters the list by status with one tap", async () => {
+    await createTicket({ subject: "Open one", body: "x", category: "bug" });
+    const closed = await createTicket({ subject: "Closed one", body: "y", category: "other" });
+    await adminCloseTicket(closed.id);
+
+    renderWithProviders(<SupportPage />);
+    await screen.findByTestId("support-ticket-list");
+    expect(screen.getByText("Open one")).toBeInTheDocument();
+    expect(screen.getByText("Closed one")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByTestId("filter-open"));
+    expect(screen.getByText("Open one")).toBeInTheDocument();
+    expect(screen.queryByText("Closed one")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("filter-closed"));
+    expect(screen.queryByText("Open one")).toBeNull();
+    expect(screen.getByText("Closed one")).toBeInTheDocument();
   });
 
   it("shows the teaser — and no way to file — when the server says not entitled", async () => {
@@ -39,7 +75,7 @@ describe("SupportPage (through the real mock seam)", () => {
   });
 
   it("renders a support reply as Brainstorm Support and lets the user answer", async () => {
-    const t = await createTicket({ subject: "Alerts", body: "Not receiving alerts." });
+    const t = await createTicket({ subject: "Alerts", body: "Not receiving alerts.", category: "other" });
     await adminReply(t.id, "We found the issue — fix rolling out today.");
 
     renderWithProviders(<SupportPage />);
@@ -57,7 +93,7 @@ describe("SupportPage (through the real mock seam)", () => {
   });
 
   it("a closed ticket is read-only with honest copy", async () => {
-    const t = await createTicket({ subject: "Old", body: "Solved." });
+    const t = await createTicket({ subject: "Old", body: "Solved.", category: "other" });
     await adminCloseTicket(t.id);
 
     renderWithProviders(<SupportPage />);
@@ -72,6 +108,7 @@ describe("SupportPage (through the real mock seam)", () => {
     fireEvent.click(await screen.findByTestId("button-first-ticket"));
     fireEvent.change(screen.getByTestId("ticket-subject"), { target: { value: "Email check" } });
     fireEvent.change(screen.getByTestId("ticket-body"), { target: { value: "Body." } });
+    fireEvent.click(screen.getByTestId("category-other"));
     fireEvent.change(screen.getByTestId("ticket-email"), { target: { value: "not-an-email" } });
     fireEvent.click(screen.getByTestId("ticket-submit"));
 
@@ -84,7 +121,7 @@ describe("SupportPage (through the real mock seam)", () => {
   });
 
   it("renders an unknown status neutrally — the set is open", async () => {
-    const t = await createTicket({ subject: "Weird", body: "?" });
+    const t = await createTicket({ subject: "Weird", body: "?", category: "other" });
     const raw = JSON.parse(localStorage.getItem("brainstorm_mock_support")!);
     raw.tickets[0].status = "escalated_to_mars";
     localStorage.setItem("brainstorm_mock_support", JSON.stringify(raw));

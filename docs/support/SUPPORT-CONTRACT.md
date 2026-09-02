@@ -26,6 +26,13 @@ your `/docs`. The semantics below are the part that matters.
 - **Statuses are an open set.** Known: `open` (user awaiting support),
   `answered` (support replied), `closed`. The UI renders unknown values
   neutrally; add states freely.
+- **Category is required at filing and an open set on the wire.** The UI's
+  launch set: `billing` · `scores` · `alerts` · `account` · `bug` ·
+  `other` (labels live client-side in `SUPPORT_CATEGORIES`). Store
+  verbatim, echo back on tickets — it drives the admin filters and is the
+  hook the FAQ-deflection (and later a knowledge-base/AI answerer) hangs
+  off. No user-set severity by design: at our volume every ticket IS
+  priority; category + status is the whole triage model.
 - Message authors: `user` | `support`. The UI renders `support` as
   "Brainstorm Support · support@nosfabrica.com".
 
@@ -38,7 +45,7 @@ GET  /user/support
   (allowed:false ⇒ tickets [] — the UI shows the teaser)
 
 POST /user/support/tickets
-  { subject, body, notify_email? }        → { data: ticket }
+  { subject, body, category, notify_email? }  → { data: ticket }
   (403 when not entitled — belt and braces with `allowed`)
 
 GET  /user/support/tickets/{id}

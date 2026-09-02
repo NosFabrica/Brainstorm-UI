@@ -8,7 +8,7 @@ describe("AdminSupportCards (same mock store as the user page)", () => {
   beforeEach(() => localStorage.clear());
 
   it("lists tickets, replies as support, and closes — the full loop", async () => {
-    const t = await createTicket({ subject: "Alerts broken", body: "No alerts since Friday." });
+    const t = await createTicket({ subject: "Alerts broken", body: "No alerts since Friday.", category: "other" });
 
     renderWithProviders(<AdminSupportCards active />);
     fireEvent.click(await screen.findByTestId(`admin-ticket-${t.id}`));
@@ -34,5 +34,25 @@ describe("AdminSupportCards (same mock store as the user page)", () => {
   it("says so plainly when there are no tickets", async () => {
     renderWithProviders(<AdminSupportCards active />);
     await screen.findByTestId("admin-support-empty");
+  });
+
+  it("works the queue: open tickets first by default, search narrows, category shows its label", async () => {
+    const a = await createTicket({ subject: "Billing question", body: "x", category: "billing" });
+    const b = await createTicket({ subject: "Score question", body: "y", category: "scores" });
+    const { adminCloseTicket } = await import("@/services/support");
+    await adminCloseTicket(a.id);
+
+    renderWithProviders(<AdminSupportCards active />);
+    await screen.findByTestId("table-admin-support");
+
+    // Default sort: the open ticket outranks the (newer-activity) closed one.
+    const rows = screen.getAllByTestId(/^admin-ticket-/);
+    expect(rows[0].textContent).toContain("Score question");
+    expect(rows[0].textContent).toContain("Scores & calculation");
+
+    fireEvent.change(screen.getByTestId("input-support-search"), { target: { value: "billing" } });
+    expect(screen.queryByTestId(`admin-ticket-${b.id}`)).toBeNull();
+    expect(screen.getByTestId(`admin-ticket-${a.id}`)).toBeInTheDocument();
+    expect(screen.getByTestId("support-filter-count").textContent).toBe("1 of 2");
   });
 });

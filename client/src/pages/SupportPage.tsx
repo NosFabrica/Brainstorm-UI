@@ -19,6 +19,8 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { isValidEmail } from "@/lib/email";
 import {
+  SUPPORT_CATEGORIES,
+  categoryLabel,
   createTicket,
   fetchSupport,
   fetchThread,
@@ -31,6 +33,20 @@ const SUPPORT_KEY = ["/user/support"];
 const SUPPORT_EMAIL = "support@nosfabrica.com";
 const SUBJECT_MAX = 120;
 const BODY_MAX = 4000;
+
+/**
+ * Deflection: when a category is picked, offer the FAQ entries that answer the
+ * common cases BEFORE the ticket is filed (Salesforce's highest-ROI trick).
+ * Hand-kept and deliberately sparse — only categories the FAQ actually covers.
+ * This same hook is where a knowledge-base/AI answerer plugs in later.
+ */
+const FAQ_DEFLECTION: Record<string, string[]> = {
+  scores: [
+    "Why is my score different from what someone else sees?",
+    "How does GrapeRank calculate trust?",
+  ],
+  account: ["What does my Verification Score mean?"],
+};
 
 /** Known statuses get meaningful color; the set is open — unknowns stay neutral. */
 function statusTone(status: string): Tone {
@@ -149,6 +165,8 @@ function Teaser() {
   );
 }
 
+const STATUS_FILTERS = ["all", "open", "answered", "closed"] as const;
+
 function TicketList({
   tickets,
   onOpen,
@@ -158,6 +176,9 @@ function TicketList({
   onOpen: (id: string) => void;
   onNew: () => void;
 }) {
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const visible = statusFilter === "all" ? tickets : tickets.filter((t) => t.status === statusFilter);
+
   if (tickets.length === 0) {
     return (
       <Card className="p-6 sm:p-8 text-center" data-testid="support-empty">
@@ -172,24 +193,50 @@ function TicketList({
     );
   }
   return (
-    <div className="space-y-2.5" data-testid="support-ticket-list">
-      {tickets.map((t) => (
-        <Card
-          key={t.id}
-          interactive
-          className="flex items-center justify-between gap-3 p-4 cursor-pointer"
-          onClick={() => onOpen(t.id)}
-          data-testid={`ticket-${t.id}`}
-        >
-          <div className="min-w-0">
-            <p className="truncate text-sm font-semibold">{t.subject}</p>
-            <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
-              Updated {fmtWhen(t.lastMessageAt)}
-            </p>
-          </div>
-          <Chip tone={statusTone(t.status)} size="sm">{t.status}</Chip>
-        </Card>
-      ))}
+    <div data-testid="support-ticket-list">
+      <div className="mb-3 flex flex-wrap gap-1.5" data-testid="support-status-filters">
+        {STATUS_FILTERS.map((s) => (
+          <button
+            key={s}
+            type="button"
+            onClick={() => setStatusFilter(s)}
+            className={`rounded-full border px-3 py-1 text-xs font-medium capitalize transition-colors ${
+              statusFilter === s
+                ? "border-brand-accent/50 bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                : "border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:border-brand-accent/30"
+            }`}
+            aria-pressed={statusFilter === s}
+            data-testid={`filter-${s}`}
+          >
+            {s}
+          </button>
+        ))}
+      </div>
+      {visible.length === 0 ? (
+        <p className="py-4 text-sm text-slate-500 dark:text-slate-400" data-testid="support-filter-empty">
+          No {statusFilter} tickets.
+        </p>
+      ) : (
+        <div className="space-y-2.5">
+          {visible.map((t) => (
+            <Card
+              key={t.id}
+              interactive
+              className="flex items-center justify-between gap-3 p-4 cursor-pointer"
+              onClick={() => onOpen(t.id)}
+              data-testid={`ticket-${t.id}`}
+            >
+              <div className="min-w-0">
+                <p className="truncate text-sm font-semibold">{t.subject}</p>
+                <p className="mt-0.5 text-xs text-slate-400 dark:text-slate-500">
+                  {categoryLabel(t.category)} · Updated {fmtWhen(t.lastMessageAt)}
+                </p>
+              </div>
+              <Chip tone={statusTone(t.status)} size="sm">{t.status}</Chip>
+            </Card>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -318,11 +365,15 @@ function NewTicketDialog({
   const { toast } = useToast();
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
+  const [category, setCategory] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [emailError, setEmailError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const deflection = category ? (FAQ_DEFLECTION[category] ?? []) : [];
+
   const submit = async () => {
+    if (!category) return;
     const trimmedEmail = email.trim();
     if (trimmedEmail && !isValidEmail(trimmedEmail)) {
       setEmailError("That doesn't look like an email address.");
@@ -334,10 +385,12 @@ function NewTicketDialog({
       const t = await createTicket({
         subject: subject.trim(),
         body: body.trim(),
+        category,
         notifyEmail: trimmedEmail || undefined,
       });
       setSubject("");
       setBody("");
+      setCategory(null);
       setEmail("");
       onCreated(t);
     } catch (e) {
@@ -362,6 +415,48 @@ function NewTicketDialog({
         </DialogHeader>
 
         <div className="space-y-3">
+          <div>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              What's it about?
+            </p>
+            <div className="flex flex-wrap gap-1.5" data-testid="ticket-categories">
+              {SUPPORT_CATEGORIES.map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={() => setCategory(c.key)}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                    category === c.key
+                      ? "border-brand-accent/50 bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                      : "border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:border-brand-accent/30"
+                  }`}
+                  aria-pressed={category === c.key}
+                  data-testid={`category-${c.key}`}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+            {deflection.length > 0 && (
+              <div
+                className="mt-2 rounded-xl border border-sky-200/60 dark:border-sky-400/20 bg-sky-50/60 dark:bg-sky-400/[0.06] px-3 py-2"
+                data-testid="ticket-deflection"
+              >
+                <p className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">
+                  Before you file — the FAQ answers these:
+                </p>
+                <ul className="mt-1 space-y-0.5">
+                  {deflection.map((q) => (
+                    <li key={q}>
+                      <Link href="/faq" className="text-xs text-brand-link hover:underline">
+                        {q} →
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
           <input
             value={subject}
             onChange={(e) => setSubject(e.target.value.slice(0, SUBJECT_MAX))}
@@ -404,7 +499,7 @@ function NewTicketDialog({
           </Button>
           <Button
             onClick={() => void submit()}
-            disabled={busy || !subject.trim() || !body.trim()}
+            disabled={busy || !category || !subject.trim() || !body.trim()}
             data-testid="ticket-submit"
           >
             {busy && <Loader2 className="mr-1 h-4 w-4 animate-spin" />} File ticket
