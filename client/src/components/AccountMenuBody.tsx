@@ -10,6 +10,7 @@ import {
   UserCircle,
   UserPlus,
   HelpCircle,
+  LifeBuoy,
   Settings as SettingsIcon,
   Shield,
   LogOut,
@@ -373,6 +374,7 @@ export function AccountMenuBody({
       {/* Grouped actions — Settings sits under Help & FAQ. */}
       <div className="p-1.5">
         <MenuRow icon={UserPlus} label="Invite friends" onClick={onInvite} testId="dropdown-invite" />
+        <MenuRow icon={LifeBuoy} label="Support" onClick={() => onNavigate("/support")} testId="dropdown-support" />
         <MenuRow icon={HelpCircle} label="Help & FAQ" onClick={() => onNavigate("/faq")} testId="dropdown-faq" />
         <MenuRow icon={SettingsIcon} label="Settings" onClick={() => onNavigate("/settings")} testId="dropdown-settings" />
       </div>
