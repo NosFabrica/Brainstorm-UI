@@ -33,11 +33,13 @@ describe("parseNewsShape", () => {
     expect(news.description).not.toContain("photo.jpg");
   });
 
-  it("keeps nostr: URIs out of the description too", () => {
+  it("keeps nostr: mention tokens in the description for the renderer", () => {
+    // The renderer turns these into the person's name + picture — stripping
+    // them here would lose the mention entirely.
     const news = parseNewsShape(
       "2026-27 WSL preview: Full table prediction\nhttps://espn.com/story\nPosted into Soccer nostr:nprofile1qy2hwumn9gh",
     )!;
-    expect(news.description).toBe("Posted into Soccer");
+    expect(news.description).toBe("Posted into Soccer nostr:nprofile1qy2hwumn9gh");
   });
 
   it("returns null for notes that aren't news-shaped", () => {

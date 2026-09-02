@@ -13,6 +13,20 @@ import { SerpRow } from "./SerpRow";
 vi.mock("@/hooks/useAuthorScores", () => ({
   useAuthorScores: () => () => 0.7,
 }));
+vi.mock("@/services/nostr", () => ({
+  fetchProfileMap: vi.fn(() => Promise.resolve(new Map())),
+}));
+// The real store verifies signatures (and jsdom's TextEncoder trips @noble),
+// so known-profile lookups are faked per test.
+const knownProfiles = new Map<string, NostrEvent>();
+vi.mock("@/lib/eventStore", () => ({
+  eventStore: {
+    getReplaceable: (_kind: number, pubkey: string) => knownProfiles.get(pubkey),
+    getEvent: () => undefined,
+    add: (event: NostrEvent) => event,
+  },
+}));
+import { nip19 } from "nostr-tools";
 
 function note(content: string, tags: string[][] = []): NostrEvent {
   return {
@@ -76,6 +90,38 @@ describe("SerpRow", () => {
     expect(chip).toHaveTextContent("example.com");
     // The raw URL text is gone from the snippet.
     expect(screen.queryByText(/https:\/\/example\.com\/thing/)).toBeNull();
+  });
+
+  it("labels each row with what kind of thing it is", () => {
+    render(<SerpRow event={note("plain words about liverpool")} author={author} score={0.7} query="liverpool" />);
+    expect(screen.getByTestId("serp-type")).toHaveTextContent("Note");
+  });
+
+  it("labels a news-shaped note as News", () => {
+    render(<SerpRow event={note(NEWS)} author={author} score={0.7} query="liverpool" />);
+    expect(screen.getByTestId("serp-type")).toHaveTextContent("News");
+  });
+
+  it("renders a nostr: mention as the person — name, not a raw URI", () => {
+    const carol = "c".repeat(64);
+    knownProfiles.set(carol, {
+      id: "f".repeat(64),
+      kind: 0,
+      pubkey: carol,
+      tags: [],
+      content: JSON.stringify({ name: "carol", picture: "https://img.example/carol.jpg" }),
+      created_at: 1,
+      sig: "s",
+    } as NostrEvent);
+    const npub = nip19.npubEncode(carol);
+
+    render(
+      <SerpRow event={note(`great point by nostr:${npub} tonight`)} author={author} score={0.7} query="liverpool" />,
+    );
+    const chip = screen.getByTestId("mention-chip");
+    expect(chip).toHaveTextContent("@carol");
+    expect(chip.getAttribute("href")).toBe(`/p/${npub}`);
+    expect(screen.queryByText(/nostr:npub/)).toBeNull();
   });
 
   it("clicking the row body opens the in-app event page", () => {

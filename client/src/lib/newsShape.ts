@@ -46,11 +46,10 @@ export function parseNewsShape(content: string): NewsShape | null {
 
   const rest = content.slice(at + articleUrl.length);
   const imageUrl = urls.find((u) => u !== articleUrl && IMAGE_RE.test(u)) ?? null;
-  const description = rest
-    .replace(URL_RE, "")
-    .replace(/nostr:\S+/g, "") // bare protocol URIs are noise in a summary
-    .replace(/\s+/g, " ")
-    .trim();
+  // Web URLs leave the summary (the headline carries the link); nostr:
+  // mention tokens STAY — the renderer turns them into the person's
+  // name + picture, which is the whole point of a mention.
+  const description = rest.replace(URL_RE, "").replace(/\s+/g, " ").trim();
 
   return { headline, url: articleUrl, domain, description, imageUrl };
 }
