@@ -124,6 +124,23 @@ describe("priority support seam (mock mode)", () => {
     expect(tickets[0].closedAt).toBe(events.at(-1)!.at);
   });
 
+  it("the thread knows its requester — pubkey and the notification email", async () => {
+    const t = await createTicket({
+      subject: "Who am I",
+      body: "x",
+      category: "other",
+      notifyEmail: "ben@practicepilot.ai",
+    });
+
+    const thread = await fetchThread(t.id);
+    expect(thread.requester.notifyEmail).toBe("ben@practicepilot.ai");
+    // Mock tickets are browser-local (no pubkey); server rows carry one.
+    expect(thread.requester.pubkey).toBeNull();
+
+    const plain = await createTicket({ subject: "No email", body: "y", category: "other" });
+    expect((await fetchThread(plain.id)).requester.notifyEmail).toBeNull();
+  });
+
   it("a ticket can carry a diagnostics snapshot, readable from the thread", async () => {
     const t = await createTicket({
       subject: "Broken here",

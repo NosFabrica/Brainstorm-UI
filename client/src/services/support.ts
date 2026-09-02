@@ -192,6 +192,10 @@ export async function fetchThread(
   messages: SupportMessage[];
   events: TicketEvent[];
   diagnostics: Record<string, string> | null;
+  /** Who filed it, and where their notifications go (their own data — the
+   *  user sees what support sees). Mock tickets are browser-local, so
+   *  pubkey is null there; server rows always carry one. */
+  requester: { pubkey: string | null; notifyEmail: string | null };
 }> {
   const found = readStore().tickets.find((t) => t.id === id);
   if (!found) throw new Error("Ticket not found");
@@ -200,6 +204,7 @@ export async function fetchThread(
     messages: [...found.messages].sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
     events: [...eventsOf(found)].sort((a, b) => a.at.localeCompare(b.at)),
     diagnostics: found.diagnostics ?? null,
+    requester: { pubkey: found.pubkey ?? null, notifyEmail: found.notifyEmail ?? null },
   };
 }
 

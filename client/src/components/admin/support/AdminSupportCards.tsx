@@ -8,6 +8,7 @@ import {
   ChevronsUpDown,
   Copy,
   Loader2,
+  Mail,
   Send,
   XCircle,
 } from "lucide-react";
@@ -489,6 +490,8 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
   const messages = threadQuery.data?.messages ?? [];
   const events = threadQuery.data?.events ?? [];
   const diagnostics = threadQuery.data?.diagnostics ?? null;
+  const requester = threadQuery.data?.requester ?? null;
+  const requesterProfiles = useProfileBits(requester?.pubkey ? [requester.pubkey] : []);
   const closed = ticket?.status === "closed";
 
   const timeline = [
@@ -628,6 +631,37 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
               ))}
             </select>
           </div>
+
+          {/* Who it's from, and where the notification email goes — the two
+              questions an admin asks before typing a reply. */}
+          {requester && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-300" data-testid="admin-thread-requester">
+              <span className="flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">From</span>
+                <RequesterCell
+                  pubkey={requester.pubkey}
+                  profile={requester.pubkey ? requesterProfiles.get(requester.pubkey) : undefined}
+                />
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Mail className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                {requester.notifyEmail ? (
+                  <a
+                    href={`mailto:${requester.notifyEmail}`}
+                    className="text-brand-link hover:underline"
+                    title="Notification email the user provided — replies still live in the app"
+                    data-testid="admin-thread-email"
+                  >
+                    {requester.notifyEmail}
+                  </a>
+                ) : (
+                  <span className="text-xs text-slate-400 dark:text-slate-500" data-testid="admin-thread-no-email">
+                    no email — in-app replies only
+                  </span>
+                )}
+              </span>
+            </div>
+          )}
 
           {diagnostics && (
             <details className="mt-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 px-3 py-2" open data-testid="admin-diagnostics">

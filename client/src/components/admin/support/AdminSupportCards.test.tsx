@@ -140,6 +140,35 @@ describe("AdminSupportCards (same mock store as the user page)", () => {
     window.history.pushState({}, "", "/");
   });
 
+  it("the thread names its requester and shows where notifications go", async () => {
+    const withEmail = await createTicket({
+      subject: "Email attached",
+      body: "x",
+      category: "other",
+      notifyEmail: "user@example.com",
+    });
+
+    renderWithProviders(<AdminSupportCards active />);
+    fireEvent.click(await screen.findByTestId(`admin-ticket-${withEmail.id}`));
+
+    const who = await screen.findByTestId("admin-thread-requester");
+    expect(who.textContent).toContain("this browser (demo)"); // mock has no pubkey
+    const email = screen.getByTestId("admin-thread-email");
+    expect(email.textContent).toContain("user@example.com");
+    expect(email.getAttribute("href")).toBe("mailto:user@example.com");
+  });
+
+  it("says so honestly when no email was left — in-app replies only", async () => {
+    const noEmail = await createTicket({ subject: "In-app only", body: "y", category: "other" });
+
+    renderWithProviders(<AdminSupportCards active />);
+    fireEvent.click(await screen.findByTestId(`admin-ticket-${noEmail.id}`));
+
+    await screen.findByTestId("admin-thread-requester");
+    expect(screen.queryByTestId("admin-thread-email")).toBeNull();
+    expect(screen.getByTestId("admin-thread-no-email")).toBeInTheDocument();
+  });
+
   it("shows the ticket's diagnostics — support's first questions, pre-answered", async () => {
     const t = await createTicket({
       subject: "Diag here",

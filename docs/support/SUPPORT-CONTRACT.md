@@ -56,7 +56,11 @@ POST /user/support/tickets
 
 GET  /user/support/tickets/{id}
   → { data: { ticket, messages: [ { id, author, body, created_at } ],
-              events: [ { type, at, by } ] } }
+              events: [ { type, at, by } ],
+              requester: { pubkey, notify_email } } }
+  (requester rides the thread read: it's the user's own data on the user
+   endpoint, and on the admin read it answers "who is this and where do
+   notifications go" before the first reply is typed.)
   (events = the lifecycle on the record: "opened"/"closed"/"reopened"/
    "recategorized", open set, by: "user"|"support". The UI renders them
    inline in the thread timeline, timestamped to the minute.)
