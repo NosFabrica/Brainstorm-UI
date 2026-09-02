@@ -7,7 +7,9 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
-import { Radar } from "lucide-react";
+import { nip19 } from "nostr-tools";
+import { Radar, SlidersHorizontal } from "lucide-react";
+import { applyFilters, readFilters, type SearchFilterPatch } from "@/lib/searchSyntax";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PersonCard } from "@/components/search/PersonCard";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
@@ -85,6 +87,134 @@ function writeTabToUrl(tab: SearchTab) {
   }
 }
 
+/** 64-hex from an observer field: accepts hex directly or decodes an npub. */
+function observerHexFrom(raw: string): string | null {
+  const v = raw.trim();
+  if (/^[0-9a-f]{64}$/i.test(v)) return v.toLowerCase();
+  try {
+    const decoded = nip19.decode(v);
+    if (decoded.type === "npub" && typeof decoded.data === "string") return decoded.data;
+  } catch {
+    /* not an npub */
+  }
+  return null;
+}
+
+const SORT_OPTIONS = [
+  { value: "", label: "Best match" },
+  { value: "recent", label: "Newest first" },
+  { value: "rank", label: "Most trusted authors" },
+  { value: "followers", label: "Most followed authors" },
+  { value: "text", label: "Text match only" },
+];
+
+/** The five grilled filters. Every control WRITES SYNTAX into the query box
+ *  (via onQueryRewrite) — users learn the grammar by watching it appear. */
+function FiltersPanel({
+  query,
+  onQueryRewrite,
+}: {
+  query: string;
+  onQueryRewrite: (next: string) => void;
+}) {
+  const state = readFilters(query);
+  const [rankAsDraft, setRankAsDraft] = useState(state.rankAs ?? "");
+  const [minRankDraft, setMinRankDraft] = useState(state.minRank?.toString() ?? "");
+  const write = (patch: SearchFilterPatch) => onQueryRewrite(applyFilters(query, patch));
+  const field =
+    "h-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-accent/30";
+
+  return (
+    <div
+      className="mb-3 flex flex-wrap items-end gap-x-4 gap-y-2.5 rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 p-3"
+      data-testid="search-filters-panel"
+    >
+      <label className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+        Sort
+        <select
+          className={field}
+          value={state.sort ?? ""}
+          onChange={(e) => write({ sort: e.target.value || null })}
+          data-testid="filter-sort"
+        >
+          {SORT_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </label>
+      <label className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+        From day
+        <input
+          type="date"
+          className={field}
+          value={state.since ?? ""}
+          onChange={(e) => write({ since: e.target.value || null })}
+          data-testid="filter-since"
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+        To day
+        <input
+          type="date"
+          className={field}
+          value={state.until ?? ""}
+          onChange={(e) => write({ until: e.target.value || null })}
+          data-testid="filter-until"
+        />
+      </label>
+      <label className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+        Min trust rank (0–100)
+        <input
+          type="number"
+          min={0}
+          max={100}
+          placeholder="—"
+          className={`${field} w-24`}
+          value={minRankDraft}
+          onChange={(e) => setMinRankDraft(e.target.value)}
+          onBlur={() => {
+            const n = Number(minRankDraft);
+            write({ minRank: minRankDraft !== "" && Number.isFinite(n) ? Math.min(100, Math.max(0, n)) : null });
+          }}
+          data-testid="filter-min-rank"
+        />
+      </label>
+      <label className="flex items-center gap-1.5 pb-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+        <input
+          type="checkbox"
+          className="h-3.5 w-3.5 accent-brand-primary"
+          checked={state.includeSpam}
+          onChange={(e) => write({ includeSpam: e.target.checked })}
+          data-testid="filter-spam"
+        />
+        Include what your web of trust doesn't rank
+      </label>
+      <div className="flex items-end gap-1.5">
+        <label className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+          Rank as… (npub or hex — see through their eyes)
+          <input
+            type="text"
+            placeholder="npub1…"
+            className={`${field} w-52 font-mono`}
+            value={rankAsDraft}
+            onChange={(e) => setRankAsDraft(e.target.value)}
+            data-testid="filter-rank-as"
+          />
+        </label>
+        <button
+          type="button"
+          className="h-8 rounded-lg border border-slate-200 dark:border-slate-800 px-2.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 disabled:opacity-40"
+          disabled={rankAsDraft.trim() !== "" && !observerHexFrom(rankAsDraft)}
+          onClick={() => write({ rankAs: rankAsDraft.trim() ? observerHexFrom(rankAsDraft) : null })}
+          data-testid="filter-rank-as-apply"
+        >
+          Apply
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function SearchResults({
   query,
   pov,
@@ -92,6 +222,7 @@ export function SearchResults({
   onOpenProfile,
   onPrefetchEnter,
   onPrefetchLeave,
+  onQueryRewrite,
 }: {
   query: string;
   pov: SearchPov;
@@ -100,10 +231,14 @@ export function SearchResults({
   onOpenProfile?: (result: SearchResult) => void;
   onPrefetchEnter?: (result: SearchResult) => void;
   onPrefetchLeave?: (result: SearchResult) => void;
+  /** The Filters panel rewrites the query THROUGH the caller so the new
+   *  tokens land visibly in the search box and resubmit. */
+  onQueryRewrite?: (next: string) => void;
 }) {
   const [, setLocation] = useLocation();
   const [tab, setTab] = useState<SearchTab>(tabFromUrl);
   const [snapshot, setSnapshot] = useState<SearchSnapshot | null>(null);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   useEffect(() => {
     setSnapshot(null);
@@ -168,7 +303,25 @@ export function SearchResults({
             {t.label}
           </button>
         ))}
+        {onQueryRewrite && (
+          <button
+            type="button"
+            aria-expanded={filtersOpen}
+            onClick={() => setFiltersOpen((v) => !v)}
+            className={
+              "ml-auto shrink-0 inline-flex items-center gap-1 px-2.5 py-2 text-xs font-medium border-b-2 -mb-px transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded-t " +
+              (filtersOpen
+                ? "border-brand-primary text-brand-deep dark:text-brand-link"
+                : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200")
+            }
+            data-testid="search-filters-toggle"
+          >
+            <SlidersHorizontal className="h-3 w-3" /> Filters
+          </button>
+        )}
       </div>
+
+      {filtersOpen && onQueryRewrite && <FiltersPanel query={query} onQueryRewrite={onQueryRewrite} />}
 
       {snapshot?.error ? (
         <div

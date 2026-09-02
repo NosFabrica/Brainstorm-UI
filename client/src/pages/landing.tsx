@@ -1131,6 +1131,12 @@ export default function Landing() {
             onOpenProfile={goToProfile}
             onPrefetchEnter={handlePrefetchEnter}
             onPrefetchLeave={handlePrefetchLeave}
+            onQueryRewrite={(next) => {
+              // Filters write their tokens into the visible box — the user
+              // watches the grammar appear — and resubmit in one motion.
+              setQuery(next);
+              void handleSearch(next);
+            }}
           />
         )}
       </main>

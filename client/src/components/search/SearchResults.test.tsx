@@ -168,6 +168,43 @@ describe("SearchResults", () => {
     expect(screen.getByText(/sunset over the lake/)).toBeInTheDocument();
   });
 
+  it("filters write visible syntax into the query via onQueryRewrite", async () => {
+    const rewrite = vi.fn();
+    render(<SearchResults query="bitcoin" pov="nosfabrica" onQueryRewrite={rewrite} />);
+
+    fireEvent.click(screen.getByTestId("search-filters-toggle"));
+    fireEvent.change(screen.getByTestId("filter-sort"), { target: { value: "recent" } });
+    expect(rewrite).toHaveBeenLastCalledWith("bitcoin sort:recent");
+
+    fireEvent.change(screen.getByTestId("filter-since"), { target: { value: "2026-01-01" } });
+    expect(rewrite).toHaveBeenLastCalledWith("bitcoin since:2026-01-01");
+
+    fireEvent.click(screen.getByTestId("filter-spam"));
+    expect(rewrite).toHaveBeenLastCalledWith("bitcoin include:spam");
+  });
+
+  it("Rank as… accepts an npub and writes the hex observer", async () => {
+    const rewrite = vi.fn();
+    render(<SearchResults query="jack" pov="nosfabrica" onQueryRewrite={rewrite} />);
+    fireEvent.click(screen.getByTestId("search-filters-toggle"));
+
+    // An npub in the field → its hex form on the wire.
+    const { nip19 } = await import("nostr-tools");
+    const hex = "7".repeat(64);
+    const npub = nip19.npubEncode(hex);
+    const input = screen.getByTestId("filter-rank-as");
+    fireEvent.change(input, { target: { value: npub } });
+    fireEvent.click(screen.getByTestId("filter-rank-as-apply"));
+    expect(rewrite).toHaveBeenLastCalledWith(`jack observer:${hex}`);
+  });
+
+  it("the panel reads current filter state back from the query", () => {
+    render(<SearchResults query="btc sort:rank include:spam" pov="nosfabrica" onQueryRewrite={vi.fn()} />);
+    fireEvent.click(screen.getByTestId("search-filters-toggle"));
+    expect((screen.getByTestId("filter-sort") as HTMLSelectElement).value).toBe("rank");
+    expect((screen.getByTestId("filter-spam") as HTMLInputElement).checked).toBe(true);
+  });
+
   it("shows the relay's refusal reason when the stream errors", async () => {
     render(<SearchResults query="jack" pov="nosfabrica" />);
     emit({ error: "auth-required: name a lens" });
