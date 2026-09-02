@@ -35,7 +35,7 @@ import { useToast } from "@/hooks/use-toast";
 import { npubFromPubkey } from "@/lib/shareId";
 import { copyToClipboard } from "@/lib/clipboard";
 import { isUnread, markSeen } from "@/lib/supportSeen";
-import { listCanned, removeCanned, saveCanned } from "@/lib/cannedReplies";
+import { listCanned, removeCanned, saveCanned, updateCanned } from "@/lib/cannedReplies";
 import {
   SUPPORT_CATEGORIES,
   adminCloseTicket,
@@ -481,6 +481,11 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
   const [cannedTick, setCannedTick] = useState(0);
   const canned = listCanned();
   void cannedTick;
+  // Which snippet the draft came from — inserting into an empty composer arms
+  // "Update", so a rewording saves back to the SAME snippet instead of the
+  // save-new-then-delete-old dance. Appending into existing text doesn't.
+  const [editingCannedId, setEditingCannedId] = useState<string | null>(null);
+  const editingCanned = canned.find((c) => c.id === editingCannedId) ?? null;
 
   const threadQuery = useQuery({
     queryKey: [...ADMIN_SUPPORT_KEY, id],
@@ -520,6 +525,7 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
     try {
       await adminReply(id, body);
       setDraft("");
+      setEditingCannedId(null);
       await refresh();
       toast({ title: "Reply sent", description: "The user sees it in their thread; email notification goes out when configured." });
     } catch (e) {
@@ -720,7 +726,9 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
                 value=""
                 onChange={(e) => {
                   const snippet = canned.find((c) => c.id === e.target.value);
-                  if (snippet) setDraft((d) => (d.trim() ? `${d}\n\n${snippet.body}` : snippet.body));
+                  if (!snippet) return;
+                  setEditingCannedId(draft.trim() ? null : snippet.id);
+                  setDraft((d) => (d.trim() ? `${d}\n\n${snippet.body}` : snippet.body));
                 }}
                 data-testid="canned-select"
               >
@@ -729,6 +737,17 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
                   <option key={c.id} value={c.id}>{c.title}</option>
                 ))}
               </select>
+              {editingCanned && draft.trim() && draft !== editingCanned.body && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => { updateCanned(editingCanned.id, draft); setCannedTick((n) => n + 1); }}
+                  data-testid="canned-update"
+                >
+                  Update “{editingCanned.title}”
+                </Button>
+              )}
               {draft.trim() && (
                 <Button
                   variant="ghost"
@@ -765,7 +784,11 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
             <div className="mt-2 flex items-end gap-2">
               <textarea
                 value={draft}
-                onChange={(e) => setDraft(e.target.value.slice(0, 4000))}
+                onChange={(e) => {
+                  const next = e.target.value.slice(0, 4000);
+                  setDraft(next);
+                  if (!next.trim()) setEditingCannedId(null);
+                }}
                 placeholder={`Reply as Brainstorm Support…`}
                 rows={3}
                 className="w-full resize-y rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent/30"

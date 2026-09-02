@@ -96,6 +96,11 @@ export function saveCanned(title: string, body: string): CannedReply {
   return reply;
 }
 
+/** Refine a snippet in place — same id, title and position, new wording. */
+export function updateCanned(id: string, body: string): void {
+  write(read().map((c) => (c.id === id ? { ...c, body } : c)));
+}
+
 export function removeCanned(id: string): void {
   write(read().filter((c) => c.id !== id));
 }

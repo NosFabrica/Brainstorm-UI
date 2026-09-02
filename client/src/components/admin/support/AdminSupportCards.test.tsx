@@ -217,6 +217,32 @@ describe("AdminSupportCards (same mock store as the user page)", () => {
     expect(input.value).toContain("NWC budget");
   });
 
+  // Insert → refine → Update saves the edit back to the SAME snippet; "Save
+  // as canned reply" stays the path for genuinely new ones.
+  it("updates an inserted canned reply in place after editing", async () => {
+    const t = await createTicket({ subject: "Editable", body: "x", category: "other" });
+
+    renderWithProviders(<AdminSupportCards active />);
+    fireEvent.click(await screen.findByTestId(`admin-ticket-${t.id}`));
+
+    const input = (await screen.findByTestId("admin-reply-input")) as HTMLTextAreaElement;
+    const { listCanned } = await import("@/lib/cannedReplies");
+    const starter = listCanned()[0]; // seeded "Acknowledge — on it"
+
+    fireEvent.change(screen.getByTestId("canned-select"), { target: { value: starter.id } });
+    expect(input.value).toBe(starter.body);
+
+    fireEvent.change(input, { target: { value: "Thanks — we're on it. Watch this thread." } });
+    const update = screen.getByTestId("canned-update");
+    expect(update.textContent).toContain(starter.title);
+    fireEvent.click(update);
+
+    const after = listCanned().find((c) => c.id === starter.id);
+    expect(after?.body).toBe("Thanks — we're on it. Watch this thread.");
+    // Updating didn't fork a duplicate.
+    expect(listCanned().filter((c) => c.title === starter.title)).toHaveLength(1);
+  });
+
   it("says so plainly when there are no tickets", async () => {
     renderWithProviders(<AdminSupportCards active />);
     await screen.findByTestId("admin-support-empty");

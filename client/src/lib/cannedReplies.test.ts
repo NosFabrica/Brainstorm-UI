@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it } from "vitest";
-import { listCanned, removeCanned, saveCanned } from "./cannedReplies";
+import { listCanned, removeCanned, saveCanned, updateCanned } from "./cannedReplies";
 
 describe("canned replies — the admin's saved answers, per device", () => {
   beforeEach(() => localStorage.clear());
@@ -40,6 +40,20 @@ describe("canned replies — the admin's saved answers, per device", () => {
     // Later saves and reads still don't bring it back.
     saveCanned("Mine", "My own snippet.");
     expect(listCanned().map((c) => c.title)).not.toContain("Acknowledge — on it");
+  });
+
+  // Editing is first-class: refine the wording, save it back to the SAME
+  // snippet — no save-new-then-delete-old dance, no duplicate entries.
+  it("updates a reply's body in place, keeping its title and position", () => {
+    const before = listCanned();
+    const ack = before[0];
+
+    updateCanned(ack.id, "Thanks for reaching out — we're on it. Watch this thread.");
+
+    const after = listCanned();
+    expect(after.map((c) => c.id)).toEqual(before.map((c) => c.id));
+    expect(after[0].title).toBe(ack.title);
+    expect(after[0].body).toBe("Thanks for reaching out — we're on it. Watch this thread.");
   });
 
   it("derives a title from the body when none is given", () => {
