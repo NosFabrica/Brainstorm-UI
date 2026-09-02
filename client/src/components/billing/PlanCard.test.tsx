@@ -46,6 +46,7 @@ const PAID_ROW: BillingPlan = {
   policyName: "Priority",
   scheduleIntervalSeconds: 7 * 86_400,
   isDefault: false,
+  planId: "019e",
   planName: "Monthly",
   billingInterval: "monthly",
   amountMinor: 200,
@@ -63,6 +64,7 @@ const FREE_ROW: BillingPlan = {
   isDefault: true,
   scheduleIntervalSeconds: 60 * 86_400,
   amountMinor: 0,
+  planId: null,
   planName: null,
   billingInterval: null,
   checkoutUrl: null,
@@ -83,6 +85,7 @@ function paidSub(over: Partial<Subscription> = {}): Subscription {
   return {
     policy: { id: 2, name: "Priority", scheduleIntervalSeconds: 7 * 86_400, isDefault: false },
     plan: {
+      planId: "019e",
       amountMinor: 200,
       currency: "USD",
       isActive: true,
@@ -212,7 +215,7 @@ describe("PlanCard — the day Flash named, wherever the viewer is", () => {
   // still stands on its own.
   it("names the policy with no price when the server could not read one", () => {
     sub = paidSub({
-      plan: { amountMinor: null, currency: null, isActive: true, billingInterval: null },
+      plan: { planId: "019e", amountMinor: null, currency: null, isActive: true, billingInterval: null },
     });
     renderWithProviders(<PlanCard lastCalculatedMs={null} />);
     const name = screen.getByTestId("insights-plan-name");

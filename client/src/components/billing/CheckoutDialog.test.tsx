@@ -17,6 +17,7 @@ const PLAN: BillingPlan = {
   policyName: "Priority",
   scheduleIntervalSeconds: 7 * 86_400,
   isDefault: false,
+  planId: "019e",
   planName: "Monthly",
   billingInterval: "monthly",
   amountMinor: 200,

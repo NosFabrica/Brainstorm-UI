@@ -33,7 +33,7 @@ import type { BillingPlan } from "@/services/subscription";
  *   deciding on $2 wants to read them first.
  */
 export default function PricingPage() {
-  const { policy } = useSubscription();
+  const { policy, plan } = useSubscription();
   const { plans, billingAvailable, loadFailed } = useBillingPlans();
   const [checkoutPlan, setCheckoutPlan] = useState<BillingPlan | null>(null);
 
@@ -88,6 +88,7 @@ export default function PricingPage() {
           <PlanPicker
             plans={plans}
             currentPolicyId={policy?.id ?? null}
+            currentPlanId={plan?.planId ?? null}
             onChoose={setCheckoutPlan}
             className="mt-8"
           />

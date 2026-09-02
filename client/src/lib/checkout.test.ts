@@ -9,6 +9,7 @@ const PLAN: BillingPlan = {
   currency: "USD",
   scheduleIntervalSeconds: 7 * 86_400,
   isDefault: false,
+  planId: "019e",
   planName: "Monthly",
   billingInterval: "monthly",
   checkoutUrl: "https://vault.example/subscriptions/signup/svc/plan?redirect_uri=https%3A%2F%2Fapp%2Fbilling%2Freturn",

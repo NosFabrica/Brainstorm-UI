@@ -58,7 +58,7 @@ export function CheckoutDialog({
   /** Preselected from /pricing. Null opens the full purchasable list. */
   plan?: BillingPlan | null;
 }) {
-  const { policy, refetch } = useSubscription();
+  const { policy, plan: held, refetch } = useSubscription();
   const { plans } = useBillingPlans();
   const me = useActiveAccountDisplay();
   const qc = useQueryClient();
@@ -110,6 +110,7 @@ export function CheckoutDialog({
             <PlanPicker
               plans={offered}
               currentPolicyId={policy?.id ?? null}
+              currentPlanId={held?.planId ?? null}
               onChoose={go}
               className="mt-3"
             />

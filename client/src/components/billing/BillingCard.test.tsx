@@ -44,6 +44,7 @@ const FREE_ROW: BillingPlan = {
   policyName: "Free",
   scheduleIntervalSeconds: 60 * 86_400,
   isDefault: true,
+  planId: null,
   planName: null,
   billingInterval: null,
   amountMinor: 0,
@@ -60,6 +61,7 @@ const PAID_ROW: BillingPlan = {
   policyName: "Priority",
   isDefault: false,
   scheduleIntervalSeconds: 7 * 86_400,
+  planId: "019e",
   planName: "Monthly",
   billingInterval: "monthly",
   amountMinor: 200,
@@ -81,6 +83,7 @@ function paidSub(over: Partial<Subscription> = {}): Subscription {
   return {
     policy: { id: 2, name: "Priority", scheduleIntervalSeconds: 7 * 86_400, isDefault: false },
     plan: {
+      planId: "019e",
       amountMinor: 200,
       currency: "USD",
       isActive: true,
@@ -113,7 +116,7 @@ describe("BillingCard — every date is reported, never worked out", () => {
   // for the daily rehearsal plan in one direction and a yearly one in the other.
   it("shows a one-day period for a daily plan, not a month", () => {
     sub = paidSub({
-      plan: { amountMinor: 10, currency: "USD", isActive: true, billingInterval: "daily" },
+      plan: { planId: "019e", amountMinor: 10, currency: "USD", isActive: true, billingInterval: "daily" },
       currentPeriodStart: "2026-08-16T12:00:00Z",
       currentPeriodEnd: "2026-08-17T12:00:00Z",
       nextBillingDate: "2026-08-17T12:00:00Z",
@@ -128,7 +131,7 @@ describe("BillingCard — every date is reported, never worked out", () => {
 
   it("shows a yearly period as a year", () => {
     sub = paidSub({
-      plan: { amountMinor: 2000, currency: "USD", isActive: true, billingInterval: "yearly" },
+      plan: { planId: "019e", amountMinor: 2000, currency: "USD", isActive: true, billingInterval: "yearly" },
       currentPeriodStart: "2026-01-01T12:00:00Z",
       currentPeriodEnd: "2027-01-01T12:00:00Z",
       nextBillingDate: "2027-01-01T12:00:00Z",
@@ -177,7 +180,7 @@ describe("BillingCard — the price is what this subscriber is charged", () => {
   // charged is the one reading that must not happen.
   it("says nothing about the price when the server sent none", () => {
     sub = paidSub({
-      plan: { amountMinor: null, currency: null, isActive: true, billingInterval: null },
+      plan: { planId: "019e", amountMinor: null, currency: null, isActive: true, billingInterval: null },
     });
     renderWithProviders(<BillingCard />);
     expect(screen.getByTestId("billing-amount")).toHaveTextContent("—");
@@ -186,7 +189,7 @@ describe("BillingCard — the price is what this subscriber is charged", () => {
 
   it("renders a currency it was given rather than assuming dollars", () => {
     sub = paidSub({
-      plan: { amountMinor: 500, currency: "EUR", isActive: true, billingInterval: "monthly" },
+      plan: { planId: "019e", amountMinor: 500, currency: "EUR", isActive: true, billingInterval: "monthly" },
     });
     renderWithProviders(<BillingCard />);
     expect(screen.getByTestId("billing-amount")).toHaveTextContent("€5.00 per month");
@@ -196,7 +199,7 @@ describe("BillingCard — the price is what this subscriber is charged", () => {
 describe("BillingCard — retired plans, cancellation and what we cannot know", () => {
   it("tells a subscriber whose plan is no longer sold, and offers both exits", () => {
     sub = paidSub({
-      plan: { amountMinor: 200, currency: "USD", isActive: false, billingInterval: "monthly" },
+      plan: { planId: "019e", amountMinor: 200, currency: "USD", isActive: false, billingInterval: "monthly" },
     });
     renderWithProviders(<BillingCard />);
     expect(screen.getByTestId("billing-plan-retired")).toBeInTheDocument();

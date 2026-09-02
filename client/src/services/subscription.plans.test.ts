@@ -82,16 +82,19 @@ describe("the plans seam", () => {
 
   // Two plans selling one policy is the yearly case, and the whole reason the
   // picker is flat rather than one card per tier.
-  it("keeps two rows that sell the same policy", async () => {
+  it("keeps two rows that sell the same policy, each carrying its own plan id", async () => {
     api.getBillingPlans.mockResolvedValue({
       plans: [
-        { policy_id: 2, policy_name: "Priority", plan_name: "Monthly", amount_minor: 200, currency: "USD", billing_interval: "monthly", checkout_url: "https://x/m" },
-        { policy_id: 2, policy_name: "Priority", plan_name: "Yearly", amount_minor: 2000, currency: "USD", billing_interval: "yearly", checkout_url: "https://x/y" },
+        { policy_id: 1, policy_name: "Free", is_default: true, amount_minor: 0 },
+        { policy_id: 2, policy_name: "Priority", plan_id: "mon", plan_name: "Monthly", amount_minor: 200, currency: "USD", billing_interval: "monthly", checkout_url: "https://x/m" },
+        { policy_id: 2, policy_name: "Priority", plan_id: "yr", plan_name: "Yearly", amount_minor: 2000, currency: "USD", billing_interval: "yearly", checkout_url: "https://x/y" },
       ],
     });
     const plans = await fetchPlans();
-    expect(plans).toHaveLength(2);
-    expect(plans.map((p) => p.amountMinor)).toEqual([200, 2000]);
+    expect(plans).toHaveLength(3);
+    expect(plans.map((p) => p.amountMinor)).toEqual([0, 200, 2000]);
+    // The key that tells them apart. Null on the free row, which nothing sells.
+    expect(plans.map((p) => p.planId)).toEqual([null, "mon", "yr"]);
   });
 });
 
@@ -101,7 +104,7 @@ describe("the subscription seam", () => {
   it("reads the backend's snake_case shape", async () => {
     api.refreshSubscription.mockResolvedValue({
       policy: { id: 3, name: "Priority", schedule_interval_seconds: 604800, is_default: false },
-      plan: { amount_minor: 10, currency: "USD", is_active: false, billing_interval: "daily" },
+      plan: { plan_id: "day", amount_minor: 10, currency: "USD", is_active: false, billing_interval: "daily" },
       status: "active",
       cancel_effective_date: "2026-09-01T00:00:00Z",
       current_period_start: "2026-08-01T00:00:00Z",
@@ -110,8 +113,9 @@ describe("the subscription seam", () => {
     });
     const sub = await refreshSubscription();
     expect(sub.policy).toEqual({ id: 3, name: "Priority", scheduleIntervalSeconds: 604800, isDefault: false });
-    // Which plan is still theirs; the price on it is Flash's answer about it.
-    expect(sub.plan).toEqual({ amountMinor: 10, currency: "USD", isActive: false, billingInterval: "daily" });
+    // Which plan is still theirs — the id the picker matches a row on — and the
+    // price they were snapshotted at.
+    expect(sub.plan).toEqual({ planId: "day", amountMinor: 10, currency: "USD", isActive: false, billingInterval: "daily" });
     expect(sub.currentPeriodStart).toBe("2026-08-01T00:00:00Z");
     expect(sub.manageUrl).toContain("portal");
   });

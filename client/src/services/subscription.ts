@@ -48,9 +48,18 @@ export interface SubscriptionPolicy {
  * is no longer offered.
  *
  * No plan name: what a subscriber is shown is the POLICY they hold, which is
- * what they actually receive.
+ * what they actually receive. `planId` is the exception, and it is an
+ * identifier rather than copy — the only way the picker can mark the row they
+ * actually bought when two plans grant one policy. Matched against
+ * `BillingPlan.planId`, never interpreted.
  */
 export interface SubscriptionPlanRecord {
+  /**
+   * Flash's plan id. The server always sends one on a plan it returns — a
+   * billing row cannot exist without a mapping — so null here means the field
+   * was absent or unusable, not that they hold an unnamed plan.
+   */
+  planId: string | null;
   amountMinor: number | null;
   currency: string | null;
   billingInterval: string | null;
@@ -92,6 +101,12 @@ export interface BillingPlan {
   /** Live cadence off the `scheduling` row — the number the picker shows. */
   scheduleIntervalSeconds: number | null;
   isDefault: boolean;
+  /**
+   * Flash's plan id — the same value in every environment, and how a
+   * subscriber's own row is told from the other plan on the same policy. Null
+   * on the free row, which nothing sells. Matched, never interpreted.
+   */
+  planId: string | null;
   /** Flash's name for the plan. Null on the free row: nothing sells it. */
   planName: string | null;
   /** `daily | weekly | monthly | yearly | one_off`, or null. Formatted, never matched. */
@@ -154,6 +169,7 @@ function normalizePlanRecord(raw: unknown): SubscriptionPlanRecord | null {
   if (!raw || typeof raw !== "object") return null;
   const o = raw as Record<string, unknown>;
   return {
+    planId: str(o.plan_id ?? o.planId),
     // Null, not zero: a price Flash snapshotted nothing for is unknown, and a
     // card showing "Free" to someone who is charged is worse than none.
     amountMinor: num(o.amount_minor ?? o.amountMinor),
@@ -226,6 +242,7 @@ function normalizePlan(r: Record<string, unknown> | BillingPlan): BillingPlan {
     policyName: str(o.policy_name ?? o.policyName) ?? "Plan",
     scheduleIntervalSeconds: num(o.schedule_interval_seconds ?? o.scheduleIntervalSeconds),
     isDefault: Boolean(o.is_default ?? o.isDefault),
+    planId: str(o.plan_id ?? o.planId),
     planName: str(o.plan_name ?? o.planName),
     billingInterval: str(o.billing_interval ?? o.billingInterval),
     amountMinor: num(o.amount_minor ?? o.amountMinor) ?? 0,

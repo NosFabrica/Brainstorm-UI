@@ -11,6 +11,7 @@ function plan(over: Partial<BillingPlan> = {}): BillingPlan {
     policyName: "Priority",
     scheduleIntervalSeconds: 7 * 86_400,
     isDefault: false,
+    planId: "019e",
     planName: "Monthly",
     billingInterval: "monthly",
     amountMinor: 200,
@@ -30,6 +31,7 @@ const FREE = plan({
   scheduleIntervalSeconds: 60 * 86_400,
   amountMinor: 0,
   // Nothing sells the free row, so no Flash plan names or prices it.
+  planId: null,
   planName: null,
   billingInterval: null,
   checkoutUrl: null,
@@ -70,6 +72,69 @@ describe("PlanPicker — the page is whatever the server says", () => {
     expect(screen.getByTestId("plan-period-0")).toHaveTextContent("per month");
     expect(screen.getByTestId("plan-price-1")).toHaveTextContent("$20.00");
     expect(screen.getByTestId("plan-period-1")).toHaveTextContent("per year");
+  });
+
+  // The live staging bug: a daily rehearsal plan and the real monthly one grant
+  // the identical policy, so marking by policy marked BOTH and suppressed both
+  // calls to action — leaving a subscriber no route between them.
+  it("marks only the plan they bought when two plans grant one policy", () => {
+    const daily = plan({ planId: "day", amountMinor: 10, billingInterval: "daily" });
+    const monthly = plan({ planId: "mon", amountMinor: 200 });
+    renderWithProviders(
+      <PlanPicker
+        plans={[FREE, daily, monthly]}
+        currentPolicyId={2}
+        currentPlanId="day"
+        onChoose={() => {}}
+      />,
+    );
+    expect(screen.getByTestId("plan-current-1")).toBeInTheDocument();
+    expect(screen.queryByTestId("plan-current-2")).toBeNull();
+    // And the other plan on that policy stays buyable, so switching is possible.
+    expect(screen.queryByTestId("plan-cta-1")).toBeNull();
+    expect(screen.getByTestId("plan-cta-2")).toBeInTheDocument();
+  });
+
+  // The checkout dialog renders ONE row when /pricing preselects a plan. A
+  // membership test over the rows on screen would find no match there, fall
+  // back to the policy, and mark the plan they are trying to buy as already
+  // theirs — a dead-end dialog on the exact switch this ticket exists for.
+  it("keeps the other plan buyable even when it is the only row rendered", () => {
+    renderWithProviders(
+      <PlanPicker
+        plans={[plan({ planId: "mon" })]}
+        currentPolicyId={2}
+        currentPlanId="day"
+        onChoose={() => {}}
+      />,
+    );
+    expect(screen.queryByTestId("plan-current-0")).toBeNull();
+    expect(screen.getByTestId("plan-cta-0")).toBeInTheDocument();
+  });
+
+  // Nobody has bought anything, so there is no plan to match — the free row and
+  // a comped account are both marked by the policy they hold.
+  it("marks by policy for a holder with no plan behind them", () => {
+    renderWithProviders(
+      <PlanPicker plans={[FREE, plan()]} currentPolicyId={1} onChoose={() => {}} />,
+    );
+    expect(screen.getByTestId("plan-current-0")).toBeInTheDocument();
+    expect(screen.queryByTestId("plan-current-1")).toBeNull();
+  });
+
+  it("leaves a subscriber on a withdrawn plan a route to a current one", () => {
+    // Their plan is not on the page at all. Marking the tier would take the
+    // call to action off the only row they could move to.
+    renderWithProviders(
+      <PlanPicker
+        plans={[FREE, plan()]}
+        currentPolicyId={2}
+        currentPlanId="retired"
+        onChoose={() => {}}
+      />,
+    );
+    expect(screen.queryByTestId("plan-current-1")).toBeNull();
+    expect(screen.getByTestId("plan-cta-1")).toBeInTheDocument();
   });
 
   it("renders a plan whose period is unfamiliar, and one with none at all", () => {
@@ -127,6 +192,38 @@ describe("PlanPicker — the page is whatever the server says", () => {
     fireEvent.click(screen.getByTestId("plan-cta-2"));
     expect(onChoose).toHaveBeenCalledTimes(1);
     expect(onChoose).toHaveBeenCalledWith(yearly);
+  });
+
+  // The guide's own example plan has `features: null, notIncluded: null`, so
+  // copy nobody has written is the DEFAULT case, not an edge one. It must read
+  // as an ordinary purchasable card — no empty list, no blank, no missing CTA.
+  it("renders a plan nobody has written copy for as a normal card", () => {
+    renderWithProviders(
+      <PlanPicker
+        plans={[plan({ description: null, features: null, notIncluded: null })]}
+        currentPolicyId={null}
+        onChoose={() => {}}
+      />,
+    );
+    expect(screen.getByTestId("plan-name-0")).toHaveTextContent("Monthly");
+    expect(screen.getByTestId("plan-price-0")).toHaveTextContent("$2.00");
+    expect(screen.getByTestId("plan-cta-0")).toBeInTheDocument();
+    // Not an empty <ul> where the copy would be.
+    expect(screen.queryByTestId("plan-copy-0")).toBeNull();
+    expect(screen.queryByTestId("plan-description-0")).toBeNull();
+  });
+
+  it("keeps includes and excludes as two distinguishable lists", () => {
+    renderWithProviders(
+      <PlanPicker
+        plans={[plan({ features: ["Weekly recalculation"], notIncluded: ["Custom roots"] })]}
+        currentPolicyId={null}
+        onChoose={() => {}}
+      />,
+    );
+    expect(screen.getByTestId("plan-included-0")).toHaveTextContent("Weekly recalculation");
+    expect(screen.getByTestId("plan-included-0")).not.toHaveTextContent("Custom roots");
+    expect(screen.getByTestId("plan-excluded-0")).toHaveTextContent("Custom roots");
   });
 
   it("renders Flash's copy as text — markup must never become markup", () => {

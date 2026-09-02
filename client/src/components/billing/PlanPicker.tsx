@@ -21,11 +21,20 @@ import type { BillingPlan } from "@/services/subscription";
  * server, with the default policy first because it is the one row nobody can
  * buy. Sorting here would put a client heuristic on top of that.
  *
- * **Mark the current row by `policyId`, never by plan.** A subscriber can be on
- * a retired mapping that `/billing/plans` no longer returns; matching on the
- * plan would leave nothing marked at all. They are on the policy, which is what
- * they actually receive — `BillingCard` separately shows the price they are
- * actually charged, so both are true and neither is derived.
+ * **Whoever bought a plan is marked by that plan.** Staging sells one policy
+ * through two plans — a daily rehearsal plan beside the real monthly one — so
+ * marking by policy marked both as theirs and suppressed both calls to action,
+ * leaving a subscriber no route between them. Flash's `planId` is the key,
+ * matched and never interpreted.
+ *
+ * The policy answers only when there is no plan to match: the free row, and a
+ * comped account with no billing row at all. It is deliberately NOT a fallback
+ * for "their plan is not among these rows" — the checkout dialog renders a
+ * single preselected row, so that test would mark the plan they are trying to
+ * buy as already theirs and take its button away. A subscriber whose own plan
+ * has been withdrawn therefore sees nothing marked and a live route to a
+ * current plan, which is the outcome that leaves them somewhere to go;
+ * `BillingCard` is where they read what they hold and what they are charged.
  *
  * **Format the interval, never match it.** `billingInterval` goes through
  * `formatBillingInterval`, so a word Flash has started sending and we have
@@ -42,6 +51,7 @@ import type { BillingPlan } from "@/services/subscription";
 export function PlanPicker({
   plans,
   currentPolicyId,
+  currentPlanId = null,
   onChoose,
   loading = false,
   currentLabel = "Your plan",
@@ -51,6 +61,11 @@ export function PlanPicker({
   plans: BillingPlan[] | undefined;
   /** The policy the viewer holds, or null when signed out / not yet known. */
   currentPolicyId: number | null;
+  /**
+   * The Flash plan they bought. Null when they have bought nothing — which is
+   * what hands the marking back to `currentPolicyId`.
+   */
+  currentPlanId?: string | null;
   /**
    * Called synchronously from the row's click. Whatever opens a window must
    * stay inside that handler — popup blockers reject anything behind an await.
@@ -78,7 +93,11 @@ export function PlanPicker({
           key={`${plan.policyId}-${i}`}
           index={i}
           plan={plan}
-          current={currentPolicyId !== null && plan.policyId === currentPolicyId}
+          current={
+            currentPlanId !== null
+              ? plan.planId === currentPlanId
+              : currentPolicyId !== null && plan.policyId === currentPolicyId
+          }
           loading={loading}
           currentLabel={currentLabel}
           onChoose={onChoose}
@@ -116,9 +135,12 @@ function PlanRow({
 
   return (
     <Card
-      className={`flex flex-col gap-3 p-5 sm:p-6 ${
-        current ? "border-brand-accent/40 ring-1 ring-brand-accent/20" : ""
-      }`}
+      // `accent` is the design system's own "notice this one" treatment (an
+      // Aurora wash with matching dark values), not a border-and-ring spelled
+      // out here — which had no dark treatment of its own and would drift the
+      // moment the palette moves.
+      accent={current}
+      className="flex flex-col gap-3 p-5 sm:p-6"
       data-testid={`plan-row-${index}`}
       data-policy-id={plan.policyId}
     >
@@ -126,7 +148,7 @@ function PlanRow({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3
-              className="text-base font-bold tracking-tight text-slate-900 dark:text-slate-100"
+              className="text-base font-bold tracking-tight text-slate-900 break-words dark:text-slate-100"
               style={{ fontFamily: "var(--font-display)" }}
               data-testid={`plan-name-${index}`}
             >
@@ -140,7 +162,7 @@ function PlanRow({
           </div>
           {plan.description && (
             <p
-              className="mt-1 text-sm text-slate-500 dark:text-slate-400"
+              className="mt-1 text-sm text-slate-500 break-words dark:text-slate-400"
               data-testid={`plan-description-${index}`}
             >
               {plan.description}
@@ -175,26 +197,37 @@ function PlanRow({
       </div>
 
       {(plan.features || plan.notIncluded) && (
-        <ul className="space-y-1.5" data-testid={`plan-copy-${index}`}>
-          {plan.features?.map((line, i) => (
-            <li
-              key={`in-${i}`}
-              className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200"
-            >
-              <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
-              {line}
-            </li>
-          ))}
-          {plan.notIncluded?.map((line, i) => (
-            <li
-              key={`ex-${i}`}
-              className="flex items-start gap-2 text-sm text-slate-400 dark:text-slate-500"
-            >
-              <X className="mt-0.5 h-4 w-4 shrink-0" />
-              {line}
-            </li>
-          ))}
-        </ul>
+        <div className="space-y-1.5" data-testid={`plan-copy-${index}`}>
+          {/* Two lists, not one — what you get and what you don't are separate
+              claims, and a reader scanning ticks must not have to read each
+              line to find out which kind it is. */}
+          {plan.features && (
+            <ul className="space-y-1.5" data-testid={`plan-included-${index}`}>
+              {plan.features.map((line, i) => (
+                <li
+                  key={`in-${i}`}
+                  className="flex items-start gap-2 text-sm text-slate-700 dark:text-slate-200"
+                >
+                  <Check className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                  <span className="min-w-0 break-words">{line}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {plan.notIncluded && (
+            <ul className="space-y-1.5" data-testid={`plan-excluded-${index}`}>
+              {plan.notIncluded.map((line, i) => (
+                <li
+                  key={`ex-${i}`}
+                  className="flex items-start gap-2 text-sm text-slate-400 dark:text-slate-500"
+                >
+                  <X className="mt-0.5 h-4 w-4 shrink-0" />
+                  <span className="min-w-0 break-words">{line}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
 
       {/* A row with no checkout_url offers nothing to buy — the free policy,
