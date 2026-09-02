@@ -198,7 +198,12 @@ function Teaser() {
         Direct tickets with the Brainstorm team are part of the paid plan. Everyone can always reach
         us the community way — answers to common questions live in the FAQ.
       </p>
-      <div className="mt-4">
+      <div className="mt-5 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+        {/* /pricing ships with billing, which is live before any server ever
+            answers allowed:false — so the link is safe in every real deploy. */}
+        <Button asChild data-testid="teaser-upgrade">
+          <Link href="/pricing">Get Priority</Link>
+        </Button>
         <Link href="/faq" className="text-sm font-medium text-brand-link hover:underline">
           Browse the FAQ →
         </Link>

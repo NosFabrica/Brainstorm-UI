@@ -163,6 +163,10 @@ describe("SupportPage (through the real mock seam)", () => {
     await screen.findByTestId("support-teaser");
     expect(screen.queryByTestId("button-new-ticket")).toBeNull();
     expect(screen.queryByTestId("button-first-ticket")).toBeNull();
+
+    // The teaser sells the upgrade, not just the FAQ detour.
+    const upgrade = screen.getByTestId("teaser-upgrade");
+    expect(upgrade).toHaveAttribute("href", "/pricing");
   });
 
   it("renders a support reply as Brainstorm Support and lets the user answer", async () => {
