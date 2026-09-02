@@ -13,7 +13,11 @@ vi.mock("@/hooks/useActiveAccountDisplay", () => ({
 vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
 
 describe("SupportPage (through the real mock seam)", () => {
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => {
+    localStorage.clear();
+    // The selected ticket syncs to the URL — reset it between tests.
+    window.history.replaceState({}, "", "/support");
+  });
 
   it("files a ticket through the composer and lands in its thread", async () => {
     renderWithProviders(<SupportPage />);
@@ -177,6 +181,36 @@ describe("SupportPage (through the real mock seam)", () => {
     await waitFor(() =>
       expect(screen.getAllByTestId("message-user").map((m) => m.textContent).join()).toContain("Confirmed fixed"),
     );
+  });
+
+  // Refresh-survivable, shareable: the selected ticket lives in the URL.
+  it("opens straight into the ticket named by the URL", async () => {
+    const t = await createTicket({ subject: "Linked ticket", body: "x", category: "other" });
+    window.history.pushState({}, "", `/support?ticket=${t.id}`);
+
+    renderWithProviders(<SupportPage />);
+
+    await screen.findByTestId("support-thread");
+    expect(screen.getByText("Linked ticket")).toBeInTheDocument();
+    // Back to the list clears the URL param.
+    fireEvent.click(screen.getByTestId("thread-back"));
+    expect(window.location.search).not.toContain("ticket=");
+    window.history.pushState({}, "", "/support");
+  });
+
+  it("a user can mark their ticket resolved from the thread", async () => {
+    const t = await createTicket({ subject: "Self solve", body: "x", category: "other" });
+
+    renderWithProviders(<SupportPage />);
+    fireEvent.click(await screen.findByTestId(`ticket-${t.id}`));
+
+    fireEvent.click(await screen.findByTestId("thread-resolve"));
+
+    await waitFor(() => expect(screen.getByTestId("thread-status").textContent).toBe("closed"));
+    expect(screen.getByTestId("ticket-event-closed").textContent).toContain("You marked this resolved");
+    // The button is gone; the reopen composer remains.
+    expect(screen.queryByTestId("thread-resolve")).toBeNull();
+    expect(screen.getByTestId("thread-reply-input")).toBeInTheDocument();
   });
 
   it("a closed ticket invites reopening — replying flips it back to open", async () => {

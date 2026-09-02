@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { ArrowLeft, ArrowUpDown, LifeBuoy, Loader2, Plus, Send } from "lucide-react";
+import { ArrowLeft, ArrowUpDown, CheckCircle2, LifeBuoy, Loader2, Plus, Send } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { logout } from "@/accounts/login-flow";
@@ -27,6 +27,7 @@ import {
   fetchSupport,
   fetchThread,
   postMessage,
+  resolveTicket,
   type SupportTicket,
 } from "@/services/support";
 import type { Tone } from "@/lib/tones";
@@ -82,7 +83,7 @@ function fmtTime(iso: string): string {
 /** Lifecycle lines in the user's voice; unknown event types render plainly. */
 function userEventLabel(e: { type: string; by: string }): string {
   if (e.type === "opened") return "Ticket opened";
-  if (e.type === "closed") return e.by === "support" ? "Closed by Brainstorm Support" : "Closed";
+  if (e.type === "closed") return e.by === "support" ? "Closed by Brainstorm Support" : "You marked this resolved";
   if (e.type === "reopened") return e.by === "user" ? "Reopened by your reply" : "Reopened";
   if (e.type === "recategorized") return "Category updated by Brainstorm Support";
   return e.type.replaceAll("_", " ");
@@ -101,7 +102,23 @@ export default function SupportPage() {
   const qc = useQueryClient();
   const { toast } = useToast();
   const user = useActiveAccountDisplay();
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // The selected ticket lives in the URL — refresh-survivable, shareable, and
+  // someday the email notification links straight here.
+  const [selectedId, setSelectedId] = useState<string | null>(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("ticket");
+    } catch {
+      return null;
+    }
+  });
+  const selectTicket = (id: string | null) => {
+    setSelectedId(id);
+    try {
+      window.history.replaceState({}, "", id ? `/support?ticket=${encodeURIComponent(id)}` : "/support");
+    } catch {
+      /* URL sync is a convenience, never a blocker */
+    }
+  };
   const [composerOpen, setComposerOpen] = useState(false);
 
   const supportQuery = useQuery({ queryKey: SUPPORT_KEY, queryFn: fetchSupport, staleTime: 30_000 });
@@ -148,9 +165,9 @@ export default function SupportPage() {
           ) : allowed === false ? (
             <Teaser />
           ) : selectedId ? (
-            <ThreadView id={selectedId} onBack={() => setSelectedId(null)} />
+            <ThreadView id={selectedId} onBack={() => selectTicket(null)} />
           ) : (
-            <TicketList tickets={tickets} onOpen={setSelectedId} onNew={() => setComposerOpen(true)} />
+            <TicketList tickets={tickets} onOpen={selectTicket} onNew={() => setComposerOpen(true)} />
           )}
         </div>
 
@@ -159,7 +176,7 @@ export default function SupportPage() {
           onOpenChange={setComposerOpen}
           onCreated={(t) => {
             setComposerOpen(false);
-            setSelectedId(t.id);
+            selectTicket(t.id);
             void qc.invalidateQueries({ queryKey: SUPPORT_KEY });
             toast({ title: "Ticket filed", description: "The team will get back to you here." });
           }}
@@ -337,6 +354,23 @@ function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
     ...events.map((e) => ({ kind: "event" as const, at: e.at, event: e })),
   ].sort((a, b) => a.at.localeCompare(b.at) || (a.kind === "event" ? -1 : 1));
 
+  // Low-stakes and reversible (replying reopens) — no confirm dialog needed.
+  const resolve = async () => {
+    setSending(true);
+    try {
+      await resolveTicket(id);
+      await Promise.all([
+        qc.invalidateQueries({ queryKey: [...SUPPORT_KEY, id] }),
+        qc.invalidateQueries({ queryKey: SUPPORT_KEY, exact: true }),
+      ]);
+      toast({ title: "Marked as resolved", description: "If it comes back, just reply — that reopens it." });
+    } catch (e) {
+      toast({ title: "Couldn't resolve", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setSending(false);
+    }
+  };
+
   const send = async () => {
     const body = draft.trim();
     if (!body) return;
@@ -376,11 +410,25 @@ function ThreadView({ id, onBack }: { id: string; onBack: () => void }) {
         </div>
       ) : (
         <>
-          <div className="mt-3 flex items-center justify-between gap-3">
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
             <h2 className="text-lg font-bold" style={{ fontFamily: "var(--font-display)" }}>
               {ticket.subject}
             </h2>
-            <Chip tone={statusTone(ticket.status)} size="sm" data-testid="thread-status">{ticket.status}</Chip>
+            <span className="flex items-center gap-2">
+              {!closed && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => void resolve()}
+                  disabled={sending}
+                  data-testid="thread-resolve"
+                >
+                  <CheckCircle2 className="h-4 w-4" /> Mark as resolved
+                </Button>
+              )}
+              <Chip tone={statusTone(ticket.status)} size="sm" data-testid="thread-status">{ticket.status}</Chip>
+            </span>
           </div>
 
           <div className="mt-4 space-y-3">

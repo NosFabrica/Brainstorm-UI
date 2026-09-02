@@ -26,7 +26,11 @@ function seedTicketWithPubkey(subject: string, pubkey: string, lastMessageAt = n
 }
 
 describe("AdminSupportCards (same mock store as the user page)", () => {
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => {
+    localStorage.clear();
+    // The open thread syncs to the URL — reset it so tests don't inherit one.
+    window.history.replaceState({}, "", "/");
+  });
 
   it("lists tickets, replies as support, and closes — the full loop", async () => {
     const t = await createTicket({ subject: "Alerts broken", body: "No alerts since Friday.", category: "other" });
@@ -123,6 +127,19 @@ describe("AdminSupportCards (same mock store as the user page)", () => {
     expect(screen.queryByTestId(`admin-unread-${t.id}`)).toBeNull();
   });
 
+  it("opens straight into the ticket named by the URL — shareable in team chat", async () => {
+    const t = await createTicket({ subject: "Linked for admin", body: "x", category: "other" });
+    window.history.pushState({}, "", `/admin?tab=support&ticket=${t.id}`);
+
+    renderWithProviders(<AdminSupportCards active />);
+
+    await screen.findByTestId("admin-support-thread");
+    expect(screen.getByText("Linked for admin")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("admin-thread-back"));
+    expect(window.location.search).not.toContain("ticket=");
+    window.history.pushState({}, "", "/");
+  });
+
   it("shows the ticket's diagnostics — support's first questions, pre-answered", async () => {
     const t = await createTicket({
       subject: "Diag here",
@@ -150,6 +167,25 @@ describe("AdminSupportCards (same mock store as the user page)", () => {
 
     await screen.findByTestId("admin-event-recategorized");
     expect((await fetchThread(t.id)).ticket.category).toBe("billing");
+  });
+
+  it("saves a reply as canned and inserts it into a fresh draft", async () => {
+    const t = await createTicket({ subject: "Repeat question", body: "x", category: "other" });
+
+    renderWithProviders(<AdminSupportCards active />);
+    fireEvent.click(await screen.findByTestId(`admin-ticket-${t.id}`));
+
+    const input = (await screen.findByTestId("admin-reply-input")) as HTMLTextAreaElement;
+    fireEvent.change(input, { target: { value: "Check your NWC budget — most wallets default it to zero." } });
+    fireEvent.click(screen.getByTestId("canned-save"));
+
+    // Draft cleared? No — saving keeps the draft; clear it to prove insertion.
+    fireEvent.change(input, { target: { value: "" } });
+    const { listCanned } = await import("@/lib/cannedReplies");
+    const saved = listCanned()[0];
+    fireEvent.change(screen.getByTestId("canned-select"), { target: { value: saved.id } });
+
+    expect(input.value).toContain("NWC budget");
   });
 
   it("says so plainly when there are no tickets", async () => {

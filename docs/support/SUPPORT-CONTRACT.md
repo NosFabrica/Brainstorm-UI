@@ -66,7 +66,15 @@ POST /user/support/tickets/{id}/messages
   (ALLOWED on closed tickets — a user reply ALWAYS sets status "open":
    replying is reopening, and any user reply puts the ticket back in
    support's court. No separate reopen endpoint.)
+
+POST /user/support/tickets/{id}/resolve
+  (user self-close — records a "closed" event with by:"user"; replying
+   still reopens. Keeps self-solved tickets out of the admin queue.)
 ```
+
+**Anti-abuse (server's job):** cap open tickets per user (~5) — reject
+creation past the cap with a plain-language error; the UI surfaces API
+errors verbatim in its toast, so no client work is needed.
 
 ## Admin endpoints (admin-authed, like /admin/scheduling)
 
@@ -89,6 +97,9 @@ POST /admin/support/tickets/{id}/close      { message? }
 - Read/unread state — the UI tracks "seen" per device (localStorage), so
   notification dots need no server surface. Server-side read-state only
   becomes worth it if multiple support agents need shared read receipts.
+- CSAT ratings (👍/👎 after close) — real helpdesk value, but a rating
+  model + admin reporting nobody reviews yet is theater at current
+  volume. Revisit with volume.
 - **File attachments (screenshots/video)** — needs real storage, size
   limits, scanning, and authed serving. The diagnostics snapshot covers
   most troubleshooting needs meanwhile. Proposed v2 shape when it's time:

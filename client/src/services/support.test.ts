@@ -8,6 +8,7 @@ import {
   fetchSupport,
   fetchThread,
   postMessage,
+  resolveTicket,
 } from "./support";
 
 /** Mock mode throughout (VITE_FEATURE_SUPPORT_API unset in tests). */
@@ -90,6 +91,20 @@ describe("priority support seam (mock mode)", () => {
 
     const thread = await fetchThread(t.id);
     expect(thread.ticket.status).toBe("open");
+  });
+
+  // Users can end their own tickets — self-solved issues shouldn't sit in the
+  // admin queue. The record shows WHO closed, and replying still reopens.
+  it("a user can mark their own ticket resolved", async () => {
+    const t = await createTicket({ subject: "Solved it", body: "x", category: "other" });
+    await resolveTicket(t.id);
+
+    const thread = await fetchThread(t.id);
+    expect(thread.ticket.status).toBe("closed");
+    expect(thread.events.at(-1)).toMatchObject({ type: "closed", by: "user" });
+
+    await postMessage(t.id, "Spoke too soon.");
+    expect((await fetchThread(t.id)).ticket.status).toBe("open");
   });
 
   // The lifecycle is on the record: opened, closed, reopened — each stamped

@@ -34,6 +34,7 @@ import { useToast } from "@/hooks/use-toast";
 import { npubFromPubkey } from "@/lib/shareId";
 import { copyToClipboard } from "@/lib/clipboard";
 import { isUnread, markSeen } from "@/lib/supportSeen";
+import { listCanned, removeCanned, saveCanned } from "@/lib/cannedReplies";
 import {
   SUPPORT_CATEGORIES,
   adminCloseTicket,
@@ -153,7 +154,7 @@ const td = "px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200";
 /** Lifecycle lines in the admin's voice; unknown event types render plainly. */
 function adminEventLabel(e: { type: string; by: string }): string {
   if (e.type === "opened") return "Ticket opened";
-  if (e.type === "closed") return e.by === "support" ? "Closed by support" : "Closed";
+  if (e.type === "closed") return e.by === "support" ? "Closed by support" : "Resolved by the user";
   if (e.type === "reopened") return e.by === "user" ? "Reopened by the user's reply" : "Reopened";
   if (e.type === "recategorized") return "Recategorized by support";
   return e.type.replaceAll("_", " ");
@@ -249,7 +250,27 @@ export function filterAndSort(
  * the browser-local store before the server exists.
  */
 export function AdminSupportCards({ active }: { active: boolean }) {
-  const [openId, setOpenId] = useState<string | null>(null);
+  // The open thread lives in the URL — paste a link in team chat and a
+  // colleague lands on the same ticket.
+  const [openId, setOpenIdState] = useState<string | null>(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("ticket");
+    } catch {
+      return null;
+    }
+  });
+  const setOpenId = (id: string | null) => {
+    setOpenIdState(id);
+    try {
+      window.history.replaceState(
+        {},
+        "",
+        id ? `/admin?tab=support&ticket=${encodeURIComponent(id)}` : "/admin?tab=support",
+      );
+    } catch {
+      /* URL sync is a convenience, never a blocker */
+    }
+  };
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -455,6 +476,10 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
   const [busy, setBusy] = useState(false);
   const [closeOpen, setCloseOpen] = useState(false);
   const [closingMessage, setClosingMessage] = useState(DEFAULT_CLOSING_MESSAGE);
+  // Bumped after canned-reply saves/deletes so the picker re-reads the store.
+  const [cannedTick, setCannedTick] = useState(0);
+  const canned = listCanned();
+  void cannedTick;
 
   const threadQuery = useQuery({
     queryKey: [...ADMIN_SUPPORT_KEY, id],
@@ -652,7 +677,58 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
               Closed. The user keeps the history; a new issue means a new ticket.
             </p>
           ) : (
-            <div className="mt-4 flex items-end gap-2">
+            <>
+            {/* The answers that repeat: insert a saved reply, edit, send. */}
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <select
+                aria-label="Insert saved reply"
+                className="h-7 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-1.5 text-xs text-slate-600 dark:text-slate-300"
+                value=""
+                onChange={(e) => {
+                  const snippet = canned.find((c) => c.id === e.target.value);
+                  if (snippet) setDraft((d) => (d.trim() ? `${d}\n\n${snippet.body}` : snippet.body));
+                }}
+                data-testid="canned-select"
+              >
+                <option value="">Insert saved reply…</option>
+                {canned.map((c) => (
+                  <option key={c.id} value={c.id}>{c.title}</option>
+                ))}
+              </select>
+              {draft.trim() && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => { saveCanned("", draft); setCannedTick((n) => n + 1); }}
+                  data-testid="canned-save"
+                >
+                  Save as canned reply
+                </Button>
+              )}
+              {canned.length > 0 && (
+                <details className="text-xs text-slate-400 dark:text-slate-500">
+                  <summary className="cursor-pointer hover:text-slate-600 dark:hover:text-slate-300">Manage</summary>
+                  <ul className="mt-1 space-y-0.5">
+                    {canned.map((c) => (
+                      <li key={c.id} className="flex items-center gap-1.5">
+                        <span className="truncate max-w-[220px]">{c.title}</span>
+                        <button
+                          type="button"
+                          aria-label={`Delete saved reply ${c.title}`}
+                          className="text-slate-300 dark:text-slate-600 hover:text-red-500"
+                          onClick={() => { removeCanned(c.id); setCannedTick((n) => n + 1); }}
+                          data-testid={`canned-delete-${c.id}`}
+                        >
+                          <XCircle className="h-3 w-3" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+            <div className="mt-2 flex items-end gap-2">
               <textarea
                 value={draft}
                 onChange={(e) => setDraft(e.target.value.slice(0, 4000))}
@@ -665,6 +741,7 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Reply
               </Button>
             </div>
+            </>
           )}
         </>
       )}

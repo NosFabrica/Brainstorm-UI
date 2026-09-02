@@ -211,6 +211,14 @@ export async function postMessage(id: string, body: string): Promise<SupportMess
   return message;
 }
 
+/**
+ * User self-close — "solved it myself" shouldn't sit in the admin queue.
+ * The lifecycle event says WHO closed; replying reopens as always.
+ */
+export async function resolveTicket(id: string): Promise<void> {
+  setStatus(id, "closed", "user");
+}
+
 // --- Admin seam (the Support tab; same mock store = full local demo loop) -----
 
 /** Admin rows carry the requester. Mock tickets are browser-local, so pubkey
