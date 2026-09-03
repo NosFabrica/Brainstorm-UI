@@ -212,7 +212,7 @@ describe("TrustReviews", () => {
   it("opens unfolded when the page was reached by its deep link, and scrolls there once the reviews land", async () => {
     window.location.hash = "#trust-reviews";
     const scrollSpy = vi.fn();
-    Element.prototype.scrollIntoView = scrollSpy;
+    window.scrollTo = scrollSpy as unknown as typeof window.scrollTo;
     scoreByPubkey.set(BEN, 0.9);
     // The section renders only after the data arrives — too late for the
     // browser's own hash jump, so the section scrolls itself into view.

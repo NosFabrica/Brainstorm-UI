@@ -37,6 +37,17 @@ const GROUP_HEADERS: Record<EndorserGroup, string> = {
 
 const MAX_LEN = 500;
 
+/** Bring the section to rest just under the sticky search bar — "center"
+ *  hides the lower half behind a phone's bottom bars, "start" hides the
+ *  summary line under the header. */
+function scrollToReviews() {
+  if (typeof window === "undefined") return;
+  const el = document.getElementById("trust-reviews");
+  if (!el) return;
+  const top = el.getBoundingClientRect().top + window.scrollY - 72;
+  window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+}
+
 function ago(at: number): string {
   const days = Math.floor((Date.now() / 1000 - at) / 86400);
   if (days <= 0) return "today";
@@ -189,7 +200,7 @@ export function TrustReviews({
     if (composeRequest <= 0) return;
     setComposing(true);
     setOpen(true);
-    document.getElementById("trust-reviews")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    scrollToReviews();
   }, [composeRequest]);
   // The section renders only once the reviews arrive — after the browser's own
   // hash jump has already happened — so a deep link scrolls itself here, once.
@@ -199,8 +210,7 @@ export function TrustReviews({
     if (landed.current || !hasVouches) return;
     if (typeof window === "undefined" || window.location.hash !== "#trust-reviews") return;
     landed.current = true;
-    // Centered, not "start": the sticky search bar would swallow the summary line.
-    document.getElementById("trust-reviews")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    scrollToReviews();
   }, [hasVouches]);
   const [replies, setReplies] = useState<Map<string, VouchReply>>(new Map());
   const subjectProfile = useProfileMap([pubkey]).get(pubkey);
