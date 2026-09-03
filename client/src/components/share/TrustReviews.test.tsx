@@ -209,12 +209,41 @@ describe("TrustReviews", () => {
     expect(screen.getByTestId("vouch-composer")).toBeInTheDocument();
   });
 
-  it("opens unfolded when the page was reached by its deep link", async () => {
+  it("opens unfolded when the page was reached by its deep link, and scrolls there once the reviews land", async () => {
+    window.location.hash = "#trust-reviews";
+    const scrollSpy = vi.fn();
+    Element.prototype.scrollIntoView = scrollSpy;
+    scoreByPubkey.set(BEN, 0.9);
+    // The section renders only after the data arrives — too late for the
+    // browser's own hash jump, so the section scrolls itself into view.
+    personEndorsementsMock.mockReturnValue(null);
+    const { rerender } = render(<TrustReviews pubkey={SUBJECT} personal={false} />);
+    expect(scrollSpy).not.toHaveBeenCalled();
+    personEndorsementsMock.mockReturnValue({ followedBy: [], total: null, vouches: [{ id: "v-ben", pubkey: BEN, type: "vouch", text: "Solid.", at: NOW }] });
+    rerender(<TrustReviews pubkey={SUBJECT} personal={false} />);
+    expect(await screen.findByTestId("trust-review-v-ben")).toBeInTheDocument();
+    await vi.waitFor(() => expect(scrollSpy).toHaveBeenCalledTimes(1));
+    // Toggling later never scrolls again.
+    fireEvent.click(screen.getByTestId("trust-reviews-toggle-open"));
+    fireEvent.click(screen.getByTestId("trust-reviews-toggle-open"));
+    expect(scrollSpy).toHaveBeenCalledTimes(1);
+    window.location.hash = "";
+  });
+
+  it("renders a review's links and mentions as chips, not raw URLs", async () => {
     window.location.hash = "#trust-reviews";
     scoreByPubkey.set(BEN, 0.9);
-    personEndorsementsMock.mockReturnValue({ followedBy: [], total: null, vouches: [{ id: "v-ben", pubkey: BEN, type: "vouch", text: "Solid.", at: NOW }] });
+    knownProfiles.set(FRIEND, profile(FRIEND, "friend"));
+    const npub = (await import("nostr-tools")).nip19.npubEncode(FRIEND);
+    personEndorsementsMock.mockReturnValue({
+      followedBy: [], total: null,
+      vouches: [{ id: "v-ben", pubkey: BEN, type: "vouch", text: `Built https://relayop.xyz with nostr:${npub} — solid.`, at: NOW }],
+    });
     render(<TrustReviews pubkey={SUBJECT} personal={false} />);
-    expect(await screen.findByTestId("trust-review-v-ben")).toBeInTheDocument();
+    const row = await screen.findByTestId("trust-review-v-ben");
+    expect(row.querySelector('a[href="https://relayop.xyz"]')).not.toBeNull();
+    await vi.waitFor(() => expect(row.querySelector('[data-testid="mention-chip"]')).toHaveTextContent("friend"));
+    expect(row.textContent).not.toContain("nostr:");
     window.location.hash = "";
   });
 

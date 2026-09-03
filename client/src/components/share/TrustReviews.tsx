@@ -8,7 +8,7 @@
  * existing one prefills and updates; Remove is the NIP-09 delete. Silent for
  * a signed-out reader when nobody has vouched.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
 import { BadgeCheck, ChevronDown, ChevronUp, Heart, PenLine } from "lucide-react";
@@ -18,6 +18,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { TierWordChip, useTierRing } from "@/components/score/VerificationCoin";
 import { EndorsementLine, VouchBadge, useRankedVouches } from "@/components/search/EndorsementLine";
+import { NotesInline } from "@/components/share/NotesInline";
 import { endorsementLabel } from "@/services/endorsements";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useMyFollows } from "@/hooks/useMyFollows";
@@ -190,6 +191,16 @@ export function TrustReviews({
     setOpen(true);
     document.getElementById("trust-reviews")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
   }, [composeRequest]);
+  // The section renders only once the reviews arrive — after the browser's own
+  // hash jump has already happened — so a deep link scrolls itself here, once.
+  const landed = useRef(false);
+  const hasVouches = vouches.length > 0;
+  useEffect(() => {
+    if (landed.current || !hasVouches) return;
+    if (typeof window === "undefined" || window.location.hash !== "#trust-reviews") return;
+    landed.current = true;
+    document.getElementById("trust-reviews")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }, [hasVouches]);
   const [replies, setReplies] = useState<Map<string, VouchReply>>(new Map());
   const subjectProfile = useProfileMap([pubkey]).get(pubkey);
   const vouchIds = vouches.map((v) => v.id);
@@ -342,7 +353,9 @@ export function TrustReviews({
                           <span className="text-[11px] text-slate-400 dark:text-slate-500">{ago(v.at)}</span>
                         </div>
                         {v.text ? (
-                          <p className="mt-0.5 break-words text-sm leading-relaxed text-slate-700 dark:text-slate-200">{v.text}</p>
+                          <p className="mt-0.5 break-words text-sm leading-relaxed text-slate-700 dark:text-slate-200">
+                            <NotesInline text={v.text} />
+                          </p>
                         ) : (
                           <p className="mt-0.5 text-xs italic text-slate-400 dark:text-slate-500">Silent vouch · no note</p>
                         )}
@@ -354,7 +367,9 @@ export function TrustReviews({
                             <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
                               Reply from {subjectName} <span className="text-slate-400 dark:text-slate-500">· {ago(reply.at)}</span>
                             </div>
-                            <p className="mt-0.5 break-words text-sm leading-relaxed text-slate-700 dark:text-slate-200">{reply.text}</p>
+                            <p className="mt-0.5 break-words text-sm leading-relaxed text-slate-700 dark:text-slate-200">
+                              <NotesInline text={reply.text} />
+                            </p>
                           </div>
                         )}
                       </div>
