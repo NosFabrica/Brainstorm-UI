@@ -14,6 +14,7 @@ import { VerificationCoin, useTierRing, TierWordChip } from "@/components/score/
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useAppEndorsements } from "@/hooks/useAppEndorsements";
 import { FlaggedChip, FollowedByLine, PanelIdentityChip, PanelVouches } from "@/components/search/EndorsementLine";
+import { ZapModal } from "@/components/ZapModal";
 import { compactCount } from "@/lib/compactCount";
 import { visiblePersonSets } from "@/services/endorsements";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
@@ -194,6 +195,7 @@ export function KnowledgePanel({
   const bestSetOf = (m: PersonSetMembership) =>
     [...m.sets].sort((a, b) => (exporterScoreOf(b.pubkey) ?? -1) - (exporterScoreOf(a.pubkey) ?? -1))[0];
   const [, navigate] = useLocation();
+  const [zapOpen, setZapOpen] = useState(false);
   // Google's knowledge panel is one click-through to the entity; the links
   // inside keep their own targets. Ours opens the public profile.
   const openProfile = (ev: React.MouseEvent | React.KeyboardEvent) => {
@@ -421,9 +423,16 @@ export function KnowledgePanel({
             </p>
           )}
           {person.lud16 && (
-            <p className="flex items-center gap-1 truncate text-xs text-slate-500 dark:text-slate-400" data-testid="person-lightning">
-              <Zap className="h-3 w-3 shrink-0 text-[#F7931A]" /> {person.lud16}
-            </p>
+            // Tap to zap — the public profile's flow, from the panel.
+            <button
+              type="button"
+              onClick={() => setZapOpen(true)}
+              title={`Send a zap to ${person.lud16}`}
+              className="flex max-w-full items-center gap-1 truncate rounded-md text-left text-xs text-slate-500 dark:text-slate-400 hover:text-[#e07f12] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+              data-testid="person-lightning"
+            >
+              <Zap className="h-3 w-3 shrink-0 text-[#F7931A]" /> <span className="truncate">{person.lud16}</span>
+            </button>
           )}
         </div>
       )}
@@ -491,11 +500,23 @@ export function KnowledgePanel({
   );
 
   if (!main && !apps) return null;
-  // The rail stacks: the entity panel first, matching apps beneath.
+  // The rail stacks: the entity panel first, matching apps beneath. The zap
+  // dialog mounts OUTSIDE the panel so its clicks never bubble into the
+  // panel's own click-through (React events cross portals).
   return (
     <div className={`w-full space-y-3 ${className}`}>
       {main}
       {apps}
+      {person?.lud16 && (
+        <ZapModal
+          open={zapOpen}
+          onOpenChange={setZapOpen}
+          recipientPubkey={person.pubkey}
+          lud16={person.lud16}
+          displayName={getDisplayLabel(person)}
+          picture={person.picture ?? undefined}
+        />
+      )}
     </div>
   );
 }

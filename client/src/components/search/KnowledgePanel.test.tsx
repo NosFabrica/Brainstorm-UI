@@ -60,6 +60,16 @@ vi.mock("@/services/nostr", () => ({
   fetchProfileMap: vi.fn(() => Promise.resolve(profileMapMock)),
 }));
 
+// The zap flow is the public profile's — faked to a marker so the panel can
+// prove it hands over the right recipient.
+const zapModalMock = vi.fn();
+vi.mock("@/components/ZapModal", () => ({
+  ZapModal: (props: { open: boolean; lud16: string; recipientPubkey: string; displayName: string }) => {
+    zapModalMock(props);
+    return props.open ? <div data-testid="zap-modal">{props.lud16}</div> : null;
+  },
+}));
+
 import { KnowledgePanel } from "./KnowledgePanel";
 
 function noteHit(id: string, pubkey: string, name: string, created_at: number, tags: string[][] = []) {
@@ -199,6 +209,22 @@ describe("the person panel's endorsements", () => {
     // Identity first, then social proof.
     const text = panel.textContent ?? "";
     expect(text.indexOf("david@bitcoinpark.com")).toBeLessThan(text.indexOf("david@getalby.com"));
+  });
+
+  // Benjamin: tapping the address should send a zap, the public profile's flow.
+  it("tapping the lightning address opens the zap flow for this person, not their profile", async () => {
+    suggestMock.mockResolvedValueOnce([
+      { pubkey: DAVID, npub: "npub1david", name: "david", lud16: "david@getalby.com", wotRank: 0.9, wotFollowers: 42 },
+    ]);
+    window.history.replaceState({}, "", "/?q=david");
+    render(<KnowledgePanel query="david" pov="nosfabrica" />);
+    await screen.findByTestId("search-knowledge-panel");
+    expect(screen.queryByTestId("zap-modal")).toBeNull();
+    fireEvent.click(screen.getByTestId("person-lightning"));
+    expect(screen.getByTestId("zap-modal")).toHaveTextContent("david@getalby.com");
+    expect(zapModalMock).toHaveBeenLastCalledWith(expect.objectContaining({ open: true, recipientPubkey: DAVID, displayName: "david" }));
+    // The panel's own click-through did not fire.
+    expect(window.location.pathname).toBe("/");
   });
 
   it("no flag, no chip; no followers, no line", async () => {
