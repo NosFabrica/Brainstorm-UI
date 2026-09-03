@@ -15,6 +15,7 @@ import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { NoteContent } from "@/components/share/NoteContent";
 import { AppHero } from "@/components/share/AppHero";
 import { RepoHero } from "@/components/share/RepoHero";
+import { FollowSetHero } from "@/components/share/FollowSetHero";
 import { AudioHero } from "@/components/share/AudioHero";
 import { EventHero } from "@/components/share/EventHero";
 import { LiveHero } from "@/components/share/LiveHero";
@@ -354,6 +355,8 @@ export default function EventPage() {
                 <AppHero event={note} />
               ) : note.kind === 30617 ? (
                 <RepoHero event={note} />
+              ) : note.kind === 30000 ? (
+                <FollowSetHero event={note} />
               ) : note.kind === 31337 ? (
                 <AudioHero event={note} />
               ) : note.kind === 31922 || note.kind === 31923 ? (
