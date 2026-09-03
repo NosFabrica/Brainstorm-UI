@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 /**
  * Typed result cards for the verticals with no existing precedent —
  * media, code & git, live events, lists. Each is a compact, self-contained
@@ -14,6 +15,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Chip } from "@/components/ui/chip";
 import { useTierRing } from "@/components/score/VerificationCoin";
+import { useAuthorScores } from "@/hooks/useAuthorScores";
+import { eventStore } from "@/lib/eventStore";
+import { fetchProfileMap } from "@/services/nostr";
 import { eventPath } from "@/lib/shareId";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 
@@ -341,10 +345,49 @@ export function LiveCard({ event, author, score }: { event: NostrEvent; author: 
   );
 }
 
+type MemberProfile = { name?: string; display_name?: string; picture?: string };
+
 export function ListCard({ event, author, score }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
   const title = tagVal(event, "title") ?? tagVal(event, "name") ?? tagVal(event, "d") ?? "Untitled list";
   const description = tagVal(event, "description") ?? "";
-  const count = event.tags.filter((t) => t[0] === "p" || t[0] === "e" || t[0] === "a" || t[0] === "r").length;
+  const members = event.tags.filter((t) => t[0] === "p" && t[1]).map((t) => t[1]);
+  const otherItems = event.tags.filter((t) => t[0] === "e" || t[0] === "a" || t[0] === "r").length;
+  // A people-list (Brainstorm's pinned-tag follow sets are kind 30000) counts
+  // MEMBERS and shows their faces; mixed lists keep the generic item count.
+  const isPeopleList = members.length > 0 && otherItems === 0;
+  const count = members.length + otherItems;
+  const tierRing = useTierRing();
+  const memberScoreOf = useAuthorScores(isPeopleList ? members.slice(0, 5) : []);
+  const [profiles, setProfiles] = useState<Map<string, MemberProfile>>(new Map());
+  useEffect(() => {
+    if (!isPeopleList) return;
+    const shown = members.slice(0, 5);
+    const known = new Map<string, MemberProfile>();
+    const missing: string[] = [];
+    for (const pk of shown) {
+      const stored = eventStore.getReplaceable(0, pk);
+      if (stored) {
+        try {
+          known.set(pk, JSON.parse(stored.content) as MemberProfile);
+        } catch { /* unparseable — fallback face */ }
+      } else missing.push(pk);
+    }
+    setProfiles(known);
+    if (missing.length === 0) return;
+    let alive = true;
+    void fetchProfileMap(missing).then((res) => {
+      if (!alive || res.size === 0) return;
+      setProfiles((prev) => {
+        const next = new Map(prev);
+        for (const [pk, content] of res) next.set(pk, content as MemberProfile);
+        return next;
+      });
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [event.id]);
   return (
     <CardShell event={event} openInUrl={`https://njump.me/${neventOf(event)}`} openInLabel="Open in client" testId={`list-card-${event.id}`}>
       <div className="flex items-start gap-3">
@@ -354,12 +397,35 @@ export function ListCard({ event, author, score }: { event: NostrEvent; author: 
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 min-w-0">
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
-            <Chip size="sm" tone="slate" data-testid={`list-count-${event.id}`}>
-              {count} item{count !== 1 ? "s" : ""}
+            <Chip size="sm" tone={isPeopleList ? "info" : "slate"} data-testid={`list-count-${event.id}`}>
+              {count} {isPeopleList ? (count === 1 ? "member" : "members") : count === 1 ? "item" : "items"}
             </Chip>
           </div>
           {description && (
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 break-words line-clamp-2">{description}</p>
+          )}
+          {isPeopleList && (
+            <div className="mt-2 flex items-center gap-1.5" data-testid={`list-members-${event.id}`}>
+              {members.slice(0, 5).map((pk) => {
+                const profile = profiles.get(pk);
+                const memberName = profile?.display_name || profile?.name;
+                return (
+                  <Avatar
+                    key={pk}
+                    title={memberName ?? undefined}
+                    className={`h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(memberScoreOf(pk) ?? null, false, "sm", true) ?? ""}`}
+                  >
+                    {profile?.picture ? <AvatarImage src={profile.picture} alt="" className="object-cover" /> : null}
+                    <AvatarFallback className="overflow-hidden">
+                      <DefaultAvatarImg />
+                    </AvatarFallback>
+                  </Avatar>
+                );
+              })}
+              {members.length > 5 && (
+                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">+{members.length - 5} more</span>
+              )}
+            </div>
           )}
           <div className="mt-1.5">
             <AuthorRow author={author} score={score} created_at={event.created_at} />

@@ -58,6 +58,7 @@ export function kindTypeLabel(kind: number): string {
     case 1617: return "Patch";
     case 1618: case 1621: return "Issue";
     case 1337: return "Code";
+    case 30000: return "Follow set";
     case 10003: case 10015: case 30001: case 30003: case 30015: case 30267: case 39701: return "List";
     default: return "Post";
   }

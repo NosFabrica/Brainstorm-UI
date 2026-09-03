@@ -45,7 +45,8 @@ export const TAB_KINDS: Record<Exclude<SearchTab, "everything">, number[]> = {
   apps: [32267],
   repos: [30617, 1617, 1618, 1621],
   live: [30311, 30312, 30313, 31922, 31923, 31924],
-  lists: [10003, 10015, 30001, 30003, 30015, 30267, 39701],
+  // 30000 = NIP-51 follow sets — Brainstorm's own pinned-tag exports live here.
+  lists: [30000, 10003, 10015, 30001, 30003, 30015, 30267, 39701],
 };
 
 /** Everything is deliberately unconstrained — the relay blends and ranks. */

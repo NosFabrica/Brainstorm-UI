@@ -39,6 +39,12 @@ vi.mock("@/services/search", async (importOriginal) => {
   };
 });
 
+// Member piles hydrate through fetchProfileMap — stubbed so jsdom never
+// touches relays; faces fall back to the default avatar.
+vi.mock("@/services/nostr", () => ({
+  fetchProfileMap: vi.fn(() => Promise.resolve(new Map())),
+}));
+
 // The relay expresses rank as ORDER only — per-author scores come from the
 // shared house-influence cache. Faked here so cards can prove they use it.
 const scoreOfMock = vi.fn<(pk: string) => number | null | undefined>(() => 0.85);
@@ -306,6 +312,28 @@ describe("SearchResults", () => {
     emit({ hits: [{ event: list, author: author(list.pubkey, "gail"), rank: null }], eose: true, timeMs: 200 });
     expect(await screen.findByText("Reading List")).toBeInTheDocument();
     expect(screen.getByTestId("list-count-li1")).toHaveTextContent("3");
+  });
+
+  it("a Brainstorm follow set shows its members as trust-ringed faces", async () => {
+    setUrlTab("lists");
+    render(<SearchResults query="verified human" pov="nosfabrica" />);
+    const followSet = ev("fs1", 30000, "f".repeat(64), "", [
+      ["d", "tl-pin-verified-human"],
+      ["title", "Verified Human"],
+      ["description", "A Pinned-tag list from Brainstorm."],
+      ["p", "1".repeat(64)],
+      ["p", "2".repeat(64)],
+      ["p", "3".repeat(64)],
+    ]);
+    emit({ hits: [{ event: followSet, author: author(followSet.pubkey, "exporter"), rank: null }], eose: true, timeMs: 150 });
+
+    expect(await screen.findByText("Verified Human")).toBeInTheDocument();
+    // Members, not generic "items".
+    expect(screen.getByTestId("list-count-fs1")).toHaveTextContent("3 members");
+    // The face pile wears the app's tier rings (scores from the shared cache).
+    const pile = screen.getByTestId("list-members-fs1");
+    const ringed = [...pile.querySelectorAll("span")].filter((el) => el.className.includes("shadow-[0_0_0"));
+    expect(ringed.length).toBe(3);
   });
 
   it("renders media with a thumbnail from imeta", async () => {
