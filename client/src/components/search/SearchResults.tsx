@@ -152,6 +152,37 @@ const SORT_OPTIONS = [
   { value: "text", label: "Text match only" },
 ];
 
+/** A one-line facet chip strip: horizontal scroll with the scrollbar hidden,
+ *  a soft right-edge fade to signal "more", and mouse-wheel → horizontal so a
+ *  desktop mouse scrolls it as easily as a phone swipes (trackpads/touch already
+ *  scroll it natively). */
+function FacetRow({ testId, className = "", children }: { testId: string; className?: string; children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX) || el.scrollWidth <= el.clientWidth) return;
+      const atStart = el.scrollLeft <= 0;
+      const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
+      if ((e.deltaY < 0 && atStart) || (e.deltaY > 0 && atEnd)) return; // let the page scroll on
+      e.preventDefault();
+      el.scrollLeft += e.deltaY;
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+  return (
+    <div
+      ref={ref}
+      className={`-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,black_calc(100%_-_1.25rem),transparent)] ${className}`}
+      data-testid={testId}
+    >
+      {children}
+    </div>
+  );
+}
+
 /** The five grilled filters. Every control WRITES SYNTAX into the query box
  *  (via onQueryRewrite) — users learn the grammar by watching it appear. */
 function FiltersPanel({
@@ -598,10 +629,7 @@ export function SearchResults({
       ) : (
         <>
           {tab === "apps" && appFacets.length > 0 && (
-            <div
-              className="mb-2 -mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-              data-testid="app-facets"
-            >
+            <FacetRow className="mb-2" testId="app-facets">
               <button
                 type="button"
                 onClick={() => setAppPlatform(null)}
@@ -629,13 +657,10 @@ export function SearchResults({
                   {platform} <span className="opacity-60">{count}</span>
                 </button>
               ))}
-            </div>
+            </FacetRow>
           )}
           {tab === "apps" && (appCategoryFacets.length > 0 || appLicenseFacets.length > 0) && (
-            <div
-              className="mb-2.5 -mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-              data-testid="app-cat-facets"
-            >
+            <FacetRow className="mb-2.5" testId="app-cat-facets">
               {appCategoryFacets.map(([cat, count]) => (
                 <button
                   key={cat}
@@ -666,7 +691,7 @@ export function SearchResults({
                   {lic} <span className="opacity-60">{count}</span>
                 </button>
               ))}
-            </div>
+            </FacetRow>
           )}
           {snapshot?.eose && (
             <div className="mb-2 sm:mb-3 px-1">
@@ -676,7 +701,10 @@ export function SearchResults({
               </p>
             </div>
           )}
-          <div className="space-y-2 sm:space-y-3" data-testid="container-search-results">
+          <div
+            className={tab === "apps" ? "grid grid-cols-1 gap-2.5 lg:grid-cols-2" : "space-y-2 sm:space-y-3"}
+            data-testid="container-search-results"
+          >
             {displayHits.map(({ hit, collapsedCount, clusterId }) => {
               const { event } = hit;
               const chip =
