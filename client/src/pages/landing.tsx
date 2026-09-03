@@ -994,8 +994,9 @@ export default function Landing() {
               >
                 {/* Browse lives HERE now, not as standing page chrome — the
                     empty focused box offers the verticals, Google-style. */}
-                <div className="flex items-center gap-1 overflow-x-auto px-4 pt-3 pb-2" data-testid="browse-chips">
-                  <span className="mr-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Browse</span>
+                {/* Phones wrap the chips into rows; from sm up they hold one line. */}
+                <div className="flex flex-wrap items-center gap-1 px-4 pt-3 pb-2 sm:flex-nowrap sm:overflow-x-auto" data-testid="browse-chips">
+                  <span className="w-full sm:w-auto sm:mr-0.5 mb-0.5 sm:mb-0 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Browse</span>
                   {/* One chip per vertical, in the tab bar's order — the
                       dropdown IS the tab set for keyword-less browsing. */}
                   {[
