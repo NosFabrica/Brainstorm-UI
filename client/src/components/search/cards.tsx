@@ -351,7 +351,9 @@ export function AppCard({ event, author, score }: { event: NostrEvent; author: S
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
+          {/* "Get it" sits absolutely in the corner — the title leaves it room
+              so a long app name truncates before it, never under it. */}
+          <p className={`truncate text-sm font-semibold text-slate-900 dark:text-slate-100 ${getIt ? "pr-16" : ""}`}>{name}</p>
           {summary && (
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 break-words line-clamp-2">{summary}</p>
           )}
