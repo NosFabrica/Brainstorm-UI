@@ -16,6 +16,7 @@ import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { SerpRow } from "@/components/search/SerpRow";
 import { collapseHits, type HitCluster } from "@/lib/searchCollapse";
 import { visitedPubkeys } from "@/lib/recentSearches";
+import { useWheelScrollX } from "@/hooks/useWheelScrollX";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import {
   searchStream,
@@ -178,6 +179,8 @@ export function ComposedResults({
   const scoreOf = useAuthorScores(useMemo(() => [...new Set(allHits)], [allHits]));
 
   const visited = useMemo(() => visitedPubkeys(), []);
+  // The strip scrolls with a plain mouse wheel too — same feel as the facet chips.
+  const stripRef = useWheelScrollX();
   const peopleOrdered = useMemo(() => {
     const hits = people?.hits.filter((h) => h.author) ?? [];
     // Transparent on-device personalization: faces you've opened lead.
@@ -221,7 +224,11 @@ export function ComposedResults({
               Touch scrolling still works; the arrows are for mouse users
               who otherwise see a stagnant strip. */}
           <div className="relative">
-            <div className="flex gap-2.5 overflow-x-auto scroll-smooth pb-1 -mx-1 px-1" data-testid="people-strip">
+            <div
+              ref={stripRef}
+              className="flex gap-2.5 overflow-x-auto pb-1 -mx-1 px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,black_calc(100%_-_1.5rem),transparent)]"
+              data-testid="people-strip"
+            >
               {peopleOrdered.map((h) => (
                 <PersonChip
                   key={h.event.pubkey}

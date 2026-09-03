@@ -415,9 +415,15 @@ export function RepoCard({ event, author, score }: { event: NostrEvent; author: 
             <CuratorFooter kicker={isRepo ? "Maintained by" : "By"} author={author} score={score} created_at={event.created_at} />
           </div>
         </div>
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
-          <Code2 className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-        </div>
+        {/* CardShell parks the external "Open repo" link absolutely in this
+            corner (it must live outside the card's own link — nested anchors
+            are invalid). The glyph is decorative, the type chip already names
+            the kind — so it only takes the corner when nothing else does. */}
+        {!openIn && (
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800" data-testid={`repo-glyph-${event.id}`}>
+            <Code2 className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+          </div>
+        )}
       </div>
     </CardShell>
   );

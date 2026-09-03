@@ -311,6 +311,27 @@ describe("SearchResults", () => {
     expect(card).toHaveTextContent("Maintained by");
   });
 
+  it("the card's top-right corner holds exactly one affordance", async () => {
+    setUrlTab("repos");
+    render(<SearchResults query="ngit" pov="nosfabrica" />);
+    // A repo announcement has an external "Open repo" link — the glyph steps
+    // aside so the two never overlap. A patch has no external link — the
+    // glyph keeps the corner.
+    const repo = ev("ov1", 30617, "f".repeat(64), "", [["d", "ngit"], ["name", "ngit"], ["web", "https://gitworkshop.dev/ngit"]]);
+    const patch = ev("ov2", 1617, "a".repeat(64), "", [["subject", "fix: thing"], ["a", "30617:" + "f".repeat(64) + ":ngit"]]);
+    emit({
+      hits: [repo, patch].map((event) => ({ event, author: author(event.pubkey, "dan"), rank: null })),
+      eose: true,
+      timeMs: 200,
+    });
+    const repoCard = await screen.findByTestId("repo-card-ov1");
+    expect(within(repoCard).getByText("Open repo")).toBeInTheDocument();
+    expect(within(repoCard).queryByTestId("repo-glyph-ov1")).toBeNull();
+    const patchCard = screen.getByTestId("repo-card-ov2");
+    expect(within(patchCard).queryByText("Open repo")).toBeNull();
+    expect(within(patchCard).getByTestId("repo-glyph-ov2")).toBeInTheDocument();
+  });
+
   it("a repo announcement shows its issue and patch counts", async () => {
     setUrlTab("repos");
     repoCountsMock.mockResolvedValue({ issues: 12, patches: 3 });

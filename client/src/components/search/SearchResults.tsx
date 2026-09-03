@@ -12,6 +12,7 @@ import type { NostrEvent } from "nostr-tools";
 import { Radar, SlidersHorizontal } from "lucide-react";
 import { applyFilters, readFilters, type SearchFilterPatch } from "@/lib/searchSyntax";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
+import { useWheelScrollX } from "@/hooks/useWheelScrollX";
 import { DEFAULT_VERIFIED_LINE, TIER_LABELS, TIER_THRESHOLDS } from "@/services/trustThreshold";
 import { eventStore } from "@/lib/eventStore";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -157,21 +158,7 @@ const SORT_OPTIONS = [
  *  desktop mouse scrolls it as easily as a phone swipes (trackpads/touch already
  *  scroll it natively). */
 function FacetRow({ testId, className = "", children }: { testId: string; className?: string; children: React.ReactNode }) {
-  const ref = useRef<HTMLDivElement | null>(null);
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const onWheel = (e: WheelEvent) => {
-      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX) || el.scrollWidth <= el.clientWidth) return;
-      const atStart = el.scrollLeft <= 0;
-      const atEnd = el.scrollLeft + el.clientWidth >= el.scrollWidth - 1;
-      if ((e.deltaY < 0 && atStart) || (e.deltaY > 0 && atEnd)) return; // let the page scroll on
-      e.preventDefault();
-      el.scrollLeft += e.deltaY;
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, []);
+  const ref = useWheelScrollX();
   return (
     <div
       ref={ref}
