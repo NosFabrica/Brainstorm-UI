@@ -253,33 +253,32 @@ export interface AppRelease {
 }
 
 /**
- * The newest Zap Store release for an app — the app page's "is it
- * maintained?" signal. Releases are kind 30063 by the same publisher, with
- * d = "<app-d>@<version>"; the lens is include:spam because we want the
- * publisher's own releases regardless of how the observer ranks them.
+ * An app's Zap Store releases, newest first — [0] is the "What's new"
+ * release, the rest are the version history. Releases are kind 30063 by
+ * the same publisher, with d = "<app-d>@<version>"; the lens is
+ * include:spam because we want the publisher's own releases regardless
+ * of how the observer ranks them.
  */
-export function fetchLatestRelease(
+export function fetchReleases(
   appD: string,
   publisher: string,
   timeoutMs = 5000,
-): Promise<AppRelease | null> {
+): Promise<AppRelease[]> {
   return new Promise((resolve) => {
     const relay = searchRelay();
-    if (!relay) return resolve(null);
-    let latest: AppRelease | null = null;
+    if (!relay) return resolve([]);
+    const releases: AppRelease[] = [];
     const sub = relay
       .req({ kinds: [30063], authors: [publisher], search: "include:spam", limit: 50 })
       .subscribe((msg: { type: string; event?: NostrEvent }) => {
         if (msg.type === "EVENT" && msg.event) {
           const d = msg.event.tags.find((t) => t[0] === "d")?.[1] ?? "";
           if (!d.startsWith(`${appD}@`)) return;
-          if (!latest || msg.event.created_at > latest.at) {
-            latest = {
-              version: d.slice(appD.length + 1),
-              at: msg.event.created_at,
-              notes: msg.event.content ?? "",
-            };
-          }
+          releases.push({
+            version: d.slice(appD.length + 1),
+            at: msg.event.created_at,
+            notes: msg.event.content ?? "",
+          });
         } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
           finish();
         }
@@ -288,7 +287,7 @@ export function fetchLatestRelease(
     function finish() {
       clearTimeout(timer);
       sub.unsubscribe();
-      resolve(latest);
+      resolve(releases.sort((a, b) => b.at - a.at));
     }
   });
 }

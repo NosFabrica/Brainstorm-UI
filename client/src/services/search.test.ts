@@ -36,7 +36,7 @@ vi.mock("@/lib/eventStore", () => ({
 }));
 
 import {
-  fetchLatestRelease,
+  fetchReleases,
   searchStream,
   suggestProfiles,
   kindsForTab,
@@ -291,17 +291,18 @@ describe("author hydration", () => {
   });
 });
 
-describe("fetchLatestRelease", () => {
-  // The app page's "is it maintained?" signal: Zap Store releases are kind
-  // 30063 whose d-tag is "<app-d>@<version>" — the newest one by the same
-  // publisher is the app's latest version.
-  it("finds the newest release for an app's d identifier", async () => {
+describe("fetchReleases", () => {
+  // The app page's release story: Zap Store releases are kind 30063 whose
+  // d-tag is "<app-d>@<version>" — the same publisher's releases for this
+  // app, newest first. [0] is the "What's new" release; the rest are the
+  // version history.
+  it("returns the app's releases newest-first, ignoring other apps", async () => {
     const { subject } = controllable();
     const publisher = "b".repeat(64);
     const release = (d: string, at: number): NostrEvent =>
       ({ id: d, kind: 30063, pubkey: publisher, tags: [["d", d]], content: `notes for ${d}`, created_at: at, sig: "s" }) as NostrEvent;
 
-    const pending = fetchLatestRelease("place.poster.app", publisher);
+    const pending = fetchReleases("place.poster.app", publisher);
     await tick();
     const filter = reqMock.mock.calls[0][0] as { kinds: number[]; authors: string[]; search: string };
     expect(filter.kinds).toEqual([30063]);
@@ -313,21 +314,20 @@ describe("fetchLatestRelease", () => {
     subject.next(frame(release("place.poster.app@1.0.2133", 200)));
     subject.next(EOSE);
 
-    const latest = await pending;
-    // The release's content IS the "What's new" text.
-    expect(latest).toMatchObject({
-      version: "1.0.2133",
-      at: 200,
-      notes: "notes for place.poster.app@1.0.2133",
-    });
+    const releases = await pending;
+    // Newest first; the release's content IS the "What's new" text.
+    expect(releases).toEqual([
+      { version: "1.0.2133", at: 200, notes: "notes for place.poster.app@1.0.2133" },
+      { version: "1.0.2132", at: 100, notes: "notes for place.poster.app@1.0.2132" },
+    ]);
   });
 
-  it("resolves null when the app has no releases", async () => {
+  it("resolves empty when the app has no releases", async () => {
     const { subject } = controllable();
-    const pending = fetchLatestRelease("no.releases.app", "c".repeat(64));
+    const pending = fetchReleases("no.releases.app", "c".repeat(64));
     await tick();
     subject.next(EOSE);
-    expect(await pending).toBeNull();
+    expect(await pending).toEqual([]);
   });
 });
 
