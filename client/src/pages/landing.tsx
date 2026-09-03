@@ -590,7 +590,7 @@ export default function Landing() {
     handleSearch();
   };
 
-  const clearSearch = useCallback(() => {
+  const clearSearch = useCallback((opts?: { refocus?: boolean }) => {
     searchAbortRef.current++;
     cancelSuggest();
     setQuery("");
@@ -598,7 +598,9 @@ export default function Landing() {
     setActiveSuggestion(-1);
     setSubmitted(null);
     setIsSearching(false);
-    inputRef.current?.focus();
+    // Refocusing reopens the recents dropdown — right for the ⓧ clear
+    // button, wrong for the wordmark (a "refresh", not an invitation).
+    if (opts?.refocus !== false) inputRef.current?.focus();
     try {
       const url = new URL(window.location.href);
       if (url.searchParams.has("q") || url.searchParams.has("t")) {
@@ -762,7 +764,7 @@ export default function Landing() {
                   clears the search and lands you on the pristine box. */}
               <button
                 type="button"
-                onClick={clearSearch}
+                onClick={() => clearSearch({ refocus: false })}
                 aria-label="Back to the search home"
                 className="cursor-pointer rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
                 data-testid="wordmark-home"
@@ -852,7 +854,7 @@ export default function Landing() {
                 {query.length > 0 && (
                   <button
                     type="button"
-                    onClick={clearSearch}
+                    onClick={() => clearSearch()}
                     aria-label="Clear search"
                     className="inline-flex items-center justify-center h-7 w-7 rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
                     data-testid="button-home-clear"
