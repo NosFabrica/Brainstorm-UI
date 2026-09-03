@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchEventsByFilter, fetchProfileMap, PROFILE_RELAYS } from "@/services/nostr";
+import { fetchEventsByFilter, fetchProfileMap } from "@/services/nostr";
+import { PROFILE_RELAYS } from "@/lib/relays";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { eventPath } from "@/lib/shareId";
 import { collectRefs, type MinimalEvent } from "@/lib/noteRefs";

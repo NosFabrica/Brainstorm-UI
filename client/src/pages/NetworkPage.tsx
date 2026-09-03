@@ -39,13 +39,10 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { useQuery } from "@tanstack/react-query";
 import { queryClient } from "@/lib/queryClient";
-import {
-  getCurrentUser,
-  logout,
-  fetchProfiles,
-  eventStore,
-  type NostrUser,
-} from "@/services/nostr";
+import { fetchProfiles, eventStore } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { DeferredSessionNotice } from "@/components/DeferredSession";
 import {
   getProfileContent,
   isValidProfile,
@@ -71,6 +68,8 @@ import {
   type NetworkCardActions,
   type NetworkCardView,
 } from "@/components/network/cardContext";
+import { TIER_LABELS } from "@/services/trustThreshold";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
 
 const floatingNodes = Array.from({ length: 10 }, (_, i) => ({
   id: i,
@@ -221,7 +220,7 @@ function prefetchProfileOverview(pk: string): void {
 
 export default function NetworkPage() {
   const [, navigate] = useLocation();
-  const [user, setUser] = useState<NostrUser | null>(null);
+  const user = useActiveAccountDisplay();
 
   const [activeGroup, setActiveGroup] = useState<GroupKey>(() => {
     const params = new URLSearchParams(window.location.search);
@@ -246,6 +245,10 @@ export default function NetworkPage() {
   const [searchFilter, setSearchFilter] = useState("");
   type TrustTier =
     | "all"
+    // Simple-ladder "Verified": every tier at or above the preset's line. Not
+    // a backend bucket — it maps to `verified_only`, which the server resolves
+    // against the same cutoff, so the list and the header count agree.
+    | "verified"
     | "high"
     | "medium"
     | "neutral"
@@ -256,6 +259,7 @@ export default function NetworkPage() {
     const params = new URLSearchParams(window.location.search);
     const t = params.get("trust");
     const valid: TrustTier[] = [
+      "verified",
       "high",
       "medium",
       "neutral",
@@ -280,6 +284,7 @@ export default function NetworkPage() {
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [verifiedOnly, setVerifiedOnly] = useState(true);
+  const [granularity] = useTierGranularity();
   const [sortDirection, setSortDirection] = useState<"desc" | "asc">("desc");
   const [expandedPubkey, setExpandedPubkey] = useState<string | null>(null);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -357,13 +362,8 @@ export default function NetworkPage() {
   }, []);
 
   useEffect(() => {
-    const u = getCurrentUser();
-    if (!u) {
-      navigate("/", { replace: true });
-      return;
-    }
-    setUser(u);
-  }, [navigate]);
+    if (!user) navigate("/", { replace: true });
+  }, [user, navigate]);
 
   const { preset: trustPreset } = useTrustPresetSync(!!user);
 
@@ -395,15 +395,15 @@ export default function NetworkPage() {
     flagged: "low_and_reported_by_2_or_more_trusted_pubkeys",
   };
   const mappedTier =
-    isFlaggedView || trustFilter === "all"
+    isFlaggedView || trustFilter === "all" || trustFilter === "verified"
       ? undefined
-      : UI_TO_GR_TIER[trustFilter];
+      : UI_TO_GR_TIER[trustFilter as keyof typeof UI_TO_GR_TIER];
   // `verified_only` filters on the preset's cutoff for that section, so the
   // list and the stats-derived header count agree by construction.
   const filterOpts = {
     order: sortDirection,
     tier: mappedTier,
-    verifiedOnly: !isFlaggedView && verifiedOnly && mappedTier === undefined,
+    verifiedOnly: !isFlaggedView && (verifiedOnly || trustFilter === "verified") && mappedTier === undefined,
     // Pager needs the filtered total per section (overview/stats can't express
     // arbitrary tier filters). Requested on the first page only (see useSelf).
     withTotal: true,
@@ -869,6 +869,7 @@ export default function NetworkPage() {
   const handleSocialFollow = useCallback(
     async (pk: string) => {
       const result = await social.follow(pk);
+      if (result.cancelled) return result;
       if (result.success)
         toast({ title: "Followed", description: "Added to your contact list" });
       else
@@ -885,6 +886,7 @@ export default function NetworkPage() {
   const handleSocialUnfollow = useCallback(
     async (pk: string) => {
       const result = await social.unfollow(pk);
+      if (result.cancelled) return result;
       if (result.success)
         toast({
           title: "Unfollowed",
@@ -904,6 +906,7 @@ export default function NetworkPage() {
   const handleSocialMute = useCallback(
     async (pk: string) => {
       const result = await social.mute(pk);
+      if (result.cancelled) return result;
       if (result.success)
         toast({ title: "Muted", description: "Added to your mute list" });
       else
@@ -920,6 +923,7 @@ export default function NetworkPage() {
   const handleSocialUnmute = useCallback(
     async (pk: string) => {
       const result = await social.unmute(pk);
+      if (result.cancelled) return result;
       if (result.success)
         toast({ title: "Unmuted", description: "Removed from your mute list" });
       else
@@ -1166,6 +1170,7 @@ export default function NetworkPage() {
       />
 
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
+        <DeferredSessionNotice className="mb-8" />
         <div className="space-y-8 animate-fade-up">
           <div
             className="text-left relative z-10 mb-8 pt-2"
@@ -1272,7 +1277,7 @@ export default function NetworkPage() {
                         Verified
                       </div>
                       <div className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight">
-                        Show only WoT-verified accounts
+                        Show only verified accounts
                       </div>
                     </div>
                   </div>
@@ -1342,11 +1347,22 @@ export default function NetworkPage() {
                     data-testid="select-trust-filter-mobile"
                   >
                     <option value="all">All</option>
-                    <option value="high">Highly Trusted</option>
-                    <option value="medium">Trusted</option>
-                    <option value="neutral">Neutral</option>
-                    <option value="low">Low Trust</option>
-                    <option value="unverified">Unverified</option>
+                    {/* Labels from TIER_LABELS; the `value` keys are this page's
+                        own filter vocabulary and must not follow the rename. */}
+                    {granularity === "simple" ? (
+                      <>
+                        <option value="verified">Verified</option>
+                        <option value="unverified">Unknown</option>
+                      </>
+                    ) : (
+                      <>
+                        <option value="high">{TIER_LABELS.high}</option>
+                        <option value="medium">{TIER_LABELS.trusted}</option>
+                        <option value="neutral">{TIER_LABELS.neutral}</option>
+                        <option value="low">{TIER_LABELS.low}</option>
+                        <option value="unverified">{TIER_LABELS.unverified}</option>
+                      </>
+                    )}
                     {getGroupPubkeys("flagged").length > 0 && (
                       <option value="flagged">Flagged</option>
                     )}
@@ -1450,20 +1466,28 @@ export default function NetworkPage() {
                       tooltip: "Show all trust levels",
                     },
                     {
+                      key: "verified" as TrustTier,
+                      label: "Verified",
+                      shortLabel: "Verified",
+                      icon: "text-cyan-500",
+                      ringFill: 1,
+                      tooltip: "At or above your verified line",
+                    },
+                    {
                       key: "high" as TrustTier,
-                      label: "Highly Trusted",
+                      label: TIER_LABELS.high,
                       shortLabel: "High",
                       icon: "text-emerald-600",
                       ringFill: 0.9,
-                      tooltip: "Highest trust score in your network",
+                      tooltip: "Highest Verification Score in your network",
                     },
                     {
                       key: "medium" as TrustTier,
-                      label: "Trusted",
+                      label: TIER_LABELS.trusted,
                       shortLabel: "Med",
                       icon: "text-sky-500",
                       ringFill: 0.65,
-                      tooltip: "Above-average trust score",
+                      tooltip: "Above-average Verification Score",
                     },
                     {
                       key: "neutral" as TrustTier,
@@ -1471,23 +1495,23 @@ export default function NetworkPage() {
                       shortLabel: "Neutral",
                       icon: "text-brand-link",
                       ringFill: 0.37,
-                      tooltip: "Average trust score",
+                      tooltip: "Average Verification Score",
                     },
                     {
                       key: "low" as TrustTier,
-                      label: "Low Trust",
+                      label: TIER_LABELS.low,
                       shortLabel: "Low",
                       icon: "text-amber-500",
                       ringFill: 0.12,
-                      tooltip: "Below-average trust score",
+                      tooltip: "Below-average Verification Score",
                     },
                     {
                       key: "unverified" as TrustTier,
-                      label: "Unverified",
-                      shortLabel: "Unverified",
+                      label: granularity === "simple" ? "Unknown" : "Unverified",
+                      shortLabel: granularity === "simple" ? "Unknown" : "Unverified",
                       icon: "text-zinc-400",
                       ringFill: 0,
-                      tooltip: "No trust score calculated yet",
+                      tooltip: "No Verification Score calculated yet",
                     },
                     {
                       key: "flagged" as TrustTier,
@@ -1499,6 +1523,10 @@ export default function NetworkPage() {
                         "Low trust accounts reported by 2+ of your trusted contacts",
                     },
                   ] as const
+                ).filter((tier) =>
+                  granularity === "simple"
+                    ? tier.key === "all" || tier.key === "verified" || tier.key === "unverified" || tier.key === "flagged"
+                    : tier.key !== "verified",
                 ).map((tier) => {
                   const isActive = trustFilter === tier.key;
                   return (
@@ -1724,7 +1752,7 @@ export default function NetworkPage() {
                   data-testid="text-network-empty-body"
                 >
                   {searchFilter || trustFilter !== "all"
-                    ? "Try a different search term, trust score range, or group filter."
+                    ? "Try a different search term, Verification Score range, or group filter."
                     : "Your network data will appear here once your social graph is populated."}
                 </p>
               </div>

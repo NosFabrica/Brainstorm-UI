@@ -1,13 +1,19 @@
 import { useState, useMemo, type MouseEvent } from "react";
+import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
+import { TierTile } from "@/components/score/TierTile";
+import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useLocation } from "wouter";
 import { Repeat2, MessageSquare } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
-import { tierForScore } from "@/components/share/TrustScoreBadge";
-import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { shareTierFor } from "@/components/share/TrustScoreBadge";
+import { VerificationCoin, useTierRing , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { NoteContent } from "@/components/share/NoteContent";
 import { parseNoteContent } from "@/lib/noteContent";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
+import { NoteTagRow } from "@/components/share/NoteTagChips";
+import type { NoteTag } from "@/services/tags";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { analyzeNote, addrCoord, type MinimalEvent } from "@/lib/noteRefs";
@@ -46,6 +52,9 @@ function ago(ts?: number): string {
 /** A reply-to chip: small avatar + clickable @name (opens the nav confirm). */
 function ReplyTarget({ pubkey, profiles }: { pubkey: string; profiles: Map<string, ProfileLite> }) {
   const requestNav = useShareNav();
+  const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
+  const scoreOf = useAuthorScores([pubkey]);
   const p = profiles.get(pubkey);
   const name = p?.display_name || p?.name || "someone";
   let npub = "";
@@ -56,7 +65,7 @@ function ReplyTarget({ pubkey, profiles }: { pubkey: string; profiles: Map<strin
       onClick={() => requestNav({ kind: "profile", target: npub || pubkey, label: name, picture: p?.picture })}
       className="inline-flex items-center gap-1 hover:underline"
     >
-      <Avatar className="h-4 w-4 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+      <Avatar className={`h-4 w-4 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 ${tierRing(scoreOf(pubkey), false, "sm", true) ?? ""}`}>
         {p?.picture ? <AvatarImage src={p.picture} alt={name} className="object-cover" /> : null}
         <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
       </Avatar>
@@ -80,6 +89,7 @@ export function ShareNoteCard({
   forceExpanded = false,
   showAuthor = false,
   authorScore,
+  tags,
 }: {
   event: MinimalEvent;
   profiles: Map<string, ProfileLite>;
@@ -95,9 +105,31 @@ export function ShareNoteCard({
   /** Author's Web-of-Trust score (0..1) — drives the avatar's tier ring and the
    *  trust hovercard in the author header. */
   authorScore?: number | null;
+  /** What the network says this note is about (rung C2). Passed in rather than
+   *  fetched here: a page rendering several notes must read them in ONE batched
+   *  query, not one per card — see ACCEPTANCE C2 and `useEventTagsBatch`. */
+  tags?: NoteTag[];
 }) {
+  const [displayMode] = useScoreDisplayMode();
+  const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
+  const [granularity] = useTierGranularity();
   const [expanded, setExpanded] = useState(false);
   const [, navigate] = useLocation();
+  // A repost renders the note it points at, not this event — so it needs none
+  // of what follows. Every hook still runs for it (the card is rendered unkeyed
+  // on the featured / single-event pages, so one instance can flip between a
+  // repost and a plain note), but with inputs that make each a no-op rather
+  // than parsing content and fetching a score nothing will read.
+  const isRepost = event.kind === 6 || event.kind === 16;
+  const hasMedia = useMemo(
+    () => !isRepost && parseNoteContent(event.content || "").some((t) => t.type === "image" || t.type === "video" || t.type === "audio"),
+    [event.content, isRepost],
+  );
+  const authorNpub = useMemo(() => { try { return npubFromPubkey(event.pubkey); } catch { return ""; } }, [event.pubkey]);
+  // Same fallback as EmbeddedNoteCard: callers that fetched a score pass it,
+  // the rest (more-from-author, tagged notes) ride the shared house cache.
+  const authorFallbackOf = useAuthorScores(isRepost || authorScore != null ? [] : [event.pubkey]);
   const onCardClick = openOnCardClick(href, navigate);
   const clickable = href ? "cursor-pointer" : "";
   const a = analyzeNote(event);
@@ -115,8 +147,7 @@ export function ShareNoteCard({
     }
   }
 
-  // Repost (kind 6/16)
-  if (event.kind === 6 || event.kind === 16) {
+  if (isRepost) {
     const inner = a.repostEvent ?? (a.repostId ? eventsById.get(a.repostId) : undefined);
     return (
       <div data-testid="note-repost" onClick={onCardClick} className={clickable}>
@@ -141,21 +172,19 @@ export function ShareNoteCard({
   // Notes with media (video/image/audio) always render expanded — collapsing a
   // post behind "Show more" would cut off its video/image. Only long text-only
   // notes get the height clamp.
-  const hasMedia = useMemo(
-    () => parseNoteContent(event.content || "").some((t) => t.type === "image" || t.type === "video" || t.type === "audio"),
-    [event.content],
-  );
   const isLong = !hasMedia && (event.content?.length ?? 0) > LONG_NOTE_CHARS;
   const collapsed = isLong && !expanded && !forceExpanded;
 
-  const authorNpub = useMemo(() => { try { return npubFromPubkey(event.pubkey); } catch { return ""; } }, [event.pubkey]);
   const authorProfile = profiles.get(event.pubkey);
   const authorName = authorProfile?.display_name || authorProfile?.name || (authorNpub ? `${authorNpub.slice(0, 10)}…` : "Someone");
   const authorHandle = authorProfile?.nip05
     ? authorProfile.nip05.replace(/^_@/, "@")
     : authorNpub ? `@${authorNpub.slice(0, 12)}…` : "";
-  const authorTier = typeof authorScore === "number" ? tierForScore(authorScore) : null;
-  const ringStyle = authorTier ? { boxShadow: `0 0 0 2px #fff, 0 0 0 3.5px ${authorTier.ring}` } : undefined;
+  const effectiveAuthorScore = authorScore ?? authorFallbackOf(event.pubkey);
+  const authorTier = typeof effectiveAuthorScore === "number" ? shareTierFor(effectiveAuthorScore, granularity) : null;
+  // Through the hook, not an inline boxShadow — the old style drew in EVERY
+  // display mode (number and off included); the ring is tier/word chrome.
+  const authorRing = tierRing(effectiveAuthorScore) ?? "";
 
   return (
     <div data-testid="note-card" onClick={onCardClick} className={clickable}>
@@ -170,7 +199,7 @@ export function ShareNoteCard({
                 onClick={(e) => { e.stopPropagation(); if (authorNpub) navigate(`/p/${authorNpub}`); }}
                 className="group/author flex min-w-0 flex-1 cursor-pointer items-center gap-2.5"
               >
-                <Avatar className="h-9 w-9 shrink-0 border border-slate-200 dark:border-slate-800" style={ringStyle}>
+                <Avatar className={`h-9 w-9 shrink-0 border border-slate-200 dark:border-slate-800 ${authorRing}`}>
                   {authorProfile?.picture ? <AvatarImage src={authorProfile.picture} alt={authorName} className="object-cover" /> : null}
                   <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
                 </Avatar>
@@ -180,10 +209,10 @@ export function ShareNoteCard({
                 </div>
               </div>
             </HoverCardTrigger>
-            {authorTier && typeof authorScore === "number" && (
+            {authorTier && typeof effectiveAuthorScore === "number" && (
               <HoverCardContent align="start" className="w-64 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-xl" data-testid="note-author-trust">
                 <div className="flex items-center gap-3">
-                  <Avatar className="h-10 w-10 shrink-0" style={ringStyle}>
+                  <Avatar className={`h-10 w-10 shrink-0 ${authorRing}`}>
                     {authorProfile?.picture ? <AvatarImage src={authorProfile.picture} alt={authorName} className="object-cover" /> : null}
                     <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
                   </Avatar>
@@ -192,27 +221,13 @@ export function ShareNoteCard({
                     {authorHandle && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{authorHandle}</p>}
                   </div>
                 </div>
-                <div
-                  className="mt-3 flex items-center gap-3 rounded-xl border p-2.5"
-                  style={{ borderColor: `${authorTier.color}40`, backgroundColor: `${authorTier.color}0d` }}
-                >
-                  <span
-                    className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg font-mono text-base font-bold tabular-nums"
-                    style={{ color: authorTier.color, backgroundColor: `${authorTier.color}1a` }}
-                  >
-                    {Math.round(authorScore * 100)}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold leading-tight" style={{ color: authorTier.color }}>{authorTier.name}</p>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400">Verification Score</p>
-                  </div>
-                </div>
+                <TierTile score01={effectiveAuthorScore} pov="global" caption="Verification Score" className="mt-3" />
                 <p className="mt-2.5 text-[11px] leading-snug text-slate-400 dark:text-slate-500">Ranked into this topic by trusted accounts — not follower counts.</p>
               </HoverCardContent>
             )}
           </HoverCard>
-          {typeof authorScore === "number" && (
-            <VerificationCoin score01={authorScore} pov="global" size={24} className="ml-auto" />
+          {typeof effectiveAuthorScore === "number" && (
+            <VerificationCoin score01={effectiveAuthorScore} pov="global" size={24} className={tierRing(effectiveAuthorScore) && coinReplaced ? "sr-only ml-auto" : "ml-auto"} />
           )}
           <span className="shrink-0 text-xs text-slate-400 dark:text-slate-500">{ago(event.created_at)}</span>
         </div>
@@ -254,6 +269,11 @@ export function ShareNoteCard({
       ))}
 
       {!showAuthor && <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">{ago(event.created_at)}</p>}
+
+      {/* Read-only here. The affordance to ADD a tag lives on the note's own
+          page, where there's room for a picker and the reader has the whole
+          post in view — a picker per card in a six-note list is clutter. */}
+      {tags && tags.length > 0 && <NoteTagRow tags={tags} />}
     </div>
   );
 }

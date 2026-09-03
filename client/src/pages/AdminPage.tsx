@@ -95,10 +95,16 @@ import {
 import { Area, AreaChart, Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip as RcTooltip, XAxis, YAxis } from "recharts";
 import { AgentIcon } from "@/components/AgentIcon";
 import { FEATURES } from "@/config/featureFlags";
-import { getCurrentUser, logout, fetchProfile, searchNostrProfiles, PROFILE_RELAYS, type NostrUser, type NostrSearchResult } from "@/services/nostr";
+import { fetchProfile, searchNostrProfiles, type NostrSearchResult } from "@/services/nostr";
+import { PROFILE_RELAYS } from "@/lib/relays";
+import { logout } from "@/accounts/login-flow";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { DeferredSessionNotice } from "@/components/DeferredSession";
+import { useActiveAccount } from "applesauce-react/hooks";
+import { hasSession } from "@/accounts/session";
+import type { BrainstormAccount } from "@/accounts/metadata";
 import { searchByText } from "@/lib/profileSearch";
 import { apiClient, isAuthRedirecting } from "@/services/api";
-import { isAdminPubkey } from "@/config/adminAccess";
 import { useToast } from "@/hooks/use-toast";
 
 type AdminTab = "overview" | "users" | "health" | "activity" | "assistants" | "scheduling";
@@ -1737,7 +1743,7 @@ function ActivityRow({ item, idx, onViewDetail, onNavigateToUser, onRetrigger, s
 export default function AdminPage() {
   const [location, navigate] = useLocation();
   const { toast } = useToast();
-  const [user, setUser] = useState<NostrUser | null>(null);
+  const user = useActiveAccountDisplay();
   const [mobileTabDropdownOpen, setMobileTabDropdownOpen] = useState(false);
 
   // Scrollbars are hidden app-wide (see index.css); admin opts back in while
@@ -1840,17 +1846,21 @@ export default function AdminPage() {
     return () => clearTimeout(timer);
   }, [userSearch, isNameSearch]);
 
+  // The claim rides on the Account's Session, so "no Session" is undecided, not
+  // "not an admin" — a background re-auth clears it for the length of one
+  // round-trip, and that must not bounce an admin off the page they are on.
+  const account = useActiveAccount();
   useEffect(() => {
-    const u = getCurrentUser();
-    if (!u) {
+    if (!user) {
       navigate("/", { replace: true });
       return;
     }
-    if (!isAdminPubkey(u.pubkey)) {
+    if (account && hasSession(account as BrainstormAccount) && !user.isAdmin) {
       navigate("/dashboard", { replace: true });
-      return;
     }
-    setUser(u);
+  }, [user, account, navigate]);
+
+  useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     if (params.has("tab") || params.has("highlight")) {
       window.history.replaceState({}, "", window.location.pathname);
@@ -1858,19 +1868,23 @@ export default function AdminPage() {
         setTimeout(() => setHighlightedPubkey(null), 2500);
       }
     }
-  }, [navigate]);
+  }, []);
 
+  // `user` is non-null on the first render for anyone signed in — it used to be
+  // set only after the admin check passed. The redirect below merely *schedules*
+  // a navigation, so gating on `user` alone fires every admin request for a
+  // non-admin and collects a handful of 403s on the way out.
   const grapeRankQuery = useQuery<GrapeRankApiResponse>({
     queryKey: ["/user/graperankResult"],
     queryFn: () => apiClient.getGrapeRankResult(),
-    enabled: !!user,
+    enabled: !!user?.isAdmin,
     staleTime: 30_000,
   });
 
   const adminStatsQuery = useQuery({
     queryKey: ["/api/admin/stats"],
     queryFn: () => apiClient.getAdminStats(),
-    enabled: !!user,
+    enabled: !!user?.isAdmin,
     staleTime: 120_000,
     retry: false,
     refetchInterval: isBoostActive ? BOOST_INTERVAL_MS : POLL_STATS_MS,
@@ -1891,7 +1905,7 @@ export default function AdminPage() {
       page: userPage + 1,
       size: pageSize,
     }),
-    enabled: !!user,
+    enabled: !!user?.isAdmin,
     staleTime: 30_000,
     placeholderData: (prev) => prev,
     refetchInterval: activeTab === "users" ? (isBoostActive ? BOOST_INTERVAL_MS : POLL_USERS_MS) : false,
@@ -1901,7 +1915,7 @@ export default function AdminPage() {
   const schedulingPoliciesQuery = useQuery<SchedulingItem[]>({
     queryKey: ["/api/admin/scheduling"],
     queryFn: () => apiClient.getSchedulingPolicies(),
-    enabled: !!user,
+    enabled: !!user?.isAdmin,
     staleTime: 60_000,
   });
   const schedulingPolicies = schedulingPoliciesQuery.data ?? [];
@@ -1914,7 +1928,7 @@ export default function AdminPage() {
   const overviewUsersQuery = useQuery<AdminUsersPage>({
     queryKey: ["/api/admin/users/overview", daysFilter],
     queryFn: () => apiClient.getAdminUsers({ days: daysFilter, page: 1, size: 100 }),
-    enabled: !!user,
+    enabled: !!user?.isAdmin,
     staleTime: 60_000,
     retry: 1,
     refetchInterval: isBoostActive ? BOOST_INTERVAL_MS : POLL_OVERVIEW_MS,
@@ -1925,7 +1939,7 @@ export default function AdminPage() {
     queryKey: ["/api/admin/activity/overview"],
     // Backend caps `size` at 100; requesting more 422s.
     queryFn: () => apiClient.getAdminActivity({ page: 1, size: 100 }),
-    enabled: !!user,
+    enabled: !!user?.isAdmin,
     staleTime: 60_000,
     retry: 1,
     refetchInterval: isBoostActive ? BOOST_INTERVAL_MS : POLL_OVERVIEW_MS,
@@ -2631,6 +2645,7 @@ export default function AdminPage() {
       <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="admin" />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1">
+        <DeferredSessionNotice className="mb-6" />
         <div className="space-y-6 animate-fade-up">
 
           <div className="flex items-start justify-between gap-4">
@@ -4228,7 +4243,7 @@ export default function AdminPage() {
                       <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300 mb-2">What happens when you confirm</p>
                       <ul className="text-xs text-amber-900 dark:text-amber-200 space-y-1.5 list-disc list-inside">
                         <li>A GrapeRank calculation request is sent to the Brainstorm server for this user's pubkey</li>
-                        <li>The server crawls the user's Nostr social graph — follows, mutes, and interactions — to compute personalized trust scores</li>
+                        <li>The server crawls the user's Nostr social graph — follows, mutes, and interactions — to compute personalized scores</li>
                         <li>This is <span className="font-semibold">resource-intensive</span> and may take several minutes depending on graph size</li>
                         <li>Progress and results will appear in the <span className="font-semibold">Activity tab</span> once processing begins</li>
                         <li>If a calculation is already running for this user, a duplicate request may be queued</li>
@@ -4236,7 +4251,7 @@ export default function AdminPage() {
                     </div>
                     <div className="p-3.5 rounded-xl bg-blue-50 dark:bg-blue-500/10 border border-blue-200 dark:border-blue-500/25">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700 dark:text-blue-300 mb-1.5">Good to know</p>
-                      <p className="text-xs text-blue-800 dark:text-blue-300">GrapeRank scores are calculated relative to the user's own social graph. Each user's Web of Trust is unique. Triggering this does not affect other users' scores.</p>
+                      <p className="text-xs text-blue-800 dark:text-blue-300">GrapeRank scores are calculated relative to the user's own social graph. Each user's network is unique. Triggering this does not affect other users' scores.</p>
                     </div>
                     <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
                       <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-1">Target Pubkey</p>
@@ -4313,7 +4328,7 @@ export default function AdminPage() {
                     { name: "/admin/users", ok: adminUsersQuery.isSuccess, loading: adminUsersQuery.isLoading, error: adminUsersQuery.isError, description: "Platform user database" },
                     { name: "/admin/activity", ok: adminActivityQuery.isSuccess || !adminActivityQuery.isError, loading: adminActivityQuery.isLoading, error: adminActivityQuery.isError, description: "Platform calculation activity" },
                   ].map(ep => (
-                    <div key={ep.name} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 p-3 rounded-xl bg-white/50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/60" data-testid={`health-ep-${ep.name.replace(/[\/*]/g, "-")}`}>
+                    <div key={ep.name} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 p-3 rounded-xl bg-white/50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/60" data-testid={`health-ep-${ep.name.replace(/[/*]/g, "-")}`}>
                       <div className="flex items-center gap-3">
                         {ep.loading ? (
                           <Loader2 className="h-4 w-4 text-slate-400 dark:text-slate-500 animate-spin shrink-0" />

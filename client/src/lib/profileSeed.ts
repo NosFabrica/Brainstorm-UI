@@ -1,4 +1,4 @@
-import type { ActivePov } from "@/hooks/useActivePov";
+import type { ActivePerspective } from "@/hooks/useActivePerspective";
 
 export interface ProfileSeed {
   pubkey: string;
@@ -26,7 +26,7 @@ export interface ProfileSeed {
    * Used by the Profile page to know whether it can safely show a dual-score
    * widget (it can iff at least one POV-specific rank is present).
    */
-  povFromSearch?: ActivePov;
+  povFromSearch?: ActivePerspective;
 }
 
 const seeds = new Map<string, ProfileSeed>();

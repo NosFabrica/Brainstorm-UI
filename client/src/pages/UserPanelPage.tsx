@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback } from "react";
+import { useTierRing } from "@/components/score/VerificationCoin";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
@@ -10,7 +11,6 @@ import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import {
   ASSISTANT_UPDATED_EVENT,
-  USER_CHANGED_EVENT,
   readPublishedAssistant,
 } from "@/lib/assistantStorage";
 import { isNip85Activated } from "@/lib/nip85Activation";
@@ -70,12 +70,15 @@ import {
 } from "lucide-react";
 import { AgentIcon } from "@/components/AgentIcon";
 import { ImageUpload } from "@/components/ImageUpload";
-import { getCurrentUser, logout, fetchProfiles, isUsingBrainstorm, getNip85RelayUrl, type NostrUser } from "@/services/nostr";
-import { isAdminPubkey } from "@/config/adminAccess";
+import { fetchProfiles, getNip85RelayUrl } from "@/services/nostr";
+import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
+import { logout } from "@/accounts/login-flow";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { AdminBadge } from "@/components/AdminBadge";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfOverview, useSelfHistory, useSelfConnections, flattenConnections } from "@/hooks/useSelf";
 import { useSocialActions } from "@/hooks/useSocialActions";
+import { TIER_LABELS } from "@/services/trustThreshold";
 
 type SortField = "name" | "score" | "tier";
 type SortDir = "asc" | "desc";
@@ -124,7 +127,7 @@ const AGENT_STATUS_CONFIG: Record<AgentStatus, { label: string; color: string; b
   active: { label: "Active", color: "text-emerald-400", bgClass: "bg-emerald-500/20", borderClass: "border-emerald-500/30", icon: Zap, description: "Published to the Nostr network", level: 1 },
   established: { label: "Established", color: "text-brand-accent", bgClass: "bg-brand-accent/20", borderClass: "border-brand-accent/[0.3]", icon: Globe, description: "Discovered by multiple relays", level: 2 },
   networked: { label: "Networked", color: "text-brand-link", bgClass: "bg-brand-primary/20", borderClass: "border-brand-primary/[0.3]", icon: Signal, description: "Connected to the wider trust network", level: 3 },
-  trusted: { label: "Trusted", color: "text-amber-300", bgClass: "bg-amber-400/20", borderClass: "border-amber-400/30", icon: Star, description: "Recognized and trusted across the ecosystem", level: 4 },
+  trusted: { label: TIER_LABELS.trusted, color: "text-amber-300", bgClass: "bg-amber-400/20", borderClass: "border-amber-400/30", icon: Star, description: "Recognized and trusted across the ecosystem", level: 4 },
 };
 
 const ACHIEVEMENTS = [
@@ -158,10 +161,10 @@ function saveAgentState(state: AgentState) {
 }
 
 function getTier(influence: number): { name: string; color: string; badgeClass: string } {
-  if (influence >= 0.8) return { name: "Highly Trusted", color: "text-emerald-600", badgeClass: "bg-emerald-50 border-emerald-200 text-emerald-700" };
-  if (influence >= 0.5) return { name: "Trusted", color: "text-brand-accent", badgeClass: "bg-brand-accent/10 border-brand-accent/20 text-brand-accent" };
+  if (influence >= 0.8) return { name: TIER_LABELS.high, color: "text-emerald-600", badgeClass: "bg-emerald-50 border-emerald-200 text-emerald-700" };
+  if (influence >= 0.5) return { name: TIER_LABELS.trusted, color: "text-brand-accent", badgeClass: "bg-brand-accent/10 border-brand-accent/20 text-brand-accent" };
   if (influence >= 0.2) return { name: "Neutral", color: "text-brand-primary", badgeClass: "bg-brand-primary/10 border-brand-primary/20 text-brand-primary" };
-  if (influence >= 0.05) return { name: "Low Trust", color: "text-amber-600", badgeClass: "bg-amber-50 border-amber-200 text-amber-700" };
+  if (influence >= 0.05) return { name: TIER_LABELS.low, color: "text-amber-600", badgeClass: "bg-amber-50 border-amber-200 text-amber-700" };
   return { name: "Unverified", color: "text-slate-500", badgeClass: "bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400" };
 }
 
@@ -188,9 +191,10 @@ function StatusLevelBar({ currentLevel }: { currentLevel: number }) {
 }
 
 export default function UserPanelPage() {
+  const tierRing = useTierRing();
   const [location, navigate] = useLocation();
   const { toast } = useToast();
-  const [user, setUser] = useState<NostrUser | null>(null);
+  const user = useActiveAccountDisplay();
   const [agentState, setAgentState] = useState<AgentState>(getDefaultAgentState);
   const [agentNameInput, setAgentNameInput] = useState(() => getDefaultAgentState().name);
   const [agentDescInput, setAgentDescInput] = useState(() => getDefaultAgentState().description);
@@ -217,10 +221,8 @@ export default function UserPanelPage() {
   });
 
   useEffect(() => {
-    const u = getCurrentUser();
-    if (!u) { navigate("/", { replace: true }); return; }
-    setUser(u);
-  }, [navigate]);
+    if (!user) navigate("/", { replace: true });
+  }, [user, navigate]);
 
   const updateAgentState = useCallback((updates: Partial<AgentState>) => {
     setAgentState(prev => {
@@ -270,13 +272,11 @@ export default function UserPanelPage() {
     const onCustom = () => sync();
     window.addEventListener("storage", onStorage);
     window.addEventListener(ASSISTANT_UPDATED_EVENT, onCustom);
-    window.addEventListener(USER_CHANGED_EVENT, onCustom);
     return () => {
       window.removeEventListener("storage", onStorage);
       window.removeEventListener(ASSISTANT_UPDATED_EVENT, onCustom);
-      window.removeEventListener(USER_CHANGED_EVENT, onCustom);
     };
-  }, []);
+  }, [user?.pubkey]);
 
   const { data: overviewData, isLoading: overviewLoading } = useSelfOverview(user?.pubkey);
   const { data: historyData, isLoading: historyLoading } = useSelfHistory(user?.pubkey);
@@ -291,18 +291,14 @@ export default function UserPanelPage() {
   });
 
   const taPubkey = historyData?.data?.ta_pubkey;
-  const trustServiceProvider = useQuery({
-    queryKey: ["trustServiceProvider", user?.pubkey, taPubkey],
-    queryFn: async () => {
-      if (!user?.pubkey || !taPubkey) return false;
-      return await isUsingBrainstorm(user.pubkey, taPubkey);
-    },
-    enabled: !!user && !!taPubkey,
-    retry: 2,
-    staleTime: Infinity,
-  });
+  const trustServiceProvider = useTrustProviderStatus(user?.pubkey, taPubkey);
 
-  const nip85Activated = trustServiceProvider.data === true || isNip85Activated(user?.pubkey);
+  // The on-relay 10040 wins: a declaration naming a different assistant reads
+  // as NOT activated no matter what the local flag says; absence/silence keeps
+  // the flag's answer (a relay miss is not a deactivation).
+  const nip85Activated =
+    trustServiceProvider.data === "brainstorm" ||
+    (trustServiceProvider.data !== "other" && isNip85Activated(user?.pubkey));
   const socialActions = useSocialActions(user?.pubkey);
 
   const followingList = useMemo(
@@ -531,6 +527,7 @@ export default function UserPanelPage() {
   const handleFollowLookedUp = async () => {
     if (!lookedUpUser) return;
     const result = await socialActions.follow(lookedUpUser.pubkey);
+    if (result.cancelled) return;
     if (result.success) {
       toast({ title: "Followed!", description: `You are now following ${lookedUpUser.displayName || lookedUpUser.npub.slice(0, 16) + "..."}` });
     } else {
@@ -619,7 +616,7 @@ export default function UserPanelPage() {
             </div>
 
             <div className="flex items-center gap-2 sm:gap-4">
-              {isAdminPubkey(user?.pubkey) && <AdminBadge />}
+              {user?.isAdmin && <AdminBadge />}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <div className="flex items-center gap-3 cursor-pointer hover:opacity-80 transition-opacity p-1 rounded-full hover:bg-white/5" data-testid="button-agentsuite-profile-menu">
@@ -652,7 +649,7 @@ export default function UserPanelPage() {
                   <DropdownMenuItem className="cursor-pointer" onClick={() => navigate("/settings")} data-testid="dropdown-settings">
                     <SettingsIcon className="mr-2 h-4 w-4" /> <span>Settings</span>
                   </DropdownMenuItem>
-                  {isAdminPubkey(user?.pubkey) && (
+                  {user?.isAdmin && (
                     <DropdownMenuItem className="cursor-pointer text-amber-700 focus:bg-amber-50 focus:text-amber-800" onClick={() => navigate("/admin")} data-testid="dropdown-admin">
                       <Shield className="mr-2 h-4 w-4" /> <span>Admin Dashboard</span>
                     </DropdownMenuItem>
@@ -1139,7 +1136,7 @@ export default function UserPanelPage() {
                   </div>
                   <div className="min-w-0">
                     <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-invite-title">Invite & Add Users</h2>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Grow your Web of Trust network</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Grow your network</p>
                   </div>
                 </div>
               </div>
@@ -1182,7 +1179,7 @@ export default function UserPanelPage() {
                         {socialActions.isFollowing(lookedUpUser.pubkey) && (
                           <Badge className="bg-emerald-50 border-emerald-200 text-emerald-700 text-[10px]" data-testid="badge-already-following">Following</Badge>
                         )}
-                        <Button size="sm" variant="outline" onClick={() => navigate(`/profile/${lookedUpUser.npub}`)} className="gap-1 text-xs" data-testid="button-view-profile-looked-up">
+                        <Button size="sm" variant="outline" onClick={() => navigate(`/p/${lookedUpUser.npub}`)} className="gap-1 text-xs" data-testid="button-view-profile-looked-up">
                           <ExternalLink className="h-3 w-3" /> Profile
                         </Button>
                       </div>
@@ -1265,7 +1262,7 @@ export default function UserPanelPage() {
                   </div>
                   <div className="min-w-0">
                     <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-nsm-title">Network Score Monitor</h2>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">Trust scores for accounts you follow ({followingCount})</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">Scores for accounts you follow ({followingCount})</p>
                   </div>
                 </div>
                 <Input placeholder="Search by name or npub..." value={scoreSearch} onChange={e => setScoreSearch(e.target.value)} className="text-xs h-8 w-full sm:w-56" data-testid="input-score-search" />
@@ -1285,7 +1282,7 @@ export default function UserPanelPage() {
                 <div className="text-center py-8" data-testid="empty-score-monitor">
                   <Users className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto mb-3" />
                   <p className="text-sm font-semibold text-slate-500 dark:text-slate-400">No followed accounts yet</p>
-                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Follow users to see their trust scores here.</p>
+                  <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">Follow users to see their scores here.</p>
                 </div>
               ) : (
                 <>
@@ -1310,8 +1307,8 @@ export default function UserPanelPage() {
                     ) : filteredAndSortedUsers.slice(0, 100).map(u => {
                       const tierInfo = getTier(u.influence);
                       return (
-                        <div key={u.pubkey} className="grid grid-cols-1 sm:grid-cols-[auto_1fr_100px_100px_40px] gap-2 sm:gap-3 px-3 py-2.5 hover:bg-slate-50/80 transition-colors cursor-pointer rounded-lg dark:hover:bg-slate-900/80" onClick={() => navigate(`/profile/${u.npub}`)} data-testid={`row-score-${u.pubkey.slice(0, 8)}`}>
-                          <Avatar className="h-8 w-8 border border-slate-100 dark:border-slate-800/60">
+                        <div key={u.pubkey} className="grid grid-cols-1 sm:grid-cols-[auto_1fr_100px_100px_40px] gap-2 sm:gap-3 px-3 py-2.5 hover:bg-slate-50/80 transition-colors cursor-pointer rounded-lg dark:hover:bg-slate-900/80" onClick={() => navigate(`/p/${u.npub}`)} data-testid={`row-score-${u.pubkey.slice(0, 8)}`}>
+                          <Avatar className={`h-8 w-8 border border-slate-100 dark:border-slate-800/60 ${tierRing(u.influence) ?? ""}`}>
                             {u.picture ? <AvatarImage src={u.picture} alt={u.displayName || "User"} className="object-cover" /> : null}
                             <AvatarFallback className="bg-brand-primary/10 text-brand-primary text-xs font-bold">{(u.displayName?.charAt(0) || "?").toUpperCase()}</AvatarFallback>
                           </Avatar>

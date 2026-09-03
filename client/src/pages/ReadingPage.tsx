@@ -1,12 +1,14 @@
 import { useMemo, useState } from "react";
 import { useLocation } from "wouter";
+import { useGoBack } from "@/hooks/useGoBack";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, BookOpen, Loader2, Flame, Clock } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Footer } from "@/components/Footer";
 import { NetworkArticleCard } from "@/components/dashboard/NetworkArticleCard";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { logout, fetchProfileMap } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { fetchProfileMap } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
 import { useNetworkArticles, type ArticleSort } from "@/hooks/useNetworkArticles";
 import { cn } from "@/lib/utils";
 
@@ -22,7 +24,8 @@ import { cn } from "@/lib/utils";
  */
 export default function ReadingPage() {
   const [, navigate] = useLocation();
-  const [user, setUser] = useCurrentUser();
+  const goBack = useGoBack();
+  const user = useActiveAccountDisplay();
   const observer = user?.pubkey ?? "";
   const [sort, setSort] = useState<ArticleSort>("trending");
 
@@ -40,7 +43,7 @@ export default function ReadingPage() {
   });
   const profiles = profilesQuery.data ?? new Map();
 
-  const handleLogout = () => { logout(); setUser(null); };
+  const handleLogout = () => logout();
 
   const tab = (val: ArticleSort, label: string, Icon: typeof Flame) => (
     <button
@@ -64,7 +67,7 @@ export default function ReadingPage() {
       <main className="mx-auto w-full max-w-5xl flex-1 px-4 py-8 sm:px-6">
         <button
           type="button"
-          onClick={() => { if (typeof window !== "undefined" && window.history.length > 1) window.history.back(); else navigate("/dashboard"); }}
+          onClick={() => goBack("/dashboard")}
           className="mb-6 inline-flex items-center gap-2 rounded text-sm text-slate-500 hover:text-brand-deep focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 dark:text-slate-400 dark:hover:text-white"
           data-testid="reading-back"
         >

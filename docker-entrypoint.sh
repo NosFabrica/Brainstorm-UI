@@ -4,7 +4,7 @@ set -e
 CONFIG_FILE="/usr/share/nginx/html/config.js"
 
 if [ -f "$CONFIG_FILE" ]; then
-  for var in VITE_API_URL VITE_NIP85_RELAY_URL VITE_WOT_SEARCH_RELAY VITE_FEATURE_AGENT_SUITE VITE_FEATURE_ASSISTANTS_ADMIN; do
+  for var in VITE_API_URL VITE_NIP85_RELAY_URL VITE_WOT_SEARCH_RELAY VITE_TAG_RELAY_URLS VITE_FEATURE_AGENT_SUITE VITE_FEATURE_ASSISTANTS_ADMIN; do
     eval value=\"\$$var\"
     # Escape sed delimiters in value
     escaped=$(printf '%s' "$value" | sed -e 's/[\/&|]/\\&/g')
@@ -44,6 +44,12 @@ fi
 # URI would invalidate the whole document, so a bad entry is dropped with a
 # warning rather than emitted.
 SECURITY_FILE="/usr/share/nginx/html/.well-known/security.txt"
+if [ -f "$SECURITY_FILE" ]; then
+  # Strip first, then append. A container RESTART re-runs this entrypoint
+  # against the same writable layer, so appending unconditionally would add a
+  # duplicate set of Canonical lines on every restart.
+  sed -i '/^Canonical: /d' "$SECURITY_FILE"
+fi
 if [ -f "$SECURITY_FILE" ] && [ -n "${CANONICAL_HOSTS}" ]; then
   for host in $(printf '%s' "${CANONICAL_HOSTS}" | tr ',' ' '); do
     if printf '%s' "$host" | grep -Eq '^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$'; then
@@ -54,5 +60,24 @@ if [ -f "$SECURITY_FILE" ] && [ -n "${CANONICAL_HOSTS}" ]; then
   done
 fi
 # -----------------------------------------------------------------------------
+
+# nginx does not read /etc/resolv.conf, but it needs a resolver to look up the
+# brainstorm-og upstream lazily (which is what lets nginx boot when that service
+# is absent). The first nameserver here is 127.0.0.11 under compose and the
+# kube-dns ClusterIP in k8s, so one line covers both.
+: "${OG_RESOLVER:=$(awk '/^nameserver/ {print $2; exit}' /etc/resolv.conf)}"
+: "${OG_RESOLVER:=127.0.0.11}"
+
+# Defaults to the compose service name. Kubernetes MUST override it: the chart
+# names the Service `<release>-brainstorm-og`, so the bare name does not resolve
+# there — and because an unresolvable upstream falls back to the SPA, getting
+# this wrong fails silently as "unfurls don't work".
+: "${OG_UPSTREAM:=brainstorm-og:8080}"
+export OG_RESOLVER OG_UPSTREAM
+
+TEMPLATE="/etc/nginx/templates/default.conf.template"
+if [ -f "$TEMPLATE" ]; then
+  envsubst '${OG_RESOLVER} ${OG_UPSTREAM}' < "$TEMPLATE" > /etc/nginx/conf.d/default.conf
+fi
 
 exec "$@"

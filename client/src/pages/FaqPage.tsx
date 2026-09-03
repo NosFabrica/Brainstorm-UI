@@ -17,12 +17,12 @@ const userFaqs = [
     answer: "Search lets you pick a perspective (NosFabrica's view, or your own personalized view). When you click a result, the Profile page currently always shows scores from your *personalized* view — even if you searched as NosFabrica — because the per-profile API endpoints don't accept a perspective parameter yet. When this happens we show an amber banner at the top of the profile, and when you arrived from a search we also show NosFabrica's score next to yours as a second small meter so you can compare. The underlying per-profile NosFabrica score is something we're working on with the Brainstorm backend.",
   },
   {
-    question: "What does my trust score mean?",
-    answer: "Your trust score reflects how connected and trusted you are within your personal network. It's calculated using GrapeRank, which looks at who follows you, who those people trust, and how that trust flows through your network. A score of 0.50 or higher means you're highly trusted by the people in your graph. It's not a universal rating — it's specific to each observer's point of view.",
+    question: "What does my Verification Score mean?",
+    answer: "Your Verification Score (also called a trust score) reflects how connected and trusted you are within your personal network. It's calculated using GrapeRank, which looks at who follows you, who those people trust, and how that trust flows through your network. A score of 0.50 or higher means you're highly trusted by the people in your graph. It's not a universal rating — it's specific to each observer's point of view.",
   },
   {
-    question: "What do the trust tiers mean?",
-    answer: "Highly Trusted (50%+) means strong trust signal from multiple paths in your network. Trusted (20–49%) means solid connections with meaningful trust flow. Neutral (7–19%) means known in your network but without strong signal either way. Low Trust (below 7%, above your verified threshold) means minimal trust signal, on the edges of your network. Unverified (below your verified threshold) means no meaningful trust data available yet. You can adjust the verified threshold in Settings — choosing Relax (0%), Default (2%), or Strict (15%). These tiers are relative to your network — someone Highly Trusted to you might be Neutral to someone else.",
+    question: "What do the tiers mean?",
+    answer: "Highly verified (50%+) means a strong signal from several different paths in your network. Verified (20–49%) means solid connections with real signal behind them. Neutral (7–19%) means known in your network, but without much signal either way. Limited (below 7%, above your verified threshold) means very little signal — on the edges of your network. Unverified (below your verified threshold) means there isn't enough to go on yet. You can move the verified threshold in Settings — Relax (0%), Default (2%), or Strict (15%). The tiers are relative to your own network, so someone Highly verified to you might be Neutral to someone else.",
   },
   {
     question: 'What does "Flagged" mean?',
@@ -41,8 +41,8 @@ const userFaqs = [
     answer: "Hops represent degrees of separation. Hop 1 is your direct connections (people you follow). Hop 2 is people they follow. Hop 3 goes one step further, and so on. The slider lets you expand or narrow how far into the network you're looking.",
   },
   {
-    question: "Can I change how my trust scores are calculated?",
-    answer: "You can adjust your verified threshold in Settings — this controls the cutoff between Low Trust and Unverified tiers. Choose Relax (0%), Default (2%), or Strict (15%), or set a custom value. Your scores update when you run a new GrapeRank calculation from the Dashboard.",
+    question: "Can I change how my scores are calculated?",
+    answer: "You can adjust your verified threshold in Settings — this controls the cutoff between the Limited and Unverified tiers. Choose Relax (0%), Default (2%), or Strict (15%), or set a custom value. Your scores update when you run a new GrapeRank calculation from the Dashboard.",
   },
 ];
 
@@ -103,7 +103,7 @@ export default function FaqPage() {
               kicker="Brainstorm FAQ"
               title={<>Frequently Asked <span className="text-brand-link">Questions</span></>}
               subtitle={activeTab === "users"
-                ? "Everything you need to know about trust scores, tiers, and your personalized Web of Trust."
+                ? "Everything you need to know about Verification Scores, tiers, and your personalized Web of Trust."
                 : "Technical details for client developers implementing NIP-85 Trust Attestations."}
               testId="section-faq-header"
             />

@@ -2,6 +2,8 @@ import { useEffect, useState, useRef, useMemo } from "react";
 import { AppHeader } from "@/components/AppHeader";
 import { PageHeader } from "@/components/PageHeader";
 import { TRUST_TIER_COLORS } from "@/services/trustThreshold";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
+import { ladderFor, type Bucket } from "@/lib/trustLadder";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
 import { PresetBadge } from "@/components/PresetBadge";
@@ -19,6 +21,7 @@ import { NetworkAlertsModule } from "@/components/dashboard/NetworkAlertsModule"
 import { DashboardLookup } from "@/components/dashboard/DashboardLookup";
 import { YourNetworkCard } from "@/components/dashboard/YourNetworkCard";
 import { SetupProgressCard } from "@/components/dashboard/SetupProgressCard";
+import { TaggedYouModule } from "@/components/dashboard/TaggedYouModule";
 import { useNetworkFaces } from "@/hooks/useNetworkFaces";
 import { NetworkArticlesModule } from "@/components/dashboard/NetworkArticlesModule";
 import { ClientShelf } from "@/components/dashboard/ClientShelf";
@@ -83,7 +86,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { BrainLogo } from "@/components/BrainLogo";
 import {
   ASSISTANT_UPDATED_EVENT,
-  USER_CHANGED_EVENT,
   getCurrentAssistantPubkey,
   readAssistantDismissed,
   setAssistantDismissed as setAssistantDismissedStorage,
@@ -113,18 +115,30 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { getCurrentUser, logout, updateCurrentUser, fetchProfile, fetchOutboxRelayList, applyProfileToUser, type NostrUser, isUsingBrainstorm } from "@/services/nostr";
+import { cacheProfile, fetchProfile, fetchOutboxRelayList } from "@/services/nostr";
+import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
+import { logout } from "@/accounts/login-flow";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
-import { isAdminPubkey } from "@/config/adminAccess";
+import { hasDeclinedNip85 } from "@/lib/nip85Consent";
+import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
 import { apiClient, isAuthRedirecting } from "@/services/api";
+import { TIER_LABELS } from "@/services/trustThreshold";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
 import { toPubkeys } from "../services/graphHelpers";
 import { ActivateBrainstormModal } from "@/components/ActivateBrainstormModal";
+import {
+  ActivateBrainstormPanel,
+  needsActivationPrompt,
+} from "@/components/ActivateBrainstormPanel";
 
 import protocolDevImg from "@/assets/stock_images/protocol_dev.jpg";
 import bitcoinImg from "@/assets/stock_images/bitcoin_network.jpg";
 import digitalArtImg from "@/assets/stock_images/digital_art.jpg";
 import musicSceneImg from "@/assets/stock_images/music_scene.jpg";
+import { identityHas } from "@/accounts/display";
+import { accountKey } from "@/lib/accountStorage";
 
 
 const isStatusDone = (s: unknown): boolean => typeof s === "string" && s.toLowerCase() === "success";
@@ -153,8 +167,17 @@ const NIP85_DISMISS_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000;
 function nip85DismissedRecently(pubkey?: string): boolean {
   if (!pubkey) return false;
   try {
-    const at = Number(localStorage.getItem(`brainstorm_nip85_dismissed_at:${pubkey}`) || 0);
+    const at = Number(localStorage.getItem(accountKey("brainstorm_nip85_dismissed_at", pubkey)) || 0);
     return at > 0 && Date.now() - at < NIP85_DISMISS_COOLDOWN_MS;
+  } catch {
+    return false;
+  }
+}
+
+/** Whether this account has already been shown the invite card. */
+function readInviteCardSeen(pubkey?: string): boolean {
+  try {
+    return !!pubkey && localStorage.getItem(accountKey("brainstorm_invite_card_seen", pubkey)) === "true";
   } catch {
     return false;
   }
@@ -163,7 +186,7 @@ function nip85DismissedRecently(pubkey?: string): boolean {
 export default function DashboardPage() {
   const [location, navigate] = useLocation();
   const { toast } = useToast();
-  const [user, setUser] = useState<NostrUser | null>(null);
+  const user = useActiveAccountDisplay();
   const [recalcConfirmOpen, setRecalcConfirmOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [hopRange, setHopRange] = useState([1, 3]);
@@ -171,47 +194,51 @@ export default function DashboardPage() {
   const [networkViewMode, setNetworkViewMode] = useState<"trust" | "activity">("trust");
   const [nip85ModalOpen, setNip85ModalOpen] = useState(false);
   const [wotExpanded, setWotExpanded] = useState(false);
-  const [nip85Activated, setNip85Activated] = useState(() => isNip85Activated(getCurrentUser()?.pubkey));
-  const [nip85Dismissed, setNip85Dismissed] = useState(() => nip85DismissedRecently(getCurrentUser()?.pubkey));
-  // In-app-created accounts auto-activate Brainstorm silently (see
-  // AutoActivateBrainstorm) — they never get the consent card.
+  const [nip85Activated, setNip85Activated] = useState(() => isNip85Activated(user?.pubkey));
+  const [nip85Dismissed, setNip85Dismissed] = useState(() => nip85DismissedRecently(user?.pubkey));
+  // In-app-created accounts consent at the calculate step (or implicitly, for
+  // accounts that predate the consent card) and publish from there — the CTA
+  // card would only nag them. The exception is an explicit decline on that
+  // card: then this CTA is the one re-surface path, after the dismiss cooldown.
   const nip85CreatedInApp = (() => {
-    try { return !!user?.pubkey && localStorage.getItem(`brainstorm_created_inapp:${user.pubkey}`) === "true"; } catch { return false; }
+    return identityHas(user?.pubkey, "createdInApp");
   })();
   const [assistantDismissed, setAssistantDismissed] = useState<boolean>(() => readAssistantDismissed());
   const [assistantPubkey, setAssistantPubkey] = useState<string | null>(() => getCurrentAssistantPubkey());
   // "Your network is live — invite friends" card: shown once, the first time the
   // user's scores go ready (publishDone). Persisted per-account so it never nags.
   const [inviteShareOpen, setInviteShareOpen] = useState(false);
-  const [inviteCardSeen, setInviteCardSeen] = useState<boolean>(() => {
-    try { const pk = getCurrentUser()?.pubkey; return !!pk && localStorage.getItem(`brainstorm_invite_card_seen:${pk}`) === "true"; } catch { return false; }
-  });
+  const [inviteCardSeen, setInviteCardSeen] = useState<boolean>(() => readInviteCardSeen(user?.pubkey));
+
+  // Lazy initialisers run once, and switching accounts in-app does not remount
+  // this page — so without re-reading them, B renders with A's per-account flags:
+  // B's consent card suppressed by A's dismissal, B's invite card already "seen".
+  useEffect(() => {
+    setNip85Activated(isNip85Activated(user?.pubkey));
+    setNip85Dismissed(nip85DismissedRecently(user?.pubkey));
+    setInviteCardSeen(readInviteCardSeen(user?.pubkey));
+  }, [user?.pubkey]);
   const markInviteCardSeen = () => {
-    try { const pk = getCurrentUser()?.pubkey; if (pk) localStorage.setItem(`brainstorm_invite_card_seen:${pk}`, "true"); } catch { /* ignore */ }
+    try { const pk = user?.pubkey; if (pk) localStorage.setItem(accountKey("brainstorm_invite_card_seen", pk), "true"); } catch { /* ignore */ }
     setInviteCardSeen(true);
   };
   useEffect(() => {
     const sync = () => {
       setAssistantPubkey(getCurrentAssistantPubkey());
       setAssistantDismissed(readAssistantDismissed());
-      // Keep the local user copy in sync with late-arriving profile metadata
-      // (e.g. the avatar/name fetched right after login) so the header updates
-      // reactively and the profile fallback query below stays suppressed.
-      const fresh = getCurrentUser();
-      if (fresh) setUser((prev) => (prev ? { ...prev, ...fresh } : fresh));
     };
     const onStorage = (e: StorageEvent) => {
       if (e.key && e.key.startsWith("brainstorm_assistant:")) sync();
     };
+    // The assistant's storage is namespaced per owner, so a switch re-reads it.
+    sync();
     window.addEventListener("storage", onStorage);
     window.addEventListener(ASSISTANT_UPDATED_EVENT, sync as EventListener);
-    window.addEventListener(USER_CHANGED_EVENT, sync as EventListener);
     return () => {
       window.removeEventListener("storage", onStorage);
       window.removeEventListener(ASSISTANT_UPDATED_EVENT, sync as EventListener);
-      window.removeEventListener(USER_CHANGED_EVENT, sync as EventListener);
     };
-  }, []);
+  }, [user?.pubkey]);
 
   // Inline "Publish your assistant" prompt (existing users): publish in place
   // rather than navigating to the wrong settings page. Explicit click = consent,
@@ -223,7 +250,7 @@ export default function DashboardPage() {
       setAssistantPubkey(getCurrentAssistantPubkey()); // collapse the prompt immediately
       toast({
         title: `${name} is live on Nostr!`,
-        description: "Speaking your trust scores to compatible Nostr apps.",
+        description: "Speaking your scores to compatible Nostr apps.",
         action: (
           <ToastAction altText="Customize your assistant" onClick={() => navigate("/settings?tab=trust")}>
             Customize
@@ -242,35 +269,22 @@ export default function DashboardPage() {
   });
 
   useEffect(() => {
-    const u = getCurrentUser();
-    if (!u) {
-      navigate("/", { replace: true });
-      return;
-    }
-    setUser(u);
-  }, [navigate]);
+    if (!user) navigate("/", { replace: true });
+  }, [user, navigate]);
 
   const { preset: trustPreset } = useTrustPresetSync(!!user);
 
   const needsProfile = !!user && !user.displayName && !user.picture;
-  const profileQuery = useQuery({
+  useQuery({
     queryKey: ["profile", user?.pubkey],
     queryFn: async () => {
       if (!user?.pubkey) return null;
-      // The login-time profile fetch may have resolved after this query was
-      // already enabled (React Query won't cancel an in-flight query). If the
-      // metadata is already present, reuse it instead of re-hitting relays.
-      const fresh = getCurrentUser();
-      if (fresh && (fresh.picture || fresh.displayName)) {
-        setUser((prev) => (prev ? { ...prev, ...fresh } : fresh));
-        return fresh.profile ?? null;
-      }
       await fetchOutboxRelayList(user.pubkey);
       const content = await fetchProfile(user.pubkey);
       if (content) {
-        const updates = applyProfileToUser(content);
-        updateCurrentUser(updates);
-        setUser((prev) => prev ? { ...prev, ...updates } : prev);
+        // Caching it on the Account is what re-renders the header — this query's
+        // own result is only the profile page's fallback copy.
+        cacheProfile(content, user.pubkey);
         return content;
       }
       throw new Error("Profile not found");
@@ -338,7 +352,7 @@ export default function DashboardPage() {
       let hadPrev = false;
       try { hadPrev = localStorage.getItem("brainstorm_calc_completed") === "true"; } catch {}
       toast({
-        title: hadPrev ? "Refreshing your trust scores" : "Calculating your Web of Trust",
+        title: hadPrev ? "Refreshing your scores" : "Calculating your network",
         description: hadPrev
           ? "Your scores are being recalculated — results will update shortly."
           : "We're scoring your network for the first time. You can keep exploring while it runs.",
@@ -362,28 +376,34 @@ export default function DashboardPage() {
   const stats = statsQuery.data?.data ?? null;
 
   const taPubkey = history?.ta_pubkey;
-  const trustServiceProvider = useQuery({
-    queryKey: ["trustServiceProvider", user?.pubkey, taPubkey],
-    queryFn: async () => {
-      if (!user?.pubkey || !taPubkey) return false;
-      return await isUsingBrainstorm(user.pubkey, taPubkey);
-    },
-    enabled: !!user && !!taPubkey,
-    retry: 2,
-    retryDelay: (attempt) => Math.min(1000 * 2 ** attempt, 8000),
-    staleTime: Infinity,
-  });
+  const trustServiceProvider = useTrustProviderStatus(user?.pubkey, taPubkey);
 
   useEffect(() => {
-    // Upgrade-only: a relay confirmation (isUsingBrainstorm === true) marks this
-    // account activated and shows the badge. A `false`/undefined is treated as
-    // "not propagated yet", NOT a deactivation — relays are eventually-consistent,
-    // so we never downgrade here (that caused the badge to flicker right after an
-    // auto-publish). Deactivation is explicit, via Settings.
-    if (trustServiceProvider.data !== true) return;
-    markNip85Activated(getCurrentUser()?.pubkey);
-    if (!nip85Activated) setNip85Activated(true);
+    // The on-relay 10040 is the authority. "brainstorm" marks this account
+    // activated and shows the badge; "other" (a declaration naming a DIFFERENT
+    // assistant — definitive presence, not a miss) downgrades it, because a
+    // green "Active" badge over a foreign declaration is a lie. "none"/
+    // "unknown" are absence/silence and never downgrade — relays are
+    // eventually-consistent, and that flicker right after an auto-publish is
+    // what upgrade-only-on-miss protects against.
+    if (trustServiceProvider.data === "brainstorm") {
+      markNip85Activated(user?.pubkey);
+      if (!nip85Activated) setNip85Activated(true);
+    } else if (trustServiceProvider.data === "other") {
+      // The flag itself was cleared inside checkExistingTrustProvider.
+      if (nip85Activated) setNip85Activated(false);
+    }
   }, [trustServiceProvider.data, nip85Activated]);
+
+  const showActivatePrompt = needsActivationPrompt({
+    status: trustServiceProvider.data,
+    locallyActivated: nip85Activated,
+    createdInApp: nip85CreatedInApp,
+  });
+
+  // Note: ta_pubkey needs no waiting — the backend creates it during login
+  // itself (authChallenge verify), so for any session-holder the first
+  // /user/history response already carries it. Signing is always performable.
 
   const grapeRankRaw = grapeRankQuery.data?.data;
   const grapeRank = grapeRankRaw && typeof grapeRankRaw === "object" ? grapeRankRaw : null;
@@ -445,7 +465,14 @@ export default function DashboardPage() {
     ? typeof (grapeRank as any).ta_status === "string" && (grapeRank as any).ta_status.toLowerCase() === "failure"
     : false;
 
-  const hasNoFollowing = overviewQuery.isSuccess && followingCount === 0;
+  // The backend count alone lied here: it reads 0 until GrapeRank first ingests
+  // the contact list, so an existing user on a fresh device was handed the
+  // new-user follow picker. Only believe "no follows" once the relay-side
+  // verification agrees (it also repairs the local floor when a list is found,
+  // which lets AutoScoreReturning take over).
+  const followVerification = useVerifiedNoFollows(user?.pubkey);
+  const hasNoFollowing = overviewQuery.isSuccess && followingCount === 0 && followVerification === "none";
+  const followsChecking = overviewQuery.isSuccess && followingCount === 0 && followVerification === "checking";
 
   // The backend `following` count lags for brand-new accounts — it only fills in
   // after the first GrapeRank pass ingests the contact list. So a user who has
@@ -454,7 +481,7 @@ export default function DashboardPage() {
   // followed) lets us stop re-nagging them to "follow to begin" and instead show
   // a calm "calculating" state until the count catches up.
   const calcTriggered = (() => {
-    try { return !!user?.pubkey && !!localStorage.getItem(`brainstorm_calc_triggered_at:${user.pubkey}`); }
+    try { return !!user?.pubkey && !!localStorage.getItem(accountKey("brainstorm_calc_triggered_at", user.pubkey)); }
     catch { return false; }
   })();
 
@@ -535,13 +562,19 @@ export default function DashboardPage() {
   };
 
   const TIER_CONFIG = [
-    { key: "high", name: "Highly Trusted", color: TRUST_TIER_COLORS.highlyTrusted },
-    { key: "medium_high", name: "Trusted", color: TRUST_TIER_COLORS.trusted },
-    { key: "medium", name: "Neutral", color: TRUST_TIER_COLORS.neutral },
-    { key: "medium_low", name: "Low Trust", color: TRUST_TIER_COLORS.lowTrust },
-    { key: "low", name: "Unverified", color: TRUST_TIER_COLORS.unverified },
+    { key: "high", name: TIER_LABELS.high, color: TRUST_TIER_COLORS.highlyTrusted },
+    { key: "medium_high", name: TIER_LABELS.trusted, color: TRUST_TIER_COLORS.trusted },
+    { key: "medium", name: TIER_LABELS.neutral, color: TRUST_TIER_COLORS.neutral },
+    { key: "medium_low", name: TIER_LABELS.low, color: TRUST_TIER_COLORS.lowTrust },
+    { key: "low", name: TIER_LABELS.unverified, color: TRUST_TIER_COLORS.unverified },
     { key: "low_and_reported_by_2_or_more_trusted_pubkeys", name: "Flagged", color: TRUST_TIER_COLORS.flagged },
   ] as const;
+
+  // Decision 7: the composition chart follows the viewer's ladder. Under Simple
+  // the five tiers fold into Verified (at or above the verified line — the
+  // `medium_low` bucket's lower bound IS that line) and Unknown (`low`); Flagged
+  // stays its own slice.
+  const [granularity] = useTierGranularity();
 
   const countValues = useMemo(() => {
     if (!grapeRank) return null;
@@ -557,7 +590,7 @@ export default function DashboardPage() {
   // Direct flagged count (DISTINCT flagged users across all of your
   // relationships), from /overview — preserves the legacy /self graph's flagged
   // semantics and matches NetworkPage. Only consumed by the pre-calc
-  // `enhancedPieData` fallback slice (the post-calc pie reads count_values via
+  // `pieData` fallback slice (the post-calc pie reads count_values via
   // aggregateByHopRange).
   const flaggedCount = overview?.flagged_count ?? 0;
 
@@ -614,27 +647,40 @@ export default function DashboardPage() {
       }).filter(d => d.value > 0 || d.name === "Flagged");
     }
     const fallback = [
-      { label: "Highly Trusted", count: followersCount, color: TRUST_TIER_COLORS.highlyTrusted },
-      { label: "Trusted", count: followingCount, color: TRUST_TIER_COLORS.trusted },
-      { label: "Neutral", count: Math.max(100, followersCount * 2), color: TRUST_TIER_COLORS.neutral },
-      { label: "Low Trust", count: mutedByCount + mutingCount, color: TRUST_TIER_COLORS.lowTrust },
+      { label: TIER_LABELS.high, count: followersCount, color: TRUST_TIER_COLORS.highlyTrusted },
+      { label: TIER_LABELS.trusted, count: followingCount, color: TRUST_TIER_COLORS.trusted },
+      { label: TIER_LABELS.neutral, count: Math.max(100, followersCount * 2), color: TRUST_TIER_COLORS.neutral },
+      { label: TIER_LABELS.low, count: mutedByCount + mutingCount, color: TRUST_TIER_COLORS.lowTrust },
       { label: "Unverified", count: Math.max(10, mutedByCount), color: TRUST_TIER_COLORS.unverified },
       { label: "Flagged", count: flaggedCount, color: TRUST_TIER_COLORS.flagged },
     ];
     const currentHops = hopRange[1];
     return fallback.map((d) => {
       let multiplier = 1;
-      if (d.label === "Highly Trusted") multiplier = Math.max(0.2, 1 - (currentHops - 1) * 0.15);
-      else if (d.label === "Trusted") multiplier = Math.max(0.4, 1 - (currentHops - 1) * 0.08);
-      else if (d.label === "Neutral") multiplier = 1 + (currentHops - 1) * 0.4;
-      else if (d.label === "Low Trust") multiplier = 1 + (currentHops - 1) * 0.6;
+      if (d.label === TIER_LABELS.high) multiplier = Math.max(0.2, 1 - (currentHops - 1) * 0.15);
+      else if (d.label === TIER_LABELS.trusted) multiplier = Math.max(0.4, 1 - (currentHops - 1) * 0.08);
+      else if (d.label === TIER_LABELS.neutral) multiplier = 1 + (currentHops - 1) * 0.4;
+      else if (d.label === TIER_LABELS.low) multiplier = 1 + (currentHops - 1) * 0.6;
       else if (d.label === "Flagged") multiplier = 1;
       else multiplier = 1 + (currentHops - 1) * 0.8;
       return { name: d.label, value: Math.floor(d.count * multiplier), color: d.color };
     }).filter(d => d.value > 0 || d.name === "Flagged");
   }, [countValues, hopRange, followersCount, followingCount, mutedByCount, mutingCount, flaggedCount]);
 
-  const totalNetworkProfiles = enhancedPieData.reduce((acc: number, curr: { value: number }) => acc + curr.value, 0);
+  const pieData = useMemo(() => {
+    if (granularity !== "simple") return enhancedPieData;
+    const ladder = ladderFor("simple");
+    const rung = (k: Bucket) => ladder.find((r) => r.key === k)!;
+    const verifiedNames = new Set<string>([TIER_LABELS.high, TIER_LABELS.trusted, TIER_LABELS.neutral, TIER_LABELS.low]);
+    const sum = (pick: (name: string) => boolean) => enhancedPieData.filter((d) => pick(d.name)).reduce((a, d) => a + d.value, 0);
+    return [
+      { name: rung("verified").label, value: sum((n) => verifiedNames.has(n)), color: rung("verified").color },
+      { name: rung("unknown").label, value: sum((n) => n === TIER_LABELS.unverified || n === "Unverified"), color: rung("unknown").color },
+      { name: rung("flagged").label, value: sum((n) => n === "Flagged"), color: rung("flagged").color },
+    ].filter((d) => d.value > 0 || d.name === "Flagged");
+  }, [enhancedPieData, granularity]);
+
+  const totalNetworkProfiles = pieData.reduce((acc: number, curr: { value: number }) => acc + curr.value, 0);
 
   const activityBreakdown = [
     { name: "Very active (7 days)", value: Math.floor(extendedNetworkCount * 0.18), color: "#059669" },
@@ -655,7 +701,7 @@ export default function DashboardPage() {
 
   const totalActivityProfiles = activityBreakdown.reduce((acc, curr) => acc + curr.value, 0);
 
-  const currentPieData: Array<{ name: string; value: number; color: string }> = networkViewMode === "trust" ? enhancedPieData : activityBreakdown;
+  const currentPieData: Array<{ name: string; value: number; color: string }> = networkViewMode === "trust" ? pieData : activityBreakdown;
   const totalCurrentProfiles = networkViewMode === "trust" ? totalNetworkProfiles : totalActivityProfiles;
 
   // Stats `tier_counts` field names now match the GR `count_values` keys
@@ -709,7 +755,7 @@ export default function DashboardPage() {
   // the next account on the same browser (making a brand-new user look like a
   // recalculation). Keep the legacy global key in sync for back-compat readers.
   const hadPreviousScores = useMemo(() => {
-    const k = user?.pubkey ? `brainstorm_calc_completed:${user.pubkey}` : "";
+    const k = user?.pubkey ? accountKey("brainstorm_calc_completed", user.pubkey) : "";
     if (calcDone) {
       try { if (k) localStorage.setItem(k, "true"); localStorage.setItem("brainstorm_calc_completed", "true"); } catch {}
       return true;
@@ -754,11 +800,14 @@ export default function DashboardPage() {
   // follows". For a brand-new account grapeRank resolves first, every other term
   // passes, and the onboarding panel flashed on screen for that window before
   // overview landed and yanked it away. Waiting for overview to settle closes it.
-  const showOnboarding = overviewQuery.isSuccess && !grapeRankQuery.isLoading && !publishDone && !hasNoFollowing && !isRecalculating && !hadPreviousScores;
+  // `followsChecking` closes the same flash for the relay verification window:
+  // while it's running, hasNoFollowing reads FALSE too, and without the guard
+  // the onboarding panel would show for a user about to get the follow picker.
+  const showOnboarding = overviewQuery.isSuccess && !grapeRankQuery.isLoading && !publishDone && !hasNoFollowing && !followsChecking && !isRecalculating && !hadPreviousScores;
   // No-follows is NOT an error — it's the "start here" state (handled by the
   // inline follow-picker). Only real GrapeRank/publish failures are errors, and
   // we suppress those right after a fresh follow+calculate.
-  const isErrorState = (isGrapeRankFailed || isPublishFailed) && !hasNoFollowing && !justFollowed;
+  const isErrorState = (isGrapeRankFailed || isPublishFailed) && !hasNoFollowing && !followsChecking && !justFollowed;
   // A "recalculation" requires PRIOR completed scores — not merely an in-progress
   // result object (which exists during a first-time calc too). Using `grapeRank`
   // here made a never-scored user's first calc read as "Refreshing / previous
@@ -768,6 +817,30 @@ export default function DashboardPage() {
   // flag — both caused brand-new accounts to read as "Recalculating".
   const isRecalculation = !publishDone && hadPreviousScores;
 
+  // One modal instance, reachable from both the takeover and the dashboard.
+  const activateModal = (
+    <ActivateBrainstormModal
+      open={nip85ModalOpen}
+      onOpenChange={setNip85ModalOpen}
+      serviceKey={history?.ta_pubkey || ""}
+      onActivated={() => {
+        setNip85Activated(true);
+        // The provider-status cache was seeded to "brainstorm" by the publish
+        // itself (publishBrainstormTrustAnchor) — the 10040 we just published
+        // IS the new relay state, so nothing refetches into propagation lag
+        // and re-raises the prompt we're dismissing.
+        setNip85ModalOpen(false);
+        toast({ title: "Brainstorm activated!", description: "Your scores are now available across the nostr ecosystem." });
+      }}
+    />
+  );
+
+  // The full-page activation takeover (ActivateBrainstormInterstitial) and its
+  // first-paint hold used to live here — a signer user with follows but no
+  // kind-10040 met a spinner, then a wall. The finish-setup flow replaced
+  // them: the header banner + setup card carry the nudge, and the dashboard
+  // always renders.
+
   return (
     <TooltipProvider>
       <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-primary/[0.3] flex flex-col relative overflow-hidden" data-testid="page-dashboard">
@@ -776,6 +849,8 @@ export default function DashboardPage() {
         <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="dashboard" />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1">
+
+          <DeferredSessionNotice className="mb-6" />
 
           <div className="flex flex-col gap-6 mb-8">
             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
@@ -814,7 +889,7 @@ export default function DashboardPage() {
                   <div className="h-7 w-7 rounded-lg bg-brand-accent/10 border border-brand-accent/20 flex items-center justify-center shrink-0">
                     <BrainLogo size={14} className="text-brand-deep" />
                   </div>
-                  <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 shrink-0" style={{ fontFamily: "var(--font-display)" }}>Web of Trust</span>
+                  <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100 shrink-0" style={{ fontFamily: "var(--font-display)" }}>Your network</span>
                   <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 shrink-0">
                     <span className="relative flex h-1.5 w-1.5">
                       <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
@@ -867,7 +942,7 @@ export default function DashboardPage() {
                               Publish your assistant
                             </p>
                             <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-tight truncate">
-                              Speak your trust scores to compatible apps
+                              Speak your scores to compatible apps
                             </p>
                           </div>
                           <button
@@ -917,7 +992,7 @@ export default function DashboardPage() {
                               <Info className="h-2 w-2" />
                             </button>
                             <div className="fixed left-4 right-4 top-1/2 -translate-y-1/2 sm:absolute sm:top-auto sm:left-1/2 sm:right-auto sm:-translate-x-1/2 sm:translate-y-0 sm:bottom-full sm:mb-2 sm:w-80 p-3 rounded-xl bg-slate-900/95 backdrop-blur-xl border border-white/15 shadow-2xl text-xs text-slate-200 leading-relaxed opacity-0 invisible group-focus-within/info:opacity-100 group-focus-within/info:visible group-hover/info:opacity-100 group-hover/info:visible transition-all duration-200 z-[100] pointer-events-none group-focus-within/info:pointer-events-auto group-hover/info:pointer-events-auto" data-testid="tooltip-compatible-clients">
-                              Apps that read the personalized trust scores Brainstorm publishes for you — so your Web of Trust travels with you across the apps you use.
+                              Apps that read the personalized Verification Scores Brainstorm publishes for you — so your network travels with you across the apps you use.
                             </div>
                           </div>
                         </div>
@@ -958,6 +1033,14 @@ export default function DashboardPage() {
                     <span className="text-xs text-brand-primary dark:text-brand-link font-medium flex items-center gap-1" data-testid="text-overall-trust-score-sub">
                       <Loader2 className="w-3 h-3 animate-spin" />
                       Recalculating...
+                    </span>
+                  ) : publishDone && showActivatePrompt ? (
+                    // Scores exist but no kind-10040 points at them — "Score:
+                    // 47" / "Complete" would be the very hunky-dory signals
+                    // that buried the activation prompt. Say what's missing;
+                    // outranks the score readout on purpose.
+                    <span className="text-xs text-amber-600 dark:text-amber-400 font-semibold" data-testid="text-overall-trust-score-sub">
+                      Not visible in apps yet
                     </span>
                   ) : grapeRankScore ? (
                     <span className="text-xs text-slate-700 dark:text-slate-200 font-semibold" data-testid="text-overall-trust-score-sub">
@@ -1029,6 +1112,14 @@ export default function DashboardPage() {
 
             </div>
 
+            {/* Activation prompt — the one thing a signed-in user may still have
+                to DO (sign their kind-10040) before their scores are visible in
+                other apps. Full-width, above everything, and deliberately not
+                waiting on any calculation state; see needsActivationPrompt. */}
+            {showActivatePrompt && (
+              <ActivateBrainstormPanel onActivate={() => navigate("/setup/activate")} />
+            )}
+
             <AlertDialog open={recalcConfirmOpen} onOpenChange={setRecalcConfirmOpen}>
               <AlertDialogContent
                 className="w-[calc(100vw-2rem)] max-w-[420px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl p-0 overflow-hidden"
@@ -1065,7 +1156,7 @@ export default function DashboardPage() {
             </AlertDialog>
 
             <AnimatePresence>
-              {(isGrapeRankFailed || isPublishFailed) && !hasNoFollowing && !justFollowed && !triggerGrapeRankMutation.isError && !triggerGrapeRankMutation.isPending && !triggerGrapeRankMutation.isSuccess && (
+              {(isGrapeRankFailed || isPublishFailed) && !hasNoFollowing && !followsChecking && !justFollowed && !triggerGrapeRankMutation.isError && !triggerGrapeRankMutation.isPending && !triggerGrapeRankMutation.isSuccess && (
                 <motion.div
                   initial={{ opacity: 0, y: -8, scale: 0.98 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -1103,8 +1194,8 @@ export default function DashboardPage() {
                   <Loader2 className="h-5 w-5 animate-spin" />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-[15px] font-bold text-slate-900 dark:text-slate-100">Building your Web of Trust</div>
-                  <div className="text-[13px] text-slate-500 dark:text-slate-400">You're all set — your trust scores are calculating. This can take a few minutes.</div>
+                  <div className="text-[15px] font-bold text-slate-900 dark:text-slate-100">Building your network</div>
+                  <div className="text-[13px] text-slate-500 dark:text-slate-400">You're all set — your scores are calculating. This can take a few minutes.</div>
                 </div>
               </div>
             )}
@@ -1133,7 +1224,7 @@ export default function DashboardPage() {
                     </div>
                     <p className="min-w-0 text-[13px] text-slate-600 dark:text-slate-300 leading-snug">
                       <span className="font-semibold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }} data-testid="text-invite-grow-title">Your network is live.</span>{" "}
-                      <span className="text-slate-500 dark:text-slate-400">Invite people — they join connected to you, strengthening everyone's Web of Trust.</span>
+                      <span className="text-slate-500 dark:text-slate-400">Invite people — they join connected to you, and everyone's network gets stronger.</span>
                     </p>
                   </div>
                   <button
@@ -1167,7 +1258,7 @@ export default function DashboardPage() {
                 npub={user.npub}
                 displayName={user.displayName || "You"}
                 picture={user.picture}
-                nip05={user.profile?.nip05}
+                nip05={user.nip05}
                 canonicalUrl={typeof window !== "undefined" ? `${window.location.origin}/p/${user.npub}` : ""}
                 // No trust pill on an invite: the score is self-referential (your own POV
                 // ≈ 100) and meaningless for a brand-new account — the invite is about
@@ -1188,9 +1279,24 @@ export default function DashboardPage() {
             {showOnboarding && (
               <SetupProgressCard queueAhead={queuePosition} showStatus={!isErrorState} />
             )}
+
+            {/* Someone put a public label on you. Nothing else in the app would
+                ever tell you — self-hides when there's nothing new. */}
+            <TaggedYouModule />
           </div>
 
-          {publishDone && !isRecalculating && !nip85Activated && !nip85Dismissed && !nip85CreatedInApp && (
+          {/* Legacy consent card — superseded by ActivateBrainstormPanel above,
+              which prompts without waiting for publishDone; it never renders
+              alongside the panel (!showActivatePrompt). Two cohorts still land
+              here: in-app accounts that explicitly DECLINED the consent card
+              (needsActivationPrompt skips createdInApp entirely; the
+              post-cooldown re-ask lives here) and accounts whose relay check
+              couldn't settle. `showOnboarding` keeps the signature available
+              DURING the first calculation (~7 min): signing needs only
+              ta_pubkey, which exists from login — black-box testing showed
+              users lost in exactly that gap when the card waited for
+              publishDone. */}
+          {(publishDone || showOnboarding) && !isRecalculating && !nip85Activated && !nip85Dismissed && (!nip85CreatedInApp || hasDeclinedNip85(user?.pubkey)) && !showActivatePrompt && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
@@ -1209,10 +1315,10 @@ export default function DashboardPage() {
 
                   <div className="flex-1 min-w-0">
                     <h3 className="text-base sm:text-lg font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="text-nip85-cta-title">
-                      Select Brainstorm as your Web of Trust Service Provider
+                      Use your Brainstorm scores in other apps
                     </h3>
                     <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed" data-testid="text-nip85-cta-subtitle">
-                      Sign a nostr note that tells compatible clients where to find your personalized trust scores.
+                      Sign a nostr note that tells other apps where to find your personalized scores.
                     </p>
                   </div>
 
@@ -1230,8 +1336,8 @@ export default function DashboardPage() {
                       type="button"
                       onClick={() => {
                         try {
-                          const pk = getCurrentUser()?.pubkey;
-                          if (pk) localStorage.setItem(`brainstorm_nip85_dismissed_at:${pk}`, String(Date.now()));
+                          const pk = user?.pubkey;
+                          if (pk) localStorage.setItem(accountKey("brainstorm_nip85_dismissed_at", pk), String(Date.now()));
                         } catch { /* ignore */ }
                         setNip85Dismissed(true);
                       }}
@@ -1246,16 +1352,7 @@ export default function DashboardPage() {
             </motion.div>
           )}
 
-          <ActivateBrainstormModal
-            open={nip85ModalOpen}
-            onOpenChange={setNip85ModalOpen}
-            serviceKey={history?.ta_pubkey || ""}
-            onActivated={() => {
-              setNip85Activated(true);
-              setNip85ModalOpen(false);
-              toast({ title: "Brainstorm activated!", description: "Your trust scores are now available across the nostr ecosystem." });
-            }}
-          />
+          {activateModal}
 
           {/* Investigate command bar — research entry point into the deep-dive
               analytics (/profile/:npub) for anyone in your network. */}

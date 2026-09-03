@@ -14,7 +14,7 @@ export function DashboardLookup() {
       <HeaderSearchBox
         className="flex-1"
         placeholder="Look up anyone in your network…"
-        profileHref={(npub) => `/profile/${npub}`}
+        profileHref={(npub) => `/p/${npub}`}
         resolveDirect
       />
     </div>

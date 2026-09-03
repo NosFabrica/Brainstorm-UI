@@ -24,8 +24,11 @@ import {
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { decodeShareId, npubFromPubkey, nostrUriFor, eventPath } from "@/lib/shareId";
+import { relativeTime } from "@/lib/relativeTime";
 import { copyToClipboard } from "@/lib/clipboard";
-import { fetchProfileForShare, fetchRecentByKinds, fetchLiveStreams, fetchEventsByIds, fetchAddressableEvents, fetchProfileMap, fetchExternalIdentities, fetchOutboxRelayList, fetchProfilePrefs, publishProfilePrefs, hasLocalSecretKey, PROFILE_RELAYS } from "@/services/nostr";
+import { useActiveAccount } from "applesauce-react/hooks";
+import { fetchProfileForShare, fetchRecentByKinds, fetchLiveStreams, fetchEventsByIds, fetchAddressableEvents, fetchProfileMap, fetchExternalIdentities, fetchOutboxRelayList, fetchProfilePrefs, publishProfilePrefs } from "@/services/nostr";
+import { PROFILE_RELAYS } from "@/lib/relays";
 import { parseIdentities } from "@/lib/externalIdentity";
 import { ExternalIdentities } from "@/components/share/ExternalIdentities";
 import { FollowedByRow } from "@/components/share/FollowedByRow";
@@ -37,24 +40,27 @@ import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { audioUrlFromEvent, setPlaylist } from "@/lib/audioPlayer";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { TopicChips } from "@/components/share/TopicChips";
+import { ProfileTagChips } from "@/components/share/ProfileTagChips";
+import { useEventTagsBatch } from "@/hooks/useTags";
+import { LegacyRolePrompt } from "@/components/share/LegacyRolePrompt";
 import { ShareBio } from "@/components/share/ShareBio";
 import liveDefault from "@/assets/live-default.webp";
 import { PinIcon } from "@/components/PinIcon";
 import { parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
 import { EventRow } from "@/components/share/EventRow";
 import { OpenInApp } from "@/components/share/OpenInApp";
-import { apiClient, hasSessionToken } from "@/services/api";
+import { apiClient } from "@/services/api";
 import { parseProfilePrefs, loadProfilePrefsDraft, saveProfilePrefsDraft, clearProfilePrefsDraft } from "@/lib/personalization";
-import { ROLES, SECTION_KEYS, EMPTY_PROFILE_PREFS, type SectionKey, type ProfilePrefs } from "@/config/personalization";
+import { SECTION_KEYS, ROLE_LABELS, EMPTY_PROFILE_PREFS, type SectionKey, type ProfilePrefs } from "@/config/personalization";
 import { ProfileCustomizer } from "@/components/share/ProfileCustomizer";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { DegreeChip } from "@/components/DegreeChip";
 import { useRelationshipBadges } from "@/hooks/useRelationshipBadges";
 import { ProfileActions, OwnerActions } from "@/components/share/ProfileActions";
 import { Stat, StatLensToggle, type StatLens } from "@/components/share/StatToggle";
 import { NegativeSignalStats } from "@/components/share/NegativeSignalStats";
 import { useScorePov, TrustScoreModal } from "@/components/score/TrustScorePov";
-import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { extractImageUrls, extractVideoUrls, extractVideoPoster } from "@/lib/noteContent";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
@@ -68,6 +74,8 @@ import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC } from "@/lib/profileDefaults";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { useHasSession } from "@/hooks/useHasSession";
+import { useHopsOrigin } from "@/hooks/useHopsOrigin";
 
 type ProfileContentLike = Record<string, string | undefined>;
 
@@ -82,13 +90,15 @@ function timeAgo(ts?: number): string {
 }
 
 export default function SharePage() {
+  const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
   const [, params] = useRoute("/p/:id");
   const rawId = params?.id || "";
   const decoded = useMemo(() => decodeShareId(rawId), [rawId]);
   const pubkey = decoded?.pubkey || "";
   const relayHints = decoded?.relays || [];
   const npub = pubkey ? safeNpub(pubkey) : "";
-  const loggedIn = hasSessionToken();
+  const loggedIn = useHasSession();
   const [shareOpen, setShareOpen] = useState(false);
   const [zapOpen, setZapOpen] = useState(false);
   const [npubCopied, setNpubCopied] = useState(false);
@@ -128,15 +138,33 @@ export default function SharePage() {
   const publishedPrefs = useMemo(() => parseProfilePrefs(prefsQuery.data ?? {}), [prefsQuery.data]);
 
   // Owner-only inline editing — while editing, the page previews the DRAFT live.
-  const [currentUser] = useCurrentUser();
-  // Owner = the logged-in user IS this profile and can sign (publish prefs).
-  const isOwner = !!currentUser?.pubkey && currentUser.pubkey === pubkey &&
-    (hasSessionToken() || hasLocalSecretKey() || (typeof window !== "undefined" && !!(window as unknown as { nostr?: unknown }).nostr));
+  const currentUser = useActiveAccountDisplay();
+  // Owner = the Account that signs IS this profile — which is also what makes
+  // publishing prefs possible, so there is nothing else to check.
+  const isOwner = useActiveAccount()?.pubkey === pubkey;
+  // Tagging needs a SIGNER, which is a stricter thing than being signed in: a
+  // session token is backend auth and can't sign an event, so gating on one
+  // would show an "Add a tag" button that throws the moment it is used. Anyone
+  // with a signer can tag anyone, including themselves.
+  //
+  // Under the accounts model an Account *is* a Signer, so holding one is the
+  // test. Upstream asked `hasLocalSecretKey() || window.nostr`, which quietly
+  // excluded every remote signer; this includes them.
+  const canTag = !!currentUser?.pubkey;
   // Read-only relationship state (follow/mute/report/follows-you) for a logged-in
   // viewer — drives the at-a-glance badges next to the actions (which now live
   // here on /p; /profile is the tucked-away advanced view).
   const rel = useRelationshipBadges(pubkey);
   const { pov: scorePov } = useScorePov();
+  // A USABLE personal point of view — the same rule ConnectionListPage applies
+  // to the follower lists, so a count and the list behind it can never come
+  // from different perspectives. `brainstorm_calc_completed` is a localStorage
+  // breadcrumb, not server truth; without it the personalized stats would be
+  // an empty perspective pretending to be one.
+  const calcDone = (() => {
+    try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; }
+  })();
+  const myPov = loggedIn && calcDone && scorePov === "personalized";
   const queryClient = useQueryClient();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<ProfilePrefs>(EMPTY_PROFILE_PREFS);
@@ -163,6 +191,7 @@ export default function SharePage() {
     setPrefsError(null);
     const res = await publishProfilePrefs(draft);
     setSavingPrefs(false);
+    if (res.cancelled) return;
     if (res.success) {
       clearProfilePrefsDraft(pubkey);
       setEditing(false);
@@ -195,8 +224,11 @@ export default function SharePage() {
         verified_only: true,
         house: true,
       });
-      const items = (res?.data?.items ?? []) as Array<string | { pubkey?: string }>;
-      return items.map((e) => (typeof e === "string" ? e : e?.pubkey)).filter((p): p is string => !!p);
+      const items = (res?.data?.items ?? []) as Array<string | { pubkey?: string; influence?: number | null }>;
+      // Keep the per-item influence — the cluster's tier rings ride on it free.
+      return items
+        .map((e) => (typeof e === "string" ? { pubkey: e, influence: null } : { pubkey: e?.pubkey ?? "", influence: typeof e?.influence === "number" ? e.influence : null }))
+        .filter((e) => !!e.pubkey);
     },
     enabled: !!pubkey,
     staleTime: 5 * 60_000,
@@ -204,7 +236,7 @@ export default function SharePage() {
   });
   // Owner can hand-pick the "Followed by" faces; otherwise auto top-trusted.
   const effectiveFollowerPubkeys = useMemo(
-    () => (prefs.pinnedFollowers.length > 0 ? prefs.pinnedFollowers : (followedByQuery.data ?? [])),
+    () => (prefs.pinnedFollowers.length > 0 ? prefs.pinnedFollowers : (followedByQuery.data ?? []).map((e) => e.pubkey)),
     [prefs.pinnedFollowers, followedByQuery.data],
   );
   const followedByProfilesQuery = useQuery({
@@ -214,10 +246,15 @@ export default function SharePage() {
     staleTime: 5 * 60_000,
     retry: false,
   });
+  const followedByScores = useMemo(
+    () => new Map((followedByQuery.data ?? []).map((e) => [e.pubkey, e.influence])),
+    [followedByQuery.data],
+  );
   const topFollowers = useMemo(() => {
     const profs = followedByProfilesQuery.data;
     return effectiveFollowerPubkeys.map((pk) => ({
       pubkey: pk,
+      score01: followedByScores.get(pk) ?? null,
       name: profs?.get(pk)?.display_name || profs?.get(pk)?.name,
       picture: profs?.get(pk)?.picture,
     }));
@@ -275,14 +312,26 @@ export default function SharePage() {
     retry: false,
   });
 
-  // Per-section stats: total/verified counts per relationship. A shared link is
-  // public, so we always read the HOUSE (network) POV — the same numbers and the
-  // same "flagged" verdict every viewer sees, never the logged-in viewer's
-  // personalized perspective.
-  const statsQuery = useQuery({
-    queryKey: ["share-stats", pubkey],
+  // Per-section stats: total/verified counts per relationship — one query per
+  // point of view, the same shape the coin uses (overviewQuery/houseRankQuery).
+  //
+  // House is fetched ALWAYS: it serves logged-out viewers and it is the ledger
+  // the flag verdict reads (a verdict must be the same for every viewer). The
+  // personalized query runs only when the viewer has a usable personal PoV,
+  // and the DISPLAYED counts select between the two at render time — this
+  // used to be pinned `house: true` from the share-page era, which is why the
+  // coin followed the toggle and these numbers didn't (David's report).
+  const houseStatsQuery = useQuery({
+    queryKey: ["share-stats", pubkey, "house"],
     queryFn: () => apiClient.getUserStats(pubkey, { house: true }),
     enabled: !!pubkey,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const myStatsQuery = useQuery({
+    queryKey: ["share-stats", pubkey, "mine"],
+    queryFn: () => apiClient.getUserStats(pubkey),
+    enabled: !!pubkey && myPov,
     staleTime: 5 * 60_000,
     retry: false,
   });
@@ -400,37 +449,68 @@ export default function SharePage() {
   const profile = (profileQuery.data ?? {}) as ProfileContentLike;
   const displayName = profile.display_name || profile.name || (npub ? npub.slice(0, 12) + "…" : "Nostr profile");
 
-  // "On Nostr since [year]" — a truthful LOWER BOUND from the oldest event we
-  // already fetched (their old articles/events/notes). Only shown when that's
-  // genuinely old (>6 months), so it never mislabels a fresh fetch as recent.
-  const memberSinceYear = useMemo(() => {
-    const arrays = [notesQuery.data, photosQuery.data, articlesQuery.data, photoNotesQuery.data, videosQuery.data, musicQuery.data, statusQuery.data, eventsQuery.data, liveQuery.data];
-    let oldest = Infinity;
+  /**
+   * "Last posted <when>" — the newest thing they actually wrote.
+   *
+   * ## What this replaced, and why
+   *
+   * This slot used to say "On Nostr since <year>", derived from the OLDEST
+   * event in these same arrays. That looked like a tenure signal and was
+   * something else entirely: the arrays are recent pages (5 notes, 12 photos,
+   * 5 articles…), so the oldest of them measures how fast someone posts, not
+   * how long they've been here. **The more you post, the newer you looked.**
+   * Measured on ODELL 2026-08-07: the page printed 2025 while his oldest
+   * reachable note is 2021-11-19. Four years out, and biased against exactly
+   * the established accounts the line was meant to vouch for.
+   *
+   * Nostr has no join date. Paging back to a true first note is possible but
+   * costs ~24 extra round trips and is still only a lower bound on what relays
+   * kept, so the honest move was to stop claiming tenure at all and show the
+   * thing we can actually observe.
+   *
+   * ## Why these arrays and not all of them
+   *
+   * Authored posts only. Two of the sets the old code pooled are not the
+   * person posting:
+   *  - `statusQuery` (NIP-38 kind 30315) carries the now-playing line clients
+   *    publish automatically — it would report "posted 2 minutes ago" for an
+   *    account nobody has touched in a year.
+   *  - `liveQuery` events are authored by the streaming PLATFORM, not the
+   *    streamer (see `fetchLiveStreams`).
+   * Both fail in the direction that makes a dormant account look alive, which
+   * is the same class of error this whole change exists to remove.
+   */
+  const lastPostedAt = useMemo(() => {
+    const arrays = [notesQuery.data, photosQuery.data, articlesQuery.data, photoNotesQuery.data, videosQuery.data, musicQuery.data, eventsQuery.data];
+    let newest = 0;
+    const nowSec = Math.floor(Date.now() / 1000);
     for (const arr of arrays) for (const ev of (arr ?? []) as { created_at?: number }[]) {
       const c = ev?.created_at;
-      if (typeof c === "number" && c > 0 && c < oldest) oldest = c;
+      // Clamp to now: a relay clock running ahead would otherwise print a
+      // future post date, which reads as a bug rather than a stale clock.
+      if (typeof c === "number" && c > 0 && c <= nowSec && c > newest) newest = c;
     }
-    if (!Number.isFinite(oldest)) return null;
-    const nowSec = Math.floor(Date.now() / 1000);
-    if (oldest > nowSec - 60 * 60 * 24 * 182) return null; // < ~6 months old → not meaningful
-    return new Date(oldest * 1000).getFullYear();
+    return newest;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [notesQuery.data, photosQuery.data, articlesQuery.data, photoNotesQuery.data, videosQuery.data, musicQuery.data, statusQuery.data, eventsQuery.data, liveQuery.data]);
+  }, [notesQuery.data, photosQuery.data, articlesQuery.data, photoNotesQuery.data, videosQuery.data, musicQuery.data, eventsQuery.data]);
   const overview = overviewQuery.data as { influence?: number | null; counts?: Record<string, number> } | undefined;
   // The overview score is viewer-relative: house/network POV when logged out,
   // the viewer's own web-of-trust POV when logged in. That's the primary ring.
   const score01 = typeof overview?.influence === "number" ? overview.influence : null;
-  // Counts from the per-section stats endpoint (house POV). Followers/muters/
-  // reporters use the VERIFIED (web-of-trust) count; "following" uses the raw
-  // total (per CEO: total following is more meaningful than verified following).
-  const stats = statsQuery.data?.data as
-    | {
-        followed_by?: { verified?: number; total?: number };
-        following?: { total?: number; verified?: number };
-        muted_by?: { verified?: number; total?: number };
-        reported_by?: { verified?: number; total?: number };
-      }
-    | undefined;
+  // Counts from the per-section stats endpoint. Followers/muters/reporters use
+  // the VERIFIED (web-of-trust) count; "following" uses the raw total (per CEO:
+  // total following is more meaningful than verified following).
+  type ShareStats = {
+    followed_by?: { verified?: number; total?: number };
+    following?: { total?: number; verified?: number };
+    muted_by?: { verified?: number; total?: number };
+    reported_by?: { verified?: number; total?: number };
+  };
+  const houseStats = houseStatsQuery.data?.data as ShareStats | undefined;
+  const myStats = myStatsQuery.data?.data as ShareStats | undefined;
+  // The DISPLAYED counts follow the perspective toggle; house fills in while
+  // the personalized query is in flight so the row never blanks.
+  const stats = myPov ? myStats ?? houseStats : houseStats;
   const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
   // Each stat carries BOTH the web-of-trust-filtered (`verified`) and raw
   // (`total`, includes bots) count in one response — the StatToggle flips between
@@ -442,9 +522,16 @@ export default function SharePage() {
   // The muter/reporter counts themselves render in <NegativeSignalStats>; the
   // reporter count is read here too, for the flag banner.
   const verifiedReporters = num(stats?.reported_by?.verified);
+  const allReporters = num(stats?.reported_by?.total);
   // Flagged = reported by more than 5 verified accounts, +1 forgiven per 750
-  // verified followers (house POV → same verdict for every viewer).
-  const isFlagged = isFlaggedByReporters(verifiedReporters ?? 0, verifiedFollowers ?? 0);
+  // verified followers. The verdict reads the HOUSE ledger regardless of the
+  // toggle — same verdict for every viewer — and so does the banner's evidence
+  // count below, because a verdict and its evidence must come from one ledger.
+  const houseVerifiedReporters = num(houseStats?.reported_by?.verified);
+  const isFlagged = isFlaggedByReporters(
+    houseVerifiedReporters ?? 0,
+    num(houseStats?.followed_by?.verified) ?? 0,
+  );
   // House influence (0–1) from the backend, house POV.
   const houseScore01 = useMemo(() => {
     const r = houseRankQuery.data;
@@ -614,6 +701,20 @@ export default function SharePage() {
   const noteEvents = (notesQuery.data ?? []) as MinimalEvent[];
   const refs = useMemo(() => collectRefs(noteEvents), [noteEvents]);
 
+  /**
+   * What the network says these notes are about (ACCEPTANCE Floor A's C2 clause:
+   * "a tagged note shows its chips where SharePage renders that note").
+   *
+   * ONE batched query for every note on the page — the featured post and the
+   * whole "Latest notes" list together. Letting each card fetch its own would
+   * be the per-event REQ storm core C2 explicitly forbids.
+   */
+  const taggableNoteIds = useMemo(
+    () => [featured?.id, ...noteEvents.map((n) => n.id)].filter((id): id is string => !!id),
+    [featured, noteEvents],
+  );
+  const { data: noteTags } = useEventTagsBatch(taggableNoteIds);
+
   const refEventsQuery = useQuery({
     queryKey: ["share-ref-events", pubkey, refs.ids],
     queryFn: () => fetchEventsByIds(refs.ids, Array.from(new Set([...relayHints, ...PROFILE_RELAYS]))),
@@ -671,10 +772,17 @@ export default function SharePage() {
     [profilesQuery.data],
   );
 
-  // Roles ("what you do") from the user's local personalization prefs.
-  const roleLabels = useMemo(() => {
-    return prefs.roles.map((key) => ROLES.find((r) => r.key === key)?.label).filter(Boolean) as string[];
-  }, [prefs.roles]);
+  // Roles this person set under the retired "What you do" editor. No longer
+  // rendered — offered back to them in the tag picker so the signal isn't just
+  // dropped. Read from the PUBLISHED prefs, not the live draft: what they
+  // actually saved is what they meant.
+  const legacyRoleLabels = useMemo(
+    () =>
+      publishedPrefs.roles
+        .map((key) => ROLE_LABELS.get(key))
+        .filter((label): label is string => !!label),
+    [publishedPrefs.roles],
+  );
 
   const canonicalUrl = typeof window !== "undefined" && npub ? `${window.location.origin}/p/${npub}` : "";
 
@@ -694,7 +802,7 @@ export default function SharePage() {
     pubkey
       ? {
           title: `${displayName} on Brainstorm`,
-          description: profile.about ? profile.about.slice(0, 160) : `${displayName}'s profile and Web-of-Trust score on Brainstorm.`,
+          description: profile.about ? profile.about.slice(0, 160) : `${displayName}'s profile and Verification Score on Brainstorm.`,
           image: profile.picture,
           url: canonicalUrl,
         }
@@ -703,6 +811,13 @@ export default function SharePage() {
 
   const openInRef = useRef<HTMLElement>(null);
   const scrollToOpenIn = () => openInRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  // Whose distance the DegreeChip measures — follows the perspective toggle,
+  // falls back to House, works logged out. See useHopsOrigin.
+  const hopsOrigin = useHopsOrigin();
+
+  // Guards start here. `decoded` is fixed for the life of the mount, but adding
+  // a hook below any of these returns changes the hook count between renders
+  // and React throws.
 
   if (!decoded) {
     return <ShareShell><NotFoundCard rawId={rawId} /></ShareShell>;
@@ -727,7 +842,7 @@ export default function SharePage() {
   if (!profile.about) emptyKeys.add("bio");
   if (topics.length === 0) emptyKeys.add("topics");
   if (topFollowers.length === 0) emptyKeys.add("followedBy");
-  if (!memberSinceYear && relayCount === 0) emptyKeys.add("tenure");
+  if (!lastPostedAt && relayCount === 0) emptyKeys.add("tenure");
   if (identities.length === 0) emptyKeys.add("identities");
   if (!status.general && !status.music) emptyKeys.add("status");
 
@@ -744,6 +859,11 @@ export default function SharePage() {
   // toggle): personalized → the viewer's own score; global → the network (house)
   // score. Logged-out visitors are always global. Null → unrated coin ("—").
   const coinScore01 = scorePov === "personalized" ? score01 : houseScore01 ?? score01;
+  // Loading ≠ unrated. Until the score that feeds the coin has settled, the coin
+  // shows its mode-aware placeholder (or nothing, in modes that never draw a
+  // coin) instead of the dashed "—", which is a verdict.
+  const coinLoading =
+    scorePov === "personalized" ? overviewQuery.isLoading : houseRankQuery.isLoading && overviewQuery.isLoading;
   // Contact as compact clickable icons — website, lightning address, external
   // identities. Lives top-right with the actions (and has a mobile fallback row),
   // never as verbose text at the bottom.
@@ -853,7 +973,7 @@ export default function SharePage() {
               profile to a pictureless one, hiding the fallback. */}
           <div className="flex items-end justify-between gap-3">
             <div className="relative inline-block">
-              <Avatar key={pubkey} className="h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white shadow-lg bg-white dark:bg-slate-900">
+              <Avatar key={pubkey} className={`h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white bg-white dark:bg-slate-900 ${tierRing(coinScore01) ?? "shadow-lg"}`}>
                 {profile.picture ? <AvatarImage src={profile.picture} alt={displayName} className="object-cover" /> : null}
                 <AvatarFallback className="overflow-hidden rounded-full">
                   <DefaultAvatarImg flagged={isFlagged} />
@@ -863,10 +983,12 @@ export default function SharePage() {
                   the avatar. Tap opens the shared explainer/compare modal. */}
               <VerificationCoin
                 score01={coinScore01}
+                loading={coinLoading}
+                flagged={isFlagged}
                 pov={scorePov}
                 size={32}
                 onClick={() => setScoreModalOpen(true)}
-                className="absolute -bottom-1 -right-1"
+                className={tierRing(coinScore01) && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1"}
               />
             </div>
             {/* Desktop: chip + icons + Follow/⋯. Mobile: just the contact icons
@@ -881,6 +1003,7 @@ export default function SharePage() {
             <h1 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }} data-testid="share-name">
               {displayName}
             </h1>
+            <TierWordChip score01={coinScore01} flagged={isFlagged} />
             {profile.nip05 && (
               <span className="inline-flex items-center gap-1 text-sm text-brand-link font-medium">
                 <BadgeCheck className="h-4 w-4" /> {profile.nip05.replace(/^_@/, "")}
@@ -911,18 +1034,25 @@ export default function SharePage() {
               (above), not here. */}
           {mobileFollowRow}
 
-          {/* Tags — the team's WoT-ranked attribute chips (Verified human, Founder,
-              …) will render here, colored in the personalized view / greyscale in
-              global, with a "+N → see all". Deferred until tag data ships; for now
-              the owner-set role chips below stand in. */}
-          {roleLabels.length > 0 && (
-            <div className="mt-1.5 flex flex-wrap gap-1.5" data-testid="share-roles">
-              {roleLabels.map((label) => (
-                <span key={label} className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-brand-deep/5 border border-brand-accent/30 text-xs font-semibold text-brand-deep">
-                  {label}
-                </span>
-              ))}
-            </div>
+          {/* Tags — what the network says about this person, counted from the
+              configured trust perspective. Reads from relays only, so it renders
+              for logged-out visitors too.
+              These replaced the self-declared "What you do" role chips that used
+              to sit below (the placeholder this slot's old TODO referred to).
+              The `roles` field stays in ProfilePrefs so nobody's stored data is
+              erased — it just no longer renders. */}
+          <ProfileTagChips
+            pubkey={pubkey}
+            canTag={canTag}
+            isOwner={isOwner}
+            legacyRoles={legacyRoleLabels}
+          />
+
+          {/* The prompt half of Q2's "one-time, owner-prompted conversion".
+              Only the owner sees it, only when they have roles that aren't
+              tags yet, and only until they answer it once. */}
+          {isOwner && canTag && pubkey && legacyRoleLabels.length > 0 && (
+            <LegacyRolePrompt pubkey={pubkey} legacyRoles={legacyRoleLabels} />
           )}
 
           {!isHidden("bio") && profile.about && (
@@ -941,7 +1071,7 @@ export default function SharePage() {
               <AlertTriangle className="h-4 w-4 text-red-600 shrink-0 mt-0.5" />
               <div className="min-w-0 text-xs leading-relaxed">
                 <span className="font-bold text-red-700">Flagged by the network</span>
-                <span className="text-red-700/90"> — reported by {verifiedReporters} verified {verifiedReporters === 1 ? "account" : "accounts"} in the Web of Trust.</span>{" "}
+                <span className="text-red-700/90"> — reported by {houseVerifiedReporters} verified {houseVerifiedReporters === 1 ? "account" : "accounts"} in the network.</span>{" "}
                 <Link href={`/p/${rawId}/reporters`} className="font-semibold text-red-700 underline underline-offset-2 hover:text-red-800" data-testid="share-flag-reporters">See who</Link>
                 <span className="text-red-700/60"> · </span>
                 {/* TODO(phase2): point at /what-are-degrees once the explainer exists */}
@@ -951,7 +1081,7 @@ export default function SharePage() {
           )}
 
           {/* Stats — one shared Verified/All lens for the whole block (tap the
-              toggle to reveal how many bots the web of trust filters out). Each
+              toggle to reveal how many bots the network filters out). Each
               count links to its full list. */}
           <div className="mt-2.5 space-y-1.5" data-testid="share-stats">
             <div className="space-y-1.5">
@@ -979,11 +1109,13 @@ export default function SharePage() {
                   />
                 )}
                 {/* Degree (LinkedIn-style 1st/2nd/3rd) — a "good" metric, so it sits
-                    on line 1. Signed-in + scored viewers only (needs my pubkey as the
-                    path origin); hidden on your own profile. */}
-                {loggedIn && currentUser?.pubkey && pubkey && currentUser.pubkey !== pubkey &&
-                  localStorage.getItem("brainstorm_calc_completed") === "true" && (
-                    <DegreeChip fromPubkey={currentUser.pubkey} toPubkey={pubkey} rawId={rawId} />
+                    on line 1. Measured from the ACTIVE perspective: the viewer under
+                    personalized (when usable), House otherwise — including logged
+                    out. Own profile shows only under House ("how far is Brainstorm
+                    from me?"), and hides under personalized where from === to. */}
+                {hopsOrigin.origin && pubkey &&
+                  (hopsOrigin.origin !== pubkey || hopsOrigin.originPov === "global") && (
+                    <DegreeChip fromPubkey={hopsOrigin.origin} toPubkey={pubkey} rawId={rawId} pov={hopsOrigin.originPov} />
                   )}
               </div>
               <NegativeSignalStats
@@ -1009,10 +1141,10 @@ export default function SharePage() {
           )}
 
           {/* Tenure / presence — Google-knowledge-panel "at a glance" line. */}
-          {!isHidden("tenure") && (memberSinceYear || relayCount > 0) && (
+          {!isHidden("tenure") && (lastPostedAt > 0 || relayCount > 0) && (
             <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500" data-testid="share-tenure">
-              {memberSinceYear && <>On Nostr since {memberSinceYear}</>}
-              {memberSinceYear && relayCount > 0 && " · "}
+              {lastPostedAt > 0 && <>Last posted {relativeTime(lastPostedAt)}</>}
+              {lastPostedAt > 0 && relayCount > 0 && " · "}
               {relayCount > 0 && <>Active on {relayCount} relay{relayCount === 1 ? "" : "s"}</>}
             </p>
           )}
@@ -1027,7 +1159,7 @@ export default function SharePage() {
                 {/* Personal connection + value */}
                 <div className="flex items-start gap-3 min-w-0 flex-1">
                   {profile.picture && (
-                    <img src={profile.picture} alt="" className="hidden sm:block h-12 w-12 rounded-full object-cover ring-2 ring-white shadow shrink-0" />
+                    <img src={profile.picture} alt="" className={`hidden sm:block h-12 w-12 rounded-full object-cover shrink-0 ${tierRing(houseScore01) ?? "ring-2 ring-white shadow"}`} />
                   )}
                   <div className="min-w-0">
                     <div className="text-[11px] font-mono font-bold tracking-[0.2em] text-brand-link dark:text-brand-link uppercase">Join Brainstorm</div>
@@ -1035,7 +1167,7 @@ export default function SharePage() {
                       Connect with {displayName}
                     </h3>
                     <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-                      Real humans, not bots — join the web of trust you own and you're instantly connected to {displayName}.
+                      Real humans, not bots — join a network you own and you're instantly connected to {displayName}.
                     </p>
                   </div>
                 </div>
@@ -1077,7 +1209,7 @@ export default function SharePage() {
             {featured.kind === 30023 ? (
               <EmbeddedArticleCard event={featured} author={{ name: profile.name, display_name: profile.display_name, picture: profile.picture, nip05: profile.nip05 }} />
             ) : (
-              <ShareNoteCard event={featured} profiles={noteProfiles} eventsById={eventsById} addrByCoord={addrByCoord} href={eventPath(featured, relayHints)} forceExpanded />
+              <ShareNoteCard event={featured} profiles={noteProfiles} eventsById={eventsById} addrByCoord={addrByCoord} href={eventPath(featured, relayHints)} forceExpanded tags={noteTags?.get(featured.id)?.tags} />
             )}
           </ContentTeaserBlock>
         )}
@@ -1116,7 +1248,7 @@ export default function SharePage() {
             <div className="space-y-4">
               {noteEvents.map((ev) => (
                 <div key={ev.id} className="pb-4 border-b border-slate-100 dark:border-slate-800/60 last:border-0 last:pb-0">
-                  <ShareNoteCard event={ev} profiles={noteProfiles} eventsById={eventsById} addrByCoord={addrByCoord} href={eventPath(ev, relayHints)} />
+                  <ShareNoteCard event={ev} profiles={noteProfiles} eventsById={eventsById} addrByCoord={addrByCoord} href={eventPath(ev, relayHints)} tags={noteTags?.get(ev.id)?.tags} />
                 </div>
               ))}
             </div>

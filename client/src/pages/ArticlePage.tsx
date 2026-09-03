@@ -9,9 +9,9 @@ import { LinkChip } from "@/components/share/LinkPreview";
 import { nip19 } from "nostr-tools";
 import { ArrowLeft, ArrowRight, BadgeCheck, Smartphone, Loader2, FileText } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { fetchAddressableEvents, fetchProfile } from "@/services/nostr";
-import { apiClient, hasSessionToken } from "@/services/api";
+import { apiClient } from "@/services/api";
 import { openArticleInApp } from "@/lib/articleLinks";
 import { npubFromPubkey } from "@/lib/shareId";
 import { initialsFor } from "@/lib/profileDefaults";
@@ -22,6 +22,7 @@ import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { BrainLogo } from "@/components/BrainLogo";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
+import { useHasSession } from "@/hooks/useHasSession";
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?.*)?$/i;
 const VID_RE = /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i;
@@ -81,6 +82,8 @@ function publishedAgo(ev: { tags: string[][]; created_at: number }): string {
  * then funnels readers into a nostr app to read the rest.
  */
 export default function ArticlePage() {
+  const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
   const [, params] = useRoute("/a/:id");
   const naddr = (params?.id || "").replace(/^nostr:/, "");
   const ptr = useMemo(() => decodeNaddr(naddr), [naddr]);
@@ -122,7 +125,7 @@ export default function ArticlePage() {
   const authorName = profile.display_name || profile.name || (ptr ? nip19.npubEncode(ptr.pubkey).slice(0, 12) + "…" : "Unknown");
   const authorNpub = ptr ? (() => { try { return npubFromPubkey(ptr.pubkey); } catch { return ""; } })() : "";
   const score01 = typeof trustQuery.data === "number" ? trustQuery.data : null;
-  const loggedIn = hasSessionToken();
+  const loggedIn = useHasSession();
   const firstName = authorName.split(" ")[0];
   const [threadGated, setThreadGated] = useState(false);
 
@@ -187,17 +190,18 @@ export default function ArticlePage() {
             <div className="mt-4 flex items-center gap-3 border-b border-slate-100 dark:border-slate-800/60 pb-5">
               <Link href={authorNpub ? `/p/${authorNpub}` : "#"} className="flex items-center gap-2.5 min-w-0 hover:opacity-80">
                 <span className="relative shrink-0">
-                  <Avatar className="h-11 w-11 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                  <Avatar className={`h-11 w-11 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 ${tierRing(score01) ?? ""}`}>
                     {profile.picture ? <AvatarImage src={profile.picture} alt={authorName} className="object-cover" /> : null}
                     <AvatarFallback className="rounded-full bg-brand-primary/15 text-brand-primary text-sm font-bold">{initialsFor(authorName)}</AvatarFallback>
                   </Avatar>
                   {typeof score01 === "number" && Number.isFinite(score01) && (
-                    <VerificationCoin score01={score01} pov="global" size={20} className="absolute -bottom-1 -right-1 ring-2 ring-white dark:ring-slate-900 rounded-full" />
+                    <VerificationCoin score01={score01} pov="global" size={20} className={tierRing(score01) && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1 ring-2 ring-white dark:ring-slate-900 rounded-full"} />
                   )}
                 </span>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{authorName}</span>
+                    <TierWordChip score01={score01} />
                     {profile.nip05 && <BadgeCheck className="h-4 w-4 text-sky-500 shrink-0" />}
                   </div>
                   <span className="text-xs text-slate-400 dark:text-slate-500">{publishedAgo(ev)}</span>
@@ -227,14 +231,14 @@ export default function ArticlePage() {
             <div className="mt-6 rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] p-5 text-center" data-testid="article-funnel">
               <p className="text-base font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Who can you trust online?</p>
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 max-w-md mx-auto">
-                Brainstorm scores reputation from real human connections — no algorithm. See <span className="font-bold text-slate-900 dark:text-slate-100">{firstName}</span> and everyone else through your own Web of Trust.
+                Brainstorm scores reputation from real human connections — no algorithm. See <span className="font-bold text-slate-900 dark:text-slate-100">{firstName}</span> and everyone else through your own network.
               </p>
               <Link
                 href={loggedIn ? (authorNpub ? `/p/${authorNpub}?pov=mywot` : "/") : funnelLoginHref}
                 className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover px-5 py-2.5 text-sm font-semibold text-white transition-colors"
                 data-testid="article-cta"
               >
-                {loggedIn ? "See it through your Web of Trust" : "Create your free account"} <ArrowRight className="h-4 w-4" />
+                {loggedIn ? "See it through your network" : "Create your free account"} <ArrowRight className="h-4 w-4" />
               </Link>
               {!loggedIn && <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">Free, takes a minute — no email required</p>}
               {!loggedIn && (

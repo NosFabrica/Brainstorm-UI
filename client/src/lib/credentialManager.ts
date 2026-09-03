@@ -46,11 +46,3 @@ export async function storePasswordCredential(id: string, password: string, name
     return false;
   }
 }
-
-/**
- * Shared definition of "this pasted value is a NIP-49 encrypted key" so the login
- * detection and backup flows agree. Encrypted keys are bech32 starting `ncryptsec`.
- */
-export function looksLikeEncryptedKey(value: string): boolean {
-  return value.trim().toLowerCase().startsWith("ncryptsec");
-}

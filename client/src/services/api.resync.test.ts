@@ -1,4 +1,9 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { stubAccount } from "@/test/accountStub";
+
+const active = vi.hoisted(() => ({ account: undefined as unknown }));
+vi.mock("@/accounts/signing", () => ({ activeAccount: () => active.account }));
+
 import { apiClient } from "@/services/api";
 
 const PK = "a".repeat(64);
@@ -16,7 +21,7 @@ function mockFetchOnce(body: unknown, init: { ok?: boolean; status?: number } = 
 
 describe("apiClient.resyncObserver", () => {
   beforeEach(() => {
-    localStorage.setItem("brainstorm_session_token", "test-token");
+    active.account = stubAccount("test-token");
   });
   afterEach(() => {
     vi.unstubAllGlobals();

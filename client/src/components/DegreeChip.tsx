@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { apiClient } from "@/services/api";
+import { PovIcon, povChrome, type ScorePov } from "@/components/score/TrustScorePov";
 
 /** English ordinal: 1 → "1st", 2 → "2nd", 3 → "3rd", 11 → "11th", 22 → "22nd", … */
 export function ordinal(n: number): string {
@@ -21,12 +22,15 @@ export function DegreeChip({
   fromPubkey,
   toPubkey,
   rawId,
+  pov,
   variant = "muted",
 }: {
   fromPubkey: string;
   toPubkey: string;
   rawId: string;
-  /** "muted" matches SharePage's slate-500 stats row; "bold" matches ProfilePage's bold counts. */
+  /** Whose distance `fromPubkey` is — drives the ring, the icon and the words.
+   *  The component stays dumb: the caller resolves the origin (useHopsOrigin). */
+  pov: ScorePov;
   variant?: "muted" | "bold";
 }) {
   const enabled = !!fromPubkey && !!toPubkey && fromPubkey !== toPubkey;
@@ -42,11 +46,18 @@ export function DegreeChip({
   if (!enabled || !d) return null;
 
   const reachable = d.reachable && d.hops > 0;
+  const personal = pov === "personalized";
   const tip = reachable
     ? d.hops === 1
-      ? "You follow this person directly (1st degree). Tap to see the connection."
-      : `${ordinal(d.hops)} degree — you're connected through ${d.hops - 1} ${d.hops - 1 === 1 ? "person" : "people"}. Tap to see how.`
-    : "Not reachable through the people you follow.";
+      ? personal
+        ? "You follow this person directly (1st degree). Tap to see the connection."
+        : "Brainstorm follows this person directly (1st degree). Tap to see the connection."
+      : personal
+        ? `${ordinal(d.hops)} degree — you're connected through ${d.hops - 1} ${d.hops - 1 === 1 ? "person" : "people"}. Tap to see how.`
+        : `${ordinal(d.hops)} degree — Brainstorm reaches them through ${d.hops - 1} ${d.hops - 1 === 1 ? "person" : "people"}. Tap to see how.`
+    : personal
+      ? "Not reachable through the people you follow."
+      : "Brainstorm can't reach them through the accounts it follows.";
 
   const bold = variant === "bold";
   const numCls = bold ? "font-bold text-slate-900 dark:text-slate-100 tabular-nums" : "font-semibold text-slate-700 dark:text-slate-200";
@@ -57,9 +68,11 @@ export function DegreeChip({
       <TooltipTrigger asChild>
         <Link
           href={`/p/${rawId}/hops`}
-          className="cursor-help hover:opacity-80 transition-opacity"
+          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 cursor-help hover:opacity-80 transition-opacity ${povChrome(pov)}`}
           data-testid="stat-hops"
+          data-pov={pov}
         >
+          <PovIcon pov={pov} className="h-2.5 w-2.5" />
           {reachable ? (
             <>
               <span className={numCls}>{ordinal(d.hops)}</span>

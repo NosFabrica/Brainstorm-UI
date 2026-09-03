@@ -17,6 +17,7 @@ import { Chip } from "@/components/ui/chip";
 import { tone as getTone, type NamedTone } from "@/lib/tones";
 import { cn } from "@/lib/utils";
 import { InfoPageLayout } from "@/components/InfoPageLayout";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { BrainLogo } from "@/components/BrainLogo";
 import heroVideo from "@assets/generated_videos/about_hero_real_connection.mp4";
 import heroPoster from "@assets/generated_images/about_hero_poster.webp";
@@ -51,22 +52,18 @@ const HERO_SLIDES = [
 
 const SLIDE_MS = 5500;
 
-const prefersReducedMotion = () =>
-  typeof window !== "undefined" &&
-  window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
 export default function AboutPage() {
   const [, navigate] = useLocation();
   const [slide, setSlide] = useState(0);
-  const [playing, setPlaying] = useState(() => !prefersReducedMotion());
+  const reduced = usePrefersReducedMotion();
+  // Seeded from the OS setting but user-overridable via the play/pause button;
+  // flipping the OS setting takes back over.
+  const [playing, setPlaying] = useState(() => !reduced);
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([]);
 
   useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const apply = () => setPlaying(!mq.matches);
-    mq.addEventListener("change", apply);
-    return () => mq.removeEventListener("change", apply);
-  }, []);
+    setPlaying(!reduced);
+  }, [reduced]);
 
   useEffect(() => {
     if (!playing) return;

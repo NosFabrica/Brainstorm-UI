@@ -1,12 +1,15 @@
 import { useMemo, useEffect, useState } from "react";
-import { useRoute, useSearch, useLocation, Link } from "wouter";
+import { useRoute, useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import { ArrowLeft, BadgeCheck, Smartphone, Loader2, MessageSquare, ArrowRight, Share2, Check, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { VerificationCoin } from "@/components/score/VerificationCoin";
-import { fetchEventsByIds, fetchAddressableEvents, fetchProfile, fetchProfileMap, getCurrentUser, hasPersistentKey, PROFILE_RELAYS } from "@/services/nostr";
-import { apiClient, hasSessionToken } from "@/services/api";
+import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
+import { fetchEventsByIds, fetchAddressableEvents, fetchProfile, fetchProfileMap } from "@/services/nostr";
+import { PROFILE_RELAYS } from "@/lib/relays";
+import { NoteTagChips } from "@/components/share/NoteTagChips";
+import { useBackupNeed } from "@/hooks/useBackupNeed";
+import { apiClient } from "@/services/api";
 import { collectRefs, addrCoord, replyRefs, type MinimalEvent } from "@/lib/noteRefs";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { NoteContent } from "@/components/share/NoteContent";
@@ -24,6 +27,8 @@ import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { BrainLogo } from "@/components/BrainLogo";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
+import { useHasSession } from "@/hooks/useHasSession";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 
 type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string };
 type EventPointer = { id: string; relays?: string[]; author?: string };
@@ -89,12 +94,21 @@ function eventMediaUrls(ev: MinimalEvent): string[] {
  * tier (our differentiator), and funnels anonymous readers into signup.
  */
 export default function EventPage() {
+  const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
   const [, params] = useRoute("/e/:id");
   const raw = (params?.id || "").replace(/^nostr:/, "");
   const ptr = useMemo(() => decodeEventId(raw), [raw]);
   const relayHints = ptr?.relays || [];
-  const loggedIn = hasSessionToken();
-  const fromSearch = new URLSearchParams(useSearch()).get("fromSearch") === "1";
+  const loggedIn = useHasSession();
+  // Tagging needs a SIGNER, not a session: a session token is backend auth and
+  // cannot sign an event, so gating on it would show a button that throws.
+  //
+  // Under the accounts model an Account *is* a Signer — local, extension, bunker
+  // or Amber — so holding one is the whole test. Upstream asked
+  // `hasLocalSecretKey() || window.nostr`, which quietly excluded every remote
+  // signer; this includes them.
+  const canTagNote = !!useActiveAccountDisplay()?.pubkey;
   const [, navigate] = useLocation();
 
   const eventQuery = useQuery({
@@ -236,16 +250,11 @@ export default function EventPage() {
   const galleryImages = mediaUrls.filter((u) => !VID_RE.test(u));
 
   // New in-app accounts that landed here (e.g. via the thread gate) haven't saved
-  // a backup yet — surface a slim, dismissible safety + discovery nudge.
-  const me = getCurrentUser();
+  // a backup yet — surface a slim, dismissible safety + discovery nudge. It asks
+  // the same question the rest of the chain does, so it goes quiet for anyone the
+  // chain has nothing to ask.
   const [setupDismissed, setSetupDismissed] = useState(false);
-  const showSetupNudge = (() => {
-    try {
-      return hasPersistentKey() && !!me?.pubkey && localStorage.getItem(`brainstorm_backup_done:${me.pubkey}`) !== "true" && !setupDismissed;
-    } catch {
-      return false;
-    }
-  })();
+  const showSetupNudge = useBackupNeed() !== null && !setupDismissed;
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950">
@@ -315,17 +324,18 @@ export default function EventPage() {
             <div className="flex items-center gap-3 mb-4">
               <Link href={authorNpub ? `/p/${authorNpub}` : "#"} className="flex items-center gap-2.5 min-w-0 hover:opacity-80">
                 <span className="relative shrink-0">
-                  <Avatar className="h-12 w-12 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                  <Avatar className={`h-12 w-12 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 ${tierRing(score01) ?? ""}`}>
                     {profile.picture ? <AvatarImage src={profile.picture} alt={authorName} className="object-cover" /> : null}
                     <AvatarFallback className="rounded-full bg-brand-primary/15 text-brand-primary text-sm font-bold">{initialsFor(authorName)}</AvatarFallback>
                   </Avatar>
                   {typeof score01 === "number" && Number.isFinite(score01) && (
-                    <VerificationCoin score01={score01} pov="global" size={22} className="absolute -bottom-1 -right-1 ring-2 ring-white dark:ring-slate-900 rounded-full" />
+                    <VerificationCoin score01={score01} pov="global" size={22} className={tierRing(score01) && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1 ring-2 ring-white dark:ring-slate-900 rounded-full"} />
                   )}
                 </span>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{authorName}</span>
+                    <TierWordChip score01={score01} />
                     {profile.nip05 && <BadgeCheck className="h-4 w-4 text-sky-500 shrink-0" />}
                   </div>
                   <span className="text-xs text-slate-400 dark:text-slate-500">{ago(note.created_at)}</span>
@@ -368,6 +378,12 @@ export default function EventPage() {
               )}
             </div>
 
+            {/* What the network says this post is ABOUT (rung C2). Sits under
+                the note itself, where a reader has just finished it and a
+                tagger has the content in view. Reads from relays only, so it
+                renders for logged-out visitors too. */}
+            <NoteTagChips eventId={note.id} relayHint={relayHints[0]} canTag={canTagNote} />
+
             {/* Reply thread — teaser-gated for anon, trust-filterable for members. */}
             <EventThread eventId={note.id} authorNpub={authorNpub} relayHints={relayHints} onGateChange={setThreadGated} />
 
@@ -383,14 +399,14 @@ export default function EventPage() {
             <div className="mt-6 rounded-2xl border border-brand-accent/25 bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] p-5 text-center" data-testid="event-funnel">
               <p className="text-base font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Who can you trust online?</p>
               <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 max-w-md mx-auto">
-                Brainstorm scores reputation from real human connections — no algorithm. See <span className="font-bold text-slate-900 dark:text-slate-100">{firstName}</span> and everyone else through your own Web of Trust.
+                Brainstorm scores reputation from real human connections — no algorithm. See <span className="font-bold text-slate-900 dark:text-slate-100">{firstName}</span> and everyone else through your own network.
               </p>
               <Link
                 href={loggedIn ? (authorNpub ? `/p/${authorNpub}?pov=mywot` : "/") : funnelLoginHref}
                 className="mt-3 inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover px-5 py-2.5 text-sm font-semibold text-white transition-colors"
                 data-testid="event-cta"
               >
-                {loggedIn ? "See it through your Web of Trust" : "Create your free account"} <ArrowRight className="h-4 w-4" />
+                {loggedIn ? "See it through your network" : "Create your free account"} <ArrowRight className="h-4 w-4" />
               </Link>
               {!loggedIn && <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">Free, takes a minute — no email required</p>}
               {!loggedIn && (

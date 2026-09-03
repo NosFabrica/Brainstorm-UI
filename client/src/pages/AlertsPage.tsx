@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useLocation, useSearch } from "wouter";
+import { useGoBack } from "@/hooks/useGoBack";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ShieldAlert, ShieldCheck, Loader2, Search, Eye, EyeOff } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
@@ -9,9 +10,10 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useIgnoreSyncState } from "@/hooks/useIgnoreSyncState";
-import { logout, fetchProfileMap } from "@/services/nostr";
+import { fetchProfileMap } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
 import { useNetworkAlerts, selectFlaggedAlerts } from "@/hooks/useNetworkAlerts";
 import { AlertRow, useAlertActions } from "@/components/dashboard/NetworkAlertsModule";
 import type { NetworkAlertEntry } from "@/services/api";
@@ -39,7 +41,8 @@ type ProfileLite = { name?: string; display_name?: string; picture?: string; nip
  */
 export default function AlertsPage() {
   const [, navigate] = useLocation();
-  const [user, setUser] = useCurrentUser();
+  const goBack = useGoBack();
+  const user = useActiveAccountDisplay();
   const observer = user?.pubkey ?? "";
 
   const q = useNetworkAlerts(observer, { enabled: !!observer, limit: 100 });
@@ -128,7 +131,7 @@ export default function AlertsPage() {
     setConfirmBulk(false);
   };
 
-  const handleLogout = () => { logout(); setUser(null); };
+  const handleLogout = () => logout();
 
   const scopeTab = (val: Scope, label: string, count: number) => (
     <button
@@ -150,7 +153,7 @@ export default function AlertsPage() {
       <main className="max-w-3xl mx-auto w-full px-4 sm:px-6 py-8 flex-1">
         <button
           type="button"
-          onClick={() => { if (typeof window !== "undefined" && window.history.length > 1) window.history.back(); else navigate("/dashboard"); }}
+          onClick={() => goBack("/dashboard")}
           className="mb-6 inline-flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
           data-testid="alerts-back"
         >
@@ -292,7 +295,7 @@ export default function AlertsPage() {
           <div className="space-y-1.5" data-testid="alerts-list">
             {rows.map((e) => (
               <AlertRow key={e.pubkey} entry={e} name={nameFor(e.pubkey)} picture={profiles.get(e.pubkey)?.picture} isNew={false} following={e.hops <= 1} escalatedFrom={isEscalated(e.pubkey, e.verifiedReporterCount) ? ignoredBaseline(e.pubkey) : null}
-                onDeepDive={() => navigate(`/profile/${npubFromPubkey(e.pubkey)}`)}
+                onDeepDive={() => navigate(`/p/${npubFromPubkey(e.pubkey)}`)}
                 onWhy={() => navigate(`/p/${npubFromPubkey(e.pubkey)}/reporters`)}
                 {...actionsFor(e.pubkey, nameFor(e.pubkey), e.verifiedReporterCount, {
                   picture: profiles.get(e.pubkey)?.picture,

@@ -1,4 +1,5 @@
 import { fetchAlertPrefs, publishAlertPrefs, SCORE_JOURNAL_D_TAG } from "@/services/nostr";
+import { accountKey } from "@/lib/accountStorage";
 
 /**
  * The user's own trust-score history.
@@ -21,7 +22,7 @@ import { fetchAlertPrefs, publishAlertPrefs, SCORE_JOURNAL_D_TAG } from "@/servi
  */
 
 const MAX_ENTRIES = 60;
-const storageKey = (pubkey: string) => `brainstorm_score_journal:${pubkey}`;
+const storageKey = (pubkey: string) => accountKey("brainstorm_score_journal", pubkey);
 
 export interface ScoreEntry {
   /** Epoch ms of the calculation this score was observed for. */
@@ -77,7 +78,8 @@ export function recordScore(pubkey: string, calculatedAtMs: number, score: numbe
   if (!pubkey || !Number.isFinite(calculatedAtMs) || !Number.isFinite(score)) return existing;
   if (existing.some((e) => e.t === calculatedAtMs)) return existing;
   const next = persist(pubkey, [{ t: calculatedAtMs, score, preset }, ...existing]);
-  void publishAlertPrefs({ entries: next }, SCORE_JOURNAL_D_TAG).catch(() => {});
+  // Called from an effect as score history loads, so it must never prompt.
+  void publishAlertPrefs({ entries: next }, SCORE_JOURNAL_D_TAG, { background: true }).catch(() => {});
   return next;
 }
 

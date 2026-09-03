@@ -1,14 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { useGoBack } from "@/hooks/useGoBack";
 import { ArrowLeft, Clock, Gauge, ShieldCheck, RefreshCw, CheckCircle2, Loader2, ArrowRight } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Card } from "@/components/ui/card";
 import { PresetBadge } from "@/components/PresetBadge";
-import { VerificationCoin, tierForScore01, type VerificationTier } from "@/components/score/VerificationCoin";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { tierForScore01, type VerificationTier } from "@/lib/verificationTier";
+import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
+import { rungFor } from "@/lib/trustLadder";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { DeferredSessionNotice } from "@/components/DeferredSession";
 import { useSelfOverview, useSelfHistory, useSelfStats } from "@/hooks/useSelf";
-import { logout } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
 import { apiClient } from "@/services/api";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { presetToBackend } from "@/services/trustThreshold";
@@ -16,9 +22,13 @@ import { getScoreJournal, hydrateScoreJournal, recordScore, withDeltas, type Sco
 import { readPublishedAssistant, readAssistantProfile } from "@/lib/assistantStorage";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { TIER_LABELS } from "@/services/trustThreshold";
+
+// Ladder order for tier-movement arrows in non-number display modes.
+const TIER_ORDER_ASC: VerificationTier[] = ["unverified", "low", "neutral", "trusted", "high"];
 
 const TIER_LABEL: Record<VerificationTier, string> = {
-  high: "Highly Trusted", trusted: "Trusted", neutral: "Neutral", low: "Low Trust", unverified: "Unverified",
+  high: TIER_LABELS.high, trusted: TIER_LABELS.trusted, neutral: TIER_LABELS.neutral, low: TIER_LABELS.low, unverified: TIER_LABELS.unverified,
 };
 
 const isDone = (s: unknown) => typeof s === "string" && s.toLowerCase() === "success";
@@ -69,8 +79,11 @@ function Stat({ label, value }: { label: string; value: number | string }) {
  * graperankResult) — no new backend.
  */
 export default function InsightsPage() {
+  const [displayMode] = useScoreDisplayMode();
+  const [granularity] = useTierGranularity();
   const [, navigate] = useLocation();
-  const [user, setUser] = useCurrentUser();
+  const goBack = useGoBack();
+  const user = useActiveAccountDisplay();
   const pubkey = user?.pubkey;
 
   const overviewQuery = useSelfOverview(pubkey);
@@ -164,7 +177,7 @@ export default function InsightsPage() {
       ? (history as any).records
       : [];
 
-  const handleLogout = () => { logout(); setUser(null); };
+  const handleLogout = () => logout();
 
   return (
     <div className="min-h-screen bg-white dark:bg-slate-950 flex flex-col">
@@ -172,7 +185,7 @@ export default function InsightsPage() {
       <main className="max-w-3xl mx-auto w-full px-4 sm:px-6 py-8 flex-1">
         <button
           type="button"
-          onClick={() => { if (typeof window !== "undefined" && window.history.length > 1) window.history.back(); else navigate("/dashboard"); }}
+          onClick={() => goBack("/dashboard")}
           className="mb-6 inline-flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
           data-testid="insights-back"
         >
@@ -185,7 +198,9 @@ export default function InsightsPage() {
           </div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>My Insights</h1>
         </div>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Your account standing, and exactly how and when your trust scores were computed.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Your account standing, and exactly how and when your scores were computed.</p>
+
+        <DeferredSessionNotice className="mb-6" />
 
         {/* Calculation */}
         <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 mb-4">
@@ -312,19 +327,40 @@ export default function InsightsPage() {
                         <PresetBadge preset={e.preset} size="xs" variant={isActiveRun ? "pill" : "quiet"} className="shrink-0" />
                       )}
                     </div>
-                    <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-                      {e.previous != null && (
-                        <span className="font-mono text-xs text-slate-400 dark:text-slate-500 tabular-nums">{score100(e.previous)} →</span>
-                      )}
-                      <span className="font-mono text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">{score100(e.score)}</span>
-                      <span
-                        className={`w-11 text-right font-mono text-xs font-semibold tabular-nums ${
-                          flat ? "text-slate-400 dark:text-slate-500" : up ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
-                        }`}
-                      >
-                        {flat ? "—" : `${up ? "▲+" : "▼"}${score100(Math.abs(e.delta ?? 0))}`}
-                      </span>
-                    </div>
+                    {displayMode === "number" ? (
+                      <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+                        {e.previous != null && (
+                          <span className="font-mono text-xs text-slate-400 dark:text-slate-500 tabular-nums">{score100(e.previous)} →</span>
+                        )}
+                        <span className="font-mono text-sm font-bold text-slate-900 dark:text-slate-100 tabular-nums">{score100(e.score)}</span>
+                        <span
+                          className={`w-11 text-right font-mono text-xs font-semibold tabular-nums ${
+                            flat ? "text-slate-400 dark:text-slate-500" : up ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"
+                          }`}
+                        >
+                          {flat ? "—" : `${up ? "▲+" : "▼"}${score100(Math.abs(e.delta ?? 0))}`}
+                        </span>
+                      </div>
+                    ) : (
+                      // Decision 6, one rule no exceptions: your own numbers hide
+                      // too. Each run shows its TIER, with a movement marker only
+                      // when the tier actually changed between runs — "whether it
+                      // moved", since "how much" is the number we're not showing.
+                      (() => {
+                        const rowRung = rungFor(e.score, false, granularity);
+                        const prevRung = e.previous != null ? rungFor(e.previous, false, granularity) : null;
+                        const tierMoved = prevRung != null && prevRung.key !== rowRung.key;
+                        const tierUp = tierMoved && rowRung.rung > prevRung!.rung;
+                        return (
+                          <div className="flex shrink-0 items-center gap-2 sm:gap-3" data-testid="insights-row-tier">
+                            <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{rowRung.label}</span>
+                            <span className={`w-5 text-right text-xs font-semibold ${!tierMoved ? "text-slate-400 dark:text-slate-500" : tierUp ? "text-emerald-600 dark:text-emerald-400" : "text-red-500 dark:text-red-400"}`}>
+                              {!tierMoved ? "—" : tierUp ? "▲" : "▼"}
+                            </span>
+                          </div>
+                        );
+                      })()
+                    )}
                   </li>
                 );
               })}
@@ -380,9 +416,9 @@ export default function InsightsPage() {
             <span className="text-sm font-bold text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>How Brainstorm sees you</span>
           </div>
           <div className="flex items-center gap-3 mb-3 rounded-lg bg-brand-accent/[0.06] border border-brand-accent/20 px-3 py-2.5">
-            <VerificationCoin score01={globalInfluence} pov="global" size={40} />
+            <VerificationCoin score01={globalInfluence} pov="global" size={40} loading={houseQuery.isLoading} />
             <div>
-              <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{tier ? TIER_LABEL[tier] : houseQuery.isLoading ? "Loading…" : "Not yet scored"}</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-slate-100">{tier ? (granularity === "simple" ? rungFor(globalInfluence, false, "simple").label : TIER_LABEL[tier]) : houseQuery.isLoading ? "Loading…" : "Not yet scored"}</p>
               {/* This number is getHouseInfluence — BRAINSTORM's vantage point, not
                   a universal verdict. It used to claim "the number others see on
                   your profile", which is exactly wrong: anyone with their own web

@@ -3,10 +3,11 @@ import { Link } from "wouter";
 import { X, UserPlus, Check, Loader2, Users, ArrowRight, ShieldCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useNewJoiners } from "@/hooks/useNewJoiners";
-import { getCurrentUser } from "@/services/nostr";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { nip19 } from "nostr-tools";
 import type { NewJoiner } from "@/services/inviteAcceptance";
+import { accountKey } from "@/lib/accountStorage";
 
 const DEMO_PK = "d0a1b2c3d4e5f60718293a4b5c6d7e8f90112233445566778899aabbccddeeff";
 function isDemo(): boolean {
@@ -52,7 +53,7 @@ export function WelcomeBackCard() {
     await welcomeBack(people.map((p) => p.pubkey));
     toast({
       title: people.length > 1 ? `Welcomed ${people.length} people back` : `Welcomed ${people[0].name || "them"} back`,
-      description: "Refreshing your Web of Trust scores…",
+      description: "Refreshing your scores…",
     });
   };
 
@@ -73,7 +74,7 @@ export function WelcomeBackCard() {
             {many ? `${joiners.length} people just joined` : `${joiners[0].name || "Someone"} just joined`}
           </h3>
           <p className="mt-1.5 text-[15px] text-slate-700 dark:text-slate-200 leading-relaxed max-w-xl">
-            They followed you when they joined — welcome them back to grow your Web of Trust together.
+            They followed you when they joined — welcome them back and grow your networks together.
           </p>
 
           <ul className="mt-4 space-y-2">
@@ -118,13 +119,13 @@ export function WelcomeBackCard() {
           </button>
           <div className="flex items-center gap-2.5 mb-2">
             <ShieldCheck className="h-4 w-4 text-emerald-600" />
-            <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-emerald-700 uppercase">Web of Trust</span>
+            <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-emerald-700 uppercase">Your network</span>
           </div>
           <h3 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
             You're now mutually connected
           </h3>
           <p className="mt-1.5 text-[15px] text-slate-700 dark:text-slate-200 leading-relaxed max-w-xl">
-            {n === 1 ? "1 new person is" : `${n} new people are`} in your Web of Trust now — your scores are refreshing.
+            {n === 1 ? "1 new person is" : `${n} new people are`} in your network now — your scores are refreshing.
           </p>
           <div className="mt-4 flex items-center gap-2">
             <div className="flex -space-x-2">
@@ -152,13 +153,13 @@ export function WelcomeBackCard() {
 
 /** Empty-state growth loop: prompt the sender to invite more people. */
 function InviteCta() {
-  const user = getCurrentUser();
+  const user = useActiveAccountDisplay();
   const demo = isDemo();
   // Real logged-in sender; in QA-demo (no session) fall back to a placeholder id.
   const npub = user?.npub || (demo ? nip19.npubEncode(DEMO_PK) : "");
   const pubkey = user?.pubkey || (demo ? DEMO_PK : "");
   const displayName = user?.displayName || (demo ? "Demo Sender" : "You");
-  const dismissFlag = pubkey ? `brainstorm_invite_cta_dismissed:${pubkey}` : "";
+  const dismissFlag = pubkey ? accountKey("brainstorm_invite_cta_dismissed", pubkey) : "";
   const [dismissed, setDismissed] = useState(() => {
     try {
       return !!dismissFlag && localStorage.getItem(dismissFlag) === "true";
@@ -190,7 +191,7 @@ function InviteCta() {
           <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link dark:text-brand-link uppercase">Grow your network</span>
         </div>
         <h3 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-          Grow your Web of Trust
+          Grow your network
         </h3>
         <p className="mt-1.5 text-[15px] text-slate-700 leading-relaxed max-w-xl">
           Invite friends — when they join and follow you, they'll show up here to welcome back.

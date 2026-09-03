@@ -3,6 +3,8 @@ import { Link, useLocation } from "wouter";
 import { FileText, BadgeCheck, ArrowRight } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { useTierRing } from "@/components/score/VerificationCoin";
+import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { naddrForEvent } from "@/lib/articleLinks";
 import articleDefault from "@/assets/article-default.webp";
 import type { MinimalEvent } from "@/lib/noteRefs";
@@ -28,7 +30,12 @@ function ago(ts?: number): string {
  * "Open in app" handoff. Responsive: image stacks on top on mobile, sits to the
  * left on desktop. Replaces an ugly raw `naddr`/article URL.
  */
-export function EmbeddedArticleCard({ event, author }: { event: MinimalEvent; author?: ProfileLite }) {
+export function EmbeddedArticleCard({ event, author , trustScore01 }: { trustScore01?: number | null; event: MinimalEvent; author?: ProfileLite }) {
+  const tierRing = useTierRing();
+  // Callers that fetched a score pass it (dashboard/reading cards); the
+  // profile's article list doesn't — self-serve from the shared house cache.
+  const fallbackScoreOf = useAuthorScores(trustScore01 == null ? [event.pubkey] : []);
+  const effectiveScore01 = trustScore01 ?? fallbackScoreOf(event.pubkey);
   const title = tagVal(event, "title") || "Untitled article";
   const summary = tagVal(event, "summary") || "";
   const image = tagVal(event, "image");
@@ -75,7 +82,7 @@ export function EmbeddedArticleCard({ event, author }: { event: MinimalEvent; au
           {summary && <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1">{summary}</p>}
 
           <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-            <Avatar className="h-4 w-4 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+            <Avatar className={`h-4 w-4 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 ${tierRing(effectiveScore01, false, "sm", true) ?? ""}`}>
               {author?.picture ? <AvatarImage src={author.picture} alt={name} className="object-cover" /> : null}
               <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
             </Avatar>

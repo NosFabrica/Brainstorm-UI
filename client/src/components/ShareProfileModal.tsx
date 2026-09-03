@@ -61,7 +61,7 @@ export function ShareProfileModal({ open, onOpenChange, npub, displayName, pictu
         <div className="px-5 sm:px-6 pt-5 sm:pt-6 pb-2">
           <DialogHeader className="space-y-0 text-left">
             <div className="flex items-center gap-2.5 mb-3">
-              <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link uppercase">{invite ? "Grow your web" : "Web of Trust"}</span>
+              <span className="text-[11px] font-mono font-bold tracking-[0.25em] text-brand-link uppercase">{invite ? "Grow your network" : "Verification Score"}</span>
               <div className="h-px w-10 bg-brand-link/30" />
             </div>
             <DialogTitle className="text-lg sm:text-xl font-bold text-slate-900 dark:text-slate-100 leading-tight tracking-tight" style={{ fontFamily: "var(--font-display)" }}>

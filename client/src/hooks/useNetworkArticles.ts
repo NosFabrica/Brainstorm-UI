@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchEventsByFilter, CONTENT_RELAYS } from "@/services/nostr";
+import { fetchEventsByFilter } from "@/services/nostr";
+import { CONTENT_RELAYS } from "@/lib/relays";
 import { fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
 import { type NostrEvent } from "applesauce-core/helpers";
 

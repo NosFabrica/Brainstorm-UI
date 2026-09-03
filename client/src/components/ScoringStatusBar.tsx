@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Loader2, ArrowRight, X, ShieldCheck, Clock } from "lucide-react";
 import { useScoringStatus } from "@/hooks/useScoringStatus";
-import { hasSessionToken } from "@/services/api";
+import { accountKey } from "@/lib/accountStorage";
+import { useHasSession } from "@/hooks/useHasSession";
+import { useActiveAccount } from "applesauce-react/hooks";
 
 // Per-account. These were global strings, so with more than one account on a device
 // one account's calc/ready state leaked into another's UI.
-const calcActiveKey = (pk?: string) => `brainstorm_calc_active:${pk || "anon"}`;
-const readyNudgeKey = (pk?: string) => `brainstorm_scores_ready_nudge:${pk || "anon"}`;
+const calcActiveKey = (pk?: string) => accountKey("brainstorm_calc_active", pk || "anon");
+const readyNudgeKey = (pk?: string) => accountKey("brainstorm_scores_ready_nudge", pk || "anon");
 
 // After SLOW_MS we soften the copy; after STALL_MS (or on backend failure) we
 // stop the spinner and stand down rather than spin forever. Tunable.
@@ -24,6 +26,15 @@ const STALL_MS = 6 * 60_000;
  * persisted so the nudge survives navigation. Self-gates when logged out / idle.
  */
 export function ScoringStatusBar() {
+  // Keyed on the Account: every dismissal below is a judgement about one
+  // identity's scoring run, and this bar sits at the App root, so without the
+  // key those judgements outlive the account that made them.
+  const account = useActiveAccount();
+  return <ScoringStatusBarFor key={account?.pubkey ?? "anon"} />;
+}
+
+function ScoringStatusBarFor() {
+  const hasSession = useHasSession();
   const [location, navigate] = useLocation();
   const { isCalculating, isReady, status, elapsedMs, triggeredAt, pubkey } = useScoringStatus();
   const wasCalculating = useRef(false);
@@ -64,7 +75,7 @@ export function ScoringStatusBar() {
     // not-yet-loaded render) — clear this run's hide so the next run re-shows.
     if (wasCalculating.current && !isCalculating) {
       setCalcHidden(false);
-      try { if (pubkey) localStorage.removeItem(`brainstorm_calc_pill_dismissed:${pubkey}`); } catch { /* ignore */ }
+      try { if (pubkey) localStorage.removeItem(accountKey("brainstorm_calc_pill_dismissed", pubkey)); } catch { /* ignore */ }
     }
     wasCalculating.current = isCalculating;
   }, [isCalculating, isReady, navigate, pubkey]);
@@ -75,7 +86,7 @@ export function ScoringStatusBar() {
     if (!isCalculating && confirming) setConfirming(false);
   }, [isCalculating, confirming]);
 
-  if (!hasSessionToken()) return null;
+  if (!hasSession) return null;
   // The dashboard already surfaces calculating/score state inline (and every
   // button here just routes back to it), so the floating bar would be redundant
   // there. It still shows on every other page until calc finishes or it's dismissed.
@@ -101,7 +112,7 @@ export function ScoringStatusBar() {
   const calcPillDismissed = (() => {
     try {
       if (!pubkey) return false;
-      const v = localStorage.getItem(`brainstorm_calc_pill_dismissed:${pubkey}`);
+      const v = localStorage.getItem(accountKey("brainstorm_calc_pill_dismissed", pubkey));
       return v !== null && v === String(triggeredAt);
     } catch {
       return false;
@@ -131,7 +142,7 @@ export function ScoringStatusBar() {
     // Persist for reload (marker = this run's triggeredAt, "0" when backend-driven)
     // AND hide immediately via state, so it disappears regardless of storage.
     try {
-      if (pubkey) localStorage.setItem(`brainstorm_calc_pill_dismissed:${pubkey}`, String(triggeredAt));
+      if (pubkey) localStorage.setItem(accountKey("brainstorm_calc_pill_dismissed", pubkey), String(triggeredAt));
     } catch { /* ignore */ }
     setCalcHidden(true);
     setConfirming(false);
@@ -176,8 +187,8 @@ export function ScoringStatusBar() {
             <Loader2 className="h-4 w-4 animate-spin text-brand-link shrink-0" />
             <span className="text-sm font-medium">
               {phase === "soft"
-                ? "Still building your Web of Trust — new accounts can take a few minutes."
-                : "Calculating your Web of Trust…"}
+                ? "Still building your network — new accounts can take a few minutes."
+                : "Calculating your network…"}
             </span>
             <button
               type="button"
@@ -199,7 +210,7 @@ export function ScoringStatusBar() {
             <Clock className="h-4 w-4 text-slate-500 dark:text-slate-400" />
           </span>
           <span className="text-[13px] text-slate-600 dark:text-slate-300 leading-snug max-w-[15rem]">
-            We'll keep building your Web of Trust in the background — check your dashboard later.
+            We'll keep building your network in the background — check your dashboard later.
           </span>
           <button
             type="button"
@@ -227,7 +238,7 @@ export function ScoringStatusBar() {
           <span className="h-6 w-6 rounded-full bg-emerald-50 dark:bg-emerald-500/10 flex items-center justify-center shrink-0">
             <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
           </span>
-          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Your Web of Trust is ready</span>
+          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Your network is ready</span>
           <button
             type="button"
             onClick={() => { dismissReady(); navigate("/dashboard"); }}

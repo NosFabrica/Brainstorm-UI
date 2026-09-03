@@ -14,6 +14,9 @@ import {
 import { followUser, unfollowUser, muteUser, unmuteUser, reportUser } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
 
+import { isAdminPubkey } from "@/config/adminAccess";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+
 const REPORT_REASONS = ["spam", "impersonation", "other"] as const;
 
 /**
@@ -21,8 +24,15 @@ const REPORT_REASONS = ["spam", "impersonation", "other"] as const;
  * logged-in viewer who is NOT the owner. Replaces the old "see this in your Web
  * of Trust → /profile" punt now that /p is the default profile: a Follow /
  * Following button + an overflow (⋯) menu with Mute/Unmute, Report, and a quiet
- * "Advanced view" link to the analytics page (/profile/:npub). Actions reuse the
- * shared socialActions helpers; state is optimistic with revert-on-failure.
+ * "Advanced view" link to the analytics page. Actions reuse the shared
+ * socialActions helpers; state is optimistic with revert-on-failure.
+ *
+ * "Advanced view" is ADMIN-ONLY. It was the last user-facing door to
+ * `/profile/:npub`, which is now operator telemetry — offering everyone a link
+ * to a page they get redirected out of would be a dead end with a label on it.
+ * Admins still land there, and it stays a link rather than a delete because
+ * that page is where the trust internals are while we decide what's worth
+ * porting.
  */
 export function ProfileActions({
   targetPubkey,
@@ -37,6 +47,8 @@ export function ProfileActions({
   initialMuted: boolean;
   alreadyReported: boolean;
 }) {
+  // Gates the "Advanced view" link — see the note on this component.
+  const viewerIsAdmin = isAdminPubkey(useActiveAccountDisplay()?.pubkey);
   const { toast } = useToast();
   const [following, setFollowing] = useState(initialFollowing);
   const [muted, setMuted] = useState(initialMuted);
@@ -47,6 +59,7 @@ export function ProfileActions({
     setBusy("follow");
     const res = following ? await unfollowUser(targetPubkey) : await followUser(targetPubkey);
     setBusy(null);
+    if (res.cancelled) return;
     if (res.success) {
       setFollowing((v) => !v);
       toast({ title: following ? "Unfollowed" : "Following" });
@@ -59,6 +72,7 @@ export function ProfileActions({
     setBusy("mute");
     const res = muted ? await unmuteUser(targetPubkey) : await muteUser(targetPubkey);
     setBusy(null);
+    if (res.cancelled) return;
     if (res.success) {
       setMuted((v) => !v);
       toast({ title: muted ? "Unmuted" : "Muted" });
@@ -69,9 +83,10 @@ export function ProfileActions({
 
   const submitReport = async (reason: string) => {
     const res = await reportUser(targetPubkey, reason);
+    if (res.cancelled) return;
     if (res.success) {
       setReported(true);
-      toast({ title: "Reported", description: "This lowers their standing in your Web of Trust." });
+      toast({ title: "Reported", description: "This lowers their standing in your network." });
     } else {
       toast({ variant: "destructive", title: "Couldn't report", description: res.error || "Try again." });
     }
@@ -136,13 +151,16 @@ export function ProfileActions({
             </DropdownMenuSub>
           )}
 
-          <DropdownMenuSeparator />
-
-          <DropdownMenuItem asChild className="gap-2 text-slate-500 dark:text-slate-400">
-            <Link href={`/profile/${npub}`} data-testid="share-advanced-view">
-              <ExternalLink className="h-4 w-4" /> Advanced view
-            </Link>
-          </DropdownMenuItem>
+          {viewerIsAdmin && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem asChild className="gap-2 text-slate-500 dark:text-slate-400">
+                <Link href={`/profile/${npub}`} data-testid="share-advanced-view">
+                  <ExternalLink className="h-4 w-4" /> Advanced view
+                </Link>
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
@@ -153,8 +171,12 @@ export function ProfileActions({
  * The owner's own-profile overflow menu: no follow/mute/report (you can't act on
  * yourself), just a ⋯ menu with the quiet "Advanced view" link — so the owner's
  * controls look identical to everyone else's instead of a bare text link.
+ *
+ * Renders NOTHING for a non-admin, because "Advanced view" is its only item and
+ * a ⋯ button that opens an empty menu is worse than no button.
  */
 export function OwnerActions({ npub }: { npub: string }) {
+  if (!isAdminPubkey(useActiveAccountDisplay()?.pubkey)) return null;
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>

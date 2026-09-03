@@ -1,5 +1,7 @@
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
+import { hasHopped, markHopped, trackHistoryEntry } from "@/lib/historyState";
 import { copyToClipboard } from "@/lib/clipboard";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { getRecentItems, pushRecentQuery, pushRecentProfile, removeRecentItem, clearRecentSearches, recentKey, type RecentItem } from "@/lib/recentSearches";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type FormEvent } from "react";
 import { nip19 } from "nostr-tools";
@@ -19,22 +21,23 @@ import {
   Clock,
 } from "lucide-react";
 import { GlossBackground } from "@/components/GlossBackground";
-import { BrainLogo } from "@/components/BrainLogo";
 import { Wordmark } from "@/components/Wordmark";
 import { SignInButton } from "@/components/SignInButton";
 import { AccountMenu } from "@/components/AccountMenu";
+import { FinishSetupBanner } from "@/components/FinishSetupBanner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { EmptyState } from "@/components/ui/empty-state";
-import { getCurrentUser, fetchProfile, logout, type NostrUser } from "@/services/nostr";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { fetchProfile } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { queryClient } from "@/lib/queryClient";
 import { apiClient } from "@/services/api";
-import { useActivePov } from "@/hooks/useActivePov";
+import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
-import { PostSignupCard } from "@/components/PostSignupCard";
-import { BackupReminder } from "@/components/BackupReminder";
+import { AccountCards } from "@/components/AccountCards";
 import { useToast } from "@/hooks/use-toast";
 import { setProfileSeed, setStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
 import {
@@ -47,6 +50,9 @@ import {
 } from "@/lib/profileSearch";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
+import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
+import { useTagMatches } from "@/hooks/useTags";
+import { npubFromPubkey } from "@/lib/shareId";
 import { resolveEntityToPath } from "@/lib/resolveNostrEntity";
 
 // Anonymous visitors search from the NosFabrica ("house") POV. Logged-in users
@@ -99,6 +105,8 @@ async function resolveNip05(handle: string): Promise<string> {
 }
 
 export default function Landing() {
+  const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const [query, setQuery] = useState(() => {
@@ -110,7 +118,7 @@ export default function Landing() {
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
   const [phIndex, setPhIndex] = useState(0);
   const [phVisible, setPhVisible] = useState(true);
-  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const prefersReducedMotion = usePrefersReducedMotion();
   // First-time visitors get the rotating hints (a gentle "here's what you can
   // search" onboarding); returning visitors get the calm static placeholder.
   // Read once at mount so the current visit reflects prior visits, then persist
@@ -144,11 +152,10 @@ export default function Landing() {
   const didInitFromUrlRef = useRef(false);
   const prefetchTimersRef = useRef<Map<string, number>>(new Map());
 
-  // Live current-user state: re-reads when the profile metadata (avatar/name)
-  // arrives shortly after login, so the header avatar appears on first load
-  // without needing a refresh. See useCurrentUser.
-  const [user, setUser] = useCurrentUser();
-  const [pov, setPov] = useActivePov();
+  // Live identity: the header avatar appears as soon as the profile metadata
+  // lands after login, without a refresh.
+  const user = useActiveAccountDisplay();
+  const [pov, setPov] = useActivePerspective();
   const { hasMywot } = useHasMywot();
   // Permission to search from one's own perspective, per GET /user/isSearchObserver.
   const { isSearchObserver } = useIsSearchObserver();
@@ -166,7 +173,6 @@ export default function Landing() {
 
   const handleLogout = useCallback(() => {
     logout();
-    setUser(null);
   }, []);
 
   // Gate the Network app tile until a trust graph has been calculated. We read
@@ -179,16 +185,6 @@ export default function Landing() {
       return false;
     }
   }, [user]);
-
-  // Honor the OS "reduce motion" setting — those users see a single static
-  // placeholder with no cycling.
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    setPrefersReducedMotion(mq.matches);
-    const onChange = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  }, []);
 
   // Mark this browser as having seen the search hints, so the next visit is
   // treated as returning (calm static placeholder). Set once, on first mount.
@@ -364,7 +360,7 @@ export default function Landing() {
     // personalized /profile analysis. The Public-page / View-full-profile
     // cross-links cover anyone who wants the other view.
     if (!user) {
-      setLocation(`/p/${result.npub}?fromSearch=1`);
+      setLocation(`/p/${result.npub}`);
       return;
     }
     const suffix = persistNosfabrica ? "&showNosfabricaResult=1" : "";
@@ -404,9 +400,33 @@ export default function Landing() {
     setIsSuggesting(false);
   }, []);
 
-  const handleSearch = useCallback(async (overrideQuery?: string) => {
+  // Abandon whatever the results list is showing (and any request still in
+  // flight for it) without touching the query box.
+  const resetResults = useCallback(() => {
+    searchAbortRef.current++;
+    setResults([]);
+    setHasSearched(false);
+    setIsSearching(false);
+  }, []);
+
+  // `trigger` says who asked: the user (undefined), the URL on a cold load
+  // ("init"), or the back/forward buttons ("pop").
+  //
+  // Direct identifiers (npub, hex, nip05, #tag, pasted note) leave the home for
+  // another page. That hop must not repeat when the user comes back to the
+  // entry it started from, or they are bounced straight forward again — and it
+  // is the ENTRY that has to remember, not this component: Landing sits under a
+  // <Switch>, so it unmounts on the way out and remounts on Back with every ref
+  // reset and no popstate of its own to observe.
+  const handleSearch = useCallback(async (overrideQuery?: string, trigger?: "init" | "pop") => {
     const q = (overrideQuery ?? query).trim();
     if (!q) return;
+    // Only an automatic re-run stays put; typing the same identifier again is
+    // the user asking for the hop.
+    if (trigger !== undefined && hasHopped()) {
+      resetResults();
+      return;
+    }
     // Remember this query for the "Recent" list (de-duped, most-recent-first).
     setRecent(pushRecentQuery(q));
     // Running a full search cancels any pending/in-flight suggestion request and
@@ -417,11 +437,31 @@ export default function Landing() {
     setShowSuggestions(false);
     setIsSuggesting(false);
 
+    // Put the query in the URL so Back returns to it with the box filled in —
+    // for every kind of query, not just the text search below.
+    if (!trigger) {
+      try {
+        const currentUrl = new URL(window.location.href);
+        if (currentUrl.searchParams.get("q") !== q) {
+          currentUrl.searchParams.set("q", q);
+          window.history.pushState({}, "", currentUrl.pathname + currentUrl.search);
+          trackHistoryEntry();
+        }
+      } catch {}
+    }
+    // Leave the home for a direct identifier, stamping the entry we are leaving
+    // so coming back to it lands on the filled search box. A cold `/?q=npub…`
+    // has no such entry worth keeping, so it redirects rather than pushes.
+    const leave = (dest: string) => {
+      markHopped();
+      setLocation(dest, { replace: trigger === "init" });
+    };
+
     // Pasted note/event or long-form article link → on-site landing page
     // (njump parity: "paste anything → it just works").
     const ent = resolveEntityToPath(q);
     if (ent && (ent.kind === "note" || ent.kind === "article")) {
-      setLocation(`${ent.path}?fromSearch=1`);
+      leave(ent.path);
       return;
     }
 
@@ -430,7 +470,7 @@ export default function Landing() {
     if (q.startsWith("#")) {
       const tag = q.slice(1).toLowerCase().replace(/[^a-z0-9_]/g, "");
       if (tag) {
-        setLocation(`/t/${encodeURIComponent(tag)}`);
+        leave(`/t/${encodeURIComponent(tag)}`);
         return;
       }
     }
@@ -443,7 +483,7 @@ export default function Landing() {
       try {
         const decoded = nip19.decode(q);
         if (decoded.type === "npub" && typeof decoded.data === "string") {
-          setLocation(profileDest(q));
+          leave(profileDest(q));
           return;
         }
       } catch {}
@@ -451,7 +491,7 @@ export default function Landing() {
 
     if (isHexPubkey(q)) {
       const npub = nip19.npubEncode(q.toLowerCase());
-      setLocation(profileDest(npub));
+      leave(profileDest(npub));
       return;
     }
 
@@ -462,7 +502,7 @@ export default function Landing() {
         const hexPubkey = await resolveNip05(q);
         if (searchAbortRef.current !== searchId) return;
         const npub = nip19.npubEncode(hexPubkey);
-        setLocation(profileDest(npub));
+        leave(profileDest(npub));
         return;
       } catch {
         if (searchAbortRef.current !== searchId) return;
@@ -473,14 +513,6 @@ export default function Landing() {
     setIsSearching(true);
     setHasSearched(true);
     const start = performance.now();
-
-    try {
-      const currentUrl = new URL(window.location.href);
-      if (currentUrl.searchParams.get("q") !== q) {
-        currentUrl.searchParams.set("q", q);
-        window.history.pushState({}, "", currentUrl.pathname + currentUrl.search);
-      }
-    } catch {}
 
     try {
       const { results: searchResults, timeMs } = await searchByText(q, effectivePov, user?.pubkey, 100);
@@ -501,7 +533,7 @@ export default function Landing() {
         setIsSearching(false);
       }
     }
-  }, [query, effectivePov, user?.pubkey, setLocation, toast]);
+  }, [query, effectivePov, user?.pubkey, setLocation, toast, resetResults]);
 
   // Sync the back/forward buttons with the search results list.
   useEffect(() => {
@@ -509,18 +541,12 @@ export default function Landing() {
       const q = new URLSearchParams(window.location.search).get("q") || "";
       setQuery(q);
       didInitFromUrlRef.current = true;
-      if (q.trim()) {
-        handleSearch(q);
-      } else {
-        searchAbortRef.current++;
-        setResults([]);
-        setHasSearched(false);
-        setIsSearching(false);
-      }
+      if (q.trim()) handleSearch(q, "pop");
+      else resetResults();
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
-  }, [handleSearch]);
+  }, [handleSearch, resetResults]);
 
   // Run the URL-seeded search for everyone, including anonymous visitors
   // (search is public). Carries over `/search?q=` deep links onto the home.
@@ -529,7 +555,7 @@ export default function Landing() {
     const q = new URLSearchParams(window.location.search).get("q") || "";
     if (q.trim()) {
       didInitFromUrlRef.current = true;
-      handleSearch(q);
+      handleSearch(q, "init");
     }
   }, [handleSearch]);
 
@@ -586,7 +612,11 @@ export default function Landing() {
   // the dropdown's action row resolves it straight to the right landing page.
   const entityMatch = useMemo(() => resolveEntityToPath(query.trim()), [query]);
   const topicMatch = useMemo(() => parseTopicQuery(query), [query]);
-  const dropdownOpen = showSuggestions && (suggestions.length > 0 || isSuggesting || topicMatch.isTopic);
+  // Tags the query matches. Skipped entirely for `#topic` queries — those are
+  // already routed at the hashtag feed and shouldn't offer a second answer.
+  const tagMatches = useTagMatches(topicMatch.isTopic ? "" : query);
+  const dropdownOpen =
+    showSuggestions && (suggestions.length > 0 || isSuggesting || topicMatch.isTopic || tagMatches.length > 0);
   // "Recent" shows under an empty, focused box before any search this session —
   // never alongside the suggestions dropdown or a results list.
   const showRecent = focused && query.trim() === "" && !hasSearched && !dropdownOpen && recent.length > 0;
@@ -700,6 +730,14 @@ export default function Landing() {
           </a>
         )}
 
+        {/* Center: the finish-setup nudge — this is the page a fresh sign-in
+            lands on, so the one persistent reminder has to live here too.
+            Absolutely centered because the left mark only exists after a
+            search; self-hides once setup is done. */}
+        <div className="absolute left-1/2 top-1/2 z-10 flex max-w-[55vw] -translate-x-1/2 -translate-y-1/2 justify-center">
+          <FinishSetupBanner />
+        </div>
+
         {/* Right: actions — apps + avatar when signed in, else Sign in. */}
         <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
           {user ? (
@@ -715,7 +753,7 @@ export default function Landing() {
           desktop padding both have to be neutralised by height, not width. `!`
           because these override `sm:` utilities of equal specificity. */}
       <main className={`relative z-10 flex-1 flex flex-col items-center px-4 ${dropdownOpen || lifted ? "justify-start pt-6 sm:pt-10 short:!pt-2" : "justify-center -mt-10 sm:-mt-16 short:justify-start short:!mt-0 short:pt-2"}`}>
-        <div className="w-full max-w-2xl mx-auto text-center" style={prefersReducedMotion ? undefined : { animation: "homeFadeUp 0.5s ease-out" }}>
+        <div className="w-full max-w-2xl mx-auto text-center motion-safe:animate-[homeFadeUp_0.5s_ease-out]">
           <style>{`@keyframes homeFadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }`}</style>
 
           <div className="flex flex-col items-center mb-8 short:mb-3.5">
@@ -854,12 +892,32 @@ export default function Landing() {
                     onSelect={() => { setShowSuggestions(false); if (topicMatch.tag) setLocation(topicPath(topicMatch.tag)); }}
                     testId="home-topic"
                   />
-                ) : isSuggesting && suggestions.length === 0 ? (
+                ) : isSuggesting && suggestions.length === 0 && tagMatches.length === 0 ? (
                   <div className="px-4 py-3 flex items-center gap-2 text-slate-400 dark:text-slate-500 text-xs" data-testid="home-suggestions-loading">
                     <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching…
                   </div>
                 ) : (
                   <>
+                    {/* Tags first: far fewer of them than people, and they're a
+                        different kind of answer — "who is known for this"
+                        rather than "who is called this". */}
+                    {tagMatches.length > 0 && (
+                      <div className="shrink-0 border-b border-slate-100 dark:border-slate-800/60" data-testid="home-tag-matches">
+                        {tagMatches.map((t) => (
+                          <TagSuggestionRow
+                            key={t.key}
+                            tag={t}
+                            onSelect={() => {
+                              const path = tagSuggestionPath(t, npubFromPubkey);
+                              if (!path) return;
+                              setShowSuggestions(false);
+                              setLocation(path);
+                            }}
+                            testId="home-tag-suggestion"
+                          />
+                        ))}
+                      </div>
+                    )}
                     <div className="flex-1 overflow-y-auto overscroll-contain min-h-0" data-testid="list-home-suggestions">
                     {suggestions.map((s, i) => {
                       const handle = s.nip05 ? s.nip05.replace(/^_@/, "") : null;
@@ -876,7 +934,7 @@ export default function Landing() {
                           onClick={() => goToProfile(s)}
                           data-testid={`home-suggestion-${i}`}
                         >
-                          <Avatar className="h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 shrink-0">
+                          <Avatar className={`h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 shrink-0 ${tierRing(s.wotRank) ?? ""}`}>
                             {s.picture ? <AvatarImage src={s.picture} alt={getDisplayLabel(s)} className="object-cover" /> : null}
                             <AvatarFallback className="overflow-hidden">
                               <DefaultAvatarImg />
@@ -893,11 +951,17 @@ export default function Landing() {
                               </p>
                             )}
                           </div>
+                          {/* Same coin as the results list below and every people
+                              list — it follows the viewer's display mode where
+                              this pill couldn't, and fixes the pill's scale bug:
+                              it printed `wotRank` raw (0..1), so 81 read "0.81". */}
                           {s.wotRank != null && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand-primary/10 dark:bg-white/10 text-brand-primary dark:text-slate-100 border border-brand-primary/15 dark:border-white/15 shrink-0" data-testid={`home-suggestion-rank-${i}`}>
-                              <BrainLogo mono size={10} className="shrink-0" />
-                              {s.wotRank}
-                            </span>
+                            <VerificationCoin
+                              score01={s.wotRank}
+                              pov={effectivePov === "mywot" ? "personalized" : "global"}
+                              size={22}
+                              className={tierRing(s.wotRank) && coinReplaced ? "sr-only" : "shrink-0"}
+                            />
                           )}
                         </button>
                       );
@@ -1011,6 +1075,12 @@ export default function Landing() {
             )}
           </div>
 
+          {/* No browse link here on purpose. Tags reach this page through the
+              search box itself — type two characters and matching tags appear
+              in the dropdown above the people. A second, static CTA under the
+              field competed with the one thing this screen asks you to do.
+              The catalogue's home entry point is /tags/mine instead. */}
+
           {!user ? (
             <div className="mt-6 flex flex-col items-center gap-2.5 rounded-2xl backdrop-blur-[2px]" data-testid="text-home-hint">
               {/* (accent-discipline preview) quiet neutral segmented control —
@@ -1109,7 +1179,10 @@ export default function Landing() {
           )}
         </div>
 
-        <PostSignupCard />
+        {/* One account-level card at a time: unlock → backup. Setup nudging
+            (follow list, activation) lives ONLY in the header's
+            FinishSetupBanner — nothing setup-shaped renders under the search. */}
+        <AccountCards />
         {/* WelcomeBackCard ("someone just joined & followed you") stays unmounted.
             New users still auto-follow the profile they join from (see SharePage) —
             that connection is benign. But this owner-facing notification was the scam
@@ -1117,7 +1190,6 @@ export default function Landing() {
             edge that carries the owner's weight. It fired for ANY brand-new inbound
             follower, so it can't be re-enabled safely until a backend invite-record
             gates it to genuine, owner-issued invites. */}
-        <BackupReminder />
 
         {isSearching && (
           <div className="w-full max-w-2xl mx-auto mt-6 sm:mt-8 text-left">
@@ -1163,17 +1235,33 @@ export default function Landing() {
                     data-testid={`result-profile-${idx}`}
                   >
                     <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4">
-                      <Avatar className="h-10 w-10 sm:h-12 sm:w-12 border-2 shrink-0 border-slate-200/80 dark:border-slate-800/80">
-                        {result.picture ? <AvatarImage src={result.picture} alt={getDisplayLabel(result)} className="object-cover" /> : null}
-                        <AvatarFallback className="overflow-hidden">
-                          <DefaultAvatarImg />
-                        </AvatarFallback>
-                      </Avatar>
+                      {/* Avatar + score coin, the same pairing as the profile
+                          hero and every people-list row. This used to be a
+                          bespoke pill further down the card, which meant the one
+                          number the product is about looked different here than
+                          anywhere else. Team feedback, and they were right. */}
+                      <div className="relative shrink-0">
+                        <Avatar className={`h-10 w-10 sm:h-12 sm:w-12 border-2 border-slate-200/80 dark:border-slate-800/80 ${tierRing(result.wotRank) ?? ""}`}>
+                          {result.picture ? <AvatarImage src={result.picture} alt={getDisplayLabel(result)} className="object-cover" /> : null}
+                          <AvatarFallback className="overflow-hidden">
+                            <DefaultAvatarImg />
+                          </AvatarFallback>
+                        </Avatar>
+                        {result.wotRank != null && (
+                          <VerificationCoin
+                            score01={result.wotRank}
+                            pov={effectivePov === "mywot" ? "personalized" : "global"}
+                            size={22}
+                            className={tierRing(result.wotRank) && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1"}
+                          />
+                        )}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors truncate" data-testid={`text-result-name-${idx}`}>
                             {getDisplayLabel(result)}
                           </span>
+                          <TierWordChip score01={result.wotRank} />
                         </div>
                         {result.nip05 && (
                           <p className="text-xs text-brand-primary dark:text-brand-link truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-nip05-${idx}`}>
@@ -1207,12 +1295,8 @@ export default function Landing() {
                           </p>
                         )}
                         <div className="flex items-center gap-1.5 sm:gap-2 mt-2 flex-wrap">
-                          {result.wotRank != null && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-brand-primary/10 dark:bg-white/10 text-brand-primary dark:text-slate-100 border border-brand-primary/15 dark:border-white/15" data-testid={`badge-rank-${idx}`}>
-                              <BrainLogo mono size={10} className="shrink-0" />
-                              {result.wotRank}
-                            </span>
-                          )}
+                          {/* The rank pill that lived here is now the coin on the
+                              avatar above — one badge for the score, sitewide. */}
                           {result.wotFollowers != null && (
                             <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800/60" data-testid={`badge-followers-${idx}`}>
                               <Users className="h-2.5 w-2.5" />
