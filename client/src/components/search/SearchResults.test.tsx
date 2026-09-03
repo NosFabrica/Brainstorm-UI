@@ -369,6 +369,20 @@ describe("SearchResults", () => {
     expect(ngitLink.getAttribute("href")).toMatch(/^https:\/\/gitworkshop\.dev\/naddr1/);
   });
 
+  it("an npub-subdomain host collapses to the site people would recognize", async () => {
+    setUrlTab("repos");
+    render(<SearchResults query="site" pov="nosfabrica" />);
+    const npub = "npub1wav4fae3gyfy3xj298kxj2mj8phavz7vavps34przq02j7w902qq902923";
+    const site = ev("ns1", 30617, "f".repeat(64), "", [
+      ["d", "my-site"], ["name", "my-site"],
+      ["web", `https://${npub}.nsite.lol/`],
+    ]);
+    emit({ hits: [{ event: site, author: author(site.pubkey, "x"), rank: null }], eose: true, timeMs: 200 });
+    const link = await screen.findByTestId("repo-open-ns1");
+    expect(link).toHaveTextContent("nsite.lol");
+    expect(link.textContent).not.toContain("npub1");
+  });
+
   it("a repo announcement shows its issue and patch counts", async () => {
     setUrlTab("repos");
     repoCountsMock.mockResolvedValue({ issues: 12, patches: 3 });

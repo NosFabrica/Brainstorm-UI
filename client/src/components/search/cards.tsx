@@ -383,6 +383,19 @@ function hostOf(url: string): string | null {
   }
 }
 
+/** A host as a card label: known forges by name; npub-subdomain hosts
+ *  (npub1….nsite.lol, npub1….pages.gittr.space) collapse to the site people
+ *  would recognize; anything still long gets bounded so it can't swamp the
+ *  corner. */
+function hostLabel(host: string): string {
+  if (FORGE_LABELS[host]) return FORGE_LABELS[host];
+  const trimmed = host
+    .split(".")
+    .filter((seg) => !seg.startsWith("npub1"))
+    .join(".");
+  return trimmed.length > 22 ? `${trimmed.slice(0, 21)}…` : trimmed;
+}
+
 /**
  * Where a repo-tab card's external link goes, and whose brand it wears.
  * Repo announcements: their `web` page → a browsable forge clone URL → the
@@ -391,7 +404,7 @@ function hostOf(url: string): string | null {
  * a-tag names the parent repo — so they connect to it on gitworkshop.
  */
 export function repoDestination(event: NostrEvent): { url: string; host: string; label: string } | null {
-  const branded = (url: string, host: string) => ({ url, host, label: FORGE_LABELS[host] ?? host });
+  const branded = (url: string, host: string) => ({ url, host, label: hostLabel(host) });
   const gitworkshop = (naddr: string) => branded(`https://gitworkshop.dev/${naddr}`, "gitworkshop.dev");
   if (event.kind === 30617) {
     const web = tagVal(event, "web");
@@ -455,7 +468,9 @@ export function RepoCard({ event, author, score }: { event: NostrEvent; author: 
     >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 min-w-0">
+          {/* The branded link sits absolutely in the corner — the title row
+              leaves it room so a long title's type chip never slides under it. */}
+          <div className={`flex items-center gap-2 min-w-0 ${dest ? "pr-24" : ""}`}>
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
             <Chip size="sm" tone={typeTone}>{typeLabel}</Chip>
           </div>
