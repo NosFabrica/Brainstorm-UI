@@ -102,14 +102,6 @@ function CardShell({
   );
 }
 
-function neventOf(event: NostrEvent): string {
-  try {
-    return nip19.neventEncode({ id: event.id });
-  } catch {
-    return event.id;
-  }
-}
-
 function naddrOf(event: NostrEvent): string | null {
   const d = tagVal(event, "d");
   if (d === undefined) return null;
@@ -171,7 +163,7 @@ export function MediaCard({ event, author, score }: { event: NostrEvent; author:
   const isVideo = !!url && !isImage && isVideoUrl(event, url);
   const caption = (tagVal(event, "title") ?? event.content ?? "").slice(0, 200);
   return (
-    <CardShell event={event} openInUrl={`https://njump.me/${neventOf(event)}`} openInLabel="Open in client" testId={`media-card-${event.id}`}>
+    <CardShell event={event} testId={`media-card-${event.id}`}>
       <div className="flex items-start gap-3">
         <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
           {isImage || poster ? (
@@ -233,7 +225,7 @@ function platformWords(event: NostrEvent): string[] {
 /**
  * A Zap Store listing (kind 32267) as a real app-store card: the app's own
  * icon, name, summary, platforms, license — and "Get it" out to the app's
- * site (falling back to its repository, then njump). Vitor's split, the
+ * site (falling back to its repository). Vitor's split, the
  * Apps half: listings stop masquerading as "code".
  */
 export function AppCard({ event, author, score }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
@@ -242,7 +234,7 @@ export function AppCard({ event, author, score }: { event: NostrEvent; author: S
   const icon = tagVal(event, "icon") ?? tagVal(event, "image");
   const license = tagVal(event, "license");
   const platforms = platformWords(event);
-  const getIt = tagVal(event, "url") ?? tagVal(event, "repository") ?? `https://njump.me/${neventOf(event)}`;
+  const getIt = tagVal(event, "url") ?? tagVal(event, "repository");
   return (
     <CardShell event={event} openInUrl={getIt} openInLabel="Get it" openInTestId={`app-get-${event.id}`} testId={`app-card-${event.id}`}>
       <div className="flex items-start gap-3">
@@ -280,7 +272,7 @@ export function RepoCard({ event, author, score }: { event: NostrEvent; author: 
   const description = tagVal(event, "description") ?? (event.kind === 30617 ? "" : event.content.slice(0, 200));
   const web = tagVal(event, "web");
   const naddr = naddrOf(event);
-  const openIn = web ?? (naddr ? `https://gitworkshop.dev/${naddr}` : `https://njump.me/${neventOf(event)}`);
+  const openIn = web ?? (naddr ? `https://gitworkshop.dev/${naddr}` : undefined);
   return (
     <CardShell event={event} openInUrl={openIn} openInLabel="Open repo" testId={`repo-card-${event.id}`}>
       <div className="flex items-start gap-3">
@@ -313,7 +305,7 @@ export function LiveCard({ event, author, score }: { event: NostrEvent; author: 
   const summary = tagVal(event, "summary") ?? "";
   const image = tagVal(event, "image");
   const naddr = naddrOf(event);
-  const openIn = event.kind === 30311 && naddr ? `https://zap.stream/${naddr}` : `https://njump.me/${neventOf(event)}`;
+  const openIn = event.kind === 30311 && naddr ? `https://zap.stream/${naddr}` : undefined;
   return (
     <CardShell event={event} openInUrl={openIn} openInLabel="Watch" testId={`live-card-${event.id}`}>
       <div className="flex items-start gap-3">
@@ -389,7 +381,7 @@ export function ListCard({ event, author, score }: { event: NostrEvent; author: 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event.id]);
   return (
-    <CardShell event={event} openInUrl={`https://njump.me/${neventOf(event)}`} openInLabel="Open in client" testId={`list-card-${event.id}`}>
+    <CardShell event={event} testId={`list-card-${event.id}`}>
       <div className="flex items-start gap-3">
         <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
           <ListChecks className="h-4 w-4 text-slate-500 dark:text-slate-400" />
@@ -404,8 +396,9 @@ export function ListCard({ event, author, score }: { event: NostrEvent; author: 
           {description && (
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 break-words line-clamp-2">{description}</p>
           )}
-          {isPeopleList && (
-            <div className="mt-2 flex items-start gap-2.5" data-testid={`list-members-${event.id}`}>
+          {isPeopleList ? (
+            <div className="mt-2 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
+              <div className="flex flex-wrap items-start gap-2.5" data-testid={`list-members-${event.id}`}>
               {members.slice(0, 5).map((pk) => {
                 const profile = profiles.get(pk);
                 const memberName = profile?.display_name || profile?.name;
@@ -433,11 +426,25 @@ export function ListCard({ event, author, score }: { event: NostrEvent; author: 
                   <span className="text-[10px] text-slate-500 dark:text-slate-400">more</span>
                 </span>
               )}
+              </div>
+              {/* The curator balances the pile on the right on desktop; on
+                  phones it takes its own full-width row, flush left with
+                  everything else — whose web of trust this list speaks for
+                  is part of the value, not a footnote crammed underneath. */}
+              <div className="w-full sm:w-auto sm:ml-auto sm:text-right">
+                <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                  Curated by
+                </p>
+                <div className="mt-0.5 flex sm:justify-end">
+                  <AuthorRow author={author} score={score} created_at={event.created_at} />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="mt-1.5">
+              <AuthorRow author={author} score={score} created_at={event.created_at} />
             </div>
           )}
-          <div className="mt-1.5">
-            <AuthorRow author={author} score={score} created_at={event.created_at} />
-          </div>
         </div>
       </div>
     </CardShell>
