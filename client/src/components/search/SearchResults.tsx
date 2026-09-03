@@ -702,7 +702,7 @@ export function SearchResults({
             </div>
           )}
           <div
-            className={tab === "apps" ? "grid grid-cols-1 gap-2.5 lg:grid-cols-2" : "space-y-2 sm:space-y-3"}
+            className={tab === "apps" || tab === "repos" ? "grid grid-cols-1 gap-2.5 lg:grid-cols-2" : "space-y-2 sm:space-y-3"}
             data-testid="container-search-results"
           >
             {displayHits.map(({ hit, collapsedCount, clusterId }) => {
