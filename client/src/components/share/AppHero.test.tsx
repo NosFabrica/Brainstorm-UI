@@ -12,16 +12,21 @@ import { nip19 } from "nostr-tools";
 
 type Release = { version: string; at: number; notes: string };
 const releasesMock = vi.fn<() => Promise<Release[]>>(() => Promise.resolve([]));
+const reviewsMock = vi.fn<() => Promise<NostrEvent[]>>(() => Promise.resolve([]));
+const similarMock = vi.fn<() => Promise<NostrEvent[]>>(() => Promise.resolve([]));
 vi.mock("@/services/search", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/search")>()),
   fetchReleases: (...args: unknown[]) => releasesMock(...(args as [])),
+  fetchAppReviews: (...args: unknown[]) => reviewsMock(...(args as [])),
+  fetchSimilarApps: (...args: unknown[]) => similarMock(...(args as [])),
 }));
 const openLightboxMock = vi.fn();
 vi.mock("@/components/share/Lightbox", () => ({
   useLightbox: () => openLightboxMock,
 }));
+const scoreByPubkey = new Map<string, number | null>();
 vi.mock("@/hooks/useAuthorScores", () => ({
-  useAuthorScores: () => () => 0.7,
+  useAuthorScores: () => (pk: string) => (scoreByPubkey.has(pk) ? scoreByPubkey.get(pk) : 0.7),
 }));
 vi.mock("@/services/nostr", () => ({
   fetchProfileMap: vi.fn(() => Promise.resolve(new Map())),
@@ -78,7 +83,10 @@ const rel = (version: string, daysAgo: number, notes = ""): Release => ({
 beforeEach(() => {
   vi.clearAllMocks();
   knownProfiles.clear();
+  scoreByPubkey.clear();
   releasesMock.mockResolvedValue([]);
+  reviewsMock.mockResolvedValue([]);
+  similarMock.mockResolvedValue([]);
 });
 
 describe("AppHero", () => {
@@ -222,5 +230,109 @@ describe("AppHero", () => {
     render(<AppHero event={FLOTILLA} />);
     await screen.findByTestId("app-hero-release");
     expect(screen.queryByTestId("app-hero-history")).toBeNull();
+  });
+
+  it("shows a stats strip: release count, store age, cadence", async () => {
+    // Gaps of 18d and 40d — median ~29d reads as monthly updates.
+    releasesMock.mockResolvedValue([rel("3.0", 2), rel("2.0", 20), rel("1.0", 60)]);
+    render(<AppHero event={FLOTILLA} />);
+    const stats = await screen.findByTestId("app-hero-stats");
+    expect(stats).toHaveTextContent("3 releases");
+    expect(stats).toHaveTextContent("Since");
+    expect(stats).toHaveTextContent("~monthly");
+  });
+
+  it("no releases, no stats strip", async () => {
+    render(<AppHero event={FLOTILLA} />);
+    await Promise.resolve();
+    expect(screen.queryByTestId("app-hero-stats")).toBeNull();
+  });
+
+  it("category tags become tappable chips into the Apps vertical", () => {
+    const tagged = listing([
+      ["d", "net.primal.android"],
+      ["name", "Primal"],
+      ["t", "nostr-client"],
+      ["t", "android"], // duplicate of the platform word — filtered
+      ["f", "android-arm64-v8a"],
+    ]);
+    render(<AppHero event={tagged} />);
+    const cat = screen.getByTestId("app-cat-nostr-client");
+    expect(cat.getAttribute("href")).toBe("/?q=%23nostr-client&t=apps");
+    expect(screen.queryByTestId("app-cat-android")).toBeNull();
+  });
+
+  it("renders trust-ranked reviews with the reviewer's identity", async () => {
+    const alice = "1".repeat(64);
+    knownProfiles.set(alice, {
+      id: "k".repeat(64), kind: 0, pubkey: alice, tags: [],
+      content: JSON.stringify({ name: "alice" }), created_at: 1, sig: "s",
+    } as NostrEvent);
+    reviewsMock.mockResolvedValue([
+      { id: "r1", kind: 1111, pubkey: alice, tags: [], content: "Perfect APP! Thanks!", created_at: Math.floor(Date.now() / 1000) - 86400, sig: "s" } as NostrEvent,
+      { id: "r2", kind: 1111, pubkey: "2".repeat(64), tags: [], content: "my icon disappeared", created_at: Math.floor(Date.now() / 1000) - 86400 * 9, sig: "s" } as NostrEvent,
+    ]);
+    render(<AppHero event={FLOTILLA} />);
+    const reviews = await screen.findByTestId("app-hero-reviews");
+    expect(reviews).toHaveTextContent("Reviews · 2");
+    expect(reviews).toHaveTextContent("Perfect APP! Thanks!");
+    expect(reviews).toHaveTextContent("alice");
+  });
+
+  it("stays quiet when nobody has reviewed the app", async () => {
+    render(<AppHero event={FLOTILLA} />);
+    await Promise.resolve();
+    expect(screen.queryByTestId("app-hero-reviews")).toBeNull();
+  });
+
+  it("sinks reviews from outside the web of trust below trusted ones", async () => {
+    // The relay's lens gates the query but returns newest-first — the trust
+    // ORDER is ours. A newer review from an unranked account must not outrank
+    // an older one from a trusted reviewer.
+    const troll = "e".repeat(64);
+    const trusted = "f".repeat(64);
+    scoreByPubkey.set(troll, null);
+    scoreByPubkey.set(trusted, 0.6);
+    reviewsMock.mockResolvedValue([
+      { id: "new-troll", kind: 1111, pubkey: troll, tags: [], content: "hateful junk", created_at: 2000, sig: "s" } as NostrEvent,
+      { id: "old-good", kind: 1111, pubkey: trusted, tags: [], content: "Solid, reliable client", created_at: 1000, sig: "s" } as NostrEvent,
+    ]);
+    render(<AppHero event={FLOTILLA} />);
+    const reviews = await screen.findByTestId("app-hero-reviews");
+    const text = reviews.textContent ?? "";
+    expect(text.indexOf("Solid, reliable client")).toBeLessThan(text.indexOf("hateful junk"));
+  });
+
+  it("folds reviews past five behind Show all", async () => {
+    reviewsMock.mockResolvedValue(
+      Array.from({ length: 7 }, (_, i) => ({
+        id: `r${i}`, kind: 1111, pubkey: String(i).repeat(64).slice(0, 64), tags: [],
+        content: `review number ${i}`, created_at: 1000 - i, sig: "s",
+      }) as NostrEvent),
+    );
+    render(<AppHero event={FLOTILLA} />);
+    const toggle = await screen.findByTestId("app-hero-reviews-toggle");
+    expect(toggle).toHaveTextContent("Show all 7");
+    expect(screen.queryByText("review number 6")).toBeNull();
+    fireEvent.click(toggle);
+    expect(screen.getByText("review number 6")).toBeInTheDocument();
+  });
+
+  it("suggests similar apps as tappable mini cards", async () => {
+    similarMock.mockResolvedValue([
+      {
+        id: "s".repeat(64), kind: 32267, pubkey: "9".repeat(64),
+        tags: [["d", "com.wisp"], ["name", "Wisp"], ["icon", "https://cdn.zapstore.dev/wisp.png"], ["t", "nostr-client"]],
+        content: "", created_at: 1, sig: "s",
+      } as NostrEvent,
+    ]);
+    // Similar apps come from category tags — a listing without them asks for none.
+    const tagged = listing([["d", "social.flotilla"], ["name", "Flotilla"], ["t", "nostr-client"]]);
+    render(<AppHero event={tagged} />);
+    const similar = await screen.findByTestId("app-hero-similar");
+    expect(similarMock).toHaveBeenCalledWith(["nostr-client"], `32267:${PUBLISHER}:social.flotilla`);
+    expect(similar).toHaveTextContent("Wisp");
+    const card = screen.getByTestId("app-similar-com.wisp");
+    expect(card.getAttribute("href")).toMatch(/^\/e\//);
   });
 });

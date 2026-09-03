@@ -21,7 +21,15 @@ import { eventStore } from "@/lib/eventStore";
 import { fetchProfileMap } from "@/services/nostr";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { Chip } from "@/components/ui/chip";
-import { fetchReleases, kind0ToSearchResult, type AppRelease } from "@/services/search";
+import { eventPath } from "@/lib/shareId";
+import {
+  appAddress,
+  fetchAppReviews,
+  fetchReleases,
+  fetchSimilarApps,
+  kind0ToSearchResult,
+  type AppRelease,
+} from "@/services/search";
 
 // Structural minimum (EventPage hands heroes MinimalEvent, which has no sig).
 type AppEvent = {
@@ -198,6 +206,59 @@ function ReleaseNotes({ notes }: { notes: string }) {
   );
 }
 
+
+/** "Updates ~weekly/~monthly/~every N mo" from the median gap between releases. */
+function cadenceLabel(releases: AppRelease[]): string | null {
+  if (releases.length < 2) return null;
+  const gaps = releases
+    .slice(0, -1)
+    .map((r, i) => (r.at - releases[i + 1].at) / 86400)
+    .sort((a, b) => a - b);
+  const median = gaps[Math.floor(gaps.length / 2)];
+  if (median < 10) return "~weekly";
+  if (median < 45) return "~monthly";
+  return `~every ${Math.max(2, Math.round(median / 30))}mo`;
+}
+
+/** Store-first profiles for a set of pubkeys, one batched relay fallback. */
+function useProfiles(pubkeys: string[]): Map<string, SearchResult> {
+  const [map, setMap] = useState<Map<string, SearchResult>>(new Map());
+  const key = pubkeys.join(",");
+  useEffect(() => {
+    const known = new Map<string, SearchResult>();
+    const missing: string[] = [];
+    for (const pk of pubkeys) {
+      const stored = eventStore.getReplaceable(0, pk);
+      if (stored) known.set(pk, kind0ToSearchResult(stored as NostrEvent));
+      else missing.push(pk);
+    }
+    setMap(known);
+    if (missing.length === 0) return;
+    let alive = true;
+    void fetchProfileMap(missing).then((res) => {
+      if (!alive || res.size === 0) return;
+      setMap((prev) => {
+        const next = new Map(prev);
+        for (const [pk, content] of res) {
+          next.set(
+            pk,
+            kind0ToSearchResult({
+              kind: 0, pubkey: pk, content: JSON.stringify(content),
+              tags: [], created_at: 0, id: "", sig: "",
+            } as NostrEvent),
+          );
+        }
+        return next;
+      });
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return map;
+}
+
 /** Store-first publisher profile, with a relay fallback — MentionChip's move. */
 function usePublisher(pubkey: string): SearchResult | null {
   const known = eventStore.getReplaceable(0, pubkey);
@@ -244,8 +305,19 @@ export function AppHero({ event }: { event: AppEvent }) {
 
   const openLightbox = useLightbox();
   const [releases, setReleases] = useState<AppRelease[]>([]);
+  const [reviews, setReviews] = useState<NostrEvent[]>([]);
+  const [similar, setSimilar] = useState<NostrEvent[]>([]);
   const [notesOpen, setNotesOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [reviewsOpen, setReviewsOpen] = useState(false);
+
+  // Category t-tags, minus the ones that just restate a platform word.
+  const platformSet = new Set(platforms.map((p) => p.toLowerCase()));
+  const categories = [...new Set(tagVals(event, "t"))]
+    .filter((t) => !platformSet.has(t.toLowerCase()))
+    .slice(0, 4);
+  const address = appD ? appAddress({ pubkey: event.pubkey, tags: event.tags }) : null;
+
   useEffect(() => {
     if (!appD) return;
     let alive = true;
@@ -256,8 +328,43 @@ export function AppHero({ event }: { event: AppEvent }) {
       alive = false;
     };
   }, [appD, event.pubkey]);
+  useEffect(() => {
+    if (!address) return;
+    let alive = true;
+    void fetchAppReviews(address).then((r) => {
+      if (alive) setReviews(r);
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address]);
+  useEffect(() => {
+    if (!address || categories.length === 0) return;
+    let alive = true;
+    void fetchSimilarApps(categories, address).then((r) => {
+      if (alive) setSimilar(r);
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address, categories.join(",")]);
+
   const release = releases[0] ?? null;
   const history = releases.slice(1);
+  const cadence = cadenceLabel(releases);
+  const reviewerProfiles = useProfiles(reviews.map((r) => r.pubkey));
+  const reviewerScore = useAuthorScores(reviews.map((r) => r.pubkey));
+  // The relay's lens gates WHO can be queried, but plain-filter frames come
+  // back newest-first — the trust ORDER is ours: ranked reviewers first
+  // (best score wins), unranked accounts sink, recency breaks ties.
+  const rankedReviews = [...reviews].sort((a, b) => {
+    const sa = reviewerScore(a.pubkey) ?? -1;
+    const sb = reviewerScore(b.pubkey) ?? -1;
+    return sb - sa || b.created_at - a.created_at;
+  });
+  const visibleReviews = reviewsOpen ? rankedReviews : rankedReviews.slice(0, 5);
 
   const publisher = usePublisher(event.pubkey);
   const scoreOf = useAuthorScores([event.pubkey]);
@@ -311,6 +418,11 @@ export function AppHero({ event }: { event: AppEvent }) {
                 v{release.version} · {releaseAge(release.at)}
               </Chip>
             )}
+            {categories.map((t) => (
+              <Link key={t} href={`/?q=${encodeURIComponent(`#${t}`)}&t=apps`} data-testid={`app-cat-${t}`} className="no-underline">
+                <Chip size="sm" tone="info">#{t}</Chip>
+              </Link>
+            ))}
           </div>
         </div>
         <div className="h-20 w-20 shrink-0 overflow-hidden rounded-3xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shadow-sm">
@@ -347,6 +459,31 @@ export function AppHero({ event }: { event: AppEvent }) {
             </a>
           )}
       </div>
+
+      {/* At-a-glance store stats — computed from the releases we already hold. */}
+      {releases.length > 0 && (
+        <div
+          className="mt-4 flex divide-x divide-slate-200 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800"
+          data-testid="app-hero-stats"
+        >
+          <div className="flex-1 px-3 py-2.5 text-center">
+            <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{releases.length}</div>{" "}
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">{releases.length === 1 ? "release" : "releases"}</div>
+          </div>
+          <div className="flex-1 px-3 py-2.5 text-center">
+            <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+              {new Date(releases[releases.length - 1].at * 1000).toLocaleDateString(undefined, { month: "short", year: "numeric" })}
+            </div>
+            <div className="text-[11px] text-slate-500 dark:text-slate-400">Since</div>
+          </div>
+          {cadence && (
+            <div className="flex-1 px-3 py-2.5 text-center">
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{cadence}</div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400">Updates</div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* What's new — the latest release's own notes, not just a version chip.
           Zap Store changelogs can be whole GitHub release dumps, so long ones
@@ -412,6 +549,62 @@ export function AppHero({ event }: { event: AppEvent }) {
         </p>
       )}
 
+      {/* Reviews — real people from the network, ordered by the observer
+          lens: the relay's trust ranking is the moderation. */}
+      {reviews.length > 0 && (
+        <div className="mt-5" data-testid="app-hero-reviews">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Reviews · {reviews.length}
+          </div>
+          <ul className="mt-2 space-y-3">
+            {visibleReviews.map((r) => {
+              const author = reviewerProfiles.get(r.pubkey) ?? null;
+              let npub = "";
+              try {
+                npub = nip19.npubEncode(r.pubkey);
+              } catch {
+                /* skip the link for a malformed pubkey */
+              }
+              return (
+                <li key={r.id} className="flex items-start gap-2.5">
+                  <Link href={npub ? `/p/${npub}` : "#"} className="shrink-0">
+                    <Avatar
+                      className={`h-7 w-7 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(reviewerScore(r.pubkey) ?? null, false, "sm", true) ?? ""}`}
+                    >
+                      {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
+                      <AvatarFallback className="overflow-hidden">
+                        <DefaultAvatarImg />
+                      </AvatarFallback>
+                    </Avatar>
+                  </Link>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-baseline gap-1.5">
+                      <span className="truncate text-xs font-semibold text-slate-800 dark:text-slate-100">
+                        {author ? getDisplayLabel(author) : npub ? `${npub.slice(0, 12)}…` : "Someone"}
+                      </span>
+                      <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">{releaseAge(r.created_at)}</span>
+                    </div>
+                    <div className="mt-0.5 line-clamp-4 break-words text-sm leading-relaxed text-slate-700 dark:text-slate-200">
+                      <NotesInline text={r.content} />
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          {reviews.length > 5 && (
+            <button
+              type="button"
+              onClick={() => setReviewsOpen((v) => !v)}
+              className="mt-2 text-xs font-medium text-brand-primary hover:underline"
+              data-testid="app-hero-reviews-toggle"
+            >
+              {reviewsOpen ? "Show fewer" : `Show all ${reviews.length}`}
+            </button>
+          )}
+        </div>
+      )}
+
       {/* Version history — the release cadence at a glance. */}
       {history.length > 0 && (
         <div className="mt-4" data-testid="app-hero-history">
@@ -436,6 +629,41 @@ export function AppHero({ event }: { event: AppEvent }) {
               {historyOpen ? "Show fewer versions" : `All ${history.length} versions`}
             </button>
           )}
+        </div>
+      )}
+
+      {/* Similar apps — category-mates from the store, in-app links. */}
+      {similar.length > 0 && (
+        <div className="mt-5" data-testid="app-hero-similar">
+          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Similar apps
+          </div>
+          <div className="mt-2 flex gap-2.5 overflow-x-auto pb-1 -mx-1 px-1">
+            {similar.map((e) => {
+              const d = e.tags.find((t) => t[0] === "d")?.[1] ?? e.id;
+              const simIcon = e.tags.find((t) => t[0] === "icon")?.[1];
+              const simName = e.tags.find((t) => t[0] === "name")?.[1] ?? d;
+              return (
+                <Link
+                  key={d}
+                  href={eventPath(e)}
+                  className="flex w-20 shrink-0 flex-col items-center gap-1.5 rounded-xl p-2 text-center hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
+                  data-testid={`app-similar-${d}`}
+                >
+                  <span className="h-12 w-12 overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                    {simIcon ? (
+                      <img src={simIcon} alt="" loading="lazy" className="h-full w-full object-cover" />
+                    ) : (
+                      <Package className="h-5 w-5 text-slate-400 dark:text-slate-500" />
+                    )}
+                  </span>
+                  <span className="line-clamp-2 text-[11px] font-medium leading-tight text-slate-700 dark:text-slate-200">
+                    {simName}
+                  </span>
+                </Link>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

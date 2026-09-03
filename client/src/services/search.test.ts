@@ -36,7 +36,10 @@ vi.mock("@/lib/eventStore", () => ({
 }));
 
 import {
+  appAddress,
+  fetchAppReviews,
   fetchReleases,
+  fetchSimilarApps,
   searchStream,
   suggestProfiles,
   kindsForTab,
@@ -288,6 +291,72 @@ describe("author hydration", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("fetchAppReviews", () => {
+  // Zap Store reviews are comments (kind 1111, some legacy kind 1) whose
+  // #a tag is the app address. The observer lens does the ranking — the
+  // relay orders by trust, so junk reviews sink without any client logic.
+  const ADDR = "32267:" + "b".repeat(64) + ":net.primal.android";
+  const review = (id: string, at: number, kind = 1111): NostrEvent =>
+    ({ id, kind, pubkey: id.repeat(32).slice(0, 64), tags: [["a", ADDR]], content: `review ${id}`, created_at: at, sig: "s" }) as NostrEvent;
+
+  it("asks for comments on the app address through the observer lens", async () => {
+    const { subject } = controllable();
+    const pending = fetchAppReviews(ADDR);
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter.kinds).toEqual([1111, 1]);
+    expect(filter["#a"]).toEqual([ADDR]);
+    expect(filter.search).toBe(`observer:${HOUSE}`);
+
+    subject.next(frame(review("1", 100)));
+    subject.next(frame(review("2", 200)));
+    subject.next(EOSE);
+    const reviews = await pending;
+    // Relay order preserved — the lens IS the ranking.
+    expect(reviews.map((r) => r.id)).toEqual(["1", "2"]);
+  });
+
+  it("degrades to include:spam when the lensed shape is refused", async () => {
+    const { subject } = controllable();
+    const pending = fetchAppReviews(ADDR);
+    await tick();
+    subject.next({ type: "CLOSED", from: "wss://x", id: "s", reason: "auth-required: no lens" });
+    await tick();
+    expect(reqMock).toHaveBeenCalledTimes(2);
+    expect((reqMock.mock.calls[1][0] as { search: string }).search).toBe("include:spam");
+    subject.next(frame(review("9", 50)));
+    subject.next(EOSE);
+    expect((await pending).map((r) => r.id)).toEqual(["9"]);
+  });
+});
+
+describe("fetchSimilarApps", () => {
+  // Category t-tags → sibling listings. Self excluded, replaceable dupes
+  // collapsed by address, best tag-overlap first.
+  const app = (pk: string, d: string, tags: string[], at = 1): NostrEvent =>
+    ({ id: d, kind: 32267, pubkey: pk, tags: [["d", d], ["name", d], ...tags.map((t) => ["t", t])], content: "", created_at: at, sig: "s" }) as NostrEvent;
+
+  it("returns tag-mates, deduped by address, without the app itself", async () => {
+    const { subject } = controllable();
+    const self = app("a".repeat(64), "net.primal.android", ["nostr-client"]);
+    const pending = fetchSimilarApps(["nostr-client", "android"], appAddress(self));
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter.kinds).toEqual([32267]);
+    expect(filter["#t"]).toEqual(["nostr-client", "android"]);
+    expect(filter.search).toBe("include:spam");
+
+    subject.next(frame(self)); // the app's own listing — dropped
+    subject.next(frame(app("c".repeat(64), "com.amethyst", ["nostr-client", "android"])));
+    subject.next(frame(app("d".repeat(64), "com.wisp", ["android"])));
+    subject.next(frame(app("c".repeat(64), "com.amethyst", ["nostr-client", "android"], 2))); // dupe addr
+    subject.next(EOSE);
+    const similar = await pending;
+    // Two shared tags beat one; self and the duplicate are gone.
+    expect(similar.map((e) => e.tags.find((t) => t[0] === "d")?.[1])).toEqual(["com.amethyst", "com.wisp"]);
   });
 });
 

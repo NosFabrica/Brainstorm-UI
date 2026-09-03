@@ -292,6 +292,96 @@ export function fetchReleases(
   });
 }
 
+/** The NIP-01 address of an addressable app listing. */
+export function appAddress(event: { kind?: number; pubkey: string; tags: string[][] }): string {
+  const d = event.tags.find((t) => t[0] === "d")?.[1] ?? "";
+  return `32267:${event.pubkey}:${d}`;
+}
+
+/**
+ * Zap Store reviews: comments (kind 1111, plus legacy kind-1 threads) whose
+ * #a tag is the app address. The observer lens IS the moderation — the relay
+ * orders by trust, so junk from outside the web of trust sinks. If the relay
+ * refuses the lensed shape, one degrade to include:spam keeps reviews alive.
+ */
+export function fetchAppReviews(address: string, timeoutMs = 5000): Promise<NostrEvent[]> {
+  return new Promise((resolve) => {
+    const relay = searchRelay();
+    if (!relay) return resolve([]);
+    const reviews: NostrEvent[] = [];
+    let sub: { unsubscribe: () => void } | null = null;
+    let degraded = false;
+
+    const open = (lens: string) => {
+      sub = relay
+        .req({ kinds: [1111, 1], "#a": [address], search: lens, limit: 20 })
+        .subscribe((msg: { type: string; event?: NostrEvent; reason?: string }) => {
+          if (msg.type === "EVENT" && msg.event) {
+            reviews.push(msg.event);
+          } else if (msg.type === "EOSE") {
+            finish();
+          } else if (msg.type === "CLOSED") {
+            if (!degraded) {
+              degraded = true;
+              sub?.unsubscribe();
+              open("include:spam");
+            } else {
+              finish();
+            }
+          }
+        });
+    };
+
+    void resolveHouseObserver().then((observer) => {
+      open(observer ? `observer:${observer}` : "include:spam");
+    });
+
+    const timer = setTimeout(finish, timeoutMs);
+    function finish() {
+      clearTimeout(timer);
+      sub?.unsubscribe();
+      resolve(reviews);
+    }
+  });
+}
+
+/**
+ * Sibling listings that share category t-tags — the "Similar apps" row.
+ * Deduped by address (listings are replaceable), self excluded, ordered by
+ * how many of the given tags each one shares.
+ */
+export function fetchSimilarApps(
+  tags: string[],
+  selfAddress: string,
+  timeoutMs = 5000,
+): Promise<NostrEvent[]> {
+  return new Promise((resolve) => {
+    const relay = searchRelay();
+    if (!relay || tags.length === 0) return resolve([]);
+    const byAddress = new Map<string, NostrEvent>();
+    const sub = relay
+      .req({ kinds: [32267], "#t": tags, search: "include:spam", limit: 24 })
+      .subscribe((msg: { type: string; event?: NostrEvent }) => {
+        if (msg.type === "EVENT" && msg.event) {
+          const addr = appAddress(msg.event);
+          if (addr === selfAddress) return;
+          const known = byAddress.get(addr);
+          if (!known || msg.event.created_at > known.created_at) byAddress.set(addr, msg.event);
+        } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
+          finish();
+        }
+      });
+    const timer = setTimeout(finish, timeoutMs);
+    function finish() {
+      clearTimeout(timer);
+      sub.unsubscribe();
+      const overlap = (e: NostrEvent) =>
+        e.tags.filter((t) => t[0] === "t" && tags.includes(t[1])).length;
+      resolve([...byAddress.values()].sort((a, b) => overlap(b) - overlap(a)).slice(0, 6));
+    }
+  });
+}
+
 /**
  * Cheap kind-0 typeahead: resolves at EOSE or the deadline with whatever
  * arrived — never rejects (a silent suggest beats a broken one).
