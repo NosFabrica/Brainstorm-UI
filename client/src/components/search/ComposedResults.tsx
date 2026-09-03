@@ -14,6 +14,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing, TierWordChip } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { SerpRow } from "@/components/search/SerpRow";
+import { MediaTiles, TopStories, hasVisual, pickTopStories } from "@/components/search/RichSections";
 import { collapseHits, type HitCluster } from "@/lib/searchCollapse";
 import { visitedPubkeys } from "@/lib/recentSearches";
 import { useWheelScrollX } from "@/hooks/useWheelScrollX";
@@ -200,10 +201,19 @@ export function ComposedResults({
   // EVERY section collapses near-duplicates — live verification found the
   // Latest section dominated by one author's three near-identical posts
   // within minutes of shipping the Happening-only version.
-  const clustersOf = (snapshot: SearchSnapshot | null) =>
-    (snapshot ? collapseHits(snapshot.hits, undefined, { maxPerAuthor: 2 }) : []).map((c) => (
+  const clustersOf = (snapshot: SearchSnapshot | null, exclude?: Set<string>) =>
+    (snapshot ? collapseHits(snapshot.hits.filter((h) => !exclude?.has(h.event.id)), undefined, { maxPerAuthor: 2 }) : []).map((c) => (
       <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} />
     ));
+  // Google leads its news with a Top stories strip: pictured news-shaped
+  // notes become cards, the rest stay rows beneath.
+  const topStories = useMemo(() => (latest ? pickTopStories(latest.hits) : []), [latest]);
+  const storyIds = useMemo(() => new Set(topStories.map((s) => s.hit.event.id)), [topStories]);
+  const storiesRef = useWheelScrollX();
+  // Media tiles: anything with a picture or a video; the odd text-only media
+  // event (a bare file, say) still gets a row.
+  const mediaTiles = useMemo(() => media?.hits.filter((h) => hasVisual(h.event)) ?? [], [media]);
+  const mediaTileIds = useMemo(() => new Set(mediaTiles.map((h) => h.event.id)), [mediaTiles]);
 
   return (
     <div data-testid="composed-results">
@@ -245,7 +255,8 @@ export function ComposedResults({
 
       {(latest?.hits.length ?? 0) > 0 && (
         <Section id="latest" kicker="Latest" tab="notes" onTabChange={onTabChange}>
-          <div className="space-y-0.5">{clustersOf(latest)}</div>
+          <TopStories stories={topStories} stripRef={storiesRef} />
+          <div className="space-y-0.5">{clustersOf(latest, storyIds)}</div>
         </Section>
       )}
 
@@ -267,7 +278,8 @@ export function ComposedResults({
 
       {(media?.hits.length ?? 0) > 0 && (
         <Section id="media" kicker="Media" tab="media" onTabChange={onTabChange}>
-          <div className="space-y-0.5">{clustersOf(media)}</div>
+          <MediaTiles hits={mediaTiles} />
+          <div className="space-y-0.5">{clustersOf(media, mediaTileIds)}</div>
         </Section>
       )}
     </div>

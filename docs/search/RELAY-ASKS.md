@@ -91,8 +91,14 @@ Endorsement findings (2026-09-03, read-only probe for the reviews work):
    cards currently parse metadata the news bots embed in note content —
    which works shockingly well but only for bot-shaped notes. A tiny
    OG-tag proxy (CORS forbids fetching them browser-side) would light up
-   title/description/image cards for EVERY shared link, sitewide
-   (`components/share/LinkPreview.tsx` was built awaiting exactly this).
+   title/description/image cards for EVERY shared link, sitewide.
+   **The UI side is wired and waiting** (`services/unfurl.ts`, rendered by
+   `components/share/LinkPreview.tsx` on SERP rows and note pages): it
+   calls `${VITE_API_URL}/api/unfurl?url=<encoded>` and expects
+   `{ title, description, image, siteName }` — bare, or wrapped in
+   `data` like the other endpoints. A 404/410/501 opens a session-wide
+   breaker (one request, then silence), so shipping the endpoint is the
+   only step left; no UI release needed.
 
 ## Explicitly NOT asked
 

@@ -27,6 +27,12 @@ vi.mock("@/lib/eventStore", () => ({
   },
 }));
 import { nip19 } from "nostr-tools";
+// Link metadata comes from the server's unfurl proxy — faked so the row can
+// prove it turns a plain link into a card when the answer exists.
+const unfurlMock = vi.fn<(url: string) => Promise<{ title: string | null; description: string | null; image: string | null; siteName: string | null } | null>>(() =>
+  Promise.resolve(null),
+);
+vi.mock("@/services/unfurl", () => ({ fetchUnfurl: (url: string) => unfurlMock(url) }));
 
 function note(content: string, tags: string[][] = []): NostrEvent {
   return {
@@ -55,6 +61,32 @@ const NEWS =
 
 beforeEach(() => {
   window.history.replaceState({}, "", "/?q=liverpool");
+});
+
+describe("SerpRow — link metadata", () => {
+  // Google shows a link's title and description, not its bare domain. Ours
+  // can too, once the server's unfurl proxy answers — the row renders the
+  // card for its first plain link, and stays a chip when there is no answer.
+  it("turns a plain link into a metadata card when the proxy knows it", async () => {
+    unfurlMock.mockResolvedValue({ title: "Liverpool F.C.", description: "Professional football club based in Liverpool.", image: "https://img/lfc.jpg", siteName: "Wikipedia" });
+    // A short lead — a long one plus a link IS the news shape, which has its own card.
+    render(<SerpRow event={note("Worth a read https://en.wikipedia.org/wiki/Liverpool_F.C.")} author={author} score={0.7} query="liverpool" />);
+    const card = await screen.findByTestId("link-card");
+    expect(card).toHaveTextContent("Liverpool F.C.");
+    expect(card).toHaveTextContent("Professional football club");
+    expect(card).toHaveTextContent("en.wikipedia.org");
+    expect(card.querySelector("img")?.getAttribute("src")).toBe("https://img/lfc.jpg");
+    expect(card.getAttribute("href")).toBe("https://en.wikipedia.org/wiki/Liverpool_F.C.");
+    expect(unfurlMock).toHaveBeenCalledWith("https://en.wikipedia.org/wiki/Liverpool_F.C.");
+  });
+
+  it("no answer, no card — the domain chip stands alone", async () => {
+    unfurlMock.mockResolvedValue(null);
+    render(<SerpRow event={note("Great read https://example.org/post")} author={author} score={0.7} query="liverpool" />);
+    await screen.findByTestId("link-chip");
+    await Promise.resolve();
+    expect(screen.queryByTestId("link-card")).toBeNull();
+  });
 });
 
 describe("SerpRow", () => {

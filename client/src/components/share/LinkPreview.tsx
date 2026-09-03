@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Globe, Github, Play } from "lucide-react";
+import { fetchUnfurl, type Unfurled } from "@/services/unfurl";
 
 /**
  * Server-free "smart" link previews. We can't fetch a URL's OG tags from the
@@ -157,7 +158,47 @@ export function LinkPreviewCard({ url }: { url: string }) {
     return <GithubCard url={url} owner={gh.owner} repo={gh.repo} host={host} />;
   }
 
-  // Plain links carry no real preview here (favicon + domain + path just repeats
-  // the inline chip), so we render nothing and let the chip speak for the link.
-  return null;
+  // Plain links: the server's unfurl proxy, when it answers, gives a real
+  // card — title, description, image. Until it does, nothing; the inline
+  // chip speaks for the link.
+  return <UnfurledCard url={url} host={host} />;
+}
+
+/** Title + description + image for a plain link, from the unfurl proxy. */
+function UnfurledCard({ url, host }: { url: string; host: string }) {
+  const [meta, setMeta] = useState<Unfurled | null>(null);
+  const [imgFailed, setImgFailed] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    setMeta(null);
+    void fetchUnfurl(url).then((m) => {
+      if (alive) setMeta(m);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [url]);
+  if (!meta || (!meta.title && !meta.description)) return null;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className="mt-2 flex items-stretch gap-3 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 no-underline hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-sm transition-all"
+      data-testid="link-card"
+    >
+      {meta.image && !imgFailed && (
+        <img src={meta.image} alt="" loading="lazy" onError={() => setImgFailed(true)} className="h-24 w-32 shrink-0 object-cover bg-slate-100 dark:bg-slate-800" />
+      )}
+      <div className="flex min-w-0 flex-1 flex-col justify-center py-2 pr-3 pl-1">
+        <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+          <Favicon host={host} className="h-3 w-3 shrink-0 rounded-sm object-contain" />
+          <span className="truncate">{meta.siteName ?? host}{meta.siteName && meta.siteName.toLowerCase() !== host.toLowerCase() ? ` · ${host}` : ""}</span>
+        </span>
+        {meta.title && <span className="mt-0.5 line-clamp-2 text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100">{meta.title}</span>}
+        {meta.description && <span className="mt-0.5 line-clamp-2 text-xs leading-snug text-slate-600 dark:text-slate-300">{meta.description}</span>}
+      </div>
+    </a>
+  );
 }

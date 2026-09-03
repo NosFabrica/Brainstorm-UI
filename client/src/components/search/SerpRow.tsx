@@ -14,7 +14,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { nip19 } from "nostr-tools";
-import { Favicon, LinkChip } from "@/components/share/LinkPreview";
+import { Favicon, LinkChip, LinkPreviewCard } from "@/components/share/LinkPreview";
 import { eventStore } from "@/lib/eventStore";
 import { MentionChip } from "@/components/share/MentionChip";
 import { fetchProfileMap } from "@/services/nostr";
@@ -92,7 +92,8 @@ function RowThumb({ event }: { event: NostrEvent }) {
   const url = mediaUrlOf(event);
   const isImage = !!url && IMAGE_RE.test(url);
   const poster = isImage ? url : (mediaPosterOf(event) ?? null);
-  const cls = "h-16 w-16 shrink-0 rounded-xl object-cover bg-slate-100 dark:bg-slate-800";
+  // Google's news rows run ~92px; a 64px square undersold every picture.
+  const cls = "h-20 w-24 shrink-0 rounded-xl object-cover bg-slate-100 dark:bg-slate-800";
   if (poster && !failed) {
     return (
       <img src={poster} alt="" loading="lazy" onError={() => setFailed(true)} className={cls} data-testid="serp-thumb" />
@@ -259,6 +260,12 @@ export function SerpRow({
   }
 
   const body = event.content || tagVal(event, "summary") || tagVal(event, "description") || "";
+  // The row's first plain web link earns a metadata card (title, description,
+  // image) when the unfurl proxy knows it — Google shows the page, not the
+  // domain. Media links are the thumbnail's business, not a card's.
+  // Same token the chip renders (no trailing-period trim: "Liverpool_F.C." is a real URL).
+  const firstLink = body.match(/https?:\/\/\S+/)?.[0]?.replace(/[),;!?]+$/, "") ?? null;
+  const cardLink = firstLink && !IMAGE_RE.test(firstLink) && !/\.(?:mp4|webm|mov|m3u8)(?:\?|#|$)/i.test(firstLink) ? firstLink : null;
   return (
     <div {...rowProps}>
       <div className="min-w-0 flex-1">
@@ -271,6 +278,11 @@ export function SerpRow({
         {body && (
           <div className="mt-0.5">
             <Snippet text={body.slice(0, 300)} query={query} lines={title ? 2 : 3} />
+          </div>
+        )}
+        {cardLink && (
+          <div onClick={(e) => e.stopPropagation()}>
+            <LinkPreviewCard url={cardLink} />
           </div>
         )}
       </div>

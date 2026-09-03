@@ -69,6 +69,73 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/?q=liverpool");
 });
 
+// Google's front page leads its news with a Top stories strip — image on
+// top, source, headline, age — and its Videos and Images with tiles, not
+// text rows. Latest and Media earn the same: news-shaped notes with a
+// picture become the strip, media hits become a tile grid.
+describe("ComposedResults — media-rich sections", () => {
+  const NEWS = (n: number) =>
+    `Liverpool complete the record signing of Bradley Barcola ${n}\nhttps://www.liverpoolecho.co.uk/story-${n}\nSummary ${n}. https://cdn.example/photo-${n}.jpg`;
+
+  it("leads Latest with a Top stories strip of news-shaped notes, the rest as rows", async () => {
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    sectionCall("notes").emit({
+      hits: [
+        hitOf(ev("n1", 1, "1".repeat(64), NEWS(1)), "Echo"),
+        hitOf(ev("n2", 1, "2".repeat(64), "Just a plain note about Liverpool"), "fan"),
+        hitOf(ev("n3", 1, "3".repeat(64), NEWS(3)), "Guardian"),
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    const strip = await screen.findByTestId("serp-top-stories");
+    const cards = [...strip.querySelectorAll('[data-testid^="top-story-"]')].map((c) => c.getAttribute("data-testid"));
+    expect(cards).toEqual(["top-story-n1", "top-story-n3"]);
+    const card = screen.getByTestId("top-story-n1");
+    expect(card).toHaveTextContent("Liverpool complete the record signing of Bradley Barcola 1");
+    expect(card).toHaveTextContent("liverpoolecho.co.uk");
+    expect(card.querySelector("img")?.getAttribute("src")).toBe("https://cdn.example/photo-1.jpg");
+    // The headline goes to the article; the card sits in the Latest section.
+    expect(card.querySelector('a[href="https://www.liverpoolecho.co.uk/story-1"]')).not.toBeNull();
+    // Strip items don't repeat as rows; the plain note still does.
+    expect(screen.queryByTestId("serp-row-n1")).toBeNull();
+    expect(screen.getByTestId("serp-row-n2")).toBeInTheDocument();
+  });
+
+  it("no pictured news, no strip — Latest stays rows", async () => {
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    sectionCall("notes").emit({ hits: [hitOf(ev("n2", 1, "2".repeat(64), "Just a plain note about Liverpool"))], eose: true, timeMs: 100 });
+    await screen.findByTestId("serp-row-n2");
+    expect(screen.queryByTestId("serp-top-stories")).toBeNull();
+  });
+
+  it("renders Media as a tile grid: photos as images, videos with a play badge, captions with author and age", async () => {
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    sectionCall("media").emit({
+      hits: [
+        hitOf(ev("1".repeat(64), 20, "1".repeat(64), "Anfield at night", [["imeta", "url https://cdn.example/anfield.jpg", "m image/jpeg"]]), "Sports Central"),
+        hitOf(ev("2".repeat(64), 21, "2".repeat(64), "Goal!", [["imeta", "url https://cdn.example/goal.mp4", "m video/mp4", "image https://cdn.example/goal-poster.jpg"]]), "AFP"),
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    const grid = await screen.findByTestId("serp-media-grid");
+    expect(grid.className).toMatch(/grid/);
+    const photo = screen.getByTestId(`media-tile-${"1".repeat(64)}`);
+    expect(photo.querySelector("img")?.getAttribute("src")).toBe("https://cdn.example/anfield.jpg");
+    expect(photo).toHaveTextContent("Sports Central");
+    expect(photo.querySelector('[data-testid="media-tile-play"]')).toBeNull();
+    const video = screen.getByTestId(`media-tile-${"2".repeat(64)}`);
+    expect(video.querySelector("img")?.getAttribute("src")).toBe("https://cdn.example/goal-poster.jpg");
+    expect(video.querySelector('[data-testid="media-tile-play"]')).not.toBeNull();
+    // Tiles open the event page.
+    fireEvent.click(photo);
+    expect(window.location.pathname).toMatch(/^\/e\/nevent1/);
+    // No text rows for media any more.
+    expect(screen.queryByTestId(`serp-row-${"1".repeat(64)}`)).toBeNull();
+  });
+});
+
 describe("ComposedResults", () => {
   it("fires the five purpose-ranked section streams in parallel", () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
