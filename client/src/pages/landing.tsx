@@ -1,4 +1,5 @@
 import { Link, useLocation } from "wouter";
+import { hasHopped, markHopped, trackHistoryEntry } from "@/lib/historyState";
 import { copyToClipboard } from "@/lib/clipboard";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { getRecentItems, pushRecentQuery, pushRecentProfile, removeRecentItem, clearRecentSearches, recentKey, type RecentItem } from "@/lib/recentSearches";
@@ -399,14 +400,33 @@ export default function Landing() {
     setIsSuggesting(false);
   }, []);
 
-  // `via` says who asked: the user (undefined), the URL on a cold load ("init"),
-  // or the back/forward buttons ("pop"). Direct identifiers (npub, hex, nip05,
-  // #tag, pasted note) leave the home for another page; that hop must not
-  // repeat on Back or the user is trapped bouncing forward, and on a cold
-  // `/?q=npub…` it replaces the entry for the same reason.
-  const handleSearch = useCallback(async (overrideQuery?: string, via?: "init" | "pop") => {
+  // Abandon whatever the results list is showing (and any request still in
+  // flight for it) without touching the query box.
+  const resetResults = useCallback(() => {
+    searchAbortRef.current++;
+    setResults([]);
+    setHasSearched(false);
+    setIsSearching(false);
+  }, []);
+
+  // `trigger` says who asked: the user (undefined), the URL on a cold load
+  // ("init"), or the back/forward buttons ("pop").
+  //
+  // Direct identifiers (npub, hex, nip05, #tag, pasted note) leave the home for
+  // another page. That hop must not repeat when the user comes back to the
+  // entry it started from, or they are bounced straight forward again — and it
+  // is the ENTRY that has to remember, not this component: Landing sits under a
+  // <Switch>, so it unmounts on the way out and remounts on Back with every ref
+  // reset and no popstate of its own to observe.
+  const handleSearch = useCallback(async (overrideQuery?: string, trigger?: "init" | "pop") => {
     const q = (overrideQuery ?? query).trim();
     if (!q) return;
+    // Only an automatic re-run stays put; typing the same identifier again is
+    // the user asking for the hop.
+    if (trigger !== undefined && hasHopped()) {
+      resetResults();
+      return;
+    }
     // Remember this query for the "Recent" list (de-duped, most-recent-first).
     setRecent(pushRecentQuery(q));
     // Running a full search cancels any pending/in-flight suggestion request and
@@ -419,20 +439,22 @@ export default function Landing() {
 
     // Put the query in the URL so Back returns to it with the box filled in —
     // for every kind of query, not just the text search below.
-    if (!via) {
+    if (!trigger) {
       try {
         const currentUrl = new URL(window.location.href);
         if (currentUrl.searchParams.get("q") !== q) {
           currentUrl.searchParams.set("q", q);
           window.history.pushState({}, "", currentUrl.pathname + currentUrl.search);
+          trackHistoryEntry();
         }
       } catch {}
     }
-    // Leave the home for a direct identifier. Back re-runs this with the same
-    // query and must stay put.
+    // Leave the home for a direct identifier, stamping the entry we are leaving
+    // so coming back to it lands on the filled search box. A cold `/?q=npub…`
+    // has no such entry worth keeping, so it redirects rather than pushes.
     const leave = (dest: string) => {
-      if (via === "pop") return;
-      setLocation(dest, { replace: via === "init" });
+      markHopped();
+      setLocation(dest, { replace: trigger === "init" });
     };
 
     // Pasted note/event or long-form article link → on-site landing page
@@ -473,9 +495,7 @@ export default function Landing() {
       return;
     }
 
-    // On Back a handle falls through to the text search instead of resolving
-    // and leaving again.
-    if (isNip05Handle(q) && via !== "pop") {
+    if (isNip05Handle(q)) {
       const searchId = ++searchAbortRef.current;
       setIsSearching(true);
       try {
@@ -513,7 +533,7 @@ export default function Landing() {
         setIsSearching(false);
       }
     }
-  }, [query, effectivePov, user?.pubkey, setLocation, toast]);
+  }, [query, effectivePov, user?.pubkey, setLocation, toast, resetResults]);
 
   // Sync the back/forward buttons with the search results list.
   useEffect(() => {
@@ -521,18 +541,12 @@ export default function Landing() {
       const q = new URLSearchParams(window.location.search).get("q") || "";
       setQuery(q);
       didInitFromUrlRef.current = true;
-      if (q.trim()) {
-        handleSearch(q, "pop");
-      } else {
-        searchAbortRef.current++;
-        setResults([]);
-        setHasSearched(false);
-        setIsSearching(false);
-      }
+      if (q.trim()) handleSearch(q, "pop");
+      else resetResults();
     };
     window.addEventListener("popstate", onPopState);
     return () => window.removeEventListener("popstate", onPopState);
-  }, [handleSearch]);
+  }, [handleSearch, resetResults]);
 
   // Run the URL-seeded search for everyone, including anonymous visitors
   // (search is public). Carries over `/search?q=` deep links onto the home.
