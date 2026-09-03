@@ -598,11 +598,14 @@ export function SearchResults({
       ) : (
         <>
           {tab === "apps" && appFacets.length > 0 && (
-            <div className="mb-2.5 flex flex-wrap items-center gap-1.5 px-1" data-testid="app-facets">
+            <div
+              className="mb-2 -mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              data-testid="app-facets"
+            >
               <button
                 type="button"
                 onClick={() => setAppPlatform(null)}
-                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                   appPlatform === null
                     ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
                     : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
@@ -616,7 +619,7 @@ export function SearchResults({
                   key={platform}
                   type="button"
                   onClick={() => setAppPlatform((cur) => (cur === platform ? null : platform))}
-                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                     appPlatform === platform
                       ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
                       : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
@@ -629,13 +632,16 @@ export function SearchResults({
             </div>
           )}
           {tab === "apps" && (appCategoryFacets.length > 0 || appLicenseFacets.length > 0) && (
-            <div className="mb-2.5 flex flex-wrap items-center gap-1.5 px-1" data-testid="app-cat-facets">
+            <div
+              className="mb-2.5 -mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+              data-testid="app-cat-facets"
+            >
               {appCategoryFacets.map(([cat, count]) => (
                 <button
                   key={cat}
                   type="button"
                   onClick={() => setAppCategory((cur) => (cur === cat ? null : cat))}
-                  className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                  className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
                     appCategory === cat
                       ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
                       : "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-brand-accent/40 hover:text-slate-700 dark:hover:text-slate-200"
@@ -650,7 +656,7 @@ export function SearchResults({
                   key={lic}
                   type="button"
                   onClick={() => setAppLicense((cur) => (cur === lic ? null : lic))}
-                  className={`rounded-full border px-2.5 py-0.5 font-mono text-[11px] transition-colors ${
+                  className={`shrink-0 rounded-full border px-2.5 py-0.5 font-mono text-[11px] transition-colors ${
                     appLicense === lic
                       ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
                       : "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-brand-accent/40 hover:text-slate-700 dark:hover:text-slate-200"
