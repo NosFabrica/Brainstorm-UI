@@ -8,8 +8,15 @@
 import { MentionChip } from "@/components/share/MentionChip";
 import { Favicon, LinkChip } from "@/components/share/LinkPreview";
 
-const NOTES_TOKEN_RE =
-  /(https?:\/\/\S+|nostr:n(?:pub|profile)1[02-9ac-hj-np-z]+|@[A-Za-z0-9_[\]./-]+)/gi;
+// Bare domains people type without a scheme — "www.relayop.xyz", "relayop.xyz/docs".
+// A www. prefix or a common ending qualifies; "e.g." and "etc." do not.
+const BARE_DOMAIN =
+  "(?:www\\.[a-z0-9-]+(?:\\.[a-z0-9-]+)+|[a-z0-9-]+(?:\\.[a-z0-9-]+)*\\.(?:com|org|net|io|xyz|dev|app|social|world|me|co|ai|info|tv|news|fm|to|gg|sh|ws|space|link|page|site|online|uk|de|fr|es|it|nl|ca|au|us|ch|se|no|fi|pt|br|jp))(?:[/?#][^\\s]*)?";
+const NOTES_TOKEN_RE = new RegExp(
+  `(https?:\\/\\/\\S+|(?<![\\w@/.])${BARE_DOMAIN}(?![\\w.-])|nostr:n(?:pub|profile)1[02-9ac-hj-np-z]+|@[A-Za-z0-9_[\\]./-]+)`,
+  "gi",
+);
+const BARE_DOMAIN_RE = new RegExp(`^${BARE_DOMAIN}$`, "i");
 const GH_REF_RE = /github\.com\/[^/\s]+\/[^/\s]+\/(?:pull|issues)\/(\d+)/;
 
 function PrChip({ url, n }: { url: string; n: string }) {
@@ -43,6 +50,11 @@ export function NotesInline({ text }: { text: string }) {
           const gh = part.match(GH_REF_RE);
           if (gh) return <PrChip key={i} url={part} n={gh[1]} />;
           return <LinkChip key={i} url={part} />;
+        }
+        // A scheme-less domain is a link too; https is the only sane guess.
+        if (BARE_DOMAIN_RE.test(part)) {
+          const trimmed = part.replace(/[.,;:!?)]+$/, "");
+          return <LinkChip key={i} url={`https://${trimmed}`} />;
         }
         if (part.startsWith("@")) {
           return (
