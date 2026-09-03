@@ -121,7 +121,8 @@ function VouchComposer({
 
   return (
     <div className="mt-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 p-3" data-testid="vouch-composer">
-      <div className="flex gap-2">
+      {/* Phones stack the two types; the side-by-side pair needs the sm width. */}
+      <div className="flex flex-col gap-2 sm:flex-row">
         {typeButton("vouch", "Vouched", "A general endorsement of this person", Heart)}
         {typeButton("identity", "Identity", "I personally know this is really them", BadgeCheck)}
       </div>
