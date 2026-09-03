@@ -338,6 +338,24 @@ describe("SearchResults", () => {
     expect(cards[1].getAttribute("data-testid")).toBe("list-card-bm1");
   });
 
+  it("fresh cards say how real-time they are, not just a date", async () => {
+    setUrlTab("lists");
+    render(<SearchResults query="" pov="nosfabrica" />);
+    const fresh = {
+      ...ev("fr1", 30000, "a".repeat(64), "", [["title", "Fresh Pack"], ["p", "1".repeat(64)]]),
+      created_at: Math.floor(Date.now() / 1000) - 120,
+    } as NostrEvent;
+    const old = {
+      ...ev("old1", 30003, "b".repeat(64), "", [["title", "Old Bookmarks"], ["e", "x".repeat(64)]]),
+      created_at: Math.floor(Date.now() / 1000) - 86400 * 90,
+    } as NostrEvent;
+    emit({ hits: [fresh, old].map((event) => ({ event, author: author(event.pubkey, "x"), rank: null })), eose: true, timeMs: 90 });
+    await screen.findByText("Fresh Pack");
+    expect(screen.getByTestId("list-card-fr1")).toHaveTextContent("2m ago");
+    // Beyond a month, a date reads better than "90d ago".
+    expect(screen.getByTestId("list-card-old1")).toHaveTextContent(/[A-Z][a-z]{2} \d/);
+  });
+
   it("a Brainstorm follow set shows its members as trust-ringed faces", async () => {
     setUrlTab("lists");
     profileMapMock.set("1".repeat(64), { name: "david" });
