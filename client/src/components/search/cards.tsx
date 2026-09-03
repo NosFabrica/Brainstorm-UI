@@ -334,7 +334,14 @@ export function AppCard({ event, author, score }: { event: NostrEvent; author: S
   const platforms = platformWords(event);
   const getIt = tagVal(event, "url") ?? tagVal(event, "repository");
   return (
-    <CardShell event={event} openInUrl={getIt} openInLabel="Get it" openInTestId={`app-get-${event.id}`} testId={`app-card-${event.id}`}>
+    <CardShell
+      event={event}
+      openInUrl={getIt}
+      openInLabel="Get it"
+      openInHost={getIt ? hostOf(getIt) ?? undefined : undefined}
+      openInTestId={`app-get-${event.id}`}
+      testId={`app-card-${event.id}`}
+    >
       <div className="flex items-start gap-3">
         <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shadow-sm">
           {icon ? (
