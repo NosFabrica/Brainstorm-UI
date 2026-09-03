@@ -186,6 +186,21 @@ describe("the person panel's endorsements", () => {
     expect(chip).toHaveTextContent("Flagged by the network");
   });
 
+  // The identity rows sit right under the name: the NIP-05 handle, and — new,
+  // Benjamin's ask — the lightning address, so "who is this and how do I pay
+  // them" reads in one glance, like the person card.
+  it("shows the lightning address under the name", async () => {
+    suggestMock.mockResolvedValueOnce([
+      { pubkey: DAVID, npub: "npub1david", name: "david", nip05: "david@bitcoinpark.com", lud16: "david@getalby.com", wotRank: 0.9, wotFollowers: 42 },
+    ]);
+    render(<KnowledgePanel query="david" pov="nosfabrica" />);
+    const panel = await screen.findByTestId("search-knowledge-panel");
+    expect(screen.getByTestId("person-lightning")).toHaveTextContent("david@getalby.com");
+    // Identity first, then social proof.
+    const text = panel.textContent ?? "";
+    expect(text.indexOf("david@bitcoinpark.com")).toBeLessThan(text.indexOf("david@getalby.com"));
+  });
+
   it("no flag, no chip; no followers, no line", async () => {
     david();
     render(<KnowledgePanel query="david" pov="nosfabrica" />);
@@ -480,6 +495,9 @@ describe("the topic panel", () => {
     expect(screen.queryByTestId("person-set-Plebs")).toBeNull();
     // And the badges say what they are.
     expect(screen.getByTestId("person-sets")).toHaveTextContent("Listed in");
+    // Each badge opens the lists that carry that title — the Lists vertical,
+    // searched for the name, where every set is a card with its curator.
+    expect(badge.closest("a")?.getAttribute("href")).toBe("/?q=Verified%20Human&t=lists");
   });
 
   it("an active topic outranks even an exact-named person", async () => {

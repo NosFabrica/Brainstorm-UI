@@ -6,7 +6,7 @@
  */
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { ArrowRight, BookOpen, Check, Hash, Package, Users } from "lucide-react";
+import { ArrowRight, BookOpen, Check, Hash, Package, Users, Zap } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -387,30 +387,44 @@ export function KnowledgePanel({
           </div>
         </div>
       </div>
+      {/* Identity rows first, right under the name — who this is and how to
+          pay them — then the social proof. The person card's order. */}
+      {(person.nip05 || person.lud16) && (
+        <div className="mt-2.5 space-y-1">
+          {person.nip05 && (
+            <p className="flex items-center gap-1 truncate text-xs text-brand-primary dark:text-brand-link" data-testid="person-nip05">
+              <Check className="h-3 w-3 shrink-0" /> {person.nip05.replace(/^_@/, "")}
+            </p>
+          )}
+          {person.lud16 && (
+            <p className="flex items-center gap-1 truncate text-xs text-slate-500 dark:text-slate-400" data-testid="person-lightning">
+              <Zap className="h-3 w-3 shrink-0 text-[#F7931A]" /> {person.lud16}
+            </p>
+          )}
+        </div>
+      )}
       {/* Nostr's oldest review: who follows them — the most trusted faces, and
           how many verified accounts in all. Then the trust reviews proper. */}
       <FollowedByLine pubkey={person.pubkey} npub={person.npub} personal={pov === "mywot"} testId="person-followed-by" className="mt-2.5" />
       <PanelVouches pubkey={person.pubkey} npub={person.npub} personal={pov === "mywot"} />
-      {person.nip05 && (
-        <p className="mt-2.5 flex items-center gap-1 truncate text-xs text-brand-primary dark:text-brand-link">
-          <Check className="h-3 w-3 shrink-0" /> {person.nip05.replace(/^_@/, "")}
-        </p>
-      )}
       {shownSets.length > 0 && (
-        <div className="mt-2 flex flex-wrap items-center gap-1" data-testid="person-sets">
+        <div className="mt-2.5 flex flex-wrap items-center gap-1" data-testid="person-sets">
           <span className="mr-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Listed in</span>
           {shownSets.map((m) => (
-            <span
+            // Each badge opens the lists that carry the title — the Lists
+            // vertical searched for it, every set a card with its curator.
+            <Link
               key={m.title}
-              title={`${m.exporters} ${m.exporters === 1 ? "web of trust vouches" : "webs of trust vouch"} for this`}
-              className="inline-flex items-center gap-1 rounded-full bg-brand-primary/5 dark:bg-brand-primary/15 px-2 py-0.5 text-[11px] font-medium text-brand-deep dark:text-brand-link"
+              href={`/?q=${encodeURIComponent(m.title)}&t=lists`}
+              title={`See the ${m.exporters} lists named “${m.title}”`}
+              className="inline-flex items-center gap-1 rounded-full bg-brand-primary/5 dark:bg-brand-primary/15 px-2 py-0.5 text-[11px] font-medium text-brand-deep dark:text-brand-link hover:bg-brand-primary/10 dark:hover:bg-brand-primary/25 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
               data-testid={`person-set-${m.title}`}
             >
               {m.title}
               <span className="rounded-full bg-brand-primary/10 dark:bg-brand-primary/25 px-1 text-[10px] font-semibold">
                 {m.exporters}
               </span>
-            </span>
+            </Link>
           ))}
         </div>
       )}
