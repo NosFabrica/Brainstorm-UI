@@ -439,13 +439,24 @@ export function ListCard({ event, author, score }: { event: NostrEvent; author: 
                   phones it takes its own full-width row, flush left with
                   everything else — whose web of trust this list speaks for
                   is part of the value, not a footnote crammed underneath. */}
-              <div className="w-full border-t border-slate-100 dark:border-slate-800/60 pt-2 sm:w-auto sm:ml-auto sm:border-0 sm:pt-0 sm:text-right">
-                <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                  Curated by
-                </p>
-                <div className="mt-0.5 flex sm:justify-end">
-                  <AuthorRow author={author} score={score} created_at={event.created_at} />
-                </div>
+              {/* One quiet line: kicker + a small ringed face + name, the
+                  date parked at the card's bottom-right corner. */}
+              <div className="flex w-full items-center justify-between gap-3 border-t border-slate-100 dark:border-slate-800/60 pt-2 sm:w-auto sm:ml-auto sm:border-0 sm:pt-0">
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                    Curated by
+                  </span>
+                  <Avatar className={`h-5 w-5 shrink-0 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null, false, "sm", true) ?? ""}`}>
+                    {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
+                    <AvatarFallback className="overflow-hidden">
+                      <DefaultAvatarImg />
+                    </AvatarFallback>
+                  </Avatar>
+                  <span className="truncate text-xs font-medium text-slate-600 dark:text-slate-300">
+                    {author ? getDisplayLabel(author) : "Unknown"}
+                  </span>
+                </span>
+                <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">{fmtWhen(event.created_at)}</span>
               </div>
             </div>
           ) : (
