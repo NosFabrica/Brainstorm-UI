@@ -99,7 +99,11 @@ describe("SerpRow — media taps", () => {
     const photo = { ...note("Anfield tonight", [["imeta", "url https://cdn.example/anfield.jpg", "m image/jpeg"]]), kind: 20 };
     render(<SerpRow event={photo} author={author} score={0.7} query="anfield" />);
     fireEvent.click(screen.getByTestId("serp-thumb"));
-    expect(openLightboxMock).toHaveBeenLastCalledWith([{ url: "https://cdn.example/anfield.jpg", kind: "image" }], 0);
+    expect(openLightboxMock).toHaveBeenLastCalledWith(
+      [{ url: "https://cdn.example/anfield.jpg", kind: "image" }],
+      0,
+      expect.objectContaining({ author: expect.objectContaining({ name: "Liverpool Echo Sport", npub: "npub1echo", score01: 0.7 }), postHref: expect.stringMatching(/^\/e\//) }),
+    );
     expect(window.location.pathname).toBe("/");
   });
 
@@ -107,7 +111,11 @@ describe("SerpRow — media taps", () => {
     const clip = { ...note("Goal!", [["imeta", "url https://cdn.example/goal.mp4", "m video/mp4"]]), kind: 21 };
     render(<SerpRow event={clip} author={author} score={0.7} query="goal" />);
     fireEvent.click(screen.getByTestId("serp-video-thumb"));
-    expect(openLightboxMock).toHaveBeenLastCalledWith([{ url: "https://cdn.example/goal.mp4", kind: "video", poster: null }], 0);
+    expect(openLightboxMock).toHaveBeenLastCalledWith(
+      [{ url: "https://cdn.example/goal.mp4", kind: "video", poster: null }],
+      0,
+      expect.objectContaining({ postHref: expect.stringMatching(/^\/e\//) }),
+    );
     expect(window.location.pathname).toBe("/");
   });
 });

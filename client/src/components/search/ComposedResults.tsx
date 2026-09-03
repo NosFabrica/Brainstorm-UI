@@ -278,7 +278,7 @@ export function ComposedResults({
 
       {(media?.hits.length ?? 0) > 0 && (
         <Section id="media" kicker="Media" tab="media" onTabChange={onTabChange}>
-          <MediaTiles hits={mediaTiles} />
+          <MediaTiles hits={mediaTiles} scoreOf={scoreOf} />
           <div className="space-y-0.5">{clustersOf(media, mediaTileIds)}</div>
         </Section>
       )}

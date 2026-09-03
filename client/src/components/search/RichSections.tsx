@@ -117,7 +117,7 @@ export function TopStories({ stories, stripRef }: { stories: TopStory[]; stripRe
   );
 }
 
-function MediaTile({ hit }: { hit: SearchHit }) {
+function MediaTile({ hit, score }: { hit: SearchHit; score?: number | null }) {
   const [, navigate] = useLocation();
   const openLightbox = useLightbox();
   const [imgFailed, setImgFailed] = useState(false);
@@ -129,9 +129,14 @@ function MediaTile({ hit }: { hit: SearchHit }) {
   const openPost = () => navigate(eventPath(e));
   // A tap on the picture or the play badge gives the MEDIA — full view,
   // playing — the way X, Instagram and TikTok do. The caption opens the post.
+  // The full view is told whose it is and where the post lives.
+  const context = {
+    author: hit.author ? { name: getDisplayLabel(hit.author), npub: hit.author.npub, picture: hit.author.picture, score01: hit.author.wotRank ?? score ?? null } : null,
+    postHref: eventPath(e),
+  };
   const openMedia = () => {
-    if (isVideo && url) openLightbox([{ url, kind: "video", poster }], 0);
-    else if (poster) openLightbox([{ url: poster, kind: "image" }], 0);
+    if (isVideo && url) openLightbox([{ url, kind: "video", poster }], 0, context);
+    else if (poster) openLightbox([{ url: poster, kind: "image" }], 0, context);
     else openPost();
   };
   const caption = (e.content || tagVal(e, "title") || "").replace(/https?:\/\/\S+/g, "").replace(/\s+/g, " ").trim();
@@ -193,12 +198,12 @@ function MediaTile({ hit }: { hit: SearchHit }) {
 }
 
 /** The Media tile grid — two across on phones, three on wider screens. */
-export function MediaTiles({ hits }: { hits: SearchHit[] }) {
+export function MediaTiles({ hits, scoreOf }: { hits: SearchHit[]; scoreOf?: (pk: string) => number | null | undefined }) {
   if (hits.length === 0) return null;
   return (
     <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3" data-testid="serp-media-grid">
       {hits.map((h) => (
-        <MediaTile key={h.event.id} hit={h} />
+        <MediaTile key={h.event.id} hit={h} score={scoreOf?.(h.event.pubkey)} />
       ))}
     </div>
   );

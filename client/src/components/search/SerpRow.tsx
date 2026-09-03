@@ -88,9 +88,14 @@ function Marked({ text, query }: { text: string; query: string }) {
 /** The row's media square: a poster/image that HIDES itself if the URL is
  *  dead (expired signed thumbs must not render as broken glass), or a
  *  metadata-only <video> first frame when only the video itself exists. */
-function RowThumb({ event }: { event: NostrEvent }) {
+function RowThumb({ event, author, score }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
   const [failed, setFailed] = useState(false);
   const openLightbox = useLightbox();
+  // The full view is told whose media it is and where the post lives.
+  const context = {
+    author: author ? { name: getDisplayLabel(author), npub: author.npub, picture: author.picture, score01: score ?? author.wotRank ?? null } : null,
+    postHref: eventPath(event),
+  };
   const url = mediaUrlOf(event);
   const isImage = !!url && IMAGE_RE.test(url);
   const poster = isImage ? url : (mediaPosterOf(event) ?? null);
@@ -101,8 +106,8 @@ function RowThumb({ event }: { event: NostrEvent }) {
   // the post — the rest of the row still opens the post.
   const openMedia = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (isVideo && url) openLightbox([{ url, kind: "video", poster }], 0);
-    else if (poster) openLightbox([{ url: poster, kind: "image" }], 0);
+    if (isVideo && url) openLightbox([{ url, kind: "video", poster }], 0, context);
+    else if (poster) openLightbox([{ url: poster, kind: "image" }], 0, context);
   };
   if (poster && !failed) {
     return (
@@ -305,7 +310,7 @@ export function SerpRow({
           </div>
         )}
       </div>
-      <RowThumb event={event} />
+      <RowThumb event={event} author={author} score={score} />
     </div>
   );
 }

@@ -135,10 +135,19 @@ describe("ComposedResults — media-rich sections", () => {
     // view, playing — X / Instagram / TikTok — never the post. The caption
     // beneath is the way to the post.
     fireEvent.click(photo.querySelector('[data-testid="media-tile-media"]')!);
-    expect(openLightboxMock).toHaveBeenLastCalledWith([{ url: "https://cdn.example/anfield.jpg", kind: "image" }], 0);
+    // …and the full view knows whose it is and where the post lives.
+    expect(openLightboxMock).toHaveBeenLastCalledWith(
+      [{ url: "https://cdn.example/anfield.jpg", kind: "image" }],
+      0,
+      expect.objectContaining({ author: expect.objectContaining({ name: "Sports Central", npub: "npub1Sports Central" }), postHref: expect.stringMatching(/^\/e\/nevent1/) }),
+    );
     expect(window.location.pathname).toBe("/");
     fireEvent.click(video.querySelector('[data-testid="media-tile-play"]')!);
-    expect(openLightboxMock).toHaveBeenLastCalledWith([{ url: "https://cdn.example/goal.mp4", kind: "video", poster: "https://cdn.example/goal-poster.jpg" }], 0);
+    expect(openLightboxMock).toHaveBeenLastCalledWith(
+      [{ url: "https://cdn.example/goal.mp4", kind: "video", poster: "https://cdn.example/goal-poster.jpg" }],
+      0,
+      expect.objectContaining({ author: expect.objectContaining({ name: "AFP" }) }),
+    );
     expect(window.location.pathname).toBe("/");
     fireEvent.click(photo.querySelector('[data-testid="media-tile-caption"]')!);
     expect(window.location.pathname).toMatch(/^\/e\/nevent1/);

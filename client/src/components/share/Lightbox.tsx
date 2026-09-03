@@ -1,6 +1,10 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Link } from "wouter";
+import { ArrowUpRight, X, ChevronLeft, ChevronRight } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { useTierRing } from "@/components/score/VerificationCoin";
 
 /**
  * X-style media lightbox. Any component can open it via {@link useLightbox}
@@ -13,10 +17,15 @@ import { X, ChevronLeft, ChevronRight } from "lucide-react";
  * button, a backdrop tap, or Esc. Desktop + mobile friendly.
  */
 export type LightboxItem = string | { url: string; kind: "image" | "video"; poster?: string | null };
+/** Who the media is from and where the post lives — the quiet bar in full view. */
+export type LightboxContextInfo = {
+  author?: { name: string; npub: string; picture?: string | null; score01?: number | null } | null;
+  postHref?: string | null;
+};
 type MediaItem = { url: string; kind: "image" | "video"; poster: string | null };
-type LightboxState = { images: MediaItem[]; index: number } | null;
+type LightboxState = { images: MediaItem[]; index: number; context: LightboxContextInfo | null } | null;
 
-const LightboxContext = createContext<(items: LightboxItem[], index: number) => void>(() => {});
+const LightboxContext = createContext<(items: LightboxItem[], index: number, context?: LightboxContextInfo) => void>(() => {});
 
 export function useLightbox() {
   return useContext(LightboxContext);
@@ -31,10 +40,10 @@ function normalize(items: LightboxItem[]): MediaItem[] {
 export function LightboxProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<LightboxState>(null);
 
-  const open = useCallback((items: LightboxItem[], index: number) => {
+  const open = useCallback((items: LightboxItem[], index: number, context?: LightboxContextInfo) => {
     const imgs = normalize(items);
     if (!imgs.length) return;
-    setState({ images: imgs, index: Math.max(0, Math.min(index, imgs.length - 1)) });
+    setState({ images: imgs, index: Math.max(0, Math.min(index, imgs.length - 1)), context: context ?? null });
   }, []);
 
   return (
@@ -50,19 +59,20 @@ function LightboxOverlay({
   setState,
   onClose,
 }: {
-  state: { images: MediaItem[]; index: number };
+  state: { images: MediaItem[]; index: number; context: LightboxContextInfo | null };
   setState: (s: LightboxState) => void;
   onClose: () => void;
 }) {
-  const { images, index } = state;
+  const { images, index, context } = state;
   const multi = images.length > 1;
   const touchX = useRef<number | null>(null);
+  const tierRing = useTierRing();
 
   const go = useCallback(
     (dir: 1 | -1) => {
-      setState({ images, index: (index + dir + images.length) % images.length });
+      setState({ images, index: (index + dir + images.length) % images.length, context });
     },
-    [images, index, setState],
+    [images, index, context, setState],
   );
 
   // Keyboard: Esc closes, arrows navigate. Lock body scroll while open.
@@ -161,6 +171,45 @@ function LightboxOverlay({
           className="max-h-[92vh] max-w-[96vw] object-contain rounded-lg shadow-2xl"
           data-testid="lightbox-image"
         />
+      )}
+
+      {/* Whose media, and the way onward — a quiet bar, X's anatomy: the
+          poster's ringed face and name to their profile, "View post" to the
+          post. Either closes the full view. */}
+      {(context?.author || context?.postHref) && (
+        <div
+          className="absolute inset-x-0 bottom-0 z-10 flex items-center justify-between gap-3 bg-gradient-to-t from-black/80 to-transparent px-4 pb-4 pt-10 sm:px-6"
+          onClick={(e) => e.stopPropagation()}
+          data-testid="lightbox-attribution"
+        >
+          {context.author ? (
+            <Link
+              href={`/p/${context.author.npub}`}
+              onClick={onClose}
+              className="group flex min-w-0 items-center gap-2 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+            >
+              <Avatar className={`h-8 w-8 border border-white/20 ${tierRing(context.author.score01 ?? null, false, "sm", true) ?? ""}`}>
+                {context.author.picture ? <AvatarImage src={context.author.picture} alt="" className="object-cover" /> : null}
+                <AvatarFallback className="overflow-hidden">
+                  <DefaultAvatarImg />
+                </AvatarFallback>
+              </Avatar>
+              <span className="truncate text-sm font-semibold text-white group-hover:underline">{context.author.name}</span>
+            </Link>
+          ) : (
+            <span />
+          )}
+          {context.postHref && (
+            <Link
+              href={context.postHref}
+              onClick={onClose}
+              className="inline-flex shrink-0 items-center gap-1 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-white/60"
+              data-testid="lightbox-view-post"
+            >
+              View post <ArrowUpRight className="h-3.5 w-3.5" />
+            </Link>
+          )}
+        </div>
       )}
     </div>,
     document.body,
