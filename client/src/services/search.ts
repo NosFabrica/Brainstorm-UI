@@ -638,7 +638,9 @@ export function fetchPersonSets(pubkey: string, timeoutMs = 5000): Promise<Perso
     if (!relay) return resolve([]);
     const byTitle = new Map<string, Set<string>>();
     const sub = relay
-      .req({ kinds: [30000], "#p": [pubkey], search: "include:spam", limit: 50 })
+      // 200, not 50: a well-listed person sits in more sets than that, and a
+      // sample-dependent tally made "Verified Human · 6" come and go between loads.
+      .req({ kinds: [30000], "#p": [pubkey], search: "include:spam", limit: 200 })
       .subscribe((msg: { type: string; event?: NostrEvent }) => {
         if (msg.type === "EVENT" && msg.event) {
           const title = msg.event.tags.find((t) => t[0] === "title" || t[0] === "name")?.[1]?.trim();
