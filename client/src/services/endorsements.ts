@@ -13,13 +13,46 @@
  */
 import { compactCount } from "@/lib/compactCount";
 import { apiClient } from "@/services/api";
-import { fetchAppEndorsementCounts, fetchAppReviews, fetchAppZaps, type AppReview, type AppZap } from "@/services/search";
+import {
+  fetchAppEndorsementCounts,
+  fetchAppReviews,
+  fetchAppZaps,
+  fetchPersonVouches,
+  type AppReview,
+  type AppZap,
+  type PersonVouch,
+} from "@/services/search";
 
 export interface PersonEndorsements {
   /** The most trusted accounts following this person, with each one's score. */
   followedBy: { pubkey: string; score01: number | null }[];
   /** How many verified accounts follow them in all; null when unknown. */
   total: number | null;
+  /** Trust reviews about them (Relay Outpost vouches), newest first. */
+  vouches: PersonVouch[];
+}
+
+export type RankedVouch = PersonVouch & { score: number | null; group: EndorserGroup };
+
+/**
+ * Trust reviews in the one order: the reviewer's standing with the viewer
+ * (you follow → verified → other), score, recency. Same rule as app reviews.
+ */
+export function rankVouches(vouches: PersonVouch[], ctx: RankContext): RankedVouch[] {
+  const by = new Map(rankEndorsers(vouches, ctx).map((r) => [r.pubkey, r]));
+  return vouches
+    .map((v) => ({ ...v, score: by.get(v.pubkey)?.score ?? null, group: by.get(v.pubkey)?.group ?? ("other" as EndorserGroup) }))
+    .sort((a, b) => GROUP_ORDER[a.group] - GROUP_ORDER[b.group] || (b.score ?? -1) - (a.score ?? -1) || b.at - a.at);
+}
+
+/**
+ * Identity is a CLAIM by its author ("I personally know this is really
+ * them") and the prose can contradict it — live, "this mf is a fake" was
+ * filed as identity. So a confirmation only counts from someone you follow
+ * or a verified account, and its words travel with it so a reader can judge.
+ */
+export function identityConfirmers(ranked: RankedVouch[]): RankedVouch[] {
+  return ranked.filter((v) => v.type === "identity" && v.group !== "other");
 }
 
 /**
@@ -29,27 +62,28 @@ export interface PersonEndorsements {
  * viewer's own when they look through My perspective. Never rejects.
  */
 export async function fetchPersonEndorsements(pubkey: string, opts: { personal: boolean }): Promise<PersonEndorsements> {
-  try {
-    const res = (await apiClient.getUserConnections(pubkey, "followed_by", {
+  const [followersRes, vouchesRes] = await Promise.allSettled([
+    apiClient.getUserConnections(pubkey, "followed_by", {
       limit: 8,
       order: "desc",
       verified_only: true,
       with_total: true,
       house: !opts.personal,
-    })) as { data?: { items?: Array<string | { pubkey?: string; influence?: number | null }>; total?: unknown } } | null;
-    const items = res?.data?.items ?? [];
-    const followedBy = items
-      .map((e) =>
-        typeof e === "string"
-          ? { pubkey: e, score01: null }
-          : { pubkey: e?.pubkey ?? "", score01: typeof e?.influence === "number" ? e.influence : null },
-      )
-      .filter((e) => !!e.pubkey);
-    const total = typeof res?.data?.total === "number" ? res.data.total : null;
-    return { followedBy, total };
-  } catch {
-    return { followedBy: [], total: null };
-  }
+    }) as Promise<{ data?: { items?: Array<string | { pubkey?: string; influence?: number | null }>; total?: unknown } } | null>,
+    fetchPersonVouches(pubkey),
+  ]);
+  const res = followersRes.status === "fulfilled" ? followersRes.value : null;
+  const items = res?.data?.items ?? [];
+  const followedBy = items
+    .map((e) =>
+      typeof e === "string"
+        ? { pubkey: e, score01: null }
+        : { pubkey: e?.pubkey ?? "", score01: typeof e?.influence === "number" ? e.influence : null },
+    )
+    .filter((e) => !!e.pubkey);
+  const total = typeof res?.data?.total === "number" ? res.data.total : null;
+  const vouches = vouchesRes.status === "fulfilled" ? vouchesRes.value : [];
+  return { followedBy, total, vouches };
 }
 import { DEFAULT_VERIFIED_LINE } from "@/services/trustThreshold";
 

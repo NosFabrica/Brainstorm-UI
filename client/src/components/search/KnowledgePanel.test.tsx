@@ -48,6 +48,10 @@ const flagsMock = vi.fn<(pk: string) => boolean | undefined>(() => false);
 vi.mock("@/hooks/useAuthorFlags", () => ({
   useAuthorFlags: () => (pk: string) => flagsMock(pk),
 }));
+let followsMock = new Set<string>();
+vi.mock("@/hooks/useMyFollows", () => ({
+  useMyFollows: () => ({ follows: followsMock, ready: true, signedIn: followsMock.size > 0 }),
+}));
 // Follower faces hydrate through fetchProfileMap — stubbed so jsdom never
 // touches relays; tests seed names per case.
 const profileMapMock = new Map<string, { name?: string; picture?: string }>();
@@ -74,8 +78,64 @@ beforeEach(() => {
   endorsementsMock.mockReturnValue(null);
   personEndorsementsMock.mockReturnValue(null);
   flagsMock.mockImplementation(() => false);
+  followsMock = new Set();
   profileMapMock.clear();
   streamCalls = [];
+});
+
+// Trust reviews in the panel, Google's knowledge-panel way: an identity chip
+// beside the name when trusted accounts confirmed who this is (the words on
+// hover — identity is a claim, and "this mf is a fake" was filed as one), the
+// most trusted vouch quoted, and the way to the full list on the person page.
+describe("the person panel's trust reviews", () => {
+  const DAVID = "b".repeat(64);
+  const BEN = "c".repeat(64);
+  const STRANGER = "d".repeat(64);
+  const david = () =>
+    suggestMock.mockResolvedValueOnce([{ pubkey: DAVID, npub: "npub1david", name: "david", wotRank: 0.9, wotFollowers: 42 }]);
+  const signals = (vouches: { id: string; pubkey: string; type: "vouch" | "identity"; text: string; at: number }[]) => ({
+    followedBy: [], total: null, vouches,
+  });
+
+  it("confirms identity only from trusted reviewers, with their words in reach", async () => {
+    david();
+    personEndorsementsMock.mockReturnValue(signals([
+      { id: "v1", pubkey: BEN, type: "identity", text: "✅ This account is the real david.", at: 200 },
+      { id: "v2", pubkey: STRANGER, type: "identity", text: "this mf is a fake", at: 300 },
+    ]));
+    profileMapMock.set(BEN, { name: "benjamin" });
+    // useAuthorScores is faked at 0.7 for everyone — so STRANGER is "verified"
+    // too; make them the outsider through the follows-free, score-null route.
+    render(<KnowledgePanel query="david" pov="nosfabrica" />);
+    const chip = await screen.findByTestId("person-identity");
+    await vi.waitFor(() => expect(chip.getAttribute("title")).toContain("benjamin"));
+    expect(chip).toHaveTextContent("Identity confirmed");
+    expect(chip.getAttribute("title")).toContain("This account is the real david.");
+  });
+
+  it("quotes the most trusted vouch and links to the full list", async () => {
+    david();
+    personEndorsementsMock.mockReturnValue(signals([
+      { id: "v1", pubkey: BEN, type: "vouch", text: "This user created www.relayop.xyz - a solution for the next phase of the internet.", at: 200 },
+    ]));
+    profileMapMock.set(BEN, { name: "benjamin" });
+    render(<KnowledgePanel query="david" pov="nosfabrica" />);
+    const quote = await screen.findByTestId("person-vouch-quote");
+    await vi.waitFor(() => expect(quote).toHaveTextContent("benjamin"));
+    expect(quote).toHaveTextContent("This user created www.relayop.xyz");
+    expect(screen.getByTestId("person-reviews-link").getAttribute("href")).toBe("/p/npub1david#trust-reviews");
+    expect(screen.getByTestId("person-reviews-link")).toHaveTextContent("1 trust review");
+  });
+
+  it("no vouches, no chip, no quote, no link", async () => {
+    david();
+    personEndorsementsMock.mockReturnValue(signals([]));
+    render(<KnowledgePanel query="david" pov="nosfabrica" />);
+    await screen.findByTestId("search-knowledge-panel");
+    expect(screen.queryByTestId("person-identity")).toBeNull();
+    expect(screen.queryByTestId("person-vouch-quote")).toBeNull();
+    expect(screen.queryByTestId("person-reviews-link")).toBeNull();
+  });
 });
 
 // A person's endorsements are their followers — the Google shared-endorsement

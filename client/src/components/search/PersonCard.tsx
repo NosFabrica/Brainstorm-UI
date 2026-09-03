@@ -8,7 +8,7 @@ import { Check, Copy, Globe, Users, Zap } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing, TierWordChip, useCoinReplacedByRing } from "@/components/score/VerificationCoin";
-import { FlaggedChip, FollowedByLine } from "@/components/search/EndorsementLine";
+import { FlaggedChip, PersonCardSlot } from "@/components/search/EndorsementLine";
 import { copyToClipboard } from "@/lib/clipboard";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 
@@ -122,12 +122,12 @@ export function PersonCard({
               {truncateAbout(result.about)}
             </p>
           )}
-          <FollowedByLine
+          <PersonCardSlot
             pubkey={result.pubkey}
             npub={result.npub}
             personal={pov === "mywot"}
             enabled={showFollowedBy}
-            testId={`person-followed-by-${idx}`}
+            idx={idx}
             className="mt-1.5"
           />
           <div className="flex items-center gap-1.5 sm:gap-2 mt-2 flex-wrap">

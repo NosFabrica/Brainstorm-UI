@@ -13,7 +13,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing, TierWordChip } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useAppEndorsements } from "@/hooks/useAppEndorsements";
-import { FlaggedChip, FollowedByLine } from "@/components/search/EndorsementLine";
+import { FlaggedChip, FollowedByLine, PanelIdentityChip, PanelVouches } from "@/components/search/EndorsementLine";
 import { compactCount } from "@/lib/compactCount";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { eventPath } from "@/lib/shareId";
@@ -379,12 +379,14 @@ export function KnowledgePanel({
               </span>
             )}
             <FlaggedChip pubkey={person.pubkey} testId="person-flagged" />
+            <PanelIdentityChip pubkey={person.pubkey} personal={pov === "mywot"} />
           </div>
         </div>
       </div>
       {/* Nostr's oldest review: who follows them — the most trusted faces, and
-          how many verified accounts in all. */}
+          how many verified accounts in all. Then the trust reviews proper. */}
       <FollowedByLine pubkey={person.pubkey} npub={person.npub} personal={pov === "mywot"} testId="person-followed-by" className="mt-2.5" />
+      <PanelVouches pubkey={person.pubkey} npub={person.npub} personal={pov === "mywot"} />
       {person.nip05 && (
         <p className="mt-2.5 flex items-center gap-1 truncate text-xs text-brand-primary dark:text-brand-link">
           <Check className="h-3 w-3 shrink-0" /> {person.nip05.replace(/^_@/, "")}

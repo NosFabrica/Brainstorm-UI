@@ -32,6 +32,7 @@ import { PROFILE_RELAYS } from "@/lib/relays";
 import { parseIdentities } from "@/lib/externalIdentity";
 import { ExternalIdentities } from "@/components/share/ExternalIdentities";
 import { FollowedByRow } from "@/components/share/FollowedByRow";
+import { TrustReviews } from "@/components/share/TrustReviews";
 import { nip19 } from "nostr-tools";
 import { collectRefs, mentionPubkeysFromContent, type MinimalEvent } from "@/lib/noteRefs";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
@@ -1135,6 +1136,10 @@ export default function SharePage() {
               <FollowedByRow people={topFollowers} total={verifiedFollowers} href={`/p/${rawId}/followers`} />
             </div>
           )}
+
+          {/* Trust reviews — what people who know them said (Relay Outpost
+              vouches), in trust order. Silent when nobody has vouched. */}
+          {pubkey && <TrustReviews pubkey={pubkey} personal={myPov} />}
 
           {/* Tenure / presence — Google-knowledge-panel "at a glance" line. */}
           {!isHidden("tenure") && (lastPostedAt > 0 || relayCount > 0) && (

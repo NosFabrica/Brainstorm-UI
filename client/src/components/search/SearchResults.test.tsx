@@ -381,8 +381,44 @@ describe("SearchResults", () => {
       expect(screen.queryByTestId("person-flagged-0")).toBeNull();
     });
 
+    // Google shows one snippet per result. A trusted trust review (a Relay
+    // Outpost vouch from someone you follow or a verified account) is the
+    // rarer, stronger signal — its quote takes the card's slot; followed-by
+    // stays the default when nobody trusted has vouched.
+    it("a trusted vouch takes the card's slot, quoted with its type", async () => {
+      const REVIEWER = "7".repeat(64);
+      personEndorsementsMock.mockImplementation((pk) =>
+        pk
+          ? {
+              followedBy: [{ pubkey: "9".repeat(64), score01: 0.7 }],
+              total: 500,
+              vouches: [{ id: "v1", pubkey: REVIEWER, type: "vouch", text: "This user created www.relayop.xyz - a solution that supports communication.", at: 1 }],
+            }
+          : null,
+      );
+      profileMapMock.set(REVIEWER, { name: "benjamin" });
+      seed();
+      const quote = await screen.findByTestId("person-vouch-0");
+      await within(quote).findByText(/benjamin/);
+      expect(quote).toHaveTextContent("This user created www.relayop.xyz");
+      expect(quote).toHaveTextContent("Vouched");
+      expect(quote.querySelector('[class*="shadow-[0_0_0"]')).not.toBeNull();
+      expect(screen.queryByTestId("person-followed-by-0")).toBeNull();
+    });
+
+    it("an unrated stranger's vouch never takes the slot — followed-by stays", async () => {
+      const STRANGER = "7".repeat(64);
+      scoreOfMock.mockImplementation((pk) => (pk === STRANGER ? null : 0.85));
+      personEndorsementsMock.mockImplementation((pk) =>
+        pk ? { followedBy: [{ pubkey: "9".repeat(64), score01: 0.7 }], total: 500, vouches: [{ id: "v1", pubkey: STRANGER, type: "vouch", text: "trust me", at: 1 }] } : null,
+      );
+      seed();
+      await screen.findByTestId("person-followed-by-0");
+      expect(screen.queryByTestId("person-vouch-0")).toBeNull();
+    });
+
     it("shows who follows the top three, and asks nothing for the rest", async () => {
-      personEndorsementsMock.mockImplementation((pk) => (pk ? { followedBy: [{ pubkey: "9".repeat(64), score01: 0.7 }], total: 500 } : null));
+      personEndorsementsMock.mockImplementation((pk) => (pk ? { followedBy: [{ pubkey: "9".repeat(64), score01: 0.7 }], total: 500, vouches: [] } : null));
       seed();
       await screen.findByTestId("result-profile-3");
       expect(screen.getByTestId("person-followed-by-0")).toHaveTextContent("Followed by 500 verified accounts");

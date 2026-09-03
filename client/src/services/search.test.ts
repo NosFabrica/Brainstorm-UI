@@ -49,6 +49,8 @@ import {
   fetchAppReviews,
   fetchAppZaps,
   fetchAppEndorsementCounts,
+  fetchPersonVouches,
+  fetchVouchReplies,
   fetchNipPage,
   fetchPersonSets,
   fetchReleases,
@@ -456,6 +458,66 @@ describe("fetchAppReviews", () => {
     await tick();
     subject.next(EOSE);
     expect(await pending).toEqual([]);
+  });
+});
+
+describe("fetchPersonVouches", () => {
+  // Trust reviews of a person: Relay Outpost's kind-31871 vouches — addressable
+  // on the subject (d = p = subject), t = vouch | identity, s = vouched, prose
+  // content. Probed 2026-09-03: the same kind carries ~131 WalletScrutiny
+  // attestations with a different schema, so only events that say s=vouched
+  // (or a vouch/identity t) count. One voice per author: the event is
+  // addressable per author+subject, so the newest wins.
+  it("reads the vouches about a person, dropping foreign kind-31871 events", async () => {
+    const { subject } = controllable();
+    const SUBJECT = "0461".padEnd(64, "0");
+    const AUTHOR = "dabe".padEnd(64, "0");
+    const pending = fetchPersonVouches(SUBJECT);
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter.kinds).toEqual([31871]);
+    expect(filter["#p"]).toEqual([SUBJECT]);
+    expect(filter.search).toBe("include:spam");
+
+    const vouch = (id: string, pubkey: string, tags: string[][], content: string, at: number): NostrEvent =>
+      ({ id, kind: 31871, pubkey, tags, content, created_at: at, sig: "s" }) as NostrEvent;
+    subject.next(frame(vouch("v-old", AUTHOR, [["d", SUBJECT], ["p", SUBJECT], ["t", "vouch"], ["s", "vouched"]], "early words", 100)));
+    subject.next(frame(vouch("v-new", AUTHOR, [["d", SUBJECT], ["p", SUBJECT], ["t", "identity"], ["s", "vouched"]], "✅ This account is the real Alex Gleason.", 200)));
+    subject.next(frame(vouch("ws", "9".repeat(64), [["d", `npub1x:${"e".repeat(64)}`], ["p", SUBJECT], ["validity", "valid"], ["c", "walletscrutiny"]], "", 300)));
+    subject.next(frame(vouch("untyped", "8".repeat(64), [["d", SUBJECT], ["p", SUBJECT], ["s", "vouched"]], "solid dev", 150)));
+    subject.next(EOSE);
+
+    expect(await pending).toEqual([
+      { id: "v-new", pubkey: AUTHOR, type: "identity", text: "✅ This account is the real Alex Gleason.", at: 200 },
+      { id: "untyped", pubkey: "8".repeat(64), type: "vouch", text: "solid dev", at: 150 },
+    ]);
+  });
+});
+
+describe("fetchVouchReplies", () => {
+  // The reviewed person may answer a vouch publicly: a NIP-22 comment (kind
+  // 1111) pointing at the vouch with K=31871. Latest reply per vouch.
+  it("returns the newest reply per vouch id", async () => {
+    const { subject } = controllable();
+    const pending = fetchVouchReplies(["v1", "v2"]);
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter.kinds).toEqual([1111]);
+    expect(filter["#e"]).toEqual(["v1", "v2"]);
+    expect(filter["#K"]).toEqual(["31871"]);
+    const reply = (id: string, e: string, content: string, at: number): NostrEvent =>
+      ({ id, kind: 1111, pubkey: "c".repeat(64), tags: [["E", e], ["e", e], ["K", "31871"], ["k", "31871"]], content, created_at: at, sig: "s" }) as NostrEvent;
+    subject.next(frame(reply("r1", "v1", "thanks!", 10)));
+    subject.next(frame(reply("r2", "v1", "thanks again!", 20)));
+    subject.next(EOSE);
+    const replies = await pending;
+    expect(replies.get("v1")).toEqual({ id: "r2", pubkey: "c".repeat(64), text: "thanks again!", at: 20 });
+    expect(replies.has("v2")).toBe(false);
+  });
+
+  it("asks nothing for no vouches", async () => {
+    expect((await fetchVouchReplies([])).size).toBe(0);
+    expect(reqMock).not.toHaveBeenCalled();
   });
 });
 

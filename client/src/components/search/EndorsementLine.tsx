@@ -9,16 +9,138 @@
 import type { ReactNode } from "react";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
-import { AlertTriangle } from "lucide-react";
+import { AlertTriangle, BadgeCheck, Heart } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Chip } from "@/components/ui/chip";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorFlags } from "@/hooks/useAuthorFlags";
+import { useAuthorScores } from "@/hooks/useAuthorScores";
+import { useMyFollows } from "@/hooks/useMyFollows";
 import { usePersonEndorsements } from "@/hooks/usePersonEndorsements";
 import { useProfileMap } from "@/hooks/useProfileMap";
 import { compactCount } from "@/lib/compactCount";
 import { getDisplayLabel } from "@/lib/profileSearch";
+import { identityConfirmers, quoteFor, rankVouches, tidyName, type PersonEndorsements, type RankedVouch } from "@/services/endorsements";
+
+/** Vouched (an endorsement) or Identity (a claim: "this is really them"). */
+export function VouchBadge({ type }: { type: "vouch" | "identity" }) {
+  return type === "identity" ? (
+    <Chip size="sm" tone="slate" icon={BadgeCheck}>Identity</Chip>
+  ) : (
+    <Chip size="sm" tone="success" icon={Heart}>Vouched</Chip>
+  );
+}
+
+/**
+ * A person's trust reviews, ranked for the viewer, with the reviewers'
+ * profiles — the one hook every vouch surface reads. Memoized upstream, so a
+ * card and the panel asking about the same person cost one fetch.
+ */
+export function useRankedVouches(e: PersonEndorsements | null) {
+  const { follows } = useMyFollows();
+  const vouches = e?.vouches ?? [];
+  const authors = [...new Set(vouches.map((v) => v.pubkey))];
+  const scoreOf = useAuthorScores(authors);
+  const profiles = useProfileMap(authors.slice(0, 60));
+  const ranked = rankVouches(vouches, { follows, scoreOf });
+  const nameOf = (pk: string) => {
+    const p = profiles.get(pk);
+    return p ? tidyName(getDisplayLabel(p)) : undefined;
+  };
+  const pictureOf = (pk: string) => profiles.get(pk)?.picture ?? undefined;
+  return { ranked, nameOf, pictureOf };
+}
+
+/** The most trusted reviewer who actually wrote words — the one worth quoting. */
+export function topTrustedVouch(ranked: RankedVouch[]): (RankedVouch & { quote: string }) | null {
+  for (const v of ranked) {
+    if (v.group === "other") break;
+    const quote = quoteFor(v.text);
+    if (quote) return { ...v, quote };
+  }
+  return null;
+}
+
+/**
+ * "Identity confirmed · 2" beside a name — only from people you follow or
+ * verified accounts, and the confirmers' words ride along on hover so a
+ * reader can judge the claim. Silent otherwise.
+ */
+export function IdentityChip({ ranked, nameOf, testId }: { ranked: RankedVouch[]; nameOf: (pk: string) => string | undefined; testId?: string }) {
+  const confirmers = identityConfirmers(ranked);
+  if (confirmers.length === 0) return null;
+  const title = confirmers
+    .map((c) => `${nameOf(c.pubkey) ?? c.pubkey.slice(0, 8) + "…"}${c.text ? `: “${quoteFor(c.text, 140) || c.text}”` : ""}`)
+    .join("\n");
+  return (
+    <Chip size="sm" tone="brand" icon={BadgeCheck} title={title} data-testid={testId}>
+      Identity confirmed{confirmers.length > 1 ? ` · ${confirmers.length}` : ""}
+    </Chip>
+  );
+}
+
+/** One quoted vouch as an endorsement line: the reviewer's ringed face, their
+ *  words, their name and the review's type. */
+export function VouchQuoteLine({
+  vouch,
+  nameOf,
+  pictureOf,
+  testId,
+  linkFaces = false,
+}: {
+  vouch: RankedVouch & { quote: string };
+  nameOf: (pk: string) => string | undefined;
+  pictureOf: (pk: string) => string | undefined;
+  testId?: string;
+  linkFaces?: boolean;
+}) {
+  const name = nameOf(vouch.pubkey) ?? `${vouch.pubkey.slice(0, 8)}…`;
+  return (
+    <EndorsementLine
+      testId={testId}
+      faces={[{ pubkey: vouch.pubkey, name, picture: pictureOf(vouch.pubkey), score01: vouch.score }]}
+      label={null}
+      chips={<VouchBadge type={vouch.type} />}
+      quote={{ text: vouch.quote, name }}
+      linkFaces={linkFaces}
+    />
+  );
+}
+
+/**
+ * The person card's one snippet slot, Google's way: a trusted trust review
+ * (a vouch from someone you follow or a verified account) is the rarer,
+ * stronger signal and takes the slot; "Followed by …" is the default.
+ */
+export function PersonCardSlot({
+  pubkey,
+  npub,
+  personal,
+  enabled = true,
+  idx,
+  className,
+}: {
+  pubkey: string;
+  npub: string;
+  personal: boolean;
+  enabled?: boolean;
+  idx: number;
+  className?: string;
+}) {
+  const e = usePersonEndorsements(enabled ? pubkey : null, personal);
+  const { ranked, nameOf, pictureOf } = useRankedVouches(e);
+  const top = topTrustedVouch(ranked);
+  if (!e) return null;
+  if (top) {
+    return (
+      <div className={className}>
+        <VouchQuoteLine vouch={top} nameOf={nameOf} pictureOf={pictureOf} testId={`person-vouch-${idx}`} />
+      </div>
+    );
+  }
+  return <FollowedByView e={e} npub={npub} personal={personal} testId={`person-followed-by-${idx}`} className={className} />;
+}
 
 /**
  * "Followed by alice, bob & 1.2k verified accounts" — a person's endorsement
@@ -43,6 +165,22 @@ export function FollowedByLine({
   className?: string;
 }) {
   const e = usePersonEndorsements(enabled ? pubkey : null, personal);
+  return <FollowedByView e={e} npub={npub} personal={personal} testId={testId} className={className} />;
+}
+
+function FollowedByView({
+  e,
+  npub,
+  personal,
+  testId,
+  className,
+}: {
+  e: PersonEndorsements | null;
+  npub: string;
+  personal: boolean;
+  testId?: string;
+  className?: string;
+}) {
   const top = e?.followedBy.slice(0, 3) ?? [];
   const profiles = useProfileMap(top.map((f) => f.pubkey));
   if (!e || e.followedBy.length === 0) return null;
@@ -69,6 +207,37 @@ export function FollowedByLine({
       <EndorsementLine testId={testId} faces={faces} label={label} />
     </Link>
   );
+}
+
+/**
+ * The knowledge panel's trust-reviews block: the most trusted vouch quoted
+ * and the way to the full list on the person page. The identity chip lives
+ * beside the name (PanelIdentityChip) — same hook, one fetch.
+ */
+export function PanelVouches({ pubkey, npub, personal }: { pubkey: string; npub: string; personal: boolean }) {
+  const e = usePersonEndorsements(pubkey, personal);
+  const { ranked, nameOf, pictureOf } = useRankedVouches(e);
+  const top = topTrustedVouch(ranked);
+  const n = e?.vouches?.length ?? 0;
+  if (n === 0) return null;
+  return (
+    <div className="mt-2.5 space-y-1.5">
+      {top && <VouchQuoteLine vouch={top} nameOf={nameOf} pictureOf={pictureOf} testId="person-vouch-quote" linkFaces />}
+      <Link
+        href={`/p/${npub}#trust-reviews`}
+        className="inline-flex items-center gap-1 text-xs font-medium text-brand-primary hover:underline"
+        data-testid="person-reviews-link"
+      >
+        {compactCount(n)} trust {n === 1 ? "review" : "reviews"} →
+      </Link>
+    </div>
+  );
+}
+
+export function PanelIdentityChip({ pubkey, personal }: { pubkey: string; personal: boolean }) {
+  const e = usePersonEndorsements(pubkey, personal);
+  const { ranked, nameOf } = useRankedVouches(e);
+  return <IdentityChip ranked={ranked} nameOf={nameOf} testId="person-identity" />;
 }
 
 /** The one honest negative: a chip when the network has FLAGGED the account

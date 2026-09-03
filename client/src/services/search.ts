@@ -520,6 +520,103 @@ export function fetchAppEndorsementCounts(
   });
 }
 
+/** One trust review of a person — a Relay Outpost vouch. */
+export interface PersonVouch {
+  id: string;
+  /** The reviewer. */
+  pubkey: string;
+  /** "identity" = "I personally know this is really them"; "vouch" = endorsement. */
+  type: "vouch" | "identity";
+  text: string;
+  at: number;
+}
+
+const VOUCH_KIND = 31871;
+
+/**
+ * Trust reviews about a person: Relay Outpost's kind-31871 vouches, addressable
+ * on the subject (d = p = subject), typed vouch | identity, prose content.
+ * Probed 2026-09-03: the same kind also carries WalletScrutiny attestations
+ * with a different schema, so only events that say s=vouched (or carry a
+ * vouch/identity t) count. The event is addressable per author+subject, so
+ * one voice per author — the newest.
+ */
+export function fetchPersonVouches(pubkey: string, timeoutMs = 5000): Promise<PersonVouch[]> {
+  return new Promise((resolve) => {
+    const relay = searchRelay();
+    if (!relay) return resolve([]);
+    const byAuthor = new Map<string, PersonVouch>();
+    const sub = relay
+      .req({ kinds: [VOUCH_KIND], "#p": [pubkey], search: "include:spam", limit: 50 })
+      .subscribe((msg: { type: string; event?: NostrEvent }) => {
+        if (msg.type === "EVENT" && msg.event) {
+          const e = msg.event;
+          const tag = (name: string) => e.tags.find((t) => t[0] === name)?.[1];
+          const t = tag("t");
+          const isVouch = tag("s") === "vouched" || t === "vouch" || t === "identity";
+          if (!isVouch) return;
+          const prev = byAuthor.get(e.pubkey);
+          if (prev && prev.at >= e.created_at) return;
+          byAuthor.set(e.pubkey, {
+            id: e.id,
+            pubkey: e.pubkey,
+            type: t === "identity" ? "identity" : "vouch",
+            text: e.content.trim(),
+            at: e.created_at,
+          });
+        } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
+          finish();
+        }
+      });
+    const timer = setTimeout(finish, timeoutMs);
+    function finish() {
+      clearTimeout(timer);
+      sub.unsubscribe();
+      resolve([...byAuthor.values()].sort((a, b) => b.at - a.at));
+    }
+  });
+}
+
+export interface VouchReply {
+  id: string;
+  pubkey: string;
+  text: string;
+  at: number;
+}
+
+/**
+ * The reviewed person's public answers to vouches — NIP-22 comments (kind
+ * 1111) pointing at the vouch with K=31871. Newest reply per vouch.
+ */
+export function fetchVouchReplies(vouchIds: string[], timeoutMs = 5000): Promise<Map<string, VouchReply>> {
+  return new Promise((resolve) => {
+    const replies = new Map<string, VouchReply>();
+    if (vouchIds.length === 0) return resolve(replies);
+    const relay = searchRelay();
+    if (!relay) return resolve(replies);
+    const sub = relay
+      .req({ kinds: [1111], "#e": vouchIds, "#K": [String(VOUCH_KIND)], search: "include:spam", limit: 100 })
+      .subscribe((msg: { type: string; event?: NostrEvent }) => {
+        if (msg.type === "EVENT" && msg.event) {
+          const e = msg.event;
+          const target = e.tags.find((t) => t[0] === "e")?.[1];
+          if (!target) return;
+          const prev = replies.get(target);
+          if (prev && prev.at >= e.created_at) return;
+          replies.set(target, { id: e.id, pubkey: e.pubkey, text: e.content.trim(), at: e.created_at });
+        } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
+          finish();
+        }
+      });
+    const timer = setTimeout(finish, timeoutMs);
+    function finish() {
+      clearTimeout(timer);
+      sub.unsubscribe();
+      resolve(replies);
+    }
+  });
+}
+
 export interface PersonSetMembership {
   title: string;
   /** How many distinct exporters' follow sets include the person — the

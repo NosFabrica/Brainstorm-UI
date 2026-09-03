@@ -12,10 +12,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const reviewsMock = vi.fn();
 const zapsMock = vi.fn();
 const countsMock = vi.fn();
+const vouchesMock = vi.fn();
 vi.mock("@/services/search", () => ({
   fetchAppReviews: (...a: unknown[]) => reviewsMock(...a),
   fetchAppZaps: (...a: unknown[]) => zapsMock(...a),
   fetchAppEndorsementCounts: (...a: unknown[]) => countsMock(...a),
+  fetchPersonVouches: (...a: unknown[]) => vouchesMock(...a),
 }));
 
 const connectionsMock = vi.fn();
@@ -23,7 +25,15 @@ vi.mock("@/services/api", () => ({
   apiClient: { getUserConnections: (...a: unknown[]) => connectionsMock(...a) },
 }));
 
-import { endorsementLabel, fetchAppEndorsements, fetchPersonEndorsements, quoteFor, rankEndorsers } from "./endorsements";
+import {
+  endorsementLabel,
+  fetchAppEndorsements,
+  fetchPersonEndorsements,
+  identityConfirmers,
+  quoteFor,
+  rankEndorsers,
+  rankVouches,
+} from "./endorsements";
 
 const A = "a".repeat(64);
 const B = "b".repeat(64);
@@ -36,6 +46,34 @@ beforeEach(() => {
   reviewsMock.mockResolvedValue([]);
   zapsMock.mockResolvedValue([]);
   countsMock.mockResolvedValue({ reviews: 0, zaps: 0, collections: 0 });
+  vouchesMock.mockResolvedValue([]);
+});
+
+// Trust reviews of a person (Relay Outpost vouches) follow the one rule: the
+// reviewer's relationship to the viewer decides the order. Identity is a
+// CLAIM by its author and the prose can contradict it ("this mf is a fake"
+// was filed as identity, live), so an identity confirmation only counts from
+// someone you follow or a verified account — and the words travel with it.
+describe("rankVouches / identityConfirmers", () => {
+  const vouch = (id: string, pubkey: string, type: "vouch" | "identity", text: string, at: number) => ({ id, pubkey, type, text, at });
+  const ctx = { follows: new Set([C]), scoreOf: (pk: string) => ({ [A]: 0.9, [B]: null, [C]: null, [D]: 0.3 })[pk] };
+
+  it("orders vouches by the reviewer's standing, keeping type and words", () => {
+    const ranked = rankVouches(
+      [vouch("b", B, "identity", "this mf is a fake", 400), vouch("a", A, "vouch", "solid dev", 100), vouch("c", C, "vouch", "my friend", 50), vouch("d", D, "identity", "real", 200)],
+      ctx,
+    );
+    expect(ranked.map((r) => [r.pubkey, r.group])).toEqual([[C, "followed"], [A, "verified"], [D, "verified"], [B, "other"]]);
+    expect(ranked[0]).toMatchObject({ id: "c", type: "vouch", text: "my friend", score: null });
+  });
+
+  it("counts identity confirmations only from trusted reviewers", () => {
+    const ranked = rankVouches(
+      [vouch("b", B, "identity", "this mf is a fake", 400), vouch("d", D, "identity", "✅ real", 200), vouch("a", A, "vouch", "solid dev", 100)],
+      ctx,
+    );
+    expect(identityConfirmers(ranked).map((r) => r.pubkey)).toEqual([D]);
+  });
 });
 
 describe("fetchAppEndorsements", () => {
@@ -89,10 +127,16 @@ describe("fetchAppEndorsements", () => {
 // connections endpoint: house Perspective for a stable public line, the
 // viewer's own when they look through My perspective.
 describe("fetchPersonEndorsements", () => {
-  it("reads the top verified followers, keeping each one's score for its ring", async () => {
+  it("reads the top verified followers, keeping each one's score for its ring — and the person's vouches", async () => {
     connectionsMock.mockResolvedValue({ data: { items: [A, { pubkey: B, influence: 0.42 }, { pubkey: "" }], total: 1234 } });
+    vouchesMock.mockResolvedValue([{ id: "v", pubkey: D, type: "vouch", text: "solid", at: 1 }]);
     const e = await fetchPersonEndorsements(C, { personal: false });
-    expect(e).toEqual({ followedBy: [{ pubkey: A, score01: null }, { pubkey: B, score01: 0.42 }], total: 1234 });
+    expect(e).toEqual({
+      followedBy: [{ pubkey: A, score01: null }, { pubkey: B, score01: 0.42 }],
+      total: 1234,
+      vouches: [{ id: "v", pubkey: D, type: "vouch", text: "solid", at: 1 }],
+    });
+    expect(vouchesMock).toHaveBeenCalledWith(C);
     expect(connectionsMock).toHaveBeenCalledWith(C, "followed_by", {
       limit: 8, order: "desc", verified_only: true, with_total: true, house: true,
     });
@@ -102,12 +146,15 @@ describe("fetchPersonEndorsements", () => {
     connectionsMock.mockResolvedValue({ data: { items: [] } });
     const e = await fetchPersonEndorsements(C, { personal: true });
     expect(connectionsMock.mock.calls[0][2]).toMatchObject({ house: false });
-    expect(e).toEqual({ followedBy: [], total: null });
+    expect(e).toEqual({ followedBy: [], total: null, vouches: [] });
   });
 
-  it("never rejects — a failed call is an empty line", async () => {
+  it("never rejects — a failed call is an empty line, and vouches survive a follower failure", async () => {
     connectionsMock.mockRejectedValue(new Error("500"));
-    expect(await fetchPersonEndorsements(C, { personal: false })).toEqual({ followedBy: [], total: null });
+    vouchesMock.mockResolvedValue([{ id: "v", pubkey: D, type: "vouch", text: "solid", at: 1 }]);
+    expect(await fetchPersonEndorsements(C, { personal: false })).toEqual({
+      followedBy: [], total: null, vouches: [{ id: "v", pubkey: D, type: "vouch", text: "solid", at: 1 }],
+    });
   });
 });
 
