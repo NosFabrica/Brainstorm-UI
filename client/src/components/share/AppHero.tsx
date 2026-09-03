@@ -9,16 +9,22 @@ import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
-import { Code2, Download, ExternalLink, Globe, Package } from "lucide-react";
+import { Code2, Download, ExternalLink, Globe, Package, Zap } from "lucide-react";
 import { useLightbox } from "@/components/share/Lightbox";
 import { MentionChip } from "@/components/share/MentionChip";
 import { Favicon, LinkChip } from "@/components/share/LinkPreview";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { useTierRing } from "@/components/score/VerificationCoin";
+import { TierWordChip, useTierRing } from "@/components/score/VerificationCoin";
+import { EndorsementLine } from "@/components/search/EndorsementLine";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
+import { useAppEndorsements } from "@/hooks/useAppEndorsements";
+import { useMyFollows } from "@/hooks/useMyFollows";
+import { useProfileMap } from "@/hooks/useProfileMap";
 import { eventStore } from "@/lib/eventStore";
+import { compactCount } from "@/lib/compactCount";
 import { fetchProfileMap } from "@/services/nostr";
+import { endorsementLabel, rankEndorsers, type EndorserGroup } from "@/services/endorsements";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { Chip } from "@/components/ui/chip";
 import { eventPath } from "@/lib/shareId";
@@ -255,6 +261,23 @@ function usePublisher(pubkey: string): SearchResult | null {
 }
 
 const HISTORY_MAX = 5;
+
+/** A review or a zap-with-memo, flattened to one row shape. */
+interface Voice {
+  id: string;
+  pubkey: string;
+  text: string;
+  at: number;
+  version: string | null;
+  via: "review" | "zap";
+}
+
+const GROUP_HEADERS: Record<EndorserGroup, string> = {
+  followed: "From people you follow",
+  verified: "From verified accounts",
+  other: "More from the network",
+};
+
 const SECONDARY_PILL =
   "inline-flex items-center justify-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-700 px-3.5 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 transition-colors sm:py-1.5";
 
@@ -325,7 +348,43 @@ export function AppHero({ event }: { event: AppEvent }) {
   const isApk = !!asset && (asset.mime === "application/vnd.android.package-archive" || /\.apk(\?|#|$)/i.test(asset.url));
   const cadence = cadenceLabel(releases);
   const publisher = usePublisher(event.pubkey);
-  const scoreOf = useAuthorScores([event.pubkey]);
+
+  // What the network said — reviews and zaps, both pages, ordered by trust.
+  const endorsements = useAppEndorsements(address, { publisher: event.pubkey, reviewLimit: 50, zapLimit: 50 });
+  const { follows, signedIn } = useMyFollows();
+  const [othersOpen, setOthersOpen] = useState(false);
+  const voices: Voice[] = endorsements
+    ? [
+        ...endorsements.reviews.map((r) => ({ id: r.id, pubkey: r.pubkey, text: r.text, at: r.at, version: r.version, via: "review" as const })),
+        ...endorsements.zaps
+          .filter((z) => z.pubkey && z.memo)
+          .map((z) => ({ id: z.id, pubkey: z.pubkey!, text: z.memo, at: z.at, version: null, via: "zap" as const })),
+      ]
+    : [];
+  const zappers = endorsements ? [...new Set(endorsements.zaps.map((z) => z.pubkey).filter((p): p is string => !!p))] : [];
+  const voicePubkeys = [...new Set([...voices.map((v) => v.pubkey), ...zappers])];
+  const scoreOf = useAuthorScores([event.pubkey, ...voicePubkeys]);
+  const profiles = useProfileMap(voicePubkeys.slice(0, 60));
+  const ranked = rankEndorsers([...voices, ...zappers.map((pk) => ({ pubkey: pk, at: 0 }))], { follows, scoreOf });
+  const groupOf = new Map(ranked.map((r) => [r.pubkey, r]));
+  const order: Record<EndorserGroup, number> = { followed: 0, verified: 1, other: 2 };
+  const sortedVoices = [...voices].sort((a, b) => {
+    const ga = groupOf.get(a.pubkey)!;
+    const gb = groupOf.get(b.pubkey)!;
+    return order[ga.group] - order[gb.group] || (gb.score ?? -1) - (ga.score ?? -1) || b.at - a.at;
+  });
+  const grouped: Record<EndorserGroup, Voice[]> = { followed: [], verified: [], other: [] };
+  for (const v of sortedVoices) grouped[groupOf.get(v.pubkey)!.group].push(v);
+  const trustedCount = grouped.followed.length + grouped.verified.length;
+  const zapFaces = ranked
+    .filter((r) => zappers.includes(r.pubkey))
+    .slice(0, 3)
+    .map((r) => {
+      const p = profiles.get(r.pubkey);
+      return { pubkey: r.pubkey, name: p ? getDisplayLabel(p) : undefined, picture: p?.picture ?? undefined, score01: r.score };
+    });
+  const anySignal = !!endorsements && (endorsements.reviewCount > 0 || endorsements.zapCount > 0 || endorsements.collectionCount > 0);
+
   const tierRing = useTierRing();
   let publisherNpub = "";
   try {
@@ -491,6 +550,33 @@ export function AppHero({ event }: { event: AppEvent }) {
         </div>
       )}
 
+      {/* What the network said, in numbers — a second strip so phones stay legible. */}
+      {anySignal && endorsements && (
+        <div
+          className="mt-3 flex divide-x divide-slate-200 dark:divide-slate-800 rounded-xl border border-slate-200 dark:border-slate-800"
+          data-testid="app-hero-endorsement-stats"
+        >
+          {endorsements.reviewCount > 0 && (
+            <div className="flex-1 px-3 py-2.5 text-center">
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{compactCount(endorsements.reviewCount)}</div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400">{endorsements.reviewCount === 1 ? "review" : "reviews"}</div>
+            </div>
+          )}
+          {endorsements.zapCount > 0 && (
+            <div className="flex-1 px-3 py-2.5 text-center" title="Zaps seen on the search relay">
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{compactCount(endorsements.zapCount)}</div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400">{endorsements.zapCount === 1 ? "zap" : "zaps"}</div>
+            </div>
+          )}
+          {endorsements.collectionCount > 0 && (
+            <div className="flex-1 px-3 py-2.5 text-center">
+              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{compactCount(endorsements.collectionCount)}</div>
+              <div className="text-[11px] text-slate-500 dark:text-slate-400">{endorsements.collectionCount === 1 ? "collection" : "collections"}</div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* What's new — the latest release's own notes, not just a version chip.
           Zap Store changelogs can be whole GitHub release dumps, so long ones
           collapse to a few lines behind Show more. */}
@@ -552,6 +638,112 @@ export function AppHero({ event }: { event: AppEvent }) {
       {event.content?.trim() && (
         <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700 dark:text-slate-200">
           {event.content}
+        </p>
+      )}
+
+      {/* What people say — Google's shared endorsements, on Nostr. No stars
+          exist, so the ORDER is the rating: people you follow, then verified
+          accounts; everyone else folded behind Show more. Zaps with a memo
+          are micro-reviews and take their place in the same order. */}
+      {voices.length > 0 && endorsements && (
+        <div className="mt-5" data-testid="app-hero-reviews">
+          <div className="flex items-baseline justify-between gap-2">
+            <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              What people say
+            </div>
+            <div className="text-[11px] text-slate-400 dark:text-slate-500">{compactCount(voices.length)} {voices.length === 1 ? "voice" : "voices"}</div>
+          </div>
+          {signedIn && grouped.followed.length === 0 && (
+            <p className="mt-1.5 text-xs text-slate-500 dark:text-slate-400" data-testid="app-hero-reviews-showing-all">
+              No reviews from your network yet — showing all {compactCount(Math.max(endorsements.reviewCount, voices.length))}
+            </p>
+          )}
+          {zapFaces.length > 0 && (
+            <div className="mt-2">
+              <EndorsementLine
+                testId="app-hero-zapped-by"
+                faces={zapFaces}
+                label={endorsementLabel("Zapped", zapFaces.map((f) => f.name).filter((n): n is string => !!n), Math.max(endorsements.zapCount, zappers.length))}
+                linkFaces
+              />
+            </div>
+          )}
+          {(["followed", "verified", "other"] as EndorserGroup[]).map((group) => {
+            const rows = grouped[group];
+            if (rows.length === 0) return null;
+            if (group === "followed" && !signedIn) return null;
+            // Outsiders fold away — unless they are all there is.
+            const folded = group === "other" && trustedCount > 0 && !othersOpen;
+            return (
+              <div key={group} className="mt-3" data-testid={`app-hero-reviews-${group}`}>
+                {(group !== "other" || trustedCount > 0) && (
+                  <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                    {GROUP_HEADERS[group]} <span className="text-slate-400 dark:text-slate-500">· {rows.length}</span>
+                  </div>
+                )}
+                {folded ? (
+                  <button
+                    type="button"
+                    onClick={() => setOthersOpen(true)}
+                    className="mt-1 text-xs font-medium text-brand-primary hover:underline"
+                    data-testid="app-hero-reviews-toggle"
+                  >
+                    Show {rows.length} more
+                  </button>
+                ) : (
+                  <ul className="mt-1.5 space-y-3">
+                    {rows.map((v) => {
+                      const author = profiles.get(v.pubkey) ?? null;
+                      const score = groupOf.get(v.pubkey)?.score ?? null;
+                      let npub = "";
+                      try {
+                        npub = nip19.npubEncode(v.pubkey);
+                      } catch {
+                        /* malformed pubkey — row renders without a link */
+                      }
+                      return (
+                        <li key={v.id} className="flex items-start gap-2.5" data-testid={`app-review-${v.id}`}>
+                          <Link href={npub ? `/p/${npub}` : "#"} className="shrink-0">
+                            <Avatar className={`h-7 w-7 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score, false, "sm", true) ?? ""}`}>
+                              {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
+                              <AvatarFallback className="overflow-hidden">
+                                <DefaultAvatarImg />
+                              </AvatarFallback>
+                            </Avatar>
+                          </Link>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                              <span className="truncate text-xs font-semibold text-slate-800 dark:text-slate-100">
+                                {author ? getDisplayLabel(author) : npub ? `${npub.slice(0, 12)}…` : "Someone"}
+                              </span>
+                              <TierWordChip score01={score} />
+                              {v.via === "zap" && (
+                                <span className="inline-flex items-center gap-0.5 text-[10px] text-amber-600 dark:text-amber-400" title="Said with a zap">
+                                  <Zap className="h-2.5 w-2.5" /> zap
+                                </span>
+                              )}
+                              {v.version && (
+                                <Chip size="sm" tone="slate">on v{v.version}</Chip>
+                              )}
+                              <span className="text-[11px] text-slate-400 dark:text-slate-500">{releaseAge(v.at)}</span>
+                            </div>
+                            <div className="mt-0.5 line-clamp-4 break-words text-sm leading-relaxed text-slate-700 dark:text-slate-200">
+                              <NotesInline text={v.text} />
+                            </div>
+                          </div>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+      {endorsements && voices.length === 0 && endorsements.reviewCount === 0 && endorsements.zapCount === 0 && releases.length > 0 && (
+        <p className="mt-4 text-xs text-slate-400 dark:text-slate-500" data-testid="app-hero-reviews-empty">
+          No reviews from the network yet.
         </p>
       )}
 

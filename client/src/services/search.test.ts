@@ -46,6 +46,9 @@ vi.mock("@/lib/eventStore", () => ({
 
 import {
   appAddress,
+  fetchAppReviews,
+  fetchAppZaps,
+  fetchAppEndorsementCounts,
   fetchNipPage,
   fetchPersonSets,
   fetchReleases,
@@ -410,6 +413,98 @@ describe("fetchRepoCounts", () => {
     const filters = countMock.mock.calls.map((c) => c[0] as Record<string, unknown>);
     expect(filters.every((f) => (f["#a"] as string[])[0] === addr && f.search === "include:spam")).toBe(true);
     expect(filters.map((f) => (f.kinds as number[])[0]).sort()).toEqual([1617, 1621]);
+  });
+});
+
+describe("fetchAppReviews", () => {
+  // Zap Store reviews are NIP-22 comments (kind 1111, plus a few legacy kind-1
+  // notes) whose #a is the listing address. Probed 2026-09-03: 845 of them
+  // corpus-wide, none with a rating tag — but each carries `v`, the version the
+  // reviewer was running. Fetched through include:spam on purpose: the observer
+  // lens is a set FILTER (jack's perspective drops 14 → 0), not a ranker, and
+  // trust order is decided on-device where it can be labeled.
+  it("returns the listing's comments with the version reviewed", async () => {
+    const { subject } = controllable();
+    const addr = "32267:" + "b".repeat(64) + ":com.vitorpamplona.amethyst";
+    const pending = fetchAppReviews(addr);
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter.kinds).toEqual([1111, 1]);
+    expect(filter["#a"]).toEqual([addr]);
+    expect(filter.search).toBe("include:spam");
+    expect(filter.limit).toBe(50);
+
+    subject.next(
+      frame({
+        id: "r1", kind: 1111, pubkey: "c".repeat(64), created_at: 200, sig: "s",
+        content: "love Amethyst. is my daily driver",
+        tags: [["a", addr], ["k", "32267"], ["v", "1.13.1"]],
+      } as NostrEvent),
+    );
+    subject.next(frame({ id: "r2", kind: 1, pubkey: "d".repeat(64), created_at: 100, sig: "s", content: "Perfect APP!", tags: [["a", addr]] } as NostrEvent));
+    subject.next(EOSE);
+
+    expect(await pending).toEqual([
+      { id: "r1", pubkey: "c".repeat(64), text: "love Amethyst. is my daily driver", at: 200, version: "1.13.1", k: "32267", kind: 1111 },
+      { id: "r2", pubkey: "d".repeat(64), text: "Perfect APP!", at: 100, version: null, k: null, kind: 1 },
+    ]);
+  });
+
+  it("resolves empty at EOSE when nobody has commented", async () => {
+    const { subject } = controllable();
+    const pending = fetchAppReviews("32267:" + "b".repeat(64) + ":x");
+    await tick();
+    subject.next(EOSE);
+    expect(await pending).toEqual([]);
+  });
+});
+
+describe("fetchAppZaps", () => {
+  // Zaps to an app (kind 9735, #a = listing address; Amethyst has 101). The
+  // zapper is the receipt's `P` tag — older receipts only carry it inside the
+  // embedded zap request (`description`). Many carry a memo ("love amethyst")
+  // in the request content, which makes a zap a micro-review. The receipt's
+  // `e` points at the APK's file-metadata event, not the release — ignored.
+  it("parses zapper and memo, falling back to the embedded zap request", async () => {
+    const { subject } = controllable();
+    const addr = "32267:" + "b".repeat(64) + ":com.vitorpamplona.amethyst";
+    const pending = fetchAppZaps(addr);
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter.kinds).toEqual([9735]);
+    expect(filter["#a"]).toEqual([addr]);
+    expect(filter.search).toBe("include:spam");
+
+    const zapper = "c".repeat(64);
+    const other = "d".repeat(64);
+    const request = (pubkey: string, content: string) => JSON.stringify({ kind: 9734, pubkey, content, tags: [] });
+    subject.next(frame({ id: "z1", kind: 9735, pubkey: "e".repeat(64), created_at: 300, sig: "s", content: "", tags: [["a", addr], ["P", zapper], ["description", request(other, "love amethyst how it is")]] } as NostrEvent));
+    subject.next(frame({ id: "z2", kind: 9735, pubkey: "e".repeat(64), created_at: 200, sig: "s", content: "", tags: [["a", addr], ["description", request(other, "")]] } as NostrEvent));
+    subject.next(frame({ id: "z3", kind: 9735, pubkey: "e".repeat(64), created_at: 100, sig: "s", content: "", tags: [["a", addr], ["description", "not json"]] } as NostrEvent));
+    subject.next(EOSE);
+
+    expect(await pending).toEqual([
+      { id: "z1", pubkey: zapper, memo: "love amethyst how it is", at: 300 },
+      { id: "z2", pubkey: other, memo: "", at: 200 },
+      { id: "z3", pubkey: null, memo: "", at: 100 },
+    ]);
+  });
+});
+
+describe("fetchAppEndorsementCounts", () => {
+  // The numbers on an app card — reviews, zaps, and how many curated app
+  // collections (kind 30267) feature it — as three NIP-45 COUNTs keyed by the
+  // listing address. Counts, not pages: a card must not pay for events.
+  it("counts reviews, zaps and collections for the address", async () => {
+    const addr = "32267:" + "b".repeat(64) + ":com.vitorpamplona.amethyst";
+    const byKind: Record<number, number> = { 1111: 14, 9735: 101, 30267: 46 };
+    countMock.mockImplementation((filter: { kinds: number[] }) => of({ count: byKind[filter.kinds[0]] ?? 0 }));
+    const res = await fetchAppEndorsementCounts(addr);
+    expect(res).toEqual({ reviews: 14, zaps: 101, collections: 46 });
+    const filters = countMock.mock.calls.map((c) => c[0] as Record<string, unknown>);
+    expect(filters).toHaveLength(3);
+    expect(filters.every((f) => (f["#a"] as string[])[0] === addr && f.search === "include:spam")).toBe(true);
+    expect(filters.map((f) => f.kinds as number[])).toEqual(expect.arrayContaining([[1111, 1], [9735], [30267]]));
   });
 });
 

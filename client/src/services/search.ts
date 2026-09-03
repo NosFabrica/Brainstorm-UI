@@ -373,6 +373,153 @@ export function appAddress(event: { kind?: number; pubkey: string; tags: string[
   return `32267:${event.pubkey}:${d}`;
 }
 
+/** One Zap Store review: a comment on the listing address. */
+export interface AppReview {
+  id: string;
+  pubkey: string;
+  text: string;
+  at: number;
+  /** The app version the reviewer was running (`v` tag), when they said. */
+  version: string | null;
+  /** NIP-22 root kind (`k` tag) — "32267" for a top-level review; a reply to
+   *  a review names the review's kind instead. Null on legacy kind-1 notes. */
+  k: string | null;
+  kind: number;
+}
+
+/**
+ * Zap Store reviews: NIP-22 comments (kind 1111, plus legacy kind-1 notes)
+ * whose #a is the app address. Fetched through include:spam deliberately —
+ * probed 2026-09-03, the observer lens is a set FILTER applied before the
+ * relay's newest-first sort (jack's perspective drops Amethyst's 14 reviews
+ * to 0), not a ranker. Trust order is decided on-device, where it can be
+ * labeled ("from people you follow", "verified accounts").
+ */
+export function fetchAppReviews(address: string, opts: { limit?: number; timeoutMs?: number } = {}): Promise<AppReview[]> {
+  const { limit = 50, timeoutMs = 5000 } = opts;
+  return new Promise((resolve) => {
+    const relay = searchRelay();
+    if (!relay) return resolve([]);
+    const reviews: AppReview[] = [];
+    const sub = relay
+      .req({ kinds: [1111, 1], "#a": [address], search: "include:spam", limit })
+      .subscribe((msg: { type: string; event?: NostrEvent }) => {
+        if (msg.type === "EVENT" && msg.event) {
+          const e = msg.event;
+          const tag = (name: string) => e.tags.find((t) => t[0] === name)?.[1] ?? null;
+          reviews.push({ id: e.id, pubkey: e.pubkey, text: e.content, at: e.created_at, version: tag("v"), k: tag("k"), kind: e.kind });
+        } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
+          finish();
+        }
+      });
+    const timer = setTimeout(finish, timeoutMs);
+    function finish() {
+      clearTimeout(timer);
+      sub.unsubscribe();
+      resolve(reviews.sort((a, b) => b.at - a.at));
+    }
+  });
+}
+
+/** One zap to an app — a micro-endorsement, sometimes with a memo. */
+export interface AppZap {
+  id: string;
+  /** The zapper (receipt `P` tag, else the embedded zap request's pubkey). */
+  pubkey: string | null;
+  /** The zap request's message ("love amethyst"), trimmed; "" when silent. */
+  memo: string;
+  at: number;
+}
+
+/**
+ * Zaps to an app: NIP-57 receipts (kind 9735) whose #a is the listing
+ * address (Amethyst: 101, probed 2026-09-03). The receipt's `e` tag points
+ * at the APK's file-metadata event, never the release — so the address is
+ * the only key worth joining on.
+ */
+export function fetchAppZaps(address: string, opts: { limit?: number; timeoutMs?: number } = {}): Promise<AppZap[]> {
+  const { limit = 50, timeoutMs = 5000 } = opts;
+  return new Promise((resolve) => {
+    const relay = searchRelay();
+    if (!relay) return resolve([]);
+    const zaps: AppZap[] = [];
+    const sub = relay
+      .req({ kinds: [9735], "#a": [address], search: "include:spam", limit })
+      .subscribe((msg: { type: string; event?: NostrEvent }) => {
+        if (msg.type === "EVENT" && msg.event) {
+          const e = msg.event;
+          let request: { pubkey?: unknown; content?: unknown } | null = null;
+          try {
+            const raw = e.tags.find((t) => t[0] === "description")?.[1];
+            if (raw) request = JSON.parse(raw);
+          } catch {
+            request = null;
+          }
+          const P = e.tags.find((t) => t[0] === "P")?.[1];
+          const pubkey = P ?? (typeof request?.pubkey === "string" ? request.pubkey : null);
+          const memo = (e.content.trim() || (typeof request?.content === "string" ? request.content : "")).trim();
+          zaps.push({ id: e.id, pubkey, memo, at: e.created_at });
+        } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
+          finish();
+        }
+      });
+    const timer = setTimeout(finish, timeoutMs);
+    function finish() {
+      clearTimeout(timer);
+      sub.unsubscribe();
+      resolve(zaps.sort((a, b) => b.at - a.at));
+    }
+  });
+}
+
+/**
+ * The numbers on an app card: reviews (kinds 1111/1), zaps (9735) and how
+ * many curated app collections (kind 30267) feature it — three NIP-45
+ * COUNTs keyed by the listing address. Counts off the wire, never pages of
+ * events: a results page full of cards must stay cheap.
+ */
+export function fetchAppEndorsementCounts(
+  address: string,
+  timeoutMs = 5000,
+): Promise<{ reviews: number; zaps: number; collections: number }> {
+  return new Promise((resolve) => {
+    const relay = searchRelay();
+    if (!relay) return resolve({ reviews: 0, zaps: 0, collections: 0 });
+    const result = { reviews: 0, zaps: 0, collections: 0 };
+    const subs: { unsubscribe: () => void }[] = [];
+    let done = 0;
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      subs.forEach((s) => s.unsubscribe());
+      resolve(result);
+    };
+    const one = () => {
+      if (++done >= 3) finish();
+    };
+    const count = (kinds: number[], key: keyof typeof result) => {
+      subs.push(
+        relay
+          .count({ kinds, "#a": [address], search: "include:spam" })
+          .subscribe({
+            next: (r: { count?: number }) => {
+              result[key] = r?.count ?? 0;
+            },
+            error: one,
+            complete: one,
+          }),
+      );
+    };
+    // Timer before subscribing — see fetchRepoCounts.
+    const timer = setTimeout(finish, timeoutMs);
+    count([1111, 1], "reviews");
+    count([9735], "zaps");
+    count([30267], "collections");
+  });
+}
+
 export interface PersonSetMembership {
   title: string;
   /** How many distinct exporters' follow sets include the person — the

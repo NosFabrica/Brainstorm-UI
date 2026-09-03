@@ -57,6 +57,18 @@ vi.mock("@/hooks/useAuthorScores", () => ({
   useAuthorScores: () => (pk: string) => scoreOfMock(pk),
 }));
 
+// Endorsements (reviews / zaps / collections) ride their own memoized hook —
+// faked so a card can prove what it does with the answer, not how it got it.
+type Endorsements = import("@/services/endorsements").AppEndorsements;
+const endorsementsMock = vi.fn<(address: string | null, opts: unknown) => Endorsements | null>(() => null);
+vi.mock("@/hooks/useAppEndorsements", () => ({
+  useAppEndorsements: (address: string | null, opts: unknown) => endorsementsMock(address, opts),
+}));
+let followsMock = new Set<string>();
+vi.mock("@/hooks/useMyFollows", () => ({
+  useMyFollows: () => ({ follows: followsMock, ready: true }),
+}));
+
 import { SearchResults } from "./SearchResults";
 
 function ev(id: string, kind: number, pubkey = "a".repeat(64), content = "", tags: string[][] = []): NostrEvent {
@@ -85,6 +97,9 @@ beforeEach(() => {
   vi.clearAllMocks();
   profileMapMock.clear();
   repoCountsMock.mockResolvedValue({ issues: 0, patches: 0 });
+  endorsementsMock.mockReturnValue(null);
+  followsMock = new Set();
+  scoreOfMock.mockImplementation(() => 0.85);
   allStreams = [];
   window.history.replaceState({}, "", "/?q=jack");
 });
@@ -219,6 +234,95 @@ describe("SearchResults", () => {
     const getIt = screen.getByTestId(/^app-get-/);
     expect(getIt.getAttribute("href")).toMatch(/^https:\/\/zapstore\.dev\/apps\/naddr1/);
     expect(getIt.querySelector("img")?.getAttribute("src")).toContain("zapstore.dev");
+  });
+
+  // Google's "shared endorsements", on Nostr: what the network said about an
+  // app, attached to its card — the faces of trusted reviewers, the numbers
+  // (reviews, zaps, curated collections), and one quote from the most trusted
+  // voice. Nostr has no star rating (probed: 0 of 845 app comments carry one),
+  // so the tier ring is the star and WHO said it decides what gets quoted.
+  describe("app card endorsements", () => {
+    const VITOR = "1".repeat(64);
+    const FAN = "2".repeat(64);
+    const listing = () =>
+      ev("app1", 32267, "9".repeat(64), "", [["d", "com.vitorpamplona.amethyst"], ["name", "Amethyst"], ["summary", "The all-in-one Nostr client"]]);
+    const review = (id: string, pubkey: string, text: string, at: number) => ({ id, pubkey, text, at, version: "1.13.1", k: "32267", kind: 1111 });
+    const withSignals = (): Endorsements => ({
+      address: "32267:" + "9".repeat(64) + ":com.vitorpamplona.amethyst",
+      reviews: [review("r1", FAN, "Perfect APP! Thanks!", 200), review("r2", VITOR, "love Amethyst. is my daily driver", 100)],
+      reviewCount: 14,
+      zaps: [],
+      zapCount: 101,
+      collectionCount: 46,
+    });
+
+    it("attaches trusted faces, the numbers, and the most trusted reviewer's words", async () => {
+      setUrlTab("apps");
+      endorsementsMock.mockReturnValue(withSignals());
+      // Vitor is verified (0.85 default); the fan is unrated — so Vitor leads
+      // and Vitor is quoted, although the fan's review is newer.
+      scoreOfMock.mockImplementation((pk) => (pk === FAN ? null : 0.85));
+      profileMapMock.set(VITOR, { name: "vitor" });
+      render(<SearchResults query="amethyst" pov="nosfabrica" />);
+      const app = listing();
+      emit({ hits: [{ event: app, author: author(app.pubkey, "Amethyst"), rank: null }], eose: true, timeMs: 200 });
+
+      const line = await screen.findByTestId("app-endorsements-app1");
+      await within(line).findByText(/Reviewed by vitor & 13 others/);
+      expect(line).toHaveTextContent("101");
+      expect(line).toHaveTextContent("in 46 collections");
+      // A results card wants faces and numbers, not a page of zaps.
+      expect(endorsementsMock).toHaveBeenCalledWith("32267:" + "9".repeat(64) + ":com.vitorpamplona.amethyst", {
+        publisher: "9".repeat(64),
+        reviewLimit: 8,
+        zapLimit: 0,
+      });
+      // Faces wear tier rings, trusted first.
+      const faces = [...line.querySelectorAll("[data-face]")];
+      expect(faces[0].getAttribute("data-face")).toBe(VITOR);
+      expect(faces.some((el) => el.className.includes("shadow-[0_0_0"))).toBe(true);
+      // The quote is the first sentence of the trusted review.
+      expect(screen.getByTestId("app-endorsement-quote-app1")).toHaveTextContent("love Amethyst.");
+      expect(screen.getByTestId("app-endorsement-quote-app1")).toHaveTextContent("vitor");
+    });
+
+    it("never quotes someone outside the web of trust", async () => {
+      setUrlTab("apps");
+      const e = withSignals();
+      e.reviews = [review("r1", FAN, "Perfect APP! Thanks!", 200)];
+      endorsementsMock.mockReturnValue(e);
+      scoreOfMock.mockImplementation(() => null);
+      render(<SearchResults query="amethyst" pov="nosfabrica" />);
+      const app = listing();
+      emit({ hits: [{ event: app, author: author(app.pubkey, "Amethyst"), rank: null }], eose: true, timeMs: 200 });
+      const line = await screen.findByTestId("app-endorsements-app1");
+      expect(line).toHaveTextContent("in 46 collections");
+      expect(screen.queryByTestId("app-endorsement-quote-app1")).toBeNull();
+    });
+
+    it("someone you follow leads even when the score says otherwise", async () => {
+      setUrlTab("apps");
+      endorsementsMock.mockReturnValue(withSignals());
+      scoreOfMock.mockImplementation((pk) => (pk === FAN ? null : 0.85));
+      followsMock = new Set([FAN]);
+      profileMapMock.set(FAN, { name: "fan" });
+      render(<SearchResults query="amethyst" pov="nosfabrica" />);
+      const app = listing();
+      emit({ hits: [{ event: app, author: author(app.pubkey, "Amethyst"), rank: null }], eose: true, timeMs: 200 });
+      const line = await screen.findByTestId("app-endorsements-app1");
+      await within(line).findByText(/Reviewed by fan/);
+      expect(screen.getByTestId("app-endorsement-quote-app1")).toHaveTextContent("Perfect APP! Thanks!");
+    });
+
+    it("stays silent when the network has said nothing", async () => {
+      setUrlTab("apps");
+      endorsementsMock.mockReturnValue({ address: "x", reviews: [], reviewCount: 0, zaps: [], zapCount: 0, collectionCount: 0 });
+      render(<SearchResults query="amethyst" pov="nosfabrica" />);
+      const app = listing();
+      emit({ hits: [{ event: app, author: author(app.pubkey, "Amethyst"), rank: null }], eose: true, timeMs: 200 });
+      await screen.findByTestId("app-card-app1");
+      expect(screen.queryByTestId("app-endorsements-app1")).toBeNull();
+    });
   });
 
   // Benjamin's review catch: People cards rendered bare — no ring, no coin,

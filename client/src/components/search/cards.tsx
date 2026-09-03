@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
  * primitives per CLAUDE.md: Chip for status/counts, shared tier ring.
  */
 import { Link, useLocation } from "wouter";
-import { Code2, ExternalLink, File, FileAudio, FileVideo, ListChecks, Package, Radio } from "lucide-react";
+import { Code2, ExternalLink, File, FileAudio, FileVideo, ListChecks, Package, Radio, Zap } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { nip19 } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -18,7 +18,13 @@ import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { eventStore } from "@/lib/eventStore";
 import { fetchProfileMap } from "@/services/nostr";
-import { fetchRepoCounts, zapStoreUrl } from "@/services/search";
+import { appAddress, fetchRepoCounts, zapStoreUrl } from "@/services/search";
+import { endorsementLabel, quoteFor, rankEndorsers } from "@/services/endorsements";
+import { useAppEndorsements } from "@/hooks/useAppEndorsements";
+import { useMyFollows } from "@/hooks/useMyFollows";
+import { useProfileMap } from "@/hooks/useProfileMap";
+import { EndorsementLine } from "@/components/search/EndorsementLine";
+import { compactCount } from "@/lib/compactCount";
 import { eventPath } from "@/lib/shareId";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { FeedVideo } from "@/components/share/FeedVideo";
@@ -321,6 +327,60 @@ export function platformWords(event: NostrEvent): string[] {
 }
 
 /**
+ * What the network said about an app, as Google's "shared endorsements":
+ * the faces of the most trusted reviewers, who they are, the numbers
+ * (reviews · zaps · curated collections), and one quote — only ever from
+ * someone you follow or a verified account. Nothing at all until the answer
+ * arrives, and nothing when the network has said nothing.
+ */
+function AppEndorsements({ event }: { event: NostrEvent }) {
+  const address = tagVal(event, "d") !== undefined ? appAddress(event) : null;
+  // A results card wants faces and numbers, not a page of zaps.
+  const e = useAppEndorsements(address, { publisher: event.pubkey, reviewLimit: 8, zapLimit: 0 });
+  const { follows } = useMyFollows();
+  const reviewers = e ? [...new Set(e.reviews.map((r) => r.pubkey))] : [];
+  const scoreOf = useAuthorScores(reviewers);
+  const profiles = useProfileMap(reviewers.slice(0, 3));
+  if (!e || (e.reviewCount === 0 && e.zapCount === 0 && e.collectionCount === 0)) return null;
+
+  const ranked = rankEndorsers(e.reviews, { follows, scoreOf });
+  const faces = ranked.slice(0, 3).map((r) => {
+    const p = profiles.get(r.pubkey);
+    return { pubkey: r.pubkey, name: p ? getDisplayLabel(p) : undefined, picture: p?.picture ?? undefined, score01: r.score };
+  });
+  const names = faces.map((f) => f.name).filter((n): n is string => !!n);
+  const label = e.reviewCount > 0 ? endorsementLabel("Reviewed", names, Math.max(e.reviewCount, ranked.length)) : null;
+  // The quote: the top-ranked voice, if they are inside the web of trust.
+  const top = ranked[0];
+  const topReview = top && top.group !== "other" ? e.reviews.find((r) => r.pubkey === top.pubkey && r.text.trim()) : null;
+  const topName = top ? faces.find((f) => f.pubkey === top.pubkey)?.name : undefined;
+  const quote = topReview && topName ? { text: quoteFor(topReview.text), name: topName, testId: `app-endorsement-quote-${event.id}` } : null;
+
+  return (
+    <div className="mt-2">
+      <EndorsementLine
+        testId={`app-endorsements-${event.id}`}
+        faces={faces}
+        label={label}
+        quote={quote}
+        chips={
+          <>
+            {e.zapCount > 0 && (
+              <Chip size="sm" tone="warning" icon={Zap} title="Zaps seen on the search relay">
+                {compactCount(e.zapCount)}
+              </Chip>
+            )}
+            {e.collectionCount > 0 && (
+              <Chip size="sm" tone="info">in {compactCount(e.collectionCount)} {e.collectionCount === 1 ? "collection" : "collections"}</Chip>
+            )}
+          </>
+        }
+      />
+    </div>
+  );
+}
+
+/**
  * A Zap Store listing (kind 32267) as a real app-store card: the app's own
  * icon, name, summary, platforms, license — and "Get it" out to the app's
  * site (falling back to its repository). Vitor's split, the
@@ -365,6 +425,7 @@ export function AppCard({ event, author, score }: { event: NostrEvent; author: S
             ))}
             {license && <Chip size="sm" tone="slate">{license}</Chip>}
           </div>
+          <AppEndorsements event={event} />
           <div className="mt-2">
             <CuratorFooter kicker="Published by" author={author} score={score} created_at={event.created_at} />
           </div>

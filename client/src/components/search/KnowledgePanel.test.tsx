@@ -34,6 +34,11 @@ vi.mock("@/services/search", async (importOriginal) => {
 vi.mock("@/hooks/useAuthorScores", () => ({
   useAuthorScores: () => () => 0.7,
 }));
+type Endorsements = import("@/services/endorsements").AppEndorsements;
+const endorsementsMock = vi.fn<(address: string | null, opts: unknown) => Endorsements | null>(() => null);
+vi.mock("@/hooks/useAppEndorsements", () => ({
+  useAppEndorsements: (address: string | null, opts: unknown) => endorsementsMock(address, opts),
+}));
 
 import { KnowledgePanel } from "./KnowledgePanel";
 
@@ -51,6 +56,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   nipPageMock.mockResolvedValue(null);
   personSetsMock.mockResolvedValue([]);
+  endorsementsMock.mockReturnValue(null);
   streamCalls = [];
 });
 
@@ -191,6 +197,48 @@ describe("the topic panel", () => {
     expect(screen.getByTestId("apps-panel-app-ap1").getAttribute("href")).toMatch(/^\/e\//);
     // The deep link into the full Apps vertical.
     expect(screen.getByTestId("apps-panel-more").getAttribute("href")).toBe("/?q=amethyst&t=apps");
+  });
+
+  // The rail's app rows carry the network's numbers — reviews and zaps — as
+  // a quiet meta line. Counts only: three COUNT frames per row, no pages.
+  it("app rows say how much the network has said about them", async () => {
+    endorsementsMock.mockImplementation((address) =>
+      address?.endsWith("com.vitorpamplona.amethyst")
+        ? { address, reviews: [], reviewCount: 14, zaps: [], zapCount: 101, collectionCount: 46 }
+        : null,
+    );
+    render(<KnowledgePanel query="amethyst" pov="nosfabrica" />);
+    await vi.waitFor(() => expect(streamCalls.some((c) => c.params.tab === "apps")).toBe(true));
+    const appsCall = streamCalls.find((c) => c.params.tab === "apps")!;
+    appsCall.emit({
+      hits: [{
+        event: { id: "ap1", kind: 32267, pubkey: "9".repeat(64), tags: [["d", "com.vitorpamplona.amethyst"], ["name", "Amethyst"]], content: "", created_at: NOW, sig: "s" } as NostrEvent,
+        author: null, rank: null,
+      }],
+      eose: true,
+      timeMs: 90,
+    });
+    const meta = await screen.findByTestId("apps-panel-meta-ap1");
+    expect(meta).toHaveTextContent("14 reviews");
+    expect(meta).toHaveTextContent("101");
+    expect(endorsementsMock).toHaveBeenCalledWith("32267:" + "9".repeat(64) + ":com.vitorpamplona.amethyst", {
+      publisher: "9".repeat(64), reviewLimit: 0, zapLimit: 0,
+    });
+  });
+
+  it("a row with nothing said about it has no meta line", async () => {
+    endorsementsMock.mockReturnValue({ address: "x", reviews: [], reviewCount: 0, zaps: [], zapCount: 0, collectionCount: 3 });
+    render(<KnowledgePanel query="amethyst" pov="nosfabrica" />);
+    await vi.waitFor(() => expect(streamCalls.some((c) => c.params.tab === "apps")).toBe(true));
+    streamCalls.find((c) => c.params.tab === "apps")!.emit({
+      hits: [{
+        event: { id: "ap1", kind: 32267, pubkey: "9".repeat(64), tags: [["d", "com.vitorpamplona.amethyst"], ["name", "Amethyst"]], content: "", created_at: NOW, sig: "s" } as NostrEvent,
+        author: null, rank: null,
+      }],
+      eose: true, timeMs: 90,
+    });
+    await screen.findByTestId("apps-panel-app-ap1");
+    expect(screen.queryByTestId("apps-panel-meta-ap1")).toBeNull();
   });
 
   it("no name-matching app, no Apps module", async () => {

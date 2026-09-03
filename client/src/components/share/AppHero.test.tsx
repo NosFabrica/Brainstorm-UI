@@ -43,9 +43,23 @@ vi.mock("@/lib/eventStore", () => ({
   },
 }));
 
+// Endorsements ride their own memoized hook; the viewer's follows their own.
+type Endorsements = import("@/services/endorsements").AppEndorsements;
+const endorsementsMock = vi.fn<(address: string | null, opts: unknown) => Endorsements | null>(() => null);
+vi.mock("@/hooks/useAppEndorsements", () => ({
+  useAppEndorsements: (address: string | null, opts: unknown) => endorsementsMock(address, opts),
+}));
+let followsMock = new Set<string>();
+let signedInMock = false;
+vi.mock("@/hooks/useMyFollows", () => ({
+  useMyFollows: () => ({ follows: followsMock, ready: true, signedIn: signedInMock }),
+}));
+
 import { AppHero } from "./AppHero";
 
 const PUBLISHER = "b".repeat(64);
+const profileEvent = (pubkey: string, name: string): NostrEvent =>
+  ({ id: pubkey.slice(0, 8), kind: 0, pubkey, tags: [], content: JSON.stringify({ name }), created_at: 1, sig: "s" }) as NostrEvent;
 
 function listing(tags: string[][], content = ""): NostrEvent {
   return {
@@ -89,6 +103,120 @@ beforeEach(() => {
   releasesMock.mockResolvedValue([]);
   similarMock.mockResolvedValue([]);
   assetMock.mockResolvedValue(null);
+  endorsementsMock.mockReturnValue(null);
+  followsMock = new Set();
+  signedInMock = false;
+});
+
+// What the network said about the app — Google's "shared endorsements" on
+// Nostr. There is no star rating (0 of 845 app comments carry one), so the
+// order is the rating: people you follow, then verified accounts, then the
+// rest folded away. Reviews are kind-1111 comments on the listing; zaps with
+// a memo count as micro-reviews.
+describe("AppHero endorsements", () => {
+  const VITOR = "1".repeat(64);
+  const FAN = "2".repeat(64);
+  const FRIEND = "3".repeat(64);
+  const ZAPPER = "4".repeat(64);
+  const ADDR = `32267:${PUBLISHER}:social.flotilla`;
+  const review = (id: string, pubkey: string, text: string, at: number, version: string | null = "1.13.1") =>
+    ({ id, pubkey, text, at, version, k: "32267", kind: 1111 });
+  const signals = (over: Partial<Endorsements> = {}): Endorsements => ({
+    address: ADDR,
+    reviews: [
+      review("r-fan", FAN, "Perfect APP! Thanks!", 300),
+      review("r-vitor", VITOR, "love Amethyst. is my daily driver", 200),
+      review("r-friend", FRIEND, "Best client on Android", 100, null),
+    ],
+    reviewCount: 14,
+    zaps: [
+      { id: "z1", pubkey: ZAPPER, memo: "love amethyst how it is", at: 250 },
+      { id: "z2", pubkey: ZAPPER, memo: "", at: 240 },
+    ],
+    zapCount: 101,
+    collectionCount: 46,
+    ...over,
+  });
+
+  it("counts reviews, zaps and collections in a second stats strip", async () => {
+    endorsementsMock.mockReturnValue(signals());
+    render(<AppHero event={FLOTILLA} />);
+    const strip = await screen.findByTestId("app-hero-endorsement-stats");
+    expect(strip).toHaveTextContent("14");
+    expect(strip).toHaveTextContent("reviews");
+    expect(strip).toHaveTextContent("101");
+    expect(strip).toHaveTextContent("zaps");
+    expect(strip).toHaveTextContent("46");
+    expect(strip).toHaveTextContent("collections");
+    // The page wants the full story: pages of reviews AND zaps.
+    expect(endorsementsMock).toHaveBeenCalledWith(ADDR, { publisher: PUBLISHER, reviewLimit: 50, zapLimit: 50 });
+  });
+
+  it("no signals, no strip and no section", async () => {
+    endorsementsMock.mockReturnValue({ address: ADDR, reviews: [], reviewCount: 0, zaps: [], zapCount: 0, collectionCount: 0 });
+    render(<AppHero event={FLOTILLA} />);
+    await Promise.resolve();
+    expect(screen.queryByTestId("app-hero-endorsement-stats")).toBeNull();
+    expect(screen.queryByTestId("app-hero-reviews")).toBeNull();
+    expect(screen.queryByTestId("app-hero-reviews-empty")).toBeNull();
+  });
+
+  it("orders what people say: you follow, then verified, the rest folded", async () => {
+    endorsementsMock.mockReturnValue(signals());
+    signedInMock = true;
+    followsMock = new Set([FRIEND]);
+    scoreByPubkey.set(VITOR, 0.9);
+    scoreByPubkey.set(FAN, null);
+    scoreByPubkey.set(FRIEND, null);
+    scoreByPubkey.set(ZAPPER, 0.5);
+    knownProfiles.set(VITOR, profileEvent(VITOR, "vitor"));
+    knownProfiles.set(FRIEND, profileEvent(FRIEND, "friend"));
+    render(<AppHero event={FLOTILLA} />);
+    const section = await screen.findByTestId("app-hero-reviews");
+    expect(section).toHaveTextContent("What people say");
+    // Group headers, in order — the friend's older review leads the verified one.
+    const text = section.textContent ?? "";
+    expect(text.indexOf("From people you follow")).toBeGreaterThan(-1);
+    expect(text.indexOf("From people you follow")).toBeLessThan(text.indexOf("From verified accounts"));
+    expect(text.indexOf("Best client on Android")).toBeLessThan(text.indexOf("love Amethyst"));
+    // The zap memo is a verified voice too — a ⚡ row; the silent zap is not a row.
+    expect(screen.getByTestId("app-review-z1")).toHaveTextContent("love amethyst how it is");
+    expect(screen.queryByTestId("app-review-z2")).toBeNull();
+    // Which version the reviewer ran.
+    expect(screen.getByTestId("app-review-r-vitor")).toHaveTextContent("on v1.13.1");
+    // The unrated fan is folded away until asked for.
+    expect(screen.queryByTestId("app-review-r-fan")).toBeNull();
+    fireEvent.click(screen.getByTestId("app-hero-reviews-toggle"));
+    expect(screen.getByTestId("app-review-r-fan")).toHaveTextContent("Perfect APP!");
+    // The reviewer's ring is the rating.
+    expect(screen.getByTestId("app-review-r-vitor").querySelector('[class*="shadow-[0_0_0"]')).not.toBeNull();
+  });
+
+  it("tells a signed-in viewer whose network hasn't spoken that it is showing all", async () => {
+    endorsementsMock.mockReturnValue(signals());
+    signedInMock = true;
+    followsMock = new Set(["9".repeat(64)]);
+    render(<AppHero event={FLOTILLA} />);
+    const section = await screen.findByTestId("app-hero-reviews");
+    expect(section).toHaveTextContent("No reviews from your network yet — showing all 14");
+    expect(section).not.toHaveTextContent("From people you follow");
+  });
+
+  it("signed out, the groups are simply verified and the rest — no network talk", async () => {
+    endorsementsMock.mockReturnValue(signals());
+    render(<AppHero event={FLOTILLA} />);
+    const section = await screen.findByTestId("app-hero-reviews");
+    expect(section).not.toHaveTextContent("your network");
+    expect(section).toHaveTextContent("From verified accounts");
+  });
+
+  it("with releases but nobody talking, says so quietly", async () => {
+    releasesMock.mockResolvedValue([rel("1.0", 3)]);
+    endorsementsMock.mockReturnValue({ address: ADDR, reviews: [], reviewCount: 0, zaps: [], zapCount: 0, collectionCount: 0 });
+    render(<AppHero event={FLOTILLA} />);
+    await screen.findByTestId("app-hero-release");
+    expect(screen.getByTestId("app-hero-reviews-empty")).toHaveTextContent("No reviews from the network yet");
+  });
 });
 
 describe("AppHero", () => {

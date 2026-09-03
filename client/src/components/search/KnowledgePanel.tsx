@@ -6,15 +6,56 @@
  */
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { ArrowRight, BookOpen, Check, Hash, Package, Users } from "lucide-react";
+import { ArrowRight, BookOpen, Check, Hash, Package, Users, Zap } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing, TierWordChip } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
+import { useAppEndorsements } from "@/hooks/useAppEndorsements";
+import { compactCount } from "@/lib/compactCount";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { eventPath } from "@/lib/shareId";
-import { fetchNipPage, fetchPersonSets, searchStream, suggestProfiles, type PersonSetMembership, type SearchHit, type SearchPov } from "@/services/search";
+import { appAddress, fetchNipPage, fetchPersonSets, searchStream, suggestProfiles, type PersonSetMembership, type SearchHit, type SearchPov } from "@/services/search";
+
+/** One app in the rail: icon, name, summary — and how much the network has
+ *  said about it (reviews · zaps), as a quiet meta line. Counts only. */
+function AppRailRow({ event }: { event: NostrEvent }) {
+  const name = event.tags.find((t) => t[0] === "name")?.[1] ?? "App";
+  const icon = event.tags.find((t) => t[0] === "icon")?.[1];
+  const summary = event.tags.find((t) => t[0] === "summary")?.[1];
+  const address = event.tags.some((t) => t[0] === "d") ? appAddress(event) : null;
+  const e = useAppEndorsements(address, { publisher: event.pubkey, reviewLimit: 0, zapLimit: 0 });
+  const hasMeta = !!e && (e.reviewCount > 0 || e.zapCount > 0);
+  return (
+    <li>
+      <Link
+        href={eventPath(event)}
+        className="flex items-center gap-2.5 rounded-lg px-1.5 py-1.5 -mx-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+        data-testid={`apps-panel-app-${event.id}`}
+      >
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
+          {icon ? <img src={icon} alt="" loading="lazy" className="h-full w-full object-cover" /> : <Package className="h-4 w-4 text-slate-400" />}
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-xs font-semibold text-slate-800 dark:text-slate-100">{name}</span>
+          {summary && <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400">{summary}</span>}
+          {hasMeta && (
+            <span className="mt-0.5 flex items-center gap-1.5 text-[10px] text-slate-400 dark:text-slate-500" data-testid={`apps-panel-meta-${event.id}`}>
+              {e.reviewCount > 0 && <span>{compactCount(e.reviewCount)} {e.reviewCount === 1 ? "review" : "reviews"}</span>}
+              {e.reviewCount > 0 && e.zapCount > 0 && <span aria-hidden>·</span>}
+              {e.zapCount > 0 && (
+                <span className="inline-flex items-center gap-0.5" title="Zaps seen on the search relay">
+                  <Zap className="h-2.5 w-2.5" /> {compactCount(e.zapCount)}
+                </span>
+              )}
+            </span>
+          )}
+        </span>
+      </Link>
+    </li>
+  );
+}
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
@@ -390,28 +431,9 @@ export function KnowledgePanel({
     >
       <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Apps</p>
       <ul className="mt-1.5 space-y-0.5">
-        {appHits.map((h) => {
-          const name = h.event.tags.find((t) => t[0] === "name")?.[1] ?? "App";
-          const icon = h.event.tags.find((t) => t[0] === "icon")?.[1];
-          const summary = h.event.tags.find((t) => t[0] === "summary")?.[1];
-          return (
-            <li key={h.event.id}>
-              <Link
-                href={eventPath(h.event as NostrEvent)}
-                className="flex items-center gap-2.5 rounded-lg px-1.5 py-1.5 -mx-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
-                data-testid={`apps-panel-app-${h.event.id}`}
-              >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
-                  {icon ? <img src={icon} alt="" loading="lazy" className="h-full w-full object-cover" /> : <Package className="h-4 w-4 text-slate-400" />}
-                </span>
-                <span className="min-w-0">
-                  <span className="block truncate text-xs font-semibold text-slate-800 dark:text-slate-100">{name}</span>
-                  {summary && <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400">{summary}</span>}
-                </span>
-              </Link>
-            </li>
-          );
-        })}
+        {appHits.map((h) => (
+          <AppRailRow key={h.event.id} event={h.event as NostrEvent} />
+        ))}
       </ul>
       <Link
         href={`/?q=${encodeURIComponent(query.trim())}&t=apps`}
