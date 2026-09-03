@@ -146,8 +146,16 @@ export function rankEndorsers(items: { pubkey: string; at: number }[], ctx: Rank
  * "Reviewed by Vitor & 13 others" — names up to two people, counts the rest;
  * with no names resolved it counts people, compacting big numbers.
  */
+const NAME_MAX = 24;
+
+/** Names as people actually write them: newlines collapsed, long ones cut. */
+export function tidyName(name: string): string {
+  const clean = name.replace(/\s+/g, " ").trim();
+  return clean.length > NAME_MAX ? clean.slice(0, NAME_MAX - 1).trimEnd() + "…" : clean;
+}
+
 export function endorsementLabel(verb: string, names: string[], total: number): string {
-  const lead = names.filter(Boolean).slice(0, 2);
+  const lead = names.map(tidyName).filter(Boolean).slice(0, 2);
   const others = Math.max(0, total - lead.length);
   if (lead.length === 0) return `${verb} by ${compactCount(total)} ${total === 1 ? "person" : "people"}`;
   if (others === 0) return `${verb} by ${lead.join(" & ")}`;
@@ -157,10 +165,12 @@ export function endorsementLabel(verb: string, names: string[], total: number): 
 /**
  * The quotable part of a review: whitespace collapsed, whole when short,
  * otherwise its first sentence — and a hard cut with an ellipsis when the
- * prose never pauses.
+ * prose never pauses. A review with no words in it ("👍", "100") yields
+ * nothing: an emoji is an endorsement, not a quote.
  */
 export function quoteFor(text: string, max = 90): string {
   const clean = text.replace(/\s+/g, " ").trim();
+  if (!/\p{L}/u.test(clean)) return "";
   if (clean.length <= max) return clean;
   const sentence = clean.match(/^.*?[.!?](?=\s|$)/);
   if (sentence && sentence[0].length <= max) return sentence[0];

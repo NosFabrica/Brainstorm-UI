@@ -19,7 +19,7 @@ import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { eventStore } from "@/lib/eventStore";
 import { fetchProfileMap } from "@/services/nostr";
 import { appAddress, fetchRepoCounts, zapStoreUrl } from "@/services/search";
-import { endorsementLabel, quoteFor, rankEndorsers } from "@/services/endorsements";
+import { endorsementLabel, quoteFor, rankEndorsers, tidyName } from "@/services/endorsements";
 import { useAppEndorsements } from "@/hooks/useAppEndorsements";
 import { useMyFollows } from "@/hooks/useMyFollows";
 import { useProfileMap } from "@/hooks/useProfileMap";
@@ -350,11 +350,18 @@ function AppEndorsements({ event }: { event: NostrEvent }) {
   });
   const names = faces.map((f) => f.name).filter((n): n is string => !!n);
   const label = e.reviewCount > 0 ? endorsementLabel("Reviewed", names, Math.max(e.reviewCount, ranked.length)) : null;
-  // The quote: the top-ranked voice, if they are inside the web of trust.
-  const top = ranked[0];
-  const topReview = top && top.group !== "other" ? e.reviews.find((r) => r.pubkey === top.pubkey && r.text.trim()) : null;
-  const topName = top ? faces.find((f) => f.pubkey === top.pubkey)?.name : undefined;
-  const quote = topReview && topName ? { text: quoteFor(topReview.text), name: topName, testId: `app-endorsement-quote-${event.id}` } : null;
+  // The quote: the most trusted voice that actually wrote words — never
+  // anyone outside the web of trust, and never a bare "👍".
+  let quote: { text: string; name: string; testId: string } | null = null;
+  for (const r of ranked.slice(0, 3)) {
+    if (r.group === "other") break;
+    const name = faces.find((f) => f.pubkey === r.pubkey)?.name;
+    const said = e.reviews.map((rv) => (rv.pubkey === r.pubkey ? quoteFor(rv.text) : "")).find(Boolean);
+    if (name && said) {
+      quote = { text: said, name: tidyName(name), testId: `app-endorsement-quote-${event.id}` };
+      break;
+    }
+  }
 
   return (
     <div className="mt-2">

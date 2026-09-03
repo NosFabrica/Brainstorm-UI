@@ -159,6 +159,13 @@ describe("endorsementLabel", () => {
     expect(endorsementLabel("Reviewed", ["Vitor"], 1)).toBe("Reviewed by Vitor");
   });
 
+  it("tidies names as people actually write them — live: a display name with newlines, another 40 characters long", () => {
+    expect(endorsementLabel("Reviewed", ["𝕋ℍ𝔼 𝕋𝕆𝔻𝔻𝕊𝕋ℝ\r\n\r\n", "  capybara "], 14)).toBe("Reviewed by 𝕋ℍ𝔼 𝕋𝕆𝔻𝔻𝕊𝕋ℝ, capybara & 12 others");
+    expect(endorsementLabel("Reviewed", ["x".repeat(40)], 1)).toBe(`Reviewed by ${"x".repeat(23)}…`);
+    // A name that is all whitespace resolves to nothing.
+    expect(endorsementLabel("Reviewed", ["\n"], 3)).toBe("Reviewed by 3 people");
+  });
+
   it("falls back to a count when no name resolved, compacting big numbers", () => {
     expect(endorsementLabel("Zapped", [], 101)).toBe("Zapped by 101 people");
     expect(endorsementLabel("Followed", [], 1234)).toBe("Followed by 1.2k people");
@@ -170,6 +177,12 @@ describe("quoteFor", () => {
   it("keeps a short review whole and cuts a long one at a sentence boundary", () => {
     expect(quoteFor("Perfect APP! Thanks!")).toBe("Perfect APP! Thanks!");
     expect(quoteFor("love Amethyst. is my daily driver, but it seems to be melting my battery lately and I wish it did not")).toBe("love Amethyst.");
+  });
+
+  it("has nothing to quote from a review with no words — live: the top verified review of Amethyst is '👍'", () => {
+    expect(quoteFor("👍")).toBe("");
+    expect(quoteFor("!!! 🔥🔥")).toBe("");
+    expect(quoteFor("ok")).toBe("ok");
   });
 
   it("collapses whitespace and hard-truncates prose with no boundary", () => {

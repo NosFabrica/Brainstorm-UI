@@ -311,6 +311,25 @@ describe("SearchResults", () => {
       expect(screen.queryByTestId("app-endorsement-quote-app1")).toBeNull();
     });
 
+    // Live on the Amethyst card: the top verified review was "👍". An emoji is
+    // an endorsement, not a quote — the next trusted voice with words speaks.
+    it("quotes the most trusted voice that wrote words, skipping a bare emoji", async () => {
+      setUrlTab("apps");
+      const e = withSignals();
+      e.reviews = [review("r1", VITOR, "👍", 300), review("r2", FAN, "love Amethyst. is my daily driver", 200)];
+      endorsementsMock.mockReturnValue(e);
+      scoreOfMock.mockImplementation(() => 0.85);
+      profileMapMock.set(VITOR, { name: "capybara" });
+      profileMapMock.set(FAN, { name: "fan\r\n\r\n" });
+      render(<SearchResults query="amethyst" pov="nosfabrica" />);
+      const app = listing();
+      emit({ hits: [{ event: app, author: author(app.pubkey, "Amethyst"), rank: null }], eose: true, timeMs: 200 });
+      const quote = await screen.findByTestId("app-endorsement-quote-app1");
+      expect(quote).toHaveTextContent("love Amethyst.");
+      expect(quote).toHaveTextContent("— fan");
+      expect(quote.textContent).not.toMatch(/\r|\n/);
+    });
+
     it("someone you follow leads even when the score says otherwise", async () => {
       setUrlTab("apps");
       endorsementsMock.mockReturnValue(withSignals());
