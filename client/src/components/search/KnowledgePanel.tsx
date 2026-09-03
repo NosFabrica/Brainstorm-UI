@@ -13,6 +13,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing, TierWordChip } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useAppEndorsements } from "@/hooks/useAppEndorsements";
+import { FlaggedChip, FollowedByLine } from "@/components/search/EndorsementLine";
 import { compactCount } from "@/lib/compactCount";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { eventPath } from "@/lib/shareId";
@@ -375,16 +376,20 @@ export function KnowledgePanel({
           <p className="truncate text-base font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
             {getDisplayLabel(person)}
           </p>
-          <div className="mt-0.5 flex items-center gap-1.5">
+          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
             <TierWordChip score01={effectiveRank} />
             {followers != null && (
               <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-500 dark:text-slate-400">
                 <Users className="h-2.5 w-2.5" /> {followers.toLocaleString()}
               </span>
             )}
+            <FlaggedChip pubkey={person.pubkey} testId="person-flagged" />
           </div>
         </div>
       </div>
+      {/* Nostr's oldest review: who follows them — the most trusted faces, and
+          how many verified accounts in all. */}
+      <FollowedByLine pubkey={person.pubkey} npub={person.npub} personal={pov === "mywot"} testId="person-followed-by" className="mt-2.5" />
       {person.nip05 && (
         <p className="mt-2.5 flex items-center gap-1 truncate text-xs text-brand-primary dark:text-brand-link">
           <Check className="h-3 w-3 shrink-0" /> {person.nip05.replace(/^_@/, "")}

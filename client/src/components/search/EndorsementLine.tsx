@@ -9,9 +9,80 @@
 import type { ReactNode } from "react";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
+import { AlertTriangle } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Chip } from "@/components/ui/chip";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
+import { useAuthorFlags } from "@/hooks/useAuthorFlags";
+import { usePersonEndorsements } from "@/hooks/usePersonEndorsements";
+import { useProfileMap } from "@/hooks/useProfileMap";
+import { compactCount } from "@/lib/compactCount";
+import { getDisplayLabel } from "@/lib/profileSearch";
+
+/**
+ * "Followed by alice, bob & 1.2k verified accounts" — a person's endorsement
+ * line: the most trusted accounts that follow them (ringed faces), and how
+ * many verified accounts do in all. Under My perspective the count is
+ * "accounts you trust". Leads to the full followers list. Nothing until the
+ * answer lands; nothing when nobody verified follows them.
+ */
+export function FollowedByLine({
+  pubkey,
+  npub,
+  personal,
+  enabled = true,
+  testId,
+  className,
+}: {
+  pubkey: string;
+  npub: string;
+  personal: boolean;
+  enabled?: boolean;
+  testId?: string;
+  className?: string;
+}) {
+  const e = usePersonEndorsements(enabled ? pubkey : null, personal);
+  const top = e?.followedBy.slice(0, 3) ?? [];
+  const profiles = useProfileMap(top.map((f) => f.pubkey));
+  if (!e || e.followedBy.length === 0) return null;
+  const faces = top.map((f) => {
+    const p = profiles.get(f.pubkey);
+    return { pubkey: f.pubkey, name: p ? getDisplayLabel(p) : undefined, picture: p?.picture ?? undefined, score01: f.score01 };
+  });
+  const lead = faces.map((f) => f.name).filter((n): n is string => !!n).slice(0, 2);
+  const total = e.total ?? e.followedBy.length;
+  const others = Math.max(0, total - lead.length);
+  const who = personal ? "accounts you trust" : "verified accounts";
+  const label =
+    lead.length === 0
+      ? `Followed by ${compactCount(total)} ${who}`
+      : others > 0
+        ? `Followed by ${lead.join(", ")} & ${compactCount(others)} ${who}`
+        : `Followed by ${lead.join(" & ")}`;
+  return (
+    <Link
+      href={`/p/${npub}/followers`}
+      onClick={(ev) => ev.stopPropagation()}
+      className={`block rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 ${className ?? ""}`}
+    >
+      <EndorsementLine testId={testId} faces={faces} label={label} />
+    </Link>
+  );
+}
+
+/** The one honest negative: a chip when the network has FLAGGED the account
+ *  (verified reporters past the server's threshold, house Perspective) —
+ *  never a raw report count for everyone. Silent until the answer lands. */
+export function FlaggedChip({ pubkey, testId }: { pubkey: string; testId?: string }) {
+  const flagged = useAuthorFlags([pubkey]);
+  if (flagged(pubkey) !== true) return null;
+  return (
+    <Chip size="sm" tone="danger" icon={AlertTriangle} title="Reported by people the network trusts" data-testid={testId}>
+      Flagged by the network
+    </Chip>
+  );
+}
 
 export interface EndorsementFace {
   pubkey: string;

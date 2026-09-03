@@ -18,7 +18,12 @@ vi.mock("@/services/search", () => ({
   fetchAppEndorsementCounts: (...a: unknown[]) => countsMock(...a),
 }));
 
-import { endorsementLabel, fetchAppEndorsements, quoteFor, rankEndorsers } from "./endorsements";
+const connectionsMock = vi.fn();
+vi.mock("@/services/api", () => ({
+  apiClient: { getUserConnections: (...a: unknown[]) => connectionsMock(...a) },
+}));
+
+import { endorsementLabel, fetchAppEndorsements, fetchPersonEndorsements, quoteFor, rankEndorsers } from "./endorsements";
 
 const A = "a".repeat(64);
 const B = "b".repeat(64);
@@ -75,6 +80,34 @@ describe("fetchAppEndorsements", () => {
     await fetchAppEndorsements(ADDR, { publisher: B, zapLimit: 0, reviewLimit: 0 });
     expect(reviewsMock).not.toHaveBeenCalled();
     expect(countsMock).toHaveBeenCalledWith(ADDR);
+  });
+});
+
+// A person's endorsements are their followers — the most trusted ones, as
+// faces, and how many verified accounts follow them in total. Follows are not
+// indexed on the search relay (probed), so this is our own server's
+// connections endpoint: house Perspective for a stable public line, the
+// viewer's own when they look through My perspective.
+describe("fetchPersonEndorsements", () => {
+  it("reads the top verified followers, keeping each one's score for its ring", async () => {
+    connectionsMock.mockResolvedValue({ data: { items: [A, { pubkey: B, influence: 0.42 }, { pubkey: "" }], total: 1234 } });
+    const e = await fetchPersonEndorsements(C, { personal: false });
+    expect(e).toEqual({ followedBy: [{ pubkey: A, score01: null }, { pubkey: B, score01: 0.42 }], total: 1234 });
+    expect(connectionsMock).toHaveBeenCalledWith(C, "followed_by", {
+      limit: 8, order: "desc", verified_only: true, with_total: true, house: true,
+    });
+  });
+
+  it("looks through the viewer's own perspective when asked", async () => {
+    connectionsMock.mockResolvedValue({ data: { items: [] } });
+    const e = await fetchPersonEndorsements(C, { personal: true });
+    expect(connectionsMock.mock.calls[0][2]).toMatchObject({ house: false });
+    expect(e).toEqual({ followedBy: [], total: null });
+  });
+
+  it("never rejects — a failed call is an empty line", async () => {
+    connectionsMock.mockRejectedValue(new Error("500"));
+    expect(await fetchPersonEndorsements(C, { personal: false })).toEqual({ followedBy: [], total: null });
   });
 });
 

@@ -8,6 +8,7 @@ import { Check, Copy, Globe, Users, Zap } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing, TierWordChip, useCoinReplacedByRing } from "@/components/score/VerificationCoin";
+import { FlaggedChip, FollowedByLine } from "@/components/search/EndorsementLine";
 import { copyToClipboard } from "@/lib/clipboard";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 
@@ -31,6 +32,7 @@ export function PersonCard({
   onOpen,
   onPrefetchEnter,
   onPrefetchLeave,
+  showFollowedBy = false,
 }: {
   result: SearchResult;
   idx: number;
@@ -38,6 +40,8 @@ export function PersonCard({
   onOpen: (result: SearchResult) => void;
   onPrefetchEnter?: (result: SearchResult) => void;
   onPrefetchLeave?: (result: SearchResult) => void;
+  /** The "Followed by …" line costs a server call — the top of the page earns it. */
+  showFollowedBy?: boolean;
 }) {
   const tierRing = useTierRing();
   const coinReplaced = useCoinReplacedByRing();
@@ -85,6 +89,7 @@ export function PersonCard({
               {getDisplayLabel(result)}
             </span>
             <TierWordChip score01={result.wotRank} />
+            <FlaggedChip pubkey={result.pubkey} testId={`person-flagged-${idx}`} />
           </div>
           {result.nip05 && (
             <p className="text-xs text-brand-primary dark:text-brand-link truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-nip05-${idx}`}>
@@ -117,6 +122,14 @@ export function PersonCard({
               {truncateAbout(result.about)}
             </p>
           )}
+          <FollowedByLine
+            pubkey={result.pubkey}
+            npub={result.npub}
+            personal={pov === "mywot"}
+            enabled={showFollowedBy}
+            testId={`person-followed-by-${idx}`}
+            className="mt-1.5"
+          />
           <div className="flex items-center gap-1.5 sm:gap-2 mt-2 flex-wrap">
             {result.wotFollowers != null && (
               <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800/60" data-testid={`badge-followers-${idx}`}>

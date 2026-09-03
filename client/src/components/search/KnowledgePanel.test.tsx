@@ -39,6 +39,21 @@ const endorsementsMock = vi.fn<(address: string | null, opts: unknown) => Endors
 vi.mock("@/hooks/useAppEndorsements", () => ({
   useAppEndorsements: (address: string | null, opts: unknown) => endorsementsMock(address, opts),
 }));
+type PersonEndorsements = import("@/services/endorsements").PersonEndorsements;
+const personEndorsementsMock = vi.fn<(pubkey: string | null, personal: boolean) => PersonEndorsements | null>(() => null);
+vi.mock("@/hooks/usePersonEndorsements", () => ({
+  usePersonEndorsements: (pubkey: string | null, personal: boolean) => personEndorsementsMock(pubkey, personal),
+}));
+const flagsMock = vi.fn<(pk: string) => boolean | undefined>(() => false);
+vi.mock("@/hooks/useAuthorFlags", () => ({
+  useAuthorFlags: () => (pk: string) => flagsMock(pk),
+}));
+// Follower faces hydrate through fetchProfileMap — stubbed so jsdom never
+// touches relays; tests seed names per case.
+const profileMapMock = new Map<string, { name?: string; picture?: string }>();
+vi.mock("@/services/nostr", () => ({
+  fetchProfileMap: vi.fn(() => Promise.resolve(profileMapMock)),
+}));
 
 import { KnowledgePanel } from "./KnowledgePanel";
 
@@ -57,7 +72,61 @@ beforeEach(() => {
   nipPageMock.mockResolvedValue(null);
   personSetsMock.mockResolvedValue([]);
   endorsementsMock.mockReturnValue(null);
+  personEndorsementsMock.mockReturnValue(null);
+  flagsMock.mockImplementation(() => false);
+  profileMapMock.clear();
   streamCalls = [];
+});
+
+// A person's endorsements are their followers — the Google shared-endorsement
+// beat under the name: the most trusted faces that follow them, and how many
+// verified accounts do in all. And the one honest negative: a chip when the
+// network has FLAGGED the account, never a raw report count for everyone.
+describe("the person panel's endorsements", () => {
+  const DAVID = "b".repeat(64);
+  const ALICE = "c".repeat(64);
+  const BOB = "d".repeat(64);
+  const david = () =>
+    suggestMock.mockResolvedValueOnce([{ pubkey: DAVID, npub: "npub1david", name: "david", wotRank: 0.9, wotFollowers: 42 }]);
+
+  it("shows who follows them, ringed, with the verified total", async () => {
+    david();
+    personEndorsementsMock.mockReturnValue({ followedBy: [{ pubkey: ALICE, score01: 0.9 }, { pubkey: BOB, score01: 0.4 }], total: 1234 });
+    profileMapMock.set(ALICE, { name: "alice" });
+    profileMapMock.set(BOB, { name: "bob" });
+    render(<KnowledgePanel query="david" pov="nosfabrica" />);
+    const line = await screen.findByTestId("person-followed-by");
+    await vi.waitFor(() => expect(line).toHaveTextContent("Followed by alice, bob & 1.2k verified accounts"));
+    expect(line.querySelector('[class*="shadow-[0_0_0"]')).not.toBeNull();
+    expect(personEndorsementsMock).toHaveBeenCalledWith(DAVID, false);
+    // Where the line leads: the full followers list.
+    expect(line.closest("a")?.getAttribute("href")).toBe("/p/npub1david/followers");
+  });
+
+  it("speaks as the viewer under My perspective", async () => {
+    david();
+    personEndorsementsMock.mockReturnValue({ followedBy: [{ pubkey: ALICE, score01: 0.9 }], total: 12 });
+    render(<KnowledgePanel query="david" pov="mywot" userPubkey={"e".repeat(64)} />);
+    const line = await screen.findByTestId("person-followed-by");
+    expect(line).toHaveTextContent("accounts you trust");
+    expect(personEndorsementsMock).toHaveBeenCalledWith(DAVID, true);
+  });
+
+  it("flags an account the network has flagged — and only then", async () => {
+    david();
+    flagsMock.mockImplementation((pk) => pk === DAVID);
+    render(<KnowledgePanel query="david" pov="nosfabrica" />);
+    const chip = await screen.findByTestId("person-flagged");
+    expect(chip).toHaveTextContent("Flagged by the network");
+  });
+
+  it("no flag, no chip; no followers, no line", async () => {
+    david();
+    render(<KnowledgePanel query="david" pov="nosfabrica" />);
+    await screen.findByTestId("search-knowledge-panel");
+    expect(screen.queryByTestId("person-flagged")).toBeNull();
+    expect(screen.queryByTestId("person-followed-by")).toBeNull();
+  });
 });
 
 describe("the topic panel", () => {

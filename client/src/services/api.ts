@@ -775,19 +775,37 @@ export const apiClient = {
     pubkey: string,
     timeoutMs: number = 8000,
   ): Promise<number | null> {
-    if (!pubkey) return null;
+    return (await apiClient.getHouseSignals(pubkey, timeoutMs)).influence;
+  },
+
+  /**
+   * The house-perspective overview's two ambient signals in one unauthenticated
+   * call: `influence` (the score every ring reads) and `flagged_by_observer`
+   * (the network's verified reporters crossed the server's threshold). One
+   * request feeds both the ring and the "flagged" chip. Never throws.
+   */
+  async getHouseSignals(
+    pubkey: string,
+    timeoutMs: number = 8000,
+  ): Promise<{ influence: number | null; flagged: boolean }> {
+    const none = { influence: null, flagged: false };
+    if (!pubkey) return none;
     try {
       // Plain fetch (no session token) → NosFabrica/house perspective.
       const response = await fetch(`${getBrainstormApi()}/user/${pubkey}/overview`, {
         signal: AbortSignal.timeout(timeoutMs),
       });
-      if (!response.ok) return null;
+      if (!response.ok) return none;
       const json = await response.json();
-      // Overview responses are wrapped: { code, message, data: { influence } }.
-      const influence = (json as { data?: { influence?: unknown } })?.data?.influence;
-      return typeof influence === "number" && Number.isFinite(influence) ? influence : null;
+      // Overview responses are wrapped: { code, message, data: { influence, flagged_by_observer } }.
+      const data = (json as { data?: { influence?: unknown; flagged_by_observer?: unknown } })?.data;
+      const influence = data?.influence;
+      return {
+        influence: typeof influence === "number" && Number.isFinite(influence) ? influence : null,
+        flagged: data?.flagged_by_observer === true,
+      };
     } catch {
-      return null;
+      return none;
     }
   },
 

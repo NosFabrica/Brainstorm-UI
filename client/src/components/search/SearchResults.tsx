@@ -727,6 +727,7 @@ export function SearchResults({
                     onOpen={openProfile}
                     onPrefetchEnter={onPrefetchEnter}
                     onPrefetchLeave={onPrefetchLeave}
+                    showFollowedBy={idx < 3}
                   />
                 );
               }

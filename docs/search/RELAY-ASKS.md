@@ -17,6 +17,27 @@ Live findings these are based on (staging relay, 2026-09-02):
 - Rank arrives as ORDER only (plain NIP-01 frames) — the UI fetches
   per-author scores separately for its rings/coins; fine as-is.
 
+Endorsement findings (2026-09-03, read-only probe for the reviews work):
+
+- **The `observer:` lens is a set filter, not a ranker.** On a filter-only
+  query (`kinds:[1111] #a:[<app>]`) Vitor's observer returns 12 of 14
+  Amethyst reviews in the SAME created_at order; jack's returns 0 of 14.
+  Filtering before the sort is a fine design — but it means a UI that
+  wants "trusted first, the rest after" must fetch `include:spam` and
+  order on-device (which the UI now does, labeled). If the lens ever
+  learned to demote-not-drop, that client sort could retire.
+- **Nostr has no rating primitive for apps.** 845 kind-1111 comments carry
+  `#k=32267` corpus-wide; none carries a rating tag (`rating`/`l`/`L`/
+  `stars`). Reviews carry `v` (the version reviewed) — useful.
+- **Zaps to apps hang off the address and the 1063 file-metadata id**, not
+  the 30063 release (`#e` on releases → 0), and each version has two
+  competing 30063 events from different publishers — so zap→release joins
+  are impossible; the UI keys zaps by `#a` only.
+- **Kinds 3 and 1984 are not indexed** (relay-wide zero), so follower and
+  report signals come from the Brainstorm API, not the search relay.
+- **Kind-1985 `#p` counts are noise** (`pub.ditto.trends` bulk lists +
+  ISO-639-1 language labels), not reputation.
+
 ## Asks, in value order
 
 1. **Freshness-blended best match.** Default ranking currently appears
@@ -53,8 +74,19 @@ Live findings these are based on (staging relay, 2026-09-02):
    latest release). Indexing them would let the app page show file
    size, min SDK, and the APK hash — the "what exactly am I
    installing?" trust details. (App reviews — kind-1111 comments with
-   `#a` on the listing address — ARE indexed and already power the
-   page's Reviews section.)
+   `#a` on the listing address — ARE indexed and power the page's
+   "What people say" section and the cards' endorsement lines.)
+8. **Batch endorsement summary (server or relay).** The results page now
+   shows per-app endorsements — review count, zap count, curated-
+   collection count — via three NIP-45 COUNTs per card plus one small
+   REQ for faces, capped at four in flight. One call taking
+   `addresses[]` and returning `{ reviews, zaps, collections }` per
+   address (ideally `collections` as DISTINCT curators, and `zaps` as a
+   total across relays) would make an Apps tab of a hundred cards a
+   single round-trip. Same shape for people: `{ verifiedFollowers,
+   flagged }` per pubkey would retire the per-author `/overview` fan-out
+   the rings and the flagged chip share today (the standing batch-score
+   ask, restated).
 7. **`GET /api/unfurl?url=` proxy (server, not relay).** The SERP's news
    cards currently parse metadata the news bots embed in note content —
    which works shockingly well but only for bot-shaped notes. A tiny

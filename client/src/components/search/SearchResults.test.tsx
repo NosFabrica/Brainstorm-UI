@@ -66,7 +66,16 @@ vi.mock("@/hooks/useAppEndorsements", () => ({
 }));
 let followsMock = new Set<string>();
 vi.mock("@/hooks/useMyFollows", () => ({
-  useMyFollows: () => ({ follows: followsMock, ready: true }),
+  useMyFollows: () => ({ follows: followsMock, ready: true, signedIn: followsMock.size > 0 }),
+}));
+type PersonEndorsements = import("@/services/endorsements").PersonEndorsements;
+const personEndorsementsMock = vi.fn<(pubkey: string | null, personal: boolean) => PersonEndorsements | null>(() => null);
+vi.mock("@/hooks/usePersonEndorsements", () => ({
+  usePersonEndorsements: (pubkey: string | null, personal: boolean) => personEndorsementsMock(pubkey, personal),
+}));
+const flagsMock = vi.fn<(pk: string) => boolean | undefined>(() => false);
+vi.mock("@/hooks/useAuthorFlags", () => ({
+  useAuthorFlags: () => (pk: string) => flagsMock(pk),
 }));
 
 import { SearchResults } from "./SearchResults";
@@ -99,6 +108,8 @@ beforeEach(() => {
   repoCountsMock.mockResolvedValue({ issues: 0, patches: 0 });
   endorsementsMock.mockReturnValue(null);
   followsMock = new Set();
+  personEndorsementsMock.mockReturnValue(null);
+  flagsMock.mockImplementation(() => false);
   scoreOfMock.mockImplementation(() => 0.85);
   allStreams = [];
   window.history.replaceState({}, "", "/?q=jack");
@@ -322,6 +333,43 @@ describe("SearchResults", () => {
       emit({ hits: [{ event: app, author: author(app.pubkey, "Amethyst"), rank: null }], eose: true, timeMs: 200 });
       await screen.findByTestId("app-card-app1");
       expect(screen.queryByTestId("app-endorsements-app1")).toBeNull();
+    });
+  });
+
+  // People's endorsements on the results page: the flagged chip wherever the
+  // network has flagged someone (it rides the overview the ring already
+  // fetched — free), and the "Followed by …" line on the first three cards
+  // only — one server call each is a price for the top of the page, not for
+  // a hundred hits.
+  describe("person card endorsements", () => {
+    const people = ["1", "2", "3", "4"].map((c) => c.repeat(64));
+    const seed = () => {
+      setUrlTab("people");
+      render(<SearchResults query="jack" pov="nosfabrica" />);
+      emit({
+        hits: people.map((pk, i) => ({ event: person(`p${i}`, pk, `name${i}`), author: author(pk, `name${i}`), rank: null })),
+        eose: true,
+        timeMs: 100,
+      });
+    };
+
+    it("flags a flagged account on any card", async () => {
+      flagsMock.mockImplementation((pk) => pk === people[3]);
+      seed();
+      await screen.findByTestId("result-profile-3");
+      expect(screen.getByTestId("person-flagged-3")).toHaveTextContent("Flagged by the network");
+      expect(screen.queryByTestId("person-flagged-0")).toBeNull();
+    });
+
+    it("shows who follows the top three, and asks nothing for the rest", async () => {
+      personEndorsementsMock.mockImplementation((pk) => (pk ? { followedBy: [{ pubkey: "9".repeat(64), score01: 0.7 }], total: 500 } : null));
+      seed();
+      await screen.findByTestId("result-profile-3");
+      expect(screen.getByTestId("person-followed-by-0")).toHaveTextContent("Followed by 500 verified accounts");
+      expect(screen.getByTestId("person-followed-by-2")).toBeInTheDocument();
+      expect(screen.queryByTestId("person-followed-by-3")).toBeNull();
+      const asked = personEndorsementsMock.mock.calls.map((c) => c[0]).filter(Boolean);
+      expect(asked).not.toContain(people[3]);
     });
   });
 
