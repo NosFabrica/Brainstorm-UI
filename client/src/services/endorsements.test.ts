@@ -34,6 +34,7 @@ import {
   rankEndorsers,
   rankVouches,
   reviewsSummaryLabel,
+  visiblePersonSets,
 } from "./endorsements";
 
 const A = "a".repeat(64);
@@ -233,6 +234,25 @@ describe("reviewsSummaryLabel", () => {
     expect(reviewsSummaryLabel({ total: 4, followed: 2, verified: 1 })).toBe("4 reviews · 2 from people you follow");
     expect(reviewsSummaryLabel({ total: 2, followed: 0, verified: 0 })).toBe("2 reviews");
     expect(reviewsSummaryLabel({ total: 1, followed: 1, verified: 0 })).toBe("1 review from someone you follow");
+  });
+});
+
+// Follow-set badges ("Verified Human · 3") are only as good as who published
+// the list. Benjamin, over "Plebs · 1" and "pleb 2 · 1": one person's private
+// list names are not a credential — live, their publisher was merely
+// verified. A badge earns its place when at least two accounts published a
+// list with that title, or when its lone publisher is a curator the network
+// trusts highly (top tier).
+describe("visiblePersonSets", () => {
+  const scoreOf = (pk: string) => ({ [A]: 0.9, [B]: null, [C]: 0.001, [D]: 0.3 })[pk];
+  it("keeps corroborated titles and top-tier curators, drops lone lists from anyone else", () => {
+    const sets = [
+      { title: "Verified Human", exporters: 3, exporterPubkeys: [B, C, C] },
+      { title: "AOS 2026 Participant", exporters: 1, exporterPubkeys: [A] },
+      { title: "Plebs", exporters: 1, exporterPubkeys: [D] }, // verified, but no curator
+      { title: "pleb 2", exporters: 1, exporterPubkeys: [C] },
+    ];
+    expect(visiblePersonSets(sets, { scoreOf }).map((s) => s.title)).toEqual(["Verified Human", "AOS 2026 Participant"]);
   });
 });
 

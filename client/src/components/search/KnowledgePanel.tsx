@@ -15,6 +15,7 @@ import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useAppEndorsements } from "@/hooks/useAppEndorsements";
 import { FlaggedChip, FollowedByLine, PanelIdentityChip, PanelVouches } from "@/components/search/EndorsementLine";
 import { compactCount } from "@/lib/compactCount";
+import { visiblePersonSets } from "@/services/endorsements";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { eventPath } from "@/lib/shareId";
 import { appAddress, fetchNipPage, fetchPersonSets, searchStream, suggestProfiles, type PersonSetMembership, type SearchHit, type SearchPov } from "@/services/search";
@@ -185,6 +186,10 @@ export function KnowledgePanel({
   // Relay hits carry no rank numbers (order-only wire) — the panel's ring,
   // coin and tier word feed from the shared author-score cache like every card.
   const scoreOf = useAuthorScores(person && person.wotRank == null ? [person.pubkey] : []);
+  // A follow-set badge is only as good as who published the list: lone lists
+  // from unrated accounts stay out (Benjamin's "Plebs · 1" catch).
+  const exporterScoreOf = useAuthorScores(personSets.flatMap((s) => s.exporterPubkeys));
+  const shownSets = visiblePersonSets(personSets, { scoreOf: exporterScoreOf });
   // Topic voices wear the same rings as every avatar in the app.
   const voiceScoreOf = useAuthorScores(
     topicHits ? [...new Set(topicHits.map((h) => h.event.pubkey))].slice(0, 8) : [],
@@ -392,9 +397,10 @@ export function KnowledgePanel({
           <Check className="h-3 w-3 shrink-0" /> {person.nip05.replace(/^_@/, "")}
         </p>
       )}
-      {personSets.length > 0 && (
-        <div className="mt-2 flex flex-wrap gap-1" data-testid="person-sets">
-          {personSets.map((m) => (
+      {shownSets.length > 0 && (
+        <div className="mt-2 flex flex-wrap items-center gap-1" data-testid="person-sets">
+          <span className="mr-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Listed in</span>
+          {shownSets.map((m) => (
             <span
               key={m.title}
               title={`${m.exporters} ${m.exporters === 1 ? "web of trust vouches" : "webs of trust vouch"} for this`}

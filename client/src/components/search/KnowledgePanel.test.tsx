@@ -31,8 +31,9 @@ vi.mock("@/services/search", async (importOriginal) => {
     },
   };
 });
+const scoreOfMock = vi.fn<(pk: string) => number | null | undefined>(() => 0.7);
 vi.mock("@/hooks/useAuthorScores", () => ({
-  useAuthorScores: () => () => 0.7,
+  useAuthorScores: () => (pk: string) => scoreOfMock(pk),
 }));
 type Endorsements = import("@/services/endorsements").AppEndorsements;
 const endorsementsMock = vi.fn<(address: string | null, opts: unknown) => Endorsements | null>(() => null);
@@ -78,6 +79,7 @@ beforeEach(() => {
   endorsementsMock.mockReturnValue(null);
   personEndorsementsMock.mockReturnValue(null);
   flagsMock.mockImplementation(() => false);
+  scoreOfMock.mockImplementation(() => 0.7);
   followsMock = new Set();
   profileMapMock.clear();
   streamCalls = [];
@@ -459,9 +461,14 @@ describe("the topic panel", () => {
     suggestMock.mockResolvedValueOnce([
       { pubkey: "b".repeat(64), npub: "npub1david", name: "david", wotRank: 0.9, wotFollowers: 42 },
     ]);
+    const STRANGER = "5".repeat(64);
+    scoreOfMock.mockImplementation((pk) => (pk === STRANGER ? null : 0.7));
     personSetsMock.mockResolvedValue([
-      { title: "Verified Human", exporters: 3 },
-      { title: "AOS 2026 Participant", exporters: 1 },
+      { title: "Verified Human", exporters: 3, exporterPubkeys: ["1".repeat(64), "2".repeat(64), "3".repeat(64)] },
+      { title: "AOS 2026 Participant", exporters: 1, exporterPubkeys: ["1".repeat(64)] },
+      // One unrated account's private list name — not a credential. Benjamin's
+      // "Plebs · 1" catch.
+      { title: "Plebs", exporters: 1, exporterPubkeys: [STRANGER] },
     ]);
     render(<KnowledgePanel query="david" pov="nosfabrica" />);
     await screen.findByTestId("search-knowledge-panel");
@@ -470,7 +477,11 @@ describe("the topic panel", () => {
     const badge = await screen.findByTestId("person-set-Verified Human");
     expect(badge).toHaveTextContent("Verified Human");
     expect(badge).toHaveTextContent("3");
+    // A lone list from a verified publisher stays; a lone list from an unrated one goes.
     expect(screen.getByTestId("person-set-AOS 2026 Participant")).toHaveTextContent("1");
+    expect(screen.queryByTestId("person-set-Plebs")).toBeNull();
+    // And the badges say what they are.
+    expect(screen.getByTestId("person-sets")).toHaveTextContent("Listed in");
   });
 
   it("an active topic outranks even an exact-named person", async () => {

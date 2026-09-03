@@ -85,7 +85,7 @@ export async function fetchPersonEndorsements(pubkey: string, opts: { personal: 
   const vouches = vouchesRes.status === "fulfilled" ? vouchesRes.value : [];
   return { followedBy, total, vouches };
 }
-import { DEFAULT_VERIFIED_LINE } from "@/services/trustThreshold";
+import { DEFAULT_VERIFIED_LINE, TIER_THRESHOLDS } from "@/services/trustThreshold";
 
 export interface AppEndorsements {
   address: string;
@@ -194,6 +194,23 @@ export function endorsementLabel(verb: string, names: string[], total: number): 
   if (lead.length === 0) return `${verb} by ${compactCount(total)} ${total === 1 ? "person" : "people"}`;
   if (others === 0) return `${verb} by ${lead.join(" & ")}`;
   return `${verb} by ${lead.join(", ")} & ${compactCount(others)} ${others === 1 ? "other" : "others"}`;
+}
+
+/**
+ * Which follow-set badges a person earns. A list title is only as good as who
+ * published it: a badge stays when at least two accounts published a list
+ * with that title (corroboration), or when a single publisher sits in the
+ * top trust tier (a curator the network trusts highly). One merely-verified
+ * account's private list names ("Plebs", "pleb 2") are not a credential.
+ */
+export function visiblePersonSets<T extends { exporters: number; exporterPubkeys: string[] }>(
+  sets: T[],
+  ctx: { scoreOf: (pk: string) => number | null | undefined; curatorLine?: number; max?: number },
+): T[] {
+  const line = ctx.curatorLine ?? TIER_THRESHOLDS.high;
+  return sets
+    .filter((s) => s.exporters >= 2 || s.exporterPubkeys.some((pk) => (ctx.scoreOf(pk) ?? -1) >= line))
+    .slice(0, ctx.max ?? 3);
 }
 
 /**

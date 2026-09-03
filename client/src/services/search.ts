@@ -622,6 +622,8 @@ export interface PersonSetMembership {
   /** How many distinct exporters' follow sets include the person — the
    *  social-proof number ("Verified Human · 3"). */
   exporters: number;
+  /** Who published those sets — a lone list is only as good as its author. */
+  exporterPubkeys: string[];
 }
 
 /**
@@ -653,9 +655,9 @@ export function fetchPersonSets(pubkey: string, timeoutMs = 5000): Promise<Perso
       sub.unsubscribe();
       resolve(
         [...byTitle.entries()]
-          .map(([title, exporters]) => ({ title, exporters: exporters.size }))
+          .map(([title, exporters]) => ({ title, exporters: exporters.size, exporterPubkeys: [...exporters] }))
           .sort((a, b) => b.exporters - a.exporters)
-          .slice(0, 3),
+          .slice(0, 6),
       );
     }
   });
