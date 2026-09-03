@@ -299,7 +299,7 @@ describe("fetchLatestRelease", () => {
     const { subject } = controllable();
     const publisher = "b".repeat(64);
     const release = (d: string, at: number): NostrEvent =>
-      ({ id: d, kind: 30063, pubkey: publisher, tags: [["d", d]], content: "", created_at: at, sig: "s" }) as NostrEvent;
+      ({ id: d, kind: 30063, pubkey: publisher, tags: [["d", d]], content: `notes for ${d}`, created_at: at, sig: "s" }) as NostrEvent;
 
     const pending = fetchLatestRelease("place.poster.app", publisher);
     await tick();
@@ -314,7 +314,12 @@ describe("fetchLatestRelease", () => {
     subject.next(EOSE);
 
     const latest = await pending;
-    expect(latest).toMatchObject({ version: "1.0.2133", at: 200 });
+    // The release's content IS the "What's new" text.
+    expect(latest).toMatchObject({
+      version: "1.0.2133",
+      at: 200,
+      notes: "notes for place.poster.app@1.0.2133",
+    });
   });
 
   it("resolves null when the app has no releases", async () => {

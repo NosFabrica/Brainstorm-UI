@@ -248,6 +248,8 @@ export function searchStream(
 export interface AppRelease {
   version: string;
   at: number;
+  /** The release event's content — Zap Store publishes markdown notes here. */
+  notes: string;
 }
 
 /**
@@ -272,7 +274,11 @@ export function fetchLatestRelease(
           const d = msg.event.tags.find((t) => t[0] === "d")?.[1] ?? "";
           if (!d.startsWith(`${appD}@`)) return;
           if (!latest || msg.event.created_at > latest.at) {
-            latest = { version: d.slice(appD.length + 1), at: msg.event.created_at };
+            latest = {
+              version: d.slice(appD.length + 1),
+              at: msg.event.created_at,
+              notes: msg.event.content ?? "",
+            };
           }
         } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
           finish();

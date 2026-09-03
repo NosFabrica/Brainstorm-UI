@@ -6,14 +6,18 @@
  * full description.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 
-const releaseMock = vi.fn<() => Promise<{ version: string; at: number } | null>>(() =>
-  Promise.resolve(null),
+const releaseMock = vi.fn<() => Promise<{ version: string; at: number; notes: string } | null>>(
+  () => Promise.resolve(null),
 );
 vi.mock("@/services/search", () => ({
   fetchLatestRelease: (...args: unknown[]) => releaseMock(...(args as [])),
+}));
+const openLightboxMock = vi.fn();
+vi.mock("@/components/share/Lightbox", () => ({
+  useLightbox: () => openLightboxMock,
 }));
 
 import { AppHero } from "./AppHero";
@@ -72,7 +76,11 @@ describe("AppHero", () => {
   });
 
   it("shows the latest release as the maintained signal", async () => {
-    releaseMock.mockResolvedValue({ version: "1.0.2133", at: Math.floor(Date.now() / 1000) - 86400 * 3 });
+    releaseMock.mockResolvedValue({
+      version: "1.0.2133",
+      at: Math.floor(Date.now() / 1000) - 86400 * 3,
+      notes: "",
+    });
     render(<AppHero event={FLOTILLA} />);
     const latest = await screen.findByTestId("app-hero-release");
     expect(latest).toHaveTextContent("1.0.2133");
@@ -84,5 +92,61 @@ describe("AppHero", () => {
     render(<AppHero event={FLOTILLA} />);
     await Promise.resolve();
     expect(screen.queryByTestId("app-hero-release")).toBeNull();
+  });
+
+  it("shows the release's actual notes as a What's-new section", async () => {
+    releaseMock.mockResolvedValue({
+      version: "1.9.1",
+      at: Math.floor(Date.now() / 1000) - 86400 * 2,
+      notes: "- Fixed the login crash\n- New dark theme",
+    });
+    render(<AppHero event={FLOTILLA} />);
+    const whatsNew = await screen.findByTestId("app-hero-whats-new");
+    expect(whatsNew).toHaveTextContent("What's new");
+    expect(whatsNew).toHaveTextContent("Fixed the login crash");
+  });
+
+  it("skips What's-new when the release has no notes", async () => {
+    releaseMock.mockResolvedValue({
+      version: "1.9.1",
+      at: Math.floor(Date.now() / 1000) - 86400 * 2,
+      notes: "   ",
+    });
+    render(<AppHero event={FLOTILLA} />);
+    await screen.findByTestId("app-hero-release");
+    expect(screen.queryByTestId("app-hero-whats-new")).toBeNull();
+  });
+
+  it("collapses a long changelog behind Show more", async () => {
+    releaseMock.mockResolvedValue({
+      version: "2.0",
+      at: Math.floor(Date.now() / 1000) - 86400,
+      notes: Array.from({ length: 40 }, (_, i) => `* change number ${i}`).join("\n"),
+    });
+    render(<AppHero event={FLOTILLA} />);
+    const toggle = await screen.findByTestId("app-hero-notes-toggle");
+    expect(toggle).toHaveTextContent("Show more");
+    fireEvent.click(toggle);
+    expect(screen.getByTestId("app-hero-notes-toggle")).toHaveTextContent("Show less");
+  });
+
+  it("short notes need no toggle", async () => {
+    releaseMock.mockResolvedValue({
+      version: "2.0",
+      at: Math.floor(Date.now() / 1000) - 86400,
+      notes: "- One small fix",
+    });
+    render(<AppHero event={FLOTILLA} />);
+    await screen.findByTestId("app-hero-whats-new");
+    expect(screen.queryByTestId("app-hero-notes-toggle")).toBeNull();
+  });
+
+  it("opens the lightbox on the tapped screenshot", () => {
+    render(<AppHero event={FLOTILLA} />);
+    fireEvent.click(screen.getByTestId("app-shot-1"));
+    expect(openLightboxMock).toHaveBeenCalledWith(
+      ["https://cdn.zapstore.dev/shot1.png", "https://cdn.zapstore.dev/shot2.png"],
+      1,
+    );
   });
 });

@@ -5,7 +5,8 @@
  * "is it maintained?" trust signal).
  */
 import { useEffect, useState } from "react";
-import { Code2, ExternalLink, Package } from "lucide-react";
+import { Code2, ExternalLink, Package, Sparkles } from "lucide-react";
+import { useLightbox } from "@/components/share/Lightbox";
 // Structural minimum (EventPage hands heroes MinimalEvent, which has no sig).
 type AppEvent = {
   pubkey: string;
@@ -58,7 +59,9 @@ export function AppHero({ event }: { event: AppEvent }) {
   const platforms = platformWords(event);
   const appD = tagVal(event, "d");
 
+  const openLightbox = useLightbox();
   const [release, setRelease] = useState<AppRelease | null>(null);
+  const [notesOpen, setNotesOpen] = useState(false);
   useEffect(() => {
     if (!appD) return;
     let alive = true;
@@ -126,18 +129,55 @@ export function AppHero({ event }: { event: AppEvent }) {
         )}
       </div>
 
-      {/* Screenshot gallery — what actually sells an app. */}
+      {/* What's new — the latest release's own notes, not just a version chip.
+          Zap Store changelogs can be whole GitHub release dumps, so long ones
+          collapse to a few lines behind Show more. */}
+      {release && release.notes.trim() && (
+        <div
+          className="mt-4 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 px-4 py-3"
+          data-testid="app-hero-whats-new"
+        >
+          <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            <Sparkles className="h-3.5 w-3.5 text-brand-accent" /> What's new · v{release.version}
+          </div>
+          <p
+            className={`mt-1.5 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700 dark:text-slate-200 ${
+              notesOpen ? "" : "line-clamp-6"
+            }`}
+          >
+            {release.notes.trim()}
+          </p>
+          {release.notes.trim().split("\n").length > 6 && (
+            <button
+              type="button"
+              onClick={() => setNotesOpen((v) => !v)}
+              className="mt-1.5 text-xs font-medium text-brand-primary hover:underline"
+              data-testid="app-hero-notes-toggle"
+            >
+              {notesOpen ? "Show less" : "Show more"}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Screenshot gallery — what actually sells an app. Tap to zoom. */}
       {shots.length > 0 && (
         <div className="mt-4 flex gap-2.5 overflow-x-auto pb-1 -mx-1 px-1">
           {shots.map((src, i) => (
-            <img
+            <button
               key={src}
-              src={src}
-              alt=""
-              loading="lazy"
-              className="h-64 w-auto shrink-0 rounded-xl border border-slate-200 dark:border-slate-800 object-cover bg-slate-100 dark:bg-slate-800"
+              type="button"
+              onClick={() => openLightbox(shots, i)}
+              className="shrink-0 cursor-zoom-in rounded-xl focus-visible:ring-2 focus-visible:ring-brand-accent"
               data-testid={`app-shot-${i}`}
-            />
+            >
+              <img
+                src={src}
+                alt=""
+                loading="lazy"
+                className="h-64 w-auto rounded-xl border border-slate-200 dark:border-slate-800 object-cover bg-slate-100 dark:bg-slate-800"
+              />
+            </button>
           ))}
         </div>
       )}
