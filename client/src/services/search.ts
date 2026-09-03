@@ -245,6 +245,48 @@ export function searchStream(
   };
 }
 
+export interface AppRelease {
+  version: string;
+  at: number;
+}
+
+/**
+ * The newest Zap Store release for an app — the app page's "is it
+ * maintained?" signal. Releases are kind 30063 by the same publisher, with
+ * d = "<app-d>@<version>"; the lens is include:spam because we want the
+ * publisher's own releases regardless of how the observer ranks them.
+ */
+export function fetchLatestRelease(
+  appD: string,
+  publisher: string,
+  timeoutMs = 5000,
+): Promise<AppRelease | null> {
+  return new Promise((resolve) => {
+    const relay = searchRelay();
+    if (!relay) return resolve(null);
+    let latest: AppRelease | null = null;
+    const sub = relay
+      .req({ kinds: [30063], authors: [publisher], search: "include:spam", limit: 50 })
+      .subscribe((msg: { type: string; event?: NostrEvent }) => {
+        if (msg.type === "EVENT" && msg.event) {
+          const d = msg.event.tags.find((t) => t[0] === "d")?.[1] ?? "";
+          if (!d.startsWith(`${appD}@`)) return;
+          if (!latest || msg.event.created_at > latest.at) {
+            latest = { version: d.slice(appD.length + 1), at: msg.event.created_at };
+          }
+        } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
+          finish();
+        }
+      });
+    const timer = setTimeout(finish, timeoutMs);
+    function finish() {
+      clearTimeout(timer);
+      sub.unsubscribe();
+      resolve(latest);
+    }
+  });
+}
+
 /**
  * Cheap kind-0 typeahead: resolves at EOSE or the deadline with whatever
  * arrived — never rejects (a silent suggest beats a broken one).

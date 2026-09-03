@@ -35,7 +35,14 @@ vi.mock("@/lib/eventStore", () => ({
   },
 }));
 
-import { searchStream, suggestProfiles, kindsForTab, TAB_KINDS, type SearchSnapshot } from "./search";
+import {
+  fetchLatestRelease,
+  searchStream,
+  suggestProfiles,
+  kindsForTab,
+  TAB_KINDS,
+  type SearchSnapshot,
+} from "./search";
 
 const HOUSE = "f".repeat(64);
 
@@ -281,6 +288,41 @@ describe("author hydration", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("fetchLatestRelease", () => {
+  // The app page's "is it maintained?" signal: Zap Store releases are kind
+  // 30063 whose d-tag is "<app-d>@<version>" — the newest one by the same
+  // publisher is the app's latest version.
+  it("finds the newest release for an app's d identifier", async () => {
+    const { subject } = controllable();
+    const publisher = "b".repeat(64);
+    const release = (d: string, at: number): NostrEvent =>
+      ({ id: d, kind: 30063, pubkey: publisher, tags: [["d", d]], content: "", created_at: at, sig: "s" }) as NostrEvent;
+
+    const pending = fetchLatestRelease("place.poster.app", publisher);
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as { kinds: number[]; authors: string[]; search: string };
+    expect(filter.kinds).toEqual([30063]);
+    expect(filter.authors).toEqual([publisher]);
+    expect(filter.search).toBe("include:spam"); // lens required, rank irrelevant
+
+    subject.next(frame(release("place.poster.app@1.0.2132", 100)));
+    subject.next(frame(release("other.app@9.9.9", 300))); // different app — ignored
+    subject.next(frame(release("place.poster.app@1.0.2133", 200)));
+    subject.next(EOSE);
+
+    const latest = await pending;
+    expect(latest).toMatchObject({ version: "1.0.2133", at: 200 });
+  });
+
+  it("resolves null when the app has no releases", async () => {
+    const { subject } = controllable();
+    const pending = fetchLatestRelease("no.releases.app", "c".repeat(64));
+    await tick();
+    subject.next(EOSE);
+    expect(await pending).toBeNull();
   });
 });
 

@@ -13,6 +13,7 @@ import { apiClient } from "@/services/api";
 import { collectRefs, addrCoord, replyRefs, type MinimalEvent } from "@/lib/noteRefs";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { NoteContent } from "@/components/share/NoteContent";
+import { AppHero } from "@/components/share/AppHero";
 import { AudioHero } from "@/components/share/AudioHero";
 import { EventHero } from "@/components/share/EventHero";
 import { LiveHero } from "@/components/share/LiveHero";
@@ -348,6 +349,8 @@ export default function EventPage() {
             <div className={`rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm ${replyRefs(note).parentId || replyRefs(note).rootId ? "ring-1 ring-brand-primary/15" : ""}`} data-testid="event-note">
               {note.kind === 30311 ? (
                 <LiveHero event={note} />
+              ) : note.kind === 32267 ? (
+                <AppHero event={note} />
               ) : note.kind === 31337 ? (
                 <AudioHero event={note} />
               ) : note.kind === 31922 || note.kind === 31923 ? (
