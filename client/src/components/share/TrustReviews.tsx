@@ -160,7 +160,16 @@ function VouchComposer({
   );
 }
 
-export function TrustReviews({ pubkey, personal }: { pubkey: string; personal: boolean }) {
+export function TrustReviews({
+  pubkey,
+  personal,
+  composeRequest = 0,
+}: {
+  pubkey: string;
+  personal: boolean;
+  /** The page's pen icon beside Zap bumps this to ask for the composer. */
+  composeRequest?: number;
+}) {
   const e = usePersonEndorsements(pubkey, personal);
   const viewer = useActiveAccountDisplay()?.pubkey ?? null;
   const canWrite = !!viewer && viewer !== pubkey;
@@ -175,6 +184,12 @@ export function TrustReviews({ pubkey, personal }: { pubkey: string; personal: b
   // Collapsed by default — a summary line, Google's way. The panel's link
   // deep-links here with #trust-reviews and arrives unfolded.
   const [open, setOpen] = useState(() => typeof window !== "undefined" && window.location.hash === "#trust-reviews");
+  useEffect(() => {
+    if (composeRequest <= 0) return;
+    setComposing(true);
+    setOpen(true);
+    document.getElementById("trust-reviews")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+  }, [composeRequest]);
   const [replies, setReplies] = useState<Map<string, VouchReply>>(new Map());
   const subjectProfile = useProfileMap([pubkey]).get(pubkey);
   const vouchIds = vouches.map((v) => v.id);
@@ -240,32 +255,39 @@ export function TrustReviews({ pubkey, personal }: { pubkey: string; personal: b
           </button>
         ) : (
           !composing && (
-            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="trust-reviews-invite">
+            // Nobody yet: the invitation is itself the door (the page's pen
+            // icon beside Zap is the other one).
+            <button
+              type="button"
+              onClick={() => setComposing(true)}
+              className="text-left text-xs text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-brand-link hover:underline"
+              data-testid="trust-reviews-invite"
+            >
               Be the first to vouch for {subjectName}
-            </p>
+            </button>
           )
-        )}
-        {canWrite && !composing && (
-          <button
-            type="button"
-            onClick={() => {
-              setComposing(true);
-              setOpen(true);
-            }}
-            className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 px-2.5 py-1 text-[11px] font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 transition-colors"
-            data-testid="trust-reviews-write"
-          >
-            <PenLine className="h-3 w-3" /> {mine ? "Edit your review" : "Write a trust review"}
-          </button>
         )}
       </div>
       {composing && (
         <VouchComposer subject={pubkey} existing={mine} onPublished={onPublished} onRemoved={onRemoved} onCancel={() => setComposing(false)} />
       )}
       {open && vouches.length > 0 && (
-        <div className="mt-3 flex items-baseline justify-between gap-2 border-t border-slate-100 dark:border-slate-800/60 pt-3">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Trust reviews</h2>
-          <span className="text-[11px] text-slate-400 dark:text-slate-500">{vouches.length}</span>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800/60 pt-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Trust reviews <span className="font-normal normal-case tracking-normal text-slate-400 dark:text-slate-500">· {vouches.length}</span>
+          </h2>
+          {/* The secondary door lives in the area that unfolds — the summary
+              line above stays a quiet social-proof row. */}
+          {canWrite && !composing && (
+            <button
+              type="button"
+              onClick={() => setComposing(true)}
+              className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 px-2.5 py-1 text-[11px] font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 transition-colors"
+              data-testid="trust-reviews-write"
+            >
+              <PenLine className="h-3 w-3" /> {mine ? "Edit your review" : "Write a trust review"}
+            </button>
+          )}
         </div>
       )}
       {open && (["followed", "verified", "other"] as EndorserGroup[]).map((group) => {

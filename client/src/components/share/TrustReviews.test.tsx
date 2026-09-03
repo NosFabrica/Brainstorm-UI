@@ -87,7 +87,7 @@ describe("TrustReviews composer", () => {
     render(<TrustReviews pubkey={SUBJECT} personal={false} />);
     const section = await screen.findByTestId("trust-reviews");
     expect(section).toHaveTextContent("Be the first to vouch for nathan");
-    fireEvent.click(screen.getByTestId("trust-reviews-write"));
+    fireEvent.click(screen.getByTestId("trust-reviews-invite"));
     fireEvent.click(screen.getByTestId("vouch-type-identity"));
     fireEvent.change(screen.getByTestId("vouch-text"), { target: { value: "I know this is really them." } });
     fireEvent.click(screen.getByTestId("vouch-publish"));
@@ -141,7 +141,7 @@ describe("TrustReviews composer", () => {
     publishVouchMock.mockResolvedValue({ success: false, error: "No relay accepted the event", event: undefined });
     render(<TrustReviews pubkey={SUBJECT} personal={false} />);
     await screen.findByTestId("trust-reviews");
-    fireEvent.click(screen.getByTestId("trust-reviews-write"));
+    fireEvent.click(screen.getByTestId("trust-reviews-invite"));
     fireEvent.change(screen.getByTestId("vouch-text"), { target: { value: "draft" } });
     fireEvent.click(screen.getByTestId("vouch-publish"));
     await screen.findByText(/No relay accepted the event/);
@@ -178,6 +178,35 @@ describe("TrustReviews", () => {
     fireEvent.click(screen.getByTestId("trust-reviews-toggle-open"));
     expect(screen.getByTestId("trust-review-v-friend")).toBeInTheDocument();
     expect(screen.getByTestId("trust-reviews-followed")).toHaveTextContent("From people you follow");
+  });
+
+  // Benjamin: the edit button belongs in the area that unfolds, not on the
+  // summary line — the line stays a quiet social-proof row like Followed-by.
+  // The primary door is the page's pen icon beside Zap, which asks the
+  // section to open its composer.
+  it("keeps the summary line quiet and puts Edit inside the unfolded block", async () => {
+    viewerMock = { pubkey: BEN };
+    signedInMock = true;
+    scoreByPubkey.set(BEN, 0.9);
+    personEndorsementsMock.mockReturnValue({ followedBy: [], total: null, vouches: [{ id: "mine", pubkey: BEN, type: "vouch", text: "Solid.", at: NOW }] });
+    render(<TrustReviews pubkey={SUBJECT} personal={false} />);
+    const summary = await screen.findByTestId("trust-reviews-summary");
+    expect(summary.querySelector('[data-testid="trust-reviews-write"]')).toBeNull();
+    fireEvent.click(screen.getByTestId("trust-reviews-toggle-open"));
+    const write = screen.getByTestId("trust-reviews-write");
+    expect(write).toHaveTextContent("Edit your review");
+    expect(summary.contains(write)).toBe(false);
+  });
+
+  it("opens its composer when the page asks (the pen beside Zap)", async () => {
+    viewerMock = { pubkey: BEN };
+    signedInMock = true;
+    personEndorsementsMock.mockReturnValue({ followedBy: [], total: null, vouches: [] });
+    const { rerender } = render(<TrustReviews pubkey={SUBJECT} personal={false} composeRequest={0} />);
+    await screen.findByTestId("trust-reviews");
+    expect(screen.queryByTestId("vouch-composer")).toBeNull();
+    rerender(<TrustReviews pubkey={SUBJECT} personal={false} composeRequest={1} />);
+    expect(screen.getByTestId("vouch-composer")).toBeInTheDocument();
   });
 
   it("opens unfolded when the page was reached by its deep link", async () => {

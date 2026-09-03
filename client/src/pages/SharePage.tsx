@@ -21,6 +21,7 @@ import {
   SlidersHorizontal,
   UserPlus,
   FileQuestion,
+  PenLine,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { decodeShareId, npubFromPubkey, nostrUriFor, eventPath } from "@/lib/shareId";
@@ -34,6 +35,7 @@ import { ExternalIdentities } from "@/components/share/ExternalIdentities";
 import { FollowedByRow } from "@/components/share/FollowedByRow";
 import { TrustReviews } from "@/components/share/TrustReviews";
 import { PanelIdentityChip } from "@/components/search/EndorsementLine";
+import { usePersonEndorsements } from "@/hooks/usePersonEndorsements";
 import { nip19 } from "nostr-tools";
 import { collectRefs, mentionPubkeysFromContent, type MinimalEvent } from "@/lib/noteRefs";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
@@ -103,6 +105,8 @@ export default function SharePage() {
   const loggedIn = useHasSession();
   const [shareOpen, setShareOpen] = useState(false);
   const [zapOpen, setZapOpen] = useState(false);
+  // The pen beside Zap: each press asks the Trust reviews line to open its composer.
+  const [composeRequest, setComposeRequest] = useState(0);
   const [npubCopied, setNpubCopied] = useState(false);
   const [scoreModalOpen, setScoreModalOpen] = useState(false);
   // One shared lens for the whole stats block: verified (trust-filtered) vs all
@@ -865,7 +869,26 @@ export default function SharePage() {
   // Contact as compact clickable icons — website, lightning address, external
   // identities. Lives top-right with the actions (and has a mobile fallback row),
   // never as verbose text at the bottom.
-  const hasContactIcons = !!(profile.website || profile.lud16 || (identities.length > 0 && !isHidden("identities")));
+  // Zap gives sats; the pen gives a vouch — peers in the same icon row, one
+  // tap on both surfaces. Signed-in viewers on someone else's page only.
+  const canReview = loggedIn && !isOwner && !!pubkey;
+  const myEndorsements = usePersonEndorsements(canReview ? pubkey : null, myPov);
+  const hasMyReview = !!currentUser?.pubkey && !!myEndorsements?.vouches?.some((v) => v.pubkey === currentUser.pubkey);
+  const reviewIcon = canReview ? (
+    <button
+      type="button"
+      onClick={() => setComposeRequest((n) => n + 1)}
+      className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand-primary ${
+        hasMyReview ? "text-brand-primary" : "text-slate-500 dark:text-slate-400"
+      }`}
+      title={hasMyReview ? "Edit your trust review" : "Write a trust review"}
+      aria-label={hasMyReview ? "Edit your trust review" : "Write a trust review"}
+      data-testid="share-review"
+    >
+      <PenLine className="h-4 w-4" />
+    </button>
+  ) : null;
+  const hasContactIcons = !!(profile.website || profile.lud16 || (identities.length > 0 && !isHidden("identities")) || reviewIcon);
   const contactIcons = hasContactIcons ? (
     <>
       {profile.website && (
@@ -893,6 +916,7 @@ export default function SharePage() {
           <FlashIcon className="h-4 w-4" />
         </button>
       )}
+      {reviewIcon}
       {identities.length > 0 && !isHidden("identities") && (
         <span className="inline-flex items-center gap-2.5" data-testid="share-identities">
           <ExternalIdentities identities={identities} />
@@ -1144,7 +1168,7 @@ export default function SharePage() {
           {/* Trust reviews — what people who know them said, as a one-line
               summary under Followed-by that unfolds on tap. Silent for a
               signed-out reader when nobody has vouched. */}
-          {pubkey && <TrustReviews pubkey={pubkey} personal={myPov} />}
+          {pubkey && <TrustReviews pubkey={pubkey} personal={myPov} composeRequest={composeRequest} />}
 
           {/* Tenure / presence — Google-knowledge-panel "at a glance" line. */}
           {!isHidden("tenure") && (lastPostedAt > 0 || relayCount > 0) && (
