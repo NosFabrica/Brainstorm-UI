@@ -50,7 +50,7 @@ import {
 } from "@/lib/profileSearch";
 import { suggestProfiles } from "@/services/search";
 import { SearchResults } from "@/components/search/SearchResults";
-import { personAssist, type PersonAssist } from "@/lib/searchSyntax";
+import { personAssist, splitFilters, type PersonAssist } from "@/lib/searchSyntax";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
 import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
@@ -110,6 +110,12 @@ export default function Landing() {
   const [query, setQuery] = useState(() => {
     try { return new URLSearchParams(window.location.search).get("q") || ""; } catch { return ""; }
   });
+  // The active FILTERS, as their tokens ("sort:recent trust:verified") — kept
+  // out of the box (Benjamin: tokens in the box look bad) and carried in the
+  // URL's `f` so a filtered search still deep-links and survives back/forward.
+  const [filters, setFilters] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get("f") || ""; } catch { return ""; }
+  });
   const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
@@ -139,7 +145,7 @@ export default function Landing() {
     try {
       const params = new URLSearchParams(window.location.search);
       const q = params.get("q")?.trim();
-      if (q) return q;
+      if (q) return `${q} ${params.get("f") ?? ""}`.trim();
       // ?t= without ?q= is a deep link into browsing that vertical.
       return params.get("t") ? "" : null;
     } catch { return null; }
@@ -466,8 +472,9 @@ export default function Landing() {
     setIsSuggesting(false);
   }, []);
 
-  const handleSearch = useCallback(async (overrideQuery?: string) => {
+  const handleSearch = useCallback(async (overrideQuery?: string, overrideFilters?: string) => {
     const q = (overrideQuery ?? query).trim();
+    const f = (overrideFilters ?? filters).trim();
     if (!q) return;
     // Remember this query for the "Recent" list (de-duped, most-recent-first).
     setRecent(pushRecentQuery(q));
@@ -538,22 +545,29 @@ export default function Landing() {
     // SearchResults — the stream, skeleton, errors and count line live there.
     try {
       const currentUrl = new URL(window.location.href);
-      if (currentUrl.searchParams.get("q") !== q) {
+      const prevF = currentUrl.searchParams.get("f") ?? "";
+      if (currentUrl.searchParams.get("q") !== q || prevF !== f) {
         currentUrl.searchParams.set("q", q);
+        if (f) currentUrl.searchParams.set("f", f);
+        else currentUrl.searchParams.delete("f");
         window.history.pushState({}, "", currentUrl.pathname + currentUrl.search);
       }
     } catch {}
-    setSubmitted(q);
-  }, [query, setLocation]);
+    // What SearchResults streams for: the words AND the filters, one query.
+    setSubmitted(`${q} ${f}`.trim());
+  }, [query, filters, setLocation]);
 
   // Sync the back/forward buttons with the search results list.
   useEffect(() => {
     const onPopState = () => {
-      const q = new URLSearchParams(window.location.search).get("q") || "";
+      const params = new URLSearchParams(window.location.search);
+      const q = params.get("q") || "";
+      const f = params.get("f") || "";
       setQuery(q);
+      setFilters(f);
       didInitFromUrlRef.current = true;
       if (q.trim()) {
-        handleSearch(q);
+        handleSearch(q, f);
       } else {
         searchAbortRef.current++;
         setSubmitted(new URLSearchParams(window.location.search).get("t") ? "" : null);
@@ -568,10 +582,11 @@ export default function Landing() {
   // (search is public). Carries over `/search?q=` deep links onto the home.
   useEffect(() => {
     if (didInitFromUrlRef.current) return;
-    const q = new URLSearchParams(window.location.search).get("q") || "";
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("q") || "";
     if (q.trim()) {
       didInitFromUrlRef.current = true;
-      handleSearch(q);
+      handleSearch(q, params.get("f") || "");
     }
   }, [handleSearch]);
 
@@ -598,6 +613,7 @@ export default function Landing() {
     searchAbortRef.current++;
     cancelSuggest();
     setQuery("");
+    setFilters("");
     setSuggestions([]);
     setActiveSuggestion(-1);
     setSubmitted(null);
@@ -607,9 +623,10 @@ export default function Landing() {
     if (opts?.refocus !== false) inputRef.current?.focus();
     try {
       const url = new URL(window.location.href);
-      if (url.searchParams.has("q") || url.searchParams.has("t")) {
+      if (url.searchParams.has("q") || url.searchParams.has("t") || url.searchParams.has("f")) {
         url.searchParams.delete("q");
         url.searchParams.delete("t");
+        url.searchParams.delete("f");
         window.history.pushState({}, "", url.pathname + (url.search ? url.search : ""));
       }
     } catch {}
@@ -1268,10 +1285,12 @@ export default function Landing() {
             onPrefetchEnter={handlePrefetchEnter}
             onPrefetchLeave={handlePrefetchLeave}
             onQueryRewrite={(next) => {
-              // Filters write their tokens into the visible box — the user
-              // watches the grammar appear — and resubmit in one motion.
-              setQuery(next);
-              void handleSearch(next);
+              // A filter change: the words stay in the box, the tokens go to
+              // filter state + the URL's `f`, and the search resubmits.
+              const { text, tokens } = splitFilters(next);
+              setFilters(tokens);
+              if (text !== query.trim()) setQuery(text);
+              void handleSearch(text, tokens);
             }}
           />
         )}

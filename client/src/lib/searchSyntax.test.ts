@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { nip19 } from "nostr-tools";
-import { applyFilters, datePreset, liftQuery, personAssist, readFilters, sinceForPreset } from "./searchSyntax";
+import { activeFilterCount, applyFilters, datePreset, liftQuery, personAssist, readFilters, sinceForPreset, splitFilters } from "./searchSyntax";
 
 // Probed 2026-09-03: the relay ignores filter:rank and knows no hops. The
 // controls that need those are done on the CLIENT, but still speak grammar —
@@ -31,6 +31,26 @@ describe("client-side filter tokens", () => {
   it("keeps client-only tokens off the wire", () => {
     const lifted = liftQuery("liverpool trust:verified reach:follows sort:recent");
     expect(lifted.search).toBe("liverpool sort:recent");
+  });
+});
+
+// Benjamin: filters must not appear as text in the search box — it looks bad.
+// The box shows the words; the filters ride beside them (state + URL), so
+// the page needs to take a full query apart and count what's active.
+describe("splitFilters / activeFilterCount", () => {
+  it("separates the words from every filter token, preserving both", () => {
+    expect(splitFilters("Melvin Carvalho trust:verified sort:recent")).toEqual({
+      text: "Melvin Carvalho",
+      tokens: "trust:verified sort:recent",
+    });
+    expect(splitFilters("from:npub1abc gm #bitcoin")).toEqual({ text: "from:npub1abc gm #bitcoin", tokens: "" });
+    expect(splitFilters("  ")).toEqual({ text: "", tokens: "" });
+  });
+
+  it("counts the filters a person has switched on", () => {
+    expect(activeFilterCount(readFilters("btc"))).toBe(0);
+    expect(activeFilterCount(readFilters("btc sort:rank trust:verified"))).toBe(2);
+    expect(activeFilterCount(readFilters(`btc since:2026-01-01 until:2026-02-01 reach:follows include:spam observer:${"a".repeat(64)}`))).toBe(4);
   });
 });
 

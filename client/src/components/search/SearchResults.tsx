@@ -10,7 +10,7 @@ import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
 import { Radar, SlidersHorizontal } from "lucide-react";
-import { applyFilters, datePreset, readFilters, sinceForPreset, type DatePreset, type SearchFilterPatch } from "@/lib/searchSyntax";
+import { activeFilterCount, applyFilters, datePreset, readFilters, sinceForPreset, type DatePreset, type SearchFilterPatch } from "@/lib/searchSyntax";
 import { clientFilterHits } from "@/lib/clientFilters";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
 import { useWheelScrollX } from "@/hooks/useWheelScrollX";
@@ -464,6 +464,8 @@ export function SearchResults({
   // no hops): Verified only via those scores, reach via the viewer's graph.
   const reach = useNetworkReach(userPubkey);
   const clientState = readFilters(query);
+  // The box no longer shows filter tokens — the Filters button says how many are on.
+  const activeFilters = activeFilterCount(clientState);
   const hits = useMemo(
     () => clientFilterHits(rawHits, { verifiedOnly: clientState.verifiedOnly, reach: clientState.reach }, { scoreOf, reach }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -608,6 +610,14 @@ export function SearchResults({
             data-testid="search-filters-toggle"
           >
             <SlidersHorizontal className="h-3 w-3" /> Filters
+            {activeFilters > 0 && (
+              <span
+                className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-primary px-1 text-[10px] font-semibold leading-none text-white"
+                data-testid="filters-active-count"
+              >
+                {activeFilters}
+              </span>
+            )}
           </button>
         )}
       </div>

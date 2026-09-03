@@ -892,6 +892,16 @@ describe("SearchResults", () => {
       expect(reachMock).toHaveBeenCalledWith(ME);
     });
 
+    // With the tokens gone from the box, the Filters button carries the count.
+    it("the Filters button shows how many filters are on", () => {
+      render(<SearchResults query="btc sort:rank trust:verified" pov="nosfabrica" onQueryRewrite={vi.fn()} />);
+      expect(screen.getByTestId("search-filters-toggle")).toHaveTextContent("Filters");
+      expect(screen.getByTestId("filters-active-count")).toHaveTextContent("2");
+      cleanup();
+      render(<SearchResults query="btc" pov="nosfabrica" onQueryRewrite={vi.fn()} />);
+      expect(screen.queryByTestId("filters-active-count")).toBeNull();
+    });
+
     it("the panel reads current filter state back from the query", () => {
       render(
         <SearchResults query="btc sort:rank include:spam trust:verified reach:friends" pov="nosfabrica" userPubkey={"e".repeat(64)} onQueryRewrite={vi.fn()} />,

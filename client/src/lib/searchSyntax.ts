@@ -56,6 +56,33 @@ function tokenFor(key: keyof SearchFilterState, value: unknown): string | null {
   }
 }
 
+const isFilterToken = (t: string) => (Object.keys(MATCHERS) as (keyof SearchFilterState)[]).some((k) => MATCHERS[k](t));
+
+/**
+ * The words apart from the filters. The box shows the words; the filters
+ * ride beside them (state + URL) — never as text a person has to read past.
+ */
+export function splitFilters(query: string): { text: string; tokens: string } {
+  const tokens = query.trim().split(/\s+/).filter(Boolean);
+  return {
+    text: tokens.filter((t) => !isFilterToken(t)).join(" "),
+    tokens: tokens.filter(isFilterToken).join(" "),
+  };
+}
+
+/** How many filters are switched on — the badge on the Filters button. A date
+ *  range counts once, however many ends it has. */
+export function activeFilterCount(state: SearchFilterState): number {
+  let n = 0;
+  if (state.sort) n++;
+  if (state.since || state.until) n++;
+  if (state.verifiedOnly) n++;
+  if (state.reach) n++;
+  if (state.includeSpam) n++;
+  if (state.rankAs) n++;
+  return n;
+}
+
 /** Google's Tools menu: Any time · Past 24 hours · Past week · Past month · Past year · Custom. */
 export type DatePreset = "any" | "day" | "week" | "month" | "year" | "custom";
 
