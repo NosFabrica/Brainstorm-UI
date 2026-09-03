@@ -147,7 +147,7 @@ function VouchComposer({
           </Button>
         )}
         <span className="w-full text-[11px] text-slate-400 dark:text-slate-500 sm:ml-auto sm:w-auto">
-          {text.length}/{MAX_LEN} · published to your relays, visible in Brainstorm and Relay Outpost
+          {text.length}/{MAX_LEN} · published publicly to your relays
         </span>
       </div>
       {error && (
