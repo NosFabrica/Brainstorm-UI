@@ -40,9 +40,10 @@ vi.mock("@/services/search", async (importOriginal) => {
 });
 
 // Member piles hydrate through fetchProfileMap — stubbed so jsdom never
-// touches relays; faces fall back to the default avatar.
+// touches relays; tests seed profiles into this map per case.
+const profileMapMock = new Map<string, { name?: string; picture?: string }>();
 vi.mock("@/services/nostr", () => ({
-  fetchProfileMap: vi.fn(() => Promise.resolve(new Map())),
+  fetchProfileMap: vi.fn(() => Promise.resolve(profileMapMock)),
 }));
 
 // The relay expresses rank as ORDER only — per-author scores come from the
@@ -78,6 +79,7 @@ function emit(partial: Partial<SearchSnapshot>) {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  profileMapMock.clear();
   allStreams = [];
   window.history.replaceState({}, "", "/?q=jack");
 });
@@ -338,6 +340,7 @@ describe("SearchResults", () => {
 
   it("a Brainstorm follow set shows its members as trust-ringed faces", async () => {
     setUrlTab("lists");
+    profileMapMock.set("1".repeat(64), { name: "david" });
     render(<SearchResults query="verified human" pov="nosfabrica" />);
     const followSet = ev("fs1", 30000, "f".repeat(64), "", [
       ["d", "tl-pin-verified-human"],
@@ -356,6 +359,8 @@ describe("SearchResults", () => {
     const pile = screen.getByTestId("list-members-fs1");
     const ringed = [...pile.querySelectorAll("span")].filter((el) => el.className.includes("shadow-[0_0_0"));
     expect(ringed.length).toBe(3);
+    // Faces carry NAMES, staging-style — an anonymous circle sells nothing.
+    expect(await screen.findByText("david")).toBeInTheDocument();
   });
 
   it("renders media with a thumbnail from imeta", async () => {

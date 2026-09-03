@@ -11,6 +11,7 @@ import type { SearchSnapshot, SearchParams } from "@/services/search";
 
 const suggestMock = vi.fn<() => Promise<unknown[]>>(() => Promise.resolve([]));
 const nipPageMock = vi.fn<() => Promise<NostrEvent | null>>(() => Promise.resolve(null));
+const personSetsMock = vi.fn<() => Promise<{ title: string; exporters: number }[]>>(() => Promise.resolve([]));
 let streamCalls: { query: string; params: SearchParams; emit: (s: Partial<SearchSnapshot>) => void }[] = [];
 
 vi.mock("@/services/search", async (importOriginal) => {
@@ -19,6 +20,7 @@ vi.mock("@/services/search", async (importOriginal) => {
     ...actual,
     suggestProfiles: () => suggestMock(),
     fetchNipPage: (...args: unknown[]) => nipPageMock(...(args as [])),
+    fetchPersonSets: (...args: unknown[]) => personSetsMock(...(args as [])),
     searchStream: (query: string, params: SearchParams, onSnapshot: (s: SearchSnapshot) => void) => {
       streamCalls.push({
         query,
@@ -48,6 +50,7 @@ const NOW = Math.floor(Date.now() / 1000);
 beforeEach(() => {
   vi.clearAllMocks();
   nipPageMock.mockResolvedValue(null);
+  personSetsMock.mockResolvedValue([]);
   streamCalls = [];
 });
 
@@ -268,6 +271,24 @@ describe("the topic panel", () => {
     render(<KnowledgePanel query="nip 5" pov="nosfabrica" />);
     await vi.waitFor(() => expect(nipPageMock).toHaveBeenCalled());
     expect(nipPageMock).toHaveBeenCalledWith(["nip-5", "nip-05"]);
+  });
+
+  it("a person's follow-set memberships badge their panel with exporter counts", async () => {
+    suggestMock.mockResolvedValueOnce([
+      { pubkey: "b".repeat(64), npub: "npub1david", name: "david", wotRank: 0.9, wotFollowers: 42 },
+    ]);
+    personSetsMock.mockResolvedValue([
+      { title: "Verified Human", exporters: 3 },
+      { title: "AOS 2026 Participant", exporters: 1 },
+    ]);
+    render(<KnowledgePanel query="david" pov="nosfabrica" />);
+    await screen.findByTestId("search-knowledge-panel");
+    // Asked about THIS person.
+    await vi.waitFor(() => expect(personSetsMock).toHaveBeenCalledWith("b".repeat(64)));
+    const badge = await screen.findByTestId("person-set-Verified Human");
+    expect(badge).toHaveTextContent("Verified Human");
+    expect(badge).toHaveTextContent("3");
+    expect(screen.getByTestId("person-set-AOS 2026 Participant")).toHaveTextContent("1");
   });
 
   it("an active topic outranks even an exact-named person", async () => {

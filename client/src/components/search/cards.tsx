@@ -405,25 +405,33 @@ export function ListCard({ event, author, score }: { event: NostrEvent; author: 
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 break-words line-clamp-2">{description}</p>
           )}
           {isPeopleList && (
-            <div className="mt-2 flex items-center gap-1.5" data-testid={`list-members-${event.id}`}>
+            <div className="mt-2 flex items-start gap-2.5" data-testid={`list-members-${event.id}`}>
               {members.slice(0, 5).map((pk) => {
                 const profile = profiles.get(pk);
                 const memberName = profile?.display_name || profile?.name;
                 return (
-                  <Avatar
-                    key={pk}
-                    title={memberName ?? undefined}
-                    className={`h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(memberScoreOf(pk) ?? null, false, "sm", true) ?? ""}`}
-                  >
-                    {profile?.picture ? <AvatarImage src={profile.picture} alt="" className="object-cover" /> : null}
-                    <AvatarFallback className="overflow-hidden">
-                      <DefaultAvatarImg />
-                    </AvatarFallback>
-                  </Avatar>
+                  <span key={pk} className="flex w-12 flex-col items-center gap-1">
+                    <Avatar
+                      className={`h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(memberScoreOf(pk) ?? null, false, "sm", true) ?? ""}`}
+                    >
+                      {profile?.picture ? <AvatarImage src={profile.picture} alt="" className="object-cover" /> : null}
+                      <AvatarFallback className="overflow-hidden">
+                        <DefaultAvatarImg />
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="w-full truncate text-center text-[10px] leading-tight text-slate-600 dark:text-slate-300">
+                      {memberName ?? "…"}
+                    </span>
+                  </span>
                 );
               })}
               {members.length > 5 && (
-                <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400">+{members.length - 5} more</span>
+                <span className="flex w-12 flex-col items-center gap-1">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                    +{members.length - 5}
+                  </span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">more</span>
+                </span>
               )}
             </div>
           )}

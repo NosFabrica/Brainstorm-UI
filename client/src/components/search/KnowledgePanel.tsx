@@ -14,7 +14,7 @@ import { VerificationCoin, useTierRing, TierWordChip } from "@/components/score/
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { eventPath } from "@/lib/shareId";
-import { fetchNipPage, searchStream, suggestProfiles, type SearchHit, type SearchPov } from "@/services/search";
+import { fetchNipPage, fetchPersonSets, searchStream, suggestProfiles, type PersonSetMembership, type SearchHit, type SearchPov } from "@/services/search";
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
@@ -81,12 +81,14 @@ export function KnowledgePanel({
   const [topicHits, setTopicHits] = useState<SearchHit[] | null>(null);
   const [nipPage, setNipPage] = useState<NostrEvent | null>(null);
   const [appHits, setAppHits] = useState<SearchHit[] | null>(null);
+  const [personSets, setPersonSets] = useState<PersonSetMembership[]>([]);
 
   useEffect(() => {
     setPerson(null);
     setTopicHits(null);
     setNipPage(null);
     setAppHits(null);
+    setPersonSets([]);
     if (!isPanelableQuery(query)) return;
     let alive = true;
     // A NIP-shaped query is a spec lookup, not a person or topic hunt —
@@ -127,7 +129,14 @@ export function KnowledgePanel({
     void suggestProfiles(query, { pov, userPubkey }, { limit: 3 }).then((people) => {
       if (!alive) return;
       const top = people[0];
-      if (top && isStrongMatch(query, top)) setPerson(top);
+      if (top && isStrongMatch(query, top)) {
+        setPerson(top);
+        // Staging's tag badges, our social-proof twist: how many exporters'
+        // follow sets vouch for this person, per tag.
+        void fetchPersonSets(top.pubkey).then((sets) => {
+          if (alive) setPersonSets(sets);
+        });
+      }
     });
     return () => {
       alive = false;
@@ -339,6 +348,23 @@ export function KnowledgePanel({
         <p className="mt-2.5 flex items-center gap-1 truncate text-xs text-brand-primary dark:text-brand-link">
           <Check className="h-3 w-3 shrink-0" /> {person.nip05.replace(/^_@/, "")}
         </p>
+      )}
+      {personSets.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1" data-testid="person-sets">
+          {personSets.map((m) => (
+            <span
+              key={m.title}
+              title={`${m.exporters} ${m.exporters === 1 ? "web of trust vouches" : "webs of trust vouch"} for this`}
+              className="inline-flex items-center gap-1 rounded-full bg-brand-primary/5 dark:bg-brand-primary/15 px-2 py-0.5 text-[11px] font-medium text-brand-deep dark:text-brand-link"
+              data-testid={`person-set-${m.title}`}
+            >
+              {m.title}
+              <span className="rounded-full bg-brand-primary/10 dark:bg-brand-primary/25 px-1 text-[10px] font-semibold">
+                {m.exporters}
+              </span>
+            </span>
+          ))}
+        </div>
       )}
       {person.about && (
         <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-300 break-words line-clamp-4">

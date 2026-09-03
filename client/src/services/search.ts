@@ -299,6 +299,50 @@ export function appAddress(event: { kind?: number; pubkey: string; tags: string[
   return `32267:${event.pubkey}:${d}`;
 }
 
+export interface PersonSetMembership {
+  title: string;
+  /** How many distinct exporters' follow sets include the person — the
+   *  social-proof number ("Verified Human · 3"). */
+  exporters: number;
+}
+
+/**
+ * The follow sets a person appears in (kind 30000, #p), grouped by title
+ * with a distinct-exporter count. Multiple Brainstorm instances export the
+ * same pinned tag — three "Verified Human" sets naming you is three webs
+ * of trust vouching, and THAT is the badge.
+ */
+export function fetchPersonSets(pubkey: string, timeoutMs = 5000): Promise<PersonSetMembership[]> {
+  return new Promise((resolve) => {
+    const relay = searchRelay();
+    if (!relay) return resolve([]);
+    const byTitle = new Map<string, Set<string>>();
+    const sub = relay
+      .req({ kinds: [30000], "#p": [pubkey], search: "include:spam", limit: 50 })
+      .subscribe((msg: { type: string; event?: NostrEvent }) => {
+        if (msg.type === "EVENT" && msg.event) {
+          const title = msg.event.tags.find((t) => t[0] === "title" || t[0] === "name")?.[1]?.trim();
+          if (!title) return;
+          if (!byTitle.has(title)) byTitle.set(title, new Set());
+          byTitle.get(title)!.add(msg.event.pubkey);
+        } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
+          finish();
+        }
+      });
+    const timer = setTimeout(finish, timeoutMs);
+    function finish() {
+      clearTimeout(timer);
+      sub.unsubscribe();
+      resolve(
+        [...byTitle.entries()]
+          .map(([title, exporters]) => ({ title, exporters: exporters.size }))
+          .sort((a, b) => b.exporters - a.exporters)
+          .slice(0, 3),
+      );
+    }
+  });
+}
+
 /**
  * A repo's live activity: NIP-34 issues (1621) and patches (1617) that
  * reference the repo address by "a" tag (probed live). Newest first —

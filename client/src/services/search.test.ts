@@ -38,6 +38,7 @@ vi.mock("@/lib/eventStore", () => ({
 import {
   appAddress,
   fetchNipPage,
+  fetchPersonSets,
   fetchReleases,
   fetchRepoActivity,
   fetchSimilarApps,
@@ -350,6 +351,36 @@ describe("fetchRepoActivity", () => {
     subject.next(EOSE);
     const activity = await pending;
     expect(activity.map((e) => e.id)).toEqual(["new-patch", "mid-issue", "old-issue"]);
+  });
+});
+
+describe("fetchPersonSets", () => {
+  // Staging's best idea, our twist: a person's follow-set memberships as
+  // social proof — "Verified Human · 3" means THREE exporters' webs of
+  // trust vouch for them under that tag.
+  const ME = "a".repeat(64);
+  const set = (id: string, exporter: string, title: string): NostrEvent =>
+    ({ id, kind: 30000, pubkey: exporter, tags: [["d", `tl-pin-${id}`], ["title", title], ["p", ME]], content: "", created_at: 1, sig: "s" }) as NostrEvent;
+
+  it("groups memberships by title and counts distinct exporters", async () => {
+    const { subject } = controllable();
+    const pending = fetchPersonSets(ME);
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter.kinds).toEqual([30000]);
+    expect(filter["#p"]).toEqual([ME]);
+    expect(filter.search).toBe("include:spam");
+
+    subject.next(frame(set("s1", "1".repeat(64), "Verified Human")));
+    subject.next(frame(set("s2", "2".repeat(64), "Verified Human")));
+    subject.next(frame(set("s3", "3".repeat(64), "Verified Human")));
+    subject.next(frame(set("s4", "1".repeat(64), "AOS 2026 Participant")));
+    subject.next(frame({ ...set("s5", "4".repeat(64), ""), tags: [["d", "x"], ["p", ME]] } as NostrEvent)); // untitled — out
+    subject.next(EOSE);
+    expect(await pending).toEqual([
+      { title: "Verified Human", exporters: 3 },
+      { title: "AOS 2026 Participant", exporters: 1 },
+    ]);
   });
 });
 
