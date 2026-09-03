@@ -153,11 +153,47 @@ describe("SearchResults", () => {
     expect(await screen.findByText("NoGood Radio")).toBeInTheDocument();
   });
 
-  it("renders all eight verticals as tabs", () => {
+  it("renders all nine verticals as tabs — Apps and Repos, no Code & git", () => {
     render(<SearchResults query="jack" pov="nosfabrica" />);
-    for (const t of ["everything", "people", "notes", "articles", "media", "code", "live", "lists"]) {
+    for (const t of ["everything", "people", "notes", "articles", "media", "apps", "repos", "live", "lists"]) {
       expect(screen.getByTestId(`search-tab-${t}`)).toBeInTheDocument();
     }
+    expect(screen.queryByTestId("search-tab-code")).toBeNull();
+  });
+
+  it("legacy ?t=code deep links land on the Repos tab", () => {
+    setUrlTab("code");
+    render(<SearchResults query="relay" pov="nosfabrica" />);
+    expect(mainStreamCalls()[0][1]).toMatchObject({ tab: "repos" });
+  });
+
+  // Vitor's split, the Apps half: Zap Store listings render as real
+  // app-store cards — the app's own icon, name, summary, platforms, and a
+  // Get-it link out. Fixture is the live-probed PosterChan shape.
+  it("renders a Zap Store listing as an app card", async () => {
+    setUrlTab("apps");
+    render(<SearchResults query="poster" pov="nosfabrica" />);
+    const app = ev("app1", 32267, "9".repeat(64), "PosterChan is the Android half of a Nostr-powered personal cloud.", [
+      ["d", "place.poster.app"],
+      ["name", "PosterChan"],
+      ["summary", "A Nostr-powered personal cloud and self-hosted AI"],
+      ["icon", "https://cdn.zapstore.dev/icon.png"],
+      ["url", "https://poster.place"],
+      ["repository", "https://github.com/example/posterchan"],
+      ["f", "android-arm64-v8a"],
+      ["f", "android-x86"],
+      ["license", "GPL-3.0-or-later"],
+    ]);
+    emit({ hits: [{ event: app, author: author(app.pubkey, "zapstore bot"), rank: null }], eose: true, timeMs: 200 });
+
+    expect(await screen.findByText("PosterChan")).toBeInTheDocument();
+    expect(screen.getByText(/personal cloud and self-hosted AI/)).toBeInTheDocument();
+    const icon = screen.getByTestId("app-icon-app1") as HTMLImageElement;
+    expect(icon.src).toContain("cdn.zapstore.dev/icon.png");
+    // Platforms dedupe to one human word.
+    expect(screen.getAllByText("Android")).toHaveLength(1);
+    // Get it → the app's own site.
+    expect(screen.getByTestId("app-get-app1").getAttribute("href")).toBe("https://poster.place");
   });
 
   // Benjamin's review catch: People cards rendered bare — no ring, no coin,

@@ -28,7 +28,8 @@ export type SearchTab =
   | "notes"
   | "articles"
   | "media"
-  | "code"
+  | "apps"
+  | "repos"
   | "live"
   | "lists";
 
@@ -38,7 +39,11 @@ export const TAB_KINDS: Record<Exclude<SearchTab, "everything">, number[]> = {
   notes: [1, 11, 1111],
   articles: [30023, 30024, 30818, 30040, 30041],
   media: [20, 21, 22, 1063, 1986, 1222, 34235, 34236],
-  code: [1337, 1617, 1618, 1621, 30617],
+  // Vitor's split: Zap Store app listings and git-shaped kinds were one
+  // confusing tab. Kind 1337 "snippets" is deliberately in NEITHER — live
+  // probing showed it ~90% JSON junk; it still surfaces via Everything.
+  apps: [32267],
+  repos: [30617, 1617, 1618, 1621],
   live: [30311, 30312, 30313, 31922, 31923, 31924],
   lists: [10003, 10015, 30001, 30003, 30015, 30267, 39701],
 };

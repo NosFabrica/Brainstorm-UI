@@ -52,6 +52,8 @@ export function kindTypeLabel(kind: number): string {
     case 30312: case 30313: return "Space";
     case 31922: case 31923: case 31924: return "Event";
     case 30617: return "Repo";
+    case 32267: return "App";
+    case 30063: return "Release";
     case 1617: return "Patch";
     case 1618: case 1621: return "Issue";
     case 1337: return "Code";

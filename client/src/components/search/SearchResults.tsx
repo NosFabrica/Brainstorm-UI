@@ -34,7 +34,7 @@ import {
   type SearchTab,
 } from "@/services/search";
 
-import { LiveCard, ListCard, MediaCard, RepoCard } from "@/components/search/cards";
+import { AppCard, LiveCard, ListCard, MediaCard, RepoCard } from "@/components/search/cards";
 import { KnowledgePanel } from "@/components/search/KnowledgePanel";
 import { ComposedResults } from "@/components/search/ComposedResults";
 import { collapseHits } from "@/lib/searchCollapse";
@@ -42,7 +42,8 @@ import { collapseHits } from "@/lib/searchCollapse";
 const NOTE_KINDS = new Set(TAB_KINDS.notes);
 const ARTICLE_KINDS = new Set(TAB_KINDS.articles);
 const MEDIA_KINDS = new Set(TAB_KINDS.media);
-const CODE_KINDS = new Set(TAB_KINDS.code);
+const APP_KINDS = new Set(TAB_KINDS.apps);
+const REPO_KINDS = new Set(TAB_KINDS.repos);
 const LIVE_KINDS = new Set(TAB_KINDS.live);
 const LIST_KINDS = new Set(TAB_KINDS.lists);
 const EMPTY_EVENTS = new Map<string, MinimalEvent>();
@@ -69,7 +70,8 @@ const TABS: { key: SearchTab; label: string }[] = [
   { key: "notes", label: "Notes" },
   { key: "articles", label: "Articles" },
   { key: "media", label: "Media" },
-  { key: "code", label: "Code & git" },
+  { key: "apps", label: "Apps" },
+  { key: "repos", label: "Repos" },
   { key: "live", label: "Live" },
   { key: "lists", label: "Lists" },
 ];
@@ -79,6 +81,8 @@ const TAB_KEYS = new Set(TABS.map((t) => t.key));
 function tabFromUrl(): SearchTab {
   try {
     const t = new URLSearchParams(window.location.search).get("t");
+    // The old combined tab's deep links keep working.
+    if (t === "code") return "repos";
     if (t && TAB_KEYS.has(t as SearchTab)) return t as SearchTab;
   } catch {
     /* default below */
@@ -587,7 +591,8 @@ export function SearchResults({
               }
               const typed = { event, author: hit.author, score: scoreOf(event.pubkey) };
               if (LIVE_KINDS.has(event.kind)) return wrap(<LiveCard {...typed} />);
-              if (CODE_KINDS.has(event.kind)) return wrap(<RepoCard {...typed} />);
+              if (APP_KINDS.has(event.kind)) return wrap(<AppCard {...typed} />);
+              if (REPO_KINDS.has(event.kind)) return wrap(<RepoCard {...typed} />);
               if (LIST_KINDS.has(event.kind)) return wrap(<ListCard {...typed} />);
               if (MEDIA_KINDS.has(event.kind)) return wrap(<MediaCard {...typed} />);
               // Open-set posture: an unmapped kind renders as media-style

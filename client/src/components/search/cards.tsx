@@ -7,7 +7,7 @@
  * primitives per CLAUDE.md: Chip for status/counts, shared tier ring.
  */
 import { Link } from "wouter";
-import { Code2, ExternalLink, FileVideo, ListChecks, Radio } from "lucide-react";
+import { Code2, ExternalLink, FileVideo, ListChecks, Package, Radio } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { nip19 } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -64,12 +64,14 @@ function CardShell({
   children,
   openInUrl,
   openInLabel,
+  openInTestId,
   testId,
 }: {
   event: NostrEvent;
   children: React.ReactNode;
   openInUrl?: string;
   openInLabel?: string;
+  openInTestId?: string;
   testId?: string;
 }) {
   return (
@@ -87,6 +89,7 @@ function CardShell({
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
           className="absolute right-2.5 top-2.5 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium text-slate-400 dark:text-slate-500 hover:text-brand-deep dark:hover:text-brand-link hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+          data-testid={openInTestId}
         >
           <ExternalLink className="h-2.5 w-2.5" /> {openInLabel ?? "Open in…"}
         </a>
@@ -151,6 +154,65 @@ export function MediaCard({ event, author, score }: { event: NostrEvent; author:
           {url && !isImage && (
             <p className="mt-1 truncate text-[11px] text-slate-400 dark:text-slate-500">{url}</p>
           )}
+        </div>
+      </div>
+    </CardShell>
+  );
+}
+
+/** "android-arm64-v8a" and friends → one human word each, deduped. */
+function platformWords(event: NostrEvent): string[] {
+  const words = new Set<string>();
+  for (const tag of event.tags) {
+    if (tag[0] !== "f" || !tag[1]) continue;
+    const f = tag[1].toLowerCase();
+    if (f.startsWith("android")) words.add("Android");
+    else if (f.startsWith("ios")) words.add("iOS");
+    else if (f.includes("darwin") || f.includes("mac")) words.add("macOS");
+    else if (f.includes("windows")) words.add("Windows");
+    else if (f.includes("linux")) words.add("Linux");
+    else if (f.includes("web")) words.add("Web");
+  }
+  return [...words];
+}
+
+/**
+ * A Zap Store listing (kind 32267) as a real app-store card: the app's own
+ * icon, name, summary, platforms, license — and "Get it" out to the app's
+ * site (falling back to its repository, then njump). Vitor's split, the
+ * Apps half: listings stop masquerading as "code".
+ */
+export function AppCard({ event, author, score }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
+  const name = tagVal(event, "name") ?? tagVal(event, "d") ?? "Untitled app";
+  const summary = tagVal(event, "summary") ?? event.content.slice(0, 200);
+  const icon = tagVal(event, "icon") ?? tagVal(event, "image");
+  const license = tagVal(event, "license");
+  const platforms = platformWords(event);
+  const getIt = tagVal(event, "url") ?? tagVal(event, "repository") ?? `https://njump.me/${neventOf(event)}`;
+  return (
+    <CardShell event={event} openInUrl={getIt} openInLabel="Get it" openInTestId={`app-get-${event.id}`} testId={`app-card-${event.id}`}>
+      <div className="flex items-start gap-3">
+        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shadow-sm">
+          {icon ? (
+            <img src={icon} alt="" loading="lazy" className="h-full w-full object-cover" data-testid={`app-icon-${event.id}`} />
+          ) : (
+            <Package className="h-6 w-6 text-slate-400 dark:text-slate-500" />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
+          {summary && (
+            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 break-words line-clamp-2">{summary}</p>
+          )}
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {platforms.map((p) => (
+              <Chip key={p} size="sm" tone="slate">{p}</Chip>
+            ))}
+            {license && <Chip size="sm" tone="slate">{license}</Chip>}
+          </div>
+          <div className="mt-1.5">
+            <AuthorRow author={author} score={score} created_at={event.created_at} />
+          </div>
         </div>
       </div>
     </CardShell>
