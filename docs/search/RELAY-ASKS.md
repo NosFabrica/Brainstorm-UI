@@ -39,6 +39,13 @@ Live findings these are based on (staging relay, 2026-09-02):
 5. **Counts per kind-group (nice-to-have).** A cheap NIP-45-style count
    per vertical would let the UI label tabs ("Notes · 120") without
    extra full REQs. supported_nips already lists 45.
+6a. **Open-vs-closed for repo issues/patches.** The repo cards/pages show
+   issue and patch counts via NIP-45 COUNT (kinds 1621/1617 by the repo
+   `#a`), but those are TOTALS — distinguishing open from resolved needs
+   NIP-34 status events (kinds 1630–1633) folded in. A count that
+   respected the latest status per issue (or a queryable `#status` index)
+   would let the cards say "12 open" honestly instead of "12 issues".
+
 6. **Index release artifacts (kind 1063) for the app pages.** Zap Store
    releases (kind 30063) reference their APK file-metadata events by
    `e` tag, but those kind-1063 events are not in the index — fetching
