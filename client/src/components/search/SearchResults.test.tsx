@@ -314,6 +314,28 @@ describe("SearchResults", () => {
     expect(screen.getByTestId("list-count-li1")).toHaveTextContent("3");
   });
 
+  it("lists earn their place: untitled and empty junk hides, people-packs lead", async () => {
+    setUrlTab("lists");
+    render(<SearchResults query="" pov="nosfabrica" />);
+    const untitled = ev("junk1", 30003, "a".repeat(64), "", [["e", "x".repeat(64)]]);
+    const empty = ev("junk2", 30003, "b".repeat(64), "", [["title", "My bookmarks"]]);
+    const bookmarks = ev("bm1", 30003, "c".repeat(64), "", [["title", "Reading List"], ["e", "y".repeat(64)]]);
+    const pack = ev("fs1", 30000, "d".repeat(64), "", [["title", "Verified Human"], ["p", "1".repeat(64)]]);
+    emit({
+      hits: [untitled, empty, bookmarks, pack].map((event) => ({ event, author: author(event.pubkey, "x"), rank: null })),
+      eose: true,
+      timeMs: 100,
+    });
+    // Junk gone…
+    await screen.findByText("Verified Human");
+    expect(screen.queryByTestId("list-card-junk1")).toBeNull();
+    expect(screen.queryByTestId("list-card-junk2")).toBeNull();
+    // …and the people-pack outranks the bookmark list despite arriving after.
+    const cards = screen.getAllByTestId(/^list-card-/);
+    expect(cards[0].getAttribute("data-testid")).toBe("list-card-fs1");
+    expect(cards[1].getAttribute("data-testid")).toBe("list-card-bm1");
+  });
+
   it("a Brainstorm follow set shows its members as trust-ringed faces", async () => {
     setUrlTab("lists");
     render(<SearchResults query="verified human" pov="nosfabrica" />);

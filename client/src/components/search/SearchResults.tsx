@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
+import type { NostrEvent } from "nostr-tools";
 import { Radar, SlidersHorizontal } from "lucide-react";
 import { applyFilters, readFilters, type SearchFilterPatch } from "@/lib/searchSyntax";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
@@ -395,16 +396,28 @@ export function SearchResults({
   const [expandedClusters, setExpandedClusters] = useState<Set<string>>(new Set());
   const clustered = tab === "live" || tab === "lists";
   const displayHits = useMemo(() => {
-    if (!clustered) return hits.map((h) => ({ hit: h, collapsedCount: 0, clusterId: "" }));
+    let shown = hits;
+    if (tab === "lists") {
+      // Lists must earn their place: untitled or empty ones are app
+      // machine-state, not content (Benjamin's "forced and off" browse).
+      // People-packs — the lists a searcher actually wants — lead.
+      const titled = (e: NostrEvent) => !!e.tags.find((t) => (t[0] === "title" || t[0] === "name") && t[1]?.trim());
+      const itemCount = (e: NostrEvent) => e.tags.filter((t) => ["p", "e", "a", "r"].includes(t[0])).length;
+      const isPeoplePack = (e: NostrEvent) =>
+        e.tags.some((t) => t[0] === "p") && !e.tags.some((t) => ["e", "a", "r"].includes(t[0]));
+      shown = hits.filter((h) => titled(h.event) && itemCount(h.event) > 0);
+      shown = [...shown.filter((h) => isPeoplePack(h.event)), ...shown.filter((h) => !isPeoplePack(h.event))];
+    }
+    if (!clustered) return shown.map((h) => ({ hit: h, collapsedCount: 0, clusterId: "" }));
     const out: { hit: SearchHit; collapsedCount: number; clusterId: string }[] = [];
-    for (const cluster of collapseHits(hits)) {
+    for (const cluster of collapseHits(shown)) {
       const id = cluster.primary.event.id;
       const open = expandedClusters.has(id);
       out.push({ hit: cluster.primary, collapsedCount: open ? 0 : cluster.others.length, clusterId: id });
       if (open) for (const h of cluster.others) out.push({ hit: h, collapsedCount: 0, clusterId: "" });
     }
     return out;
-  }, [hits, clustered, expandedClusters]);
+  }, [hits, tab, clustered, expandedClusters]);
 
   const profiles = useMemo(() => profilesOf(hits), [hits]);
   // The relay only ORDERS by rank — per-card scores come from the shared
