@@ -160,6 +160,10 @@ export default function Landing() {
   // Non-null while the dropdown is completing a from:/to: name fragment —
   // picking a person then WRITES THE KEY instead of navigating.
   const personAssistRef = useRef<PersonAssist | null>(null);
+  // The animated hero container — the wordmark refresh replays its
+  // load-in through the Web Animations API (a remount would re-trigger
+  // the input's autoFocus and reopen the recents dropdown).
+  const heroRef = useRef<HTMLDivElement | null>(null);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const didInitFromUrlRef = useRef(false);
@@ -747,7 +751,7 @@ export default function Landing() {
           desktop padding both have to be neutralised by height, not width. `!`
           because these override `sm:` utilities of equal specificity. */}
       <main className={`relative z-10 flex-1 flex flex-col items-center px-4 ${dropdownOpen || lifted ? "justify-start pt-6 sm:pt-10 short:!pt-2" : "justify-center -mt-10 sm:-mt-16 short:justify-start short:!mt-0 short:pt-2"}`}>
-        <div className="w-full max-w-2xl mx-auto text-center motion-safe:animate-[homeFadeUp_0.5s_ease-out]">
+        <div ref={heroRef} className="w-full max-w-2xl mx-auto text-center motion-safe:animate-[homeFadeUp_0.5s_ease-out]">
           <style>{`@keyframes homeFadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }`}</style>
 
           <div className="flex flex-col items-center mb-8 short:mb-3.5">
@@ -764,7 +768,20 @@ export default function Landing() {
                   clears the search and lands you on the pristine box. */}
               <button
                 type="button"
-                onClick={() => clearSearch({ refocus: false })}
+                onClick={() => {
+                  clearSearch({ refocus: false });
+                  // Same entrance as a fresh load — the refresh should FEEL
+                  // like arriving, not like something vanished.
+                  if (!prefersReducedMotion) {
+                    heroRef.current?.animate(
+                      [
+                        { opacity: 0, transform: "translateY(16px)" },
+                        { opacity: 1, transform: "translateY(0)" },
+                      ],
+                      { duration: 500, easing: "ease-out" },
+                    );
+                  }
+                }}
                 aria-label="Back to the search home"
                 className="cursor-pointer rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
                 data-testid="wordmark-home"
