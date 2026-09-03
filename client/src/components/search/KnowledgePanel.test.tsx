@@ -10,6 +10,7 @@ import type { NostrEvent } from "nostr-tools";
 import type { SearchSnapshot, SearchParams } from "@/services/search";
 
 const suggestMock = vi.fn<() => Promise<unknown[]>>(() => Promise.resolve([]));
+const nipPageMock = vi.fn<() => Promise<NostrEvent | null>>(() => Promise.resolve(null));
 let streamCalls: { query: string; params: SearchParams; emit: (s: Partial<SearchSnapshot>) => void }[] = [];
 
 vi.mock("@/services/search", async (importOriginal) => {
@@ -17,6 +18,7 @@ vi.mock("@/services/search", async (importOriginal) => {
   return {
     ...actual,
     suggestProfiles: () => suggestMock(),
+    fetchNipPage: (...args: unknown[]) => nipPageMock(...(args as [])),
     searchStream: (query: string, params: SearchParams, onSnapshot: (s: SearchSnapshot) => void) => {
       streamCalls.push({
         query,
@@ -45,6 +47,7 @@ const NOW = Math.floor(Date.now() / 1000);
 
 beforeEach(() => {
   vi.clearAllMocks();
+  nipPageMock.mockResolvedValue(null);
   streamCalls = [];
 });
 
@@ -101,6 +104,35 @@ describe("the topic panel", () => {
     await new Promise((r) => setTimeout(r, 20));
     expect(screen.queryByTestId("search-knowledge-panel")).toBeNull();
     expect(screen.queryByTestId("search-topic-panel")).toBeNull();
+  });
+
+  it("a NIP-shaped query gets the spec card, not a person hunt", async () => {
+    nipPageMock.mockResolvedValue({
+      id: "e".repeat(64),
+      kind: 30818,
+      pubkey: "f".repeat(64),
+      tags: [["d", "nip-46"], ["title", "Nostr Connect"]],
+      content: "# NIP-46\n\nNostr Connect lets a client talk to a remote signer over relays.",
+      created_at: 1_710_000_000,
+      sig: "s",
+    } as NostrEvent);
+    render(<KnowledgePanel query="nip-46" pov="nosfabrica" />);
+    const panel = await screen.findByTestId("search-nip-panel");
+    // Asked for both spellings the wiki uses.
+    expect(nipPageMock).toHaveBeenCalledWith(["nip-46"]);
+    expect(panel).toHaveTextContent("NIP-46");
+    expect(panel).toHaveTextContent("Nostr Connect");
+    expect(panel).toHaveTextContent(/remote signer/);
+    expect(screen.getByTestId("nip-panel-read").getAttribute("href")).toMatch(/^\/(e|a)\//);
+    // A spec lookup is not a person or topic hunt.
+    expect(suggestMock).not.toHaveBeenCalled();
+    expect(streamCalls).toHaveLength(0);
+  });
+
+  it("'nip 5' pads and tries both wiki spellings", async () => {
+    render(<KnowledgePanel query="nip 5" pov="nosfabrica" />);
+    await vi.waitFor(() => expect(nipPageMock).toHaveBeenCalled());
+    expect(nipPageMock).toHaveBeenCalledWith(["nip-5", "nip-05"]);
   });
 
   it("an active topic outranks even an exact-named person", async () => {

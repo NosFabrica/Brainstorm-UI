@@ -299,6 +299,59 @@ export function appAddress(event: { kind?: number; pubkey: string; tags: string[
 }
 
 /**
+ * A repo's live activity: NIP-34 issues (1621) and patches (1617) that
+ * reference the repo address by "a" tag (probed live). Newest first —
+ * the repo page's "is anyone working on this?" feed.
+ */
+export function fetchRepoActivity(address: string, timeoutMs = 5000): Promise<NostrEvent[]> {
+  return new Promise((resolve) => {
+    const relay = searchRelay();
+    if (!relay) return resolve([]);
+    const items: NostrEvent[] = [];
+    const sub = relay
+      .req({ kinds: [1621, 1617], "#a": [address], search: "include:spam", limit: 20 })
+      .subscribe((msg: { type: string; event?: NostrEvent }) => {
+        if (msg.type === "EVENT" && msg.event) items.push(msg.event);
+        else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();
+      });
+    const timer = setTimeout(finish, timeoutMs);
+    function finish() {
+      clearTimeout(timer);
+      sub.unsubscribe();
+      resolve(items.sort((a, b) => b.created_at - a.created_at));
+    }
+  });
+}
+
+/**
+ * The wiki page for a NIP (kind 30818, d = "nip-46"). Several authors
+ * publish competing versions — probed live, a real 10KB spec sits next to
+ * 7-character stubs — so the most substantial page wins.
+ */
+export function fetchNipPage(dTags: string[], timeoutMs = 5000): Promise<NostrEvent | null> {
+  return new Promise((resolve) => {
+    const relay = searchRelay();
+    if (!relay || dTags.length === 0) return resolve(null);
+    let best: NostrEvent | null = null;
+    const sub = relay
+      .req({ kinds: [30818], "#d": dTags, search: "include:spam", limit: 10 })
+      .subscribe((msg: { type: string; event?: NostrEvent }) => {
+        if (msg.type === "EVENT" && msg.event) {
+          if (!best || msg.event.content.length > best.content.length) best = msg.event;
+        } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
+          finish();
+        }
+      });
+    const timer = setTimeout(finish, timeoutMs);
+    function finish() {
+      clearTimeout(timer);
+      sub.unsubscribe();
+      resolve(best);
+    }
+  });
+}
+
+/**
  * Sibling listings that share category t-tags — the "Similar apps" row.
  * Deduped by address (listings are replaceable), self excluded, ordered by
  * how many of the given tags each one shares.

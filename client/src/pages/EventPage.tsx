@@ -14,6 +14,7 @@ import { collectRefs, addrCoord, replyRefs, type MinimalEvent } from "@/lib/note
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { NoteContent } from "@/components/share/NoteContent";
 import { AppHero } from "@/components/share/AppHero";
+import { RepoHero } from "@/components/share/RepoHero";
 import { AudioHero } from "@/components/share/AudioHero";
 import { EventHero } from "@/components/share/EventHero";
 import { LiveHero } from "@/components/share/LiveHero";
@@ -351,6 +352,8 @@ export default function EventPage() {
                 <LiveHero event={note} />
               ) : note.kind === 32267 ? (
                 <AppHero event={note} />
+              ) : note.kind === 30617 ? (
+                <RepoHero event={note} />
               ) : note.kind === 31337 ? (
                 <AudioHero event={note} />
               ) : note.kind === 31922 || note.kind === 31923 ? (

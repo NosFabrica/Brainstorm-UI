@@ -37,7 +37,9 @@ vi.mock("@/lib/eventStore", () => ({
 
 import {
   appAddress,
+  fetchNipPage,
   fetchReleases,
+  fetchRepoActivity,
   fetchSimilarApps,
   searchStream,
   suggestProfiles,
@@ -290,6 +292,64 @@ describe("author hydration", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("fetchNipPage", () => {
+  // Wiki NIP pages are kind 30818 with d = "nip-46". Several authors publish
+  // competing versions (probed live: fiatjaf's real 10KB page next to a
+  // 7-character stub) — the page with the most substance wins the panel.
+  const page = (pk: string, content: string): NostrEvent =>
+    ({ id: pk.slice(0, 8), kind: 30818, pubkey: pk, tags: [["d", "nip-46"], ["title", "nip-46"]], content, created_at: 1, sig: "s" }) as NostrEvent;
+
+  it("looks the d-tags up and returns the most substantial page", async () => {
+    const { subject } = controllable();
+    const pending = fetchNipPage(["nip-46"]);
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter.kinds).toEqual([30818]);
+    expect(filter["#d"]).toEqual(["nip-46"]);
+    expect(filter.search).toBe("include:spam");
+
+    subject.next(frame(page("b".repeat(64), "stub")));
+    subject.next(frame(page("c".repeat(64), "# NIP-46\n\nNostr Connect lets a remote signer ".repeat(5))));
+    subject.next(EOSE);
+    const best = await pending;
+    expect(best?.pubkey).toBe("c".repeat(64));
+  });
+
+  it("resolves null when nobody wrote the page", async () => {
+    const { subject } = controllable();
+    const pending = fetchNipPage(["nip-999"]);
+    await tick();
+    subject.next(EOSE);
+    expect(await pending).toBeNull();
+  });
+});
+
+describe("fetchRepoActivity", () => {
+  // NIP-34: issues (1621) and patches (1617) reference the repo by an
+  // "a" tag of 30617:<pubkey>:<d> (probed live). One REQ answers the repo
+  // page's activity feed, newest first.
+  const ADDR = "30617:" + "b".repeat(64) + ":ngit";
+  const item = (id: string, kind: number, at: number): NostrEvent =>
+    ({ id, kind, pubkey: "c".repeat(64), tags: [["a", ADDR], ["subject", `subject ${id}`]], content: "", created_at: at, sig: "s" }) as NostrEvent;
+
+  it("returns the repo's issues and patches newest first", async () => {
+    const { subject } = controllable();
+    const pending = fetchRepoActivity(ADDR);
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter.kinds).toEqual([1621, 1617]);
+    expect(filter["#a"]).toEqual([ADDR]);
+    expect(filter.search).toBe("include:spam");
+
+    subject.next(frame(item("old-issue", 1621, 100)));
+    subject.next(frame(item("new-patch", 1617, 300)));
+    subject.next(frame(item("mid-issue", 1621, 200)));
+    subject.next(EOSE);
+    const activity = await pending;
+    expect(activity.map((e) => e.id)).toEqual(["new-patch", "mid-issue", "old-issue"]);
   });
 });
 

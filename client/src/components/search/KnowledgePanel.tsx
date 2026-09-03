@@ -6,13 +6,15 @@
  */
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { ArrowRight, Check, Hash, Users } from "lucide-react";
+import { ArrowRight, BookOpen, Check, Hash, Users } from "lucide-react";
+import type { NostrEvent } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing, TierWordChip } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
-import { searchStream, suggestProfiles, type SearchHit, type SearchPov } from "@/services/search";
+import { eventPath } from "@/lib/shareId";
+import { fetchNipPage, searchStream, suggestProfiles, type SearchHit, type SearchPov } from "@/services/search";
 
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
@@ -30,6 +32,25 @@ export function isStrongMatch(query: string, person: SearchResult): boolean {
 export function isPanelableQuery(query: string): boolean {
   const q = query.trim();
   return q.length >= 2 && !/(^|\s)#/.test(q) && !/\S+:\S+/.test(q);
+}
+
+/** "nip-46" / "nip 5" / "NIP05" — a spec lookup, with the wiki's spellings. */
+export function nipCandidates(query: string): string[] {
+  const m = query.trim().match(/^nip[-\s]?(\d{1,4})$/i);
+  if (!m) return [];
+  const n = m[1];
+  const ds = [`nip-${n}`];
+  if (n.length === 1) ds.push(`nip-0${n}`);
+  return ds;
+}
+
+/** The first real paragraph of a wiki page — markdown headings stripped. */
+function specExcerpt(content: string): string {
+  const para = content
+    .split(/\n{2,}/)
+    .map((b) => b.trim())
+    .find((b) => b && !/^#{1,6}\s/.test(b));
+  return (para ?? "").replace(/\s+/g, " ").slice(0, 300);
 }
 
 /** A query that could be a hashtag: one plain word, no syntax. */
@@ -58,12 +79,25 @@ export function KnowledgePanel({
   const tierRing = useTierRing();
   const [person, setPerson] = useState<SearchResult | null>(null);
   const [topicHits, setTopicHits] = useState<SearchHit[] | null>(null);
+  const [nipPage, setNipPage] = useState<NostrEvent | null>(null);
 
   useEffect(() => {
     setPerson(null);
     setTopicHits(null);
+    setNipPage(null);
     if (!isPanelableQuery(query)) return;
     let alive = true;
+    // A NIP-shaped query is a spec lookup, not a person or topic hunt —
+    // the wiki page (kind 30818) takes the slot and nothing else probes.
+    const nips = nipCandidates(query);
+    if (nips.length > 0) {
+      void fetchNipPage(nips).then((page) => {
+        if (alive) setNipPage(page);
+      });
+      return () => {
+        alive = false;
+      };
+    }
     // Both probes in parallel; the render gives an ACTIVE topic priority —
     // a Liverpool fan searching "liverpool" wants the topic, not whichever
     // account happens to carry the name.
@@ -91,6 +125,45 @@ export function KnowledgePanel({
   // Relay hits carry no rank numbers (order-only wire) — the panel's ring,
   // coin and tier word feed from the shared author-score cache like every card.
   const scoreOf = useAuthorScores(person && person.wotRank == null ? [person.pubkey] : []);
+
+  if (nipPage) {
+    const d = nipPage.tags.find((t) => t[0] === "d")?.[1] ?? query.trim();
+    const heading = d.toUpperCase();
+    const title = nipPage.tags.find((t) => t[0] === "title")?.[1];
+    const excerpt = specExcerpt(nipPage.content);
+    return (
+      <aside
+        className={`w-full rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5 ${className}`}
+        data-testid="search-nip-panel"
+      >
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-primary/10">
+            <BookOpen className="h-5 w-5 text-brand-primary" />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-base font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
+              {heading}
+            </p>
+            <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">
+              {title && title.toLowerCase() !== d.toLowerCase() ? title : "Nostr protocol spec"}
+            </p>
+          </div>
+        </div>
+        {excerpt && (
+          <p className="mt-2.5 text-xs leading-relaxed text-slate-600 dark:text-slate-300 break-words line-clamp-5">
+            {excerpt}
+          </p>
+        )}
+        <Link
+          href={eventPath(nipPage)}
+          className="mt-3.5 inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
+          data-testid="nip-panel-read"
+        >
+          Read the spec <ArrowRight className="h-3 w-3" />
+        </Link>
+      </aside>
+    );
+  }
 
   if (topicHits) {
     const tag = tagCandidate(query)!;
