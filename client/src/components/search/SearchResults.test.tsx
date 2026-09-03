@@ -324,12 +324,49 @@ describe("SearchResults", () => {
       eose: true,
       timeMs: 200,
     });
+    // Every card now connects to its git host — a patch through its parent
+    // repo's a-tag — so the branded link owns the corner on both and the
+    // decorative glyph never doubles up with it.
     const repoCard = await screen.findByTestId("repo-card-ov1");
-    expect(within(repoCard).getByText("Open repo")).toBeInTheDocument();
+    expect(within(repoCard).getByTestId("repo-open-ov1")).toBeInTheDocument();
     expect(within(repoCard).queryByTestId("repo-glyph-ov1")).toBeNull();
     const patchCard = screen.getByTestId("repo-card-ov2");
-    expect(within(patchCard).queryByText("Open repo")).toBeNull();
-    expect(within(patchCard).getByTestId("repo-glyph-ov2")).toBeInTheDocument();
+    const patchLink = within(patchCard).getByTestId("repo-open-ov2");
+    expect(patchLink.getAttribute("href")).toMatch(/^https:\/\/gitworkshop\.dev\/naddr1/);
+    expect(within(patchCard).queryByTestId("repo-glyph-ov2")).toBeNull();
+  });
+
+  it("the git link wears the destination's brand — GitHub for a GitHub repo", async () => {
+    setUrlTab("repos");
+    render(<SearchResults query="amethyst" pov="nosfabrica" />);
+    const gh = ev("br1", 30617, "f".repeat(64), "", [
+      ["d", "amethyst"], ["name", "amethyst"],
+      ["web", "https://github.com/vitorpamplona/amethyst"],
+    ]);
+    // Only a clone URL, but on a browsable forge — link there, not gitworkshop.
+    const cb = ev("br2", 30617, "e".repeat(64), "", [
+      ["d", "forgejo-thing"], ["name", "forgejo-thing"],
+      ["clone", "https://codeberg.org/someone/forgejo-thing.git"],
+    ]);
+    // A relay-only clone isn't a web page — gitworkshop renders the repo.
+    const ngit = ev("br3", 30617, "d".repeat(64), "", [
+      ["d", "ngit"], ["name", "ngit"],
+      ["clone", "https://relay.ngit.dev/npub1abc/ngit"],
+    ]);
+    emit({
+      hits: [gh, cb, ngit].map((event) => ({ event, author: author(event.pubkey, "x"), rank: null })),
+      eose: true,
+      timeMs: 200,
+    });
+    const ghLink = await screen.findByTestId("repo-open-br1");
+    expect(ghLink).toHaveTextContent("GitHub");
+    expect(ghLink.getAttribute("href")).toBe("https://github.com/vitorpamplona/amethyst");
+    const cbLink = screen.getByTestId("repo-open-br2");
+    expect(cbLink).toHaveTextContent("Codeberg");
+    expect(cbLink.getAttribute("href")).toBe("https://codeberg.org/someone/forgejo-thing");
+    const ngitLink = screen.getByTestId("repo-open-br3");
+    expect(ngitLink).toHaveTextContent("gitworkshop");
+    expect(ngitLink.getAttribute("href")).toMatch(/^https:\/\/gitworkshop\.dev\/naddr1/);
   });
 
   it("a repo announcement shows its issue and patch counts", async () => {

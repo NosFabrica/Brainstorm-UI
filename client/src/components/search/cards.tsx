@@ -24,6 +24,7 @@ import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { FeedVideo } from "@/components/share/FeedVideo";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { MentionChip } from "@/components/share/MentionChip";
+import { Favicon } from "@/components/share/LinkPreview";
 
 export function tagVal(event: NostrEvent, name: string): string | undefined {
   return event.tags.find((t) => t[0] === name)?.[1];
@@ -114,6 +115,7 @@ function CardShell({
   children,
   openInUrl,
   openInLabel,
+  openInHost,
   openInTestId,
   testId,
 }: {
@@ -121,6 +123,9 @@ function CardShell({
   children: React.ReactNode;
   openInUrl?: string;
   openInLabel?: string;
+  /** When set, the link wears the destination's favicon (GitHub, gitworkshop…)
+   *  instead of the generic external-link glyph — the affiliated look. */
+  openInHost?: string;
   openInTestId?: string;
   testId?: string;
 }) {
@@ -141,7 +146,8 @@ function CardShell({
           className="absolute right-2.5 top-2.5 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium text-slate-400 dark:text-slate-500 hover:text-brand-deep dark:hover:text-brand-link hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
           data-testid={openInTestId}
         >
-          <ExternalLink className="h-2.5 w-2.5" /> {openInLabel ?? "Open in…"}
+          {openInHost ? <Favicon host={openInHost} className="h-3 w-3 shrink-0 rounded-sm" /> : <ExternalLink className="h-2.5 w-2.5" />}{" "}
+          {openInLabel ?? "Open in…"}
         </a>
       )}
     </div>
@@ -357,6 +363,59 @@ export function AppCard({ event, author, score }: { event: NostrEvent; author: S
   );
 }
 
+/** Git hosts people recognize by name; anything else shows as its hostname. */
+const FORGE_LABELS: Record<string, string> = {
+  "github.com": "GitHub",
+  "gitlab.com": "GitLab",
+  "codeberg.org": "Codeberg",
+  "bitbucket.org": "Bitbucket",
+  "gitworkshop.dev": "gitworkshop",
+  "git.iris.to": "iris",
+};
+/** Clone URLs on these hosts double as browsable repo pages. */
+const BROWSABLE_FORGES = new Set(["github.com", "gitlab.com", "codeberg.org", "bitbucket.org"]);
+
+function hostOf(url: string): string | null {
+  try {
+    return new URL(url).hostname.replace(/^www\./, "");
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Where a repo-tab card's external link goes, and whose brand it wears.
+ * Repo announcements: their `web` page → a browsable forge clone URL → the
+ * repo on gitworkshop (every 30617 is addressable, so this always exists).
+ * Patches/issues aren't addressable and rarely carry a web link, but their
+ * a-tag names the parent repo — so they connect to it on gitworkshop.
+ */
+export function repoDestination(event: NostrEvent): { url: string; host: string; label: string } | null {
+  const branded = (url: string, host: string) => ({ url, host, label: FORGE_LABELS[host] ?? host });
+  const gitworkshop = (naddr: string) => branded(`https://gitworkshop.dev/${naddr}`, "gitworkshop.dev");
+  if (event.kind === 30617) {
+    const web = tagVal(event, "web");
+    const webHost = web ? hostOf(web) : null;
+    if (web && webHost) return branded(web, webHost);
+    for (const t of event.tags) {
+      if (t[0] !== "clone" || !t[1]) continue;
+      const h = hostOf(t[1]);
+      if (h && BROWSABLE_FORGES.has(h)) return branded(t[1].replace(/\.git$/, ""), h);
+    }
+    const naddr = naddrOf(event);
+    return naddr ? gitworkshop(naddr) : null;
+  }
+  const a = tagVal(event, "a");
+  if (!a) return null;
+  const [kind, pubkey, ...rest] = a.split(":");
+  if (kind !== "30617" || !pubkey) return null;
+  try {
+    return gitworkshop(nip19.naddrEncode({ kind: 30617, pubkey, identifier: rest.join(":") }));
+  } catch {
+    return null;
+  }
+}
+
 export function RepoCard({ event, author, score }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
   // The Repos tab is a mix: 30617 repo announcements, plus patches (1617) and
   // issues (1621/1618) that target a repo. A type chip tells them apart, and
@@ -368,9 +427,7 @@ export function RepoCard({ event, author, score }: { event: NostrEvent; author: 
   const name = tagVal(event, "name") ?? tagVal(event, "subject") ?? tagVal(event, "d") ?? "Untitled";
   const description = tagVal(event, "description") ?? (isRepo ? "" : event.content.slice(0, 200));
   const repoRef = !isRepo ? tagVal(event, "a")?.split(":")[2] : undefined;
-  const web = tagVal(event, "web");
-  const naddr = naddrOf(event);
-  const openIn = web ?? (isRepo && naddr ? `https://gitworkshop.dev/${naddr}` : undefined);
+  const dest = repoDestination(event);
   // The "is anyone working on this?" signal — issue/patch counts for the repo
   // (announcements only; a lone patch/issue has none of its own).
   const d = tagVal(event, "d");
@@ -388,7 +445,14 @@ export function RepoCard({ event, author, score }: { event: NostrEvent; author: 
   return (
     // Identity flush left, the code glyph balancing the top-right corner —
     // the App/List/Repo-page anatomy, now on the card too.
-    <CardShell event={event} openInUrl={openIn} openInLabel="Open repo" testId={`repo-card-${event.id}`}>
+    <CardShell
+      event={event}
+      openInUrl={dest?.url}
+      openInLabel={dest?.label}
+      openInHost={dest?.host}
+      openInTestId={`repo-open-${event.id}`}
+      testId={`repo-card-${event.id}`}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 min-w-0">
@@ -419,7 +483,7 @@ export function RepoCard({ event, author, score }: { event: NostrEvent; author: 
             corner (it must live outside the card's own link — nested anchors
             are invalid). The glyph is decorative, the type chip already names
             the kind — so it only takes the corner when nothing else does. */}
-        {!openIn && (
+        {!dest && (
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800" data-testid={`repo-glyph-${event.id}`}>
             <Code2 className="h-4 w-4 text-slate-500 dark:text-slate-400" />
           </div>
