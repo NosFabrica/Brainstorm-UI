@@ -6,7 +6,7 @@
  * what goes on the wire, how snapshots arrive, and that cancellation is real.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Observable, Subject } from "rxjs";
+import { Observable, Subject, of } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
 
 interface ReqFrame {
@@ -19,8 +19,12 @@ interface ReqFrame {
 }
 
 const reqMock = vi.fn();
+const countMock = vi.fn();
 vi.mock("@/lib/searchRelay", () => ({
-  searchRelay: () => ({ req: (...args: unknown[]) => reqMock(...args) }),
+  searchRelay: () => ({
+    req: (...args: unknown[]) => reqMock(...args),
+    count: (...args: unknown[]) => countMock(...args),
+  }),
 }));
 const houseMock = vi.fn(() => Promise.resolve<string | null>("f".repeat(64)));
 vi.mock("@/services/trustSource", () => ({
@@ -41,6 +45,7 @@ import {
   fetchPersonSets,
   fetchReleases,
   fetchRepoActivity,
+  fetchRepoCounts,
   fetchSimilarApps,
   searchStream,
   suggestProfiles,
@@ -381,6 +386,23 @@ describe("fetchPersonSets", () => {
       { title: "Verified Human", exporters: 3 },
       { title: "AOS 2026 Participant", exporters: 1 },
     ]);
+  });
+});
+
+describe("fetchRepoCounts", () => {
+  // NIP-45 COUNT for the repo's issues (1621) and patches (1617), keyed by the
+  // repo address. A count is a number off the wire, not a page of events — the
+  // right tool for the "is this repo alive?" card signal.
+  it("counts issues and patches for the address, through the lens", async () => {
+    const addr = "30617:" + "b".repeat(64) + ":ngit";
+    countMock.mockImplementation((filter: { kinds: number[] }) =>
+      of({ count: filter.kinds[0] === 1621 ? 3 : 1 }),
+    );
+    const res = await fetchRepoCounts(addr);
+    expect(res).toEqual({ issues: 3, patches: 1 });
+    const filters = countMock.mock.calls.map((c) => c[0] as Record<string, unknown>);
+    expect(filters.every((f) => (f["#a"] as string[])[0] === addr && f.search === "include:spam")).toBe(true);
+    expect(filters.map((f) => (f.kinds as number[])[0]).sort()).toEqual([1617, 1621]);
   });
 });
 

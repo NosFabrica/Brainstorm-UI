@@ -369,6 +369,55 @@ export function fetchRepoActivity(address: string, timeoutMs = 5000): Promise<No
 }
 
 /**
+ * A repo's issue and patch counts (NIP-45 COUNT, kinds 1621/1617 keyed by the
+ * repo address) — the "is anyone working on this?" signal for the repo card.
+ * These are TOTALS referencing the repo, not open-vs-closed: distinguishing
+ * open from resolved needs NIP-34 status events, which COUNT can't filter on.
+ */
+export function fetchRepoCounts(
+  address: string,
+  timeoutMs = 5000,
+): Promise<{ issues: number; patches: number }> {
+  return new Promise((resolve) => {
+    const relay = searchRelay();
+    if (!relay) return resolve({ issues: 0, patches: 0 });
+    const result = { issues: 0, patches: 0 };
+    const subs: { unsubscribe: () => void }[] = [];
+    let done = 0;
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      subs.forEach((s) => s.unsubscribe());
+      resolve(result);
+    };
+    const one = () => {
+      if (++done >= 2) finish();
+    };
+    const count = (kind: number, key: "issues" | "patches") => {
+      subs.push(
+        relay
+          .count({ kinds: [kind], "#a": [address], search: "include:spam" })
+          .subscribe({
+            next: (r: { count?: number }) => {
+              result[key] = r?.count ?? 0;
+            },
+            error: one,
+            complete: one,
+          }),
+      );
+    };
+    // Set the timer BEFORE subscribing: a synchronous count response (or the
+    // fake transport in tests) can complete during subscribe, and finish()
+    // clears this timer — so it must already exist.
+    const timer = setTimeout(finish, timeoutMs);
+    count(1621, "issues");
+    count(1617, "patches");
+  });
+}
+
+/**
  * The wiki page for a NIP (kind 30818, d = "nip-46"). Several authors
  * publish competing versions — probed live, a real 10KB spec sits next to
  * 7-character stubs — so the most substantial page wins.

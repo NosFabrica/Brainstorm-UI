@@ -6,7 +6,7 @@
  * own suite covers the wire; these tests cover what a searcher sees.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 import type { SearchSnapshot } from "@/services/search";
 
@@ -36,8 +36,12 @@ vi.mock("@/services/search", async (importOriginal) => {
       return cancelMock;
     },
     suggestProfiles: (...args: unknown[]) => suggestMock(...(args as [])),
+    fetchRepoCounts: (...args: unknown[]) => repoCountsMock(...(args as [])),
   };
 });
+const repoCountsMock = vi.fn<() => Promise<{ issues: number; patches: number }>>(() =>
+  Promise.resolve({ issues: 0, patches: 0 }),
+);
 
 // Member piles hydrate through fetchProfileMap — stubbed so jsdom never
 // touches relays; tests seed profiles into this map per case.
@@ -80,6 +84,7 @@ function emit(partial: Partial<SearchSnapshot>) {
 beforeEach(() => {
   vi.clearAllMocks();
   profileMapMock.clear();
+  repoCountsMock.mockResolvedValue({ issues: 0, patches: 0 });
   allStreams = [];
   window.history.replaceState({}, "", "/?q=jack");
 });
@@ -304,6 +309,18 @@ describe("SearchResults", () => {
     // A repo announcement is labeled and closes on the enterprise footer.
     expect(card).toHaveTextContent("Repo");
     expect(card).toHaveTextContent("Maintained by");
+  });
+
+  it("a repo announcement shows its issue and patch counts", async () => {
+    setUrlTab("repos");
+    repoCountsMock.mockResolvedValue({ issues: 12, patches: 3 });
+    render(<SearchResults query="relay" pov="nosfabrica" />);
+    const repo = ev("rc1", 30617, "f".repeat(64), "", [["d", "ngit"], ["name", "ngit"]]);
+    emit({ hits: [{ event: repo, author: author(repo.pubkey, "dan"), rank: null }], eose: true, timeMs: 200 });
+    const card = await screen.findByTestId("repo-card-rc1");
+    expect(repoCountsMock).toHaveBeenCalledWith("30617:" + "f".repeat(64) + ":ngit");
+    expect(await within(card).findByText(/12 issues/)).toBeInTheDocument();
+    expect(within(card).getByText(/3 patches/)).toBeInTheDocument();
   });
 
   it("labels patches and issues and shows the repo they belong to", async () => {

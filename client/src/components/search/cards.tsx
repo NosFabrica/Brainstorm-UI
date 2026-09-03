@@ -18,6 +18,7 @@ import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { eventStore } from "@/lib/eventStore";
 import { fetchProfileMap } from "@/services/nostr";
+import { fetchRepoCounts } from "@/services/search";
 import { eventPath } from "@/lib/shareId";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { FeedVideo } from "@/components/share/FeedVideo";
@@ -370,6 +371,20 @@ export function RepoCard({ event, author, score }: { event: NostrEvent; author: 
   const web = tagVal(event, "web");
   const naddr = naddrOf(event);
   const openIn = web ?? (isRepo && naddr ? `https://gitworkshop.dev/${naddr}` : undefined);
+  // The "is anyone working on this?" signal — issue/patch counts for the repo
+  // (announcements only; a lone patch/issue has none of its own).
+  const d = tagVal(event, "d");
+  const [counts, setCounts] = useState<{ issues: number; patches: number }>({ issues: 0, patches: 0 });
+  useEffect(() => {
+    if (!isRepo || !d) return;
+    let alive = true;
+    void fetchRepoCounts(`30617:${event.pubkey}:${d}`).then((c) => {
+      if (alive) setCounts(c);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [isRepo, d, event.pubkey]);
   return (
     // Identity flush left, the code glyph balancing the top-right corner —
     // the App/List/Repo-page anatomy, now on the card too.
@@ -385,6 +400,16 @@ export function RepoCard({ event, author, score }: { event: NostrEvent; author: 
           )}
           {description && (
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 break-words line-clamp-2">{description}</p>
+          )}
+          {isRepo && (counts.issues > 0 || counts.patches > 0) && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5" data-testid={`repo-counts-${event.id}`}>
+              {counts.issues > 0 && (
+                <Chip size="sm" tone="warning">{counts.issues} {counts.issues === 1 ? "issue" : "issues"}</Chip>
+              )}
+              {counts.patches > 0 && (
+                <Chip size="sm" tone="info">{counts.patches} {counts.patches === 1 ? "patch" : "patches"}</Chip>
+              )}
+            </div>
           )}
           <div className="mt-2">
             <CuratorFooter kicker={isRepo ? "Maintained by" : "By"} author={author} score={score} created_at={event.created_at} />
