@@ -239,20 +239,23 @@ describe("reviewsSummaryLabel", () => {
 
 // Follow-set badges ("Verified Human · 3") are only as good as who published
 // the list. Benjamin, over "Plebs · 1" and "pleb 2 · 1": one person's private
-// list names are not a credential — live, their publisher was merely
-// verified. A badge earns its place when at least two accounts published a
-// list with that title, or when its lone publisher is a curator the network
-// trusts highly (top tier).
+// list names are not a credential — even a top-tier person's (live, "Plebs"
+// survived the curator exception). So the bar is corroboration, full stop:
+// at least two accounts published a list with that title.
 describe("visiblePersonSets", () => {
-  const scoreOf = (pk: string) => ({ [A]: 0.9, [B]: null, [C]: 0.001, [D]: 0.3 })[pk];
-  it("keeps corroborated titles and top-tier curators, drops lone lists from anyone else", () => {
+  it("keeps only corroborated titles, whoever the lone publisher is", () => {
     const sets = [
       { title: "Verified Human", exporters: 3, exporterPubkeys: [B, C, C] },
-      { title: "AOS 2026 Participant", exporters: 1, exporterPubkeys: [A] },
-      { title: "Plebs", exporters: 1, exporterPubkeys: [D] }, // verified, but no curator
-      { title: "pleb 2", exporters: 1, exporterPubkeys: [C] },
+      { title: "AOS 2026 Participant", exporters: 1, exporterPubkeys: [A] }, // one top-tier curator — still one
+      { title: "Deepmarks friends", exporters: 2, exporterPubkeys: [B, D] },
+      { title: "Plebs", exporters: 1, exporterPubkeys: [D] },
     ];
-    expect(visiblePersonSets(sets, { scoreOf }).map((s) => s.title)).toEqual(["Verified Human", "AOS 2026 Participant"]);
+    expect(visiblePersonSets(sets).map((s) => s.title)).toEqual(["Verified Human", "Deepmarks friends"]);
+  });
+
+  it("caps the badges at three", () => {
+    const sets = Array.from({ length: 5 }, (_, i) => ({ title: `t${i}`, exporters: 2, exporterPubkeys: [A, B] }));
+    expect(visiblePersonSets(sets)).toHaveLength(3);
   });
 });
 

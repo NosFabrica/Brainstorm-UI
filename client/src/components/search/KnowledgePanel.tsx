@@ -186,10 +186,9 @@ export function KnowledgePanel({
   // Relay hits carry no rank numbers (order-only wire) — the panel's ring,
   // coin and tier word feed from the shared author-score cache like every card.
   const scoreOf = useAuthorScores(person && person.wotRank == null ? [person.pubkey] : []);
-  // A follow-set badge is only as good as who published the list: lone lists
-  // from unrated accounts stay out (Benjamin's "Plebs · 1" catch).
-  const exporterScoreOf = useAuthorScores(personSets.flatMap((s) => s.exporterPubkeys));
-  const shownSets = visiblePersonSets(personSets, { scoreOf: exporterScoreOf });
+  // A follow-set badge needs two publishers agreeing on the title — one
+  // account's private list names stay out (Benjamin's "Plebs · 1" catch).
+  const shownSets = visiblePersonSets(personSets);
   // Topic voices wear the same rings as every avatar in the app.
   const voiceScoreOf = useAuthorScores(
     topicHits ? [...new Set(topicHits.map((h) => h.event.pubkey))].slice(0, 8) : [],

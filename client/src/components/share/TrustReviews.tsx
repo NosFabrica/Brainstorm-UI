@@ -39,13 +39,49 @@ const MAX_LEN = 500;
 
 /** Bring the section to rest just under the sticky search bar — "center"
  *  hides the lower half behind a phone's bottom bars, "start" hides the
- *  summary line under the header. */
-function scrollToReviews() {
-  if (typeof window === "undefined") return;
+ *  summary line under the header. Returns where the section sat in the
+ *  document when we aimed, so a later check can tell if it moved. */
+function scrollToReviews(): number | null {
+  if (typeof window === "undefined") return null;
   const el = document.getElementById("trust-reviews");
-  if (!el) return;
-  const top = el.getBoundingClientRect().top + window.scrollY - 72;
-  window.scrollTo({ top: Math.max(0, top), behavior: "smooth" });
+  if (!el) return null;
+  const docTop = el.getBoundingClientRect().top + window.scrollY;
+  window.scrollTo({ top: Math.max(0, docTop - 72), behavior: "smooth" });
+  return docTop;
+}
+
+/**
+ * Land, then settle. Content above the section (the follower faces, the
+ * tags) keeps arriving for a second or two after the first scroll and pushes
+ * it down — so re-aim a few times while the section's document position is
+ * still moving, and stop the moment the reader scrolls themselves.
+ */
+function settleScrollToReviews(): () => void {
+  let aimedAt = scrollToReviews();
+  if (aimedAt == null || typeof window === "undefined") return () => {};
+  let cancelled = false;
+  const stop = () => {
+    cancelled = true;
+    window.removeEventListener("wheel", stop);
+    window.removeEventListener("touchstart", stop);
+    window.removeEventListener("keydown", stop);
+  };
+  window.addEventListener("wheel", stop, { passive: true });
+  window.addEventListener("touchstart", stop, { passive: true });
+  window.addEventListener("keydown", stop);
+  const timers = [400, 900, 1600, 2600].map((ms) =>
+    window.setTimeout(() => {
+      if (cancelled) return;
+      const el = document.getElementById("trust-reviews");
+      if (!el) return;
+      const docTop = el.getBoundingClientRect().top + window.scrollY;
+      if (Math.abs(docTop - (aimedAt ?? docTop)) > 8) aimedAt = scrollToReviews();
+    }, ms),
+  );
+  return () => {
+    stop();
+    timers.forEach((t) => window.clearTimeout(t));
+  };
 }
 
 function ago(at: number): string {
@@ -210,7 +246,7 @@ export function TrustReviews({
     if (landed.current || !hasVouches) return;
     if (typeof window === "undefined" || window.location.hash !== "#trust-reviews") return;
     landed.current = true;
-    scrollToReviews();
+    return settleScrollToReviews();
   }, [hasVouches]);
   const [replies, setReplies] = useState<Map<string, VouchReply>>(new Map());
   const subjectProfile = useProfileMap([pubkey]).get(pubkey);
