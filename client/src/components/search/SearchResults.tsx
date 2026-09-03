@@ -398,7 +398,11 @@ export function SearchResults({
   // Apps facet by PLATFORM — a one-tap chip row (Benjamin's "categorize by
   // the chips"), computed from what the results actually run on.
   const [appPlatform, setAppPlatform] = useState<string | null>(null);
-  useEffect(() => setAppPlatform(null), [tab, query]);
+  const [appCategory, setAppCategory] = useState<string | null>(null);
+  useEffect(() => {
+    setAppPlatform(null);
+    setAppCategory(null);
+  }, [tab, query]);
   const appFacets = useMemo(() => {
     if (tab !== "apps") return [];
     const counts = new Map<string, number>();
@@ -407,10 +411,44 @@ export function SearchResults({
     }
     return [...counts.entries()].sort((a, b) => b[1] - a[1]);
   }, [tab, hits]);
+  // Listing t-tags of the current hits — categories. A tag that merely
+  // restates a platform word ("android") never doubles as a category.
+  const appCategoryTags = useCallback((e: NostrEvent) => {
+    const platformSet = new Set(platformWords(e).map((w) => w.toLowerCase()));
+    return [...new Set(e.tags.filter((t) => t[0] === "t" && t[1]).map((t) => t[1].toLowerCase()))].filter(
+      (t) => !platformSet.has(t),
+    );
+  }, []);
+  const appCategoryFacets = useMemo(() => {
+    if (tab !== "apps") return [];
+    const counts = new Map<string, number>();
+    for (const h of hits) {
+      for (const t of appCategoryTags(h.event)) counts.set(t, (counts.get(t) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+  }, [tab, hits, appCategoryTags]);
+  const [appLicense, setAppLicense] = useState<string | null>(null);
+  useEffect(() => setAppLicense(null), [tab, query]);
+  const appLicenseOf = (e: NostrEvent) => e.tags.find((t) => t[0] === "license")?.[1]?.trim() ?? null;
+  const appLicenseFacets = useMemo(() => {
+    if (tab !== "apps") return [];
+    const counts = new Map<string, number>();
+    for (const h of hits) {
+      const lic = appLicenseOf(h.event);
+      if (lic) counts.set(lic, (counts.get(lic) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
+  }, [tab, hits]);
   const displayHits = useMemo(() => {
     let shown = hits;
     if (tab === "apps" && appPlatform) {
-      shown = hits.filter((h) => platformWords(h.event).includes(appPlatform));
+      shown = shown.filter((h) => platformWords(h.event).includes(appPlatform));
+    }
+    if (tab === "apps" && appCategory) {
+      shown = shown.filter((h) => appCategoryTags(h.event).includes(appCategory));
+    }
+    if (tab === "apps" && appLicense) {
+      shown = shown.filter((h) => appLicenseOf(h.event) === appLicense);
     }
     if (tab === "media") {
       // Kind 1063 is generic file metadata — Zap Store APKs and other blobs
@@ -442,7 +480,7 @@ export function SearchResults({
       if (open) for (const h of cluster.others) out.push({ hit: h, collapsedCount: 0, clusterId: "" });
     }
     return out;
-  }, [hits, tab, appPlatform, clustered, expandedClusters]);
+  }, [hits, tab, appPlatform, appCategory, appLicense, appCategoryTags, clustered, expandedClusters]);
 
   const profiles = useMemo(() => profilesOf(hits), [hits]);
   // The relay only ORDERS by rank — per-card scores come from the shared
@@ -586,6 +624,40 @@ export function SearchResults({
                   data-testid={`app-facet-${platform.toLowerCase()}`}
                 >
                   {platform} <span className="opacity-60">{count}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          {tab === "apps" && (appCategoryFacets.length > 0 || appLicenseFacets.length > 0) && (
+            <div className="mb-2.5 flex flex-wrap items-center gap-1.5 px-1" data-testid="app-cat-facets">
+              {appCategoryFacets.map(([cat, count]) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setAppCategory((cur) => (cur === cat ? null : cat))}
+                  className={`rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                    appCategory === cat
+                      ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                      : "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-brand-accent/40 hover:text-slate-700 dark:hover:text-slate-200"
+                  }`}
+                  data-testid={`app-cat-facet-${cat}`}
+                >
+                  #{cat} <span className="opacity-60">{count}</span>
+                </button>
+              ))}
+              {appLicenseFacets.map(([lic, count]) => (
+                <button
+                  key={lic}
+                  type="button"
+                  onClick={() => setAppLicense((cur) => (cur === lic ? null : lic))}
+                  className={`rounded-full border px-2.5 py-0.5 font-mono text-[11px] transition-colors ${
+                    appLicense === lic
+                      ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                      : "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-brand-accent/40 hover:text-slate-700 dark:hover:text-slate-200"
+                  }`}
+                  data-testid={`app-lic-facet-${lic.toLowerCase()}`}
+                >
+                  {lic} <span className="opacity-60">{count}</span>
                 </button>
               ))}
             </div>

@@ -347,6 +347,68 @@ describe("SearchResults", () => {
     expect(screen.getByText("Damus")).toBeInTheDocument();
   });
 
+  it("category chips join the platform facets and stack with them", async () => {
+    setUrlTab("apps");
+    render(<SearchResults query="" pov="nosfabrica" />);
+    const app = (id: string, name: string, fs: string[], ts: string[]) =>
+      ev(id, 32267, id.repeat(32).slice(0, 64), "", [
+        ["d", id], ["name", name],
+        ...fs.map((f) => ["f", f]),
+        ...ts.map((t) => ["t", t]),
+      ]);
+    emit({
+      hits: [
+        app("c1", "Amethyst", ["android-arm64"], ["nostr-client", "social", "android"]),
+        app("c2", "Damus", ["ios-arm64"], ["nostr-client"]),
+        app("c3", "Blockdoku", ["android-arm64"], ["games"]),
+      ].map((event) => ({ event, author: author(event.pubkey, "x"), rank: null })),
+      eose: true,
+      timeMs: 90,
+    });
+    await screen.findByText("Amethyst");
+
+    // Categories with counts, best first; a t-tag that just restates a
+    // platform word never becomes a category chip.
+    expect(screen.getByTestId("app-cat-facet-nostr-client")).toHaveTextContent("2");
+    expect(screen.queryByTestId("app-cat-facet-android")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("app-cat-facet-nostr-client"));
+    expect(screen.getByText("Amethyst")).toBeInTheDocument();
+    expect(screen.getByText("Damus")).toBeInTheDocument();
+    expect(screen.queryByText("Blockdoku")).toBeNull();
+
+    // Facets stack: nostr-client AND Android leaves only Amethyst.
+    fireEvent.click(screen.getByTestId("app-facet-android"));
+    expect(screen.getByText("Amethyst")).toBeInTheDocument();
+    expect(screen.queryByText("Damus")).toBeNull();
+  });
+
+  it("license chips complete the facet set and stack with the rest", async () => {
+    setUrlTab("apps");
+    render(<SearchResults query="" pov="nosfabrica" />);
+    const app = (id: string, name: string, license?: string) =>
+      ev(id, 32267, id.repeat(32).slice(0, 64), "", [
+        ["d", id], ["name", name], ["f", "android-arm64"],
+        ...(license ? [["license", license]] : []),
+      ]);
+    emit({
+      hits: [
+        app("l1", "Amethyst", "MIT"),
+        app("l2", "Damus", "MIT"),
+        app("l3", "Nucube", "CC-BY-NC-ND-4.0"),
+        app("l4", "Mystery"),
+      ].map((event) => ({ event, author: author(event.pubkey, "x"), rank: null })),
+      eose: true,
+      timeMs: 90,
+    });
+    await screen.findByText("Amethyst");
+    expect(screen.getByTestId("app-lic-facet-mit")).toHaveTextContent("2");
+    fireEvent.click(screen.getByTestId("app-lic-facet-mit"));
+    expect(screen.getByText("Damus")).toBeInTheDocument();
+    expect(screen.queryByText("Nucube")).toBeNull();
+    expect(screen.queryByText("Mystery")).toBeNull();
+  });
+
   it("lists earn their place: untitled and empty junk hides, people-packs lead", async () => {
     setUrlTab("lists");
     render(<SearchResults query="" pov="nosfabrica" />);
