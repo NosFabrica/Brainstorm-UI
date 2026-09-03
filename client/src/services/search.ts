@@ -299,53 +299,6 @@ export function appAddress(event: { kind?: number; pubkey: string; tags: string[
 }
 
 /**
- * Zap Store reviews: comments (kind 1111, plus legacy kind-1 threads) whose
- * #a tag is the app address. The observer lens IS the moderation — the relay
- * orders by trust, so junk from outside the web of trust sinks. If the relay
- * refuses the lensed shape, one degrade to include:spam keeps reviews alive.
- */
-export function fetchAppReviews(address: string, timeoutMs = 5000): Promise<NostrEvent[]> {
-  return new Promise((resolve) => {
-    const relay = searchRelay();
-    if (!relay) return resolve([]);
-    const reviews: NostrEvent[] = [];
-    let sub: { unsubscribe: () => void } | null = null;
-    let degraded = false;
-
-    const open = (lens: string) => {
-      sub = relay
-        .req({ kinds: [1111, 1], "#a": [address], search: lens, limit: 20 })
-        .subscribe((msg: { type: string; event?: NostrEvent; reason?: string }) => {
-          if (msg.type === "EVENT" && msg.event) {
-            reviews.push(msg.event);
-          } else if (msg.type === "EOSE") {
-            finish();
-          } else if (msg.type === "CLOSED") {
-            if (!degraded) {
-              degraded = true;
-              sub?.unsubscribe();
-              open("include:spam");
-            } else {
-              finish();
-            }
-          }
-        });
-    };
-
-    void resolveHouseObserver().then((observer) => {
-      open(observer ? `observer:${observer}` : "include:spam");
-    });
-
-    const timer = setTimeout(finish, timeoutMs);
-    function finish() {
-      clearTimeout(timer);
-      sub?.unsubscribe();
-      resolve(reviews);
-    }
-  });
-}
-
-/**
  * Sibling listings that share category t-tags — the "Similar apps" row.
  * Deduped by address (listings are replaceable), self excluded, ordered by
  * how many of the given tags each one shares.

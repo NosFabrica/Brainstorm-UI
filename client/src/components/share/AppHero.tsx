@@ -24,7 +24,6 @@ import { Chip } from "@/components/ui/chip";
 import { eventPath } from "@/lib/shareId";
 import {
   appAddress,
-  fetchAppReviews,
   fetchReleases,
   fetchSimilarApps,
   kind0ToSearchResult,
@@ -220,45 +219,6 @@ function cadenceLabel(releases: AppRelease[]): string | null {
   return `~every ${Math.max(2, Math.round(median / 30))}mo`;
 }
 
-/** Store-first profiles for a set of pubkeys, one batched relay fallback. */
-function useProfiles(pubkeys: string[]): Map<string, SearchResult> {
-  const [map, setMap] = useState<Map<string, SearchResult>>(new Map());
-  const key = pubkeys.join(",");
-  useEffect(() => {
-    const known = new Map<string, SearchResult>();
-    const missing: string[] = [];
-    for (const pk of pubkeys) {
-      const stored = eventStore.getReplaceable(0, pk);
-      if (stored) known.set(pk, kind0ToSearchResult(stored as NostrEvent));
-      else missing.push(pk);
-    }
-    setMap(known);
-    if (missing.length === 0) return;
-    let alive = true;
-    void fetchProfileMap(missing).then((res) => {
-      if (!alive || res.size === 0) return;
-      setMap((prev) => {
-        const next = new Map(prev);
-        for (const [pk, content] of res) {
-          next.set(
-            pk,
-            kind0ToSearchResult({
-              kind: 0, pubkey: pk, content: JSON.stringify(content),
-              tags: [], created_at: 0, id: "", sig: "",
-            } as NostrEvent),
-          );
-        }
-        return next;
-      });
-    });
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
-  return map;
-}
-
 /** Store-first publisher profile, with a relay fallback — MentionChip's move. */
 function usePublisher(pubkey: string): SearchResult | null {
   const known = eventStore.getReplaceable(0, pubkey);
@@ -305,11 +265,9 @@ export function AppHero({ event }: { event: AppEvent }) {
 
   const openLightbox = useLightbox();
   const [releases, setReleases] = useState<AppRelease[]>([]);
-  const [reviews, setReviews] = useState<NostrEvent[]>([]);
   const [similar, setSimilar] = useState<NostrEvent[]>([]);
   const [notesOpen, setNotesOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
-  const [reviewsOpen, setReviewsOpen] = useState(false);
 
   // Category t-tags, minus the ones that just restate a platform word.
   const platformSet = new Set(platforms.map((p) => p.toLowerCase()));
@@ -329,17 +287,6 @@ export function AppHero({ event }: { event: AppEvent }) {
     };
   }, [appD, event.pubkey]);
   useEffect(() => {
-    if (!address) return;
-    let alive = true;
-    void fetchAppReviews(address).then((r) => {
-      if (alive) setReviews(r);
-    });
-    return () => {
-      alive = false;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [address]);
-  useEffect(() => {
     if (!address || categories.length === 0) return;
     let alive = true;
     void fetchSimilarApps(categories, address).then((r) => {
@@ -354,18 +301,6 @@ export function AppHero({ event }: { event: AppEvent }) {
   const release = releases[0] ?? null;
   const history = releases.slice(1);
   const cadence = cadenceLabel(releases);
-  const reviewerProfiles = useProfiles(reviews.map((r) => r.pubkey));
-  const reviewerScore = useAuthorScores(reviews.map((r) => r.pubkey));
-  // The relay's lens gates WHO can be queried, but plain-filter frames come
-  // back newest-first — the trust ORDER is ours: ranked reviewers first
-  // (best score wins), unranked accounts sink, recency breaks ties.
-  const rankedReviews = [...reviews].sort((a, b) => {
-    const sa = reviewerScore(a.pubkey) ?? -1;
-    const sb = reviewerScore(b.pubkey) ?? -1;
-    return sb - sa || b.created_at - a.created_at;
-  });
-  const visibleReviews = reviewsOpen ? rankedReviews : rankedReviews.slice(0, 5);
-
   const publisher = usePublisher(event.pubkey);
   const scoreOf = useAuthorScores([event.pubkey]);
   const tierRing = useTierRing();
@@ -547,62 +482,6 @@ export function AppHero({ event }: { event: AppEvent }) {
         <p className="mt-4 whitespace-pre-wrap break-words text-sm leading-relaxed text-slate-700 dark:text-slate-200">
           {event.content}
         </p>
-      )}
-
-      {/* Reviews — real people from the network, ordered by the observer
-          lens: the relay's trust ranking is the moderation. */}
-      {reviews.length > 0 && (
-        <div className="mt-5" data-testid="app-hero-reviews">
-          <div className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Reviews · {reviews.length}
-          </div>
-          <ul className="mt-2 space-y-3">
-            {visibleReviews.map((r) => {
-              const author = reviewerProfiles.get(r.pubkey) ?? null;
-              let npub = "";
-              try {
-                npub = nip19.npubEncode(r.pubkey);
-              } catch {
-                /* skip the link for a malformed pubkey */
-              }
-              return (
-                <li key={r.id} className="flex items-start gap-2.5">
-                  <Link href={npub ? `/p/${npub}` : "#"} className="shrink-0">
-                    <Avatar
-                      className={`h-7 w-7 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(reviewerScore(r.pubkey) ?? null, false, "sm", true) ?? ""}`}
-                    >
-                      {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
-                      <AvatarFallback className="overflow-hidden">
-                        <DefaultAvatarImg />
-                      </AvatarFallback>
-                    </Avatar>
-                  </Link>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline gap-1.5">
-                      <span className="truncate text-xs font-semibold text-slate-800 dark:text-slate-100">
-                        {author ? getDisplayLabel(author) : npub ? `${npub.slice(0, 12)}…` : "Someone"}
-                      </span>
-                      <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">{releaseAge(r.created_at)}</span>
-                    </div>
-                    <div className="mt-0.5 line-clamp-4 break-words text-sm leading-relaxed text-slate-700 dark:text-slate-200">
-                      <NotesInline text={r.content} />
-                    </div>
-                  </div>
-                </li>
-              );
-            })}
-          </ul>
-          {reviews.length > 5 && (
-            <button
-              type="button"
-              onClick={() => setReviewsOpen((v) => !v)}
-              className="mt-2 text-xs font-medium text-brand-primary hover:underline"
-              data-testid="app-hero-reviews-toggle"
-            >
-              {reviewsOpen ? "Show fewer" : `Show all ${reviews.length}`}
-            </button>
-          )}
-        </div>
       )}
 
       {/* Version history — the release cadence at a glance. */}
