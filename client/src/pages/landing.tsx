@@ -18,6 +18,10 @@ import {
   Newspaper,
   Image as ImageIcon,
   MessageSquare,
+  Users,
+  Package,
+  FolderGit2,
+  ListChecks,
 } from "lucide-react";
 import { GlossBackground } from "@/components/GlossBackground";
 import { Wordmark } from "@/components/Wordmark";
@@ -990,19 +994,25 @@ export default function Landing() {
               >
                 {/* Browse lives HERE now, not as standing page chrome — the
                     empty focused box offers the verticals, Google-style. */}
-                <div className="flex flex-wrap items-center gap-1.5 px-4 pt-3 pb-2" data-testid="browse-chips">
+                <div className="flex items-center gap-1 overflow-x-auto px-4 pt-3 pb-2" data-testid="browse-chips">
                   <span className="mr-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Browse</span>
+                  {/* One chip per vertical, in the tab bar's order — the
+                      dropdown IS the tab set for keyword-less browsing. */}
                   {[
-                    { tab: "live", label: "Live now", icon: Radio },
+                    { tab: "people", label: "People", icon: Users },
+                    { tab: "notes", label: "Notes", icon: MessageSquare },
                     { tab: "articles", label: "Articles", icon: Newspaper },
                     { tab: "media", label: "Media", icon: ImageIcon },
-                    { tab: "notes", label: "Notes", icon: MessageSquare },
+                    { tab: "apps", label: "Apps", icon: Package },
+                    { tab: "repos", label: "Repos", icon: FolderGit2 },
+                    { tab: "live", label: "Live", icon: Radio },
+                    { tab: "lists", label: "Lists", icon: ListChecks },
                   ].map((c) => (
                     <button
                       key={c.tab}
                       type="button"
                       onMouseDown={(e) => { e.preventDefault(); setFocused(false); browseVertical(c.tab); }}
-                      className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-800 px-2.5 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 hover:text-brand-deep dark:hover:text-white transition-colors"
+                      className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 dark:border-slate-800 px-2 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 hover:text-brand-deep dark:hover:text-white transition-colors"
                       data-testid={`browse-${c.tab}`}
                     >
                       <c.icon className="h-3 w-3" /> {c.label}
