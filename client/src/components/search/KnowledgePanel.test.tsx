@@ -268,8 +268,9 @@ describe("the topic panel", () => {
     expect(screen.getByTestId("apps-panel-more").getAttribute("href")).toBe("/?q=amethyst&t=apps");
   });
 
-  // The rail's app rows carry the network's numbers — reviews and zaps — as
-  // a quiet meta line. Counts only: three COUNT frames per row, no pages.
+  // The rail's app rows carry the network's number — reviews — as a quiet
+  // meta line. Counts only, no pages. Zap counts stay off apps (Benjamin:
+  // they measure Zap Store distribution, not quality).
   it("app rows say how much the network has said about them", async () => {
     endorsementsMock.mockImplementation((address) =>
       address?.endsWith("com.vitorpamplona.amethyst")
@@ -289,14 +290,14 @@ describe("the topic panel", () => {
     });
     const meta = await screen.findByTestId("apps-panel-meta-ap1");
     expect(meta).toHaveTextContent("14 reviews");
-    expect(meta).toHaveTextContent("101");
+    expect(meta).not.toHaveTextContent("101");
     expect(endorsementsMock).toHaveBeenCalledWith("32267:" + "9".repeat(64) + ":com.vitorpamplona.amethyst", {
       publisher: "9".repeat(64), reviewLimit: 0, zapLimit: 0,
     });
   });
 
-  it("a row with nothing said about it has no meta line", async () => {
-    endorsementsMock.mockReturnValue({ address: "x", reviews: [], reviewCount: 0, zaps: [], zapCount: 0, collectionCount: 3 });
+  it("a row with no reviews has no meta line — zaps alone don't earn one", async () => {
+    endorsementsMock.mockReturnValue({ address: "x", reviews: [], reviewCount: 0, zaps: [], zapCount: 101, collectionCount: 3 });
     render(<KnowledgePanel query="amethyst" pov="nosfabrica" />);
     await vi.waitFor(() => expect(streamCalls.some((c) => c.params.tab === "apps")).toBe(true));
     streamCalls.find((c) => c.params.tab === "apps")!.emit({

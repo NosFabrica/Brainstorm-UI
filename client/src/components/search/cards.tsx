@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
  * primitives per CLAUDE.md: Chip for status/counts, shared tier ring.
  */
 import { Link, useLocation } from "wouter";
-import { Code2, ExternalLink, File, FileAudio, FileVideo, ListChecks, Package, Radio, Zap } from "lucide-react";
+import { Code2, ExternalLink, File, FileAudio, FileVideo, ListChecks, Package, Radio } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { nip19 } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -341,7 +341,8 @@ function AppEndorsements({ event }: { event: NostrEvent }) {
   const reviewers = e ? [...new Set(e.reviews.map((r) => r.pubkey))] : [];
   const scoreOf = useAuthorScores(reviewers);
   const profiles = useProfileMap(reviewers.slice(0, 3));
-  if (!e || (e.reviewCount === 0 && e.zapCount === 0 && e.collectionCount === 0)) return null;
+  // Zap counts stay off apps — they measure Zap Store distribution, not quality.
+  if (!e || (e.reviewCount === 0 && e.collectionCount === 0)) return null;
 
   const ranked = rankEndorsers(e.reviews, { follows, scoreOf });
   const faces = ranked.slice(0, 3).map((r) => {
@@ -371,16 +372,9 @@ function AppEndorsements({ event }: { event: NostrEvent }) {
         label={label}
         quote={quote}
         chips={
-          <>
-            {e.zapCount > 0 && (
-              <Chip size="sm" tone="warning" icon={Zap} title="Zaps seen on the search relay">
-                {compactCount(e.zapCount)}
-              </Chip>
-            )}
-            {e.collectionCount > 0 && (
-              <Chip size="sm" tone="info">in {compactCount(e.collectionCount)} {e.collectionCount === 1 ? "collection" : "collections"}</Chip>
-            )}
-          </>
+          e.collectionCount > 0 && (
+            <Chip size="sm" tone="info">in {compactCount(e.collectionCount)} {e.collectionCount === 1 ? "collection" : "collections"}</Chip>
+          )
         }
       />
     </div>

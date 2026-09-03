@@ -6,7 +6,7 @@
  */
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { ArrowRight, BookOpen, Check, Hash, Package, Users, Zap } from "lucide-react";
+import { ArrowRight, BookOpen, Check, Hash, Package, Users } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -27,7 +27,8 @@ function AppRailRow({ event }: { event: NostrEvent }) {
   const summary = event.tags.find((t) => t[0] === "summary")?.[1];
   const address = event.tags.some((t) => t[0] === "d") ? appAddress(event) : null;
   const e = useAppEndorsements(address, { publisher: event.pubkey, reviewLimit: 0, zapLimit: 0 });
-  const hasMeta = !!e && (e.reviewCount > 0 || e.zapCount > 0);
+  // Reviews only — zap counts stay off apps (they measure distribution, not quality).
+  const hasMeta = !!e && e.reviewCount > 0;
   return (
     <li>
       <Link
@@ -42,14 +43,8 @@ function AppRailRow({ event }: { event: NostrEvent }) {
           <span className="block truncate text-xs font-semibold text-slate-800 dark:text-slate-100">{name}</span>
           {summary && <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400">{summary}</span>}
           {hasMeta && (
-            <span className="mt-0.5 flex items-center gap-1.5 text-[10px] text-slate-400 dark:text-slate-500" data-testid={`apps-panel-meta-${event.id}`}>
-              {e.reviewCount > 0 && <span>{compactCount(e.reviewCount)} {e.reviewCount === 1 ? "review" : "reviews"}</span>}
-              {e.reviewCount > 0 && e.zapCount > 0 && <span aria-hidden>·</span>}
-              {e.zapCount > 0 && (
-                <span className="inline-flex items-center gap-0.5" title="Zaps seen on the search relay">
-                  <Zap className="h-2.5 w-2.5" /> {compactCount(e.zapCount)}
-                </span>
-              )}
+            <span className="mt-0.5 block text-[10px] text-slate-400 dark:text-slate-500" data-testid={`apps-panel-meta-${event.id}`}>
+              {compactCount(e.reviewCount)} {e.reviewCount === 1 ? "review" : "reviews"}
             </span>
           )}
         </span>

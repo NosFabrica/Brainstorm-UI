@@ -138,14 +138,14 @@ describe("AppHero endorsements", () => {
     ...over,
   });
 
-  it("counts reviews, zaps and collections in a second stats strip", async () => {
+  it("counts reviews and collections in a second stats strip — never zaps", async () => {
     endorsementsMock.mockReturnValue(signals());
     render(<AppHero event={FLOTILLA} />);
     const strip = await screen.findByTestId("app-hero-endorsement-stats");
     expect(strip).toHaveTextContent("14");
     expect(strip).toHaveTextContent("reviews");
-    expect(strip).toHaveTextContent("101");
-    expect(strip).toHaveTextContent("zaps");
+    expect(strip).not.toHaveTextContent("101");
+    expect(strip).not.toHaveTextContent("zaps");
     expect(strip).toHaveTextContent("46");
     expect(strip).toHaveTextContent("collections");
     // The page wants the full story: pages of reviews AND zaps.

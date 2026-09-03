@@ -383,7 +383,9 @@ export function AppHero({ event }: { event: AppEvent }) {
       const p = profiles.get(r.pubkey);
       return { pubkey: r.pubkey, name: p ? getDisplayLabel(p) : undefined, picture: p?.picture ?? undefined, score01: r.score };
     });
-  const anySignal = !!endorsements && (endorsements.reviewCount > 0 || endorsements.zapCount > 0 || endorsements.collectionCount > 0);
+  // Zap COUNTS stay off the strip (Benjamin: they measure Zap Store distribution,
+  // not quality); zap memos still speak as voices below.
+  const anySignal = !!endorsements && (endorsements.reviewCount > 0 || endorsements.collectionCount > 0);
 
   const tierRing = useTierRing();
   let publisherNpub = "";
@@ -560,12 +562,6 @@ export function AppHero({ event }: { event: AppEvent }) {
             <div className="flex-1 px-3 py-2.5 text-center">
               <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{compactCount(endorsements.reviewCount)}</div>
               <div className="text-[11px] text-slate-500 dark:text-slate-400">{endorsements.reviewCount === 1 ? "review" : "reviews"}</div>
-            </div>
-          )}
-          {endorsements.zapCount > 0 && (
-            <div className="flex-1 px-3 py-2.5 text-center" title="Zaps seen on the search relay">
-              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{compactCount(endorsements.zapCount)}</div>
-              <div className="text-[11px] text-slate-500 dark:text-slate-400">{endorsements.zapCount === 1 ? "zap" : "zaps"}</div>
             </div>
           )}
           {endorsements.collectionCount > 0 && (

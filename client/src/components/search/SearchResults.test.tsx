@@ -280,7 +280,8 @@ describe("SearchResults", () => {
 
       const line = await screen.findByTestId("app-endorsements-app1");
       await within(line).findByText(/Reviewed by vitor & 13 others/);
-      expect(line).toHaveTextContent("101");
+      // Zap counts stay off apps — they measure distribution, not quality.
+      expect(line).not.toHaveTextContent("101");
       expect(line).toHaveTextContent("in 46 collections");
       // A results card wants faces and numbers, not a page of zaps.
       expect(endorsementsMock).toHaveBeenCalledWith("32267:" + "9".repeat(64) + ":com.vitorpamplona.amethyst", {
