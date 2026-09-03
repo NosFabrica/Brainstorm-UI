@@ -159,8 +159,9 @@ function FacetRow({ testId, className = "", children }: { testId: string; classN
   );
 }
 
-/** The five grilled filters. Every control WRITES SYNTAX into the query box
- *  (via onQueryRewrite) — users learn the grammar by watching it appear. */
+/** The filters that are real (probed 2026-09-03). Every control rewrites the
+ *  full query (words + tokens) through onQueryRewrite; the landing page keeps
+ *  the tokens OUT of the visible box and in the URL's `f` instead. */
 function FiltersPanel({
   query,
   pov,
@@ -572,10 +573,13 @@ export function SearchResults({
   return (
     <div className="w-full max-w-2xl lg:max-w-[62rem] mx-auto mt-4 sm:mt-5 text-left" data-testid="search-results">
       {/* Vertical tabs — underline style on desktop, scrollable on mobile. */}
+      {/* The tab strip scrolls on phones; the Filters button stays pinned at
+          the right edge OUTSIDE the scroller, so its badge is always in view. */}
+      <div className="mb-3 sm:mb-4 -mx-1 flex items-stretch border-b border-slate-100 dark:border-slate-800/60 px-1">
       <div
         role="tablist"
         aria-label="Result types"
-        className="flex items-center gap-1 overflow-x-auto border-b border-slate-100 dark:border-slate-800/60 mb-3 sm:mb-4 -mx-1 px-1"
+        className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         data-testid="search-tabs"
       >
         {TABS.map((t) => (
@@ -596,13 +600,14 @@ export function SearchResults({
             {t.label}
           </button>
         ))}
+      </div>
         {onQueryRewrite && (
           <button
             type="button"
             aria-expanded={filtersOpen}
             onClick={() => setFiltersOpen((v) => !v)}
             className={
-              "ml-auto shrink-0 inline-flex items-center gap-1 px-2.5 py-2 text-xs font-medium border-b-2 -mb-px transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded-t " +
+              "ml-1 shrink-0 inline-flex items-center gap-1 px-2.5 py-2 text-xs font-medium border-b-2 -mb-px transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded-t " +
               (filtersOpen
                 ? "border-brand-primary text-brand-deep dark:text-brand-link"
                 : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200")
