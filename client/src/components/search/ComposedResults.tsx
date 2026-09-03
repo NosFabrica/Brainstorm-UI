@@ -6,8 +6,8 @@
  * lives); Articles keep best-match; Happening collapses recurring events;
  * Media rides a compact row. Sections with nothing to show don't render.
  */
-import { useEffect, useMemo, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Clock, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Clock, Loader2 } from "lucide-react";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -178,7 +178,6 @@ export function ComposedResults({
   const scoreOf = useAuthorScores(useMemo(() => [...new Set(allHits)], [allHits]));
 
   const visited = useMemo(() => visitedPubkeys(), []);
-  const stripRef = useRef<HTMLDivElement | null>(null);
   const peopleOrdered = useMemo(() => {
     const hits = people?.hits.filter((h) => h.author) ?? [];
     // Transparent on-device personalization: faces you've opened lead.
@@ -222,7 +221,7 @@ export function ComposedResults({
               Touch scrolling still works; the arrows are for mouse users
               who otherwise see a stagnant strip. */}
           <div className="relative">
-            <div className="flex gap-2.5 overflow-x-auto scroll-smooth pb-1 -mx-1 px-1" ref={stripRef} data-testid="people-strip">
+            <div className="flex gap-2.5 overflow-x-auto scroll-smooth pb-1 -mx-1 px-1" data-testid="people-strip">
               {peopleOrdered.map((h) => (
                 <PersonChip
                   key={h.event.pubkey}
@@ -233,28 +232,6 @@ export function ComposedResults({
                 />
               ))}
             </div>
-            {peopleOrdered.length > 5 && (
-              <>
-                <button
-                  type="button"
-                  aria-label="Scroll people left"
-                  onClick={() => stripRef.current?.scrollBy?.({ left: -(stripRef.current?.clientWidth ?? 300) * 0.8, behavior: "smooth" })}
-                  className="absolute -left-3 top-1/2 hidden -translate-y-1/2 sm:flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-md text-slate-500 dark:text-slate-300 hover:text-brand-deep dark:hover:text-white transition-colors"
-                  data-testid="people-strip-prev"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </button>
-                <button
-                  type="button"
-                  aria-label="Scroll people right"
-                  onClick={() => stripRef.current?.scrollBy?.({ left: (stripRef.current?.clientWidth ?? 300) * 0.8, behavior: "smooth" })}
-                  className="absolute -right-3 top-1/2 hidden -translate-y-1/2 sm:flex h-8 w-8 items-center justify-center rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shadow-md text-slate-500 dark:text-slate-300 hover:text-brand-deep dark:hover:text-white transition-colors"
-                  data-testid="people-strip-next"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </button>
-              </>
-            )}
           </div>
         </Section>
       )}

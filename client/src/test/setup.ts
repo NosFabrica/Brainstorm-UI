@@ -41,6 +41,19 @@ if (hasDom && typeof globalThis.ResizeObserver === "undefined") {
   };
 }
 
+// jsdom has no IntersectionObserver; FeedVideo's autoplay-in-view needs it.
+if (hasDom && typeof globalThis.IntersectionObserver === "undefined") {
+  globalThis.IntersectionObserver = class {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+    takeRecords() { return []; }
+    root = null;
+    rootMargin = "";
+    thresholds = [];
+  } as unknown as typeof IntersectionObserver;
+}
+
 beforeEach(() => {
   if (hasDom) localStorage.clear();
 });

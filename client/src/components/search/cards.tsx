@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
  * "Open in…" external link for the full native experience. Design-system
  * primitives per CLAUDE.md: Chip for status/counts, shared tier ring.
  */
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Code2, ExternalLink, File, FileAudio, FileVideo, ListChecks, Package, Radio } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { nip19 } from "nostr-tools";
@@ -20,6 +20,8 @@ import { eventStore } from "@/lib/eventStore";
 import { fetchProfileMap } from "@/services/nostr";
 import { eventPath } from "@/lib/shareId";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
+import { FeedVideo } from "@/components/share/FeedVideo";
+import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 
 export function tagVal(event: NostrEvent, name: string): string | undefined {
   return event.tags.find((t) => t[0] === name)?.[1];
@@ -199,52 +201,93 @@ export function isVideoUrl(event: NostrEvent, url: string): boolean {
 const IMAGE_RE = /\.(?:png|jpe?g|gif|webp|avif)(?:\?|#|$)/i;
 
 export function MediaCard({ event, author, score }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
+  const [, navigate] = useLocation();
   const url = mediaUrlOf(event);
   const poster = mediaPosterOf(event);
-  const isImage = !!url && IMAGE_RE.test(url);
-  const isVideo = !!url && !isImage && isVideoUrl(event, url);
-  const caption = (tagVal(event, "title") ?? event.content ?? "").slice(0, 200);
+  const mime = (() => {
+    for (const tag of event.tags) {
+      if (tag[0] === "imeta") {
+        const m = tag.slice(1).find((p) => p.startsWith("m "));
+        if (m) return m.slice(2).trim();
+      }
+    }
+    return tagVal(event, "m") ?? "";
+  })();
+  const isImage = !!url && (mime.startsWith("image/") || IMAGE_RE.test(url));
+  const isAudio =
+    !!url && (mime.startsWith("audio/") || event.kind === 1222 || /\.(?:mp3|m4a|ogg|wav|flac|aac|opus)(?:\?|#|$)/i.test(url));
+  const isVideo = !!url && !isImage && !isAudio && isVideoUrl(event, url);
+  // The caption is the words, never the URL — the media itself is the link.
+  const caption = (tagVal(event, "title") ?? event.content ?? "")
+    .replace(/https?:\/\/\S+/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 200);
+  const host = (() => {
+    try {
+      return url ? new URL(url).hostname.replace(/^www\./, "") : null;
+    } catch {
+      return null;
+    }
+  })();
+  const open = () => navigate(eventPath(event));
   return (
-    <CardShell event={event} testId={`media-card-${event.id}`}>
-      <div className="flex items-start gap-3">
-        <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-          {isImage || poster ? (
-            <img src={isImage ? (url as string) : (poster as string)} alt="" loading="lazy" className="h-full w-full object-cover" data-testid={`media-thumb-${event.id}`} />
-          ) : isVideo ? (
-            // No poster published — a metadata-only <video> paints the first
-            // frame as the thumbnail without downloading the file.
-            <video
-              src={`${url}#t=0.1`}
-              preload="metadata"
-              muted
-              playsInline
-              tabIndex={-1}
-              aria-hidden
-              className="pointer-events-none h-full w-full object-cover"
-              data-testid={`media-video-thumb-${event.id}`}
-            />
-          ) : (
-            // Honest icon for what the file actually is — a PDF is not a video.
-            (() => {
-              const mime = tagVal(event, "m") ?? "";
-              const Icon = mime.startsWith("audio/") || event.kind === 1222 ? FileAudio
-                : mime.startsWith("video/") || !mime ? FileVideo
-                : File;
-              return <Icon className="h-6 w-6 text-slate-400 dark:text-slate-500" />;
-            })()
-          )}
+    // A div-with-navigate, not an <a>: the media inside is INTERACTIVE
+    // (click-to-play video, the audio player) and those clicks must not
+    // yank the user to the thread mid-play.
+    <div
+      role="link"
+      tabIndex={0}
+      onClick={(e) => {
+        if ((e.target as HTMLElement).closest("a, button, video, [data-noopen]")) return;
+        open();
+      }}
+      onKeyDown={(e) => {
+        if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+          e.preventDefault();
+          open();
+        }
+      }}
+      className="relative w-full cursor-pointer rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 hover:bg-white dark:hover:bg-slate-900 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all duration-150 p-3 sm:p-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+      data-testid={`media-card-${event.id}`}
+    >
+      <AuthorRow author={author} score={score} created_at={event.created_at} />
+      {caption && (
+        <p className="mt-1.5 text-sm text-slate-700 dark:text-slate-200 break-words line-clamp-2">{caption}</p>
+      )}
+      {isVideo && url ? (
+        <FeedVideo src={url} poster={poster ?? undefined} />
+      ) : isAudio && url ? (
+        <div className="mt-2" data-noopen>
+          <EmbeddedTrackCard
+            id={`search:${event.id}`}
+            title={caption || "Audio"}
+            artist={author ? getDisplayLabel(author) : undefined}
+            cover={poster ?? undefined}
+            audio={url}
+            sourceLabel={host ?? undefined}
+          />
         </div>
-        <div className="min-w-0 flex-1">
-          <AuthorRow author={author} score={score} created_at={event.created_at} />
-          {caption && (
-            <p className="mt-1.5 text-sm text-slate-700 dark:text-slate-200 break-words line-clamp-2">{caption}</p>
-          )}
-          {url && !isImage && (
-            <p className="mt-1 truncate text-[11px] text-slate-400 dark:text-slate-500">{url}</p>
-          )}
+      ) : (isImage || poster) && url ? (
+        <img
+          src={isImage ? url : (poster as string)}
+          alt=""
+          loading="lazy"
+          className="mt-2 w-full max-h-96 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 object-cover"
+          data-testid={`media-thumb-${event.id}`}
+        />
+      ) : (
+        <div className="mt-2 flex h-16 w-16 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
+          {(() => {
+            const Icon = mime.startsWith("audio/") ? FileAudio : mime && !mime.startsWith("video/") ? File : FileVideo;
+            return <Icon className="h-6 w-6 text-slate-400 dark:text-slate-500" />;
+          })()}
         </div>
-      </div>
-    </CardShell>
+      )}
+      {host && !isAudio && (
+        <p className="mt-1.5 text-[11px] text-slate-400 dark:text-slate-500">via {host}</p>
+      )}
+    </div>
   );
 }
 

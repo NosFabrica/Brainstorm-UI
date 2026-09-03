@@ -393,6 +393,34 @@ describe("SearchResults", () => {
     expect(screen.getByText(/sunset over the lake/)).toBeInTheDocument();
   });
 
+  it("a video result IS a playable video, its raw URL hidden behind a host label", async () => {
+    setUrlTab("media");
+    render(<SearchResults query="clip" pov="nosfabrica" />);
+    const vid = ev("sv1", 22, "8".repeat(64), "street clip https://media.divine.video/abc123.mp4", [
+      ["imeta", "url https://media.divine.video/abc123.mp4", "m video/mp4"],
+    ]);
+    emit({ hits: [{ event: vid, author: author(vid.pubkey, "hank"), rank: null }], eose: true, timeMs: 200 });
+
+    const card = await screen.findByTestId("media-card-sv1");
+    // The feed's click-to-play video player, not a 64px thumb.
+    expect(card.querySelector("video")).not.toBeNull();
+    // The caption drops the URL; a quiet host label says where it lives.
+    expect(card.textContent).not.toContain("https://media.divine.video/abc123.mp4");
+    expect(card).toHaveTextContent("media.divine.video");
+    expect(card).toHaveTextContent("street clip");
+  });
+
+  it("an audio result gets the real track player", async () => {
+    setUrlTab("media");
+    render(<SearchResults query="remix" pov="nosfabrica" />);
+    const track = ev("au1", 1222, "9".repeat(64), "Dilemma (Breezy Dance Remix) https://media.divine.video/song.mp4", [
+      ["imeta", "url https://media.divine.video/song.mp4", "m audio/mp4"],
+    ]);
+    emit({ hits: [{ event: track, author: author(track.pubkey, "breezy"), rank: null }], eose: true, timeMs: 200 });
+    const card = await screen.findByTestId("media-card-au1");
+    expect(card.querySelector('[data-testid="embedded-track"]')).not.toBeNull();
+  });
+
   it("a video with a poster image in imeta shows the poster, not an icon", async () => {
     setUrlTab("media");
     render(<SearchResults query="talk" pov="nosfabrica" />);
@@ -400,8 +428,8 @@ describe("SearchResults", () => {
       ["imeta", "url https://cdn.example/talk.mp4", "m video/mp4", "image https://cdn.example/talk-poster.jpg"],
     ]);
     emit({ hits: [{ event: vid, author: author(vid.pubkey, "hank"), rank: null }], eose: true, timeMs: 200 });
-    const img = (await screen.findByTestId("media-thumb-v1")) as HTMLImageElement;
-    expect(img.src).toContain("talk-poster.jpg");
+    const card = await screen.findByTestId("media-card-v1");
+    expect(card.querySelector("video")?.getAttribute("poster")).toContain("talk-poster.jpg");
   });
 
   it("a bare video URL still gets a real first-frame thumb via <video>", async () => {
@@ -411,10 +439,11 @@ describe("SearchResults", () => {
       ["imeta", "url https://cdn.example/clip.mp4", "m video/mp4"],
     ]);
     emit({ hits: [{ event: vid, author: author(vid.pubkey, "hank"), rank: null }], eose: true, timeMs: 200 });
-    const video = (await screen.findByTestId("media-video-thumb-v2")) as HTMLVideoElement;
-    expect(video.tagName).toBe("VIDEO");
+    const card = await screen.findByTestId("media-card-v2");
+    const video = card.querySelector("video") as HTMLVideoElement;
+    expect(video).not.toBeNull();
     expect(video.getAttribute("src")).toContain("clip.mp4");
-    // metadata-only fetch: a thumbnail must not download the whole file.
+    // metadata-only fetch until the viewer engages.
     expect(video.getAttribute("preload")).toBe("metadata");
   });
 

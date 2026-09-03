@@ -169,36 +169,4 @@ describe("ComposedResults", () => {
     expect(names[0]).toBe(`serp-person-${visited.slice(0, 8)}`);
     expect(screen.getByTestId(`visited-${visited.slice(0, 8)}`)).toBeInTheDocument();
   });
-
-  it("a crowded people strip cycles with arrows", async () => {
-    render(<ComposedResults query="nostr" pov="nosfabrica" onTabChange={() => {}} />);
-    const peopleCall = calls.find((c) => c.params.tab === "people")!;
-    peopleCall.emit({
-      hits: Array.from({ length: 8 }, (_, i) =>
-        hitOf(ev(`p${i}`, 0, String(i).repeat(64).slice(0, 64), JSON.stringify({ name: `person${i}` })), `person${i}`),
-      ),
-      eose: true,
-      timeMs: 100,
-    });
-    await screen.findByTestId("people-strip-next");
-    const strip = screen.getByTestId("people-strip");
-    const scrollBy = vi.fn();
-    (strip as HTMLElement & { scrollBy: typeof scrollBy }).scrollBy = scrollBy;
-    fireEvent.click(screen.getByTestId("people-strip-next"));
-    expect(scrollBy).toHaveBeenCalled();
-    fireEvent.click(screen.getByTestId("people-strip-prev"));
-    expect(scrollBy).toHaveBeenCalledTimes(2);
-  });
-
-  it("a short people strip needs no arrows", async () => {
-    render(<ComposedResults query="nostr" pov="nosfabrica" onTabChange={() => {}} />);
-    const peopleCall = calls.find((c) => c.params.tab === "people")!;
-    peopleCall.emit({
-      hits: [hitOf(ev("p1", 0, "1".repeat(64), JSON.stringify({ name: "solo" })), "solo")],
-      eose: true,
-      timeMs: 100,
-    });
-    await screen.findByTestId("people-strip");
-    expect(screen.queryByTestId("people-strip-next")).toBeNull();
-  });
 });
