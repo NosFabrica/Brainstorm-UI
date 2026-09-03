@@ -10,6 +10,7 @@ import { useLocation } from "wouter";
 import { Play } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { Favicon } from "@/components/share/LinkPreview";
+import { useLightbox } from "@/components/share/Lightbox";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
 import { parseNewsShape, type NewsShape } from "@/lib/newsShape";
 import { eventPath } from "@/lib/shareId";
@@ -118,29 +119,41 @@ export function TopStories({ stories, stripRef }: { stories: TopStory[]; stripRe
 
 function MediaTile({ hit }: { hit: SearchHit }) {
   const [, navigate] = useLocation();
+  const openLightbox = useLightbox();
   const [imgFailed, setImgFailed] = useState(false);
   const e = hit.event;
   const url = mediaUrlOf(e);
   const isImage = !!url && IMAGE_RE.test(url);
   const poster = isImage ? url : (mediaPosterOf(e) ?? null);
   const isVideo = VIDEO_KINDS.has(e.kind) || (!!url && !isImage && isVideoUrl(e, url));
-  const open = () => navigate(eventPath(e));
+  const openPost = () => navigate(eventPath(e));
+  // A tap on the picture or the play badge gives the MEDIA — full view,
+  // playing — the way X, Instagram and TikTok do. The caption opens the post.
+  const openMedia = () => {
+    if (isVideo && url) openLightbox([{ url, kind: "video", poster }], 0);
+    else if (poster) openLightbox([{ url: poster, kind: "image" }], 0);
+    else openPost();
+  };
   const caption = (e.content || tagVal(e, "title") || "").replace(/https?:\/\/\S+/g, "").replace(/\s+/g, " ").trim();
   return (
     <div
-      role="link"
-      tabIndex={0}
-      onClick={open}
-      onKeyDown={(ev) => {
-        if (ev.target === ev.currentTarget && (ev.key === "Enter" || ev.key === " ")) {
-          ev.preventDefault();
-          open();
-        }
-      }}
-      className="group cursor-pointer overflow-hidden rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+      className="group overflow-hidden rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all"
       data-testid={`media-tile-${e.id}`}
     >
-      <div className="relative aspect-[4/3] bg-slate-100 dark:bg-slate-800">
+      <div
+        role="button"
+        tabIndex={0}
+        aria-label={isVideo ? "Play video" : "View image"}
+        onClick={openMedia}
+        onKeyDown={(ev) => {
+          if (ev.key === "Enter" || ev.key === " ") {
+            ev.preventDefault();
+            openMedia();
+          }
+        }}
+        className="relative aspect-[4/3] cursor-pointer bg-slate-100 dark:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+        data-testid="media-tile-media"
+      >
         {poster && !imgFailed ? (
           <img src={poster} alt="" loading="lazy" onError={() => setImgFailed(true)} className="absolute inset-0 h-full w-full object-cover" />
         ) : url && isVideo ? (
@@ -157,7 +170,19 @@ function MediaTile({ hit }: { hit: SearchHit }) {
           </span>
         )}
       </div>
-      <div className="p-2">
+      <div
+        role="link"
+        tabIndex={0}
+        onClick={openPost}
+        onKeyDown={(ev) => {
+          if (ev.key === "Enter" || ev.key === " ") {
+            ev.preventDefault();
+            openPost();
+          }
+        }}
+        className="cursor-pointer p-2 hover:bg-slate-50 dark:hover:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+        data-testid="media-tile-caption"
+      >
         {caption && <p className="line-clamp-2 text-[12px] leading-snug text-slate-700 dark:text-slate-200">{caption}</p>}
         <p className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500">
           {hit.author ? getDisplayLabel(hit.author) : "Unknown"} · {ago(e.created_at)}

@@ -15,6 +15,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { nip19 } from "nostr-tools";
 import { Favicon, LinkChip, LinkPreviewCard } from "@/components/share/LinkPreview";
+import { useLightbox } from "@/components/share/Lightbox";
 import { eventStore } from "@/lib/eventStore";
 import { MentionChip } from "@/components/share/MentionChip";
 import { fetchProfileMap } from "@/services/nostr";
@@ -89,17 +90,34 @@ function Marked({ text, query }: { text: string; query: string }) {
  *  metadata-only <video> first frame when only the video itself exists. */
 function RowThumb({ event }: { event: NostrEvent }) {
   const [failed, setFailed] = useState(false);
+  const openLightbox = useLightbox();
   const url = mediaUrlOf(event);
   const isImage = !!url && IMAGE_RE.test(url);
   const poster = isImage ? url : (mediaPosterOf(event) ?? null);
+  const isVideo = !!url && !isImage && isVideoUrl(event, url);
   // Google's news rows run ~92px; a 64px square undersold every picture.
   const cls = "h-20 w-24 shrink-0 rounded-xl object-cover bg-slate-100 dark:bg-slate-800";
+  // The thumbnail IS the media: a tap opens it full view (a clip plays), not
+  // the post — the rest of the row still opens the post.
+  const openMedia = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (isVideo && url) openLightbox([{ url, kind: "video", poster }], 0);
+    else if (poster) openLightbox([{ url: poster, kind: "image" }], 0);
+  };
   if (poster && !failed) {
     return (
-      <img src={poster} alt="" loading="lazy" onError={() => setFailed(true)} className={cls} data-testid="serp-thumb" />
+      <img
+        src={poster}
+        alt=""
+        loading="lazy"
+        onError={() => setFailed(true)}
+        onClick={openMedia}
+        className={`${cls} cursor-zoom-in`}
+        data-testid="serp-thumb"
+      />
     );
   }
-  if (url && !isImage && isVideoUrl(event, url)) {
+  if (isVideo && url) {
     return (
       <video
         src={`${url}#t=0.1`}
@@ -108,7 +126,8 @@ function RowThumb({ event }: { event: NostrEvent }) {
         playsInline
         tabIndex={-1}
         aria-hidden
-        className={`pointer-events-none ${cls}`}
+        onClick={openMedia}
+        className={`cursor-pointer ${cls}`}
         data-testid="serp-video-thumb"
       />
     );

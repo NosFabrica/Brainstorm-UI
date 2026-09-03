@@ -3,26 +3,36 @@ import { createPortal } from "react-dom";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 
 /**
- * X-style image lightbox. Any component can open it via {@link useLightbox} with
- * a list of image URLs + the index to start on. A single shared overlay renders
- * at the app root: fullscreen dark backdrop, the image centered (object-contain),
- * arrow + swipe navigation through the set, and a counter. Close via the X button,
- * a backdrop tap, or Esc. Videos are intentionally NOT handled here — they play
- * inline like on X. Desktop + mobile friendly.
+ * X-style media lightbox. Any component can open it via {@link useLightbox}
+ * with a list of items + the index to start on — plain URL strings are
+ * images; `{ url, kind: "video", poster }` plays a clip full view with
+ * controls, starting at once (Benjamin: a tap on media gives the media, the
+ * way X, Instagram and TikTok do — never the post). A single shared overlay
+ * renders at the app root: fullscreen dark backdrop, the media centered,
+ * arrow + swipe navigation through the set, and a counter. Close via the X
+ * button, a backdrop tap, or Esc. Desktop + mobile friendly.
  */
-type LightboxState = { images: string[]; index: number } | null;
+export type LightboxItem = string | { url: string; kind: "image" | "video"; poster?: string | null };
+type MediaItem = { url: string; kind: "image" | "video"; poster: string | null };
+type LightboxState = { images: MediaItem[]; index: number } | null;
 
-const LightboxContext = createContext<(images: string[], index: number) => void>(() => {});
+const LightboxContext = createContext<(items: LightboxItem[], index: number) => void>(() => {});
 
 export function useLightbox() {
   return useContext(LightboxContext);
 }
 
+function normalize(items: LightboxItem[]): MediaItem[] {
+  return items
+    .map((it) => (typeof it === "string" ? { url: it, kind: "image" as const, poster: null } : { url: it.url, kind: it.kind, poster: it.poster ?? null }))
+    .filter((it) => !!it.url);
+}
+
 export function LightboxProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<LightboxState>(null);
 
-  const open = useCallback((images: string[], index: number) => {
-    const imgs = images.filter(Boolean);
+  const open = useCallback((items: LightboxItem[], index: number) => {
+    const imgs = normalize(items);
     if (!imgs.length) return;
     setState({ images: imgs, index: Math.max(0, Math.min(index, imgs.length - 1)) });
   }, []);
@@ -40,7 +50,7 @@ function LightboxOverlay({
   setState,
   onClose,
 }: {
-  state: { images: string[]; index: number };
+  state: { images: MediaItem[]; index: number };
   setState: (s: LightboxState) => void;
   onClose: () => void;
 }) {
@@ -130,14 +140,28 @@ function LightboxOverlay({
         </>
       )}
 
-      <img
-        key={images[index]}
-        src={images[index]}
-        alt=""
-        onClick={(e) => e.stopPropagation()}
-        className="max-h-[92vh] max-w-[96vw] object-contain rounded-lg shadow-2xl"
-        data-testid="lightbox-image"
-      />
+      {images[index].kind === "video" ? (
+        <video
+          key={images[index].url}
+          src={images[index].url}
+          poster={images[index].poster ?? undefined}
+          controls
+          autoPlay
+          playsInline
+          onClick={(e) => e.stopPropagation()}
+          className="max-h-[92vh] max-w-[96vw] rounded-lg bg-black shadow-2xl"
+          data-testid="lightbox-video"
+        />
+      ) : (
+        <img
+          key={images[index].url}
+          src={images[index].url}
+          alt=""
+          onClick={(e) => e.stopPropagation()}
+          className="max-h-[92vh] max-w-[96vw] object-contain rounded-lg shadow-2xl"
+          data-testid="lightbox-image"
+        />
+      )}
     </div>,
     document.body,
   );

@@ -41,6 +41,9 @@ const scoreOfMock = vi.fn<(pk: string) => number | null | undefined>(() => 0.8);
 vi.mock("@/hooks/useAuthorScores", () => ({
   useAuthorScores: () => (pk: string) => scoreOfMock(pk),
 }));
+// The media lightbox — faked so tiles can prove a tap opens the MEDIA, not the post.
+const openLightboxMock = vi.fn();
+vi.mock("@/components/share/Lightbox", () => ({ useLightbox: () => openLightboxMock }));
 
 import { ComposedResults } from "./ComposedResults";
 
@@ -128,8 +131,16 @@ describe("ComposedResults — media-rich sections", () => {
     const video = screen.getByTestId(`media-tile-${"2".repeat(64)}`);
     expect(video.querySelector("img")?.getAttribute("src")).toBe("https://cdn.example/goal-poster.jpg");
     expect(video.querySelector('[data-testid="media-tile-play"]')).not.toBeNull();
-    // Tiles open the event page.
-    fireEvent.click(photo);
+    // Benjamin: a tap on the picture or the play badge opens THE MEDIA, full
+    // view, playing — X / Instagram / TikTok — never the post. The caption
+    // beneath is the way to the post.
+    fireEvent.click(photo.querySelector('[data-testid="media-tile-media"]')!);
+    expect(openLightboxMock).toHaveBeenLastCalledWith([{ url: "https://cdn.example/anfield.jpg", kind: "image" }], 0);
+    expect(window.location.pathname).toBe("/");
+    fireEvent.click(video.querySelector('[data-testid="media-tile-play"]')!);
+    expect(openLightboxMock).toHaveBeenLastCalledWith([{ url: "https://cdn.example/goal.mp4", kind: "video", poster: "https://cdn.example/goal-poster.jpg" }], 0);
+    expect(window.location.pathname).toBe("/");
+    fireEvent.click(photo.querySelector('[data-testid="media-tile-caption"]')!);
     expect(window.location.pathname).toMatch(/^\/e\/nevent1/);
     // No text rows for media any more.
     expect(screen.queryByTestId(`serp-row-${"1".repeat(64)}`)).toBeNull();

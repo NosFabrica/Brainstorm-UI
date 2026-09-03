@@ -33,6 +33,8 @@ const unfurlMock = vi.fn<(url: string) => Promise<{ title: string | null; descri
   Promise.resolve(null),
 );
 vi.mock("@/services/unfurl", () => ({ fetchUnfurl: (url: string) => unfurlMock(url) }));
+const openLightboxMock = vi.fn();
+vi.mock("@/components/share/Lightbox", () => ({ useLightbox: () => openLightboxMock }));
 
 function note(content: string, tags: string[][] = []): NostrEvent {
   return {
@@ -86,6 +88,27 @@ describe("SerpRow — link metadata", () => {
     await screen.findByTestId("link-chip");
     await Promise.resolve();
     expect(screen.queryByTestId("link-card")).toBeNull();
+  });
+});
+
+describe("SerpRow — media taps", () => {
+  // A row's thumbnail is the media, not a handle on the post: tapping it
+  // opens the picture (or plays the video) in full view; the rest of the row
+  // still opens the post.
+  it("tapping the thumbnail opens the media in the lightbox, not the post", () => {
+    const photo = { ...note("Anfield tonight", [["imeta", "url https://cdn.example/anfield.jpg", "m image/jpeg"]]), kind: 20 };
+    render(<SerpRow event={photo} author={author} score={0.7} query="anfield" />);
+    fireEvent.click(screen.getByTestId("serp-thumb"));
+    expect(openLightboxMock).toHaveBeenLastCalledWith([{ url: "https://cdn.example/anfield.jpg", kind: "image" }], 0);
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("a video thumbnail plays the video in the lightbox", () => {
+    const clip = { ...note("Goal!", [["imeta", "url https://cdn.example/goal.mp4", "m video/mp4"]]), kind: 21 };
+    render(<SerpRow event={clip} author={author} score={0.7} query="goal" />);
+    fireEvent.click(screen.getByTestId("serp-video-thumb"));
+    expect(openLightboxMock).toHaveBeenLastCalledWith([{ url: "https://cdn.example/goal.mp4", kind: "video", poster: null }], 0);
+    expect(window.location.pathname).toBe("/");
   });
 });
 
