@@ -35,9 +35,9 @@ vi.mock("@/hooks/useAuthorScores", () => ({
 
 import { KnowledgePanel } from "./KnowledgePanel";
 
-function noteHit(id: string, pubkey: string, name: string, created_at: number) {
+function noteHit(id: string, pubkey: string, name: string, created_at: number, tags: string[][] = []) {
   return {
-    event: { id, kind: 1, pubkey, tags: [], content: "x", created_at, sig: "s" } as NostrEvent,
+    event: { id, kind: 1, pubkey, tags, content: "x", created_at, sig: "s" } as NostrEvent,
     author: { pubkey, npub: `npub1${name}`, name, wotRank: null, wotFollowers: null },
     rank: null,
   };
@@ -71,6 +71,87 @@ describe("the topic panel", () => {
     const panel = await screen.findByTestId("search-topic-panel");
     expect(panel).toHaveTextContent("#liverpool");
     expect(screen.getByTestId("topic-panel-feed").getAttribute("href")).toBe("/t/liverpool");
+  });
+
+  it("summarizes the topic's activity: note count and voice count", async () => {
+    render(<KnowledgePanel query="liverpool" pov="nosfabrica" />);
+    await vi.waitFor(() => expect(streamCalls.length).toBeGreaterThanOrEqual(1));
+    streamCalls[0].emit({
+      hits: [
+        noteHit("t1", "1".repeat(64), "kop", NOW - 100),
+        noteHit("t2", "2".repeat(64), "anfield", NOW - 2000),
+        noteHit("t3", "1".repeat(64), "kop", NOW - 3000),
+        noteHit("t4", "3".repeat(64), "red", NOW - 5000),
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    const panel = await screen.findByTestId("search-topic-panel");
+    // 4 notes from 3 distinct voices.
+    expect(screen.getByTestId("topic-activity")).toHaveTextContent("4 recent notes");
+    expect(screen.getByTestId("topic-activity")).toHaveTextContent("3 voices");
+    expect(panel).toHaveTextContent("Active today");
+  });
+
+  it("voices are named rows linking to their profiles", async () => {
+    render(<KnowledgePanel query="liverpool" pov="nosfabrica" />);
+    await vi.waitFor(() => expect(streamCalls.length).toBeGreaterThanOrEqual(1));
+    streamCalls[0].emit({
+      hits: [
+        noteHit("t1", "1".repeat(64), "kop", NOW - 100),
+        noteHit("t2", "2".repeat(64), "anfield", NOW - 2000),
+        noteHit("t3", "3".repeat(64), "red", NOW - 5000),
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    await screen.findByTestId("search-topic-panel");
+    const voice = screen.getByTestId(`topic-voice-${"1".repeat(64)}`);
+    expect(voice).toHaveTextContent("kop");
+    expect(voice.getAttribute("href")).toBe("/p/npub1kop");
+    // The trust-tier ring rides every avatar in the app — voices included
+    // (useAuthorScores is mocked to 0.7 → a ringed tier).
+    const ringed = voice.querySelector('[class*="shadow-[0_0_0"]');
+    expect(ringed).not.toBeNull();
+  });
+
+  it("suggests related topics from tags that ride along on the notes", async () => {
+    render(<KnowledgePanel query="liverpool" pov="nosfabrica" />);
+    await vi.waitFor(() => expect(streamCalls.length).toBeGreaterThanOrEqual(1));
+    streamCalls[0].emit({
+      hits: [
+        noteHit("t1", "1".repeat(64), "kop", NOW - 100, [["t", "liverpool"], ["t", "PremierLeague"]]),
+        noteHit("t2", "2".repeat(64), "anfield", NOW - 2000, [["t", "liverpool"], ["t", "premierleague"], ["t", "ynwa"]]),
+        noteHit("t3", "3".repeat(64), "red", NOW - 5000, [["t", "liverpool"], ["t", "onceonly"]]),
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    await screen.findByTestId("search-topic-panel");
+    // premierleague rides on two notes → suggested; the searched tag itself
+    // and one-off tags stay out.
+    const rel = screen.getByTestId("topic-related-premierleague");
+    expect(rel).toHaveTextContent("#premierleague");
+    expect(rel.getAttribute("href")).toBe("/?q=%23premierleague");
+    expect(screen.queryByTestId("topic-related-liverpool")).toBeNull();
+    expect(screen.queryByTestId("topic-related-onceonly")).toBeNull();
+  });
+
+  it("same-named bot accounts collapse to one voice row", async () => {
+    render(<KnowledgePanel query="liverpool" pov="nosfabrica" />);
+    await vi.waitFor(() => expect(streamCalls.length).toBeGreaterThanOrEqual(1));
+    streamCalls[0].emit({
+      hits: [
+        noteHit("t1", "1".repeat(64), "kop", NOW - 100),
+        noteHit("t2", "2".repeat(64), "GazetaRSS", NOW - 2000),
+        noteHit("t3", "3".repeat(64), "GazetaRSS", NOW - 3000),
+        noteHit("t4", "4".repeat(64), "GazetaRSS", NOW - 4000),
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    await screen.findByTestId("search-topic-panel");
+    expect(screen.getAllByText("GazetaRSS")).toHaveLength(1);
   });
 
   it("stays silent when the tag is quiet", async () => {

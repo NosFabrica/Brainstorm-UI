@@ -103,7 +103,7 @@ export function KnowledgePanel({
     // account happens to carry the name.
     const tag = tagCandidate(query);
     const cancelTopic = tag
-      ? searchStream(`#${tag}`, { tab: "notes", pov, userPubkey, limit: 6 }, (snapshot) => {
+      ? searchStream(`#${tag}`, { tab: "notes", pov, userPubkey, limit: 24 }, (snapshot) => {
           if (!alive || !snapshot.eose) return;
           const fresh = snapshot.hits.some(
             (h) => h.event.created_at >= Date.now() / 1000 - TOPIC_FRESH_SECONDS,
@@ -125,6 +125,10 @@ export function KnowledgePanel({
   // Relay hits carry no rank numbers (order-only wire) — the panel's ring,
   // coin and tier word feed from the shared author-score cache like every card.
   const scoreOf = useAuthorScores(person && person.wotRank == null ? [person.pubkey] : []);
+  // Topic voices wear the same rings as every avatar in the app.
+  const voiceScoreOf = useAuthorScores(
+    topicHits ? [...new Set(topicHits.map((h) => h.event.pubkey))].slice(0, 8) : [],
+  );
 
   if (nipPage) {
     const d = nipPage.tags.find((t) => t[0] === "d")?.[1] ?? query.trim();
@@ -167,9 +171,36 @@ export function KnowledgePanel({
 
   if (topicHits) {
     const tag = tagCandidate(query)!;
-    const voices = [...new Map(topicHits.filter((h) => h.author).map((h) => [h.event.pubkey, h.author!])).values()].slice(0, 4);
+    // Unique by pubkey, then by display name — three RSS-bot accounts all
+    // named "Gazeta Esportiva" are one voice to a reader.
+    const voices = [
+      ...new Map(
+        [...new Map(topicHits.filter((h) => h.author).map((h) => [h.event.pubkey, h.author!])).values()].map(
+          (v) => [getDisplayLabel(v), v] as const,
+        ),
+      ).values(),
+    ].slice(0, 4);
+    const voiceCount = new Set(topicHits.map((h) => h.event.pubkey)).size;
     const newest = Math.max(...topicHits.map((h) => h.event.created_at));
     const daysAgo = Math.floor((Date.now() / 1000 - newest) / 86400);
+    // Tags that ride along on these notes — a topic's neighborhood. Needs
+    // to recur (≥2 notes) to count; the searched tag itself stays out.
+    const tagFreq = new Map<string, number>();
+    for (const h of topicHits) {
+      const seen = new Set<string>();
+      for (const t of h.event.tags) {
+        if (t[0] !== "t" || !t[1]) continue;
+        const v = t[1].toLowerCase();
+        if (v === tag || seen.has(v)) continue;
+        seen.add(v);
+        tagFreq.set(v, (tagFreq.get(v) ?? 0) + 1);
+      }
+    }
+    const related = [...tagFreq.entries()]
+      .filter(([, n]) => n >= 2)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([v]) => v);
     return (
       <aside
         className={`w-full rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5 ${className}`}
@@ -188,17 +219,57 @@ export function KnowledgePanel({
             </p>
           </div>
         </div>
+        {/* What "active" means, in numbers the probe already paid for. */}
+        <p className="mt-3 text-xs text-slate-600 dark:text-slate-300" data-testid="topic-activity">
+          <span className="font-semibold text-slate-900 dark:text-slate-100">
+            {topicHits.length}{topicHits.length >= 24 ? "+" : ""}
+          </span>{" "}
+          recent notes ·{" "}
+          <span className="font-semibold text-slate-900 dark:text-slate-100">{voiceCount}</span>{" "}
+          {voiceCount === 1 ? "voice" : "voices"}
+        </p>
         {voices.length > 0 && (
           <div className="mt-3">
             <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Voices on it</p>
-            <div className="mt-1.5 flex items-center gap-1.5">
+            {/* Named, tappable rows — a face without a name fills nothing. */}
+            <ul className="mt-1.5 space-y-0.5">
               {voices.map((v) => (
-                <Avatar key={v.pubkey} className="h-7 w-7 border border-slate-200/80 dark:border-slate-800/80" title={getDisplayLabel(v)}>
-                  {v.picture ? <AvatarImage src={v.picture} alt="" className="object-cover" /> : null}
-                  <AvatarFallback className="overflow-hidden">
-                    <DefaultAvatarImg />
-                  </AvatarFallback>
-                </Avatar>
+                <li key={v.pubkey}>
+                  <Link
+                    href={`/p/${v.npub}`}
+                    className="flex items-center gap-2 rounded-lg px-1.5 py-1 -mx-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                    data-testid={`topic-voice-${v.pubkey}`}
+                  >
+                    <Avatar
+                      className={`h-6 w-6 shrink-0 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(v.wotRank ?? voiceScoreOf(v.pubkey) ?? null, false, "sm", true) ?? ""}`}
+                    >
+                      {v.picture ? <AvatarImage src={v.picture} alt="" className="object-cover" /> : null}
+                      <AvatarFallback className="overflow-hidden">
+                        <DefaultAvatarImg />
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="truncate text-xs font-medium text-slate-700 dark:text-slate-200">
+                      {getDisplayLabel(v)}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {related.length > 0 && (
+          <div className="mt-3">
+            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Related topics</p>
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {related.map((r) => (
+                <Link
+                  key={r}
+                  href={`/?q=${encodeURIComponent(`#${r}`)}`}
+                  className="inline-flex items-center rounded-full border border-slate-200 dark:border-slate-700 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 hover:text-brand-deep dark:hover:text-white transition-colors"
+                  data-testid={`topic-related-${r}`}
+                >
+                  #{r}
+                </Link>
               ))}
             </div>
           </div>
