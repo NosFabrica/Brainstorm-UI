@@ -271,9 +271,11 @@ export function AppHero({ event }: { event: AppEvent }) {
 
   return (
     <div data-testid="app-hero">
-      {/* The store front, App-Store anatomy: icon · identity+facts · actions
-          right-aligned. Everything in the middle column shares one left edge. */}
-      <div className="flex items-start gap-4">
+      {/* The store front, App-Store anatomy: icon · identity+facts · actions.
+          Desktop: actions sit top-right. Phone: the w-full actions block wraps
+          to its own row of equal-width buttons, so the text column keeps the
+          full width instead of squeezing beside empty space. */}
+      <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
         <div className="h-20 w-20 shrink-0 overflow-hidden rounded-3xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shadow-sm">
           {icon ? (
             <img src={icon} alt="" className="h-full w-full object-cover" data-testid="app-hero-icon" />
@@ -319,14 +321,14 @@ export function AppHero({ event }: { event: AppEvent }) {
             )}
           </div>
         </div>
-        {/* Actions column, top-right like a store page. */}
-        <div className="flex shrink-0 flex-col items-end gap-2">
+        {/* Actions: top-right column on desktop, full-width button row on phones. */}
+        <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0 sm:flex-col sm:items-end">
           {url && (
             <a
               href={url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
+              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-brand-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 transition-opacity sm:flex-none sm:py-1.5"
               data-testid="app-hero-get"
             >
               Get it <ExternalLink className="h-3 w-3" />
@@ -337,7 +339,7 @@ export function AppHero({ event }: { event: AppEvent }) {
               href={repository}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-700 px-3.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 transition-colors"
+              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-700 px-3.5 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 transition-colors sm:flex-none sm:py-1.5"
               data-testid="app-hero-source"
             >
               <Code2 className="h-3 w-3" /> Source
