@@ -113,18 +113,22 @@ describe("the person panel's trust reviews", () => {
     expect(chip.getAttribute("title")).toContain("This account is the real david.");
   });
 
-  it("quotes the most trusted vouch and links to the full list", async () => {
+  // The panel says how many reviews and from whom, in plain words — the same
+  // line the person page collapses to — and that line is the way there. No
+  // face (the Followed-by line has them), no quote, no reviewer name.
+  it("sums the reviews in plain words and links to the full list", async () => {
     david();
     personEndorsementsMock.mockReturnValue(signals([
       { id: "v1", pubkey: BEN, type: "vouch", text: "This user created www.relayop.xyz - a solution for the next phase of the internet.", at: 200 },
     ]));
     profileMapMock.set(BEN, { name: "benjamin" });
     render(<KnowledgePanel query="david" pov="nosfabrica" />);
-    const quote = await screen.findByTestId("person-vouch-quote");
-    await vi.waitFor(() => expect(quote).toHaveTextContent("benjamin"));
-    expect(quote).toHaveTextContent("This user created www.relayop.xyz");
-    expect(screen.getByTestId("person-reviews-link").getAttribute("href")).toBe("/p/npub1david#trust-reviews");
-    expect(screen.getByTestId("person-reviews-link")).toHaveTextContent("1 review");
+    const link = await screen.findByTestId("person-reviews-link");
+    expect(link).toHaveTextContent("1 review from a verified account");
+    expect(link.getAttribute("href")).toBe("/p/npub1david#trust-reviews");
+    expect(link.textContent).not.toContain("benjamin");
+    expect(link.textContent).not.toContain("relayop");
+    expect(screen.queryByTestId("person-vouch-quote")).toBeNull();
   });
 
   it("no vouches, no chip, no quote, no link", async () => {

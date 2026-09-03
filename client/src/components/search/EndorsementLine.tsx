@@ -9,7 +9,7 @@
 import type { ReactNode } from "react";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
-import { AlertTriangle, BadgeCheck, Heart } from "lucide-react";
+import { AlertTriangle, BadgeCheck, Heart, MessageSquareText } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Chip } from "@/components/ui/chip";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -21,7 +21,15 @@ import { usePersonEndorsements } from "@/hooks/usePersonEndorsements";
 import { useProfileMap } from "@/hooks/useProfileMap";
 import { compactCount } from "@/lib/compactCount";
 import { getDisplayLabel } from "@/lib/profileSearch";
-import { identityConfirmers, quoteFor, rankVouches, tidyName, type PersonEndorsements, type RankedVouch } from "@/services/endorsements";
+import {
+  identityConfirmers,
+  quoteFor,
+  rankVouches,
+  reviewsSummaryLabel,
+  tidyName,
+  type PersonEndorsements,
+  type RankedVouch,
+} from "@/services/endorsements";
 
 /** Recommends (an endorsement) or Confirms identity (a claim: "this is really
  *  them") — quiet inline text, not a pill: the reviewer's tier chip beside it
@@ -220,21 +228,27 @@ function FollowedByView({
  */
 export function PanelVouches({ pubkey, npub, personal }: { pubkey: string; npub: string; personal: boolean }) {
   const e = usePersonEndorsements(pubkey, personal);
-  const { ranked, nameOf, pictureOf } = useRankedVouches(e);
-  const top = topTrustedVouch(ranked);
+  const { ranked } = useRankedVouches(e);
   const n = e?.vouches?.length ?? 0;
   if (n === 0) return null;
+  // The same plain sentence the person page collapses to — and the way there.
+  const label = reviewsSummaryLabel({
+    total: n,
+    followed: ranked.filter((v) => v.group === "followed").length,
+    verified: ranked.filter((v) => v.group === "verified").length,
+  });
   return (
-    <div className="mt-2.5 space-y-1.5">
-      {top && <VouchQuoteLine vouch={top} nameOf={nameOf} pictureOf={pictureOf} testId="person-vouch-quote" linkFaces />}
-      <Link
-        href={`/p/${npub}#trust-reviews`}
-        className="inline-flex items-center gap-1 text-xs font-medium text-brand-primary hover:underline"
-        data-testid="person-reviews-link"
-      >
-        {compactCount(n)} {n === 1 ? "review" : "reviews"} →
-      </Link>
-    </div>
+    <Link
+      href={`/p/${npub}#trust-reviews`}
+      className="group mt-2.5 inline-flex items-center gap-2 rounded-md text-xs text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+      data-testid="person-reviews-link"
+    >
+      <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+        <MessageSquareText className="h-3 w-3" aria-hidden />
+      </span>
+      <span>{label}</span>
+      <span className="text-brand-primary opacity-0 transition-opacity group-hover:opacity-100">→</span>
+    </Link>
   );
 }
 
