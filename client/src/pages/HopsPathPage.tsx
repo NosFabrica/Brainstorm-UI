@@ -3,6 +3,7 @@ import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useHopsOrigin } from "@/hooks/useHopsOrigin";
 import { useRoute, Redirect, Link, useLocation } from "wouter";
+import { useGoBack } from "@/hooks/useGoBack";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Shuffle, ShieldAlert, Flag, UserPlus, Check, ChevronDown } from "lucide-react";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
@@ -38,6 +39,7 @@ export default function HopsPathPage() {
   const [granularity] = useTierGranularity();
   const tierRing = useTierRing();
   const [, navigate] = useLocation();
+  const goBack = useGoBack();
   const [, params] = useRoute("/p/:id/hops");
   const rawId = params?.id || "";
   const decoded = useMemo(() => decodeShareId(rawId), [rawId]);
@@ -194,10 +196,7 @@ export default function HopsPathPage() {
               for a cold deep-link with nothing to pop. */}
           <button
             type="button"
-            onClick={() => {
-              if (typeof window !== "undefined" && window.history.length > 1) window.history.back();
-              else navigate(backLink);
-            }}
+            onClick={() => goBack(backLink)}
             className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-100 hover:text-slate-900 dark:hover:text-white transition-colors"
             data-testid="hops-back"
           >

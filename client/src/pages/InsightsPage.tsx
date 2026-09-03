@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useLocation } from "wouter";
+import { useGoBack } from "@/hooks/useGoBack";
 import { ArrowLeft, Clock, Gauge, ShieldCheck, RefreshCw, CheckCircle2, Loader2, ArrowRight } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
 import { Card } from "@/components/ui/card";
@@ -81,6 +82,7 @@ export default function InsightsPage() {
   const [displayMode] = useScoreDisplayMode();
   const [granularity] = useTierGranularity();
   const [, navigate] = useLocation();
+  const goBack = useGoBack();
   const user = useActiveAccountDisplay();
   const pubkey = user?.pubkey;
 
@@ -183,7 +185,7 @@ export default function InsightsPage() {
       <main className="max-w-3xl mx-auto w-full px-4 sm:px-6 py-8 flex-1">
         <button
           type="button"
-          onClick={() => { if (typeof window !== "undefined" && window.history.length > 1) window.history.back(); else navigate("/dashboard"); }}
+          onClick={() => goBack("/dashboard")}
           className="mb-6 inline-flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
           data-testid="insights-back"
         >
