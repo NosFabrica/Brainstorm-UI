@@ -5,6 +5,13 @@ repos and deployments is
 [ECOSYSTEM.md](https://github.com/NosFabrica/protocols/blob/main/ECOSYSTEM.md)
 in `NosFabrica/protocols`.
 
+## Orientation
+
+- **Architecture overview** — [ARCHITECTURE.md](ARCHITECTURE.md): the routing model (anonymous search-first vs. authenticated), `RequireAuth`/`optionalAuthFetch` data paths, the staging/production API switcher, known backend gaps. Read it before structural work.
+- **Domain model** — [CONTEXT.md](CONTEXT.md) for the vocabulary, [docs/adr/](docs/adr/) for recorded decisions.
+- **Wire formats this UI consumes** — kind-30382 Trusted Assertions and kind-10040 designation are specified in [NosFabrica/protocols](https://github.com/NosFabrica/protocols) ([trusted-assertions.md](https://github.com/NosFabrica/protocols/blob/main/specs/trusted-assertions.md); GrapeRank semantics in [graperank.md](https://github.com/NosFabrica/protocols/blob/main/specs/graperank.md)).
+- **R&D counterpart** — [nous-clawds4/tapestry](https://github.com/nous-clawds4/tapestry), where protocols are piloted before adoption here.
+
 ## Agent skills
 
 ### Issue tracker
@@ -17,7 +24,7 @@ Five canonical triage roles, each mapped to its default label string (`needs-tri
 
 ### Domain docs
 
-Single-context layout — one `CONTEXT.md` + `docs/adr/` at the repo root (created lazily by `/domain-modeling`). See `docs/agents/domain.md`.
+Single-context layout — [`CONTEXT.md`](CONTEXT.md) + [`docs/adr/`](docs/adr/) at the repo root. Both exist; extend them rather than starting a parallel glossary. See `docs/agents/domain.md`.
 
 ## Design system (use the primitives)
 
