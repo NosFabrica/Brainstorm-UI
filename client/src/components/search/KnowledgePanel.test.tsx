@@ -375,36 +375,10 @@ describe("the topic panel", () => {
     expect(screen.getByTestId("apps-panel-more").getAttribute("href")).toBe("/?q=amethyst&t=apps");
   });
 
-  // The rail's app rows carry the network's number — reviews — as a quiet
-  // meta line. Counts only, no pages. Zap counts stay off apps (Benjamin:
-  // they measure Zap Store distribution, not quality).
-  it("app rows say how much the network has said about them", async () => {
-    endorsementsMock.mockImplementation((address) =>
-      address?.endsWith("com.vitorpamplona.amethyst")
-        ? { address, reviews: [], reviewCount: 14, zaps: [], zapCount: 101, collectionCount: 46 }
-        : null,
-    );
-    render(<KnowledgePanel query="amethyst" pov="nosfabrica" />);
-    await vi.waitFor(() => expect(streamCalls.some((c) => c.params.tab === "apps")).toBe(true));
-    const appsCall = streamCalls.find((c) => c.params.tab === "apps")!;
-    appsCall.emit({
-      hits: [{
-        event: { id: "ap1", kind: 32267, pubkey: "9".repeat(64), tags: [["d", "com.vitorpamplona.amethyst"], ["name", "Amethyst"]], content: "", created_at: NOW, sig: "s" } as NostrEvent,
-        author: null, rank: null,
-      }],
-      eose: true,
-      timeMs: 90,
-    });
-    const meta = await screen.findByTestId("apps-panel-meta-ap1");
-    expect(meta).toHaveTextContent("14 reviews");
-    expect(meta).not.toHaveTextContent("101");
-    expect(endorsementsMock).toHaveBeenCalledWith("32267:" + "9".repeat(64) + ":com.vitorpamplona.amethyst", {
-      publisher: "9".repeat(64), reviewLimit: 0, zapLimit: 0,
-    });
-  });
-
-  it("a row with no reviews has no meta line — zaps alone don't earn one", async () => {
-    endorsementsMock.mockReturnValue({ address: "x", reviews: [], reviewCount: 0, zaps: [], zapCount: 101, collectionCount: 3 });
+  // Benjamin: no review copy on search surfaces — the rail row is icon,
+  // name, summary. Reviews live on the app page.
+  it("app rows carry no review count", async () => {
+    endorsementsMock.mockReturnValue({ address: "x", reviews: [], reviewCount: 14, zaps: [], zapCount: 101, collectionCount: 46 });
     render(<KnowledgePanel query="amethyst" pov="nosfabrica" />);
     await vi.waitFor(() => expect(streamCalls.some((c) => c.params.tab === "apps")).toBe(true));
     streamCalls.find((c) => c.params.tab === "apps")!.emit({
@@ -416,6 +390,7 @@ describe("the topic panel", () => {
     });
     await screen.findByTestId("apps-panel-app-ap1");
     expect(screen.queryByTestId("apps-panel-meta-ap1")).toBeNull();
+    expect(endorsementsMock).not.toHaveBeenCalled();
   });
 
   it("no name-matching app, no Apps module", async () => {

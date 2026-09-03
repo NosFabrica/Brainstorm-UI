@@ -12,25 +12,19 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing, TierWordChip } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { useAppEndorsements } from "@/hooks/useAppEndorsements";
 import { FlaggedChip, FollowedByLine, PanelIdentityChip, PanelVouches } from "@/components/search/EndorsementLine";
 import { ZapModal } from "@/components/ZapModal";
-import { compactCount } from "@/lib/compactCount";
 import { visiblePersonSets } from "@/services/endorsements";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { eventPath } from "@/lib/shareId";
-import { appAddress, fetchNipPage, fetchPersonSets, searchStream, suggestProfiles, type PersonSetMembership, type SearchHit, type SearchPov } from "@/services/search";
+import { fetchNipPage, fetchPersonSets, searchStream, suggestProfiles, type PersonSetMembership, type SearchHit, type SearchPov } from "@/services/search";
 
-/** One app in the rail: icon, name, summary — and how much the network has
- *  said about it (reviews · zaps), as a quiet meta line. Counts only. */
+/** One app in the rail: icon, name, summary. Reviews live on the app page —
+ *  no review copy on search surfaces (Benjamin). */
 function AppRailRow({ event }: { event: NostrEvent }) {
   const name = event.tags.find((t) => t[0] === "name")?.[1] ?? "App";
   const icon = event.tags.find((t) => t[0] === "icon")?.[1];
   const summary = event.tags.find((t) => t[0] === "summary")?.[1];
-  const address = event.tags.some((t) => t[0] === "d") ? appAddress(event) : null;
-  const e = useAppEndorsements(address, { publisher: event.pubkey, reviewLimit: 0, zapLimit: 0 });
-  // Reviews only — zap counts stay off apps (they measure distribution, not quality).
-  const hasMeta = !!e && e.reviewCount > 0;
   return (
     <li>
       <Link
@@ -44,11 +38,6 @@ function AppRailRow({ event }: { event: NostrEvent }) {
         <span className="min-w-0">
           <span className="block truncate text-xs font-semibold text-slate-800 dark:text-slate-100">{name}</span>
           {summary && <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400">{summary}</span>}
-          {hasMeta && (
-            <span className="mt-0.5 block text-[10px] text-slate-400 dark:text-slate-500" data-testid={`apps-panel-meta-${event.id}`}>
-              {compactCount(e.reviewCount)} {e.reviewCount === 1 ? "review" : "reviews"}
-            </span>
-          )}
         </span>
       </Link>
     </li>
