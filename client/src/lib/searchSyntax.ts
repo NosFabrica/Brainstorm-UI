@@ -10,10 +10,13 @@
 import { nip19 } from "nostr-tools";
 
 export interface SearchFilterState {
-  sort: string | null; // "recent" | "rank" | "followers" | "text" | null (best match)
+  sort: string | null; // "recent" | "rank" | "followers" | null (best match)
   since: string | null; // YYYY-MM-DD
   until: string | null;
-  minRank: number | null; // 0..100 → filter:rank:gte:N
+  /** Client-side (probed: the relay ignores filter:rank). Token trust:verified. */
+  verifiedOnly: boolean;
+  /** Client-side (the relay has no hops). Token reach:follows | reach:friends. */
+  reach: "follows" | "friends" | null;
   includeSpam: boolean;
   rankAs: string | null; // 64-hex observer pubkey
 }
@@ -25,10 +28,14 @@ const MATCHERS: Record<keyof SearchFilterState, (token: string) => boolean> = {
   sort: (t) => /^sort:/i.test(t),
   since: (t) => /^since:/i.test(t),
   until: (t) => /^until:/i.test(t),
-  minRank: (t) => /^filter:rank:/i.test(t),
+  verifiedOnly: (t) => /^trust:verified$/i.test(t),
+  reach: (t) => /^reach:(follows|friends)$/i.test(t),
   includeSpam: (t) => /^include:spam$/i.test(t),
   rankAs: (t) => /^observer:/i.test(t),
 };
+
+/** Tokens the CLIENT honours; the relay never sees them (as text they'd match nothing). */
+const CLIENT_ONLY = (t: string) => MATCHERS.verifiedOnly(t) || MATCHERS.reach(t);
 
 function tokenFor(key: keyof SearchFilterState, value: unknown): string | null {
   switch (key) {
@@ -38,13 +45,54 @@ function tokenFor(key: keyof SearchFilterState, value: unknown): string | null {
       return value ? `since:${value}` : null;
     case "until":
       return value ? `until:${value}` : null;
-    case "minRank":
-      return value != null ? `filter:rank:gte:${value}` : null;
+    case "verifiedOnly":
+      return value ? "trust:verified" : null;
+    case "reach":
+      return value ? `reach:${value}` : null;
     case "includeSpam":
       return value ? "include:spam" : null;
     case "rankAs":
       return value ? `observer:${value}` : null;
   }
+}
+
+/** Google's Tools menu: Any time · Past 24 hours · Past week · Past month · Past year · Custom. */
+export type DatePreset = "any" | "day" | "week" | "month" | "year" | "custom";
+
+function ymdLocal(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+}
+
+/** The since: day a preset means, from `now` (local days). Null for "any". */
+export function sinceForPreset(preset: DatePreset, now: Date = new Date()): string | null {
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  switch (preset) {
+    case "day":
+      d.setDate(d.getDate() - 1);
+      return ymdLocal(d);
+    case "week":
+      d.setDate(d.getDate() - 7);
+      return ymdLocal(d);
+    case "month":
+      d.setMonth(d.getMonth() - 1);
+      return ymdLocal(d);
+    case "year":
+      d.setFullYear(d.getFullYear() - 1);
+      return ymdLocal(d);
+    default:
+      return null;
+  }
+}
+
+/** Which preset a since/until pair is — "custom" for anything the menu can't say. */
+export function datePreset(state: { since: string | null; until: string | null }, now: Date = new Date()): DatePreset {
+  if (!state.since && !state.until) return "any";
+  if (state.until) return "custom";
+  for (const p of ["day", "week", "month", "year"] as const) {
+    if (sinceForPreset(p, now) === state.since) return p;
+  }
+  return "custom";
 }
 
 /**
@@ -107,6 +155,8 @@ export function liftQuery(query: string): LiftedQuery {
   const out: LiftedQuery = { search: "" };
   const rest: string[] = [];
   for (const token of query.trim().split(/\s+/).filter(Boolean)) {
+    // Client-honoured tokens stay off the wire.
+    if (CLIENT_ONLY(token)) continue;
     const person = token.match(/^(from|to):(\S+)$/i);
     if (person) {
       const hex = keyToHex(person[2]);
@@ -175,14 +225,14 @@ export function readFilters(query: string): SearchFilterState {
   const sortTok = find("sort");
   const sinceTok = find("since");
   const untilTok = find("until");
-  const rankTok = find("minRank");
+  const reachTok = find("reach");
   const observerTok = find("rankAs");
-  const minRank = rankTok ? Number(rankTok.split(":").pop()) : NaN;
   return {
     sort: sortTok ? sortTok.slice(5) : null,
     since: sinceTok ? sinceTok.slice(6) : null,
     until: untilTok ? untilTok.slice(6) : null,
-    minRank: Number.isFinite(minRank) ? minRank : null,
+    verifiedOnly: !!find("verifiedOnly"),
+    reach: reachTok ? (reachTok.slice(6).toLowerCase() as "follows" | "friends") : null,
     includeSpam: !!find("includeSpam"),
     rankAs: observerTok ? observerTok.slice(9) : null,
   };

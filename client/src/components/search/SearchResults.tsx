@@ -10,10 +10,10 @@ import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
 import { Radar, SlidersHorizontal } from "lucide-react";
-import { applyFilters, readFilters, type SearchFilterPatch } from "@/lib/searchSyntax";
-import { useTierGranularity } from "@/hooks/useTierGranularity";
+import { applyFilters, datePreset, readFilters, sinceForPreset, type DatePreset, type SearchFilterPatch } from "@/lib/searchSyntax";
+import { clientFilterHits } from "@/lib/clientFilters";
+import { useNetworkReach } from "@/hooks/useNetworkReach";
 import { useWheelScrollX } from "@/hooks/useWheelScrollX";
-import { DEFAULT_VERIFIED_LINE, TIER_LABELS, TIER_THRESHOLDS } from "@/services/trustThreshold";
 import { eventStore } from "@/lib/eventStore";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -103,27 +103,15 @@ function writeTabToUrl(tab: SearchTab) {
   }
 }
 
-/**
- * The trust floor in the USER'S OWN ladder vocabulary (their Settings
- * granularity) — never a raw 0–100 ask. Values are the wire numbers the
- * relay's filter:rank:gte: takes, derived from the one threshold source.
- */
-function tierFloorOptions(granularity: "simple" | "detailed"): { value: string; label: string }[] {
-  const pct = (x: number) => String(Math.round(x * 100));
-  if (granularity === "simple") {
-    return [
-      { value: "", label: "Anyone" },
-      { value: pct(DEFAULT_VERIFIED_LINE), label: "Verified only" },
-    ];
-  }
-  return [
-    { value: "", label: "Anyone" },
-    { value: pct(DEFAULT_VERIFIED_LINE), label: `${TIER_LABELS.low} and up` },
-    { value: pct(TIER_THRESHOLDS.medium), label: `${TIER_LABELS.neutral} and up` },
-    { value: pct(TIER_THRESHOLDS.medium_high), label: `${TIER_LABELS.trusted} and up` },
-    { value: pct(TIER_THRESHOLDS.high), label: `${TIER_LABELS.high} only` },
-  ];
-}
+/** Google's Tools menu for time. */
+const DATE_PRESETS: { value: DatePreset; label: string }[] = [
+  { value: "any", label: "Any time" },
+  { value: "day", label: "Past 24 hours" },
+  { value: "week", label: "Past week" },
+  { value: "month", label: "Past month" },
+  { value: "year", label: "Past year" },
+  { value: "custom", label: "Custom range" },
+];
 
 /** A chosen observer shows as a PERSON — name from the store when known,
  *  a short npub degrade when not. Never bare hex. */
@@ -145,12 +133,13 @@ function observerDisplay(pubkey: string): { name: string; picture?: string } {
   }
 }
 
+// Every option here changes the relay's order — probed 2026-09-03. "Text match
+// only" went: it ordered exactly like "Include unranked" and confused people.
 const SORT_OPTIONS = [
   { value: "", label: "Best match" },
   { value: "recent", label: "Newest first" },
   { value: "rank", label: "Most trusted authors" },
   { value: "followers", label: "Most followed authors" },
-  { value: "text", label: "Text match only" },
 ];
 
 /** A one-line facet chip strip: horizontal scroll with the scrollbar hidden,
@@ -184,7 +173,9 @@ function FiltersPanel({
   onQueryRewrite: (next: string) => void;
 }) {
   const state = readFilters(query);
-  const [granularity] = useTierGranularity();
+  const preset = datePreset(state);
+  // "Custom range" stays open once chosen, even before a day is picked.
+  const [customDates, setCustomDates] = useState(preset === "custom");
   const [rankAsDraft, setRankAsDraft] = useState("");
   const [rankAsOptions, setRankAsOptions] = useState<SearchResult[]>([]);
   const write = (patch: SearchFilterPatch) => onQueryRewrite(applyFilters(query, patch));
@@ -208,10 +199,11 @@ function FiltersPanel({
     };
   }, [rankAsDraft, pov, userPubkey]);
 
-  const floorOptions = tierFloorOptions(granularity);
-  const floorValue = state.minRank != null ? String(state.minRank) : "";
-  // A hand-typed value outside the ladder stays honored, shown as itself.
-  const customFloor = floorValue !== "" && !floorOptions.some((o) => o.value === floorValue);
+  const showDates = customDates || preset === "custom";
+  const segment = (on: boolean) =>
+    `h-8 px-2.5 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/30 ${
+      on ? "bg-brand-primary text-white" : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+    }`;
   const field =
     "h-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-accent/30";
 
@@ -234,38 +226,92 @@ function FiltersPanel({
         </select>
       </label>
       <label className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-        From day
-        <input
-          type="date"
-          className={field}
-          value={state.since ?? ""}
-          onChange={(e) => write({ since: e.target.value || null })}
-          data-testid="filter-since"
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-        To day
-        <input
-          type="date"
-          className={field}
-          value={state.until ?? ""}
-          onChange={(e) => write({ until: e.target.value || null })}
-          data-testid="filter-until"
-        />
-      </label>
-      <label className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-        Show authors
+        Time
         <select
           className={field}
-          value={floorValue}
-          onChange={(e) => write({ minRank: e.target.value === "" ? null : Number(e.target.value) })}
-          data-testid="filter-min-tier"
+          value={showDates ? "custom" : preset}
+          onChange={(e) => {
+            const next = e.target.value as DatePreset;
+            if (next === "custom") {
+              setCustomDates(true);
+              return;
+            }
+            setCustomDates(false);
+            write({ since: sinceForPreset(next), until: null });
+          }}
+          data-testid="filter-date"
         >
-          {floorOptions.map((o) => (
+          {DATE_PRESETS.map((o) => (
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
-          {customFloor && <option value={floorValue}>Custom ({floorValue})</option>}
         </select>
+      </label>
+      {showDates && (
+        <>
+          <label className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+            From day
+            <input
+              type="date"
+              className={field}
+              value={state.since ?? ""}
+              onChange={(e) => write({ since: e.target.value || null })}
+              data-testid="filter-since"
+            />
+          </label>
+          <label className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+            To day
+            <input
+              type="date"
+              className={field}
+              value={state.until ?? ""}
+              onChange={(e) => write({ until: e.target.value || null })}
+              data-testid="filter-until"
+            />
+          </label>
+        </>
+      )}
+      {/* Trust distance — how far the search casts its net. The relay has no
+          hops, so this reads the viewer's own follow graph (Benjamin's
+          slider); with nobody signed in there is no "you", so it isn't there. */}
+      {userPubkey && (
+        <div className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+          Trust distance
+          <div
+            role="group"
+            aria-label="Trust distance"
+            className="inline-flex overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800 divide-x divide-slate-200 dark:divide-slate-800"
+            data-testid="filter-reach"
+          >
+            {(
+              [
+                ["follows", "People you follow"],
+                ["friends", "Friends of friends"],
+                [null, "Everyone"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={label}
+                type="button"
+                aria-pressed={state.reach === value}
+                onClick={() => write({ reach: value })}
+                className={segment(state.reach === value)}
+                data-testid={`filter-reach-${value ?? "all"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <label className="flex items-center gap-1.5 pb-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+        <input
+          type="checkbox"
+          className="h-3.5 w-3.5 accent-brand-primary"
+          checked={state.verifiedOnly}
+          onChange={(e) => write({ verifiedOnly: e.target.checked })}
+          data-testid="filter-verified"
+        />
+        Verified accounts only
       </label>
       <label className="flex items-center gap-1.5 pb-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
         <input
@@ -275,7 +321,7 @@ function FiltersPanel({
           onChange={(e) => write({ includeSpam: e.target.checked })}
           data-testid="filter-spam"
         />
-        Include what your web of trust doesn't rank
+        Include unranked accounts
       </label>
       <div className="relative flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
         See results through someone else's eyes
@@ -386,7 +432,11 @@ export function SearchResults({
       return;
     }
     setSnapshot(null);
-    return searchStream(effectiveQuery, { tab, pov, userPubkey }, setSnapshot);
+    // Client-side filters (Verified only, reach) thin the page after the
+    // fact — ask the relay for a deeper one so there is something left.
+    const clientFiltered = readFilters(effectiveQuery);
+    const limit = clientFiltered.verifiedOnly || clientFiltered.reach ? 300 : undefined;
+    return searchStream(effectiveQuery, { tab, pov, userPubkey, limit }, setSnapshot);
   }, [effectiveQuery, tab, pov, userPubkey, composed]);
 
   const changeTab = useCallback((next: SearchTab) => {
@@ -403,7 +453,22 @@ export function SearchResults({
   );
 
   // Keep a ref so the render below sees a stable list even mid-stream.
-  const hits = snapshot?.hits ?? [];
+  const rawHits = snapshot?.hits ?? [];
+  // The relay only ORDERS by rank — per-card scores come from the shared
+  // author-score cache (hashtag-page discipline) for EVERY hit, kind-0
+  // included: without this, people cards render bare and the user's
+  // verification-display settings have nothing to show.
+  const allAuthors = useMemo(() => [...new Set(rawHits.map((h) => h.event.pubkey))], [rawHits]);
+  const scoreOf = useAuthorScores(allAuthors);
+  // The filters the relay can't do, done here (probed: filter:rank ignored,
+  // no hops): Verified only via those scores, reach via the viewer's graph.
+  const reach = useNetworkReach(userPubkey);
+  const clientState = readFilters(query);
+  const hits = useMemo(
+    () => clientFilterHits(rawHits, { verifiedOnly: clientState.verifiedOnly, reach: clientState.reach }, { scoreOf, reach }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rawHits, clientState.verifiedOnly, clientState.reach, reach, allAuthors.map((pk) => scoreOf(pk)).join(",")],
+  );
   const searching = !snapshot || (!snapshot.eose && !snapshot.error && hits.length === 0);
   const noResults = !!snapshot?.eose && hits.length === 0;
   const peopleIdx = useRef(0);
@@ -501,15 +566,6 @@ export function SearchResults({
   }, [hits, tab, appPlatform, appCategory, appLicense, appCategoryTags, clustered, expandedClusters]);
 
   const profiles = useMemo(() => profilesOf(hits), [hits]);
-  // The relay only ORDERS by rank — per-card scores come from the shared
-  // author-score cache (hashtag-page discipline) for EVERY hit, kind-0
-  // included: without this, people cards render bare and the user's
-  // verification-display settings have nothing to show.
-  const allAuthors = useMemo(
-    () => [...new Set(hits.map((h) => h.event.pubkey))],
-    [hits],
-  );
-  const scoreOf = useAuthorScores(allAuthors);
 
   return (
     <div className="w-full max-w-2xl lg:max-w-[62rem] mx-auto mt-4 sm:mt-5 text-left" data-testid="search-results">

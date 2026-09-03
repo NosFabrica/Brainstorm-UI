@@ -7,14 +7,62 @@
  */
 import { describe, expect, it } from "vitest";
 import { nip19 } from "nostr-tools";
-import { applyFilters, liftQuery, personAssist, readFilters } from "./searchSyntax";
+import { applyFilters, datePreset, liftQuery, personAssist, readFilters, sinceForPreset } from "./searchSyntax";
+
+// Probed 2026-09-03: the relay ignores filter:rank and knows no hops. The
+// controls that need those are done on the CLIENT, but still speak grammar —
+// trust:verified and reach:follows|friends ride the box like every other
+// token, and liftQuery keeps them off the wire (sent as text they'd match
+// nothing).
+describe("client-side filter tokens", () => {
+  it("writes and reads trust:verified and reach:", () => {
+    expect(applyFilters("bitcoin", { verifiedOnly: true })).toBe("bitcoin trust:verified");
+    expect(applyFilters("bitcoin trust:verified", { verifiedOnly: false })).toBe("bitcoin");
+    expect(applyFilters("bitcoin", { reach: "follows" })).toBe("bitcoin reach:follows");
+    expect(applyFilters("bitcoin reach:follows", { reach: "friends" })).toBe("bitcoin reach:friends");
+    expect(applyFilters("bitcoin reach:friends", { reach: null })).toBe("bitcoin");
+    const state = readFilters("btc trust:verified reach:friends sort:recent");
+    expect(state.verifiedOnly).toBe(true);
+    expect(state.reach).toBe("friends");
+    expect(readFilters("btc").reach).toBeNull();
+    expect(readFilters("btc reach:nonsense").reach).toBeNull();
+  });
+
+  it("keeps client-only tokens off the wire", () => {
+    const lifted = liftQuery("liverpool trust:verified reach:follows sort:recent");
+    expect(lifted.search).toBe("liverpool sort:recent");
+  });
+});
+
+// Google's Tools menu, not two calendars: Any time · Past 24 hours · Past
+// week · Past month · Past year · Custom. Same since:/until: tokens beneath.
+describe("date presets", () => {
+  const now = new Date(2026, 8, 3, 12, 0, 0); // 2026-09-03 local
+  it("names the preset a since/until pair means", () => {
+    expect(datePreset({ since: null, until: null }, now)).toBe("any");
+    expect(datePreset({ since: "2026-09-02", until: null }, now)).toBe("day");
+    expect(datePreset({ since: "2026-08-27", until: null }, now)).toBe("week");
+    expect(datePreset({ since: "2026-08-03", until: null }, now)).toBe("month");
+    expect(datePreset({ since: "2025-09-03", until: null }, now)).toBe("year");
+    expect(datePreset({ since: "2026-01-01", until: null }, now)).toBe("custom");
+    expect(datePreset({ since: "2026-08-27", until: "2026-09-01" }, now)).toBe("custom");
+  });
+
+  it("computes the since day for a preset", () => {
+    expect(sinceForPreset("day", now)).toBe("2026-09-02");
+    expect(sinceForPreset("week", now)).toBe("2026-08-27");
+    expect(sinceForPreset("month", now)).toBe("2026-08-03");
+    expect(sinceForPreset("year", now)).toBe("2025-09-03");
+    expect(sinceForPreset("any", now)).toBeNull();
+  });
+});
 
 describe("applyFilters", () => {
   it("appends filter tokens after the text, visibly teaching the grammar", () => {
     expect(applyFilters("bitcoin mining", { sort: "recent" })).toBe("bitcoin mining sort:recent");
     expect(
-      applyFilters("bitcoin", { since: "2026-01-01", until: "2026-02-01", minRank: 50, includeSpam: true }),
-    ).toBe("bitcoin since:2026-01-01 until:2026-02-01 filter:rank:gte:50 include:spam");
+      applyFilters("bitcoin", { since: "2026-01-01", until: "2026-02-01", verifiedOnly: true, includeSpam: true }),
+    ).toBe("bitcoin since:2026-01-01 until:2026-02-01 trust:verified include:spam");
   });
 
   it("replaces its own tokens instead of stacking duplicates", () => {
@@ -36,8 +84,8 @@ describe("applyFilters", () => {
   });
 
   it("leaves tokens it wasn't asked about alone", () => {
-    expect(applyFilters("jack from:npub1abc sort:recent", { minRank: 10 })).toBe(
-      "jack from:npub1abc sort:recent filter:rank:gte:10",
+    expect(applyFilters("jack from:npub1abc sort:recent", { verifiedOnly: true })).toBe(
+      "jack from:npub1abc sort:recent trust:verified",
     );
   });
 });
@@ -107,7 +155,8 @@ describe("readFilters", () => {
       sort: "rank",
       since: "2026-01-01",
       until: null,
-      minRank: 30,
+      verifiedOnly: false,
+      reach: null,
       includeSpam: true,
       rankAs: null,
     });
@@ -115,7 +164,8 @@ describe("readFilters", () => {
       sort: null,
       since: null,
       until: null,
-      minRank: null,
+      verifiedOnly: false,
+      reach: null,
       includeSpam: false,
       rankAs: null,
     });

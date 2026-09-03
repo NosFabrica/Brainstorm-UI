@@ -24,17 +24,29 @@ function prettyPath(u: URL): string {
   return p && p !== "" ? p : "";
 }
 
-/** Favicon loaded directly from the site; falls back to a globe icon if missing. */
+/** Where sites actually keep their icon, in the order worth trying — the
+ *  apex domain too when the link said www. No third-party icon service. */
+function faviconCandidates(host: string): string[] {
+  const hosts = [host];
+  const apex = host.replace(/^www\./i, "");
+  if (apex !== host) hosts.push(apex);
+  return hosts.flatMap((h) => [`https://${h}/favicon.ico`, `https://${h}/favicon.png`]);
+}
+
+/** Favicon loaded directly from the site; the globe only once every candidate failed. */
 export function Favicon({ host, className }: { host: string; className?: string }) {
-  const [failed, setFailed] = useState(false);
-  if (failed || !host) return <Globe className={className} />;
+  const [attempt, setAttempt] = useState(0);
+  const candidates = host ? faviconCandidates(host) : [];
+  if (attempt >= candidates.length) return <Globe className={className} data-testid="favicon-globe" />;
   return (
     <img
-      src={`https://${host}/favicon.ico`}
+      key={candidates[attempt]}
+      src={candidates[attempt]}
       alt=""
       loading="lazy"
-      onError={() => setFailed(true)}
+      onError={() => setAttempt((a) => a + 1)}
       className={className}
+      data-testid="favicon"
     />
   );
 }

@@ -16,6 +16,9 @@ import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { SerpRow } from "@/components/search/SerpRow";
 import { MediaTiles, TopStories, hasVisual, pickTopStories } from "@/components/search/RichSections";
 import { collapseHits, type HitCluster } from "@/lib/searchCollapse";
+import { clientFilterHits } from "@/lib/clientFilters";
+import { readFilters } from "@/lib/searchSyntax";
+import { useNetworkReach } from "@/hooks/useNetworkReach";
 import { visitedPubkeys } from "@/lib/recentSearches";
 import { useWheelScrollX } from "@/hooks/useWheelScrollX";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
@@ -178,24 +181,35 @@ export function ComposedResults({
     [people, latest, articles, happening, media],
   );
   const scoreOf = useAuthorScores(useMemo(() => [...new Set(allHits)], [allHits]));
+  // The client-side filters (Verified only, reach) apply here too, so the
+  // composed page and the tabs agree on what the box says.
+  const reach = useNetworkReach(userPubkey);
+  const clientState = readFilters(query);
+  const filtered = (s: SearchSnapshot | null): SearchSnapshot | null =>
+    s ? { ...s, hits: clientFilterHits(s.hits, { verifiedOnly: clientState.verifiedOnly, reach: clientState.reach }, { scoreOf, reach }) } : null;
+  const peopleF = filtered(people);
+  const latestF = filtered(latest);
+  const articlesF = filtered(articles);
+  const happeningF = filtered(happening);
+  const mediaF = filtered(media);
 
   const visited = useMemo(() => visitedPubkeys(), []);
   // The strip scrolls with a plain mouse wheel too — same feel as the facet chips.
   const stripRef = useWheelScrollX();
   const peopleOrdered = useMemo(() => {
-    const hits = people?.hits.filter((h) => h.author) ?? [];
+    const hits = peopleF?.hits.filter((h) => h.author) ?? [];
     // Transparent on-device personalization: faces you've opened lead.
     return [...hits].sort(
       (a, b) => Number(visited.has(b.event.pubkey)) - Number(visited.has(a.event.pubkey)),
     );
-  }, [people, visited]);
+  }, [peopleF, visited]);
 
   const happeningClusters = useMemo(
-    () => (happening ? collapseHits(happening.hits, undefined, { maxPerAuthor: 2 }) : []),
-    [happening],
+    () => (happeningF ? collapseHits(happeningF.hits, undefined, { maxPerAuthor: 2 }) : []),
+    [happeningF],
   );
 
-  const sections = [people, latest, articles, happening, media];
+  const sections = [peopleF, latestF, articlesF, happeningF, mediaF];
   const anyContent = sections.some((s) => (s?.hits.length ?? 0) > 0);
   const allSettled = sections.every((s) => s?.eose || s?.error);
   // EVERY section collapses near-duplicates — live verification found the
@@ -207,12 +221,12 @@ export function ComposedResults({
     ));
   // Google leads its news with a Top stories strip: pictured news-shaped
   // notes become cards, the rest stay rows beneath.
-  const topStories = useMemo(() => (latest ? pickTopStories(latest.hits) : []), [latest]);
+  const topStories = useMemo(() => (latestF ? pickTopStories(latestF.hits) : []), [latestF]);
   const storyIds = useMemo(() => new Set(topStories.map((s) => s.hit.event.id)), [topStories]);
   const storiesRef = useWheelScrollX();
   // Media tiles: anything with a picture or a video; the odd text-only media
   // event (a bare file, say) still gets a row.
-  const mediaTiles = useMemo(() => media?.hits.filter((h) => hasVisual(h.event)) ?? [], [media]);
+  const mediaTiles = useMemo(() => mediaF?.hits.filter((h) => hasVisual(h.event)) ?? [], [mediaF]);
   const mediaTileIds = useMemo(() => new Set(mediaTiles.map((h) => h.event.id)), [mediaTiles]);
 
   return (
@@ -253,16 +267,16 @@ export function ComposedResults({
         </Section>
       )}
 
-      {(latest?.hits.length ?? 0) > 0 && (
+      {(latestF?.hits.length ?? 0) > 0 && (
         <Section id="latest" kicker="Latest" tab="notes" onTabChange={onTabChange}>
           <TopStories stories={topStories} stripRef={storiesRef} />
-          <div className="space-y-0.5">{clustersOf(latest, storyIds)}</div>
+          <div className="space-y-0.5">{clustersOf(latestF, storyIds)}</div>
         </Section>
       )}
 
-      {(articles?.hits.length ?? 0) > 0 && (
+      {(articlesF?.hits.length ?? 0) > 0 && (
         <Section id="articles" kicker="Articles" tab="articles" onTabChange={onTabChange}>
-          <div className="space-y-0.5">{clustersOf(articles)}</div>
+          <div className="space-y-0.5">{clustersOf(articlesF)}</div>
         </Section>
       )}
 
@@ -276,10 +290,10 @@ export function ComposedResults({
         </Section>
       )}
 
-      {(media?.hits.length ?? 0) > 0 && (
+      {(mediaF?.hits.length ?? 0) > 0 && (
         <Section id="media" kicker="Media" tab="media" onTabChange={onTabChange}>
           <MediaTiles hits={mediaTiles} scoreOf={scoreOf} />
-          <div className="space-y-0.5">{clustersOf(media, mediaTileIds)}</div>
+          <div className="space-y-0.5">{clustersOf(mediaF, mediaTileIds)}</div>
         </Section>
       )}
     </div>

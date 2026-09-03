@@ -6,7 +6,7 @@
  * own suite covers the wire; these tests cover what a searcher sees.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 import type { SearchSnapshot } from "@/services/search";
 
@@ -77,6 +77,10 @@ const flagsMock = vi.fn<(pk: string) => boolean | undefined>(() => false);
 vi.mock("@/hooks/useAuthorFlags", () => ({
   useAuthorFlags: () => (pk: string) => flagsMock(pk),
 }));
+// The viewer's network reach (direct follows, friends of friends) — faked so
+// the reach filter can prove what it keeps.
+const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; friends: Set<string>; ready: boolean }>(() => ({ direct: new Set(), friends: new Set(), ready: true }));
+vi.mock("@/hooks/useNetworkReach", () => ({ useNetworkReach: (pk?: string | null) => reachMock(pk) }));
 
 import { SearchResults } from "./SearchResults";
 
@@ -110,6 +114,7 @@ beforeEach(() => {
   followsMock = new Set();
   personEndorsementsMock.mockReturnValue(null);
   flagsMock.mockImplementation(() => false);
+  reachMock.mockReturnValue({ direct: new Set(), friends: new Set(), ready: true });
   scoreOfMock.mockImplementation(() => 0.85);
   allStreams = [];
   window.history.replaceState({}, "", "/?q=jack");
@@ -909,6 +914,7 @@ describe("SearchResults", () => {
     fireEvent.change(screen.getByTestId("filter-sort"), { target: { value: "recent" } });
     expect(rewrite).toHaveBeenLastCalledWith("bitcoin sort:recent");
 
+    fireEvent.change(screen.getByTestId("filter-date"), { target: { value: "custom" } });
     fireEvent.change(screen.getByTestId("filter-since"), { target: { value: "2026-01-01" } });
     expect(rewrite).toHaveBeenLastCalledWith("bitcoin since:2026-01-01");
 
@@ -950,40 +956,115 @@ describe("SearchResults", () => {
     expect(rewrite).toHaveBeenLastCalledWith("jack");
   });
 
-  it("the trust floor speaks the user's tier ladder, not raw numbers", () => {
-    const rewrite = vi.fn();
-    render(<SearchResults query="bitcoin" pov="nosfabrica" onQueryRewrite={rewrite} />);
-    fireEvent.click(screen.getByTestId("search-filters-toggle"));
+  // Probed 2026-09-03: the relay ignores filter:rank and has no hops token, and
+  // sort:text orders exactly like include:spam. Benjamin: show only filters
+  // that are real. So the panel drops those, and the two that people still
+  // want — Verified only, and how far to cast the net — are done on the client.
+  describe("filters that are real", () => {
+    it("offers no relay filter the relay ignores", () => {
+      render(<SearchResults query="bitcoin" pov="nosfabrica" onQueryRewrite={vi.fn()} />);
+      fireEvent.click(screen.getByTestId("search-filters-toggle"));
+      expect(screen.queryByTestId("filter-min-tier")).toBeNull();
+      const sorts = [...(screen.getByTestId("filter-sort") as HTMLSelectElement).options].map((o) => o.value);
+      expect(sorts).toEqual(["", "recent", "rank", "followers"]);
+    });
 
-    const select = screen.getByTestId("filter-min-tier") as HTMLSelectElement;
-    // Default (Simple) ladder: Anyone / Verified only — the user's setting.
-    const labels = [...select.options].map((o) => o.textContent);
-    expect(labels).toContain("Anyone");
-    expect(labels.some((l) => /Verified/.test(l ?? ""))).toBe(true);
+    it("Verified only is a client toggle that writes trust:verified and hides unrated authors", async () => {
+      const rewrite = vi.fn();
+      setUrlTab("people");
+      const RATED = "1".repeat(64);
+      const UNRATED = "2".repeat(64);
+      scoreOfMock.mockImplementation((pk) => (pk === UNRATED ? null : 0.85));
+      const { rerender } = render(<SearchResults query="jack" pov="nosfabrica" onQueryRewrite={rewrite} />);
+      fireEvent.click(screen.getByTestId("search-filters-toggle"));
+      fireEvent.click(screen.getByTestId("filter-verified"));
+      expect(rewrite).toHaveBeenLastCalledWith("jack trust:verified");
+      // The page honours the token itself — the relay never sees it.
+      rerender(<SearchResults query="jack trust:verified" pov="nosfabrica" onQueryRewrite={rewrite} />);
+      emit({
+        hits: [
+          { event: person("p0", RATED, "rated"), author: author(RATED, "rated"), rank: null },
+          { event: person("p1", UNRATED, "unrated"), author: author(UNRATED, "unrated"), rank: null },
+        ],
+        eose: true,
+        timeMs: 100,
+      });
+      await screen.findByTestId("result-profile-0");
+      expect(screen.getByTestId("result-profile-0")).toHaveTextContent("rated");
+      expect(screen.queryByTestId("result-profile-1")).toBeNull();
+      // Off the wire, and the relay is asked for a deeper page to filter from.
+      const main = mainStreamCalls().at(-1)!;
+      expect(main[0]).toBe("jack trust:verified");
+      expect((main[1] as { limit?: number }).limit).toBeGreaterThanOrEqual(200);
+    });
 
-    fireEvent.change(select, { target: { value: "2" } });
-    expect(rewrite).toHaveBeenLastCalledWith("bitcoin filter:rank:gte:2");
-  });
+    it("dates are presets — one tap for the past week — with Custom revealing the pickers", () => {
+      const rewrite = vi.fn();
+      render(<SearchResults query="bitcoin" pov="nosfabrica" onQueryRewrite={rewrite} />);
+      fireEvent.click(screen.getByTestId("search-filters-toggle"));
+      expect(screen.queryByTestId("filter-since")).toBeNull();
+      const preset = screen.getByTestId("filter-date") as HTMLSelectElement;
+      expect([...preset.options].map((o) => o.value)).toEqual(["any", "day", "week", "month", "year", "custom"]);
+      fireEvent.change(preset, { target: { value: "week" } });
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      const ymd = `${weekAgo.getFullYear()}-${String(weekAgo.getMonth() + 1).padStart(2, "0")}-${String(weekAgo.getDate()).padStart(2, "0")}`;
+      expect(rewrite).toHaveBeenLastCalledWith(`bitcoin since:${ymd}`);
+      fireEvent.change(preset, { target: { value: "custom" } });
+      expect(screen.getByTestId("filter-since")).toBeInTheDocument();
+      expect(screen.getByTestId("filter-until")).toBeInTheDocument();
+    });
 
-  it("the detailed ladder setting unlocks the full rung list", () => {
-    localStorage.setItem("brainstorm_tier_granularity:anon", "detailed");
-    render(<SearchResults query="bitcoin" pov="nosfabrica" onQueryRewrite={vi.fn()} />);
-    fireEvent.click(screen.getByTestId("search-filters-toggle"));
-    const labels = [...(screen.getByTestId("filter-min-tier") as HTMLSelectElement).options].map(
-      (o) => o.textContent,
-    );
-    expect(labels.some((l) => /Highly verified/.test(l ?? ""))).toBe(true);
-    expect(labels.some((l) => /Neutral/.test(l ?? ""))).toBe(true);
-  });
+    // Benjamin's slider: "Trust distance" — how far the search casts its net.
+    // The relay can't; the viewer's own follow graph can. Signed out there is
+    // no "you" to measure from, so the control isn't there.
+    it("reach — People you follow · Friends of friends · Everyone — only for a signed-in viewer", async () => {
+      const rewrite = vi.fn();
+      render(<SearchResults query="jack" pov="nosfabrica" onQueryRewrite={rewrite} />);
+      fireEvent.click(screen.getByTestId("search-filters-toggle"));
+      expect(screen.queryByTestId("filter-reach")).toBeNull();
+      cleanup();
+      render(<SearchResults query="jack" pov="nosfabrica" userPubkey={"e".repeat(64)} onQueryRewrite={rewrite} />);
+      fireEvent.click(screen.getByTestId("search-filters-toggle"));
+      const reach = screen.getByTestId("filter-reach");
+      expect(reach).toHaveTextContent("People you follow");
+      expect(reach).toHaveTextContent("Friends of friends");
+      expect(reach).toHaveTextContent("Everyone");
+      fireEvent.click(screen.getByTestId("filter-reach-follows"));
+      expect(rewrite).toHaveBeenLastCalledWith("jack reach:follows");
+    });
 
-  it("the panel reads current filter state back from the query", () => {
-    render(
-      <SearchResults query="btc sort:rank include:spam filter:rank:gte:2" pov="nosfabrica" onQueryRewrite={vi.fn()} />,
-    );
-    fireEvent.click(screen.getByTestId("search-filters-toggle"));
-    expect((screen.getByTestId("filter-sort") as HTMLSelectElement).value).toBe("rank");
-    expect((screen.getByTestId("filter-spam") as HTMLInputElement).checked).toBe(true);
-    expect((screen.getByTestId("filter-min-tier") as HTMLSelectElement).value).toBe("2");
+    it("reach:follows keeps only people you follow", async () => {
+      setUrlTab("people");
+      const ME = "e".repeat(64);
+      const FOLLOWED = "1".repeat(64);
+      const STRANGER = "2".repeat(64);
+      reachMock.mockReturnValue({ direct: new Set([FOLLOWED]), friends: new Set([FOLLOWED]), ready: true });
+      render(<SearchResults query="jack reach:follows" pov="nosfabrica" userPubkey={ME} onQueryRewrite={vi.fn()} />);
+      emit({
+        hits: [
+          { event: person("p0", STRANGER, "stranger"), author: author(STRANGER, "stranger"), rank: null },
+          { event: person("p1", FOLLOWED, "friend"), author: author(FOLLOWED, "friend"), rank: null },
+        ],
+        eose: true,
+        timeMs: 100,
+      });
+      await screen.findByTestId("result-profile-0");
+      expect(screen.getByTestId("result-profile-0")).toHaveTextContent("friend");
+      expect(screen.queryByText("stranger")).toBeNull();
+      expect(reachMock).toHaveBeenCalledWith(ME);
+    });
+
+    it("the panel reads current filter state back from the query", () => {
+      render(
+        <SearchResults query="btc sort:rank include:spam trust:verified reach:friends" pov="nosfabrica" userPubkey={"e".repeat(64)} onQueryRewrite={vi.fn()} />,
+      );
+      fireEvent.click(screen.getByTestId("search-filters-toggle"));
+      expect((screen.getByTestId("filter-sort") as HTMLSelectElement).value).toBe("rank");
+      expect((screen.getByTestId("filter-spam") as HTMLInputElement).checked).toBe(true);
+      expect((screen.getByTestId("filter-verified") as HTMLInputElement).checked).toBe(true);
+      expect(screen.getByTestId("filter-reach-friends").getAttribute("aria-pressed")).toBe("true");
+    });
   });
 
   it("raises a knowledge panel when a person matches the query strongly", async () => {
