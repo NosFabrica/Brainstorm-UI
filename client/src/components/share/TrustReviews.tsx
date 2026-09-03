@@ -407,23 +407,28 @@ export function TrustReviews({
                           <span className="text-[11px] text-slate-400 dark:text-slate-500">{ago(v.at)}</span>
                         </div>
                         {v.text ? (
-                          <p className="mt-1 break-words text-sm leading-relaxed text-slate-700 dark:text-slate-200">
+                          // A comment, not a paragraph: the words sit in a speech
+                          // bubble off the reviewer's avatar — the shape people
+                          // read as "someone said this".
+                          <div className="mt-1.5 inline-block max-w-full rounded-2xl rounded-tl-md bg-slate-50 dark:bg-slate-800/60 px-3.5 py-2 text-[13px] leading-relaxed text-slate-800 dark:text-slate-100 break-words">
                             <NotesInline text={v.text} />
-                          </p>
+                          </div>
                         ) : (
                           <p className="mt-0.5 text-xs italic text-slate-400 dark:text-slate-500">No note — a review by name alone</p>
                         )}
                         {reply && (
+                          // The subject's answer: a second bubble, tinted the
+                          // brand's interaction colour, indented under the review.
                           <div
-                            className="mt-2 rounded-lg border-l-2 border-brand-accent/40 bg-slate-50 dark:bg-slate-800/50 px-3 py-2"
+                            className="ml-3 mt-1.5 inline-block max-w-full rounded-2xl rounded-tl-md bg-brand-primary/5 dark:bg-brand-primary/15 px-3.5 py-2 text-[13px] leading-relaxed text-slate-800 dark:text-slate-100 break-words"
                             data-testid={`trust-review-reply-${v.id}`}
                           >
-                            <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                              Reply from {subjectName} <span className="text-slate-400 dark:text-slate-500">· {ago(reply.at)}</span>
+                            <div className="text-[11px] font-medium text-brand-deep dark:text-brand-link">
+                              {subjectName} replied <span className="font-normal text-slate-400 dark:text-slate-500">· {ago(reply.at)}</span>
                             </div>
-                            <p className="mt-0.5 break-words text-sm leading-relaxed text-slate-700 dark:text-slate-200">
+                            <div className="mt-0.5">
                               <NotesInline text={reply.text} />
-                            </p>
+                            </div>
                           </div>
                         )}
                       </div>
