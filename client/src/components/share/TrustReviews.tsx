@@ -11,13 +11,14 @@
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
-import { BadgeCheck, Heart, PenLine } from "lucide-react";
+import { BadgeCheck, ChevronDown, ChevronUp, Heart, PenLine } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { TierWordChip, useTierRing } from "@/components/score/VerificationCoin";
-import { IdentityChip, VouchBadge, useRankedVouches } from "@/components/search/EndorsementLine";
+import { EndorsementLine, VouchBadge, useRankedVouches } from "@/components/search/EndorsementLine";
+import { endorsementLabel } from "@/services/endorsements";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useMyFollows } from "@/hooks/useMyFollows";
 import { forgetPersonEndorsements, usePersonEndorsements } from "@/hooks/usePersonEndorsements";
@@ -171,6 +172,9 @@ export function TrustReviews({ pubkey, personal }: { pubkey: string; personal: b
   const tierRing = useTierRing();
   const [othersOpen, setOthersOpen] = useState(false);
   const [composing, setComposing] = useState(false);
+  // Collapsed by default — a summary line, Google's way. The panel's link
+  // deep-links here with #trust-reviews and arrives unfolded.
+  const [open, setOpen] = useState(() => typeof window !== "undefined" && window.location.hash === "#trust-reviews");
   const [replies, setReplies] = useState<Map<string, VouchReply>>(new Map());
   const subjectProfile = useProfileMap([pubkey]).get(pubkey);
   const vouchIds = vouches.map((v) => v.id);
@@ -199,8 +203,15 @@ export function TrustReviews({ pubkey, personal }: { pubkey: string; personal: b
   const onPublished = (v: PersonVouch) => {
     setLocal([...vouches.filter((x) => x.pubkey !== v.pubkey), v]);
     setComposing(false);
+    setOpen(true); // show them what they just wrote
     forgetPersonEndorsements(pubkey);
   };
+  const summaryFaces = ranked.slice(0, 3).map((r) => ({ pubkey: r.pubkey, name: nameOf(r.pubkey), picture: pictureOf(r.pubkey), score01: r.score }));
+  const summaryLabel = endorsementLabel(
+    "Vouched",
+    summaryFaces.map((f) => f.name).filter((n): n is string => !!n),
+    new Set(vouches.map((v) => v.pubkey)).size,
+  );
   const onRemoved = () => {
     setLocal(vouches.filter((x) => x.pubkey !== viewer));
     setComposing(false);
@@ -208,35 +219,56 @@ export function TrustReviews({ pubkey, personal }: { pubkey: string; personal: b
   };
 
   return (
-    <section className="mt-4" id="trust-reviews" data-testid="trust-reviews">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Trust reviews</h2>
-          <IdentityChip ranked={ranked} nameOf={nameOf} testId="trust-reviews-identity" />
-        </div>
-        <div className="flex items-center gap-2">
-          {vouches.length > 0 && <span className="text-[11px] text-slate-400 dark:text-slate-500">{vouches.length}</span>}
-          {canWrite && !composing && (
-            <button
-              type="button"
-              onClick={() => setComposing(true)}
-              className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 px-2.5 py-1 text-[11px] font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 transition-colors"
-              data-testid="trust-reviews-write"
-            >
-              <PenLine className="h-3 w-3" /> {mine ? "Edit your review" : "Write a trust review"}
-            </button>
-          )}
-        </div>
+    <section className="mt-2.5" id="trust-reviews" data-testid="trust-reviews">
+      {/* The summary line — the same anatomy as "Followed by …" above it:
+          reviewer faces + "Vouched by friend & benjamin". Tap to unfold. */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1" data-testid="trust-reviews-summary">
+        {vouches.length > 0 ? (
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            aria-expanded={open}
+            className="group inline-flex items-center gap-1.5 rounded-md text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+            data-testid="trust-reviews-toggle-open"
+          >
+            <EndorsementLine faces={summaryFaces} label={summaryLabel} />
+            {open ? (
+              <ChevronUp className="h-3.5 w-3.5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300" />
+            )}
+          </button>
+        ) : (
+          !composing && (
+            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="trust-reviews-invite">
+              Be the first to vouch for {subjectName}
+            </p>
+          )
+        )}
+        {canWrite && !composing && (
+          <button
+            type="button"
+            onClick={() => {
+              setComposing(true);
+              setOpen(true);
+            }}
+            className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 px-2.5 py-1 text-[11px] font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 transition-colors"
+            data-testid="trust-reviews-write"
+          >
+            <PenLine className="h-3 w-3" /> {mine ? "Edit your review" : "Write a trust review"}
+          </button>
+        )}
       </div>
       {composing && (
         <VouchComposer subject={pubkey} existing={mine} onPublished={onPublished} onRemoved={onRemoved} onCancel={() => setComposing(false)} />
       )}
-      {vouches.length === 0 && !composing && (
-        <p className="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="trust-reviews-invite">
-          Be the first to vouch for {subjectName} — say you know them, or that this is really them.
-        </p>
+      {open && vouches.length > 0 && (
+        <div className="mt-3 flex items-baseline justify-between gap-2 border-t border-slate-100 dark:border-slate-800/60 pt-3">
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Trust reviews</h2>
+          <span className="text-[11px] text-slate-400 dark:text-slate-500">{vouches.length}</span>
+        </div>
       )}
-      {(["followed", "verified", "other"] as EndorserGroup[]).map((group) => {
+      {open && (["followed", "verified", "other"] as EndorserGroup[]).map((group) => {
         const rows = grouped[group];
         if (rows.length === 0) return null;
         if (group === "followed" && !signedIn) return null;

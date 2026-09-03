@@ -63,6 +63,7 @@ beforeEach(() => {
   scoreByPubkey.clear();
   knownProfiles.clear();
   viewerMock = null;
+  window.location.hash = "";
   publishVouchMock.mockResolvedValue({ success: true, event: undefined });
   revokeVouchMock.mockResolvedValue({ success: true });
 });
@@ -99,6 +100,7 @@ describe("TrustReviews composer", () => {
   });
 
   it("prefills the viewer's existing review, updates it, and can remove it", async () => {
+    window.location.hash = "#trust-reviews";
     viewerMock = { pubkey: VIEWER };
     signedInMock = true;
     personEndorsementsMock.mockReturnValue({
@@ -148,7 +150,47 @@ describe("TrustReviews composer", () => {
 });
 
 describe("TrustReviews", () => {
+  // Google's and LinkedIn's move: a one-line summary in the identity area —
+  // reviewer faces + "Vouched by friend & 1 other" — collapsed by default;
+  // tap it to unfold the list. Nothing is dumped on the page unasked.
+  it("collapses to a summary line by default and unfolds on tap", async () => {
+    signedInMock = true;
+    followsMock = new Set([FRIEND]);
+    scoreByPubkey.set(FRIEND, null);
+    knownProfiles.set(FRIEND, profile(FRIEND, "friend"));
+    knownProfiles.set(BEN, profile(BEN, "benjamin"));
+    personEndorsementsMock.mockReturnValue({
+      followedBy: [], total: null,
+      vouches: [
+        { id: "v-friend", pubkey: FRIEND, type: "vouch", text: "Great relay operator.", at: NOW - 3 },
+        { id: "v-ben", pubkey: BEN, type: "identity", text: "Real.", at: NOW - 60 },
+      ],
+    });
+    render(<TrustReviews pubkey={SUBJECT} personal={false} />);
+    const summary = await screen.findByTestId("trust-reviews-summary");
+    await vi.waitFor(() => expect(summary).toHaveTextContent("Vouched by friend & benjamin"));
+    // Faces, ringed, most trusted first.
+    const faces = [...summary.querySelectorAll("[data-face]")].map((f) => f.getAttribute("data-face"));
+    expect(faces).toEqual([FRIEND, BEN]);
+    expect(summary.querySelector('[class*="shadow-[0_0_0"]')).not.toBeNull();
+    // Collapsed: no rows yet.
+    expect(screen.queryByTestId("trust-review-v-friend")).toBeNull();
+    fireEvent.click(screen.getByTestId("trust-reviews-toggle-open"));
+    expect(screen.getByTestId("trust-review-v-friend")).toBeInTheDocument();
+    expect(screen.getByTestId("trust-reviews-followed")).toHaveTextContent("From people you follow");
+  });
+
+  it("opens unfolded when the page was reached by its deep link", async () => {
+    window.location.hash = "#trust-reviews";
+    scoreByPubkey.set(BEN, 0.9);
+    personEndorsementsMock.mockReturnValue({ followedBy: [], total: null, vouches: [{ id: "v-ben", pubkey: BEN, type: "vouch", text: "Solid.", at: NOW }] });
+    render(<TrustReviews pubkey={SUBJECT} personal={false} />);
+    expect(await screen.findByTestId("trust-review-v-ben")).toBeInTheDocument();
+    window.location.hash = "";
+  });
+
   it("lists vouches in trust order with type, words, and the subject's reply", async () => {
+    window.location.hash = "#trust-reviews";
     signedInMock = true;
     followsMock = new Set([FRIEND]);
     scoreByPubkey.set(FRIEND, null);
@@ -179,8 +221,6 @@ describe("TrustReviews", () => {
     expect(screen.getByTestId("trust-review-v-friend")).toHaveTextContent("Vouched");
     expect(screen.getByTestId("trust-review-v-ben")).toHaveTextContent("Identity");
     expect(screen.getByTestId("trust-review-v-ben")).toHaveTextContent("real Nathan Day account");
-    // Identity from a trusted reviewer earns the chip.
-    expect(screen.getByTestId("trust-reviews-identity")).toHaveTextContent("Identity confirmed");
     // The subject's public answer sits under the vouch it answers.
     await vi.waitFor(() => expect(screen.getByTestId("trust-review-reply-v-ben")).toHaveTextContent("Confirmed, that's me."));
     expect(repliesMock).toHaveBeenCalledWith(["v-stranger", "v-ben", "v-friend"]);
@@ -198,11 +238,11 @@ describe("TrustReviews", () => {
   });
 
   it("with only outsiders, shows them unfolded — nothing to hide behind", async () => {
+    window.location.hash = "#trust-reviews";
     scoreByPubkey.set(STRANGER, null);
     personEndorsementsMock.mockReturnValue({ followedBy: [], total: null, vouches: [{ id: "v", pubkey: STRANGER, type: "vouch", text: "ok", at: NOW }] });
     render(<TrustReviews pubkey={SUBJECT} personal={false} />);
     await screen.findByTestId("trust-review-v");
     expect(screen.queryByTestId("trust-reviews-toggle")).toBeNull();
-    expect(screen.queryByTestId("trust-reviews-identity")).toBeNull();
   });
 });

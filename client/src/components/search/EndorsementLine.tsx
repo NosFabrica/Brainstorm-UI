@@ -234,10 +234,12 @@ export function PanelVouches({ pubkey, npub, personal }: { pubkey: string; npub:
   );
 }
 
-export function PanelIdentityChip({ pubkey, personal }: { pubkey: string; personal: boolean }) {
+/** The identity chip for any surface that knows only the pubkey — the panel
+ *  beside the name, the person page beside the name. Same hook, one fetch. */
+export function PanelIdentityChip({ pubkey, personal, testId = "person-identity" }: { pubkey: string; personal: boolean; testId?: string }) {
   const e = usePersonEndorsements(pubkey, personal);
   const { ranked, nameOf } = useRankedVouches(e);
-  return <IdentityChip ranked={ranked} nameOf={nameOf} testId="person-identity" />;
+  return <IdentityChip ranked={ranked} nameOf={nameOf} testId={testId} />;
 }
 
 /** The one honest negative: a chip when the network has FLAGGED the account

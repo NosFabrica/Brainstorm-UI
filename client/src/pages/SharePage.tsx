@@ -33,6 +33,7 @@ import { parseIdentities } from "@/lib/externalIdentity";
 import { ExternalIdentities } from "@/components/share/ExternalIdentities";
 import { FollowedByRow } from "@/components/share/FollowedByRow";
 import { TrustReviews } from "@/components/share/TrustReviews";
+import { PanelIdentityChip } from "@/components/search/EndorsementLine";
 import { nip19 } from "nostr-tools";
 import { collectRefs, mentionPubkeysFromContent, type MinimalEvent } from "@/lib/noteRefs";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
@@ -1001,6 +1002,9 @@ export default function SharePage() {
               {displayName}
             </h1>
             <TierWordChip score01={coinScore01} flagged={isFlagged} />
+            {/* "Identity confirmed" — trusted reviewers said this is really them.
+                Google's verified-badge spot: beside the name, not in a section. */}
+            {pubkey && <PanelIdentityChip pubkey={pubkey} personal={myPov} testId="share-identity" />}
             {profile.nip05 && (
               <span className="inline-flex items-center gap-1 text-sm text-brand-link font-medium">
                 <BadgeCheck className="h-4 w-4" /> {profile.nip05.replace(/^_@/, "")}
@@ -1137,8 +1141,9 @@ export default function SharePage() {
             </div>
           )}
 
-          {/* Trust reviews — what people who know them said (Relay Outpost
-              vouches), in trust order. Silent when nobody has vouched. */}
+          {/* Trust reviews — what people who know them said, as a one-line
+              summary under Followed-by that unfolds on tap. Silent for a
+              signed-out reader when nobody has vouched. */}
           {pubkey && <TrustReviews pubkey={pubkey} personal={myPov} />}
 
           {/* Tenure / presence — Google-knowledge-panel "at a glance" line. */}
