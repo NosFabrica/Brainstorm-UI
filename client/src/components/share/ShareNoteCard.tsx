@@ -116,17 +116,20 @@ export function ShareNoteCard({
   const [granularity] = useTierGranularity();
   const [expanded, setExpanded] = useState(false);
   const [, navigate] = useLocation();
-  // Every hook stays above the repost early return: this card is rendered
-  // unkeyed (featured / single-event pages), so the same instance can flip
-  // between a repost and a plain note across navigations.
+  // A repost renders the note it points at, not this event — so it needs none
+  // of what follows. Every hook still runs for it (the card is rendered unkeyed
+  // on the featured / single-event pages, so one instance can flip between a
+  // repost and a plain note), but with inputs that make each a no-op rather
+  // than parsing content and fetching a score nothing will read.
+  const isRepost = event.kind === 6 || event.kind === 16;
   const hasMedia = useMemo(
-    () => parseNoteContent(event.content || "").some((t) => t.type === "image" || t.type === "video" || t.type === "audio"),
-    [event.content],
+    () => !isRepost && parseNoteContent(event.content || "").some((t) => t.type === "image" || t.type === "video" || t.type === "audio"),
+    [event.content, isRepost],
   );
   const authorNpub = useMemo(() => { try { return npubFromPubkey(event.pubkey); } catch { return ""; } }, [event.pubkey]);
   // Same fallback as EmbeddedNoteCard: callers that fetched a score pass it,
   // the rest (more-from-author, tagged notes) ride the shared house cache.
-  const authorFallbackOf = useAuthorScores(authorScore == null ? [event.pubkey] : []);
+  const authorFallbackOf = useAuthorScores(isRepost || authorScore != null ? [] : [event.pubkey]);
   const onCardClick = openOnCardClick(href, navigate);
   const clickable = href ? "cursor-pointer" : "";
   const a = analyzeNote(event);
@@ -144,8 +147,7 @@ export function ShareNoteCard({
     }
   }
 
-  // Repost (kind 6/16)
-  if (event.kind === 6 || event.kind === 16) {
+  if (isRepost) {
     const inner = a.repostEvent ?? (a.repostId ? eventsById.get(a.repostId) : undefined);
     return (
       <div data-testid="note-repost" onClick={onCardClick} className={clickable}>

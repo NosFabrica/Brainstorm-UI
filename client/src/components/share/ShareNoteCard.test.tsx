@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { render, screen } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { screen } from "@testing-library/react";
 
+import { renderWithProviders } from "@/test/utils";
 import { ShareNoteCard } from "./ShareNoteCard";
 import type { MinimalEvent } from "@/lib/noteRefs";
 
@@ -19,15 +19,13 @@ describe("ShareNoteCard", () => {
   // flip between a repost and a note. The repost early return must not change
   // the hook count (React: "Rendered fewer hooks than expected").
   it("survives the same instance flipping between repost and note", () => {
-    const client = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } });
-    const wrap = (event: MinimalEvent) => <QueryClientProvider client={client}>{card(event)}</QueryClientProvider>;
-    const { rerender } = render(wrap(repost));
+    const { rerender } = renderWithProviders(card(repost));
     expect(screen.getByTestId("note-repost")).toBeInTheDocument();
 
-    expect(() => rerender(wrap(note))).not.toThrow();
+    expect(() => rerender(card(note))).not.toThrow();
     expect(screen.getByTestId("note-card")).toBeInTheDocument();
 
-    expect(() => rerender(wrap(repost))).not.toThrow();
+    expect(() => rerender(card(repost))).not.toThrow();
     expect(screen.getByTestId("note-repost")).toBeInTheDocument();
   });
 });

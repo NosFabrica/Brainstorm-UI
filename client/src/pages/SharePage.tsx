@@ -812,9 +812,12 @@ export default function SharePage() {
   const openInRef = useRef<HTMLElement>(null);
   const scrollToOpenIn = () => openInRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   // Whose distance the DegreeChip measures — follows the perspective toggle,
-  // falls back to House, works logged out. See useHopsOrigin. Last hook: the
-  // not-found return below must stay after every hook.
+  // falls back to House, works logged out. See useHopsOrigin.
   const hopsOrigin = useHopsOrigin();
+
+  // Guards start here. `decoded` is fixed for the life of the mount, but adding
+  // a hook below any of these returns changes the hook count between renders
+  // and React throws.
 
   if (!decoded) {
     return <ShareShell><NotFoundCard rawId={rawId} /></ShareShell>;

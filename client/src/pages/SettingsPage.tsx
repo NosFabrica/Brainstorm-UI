@@ -483,7 +483,8 @@ export default function SettingsPage() {
     (trustProviderStatus.data !== "other" && isNip85Activated(user?.pubkey));
 
   // Network Alerts card inputs (see the card below). Hooks, so they live above
-  // the guard: `user` can drop to null while this page is mounted.
+  // the guard: `user` can drop to null while this page is mounted, and a hook
+  // below the guard would change the hook count between renders.
   const ignoredListCount = useMemo(() => (pubkey ? ignoredAlertMap(pubkey).size : 0), [pubkey]);
   const ignoreSync = useIgnoreSyncState();
 
