@@ -470,7 +470,7 @@ export function RepoCard({ event, author, score }: { event: NostrEvent; author: 
         <div className="min-w-0 flex-1">
           {/* The branded link sits absolutely in the corner — the title row
               leaves it room so a long title's type chip never slides under it. */}
-          <div className={`flex items-center gap-2 min-w-0 ${dest ? "pr-24" : ""}`}>
+          <div className={`flex items-center gap-2 min-w-0 ${dest ? (dest.label.length > 12 ? "pr-36" : "pr-24") : ""}`}>
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
             <Chip size="sm" tone={typeTone}>{typeLabel}</Chip>
           </div>
