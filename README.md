@@ -63,7 +63,7 @@ or start a new cycle — is documented in
 
 | Doc | What it covers |
 |---|---|
-| [replit.md](replit.md) | The architecture overview: routing model, anonymous vs. authenticated data paths, the staging/production API switcher, known backend gaps |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | The architecture overview: routing model, anonymous vs. authenticated data paths, the staging/production API switcher, known backend gaps |
 | [CONTEXT.md](CONTEXT.md), [docs/adr/](docs/adr/) | The domain vocabulary, and the decisions behind it |
 | [CLAUDE.md](CLAUDE.md) | Conventions for AI agents working in this repo: issue triage, domain docs, and the design-system rules |
 | [docs/design-system.md](docs/design-system.md) | The shared UI primitives (Chip, StatTile, Card, SectionHeader, tones) and what stays bespoke |
