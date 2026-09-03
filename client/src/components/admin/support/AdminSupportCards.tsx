@@ -1,0 +1,835 @@
+import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import {
+  ArrowLeft,
+  CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  ChevronsUpDown,
+  Copy,
+  Loader2,
+  Mail,
+  Send,
+  XCircle,
+} from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Chip } from "@/components/ui/chip";
+import { useProfileBits, type ProfileBits } from "@/components/admin/useProfileBits";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { useToast } from "@/hooks/use-toast";
+import { npubFromPubkey } from "@/lib/shareId";
+import { copyToClipboard } from "@/lib/clipboard";
+import { isUnread, markSeen } from "@/lib/supportSeen";
+import { listCanned, removeCanned, saveCanned, updateCanned } from "@/lib/cannedReplies";
+import {
+  SUPPORT_CATEGORIES,
+  adminCloseTicket,
+  adminListTickets,
+  adminReply,
+  adminSetCategory,
+  categoryLabel,
+  fetchThread,
+  type AdminSupportTicket,
+} from "@/services/support";
+import type { Tone } from "@/lib/tones";
+
+const ADMIN_SUPPORT_KEY = ["/api/admin/support/tickets"];
+
+/** Queued in the close dialog, editable, and sent only on the admin's press. */
+const DEFAULT_CLOSING_MESSAGE =
+  "Glad we could help! We're closing this ticket — if anything resurfaces, just reply here and it reopens.";
+
+function statusTone(status: string): Tone {
+  if (status === "open") return "info";
+  if (status === "answered") return "success";
+  if (status === "closed") return "neutral";
+  return "neutral";
+}
+
+function fmtWhen(iso: string): string {
+  const d = new Date(iso);
+  return Number.isFinite(d.getTime())
+    ? d.toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
+    : "";
+}
+
+function fmtDateOnly(iso: string): string {
+  const d = new Date(iso);
+  return Number.isFinite(d.getTime()) ? d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) : "";
+}
+
+function fmtTimeOnly(iso: string): string {
+  const d = new Date(iso);
+  return Number.isFinite(d.getTime()) ? d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "";
+}
+
+function requesterLabel(pubkey: string | null): string {
+  if (!pubkey) return "this browser (demo)";
+  try {
+    const npub = npubFromPubkey(pubkey);
+    return `${npub.slice(0, 12)}…${npub.slice(-4)}`;
+  } catch {
+    return `${pubkey.slice(0, 8)}…`;
+  }
+}
+
+/**
+ * Avatar + display name (npub as detail), same treatment as the Users tab.
+ * Clicking it filters the queue to this requester — the one-tap
+ * "show me all their tickets" view.
+ */
+function RequesterCell({
+  pubkey,
+  profile,
+  onFilter,
+}: {
+  pubkey: string | null;
+  profile?: ProfileBits;
+  onFilter?: (query: string) => void;
+}) {
+  const label = requesterLabel(pubkey);
+  if (!pubkey) return <span className="font-mono text-xs">{label}</span>;
+  return (
+    <span
+      className="flex items-center gap-2 min-w-0 cursor-pointer hover:opacity-80"
+      role="button"
+      tabIndex={0}
+      title="Show all tickets from this user"
+      onClick={(e) => {
+        e.stopPropagation();
+        onFilter?.(label);
+      }}
+      data-testid={`requester-${pubkey.slice(0, 8)}`}
+    >
+      <Avatar className="h-6 w-6 shrink-0">
+        {profile?.picture ? <AvatarImage src={profile.picture} alt={profile?.name || "User"} className="object-cover" /> : null}
+        <AvatarFallback className="bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-[10px] text-slate-400 dark:text-slate-500">
+          {profile?.name?.charAt(0)?.toUpperCase() || "?"}
+        </AvatarFallback>
+      </Avatar>
+      <span className="flex flex-col min-w-0 leading-tight">
+        <span className="truncate max-w-[140px] font-medium">{profile?.name || label}</span>
+        {profile?.name && (
+          <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 truncate max-w-[140px]">{label}</span>
+        )}
+      </span>
+      <button
+        type="button"
+        title="Copy npub"
+        aria-label="Copy npub"
+        className="shrink-0 rounded p-1 text-slate-300 dark:text-slate-600 hover:text-slate-500 dark:hover:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+        onClick={(e) => {
+          e.stopPropagation();
+          try {
+            copyToClipboard(npubFromPubkey(pubkey));
+          } catch {
+            /* malformed pubkey — nothing to copy */
+          }
+        }}
+        data-testid={`copy-npub-${pubkey.slice(0, 8)}`}
+      >
+        <Copy className="h-3 w-3" />
+      </button>
+    </span>
+  );
+}
+
+const th = "px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400";
+const td = "px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200";
+
+/** Lifecycle lines in the admin's voice; unknown event types render plainly. */
+function adminEventLabel(e: { type: string; by: string }): string {
+  if (e.type === "opened") return "Ticket opened";
+  if (e.type === "closed") return e.by === "support" ? "Closed by support" : "Resolved by the user";
+  if (e.type === "reopened") return e.by === "user" ? "Reopened by the user's reply" : "Reopened";
+  if (e.type === "recategorized") return "Recategorized by support";
+  return e.type.replaceAll("_", " ");
+}
+
+type SortKey = "created" | "subject" | "category" | "status" | "updated";
+type SortState = { key: SortKey; dir: "asc" | "desc" } | null;
+
+const TIME_WINDOWS = [
+  { key: "all", label: "All time", ms: null },
+  { key: "24h", label: "Last 24 hours", ms: 86_400_000 },
+  { key: "7d", label: "Last 7 days", ms: 7 * 86_400_000 },
+  { key: "30d", label: "Last 30 days", ms: 30 * 86_400_000 },
+] as const;
+
+function SortHeader({ label, sortKey, sort, onSort }: {
+  label: string;
+  sortKey: SortKey;
+  sort: SortState;
+  onSort: (key: SortKey) => void;
+}) {
+  const active = sort?.key === sortKey;
+  return (
+    <button
+      type="button"
+      className="flex items-center gap-1 uppercase tracking-wide font-semibold hover:text-slate-800 dark:hover:text-slate-200 transition-colors whitespace-nowrap"
+      onClick={() => onSort(sortKey)}
+      data-testid={`sort-support-${sortKey}`}
+    >
+      {label}
+      {active ? (
+        sort!.dir === "asc" ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />
+      ) : (
+        <ChevronsUpDown className="h-3 w-3 opacity-40" />
+      )}
+    </button>
+  );
+}
+
+/** Default order is the work queue: open first, newest activity first within.
+ *  Exported for tests — jsdom can't open Radix selects, so the windowing
+ *  behavior is verified here and the wiring visually. */
+export function filterAndSort(
+  tickets: AdminSupportTicket[],
+  profiles: Map<string, ProfileBits>,
+  search: string,
+  statusFilter: string,
+  categoryFilter: string,
+  windowFilter: string,
+  sort: SortState,
+  showClosed: boolean = true,
+): AdminSupportTicket[] {
+  const q = search.trim().toLowerCase();
+  const windowMs = TIME_WINDOWS.find((w) => w.key === windowFilter)?.ms ?? null;
+  const cutoff = windowMs === null ? null : Date.now() - windowMs;
+  let out = tickets.filter((t) => {
+    // The queue shows work by default; closed is a click away (or pick the
+    // "closed" status filter explicitly).
+    if (!showClosed && statusFilter !== "closed" && t.status === "closed") return false;
+    if (statusFilter !== "all" && t.status !== statusFilter) return false;
+    if (categoryFilter !== "all" && t.category !== categoryFilter) return false;
+    if (cutoff !== null && new Date(t.lastMessageAt).getTime() < cutoff) return false;
+    if (!q) return true;
+    const name = (t.pubkey && profiles.get(t.pubkey)?.name?.toLowerCase()) || "";
+    return (
+      t.subject.toLowerCase().includes(q) ||
+      requesterLabel(t.pubkey).toLowerCase().includes(q) ||
+      name.includes(q)
+    );
+  });
+  if (sort) {
+    const value = (t: AdminSupportTicket): string => {
+      switch (sort.key) {
+        case "created": return t.createdAt;
+        case "subject": return t.subject.toLowerCase();
+        case "category": return categoryLabel(t.category).toLowerCase();
+        case "status": return t.status;
+        case "updated": return t.lastMessageAt;
+      }
+    };
+    const dir = sort.dir === "asc" ? 1 : -1;
+    out = [...out].sort((a, b) => value(a).localeCompare(value(b)) * dir);
+  } else {
+    const rank = (t: AdminSupportTicket) => (t.status === "open" ? 0 : t.status === "answered" ? 1 : 2);
+    out = [...out].sort((a, b) => rank(a) - rank(b) || b.lastMessageAt.localeCompare(a.lastMessageAt));
+  }
+  return out;
+}
+
+/**
+ * The admin side of priority support: every ticket, the thread, reply + close.
+ * Same seam as the user page, so in mock mode this demos the full loop against
+ * the browser-local store before the server exists.
+ */
+export function AdminSupportCards({ active }: { active: boolean }) {
+  // The open thread lives in the URL — paste a link in team chat and a
+  // colleague lands on the same ticket.
+  const [openId, setOpenIdState] = useState<string | null>(() => {
+    try {
+      return new URLSearchParams(window.location.search).get("ticket");
+    } catch {
+      return null;
+    }
+  });
+  const setOpenId = (id: string | null) => {
+    setOpenIdState(id);
+    try {
+      window.history.replaceState(
+        {},
+        "",
+        id ? `/admin?tab=support&ticket=${encodeURIComponent(id)}` : "/admin?tab=support",
+      );
+    } catch {
+      /* URL sync is a convenience, never a blocker */
+    }
+  };
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
+  const [windowFilter, setWindowFilter] = useState<string>("all");
+  const [showClosed, setShowClosed] = useState(false);
+  const [sort, setSort] = useState<SortState>(null);
+  const toggleSort = (key: SortKey) =>
+    setSort((prev) => (prev?.key === key ? { key, dir: prev.dir === "asc" ? "desc" : "asc" } : { key, dir: "asc" }));
+
+  const listQuery = useQuery({
+    queryKey: ADMIN_SUPPORT_KEY,
+    queryFn: adminListTickets,
+    enabled: active,
+    staleTime: 30_000,
+  });
+  // Before the early returns — hook order must not change between renders.
+  const profiles = useProfileBits((listQuery.data ?? []).map((t) => t.pubkey));
+
+  if (listQuery.isPending) {
+    return (
+      <div className="flex items-center gap-2 py-6 text-sm text-slate-500 dark:text-slate-400">
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading tickets…
+      </div>
+    );
+  }
+  if (listQuery.isError) {
+    return (
+      <div className="py-6 text-sm text-slate-500 dark:text-slate-400" data-testid="admin-support-error">
+        Couldn't load tickets — the server's support endpoint may not be live yet.
+      </div>
+    );
+  }
+
+  const tickets = listQuery.data ?? [];
+
+  if (openId) return <AdminThread id={openId} onBack={() => setOpenId(null)} />;
+
+  if (tickets.length === 0) {
+    return (
+      <p className="py-4 text-sm text-slate-500 dark:text-slate-400" data-testid="admin-support-empty">
+        No tickets. When paid users file one, it lands here.
+      </p>
+    );
+  }
+
+  const statuses = Array.from(new Set(tickets.map((t) => t.status))).sort();
+  const categories = Array.from(new Set(tickets.map((t) => t.category))).sort();
+  const visible = filterAndSort(tickets, profiles, search, statusFilter, categoryFilter, windowFilter, sort, showClosed);
+  const closedCount = tickets.filter((t) => t.status === "closed").length;
+  const filtering =
+    search.trim() !== "" || statusFilter !== "all" || categoryFilter !== "all" || windowFilter !== "all";
+
+  return (
+    <div>
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <div className="relative w-full sm:w-56">
+          <input
+            type="text"
+            placeholder="Search subject, requester…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full px-3 py-1.5 pr-7 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40"
+            data-testid="input-support-search"
+          />
+          {search && (
+            <button
+              type="button"
+              onClick={() => setSearch("")}
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-0.5 rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
+              data-testid="button-support-clear-search"
+            >
+              <XCircle className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        <Select value={statusFilter} onValueChange={setStatusFilter}>
+          <SelectTrigger className="w-32 h-8 text-xs rounded-xl border-slate-200 dark:border-slate-800" data-testid="select-support-status">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All statuses</SelectItem>
+            {statuses.map((s) => (
+              <SelectItem key={s} value={s}>{s}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+          <SelectTrigger className="w-40 h-8 text-xs rounded-xl border-slate-200 dark:border-slate-800" data-testid="select-support-category">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All categories</SelectItem>
+            {categories.map((c) => (
+              <SelectItem key={c} value={c}>{categoryLabel(c)}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select value={windowFilter} onValueChange={setWindowFilter}>
+          <SelectTrigger className="w-36 h-8 text-xs rounded-xl border-slate-200 dark:border-slate-800" data-testid="select-support-window">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {TIME_WINDOWS.map((w) => (
+              <SelectItem key={w.key} value={w.key}>{w.label}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {closedCount > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowClosed((v) => !v)}
+            className="rounded-full border border-slate-200 dark:border-slate-800 px-3 py-1 text-xs font-medium text-slate-500 dark:text-slate-400 hover:border-brand-accent/30"
+            data-testid="toggle-closed"
+          >
+            {showClosed ? "Hide closed" : `Show closed (${closedCount})`}
+          </button>
+        )}
+        {filtering && (
+          <span className="text-xs text-slate-400 dark:text-slate-500" data-testid="support-filter-count">
+            {visible.length} of {tickets.length}
+          </span>
+        )}
+      </div>
+
+      {visible.length === 0 ? (
+        <p className="py-4 text-sm text-slate-500 dark:text-slate-400" data-testid="admin-support-no-match">
+          {!filtering && !showClosed && closedCount > 0
+            ? "Queue clear — nothing awaiting a reply."
+            : "No tickets match your filters."}
+        </p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px]" data-testid="table-admin-support">
+            <thead>
+              <tr className="border-b border-brand-accent/10">
+                <th className={th}><SortHeader label="Opened" sortKey="created" sort={sort} onSort={toggleSort} /></th>
+                <th className={th}><SortHeader label="Subject" sortKey="subject" sort={sort} onSort={toggleSort} /></th>
+                <th className={th}><SortHeader label="Category" sortKey="category" sort={sort} onSort={toggleSort} /></th>
+                <th className={th}>From</th>
+                <th className={th}><SortHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} /></th>
+                <th className={th}><SortHeader label="Updated" sortKey="updated" sort={sort} onSort={toggleSort} /></th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((t) => (
+                <tr
+                  key={t.id}
+                  className="cursor-pointer border-b border-brand-accent/5 hover:bg-slate-50 dark:hover:bg-slate-900/50"
+                  onClick={() => setOpenId(t.id)}
+                  data-testid={`admin-ticket-${t.id}`}
+                >
+                  <td className={`${td} whitespace-nowrap`}>
+                    <span className="flex flex-col leading-tight">
+                      <span className="text-[13px] font-semibold tabular-nums">{fmtDateOnly(t.createdAt)}</span>
+                      <span className="text-[10px] tabular-nums text-slate-400 dark:text-slate-500">{fmtTimeOnly(t.createdAt)}</span>
+                    </span>
+                  </td>
+                  <td className={`${td} font-medium`}>
+                    <span className="flex items-center gap-2">
+                      {isUnread("admin", t) && (
+                        <span
+                          className="h-2 w-2 shrink-0 rounded-full bg-brand-accent"
+                          aria-label="New message from user"
+                          data-testid={`admin-unread-${t.id}`}
+                        />
+                      )}
+                      {t.subject}
+                    </span>
+                  </td>
+                  <td className={td}>{categoryLabel(t.category)}</td>
+                  <td className={td}>
+                    <RequesterCell
+                      pubkey={t.pubkey}
+                      profile={t.pubkey ? profiles.get(t.pubkey) : undefined}
+                      onFilter={setSearch}
+                    />
+                  </td>
+                  <td className={td}>
+                    <span className="flex flex-col items-start gap-0.5">
+                      <Chip tone={statusTone(t.status)} size="sm">{t.status}</Chip>
+                      {t.closedAt && (
+                        <span className="text-[10px] tabular-nums text-slate-400 dark:text-slate-500" data-testid={`closed-at-${t.id}`}>
+                          {fmtWhen(t.closedAt)}
+                        </span>
+                      )}
+                    </span>
+                  </td>
+                  <td className={`${td} tabular-nums`}>{fmtWhen(t.lastMessageAt)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [closeOpen, setCloseOpen] = useState(false);
+  const [closingMessage, setClosingMessage] = useState(DEFAULT_CLOSING_MESSAGE);
+  // Bumped after canned-reply saves/deletes so the picker re-reads the store.
+  const [cannedTick, setCannedTick] = useState(0);
+  const canned = listCanned();
+  void cannedTick;
+  // Which snippet the draft came from — inserting into an empty composer arms
+  // "Update", so a rewording saves back to the SAME snippet instead of the
+  // save-new-then-delete-old dance. Appending into existing text doesn't.
+  const [editingCannedId, setEditingCannedId] = useState<string | null>(null);
+  const editingCanned = canned.find((c) => c.id === editingCannedId) ?? null;
+  // Deletion is permanent (starters never re-seed), so the ⓧ arms this row's
+  // inline confirm instead of firing straight away.
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const threadQuery = useQuery({
+    queryKey: [...ADMIN_SUPPORT_KEY, id],
+    queryFn: () => fetchThread(id),
+  });
+  const ticket = threadQuery.data?.ticket;
+  const messages = threadQuery.data?.messages ?? [];
+  const events = threadQuery.data?.events ?? [];
+  const diagnostics = threadQuery.data?.diagnostics ?? null;
+  const requester = threadQuery.data?.requester ?? null;
+  const requesterProfiles = useProfileBits(requester?.pubkey ? [requester.pubkey] : []);
+  const closed = ticket?.status === "closed";
+
+  const timeline = [
+    ...messages.map((m) => ({ kind: "message" as const, at: m.createdAt, message: m })),
+    ...events.map((e) => ({ kind: "event" as const, at: e.at, event: e })),
+  ].sort((a, b) => a.at.localeCompare(b.at) || (a.kind === "event" ? -1 : 1));
+
+  // Being here IS seeing it — clears the queue dot for this ticket.
+  const lastMessageAt = ticket?.lastMessageAt;
+  useEffect(() => {
+    if (lastMessageAt) markSeen("admin", id);
+  }, [id, lastMessageAt]);
+
+  const refresh = () =>
+    Promise.all([
+      qc.invalidateQueries({ queryKey: [...ADMIN_SUPPORT_KEY, id] }),
+      qc.invalidateQueries({ queryKey: ADMIN_SUPPORT_KEY, exact: true }),
+      // The user-side queries share the store in mock mode — keep them honest too.
+      qc.invalidateQueries({ queryKey: ["/user/support"] }),
+    ]);
+
+  const reply = async () => {
+    const body = draft.trim();
+    if (!body) return;
+    setBusy(true);
+    try {
+      await adminReply(id, body);
+      setDraft("");
+      setEditingCannedId(null);
+      await refresh();
+      toast({ title: "Reply sent", description: "The user sees it in their thread; email notification goes out when configured." });
+    } catch (e) {
+      toast({ title: "Reply failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const close = async (message?: string) => {
+    setBusy(true);
+    try {
+      await adminCloseTicket(id, message);
+      setCloseOpen(false);
+      await refresh();
+      toast({
+        title: "Ticket closed",
+        description: message ? "Closing message sent — replying reopens it for them." : "Closed without a message.",
+      });
+    } catch (e) {
+      toast({ title: "Close failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div data-testid="admin-support-thread">
+      <div className="flex items-center justify-between gap-3">
+        <button
+          type="button"
+          onClick={onBack}
+          className="inline-flex items-center gap-1.5 text-sm text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+          data-testid="admin-thread-back"
+        >
+          <ArrowLeft className="h-4 w-4" /> All tickets
+        </button>
+        {ticket && !closed && (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={busy}
+            onClick={() => { setClosingMessage(DEFAULT_CLOSING_MESSAGE); setCloseOpen(true); }}
+            className="gap-1.5"
+            data-testid="admin-close-ticket"
+          >
+            <CheckCircle2 className="h-4 w-4" /> Close ticket
+          </Button>
+        )}
+      </div>
+
+      {/* Confirm-with-a-final-word: the closing message is queued here,
+          editable, and goes out only on the admin's press — never silently. */}
+      <Dialog open={closeOpen} onOpenChange={(o) => !busy && setCloseOpen(o)}>
+        <DialogContent className="sm:max-w-lg" data-testid="close-ticket-dialog">
+          <DialogHeader>
+            <DialogTitle>Close this ticket?</DialogTitle>
+            <DialogDescription>
+              The user keeps the history, and replying reopens it for them. You can send a closing
+              message with it — edit it below, or close silently.
+            </DialogDescription>
+          </DialogHeader>
+          <textarea
+            value={closingMessage}
+            onChange={(e) => setClosingMessage(e.target.value.slice(0, 4000))}
+            rows={3}
+            className="w-full resize-y rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
+            data-testid="close-message-input"
+          />
+          <DialogFooter className="gap-2">
+            <Button variant="outline" disabled={busy} onClick={() => setCloseOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="outline" disabled={busy} onClick={() => void close()} data-testid="close-silent">
+              Close without message
+            </Button>
+            <Button disabled={busy || !closingMessage.trim()} onClick={() => void close(closingMessage)} data-testid="close-send">
+              {busy && <Loader2 className="mr-1 h-4 w-4 animate-spin" />} Send &amp; close
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {threadQuery.isPending || !ticket ? (
+        <div className="flex items-center gap-2 py-6 text-sm text-slate-500 dark:text-slate-400">
+          <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+        </div>
+      ) : (
+        <>
+          <div className="mt-3 flex flex-wrap items-center gap-2.5">
+            <h4 className="min-w-0 break-words text-base font-bold" style={{ fontFamily: "var(--font-display)" }}>{ticket.subject}</h4>
+            <Chip tone={statusTone(ticket.status)} size="sm" data-testid="admin-thread-status">{ticket.status}</Chip>
+            {/* Recategorize in place: low-stakes, reversible, on the record. */}
+            <select
+              aria-label="Ticket category"
+              className="h-7 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-1.5 text-xs text-slate-600 dark:text-slate-300"
+              value={SUPPORT_CATEGORIES.some((c) => c.key === ticket.category) ? ticket.category : ""}
+              onChange={(e) => {
+                const next = e.target.value;
+                if (next) void adminSetCategory(id, next).then(refresh);
+              }}
+              data-testid="admin-category-select"
+            >
+              {!SUPPORT_CATEGORIES.some((c) => c.key === ticket.category) && (
+                <option value="">{ticket.category || "uncategorized"}</option>
+              )}
+              {SUPPORT_CATEGORIES.map((c) => (
+                <option key={c.key} value={c.key}>{c.label}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Who it's from, and where the notification email goes — the two
+              questions an admin asks before typing a reply. */}
+          {requester && (
+            <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-slate-600 dark:text-slate-300" data-testid="admin-thread-requester">
+              <span className="flex items-center gap-1.5">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">From</span>
+                <RequesterCell
+                  pubkey={requester.pubkey}
+                  profile={requester.pubkey ? requesterProfiles.get(requester.pubkey) : undefined}
+                />
+              </span>
+              <span className="flex items-center gap-1.5">
+                <Mail className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+                {requester.notifyEmail ? (
+                  <a
+                    href={`mailto:${requester.notifyEmail}`}
+                    className="text-brand-link hover:underline"
+                    title="Notification email the user provided — replies still live in the app"
+                    data-testid="admin-thread-email"
+                  >
+                    {requester.notifyEmail}
+                  </a>
+                ) : (
+                  <span className="text-xs text-slate-400 dark:text-slate-500" data-testid="admin-thread-no-email">
+                    no email — in-app replies only
+                  </span>
+                )}
+              </span>
+            </div>
+          )}
+
+          {diagnostics && (
+            <details className="mt-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/60 px-3 py-2" open data-testid="admin-diagnostics">
+              <summary className="cursor-pointer text-xs font-semibold text-slate-600 dark:text-slate-300">
+                Diagnostics (sent with the ticket)
+              </summary>
+              <pre className="mt-1.5 max-h-48 overflow-auto whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">
+                {Object.entries(diagnostics)
+                  .map(([k, v]) => `${k}: ${v}`)
+                  .join("\n")}
+              </pre>
+            </details>
+          )}
+
+          <div className="mt-3 space-y-2.5">
+            {timeline.map((item, i) =>
+              item.kind === "message" ? (
+                <div
+                  key={item.message.id}
+                  className={`max-w-[85%] rounded-xl border p-3 text-sm ${
+                    item.message.author === "support"
+                      ? "ml-auto border-brand-accent/25 bg-brand-primary/[0.05] dark:bg-brand-primary/10"
+                      : "border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900"
+                  }`}
+                  data-testid={`admin-message-${item.message.author}`}
+                >
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                    {item.message.author === "support" ? "Support (you)" : "User"}
+                    <span className="ml-2 font-normal normal-case tracking-normal">{fmtWhen(item.message.createdAt)}</span>
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap break-words text-slate-700 dark:text-slate-200">{item.message.body}</p>
+                </div>
+              ) : (
+                <p
+                  key={`ev-${i}`}
+                  className="text-center text-[11px] text-slate-400 dark:text-slate-500"
+                  data-testid={`admin-event-${item.event.type}`}
+                >
+                  — {adminEventLabel(item.event)} · {fmtWhen(item.event.at)} —
+                </p>
+              ),
+            )}
+          </div>
+
+          {closed ? (
+            <p className="mt-4 text-sm text-slate-400 dark:text-slate-500" data-testid="admin-thread-closed">
+              Closed. The user keeps the history; a new issue means a new ticket.
+            </p>
+          ) : (
+            <>
+            {/* The answers that repeat: insert a saved reply, edit, send. */}
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <select
+                aria-label="Insert saved reply"
+                className="h-7 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-1.5 text-xs text-slate-600 dark:text-slate-300"
+                value=""
+                onChange={(e) => {
+                  const snippet = canned.find((c) => c.id === e.target.value);
+                  if (!snippet) return;
+                  setEditingCannedId(draft.trim() ? null : snippet.id);
+                  setDraft((d) => (d.trim() ? `${d}\n\n${snippet.body}` : snippet.body));
+                }}
+                data-testid="canned-select"
+              >
+                <option value="">Insert saved reply…</option>
+                {canned.map((c) => (
+                  <option key={c.id} value={c.id}>{c.title}</option>
+                ))}
+              </select>
+              {editingCanned && draft.trim() && draft !== editingCanned.body && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => { updateCanned(editingCanned.id, draft); setCannedTick((n) => n + 1); }}
+                  data-testid="canned-update"
+                >
+                  Update “{editingCanned.title}”
+                </Button>
+              )}
+              {draft.trim() && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => { saveCanned("", draft); setCannedTick((n) => n + 1); }}
+                  data-testid="canned-save"
+                >
+                  Save as canned reply
+                </Button>
+              )}
+              {canned.length > 0 && (
+                <details className="text-xs text-slate-400 dark:text-slate-500">
+                  <summary className="cursor-pointer hover:text-slate-600 dark:hover:text-slate-300">Manage</summary>
+                  <ul className="mt-1 space-y-0.5">
+                    {canned.map((c) => (
+                      <li key={c.id} className="flex items-center gap-1.5">
+                        <span className="truncate max-w-[220px]">{c.title}</span>
+                        {confirmDeleteId === c.id ? (
+                          <span className="flex items-center gap-1.5">
+                            <button
+                              type="button"
+                              className="font-medium text-red-500 hover:text-red-600"
+                              onClick={() => {
+                                removeCanned(c.id);
+                                setConfirmDeleteId(null);
+                                setCannedTick((n) => n + 1);
+                              }}
+                              data-testid={`canned-delete-confirm-${c.id}`}
+                            >
+                              Delete — it won’t come back
+                            </button>
+                            <button
+                              type="button"
+                              className="hover:text-slate-600 dark:hover:text-slate-300"
+                              onClick={() => setConfirmDeleteId(null)}
+                              data-testid={`canned-delete-cancel-${c.id}`}
+                            >
+                              Keep
+                            </button>
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            aria-label={`Delete saved reply ${c.title}`}
+                            className="text-slate-300 dark:text-slate-600 hover:text-red-500"
+                            onClick={() => setConfirmDeleteId(c.id)}
+                            data-testid={`canned-delete-${c.id}`}
+                          >
+                            <XCircle className="h-3 w-3" />
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            </div>
+            <div className="mt-2 flex items-end gap-2">
+              <textarea
+                value={draft}
+                onChange={(e) => {
+                  const next = e.target.value.slice(0, 4000);
+                  setDraft(next);
+                  if (!next.trim()) setEditingCannedId(null);
+                }}
+                placeholder={`Reply as Brainstorm Support…`}
+                rows={3}
+                className="w-full resize-y rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-accent/30"
+                data-testid="admin-reply-input"
+              />
+              <Button onClick={() => void reply()} disabled={busy || !draft.trim()} className="gap-1.5 shrink-0" data-testid="admin-reply-send">
+                {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Reply
+              </Button>
+            </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}

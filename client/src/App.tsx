@@ -20,6 +20,7 @@ import DashboardPage from "@/pages/DashboardPage";
 import AlertsPage from "@/pages/AlertsPage";
 import ReadingPage from "@/pages/ReadingPage";
 import InsightsPage from "@/pages/InsightsPage";
+import SupportPage from "@/pages/SupportPage";
 import { SettingsRoute } from "@/pages/SettingsPage";
 import WhatIsWotPage from "@/pages/WhatIsWotPage";
 import OnboardingPage from "@/pages/OnboardingPage";
@@ -230,6 +231,7 @@ function Router() {
         <Route path="/alerts">{() => <RequireAuth component={AlertsPage} />}</Route>
         <Route path="/reading">{() => <RequireAuth component={ReadingPage} />}</Route>
         <Route path="/insights">{() => <RequireAuth component={InsightsPage} />}</Route>
+        <Route path="/support">{() => <RequireAuth component={SupportPage} />}</Route>
         <Route path="/search" component={SearchRedirect} />
         {/* Deprecated for users — see ProfileRoute. /p/:id is THE profile page. */}
         <Route path="/profile/:npub">{() => <RequireAuth component={ProfileRoute} />}</Route>
