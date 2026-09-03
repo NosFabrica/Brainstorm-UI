@@ -758,8 +758,18 @@ export default function Landing() {
               {/* `short:!h-9` needs the bang twice over: to beat `sm:`-level
                   utilities AND because Wordmark sets its height as an inline
                   style, which only `!important` can override. */}
-              <Wordmark height={52} variant="gradient" className="mx-auto dark:hidden short:!h-9" />
-              <Wordmark height={52} variant="white" className="mx-auto hidden dark:block short:!h-9" />
+              {/* Google's logo move: the mark is the way back — one click
+                  clears the search and lands you on the pristine box. */}
+              <button
+                type="button"
+                onClick={clearSearch}
+                aria-label="Back to the search home"
+                className="cursor-pointer rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+                data-testid="wordmark-home"
+              >
+                <Wordmark height={52} variant="gradient" className="mx-auto dark:hidden short:!h-9" />
+                <Wordmark height={52} variant="white" className="mx-auto hidden dark:block short:!h-9" />
+              </button>
             </h1>
             <p className="text-slate-700 dark:text-slate-100 text-base sm:text-lg short:!text-sm font-medium" data-testid="text-home-subtitle">
               Search through the people you trust.
