@@ -400,30 +400,7 @@ export function AppHero({ event }: { event: AppEvent }) {
       {/* Actions: Get on Zap Store (where installs actually happen, signature-
           verified against the dev's key) leads; Website / Source / the APK
           itself follow as quiet pills. Wraps on phones. */}
-      <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
-        {store ? (
-          <a
-            href={store}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-full bg-brand-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 transition-opacity sm:py-1.5"
-            data-testid="app-hero-get"
-          >
-            <Favicon host="zapstore.dev" className="h-3.5 w-3.5 rounded-sm" /> Get on Zap Store
-          </a>
-        ) : (
-          url && (
-            <a
-              href={url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-full bg-brand-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 transition-opacity sm:py-1.5"
-              data-testid="app-hero-get"
-            >
-              Get it <ExternalLink className="h-3 w-3" />
-            </a>
-          )
-        )}
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center" data-testid="app-hero-actions">
         {/* Website and Source pair up as one matched row; a lone one spans it. */}
         {store && url && (
           <a
@@ -462,6 +439,30 @@ export function AppHero({ event }: { event: AppEvent }) {
             {asset.size ? ` · ${formatBytes(asset.size)}` : ""}
             {asset.version ? ` · v${asset.version}` : ""}
           </a>
+        )}
+        {/* Benjamin's order: Zap Store closes the row. */}
+        {store ? (
+          <a
+            href={store}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-full bg-brand-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 transition-opacity sm:py-1.5"
+            data-testid="app-hero-get"
+          >
+            <Favicon host="zapstore.dev" className="h-3.5 w-3.5 rounded-sm" /> Get on Zap Store
+          </a>
+        ) : (
+          url && (
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-full bg-brand-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 transition-opacity sm:py-1.5"
+              data-testid="app-hero-get"
+            >
+              Get it <ExternalLink className="h-3 w-3" />
+            </a>
+          )
         )}
       </div>
 

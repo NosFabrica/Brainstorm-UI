@@ -132,6 +132,9 @@ it("offers the APK itself when the release's asset resolves", async () => {
     expect(dl).toHaveTextContent("Download APK");
     expect(dl).toHaveTextContent("153 MB");
     expect(dl).toHaveTextContent("v3.5.25");
+    // Benjamin's order: the informational links, the APK, then Zap Store last.
+    const order = [...screen.getByTestId("app-hero-actions").querySelectorAll("a")].map((a) => a.getAttribute("data-testid"));
+    expect(order).toEqual(["app-hero-website", "app-hero-source", "app-hero-download", "app-hero-get"]);
   });
 
   it("shows no download when there is no asset to download", async () => {
