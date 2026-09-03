@@ -70,17 +70,46 @@ import { InfoHint } from "@/components/InfoHint";
 import { copyToClipboard } from "@/lib/clipboard";
 import { FEATURES } from "@/config/featureFlags";
 import { SiGithub } from "react-icons/si";
-import { getCurrentUser, logout, signNip85, signNip85Deactivation, publishToRelays, getNip85RelayUrl, hasStoredSecretKey, exportNsec, type NostrUser } from "@/services/nostr";
+import type { NostrEvent } from "applesauce-core/helpers";
+import { signNip85, signNip85Deactivation, publishToRelays, getNip85RelayUrl } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
 import { isNip85Activated, markNip85Activated, clearNip85Activated } from "@/lib/nip85Activation";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
-import { downloadAccountBackup, getEncryptedBackupCredential } from "@/lib/accountBackup";
+import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
+import { recordTrustProviderStatus } from "@/services/trustAnchor";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { useBackupNeed } from "@/hooks/useBackupNeed";
+import { DeferredSessionNotice } from "@/components/DeferredSession";
+import { deliverBackup } from "@/lib/accountBackup";
+import {
+  canBackUp,
+  heldBackup,
+  keyAccessMessage,
+  MIN_RECOVERY_PASSWORD_LENGTH,
+  revealSecretKey,
+  setRecoveryPassword,
+} from "@/accounts/backup";
 import { storePasswordCredential } from "@/lib/credentialManager";
 import { CodeBlock } from "@/components/CodeBlock";
-import { isAdminPubkey } from "@/config/adminAccess";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfOverview, useSelfHistory } from "@/hooks/useSelf";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useScoreDisplayMode, type ScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
+import type { Granularity } from "@/lib/trustLadder";
+
+// The three renderings of the one tier ladder (docs/score-display/DECISIONS.md).
+const TIER_GRANULARITY_CHOICES: { key: Granularity; label: string; desc: string }[] = [
+  { key: "simple", label: "Simple", desc: "Verified · Unknown · Flagged" },
+  { key: "detailed", label: "Detailed", desc: "the full six-step ladder" },
+];
+const SCORE_DISPLAY_CHOICES: { key: ScoreDisplayMode; label: string; desc: string }[] = [
+  { key: "number", label: "Number", desc: "0\u2013100 score" },
+  { key: "level", label: "Level", desc: "5-step dots" },
+  { key: "tier", label: "Tier", desc: "color ring, no words" },
+  { key: "word", label: "Word", desc: "ring + tier label" },
+  { key: "off", label: "Off", desc: "nothing shown" },
+];
 import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
@@ -165,9 +194,8 @@ export default function SettingsPage() {
     navigate(t === "profile" ? "/settings" : `/settings?tab=${t}`);
   };
 
-  // Live current user: re-reads on `brainstorm-user-changed` so the header avatar
-  // updates instantly after saving the profile (no refresh needed).
-  const [user] = useCurrentUser();
+  // Live identity: the header avatar updates the moment a profile save lands.
+  const user = useActiveAccountDisplay();
   const [recalcConfirmOpen, setRecalcConfirmOpen] = useState(false);
   const [nip85ConfirmOpen, setNip85ConfirmOpen] = useState(false);
   const [republishState, setRepublishState] = useState<"idle" | "signing" | "publishing" | "success" | "error">("idle");
@@ -180,6 +208,10 @@ export default function SettingsPage() {
   const { preset: serverPreset, isLoading: presetLoading } = useTrustPresetSync(!!user);
   const [optimisticPreset, setOptimisticPreset] = useState<TrustPreset | null>(null);
   const activePreset: TrustPreset = optimisticPreset ?? serverPreset ?? "default";
+
+  // Rendered from one list so labels can't drift from the store's values.
+  const [scoreDisplayMode, setScoreDisplayModeChoice] = useScoreDisplayMode();
+  const [tierGranularity, setTierGranularityChoice] = useTierGranularity();
 
   const setPresetMutation = useSetTrustPreset({
     pubkey: user?.pubkey,
@@ -218,13 +250,9 @@ export default function SettingsPage() {
     setPresetMutation.mutate(preset);
   }, [activePreset, setPresetMutation]);
 
-  const nip85Activated = isNip85Activated(user?.pubkey);
-
   useEffect(() => {
-    if (!getCurrentUser()) {
-      navigate("/", { replace: true });
-    }
-  }, [navigate]);
+    if (!user) navigate("/", { replace: true });
+  }, [user, navigate]);
 
   const handleLogout = () => {
     logout();
@@ -232,53 +260,67 @@ export default function SettingsPage() {
   };
 
   const pubkey = user?.pubkey ?? "";
-  const backupFlag = pubkey ? `brainstorm_backup_done:${pubkey}` : "";
 
   const [backupMode, setBackupMode] = useState(false);
   const [backupPass, setBackupPass] = useState("");
   const [backupConfirm, setBackupConfirm] = useState("");
-  const [backedUp, setBackedUp] = useState(false);
-  useEffect(() => {
-    try {
-      setBackedUp(!!backupFlag && localStorage.getItem(backupFlag) === "true");
-    } catch {
-      setBackedUp(false);
-    }
-  }, [backupFlag]);
+  /** The same answer the nag chain reads, so Settings can't say "backed up" while it asks. */
+  const backedUp = useBackupNeed() === null;
 
   const backupMismatch = backupConfirm.length > 0 && backupPass !== backupConfirm;
-  const canBackup = backupPass.length >= 8 && backupPass === backupConfirm;
-  const handleBackupDownload = () => {
-    if (!canBackup) return;
+  /**
+   * A password is asked for only where the Account has no Backup yet — a migrated
+   * one, whose key opens from the Unlock cache and nowhere else. Then it *is* the
+   * Account's Recovery password, set here, exactly as `BackupPrompt` does it.
+   *
+   * Where a Backup already exists there is nothing to ask: it was minted at signup
+   * under a password the user chose, and that is what the file's own instructions
+   * tell them to use. This used to mint a second one under whatever was typed
+   * here, so those files opened with a password the instructions never mentioned —
+   * and "wrong password" on a backup reads as a corrupt file, not a wrong key.
+   */
+  const needsRecoveryPassword = !heldBackup();
+  const canBackup =
+    !needsRecoveryPassword || (backupPass.length >= MIN_RECOVERY_PASSWORD_LENGTH && backupPass === backupConfirm);
+  /** Reaching the key waits for the account to unlock — the button says so. */
+  const [backupBusy, setBackupBusy] = useState(false);
+  const handleBackupDownload = async () => {
+    if (!canBackup || backupBusy) return;
+    setBackupBusy(true);
     try {
-      downloadAccountBackup(backupPass);
-      try {
-        if (backupFlag) localStorage.setItem(backupFlag, "true");
-      } catch {}
-      // Stash the encrypted key in the browser password manager (Chromium
-      // best-effort): username = npub, password = ncryptsec. Don't block on it.
-      try {
-        const { npub, ncryptsec } = getEncryptedBackupCredential(backupPass);
-        if (npub && ncryptsec) void storePasswordCredential(npub, ncryptsec, npub);
-      } catch {}
-      setBackedUp(true);
+      // The same hand-over every other backup surface performs — file, password
+      // manager and the mark, in one place, so this one cannot drift from them
+      // again.
+      if (needsRecoveryPassword) await setRecoveryPassword(backupPass);
+      if (!deliverBackup()) throw new Error("No backup to deliver");
       setBackupMode(false);
       setBackupPass("");
       setBackupConfirm("");
       toast({ title: "Backup saved", description: "Saved to your password manager where supported — keep the file too." });
-    } catch {
-      // no-op; user can retry
+    } catch (err) {
+      const message = keyAccessMessage(err);
+      if (message)
+        toast({ variant: "destructive", title: "Couldn't create your backup", description: message });
+    } finally {
+      setBackupBusy(false);
     }
   };
 
   const [showSecret, setShowSecret] = useState(false);
   const [secretNsec, setSecretNsec] = useState("");
-  const handleRevealSecret = () => {
+  const [revealBusy, setRevealBusy] = useState(false);
+  const handleRevealSecret = async () => {
+    if (revealBusy) return;
+    setRevealBusy(true);
     try {
-      setSecretNsec(exportNsec());
+      setSecretNsec(await revealSecretKey());
       setShowSecret(true);
-    } catch {
-      // no key available; ignore
+    } catch (err) {
+      const message = keyAccessMessage(err);
+      if (message)
+        toast({ variant: "destructive", title: "Couldn't reach your key", description: message });
+    } finally {
+      setRevealBusy(false);
     }
   };
 
@@ -321,8 +363,7 @@ export default function SettingsPage() {
     setRepublishState("signing");
     setRepublishError("");
 
-    const currentUser = getCurrentUser();
-    if (!currentUser?.pubkey) {
+    if (!user?.pubkey) {
       setRepublishState("error");
       setRepublishError("Not logged in.");
       return;
@@ -345,12 +386,16 @@ export default function SettingsPage() {
       return;
     }
 
-    let signedEvent: Record<string, unknown>;
+    let signedEvent: NostrEvent;
     try {
       signedEvent = await signNip85(taPubkey, nip85Relay);
-    } catch {
+    } catch (err) {
       setRepublishState("idle");
-      toast({ title: "Signing cancelled", description: "The event was not signed.", duration: 3000 });
+      // Declining is silent, as everywhere else — `keyAccessMessage` returns null
+      // for it. What reaches here otherwise is a real failure, and calling that
+      // "cancelled" told the user they had done something they hadn't.
+      const message = keyAccessMessage(err);
+      if (message) toast({ variant: "destructive", title: "Couldn't sign", description: message, duration: 3000 });
       return;
     }
 
@@ -358,7 +403,8 @@ export default function SettingsPage() {
     const result = await publishToRelays(signedEvent);
 
     if (result.success) {
-      markNip85Activated(currentUser.pubkey);
+      markNip85Activated(user.pubkey);
+      recordTrustProviderStatus(user.pubkey, "brainstorm");
       setRepublishState("success");
       toast({ title: "NIP-85 event updated", description: "Your service provider declaration has been re-published.", duration: 4000 });
       setTimeout(() => setRepublishState("idle"), 3000);
@@ -372,19 +418,22 @@ export default function SettingsPage() {
     setDeactivateState("signing");
     setDeactivateError("");
 
-    const currentUser = getCurrentUser();
-    if (!currentUser?.pubkey) {
+    if (!user?.pubkey) {
       setDeactivateState("error");
       setDeactivateError("Not logged in.");
       return;
     }
 
-    let signedEvent: Record<string, unknown>;
+    let signedEvent: NostrEvent;
     try {
       signedEvent = await signNip85Deactivation();
-    } catch {
+    } catch (err) {
       setDeactivateState("idle");
-      toast({ title: "Signing cancelled", description: "The event was not signed.", duration: 3000 });
+      // Declining is silent, as everywhere else — `keyAccessMessage` returns null
+      // for it. What reaches here otherwise is a real failure, and calling that
+      // "cancelled" told the user they had done something they hadn't.
+      const message = keyAccessMessage(err);
+      if (message) toast({ variant: "destructive", title: "Couldn't sign", description: message, duration: 3000 });
       return;
     }
 
@@ -392,7 +441,8 @@ export default function SettingsPage() {
     const result = await publishToRelays(signedEvent);
 
     if (result.success) {
-      clearNip85Activated(currentUser.pubkey);
+      clearNip85Activated(user.pubkey);
+      recordTrustProviderStatus(user.pubkey, "none");
       setDeactivateState("success");
       toast({ title: "Provider deactivated", description: "Brainstorm no longer publishes your scores for other apps to use.", duration: 4000 });
       setTimeout(() => {
@@ -421,6 +471,22 @@ export default function SettingsPage() {
   const taPubkey = historyData?.data?.ta_pubkey || null;
   const followingCount = overviewData?.data?.counts?.following ?? null;
   const hasNoFollowing = !selfLoading && followingCount === 0;
+
+  // "Status: Active / Provider: Brainstorm" must answer for the on-relay
+  // 10040, not the local flag alone — the flag never downgrades on a relay
+  // miss, so after the user activates a different provider elsewhere it would
+  // keep this card lying. A definitive foreign declaration ("other") reads as
+  // not activated; absence/silence keeps the flag's answer.
+  const trustProviderStatus = useTrustProviderStatus(user?.pubkey, taPubkey);
+  const nip85Activated =
+    trustProviderStatus.data === "brainstorm" ||
+    (trustProviderStatus.data !== "other" && isNip85Activated(user?.pubkey));
+
+  // Network Alerts card inputs (see the card below). Hooks, so they live above
+  // the guard: `user` can drop to null while this page is mounted, and a hook
+  // below the guard would change the hook count between renders.
+  const ignoredListCount = useMemo(() => (pubkey ? ignoredAlertMap(pubkey).size : 0), [pubkey]);
+  const ignoreSync = useIgnoreSyncState();
 
   if (!user || isAuthRedirecting()) return null;
 
@@ -468,7 +534,7 @@ export default function SettingsPage() {
         </div>
       </div>
       <div className="p-5 space-y-4">
-        {hasStoredSecretKey() && (!backedUp || !user?.picture) && (
+        {canBackUp() && (!backedUp || !user?.picture) && (
           <div className="flex items-start rounded-xl bg-brand-accent/8 border border-brand-accent/20 px-3.5 py-3" data-testid="hint-finish-setup">
             <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
               <span className="font-semibold text-slate-900 dark:text-slate-100">Finish setting up.</span>{" "}
@@ -501,7 +567,7 @@ export default function SettingsPage() {
           </button>
         </div>
 
-        {hasStoredSecretKey() && (
+        {canBackUp() && (
           <div id="account-backup-section" className="pt-4 border-t border-slate-100 dark:border-slate-800/60 scroll-mt-20" data-testid="row-account-backup">
             {backedUp ? (
               <div className="flex items-center gap-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/25 p-3">
@@ -516,7 +582,12 @@ export default function SettingsPage() {
             ) : backupMode ? (
               <div>
                 <label htmlFor="account-backup-pass" className="block text-sm font-medium text-slate-700 dark:text-slate-200 mb-1.5">Back up your account</label>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">Choose a password to encrypt your backup file. This file is how you sign in on another device or get back in if you clear your browser — keep it safe, no one can reset this password.</p>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+                  {needsRecoveryPassword
+                    ? "Choose a recovery password. It encrypts your backup file and unlocks your account — keep it safe, no one can reset it."
+                    : "Your encrypted backup file, ready to download. It opens with the recovery password you already chose — this file plus that password is how you sign in on another device."}
+                </p>
+                {needsRecoveryPassword && (<>
                 <input
                   id="account-backup-pass"
                   type="password"
@@ -540,15 +611,20 @@ export default function SettingsPage() {
                 {backupMismatch && (
                   <p className="mt-1.5 text-xs font-medium text-red-600" data-testid="text-account-backup-mismatch">Passwords don't match.</p>
                 )}
+                </>)}
                 <div className="mt-2 flex flex-wrap gap-2">
                   <button
                     type="button"
                     onClick={handleBackupDownload}
-                    disabled={!canBackup}
+                    disabled={!canBackup || backupBusy}
                     className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold px-4 py-2.5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     data-testid="button-account-download-backup"
                   >
-                    <Download className="h-4 w-4" /> Download backup
+                    {backupBusy ? (
+                      <><Loader2 className="h-4 w-4 animate-spin" /> Preparing backup…</>
+                    ) : (
+                      <><Download className="h-4 w-4" /> Download backup</>
+                    )}
                   </button>
                   <button
                     type="button"
@@ -579,7 +655,7 @@ export default function SettingsPage() {
           </div>
         )}
 
-        {hasStoredSecretKey() && (
+        {canBackUp() && (
           <div className="pt-4 border-t border-slate-100 dark:border-slate-800/60" data-testid="row-account-secret">
             {showSecret ? (
               <div>
@@ -613,10 +689,15 @@ export default function SettingsPage() {
                 <button
                   type="button"
                   onClick={handleRevealSecret}
-                  className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-brand-deep transition-colors"
+                  disabled={revealBusy}
+                  className="inline-flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-brand-deep disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   data-testid="button-account-reveal-secret"
                 >
-                  <Key className="h-4 w-4" /> Show recovery key
+                  {revealBusy ? (
+                    <><Loader2 className="h-4 w-4 animate-spin" /> Unlocking…</>
+                  ) : (
+                    <><Key className="h-4 w-4" /> Show recovery key</>
+                  )}
                 </button>
                 <InfoHint label="About your recovery key">This is the password-equivalent for your account (your "nsec"). Anyone with it has full control — never share it.</InfoHint>
               </div>
@@ -1142,6 +1223,86 @@ export default function SettingsPage() {
           </div>
         )}
 
+        {/* How people's verification is SHOWN — sibling of the preset above:
+            both are "how trust renders for me", which is why it lives in this
+            card rather than under Appearance (that's app chrome; this is
+            meaning). Viewer-side only, this device only — the coin, search
+            rows, profiles and Insights all follow it instantly. Decisions in
+            docs/score-display/DECISIONS.md. */}
+        {/* Decision 6/8 (docs/trust-tiers/DECISIONS.md): how many rungs the
+            ladder has is a data choice, separate from how a rung is drawn. */}
+        <div className="pt-4 border-t border-slate-100 dark:border-slate-800/60">
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200" data-testid="text-tier-granularity-title">
+            How many levels of verification you see
+          </p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-relaxed" data-testid="text-tier-granularity-desc">
+            Simple answers the only question that matters — is this account
+            verified, unknown, or flagged? Detailed shows the full ladder
+            underneath. Saved on this device.
+          </p>
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2" data-testid="row-tier-granularity">
+            {TIER_GRANULARITY_CHOICES.map((choice) => {
+              const isActive = tierGranularity === choice.key;
+              return (
+                <button
+                  key={choice.key}
+                  onClick={() => setTierGranularityChoice(choice.key)}
+                  className={
+                    "rounded-xl border px-3 py-2.5 transition-all duration-200 cursor-pointer flex items-baseline justify-between gap-2 text-left sm:block sm:text-center " +
+                    (isActive
+                      ? "border-brand-accent/30 bg-brand-deep/5 ring-1 ring-brand-accent/20"
+                      : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800")
+                  }
+                  data-testid={`chip-tier-granularity-${choice.key}`}
+                >
+                  <span className={"text-xs font-bold " + (isActive ? "text-brand-deep" : "text-slate-500 dark:text-slate-400")}>
+                    {choice.label}
+                  </span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 sm:block sm:mt-0.5">{choice.desc}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="pt-4 border-t border-slate-100 dark:border-slate-800/60">
+          <p className="text-sm font-semibold text-slate-800 dark:text-slate-200" data-testid="text-score-display-title">
+            How people's verification is shown
+          </p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 leading-relaxed" data-testid="text-score-display-desc">
+            Some people prefer not to see others as a number. This changes how
+            it's shown to you, everywhere in Brainstorm — the same standing,
+            drawn your way, or not at all. Flag warnings stay either way.
+            Saved on this device.
+          </p>
+          {/* Five options, one row on desktop; stacked full-width rows on
+              mobile (label left, description right) — five centered columns
+              don't fit a phone, and 3-over-2 wrapping looked broken. */}
+          <div className="mt-3 grid grid-cols-1 sm:grid-cols-5 gap-2" data-testid="row-score-display-modes">
+            {SCORE_DISPLAY_CHOICES.map((choice) => {
+              const isActive = scoreDisplayMode === choice.key;
+              return (
+                <button
+                  key={choice.key}
+                  onClick={() => setScoreDisplayModeChoice(choice.key)}
+                  className={
+                    "rounded-xl border px-3 py-2.5 transition-all duration-200 cursor-pointer flex items-baseline justify-between gap-2 text-left sm:block sm:text-center " +
+                    (isActive
+                      ? "border-brand-accent/30 bg-brand-deep/5 ring-1 ring-brand-accent/20"
+                      : "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800")
+                  }
+                  data-testid={`chip-score-display-${choice.key}`}
+                >
+                  <span className={"text-xs font-bold " + (isActive ? "text-brand-deep" : "text-slate-500 dark:text-slate-400")}>
+                    {choice.label}
+                  </span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 sm:block sm:mt-0.5">{choice.desc}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
       </div>
     </div>
   );
@@ -1195,12 +1356,10 @@ export default function SettingsPage() {
   // actually arrive hunting for. Counting the raw persisted list (the Ignored
   // TAB counts what's currently hidden, which differs once something escalates)
   // — hence "on your ignore list" rather than repeating the tab's wording.
-  const ignoredListCount = useMemo(() => (pubkey ? ignoredAlertMap(pubkey).size : 0), [pubkey]);
   // The "saved to your account" half of this subtitle was an unconditional
   // claim. When the NIP-78 write can't happen it's simply untrue, and this card
   // is exactly where someone checks what they've ignored — so it has to say
   // which of the two is actually the case.
-  const ignoreSync = useIgnoreSyncState();
   // Also consult the persisted flag: this page can be loaded cold, where the
   // in-memory state has reset to "ok" but the list still never left the device.
   const ignoresUnsynced = ignoreSync === "local-only" || (pubkey ? hasUnsyncedIgnores(pubkey) : false);
@@ -1538,6 +1697,7 @@ export default function SettingsPage() {
       <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="settings" />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1">
+        <DeferredSessionNotice className="mb-6" />
         <div className="space-y-6" data-testid="container-settings">
           <PageHeader
             kicker="Brainstorm Settings"

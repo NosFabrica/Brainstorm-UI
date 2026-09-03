@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { motion, useReducedMotion } from "framer-motion";
+import { motion } from "framer-motion";
+import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { useLocation } from "wouter";
 import {
   Search,
@@ -217,7 +218,7 @@ function ConnectionsIcon({ className }: { className?: string }) {
 
 export default function WhatIsWotPage() {
   const [, navigate] = useLocation();
-  const prefersReduced = useReducedMotion();
+  const prefersReduced = usePrefersReducedMotion();
   const [query, setQuery] = useState("");
   const accentTile = getTone("accent");
 

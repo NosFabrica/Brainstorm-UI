@@ -12,8 +12,7 @@ import { TagsCrossLink } from "@/components/tags/TagsCrossLink";
 import { UnscoredReachNotice } from "@/components/tags/UnscoredReachNotice";
 import { StanceButtons } from "@/components/share/StanceControl";
 import { useToast } from "@/hooks/use-toast";
-import { fetchProfileMap, hasLocalSecretKey } from "@/services/nostr";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { fetchProfileMap } from "@/services/nostr";
 import {
   useApplyTag,
   useMyAssertions,
@@ -27,6 +26,7 @@ import { relativeTime } from "@/lib/relativeTime";
 import { corroborations, onlySelfDeclared } from "@/lib/tagCounts";
 import type { FaceProfile } from "@/components/tags/FacePile";
 import type { MyAssertion, ProfileTag } from "@/services/tags";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 
 /**
  * Everything tagging-related about you — the body of `/tags/mine`, the "Yours"
@@ -48,12 +48,13 @@ import type { MyAssertion, ProfileTag } from "@/services/tags";
 const SAID_PREVIEW = 8;
 
 export function YourTagsPanel() {
-  const [currentUser] = useCurrentUser();
+  const currentUser = useActiveAccountDisplay();
   const viewerPubkey = currentUser?.pubkey;
-  const canAct =
-    !!viewerPubkey &&
-    (hasLocalSecretKey() ||
-      (typeof window !== "undefined" && !!(window as unknown as { nostr?: unknown }).nostr));
+  // An Account *is* a Signer under the accounts model — local key, extension,
+  // bunker or Amber — so holding one is the whole test. Upstream asked
+  // `hasLocalSecretKey() || window.nostr`, which quietly excluded every remote
+  // signer; this includes them.
+  const canAct = !!viewerPubkey;
 
   const { data: onMe, isLoading: loadingMine } = useProfileTags(viewerPubkey);
   const { data: mySaid, isLoading: loadingSaid } = useMyAssertions();

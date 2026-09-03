@@ -2,20 +2,25 @@ import { useMemo, useState, useRef, useEffect, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { MessageSquare, ArrowRight, SlidersHorizontal, Loader2 } from "lucide-react";
-import { fetchEventsByFilter, fetchProfileMap, getCurrentUser, triggerScoringAndAnchor, PROFILE_RELAYS } from "@/services/nostr";
-import { knownFollowCount } from "@/lib/followStore";
-import { apiClient, hasSessionToken } from "@/services/api";
+import { fetchEventsByFilter, fetchProfileMap } from "@/services/nostr";
+import { PROFILE_RELAYS } from "@/lib/relays";
+import { triggerScoringAndAnchor } from "@/services/trustAnchor";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
+import { apiClient } from "@/services/api";
 import { collectRefs, type MinimalEvent } from "@/lib/noteRefs";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { eventPath } from "@/lib/shareId";
-import { TIER_THRESHOLDS, TIER_LABELS } from "@/services/trustThreshold";
-import { useActivePov } from "@/hooks/useActivePov";
+import { DEFAULT_VERIFIED_LINE, TIER_THRESHOLDS, TIER_LABELS } from "@/services/trustThreshold";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
+import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useHasSession } from "@/hooks/useHasSession";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -24,6 +29,11 @@ const TRUST_FILTERS = [
   { key: "all", label: "All", min: 0 },
   { key: "trusted", label: `${TIER_LABELS.trusted}+`, min: TIER_THRESHOLDS.medium_high },
   { key: "high", label: TIER_LABELS.high, min: TIER_THRESHOLDS.high },
+] as const;
+// Decision 7: under the Simple ladder there is one line worth filtering on.
+const SIMPLE_TRUST_FILTERS = [
+  { key: "all", label: "All", min: 0 },
+  { key: "verified", label: "Verified", min: DEFAULT_VERIFIED_LINE },
 ] as const;
 
 /**
@@ -50,8 +60,8 @@ export function EventThread({
       own (now-redundant) funnel. */
   onGateChange?: (gated: boolean) => void;
 }) {
-  const loggedIn = hasSessionToken();
-  const [pov] = useActivePov();
+  const loggedIn = useHasSession();
+  const [pov] = useActivePerspective();
   const { hasMywot } = useHasMywot();
   const { isSearchObserver } = useIsSearchObserver();
   const usePersonal = loggedIn && hasMywot && isSearchObserver && pov === "mywot";
@@ -65,10 +75,13 @@ export function EventThread({
   const buildWotHref = `/welcome${nextQ ? `?${nextQ}` : ""}`;
 
   // Existing users with follows just need to CALCULATE; brand-new accounts need to
-  // build a network first. (`knownFollowCount` is populated at login from their
-  // existing kind-3 contact list.)
-  const myPubkey = getCurrentUser()?.pubkey || "";
-  const myFollows = myPubkey ? knownFollowCount(myPubkey) : 0;
+  // build a network first. Relay-verified rather than the raw local floor (which
+  // is 0 whenever the login-time fetch failed); while the check runs, offer the
+  // calculate CTA — /welcome is guarded now anyway, so misrouting there is the
+  // cheaper mistake than telling a connected user to start over.
+  const myPubkey = useActiveAccountDisplay()?.pubkey || "";
+  const followVerification = useVerifiedNoFollows(myPubkey || undefined);
+  const hasFollows = followVerification !== "none";
   const [calcTriggered, setCalcTriggered] = useState(false);
   // Kicking off a calculation is a ~5-minute, queue-consuming operation, so it
   // asks first — same contract as the dashboard's Recalculate. This link used to
@@ -123,6 +136,7 @@ export function EventThread({
 
   // --- Trust filter (logged-in) -------------------------------------------
   const [minTrust, setMinTrust] = useState(0);
+  const [granularity] = useTierGranularity();
   const scoreCache = useRef(new Map<string, number | null>());
   const [scoreVersion, setScoreVersion] = useState(0);
   const [scoring, setScoring] = useState(false);
@@ -152,13 +166,15 @@ export function EventThread({
     setScoring(false);
   }, [povTag, usePersonal]);
 
-  // Score every commenter as soon as a logged-in viewer loads the thread — the
-  // per-comment trust pill is always-on, not gated behind the filter.
+  // Score every commenter as soon as the thread loads — the per-comment trust
+  // ring/pill is always-on, not gated behind the filter. Anonymous viewers get
+  // house scores (getHouseInfluence is unauthenticated), so their comment
+  // avatars wear rings too.
   useEffect(() => {
-    if (loggedIn && replies.length) {
+    if (replies.length) {
       void fetchScores(Array.from(new Set(replies.map((r) => r.pubkey))));
     }
-  }, [loggedIn, replies, fetchScores]);
+  }, [replies, fetchScores]);
 
   const scoreFor = (pk: string) => scoreCache.current.get(`${povTag}:${pk}`);
 
@@ -200,7 +216,7 @@ export function EventThread({
         {loggedIn && (
           <div className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-0.5" data-testid="thread-trust-filter" title="Filter comments by trust in your current perspective">
             <SlidersHorizontal className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500 ml-1.5" />
-            {TRUST_FILTERS.map((f) => (
+            {(granularity === "simple" ? SIMPLE_TRUST_FILTERS : TRUST_FILTERS).map((f) => (
               <button
                 key={f.key}
                 type="button"
@@ -219,7 +235,7 @@ export function EventThread({
         <p className="mb-2 text-xs text-slate-500 dark:text-slate-400" data-testid="thread-filter-unlock">
           {calcTriggered ? (
             <span className="inline-flex items-center gap-1 text-brand-deep"><Loader2 className="h-3 w-3 animate-spin" /> Calculating your network — the filter switches to your perspective when it's ready.</span>
-          ) : myFollows > 0 ? (
+          ) : hasFollows ? (
             <>Filtering by the Brainstorm network.{" "}
               <button
                 type="button"
@@ -256,7 +272,7 @@ export function EventThread({
             author={profiles.get(reply.pubkey)}
             profiles={profiles}
             href={eventPath(reply, relayHints)}
-            trustScore01={loggedIn ? scoreFor(reply.pubkey) : undefined}
+            trustScore01={scoreFor(reply.pubkey)}
           />
         ))}
       </div>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { useRoute, Redirect, Link } from "wouter";
+import { useRoute, useLocation, Redirect, Link } from "wouter";
+import { useGoBack } from "@/hooks/useGoBack";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Bookmark, BookmarkCheck, Check, Loader2, Plus, Tag as TagIcon, Users } from "lucide-react";
 import NotFound from "@/pages/not-found";
@@ -8,8 +9,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { PersonListRow, PersonListSkeleton } from "@/components/PersonListRow";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useScorePov } from "@/components/score/TrustScorePov";
-import { fetchProfileMap, hasLocalSecretKey } from "@/services/nostr";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { fetchProfileMap } from "@/services/nostr";
 import { useTagDetail, useTagVote, usePinnedTags, useTogglePin } from "@/hooks/useTags";
 import { TagVoteButton } from "@/components/share/TagVoteButton";
 import { TagComments } from "@/components/share/TagComments";
@@ -21,6 +21,7 @@ import { TaggedNotes } from "@/components/share/TaggedNotes";
 import { LinkedText } from "@/components/LinkedText";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 import { onlySelfDeclared } from "@/lib/tagCounts";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 
 /**
  * `/tags/:author/:slug` — everyone the network says carries one tag.
@@ -78,6 +79,8 @@ type CarrierSort = "vouched" | "recent";
 
 export default function TagPage() {
   const [, params] = useRoute("/tags/:author/:slug");
+  const [, navigate] = useLocation();
+  const goBack = useGoBack();
   const [sort, setSort] = useState<CarrierSort>("vouched");
   const [hideSelfDeclared, setHideSelfDeclared] = useState(false);
   const [hideContested, setHideContested] = useState(false);
@@ -115,11 +118,13 @@ export default function TagPage() {
 
   // Voting needs a SIGNER, not just a session — same rule as the profile
   // picker, for the same reason: a token can't sign an event.
-  const [currentUser] = useCurrentUser();
+  const currentUser = useActiveAccountDisplay();
   const viewerPubkey = currentUser?.pubkey;
-  const canVote =
-    !!viewerPubkey &&
-    (hasLocalSecretKey() || (typeof window !== "undefined" && !!(window as unknown as { nostr?: unknown }).nostr));
+  // An Account *is* a Signer under the accounts model — local key, extension,
+  // bunker or Amber — so holding one is the whole test. Upstream asked
+  // `hasLocalSecretKey() || window.nostr`, which quietly excluded every remote
+  // signer; this includes them.
+  const canVote = !!viewerPubkey;
 
   // The tag's author rides along with the carriers so their name resolves in
   // the same round-trip — the alternative was a second query for one pubkey.
@@ -142,6 +147,13 @@ export default function TagPage() {
 
   const status = detailQuery.data?.status;
   useTagMeta(tagName, carriers.length, status === "ok");
+  const visible = useMemo(() => {
+    let list = carriers;
+    if (hideSelfDeclared) list = list.filter((c) => !onlySelfDeclared(c));
+    if (hideContested) list = list.filter((c) => c.disputes === 0 && !c.subjectDisagreed);
+    if (sort === "recent") list = [...list].sort((a, b) => b.addedAt - a.addedAt);
+    return list;
+  }, [carriers, hideSelfDeclared, hideContested, sort]);
 
   // Params read null on the first render after an in-app navigation, so bail
   // quietly rather than firing a redirect that would corrupt the back stack.
@@ -166,13 +178,6 @@ export default function TagPage() {
    * is furniture, and the row badges already do the job at that size.
    */
   const showFilters = carriers.length >= FILTER_THRESHOLD;
-  const visible = useMemo(() => {
-    let list = carriers;
-    if (hideSelfDeclared) list = list.filter((c) => !onlySelfDeclared(c));
-    if (hideContested) list = list.filter((c) => c.disputes === 0 && !c.subjectDisagreed);
-    if (sort === "recent") list = [...list].sort((a, b) => b.addedAt - a.addedAt);
-    return list;
-  }, [carriers, hideSelfDeclared, hideContested, sort]);
   const authorProfile = profileMap?.get(authorPubkey);
   let authorNpub = "";
   try { authorNpub = npubFromPubkey(authorPubkey); } catch { /* leave unlinked */ }
@@ -205,7 +210,7 @@ export default function TagPage() {
       <main className="w-full max-w-2xl mx-auto px-4 sm:px-6 py-6 sm:py-8 flex-1" data-testid="tag-page">
         <button
           type="button"
-          onClick={() => history.back()}
+          onClick={() => goBack("/tags")}
           className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-primary dark:text-slate-400 transition-colors"
           data-testid="tag-back"
         >

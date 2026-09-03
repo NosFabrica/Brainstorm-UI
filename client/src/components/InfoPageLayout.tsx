@@ -1,6 +1,7 @@
-import { useState, useEffect, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import { useLocation } from "wouter";
-import { getCurrentUser, logout, type NostrUser } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { isAuthRedirecting } from "@/services/api";
 import { Wordmark } from "@/components/Wordmark";
 import { SignInButton } from "@/components/SignInButton";
@@ -17,12 +18,7 @@ interface InfoPageLayoutProps {
 
 export function InfoPageLayout({ children, testId, active }: InfoPageLayoutProps) {
   const [, navigate] = useLocation();
-  const [user, setUser] = useState<NostrUser | null>(null);
-
-  useEffect(() => {
-    const u = getCurrentUser();
-    if (u) setUser(u);
-  }, []);
+  const user = useActiveAccountDisplay();
 
   const handleLogout = () => {
     logout();

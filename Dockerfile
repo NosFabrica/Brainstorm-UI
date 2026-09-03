@@ -1,4 +1,5 @@
-FROM node:22-alpine AS builder
+# Keep in sync with .nvmrc (checked in CI).
+FROM node:24-alpine AS builder
 
 WORKDIR /app
 
@@ -17,7 +18,9 @@ RUN npm run build
 
 FROM nginx:1.31-alpine AS runtime
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# A template, not the final config: the entrypoint substitutes ${OG_RESOLVER}
+# from /etc/resolv.conf so the same file works under compose and k8s.
+COPY nginx.conf /etc/nginx/templates/default.conf.template
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Runtime config substitution entrypoint

@@ -1,16 +1,19 @@
 import { createContext, useContext, useState, useMemo, type ReactNode } from "react";
+import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ArrowRight, UserRound, Search } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { apiClient, hasSessionToken } from "@/services/api";
+import { apiClient } from "@/services/api";
 import { decodeShareId } from "@/lib/shareId";
-import { tierForScore } from "@/components/share/TrustScoreBadge";
-import { useActivePov } from "@/hooks/useActivePov";
+import { TierTile } from "@/components/score/TierTile";
+import { useTierRing } from "@/components/score/VerificationCoin";
+import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
+import { useHasSession } from "@/hooks/useHasSession";
 
 /**
  * The share page is a teaser, not a full client — so clicking a @mention or
@@ -35,15 +38,17 @@ export function useShareNav() {
 }
 
 export function ShareNavProvider({ children }: { children: ReactNode }) {
+  const [displayMode] = useScoreDisplayMode();
   const [, navigate] = useLocation();
   const [intent, setIntent] = useState<NavIntent | null>(null);
 
   // Show the target's trust score in the viewer's current perspective: their own
   // Web of Trust when logged in + using the mywot POV, otherwise the house score.
-  const [pov] = useActivePov();
+  const [pov] = useActivePerspective();
   const { hasMywot } = useHasMywot();
   const { isSearchObserver } = useIsSearchObserver();
-  const usePersonal = hasSessionToken() && hasMywot && isSearchObserver && pov === "mywot";
+  const hasSession = useHasSession();
+  const usePersonal = hasSession && hasMywot && isSearchObserver && pov === "mywot";
 
   const targetPubkey = useMemo(() => {
     if (intent?.kind !== "profile") return null;
@@ -70,7 +75,8 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
     retry: false,
   });
   const score01 = typeof scoreQuery.data === "number" ? scoreQuery.data : null;
-  const tier = score01 != null ? tierForScore(score01) : null;
+  const hasTier = score01 != null;
+  const tierRing = useTierRing();
   const povCaption = usePersonal ? "Through your network" : "Brainstorm network score";
 
   // Hashtags go straight to their trust-ranked content feed (no confirm — it's an
@@ -110,7 +116,7 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
             <DialogHeader className="space-y-0 text-left">
               <div className="flex items-start gap-3">
                 {isProfile && intent?.picture ? (
-                  <Avatar className="h-10 w-10 shrink-0 rounded-xl border border-brand-accent/20">
+                  <Avatar className={`h-10 w-10 shrink-0 rounded-xl border border-brand-accent/20 ${tierRing(score01) ?? ""}`}>
                     <AvatarImage src={intent.picture} alt={intent.label} className="object-cover" />
                     <AvatarFallback className="overflow-hidden rounded-xl"><DefaultAvatarImg /></AvatarFallback>
                   </Avatar>
@@ -131,25 +137,12 @@ export function ShareNavProvider({ children }: { children: ReactNode }) {
                 </div>
               </div>
             </DialogHeader>
-            {isProfile && (scoreQuery.isLoading || tier) && (
-              <div className="mt-3">
-                {tier ? (
-                  <div
-                    className="flex items-center gap-2.5 rounded-xl border p-2.5"
-                    style={{ borderColor: `${tier.color}40`, backgroundColor: `${tier.color}0d` }}
-                    data-testid="nav-confirm-score"
-                  >
-                    <span
-                      className="h-9 w-9 shrink-0 rounded-lg flex items-center justify-center text-sm font-bold font-mono tabular-nums"
-                      style={{ color: tier.color, backgroundColor: `${tier.color}1a` }}
-                    >
-                      {Math.round((score01 ?? 0) * 100)}
-                    </span>
-                    <div className="min-w-0">
-                      <div className="text-sm font-bold leading-tight" style={{ color: tier.color }}>{tier.name}</div>
-                      <div className="text-[11px] text-slate-500 dark:text-slate-400">{povCaption}</div>
-                    </div>
-                  </div>
+            {/* The tile follows both Trust Perspective settings — the ladder's word,
+                the display mode's coin — and is absent when verification is off. */}
+            {isProfile && displayMode !== "off" && (scoreQuery.isLoading || hasTier) && (
+              <div className="mt-3" data-testid="nav-confirm-score">
+                {hasTier ? (
+                  <TierTile score01={score01} pov={usePersonal ? "personalized" : "global"} caption={povCaption} />
                 ) : (
                   <div className="h-[3.25rem] rounded-xl bg-slate-100 dark:bg-slate-800 animate-pulse" />
                 )}

@@ -2,18 +2,17 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type Keyboard
 import { useLocation } from "wouter";
 import { Search, Loader2, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { searchByText, isLikelyNpub, isHexPubkey, isNip05Handle, type SearchResult } from "@/lib/profileSearch";
 import { npubFromPubkey } from "@/lib/shareId";
 import { initialsFor } from "@/lib/profileDefaults";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
 import { useTagMatches } from "@/hooks/useTags";
-import type { TagSummary } from "@/services/tags";
-import { getCurrentUser } from "@/services/nostr";
-import { useActivePov } from "@/hooks/useActivePov";
-import { useHasMywot } from "@/hooks/useHasMywot";
+import type { TagSummary } from "@/services/tags";import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
 
 /**
@@ -37,6 +36,8 @@ export function HeaderSearchBox({
   profileHref?: (npub: string) => string;
   resolveDirect?: boolean;
 }) {
+  const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
   const [, navigate] = useLocation();
   const [q, setQ] = useState("");
   const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
@@ -53,11 +54,11 @@ export function HeaderSearchBox({
   // personalized Web of Trust only when the viewer turned "My perspective" on
   // AND is eligible (has a personalized graph + is permitted to be their own
   // search observer); otherwise fall back to the house ("nosfabrica") view.
-  const [pov] = useActivePov();
+  const [pov] = useActivePerspective();
   const { hasMywot } = useHasMywot();
   const { isSearchObserver } = useIsSearchObserver();
   const effectivePov = pov === "mywot" && hasMywot && isSearchObserver ? "mywot" : "nosfabrica";
-  const observerPubkey = getCurrentUser()?.pubkey;
+  const observerPubkey = useActiveAccountDisplay()?.pubkey;
 
   // Live suggestions, debounced. A request token is bumped every keystroke so a
   // slow earlier response can't overwrite newer results. Direct identifiers
@@ -212,7 +213,7 @@ export function HeaderSearchBox({
                 className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors ${i === active ? "bg-slate-50 dark:bg-slate-800" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
                 data-testid={`header-search-opt-${i}`}
               >
-                <Avatar className="h-8 w-8 shrink-0 border border-slate-200 dark:border-slate-800">
+                <Avatar className={`h-8 w-8 shrink-0 border border-slate-200 dark:border-slate-800 ${tierRing(r.wotRank) ?? ""}`}>
                   {r.picture ? <AvatarImage src={r.picture} alt="" className="object-cover" /> : null}
                   <AvatarFallback className="bg-brand-primary/10 text-[11px] font-bold text-brand-primary">{initialsFor(nameOf(r))}</AvatarFallback>
                 </Avatar>
@@ -229,7 +230,7 @@ export function HeaderSearchBox({
                     score01={r.wotRank}
                     pov={effectivePov === "mywot" ? "personalized" : "global"}
                     size={22}
-                    className="shrink-0"
+                    className={tierRing(r.wotRank) && coinReplaced ? "sr-only" : "shrink-0"}
                   />
                 )}
               </button>

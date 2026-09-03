@@ -7,9 +7,10 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Chip } from "@/components/ui/chip";
 import { UnverifiedTagChip } from "@/components/search/UnverifiedTagChip";
 import { useTagIndex } from "@/hooks/useTags";
-import { getCurrentUser } from "@/services/nostr";
+
 import { npubFromPubkey } from "@/lib/shareId";
 import type { TagSummary } from "@/services/tags";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 
 /**
  * `/tags` — every tag people actually use.
@@ -25,7 +26,7 @@ type Sort = "used" | "az";
 
 export default function TagIndexPage() {
   const { data, isLoading } = useTagIndex();
-  const signedIn = !!getCurrentUser()?.pubkey;
+  const signedIn = !!useActiveAccountDisplay()?.pubkey;
   const [sort, setSort] = useState<Sort>("used");
   const [filter, setFilter] = useState("");
 

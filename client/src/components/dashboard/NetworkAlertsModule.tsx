@@ -5,7 +5,8 @@ import { ShieldAlert, ShieldCheck, VolumeX, UserMinus, ArrowRight, Loader2, Chev
 import { Card } from "@/components/ui/card";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
+import { isFlaggedAlert } from "@/services/api";
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
@@ -19,6 +20,7 @@ import { unfollowUser, muteUser, reportUser } from "@/services/socialActions";
 import { npubFromPubkey } from "@/lib/shareId";
 import { computeNewAlerts, markAlertsSeen } from "@/lib/networkAlertsSeen";
 import { ignoredAlertMap, ignoreAlert, unignoreAlert, ignoreMany, unignoreMany, hydrateIgnoredFromNostr, backfillIgnoredBaselines, whenIgnoreSyncSettles, hasEscalated, actedAlertSet, markActed } from "@/lib/networkAlertsIgnored";
+import { accountKey } from "@/lib/accountStorage";
 
 // Module scope, not per-hook: the point is to say this ONCE, not once per hook
 // instance and certainly not once per ignored account. The likeliest cause (a
@@ -218,6 +220,9 @@ export function useAlertActions(observer: string, current?: { pubkey: string; ve
     const res = action === "unfollow" ? await unfollowUser(pubkey) : await muteUser(pubkey);
     setBusy(false);
     setPending(null);
+    // A declined unlock is a deliberate no, not a failure — and it carries no
+    // `error`, so the destructive branch would toast an empty description.
+    if (res.cancelled) return;
     if (res.success) {
       setDismissed(markActed(observer, pubkey));
       toast({ title: action === "unfollow" ? `Unfollowed ${name}` : `Muted ${name}`, duration: 4000 });
@@ -233,6 +238,7 @@ export function useAlertActions(observer: string, current?: { pubkey: string; ve
     const res = await reportUser(pubkey, reportType, reportNote);
     setReporting(false);
     setReportTarget(null);
+    if (res.cancelled) return;
     if (res.success) {
       setDismissed(markActed(observer, pubkey));
       toast({ title: `Reported ${name}`, description: "Your report was published to Nostr.", duration: 4000 });
@@ -424,7 +430,7 @@ export function NetworkAlertsModule({ observer, enabled, onEmptyChange }: {
   // User can minimize the card to a slim one-row bar; the choice is remembered
   // per account. Collapsing also tells the dashboard to give "Your Network" the
   // full row (same reflow as the all-clear state), so nothing sits half-empty.
-  const COLLAPSE_KEY = `brainstorm_alerts_collapsed:${observer}`;
+  const COLLAPSE_KEY = accountKey("brainstorm_alerts_collapsed", observer);
   const [collapsed, setCollapsed] = useState(false);
   useEffect(() => {
     try { setCollapsed(!!localStorage.getItem(COLLAPSE_KEY)); } catch {}
@@ -432,7 +438,10 @@ export function NetworkAlertsModule({ observer, enabled, onEmptyChange }: {
   function toggleCollapsed() {
     setCollapsed((c) => {
       const next = !c;
-      try { next ? localStorage.setItem(COLLAPSE_KEY, "1") : localStorage.removeItem(COLLAPSE_KEY); } catch {}
+      try {
+        if (next) localStorage.setItem(COLLAPSE_KEY, "1");
+        else localStorage.removeItem(COLLAPSE_KEY);
+      } catch {}
       return next;
     });
   }
@@ -444,7 +453,7 @@ export function NetworkAlertsModule({ observer, enabled, onEmptyChange }: {
   // The all-clear can be dismissed. Safe to persist because it ONLY suppresses
   // the empty state — the moment anything is actually flagged, isEmpty goes false
   // and the card renders regardless. So a user can never hide a real alert.
-  const CLEAR_KEY = `brainstorm_alerts_clear_dismissed:${observer}`;
+  const CLEAR_KEY = accountKey("brainstorm_alerts_clear_dismissed", observer);
   const [clearDismissed, setClearDismissed] = useState(false);
   useEffect(() => {
     try { setClearDismissed(!!localStorage.getItem(CLEAR_KEY)); } catch {}
@@ -637,6 +646,11 @@ export function AlertRow({ entry, name, picture, isNew, following, escalatedFrom
   onDeepDive: () => void; onWhy: () => void; onIgnore: () => void; onUnfollow: () => void; onMute: () => void; onReport: () => void;
 }) {
   const actionBtn = "inline-flex items-center gap-1 rounded-md border px-2 py-1 text-[11px] font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40";
+  const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
+  // Decision 2: the backend's reporter threshold is the flag.
+  const flagged = isFlaggedAlert(entry);
+  const ring = tierRing(entry.influence, flagged);
   const ignoredView = !!onUnignore;
   return (
     // Red left-edge accent + faint wash marks the whole row as a flagged/negative
@@ -649,7 +663,7 @@ export function AlertRow({ entry, name, picture, isNew, following, escalatedFrom
     >
       <div className="flex items-center gap-2.5">
         <button type="button" onClick={onDeepDive} className="relative shrink-0 rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40" aria-label={`View ${name}'s profile`}>
-          <Avatar className="h-8 w-8 rounded-full border border-slate-200 dark:border-slate-800">
+          <Avatar className={`h-8 w-8 rounded-full border border-slate-200 dark:border-slate-800 ${ring ?? ""}`}>
             {picture ? <AvatarImage src={picture} alt={name} className="object-cover" /> : null}
             <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
           </Avatar>
@@ -679,7 +693,7 @@ export function AlertRow({ entry, name, picture, isNew, following, escalatedFrom
               : `${entry.verifiedReporterCount} verified reports${entry.verifiedMuterCount > 0 ? ` · muted by ${entry.verifiedMuterCount}` : ""}`} · why?
           </button>
         </div>
-        <VerificationCoin score01={entry.influence} pov="global" size={22} className="shrink-0" />
+        <VerificationCoin score01={entry.influence} flagged={flagged} pov="global" size={22} className={ring && coinReplaced ? "sr-only" : "shrink-0"} />
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5 pl-10">

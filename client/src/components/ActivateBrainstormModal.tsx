@@ -7,9 +7,10 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { BrainLogo } from "@/components/BrainLogo";
-import { ChevronDown, Check, Loader2, ExternalLink, AlertCircle, FileSignature, HeartHandshake, Rocket } from "lucide-react";
-import { publishToRelays, getCurrentUser, signNip85, getNip85RelayUrl, fetchTrustProviderList } from "@/services/nostr";
-import { markNip85Activated } from "@/lib/nip85Activation";
+import { ChevronDown, Check, Loader2, ExternalLink, AlertCircle } from "lucide-react";
+import { checkExistingTrustProvider, publishBrainstormTrustAnchor } from "@/services/trustAnchor";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { nip85ExplainerSections } from "@/components/nip85Explainer";
 
 interface ActivateBrainstormModalProps {
   open: boolean;
@@ -18,11 +19,10 @@ interface ActivateBrainstormModalProps {
   onActivated: () => void;
 }
 
-const NIP85_URL = "https://github.com/nostr-protocol/nips/blob/master/85.md";
-
 type ActivateState = "idle" | "signing" | "publishing" | "success" | "cancelled" | "error";
 
 export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActivated }: ActivateBrainstormModalProps) {
+  const user = useActiveAccountDisplay();
   const [expandedSection, setExpandedSection] = useState<string | null>(null);
   const [activateState, setActivateState] = useState<ActivateState>("idle");
   const [errorMessage, setErrorMessage] = useState("");
@@ -32,21 +32,25 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
   const [hasOtherProvider, setHasOtherProvider] = useState(false);
 
   useEffect(() => {
-    if (!open) { setHasOtherProvider(false); return; }
+    // Cleared on every run, not only on close. Now that the Account is a
+    // dependency, a switch re-runs the fetch — and leaving the previous answer
+    // standing would show B "this replaces your existing provider" for a provider
+    // that is A's.
+    setHasOtherProvider(false);
+    if (!open) return;
     let cancelled = false;
     (async () => {
-      try {
-        const user = getCurrentUser();
-        if (!user?.pubkey) return;
-        const event = await fetchTrustProviderList(user.pubkey);
-        if (cancelled || !event) return;
-        const rankTag = event.tags.find((t: string[]) => t[0] === "30382:rank");
-        const target = rankTag?.[1];
-        if (target && serviceKey && target !== serviceKey) setHasOtherProvider(true);
-      } catch { /* best-effort — fall back to the generic disclaimer */ }
+      if (!user?.pubkey) return;
+      // "unknown"/"none" fall back to the generic disclaimer — best-effort.
+      const status = await checkExistingTrustProvider(user.pubkey, serviceKey);
+      if (!cancelled && status === "other") setHasOtherProvider(true);
     })();
     return () => { cancelled = true; };
-  }, [open, serviceKey]);
+    // `user` is stream-backed and null for the first renders, so the effect bails
+    // early. Without it in the deps it never re-runs, `hasOtherProvider` stays
+    // false, and the "this replaces your existing provider" warning is skipped
+    // before overwriting kind-10040 — the one thing this check is here to catch.
+  }, [open, serviceKey, user?.pubkey]);
 
   const toggleSection = (key: string) => {
     setExpandedSection((prev) => (prev === key ? null : key));
@@ -56,44 +60,40 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
     setActivateState("signing");
     setErrorMessage("");
 
-    const user = getCurrentUser();
     if (!user?.pubkey) {
       setActivateState("error");
       setErrorMessage("Not logged in.");
       return;
     }
 
-    let nip85Relay: string;
-    try {
-      nip85Relay = getNip85RelayUrl();
-    } catch (err: any) {
+    // Signing with an empty service key would publish a 10040 pointing at
+    // nothing. The dashboard disables its buttons until ta_pubkey exists, but
+    // never rely on callers for that.
+    if (!serviceKey) {
       setActivateState("error");
-      setErrorMessage(err?.message || "NIP-85 relay URL is not configured.");
+      setErrorMessage("Your account is still being prepared — please try again in a few minutes.");
       return;
     }
 
-    let signedEvent: Record<string, unknown>;
-    try {
-      signedEvent = await signNip85(serviceKey, nip85Relay);
-    } catch (err: any) {
-      setActivateState("cancelled");
-      setTimeout(() => setActivateState("idle"), 3000);
-      return;
-    }
+    const result = await publishBrainstormTrustAnchor(user.pubkey, serviceKey, setActivateState);
 
-    setActivateState("publishing");
-
-    const result = await publishToRelays(signedEvent);
-
-    if (result.success) {
-      markNip85Activated(user.pubkey);
+    if (result.status === "success") {
       setActivateState("success");
       setTimeout(() => {
         onActivated();
       }, 2000);
+    } else if (result.status === "cancelled") {
+      // A declined unlock never shows as an error; an extension refusal keeps the
+      // "cancelled" note it always had.
+      if (result.unlockDeclined) {
+        setActivateState("idle");
+        return;
+      }
+      setActivateState("cancelled");
+      setTimeout(() => setActivateState("idle"), 3000);
     } else {
       setActivateState("error");
-      setErrorMessage(result.error || "Failed to publish to relays. Please try again.");
+      setErrorMessage(result.message);
     }
   };
 
@@ -107,72 +107,7 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
     onOpenChange(nextOpen);
   };
 
-  const sections = [
-    {
-      key: "what",
-      icon: <FileSignature className="h-4 w-4" />,
-      title: "What does this mean?",
-      content: (
-        <div className="space-y-3">
-          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-            Selecting Brainstorm as your Service Provider signs a nostr note (kind 10040)
-            that tells compatible clients where to find the scores we publish on your behalf.
-          </p>
-          <a
-            href={NIP85_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-link hover:text-brand-primary transition-colors"
-            data-testid="link-nip85-learn-more-what"
-          >
-            Learn more in NIP-85: Trusted Assertions
-            <ExternalLink className="h-3 w-3" />
-          </a>
-        </div>
-      ),
-    },
-    {
-      key: "why",
-      icon: <HeartHandshake className="h-4 w-4" />,
-      title: "Why this matters",
-      content: (
-        <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-          Harness your extended and trusted nostr community to help you eliminate spam and find
-          the content that best suits your interests and values. Take control over your time and
-          attention. Steer clear of the information gatekeepers and the advertisers who only see
-          you as their product!
-        </p>
-      ),
-    },
-    {
-      key: "next",
-      icon: <Rocket className="h-4 w-4" />,
-      title: "What happens next",
-      content: (
-        <div className="space-y-3">
-          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-            We will calculate scores for your entire nostr network, entirely from YOUR
-            perspective, using standard nostr follows, mutes, and reports. This usually takes
-            5–10 minutes.
-          </p>
-          <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-            We next publish those scores as nostr notes (called Trusted Assertions) which makes
-            them available for use by clients and apps throughout the nostr network.
-          </p>
-          <a
-            href={NIP85_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-link hover:text-brand-primary transition-colors"
-            data-testid="link-nip85-learn-more-next"
-          >
-            Learn more about NIP-85: Trusted Assertions
-            <ExternalLink className="h-3 w-3" />
-          </a>
-        </div>
-      ),
-    },
-  ];
+  const sections = nip85ExplainerSections;
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>

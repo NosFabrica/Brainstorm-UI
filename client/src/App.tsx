@@ -1,11 +1,16 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { Switch, Route, Redirect, useLocation, useParams } from "wouter";
+import { AccountsProvider, EventStoreProvider } from "applesauce-react/providers";
+import { accountManager } from "@/accounts";
+import { eventStore } from "@/services/nostr";
 import { stopAllMedia } from "@/lib/audioPlayer";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
+import { DemoScoreDisplaySwitcher } from "@/components/score/DemoScoreDisplaySwitcher";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LightboxProvider } from "@/components/share/Lightbox";
+import { trackHistoryEntry } from "@/lib/historyState";
 import { AutoScoreReturning } from "@/components/AutoScoreReturning";
 import { AutoActivateBrainstorm } from "@/components/AutoActivateBrainstorm";
 import { AutoPublishAssistant } from "@/components/AutoPublishAssistant";
@@ -26,7 +31,8 @@ import HopsPathPage from "@/pages/HopsPathPage";
 import ArticlePage from "@/pages/ArticlePage";
 import EventPage from "@/pages/EventPage";
 import WelcomePage from "@/pages/WelcomePage";
-import OnboardingWizard from "@/pages/OnboardingWizard";
+import FinishSetupPage from "@/pages/FinishSetupPage";
+import ActivateBrainstormPage from "@/pages/ActivateBrainstormPage";
 import HeroLab from "@/pages/HeroLab";
 import ActivatePage from "@/pages/ActivatePage";
 import { ScoringStatusBar } from "@/components/ScoringStatusBar";
@@ -54,7 +60,10 @@ import { PovAutoDefault } from "@/components/PovBadge";
 import { MobileTabBar } from "@/components/MobileTabBar";
 import { CommandPalette } from "@/components/CommandPalette";
 import { MobileSearchOverlay } from "@/components/MobileSearchOverlay";
-import { getCurrentUser, ensureUnlocked } from "@/services/nostr";
+import { UnlockModal } from "@/components/UnlockModal";
+import { CrossTabIdentity } from "@/components/CrossTabIdentity";
+import { SignerApprovalModal } from "@/components/SignerApprovalModal";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { isAdminPubkey } from "@/config/adminAccess";
 import type { ComponentType } from "react";
 
@@ -73,6 +82,13 @@ import type { ComponentType } from "react";
  *  3. Depending on the surface, the scroller is `window`, `documentElement` or
  *     `body` (notably in an iOS standalone PWA), so reset all three.
  */
+/** Stamps every history entry with its in-app depth, for `useGoBack`. */
+function TrackHistoryDepth() {
+  const [location] = useLocation();
+  useEffect(() => { trackHistoryEntry(); }, [location]);
+  return null;
+}
+
 function ScrollToTop() {
   const [location] = useLocation();
 
@@ -130,7 +146,10 @@ function SearchRedirect() {
 // /faq, /what-is-wot, /how-search-works, /personalization, /about, /nostr) render for everyone.
 function RequireAuth({ component: Component }: { component: ComponentType }) {
   const [location] = useLocation();
-  if (!getCurrentUser()) {
+  // Identity is known synchronously on the first render — accounts bootstrap at
+  // module load precisely so this guard never bounces a signed-in user.
+  const signedIn = useActiveAccountDisplay();
+  if (!signedIn) {
     const next =
       location && location.startsWith("/") && location !== "/login"
         ? `?next=${encodeURIComponent(location)}`
@@ -168,15 +187,39 @@ function RequireAuth({ component: Component }: { component: ComponentType }) {
  */
 function ProfileRoute() {
   const params = useParams<{ npub: string }>();
-  if (!isAdminPubkey(getCurrentUser()?.pubkey)) {
+  // `getCurrentUser()` went with the v1 auth layer; the Active Account answers the
+  // same question, and `isAdminPubkey` reads the Session's own admin claim.
+  const user = useActiveAccountDisplay();
+  if (!isAdminPubkey(user?.pubkey)) {
     return <Redirect to={`/p/${params.npub}`} replace />;
   }
   return <ProfilePage />;
 }
 
+/**
+ * `/admin` — the operator console, for operators.
+ *
+ * `RequireAuth` asks only whether anyone is signed in, so any key that pasted its
+ * way in could open this. The API refuses the data, but the page still discloses
+ * what the console *tracks* — its panels, its metrics, which subsystems exist —
+ * and that is not something to hand to every signed-in user.
+ *
+ * The claim is the Session's, minted with the token rather than looked up, so an
+ * identity this browser doesn't hold can never satisfy it. It survives a deferred
+ * session — the token stays on the Account until re-auth — so an admin whose
+ * session lapsed still reaches their console and is told to sign in again there,
+ * rather than being bounced out of it.
+ */
+function AdminRoute() {
+  const user = useActiveAccountDisplay();
+  if (!user?.isAdmin) return <Redirect to="/dashboard" replace />;
+  return <AdminPage />;
+}
+
 function Router() {
   return (
     <>
+      <TrackHistoryDepth />
       <ScrollToTop />
       <StopMediaOnNavigate />
       <Switch>
@@ -205,7 +248,8 @@ function Router() {
         <Route path="/tags/:author/:slug" component={TagPage} />
         <Route path="/hero-lab" component={HeroLab} />
         <Route path="/welcome" component={WelcomePage} />
-        <Route path="/setup">{() => <RequireAuth component={OnboardingWizard} />}</Route>
+        <Route path="/setup/activate">{() => <RequireAuth component={ActivateBrainstormPage} />}</Route>
+        <Route path="/setup">{() => <RequireAuth component={FinishSetupPage} />}</Route>
         <Route path="/activate" component={ActivatePage} />
         <Route path="/settings">{() => <RequireAuth component={SettingsRoute} />}</Route>
         <Route path="/network">{() => <RequireAuth component={NetworkPage} />}</Route>
@@ -223,7 +267,7 @@ function Router() {
         <Route path="/terms" component={TermsPage} />
         <Route path="/faq" component={FaqPage} />
         {FEATURES.agentSuite && <Route path="/agentsuite">{() => <RequireAuth component={UserPanelPage} />}</Route>}
-        <Route path="/admin">{() => <RequireAuth component={AdminPage} />}</Route>
+        <Route path="/admin">{() => <RequireAuth component={AdminRoute} />}</Route>
         <Route component={NotFound} />
       </Switch>
     </>
@@ -231,31 +275,31 @@ function Router() {
 }
 
 function App() {
-  // Warm up the in-memory secret key on boot so the encrypted-at-rest key is
-  // decrypted (silently, no password) before the first signing action — keeps the
-  // synchronous reveal/backup paths correct. Only for signed-in users (the decrypt
-  // is bound to the account pubkey); anonymous visitors skip the IndexedDB open.
-  useEffect(() => {
-    if (getCurrentUser()) void ensureUnlocked();
-  }, []);
-
   return (
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider delayDuration={300} skipDelayDuration={100}>
-        <Toaster />
-        <PovAutoDefault />
-        <MobileTabBar />
-        <CommandPalette />
-        <MobileSearchOverlay />
-        <ScoringStatusBar />
-        <AutoScoreReturning />
-        <AutoActivateBrainstorm />
-        <AutoPublishAssistant />
-        <LightboxProvider>
-          <Router />
-        </LightboxProvider>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <AccountsProvider manager={accountManager}>
+      <EventStoreProvider eventStore={eventStore}>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider delayDuration={300} skipDelayDuration={100}>
+            <Toaster />
+            <DemoScoreDisplaySwitcher />
+            <UnlockModal />
+            <SignerApprovalModal />
+            <CrossTabIdentity />
+            <PovAutoDefault />
+            <MobileTabBar />
+            <CommandPalette />
+            <MobileSearchOverlay />
+            <ScoringStatusBar />
+            <AutoScoreReturning />
+            <AutoActivateBrainstorm />
+            <AutoPublishAssistant />
+            <LightboxProvider>
+              <Router />
+            </LightboxProvider>
+          </TooltipProvider>
+        </QueryClientProvider>
+      </EventStoreProvider>
+    </AccountsProvider>
   );
 }
 

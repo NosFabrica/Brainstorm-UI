@@ -1,14 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2, ArrowRight, Search as SearchIcon, X, Users } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { PersonRow, type PersonLite } from "@/components/PersonRow";
+import { ConfirmNewFollowListDialog } from "@/components/ConfirmNewFollowListDialog";
 import { SUGGESTED_ACCOUNTS } from "@/lib/suggestedAccounts";
-import { getCurrentUser, fetchProfileMap, triggerScoringAndAnchor, SEED_FOLLOW_HEX } from "@/services/nostr";
-import { followPubkeys } from "@/services/socialActions";
+import { fetchProfileMap, SEED_FOLLOW_HEX } from "@/services/nostr";
+import { triggerScoringAndAnchor } from "@/services/trustAnchor";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { followPubkeys, recoverFollowListFromRelay, type FollowOptions } from "@/services/socialActions";
 import { searchByText, type SearchResult } from "@/lib/profileSearch";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useToast } from "@/hooks/use-toast";
+import { accountKey } from "@/lib/accountStorage";
 
 /**
  * Compact "follow a few accounts → calculate" card for the dashboard's no-follows
@@ -18,6 +22,7 @@ import { useToast } from "@/hooks/use-toast";
  * and calls onDone so the dashboard can flip to its "Calculating…" state.
  */
 export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () => void; className?: string }) {
+  const identity = useActiveAccountDisplay();
   const { toast } = useToast();
 
   // NosFabrica is preselected (low friction so scoring can run); the rest are
@@ -105,24 +110,71 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
 
   const count = selected.size;
 
-  const commit = async () => {
-    const pks = Array.from(selected);
-    if (!pks.length || busy) return;
+  // followPubkeys refused to create a first-ever list without the user's say-so
+  // (imported key, nothing found on relays) — the pending picks wait on the
+  // confirmation dialog.
+  const [confirmPks, setConfirmPks] = useState<string[] | null>(null);
+  // Ref mirror for the async relay search: by the time it resolves, the
+  // closure's `confirmPks` is stale, and a cancel-while-searching must be seen.
+  const confirmPksRef = useRef<string[] | null>(null);
+  confirmPksRef.current = confirmPks;
+
+  const afterPublish = () => {
+    if (identity?.pubkey) {
+      const pk = identity.pubkey;
+      try { localStorage.setItem(accountKey("brainstorm_calc_triggered_at", pk), String(Date.now())); } catch { /* ignore */ }
+      // The kind-10040 no longer rides along: activation is its own step on
+      // the /setup checklist, nudged by the header banner and setup card.
+      void triggerScoringAndAnchor(pk);
+    }
+    toast({ title: "Calculating your trust network", description: "We're scoring your follows — this can take a few minutes." });
+    onDone?.();
+    // leave `busy` true: the card is about to be replaced by the calculating state.
+  };
+
+  const runCommit = async (pks: string[], opts?: FollowOptions) => {
     setBusy(true);
-    const res = await followPubkeys(pks);
+    const res = await followPubkeys(pks, opts);
+    if (res.cancelled) {
+      setBusy(false);
+      return;
+    }
+    if (res.needsBaseConfirmation) {
+      setBusy(false);
+      setConfirmPks(pks);
+      return;
+    }
     if (!res.success) {
       setBusy(false);
       toast({ variant: "destructive", title: "Couldn't save your follows", description: res.error || "Please try again." });
       return;
     }
-    const u = getCurrentUser();
-    if (u?.pubkey) {
-      try { localStorage.setItem(`brainstorm_calc_triggered_at:${u.pubkey}`, String(Date.now())); } catch { /* ignore */ }
-      void triggerScoringAndAnchor(u.pubkey);
+    afterPublish();
+  };
+
+  const commit = () => {
+    const pks = Array.from(selected);
+    if (!pks.length || busy) return;
+    void runCommit(pks);
+  };
+
+  // The dialog's recovery path — same contract as WelcomePage's: a verified
+  // find closes the dialog and resumes the publish on the recovered base
+  // (passed as `cachedBase`; the floor write alone can fail silently and would
+  // loop the dialog). Not-found/error outcomes are the dialog's to render.
+  const searchRelay = async (url: string) => {
+    if (!identity?.pubkey) return { found: false as const, error: "Not signed in" };
+    const res = await recoverFollowListFromRelay(identity.pubkey, url);
+    if (res.found) {
+      const pks = confirmPksRef.current; // null ⇒ the user cancelled mid-search
+      setConfirmPks(null);
+      toast({
+        title: "Follow list found",
+        description: `Recovered ${res.follows} follow${res.follows === 1 ? "" : "s"} — adding your new follows to it.`,
+      });
+      if (pks) void runCommit(pks, { cachedBase: res.event });
     }
-    toast({ title: "Calculating your trust network", description: "We're scoring your follows — this can take a few minutes." });
-    onDone?.();
-    // leave `busy` true: the card is about to be replaced by the calculating state.
+    return res;
   };
 
   return (
@@ -204,6 +256,18 @@ export function FollowToCalculateCard({ onDone, className = "" }: { onDone?: () 
           {busy ? <><Loader2 className="h-4 w-4 animate-spin" /> Starting…</> : <>Follow {count > 0 ? count : ""} &amp; calculate my scores <ArrowRight className="h-4 w-4" /></>}
         </button>
       </div>
+
+      <ConfirmNewFollowListDialog
+        open={confirmPks !== null}
+        busy={busy}
+        onSearchRelay={searchRelay}
+        onCancel={() => setConfirmPks(null)}
+        onConfirm={() => {
+          const pks = confirmPks;
+          setConfirmPks(null);
+          if (pks) void runCommit(pks, { allowFromScratch: true });
+        }}
+      />
     </div>
   );
 }

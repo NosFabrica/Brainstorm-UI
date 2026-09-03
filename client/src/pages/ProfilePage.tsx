@@ -3,6 +3,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { GlossBackground } from "@/components/GlossBackground";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
+import { useGoBack } from "@/hooks/useGoBack";
 import { useLocation, useRoute } from "wouter";
 import { nip19 } from "nostr-tools";
 import { ProfileRecentPosts } from "@/components/profile/ProfileRecentPosts";
@@ -69,9 +70,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useQuery, useInfiniteQuery, useQueryClient } from "@tanstack/react-query";
-import { getCurrentUser, logout, fetchProfile, fetchProfiles, eventStore, fetchReportsForPubkey, fetchReportsByPubkey, fetchMuteListTimestamp, type NostrUser, type ReportMetadata, type MuteMetadata } from "@/services/nostr";
+import { fetchProfile, fetchProfiles, eventStore, fetchReportsForPubkey, fetchReportsByPubkey, fetchMuteListTimestamp, type ReportMetadata, type MuteMetadata } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
-import { isAdminPubkey } from "@/config/adminAccess";
 import { getProfileContent, isValidProfile } from "applesauce-core/helpers/profile";
 import {
   Dialog,
@@ -81,7 +83,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { apiClient, isAuthRedirecting, hasSessionToken } from "@/services/api";
+import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfConnections, flattenConnections } from "@/hooks/useSelf";
 import { getProfileSeed, setProfileSeed, clearProfileSeed, consumeStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "../services/graphHelpers";
@@ -96,11 +98,14 @@ import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import { DegreeChip } from "@/components/DegreeChip";
 import { SignInButton } from "@/components/SignInButton";
-import { useActivePov, type ActivePov } from "@/hooks/useActivePov";
+import { useActivePerspective, type ActivePerspective } from "@/hooks/useActivePerspective";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import { fetchContactList, getFollowedPubkeys, fetchMyReport, type MyReport } from "@/services/socialActions";
 import { useToast } from "@/hooks/use-toast";
+import { useHasSession } from "@/hooks/useHasSession";
 import { TIER_LABELS } from "@/services/trustThreshold";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
+import { useTierRing } from "@/components/score/VerificationCoin";
 
 interface AdminHistoryItem {
   created_at: string;
@@ -623,6 +628,16 @@ interface ExpandedPanelProps {
 }
 
 const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
+  const tierRing = useTierRing();
+  const [granularity] = useTierGranularity();
+  // Decision 7: under Simple the menu offers the three buckets' worth of choices
+  // — All / Verified / Unknown — not five shades it never draws.
+  const visibleFilterOptions =
+    granularity === "simple"
+      ? FILTER_OPTIONS.filter((o) => o.value === "all" || o.value === "verified" || o.value === "unverified").map((o) =>
+          o.value === "unverified" ? { ...o, label: "Unknown" } : o,
+        )
+      : FILTER_OPTIONS;
   const {
     sectionKey: key, pubkeys, filter, sort, search, reportTypeFilter, visibleCount,
     sectionTotal,
@@ -679,14 +694,14 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
               data-testid={`filter-toggle-${key}`}
             >
               <Filter className="h-3 w-3" />
-              {filter !== "all" ? FILTER_OPTIONS.find(f => f.value === filter)?.label : "Filter"}
+              {filter !== "all" ? visibleFilterOptions.find(f => f.value === filter)?.label : "Filter"}
               <ChevronDown className="h-2.5 w-2.5" />
             </button>
             {filterDropdownOpen && (
               <>
                 <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); onToggleFilterDropdown(key, false); }} />
                 <div className="absolute left-0 top-full mt-1 z-50 bg-white dark:bg-slate-900 rounded-lg shadow-lg border border-slate-200 dark:border-slate-800 py-1 min-w-[140px]">
-                  {FILTER_OPTIONS.map(opt => (
+                  {visibleFilterOptions.map(opt => (
                     <button
                       key={opt.value}
                       onClick={(e) => {
@@ -815,8 +830,8 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
               onClick={() => navigateToProfile(pk)}
               data-testid={`expand-profile-${pk.slice(0,8)}`}
             >
-              <Avatar className="h-7 w-7 border border-slate-200/60 dark:border-slate-800/60 shrink-0">
-                {profile?.picture ? <AvatarImage src={profile.picture} /> : null}
+              <Avatar className={`h-7 w-7 border border-slate-200/60 dark:border-slate-800/60 shrink-0 ${tierRing(trustScore) ?? ""}`}>
+                <AvatarImage src={profile?.picture} />
                 <AvatarFallback className="bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link text-xs font-bold">
                   {displayName.charAt(0).toUpperCase()}
                 </AvatarFallback>
@@ -932,11 +947,14 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
 });
 
 export default function ProfilePage() {
+  const tierRing = useTierRing();
   const [location, navigate] = useLocation();
+  const goBack = useGoBack();
   const [, params] = useRoute("/profile/:npub");
   const npubParam = params?.npub || "";
 
-  const [user, setUser] = useState<NostrUser | null>(null);
+  const user = useActiveAccountDisplay();
+  const hasSession = useHasSession();
 
   const [copied, setCopied] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -966,7 +984,6 @@ export default function ProfilePage() {
 
   const [fromGroup, setFromGroup] = useState<string | null>(null);
   const [fromAdmin, setFromAdmin] = useState<string | null>(null);
-  const [fromSearch, setFromSearch] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportReason, setReportReason] = useState("spam");
   const [followHovered, setFollowHovered] = useState(false);
@@ -1018,7 +1035,7 @@ export default function ProfilePage() {
     staleTime: 30_000,
   });
 
-  const isAdmin = isAdminPubkey(user?.pubkey);
+  const isAdmin = user?.isAdmin === true;
 
   const adminHistoryQuery = useQuery<{ items: AdminHistoryItem[]; total: number; page: number; pages: number }>({
     queryKey: ["/api/admin/users", hexPubkey, "history"],
@@ -1036,19 +1053,20 @@ export default function ProfilePage() {
     try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; }
   }, [calcDoneNow]);
 
-  useEffect(() => {
-    // Capture the signed-in user so personalized sections + the account menu render.
-    setUser(getCurrentUser());
-  }, [navigate]);
-
   // Members-only gate: /profile is the personalized (signed-in) surface. Logged-out
   // visitors are redirected to the PUBLIC share page (/p/:npub) — the join-funnel
   // view — no matter how they arrived (search, a shared link, a bookmark).
+  //
+  // "Logged out" means holding no Account, not holding no Session. An Account
+  // stays active with its Session cleared — a deferred re-auth, or a 401 that
+  // `handleUnauthorized` decided not to redirect over — and `RequireAuth` lets
+  // that in. Bouncing on the Session sent those users to a public page that
+  // carries no unlock prompt, and every attempt to come back bounced again.
   useEffect(() => {
-    if (npubParam && !hasSessionToken()) {
+    if (npubParam && !user) {
       navigate(`/p/${npubParam}`, { replace: true });
     }
-  }, [npubParam, navigate]);
+  }, [npubParam, navigate, user]);
 
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -1057,7 +1075,6 @@ export default function ProfilePage() {
     const adminFrom = urlParams.get("from");
     const adminPubkey = urlParams.get("pubkey");
     setFromAdmin(adminFrom === "admin" ? (adminPubkey || "1") : null);
-    setFromSearch(urlParams.get("fromSearch") === "1");
   }, [location, npubParam]);
 
   const { preset: trustPreset } = useTrustPresetSync(!!user);
@@ -1068,7 +1085,7 @@ export default function ProfilePage() {
   // wipe-and-redirect (Profile is a public page). Gate the pubkey on a real
   // session token — anon and stale-token visitors see the public overview
   // without their browsing being hijacked.
-  const selfMutualsPubkey = hasSessionToken() ? user?.pubkey : undefined;
+  const selfMutualsPubkey = hasSession ? user?.pubkey : undefined;
   const selfFollowedByConn = useSelfConnections(selfMutualsPubkey, "followed_by", { enabled: !!selfMutualsPubkey });
   const selfFollowingConn = useSelfConnections(selfMutualsPubkey, "following", { enabled: !!selfMutualsPubkey });
   const selfFollowedByList = useMemo(() => flattenConnections(selfFollowedByConn.data?.pages), [selfFollowedByConn.data?.pages]);
@@ -1373,13 +1390,11 @@ export default function ProfilePage() {
   // so your own avatar shows immediately instead of the initials fallback.
   const ownProfileFallback = useMemo<ProfileContent | null>(() => {
     if (!user || !hexPubkey || user.pubkey !== hexPubkey) return null;
-    if (user.profile) return user.profile;
     if (user.picture || user.displayName) {
       return {
         name: user.displayName,
         display_name: user.displayName,
         picture: user.picture,
-        about: user.about,
         nip05: user.nip05,
       } as ProfileContent;
     }
@@ -1671,10 +1686,18 @@ export default function ProfilePage() {
     { key: "unverified", name: "Unverified", color: "#8c929e", bg: "bg-slate-100 dark:bg-slate-800", text: "text-slate-500 dark:text-slate-400", border: "border-slate-200 dark:border-slate-800", ring: "stroke-slate-400" },
   ];
 
+  const [granularity] = useTierGranularity();
   const profileTier = useMemo(() => {
     const backendTier = profileOverviewQuery.data?.tier;
     if (!backendTier) return null;
     const uiKey = GR_TIER_TO_UI[backendTier] ?? "unverified";
+    // Decision 1/7: under Simple the backend's verdict folds to Verified (any
+    // tier at or above the line) or Unknown — Flagged is the banner's job here.
+    if (granularity === "simple") {
+      return uiKey === "unverified"
+        ? { key: "unknown", name: "Unknown", color: "#8c929e", bg: "bg-slate-100 dark:bg-slate-800", text: "text-slate-500 dark:text-slate-400", border: "border-slate-200 dark:border-slate-800", ring: "stroke-slate-400" }
+        : { key: "verified", name: "Verified", color: "#13d2e5", bg: "bg-cyan-50 dark:bg-cyan-500/10", text: "text-cyan-700 dark:text-cyan-300", border: "border-cyan-200 dark:border-cyan-500/25", ring: "stroke-cyan-500" };
+    }
     return TIER_DISPLAY_CONFIG.find(t => t.key === uiKey) ?? null;
   }, [profileOverviewQuery.data]);
 
@@ -1754,8 +1777,15 @@ export default function ProfilePage() {
       { tier: "low", label: "Low", color: "text-amber-500" },
       { tier: "unverified", label: "Unverified", color: "text-zinc-400" },
     ];
-    return tierDefs.filter(t => counts[t.tier] > 0).map(t => ({ tier: t.label, count: counts[t.tier], color: t.color }));
-  }, [sectionStats]);
+    const rows = tierDefs.filter(t => counts[t.tier] > 0).map(t => ({ tier: t.label, count: counts[t.tier], color: t.color }));
+    if (granularity !== "simple") return rows;
+    const verified = tierDefs.filter(t => t.tier !== "unverified").reduce((a, t) => a + (counts[t.tier] ?? 0), 0);
+    const unknown = counts.unverified ?? 0;
+    return [
+      { tier: "Verified", count: verified, color: "text-cyan-600" },
+      { tier: "Unknown", count: unknown, color: "text-zinc-400" },
+    ].filter(r => r.count > 0);
+  }, [sectionStats, granularity]);
 
   const seedTrustForSection = useCallback((key: string, pubkeys: string[]) => {
     // Seed expandTrustCache from already-known influence values so we never
@@ -1834,10 +1864,9 @@ export default function ProfilePage() {
       params.set("from", "admin");
       if (fromAdmin !== "1") params.set("pubkey", fromAdmin);
     }
-    if (fromSearch) params.set("fromSearch", "1");
     const qs = params.toString();
     navigate(`/profile/${targetNpub}${qs ? `?${qs}` : ""}`);
-  }, [navigate, fromGroup, fromAdmin, fromSearch]);
+  }, [navigate, fromGroup, fromAdmin]);
 
   const handleSetSort = useCallback((k: string, v: SortMode) => {
     setSectionSort(prev => ({ ...prev, [k]: v }));
@@ -2055,16 +2084,6 @@ export default function ProfilePage() {
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
         <div className="flex items-center gap-2 mb-6">
           {(() => {
-            const goBack = (fallback: string) => {
-              // Prefer real browser history so "back" returns to wherever you came
-              // from — the dashboard, search, or a chained profile — instead of a
-              // hardcoded destination. Fall back only on a cold deep-link.
-              if (typeof window !== "undefined" && window.history.length > 1) {
-                window.history.back();
-              } else {
-                navigate(fallback);
-              }
-            };
             if (fromAdmin) {
               const fallback = `/admin?tab=users${fromAdmin !== "1" ? `&highlight=${fromAdmin}` : ""}`;
               return (
@@ -2103,7 +2122,7 @@ export default function ProfilePage() {
                 data-testid="button-back-to-search"
               >
                 <ArrowLeft className="h-4 w-4" />
-                {fromSearch ? "Back to Search" : "Back"}
+                Back
               </Button>
             );
           })()}
@@ -2175,7 +2194,7 @@ export default function ProfilePage() {
             <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm dark:shadow-none rounded-2xl overflow-hidden relative">
               <div className="p-5 sm:p-6">
                 <div className="flex items-start gap-3 sm:gap-4 mb-4">
-                  <Avatar className="h-12 w-12 sm:h-16 sm:w-16 border-2 border-brand-primary/15 dark:border-brand-primary/25 shadow-md shrink-0">
+                  <Avatar className={`h-12 w-12 sm:h-16 sm:w-16 border-2 border-brand-primary/15 dark:border-brand-primary/25 shadow-md shrink-0 ${tierRing(houseInfluence01) ?? ""}`}>
                     {displayNostrProfile?.picture && (
                       <AvatarImage src={displayNostrProfile.picture} alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"} className="object-cover" />
                     )}
@@ -2266,8 +2285,8 @@ export default function ProfilePage() {
                     const assistantDefaultPicture = typeof window !== "undefined" ? `${window.location.origin}/assistant-default.webp` : "/assistant-default.webp";
                     const effectivePicture = displayNostrProfile?.picture || (isOwnAssistant ? assistantDefaultPicture : undefined);
                     return (
-                      <Avatar className="h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white dark:border-slate-900 shadow-lg bg-white dark:bg-slate-900 shrink-0 -mt-12 sm:-mt-16">
-                        {effectivePicture && <AvatarImage src={effectivePicture} alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"} className="object-cover" />}
+                      <Avatar className={`h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white dark:border-slate-900 shadow-lg bg-white dark:bg-slate-900 shrink-0 -mt-12 sm:-mt-16 ${tierRing(profileResult?.influence ?? houseInfluence01) ?? ""}`}>
+                        <AvatarImage src={effectivePicture} alt={displayNostrProfile?.display_name || displayNostrProfile?.name || "Profile"} className="object-cover" />
                         <AvatarFallback className="bg-brand-primary/10 dark:bg-brand-primary/10 text-brand-primary dark:text-brand-link text-base sm:text-lg font-bold">
                           {(displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 2)).charAt(0).toUpperCase()}
                         </AvatarFallback>
@@ -2326,9 +2345,9 @@ export default function ProfilePage() {
                     <span className="text-slate-500 dark:text-slate-400 ml-1">Mutual</span>
                   </span>
                   {/* Degree (1st/2nd/3rd) — signed-in + scored viewers, not your own profile. */}
-                  {hasSessionToken() && !isOwnProfile && user?.pubkey && hexPubkey &&
+                  {hasSession && !isOwnProfile && user?.pubkey && hexPubkey &&
                     localStorage.getItem("brainstorm_calc_completed") === "true" && (
-                      <DegreeChip fromPubkey={user.pubkey} toPubkey={hexPubkey} rawId={npubParam} variant="bold" />
+                      <DegreeChip fromPubkey={user.pubkey} toPubkey={hexPubkey} rawId={npubParam} pov="personalized" variant="bold" />
                     )}
                   {theyFollowMe && (
                     <span className="inline-flex items-center gap-1 rounded-full bg-brand-primary/10 dark:bg-brand-primary/10 px-2 py-0.5 text-[11px] font-semibold text-brand-link" data-testid="badge-follows-you">
@@ -2354,6 +2373,8 @@ export default function ProfilePage() {
                             onMouseLeave={() => setFollowHovered(false)}
                             onClick={async () => {
                               const result = following ? await social.unfollow(hexPubkey) : await social.follow(hexPubkey);
+                              // A declined unlock is a deliberate no — say nothing.
+                              if (result.cancelled) { setFollowHovered(false); return; }
                               if (result.success) {
                                 toast({ title: following ? "Unfollowed" : "Followed", description: following ? "Removed from your contact list" : "Added to your contact list" });
                               } else {
@@ -2412,6 +2433,7 @@ export default function ProfilePage() {
                                 className="cursor-pointer"
                                 onClick={async () => {
                                   const result = muted ? await social.unmute(hexPubkey) : await social.mute(hexPubkey);
+                                  if (result.cancelled) return;
                                   if (result.success) {
                                     toast({ title: muted ? "Unmuted" : "Muted", description: muted ? "Removed from your mute list" : "Added to your mute list" });
                                   } else {
@@ -2432,6 +2454,7 @@ export default function ProfilePage() {
                                 const snapshot = myReport;
                                 setMyReport(null); // optimistic: chip + menu flip instantly
                                 const result = await social.unreport(hexPubkey);
+                                if (result.cancelled) { setMyReport(snapshot); return; }
                                 if (result.success) {
                                   toast({ title: "Report removed", description: "Scores may take a little while to reflect this." });
                                 } else {
@@ -3290,6 +3313,7 @@ export default function ProfilePage() {
               disabled={social.isPending("report", hexPubkey) || social.isAnyPending}
               onClick={async () => {
                 const result = await social.report(hexPubkey, reportReason);
+                if (result.cancelled) return;
                 if (result.success) {
                   // Show the "you reported this" state immediately — the dialog's
                   // own spinner already covered the publish; don't wait on a relay refetch.

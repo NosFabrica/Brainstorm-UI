@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import type { NostrUser } from '@/services/nostr';
+import type { AccountDisplay } from '@/accounts/display';
 import { Wordmark } from '@/components/Wordmark';
 import { AppHeader } from '@/components/AppHeader';
 import { SignInButton } from '@/components/SignInButton';
@@ -7,7 +7,7 @@ import { NormalModeIcon, TechModeIcon } from '@/components/WotIcons';
 import type { UserMode } from './data';
 
 interface WotNavProps {
-  user: NostrUser | null;
+  user: AccountDisplay | null;
   mode: UserMode;
   setMode: (mode: UserMode) => void;
   onLogout: () => void;

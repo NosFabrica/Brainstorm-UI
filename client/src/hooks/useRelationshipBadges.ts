@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useSocialActions } from "@/hooks/useSocialActions";
 import {
   fetchContactList,
@@ -32,7 +32,7 @@ export interface RelationshipBadges {
  * (["they-follow-me", …] / ["my-report", …]) so /p ↔ /profile share one cache.
  */
 export function useRelationshipBadges(targetPubkey: string | undefined): RelationshipBadges {
-  const [currentUser] = useCurrentUser();
+  const currentUser = useActiveAccountDisplay();
   const myPubkey = currentUser?.pubkey;
   const social = useSocialActions(myPubkey);
 

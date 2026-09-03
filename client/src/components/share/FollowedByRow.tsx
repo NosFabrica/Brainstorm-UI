@@ -1,8 +1,9 @@
 import { Link } from "wouter";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { useTierRing } from "@/components/score/VerificationCoin";
 
-export type FollowedByPerson = { pubkey: string; name?: string; picture?: string };
+export type FollowedByPerson = { pubkey: string; name?: string; picture?: string; score01?: number | null };
 
 // Compact count so the line stays a uniform width across users: 7,218 → 7.2k,
 // 1,234,567 → 1.2M; anything under 1,000 stays exact. Lowercase k, uppercase M.
@@ -20,6 +21,7 @@ function compactCount(n: number): string {
  * placed right under the stats. Links to the full followers list.
  */
 export function FollowedByRow({ people, total, href, stacked = false }: { people: FollowedByPerson[]; total: number | null; href: string; stacked?: boolean }) {
+  const tierRing = useTierRing();
   if (people.length === 0) return null;
   const named = people.map((p) => p.name).filter((n): n is string => !!n);
   const lead = named.slice(0, 2);
@@ -39,9 +41,9 @@ export function FollowedByRow({ people, total, href, stacked = false }: { people
       className={`group ${stacked ? "flex flex-col items-start gap-2" : "mt-2.5 inline-flex items-center gap-2"}`}
       data-testid="share-followed-by"
     >
-      <div className="flex -space-x-2">
+      <div className="flex -space-x-1">
         {people.slice(0, 5).map((p) => (
-          <Avatar key={p.pubkey} className="h-6 w-6 rounded-full bg-white dark:bg-slate-900 ring-2 ring-white dark:ring-slate-900">
+          <Avatar key={p.pubkey} className={`h-6 w-6 rounded-full bg-white dark:bg-slate-900 ${tierRing(p.score01, false, "sm", true) ?? "ring-2 ring-white dark:ring-slate-900"}`}>
             {p.picture ? <AvatarImage src={p.picture} alt="" className="object-cover" /> : null}
             <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
           </Avatar>

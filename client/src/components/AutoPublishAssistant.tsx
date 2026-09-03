@@ -1,9 +1,11 @@
-import { useEffect, useRef } from "react";
-import { hasSessionToken } from "@/services/api";
-import { getCurrentUser } from "@/services/nostr";
+import {useEffect} from "react";
+import { useOncePerPubkey } from "@/hooks/useOncePerPubkey";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { getCurrentAssistantPubkey } from "@/lib/assistantStorage";
 import { ensureAssistantPublished } from "@/lib/assistantPublish";
 import { useSelfHistory } from "@/hooks/useSelf";
+import { identityHas } from "@/accounts/display";
+import { useHasSession } from "@/hooks/useHasSession";
 
 /**
  * New (in-app-created) accounts get their Brainstorm Assistant published
@@ -21,27 +23,24 @@ import { useSelfHistory } from "@/hooks/useSelf";
  * Renders nothing; mount once at the app root.
  */
 export function AutoPublishAssistant() {
-  const user = getCurrentUser();
-  const pk = hasSessionToken() ? user?.pubkey : undefined;
+  const user = useActiveAccountDisplay();
+  const pk = useHasSession() ? user?.pubkey : undefined;
   // Wait for /user/history to settle so we don't act before ta_pubkey is known.
   const history = useSelfHistory(pk);
-  const fired = useRef(false);
+  const once = useOncePerPubkey();
 
   useEffect(() => {
-    if (fired.current || !pk || !history.isSuccess) return;
+    if (!pk || once.done(pk) || !history.isSuccess) return;
 
-    let createdInApp = false;
-    try {
-      createdInApp = localStorage.getItem(`brainstorm_created_inapp:${pk}`) === "true";
-    } catch { /* ignore */ }
+    const createdInApp = identityHas(pk, "createdInApp");
     if (!createdInApp) return; // existing user — manual publish only
     if (getCurrentAssistantPubkey()) return; // already published
 
     const taPubkey = (history.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data?.ta_pubkey;
     if (!taPubkey) return; // not scored yet — nothing for the bot to speak
 
-    fired.current = true;
-    void ensureAssistantPublished({ follow: false }).catch(() => { /* retries next load */ });
+    once.mark(pk);
+    void ensureAssistantPublished({ follow: false, background: true }).catch(() => { /* retries next load */ });
   }, [pk, history.isSuccess, history.data]);
 
   return null;

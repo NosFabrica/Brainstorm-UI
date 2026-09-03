@@ -10,6 +10,7 @@ import { apiClient } from "@/services/api";
 import { fetchProfileMap } from "@/services/nostr";
 import { fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
 import { nip19 } from "nostr-tools";
+import { accountKey } from "@/lib/accountStorage";
 
 export interface NewJoiner {
   pubkey: string;
@@ -18,7 +19,7 @@ export interface NewJoiner {
   picture?: string;
 }
 
-const knownKey = (pk: string) => `brainstorm_known_followers:${pk}`;
+const knownKey = (pk: string) => accountKey("brainstorm_known_followers", pk);
 /** QA override: home is auth-gated, so preview drives canned joiners via this key. */
 const DEMO_KEY = "brainstorm_invite_demo";
 const MAX_SHOWN = 8;

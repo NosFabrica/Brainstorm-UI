@@ -1,19 +1,24 @@
 import { useMemo, useState } from "react";
 import { useRoute, Redirect, Link, useLocation } from "wouter";
+import { useGoBack } from "@/hooks/useGoBack";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Users, SlidersHorizontal } from "lucide-react";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
-import { fetchProfileForShare, fetchProfileMap, fetchReportsForPubkey, logout, type ReportMetadata } from "@/services/nostr";
+import { fetchProfileForShare, fetchProfileMap, fetchReportsForPubkey, type ReportMetadata } from "@/services/nostr";
+import { logout } from "@/accounts/login-flow";
 import { AccountMenu } from "@/components/AccountMenu";
-import { useCurrentUser } from "@/hooks/useCurrentUser";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { REPORT_TYPE_BADGE_COLORS, formatReportTime } from "@/lib/reportMeta";
-import { apiClient, hasSessionToken } from "@/services/api";
+import { apiClient } from "@/services/api";
 import { toPubkeys, toInfluenceMap, type GraphEntry } from "@/services/graphHelpers";
 import { Wordmark } from "@/components/Wordmark";
 import { InfoHint } from "@/components/InfoHint";
-import { TrustScoreModal, useScorePov, PovToggle } from "@/components/score/TrustScorePov";
+import { TrustScoreModal, useScorePov, PovToggle, type ScorePov } from "@/components/score/TrustScorePov";
+import { VerificationCoin } from "@/components/score/VerificationCoin";
+import { useHasSession } from "@/hooks/useHasSession";
 import { PersonListRow } from "@/components/PersonListRow";
 import { TIER_LABELS } from "@/services/trustThreshold";
+import { useTierGranularity } from "@/hooks/useTierGranularity";
 
 type ConnKind = "followed_by" | "following" | "muted_by" | "reported_by";
 
@@ -31,9 +36,10 @@ const PAGE = 20;
 
 export default function ConnectionListPage() {
   const [, navigate] = useLocation();
+  const goBack = useGoBack();
   const [, params] = useRoute("/p/:id/:type");
-  const [me, setMe] = useCurrentUser();
-  const handleLogout = () => { logout(); setMe(null); };
+  const me = useActiveAccountDisplay();
+  const handleLogout = () => logout();
   const rawId = params?.id || "";
   const type = params?.type || "";
   const decoded = useMemo(() => decodeShareId(rawId), [rawId]);
@@ -44,7 +50,7 @@ export default function ConnectionListPage() {
   // POV: honors the sitewide score-POV toggle. Personalized needs a signed-in
   // viewer with calculated scores; otherwise (or when the viewer chose Global)
   // the house perspective serves — `house: true` forces the unauthenticated view.
-  const signedIn = hasSessionToken();
+  const signedIn = useHasSession();
   const calcDone = (() => { try { return localStorage.getItem("brainstorm_calc_completed") === "true"; } catch { return false; } })();
   const { pov: scorePov } = useScorePov();
   const [scoreExplainOpen, setScoreExplainOpen] = useState(false);
@@ -55,6 +61,11 @@ export default function ConnectionListPage() {
   // stays honest (no client-side reshuffling of partial pages).
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [tierFilter, setTierFilter] = useState<"all" | "high" | "medium_high" | "medium" | "medium_low">("all");
+  // Decision 7, with a constraint: the backend's `tier` filter is one bucket at a
+  // time and can't express "Verified = every tier above the line", so under
+  // Simple the five-shade chips are hidden rather than mislabelled. The rows'
+  // coins already show the bucket.
+  const [granularity] = useTierGranularity();
   const [sortOrder, setSortOrder] = useState<"desc" | "asc">("desc");
 
   // Subject profile — reuse SharePage's cache key so a click from /p/:id is warm.
@@ -196,10 +207,7 @@ export default function ConnectionListPage() {
               fallback when there's no history to pop. */}
           <button
             type="button"
-            onClick={() => {
-              if (typeof window !== "undefined" && window.history.length > 1) window.history.back();
-              else navigate(`/p/${rawId}`);
-            }}
+            onClick={() => goBack(`/p/${rawId}`)}
             className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-100 hover:text-slate-900 dark:hover:text-white transition-colors"
             data-testid="conn-back"
           >
@@ -258,6 +266,7 @@ export default function ConnectionListPage() {
                   narrower phone. `-mx-3 px-3` bleeds the scroll area to the card
                   edge so it reads as scrollable; from `sm:` up there's room, so it
                   reverts to a plain wrapping row. Scrollbars are hidden app-wide. */}
+              {granularity === "detailed" && (
               <div>
                 <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Trust level</span>
                 <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">
@@ -274,6 +283,7 @@ export default function ConnectionListPage() {
                   ))}
                 </div>
               </div>
+              )}
               <div>
                 <span className="mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Sort</span>
                 <div className="-mx-3 flex gap-1.5 overflow-x-auto px-3 sm:mx-0 sm:flex-wrap sm:overflow-visible sm:px-0">

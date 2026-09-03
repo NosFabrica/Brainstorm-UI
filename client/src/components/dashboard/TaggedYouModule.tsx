@@ -5,10 +5,11 @@ import { Tag as TagIcon, X } from "lucide-react";
 import { FacePile, NameList } from "@/components/tags/FacePile";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
-import { fetchProfileMap, getCurrentUser } from "@/services/nostr";
+import { fetchProfileMap } from "@/services/nostr";
 import { useProfileTags } from "@/hooks/useTags";
 import { npubFromPubkey } from "@/lib/shareId";
 import { relativeTimeShort } from "@/lib/relativeTime";
+import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 
 /**
  * "Alice and Bob tagged you as Musician."
@@ -56,7 +57,7 @@ function readWatermark(pubkey?: string): number {
 }
 
 export function TaggedYouModule() {
-  const viewerPubkey = getCurrentUser()?.pubkey;
+  const viewerPubkey = useActiveAccountDisplay()?.pubkey;
   const { data } = useProfileTags(viewerPubkey);
   // Read once per mount. Re-reading on every render would make the list vanish
   // mid-glance the moment anything wrote the key.

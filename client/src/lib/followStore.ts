@@ -7,6 +7,7 @@
  * can only *grow* the known count, never shrink it; our own guarded publishes
  * set it authoritatively.
  */
+import { accountKey } from "@/lib/accountStorage";
 
 export interface FollowEventLike {
   pubkey: string;
@@ -24,7 +25,7 @@ interface StoredFollowList {
   updated_at: number;
 }
 
-const storageKey = (pubkey: string) => `brainstorm_known_follows:${pubkey}`;
+const storageKey = (pubkey: string) => accountKey("brainstorm_known_follows", pubkey);
 
 export function countFollows(tags: string[][]): number {
   let n = 0;

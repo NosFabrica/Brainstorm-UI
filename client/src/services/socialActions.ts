@@ -1,6 +1,18 @@
-import { pool, PROFILE_RELAYS, publishToRelays, getCurrentUser, loadOutboxRelayListFromDb, signEventLocally } from "./nostr";
-import { apiClient, hasSessionToken } from "./api";
+import { ContactsFactory } from "applesauce-common/factories";
+import { MuteListFactory } from "applesauce-common/factories";
+import { verifyEvent } from "nostr-tools";
+
+import { publishToRelays, loadOutboxRelayListFromDb, fetchOutboxRelayList } from "./nostr";
+import { requestAll, requestNewest, requestNewestRaw } from "@/lib/relayRequest";
+import { PROFILE_RELAYS } from "@/lib/relays";
+import { eventStore } from "@/lib/eventStore";
+import { isRelayUrl } from "@/config/tagging";
+import { identityHas } from "@/accounts/display";
+import { activeAccount, signAs, signingFailure, type PublishOutcome } from "@/accounts/signing";
+import type { BrainstormAccount } from "@/accounts/metadata";
+import { apiClient } from "./api";
 import { loadKnownFollowList, recordFollowList, knownFollowCount, countFollows } from "@/lib/followStore";
+import { activeHasSession } from "@/accounts/session";
 
 /**
  * Ingest a freshly-signed kind-3 follow list into the backend synchronously, so
@@ -11,7 +23,7 @@ import { loadKnownFollowList, recordFollowList, knownFollowCount, countFollows }
  * Best-effort — failure never blocks the follow (relays remain the source of truth).
  */
 async function ingestFollowList(signed: Record<string, unknown>): Promise<void> {
-  if (!hasSessionToken()) return; // must be logged in
+  if (!activeHasSession()) return; // must be logged in
   const backoffMs = [600, 1500, 3000];
   for (let attempt = 0; attempt <= backoffMs.length; attempt++) {
     try {
@@ -62,37 +74,11 @@ function pickAuthoritativeBase(candidates: (NostrEvent | null | undefined)[]): N
   return best;
 }
 
-function fetchReplaceableEvent(pubkey: string, kind: number, timeoutMs = 10000): Promise<NostrEvent | null> {
-  return new Promise((resolve) => {
-    const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
-
-    let latest: NostrEvent | null = null;
-    const timer = setTimeout(() => resolve(latest), timeoutMs);
-
-    pool.request(writeRelays, { kinds: [kind], authors: [pubkey], limit: 5 }).subscribe({
-      next: (event: any) => {
-        if (!latest || event.created_at > latest.created_at) {
-          latest = {
-            id: event.id,
-            pubkey: event.pubkey,
-            created_at: event.created_at,
-            kind: event.kind,
-            tags: event.tags,
-            content: event.content,
-            sig: event.sig,
-          };
-        }
-      },
-      error: () => {
-        clearTimeout(timer);
-        resolve(latest);
-      },
-      complete: () => {
-        clearTimeout(timer);
-        resolve(latest);
-      },
-    });
-  });
+/** The newest kind-3 or kind-10000 across the user's write relays. */
+async function fetchReplaceableEvent(pubkey: string, kind: number, timeoutMs = 10000): Promise<NostrEvent | null> {
+  const relays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS);
+  const newest = await requestNewest(relays, { kinds: [kind], authors: [pubkey], limit: 5 }, timeoutMs);
+  return (newest as NostrEvent) ?? null;
 }
 
 export async function fetchContactList(pubkey: string): Promise<NostrEvent | null> {
@@ -127,82 +113,170 @@ export function getMutedPubkeys(muteList: NostrEvent | null): Set<string> {
  * snapshot}. Returns `{ base: null }` when we can't confirm a base AND the user
  * is known to follow people — the caller MUST abort rather than publish, or it
  * would wipe the list.
+ *
+ * `unverifiedNew` is the residual hole `unsafe` can't see: nothing found
+ * anywhere AND the floor is 0 AND the key was NOT minted in this app. That is
+ * either a genuinely-new key or an existing user whose list we simply failed to
+ * reach (fresh device, relays down, kind-10002 not loaded) — and the two are
+ * indistinguishable from here, because a relay timeout and "no kind-3 exists"
+ * both come back empty. Before concluding, we warm the outbox list (ingests the
+ * kind-10002 into the eventStore, so the retry asks the user's REAL write
+ * relays, not just the hardcoded PROFILE_RELAYS) and look once more. Still
+ * nothing → the caller must NOT publish from scratch without explicit user
+ * confirmation: a from-scratch kind-3 carries a newer created_at and would
+ * replace whatever list actually exists.
  */
 async function resolveContactBase(
   pubkey: string,
   cached?: NostrEvent | null,
-): Promise<{ base: NostrEvent | null; known: number; unsafe: boolean }> {
+): Promise<{ base: NostrEvent | null; known: number; unsafe: boolean; unverifiedNew: boolean }> {
   const known = knownFollowCount(pubkey);
   const fresh = cached ?? (await fetchContactList(pubkey));
   const stored = loadKnownFollowList(pubkey)?.event as NostrEvent | undefined;
-  const base = pickAuthoritativeBase([cached, fresh, stored]);
+  let base = pickAuthoritativeBase([cached, fresh, stored]);
+  const mintedHere = identityHas(pubkey, "createdInApp");
+  if (!base && !mintedHere) {
+    try { await fetchOutboxRelayList(pubkey); } catch { /* best-effort warm */ }
+    base = pickAuthoritativeBase([await fetchContactList(pubkey), stored]);
+  }
   // Unsafe = we have no usable base, or the best base is shorter than what we
   // know the user follows (a stale/short relay read). Either way, don't publish.
   const baseCount = base ? countFollows(base.tags) : 0;
   const unsafe = (!base && known > 0) || (known > 0 && baseCount < known);
-  return { base, known, unsafe };
+  const unverifiedNew = !base && known === 0 && !mintedHere;
+  return { base, known, unsafe, unverifiedNew };
 }
 
+const NOT_LOGGED_IN: PublishOutcome = { success: false, error: "Not logged in" };
+
+/**
+ * A follow publish can fail one way no other publish can: we couldn't confirm
+ * whether this key already has a follow list somewhere. `needsBaseConfirmation`
+ * means nothing was published and the caller must either retry later or ask the
+ * user the one question only they can answer — "have you ever followed anyone
+ * with this key?" — and re-call with `allowFromScratch: true`.
+ */
+export type FollowOutcome = PublishOutcome & { needsBaseConfirmation?: boolean };
+
+export interface FollowOptions {
+  /** The user explicitly confirmed this key has no prior follow list. */
+  allowFromScratch?: boolean;
+  /**
+   * A verified kind-3 the caller already holds — e.g. one just recovered from a
+   * user-named relay. Weighed as a base candidate, so the merge builds on it
+   * even if the floor write silently failed (private mode) and relays are quiet.
+   */
+  cachedBase?: NostrEvent | null;
+}
+
+const UNCONFIRMED_BASE: FollowOutcome = {
+  success: false,
+  needsBaseConfirmation: true,
+  error: "We couldn't confirm an existing follow list for this key — try again in a moment.",
+};
+
+/** A `p` tag naming this pubkey — how every follow and mute list is indexed. */
+const isPTagFor = (pubkey: string) => (tag: string[]) => tag[0] === "p" && tag[1] === pubkey;
+
+/**
+ * The factory builds the tags; the base event stays ours.
+ *
+ * `applesauce-actions`' `FollowUser` is deliberately not used: its
+ * `modifyContacts` races the store for a second and, on a miss, publishes a fresh
+ * empty list over the user's real one — the wipe `resolveContactBase` exists to
+ * prevent.
+ */
 async function publishContactList(
-  user: { pubkey: string },
+  account: BrainstormAccount,
   base: NostrEvent | null,
-  newTags: string[][],
-): Promise<{ success: boolean; error?: string }> {
-  const event: Record<string, unknown> = {
-    kind: 3,
-    tags: withClientTag(newTags),
-    content: base?.content || "",
-    created_at: Math.floor(Date.now() / 1000),
-    pubkey: user.pubkey,
-  };
+  build: (factory: ContactsFactory) => ContactsFactory,
+): Promise<PublishOutcome> {
   try {
-    const signed = await signEventLocally(event);
+    const draft = await build(
+      base ? ContactsFactory.modify(base as never) : ContactsFactory.create(),
+    );
+    const signed = await signAs(account, {
+      kind: 3,
+      tags: withClientTag(draft.tags),
+      content: base?.content || "",
+    });
     const res = await publishToRelays(signed);
     if (res.success) {
-      recordFollowList(user.pubkey, signed as any, { authoritative: true });
+      recordFollowList(account.pubkey, signed as any, { authoritative: true });
       // GATE: ingest the follows server-side and WAIT for it before returning, so
       // the caller's subsequent GrapeRank trigger scores fresh follows (not stale
       // relay-propagation state). Best-effort — never fails the follow.
       await ingestFollowList(signed);
+      // "Accepted" is a relay's OK frame, not proof our event is now the newest
+      // kind-3 out there. Verify in the background and warn if it isn't.
+      void verifyPublishedContactList(signed as unknown as NostrEvent);
     }
     return res;
-  } catch (e: any) {
-    return { success: false, error: e?.message || "Signing failed" };
+  } catch (e) {
+    return signingFailure(e);
   }
 }
 
-export async function followUser(targetPubkey: string, cachedContactList?: NostrEvent | null): Promise<{ success: boolean; error?: string }> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) return { success: false, error: "Not logged in" };
-  if (user.pubkey === targetPubkey) return { success: false, error: "Cannot follow yourself" };
+/**
+ * Post-publish check that our kind-3 actually became the user's newest contact
+ * list on their write relays. If the newest event out there is someone else's
+ * (a race with another client) or ours vanished AND what's there is shorter
+ * than what we published, the follows the user just made may not stick — say
+ * so instead of leaving them to find out weeks later. Never throws; the floor
+ * is NOT touched here (recordFollowList already stored our own signed event).
+ */
+async function verifyPublishedContactList(published: NostrEvent): Promise<void> {
+  try {
+    // Give propagation a beat; an instant read mostly measures relay latency.
+    await new Promise((r) => setTimeout(r, 3000));
+    const newest = await fetchContactList(published.pubkey);
+    if (!newest) return; // relays quiet — nothing to conclude
+    if (newest.id && published.id && newest.id === published.id) return; // landed
+    if (countFollows(newest.tags) >= countFollows(published.tags)) return; // superseded by a longer list — fine
+    const { toast } = await import("@/hooks/use-toast");
+    toast({
+      variant: "destructive",
+      title: "Your follow list may not have saved",
+      description: "A relay is still serving an older list. Check your follows in a moment and retry if anything is missing.",
+    });
+  } catch { /* best-effort */ }
+}
 
-  const { base, unsafe } = await resolveContactBase(user.pubkey, cachedContactList);
+export async function followUser(
+  targetPubkey: string,
+  cachedContactList?: NostrEvent | null,
+  opts: FollowOptions = {},
+): Promise<FollowOutcome> {
+  const account = activeAccount();
+  if (!account) return NOT_LOGGED_IN;
+  if (account.pubkey === targetPubkey) return { success: false, error: "Cannot follow yourself" };
+
+  const { base, unsafe, unverifiedNew } = await resolveContactBase(account.pubkey, cachedContactList);
   if (unsafe) {
     return { success: false, error: "Couldn't load your full follow list — try again in a moment." };
   }
-  if (base) recordFollowList(user.pubkey, base as any); // remember the largest seen
-  const baseTags = base?.tags ?? []; // brand-new account: genuinely empty list
+  if (unverifiedNew && !opts.allowFromScratch) return UNCONFIRMED_BASE;
+  if (base) recordFollowList(account.pubkey, base as any); // remember the largest seen
+  const baseTags = base?.tags ?? []; // confirmed new key (or user-confirmed): genuinely empty list
 
-  if (baseTags.some(t => t[0] === "p" && t[1] === targetPubkey)) return { success: true };
+  if (baseTags.some(isPTagFor(targetPubkey))) return { success: true };
 
-  const newTags = [...baseTags, ["p", targetPubkey]];
-  return publishContactList(user, base, newTags);
+  return publishContactList(account, base, (f) => f.addContact(targetPubkey));
 }
 
-export async function unfollowUser(targetPubkey: string, cachedContactList?: NostrEvent | null): Promise<{ success: boolean; error?: string }> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) return { success: false, error: "Not logged in" };
+export async function unfollowUser(targetPubkey: string, cachedContactList?: NostrEvent | null): Promise<PublishOutcome> {
+  const account = activeAccount();
+  if (!account) return NOT_LOGGED_IN;
 
-  const { base, unsafe } = await resolveContactBase(user.pubkey, cachedContactList);
+  const { base, unsafe } = await resolveContactBase(account.pubkey, cachedContactList);
   if (unsafe || !base) {
     return { success: false, error: "Couldn't load your full follow list — try again in a moment." };
   }
-  recordFollowList(user.pubkey, base as any);
+  recordFollowList(account.pubkey, base as any);
 
-  if (!base.tags.some(t => t[0] === "p" && t[1] === targetPubkey)) return { success: true };
+  if (!base.tags.some(isPTagFor(targetPubkey))) return { success: true };
 
-  const newTags = base.tags.filter(t => !(t[0] === "p" && t[1] === targetPubkey));
-  return publishContactList(user, base, newTags);
+  return publishContactList(account, base, (f) => f.removeContact(targetPubkey));
 }
 
 /**
@@ -211,103 +285,163 @@ export async function unfollowUser(targetPubkey: string, cachedContactList?: Nos
  * authoritative base (empty for a brand-new account) and never shrinks an
  * existing list.
  */
-export async function followPubkeys(targetPubkeys: string[]): Promise<{ success: boolean; error?: string }> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) return { success: false, error: "Not logged in" };
-  const wanted = targetPubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk) && pk !== user.pubkey);
+export async function followPubkeys(
+  targetPubkeys: string[],
+  opts: FollowOptions = {},
+): Promise<FollowOutcome> {
+  const account = activeAccount();
+  if (!account) return NOT_LOGGED_IN;
+  const wanted = targetPubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk) && pk !== account.pubkey);
   if (!wanted.length) return { success: false, error: "No valid accounts to follow" };
 
-  const { base, unsafe } = await resolveContactBase(user.pubkey);
+  const { base, unsafe, unverifiedNew } = await resolveContactBase(account.pubkey, opts.cachedBase);
   if (unsafe) {
     return { success: false, error: "Couldn't load your full follow list — try again in a moment." };
   }
-  if (base) recordFollowList(user.pubkey, base as any);
+  if (unverifiedNew && !opts.allowFromScratch) return UNCONFIRMED_BASE;
+  if (base) recordFollowList(account.pubkey, base as any);
   const baseTags = base?.tags ?? [];
-  const have = new Set(baseTags.filter(t => t[0] === "p").map(t => t[1]));
-  const additions = wanted.filter(pk => !have.has(pk)).map(pk => ["p", pk]);
+  const have = new Set(baseTags.filter((t) => t[0] === "p").map((t) => t[1]));
+  const additions = wanted.filter((pk) => !have.has(pk));
   if (!additions.length) return { success: true };
 
-  const newTags = [...baseTags, ...additions];
-  return publishContactList(user, base, newTags);
+  return publishContactList(account, base, (f) =>
+    additions.reduce((acc, pk) => acc.addContact(pk), f),
+  );
 }
 
-export async function muteUser(targetPubkey: string, cachedMuteList?: NostrEvent | null): Promise<{ success: boolean; error?: string }> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) return { success: false, error: "Not logged in" };
-  if (user.pubkey === targetPubkey) return { success: false, error: "Cannot mute yourself" };
+export type RecoverFollowListOutcome =
+  | { found: true; event: NostrEvent; follows: number }
+  | { found: false; error?: string };
 
-  const current = cachedMuteList ?? await fetchMuteList(user.pubkey);
+/** `found: false` with no `error` — the relay answered and simply has no list. */
+const RELAY_HAS_NO_LIST: RecoverFollowListOutcome = { found: false };
+
+/**
+ * Search ONE user-named relay for this Account's kind-3 — the recovery path out
+ * of the "we couldn't find an existing follow list" dialog, for users who know
+ * where their list lives. The relay is untrusted input, so the read bypasses
+ * the event store and nothing is kept unless it survives `verifyEvent` and was
+ * signed by this Account.
+ *
+ * On success the list is recorded as the local floor and handed to the backend
+ * (`ingestFollowList`, fire-and-forget) so scoring can run on real follows. It
+ * is deliberately NOT rebroadcast to our relays — the caller resumes the merge
+ * flow with it as `cachedBase`, and that publish puts the updated list out. A
+ * verified kind-10002 found alongside it IS ingested, so the merge publish
+ * reaches the Account's real write relays.
+ */
+export async function recoverFollowListFromRelay(
+  pubkey: string,
+  relayUrl: string,
+  timeoutMs = 8000,
+): Promise<RecoverFollowListOutcome> {
+  const url = relayUrl.trim().replace(/\/+$/, "");
+  if (!isRelayUrl(url)) {
+    return { found: false, error: "That doesn't look like a relay address — it should start with wss://" };
+  }
+
+  const fetchKind = (kind: number) =>
+    requestNewestRaw([url], { kinds: [kind], authors: [pubkey], limit: 5 }, timeoutMs);
+
+  // The kind-10002 rides along on the same connection but never gates the
+  // outcome — it only helps the later merge publish find the real write relays.
+  const outboxRide = fetchKind(10002).catch(() => undefined);
+
+  let event: NostrEvent | undefined;
+  try {
+    event = (await fetchKind(3)) as NostrEvent | undefined;
+  } catch {
+    return { found: false, error: "Couldn't reach that relay — check the address and try again." };
+  }
+  if (!event) return RELAY_HAS_NO_LIST;
+
+  // `authors` in the filter is a request, not a guarantee — the relay can
+  // return anything. Only a list provably signed by this Account counts.
+  if (!isVerifiedOwn(event, pubkey, 3)) {
+    return { found: false, error: "That relay returned an invalid copy of your follow list, so we can't use it." };
+  }
+
+  recordFollowList(pubkey, event as never); // observed read — the floor only grows
+  eventStore.add(event as never); // verified, so the shared store may have it now
+
+  const outbox = (await outboxRide) as NostrEvent | undefined;
+  if (outbox && isVerifiedOwn(outbox, pubkey, 10002)) eventStore.add(outbox as never);
+
+  void ingestFollowList(event as never); // feed scoring early; no-session/429 handled inside
+
+  return { found: true, event, follows: countFollows(event.tags) };
+}
+
+/** Cryptographically this Account's own event of the expected kind. */
+function isVerifiedOwn(event: NostrEvent, pubkey: string, kind: number): boolean {
+  try {
+    return event.kind === kind && event.pubkey === pubkey && verifyEvent(event as never);
+  } catch {
+    return false;
+  }
+}
+
+/** `mutePubkey` touches only `p` tags — a kind-10000 also holds words and threads. */
+async function publishMuteList(
+  account: BrainstormAccount,
+  base: NostrEvent,
+  build: (factory: MuteListFactory) => MuteListFactory,
+): Promise<PublishOutcome> {
+  try {
+    const draft = await build(MuteListFactory.modify(base as never));
+    const signed = await signAs(account, {
+      kind: 10000,
+      tags: withClientTag(draft.tags),
+      content: base.content || "",
+    });
+    return await publishToRelays(signed);
+  } catch (e) {
+    return signingFailure(e);
+  }
+}
+
+export async function muteUser(targetPubkey: string, cachedMuteList?: NostrEvent | null): Promise<PublishOutcome> {
+  const account = activeAccount();
+  if (!account) return NOT_LOGGED_IN;
+  if (account.pubkey === targetPubkey) return { success: false, error: "Cannot mute yourself" };
+
+  const current = cachedMuteList ?? await fetchMuteList(account.pubkey);
   if (!current) return { success: false, error: "Could not fetch your mute list from relays. Please try again." };
 
-  const alreadyMuted = current.tags.some(t => t[0] === "p" && t[1] === targetPubkey);
-  if (alreadyMuted) return { success: true };
+  if (current.tags.some(isPTagFor(targetPubkey))) return { success: true };
 
-  const newTags = [...current.tags, ["p", targetPubkey]];
-  const event: Record<string, unknown> = {
-    kind: 10000,
-    tags: withClientTag(newTags),
-    content: current.content || "",
-    created_at: Math.floor(Date.now() / 1000),
-    pubkey: user.pubkey,
-  };
-
-  try {
-    const signed = await signEventLocally(event);
-    return await publishToRelays(signed);
-  } catch (e: any) {
-    return { success: false, error: e?.message || "Signing failed" };
-  }
+  return publishMuteList(account, current, (f) => f.mutePubkey(targetPubkey));
 }
 
-export async function unmuteUser(targetPubkey: string, cachedMuteList?: NostrEvent | null): Promise<{ success: boolean; error?: string }> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) return { success: false, error: "Not logged in" };
+export async function unmuteUser(targetPubkey: string, cachedMuteList?: NostrEvent | null): Promise<PublishOutcome> {
+  const account = activeAccount();
+  if (!account) return NOT_LOGGED_IN;
 
-  const current = cachedMuteList ?? await fetchMuteList(user.pubkey);
+  const current = cachedMuteList ?? await fetchMuteList(account.pubkey);
   if (!current) return { success: false, error: "Could not fetch your mute list" };
 
-  const wasMuted = current.tags.some(t => t[0] === "p" && t[1] === targetPubkey);
-  if (!wasMuted) return { success: true };
+  if (!current.tags.some(isPTagFor(targetPubkey))) return { success: true };
 
-  const newTags = current.tags.filter(t => !(t[0] === "p" && t[1] === targetPubkey));
-  const event: Record<string, unknown> = {
-    kind: 10000,
-    tags: withClientTag(newTags),
-    content: current.content || "",
-    created_at: Math.floor(Date.now() / 1000),
-    pubkey: user.pubkey,
-  };
-
-  try {
-    const signed = await signEventLocally(event);
-    return await publishToRelays(signed);
-  } catch (e: any) {
-    return { success: false, error: e?.message || "Signing failed" };
-  }
+  return publishMuteList(account, current, (f) => f.unmutePubkey(targetPubkey));
 }
 
-export async function reportUser(targetPubkey: string, reason: string, note?: string): Promise<{ success: boolean; error?: string }> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) return { success: false, error: "Not logged in" };
-  if (user.pubkey === targetPubkey) return { success: false, error: "Cannot report yourself" };
-
-  // NIP-56: the report `reason` is the machine-readable type on the p-tag; any
-  // free-text the reporter adds goes in `content`.
-  const event: Record<string, unknown> = {
-    kind: 1984,
-    tags: [
-      ["p", targetPubkey, reason],
-    ],
-    content: (note ?? "").trim(),
-    created_at: Math.floor(Date.now() / 1000),
-    pubkey: user.pubkey,
-  };
+export async function reportUser(targetPubkey: string, reason: string, note?: string): Promise<PublishOutcome> {
+  const account = activeAccount();
+  if (!account) return NOT_LOGGED_IN;
+  if (account.pubkey === targetPubkey) return { success: false, error: "Cannot report yourself" };
 
   try {
-    const signed = await signEventLocally(event);
+    // NIP-56: the report `reason` is the machine-readable type on the p-tag; any
+    // free-text the reporter adds goes in `content`.
+    const signed = await signAs(account, {
+      kind: 1984,
+      tags: [["p", targetPubkey, reason]],
+      content: (note ?? "").trim(),
+    });
     return await publishToRelays(signed);
-  } catch (e: any) {
-    return { success: false, error: e?.message || "Signing failed" };
+  } catch (e) {
+    return signingFailure(e);
   }
 }
 
@@ -327,18 +461,13 @@ export interface MyReport {
  * user hasn't reported them — drives the "you reported this" state + unreport.
  */
 export async function fetchMyReport(targetPubkey: string, timeoutMs = 8000): Promise<MyReport | null> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) return null;
-  const events: any[] = [];
-  const seen = new Set<string>();
-  const collected = await new Promise<any[]>((resolve) => {
-    const timer = setTimeout(() => resolve(events), timeoutMs);
-    pool.request(PROFILE_RELAYS, { kinds: [1984], authors: [user.pubkey], "#p": [targetPubkey] }).subscribe({
-      next: (ev: any) => { const id = ev?.id; if (id && !seen.has(id)) { seen.add(id); events.push(ev); } },
-      error: () => { clearTimeout(timer); resolve(events); },
-      complete: () => { clearTimeout(timer); resolve(events); },
-    });
-  });
+  const account = activeAccount();
+  if (!account) return null;
+  const collected = await requestAll(
+    PROFILE_RELAYS,
+    { kinds: [1984], authors: [account.pubkey], "#p": [targetPubkey] },
+    timeoutMs,
+  );
   if (!collected.length) return null;
   collected.sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
   const latest = collected[0];
@@ -360,25 +489,19 @@ export async function fetchMyReport(targetPubkey: string, timeoutMs = 8000): Pro
  * report(s) targeting `targetPubkey`. The deletion propagates to relays; the
  * trust-score effect may lag until the backend re-ingests it (surfaced in copy).
  */
-export async function unreportUser(targetPubkey: string): Promise<{ success: boolean; error?: string }> {
-  const user = getCurrentUser();
-  if (!user?.pubkey) return { success: false, error: "Not logged in" };
+export async function unreportUser(targetPubkey: string): Promise<PublishOutcome> {
+  const account = activeAccount();
+  if (!account) return NOT_LOGGED_IN;
   const mine = await fetchMyReport(targetPubkey);
   if (!mine || !mine.eventIds.length) return { success: true }; // nothing to undo
-  const event: Record<string, unknown> = {
-    kind: 5,
-    tags: [
-      ...mine.eventIds.map((id) => ["e", id]),
-      ["k", "1984"],
-    ],
-    content: "",
-    created_at: Math.floor(Date.now() / 1000),
-    pubkey: user.pubkey,
-  };
   try {
-    const signed = await signEventLocally(event);
+    const signed = await signAs(account, {
+      kind: 5,
+      tags: [...mine.eventIds.map((id) => ["e", id]), ["k", "1984"]],
+      content: "",
+    });
     return await publishToRelays(signed);
-  } catch (e: any) {
-    return { success: false, error: e?.message || "Signing failed" };
+  } catch (e) {
+    return signingFailure(e);
   }
 }

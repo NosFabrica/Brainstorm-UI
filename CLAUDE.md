@@ -1,10 +1,16 @@
 # Brainstorm-UI
 
+Production web UI of the Brainstorm/Tapestry estate. The map of the estate's
+repos and deployments is
+[ECOSYSTEM.md](https://github.com/NosFabrica/protocols/blob/main/ECOSYSTEM.md)
+in `NosFabrica/protocols`.
+
 ## Orientation
 
 - **Architecture overview** — [replit.md](replit.md): the routing model (anonymous search-first vs. authenticated), `RequireAuth`/`optionalAuthFetch` data paths, the staging/production API switcher, known backend gaps. Read it before structural work.
+- **Domain model** — [CONTEXT.md](CONTEXT.md) for the vocabulary, [docs/adr/](docs/adr/) for recorded decisions.
 - **Wire formats this UI consumes** — kind-30382 Trusted Assertions and kind-10040 designation are specified in [NosFabrica/protocols](https://github.com/NosFabrica/protocols) ([trusted-assertions.md](https://github.com/NosFabrica/protocols/blob/main/specs/trusted-assertions.md); GrapeRank semantics in [graperank.md](https://github.com/NosFabrica/protocols/blob/main/specs/graperank.md)).
-- **The estate** — this is the production UI; the R&D counterpart is [nous-clawds4/tapestry](https://github.com/nous-clawds4/tapestry). Canonical map: [ECOSYSTEM.md](https://github.com/NosFabrica/protocols/blob/main/ECOSYSTEM.md).
+- **R&D counterpart** — [nous-clawds4/tapestry](https://github.com/nous-clawds4/tapestry), where protocols are piloted before adoption here.
 
 ## Agent skills
 
@@ -18,7 +24,7 @@ Five canonical triage roles, each mapped to its default label string (`needs-tri
 
 ### Domain docs
 
-Single-context layout — one `CONTEXT.md` + `docs/adr/` at the repo root, created lazily on the first `/domain-modeling` run. **Neither exists yet** — don't go looking for them; the server repo's [`CONTEXT.md`](https://github.com/NosFabrica/brainstorm_server/blob/main/CONTEXT.md) shows the target shape. See `docs/agents/domain.md`.
+Single-context layout — [`CONTEXT.md`](CONTEXT.md) + [`docs/adr/`](docs/adr/) at the repo root. Both exist; extend them rather than starting a parallel glossary. See `docs/agents/domain.md`.
 
 ## Design system (use the primitives)
 

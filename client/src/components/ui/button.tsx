@@ -11,6 +11,9 @@ const buttonVariants = cva(
       variant: {
         primary: "bg-brand-primary text-white hover:bg-brand-primary-hover shadow-lg shadow-brand-primary/25 hover:shadow-xl hover:-translate-y-0.5",
         secondary: "border-2 border-brand-link text-brand-link bg-transparent hover:bg-brand-link/10",
+        // Ink on light, white on dark — a high-contrast CTA that stays out of the
+        // accent's way, for the one control on a page that isn't a brand moment.
+        neutral: "bg-foreground text-background hover:bg-foreground/90 shadow-sm dark:shadow-lg dark:shadow-black/30",
         ghost: "hover:bg-muted hover:text-foreground",
         outline: "border border-border bg-card hover:bg-muted hover:border-slate-300 text-foreground",
         destructive: "bg-red-600 text-white hover:bg-red-700 shadow-lg shadow-red-600/30",

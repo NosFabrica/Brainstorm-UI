@@ -3,12 +3,12 @@ import { Wordmark } from "@/components/Wordmark";
 import { AdminBadge } from "@/components/AdminBadge";
 import { type AppKey } from "@/components/AppsLauncher";
 import { AccountMenu } from "@/components/AccountMenu";
-import { isAdminPubkey } from "@/config/adminAccess";
-import { type NostrUser } from "@/services/nostr";
+import { FinishSetupBanner } from "@/components/FinishSetupBanner";
+import { type AccountDisplay } from "@/accounts/display";
 import { type ReactNode } from "react";
 
 interface AppHeaderProps {
-  user: NostrUser;
+  user: AccountDisplay;
   onLogout: () => void;
   calcDone?: boolean;
   active?: AppKey;
@@ -31,13 +31,15 @@ interface AppHeaderProps {
  */
 export function AppHeader({ user, onLogout, calcDone = false, active, actions }: AppHeaderProps) {
   const [, navigate] = useLocation();
-  const isAdmin = isAdminPubkey(user?.pubkey);
+  const isAdmin = user.isAdmin;
 
   return (
     <nav className="sticky top-0 z-40 backdrop-blur-md" data-testid="nav-app-header">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+        {/* Three regions instead of justify-between so the finish-setup banner
+            sits visually centered regardless of how the side clusters differ. */}
+        <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0 justify-self-start">
             {/* Handwritten wordmark — the full brand signature (same as the
                 homepage hero). App-chrome pages (dashboard, network, settings,
                 FAQ, admin, /profile) have no header search bar, so the wordmark
@@ -55,7 +57,11 @@ export function AppHeader({ user, onLogout, calcDone = false, active, actions }:
             </button>
           </div>
 
-          <div className="flex items-center gap-2 sm:gap-3">
+          <div className="flex justify-center min-w-0">
+            <FinishSetupBanner />
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-3 justify-self-end">
             {actions && <div className="hidden lg:flex items-center mr-1">{actions}</div>}
             {isAdmin && <AdminBadge />}
             <AccountMenu user={user} onLogout={onLogout} active={active} />
