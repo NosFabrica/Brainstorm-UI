@@ -271,18 +271,10 @@ export function AppHero({ event }: { event: AppEvent }) {
 
   return (
     <div data-testid="app-hero">
-      {/* The store front, App-Store anatomy: icon · identity+facts · actions.
-          Desktop: actions sit top-right. Phone: the w-full actions block wraps
-          to its own row of equal-width buttons, so the text column keeps the
-          full width instead of squeezing beside empty space. */}
-      <div className="flex flex-wrap items-start gap-x-4 gap-y-3">
-        <div className="h-20 w-20 shrink-0 overflow-hidden rounded-3xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shadow-sm">
-          {icon ? (
-            <img src={icon} alt="" className="h-full w-full object-cover" data-testid="app-hero-icon" />
-          ) : (
-            <Package className="h-8 w-8 text-slate-400 dark:text-slate-500" />
-          )}
-        </div>
+      {/* The store front, Play-Store anatomy: identity + facts flush left,
+          the app icon in the top-right corner, actions on their own row
+          beneath — equal-width buttons on phones, left-aligned from sm up. */}
+      <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
             {name}
@@ -321,14 +313,23 @@ export function AppHero({ event }: { event: AppEvent }) {
             )}
           </div>
         </div>
-        {/* Actions: top-right column on desktop, full-width button row on phones. */}
-        <div className="flex w-full items-center gap-2 sm:w-auto sm:shrink-0 sm:flex-col sm:items-end">
+        <div className="h-20 w-20 shrink-0 overflow-hidden rounded-3xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shadow-sm">
+          {icon ? (
+            <img src={icon} alt="" className="h-full w-full object-cover" data-testid="app-hero-icon" />
+          ) : (
+            <Package className="h-8 w-8 text-slate-400 dark:text-slate-500" />
+          )}
+        </div>
+      </div>
+
+      {/* Actions row: equal-width on phones, left-aligned inline from sm up. */}
+      <div className="mt-3 flex items-center gap-2">
           {url && (
             <a
               href={url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-brand-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 transition-opacity sm:flex-none sm:py-1.5"
+              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-brand-primary px-5 py-2 text-xs font-semibold text-white hover:opacity-90 transition-opacity sm:flex-none sm:py-1.5"
               data-testid="app-hero-get"
             >
               Get it <ExternalLink className="h-3 w-3" />
@@ -339,13 +340,12 @@ export function AppHero({ event }: { event: AppEvent }) {
               href={repository}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-700 px-3.5 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 transition-colors sm:flex-none sm:py-1.5"
+              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-700 px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 transition-colors sm:flex-none sm:py-1.5"
               data-testid="app-hero-source"
             >
               <Code2 className="h-3 w-3" /> Source
             </a>
           )}
-        </div>
       </div>
 
       {/* What's new — the latest release's own notes, not just a version chip.
