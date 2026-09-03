@@ -124,7 +124,7 @@ describe("the person panel's trust reviews", () => {
     await vi.waitFor(() => expect(quote).toHaveTextContent("benjamin"));
     expect(quote).toHaveTextContent("This user created www.relayop.xyz");
     expect(screen.getByTestId("person-reviews-link").getAttribute("href")).toBe("/p/npub1david#trust-reviews");
-    expect(screen.getByTestId("person-reviews-link")).toHaveTextContent("1 trust review");
+    expect(screen.getByTestId("person-reviews-link")).toHaveTextContent("1 review");
   });
 
   it("no vouches, no chip, no quote, no link", async () => {

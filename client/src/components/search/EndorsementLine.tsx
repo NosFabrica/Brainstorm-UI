@@ -23,12 +23,12 @@ import { compactCount } from "@/lib/compactCount";
 import { getDisplayLabel } from "@/lib/profileSearch";
 import { identityConfirmers, quoteFor, rankVouches, tidyName, type PersonEndorsements, type RankedVouch } from "@/services/endorsements";
 
-/** Vouched (an endorsement) or Identity (a claim: "this is really them"). */
+/** Recommends (an endorsement) or Confirms identity (a claim: "this is really them"). */
 export function VouchBadge({ type }: { type: "vouch" | "identity" }) {
   return type === "identity" ? (
-    <Chip size="sm" tone="slate" icon={BadgeCheck}>Identity</Chip>
+    <Chip size="sm" tone="slate" icon={BadgeCheck}>Confirms identity</Chip>
   ) : (
-    <Chip size="sm" tone="success" icon={Heart}>Vouched</Chip>
+    <Chip size="sm" tone="success" icon={Heart}>Recommends</Chip>
   );
 }
 
@@ -228,7 +228,7 @@ export function PanelVouches({ pubkey, npub, personal }: { pubkey: string; npub:
         className="inline-flex items-center gap-1 text-xs font-medium text-brand-primary hover:underline"
         data-testid="person-reviews-link"
       >
-        {compactCount(n)} trust {n === 1 ? "review" : "reviews"} →
+        {compactCount(n)} {n === 1 ? "review" : "reviews"} →
       </Link>
     </div>
   );

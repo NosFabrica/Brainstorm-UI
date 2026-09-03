@@ -22,7 +22,7 @@ export async function publishVouch(subjectPubkey: string, opts: { type: VouchTyp
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
   // A vouch for yourself says nothing; readers skip it too.
-  if (account.pubkey === subjectPubkey) return { success: false, error: "You can't vouch for yourself" };
+  if (account.pubkey === subjectPubkey) return { success: false, error: "You can't review yourself" };
   try {
     const signed = await signAs(account, {
       kind: VOUCH_KIND,

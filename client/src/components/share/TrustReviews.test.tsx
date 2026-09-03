@@ -86,7 +86,7 @@ describe("TrustReviews composer", () => {
     });
     render(<TrustReviews pubkey={SUBJECT} personal={false} />);
     const section = await screen.findByTestId("trust-reviews");
-    expect(section).toHaveTextContent("Be the first to vouch for nathan");
+    expect(section).toHaveTextContent("Be the first to review nathan");
     fireEvent.click(screen.getByTestId("trust-reviews-invite"));
     fireEvent.click(screen.getByTestId("vouch-type-identity"));
     fireEvent.change(screen.getByTestId("vouch-text"), { target: { value: "I know this is really them." } });
@@ -95,7 +95,7 @@ describe("TrustReviews composer", () => {
     // The new review is on the page at once, no refetch.
     const row = await screen.findByTestId("trust-review-new-v");
     expect(row).toHaveTextContent("I know this is really them.");
-    expect(row).toHaveTextContent("Identity");
+    expect(row).toHaveTextContent("Confirms identity");
     expect(screen.queryByTestId("vouch-text")).toBeNull();
   });
 
@@ -168,7 +168,7 @@ describe("TrustReviews", () => {
     });
     render(<TrustReviews pubkey={SUBJECT} personal={false} />);
     const summary = await screen.findByTestId("trust-reviews-summary");
-    await vi.waitFor(() => expect(summary).toHaveTextContent("Vouched by friend & benjamin"));
+    await vi.waitFor(() => expect(summary).toHaveTextContent("Reviewed by friend & benjamin"));
     // Faces, ringed, most trusted first.
     const faces = [...summary.querySelectorAll("[data-face]")].map((f) => f.getAttribute("data-face"));
     expect(faces).toEqual([FRIEND, BEN]);
@@ -268,7 +268,7 @@ describe("TrustReviews", () => {
 
     render(<TrustReviews pubkey={SUBJECT} personal={false} />);
     const section = await screen.findByTestId("trust-reviews");
-    expect(section).toHaveTextContent("Trust reviews");
+    expect(section).toHaveTextContent("Reviews");
     expect(section).toHaveTextContent("3");
     // Order: the friend first, then verified benjamin; the stranger folded.
     const rows = () =>
@@ -276,8 +276,8 @@ describe("TrustReviews", () => {
         .map((e) => e.getAttribute("data-testid")!)
         .filter((id) => !id.startsWith("trust-review-reply-") && !id.startsWith("trust-reviews-"));
     expect(rows()).toEqual(["trust-review-v-friend", "trust-review-v-ben"]);
-    expect(screen.getByTestId("trust-review-v-friend")).toHaveTextContent("Vouched");
-    expect(screen.getByTestId("trust-review-v-ben")).toHaveTextContent("Identity");
+    expect(screen.getByTestId("trust-review-v-friend")).toHaveTextContent("Recommends");
+    expect(screen.getByTestId("trust-review-v-ben")).toHaveTextContent("Confirms identity");
     expect(screen.getByTestId("trust-review-v-ben")).toHaveTextContent("real Nathan Day account");
     // The subject's public answer sits under the vouch it answers.
     await vi.waitFor(() => expect(screen.getByTestId("trust-review-reply-v-ben")).toHaveTextContent("Confirmed, that's me."));

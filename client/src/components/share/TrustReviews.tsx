@@ -1,5 +1,5 @@
 /**
- * The person page's Trust reviews — every Relay Outpost vouch about someone,
+ * The person page's Reviews — every Relay Outpost vouch about someone,
  * in the one order the rest of the product uses (people you follow →
  * verified accounts → the rest folded), each with its type, its words, and
  * the person's own public reply when they answered. A signed-in viewer can
@@ -136,8 +136,8 @@ function VouchComposer({
     <div className="mt-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/60 dark:bg-slate-900/40 p-3" data-testid="vouch-composer">
       {/* Phones stack the two types; the side-by-side pair needs the sm width. */}
       <div className="flex flex-col gap-2 sm:flex-row">
-        {typeButton("vouch", "Vouched", "A general endorsement of this person", Heart)}
-        {typeButton("identity", "Identity", "I personally know this is really them", BadgeCheck)}
+        {typeButton("vouch", "Recommend", "I know this person and recommend them", Heart)}
+        {typeButton("identity", "Confirm identity", "I personally know this is really them", BadgeCheck)}
       </div>
       <Textarea
         value={text}
@@ -245,7 +245,7 @@ export function TrustReviews({
   };
   const summaryFaces = ranked.slice(0, 3).map((r) => ({ pubkey: r.pubkey, name: nameOf(r.pubkey), picture: pictureOf(r.pubkey), score01: r.score }));
   const summaryLabel = endorsementLabel(
-    "Vouched",
+    "Reviewed",
     summaryFaces.map((f) => f.name).filter((n): n is string => !!n),
     new Set(vouches.map((v) => v.pubkey)).size,
   );
@@ -258,7 +258,7 @@ export function TrustReviews({
   return (
     <section className="mt-2.5" id="trust-reviews" data-testid="trust-reviews">
       {/* The summary line — the same anatomy as "Followed by …" above it:
-          reviewer faces + "Vouched by friend & benjamin". Tap to unfold. */}
+          reviewer faces + "Reviewed by friend & benjamin". Tap to unfold. */}
       <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1" data-testid="trust-reviews-summary">
         {vouches.length > 0 ? (
           <button
@@ -285,7 +285,7 @@ export function TrustReviews({
               className="text-left text-xs text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-brand-link hover:underline"
               data-testid="trust-reviews-invite"
             >
-              Be the first to vouch for {subjectName}
+              Be the first to review {subjectName}
             </button>
           )
         )}
@@ -296,7 +296,7 @@ export function TrustReviews({
       {open && vouches.length > 0 && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 dark:border-slate-800/60 pt-3">
           <h2 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Trust reviews <span className="font-normal normal-case tracking-normal text-slate-400 dark:text-slate-500">· {vouches.length}</span>
+            Reviews <span className="font-normal normal-case tracking-normal text-slate-400 dark:text-slate-500">· {vouches.length}</span>
           </h2>
           {/* The secondary door lives in the area that unfolds — the summary
               line above stays a quiet social-proof row. */}
@@ -307,7 +307,7 @@ export function TrustReviews({
               className="inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 px-2.5 py-1 text-[11px] font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 transition-colors"
               data-testid="trust-reviews-write"
             >
-              <PenLine className="h-3 w-3" /> {mine ? "Edit your review" : "Write a trust review"}
+              <PenLine className="h-3 w-3" /> {mine ? "Edit your review" : "Write a review"}
             </button>
           )}
         </div>
@@ -334,7 +334,10 @@ export function TrustReviews({
                 Show {rows.length} more
               </button>
             ) : (
-              <ul className="mt-1.5 space-y-3">
+              <ul className="mt-2 divide-y divide-slate-100 dark:divide-slate-800/60 border-y border-slate-100 dark:border-slate-800/60">
+                {/* Each review is its own enclosed item: hairlines above, between
+                    and below, breathing room inside — the LinkedIn recommendation
+                    list, not a chat log. */}
                 {rows.map((v) => {
                   let npub = "";
                   try {
@@ -345,7 +348,7 @@ export function TrustReviews({
                   const reply = replies.get(v.id);
                   const isMine = v.pubkey === viewer;
                   return (
-                    <li key={v.id} className="flex items-start gap-2.5" data-testid={`trust-review-${v.id}`}>
+                    <li key={v.id} className="flex items-start gap-3 py-3 first:pt-2.5 last:pb-2.5" data-testid={`trust-review-${v.id}`}>
                       <Link href={npub ? `/p/${npub}` : "#"} className="shrink-0">
                         <Avatar className={`h-7 w-7 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(v.score, false, "sm", true) ?? ""}`}>
                           {pictureOf(v.pubkey) ? <AvatarImage src={pictureOf(v.pubkey)} alt="" className="object-cover" /> : null}
@@ -364,15 +367,15 @@ export function TrustReviews({
                           <span className="text-[11px] text-slate-400 dark:text-slate-500">{ago(v.at)}</span>
                         </div>
                         {v.text ? (
-                          <p className="mt-0.5 break-words text-sm leading-relaxed text-slate-700 dark:text-slate-200">
+                          <p className="mt-1 break-words text-sm leading-relaxed text-slate-700 dark:text-slate-200">
                             <NotesInline text={v.text} />
                           </p>
                         ) : (
-                          <p className="mt-0.5 text-xs italic text-slate-400 dark:text-slate-500">Silent vouch · no note</p>
+                          <p className="mt-0.5 text-xs italic text-slate-400 dark:text-slate-500">No note — a review by name alone</p>
                         )}
                         {reply && (
                           <div
-                            className="mt-1.5 rounded-lg border-l-2 border-brand-accent/40 bg-slate-50 dark:bg-slate-800/50 px-2.5 py-1.5"
+                            className="mt-2 rounded-lg border-l-2 border-brand-accent/40 bg-slate-50 dark:bg-slate-800/50 px-3 py-2"
                             data-testid={`trust-review-reply-${v.id}`}
                           >
                             <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">

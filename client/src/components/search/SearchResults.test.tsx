@@ -401,7 +401,7 @@ describe("SearchResults", () => {
       const quote = await screen.findByTestId("person-vouch-0");
       await within(quote).findByText(/benjamin/);
       expect(quote).toHaveTextContent("This user created www.relayop.xyz");
-      expect(quote).toHaveTextContent("Vouched");
+      expect(quote).toHaveTextContent("Recommends");
       expect(quote.querySelector('[class*="shadow-[0_0_0"]')).not.toBeNull();
       expect(screen.queryByTestId("person-followed-by-0")).toBeNull();
     });

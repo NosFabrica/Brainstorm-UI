@@ -881,8 +881,8 @@ export default function SharePage() {
       className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand-primary ${
         hasMyReview ? "text-brand-primary" : "text-slate-500 dark:text-slate-400"
       }`}
-      title={hasMyReview ? "Edit your trust review" : "Write a trust review"}
-      aria-label={hasMyReview ? "Edit your trust review" : "Write a trust review"}
+      title={hasMyReview ? "Edit your review" : "Write a review"}
+      aria-label={hasMyReview ? "Edit your review" : "Write a review"}
       data-testid="share-review"
     >
       <PenLine className="h-4 w-4" />
