@@ -6,7 +6,7 @@
  */
 import { useEffect, useState } from "react";
 import { Link } from "wouter";
-import { ArrowRight, BookOpen, Check, Hash, Users } from "lucide-react";
+import { ArrowRight, BookOpen, Check, Hash, Package, Users } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -80,11 +80,13 @@ export function KnowledgePanel({
   const [person, setPerson] = useState<SearchResult | null>(null);
   const [topicHits, setTopicHits] = useState<SearchHit[] | null>(null);
   const [nipPage, setNipPage] = useState<NostrEvent | null>(null);
+  const [appHits, setAppHits] = useState<SearchHit[] | null>(null);
 
   useEffect(() => {
     setPerson(null);
     setTopicHits(null);
     setNipPage(null);
+    setAppHits(null);
     if (!isPanelableQuery(query)) return;
     let alive = true;
     // A NIP-shaped query is a spec lookup, not a person or topic hunt —
@@ -111,6 +113,17 @@ export function KnowledgePanel({
           if (snapshot.hits.length >= TOPIC_MIN_NOTES && fresh) setTopicHits(snapshot.hits);
         })
       : null;
+    // Apps whose NAME matches the words ride the rail too (Google's app
+    // sidebar) — fuzzy strays with unrelated names are filtered out.
+    const q = norm(query);
+    const cancelApps = searchStream(query, { tab: "apps", pov, userPubkey, limit: 6 }, (snapshot) => {
+      if (!alive || !snapshot.eose) return;
+      const matched = snapshot.hits.filter((h) => {
+        const name = norm(h.event.tags.find((t) => t[0] === "name")?.[1] ?? "");
+        return !!name && (name.includes(q) || q.includes(name));
+      });
+      if (matched.length > 0) setAppHits(matched.slice(0, 3));
+    });
     void suggestProfiles(query, { pov, userPubkey }, { limit: 3 }).then((people) => {
       if (!alive) return;
       const top = people[0];
@@ -119,6 +132,7 @@ export function KnowledgePanel({
     return () => {
       alive = false;
       cancelTopic?.();
+      cancelApps();
     };
   }, [query, pov, userPubkey]);
 
@@ -130,14 +144,15 @@ export function KnowledgePanel({
     topicHits ? [...new Set(topicHits.map((h) => h.event.pubkey))].slice(0, 8) : [],
   );
 
+  let main: JSX.Element | null = null;
   if (nipPage) {
     const d = nipPage.tags.find((t) => t[0] === "d")?.[1] ?? query.trim();
     const heading = d.toUpperCase();
     const title = nipPage.tags.find((t) => t[0] === "title")?.[1];
     const excerpt = specExcerpt(nipPage.content);
-    return (
+    main = (
       <aside
-        className={`w-full rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5 ${className}`}
+        className={`w-full rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5`}
         data-testid="search-nip-panel"
       >
         <div className="flex items-center gap-2.5">
@@ -167,9 +182,7 @@ export function KnowledgePanel({
         </Link>
       </aside>
     );
-  }
-
-  if (topicHits) {
+  } else if (topicHits) {
     const tag = tagCandidate(query)!;
     // Unique by pubkey, then by display name — three RSS-bot accounts all
     // named "Gazeta Esportiva" are one voice to a reader.
@@ -201,9 +214,9 @@ export function KnowledgePanel({
       .sort((a, b) => b[1] - a[1])
       .slice(0, 4)
       .map(([v]) => v);
-    return (
+    main = (
       <aside
-        className={`w-full rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5 ${className}`}
+        className={`w-full rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5`}
         data-testid="search-topic-panel"
       >
         <div className="flex items-center gap-2.5">
@@ -283,14 +296,12 @@ export function KnowledgePanel({
         </Link>
       </aside>
     );
-  }
-
-  if (!person) return null;
-  const effectiveRank = person.wotRank ?? scoreOf(person.pubkey) ?? null;
-  const followers = person.wotFollowers;
-  return (
+  } else if (person) {
+    const effectiveRank = person.wotRank ?? scoreOf(person.pubkey) ?? null;
+    const followers = person.wotFollowers;
+    main = (
     <aside
-      className={`w-full rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5 ${className}`}
+      className={`w-full rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5`}
       data-testid="search-knowledge-panel"
     >
       <div className="flex items-center gap-3">
@@ -343,5 +354,55 @@ export function KnowledgePanel({
         Full profile & trust deep-dive <ArrowRight className="h-3 w-3" />
       </Link>
     </aside>
+    );
+  }
+
+  const apps = appHits && (
+    <aside
+      className="w-full rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5"
+      data-testid="search-apps-panel"
+    >
+      <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Apps</p>
+      <ul className="mt-1.5 space-y-0.5">
+        {appHits.map((h) => {
+          const name = h.event.tags.find((t) => t[0] === "name")?.[1] ?? "App";
+          const icon = h.event.tags.find((t) => t[0] === "icon")?.[1];
+          const summary = h.event.tags.find((t) => t[0] === "summary")?.[1];
+          return (
+            <li key={h.event.id}>
+              <Link
+                href={eventPath(h.event as NostrEvent)}
+                className="flex items-center gap-2.5 rounded-lg px-1.5 py-1.5 -mx-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                data-testid={`apps-panel-app-${h.event.id}`}
+              >
+                <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
+                  {icon ? <img src={icon} alt="" loading="lazy" className="h-full w-full object-cover" /> : <Package className="h-4 w-4 text-slate-400" />}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-xs font-semibold text-slate-800 dark:text-slate-100">{name}</span>
+                  {summary && <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400">{summary}</span>}
+                </span>
+              </Link>
+            </li>
+          );
+        })}
+      </ul>
+      <Link
+        href={`/?q=${encodeURIComponent(query.trim())}&t=apps`}
+        className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand-primary hover:underline"
+        data-testid="apps-panel-more"
+      >
+        More apps <ArrowRight className="h-3 w-3" />
+      </Link>
+    </aside>
+  );
+
+  if (!main && !apps) return null;
+  // The rail stacks: the entity panel first, matching apps beneath.
+  return (
+    <div className={`w-full space-y-3 ${className}`}>
+      {main}
+      {apps}
+    </div>
   );
 }

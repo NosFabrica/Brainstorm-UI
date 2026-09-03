@@ -13,17 +13,25 @@ import type { SearchSnapshot } from "@/services/search";
 const streamMock = vi.fn();
 const cancelMock = vi.fn();
 const suggestMock = vi.fn<() => Promise<unknown[]>>(() => Promise.resolve([]));
-// Every stream registered, with its callback. The KnowledgePanel's topic
-// probe (#query) rides the same mock — tests target the MAIN stream.
-let allStreams: { query: string; cb: (s: SearchSnapshot) => void }[] = [];
-const mainStreamCalls = () => streamMock.mock.calls.filter(([q]) => !String(q).startsWith("#"));
+// Every stream registered, with its callback. The KnowledgePanel's probes
+// (the #query topic probe and the limit-6 apps probe) ride the same mock —
+// tests target the MAIN stream.
+const isPanelProbe = (q: string, p?: { tab?: string; limit?: number }) =>
+  q.startsWith("#") || (p?.tab === "apps" && p?.limit === 6);
+let allStreams: { query: string; params: { tab?: string; limit?: number }; cb: (s: SearchSnapshot) => void }[] = [];
+const mainStreamCalls = () =>
+  streamMock.mock.calls.filter(([q, p]) => !isPanelProbe(String(q), p as { tab?: string; limit?: number }));
 
 vi.mock("@/services/search", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/search")>();
   return {
     ...actual,
     searchStream: (...args: unknown[]) => {
-      allStreams.push({ query: args[0] as string, cb: args[2] as (s: SearchSnapshot) => void });
+      allStreams.push({
+        query: args[0] as string,
+        params: args[1] as { tab?: string; limit?: number },
+        cb: args[2] as (s: SearchSnapshot) => void,
+      });
       streamMock(args[0], args[1]);
       return cancelMock;
     },
@@ -57,8 +65,8 @@ const author = (pubkey: string, name: string) => ({
 });
 
 function emit(partial: Partial<SearchSnapshot>) {
-  // The most recent MAIN stream (the panel's #topic probe is not it).
-  const main = [...allStreams].reverse().find((c) => !c.query.startsWith("#"))!;
+  // The most recent MAIN stream (the panel's probes are not it).
+  const main = [...allStreams].reverse().find((c) => !isPanelProbe(c.query, c.params))!;
   main.cb({ hits: [], eose: false, timeMs: null, error: null, ...partial });
 }
 

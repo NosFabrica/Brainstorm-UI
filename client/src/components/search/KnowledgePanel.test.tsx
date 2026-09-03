@@ -154,6 +154,60 @@ describe("the topic panel", () => {
     expect(screen.getAllByText("GazetaRSS")).toHaveLength(1);
   });
 
+  it("a query matching an app adds an Apps module to the rail", async () => {
+    render(<KnowledgePanel query="amethyst" pov="nosfabrica" />);
+    await vi.waitFor(() =>
+      expect(streamCalls.some((c) => c.params.tab === "apps")).toBe(true),
+    );
+    const appsCall = streamCalls.find((c) => c.params.tab === "apps")!;
+    const listing = {
+      id: "ap1",
+      kind: 32267,
+      pubkey: "9".repeat(64),
+      tags: [["d", "com.vitorpamplona.amethyst"], ["name", "Amethyst"], ["summary", "The all-in-one Nostr client"], ["icon", "https://cdn.zapstore.dev/a.png"]],
+      content: "",
+      created_at: NOW - 500,
+      sig: "s",
+    } as NostrEvent;
+    const offTopic = {
+      ...listing, id: "ap2",
+      tags: [["d", "net.primal"], ["name", "Primal"], ["summary", "Feeds"]],
+    } as NostrEvent;
+    appsCall.emit({
+      hits: [
+        { event: listing, author: null, rank: null },
+        { event: offTopic, author: null, rank: null },
+      ],
+      eose: true,
+      timeMs: 90,
+    });
+    const panel = await screen.findByTestId("search-apps-panel");
+    expect(panel).toHaveTextContent("Amethyst");
+    // Fuzzy strays whose NAME doesn't match the query stay out.
+    expect(panel).not.toHaveTextContent("Primal");
+    expect(screen.getByTestId("apps-panel-app-ap1").getAttribute("href")).toMatch(/^\/e\//);
+    // The deep link into the full Apps vertical.
+    expect(screen.getByTestId("apps-panel-more").getAttribute("href")).toBe("/?q=amethyst&t=apps");
+  });
+
+  it("no name-matching app, no Apps module", async () => {
+    render(<KnowledgePanel query="liverpool" pov="nosfabrica" />);
+    await vi.waitFor(() =>
+      expect(streamCalls.some((c) => c.params.tab === "apps")).toBe(true),
+    );
+    const appsCall = streamCalls.find((c) => c.params.tab === "apps")!;
+    appsCall.emit({
+      hits: [{
+        event: { id: "ap3", kind: 32267, pubkey: "9".repeat(64), tags: [["name", "SoccerStats"]], content: "", created_at: NOW, sig: "s" } as NostrEvent,
+        author: null, rank: null,
+      }],
+      eose: true,
+      timeMs: 80,
+    });
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByTestId("search-apps-panel")).toBeNull();
+  });
+
   it("stays silent when the tag is quiet", async () => {
     render(<KnowledgePanel query="zzzobscure" pov="nosfabrica" />);
     await vi.waitFor(() => expect(streamCalls.length).toBeGreaterThanOrEqual(1));
