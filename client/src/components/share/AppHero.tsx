@@ -256,7 +256,7 @@ function usePublisher(pubkey: string): SearchResult | null {
 
 const HISTORY_MAX = 5;
 const SECONDARY_PILL =
-  "inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-700 px-3.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 transition-colors";
+  "inline-flex items-center justify-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-700 px-3.5 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 transition-colors sm:py-1.5";
 
 export function AppHero({ event }: { event: AppEvent }) {
   const name = tagVal(event, "name") ?? tagVal(event, "d") ?? "Untitled app";
@@ -376,12 +376,17 @@ export function AppHero({ event }: { event: AppEvent }) {
                 v{release.version} · {releaseAge(release.at)}
               </Chip>
             )}
-            {categories.map((t) => (
-              <Link key={t} href={`/?q=${encodeURIComponent(`#${t}`)}&t=apps`} data-testid={`app-cat-${t}`} className="no-underline">
-                <Chip size="sm" tone="info">#{t}</Chip>
-              </Link>
-            ))}
           </div>
+          {/* Categories are their own row — facts and topics don't interleave. */}
+          {categories.length > 0 && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+              {categories.map((t) => (
+                <Link key={t} href={`/?q=${encodeURIComponent(`#${t}`)}&t=apps`} data-testid={`app-cat-${t}`} className="no-underline">
+                  <Chip size="sm" tone="info">#{t}</Chip>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
         <div className="h-20 w-20 shrink-0 overflow-hidden rounded-3xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shadow-sm">
           {icon ? (
@@ -395,13 +400,13 @@ export function AppHero({ event }: { event: AppEvent }) {
       {/* Actions: Get on Zap Store (where installs actually happen, signature-
           verified against the dev's key) leads; Website / Source / the APK
           itself follow as quiet pills. Wraps on phones. */}
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center">
         {store ? (
           <a
             href={store}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
+            className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-full bg-brand-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 transition-opacity sm:py-1.5"
             data-testid="app-hero-get"
           >
             <Favicon host="zapstore.dev" className="h-3.5 w-3.5 rounded-sm" /> Get on Zap Store
@@ -412,26 +417,33 @@ export function AppHero({ event }: { event: AppEvent }) {
               href={url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
+              className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-full bg-brand-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 transition-opacity sm:py-1.5"
               data-testid="app-hero-get"
             >
               Get it <ExternalLink className="h-3 w-3" />
             </a>
           )
         )}
+        {/* Website and Source pair up as one matched row; a lone one spans it. */}
         {store && url && (
           <a
             href={url}
             target="_blank"
             rel="noopener noreferrer"
-            className={SECONDARY_PILL}
+            className={`${SECONDARY_PILL} ${repository ? "" : "col-span-2"}`}
             data-testid="app-hero-website"
           >
             <Globe className="h-3 w-3" /> Website
           </a>
         )}
         {repository && (
-          <a href={repository} target="_blank" rel="noopener noreferrer" className={SECONDARY_PILL} data-testid="app-hero-source">
+          <a
+            href={repository}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={`${SECONDARY_PILL} ${store && url ? "" : "col-span-2"}`}
+            data-testid="app-hero-source"
+          >
             <Code2 className="h-3 w-3" /> Source
           </a>
         )}
@@ -442,7 +454,7 @@ export function AppHero({ event }: { event: AppEvent }) {
             target="_blank"
             rel="noopener noreferrer"
             title={asset.hash ? `SHA-256 ${asset.hash}` : undefined}
-            className={SECONDARY_PILL}
+            className={`${SECONDARY_PILL} col-span-2`}
             data-testid="app-hero-download"
           >
             <Download className="h-3 w-3" />
