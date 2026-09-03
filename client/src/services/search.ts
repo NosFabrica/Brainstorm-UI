@@ -624,6 +624,8 @@ export interface PersonSetMembership {
   exporters: number;
   /** Who published those sets — a lone list is only as good as its author. */
   exporterPubkeys: string[];
+  /** The sets themselves, so a badge can open one list's page. */
+  sets: { id: string; pubkey: string }[];
 }
 
 /**
@@ -636,17 +638,21 @@ export function fetchPersonSets(pubkey: string, timeoutMs = 5000): Promise<Perso
   return new Promise((resolve) => {
     const relay = searchRelay();
     if (!relay) return resolve([]);
-    const byTitle = new Map<string, Set<string>>();
+    // Per title, one set per publisher (the newest, if a publisher has several).
+    const byTitle = new Map<string, Map<string, { id: string; pubkey: string; at: number }>>();
     const sub = relay
       // 200, not 50: a well-listed person sits in more sets than that, and a
       // sample-dependent tally made "Verified Human · 6" come and go between loads.
       .req({ kinds: [30000], "#p": [pubkey], search: "include:spam", limit: 200 })
       .subscribe((msg: { type: string; event?: NostrEvent }) => {
         if (msg.type === "EVENT" && msg.event) {
-          const title = msg.event.tags.find((t) => t[0] === "title" || t[0] === "name")?.[1]?.trim();
+          const e = msg.event;
+          const title = e.tags.find((t) => t[0] === "title" || t[0] === "name")?.[1]?.trim();
           if (!title) return;
-          if (!byTitle.has(title)) byTitle.set(title, new Set());
-          byTitle.get(title)!.add(msg.event.pubkey);
+          if (!byTitle.has(title)) byTitle.set(title, new Map());
+          const perPublisher = byTitle.get(title)!;
+          const prev = perPublisher.get(e.pubkey);
+          if (!prev || prev.at < e.created_at) perPublisher.set(e.pubkey, { id: e.id, pubkey: e.pubkey, at: e.created_at });
         } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
           finish();
         }
@@ -657,7 +663,12 @@ export function fetchPersonSets(pubkey: string, timeoutMs = 5000): Promise<Perso
       sub.unsubscribe();
       resolve(
         [...byTitle.entries()]
-          .map(([title, exporters]) => ({ title, exporters: exporters.size, exporterPubkeys: [...exporters] }))
+          .map(([title, perPublisher]) => ({
+            title,
+            exporters: perPublisher.size,
+            exporterPubkeys: [...perPublisher.keys()],
+            sets: [...perPublisher.values()].map(({ id, pubkey: pk }) => ({ id, pubkey: pk })),
+          }))
           .sort((a, b) => b.exporters - a.exporters)
           .slice(0, 6),
       );

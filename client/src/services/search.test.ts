@@ -394,11 +394,20 @@ describe("fetchPersonSets", () => {
     subject.next(frame(set("s4", "1".repeat(64), "AOS 2026 Participant")));
     subject.next(frame({ ...set("s5", "4".repeat(64), ""), tags: [["d", "x"], ["p", ME]] } as NostrEvent)); // untitled — out
     subject.next(EOSE);
-    // The exporters themselves ride along — the panel gates a lone list on
-    // WHO published it.
+    // The sets themselves ride along (id + publisher) so a badge can open a
+    // specific list's page — the most trusted publisher's — not a search.
     expect(await pending).toEqual([
-      { title: "Verified Human", exporters: 3, exporterPubkeys: ["1".repeat(64), "2".repeat(64), "3".repeat(64)] },
-      { title: "AOS 2026 Participant", exporters: 1, exporterPubkeys: ["1".repeat(64)] },
+      {
+        title: "Verified Human",
+        exporters: 3,
+        exporterPubkeys: ["1".repeat(64), "2".repeat(64), "3".repeat(64)],
+        sets: [
+          { id: "s1", pubkey: "1".repeat(64) },
+          { id: "s2", pubkey: "2".repeat(64) },
+          { id: "s3", pubkey: "3".repeat(64) },
+        ],
+      },
+      { title: "AOS 2026 Participant", exporters: 1, exporterPubkeys: ["1".repeat(64)], sets: [{ id: "s4", pubkey: "1".repeat(64) }] },
     ]);
   });
 });

@@ -5,8 +5,8 @@
  * card for "liverpool" the way jack gets his.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
-import type { NostrEvent } from "nostr-tools";
+import { fireEvent, render, screen } from "@testing-library/react";
+import { nip19, type NostrEvent } from "nostr-tools";
 import type { SearchSnapshot, SearchParams } from "@/services/search";
 
 const suggestMock = vi.fn<() => Promise<unknown[]>>(() => Promise.resolve([]));
@@ -476,12 +476,17 @@ describe("the topic panel", () => {
     suggestMock.mockResolvedValueOnce([
       { pubkey: "b".repeat(64), npub: "npub1david", name: "david", wotRank: 0.9, wotFollowers: 42 },
     ]);
+    const P1 = "1".repeat(64);
+    const P2 = "2".repeat(64);
+    const P3 = "3".repeat(64);
+    // The badge opens the list of the publisher the network trusts most.
+    scoreOfMock.mockImplementation((pk) => ({ [P1]: 0.3, [P2]: 0.9, [P3]: null })[pk] ?? 0.7);
     personSetsMock.mockResolvedValue([
-      { title: "Verified Human", exporters: 3, exporterPubkeys: ["1".repeat(64), "2".repeat(64), "3".repeat(64)] },
-      { title: "AOS 2026 Participant", exporters: 2, exporterPubkeys: ["1".repeat(64), "2".repeat(64)] },
+      { title: "Verified Human", exporters: 3, exporterPubkeys: [P1, P2, P3], sets: [{ id: "a".repeat(64), pubkey: P1 }, { id: "b".repeat(64), pubkey: P2 }, { id: "c".repeat(64), pubkey: P3 }] },
+      { title: "AOS 2026 Participant", exporters: 2, exporterPubkeys: [P1, P2], sets: [{ id: "d".repeat(64), pubkey: P1 }, { id: "e".repeat(64), pubkey: P2 }] },
       // One account's private list name — not a credential, whoever they are.
       // Benjamin's "Plebs · 1" catch.
-      { title: "Plebs", exporters: 1, exporterPubkeys: ["9".repeat(64)] },
+      { title: "Plebs", exporters: 1, exporterPubkeys: ["9".repeat(64)], sets: [{ id: "f".repeat(64), pubkey: "9".repeat(64) }] },
     ]);
     render(<KnowledgePanel query="david" pov="nosfabrica" />);
     await screen.findByTestId("search-knowledge-panel");
@@ -495,9 +500,29 @@ describe("the topic panel", () => {
     expect(screen.queryByTestId("person-set-Plebs")).toBeNull();
     // And the badges say what they are.
     expect(screen.getByTestId("person-sets")).toHaveTextContent("Listed in");
-    // Each badge opens the lists that carry that title — the Lists vertical,
-    // searched for the name, where every set is a card with its curator.
-    expect(badge.closest("a")?.getAttribute("href")).toBe("/?q=Verified%20Human&t=lists");
+    // Each badge opens a specific list's page — the one from the publisher the
+    // network trusts most (P2 at 0.9) — not a search.
+    const href = badge.closest("a")?.getAttribute("href") ?? "";
+    expect(href).toMatch(/^\/e\/nevent1/);
+    const decoded = nip19.decode(href.slice("/e/".length));
+    expect(decoded.type).toBe("nevent");
+    expect((decoded.data as { id: string; author?: string }).id).toBe("b".repeat(64));
+  });
+
+  // Google's knowledge panel is one big click-through to the entity, with
+  // the links inside it keeping their own targets. Ours: the panel opens the
+  // public profile; badges, followed-by, reviews and the CTA go where they say.
+  it("the panel itself opens the public profile, except on its inner links", async () => {
+    suggestMock.mockResolvedValueOnce([
+      { pubkey: "b".repeat(64), npub: "npub1david", name: "david", about: "epileptologist", wotRank: 0.9, wotFollowers: 42 },
+    ]);
+    const onOpen = vi.fn();
+    render(<KnowledgePanel query="david" pov="nosfabrica" onOpen={onOpen} />);
+    const panel = await screen.findByTestId("search-knowledge-panel");
+    fireEvent.click(screen.getByText("epileptologist"));
+    expect(window.location.pathname).toBe("/p/npub1david");
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(panel.getAttribute("role")).toBe("link");
   });
 
   it("an active topic outranks even an exact-named person", async () => {

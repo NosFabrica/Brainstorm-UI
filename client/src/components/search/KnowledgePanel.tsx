@@ -5,7 +5,7 @@
  * Probed via the same relay typeahead the box uses; silent unless confident.
  */
 import { useEffect, useState } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { ArrowRight, BookOpen, Check, Hash, Package, Users, Zap } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -189,6 +189,20 @@ export function KnowledgePanel({
   // A follow-set badge needs two publishers agreeing on the title — one
   // account's private list names stay out (Benjamin's "Plebs · 1" catch).
   const shownSets = visiblePersonSets(personSets);
+  // A badge opens ONE list's page: the most trusted publisher's.
+  const exporterScoreOf = useAuthorScores(shownSets.flatMap((s) => s.exporterPubkeys));
+  const bestSetOf = (m: PersonSetMembership) =>
+    [...m.sets].sort((a, b) => (exporterScoreOf(b.pubkey) ?? -1) - (exporterScoreOf(a.pubkey) ?? -1))[0];
+  const [, navigate] = useLocation();
+  // Google's knowledge panel is one click-through to the entity; the links
+  // inside keep their own targets. Ours opens the public profile.
+  const openProfile = (ev: React.MouseEvent | React.KeyboardEvent) => {
+    if (!person) return;
+    const target = ev.target as HTMLElement | null;
+    if (target?.closest("a, button")) return;
+    onOpen?.(person);
+    navigate(`/p/${person.npub}`);
+  };
   // Topic voices wear the same rings as every avatar in the app.
   const voiceScoreOf = useAuthorScores(
     topicHits ? [...new Set(topicHits.map((h) => h.event.pubkey))].slice(0, 8) : [],
@@ -351,7 +365,17 @@ export function KnowledgePanel({
     const followers = person.wotFollowers;
     main = (
     <aside
-      className={`w-full rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5`}
+      role="link"
+      tabIndex={0}
+      aria-label={`Open ${getDisplayLabel(person)}'s profile`}
+      onClick={openProfile}
+      onKeyDown={(ev) => {
+        if (ev.target === ev.currentTarget && (ev.key === "Enter" || ev.key === " ")) {
+          ev.preventDefault();
+          openProfile(ev);
+        }
+      }}
+      className="w-full cursor-pointer rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5 transition-colors hover:border-slate-200 dark:hover:border-slate-700 hover:bg-white dark:hover:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
       data-testid="search-knowledge-panel"
     >
       <div className="flex items-center gap-3">
@@ -415,8 +439,8 @@ export function KnowledgePanel({
             // vertical searched for it, every set a card with its curator.
             <Link
               key={m.title}
-              href={`/?q=${encodeURIComponent(m.title)}&t=lists`}
-              title={`See the ${m.exporters} lists named “${m.title}”`}
+              href={eventPath(bestSetOf(m))}
+              title={`Open the “${m.title}” list (${m.exporters} publishers keep one)`}
               className="inline-flex items-center gap-1 rounded-full bg-brand-primary/5 dark:bg-brand-primary/15 px-2 py-0.5 text-[11px] font-medium text-brand-deep dark:text-brand-link hover:bg-brand-primary/10 dark:hover:bg-brand-primary/25 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
               data-testid={`person-set-${m.title}`}
             >
