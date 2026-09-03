@@ -22,7 +22,7 @@ import { highlightTerms } from "@/lib/highlight";
 import { parseNewsShape } from "@/lib/newsShape";
 import { eventPath } from "@/lib/shareId";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
-import { mediaUrlOf, tagVal } from "@/components/search/cards";
+import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
 
 function ago(created_at: number): string {
   const s = Math.max(0, Math.floor(Date.now() / 1000) - created_at);
@@ -80,6 +80,38 @@ function Marked({ text, query }: { text: string; query: string }) {
       )}
     </>
   );
+}
+
+
+/** The row's media square: a poster/image that HIDES itself if the URL is
+ *  dead (expired signed thumbs must not render as broken glass), or a
+ *  metadata-only <video> first frame when only the video itself exists. */
+function RowThumb({ event }: { event: NostrEvent }) {
+  const [failed, setFailed] = useState(false);
+  const url = mediaUrlOf(event);
+  const isImage = !!url && IMAGE_RE.test(url);
+  const poster = isImage ? url : (mediaPosterOf(event) ?? null);
+  const cls = "h-16 w-16 shrink-0 rounded-xl object-cover bg-slate-100 dark:bg-slate-800";
+  if (poster && !failed) {
+    return (
+      <img src={poster} alt="" loading="lazy" onError={() => setFailed(true)} className={cls} data-testid="serp-thumb" />
+    );
+  }
+  if (url && !isImage && isVideoUrl(event, url)) {
+    return (
+      <video
+        src={`${url}#t=0.1`}
+        preload="metadata"
+        muted
+        playsInline
+        tabIndex={-1}
+        aria-hidden
+        className={`pointer-events-none ${cls}`}
+        data-testid="serp-video-thumb"
+      />
+    );
+  }
+  return null;
 }
 
 /** Snippet where bare URLs become clickable domain chips. */
@@ -149,6 +181,8 @@ export function SerpRow({
 }) {
   const [, setLocation] = useLocation();
   const open = useCallback(() => setLocation(eventPath(event)), [event, setLocation]);
+  // Dead news thumbs (expired signed URLs) vanish rather than render broken.
+  const [newsThumbFailed, setNewsThumbFailed] = useState(false);
 
   const title = tagVal(event, "title") ?? tagVal(event, "name");
   const news = !title && event.content ? parseNewsShape(event.content) : null;
@@ -200,7 +234,7 @@ export function SerpRow({
             </div>
           )}
         </div>
-        {thumb && (
+        {thumb && !newsThumbFailed && (
           <a
             href={news.url}
             target="_blank"
@@ -213,6 +247,7 @@ export function SerpRow({
               src={thumb}
               alt=""
               loading="lazy"
+              onError={() => setNewsThumbFailed(true)}
               className="h-20 w-28 rounded-xl object-cover bg-slate-100 dark:bg-slate-800 shadow-sm"
               data-testid="news-thumb"
             />
@@ -223,8 +258,6 @@ export function SerpRow({
   }
 
   const body = event.content || tagVal(event, "summary") || tagVal(event, "description") || "";
-  const url = mediaUrlOf(event);
-  const thumb = url && IMAGE_RE.test(url) ? url : (tagVal(event, "image") ?? null);
   return (
     <div {...rowProps}>
       <div className="min-w-0 flex-1">
@@ -240,14 +273,7 @@ export function SerpRow({
           </div>
         )}
       </div>
-      {thumb && (
-        <img
-          src={thumb}
-          alt=""
-          loading="lazy"
-          className="h-16 w-16 shrink-0 rounded-xl object-cover bg-slate-100 dark:bg-slate-800"
-        />
-      )}
+      <RowThumb event={event} />
     </div>
   );
 }

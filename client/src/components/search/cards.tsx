@@ -146,7 +146,7 @@ export function mediaPosterOf(event: NostrEvent): string | null {
 }
 
 /** Video by declared mime first (imeta "m video/…"), extension second. */
-function isVideoUrl(event: NostrEvent, url: string): boolean {
+export function isVideoUrl(event: NostrEvent, url: string): boolean {
   for (const tag of event.tags) {
     if (tag[0] === "imeta") {
       const mime = tag.slice(1).find((p) => p.startsWith("m "));

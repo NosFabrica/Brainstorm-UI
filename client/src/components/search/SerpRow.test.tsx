@@ -124,7 +124,27 @@ describe("SerpRow", () => {
     expect(screen.queryByText(/nostr:npub/)).toBeNull();
   });
 
+it("a video-only result gets a first-frame thumb, not a blank", () => {
+    const vid = {
+      ...note("match highlights", [["imeta", "url https://cdn.example/highlights.mp4", "m video/mp4"]]),
+      kind: 21,
+    } as NostrEvent;
+    render(<SerpRow event={vid} author={author} score={0.7} query="liverpool" />);
+    const video = screen.getByTestId("serp-video-thumb") as HTMLVideoElement;
+    expect(video.getAttribute("src")).toContain("highlights.mp4");
+    expect(video.getAttribute("preload")).toBe("metadata");
+  });
+
+  it("a thumbnail that fails to load disappears instead of showing broken", () => {
+    const withImage = note("stream tonight", [["image", "https://dvr.example/expired-thumb.jpg"]]);
+    render(<SerpRow event={withImage} author={author} score={0.7} query="liverpool" />);
+    const img = screen.getByTestId("serp-thumb") as HTMLImageElement;
+    fireEvent.error(img);
+    expect(screen.queryByTestId("serp-thumb")).toBeNull();
+  });
+
   it("clicking the row body opens the in-app event page", () => {
+
     render(<SerpRow event={note("plain words about liverpool")} author={author} score={0.7} query="liverpool" />);
     fireEvent.click(screen.getByTestId(`serp-row-${"e".repeat(64)}`));
     expect(window.location.pathname).toMatch(/^\/e\//);
