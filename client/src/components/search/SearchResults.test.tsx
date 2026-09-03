@@ -300,6 +300,33 @@ describe("SearchResults", () => {
     emit({ hits: [{ event: repo, author: author(repo.pubkey, "frank"), rank: null }], eose: true, timeMs: 200 });
     expect(await screen.findByText("vespa-relay")).toBeInTheDocument();
     expect(screen.getByText("Search relay over Vespa")).toBeInTheDocument();
+    const card = screen.getByTestId("repo-card-r1");
+    // A repo announcement is labeled and closes on the enterprise footer.
+    expect(card).toHaveTextContent("Repo");
+    expect(card).toHaveTextContent("Maintained by");
+  });
+
+  it("labels patches and issues and shows the repo they belong to", async () => {
+    setUrlTab("repos");
+    render(<SearchResults query="amethyst" pov="nosfabrica" />);
+    const patch = ev("pt1", 1617, "a".repeat(64), "narrows the FileProvider root", [
+      ["subject", "fix: narrow FileProvider external root"],
+      ["a", "30617:" + "f".repeat(64) + ":amethyst"],
+    ]);
+    const issue = ev("is1", 1621, "b".repeat(64), "crash on launch", [
+      ["subject", "Critical: DMs fail in private groups"],
+      ["a", "30617:" + "f".repeat(64) + ":amethyst"],
+    ]);
+    emit({
+      hits: [patch, issue].map((event) => ({ event, author: author(event.pubkey, "dev"), rank: null })),
+      eose: true,
+      timeMs: 200,
+    });
+    const patchCard = await screen.findByTestId("repo-card-pt1");
+    expect(patchCard).toHaveTextContent("Patch");
+    expect(patchCard).toHaveTextContent("amethyst"); // the repo it targets
+    expect(patchCard).toHaveTextContent("By"); // contributor kicker, not "Maintained by"
+    expect(screen.getByTestId("repo-card-is1")).toHaveTextContent("Issue");
   });
 
   it("renders a list with its title and item count", async () => {

@@ -357,27 +357,41 @@ export function AppCard({ event, author, score }: { event: NostrEvent; author: S
 }
 
 export function RepoCard({ event, author, score }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
-  // 30617 repo announcements carry name/description; patches (1617), issues
-  // (1621) and snippets (1337) fall back to subject/description/content.
+  // The Repos tab is a mix: 30617 repo announcements, plus patches (1617) and
+  // issues (1621/1618) that target a repo. A type chip tells them apart, and
+  // a patch/issue names the repo it belongs to (from its a-tag) — the context
+  // that makes a lone "fix: …" card mean something.
+  const isRepo = event.kind === 30617;
+  const typeLabel = event.kind === 1617 ? "Patch" : isRepo ? "Repo" : "Issue";
+  const typeTone: "info" | "success" | "warning" = event.kind === 1617 ? "info" : isRepo ? "success" : "warning";
   const name = tagVal(event, "name") ?? tagVal(event, "subject") ?? tagVal(event, "d") ?? "Untitled";
-  const description = tagVal(event, "description") ?? (event.kind === 30617 ? "" : event.content.slice(0, 200));
+  const description = tagVal(event, "description") ?? (isRepo ? "" : event.content.slice(0, 200));
+  const repoRef = !isRepo ? tagVal(event, "a")?.split(":")[2] : undefined;
   const web = tagVal(event, "web");
   const naddr = naddrOf(event);
-  const openIn = web ?? (naddr ? `https://gitworkshop.dev/${naddr}` : undefined);
+  const openIn = web ?? (isRepo && naddr ? `https://gitworkshop.dev/${naddr}` : undefined);
   return (
+    // Identity flush left, the code glyph balancing the top-right corner —
+    // the App/List/Repo-page anatomy, now on the card too.
     <CardShell event={event} openInUrl={openIn} openInLabel="Open repo" testId={`repo-card-${event.id}`}>
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
-          <Code2 className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-        </div>
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
+          <div className="flex items-center gap-2 min-w-0">
+            <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
+            <Chip size="sm" tone={typeTone}>{typeLabel}</Chip>
+          </div>
+          {repoRef && (
+            <p className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500">↳ in {repoRef}</p>
+          )}
           {description && (
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 break-words line-clamp-2">{description}</p>
           )}
-          <div className="mt-1.5">
-            <AuthorRow author={author} score={score} created_at={event.created_at} />
+          <div className="mt-2">
+            <CuratorFooter kicker={isRepo ? "Maintained by" : "By"} author={author} score={score} created_at={event.created_at} />
           </div>
+        </div>
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
+          <Code2 className="h-4 w-4 text-slate-500 dark:text-slate-400" />
         </div>
       </div>
     </CardShell>
