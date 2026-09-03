@@ -443,7 +443,7 @@ export function ListCard({ event, author, score }: { event: NostrEvent; author: 
                   date parked at the card's bottom-right corner. */}
               <div className="flex w-full items-center justify-between gap-3 border-t border-slate-100 dark:border-slate-800/60 pt-2 sm:w-auto sm:ml-auto sm:border-0 sm:pt-0">
                 <span className="flex min-w-0 items-center gap-1.5">
-                  <span className="shrink-0 text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                  <span className="shrink-0 text-[10px] font-medium uppercase leading-none tracking-wide text-slate-400 dark:text-slate-500">
                     Curated by
                   </span>
                   <Avatar className={`h-5 w-5 shrink-0 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null, false, "sm", true) ?? ""}`}>
@@ -452,11 +452,11 @@ export function ListCard({ event, author, score }: { event: NostrEvent; author: 
                       <DefaultAvatarImg />
                     </AvatarFallback>
                   </Avatar>
-                  <span className="truncate text-xs font-medium text-slate-600 dark:text-slate-300">
+                  <span className="truncate text-xs font-medium leading-none text-slate-600 dark:text-slate-300">
                     {author ? getDisplayLabel(author) : "Unknown"}
                   </span>
                 </span>
-                <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">{fmtWhen(event.created_at)}</span>
+                <span className="shrink-0 text-[11px] leading-none text-slate-400 dark:text-slate-500">{fmtWhen(event.created_at)}</span>
               </div>
             </div>
           ) : (
