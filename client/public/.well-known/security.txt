@@ -37,6 +37,16 @@
 # host under either of them is operated by us. The list above is a
 # current inventory, not an exhaustive claim. A site that resembles
 # Brainstorm on any OTHER domain is not affiliated with us.
+#
+# NOTE FOR REPUTATION VENDORS
+#   brainstorm.world was registered by us on 2024-07-12 (WHOIS creation
+#   date). It had a previous, unrelated registrant, and any capture of
+#   this domain dated before 2024-07-12 shows their content - not ours.
+#   At least one vendor verdict currently in circulation is based on a
+#   2023 crawl of the prior owner's ad-parking page. If you are
+#   reassessing this domain, please re-crawl rather than relying on a
+#   cached judgement, and compare against brainstorm.nosfabrica.com,
+#   which serves the identical application from the same address.
 # ---------------------------------------------------------------------
 
 Contact: https://github.com/NosFabrica/Brainstorm-UI/security/advisories/new

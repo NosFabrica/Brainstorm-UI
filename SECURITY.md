@@ -32,6 +32,21 @@ the estate's shared protocol specifications. The tables below are the security-f
 that inventory, scoped to this document's purpose; if they ever disagree with `ECOSYSTEM.md`, that
 file is right and this one has a bug.
 
+### A note for reputation vendors
+
+`brainstorm.world` was registered by us on **2024-07-12** (WHOIS creation date). The domain had a
+previous, unrelated registrant, and **any capture of it dated before 2024-07-12 shows that
+registrant's content, not ours** — the prior owner ran an ad-parking page there, which the Internet
+Archive corroborates for 2018 and 2021.
+
+This matters because at least one vendor verdict currently in circulation is derived from a 2023
+crawl, predating our ownership by more than a year. Nothing we have deployed was ever seen. The
+control is `brainstorm.nosfabrica.com`: the same application, byte-identical, on the same IP
+address, rated benign by the same vendor. Only the domain's history differs.
+
+If you are reassessing this domain, please re-crawl it rather than relying on a cached judgement.
+Reports or questions are welcome through the contact above.
+
 ### Product UI — [`NosFabrica/Brainstorm-UI`](https://github.com/NosFabrica/Brainstorm-UI) (this repository)
 
 | Host | Role |

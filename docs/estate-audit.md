@@ -6,15 +6,40 @@ Every status below reflects a response observed directly, not inferred.
 
 ---
 
-## The diagnosis
+## What this audit is, and what it is not
 
-Reputation scanners began flagging much of the estate as unsafe. The working theory was that the
-deployments look like copies of each other. That is true, but it isn't what a scanner keys on.
+> **Superseded, 2026-08-13.** This audit originally concluded that the estate's
+> answer-200-to-everything behaviour was *the cause* of the reputation flags. That conclusion was
+> wrong, and [issue #45](https://github.com/NosFabrica/Brainstorm-UI/issues/45) is the authority on
+> the actual cause. The survey findings below were observed directly and still stand; only the
+> causal claim has been retracted. This section was rewritten to match.
+
+**The actual root cause was never our content.** alphaMountain (threatYeti) rates `brainstorm.world`
+9.19 / Malicious on the strength of a crawl dated **2023-06-06** — over a year *before* we owned the
+domain (WHOIS creation **2024-07-12**). What their crawler captured was the previous registrant's
+GoDaddy ad-parking page; Wayback corroborates parked ads in 2018 and 2021. The domain lapsed, we
+registered the released name, and the vendor never re-crawled. Nothing we have ever deployed has
+been seen by them.
+
+That one stale verdict then spreads mechanically: root → every `*.brainstorm.world` subdomain
+("Shares Domain w/ Risky Hosts") → the IONOS IP `74.208.86.220`, whose *only* risk factor is hosting
+the root, which then echoes back onto the `nosfabrica.com` hosts sharing that IP.
+
+The control experiment is already in the vendor's own data: `brainstorm.nosfabrica.com` — a
+byte-identical deployment on the same IP — rates 4.39 / Information Technology. Only the domain's
+history differs. No amount of hardening would have changed the 9.19.
+
+**So why do this work at all?** Because the survey below still found the estate publishing no
+ownership signal and behaving, to an automated crawler, like parked infrastructure. That does not
+explain the current flags, but it is corroborating evidence a re-crawl would weigh, it is what the
+disputes are asking vendors to go and look at, and it is a defect worth fixing on its own terms.
+Treat it as removing a corroborating signal and publishing an ownership attestation — not as the
+cure for the rating.
+
+### What the survey observed
 
 Every host answered `200 OK` with the same contentless single-page-app shell for **every** path
-requested — including paths that should never exist.
-
-What an automated scanner saw:
+requested — including paths that should never exist:
 
 - `/robots.txt` returned HTML, not a robots file — on all 18 hosts
 - `/.well-known/security.txt` returned HTML — no host published a security contact
@@ -22,13 +47,8 @@ What an automated scanner saw:
 - Ten hostnames resolved to a single IP (`74.208.86.220`), several serving byte-identical markup
 - The served HTML was ~400 bytes of boilerplate, so crawlers saw no distinguishing text anywhere
 
-Taken together that is close to the textbook fingerprint of a bulk-generated phishing estate. The
-backends were the exception — they already returned honest 404s, which is why they are the only part
-of the estate that was already clean.
-
-One correction worth recording: the blocklist involved is minor, and being on it is probably not
-costing real traffic today. The signals it reacted to are the same ones consumed by the reputation
-systems that *do* matter, which is the reason to fix them.
+The backends were the exception — they already returned honest 404s, which is why they are the only
+part of the estate that was already clean.
 
 ---
 
