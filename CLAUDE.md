@@ -1,5 +1,10 @@
 # Brainstorm-UI
 
+Production web UI of the Brainstorm/Tapestry estate. The map of the estate's
+repos and deployments is
+[ECOSYSTEM.md](https://github.com/NosFabrica/protocols/blob/main/ECOSYSTEM.md)
+in `NosFabrica/protocols`.
+
 ## Agent skills
 
 ### Issue tracker
