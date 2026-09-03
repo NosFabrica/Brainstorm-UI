@@ -33,6 +33,7 @@ import {
   quoteFor,
   rankEndorsers,
   rankVouches,
+  reviewsSummaryLabel,
 } from "./endorsements";
 
 const A = "a".repeat(64);
@@ -217,6 +218,21 @@ describe("endorsementLabel", () => {
     expect(endorsementLabel("Zapped", [], 101)).toBe("Zapped by 101 people");
     expect(endorsementLabel("Followed", [], 1234)).toBe("Followed by 1.2k people");
     expect(endorsementLabel("Reviewed", [], 1)).toBe("Reviewed by 1 person");
+  });
+});
+
+// The person page's collapsed reviews line, for people who don't know the
+// trust vocabulary: how many reviews, and how many come from accounts they
+// can trust — no faces (the Followed-by row has those), no names (the rows
+// do). "You follow" outranks "verified" when both apply.
+describe("reviewsSummaryLabel", () => {
+  it("counts reviews and says who they come from, simply", () => {
+    expect(reviewsSummaryLabel({ total: 1, followed: 0, verified: 1 })).toBe("1 review from a verified account");
+    expect(reviewsSummaryLabel({ total: 3, followed: 0, verified: 2 })).toBe("3 reviews · 2 from verified accounts");
+    expect(reviewsSummaryLabel({ total: 3, followed: 1, verified: 1 })).toBe("3 reviews · 1 from someone you follow");
+    expect(reviewsSummaryLabel({ total: 4, followed: 2, verified: 1 })).toBe("4 reviews · 2 from people you follow");
+    expect(reviewsSummaryLabel({ total: 2, followed: 0, verified: 0 })).toBe("2 reviews");
+    expect(reviewsSummaryLabel({ total: 1, followed: 1, verified: 0 })).toBe("1 review from someone you follow");
   });
 });
 

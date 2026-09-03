@@ -11,15 +11,15 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
-import { BadgeCheck, ChevronDown, ChevronUp, Heart, PenLine } from "lucide-react";
+import { BadgeCheck, ChevronDown, ChevronUp, Heart, MessageSquareText, PenLine } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { TierWordChip, useTierRing } from "@/components/score/VerificationCoin";
-import { EndorsementLine, VouchBadge, useRankedVouches } from "@/components/search/EndorsementLine";
+import { VouchBadge, useRankedVouches } from "@/components/search/EndorsementLine";
 import { NotesInline } from "@/components/share/NotesInline";
-import { endorsementLabel } from "@/services/endorsements";
+import { reviewsSummaryLabel } from "@/services/endorsements";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useMyFollows } from "@/hooks/useMyFollows";
 import { forgetPersonEndorsements, usePersonEndorsements } from "@/hooks/usePersonEndorsements";
@@ -243,12 +243,13 @@ export function TrustReviews({
     setOpen(true); // show them what they just wrote
     forgetPersonEndorsements(pubkey);
   };
-  const summaryFaces = ranked.slice(0, 3).map((r) => ({ pubkey: r.pubkey, name: nameOf(r.pubkey), picture: pictureOf(r.pubkey), score01: r.score }));
-  const summaryLabel = endorsementLabel(
-    "Reviewed",
-    summaryFaces.map((f) => f.name).filter((n): n is string => !!n),
-    new Set(vouches.map((v) => v.pubkey)).size,
-  );
+  // Plain words for the collapsed line — no faces (the Followed-by row has
+  // them), no names (the rows do): how many, and from whom.
+  const summaryLabel = reviewsSummaryLabel({
+    total: vouches.length,
+    followed: signedIn ? grouped.followed.length : 0,
+    verified: grouped.verified.length,
+  });
   const onRemoved = () => {
     setLocal(vouches.filter((x) => x.pubkey !== viewer));
     setComposing(false);
@@ -268,7 +269,10 @@ export function TrustReviews({
             className="group inline-flex items-center gap-1.5 rounded-md text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
             data-testid="trust-reviews-toggle-open"
           >
-            <EndorsementLine faces={summaryFaces} label={summaryLabel} />
+            <span className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+              <MessageSquareText className="h-3 w-3" aria-hidden />
+            </span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 group-hover:text-slate-700 dark:group-hover:text-slate-200 transition-colors">{summaryLabel}</span>
             {open ? (
               <ChevronUp className="h-3.5 w-3.5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300" />
             ) : (

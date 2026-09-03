@@ -168,11 +168,10 @@ describe("TrustReviews", () => {
     });
     render(<TrustReviews pubkey={SUBJECT} personal={false} />);
     const summary = await screen.findByTestId("trust-reviews-summary");
-    await vi.waitFor(() => expect(summary).toHaveTextContent("Reviewed by friend & benjamin"));
-    // Faces, ringed, most trusted first.
-    const faces = [...summary.querySelectorAll("[data-face]")].map((f) => f.getAttribute("data-face"));
-    expect(faces).toEqual([FRIEND, BEN]);
-    expect(summary.querySelector('[class*="shadow-[0_0_0"]')).not.toBeNull();
+    // Plain words, no faces (the Followed-by row has them) and no names (the
+    // rows do): how many, and from whom in the reader's terms.
+    expect(summary).toHaveTextContent("2 reviews · 1 from someone you follow");
+    expect(summary.querySelector("[data-face]")).toBeNull();
     // Collapsed: no rows yet.
     expect(screen.queryByTestId("trust-review-v-friend")).toBeNull();
     fireEvent.click(screen.getByTestId("trust-reviews-toggle-open"));

@@ -197,6 +197,26 @@ export function endorsementLabel(verb: string, names: string[], total: number): 
 }
 
 /**
+ * The person page's collapsed reviews line, in words anyone follows: how many
+ * reviews, and how many come from accounts the reader can trust. "You
+ * follow" outranks "verified" when both apply; with neither, just the count.
+ */
+export function reviewsSummaryLabel({ total, followed, verified }: { total: number; followed: number; verified: number }): string {
+  const reviews = `${compactCount(total)} ${total === 1 ? "review" : "reviews"}`;
+  const part = (n: number, one: string, many: string) => (n === 1 ? `1 from ${one}` : `${compactCount(n)} from ${many}`);
+  const who =
+    followed > 0
+      ? part(followed, "someone you follow", "people you follow")
+      : verified > 0
+        ? part(verified, "a verified account", "verified accounts")
+        : null;
+  if (!who) return reviews;
+  // One review from one trusted source reads as a sentence, not a tally.
+  if (total === 1) return `${reviews} ${who.replace(/^1 /, "")}`;
+  return `${reviews} · ${who}`;
+}
+
+/**
  * The quotable part of a review: whitespace collapsed, whole when short,
  * otherwise its first sentence — and a hard cut with an ellipsis when the
  * prose never pauses. A review with no words in it ("👍", "100") yields
