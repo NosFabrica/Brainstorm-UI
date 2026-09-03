@@ -441,7 +441,7 @@ export function ListCard({ event, author, score }: { event: NostrEvent; author: 
                   is part of the value, not a footnote crammed underneath. */}
               {/* One quiet line: kicker + a small ringed face + name, the
                   date parked at the card's bottom-right corner. */}
-              <div className="flex w-full items-center justify-between gap-3 border-t border-slate-100 dark:border-slate-800/60 pt-2 sm:w-auto sm:ml-auto sm:border-0 sm:pt-0">
+              <div className="flex w-full items-center justify-between gap-3 border-t border-slate-100 dark:border-slate-800/60 pt-2">
                 <span className="flex min-w-0 items-center gap-1.5">
                   <span className="shrink-0 text-[10px] font-medium uppercase leading-none tracking-wide text-slate-400 dark:text-slate-500">
                     Curated by
