@@ -8,6 +8,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Observable, Subject, of } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
+import { nip19 } from "nostr-tools";
 
 interface ReqFrame {
   type: "OPEN" | "EVENT" | "EOSE" | "CLOSED";
@@ -20,6 +21,10 @@ interface ReqFrame {
 
 const reqMock = vi.fn();
 const countMock = vi.fn();
+const zapReqMock = vi.fn();
+vi.mock("@/lib/zapstoreRelay", () => ({
+  zapstoreRelay: () => ({ req: (...args: unknown[]) => zapReqMock(...args) }),
+}));
 vi.mock("@/lib/searchRelay", () => ({
   searchRelay: () => ({
     req: (...args: unknown[]) => reqMock(...args),
@@ -46,6 +51,8 @@ import {
   fetchReleases,
   fetchRepoActivity,
   fetchRepoCounts,
+  fetchReleaseAsset,
+  zapStoreUrl,
   fetchSimilarApps,
   searchStream,
   suggestProfiles,
@@ -406,6 +413,72 @@ describe("fetchRepoCounts", () => {
   });
 });
 
+describe("zapStoreUrl", () => {
+  // Where you actually GET an app: Zap Store's page for the listing, keyed by
+  // its naddr (probed: zapstore.dev/apps/<naddr> → 200). Zap Store verifies
+  // the APK signature against the developer's Nostr key — the trust story.
+  it("builds the Zap Store page for a listing", () => {
+    const listing = { kind: 32267, pubkey: "b".repeat(64), tags: [["d", "net.primal.android"]] } as NostrEvent;
+    const url = zapStoreUrl(listing)!;
+    expect(url.startsWith("https://zapstore.dev/apps/naddr1")).toBe(true);
+    const decoded = nip19.decode(url.slice("https://zapstore.dev/apps/".length));
+    expect(decoded.type).toBe("naddr");
+    expect((decoded.data as { identifier: string; kind: number }).identifier).toBe("net.primal.android");
+    expect((decoded.data as { kind: number }).kind).toBe(32267);
+  });
+
+  it("is null for a listing without a d identifier", () => {
+    expect(zapStoreUrl({ kind: 32267, pubkey: "b".repeat(64), tags: [] } as NostrEvent)).toBeNull();
+  });
+});
+
+describe("fetchReleaseAsset", () => {
+  // The APK lives in a kind-3063 asset event on the Zap Store relay (probed
+  // live: Primal's carried url, m, size 160171130, version, x). One REQ by
+  // the release's e-tag ids, parsed into the download link the page shows.
+  it("resolves the release's asset — url, mime, size, version, hash", async () => {
+    const subject = new Subject<ReqFrame>();
+    zapReqMock.mockImplementation(() => subject.asObservable());
+    const pending = fetchReleaseAsset(["asset-1"]);
+    await tick();
+    expect(zapReqMock).toHaveBeenCalledTimes(1);
+    expect((zapReqMock.mock.calls[0][0] as { ids: string[] }).ids).toEqual(["asset-1"]);
+
+    subject.next(frame({
+      id: "asset-1", kind: 3063, pubkey: "b".repeat(64), created_at: 1, sig: "s", content: "",
+      tags: [
+        ["url", "https://github.com/PrimalHQ/primal-android-app/releases/download/3.5.25/primal-3.5.25.apk"],
+        ["m", "application/vnd.android.package-archive"],
+        ["size", "160171130"],
+        ["version", "3.5.25"],
+        ["x", "6f5b89be7abb"],
+      ],
+    } as NostrEvent));
+    subject.next(EOSE);
+    expect(await pending).toEqual({
+      url: "https://github.com/PrimalHQ/primal-android-app/releases/download/3.5.25/primal-3.5.25.apk",
+      mime: "application/vnd.android.package-archive",
+      size: 160171130,
+      version: "3.5.25",
+      hash: "6f5b89be7abb",
+    });
+  });
+
+  it("is null when the relay has no asset for those ids", async () => {
+    const subject = new Subject<ReqFrame>();
+    zapReqMock.mockImplementation(() => subject.asObservable());
+    const pending = fetchReleaseAsset(["nope"]);
+    await tick();
+    subject.next(EOSE);
+    expect(await pending).toBeNull();
+  });
+
+  it("asks for nothing when the release has no assets", async () => {
+    expect(await fetchReleaseAsset([])).toBeNull();
+    expect(zapReqMock).not.toHaveBeenCalled();
+  });
+});
+
 describe("fetchSimilarApps", () => {
   // Category t-tags → sibling listings. Self excluded, replaceable dupes
   // collapsed by address, best tag-overlap first.
@@ -442,7 +515,7 @@ describe("fetchReleases", () => {
     const { subject } = controllable();
     const publisher = "b".repeat(64);
     const release = (d: string, at: number): NostrEvent =>
-      ({ id: d, kind: 30063, pubkey: publisher, tags: [["d", d]], content: `notes for ${d}`, created_at: at, sig: "s" }) as NostrEvent;
+      ({ id: d, kind: 30063, pubkey: publisher, tags: [["d", d], ["e", `asset-${d}`]], content: `notes for ${d}`, created_at: at, sig: "s" }) as NostrEvent;
 
     const pending = fetchReleases("place.poster.app", publisher);
     await tick();
@@ -457,10 +530,11 @@ describe("fetchReleases", () => {
     subject.next(EOSE);
 
     const releases = await pending;
-    // Newest first; the release's content IS the "What's new" text.
+    // Newest first; the release's content IS the "What's new" text, and its
+    // e-tags are the asset events (the APK) the app page can resolve.
     expect(releases).toEqual([
-      { version: "1.0.2133", at: 200, notes: "notes for place.poster.app@1.0.2133" },
-      { version: "1.0.2132", at: 100, notes: "notes for place.poster.app@1.0.2132" },
+      { version: "1.0.2133", at: 200, notes: "notes for place.poster.app@1.0.2133", assetIds: ["asset-place.poster.app@1.0.2133"] },
+      { version: "1.0.2132", at: 100, notes: "notes for place.poster.app@1.0.2132", assetIds: ["asset-place.poster.app@1.0.2132"] },
     ]);
   });
 

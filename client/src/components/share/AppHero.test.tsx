@@ -10,13 +10,16 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 import { nip19 } from "nostr-tools";
 
-type Release = { version: string; at: number; notes: string };
+type Release = { version: string; at: number; notes: string; assetIds: string[] };
 const releasesMock = vi.fn<() => Promise<Release[]>>(() => Promise.resolve([]));
 const similarMock = vi.fn<() => Promise<NostrEvent[]>>(() => Promise.resolve([]));
+type Asset = { url: string; mime: string; size: number | null; version: string | null; hash: string | null };
+const assetMock = vi.fn<() => Promise<Asset | null>>(() => Promise.resolve(null));
 vi.mock("@/services/search", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/search")>()),
   fetchReleases: (...args: unknown[]) => releasesMock(...(args as [])),
   fetchSimilarApps: (...args: unknown[]) => similarMock(...(args as [])),
+  fetchReleaseAsset: (...args: unknown[]) => assetMock(...(args as [])),
 }));
 const openLightboxMock = vi.fn();
 vi.mock("@/components/share/Lightbox", () => ({
@@ -76,6 +79,7 @@ const rel = (version: string, daysAgo: number, notes = ""): Release => ({
   version,
   at: Math.floor(Date.now() / 1000) - 86400 * daysAgo,
   notes,
+  assetIds: [`asset-${version}`],
 });
 
 beforeEach(() => {
@@ -84,6 +88,7 @@ beforeEach(() => {
   scoreByPubkey.clear();
   releasesMock.mockResolvedValue([]);
   similarMock.mockResolvedValue([]);
+  assetMock.mockResolvedValue(null);
 });
 
 describe("AppHero", () => {
@@ -94,7 +99,11 @@ describe("AppHero", () => {
     expect(screen.getByText(/Self-hosted community chat/)).toBeInTheDocument();
     expect((screen.getByTestId("app-hero-icon") as HTMLImageElement).src).toContain("icon.png");
 
-    expect(screen.getByTestId("app-hero-get").getAttribute("href")).toBe("https://flotilla.social");
+    // Get it → the Zap Store page (where installs actually happen); the
+    // marketing site is a secondary "Website" link; Source stays.
+    expect(screen.getByTestId("app-hero-get").getAttribute("href")).toMatch(/^https:\/\/zapstore\.dev\/apps\/naddr1/);
+    expect(screen.getByTestId("app-hero-get")).toHaveTextContent("Get on Zap Store");
+    expect(screen.getByTestId("app-hero-website").getAttribute("href")).toBe("https://flotilla.social");
     expect(screen.getByTestId("app-hero-source").getAttribute("href")).toContain("github.com/coracle-social");
 
     expect(screen.getByText("Android")).toBeInTheDocument();
@@ -104,6 +113,32 @@ describe("AppHero", () => {
     expect(shots).toHaveLength(2);
 
     expect(screen.getByText(/full community platform/)).toBeInTheDocument();
+  });
+
+it("offers the APK itself when the release's asset resolves", async () => {
+    releasesMock.mockResolvedValue([rel("3.5.25", 2)]);
+    assetMock.mockResolvedValue({
+      url: "https://github.com/PrimalHQ/primal-android-app/releases/download/3.5.25/primal-3.5.25.apk",
+      mime: "application/vnd.android.package-archive",
+      size: 160171130,
+      version: "3.5.25",
+      hash: "6f5b89be7abb",
+    });
+    render(<AppHero event={FLOTILLA} />);
+    const dl = await screen.findByTestId("app-hero-download");
+    // Asked with the latest release's asset ids.
+    expect(assetMock).toHaveBeenCalledWith(["asset-3.5.25"]);
+    expect(dl.getAttribute("href")).toContain("primal-3.5.25.apk");
+    expect(dl).toHaveTextContent("Download APK");
+    expect(dl).toHaveTextContent("153 MB");
+    expect(dl).toHaveTextContent("v3.5.25");
+  });
+
+  it("shows no download when there is no asset to download", async () => {
+    releasesMock.mockResolvedValue([rel("1.0", 2)]);
+    render(<AppHero event={FLOTILLA} />);
+    await screen.findByTestId("app-hero-release");
+    expect(screen.queryByTestId("app-hero-download")).toBeNull();
   });
 
   it("shows the latest release as the maintained signal", async () => {

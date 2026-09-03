@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
-import { Code2, ExternalLink, Package } from "lucide-react";
+import { Code2, Download, ExternalLink, Globe, Package } from "lucide-react";
 import { useLightbox } from "@/components/share/Lightbox";
 import { MentionChip } from "@/components/share/MentionChip";
 import { Favicon, LinkChip } from "@/components/share/LinkPreview";
@@ -24,11 +24,15 @@ import { Chip } from "@/components/ui/chip";
 import { eventPath } from "@/lib/shareId";
 import {
   appAddress,
+  fetchReleaseAsset,
   fetchReleases,
   fetchSimilarApps,
   kind0ToSearchResult,
+  zapStoreUrl,
   type AppRelease,
+  type ReleaseAsset,
 } from "@/services/search";
+import { formatBytes } from "@/lib/formatBytes";
 
 // Structural minimum (EventPage hands heroes MinimalEvent, which has no sig).
 type AppEvent = {
@@ -251,6 +255,8 @@ function usePublisher(pubkey: string): SearchResult | null {
 }
 
 const HISTORY_MAX = 5;
+const SECONDARY_PILL =
+  "inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-700 px-3.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 transition-colors";
 
 export function AppHero({ event }: { event: AppEvent }) {
   const name = tagVal(event, "name") ?? tagVal(event, "d") ?? "Untitled app";
@@ -300,6 +306,23 @@ export function AppHero({ event }: { event: AppEvent }) {
 
   const release = releases[0] ?? null;
   const history = releases.slice(1);
+  // The latest release's asset — the APK — lives on the Zap Store relay.
+  const [asset, setAsset] = useState<ReleaseAsset | null>(null);
+  const assetKey = release?.assetIds.join(",") ?? "";
+  useEffect(() => {
+    setAsset(null);
+    if (!release || release.assetIds.length === 0) return;
+    let alive = true;
+    void fetchReleaseAsset(release.assetIds).then((a) => {
+      if (alive) setAsset(a);
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assetKey]);
+  const store = zapStoreUrl({ pubkey: event.pubkey, tags: event.tags });
+  const isApk = !!asset && (asset.mime === "application/vnd.android.package-archive" || /\.apk(\?|#|$)/i.test(asset.url));
   const cadence = cadenceLabel(releases);
   const publisher = usePublisher(event.pubkey);
   const scoreOf = useAuthorScores([event.pubkey]);
@@ -369,30 +392,65 @@ export function AppHero({ event }: { event: AppEvent }) {
         </div>
       </div>
 
-      {/* Actions row: equal-width on phones, left-aligned inline from sm up. */}
-      <div className="mt-3 flex items-center gap-2">
-          {url && (
+      {/* Actions: Get on Zap Store (where installs actually happen, signature-
+          verified against the dev's key) leads; Website / Source / the APK
+          itself follow as quiet pills. Wraps on phones. */}
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        {store ? (
+          <a
+            href={store}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
+            data-testid="app-hero-get"
+          >
+            <Favicon host="zapstore.dev" className="h-3.5 w-3.5 rounded-sm" /> Get on Zap Store
+          </a>
+        ) : (
+          url && (
             <a
               href={url}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full bg-brand-primary px-5 py-2 text-xs font-semibold text-white hover:opacity-90 transition-opacity sm:flex-none sm:py-1.5"
+              className="inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
               data-testid="app-hero-get"
             >
               Get it <ExternalLink className="h-3 w-3" />
             </a>
-          )}
-          {repository && (
-            <a
-              href={repository}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-700 px-4 py-2 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 transition-colors sm:flex-none sm:py-1.5"
-              data-testid="app-hero-source"
-            >
-              <Code2 className="h-3 w-3" /> Source
-            </a>
-          )}
+          )
+        )}
+        {store && url && (
+          <a
+            href={url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={SECONDARY_PILL}
+            data-testid="app-hero-website"
+          >
+            <Globe className="h-3 w-3" /> Website
+          </a>
+        )}
+        {repository && (
+          <a href={repository} target="_blank" rel="noopener noreferrer" className={SECONDARY_PILL} data-testid="app-hero-source">
+            <Code2 className="h-3 w-3" /> Source
+          </a>
+        )}
+        {asset && (
+          <a
+            href={asset.url}
+            download
+            target="_blank"
+            rel="noopener noreferrer"
+            title={asset.hash ? `SHA-256 ${asset.hash}` : undefined}
+            className={SECONDARY_PILL}
+            data-testid="app-hero-download"
+          >
+            <Download className="h-3 w-3" />
+            {isApk ? "Download APK" : "Download"}
+            {asset.size ? ` · ${formatBytes(asset.size)}` : ""}
+            {asset.version ? ` · v${asset.version}` : ""}
+          </a>
+        )}
       </div>
 
       {/* At-a-glance store stats — computed from the releases we already hold. */}

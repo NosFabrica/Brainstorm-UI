@@ -18,7 +18,7 @@ import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { eventStore } from "@/lib/eventStore";
 import { fetchProfileMap } from "@/services/nostr";
-import { fetchRepoCounts } from "@/services/search";
+import { fetchRepoCounts, zapStoreUrl } from "@/services/search";
 import { eventPath } from "@/lib/shareId";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { FeedVideo } from "@/components/share/FeedVideo";
@@ -332,7 +332,9 @@ export function AppCard({ event, author, score }: { event: NostrEvent; author: S
   const icon = tagVal(event, "icon") ?? tagVal(event, "image");
   const license = tagVal(event, "license");
   const platforms = platformWords(event);
-  const getIt = tagVal(event, "url") ?? tagVal(event, "repository");
+  // Where you actually GET it: the app's Zap Store page (signature-verified
+  // installs), falling back to the site / repo only for listings without one.
+  const getIt = zapStoreUrl(event) ?? tagVal(event, "url") ?? tagVal(event, "repository");
   return (
     <CardShell
       event={event}

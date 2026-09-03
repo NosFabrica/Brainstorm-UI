@@ -214,12 +214,11 @@ describe("SearchResults", () => {
     // Platforms dedupe to one human word.
     // Twice now: the card chip AND the platform facet above the results.
     expect(screen.getAllByText("Android")).toHaveLength(2);
-    // "Get it" wears the destination's favicon — the same affiliated look
-    // the repo cards have.
+    // "Get it" goes where you actually get it — the app's Zap Store page,
+    // wearing Zap Store's favicon — not the marketing site.
     const getIt = screen.getByTestId(/^app-get-/);
-    expect(getIt.querySelector("img")?.getAttribute("src")).toContain("poster.place");
-    // Get it → the app's own site.
-    expect(screen.getByTestId("app-get-app1").getAttribute("href")).toBe("https://poster.place");
+    expect(getIt.getAttribute("href")).toMatch(/^https:\/\/zapstore\.dev\/apps\/naddr1/);
+    expect(getIt.querySelector("img")?.getAttribute("src")).toContain("zapstore.dev");
   });
 
   // Benjamin's review catch: People cards rendered bare — no ring, no coin,

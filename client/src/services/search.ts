@@ -17,6 +17,7 @@
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
 import { searchRelay } from "@/lib/searchRelay";
+import { zapstoreRelay } from "@/lib/zapstoreRelay";
 import { eventStore } from "@/lib/eventStore";
 import { liftQuery } from "@/lib/searchSyntax";
 import { resolveHouseObserver } from "@/services/trustSource";
@@ -251,6 +252,78 @@ export interface AppRelease {
   at: number;
   /** The release event's content — Zap Store publishes markdown notes here. */
   notes: string;
+  /** The release's e-tags: its asset events (the APK itself lives there). */
+  assetIds: string[];
+}
+
+/**
+ * Where you actually GET an app: Zap Store's page for the listing, keyed by
+ * its naddr (probed: zapstore.dev/apps/<naddr> answers 200). Zap Store
+ * verifies the APK's signature against the developer's Nostr key — the
+ * install path that continues the trust story. Null without a d identifier.
+ */
+export function zapStoreUrl(event: { kind?: number; pubkey: string; tags: string[][] }): string | null {
+  const d = event.tags.find((t) => t[0] === "d")?.[1];
+  if (d === undefined) return null;
+  try {
+    return `https://zapstore.dev/apps/${nip19.naddrEncode({ kind: 32267, pubkey: event.pubkey, identifier: d })}`;
+  } catch {
+    return null;
+  }
+}
+
+export interface ReleaseAsset {
+  /** Direct download — Zap Store releases point at the APK itself. */
+  url: string;
+  mime: string;
+  /** Bytes, when the publisher declared them. */
+  size: number | null;
+  version: string | null;
+  /** The declared file hash (x tag) — the verify-it-yourself detail. */
+  hash: string | null;
+}
+
+/**
+ * The release's asset event — the APK — from the Zap Store relay. Our
+ * search relay indexes listings and releases but not these (RELAY-ASKS
+ * #6), so the app page makes one extra hop for the download link. Kind
+ * 3063 (Zap Store's asset kind), tolerating legacy 1063 file metadata.
+ * Null when the release has no assets or the relay has none of them.
+ */
+export function fetchReleaseAsset(ids: string[], timeoutMs = 5000): Promise<ReleaseAsset | null> {
+  return new Promise((resolve) => {
+    if (ids.length === 0) return resolve(null);
+    const relay = zapstoreRelay();
+    if (!relay) return resolve(null);
+    let asset: ReleaseAsset | null = null;
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      sub.unsubscribe();
+      resolve(asset);
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    const sub = relay.req({ ids }).subscribe((msg: { type: string; event?: NostrEvent }) => {
+      if (msg.type === "EVENT" && msg.event && (msg.event.kind === 3063 || msg.event.kind === 1063)) {
+        const tag = (n: string) => msg.event!.tags.find((t) => t[0] === n)?.[1];
+        const url = tag("url");
+        if (url && !asset) {
+          const size = Number(tag("size"));
+          asset = {
+            url,
+            mime: tag("m") ?? "",
+            size: Number.isFinite(size) && size > 0 ? size : null,
+            version: tag("version") ?? null,
+            hash: tag("x") ?? null,
+          };
+        }
+      } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
+        finish();
+      }
+    });
+  });
 }
 
 /**
@@ -279,6 +352,7 @@ export function fetchReleases(
             version: d.slice(appD.length + 1),
             at: msg.event.created_at,
             notes: msg.event.content ?? "",
+            assetIds: msg.event.tags.filter((t) => t[0] === "e" && t[1]).map((t) => t[1]),
           });
         } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
           finish();
