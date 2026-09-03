@@ -38,6 +38,15 @@ export function usePersonEndorsements(pubkey: string | null, personal: boolean):
   return key ? settled.get(key) ?? null : null;
 }
 
+/** After the viewer writes or removes a review: forget what we held about this
+ *  person so the next surface that asks refetches (both Perspectives). */
+export function forgetPersonEndorsements(pubkey: string): void {
+  for (const suffix of ["me", "house"]) {
+    cache.delete(`${pubkey}|${suffix}`);
+    settled.delete(`${pubkey}|${suffix}`);
+  }
+}
+
 /** Test seam. */
 export function __resetPersonEndorsementsCache(): void {
   cache.clear();

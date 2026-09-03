@@ -11,8 +11,10 @@ import type { NostrEvent } from "nostr-tools";
 
 type PersonEndorsements = import("@/services/endorsements").PersonEndorsements;
 const personEndorsementsMock = vi.fn<(pubkey: string | null, personal: boolean) => PersonEndorsements | null>(() => null);
+const forgetMock = vi.fn();
 vi.mock("@/hooks/usePersonEndorsements", () => ({
   usePersonEndorsements: (pubkey: string | null, personal: boolean) => personEndorsementsMock(pubkey, personal),
+  forgetPersonEndorsements: (pk: string) => forgetMock(pk),
 }));
 let followsMock = new Set<string>();
 let signedInMock = false;
@@ -29,6 +31,14 @@ vi.mock("@/services/search", async (importOriginal) => ({
   fetchVouchReplies: (...a: unknown[]) => repliesMock(...(a as [string[]])),
 }));
 vi.mock("@/services/nostr", () => ({ fetchProfileMap: vi.fn(() => Promise.resolve(new Map())) }));
+let viewerMock: { pubkey: string } | null = null;
+vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => viewerMock }));
+const publishVouchMock = vi.fn(async (_subject: string, _opts: { type: string; content: string }) => ({ success: true, event: undefined as unknown }));
+const revokeVouchMock = vi.fn(async (_subject: string, _id: string) => ({ success: true }));
+vi.mock("@/services/vouches", () => ({
+  publishVouch: (s: string, o: { type: string; content: string }) => publishVouchMock(s, o),
+  revokeVouch: (s: string, id: string) => revokeVouchMock(s, id),
+}));
 const knownProfiles = new Map<string, NostrEvent>();
 vi.mock("@/lib/eventStore", () => ({
   eventStore: { getReplaceable: (_k: number, pubkey: string) => knownProfiles.get(pubkey), getEvent: () => undefined, add: (e: NostrEvent) => e },
@@ -52,6 +62,89 @@ beforeEach(() => {
   signedInMock = false;
   scoreByPubkey.clear();
   knownProfiles.clear();
+  viewerMock = null;
+  publishVouchMock.mockResolvedValue({ success: true, event: undefined });
+  revokeVouchMock.mockResolvedValue({ success: true });
+});
+
+// The composer: a signed-in viewer writes a trust review from the person's
+// page — type (Vouched or Identity) plus optional words — publishing the same
+// kind-31871 vouch Relay Outpost does. One review per person: an existing one
+// prefills and the action reads Update; Remove publishes the NIP-09 delete.
+describe("TrustReviews composer", () => {
+  const VIEWER = "9".repeat(64);
+
+  it("invites a signed-in viewer to be the first, and shows their review the moment it publishes", async () => {
+    viewerMock = { pubkey: VIEWER };
+    signedInMock = true;
+    knownProfiles.set(SUBJECT, profile(SUBJECT, "nathan"));
+    personEndorsementsMock.mockReturnValue({ followedBy: [], total: null, vouches: [] });
+    publishVouchMock.mockResolvedValue({
+      success: true,
+      event: { id: "new-v", kind: 31871, pubkey: VIEWER, tags: [["d", SUBJECT], ["p", SUBJECT], ["t", "identity"], ["s", "vouched"]], content: "I know this is really them.", created_at: NOW, sig: "s" },
+    });
+    render(<TrustReviews pubkey={SUBJECT} personal={false} />);
+    const section = await screen.findByTestId("trust-reviews");
+    expect(section).toHaveTextContent("Be the first to vouch for nathan");
+    fireEvent.click(screen.getByTestId("trust-reviews-write"));
+    fireEvent.click(screen.getByTestId("vouch-type-identity"));
+    fireEvent.change(screen.getByTestId("vouch-text"), { target: { value: "I know this is really them." } });
+    fireEvent.click(screen.getByTestId("vouch-publish"));
+    await vi.waitFor(() => expect(publishVouchMock).toHaveBeenCalledWith(SUBJECT, { type: "identity", content: "I know this is really them." }));
+    // The new review is on the page at once, no refetch.
+    const row = await screen.findByTestId("trust-review-new-v");
+    expect(row).toHaveTextContent("I know this is really them.");
+    expect(row).toHaveTextContent("Identity");
+    expect(screen.queryByTestId("vouch-text")).toBeNull();
+  });
+
+  it("prefills the viewer's existing review, updates it, and can remove it", async () => {
+    viewerMock = { pubkey: VIEWER };
+    signedInMock = true;
+    personEndorsementsMock.mockReturnValue({
+      followedBy: [], total: null,
+      vouches: [{ id: "mine", pubkey: VIEWER, type: "vouch", text: "Great operator.", at: NOW - 100 }],
+    });
+    render(<TrustReviews pubkey={SUBJECT} personal={false} />);
+    await screen.findByTestId("trust-review-mine");
+    const write = screen.getByTestId("trust-reviews-write");
+    expect(write).toHaveTextContent("Edit your review");
+    fireEvent.click(write);
+    expect((screen.getByTestId("vouch-text") as HTMLTextAreaElement).value).toBe("Great operator.");
+    expect(screen.getByTestId("vouch-publish")).toHaveTextContent("Update");
+    fireEvent.click(screen.getByTestId("vouch-remove"));
+    // Two-step: the first click asks, the second removes.
+    fireEvent.click(screen.getByTestId("vouch-remove"));
+    await vi.waitFor(() => expect(revokeVouchMock).toHaveBeenCalledWith(SUBJECT, "mine"));
+    await vi.waitFor(() => expect(screen.queryByTestId("trust-review-mine")).toBeNull());
+  });
+
+  it("offers no composer signed out, and none on your own page", async () => {
+    personEndorsementsMock.mockReturnValue({ followedBy: [], total: null, vouches: [] });
+    const { unmount } = render(<TrustReviews pubkey={SUBJECT} personal={false} />);
+    await Promise.resolve();
+    expect(screen.queryByTestId("trust-reviews")).toBeNull();
+    unmount();
+    viewerMock = { pubkey: SUBJECT };
+    signedInMock = true;
+    render(<TrustReviews pubkey={SUBJECT} personal={false} />);
+    await Promise.resolve();
+    expect(screen.queryByTestId("trust-reviews-write")).toBeNull();
+  });
+
+  it("reports a failed publish and keeps the draft", async () => {
+    viewerMock = { pubkey: VIEWER };
+    signedInMock = true;
+    personEndorsementsMock.mockReturnValue({ followedBy: [], total: null, vouches: [] });
+    publishVouchMock.mockResolvedValue({ success: false, error: "No relay accepted the event", event: undefined });
+    render(<TrustReviews pubkey={SUBJECT} personal={false} />);
+    await screen.findByTestId("trust-reviews");
+    fireEvent.click(screen.getByTestId("trust-reviews-write"));
+    fireEvent.change(screen.getByTestId("vouch-text"), { target: { value: "draft" } });
+    fireEvent.click(screen.getByTestId("vouch-publish"));
+    await screen.findByText(/No relay accepted the event/);
+    expect((screen.getByTestId("vouch-text") as HTMLTextAreaElement).value).toBe("draft");
+  });
 });
 
 describe("TrustReviews", () => {
