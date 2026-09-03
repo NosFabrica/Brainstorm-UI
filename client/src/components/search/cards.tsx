@@ -22,6 +22,7 @@ import { eventPath } from "@/lib/shareId";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { FeedVideo } from "@/components/share/FeedVideo";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
+import { MentionChip } from "@/components/share/MentionChip";
 
 export function tagVal(event: NostrEvent, name: string): string | undefined {
   return event.tags.find((t) => t[0] === name)?.[1];
@@ -218,11 +219,12 @@ export function MediaCard({ event, author, score }: { event: NostrEvent; author:
     !!url && (mime.startsWith("audio/") || event.kind === 1222 || /\.(?:mp3|m4a|ogg|wav|flac|aac|opus)(?:\?|#|$)/i.test(url));
   const isVideo = !!url && !isImage && !isAudio && isVideoUrl(event, url);
   // The caption is the words, never the URL — the media itself is the link.
+  // nostr: mentions stay IN and render as the person below.
   const caption = (tagVal(event, "title") ?? event.content ?? "")
     .replace(/https?:\/\/\S+/g, "")
-    .replace(/\s+/g, " ")
+    .replace(/[^\S\n]+/g, " ")
     .trim()
-    .slice(0, 200);
+    .slice(0, 300);
   const host = (() => {
     try {
       return url ? new URL(url).hostname.replace(/^www\./, "") : null;
@@ -253,7 +255,11 @@ export function MediaCard({ event, author, score }: { event: NostrEvent; author:
     >
       <AuthorRow author={author} score={score} created_at={event.created_at} />
       {caption && (
-        <p className="mt-1.5 text-sm text-slate-700 dark:text-slate-200 break-words line-clamp-2">{caption}</p>
+        <p className="mt-1.5 text-sm text-slate-700 dark:text-slate-200 break-words line-clamp-2">
+          {caption.split(/(nostr:n(?:pub|profile)1[02-9ac-hj-np-z]+)/gi).map((part, i) =>
+            /^nostr:/i.test(part) ? <MentionChip key={i} uri={part} /> : <span key={i}>{part}</span>,
+          )}
+        </p>
       )}
       {isVideo && url ? (
         <FeedVideo src={url} poster={poster ?? undefined} />

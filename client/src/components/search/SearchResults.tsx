@@ -397,6 +397,16 @@ export function SearchResults({
   const clustered = tab === "live" || tab === "lists";
   const displayHits = useMemo(() => {
     let shown = hits;
+    if (tab === "media") {
+      // Kind 1063 is generic file metadata — Zap Store APKs and other blobs
+      // ride it. The Media tab means media: a 1063 stays only when its
+      // declared mime is image/video/audio. (Everything still shows the rest.)
+      const mimeOf = (e: NostrEvent) => e.tags.find((t) => t[0] === "m")?.[1] ?? "";
+      shown = hits.filter((h) => {
+        if (h.event.kind !== 1063) return true;
+        return /^(image|video|audio)\//.test(mimeOf(h.event));
+      });
+    }
     if (tab === "lists") {
       // Lists must earn their place: untitled or empty ones are app
       // machine-state, not content (Benjamin's "forced and off" browse).

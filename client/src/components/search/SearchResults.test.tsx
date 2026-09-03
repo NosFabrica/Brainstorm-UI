@@ -410,6 +410,40 @@ describe("SearchResults", () => {
     expect(card).toHaveTextContent("street clip");
   });
 
+  it("a caption's nostr mention renders as the person, not a raw URI", async () => {
+    setUrlTab("media");
+    const friend = "7".repeat(64);
+    profileMapMock.set(friend, { name: "bartholin" });
+    const { nip19 } = await import("nostr-tools");
+    const npub = nip19.npubEncode(friend);
+    render(<SearchResults query="gator" pov="nosfabrica" />);
+    const vid = ev("nm1", 22, "8".repeat(64), `nostr:${npub} look at this`, [
+      ["imeta", "url https://media.example/gator.mp4", "m video/mp4"],
+    ]);
+    emit({ hits: [{ event: vid, author: author(vid.pubkey, "hank"), rank: null }], eose: true, timeMs: 200 });
+    const card = await screen.findByTestId("media-card-nm1");
+    const chip = card.querySelector('[data-testid="mention-chip"]');
+    expect(chip).not.toBeNull();
+    await vi.waitFor(() => expect(chip!).toHaveTextContent("@bartholin"));
+    expect(card.textContent).not.toContain("nostr:npub");
+  });
+
+  it("the Media tab shows media — APKs and other file blobs stay out", async () => {
+    setUrlTab("media");
+    render(<SearchResults query="" pov="nosfabrica" />);
+    const apk = ev("apk1", 1063, "5".repeat(64), "cooking.zap.app@3.2.2", [
+      ["url", "https://cdn.zapstore.dev/abc.apk"],
+      ["m", "application/vnd.android.package-archive"],
+    ]);
+    const photo = ev("ph1", 1063, "6".repeat(64), "sunset", [
+      ["url", "https://cdn.example/sunset.jpg"],
+      ["m", "image/jpeg"],
+    ]);
+    emit({ hits: [apk, photo].map((event) => ({ event, author: author(event.pubkey, "x"), rank: null })), eose: true, timeMs: 90 });
+    await screen.findByTestId("media-card-ph1");
+    expect(screen.queryByTestId("media-card-apk1")).toBeNull();
+  });
+
   it("an audio result gets the real track player", async () => {
     setUrlTab("media");
     render(<SearchResults query="remix" pov="nosfabrica" />);
