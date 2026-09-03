@@ -7,7 +7,7 @@
  * primitives per CLAUDE.md: Chip for status/counts, shared tier ring.
  */
 import { Link } from "wouter";
-import { Code2, ExternalLink, FileVideo, ListChecks, Package, Radio } from "lucide-react";
+import { Code2, ExternalLink, File, FileAudio, FileVideo, ListChecks, Package, Radio } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { nip19 } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -130,20 +130,70 @@ export function mediaUrlOf(event: NostrEvent): string | null {
   return inContent ? inContent[0] : null;
 }
 
+/** The poster IMAGE for a media event — imeta's image/thumb parts (NIP-71
+ *  publishes video previews there) or plain thumb/image tags. Null means
+ *  "no still exists"; the card then pulls a first frame from the video. */
+export function mediaPosterOf(event: NostrEvent): string | null {
+  for (const tag of event.tags) {
+    if (tag[0] === "imeta") {
+      for (const key of ["image ", "thumb "]) {
+        const part = tag.slice(1).find((p) => p.startsWith(key));
+        if (part) return part.slice(key.length).trim();
+      }
+    }
+  }
+  return tagVal(event, "thumb") ?? tagVal(event, "image") ?? null;
+}
+
+/** Video by declared mime first (imeta "m video/…"), extension second. */
+function isVideoUrl(event: NostrEvent, url: string): boolean {
+  for (const tag of event.tags) {
+    if (tag[0] === "imeta") {
+      const mime = tag.slice(1).find((p) => p.startsWith("m "));
+      if (mime) return mime.slice(2).trim().startsWith("video/");
+    }
+  }
+  const m = tagVal(event, "m");
+  if (m) return m.startsWith("video/");
+  return /\.(?:mp4|webm|mov|m3u8)(?:\?|#|$)/i.test(url);
+}
+
 const IMAGE_RE = /\.(?:png|jpe?g|gif|webp|avif)(?:\?|#|$)/i;
 
 export function MediaCard({ event, author, score }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
   const url = mediaUrlOf(event);
+  const poster = mediaPosterOf(event);
   const isImage = !!url && IMAGE_RE.test(url);
+  const isVideo = !!url && !isImage && isVideoUrl(event, url);
   const caption = (tagVal(event, "title") ?? event.content ?? "").slice(0, 200);
   return (
     <CardShell event={event} openInUrl={`https://njump.me/${neventOf(event)}`} openInLabel="Open in client" testId={`media-card-${event.id}`}>
       <div className="flex items-start gap-3">
         <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
-          {url && isImage ? (
-            <img src={url} alt="" loading="lazy" className="h-full w-full object-cover" data-testid={`media-thumb-${event.id}`} />
+          {isImage || poster ? (
+            <img src={isImage ? (url as string) : (poster as string)} alt="" loading="lazy" className="h-full w-full object-cover" data-testid={`media-thumb-${event.id}`} />
+          ) : isVideo ? (
+            // No poster published — a metadata-only <video> paints the first
+            // frame as the thumbnail without downloading the file.
+            <video
+              src={`${url}#t=0.1`}
+              preload="metadata"
+              muted
+              playsInline
+              tabIndex={-1}
+              aria-hidden
+              className="pointer-events-none h-full w-full object-cover"
+              data-testid={`media-video-thumb-${event.id}`}
+            />
           ) : (
-            <FileVideo className="h-6 w-6 text-slate-400 dark:text-slate-500" />
+            // Honest icon for what the file actually is — a PDF is not a video.
+            (() => {
+              const mime = tagVal(event, "m") ?? "";
+              const Icon = mime.startsWith("audio/") || event.kind === 1222 ? FileAudio
+                : mime.startsWith("video/") || !mime ? FileVideo
+                : File;
+              return <Icon className="h-6 w-6 text-slate-400 dark:text-slate-500" />;
+            })()
           )}
         </div>
         <div className="min-w-0 flex-1">

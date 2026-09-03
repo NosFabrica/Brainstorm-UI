@@ -312,6 +312,31 @@ describe("SearchResults", () => {
     expect(screen.getByText(/sunset over the lake/)).toBeInTheDocument();
   });
 
+  it("a video with a poster image in imeta shows the poster, not an icon", async () => {
+    setUrlTab("media");
+    render(<SearchResults query="talk" pov="nosfabrica" />);
+    const vid = ev("v1", 21, "8".repeat(64), "conference talk", [
+      ["imeta", "url https://cdn.example/talk.mp4", "m video/mp4", "image https://cdn.example/talk-poster.jpg"],
+    ]);
+    emit({ hits: [{ event: vid, author: author(vid.pubkey, "hank"), rank: null }], eose: true, timeMs: 200 });
+    const img = (await screen.findByTestId("media-thumb-v1")) as HTMLImageElement;
+    expect(img.src).toContain("talk-poster.jpg");
+  });
+
+  it("a bare video URL still gets a real first-frame thumb via <video>", async () => {
+    setUrlTab("media");
+    render(<SearchResults query="clip" pov="nosfabrica" />);
+    const vid = ev("v2", 22, "8".repeat(64), "street clip", [
+      ["imeta", "url https://cdn.example/clip.mp4", "m video/mp4"],
+    ]);
+    emit({ hits: [{ event: vid, author: author(vid.pubkey, "hank"), rank: null }], eose: true, timeMs: 200 });
+    const video = (await screen.findByTestId("media-video-thumb-v2")) as HTMLVideoElement;
+    expect(video.tagName).toBe("VIDEO");
+    expect(video.getAttribute("src")).toContain("clip.mp4");
+    // metadata-only fetch: a thumbnail must not download the whole file.
+    expect(video.getAttribute("preload")).toBe("metadata");
+  });
+
   it("filters write visible syntax into the query via onQueryRewrite", async () => {
     const rewrite = vi.fn();
     render(<SearchResults query="bitcoin" pov="nosfabrica" onQueryRewrite={rewrite} />);
