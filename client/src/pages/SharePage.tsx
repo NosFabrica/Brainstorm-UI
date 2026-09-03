@@ -811,6 +811,13 @@ export default function SharePage() {
 
   const openInRef = useRef<HTMLElement>(null);
   const scrollToOpenIn = () => openInRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  // Whose distance the DegreeChip measures — follows the perspective toggle,
+  // falls back to House, works logged out. See useHopsOrigin.
+  const hopsOrigin = useHopsOrigin();
+
+  // Guards start here. `decoded` is fixed for the life of the mount, but adding
+  // a hook below any of these returns changes the hook count between renders
+  // and React throws.
 
   if (!decoded) {
     return <ShareShell><NotFoundCard rawId={rawId} /></ShareShell>;
@@ -857,9 +864,6 @@ export default function SharePage() {
   // coin) instead of the dashed "—", which is a verdict.
   const coinLoading =
     scorePov === "personalized" ? overviewQuery.isLoading : houseRankQuery.isLoading && overviewQuery.isLoading;
-  // Whose distance the DegreeChip measures — follows the perspective toggle,
-  // falls back to House, works logged out. See useHopsOrigin.
-  const hopsOrigin = useHopsOrigin();
   // Contact as compact clickable icons — website, lightning address, external
   // identities. Lives top-right with the actions (and has a mobile fallback row),
   // never as verbose text at the bottom.

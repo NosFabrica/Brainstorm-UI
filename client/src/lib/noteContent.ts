@@ -242,7 +242,7 @@ export function extractNoteTitle(content: string, tags: string[][] = []): string
       l
         .replace(/https?:\/\/\S+/g, "")
         .replace(/nostr:[a-z0-9]+/gi, "")
-        .replace(/[📊✨🎙️📻🎧]/gu, "")
+        .replace(/(?:🎙️|[📊✨🎙📻🎧])/gu, "")
         .trim(),
     )
     .find((l) => l.length > 1);

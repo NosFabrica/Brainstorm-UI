@@ -3,6 +3,7 @@ import { AppHeader } from "@/components/AppHeader";
 import { GlossBackground } from "@/components/GlossBackground";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
+import { useGoBack } from "@/hooks/useGoBack";
 import { useLocation, useRoute } from "wouter";
 import { nip19 } from "nostr-tools";
 import { ProfileRecentPosts } from "@/components/profile/ProfileRecentPosts";
@@ -948,6 +949,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
 export default function ProfilePage() {
   const tierRing = useTierRing();
   const [location, navigate] = useLocation();
+  const goBack = useGoBack();
   const [, params] = useRoute("/profile/:npub");
   const npubParam = params?.npub || "";
 
@@ -982,7 +984,6 @@ export default function ProfilePage() {
 
   const [fromGroup, setFromGroup] = useState<string | null>(null);
   const [fromAdmin, setFromAdmin] = useState<string | null>(null);
-  const [fromSearch, setFromSearch] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportReason, setReportReason] = useState("spam");
   const [followHovered, setFollowHovered] = useState(false);
@@ -1074,7 +1075,6 @@ export default function ProfilePage() {
     const adminFrom = urlParams.get("from");
     const adminPubkey = urlParams.get("pubkey");
     setFromAdmin(adminFrom === "admin" ? (adminPubkey || "1") : null);
-    setFromSearch(urlParams.get("fromSearch") === "1");
   }, [location, npubParam]);
 
   const { preset: trustPreset } = useTrustPresetSync(!!user);
@@ -1864,10 +1864,9 @@ export default function ProfilePage() {
       params.set("from", "admin");
       if (fromAdmin !== "1") params.set("pubkey", fromAdmin);
     }
-    if (fromSearch) params.set("fromSearch", "1");
     const qs = params.toString();
     navigate(`/profile/${targetNpub}${qs ? `?${qs}` : ""}`);
-  }, [navigate, fromGroup, fromAdmin, fromSearch]);
+  }, [navigate, fromGroup, fromAdmin]);
 
   const handleSetSort = useCallback((k: string, v: SortMode) => {
     setSectionSort(prev => ({ ...prev, [k]: v }));
@@ -2085,16 +2084,6 @@ export default function ProfilePage() {
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
         <div className="flex items-center gap-2 mb-6">
           {(() => {
-            const goBack = (fallback: string) => {
-              // Prefer real browser history so "back" returns to wherever you came
-              // from — the dashboard, search, or a chained profile — instead of a
-              // hardcoded destination. Fall back only on a cold deep-link.
-              if (typeof window !== "undefined" && window.history.length > 1) {
-                window.history.back();
-              } else {
-                navigate(fallback);
-              }
-            };
             if (fromAdmin) {
               const fallback = `/admin?tab=users${fromAdmin !== "1" ? `&highlight=${fromAdmin}` : ""}`;
               return (
@@ -2133,7 +2122,7 @@ export default function ProfilePage() {
                 data-testid="button-back-to-search"
               >
                 <ArrowLeft className="h-4 w-4" />
-                {fromSearch ? "Back to Search" : "Back"}
+                Back
               </Button>
             );
           })()}

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useRoute, Redirect, Link, useLocation } from "wouter";
+import { useGoBack } from "@/hooks/useGoBack";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { ArrowLeft, Loader2, Users, SlidersHorizontal } from "lucide-react";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
@@ -35,6 +36,7 @@ const PAGE = 20;
 
 export default function ConnectionListPage() {
   const [, navigate] = useLocation();
+  const goBack = useGoBack();
   const [, params] = useRoute("/p/:id/:type");
   const me = useActiveAccountDisplay();
   const handleLogout = () => logout();
@@ -205,10 +207,7 @@ export default function ConnectionListPage() {
               fallback when there's no history to pop. */}
           <button
             type="button"
-            onClick={() => {
-              if (typeof window !== "undefined" && window.history.length > 1) window.history.back();
-              else navigate(`/p/${rawId}`);
-            }}
+            onClick={() => goBack(`/p/${rawId}`)}
             className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-600 dark:text-slate-100 hover:text-slate-900 dark:hover:text-white transition-colors"
             data-testid="conn-back"
           >

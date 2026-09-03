@@ -4328,7 +4328,7 @@ export default function AdminPage() {
                     { name: "/admin/users", ok: adminUsersQuery.isSuccess, loading: adminUsersQuery.isLoading, error: adminUsersQuery.isError, description: "Platform user database" },
                     { name: "/admin/activity", ok: adminActivityQuery.isSuccess || !adminActivityQuery.isError, loading: adminActivityQuery.isLoading, error: adminActivityQuery.isError, description: "Platform calculation activity" },
                   ].map(ep => (
-                    <div key={ep.name} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 p-3 rounded-xl bg-white/50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/60" data-testid={`health-ep-${ep.name.replace(/[\/*]/g, "-")}`}>
+                    <div key={ep.name} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2 p-3 rounded-xl bg-white/50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/60" data-testid={`health-ep-${ep.name.replace(/[/*]/g, "-")}`}>
                       <div className="flex items-center gap-3">
                         {ep.loading ? (
                           <Loader2 className="h-4 w-4 text-slate-400 dark:text-slate-500 animate-spin shrink-0" />
