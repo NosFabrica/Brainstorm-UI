@@ -439,7 +439,7 @@ export function ListCard({ event, author, score }: { event: NostrEvent; author: 
                   phones it takes its own full-width row, flush left with
                   everything else — whose web of trust this list speaks for
                   is part of the value, not a footnote crammed underneath. */}
-              <div className="w-full sm:w-auto sm:ml-auto sm:text-right">
+              <div className="w-full border-t border-slate-100 dark:border-slate-800/60 pt-2 sm:w-auto sm:ml-auto sm:border-0 sm:pt-0 sm:text-right">
                 <p className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
                   Curated by
                 </p>
