@@ -382,10 +382,9 @@ export function ListCard({ event, author, score }: { event: NostrEvent; author: 
   }, [event.id]);
   return (
     <CardShell event={event} testId={`list-card-${event.id}`}>
-      <div className="flex items-start gap-3">
-        <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
-          <ListChecks className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-        </div>
+      {/* Content flush left, the list glyph balancing the top-right corner —
+          the same anatomy the app and repo pages settled on. */}
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2 min-w-0">
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
@@ -399,11 +398,12 @@ export function ListCard({ event, author, score }: { event: NostrEvent; author: 
           {isPeopleList ? (
             <div className="mt-2 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
               <div className="flex flex-wrap items-start gap-2.5" data-testid={`list-members-${event.id}`}>
-              {members.slice(0, 5).map((pk) => {
+              {members.slice(0, 5).map((pk, i) => {
                 const profile = profiles.get(pk);
                 const memberName = profile?.display_name || profile?.name;
                 return (
-                  <span key={pk} className="flex w-12 flex-col items-center gap-1">
+                  // Phones fit 3 faces + the counter on ONE row; sm+ shows 5.
+                  <span key={pk} className={`w-12 flex-col items-center gap-1 ${i >= 3 ? "hidden sm:flex" : "flex"}`}>
                     <Avatar
                       className={`h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(memberScoreOf(pk) ?? null, false, "sm", true) ?? ""}`}
                     >
@@ -418,8 +418,16 @@ export function ListCard({ event, author, score }: { event: NostrEvent; author: 
                   </span>
                 );
               })}
+              {members.length > 3 && (
+                <span className="flex w-12 flex-col items-center gap-1 sm:hidden">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                    +{members.length - 3}
+                  </span>
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400">more</span>
+                </span>
+              )}
               {members.length > 5 && (
-                <span className="flex w-12 flex-col items-center gap-1">
+                <span className="hidden w-12 flex-col items-center gap-1 sm:flex">
                   <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
                     +{members.length - 5}
                   </span>
@@ -445,6 +453,9 @@ export function ListCard({ event, author, score }: { event: NostrEvent; author: 
               <AuthorRow author={author} score={score} created_at={event.created_at} />
             </div>
           )}
+        </div>
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
+          <ListChecks className="h-4 w-4 text-slate-500 dark:text-slate-400" />
         </div>
       </div>
     </CardShell>
