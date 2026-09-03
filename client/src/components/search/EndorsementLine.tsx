@@ -23,12 +23,16 @@ import { compactCount } from "@/lib/compactCount";
 import { getDisplayLabel } from "@/lib/profileSearch";
 import { identityConfirmers, quoteFor, rankVouches, tidyName, type PersonEndorsements, type RankedVouch } from "@/services/endorsements";
 
-/** Recommends (an endorsement) or Confirms identity (a claim: "this is really them"). */
+/** Recommends (an endorsement) or Confirms identity (a claim: "this is really
+ *  them") — quiet inline text, not a pill: the reviewer's tier chip beside it
+ *  is the loud thing on the line, and the type is a footnote to it. */
 export function VouchBadge({ type }: { type: "vouch" | "identity" }) {
-  return type === "identity" ? (
-    <Chip size="sm" tone="slate" icon={BadgeCheck}>Confirms identity</Chip>
-  ) : (
-    <Chip size="sm" tone="success" icon={Heart}>Recommends</Chip>
+  const Icon = type === "identity" ? BadgeCheck : Heart;
+  return (
+    <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500">
+      <Icon className="h-3 w-3 shrink-0" aria-hidden />
+      {type === "identity" ? "Confirms identity" : "Recommends"}
+    </span>
   );
 }
 
