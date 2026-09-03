@@ -207,7 +207,8 @@ describe("SearchResults", () => {
     const icon = screen.getByTestId("app-icon-app1") as HTMLImageElement;
     expect(icon.src).toContain("cdn.zapstore.dev/icon.png");
     // Platforms dedupe to one human word.
-    expect(screen.getAllByText("Android")).toHaveLength(1);
+    // Twice now: the card chip AND the platform facet above the results.
+    expect(screen.getAllByText("Android")).toHaveLength(2);
     // Get it → the app's own site.
     expect(screen.getByTestId("app-get-app1").getAttribute("href")).toBe("https://poster.place");
   });
@@ -314,6 +315,36 @@ describe("SearchResults", () => {
     emit({ hits: [{ event: list, author: author(list.pubkey, "gail"), rank: null }], eose: true, timeMs: 200 });
     expect(await screen.findByText("Reading List")).toBeInTheDocument();
     expect(screen.getByTestId("list-count-li1")).toHaveTextContent("3");
+  });
+
+  it("the Apps tab facets by platform with one tap", async () => {
+    setUrlTab("apps");
+    render(<SearchResults query="" pov="nosfabrica" />);
+    const app = (id: string, name: string, fs: string[]) =>
+      ev(id, 32267, id.repeat(32).slice(0, 64), "", [["d", id], ["name", name], ...fs.map((f) => ["f", f])]);
+    emit({
+      hits: [
+        app("a1", "Amethyst", ["android-arm64-v8a"]),
+        app("a2", "Damus", ["ios-arm64"]),
+        app("a3", "Flotilla", ["web"]),
+      ].map((event) => ({ event, author: author(event.pubkey, "x"), rank: null })),
+      eose: true,
+      timeMs: 90,
+    });
+    await screen.findByText("Amethyst");
+    // Only platforms actually present, with counts.
+    const androidChip = screen.getByTestId("app-facet-android");
+    expect(androidChip).toHaveTextContent("Android");
+    expect(screen.queryByTestId("app-facet-macos")).toBeNull();
+
+    fireEvent.click(androidChip);
+    expect(screen.getByText("Amethyst")).toBeInTheDocument();
+    expect(screen.queryByText("Damus")).toBeNull();
+    expect(screen.queryByText("Flotilla")).toBeNull();
+
+    // All brings everything back.
+    fireEvent.click(screen.getByTestId("app-facet-all"));
+    expect(screen.getByText("Damus")).toBeInTheDocument();
   });
 
   it("lists earn their place: untitled and empty junk hides, people-packs lead", async () => {

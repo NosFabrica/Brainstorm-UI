@@ -298,7 +298,7 @@ export function MediaCard({ event, author, score }: { event: NostrEvent; author:
 }
 
 /** "android-arm64-v8a" and friends → one human word each, deduped. */
-function platformWords(event: NostrEvent): string[] {
+export function platformWords(event: NostrEvent): string[] {
   const words = new Set<string>();
   for (const tag of event.tags) {
     if (tag[0] !== "f" || !tag[1]) continue;

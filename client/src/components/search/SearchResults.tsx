@@ -35,7 +35,7 @@ import {
   type SearchTab,
 } from "@/services/search";
 
-import { AppCard, LiveCard, ListCard, MediaCard, RepoCard } from "@/components/search/cards";
+import { AppCard, LiveCard, ListCard, MediaCard, RepoCard, platformWords } from "@/components/search/cards";
 import { KnowledgePanel } from "@/components/search/KnowledgePanel";
 import { ComposedResults } from "@/components/search/ComposedResults";
 import { collapseHits } from "@/lib/searchCollapse";
@@ -395,8 +395,23 @@ export function SearchResults({
   // event-shaped tabs; a chip expands the rest of each cluster.
   const [expandedClusters, setExpandedClusters] = useState<Set<string>>(new Set());
   const clustered = tab === "live" || tab === "lists";
+  // Apps facet by PLATFORM — a one-tap chip row (Benjamin's "categorize by
+  // the chips"), computed from what the results actually run on.
+  const [appPlatform, setAppPlatform] = useState<string | null>(null);
+  useEffect(() => setAppPlatform(null), [tab, query]);
+  const appFacets = useMemo(() => {
+    if (tab !== "apps") return [];
+    const counts = new Map<string, number>();
+    for (const h of hits) {
+      for (const w of platformWords(h.event)) counts.set(w, (counts.get(w) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  }, [tab, hits]);
   const displayHits = useMemo(() => {
     let shown = hits;
+    if (tab === "apps" && appPlatform) {
+      shown = hits.filter((h) => platformWords(h.event).includes(appPlatform));
+    }
     if (tab === "media") {
       // Kind 1063 is generic file metadata — Zap Store APKs and other blobs
       // ride it. The Media tab means media: a 1063 stays only when its
@@ -427,7 +442,7 @@ export function SearchResults({
       if (open) for (const h of cluster.others) out.push({ hit: h, collapsedCount: 0, clusterId: "" });
     }
     return out;
-  }, [hits, tab, clustered, expandedClusters]);
+  }, [hits, tab, appPlatform, clustered, expandedClusters]);
 
   const profiles = useMemo(() => profilesOf(hits), [hits]);
   // The relay only ORDERS by rank — per-card scores come from the shared
@@ -544,6 +559,37 @@ export function SearchResults({
         </div>
       ) : (
         <>
+          {tab === "apps" && appFacets.length > 0 && (
+            <div className="mb-2.5 flex flex-wrap items-center gap-1.5 px-1" data-testid="app-facets">
+              <button
+                type="button"
+                onClick={() => setAppPlatform(null)}
+                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  appPlatform === null
+                    ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                    : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
+                }`}
+                data-testid="app-facet-all"
+              >
+                All
+              </button>
+              {appFacets.map(([platform, count]) => (
+                <button
+                  key={platform}
+                  type="button"
+                  onClick={() => setAppPlatform((cur) => (cur === platform ? null : platform))}
+                  className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                    appPlatform === platform
+                      ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                      : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
+                  }`}
+                  data-testid={`app-facet-${platform.toLowerCase()}`}
+                >
+                  {platform} <span className="opacity-60">{count}</span>
+                </button>
+              ))}
+            </div>
+          )}
           {snapshot?.eose && (
             <div className="mb-2 sm:mb-3 px-1">
               <p className="text-xs text-slate-400 dark:text-slate-500" data-testid="text-search-stats">
