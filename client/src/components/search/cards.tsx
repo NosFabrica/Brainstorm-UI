@@ -63,6 +63,41 @@ function AuthorRow({
   );
 }
 
+/** The enterprise footer both people-facing cards close on: a hairline,
+ *  a kicker, a small ringed face + name, and the date at the far right. */
+function CuratorFooter({
+  kicker,
+  author,
+  score,
+  created_at,
+}: {
+  kicker: string;
+  author: SearchResult | null;
+  score?: number | null;
+  created_at: number;
+}) {
+  const tierRing = useTierRing();
+  return (
+    <div className="flex w-full items-center justify-between gap-3 border-t border-slate-100 dark:border-slate-800/60 pt-2">
+      <span className="flex min-w-0 items-center gap-1.5">
+        <span className="shrink-0 text-[10px] font-medium uppercase leading-none tracking-wide text-slate-400 dark:text-slate-500">
+          {kicker}
+        </span>
+        <Avatar className={`h-5 w-5 shrink-0 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null, false, "sm", true) ?? ""}`}>
+          {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
+          <AvatarFallback className="overflow-hidden">
+            <DefaultAvatarImg />
+          </AvatarFallback>
+        </Avatar>
+        <span className="truncate text-xs font-medium leading-none text-slate-600 dark:text-slate-300">
+          {author ? getDisplayLabel(author) : "Unknown"}
+        </span>
+      </span>
+      <span className="shrink-0 text-[11px] leading-none text-slate-400 dark:text-slate-500">{fmtWhen(created_at)}</span>
+    </div>
+  );
+}
+
 function CardShell({
   event,
   children,
@@ -256,8 +291,8 @@ export function AppCard({ event, author, score }: { event: NostrEvent; author: S
             ))}
             {license && <Chip size="sm" tone="slate">{license}</Chip>}
           </div>
-          <div className="mt-1.5">
-            <AuthorRow author={author} score={score} created_at={event.created_at} />
+          <div className="mt-2">
+            <CuratorFooter kicker="Published by" author={author} score={score} created_at={event.created_at} />
           </div>
         </div>
       </div>
@@ -439,25 +474,7 @@ export function ListCard({ event, author, score }: { event: NostrEvent; author: 
                   phones it takes its own full-width row, flush left with
                   everything else — whose web of trust this list speaks for
                   is part of the value, not a footnote crammed underneath. */}
-              {/* One quiet line: kicker + a small ringed face + name, the
-                  date parked at the card's bottom-right corner. */}
-              <div className="flex w-full items-center justify-between gap-3 border-t border-slate-100 dark:border-slate-800/60 pt-2">
-                <span className="flex min-w-0 items-center gap-1.5">
-                  <span className="shrink-0 text-[10px] font-medium uppercase leading-none tracking-wide text-slate-400 dark:text-slate-500">
-                    Curated by
-                  </span>
-                  <Avatar className={`h-5 w-5 shrink-0 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null, false, "sm", true) ?? ""}`}>
-                    {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
-                    <AvatarFallback className="overflow-hidden">
-                      <DefaultAvatarImg />
-                    </AvatarFallback>
-                  </Avatar>
-                  <span className="truncate text-xs font-medium leading-none text-slate-600 dark:text-slate-300">
-                    {author ? getDisplayLabel(author) : "Unknown"}
-                  </span>
-                </span>
-                <span className="shrink-0 text-[11px] leading-none text-slate-400 dark:text-slate-500">{fmtWhen(event.created_at)}</span>
-              </div>
+              <CuratorFooter kicker="Curated by" author={author} score={score} created_at={event.created_at} />
             </div>
           ) : (
             <div className="mt-1.5">
