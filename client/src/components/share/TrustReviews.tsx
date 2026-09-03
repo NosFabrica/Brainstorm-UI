@@ -199,7 +199,8 @@ export function TrustReviews({
     if (landed.current || !hasVouches) return;
     if (typeof window === "undefined" || window.location.hash !== "#trust-reviews") return;
     landed.current = true;
-    document.getElementById("trust-reviews")?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+    // Centered, not "start": the sticky search bar would swallow the summary line.
+    document.getElementById("trust-reviews")?.scrollIntoView?.({ behavior: "smooth", block: "center" });
   }, [hasVouches]);
   const [replies, setReplies] = useState<Map<string, VouchReply>>(new Map());
   const subjectProfile = useProfileMap([pubkey]).get(pubkey);
