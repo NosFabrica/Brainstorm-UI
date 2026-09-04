@@ -14,7 +14,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing, TierWordChip } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { SerpRow } from "@/components/search/SerpRow";
-import { MediaTiles, TopStories, hasVisual, pickTopStories } from "@/components/search/RichSections";
+import { ArticlesBento, MediaTiles, TopStories, hasVisual, pickTopStories } from "@/components/search/RichSections";
 import { collapseHits } from "@/lib/searchCollapse";
 import { ClusterRows, Section, mergeSnapshots, useSectionStream } from "@/components/search/sections";
 import { filterEventsByWhen } from "@/lib/eventFilters";
@@ -142,6 +142,7 @@ export function ComposedResults({
     );
   }, [peopleF, visited]);
 
+  const articleClusters = useMemo(() => (articlesF ? collapseHits(articlesF.hits, undefined, { maxPerAuthor: 2 }) : []), [articlesF]);
   const happeningClusters = useMemo(
     () => (happeningF ? collapseHits(happeningF.hits, undefined, { maxPerAuthor: 2 }) : []),
     [happeningF],
@@ -214,7 +215,15 @@ export function ComposedResults({
 
       {(articlesF?.hits.length ?? 0) > 0 && (
         <Section id="articles" kicker="Articles" tab="articles" onTabChange={onTabChange}>
-          <div className="space-y-0.5">{clustersOf(articlesF)}</div>
+          {/* A bento — lead + tiles — breaks the run of rows; overflow stays rows. */}
+          <ArticlesBento clusters={articleClusters} scoreOf={scoreOf} />
+          {articleClusters.length > 4 && (
+            <div className="mt-2 space-y-0.5">
+              {articleClusters.slice(4).map((c) => (
+                <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} />
+              ))}
+            </div>
+          )}
         </Section>
       )}
 

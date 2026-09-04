@@ -5,7 +5,7 @@
  * mocked per-stream so tests drive sections independently.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 import type { SearchSnapshot, SearchParams } from "@/services/search";
 
@@ -172,6 +172,48 @@ describe("ComposedResults — media-rich sections", () => {
     await screen.findByTestId("serp-row-n1");
     expect(screen.queryByTestId("serp-top-stories")).toBeNull();
     expect(screen.getByTestId("serp-row-n3")).toBeInTheDocument();
+  });
+
+  // Benjamin: "for the Articles section make the images bigger, like bento
+  // style, so it feels like a nice break-up within the feed." One lead
+  // article with a big picture, compact picture tiles beside it, then any
+  // overflow as rows. Articles without a picture get the outlet-style
+  // placeholder rather than a broken frame.
+  it("lays Articles out as a bento: a lead with a big image, tiles beside it, rows for the rest", async () => {
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    const article = (id: string, pk: string, title: string, image?: string) =>
+      hitOf(
+        ev(id, 30023, pk, "Long-form body", [["d", id], ["title", title], ["summary", `Summary of ${title}`], ...(image ? [["image", image]] : [])]),
+        `author-${id}`,
+      );
+    sectionCall("articles").emit({
+      hits: [
+        article("a1", "1".repeat(64), "Anfield through the ages", "https://cdn.example/anfield.jpg"),
+        article("a2", "2".repeat(64), "The Kop's songbook", "https://cdn.example/kop.jpg"),
+        article("a3", "3".repeat(64), "Scouse cuisine, ranked"),
+        article("a4", "4".repeat(64), "Ferry across the Mersey", "https://cdn.example/ferry.jpg"),
+        article("a5", "5".repeat(64), "Fifth piece, no room in the grid", "https://cdn.example/five.jpg"),
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    const section = await screen.findByTestId("serp-section-articles");
+    const lead = within(section).getByTestId("article-lead-a1");
+    expect(lead).toHaveTextContent("Anfield through the ages");
+    expect(lead).toHaveTextContent("Summary of Anfield through the ages");
+    expect(lead).toHaveTextContent("author-a1");
+    expect(lead.querySelector('[data-testid="article-image"]')?.getAttribute("src")).toBe("https://cdn.example/anfield.jpg");
+    const tiles = [...section.querySelectorAll('[data-testid^="article-tile-"]')].map((t) => t.getAttribute("data-testid"));
+    expect(tiles).toEqual(["article-tile-a2", "article-tile-a3", "article-tile-a4"]);
+    // No picture → placeholder, never a broken frame.
+    expect(within(section).getByTestId("article-tile-a3").querySelector('[data-testid="article-image"]')).toBeNull();
+    expect(within(section).getByTestId("article-tile-a3").querySelector('[data-testid="article-placeholder"]')).not.toBeNull();
+    // The fifth stays a row beneath the grid.
+    expect(within(section).getByTestId("serp-row-a5")).toBeInTheDocument();
+    expect(within(section).queryByTestId("serp-row-a1")).toBeNull();
+    // The lead opens the article.
+    fireEvent.click(lead);
+    expect(window.location.pathname).toMatch(/^\/e\/nevent1/);
   });
 
   it("no pictured news, no strip — Latest stays rows", async () => {

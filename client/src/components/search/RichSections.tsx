@@ -8,7 +8,7 @@
 import { useEffect, useState } from "react";
 import { fetchUnfurl } from "@/services/unfurl";
 import { useLocation } from "wouter";
-import { Newspaper, Play } from "lucide-react";
+import { BookOpen, Newspaper, Play } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { Favicon } from "@/components/share/LinkPreview";
 import { useLightbox } from "@/components/share/Lightbox";
@@ -17,6 +17,10 @@ import { parseNewsShape, type NewsShape } from "@/lib/newsShape";
 import { eventPath } from "@/lib/shareId";
 import { getDisplayLabel } from "@/lib/profileSearch";
 import type { SearchHit } from "@/services/search";
+import type { HitCluster } from "@/lib/searchCollapse";
+import { useTierRing } from "@/components/score/VerificationCoin";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 
 const IMAGE_RE = /\.(?:png|jpe?g|gif|webp|avif)(?:\?|#|$)/i;
 const VIDEO_KINDS = new Set([21, 22, 34235, 34236]);
@@ -296,4 +300,119 @@ export function MediaTiles({ hits, scoreOf }: { hits: SearchHit[]; scoreOf?: (pk
 /** Events that have anything visual to tile — the rest stay rows. */
 export function hasVisual(e: NostrEvent): boolean {
   return !!(mediaUrlOf(e) || mediaPosterOf(e));
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Articles as a bento                                                 */
+/* ------------------------------------------------------------------ */
+
+/** A long-form event's face: title, summary, picture, from its tags. */
+function articleShape(e: NostrEvent) {
+  return {
+    title: tagVal(e, "title") ?? "Untitled",
+    summary: tagVal(e, "summary") ?? "",
+    image: tagVal(e, "image") ?? null,
+  };
+}
+
+function ArticleAuthor({ hit, score, light = false }: { hit: SearchHit; score?: number | null; light?: boolean }) {
+  const tierRing = useTierRing();
+  return (
+    <span className={`flex items-center gap-1.5 min-w-0 text-[11px] ${light ? "text-white/85" : "text-slate-500 dark:text-slate-400"}`}>
+      <Avatar className={`h-4 w-4 shrink-0 border border-white/60 ${tierRing(score ?? null, false, "sm", true) ?? ""}`}>
+        {hit.author?.picture ? <AvatarImage src={hit.author.picture} alt="" className="object-cover" /> : null}
+        <AvatarFallback className="overflow-hidden">
+          <DefaultAvatarImg />
+        </AvatarFallback>
+      </Avatar>
+      <span className="truncate">{hit.author ? getDisplayLabel(hit.author) : "Unknown"}</span>
+      <span className="shrink-0 opacity-80">· {ago(hit.event.created_at)}</span>
+    </span>
+  );
+}
+
+function ArticlePicture({ src, className, placeholderClass }: { src: string | null; className: string; placeholderClass: string }) {
+  const [failed, setFailed] = useState(false);
+  if (src && !failed) {
+    return <img src={src} alt="" loading="lazy" onError={() => setFailed(true)} className={className} data-testid="article-image" />;
+  }
+  return (
+    <div className={`${placeholderClass} flex items-center justify-center bg-gradient-to-br from-brand-primary/15 to-brand-accent/15 dark:from-brand-primary/25 dark:to-brand-accent/20`} aria-hidden="true" data-testid="article-placeholder">
+      <BookOpen className="h-6 w-6 text-brand-primary/60" />
+    </div>
+  );
+}
+
+function openable(open: () => void) {
+  return {
+    role: "link" as const,
+    tabIndex: 0,
+    onClick: open,
+    onKeyDown: (e: React.KeyboardEvent) => {
+      if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) {
+        e.preventDefault();
+        open();
+      }
+    },
+  };
+}
+
+/**
+ * Articles as a bento (Benjamin: "make the images bigger… a nice break-up
+ * within the feed"): the first article leads with a big picture, title and
+ * summary; up to three more sit beside it as picture tiles. On phones the
+ * lead is full-width and the tiles pair up beneath it.
+ */
+export function ArticlesBento({
+  clusters,
+  scoreOf,
+}: {
+  clusters: HitCluster[];
+  scoreOf: (pk: string) => number | null | undefined;
+}) {
+  const [, navigate] = useLocation();
+  const [lead, ...rest] = clusters;
+  if (!lead) return null;
+  const tiles = rest.slice(0, 3);
+  const leadShape = articleShape(lead.primary.event);
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" data-testid="articles-bento">
+      <div
+        {...openable(() => navigate(eventPath(lead.primary.event)))}
+        className="group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 sm:col-span-2 sm:row-span-2"
+        data-testid={`article-lead-${lead.primary.event.id}`}
+      >
+        <ArticlePicture src={leadShape.image} className="aspect-[16/9] w-full object-cover bg-slate-100 dark:bg-slate-800" placeholderClass="aspect-[16/9] w-full" />
+        <div className="flex min-w-0 flex-1 flex-col p-3.5 sm:p-4">
+          <ArticleAuthor hit={lead.primary} score={scoreOf(lead.primary.event.pubkey)} />
+          <h3 className="mt-1.5 text-base font-semibold leading-snug text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors line-clamp-2 sm:text-lg">
+            {leadShape.title}
+          </h3>
+          {leadShape.summary && (
+            <p className="mt-1.5 text-[13px] leading-relaxed text-slate-600 dark:text-slate-300 line-clamp-3">{leadShape.summary}</p>
+          )}
+        </div>
+      </div>
+      {tiles.map((c) => {
+        const shape = articleShape(c.primary.event);
+        return (
+          <div
+            key={c.primary.event.id}
+            {...openable(() => navigate(eventPath(c.primary.event)))}
+            className="group flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+            data-testid={`article-tile-${c.primary.event.id}`}
+          >
+            <ArticlePicture src={shape.image} className="aspect-[16/10] w-full object-cover bg-slate-100 dark:bg-slate-800" placeholderClass="aspect-[16/10] w-full" />
+            <div className="flex min-w-0 flex-1 flex-col p-2.5">
+              <p className="text-[13px] font-semibold leading-snug text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors line-clamp-2">{shape.title}</p>
+              <div className="mt-auto pt-1.5">
+                <ArticleAuthor hit={c.primary} score={scoreOf(c.primary.event.pubkey)} />
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
