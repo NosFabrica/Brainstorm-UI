@@ -58,6 +58,7 @@ Tinted pill for tags, status badges, counts (p17 "Tags & Badges").
 Metric tile (p15: icon + value + label).
 ```tsx
 <StatTile icon={Users} value="1.2K" label="People" tone="brand" aside={<Chip .../>} />
+<StatTile compact value={4} label="Faults" tone="warning" />   // one line: dot · value · label, for a strip of counts above a list
 ```
 
 ## SectionHeader — `components/ui/section-header.tsx`

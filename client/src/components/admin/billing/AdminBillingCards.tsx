@@ -905,13 +905,15 @@ export function AdminBillingCards({ active }: { active: boolean }) {
 
   return (
     <div className="space-y-6">
-      {/* The tab's numbers, before its lists. The Faults tile is the way down to the report. */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5" data-testid="billing-stats">
-        <StatTile value={stats.active} label="Active" tone="success" data-testid="billing-stat-active" />
-        <StatTile value={stats.past_due} label="Past due" tone={stats.past_due > 0 ? "warning" : "neutral"} data-testid="billing-stat-past_due" />
-        <StatTile value={stats.pending} label="Pending" tone="neutral" data-testid="billing-stat-pending" />
-        <StatTile value={stats.ending} label="Ending soon" tone="neutral" data-testid="billing-stat-ending" />
+      {/* The tab's numbers in one line above its lists — counts, not the
+          subject, so they take a row and not a band. Faults is the way down to the report. */}
+      <div className="flex flex-wrap items-center gap-2" data-testid="billing-stats">
+        <StatTile compact value={stats.active} label="Active" tone="success" data-testid="billing-stat-active" />
+        <StatTile compact value={stats.past_due} label="Past due" tone={stats.past_due > 0 ? "warning" : "neutral"} data-testid="billing-stat-past_due" />
+        <StatTile compact value={stats.pending} label="Pending" tone="neutral" data-testid="billing-stat-pending" />
+        <StatTile compact value={stats.ending} label="Ending soon" tone="neutral" data-testid="billing-stat-ending" />
         <StatTile
+          compact
           value={stats.faults}
           label="Faults"
           tone={stats.faults > 0 ? "warning" : "success"}
