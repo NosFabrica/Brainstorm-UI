@@ -344,9 +344,11 @@ default. `useSubscription` therefore works everywhere instead of failing a query
 > **2026-09-04 (server 4093c93):** the refresh answer is now
 > `RefreshSubscriptionResponse`, the same view plus `verification`:
 > `verified` | `mismatch` | `unknown` | `not_given` | `unavailable` — what the
-> redirect's `subscriptionId` turned out to be. The return page treats
-> `mismatch` / `unknown` as a refused id (its own "We couldn't verify that
-> payment" state, no poll), `unavailable` as "still confirming, Flash was
+> redirect's `subscriptionId` turned out to be. The return page renders
+> `mismatch` as "This payment belongs to a different account" (no poll,
+> never "nothing was charged"; Switch account → `/login?switch=1`, Contact
+> support with the id), `unknown` as "We couldn't find that payment" (no
+> poll, retry from pricing), `unavailable` as "still confirming, Flash was
 > unreachable", and an absent field (older server) exactly as before.
 
 Authenticated, rate-limited, **empty body**. Re-reads Flash directly and applies the result, rather than

@@ -32,7 +32,9 @@ export default function BillingReturnPage() {
   const signedIn = useHasSession();
   const { policy, isPaid, status } = useSubscription();
   const qc = useQueryClient();
-  const [phase, setPhase] = useState<"checking" | "confirming" | "done" | "none" | "refused">("checking");
+  // `mismatch` and `unknown` are the two refusals the refresh can report
+  // about the redirect's id (server 4093c93) — distinct states, never a spinner.
+  const [phase, setPhase] = useState<"checking" | "confirming" | "done" | "none" | "mismatch" | "unknown">("checking");
   // Flash couldn't be asked on the landing refresh: the poll keeps trying,
   // and the page says why the answer isn't in yet.
   const [flashUnavailable, setFlashUnavailable] = useState(false);
@@ -65,11 +67,13 @@ export default function BillingReturnPage() {
         qc.setQueryData(["/user/subscription"], subscription);
         if (sub.policy && !sub.policy.isDefault && sub.status !== "pending") {
           setPhase("done");
-        } else if (claimedId && (verification === "mismatch" || verification === "unknown")) {
-          // The server checked the redirect's id with Flash and refused it:
-          // it names someone else, nobody, or nothing Flash knows. Polling
-          // would promise a payment that isn't coming to this account.
-          setPhase("refused");
+        } else if (claimedId && verification === "mismatch") {
+          // The id exists but names another user, or nobody. Somebody paid —
+          // just not this account — so no poll, and never "nothing was charged".
+          setPhase("mismatch");
+        } else if (claimedId && verification === "unknown") {
+          // Flash has no such subscription. Nothing to wait for.
+          setPhase("unknown");
         } else if (paidOutcome || outcome === "pending") {
           if (verification === "unavailable") setFlashUnavailable(true);
           setPhase("confirming");
@@ -133,23 +137,38 @@ export default function BillingReturnPage() {
               </Button>
             </div>
           </>
-        ) : phase === "refused" ? (
+        ) : phase === "mismatch" ? (
           <>
-            {/* The server checked the redirect's id with Flash and refused it:
-                it names someone else, nobody, or nothing Flash knows. Not a
-                spinner — a spinner promises a payment that isn't coming here. */}
-            <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">We couldn't verify that payment</h1>
-            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300" data-testid="billing-return-refused">
-              The subscription this link names isn't connected to your account, so nothing has changed here.
-              If you did just pay, open Billing in a minute — it can take a moment to land. If it still
-              isn't there, get in touch and we'll sort it out.
+            <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">This payment belongs to a different account</h1>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300" data-testid="billing-return-mismatch">
+              The subscription this link names is connected to another account, so it can't be applied
+              here. If you paid while signed in elsewhere, switch to that account and it will be waiting.
+              If you're sure it should be this one, get in touch with the payment id and we'll sort it out.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <Button asChild className="gap-1.5" data-testid="billing-return-refused-billing">
-                <Link href="/settings?tab=billing">Open Billing <ArrowRight className="h-4 w-4" /></Link>
+              <Button asChild className="gap-1.5" data-testid="billing-return-switch-account">
+                <Link href="/login?switch=1">Switch account <ArrowRight className="h-4 w-4" /></Link>
+              </Button>
+              <Button asChild variant="outline" data-testid="billing-return-support">
+                <a href={`mailto:support@nosfabrica.com?subject=${encodeURIComponent(`Payment ${claimedId ?? ""} shows on the wrong account`)}`}>
+                  Contact support
+                </a>
+              </Button>
+            </div>
+          </>
+        ) : phase === "unknown" ? (
+          <>
+            <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">We couldn't find that payment</h1>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300" data-testid="billing-return-unknown">
+              Our payment provider has no subscription matching this link, so nothing has changed on your
+              account. If the checkout was interrupted, starting again from pricing is safe.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button asChild className="gap-1.5" data-testid="billing-return-retry">
+                <Link href="/pricing">Back to pricing <ArrowRight className="h-4 w-4" /></Link>
               </Button>
               <Button asChild variant="outline">
-                <Link href="/pricing">Back to pricing</Link>
+                <Link href="/settings?tab=billing">Billing</Link>
               </Button>
             </div>
           </>

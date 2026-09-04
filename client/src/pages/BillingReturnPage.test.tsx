@@ -5,6 +5,8 @@ import BillingReturnPage from "./BillingReturnPage";
 import { apiClient } from "@/services/api";
 
 vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => true }));
+const startCheckoutPoll = vi.fn();
+vi.mock("@/lib/checkoutPoll", () => ({ startCheckoutPoll: (...a: unknown[]) => startCheckoutPoll(...a) }));
 vi.mock("@/services/api", () => ({
   apiClient: { getSubscription: vi.fn(), refreshSubscription: vi.fn() },
 }));
@@ -93,41 +95,65 @@ describe("BillingReturnPage verification", () => {
 // `unknown` (Flash has no such subscription), `not_given` (a pending return),
 // `unavailable` (Flash could not be asked). A refused id must not be rendered
 // as a payment still confirming.
-describe("BillingReturnPage refused ids", () => {
+// Enes's spec for `verification` (server 4093c93). Two distinct states, and
+// neither may be rendered as a payment still confirming:
+//   mismatch — the id exists but names another user, or nobody. "This payment
+//              belongs to a different account." No poll. Never say nothing was
+//              charged (someone was). Offer: switch account, contact support.
+//   unknown  — Flash has no such subscription. "We couldn't find that payment."
+//              No poll. Retry from pricing.
+// verified / not_given / unavailable keep today's behaviour.
+describe("BillingReturnPage verification states", () => {
   beforeEach(() => {
     vi.resetAllMocks();
     api.getSubscription.mockResolvedValue(FREE);
   });
 
-  it("an id Flash says names someone else is refused, not left confirming", async () => {
+  it("mismatch: a different account's payment — no poll, no 'nothing was charged', switch or support", async () => {
     api.refreshSubscription.mockResolvedValue({ ...FREE, verification: "mismatch" });
-    renderAt("?status=active&subscriptionId=stranger&ref=abc");
-    await waitFor(() => expect(screen.getByTestId("billing-return-refused")).toBeInTheDocument());
+    renderAt("?status=active&subscriptionId=sub_stranger&ref=abc");
+    const state = await screen.findByTestId("billing-return-mismatch");
+    expect(screen.getByRole("heading", { name: /belongs to a different account/i })).toBeInTheDocument();
+    expect(state.textContent).not.toMatch(/nothing was charged/i);
     expect(screen.queryByTestId("billing-return-pending")).toBeNull();
-    expect(screen.getByRole("heading", { name: /couldn.t verify that payment/i })).toBeInTheDocument();
+    expect(startCheckoutPoll).not.toHaveBeenCalled();
+    expect(screen.getByTestId("billing-return-switch-account").getAttribute("href")).toBe("/login?switch=1");
+    const support = screen.getByTestId("billing-return-support").getAttribute("href") ?? "";
+    expect(support.startsWith("mailto:support@nosfabrica.com?subject=")).toBe(true);
+    expect(decodeURIComponent(support)).toContain("sub_stranger");
   });
 
-  it("an id Flash has never heard of is refused the same way", async () => {
+  it("unknown: Flash has no such payment — no poll, retry from pricing", async () => {
     api.refreshSubscription.mockResolvedValue({ ...FREE, verification: "unknown" });
-    renderAt("?status=active&subscriptionId=nope&ref=abc");
-    await waitFor(() => expect(screen.getByTestId("billing-return-refused")).toBeInTheDocument());
+    renderAt("?status=active&subscriptionId=sub_nope&ref=abc");
+    await screen.findByTestId("billing-return-unknown");
+    expect(screen.getByRole("heading", { name: /couldn.t find that payment/i })).toBeInTheDocument();
+    expect(screen.getByTestId("billing-return-retry").getAttribute("href")).toBe("/pricing");
+    expect(startCheckoutPoll).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("billing-return-pending")).toBeNull();
   });
 
-  it("when Flash could not be asked, keep confirming and say so", async () => {
+  it("unavailable: keep confirming, say Flash couldn't be reached, and poll", async () => {
     api.refreshSubscription.mockResolvedValue({ ...FREE, verification: "unavailable" });
     renderAt("?status=active&subscriptionId=7d3b&ref=abc");
     await waitFor(() => expect(screen.getByTestId("billing-return-pending")).toBeInTheDocument());
     expect(screen.getByTestId("billing-return-unavailable")).toBeInTheDocument();
+    expect(startCheckoutPoll).toHaveBeenCalledTimes(1);
   });
 
-  it("a verified id the server hasn't applied yet still confirms — and an older server without the field behaves as before", async () => {
+  it("verified-but-not-applied, not_given, and an older server without the field all confirm and poll as before", async () => {
     api.refreshSubscription.mockResolvedValue({ ...FREE, verification: "verified" });
-    const first = renderAt("?status=active&subscriptionId=7d3b&ref=abc");
+    const a = renderAt("?status=active&subscriptionId=7d3b&ref=abc");
     await waitFor(() => expect(screen.getByTestId("billing-return-pending")).toBeInTheDocument());
     expect(screen.queryByTestId("billing-return-unavailable")).toBeNull();
-    first.unmount();
-    api.refreshSubscription.mockResolvedValue(FREE); // no `verification` at all
+    a.unmount();
+    api.refreshSubscription.mockResolvedValue({ ...FREE, verification: "not_given" });
+    const b = renderAt("?status=pending");
+    await waitFor(() => expect(screen.getByTestId("billing-return-pending")).toBeInTheDocument());
+    b.unmount();
+    api.refreshSubscription.mockResolvedValue(FREE);
     renderAt("?status=active&subscriptionId=7d3b&ref=abc");
     await waitFor(() => expect(screen.getByTestId("billing-return-pending")).toBeInTheDocument());
+    expect(startCheckoutPoll).toHaveBeenCalledTimes(3);
   });
 });

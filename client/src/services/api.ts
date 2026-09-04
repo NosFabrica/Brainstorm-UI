@@ -357,6 +357,30 @@ export interface AdminBillingResolution {
 
 /** One kind of billing disagreement; `truncated` means the list admits it's capped. */
 /**
+ * The server's `SubscriptionView` — what GET /user/subscription answers.
+ * `policy` is what they receive (their scheduling assignment; there is no
+ * tier string), `plan` is which one they bought priced from Flash's snapshot,
+ * the four dates come off the row, `manage_url` is Flash's portal. No `rail`:
+ * Flash exposes no payment method. Normalized by services/subscription.ts.
+ */
+export interface SubscriptionView {
+  policy: { id: number; name: string; schedule_interval_seconds?: number; is_default: boolean } | null;
+  plan: { plan_id: string | null; amount_minor: number | null; currency: string | null; billing_interval: string | null; is_active: boolean } | null;
+  status: string;
+  current_period_start: string | null;
+  current_period_end: string | null;
+  next_billing_date: string | null;
+  cancel_effective_date: string | null;
+  manage_url: string | null;
+}
+
+/** POST /user/subscription/refresh: the view plus what the given id turned
+ *  out to be (server 4093c93). Absent on older servers. */
+export interface RefreshSubscriptionView extends SubscriptionView {
+  verification?: "verified" | "mismatch" | "unknown" | "not_given" | "unavailable";
+}
+
+/**
  * One section of the divergence report. Rows are typed per section below (as
  * the server's OpenAPI names them); the untyped alias stays for a kind this
  * build doesn't know yet, which the tab renders verbatim.
@@ -1058,13 +1082,7 @@ export const apiClient = {
    * policy applied server-side, so a failure here costs a label, not a benefit.
    * See docs/payments/FLASH-INTEGRATION.md.
    */
-  async getSubscription(timeoutMs: number = 15000): Promise<{
-    tier: string;
-    status: string;
-    current_period_end: string | null;
-    rail: string | null;
-    manage_url?: string | null;
-  }> {
+  async getSubscription(timeoutMs: number = 15000): Promise<SubscriptionView> {
     const response = await authenticatedFetch(
       `${getBrainstormApi()}/user/subscription`,
       { signal: AbortSignal.timeout(timeoutMs) },
@@ -1091,15 +1109,7 @@ export const apiClient = {
   async refreshSubscription(
     subscriptionId?: string,
     timeoutMs: number = 15000,
-  ): Promise<{
-    tier: string;
-    status: string;
-    current_period_end: string | null;
-    rail: string | null;
-    manage_url?: string | null;
-    /** What the given id turned out to be (server 4093c93); absent on older servers. */
-    verification?: "verified" | "mismatch" | "unknown" | "not_given" | "unavailable";
-  }> {
+  ): Promise<RefreshSubscriptionView> {
     const response = await authenticatedFetch(
       `${getBrainstormApi()}/user/subscription/refresh`,
       {
