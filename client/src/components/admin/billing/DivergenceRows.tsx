@@ -4,7 +4,7 @@
  * status chip, a date, an error — and, where the server has one, the action.
  * Rows read every field tolerantly: a lagging server may omit some.
  */
-import { Loader2, RefreshCw, User, ExternalLink } from "lucide-react";
+import { Loader2, Plus, RefreshCw, User, ExternalLink } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Chip } from "@/components/ui/chip";
 import type { Tone } from "@/lib/tones";
@@ -17,6 +17,7 @@ import type {
   PolicyMismatchRow,
   RetiredPlanSubscriberRow,
   StaleSyncRow,
+  UnmappedPlanRow,
   UnrecognisedStatusRow,
 } from "@/services/api";
 
@@ -199,6 +200,54 @@ export function ExhaustedEventRowView({ row, children }: { row: ExhaustedEventRo
         {row.process_error && <span className="font-mono text-[11px] text-red-600 dark:text-red-400">{row.process_error}</span>}
       </span>
       {children}
+    </li>
+  );
+}
+
+/** A paying signup on a plan with no mapping: the ids to map, and the button that maps them. */
+export function UnmappedPlanRowView({
+  row,
+  profile,
+  flashUrl,
+  onCreateMapping,
+}: {
+  row: UnmappedPlanRow;
+  profile?: ProfileBits;
+  flashUrl: (id: string) => string;
+  onCreateMapping: (row: UnmappedPlanRow) => void;
+}) {
+  return (
+    <li className={rowClass} data-testid={`billing-unmapped-${row.id}`}>
+      <span className="flex min-w-0 flex-col gap-1">
+        {row.external_ref && row.external_ref.length === 64 ? (
+          <PersonCell pubkey={row.external_ref} profile={profile} />
+        ) : (
+          <span className="text-sm text-slate-700 dark:text-slate-200">{row.event ?? "event"} #{row.id}</span>
+        )}
+        <span className={`flex flex-wrap items-center gap-x-2 ${meta}`}>
+          <span>
+            service <span className="font-mono text-[11px] text-slate-700 dark:text-slate-200">{row.flash_service_id ?? "?"}</span>
+            {" · plan "}
+            <span className="font-mono text-[11px] text-slate-700 dark:text-slate-200">{row.flash_plan_id ?? "?"}</span>
+          </span>
+          {row.created_at && <span>{formatBillingDate(row.created_at)}</span>}
+          {row.flash_subscription_id && (
+            <a href={flashUrl(row.flash_subscription_id)} target="_blank" rel="noopener" className="inline-flex items-center gap-1 text-brand-link hover:underline">
+              Flash <ExternalLink className="h-3 w-3" />
+            </a>
+          )}
+        </span>
+      </span>
+      <button
+        type="button"
+        onClick={() => onCreateMapping(row)}
+        disabled={!row.flash_service_id || !row.flash_plan_id}
+        title="Map this Flash plan to a scheduling policy; the event replays on the next sweep"
+        className="inline-flex shrink-0 items-center gap-1 rounded-lg bg-brand-primary px-2.5 py-1 text-[11px] font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+        data-testid={`billing-unmapped-create-${row.id}`}
+      >
+        <Plus className="h-3 w-3" /> Create mapping
+      </button>
     </li>
   );
 }

@@ -31,7 +31,8 @@ type Body = z.infer<typeof schema>;
 export interface PlanMappingFormDialogProps {
   open: boolean;
   mode: "create" | "edit";
-  initial?: AdminBillingPlanMapping;
+  /** The row being edited — or, for a create, a seed (an unmapped plan's Flash ids). */
+  initial?: Omit<AdminBillingPlanMapping, "id">;
   policies: SchedulingItem[];
   submitting?: boolean;
   /** The server's word when it refuses — including the 409 that names the way out. */

@@ -422,13 +422,13 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     expect(plans.textContent).toContain("9c1e");
     expect(plans.textContent).toContain("4f2a");
     expect(signups.textContent).not.toContain("9c1e");
-    // The one value the block does treat specially still links out, in both.
+    // Both still link out to the Flash subscription.
     for (const [block, id] of [
       [signups, "sub_pierre"],
       [plans, "sub_amara"],
     ] as const) {
-      const link = Array.from(block.querySelectorAll("a")).find((a) => a.textContent === id);
-      expect(link?.getAttribute("href")).toContain(id);
+      const link = Array.from(block.querySelectorAll("a")).find((a) => (a.getAttribute("href") ?? "").includes(id));
+      expect(link).toBeTruthy();
     }
   });
 
@@ -492,6 +492,67 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     const failing = screen.getByTestId(`billing-failing-${PUBKEY.slice(0, 8)}`);
     expect(failing.textContent).toContain("401 invalid api key");
     expect(screen.getByTestId(`billing-divergence-resync-failing_syncs-${PUBKEY.slice(0, 8)}`)).toBeInTheDocument();
+  });
+
+  // Exhausted events overlap the signup sections by design: the signup row
+  // says what's wrong, the exhausted row says nothing will fix it alone. The
+  // exhausted row borrows the signup's Flash id so an admin can settle it
+  // from either place; with no signup to borrow from it is read-only.
+  it("an exhausted event offers Attribute/Dismiss when a signup row carries its Flash id, else reads only", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue({
+      unresolved_signups: {
+        count: 1,
+        truncated: false,
+        rows: [{ id: 14, event: "subscription.activated", created_at: "2026-08-28T14:58:09Z", process_error: "no_reference", flash_subscription_id: "sub_14" }],
+      },
+      exhausted_events: {
+        count: 2,
+        truncated: false,
+        rows: [
+          { id: 14, event: "subscription.activated", attempts: 5, process_error: "no_reference" },
+          { id: 77, event: "subscription.renewed", attempts: 5, process_error: "boom" },
+        ],
+      },
+    });
+    dismissAdminBillingUnresolved.mockResolvedValue({ subscription_id: "sub_14", applied: false, reason: "dismissed" } as AdminBillingResolution);
+    renderCards();
+    const withHandle = await screen.findByTestId("billing-exhausted-14");
+    expect(withHandle.textContent).toContain("5 attempts");
+    expect(screen.getByTestId("billing-exhausted-actions-14")).toBeInTheDocument();
+    const orphan = screen.getByTestId("billing-exhausted-77");
+    expect(screen.queryByTestId("billing-exhausted-actions-77")).toBeNull();
+    expect(orphan.textContent).toMatch(/no signup to settle/i);
+    // The menu is the signups' menu: dismissing goes through the same call, keyed by the Flash id.
+    await userEvent.click(screen.getByTestId("billing-exhausted-actions-14"));
+    await userEvent.click(await screen.findByTestId("billing-exhausted-action-dismiss"));
+    await userEvent.click(await screen.findByTestId("button-billing-dismiss-confirm"));
+    await waitFor(() => expect(dismissAdminBillingUnresolved).toHaveBeenCalledWith("sub_14"));
+  });
+
+  // Enes: unmapped plans are "a call to action that can be tested and
+  // resolved" — creating the mapping is the fix, and the event replays.
+  it("an unmapped plan opens the mapping form prefilled with Flash's ids; submitting creates it", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue({
+      unmapped_plans: {
+        count: 1,
+        truncated: false,
+        rows: [{ id: 42, event: "subscription.renewed", created_at: "2026-09-01T10:00:00Z", process_error: "unknown_plan", flash_subscription_id: "sub_amara", external_ref: PUBKEY, flash_service_id: "9c1e-service", flash_plan_id: "4f2a-plan" }],
+      },
+    });
+    renderCards();
+    const row = await screen.findByTestId("billing-unmapped-42");
+    expect(row.textContent).toContain("9c1e-service");
+    expect(row.textContent).toContain("4f2a-plan");
+    await userEvent.click(screen.getByTestId("billing-unmapped-create-42"));
+    const dialog = await screen.findByTestId("dialog-plan-mapping-form");
+    expect((screen.getByTestId("input-plan-service-id") as HTMLInputElement).value).toBe("9c1e-service");
+    expect((screen.getByTestId("input-plan-plan-id") as HTMLInputElement).value).toBe("4f2a-plan");
+    await userEvent.click(screen.getByTestId("button-plan-mapping-submit"));
+    await waitFor(() => expect(createAdminBillingPlan).toHaveBeenCalledWith(expect.objectContaining({ flash_service_id: "9c1e-service", flash_plan_id: "4f2a-plan" })));
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Mapping created" }));
   });
 
   it("says so plainly when nothing is unsettled", async () => {

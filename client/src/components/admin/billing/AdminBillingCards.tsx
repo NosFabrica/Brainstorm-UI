@@ -59,7 +59,7 @@ import { tone, type Tone } from "@/lib/tones";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 import { orderedSections, subscriptionIdsByEventId, type DivergenceMeta, type DivergenceTier, type OrderedSection } from "./divergenceSections";
 
-import type { SchedulingItem } from "@/services/api";
+import type { CreateAdminBillingPlanBody, SchedulingItem, UnmappedPlanRow, UpdateAdminBillingPlanBody } from "@/services/api";
 import { DIVERGENCE_KEY, POLICIES_KEY, SUBS_KEY } from "./queryKeys";
 import {
   AbandonedCheckoutRowView,
@@ -69,8 +69,11 @@ import {
   StaleSyncRowView,
   UnrecognisedStatusRowView,
   ExhaustedEventRowView,
+  UnmappedPlanRowView,
   type ProfileBits as DivergenceProfileBits,
 } from "./DivergenceRows";
+import { PlanMappingFormDialog } from "./PlanMappingFormDialog";
+import { PLANS_KEY } from "./queryKeys";
 
 /**
  * Invoices and refunds still live in Flash; cancelling and pausing no longer do.
@@ -674,6 +677,10 @@ export function AdminBillingCards({ active }: { active: boolean }) {
     if (id == null) return "—";
     return policiesQuery.data?.find((p) => p.id === id)?.name ?? `policy #${id}`;
   };
+  // An unmapped plan's fix is a mapping — the form opens prefilled with Flash's ids.
+  const [mappingFor, setMappingFor] = useState<UnmappedPlanRow | null>(null);
+  const [mappingSubmitting, setMappingSubmitting] = useState(false);
+  const [mappingError, setMappingError] = useState<string | null>(null);
   const [attributeFor, setAttributeFor] = useState<string | null>(null);
   const [attributeKeyInput, setAttributeKeyInput] = useState("");
   // Either common form is accepted here; only hex ever leaves. Decoding in the
@@ -723,6 +730,25 @@ export function AdminBillingCards({ active }: { active: boolean }) {
       });
     } finally {
       setBusyKey(null);
+    }
+  }
+
+  async function handleCreateMapping(body: CreateAdminBillingPlanBody | UpdateAdminBillingPlanBody) {
+    setMappingSubmitting(true);
+    setMappingError(null);
+    try {
+      await apiClient.createAdminBillingPlan(body as CreateAdminBillingPlanBody);
+      await queryClient.invalidateQueries({ queryKey: PLANS_KEY });
+      await queryClient.invalidateQueries({ queryKey: DIVERGENCE_KEY });
+      setMappingFor(null);
+      toast({
+        title: "Mapping created",
+        description: "The plan now grants that policy. The stuck signup replays on the next sweep — or Resync the subscriber to apply it now.",
+      });
+    } catch (e) {
+      setMappingError(e instanceof Error ? e.message : "The server refused the change.");
+    } finally {
+      setMappingSubmitting(false);
     }
   }
 
@@ -892,6 +918,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
         onResync={handleResyncPubkey}
         handlesByEventId={handlesByEventId}
         signupActions={signupActions}
+        onCreateMapping={setMappingFor}
       />
     );
 
@@ -1046,6 +1073,33 @@ export function AdminBillingCards({ active }: { active: boolean }) {
       </div>
 
       <FlashRecordDialog target={flashRecordFor} onClose={() => setFlashRecordFor(null)} />
+
+      {/* The fix for an unmapped plan, prefilled from the row that needs it.
+          Mounted per row: the form seeds its fields once, on mount. */}
+      {mappingFor && (
+        <PlanMappingFormDialog
+          key={`${mappingFor.flash_service_id}:${mappingFor.flash_plan_id}`}
+          open
+          mode="create"
+          initial={{
+            flash_service_id: mappingFor.flash_service_id ?? "",
+            flash_plan_id: mappingFor.flash_plan_id ?? "",
+            // Default to the first paid policy: a mapping that grants Free sells nothing.
+            scheduling_id: policiesQuery.data?.find((p) => !p.is_default)?.id ?? policiesQuery.data?.[0]?.id ?? 0,
+            is_active: true,
+          }}
+          policies={policiesQuery.data ?? []}
+          submitting={mappingSubmitting}
+          serverError={mappingError}
+          onOpenChange={(open) => {
+            if (!open) {
+              setMappingFor(null);
+              setMappingError(null);
+            }
+          }}
+          onSubmit={handleCreateMapping}
+        />
+      )}
 
       {/* Attributing grants a tier, so it is confirmed like any other grant —
           and the person is shown, not just the key that was pasted. */}
@@ -1313,6 +1367,7 @@ function DivergenceBlock({
   onResync,
   handlesByEventId,
   signupActions,
+  onCreateMapping,
 }: {
   kind: string;
   meta: DivergenceMeta | null;
@@ -1324,6 +1379,7 @@ function DivergenceBlock({
   onResync: (pubkey: string) => void;
   handlesByEventId: Map<number, string>;
   signupActions: SignupActions;
+  onCreateMapping: (row: UnmappedPlanRow) => void;
 }) {
   const person = (row: Record<string, unknown>) => (typeof row.pubkey === "string" ? profiles.get(row.pubkey) : undefined);
   const busy = (row: Record<string, unknown>) => typeof row.pubkey === "string" && busyKey === row.pubkey;
@@ -1352,6 +1408,11 @@ function DivergenceBlock({
         return <AbandonedCheckoutRowView key={i} row={row as never} profile={person(row)} flashUrl={flashSubscriptionUrl} />;
       case "retired_plan_subscribers":
         return <RetiredPlanRowView key={i} row={row as never} profile={person(row)} flashUrl={flashSubscriptionUrl} policyName={policyName} />;
+      case "unmapped_plans": {
+        const r = row as unknown as UnmappedPlanRow;
+        const who = typeof r.external_ref === "string" ? profiles.get(r.external_ref) : undefined;
+        return <UnmappedPlanRowView key={i} row={r} profile={who} flashUrl={flashSubscriptionUrl} onCreateMapping={onCreateMapping} />;
+      }
       case "exhausted_events": {
         const eventId = typeof row.id === "number" ? row.id : null;
         const handle = eventId != null ? handlesByEventId.get(eventId) : undefined;
