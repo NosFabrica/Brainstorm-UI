@@ -518,7 +518,7 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     dismissAdminBillingUnresolved.mockResolvedValue({ subscription_id: "sub_14", applied: false, reason: "dismissed" } as AdminBillingResolution);
     renderCards();
     const withHandle = await screen.findByTestId("billing-exhausted-14");
-    expect(withHandle.textContent).toContain("5 attempts");
+    expect(withHandle.textContent).toMatch(/gave up after 5 tries/i);
     expect(screen.getByTestId("billing-exhausted-actions-14")).toBeInTheDocument();
     const orphan = screen.getByTestId("billing-exhausted-77");
     expect(screen.queryByTestId("billing-exhausted-actions-77")).toBeNull();
@@ -600,6 +600,50 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     const dialog = await screen.findByTestId("dialog-billing-cancel-confirm");
     expect(dialog.textContent).toMatch(/cancellation policy/i);
     expect(dialog.textContent).not.toMatch(/at the end of the paid period, so/i);
+  });
+
+  // Benjamin: "this is just ugly code admins might not understand." A signup
+  // row reads as what happened and when, then why it's stuck — never the
+  // server's event names or failure codes. An exhausted event that is also
+  // listed above says so, so four stuck signups don't read as eight problems.
+  it("signup and exhausted rows read in plain words, and an exhausted event listed above says so", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue({
+      unresolved_signups: {
+        count: 1,
+        truncated: false,
+        rows: [{ id: 29, event: "subscription.canceled", created_at: "2026-08-31T15:06:26Z", process_error: "no_reference", flash_subscription_id: "01a048e0-a087-767c-85df-d5fff34e9c50" }],
+      },
+      exhausted_events: {
+        count: 2,
+        truncated: false,
+        rows: [
+          { id: 29, event: "subscription.canceled", attempts: 5, process_error: "no_reference" },
+          { id: 88, event: "subscription.past_due", attempts: 5, process_error: "unknown_plan" },
+        ],
+      },
+    });
+    renderCards();
+    const signup = await screen.findByTestId("billing-unresolved-01a048e0-a087-767c-85df-d5fff34e9c50");
+    expect(signup.textContent).toContain("Subscription cancelled");
+    expect(signup.textContent).toContain("Aug 31, 2026");
+    expect(signup.textContent).toContain("Named no account");
+    expect(signup.textContent).not.toContain("subscription.canceled");
+    expect(signup.textContent).not.toContain("no_reference");
+    // The Flash id is an identifier, kept short and linked, not a paragraph.
+    expect(signup.textContent).toContain("01a048e0");
+
+    const listedAbove = screen.getByTestId("billing-exhausted-29");
+    expect(listedAbove.textContent).toContain("Subscription cancelled");
+    expect(listedAbove.textContent).toMatch(/gave up after 5 tries/i);
+    expect(listedAbove.textContent).toMatch(/listed above/i);
+    expect(listedAbove.textContent).not.toContain("subscription.canceled");
+    expect(listedAbove.textContent).not.toContain("#29");
+
+    const orphan = screen.getByTestId("billing-exhausted-88");
+    expect(orphan.textContent).toContain("Payment overdue");
+    expect(orphan.textContent).toContain("Plan not mapped");
+    expect(orphan.textContent).not.toMatch(/listed above/i);
   });
 
   it("says so plainly when nothing is unsettled", async () => {

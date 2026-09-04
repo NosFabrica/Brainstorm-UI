@@ -1447,7 +1447,7 @@ function DivergenceBlock({
         const eventId = typeof row.id === "number" ? row.id : null;
         const handle = eventId != null ? handlesByEventId.get(eventId) : undefined;
         return (
-          <ExhaustedEventRowView key={i} row={row as never}>
+          <ExhaustedEventRowView key={i} row={row as never} listedAbove={!!handle}>
             {handle ? (
               <SignupActionsMenu id={handle} busy={busyKey === handle} testIdPrefix={`billing-exhausted-actions-${eventId}`} itemPrefix="billing-exhausted-action" {...signupActions} />
             ) : (

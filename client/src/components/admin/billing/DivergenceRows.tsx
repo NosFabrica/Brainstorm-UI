@@ -5,6 +5,7 @@
  * Rows read every field tolerantly: a lagging server may omit some.
  */
 import { Loader2, Plus, RefreshCw, User, ExternalLink } from "lucide-react";
+import { eventLabel, eventTone, failureLabel } from "./billingEventCopy";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Chip } from "@/components/ui/chip";
 import type { Tone } from "@/lib/tones";
@@ -191,16 +192,17 @@ export function RetiredPlanRowView({ row, profile, flashUrl, policyName }: { row
   );
 }
 
-export function ExhaustedEventRowView({ row, children }: { row: ExhaustedEventRow; children?: React.ReactNode }) {
+/** An event replay gave up on: what happened, how many tries, why it's stuck —
+ *  and whether it's the same signup already listed above. */
+export function ExhaustedEventRowView({ row, listedAbove = false, children }: { row: ExhaustedEventRow; listedAbove?: boolean; children?: React.ReactNode }) {
+  const why = failureLabel(row.process_error);
   return (
     <li className={rowClass} data-testid={`billing-exhausted-${row.id}`}>
-      <span className={`flex flex-wrap items-center gap-2 ${meta}`}>
-        <span className="font-mono text-[11px] text-slate-700 dark:text-slate-200">{row.event ?? "event"}</span>
-        <span>#{row.id}</span>
-        <Chip tone="neutral" size="sm">{row.attempts ?? "?"} attempts</Chip>
-        {row.process_error && <span className="font-mono text-[11px] text-red-600 dark:text-red-400">{row.process_error}</span>}
+      <EventLead event={row.event} title={eventLabel(row.event)} sub={`gave up after ${row.attempts ?? "?"} tries${why ? ` · ${why}` : ""}`} />
+      <span className="flex items-center gap-2">
+        {listedAbove && <span className="text-[11px] text-slate-400 dark:text-slate-500">listed above</span>}
+        {children}
       </span>
-      {children}
     </li>
   );
 }
@@ -253,27 +255,56 @@ export function UnmappedPlanRowView({
   );
 }
 
-/** A payment that named nobody: the event, when, why it failed, and Flash's id — the only handle it has. */
+/** A payment that named nobody: what happened and when, why it's stuck, and
+ *  Flash's id — kept short and linked, the only handle it has. */
 export function UnresolvedSignupRowView({ row, flashUrl, children }: { row: UnresolvedSignupRow; flashUrl: (id: string) => string; children?: React.ReactNode }) {
+  const why = failureLabel(row.process_error);
   return (
     <li className={rowClass} data-testid={`billing-unresolved-${row.flash_subscription_id ?? row.id}`}>
-      <span className={`flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 ${meta}`}>
-        <span className="font-mono text-[11px] text-slate-700 dark:text-slate-200">{row.event ?? "event"}</span>
-        {row.created_at && <span>{formatBillingDate(row.created_at)}</span>}
-        {row.process_error && <Chip tone="neutral" size="sm">{row.process_error.replaceAll("_", " ")}</Chip>}
-        {row.flash_subscription_id && (
-          <a
-            href={flashUrl(row.flash_subscription_id)}
-            target="_blank"
-            rel="noopener"
-            className="inline-flex items-center gap-1 font-mono text-[11px] text-brand-link hover:underline"
-            title={row.flash_subscription_id}
-          >
-            {row.flash_subscription_id.slice(0, 8)}… <ExternalLink className="h-3 w-3" />
-          </a>
-        )}
-      </span>
+      <EventLead
+        event={row.event}
+        title={eventLabel(row.event)}
+        date={row.created_at}
+        sub={
+          <>
+            {why}
+            {row.flash_subscription_id && (
+              <>
+                {why ? " · " : ""}
+                <a
+                  href={flashUrl(row.flash_subscription_id)}
+                  target="_blank"
+                  rel="noopener"
+                  className="inline-flex items-center gap-1 font-mono text-[11px] text-brand-link hover:underline"
+                  title={row.flash_subscription_id}
+                >
+                  {row.flash_subscription_id.slice(0, 8)}… <ExternalLink className="h-3 w-3" />
+                </a>
+              </>
+            )}
+          </>
+        }
+      />
       {children}
     </li>
+  );
+}
+
+/** The two-line lead of an event row: a tone dot, what happened (and when),
+ *  then why it's stuck in smaller type. */
+function EventLead({ event, title, date, sub }: { event: string | null | undefined; title: string; date?: string | null; sub?: React.ReactNode }) {
+  const tone = eventTone(event);
+  const dot = tone === "success" ? "bg-emerald-500" : tone === "warning" ? "bg-amber-500" : "bg-slate-400";
+  return (
+    <span className="flex min-w-0 items-start gap-2.5">
+      <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${dot}`} aria-hidden="true" />
+      <span className="flex min-w-0 flex-col leading-tight">
+        <span className="text-sm font-medium text-slate-800 dark:text-slate-100">
+          {title}
+          {date && <span className="font-normal text-slate-400 dark:text-slate-500"> · {formatBillingDate(date)}</span>}
+        </span>
+        {sub && <span className={`mt-0.5 ${meta}`}>{sub}</span>}
+      </span>
+    </span>
   );
 }
