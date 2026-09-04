@@ -302,9 +302,44 @@ describe("SearchResults", () => {
     expect(screen.getAllByText("Android")).toHaveLength(2);
     // "Get it" goes where you actually get it — the app's Zap Store page,
     // wearing Zap Store's favicon — not the marketing site.
-    const getIt = screen.getByTestId(/^app-get-/);
+    const getIt = screen.getByTestId("app-get-app1");
     expect(getIt.getAttribute("href")).toMatch(/^https:\/\/zapstore\.dev\/apps\/naddr1/);
     expect(getIt.querySelector("img")?.getAttribute("src")).toContain("zapstore.dev");
+  });
+
+  // Benjamin, over the Apps grid: "the containers are all different sizes —
+  // keep them all the same size and make it look nice; maybe the logo icon
+  // should be in the right corner". App-store anatomy: every card the same
+  // height (grid items stretch, the summary always reserves two lines), the
+  // icon in the top-right corner, and Get it in the footer beside the
+  // publisher — where the eye lands last, like the store's GET button.
+  it("app cards share one shape: icon in the corner, Get it in the footer, equal heights", async () => {
+    setUrlTab("apps");
+    render(<SearchResults query="poster" pov="nosfabrica" />);
+    const long = ev("app1", 32267, "9".repeat(64), "", [["d", "a"], ["name", "PosterChan"], ["summary", "A Nostr-powered personal cloud and self-hosted AI — notes, calendar, contacts, files, passwords"], ["icon", "https://cdn.zapstore.dev/icon.png"], ["f", "android-arm64-v8a"], ["license", "GPL-3.0-or-later"]]);
+    // No d tag → no Zap Store page, no site, no repo: nowhere to "get it".
+    const short = ev("app2", 32267, "8".repeat(64), "", [["name", "Ditto"], ["summary", "Your content."]]);
+    emit({ hits: [long, short].map((e) => ({ event: e, author: author(e.pubkey, "pub"), rank: null })), eose: true, timeMs: 200 });
+    const card = await screen.findByTestId("app-card-app1");
+
+    // Reading order = tab order: name, summary, chips, publisher, then Get it.
+    const getIt = within(card).getByTestId("app-get-app1");
+    const publisher = within(card).getByText("Published by");
+    expect(publisher.compareDocumentPosition(getIt) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(within(card).getByTestId("app-get-slot-app1")).toContainElement(getIt);
+    // The icon sits in its own corner slot, not inline before the name.
+    const icon = within(card).getByTestId("app-icon-app1");
+    const name = within(card).getByText("PosterChan");
+    expect(name.compareDocumentPosition(icon) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // Both cards fill their grid cell; the summary block reserves two lines
+    // even for a one-line summary, so a row of cards lines up.
+    for (const id of ["app1", "app2"]) {
+      expect(screen.getByTestId(`app-card-${id}`).className).toMatch(/\bh-full\b/);
+      expect(screen.getByTestId(`app-summary-${id}`).className).toMatch(/line-clamp-2/);
+      expect(screen.getByTestId(`app-summary-${id}`).className).toMatch(/min-h-/);
+    }
+    // No Get it at all → the slot is simply absent, the footer stays put.
+    expect(within(screen.getByTestId("app-card-app2")).queryByTestId("app-get-slot-app2")).toBeNull();
   });
 
   // Benjamin: reviews, reviewer faces and quotes stay OFF the search cards —

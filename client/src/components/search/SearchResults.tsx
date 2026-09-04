@@ -863,8 +863,10 @@ export function SearchResults({
                     +{collapsedCount} more like this
                   </button>
                 ) : null;
+              // Grid tabs (Apps, Repos) stretch every cell so a row of cards
+              // shares one height; list tabs are unaffected by h-full.
               const wrap = (card: React.ReactNode) => (
-                <div key={event.id}>
+                <div key={event.id} className="h-full">
                   {card}
                   {chip}
                 </div>

@@ -117,6 +117,9 @@ function CardShell({
   openInLabel,
   openInHost,
   openInTestId,
+  openInPlacement = "corner",
+  openInSlotTestId,
+  fill = false,
   testId,
 }: {
   event: NostrEvent;
@@ -127,28 +130,42 @@ function CardShell({
    *  instead of the generic external-link glyph — the affiliated look. */
   openInHost?: string;
   openInTestId?: string;
+  /** Where the external link sits: the top corner (default) or the footer's
+   *  right end, app-store style. Either way it lives OUTSIDE the card's own
+   *  link — never an anchor inside an anchor — so the card body leaves it room. */
+  openInPlacement?: "corner" | "footer";
+  openInSlotTestId?: string;
+  /** Fill the grid cell so a row of cards shares one height. */
+  fill?: boolean;
   testId?: string;
 }) {
+  const footer = openInPlacement === "footer";
   return (
     <div
-      className="relative w-full rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 hover:bg-white dark:hover:bg-slate-900 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all duration-150"
+      className={`relative w-full rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 hover:bg-white dark:hover:bg-slate-900 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all duration-150 ${fill ? "h-full" : ""}`}
       data-testid={testId}
     >
-      <Link href={eventPath(event)} className="block p-3 sm:p-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded-xl">
+      <Link href={eventPath(event)} className={`block p-3 sm:p-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded-xl ${fill ? "h-full" : ""}`}>
         {children}
       </Link>
       {openInUrl && (
-        <a
-          href={openInUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="absolute right-2.5 top-2.5 inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium text-slate-400 dark:text-slate-500 hover:text-brand-deep dark:hover:text-brand-link hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-          data-testid={openInTestId}
-        >
-          {openInHost ? <Favicon host={openInHost} className="h-3 w-3 shrink-0 rounded-sm" /> : <ExternalLink className="h-2.5 w-2.5" />}{" "}
-          {openInLabel ?? "Open in…"}
-        </a>
+        <span className={footer ? "absolute bottom-2.5 right-2.5 sm:bottom-3 sm:right-3" : "absolute right-2.5 top-2.5"} data-testid={openInSlotTestId}>
+          <a
+            href={openInUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className={
+              footer
+                ? "inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-brand-deep dark:text-brand-link hover:border-brand-accent/40 hover:bg-brand-primary/5 transition-colors"
+                : "inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium text-slate-400 dark:text-slate-500 hover:text-brand-deep dark:hover:text-brand-link hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+            }
+            data-testid={openInTestId}
+          >
+            {openInHost ? <Favicon host={openInHost} className="h-3 w-3 shrink-0 rounded-sm" /> : <ExternalLink className="h-2.5 w-2.5" />}{" "}
+            {openInLabel ?? "Open in…"}
+          </a>
+        </span>
       )}
     </div>
   );
@@ -342,32 +359,42 @@ export function AppCard({ event, author, score }: { event: NostrEvent; author: S
       openInLabel="Get it"
       openInHost={getIt ? hostOf(getIt) ?? undefined : undefined}
       openInTestId={`app-get-${event.id}`}
+      openInPlacement="footer"
+      openInSlotTestId={`app-get-slot-${event.id}`}
+      fill
       testId={`app-card-${event.id}`}
     >
-      <div className="flex items-start gap-3">
-        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shadow-sm">
-          {icon ? (
-            <img src={icon} alt="" loading="lazy" className="h-full w-full object-cover" data-testid={`app-icon-${event.id}`} />
-          ) : (
-            <Package className="h-6 w-6 text-slate-400 dark:text-slate-500" />
-          )}
+      {/* One shape for every card, app-store style: text on the left, the
+          app's icon in the top-right corner, a two-line summary slot that is
+          reserved even when the summary is short, one line of chips, and a
+          footer pushed to the bottom — so a grid row lines up edge to edge. */}
+      <div className="flex h-full flex-col">
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
+            <p
+              className="mt-0.5 min-h-[2rem] text-xs leading-4 text-slate-500 dark:text-slate-400 break-words line-clamp-2"
+              data-testid={`app-summary-${event.id}`}
+            >
+              {summary}
+            </p>
+          </div>
+          <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shadow-sm ring-1 ring-slate-900/5 dark:ring-white/10">
+            {icon ? (
+              <img src={icon} alt="" loading="lazy" className="h-full w-full object-cover" data-testid={`app-icon-${event.id}`} />
+            ) : (
+              <Package className="h-5 w-5 text-slate-400 dark:text-slate-500" />
+            )}
+          </div>
         </div>
-        <div className="min-w-0 flex-1">
-          {/* "Get it" sits absolutely in the corner — the title leaves it room
-              so a long app name truncates before it, never under it. */}
-          <p className={`truncate text-sm font-semibold text-slate-900 dark:text-slate-100 ${getIt ? "pr-16" : ""}`}>{name}</p>
-          {summary && (
-            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 break-words line-clamp-2">{summary}</p>
-          )}
-          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
-            {platforms.map((p) => (
-              <Chip key={p} size="sm" tone="slate">{p}</Chip>
-            ))}
-            {license && <Chip size="sm" tone="slate">{license}</Chip>}
-          </div>
-          <div className="mt-2">
-            <CuratorFooter kicker="Published by" author={author} score={score} created_at={event.created_at} />
-          </div>
+        <div className="mt-2 flex h-5 items-center gap-1.5 overflow-hidden">
+          {platforms.map((p) => (
+            <Chip key={p} size="sm" tone="slate">{p}</Chip>
+          ))}
+          {license && <Chip size="sm" tone="slate">{license}</Chip>}
+        </div>
+        <div className={`mt-auto pt-2.5 ${getIt ? "pr-16" : ""}`}>
+          <CuratorFooter kicker="Published by" author={author} score={score} created_at={event.created_at} />
         </div>
       </div>
     </CardShell>
