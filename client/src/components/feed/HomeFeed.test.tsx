@@ -143,6 +143,10 @@ describe("HomeFeed", () => {
     expect(screen.queryByTestId("serp-row-h2")).toBeNull();
     const pill = await screen.findByTestId("feed-new-pill");
     expect(pill).toHaveTextContent("2 new");
+    // It counts Latest, so it sits at the top of Latest — not under Live now.
+    const latestBand = screen.getByTestId("feed-band-latest");
+    expect(latestBand.contains(pill)).toBe(true);
+    expect(pill.compareDocumentPosition(screen.getByTestId("serp-row-h1")) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     fireEvent.click(pill);
     expect(screen.getByTestId("serp-row-h2")).toBeInTheDocument();
     expect(screen.getByTestId("serp-row-h3")).toBeInTheDocument();

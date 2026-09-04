@@ -130,20 +130,21 @@ function FeedBlock({
           </div>
         </Section>
       )}
-      {latest.pendingCount > 0 && (
-        <div className="mb-2 flex justify-center">
-          <button
-            type="button"
-            onClick={latest.release}
-            className="rounded-full bg-brand-primary px-3 py-1 text-xs font-semibold text-white shadow-sm hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
-            data-testid="feed-new-pill"
-          >
-            {latest.pendingCount} new
-          </button>
-        </div>
-      )}
-      {(stories.length > 0 || latestClusters.length > 0) && (
+      {(stories.length > 0 || latestClusters.length > 0 || latest.pendingCount > 0) && (
         <Section id="latest" kicker="Latest" tab="notes" onTabChange={onBrowse} testIdPrefix="feed-band">
+          {/* New posts wait here, at the top of the band they belong to. */}
+          {latest.pendingCount > 0 && (
+            <div className="mb-2 flex justify-center">
+              <button
+                type="button"
+                onClick={latest.release}
+                className="rounded-full bg-brand-primary px-3 py-1 text-xs font-semibold text-white shadow-sm hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
+                data-testid="feed-new-pill"
+              >
+                {latest.pendingCount} new
+              </button>
+            </div>
+          )}
           <TopStories stories={stories} stripRef={storiesRef} />
           <div className="space-y-0.5">
             {latestClusters.map((c) => (
