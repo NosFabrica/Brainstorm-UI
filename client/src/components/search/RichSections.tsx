@@ -6,6 +6,7 @@
  * event page; a story's headline goes out to the article.
  */
 import { useEffect, useState } from "react";
+import { noteTitle } from "@/lib/noteTitle";
 import { fetchUnfurl } from "@/services/unfurl";
 import { isVideoFileUrl, youtubeThumbnail } from "@/lib/linkThumb";
 import { useLocation } from "wouter";
@@ -236,7 +237,7 @@ function MediaTile({ hit, score }: { hit: SearchHit; score?: number | null }) {
     else if (poster) openLightbox([{ url: poster, kind: "image" }], 0, context);
     else openPost();
   };
-  const caption = (e.content || tagVal(e, "title") || "").replace(/https?:\/\/\S+/g, "").replace(/\s+/g, " ").trim();
+  const caption = noteTitle(e.content || tagVal(e, "title") || "", 160);
   return (
     <div
       className="group overflow-hidden rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all"

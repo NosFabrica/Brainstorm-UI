@@ -450,6 +450,47 @@ describe("ComposedResults", () => {
     expect(screen.queryByTestId("serp-section-listen")).toBeNull();
   });
 
+  // Benjamin, over "Rabbit Hole Recap": the Media section showed one stranger's
+  // clip while the show's own episodes went unshown. When the query is a
+  // person, their own media leads the section — latest first.
+  it("the Media section leads with the person's own media, newest first, even when the media stream finds nothing", async () => {
+    const NOW = Math.floor(Date.now() / 1000);
+    const RHR = "b".repeat(64);
+    const who = { pubkey: RHR, npub: "npub1rhr", name: "RABBIT HOLE RECAP", wotRank: 0.9, wotFollowers: 7400 };
+    const episode = (id: string, n: number, age: number) =>
+      ({ event: ev(id, 1, RHR, `RHR ${n}: EPISODE WITH nostr:nprofile1qqsabc AND nostr:nprofile1qqsdef https://blossom.primal.net/${id}.mp4`, [["imeta", `url https://blossom.primal.net/${id}.mp4`, "m video/mp4", `image https://blossom.primal.net/${id}.jpg`]], NOW - age), author: who, rank: null });
+    render(
+      <ComposedResults
+        query="Rabbit Hole Recap"
+        pov="nosfabrica"
+        onTabChange={vi.fn()}
+        personMedia={[
+          episode("ep414", 414, 50 * 86_400),
+          episode("ep420", 420, 7 * 86_400),
+          episode("ep421", 421, 86_400),
+          // the show reposted 419 — one tile, the newer
+          episode("ep419b", 419, 13 * 86_400),
+          episode("ep419", 419, 14 * 86_400),
+          episode("ep418", 418, 21 * 86_400),
+          episode("ep417", 417, 28 * 86_400),
+          episode("ep416", 416, 35 * 86_400),
+          episode("ep415", 415, 42 * 86_400),
+        ]}
+      />,
+    );
+    sectionCall("media").emit({ hits: [], eose: true, timeMs: 90 });
+
+    const grid = await screen.findByTestId("serp-media-grid");
+    const ids = [...grid.querySelectorAll(":scope > [data-testid^='media-tile-']")].map((n) => n.getAttribute("data-testid"));
+    // Newest first, one per episode, six at most — the Media tab has the rest.
+    expect(ids).toEqual(["media-tile-ep421", "media-tile-ep420", "media-tile-ep419b", "media-tile-ep418", "media-tile-ep417", "media-tile-ep416"]);
+    expect(within(grid).getAllByTestId("media-tile-play")).toHaveLength(6);
+    // Captions are the words, not the raw nostr: references.
+    expect(grid).toHaveTextContent("RHR 421: EPISODE");
+    expect(grid).not.toHaveTextContent(/EPISODE WITH/);
+    expect(grid).not.toHaveTextContent(/nprofile1/);
+  });
+
   it("bolds the query terms inside snippets", async () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     sectionCall("notes").emit({

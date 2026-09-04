@@ -519,7 +519,9 @@ export function SearchResults({
   const [personMedia, setPersonMedia] = useState<SearchHit[]>([]);
   useEffect(() => {
     setPersonMedia([]);
-    if (tab !== "media" || !panelPerson) return;
+    // The Media tab and the composed Everything page both lead with it.
+    const everything = tab === "everything" && !/(^|\s)sort:/i.test(query);
+    if ((tab !== "media" && !everything) || !panelPerson) return;
     let cancelled = false;
     const who = panelPerson;
     fetchRecentByKinds(who.pubkey, [1, 20, 21, 22, 34235, 34236], 40)
@@ -537,7 +539,7 @@ export function SearchResults({
     return () => {
       cancelled = true;
     };
-  }, [tab, panelPerson?.pubkey]);
+  }, [tab, query, panelPerson?.pubkey]);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Everything composes its own purpose-ranked section streams — unless the
@@ -816,6 +818,7 @@ export function SearchResults({
       {composed ? (
         <ComposedResults
           query={query}
+          personMedia={personMedia}
           pov={pov}
           userPubkey={userPubkey}
           onTabChange={changeTab}

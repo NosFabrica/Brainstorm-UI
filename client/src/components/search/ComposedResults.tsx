@@ -8,6 +8,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { TrackCard, WavlakeSongCard } from "@/components/search/cards";
+import { noteTitle } from "@/lib/noteTitle";
 import { useWavlakeSongs } from "@/hooks/useWavlakeSongs";
 import { parseTrack } from "@/lib/trackEvent";
 import { setPlaylist } from "@/lib/audioPlayer";
@@ -85,11 +86,14 @@ export function ComposedResults({
   userPubkey,
   onTabChange,
   onOpenProfile,
+  personMedia = [],
 }: {
   query: string;
   pov: SearchPov;
   userPubkey?: string;
   onTabChange: (t: SearchTab) => void;
+  /** When the query IS a person: their own media, which leads the Media section. */
+  personMedia?: SearchHit[];
   onOpenProfile?: (person: SearchResult) => void;
 }) {
   const people = useSectionStream(query, "people", pov, userPubkey, 8);
@@ -171,7 +175,7 @@ export function ComposedResults({
   );
 
   const sections = [peopleF, latestF, articlesF, happeningF, mediaF, musicF];
-  const anyContent = sections.some((s) => (s?.hits.length ?? 0) > 0) || listenWavlake.length > 0;
+  const anyContent = sections.some((s) => (s?.hits.length ?? 0) > 0) || listenWavlake.length > 0 || personMedia.length > 0;
   const allSettled = sections.every((s) => s?.eose || s?.error);
   // EVERY section collapses near-duplicates — live verification found the
   // Latest section dominated by one author's three near-identical posts
@@ -187,7 +191,25 @@ export function ComposedResults({
   const storiesRef = useWheelScrollX();
   // Media tiles: anything with a picture or a video; the odd text-only media
   // event (a bare file, say) still gets a row.
-  const mediaTiles = useMemo(() => mediaF?.hits.filter((h) => hasVisual(h.event)) ?? [], [mediaF]);
+  // The person's own media leads the tiles, newest first; the stream's fill in.
+  const mediaTiles = useMemo(() => {
+    // Newest first, one tile per title (a show reposts an episode), six at most —
+    // the Media tab has the rest.
+    const seenTitles = new Set<string>();
+    const own = [...personMedia]
+      .filter((h) => hasVisual(h.event))
+      .sort((a, b) => b.event.created_at - a.event.created_at)
+      .filter((h) => {
+        const key = noteTitle(h.event.content).toLowerCase() || h.event.id;
+        if (seenTitles.has(key)) return false;
+        seenTitles.add(key);
+        return true;
+      })
+      .slice(0, 6);
+    const ownIds = new Set(own.map((h) => h.event.id));
+    const rest = (mediaF?.hits ?? []).filter((h) => hasVisual(h.event) && !ownIds.has(h.event.id));
+    return [...own, ...rest];
+  }, [mediaF, personMedia]);
   const mediaTileIds = useMemo(() => new Set(mediaTiles.map((h) => h.event.id)), [mediaTiles]);
 
   return (
@@ -272,7 +294,7 @@ export function ComposedResults({
         </Section>
       )}
 
-      {(mediaF?.hits.length ?? 0) > 0 && (
+      {(mediaF?.hits.length ?? 0) + mediaTiles.length > 0 && (
         <Section id="media" kicker="Media" tab="media" onTabChange={onTabChange}>
           <MediaTiles hits={mediaTiles} scoreOf={scoreOf} />
           <div className="space-y-0.5">{clustersOf(mediaF, mediaTileIds)}</div>

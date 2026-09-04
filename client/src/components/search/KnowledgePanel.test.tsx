@@ -697,6 +697,19 @@ describe("the person panel's music, from Wavlake", () => {
   });
 });
 
+// The lightbox is where a panel video plays full-size; spy on its opener.
+const openLightboxMock = vi.fn();
+vi.mock("@/components/share/Lightbox", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/components/share/Lightbox")>()),
+  useLightbox: () => openLightboxMock,
+}));
+// Fountain's page for a podcast link in one of their notes.
+const fountainItemFetchMock = vi.fn<(url: string) => Promise<import("@/lib/fountain").FountainItem | null>>(() => Promise.resolve(null));
+vi.mock("@/lib/fountain", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/fountain")>()),
+  fetchFountainItem: (url: string) => fountainItemFetchMock(url),
+}));
+
 // Benjamin, over TheGrinder (who streams most nights): when someone is live,
 // the panel should lead with the stream, thumbnail and all, playable there.
 describe("the person panel's live stream", () => {
@@ -828,5 +841,57 @@ describe("the person panel's live stream", () => {
     expect(next).toHaveTextContent(/Streams/);
     expect(next).toHaveTextContent("Just another Wednesday");
     expect(next.getAttribute("href")).toMatch(/^\/e\//);
+  });
+});
+
+// Benjamin, over Rabbit Hole Recap: the panel should carry their latest
+// videos and podcasts the way it carries a live stream — real content, newest
+// first, playable here, Google's panel for a channel.
+describe("the person panel's latest media", () => {
+  const RHR = "b".repeat(64);
+  const rhr = () =>
+    suggestMock.mockResolvedValueOnce([{ pubkey: RHR, npub: "npub1rhr", name: "RABBIT HOLE RECAP", wotRank: 0.9, wotFollowers: 7400 }]);
+  const video = (id: string, n: number, age: number): NostrEvent =>
+    ({ id, kind: 1, pubkey: RHR, created_at: NOW - age, sig: "s", content: `RHR ${n}: EPISODE TITLE WITH nostr:nprofile1qqsabc AND nostr:nprofile1qqsdef https://blossom.primal.net/${id}.mp4`, tags: [["imeta", `url https://blossom.primal.net/${id}.mp4`, "m video/mp4", `image https://blossom.primal.net/${id}.jpg`]] }) as NostrEvent;
+
+  it("lists the newest three videos with poster, clean title and age, and plays one in the lightbox", async () => {
+    rhr();
+    recentByKindsMock.mockImplementation(async (_pk, kinds) =>
+      kinds.includes(1) ? [video("ep418", 418, 30 * 86_400), video("ep421", 421, 86_400), video("ep420", 420, 7 * 86_400), video("ep419", 419, 14 * 86_400), { id: "txt", kind: 1, pubkey: RHR, created_at: NOW - 10, sig: "s", content: "new episode Friday", tags: [] } as NostrEvent] : [],
+    );
+    render(<KnowledgePanel query="Rabbit Hole Recap" pov="nosfabrica" />);
+
+    const latest = await screen.findByTestId("person-media");
+    const rows = within(latest).getAllByTestId(/^person-media-item-/);
+    expect(rows.map((r) => r.getAttribute("data-testid"))).toEqual(["person-media-item-ep421", "person-media-item-ep420", "person-media-item-ep419"]);
+    // The title is the words, not the URLs or the raw nostr: references.
+    expect(rows[0]).toHaveTextContent("RHR 421: EPISODE TITLE");
+    expect(rows[0]).not.toHaveTextContent(/TITLE WITH/);
+    expect(rows[0]).not.toHaveTextContent(/nprofile1|https?:/);
+    expect(rows[0].querySelector("img")?.getAttribute("src")).toBe("https://blossom.primal.net/ep421.jpg");
+    expect(rows[0]).toHaveTextContent(/Video/);
+    expect(latest).not.toHaveTextContent("new episode Friday");
+
+    fireEvent.click(within(rows[0]).getByRole("button", { name: /play/i }));
+    expect(openLightboxMock).toHaveBeenCalledWith(
+      [{ url: "https://blossom.primal.net/ep421.mp4", kind: "video", poster: "https://blossom.primal.net/ep421.jpg" }],
+      0,
+      expect.objectContaining({ author: expect.objectContaining({ name: "RABBIT HOLE RECAP" }) }),
+    );
+  });
+
+  it("a note linking a Fountain episode is a podcast row with its artwork, playable here", async () => {
+    rhr();
+    recentByKindsMock.mockImplementation(async (_pk, kinds) =>
+      kinds.includes(1) ? [{ id: "pod1", kind: 1, pubkey: RHR, created_at: NOW - 3600, sig: "s", content: "New pod is up https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3", tags: [] } as NostrEvent] : [],
+    );
+    fountainItemFetchMock.mockResolvedValue({ kind: "episode", id: "T0iRUdk8nBSfUEPLLcJ3", show: "Rabbit Hole Recap", title: "RHR 422: The Pod", description: null, image: "https://img/pod.jpg", audio: "https://cdn/pod.mp3", url: "https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3" });
+    render(<KnowledgePanel query="Rabbit Hole Recap" pov="nosfabrica" />);
+
+    const row = await screen.findByTestId("person-media-item-pod1");
+    expect(row).toHaveTextContent("RHR 422: The Pod");
+    expect(row).toHaveTextContent(/Podcast/);
+    expect(row.querySelector("img")?.getAttribute("src")).toBe("https://img/pod.jpg");
+    expect(within(row).getByRole("button", { name: /play/i })).toBeInTheDocument();
   });
 });
