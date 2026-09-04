@@ -81,6 +81,8 @@ import {
 } from "./DivergenceRows";
 import { PlanMappingFormDialog } from "./PlanMappingFormDialog";
 import { FlashRecordDialog, type FlashRecordTarget } from "./FlashRecordDialog";
+import { BrainstormUserPicker } from "./BrainstormUserPicker";
+import type { BrainstormUser } from "./brainstormUserSearch";
 import { PLANS_KEY } from "./queryKeys";
 
 /**
@@ -643,11 +645,11 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   const [mappingSubmitting, setMappingSubmitting] = useState(false);
   const [mappingError, setMappingError] = useState<string | null>(null);
   const [attributeFor, setAttributeFor] = useState<string | null>(null);
-  const [attributeKeyInput, setAttributeKeyInput] = useState("");
+  const [attributePicked, setAttributePicked] = useState<BrainstormUser | null>(null);
   // Either common form is accepted here; only hex ever leaves. Decoding in the
   // client means a mistyped key is refused before it costs a round trip, and
   // the server never has to know npub exists.
-  const attributePubkey = decodeShareId(attributeKeyInput)?.pubkey ?? null;
+  const attributePubkey = attributePicked?.pubkey ?? null;
   // Before the early returns — hook order must not change between renders. The
   // candidate rides along with the roster so the person about to be granted is
   // named the same way everyone else is.
@@ -870,7 +872,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
     onViewFlashRecord: (id: string) =>
       setFlashRecordFor({ key: id, label: id, read: () => apiClient.getAdminBillingFlashRecordForUnresolved(id) }),
     onAttribute: (id: string) => {
-      setAttributeKeyInput("");
+      setAttributePicked(null);
       setAttributeFor(id);
     },
     onDismiss: setDismissFor,
@@ -1129,7 +1131,10 @@ export function AdminBillingCards({ active }: { active: boolean }) {
             ? {
                 pubkey: attributePubkey,
                 handle: attributeFor,
-                profile: attributePubkey ? profiles.get(attributePubkey) : undefined,
+                profile: attributePubkey
+                  ? profiles.get(attributePubkey) ??
+                    (attributePicked ? { name: attributePicked.name, picture: attributePicked.picture } : undefined)
+                  : undefined,
               }
             : null
         }
@@ -1139,33 +1144,24 @@ export function AdminBillingCards({ active }: { active: boolean }) {
         confirmDisabled={!attributePubkey}
         destructive={false}
         dismissLabel="Cancel"
-        onDismiss={() => setAttributeFor(null)}
+        onDismiss={() => {
+          setAttributeFor(null);
+          setAttributePicked(null);
+        }}
         onConfirm={async () => {
           const id = attributeFor;
           const pubkey = attributePubkey;
           setAttributeFor(null);
+          setAttributePicked(null);
           if (id && pubkey) await handleAttribute(id, pubkey);
         }}
       >
         <>
           Grants whatever <span className="font-mono text-[11px] break-all">{attributeFor}</span>{" "}
           pays for, exactly as a webhook naming them would have. Who actually paid is
-          visible only in Flash's dashboard, so check there before granting.
-          <Input
-            value={attributeKeyInput}
-            onChange={(e) => setAttributeKeyInput(e.target.value)}
-            placeholder="npub1… or hex pubkey"
-            className="mt-3 font-mono text-xs"
-            data-testid="input-billing-attribute-pubkey"
-          />
-          {attributeKeyInput.trim() !== "" && !attributePubkey && (
-            <span
-              className={`mt-1.5 block text-[11px] ${tone("danger").text}`}
-              data-testid="billing-attribute-key-invalid"
-            >
-              That isn't a key we can read. Paste an npub or a 64-character hex pubkey.
-            </span>
-          )}
+          visible only in Flash's dashboard, so check there before granting. Only
+          someone with a Brainstorm account can be granted a plan.
+          <BrainstormUserPicker value={attributePicked} onChange={setAttributePicked} />
         </>
       </ConfirmSubscriptionAction>
 
@@ -1500,7 +1496,14 @@ function UnresolvedSignupsBlock({
             typeof row.flash_subscription_id === "string" ? row.flash_subscription_id : "";
           const busy = !!id && busyId === id;
           return (
-            <UnresolvedSignupRowView key={id || i} row={row as never} flashUrl={flashSubscriptionUrl}>
+            // Two events (started, then cancelled) can carry one Flash id; the
+            // event id is what makes a row unique.
+            <UnresolvedSignupRowView
+              key={`${id ?? "row"}-${(row as { id?: number }).id ?? i}`}
+              row={row as never}
+              flashUrl={flashSubscriptionUrl}
+              readFlashRecord={(sid) => apiClient.getAdminBillingFlashRecordForUnresolved(sid)}
+            >
               {id && (
                 <SignupActionsMenu
                   id={id}

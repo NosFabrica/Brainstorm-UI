@@ -6,6 +6,7 @@
  */
 import { Loader2, Plus, RefreshCw, User, ExternalLink } from "lucide-react";
 import { eventLabel, eventTone, failureLabel } from "./billingEventCopy";
+import { FlashFactsStrip } from "./FlashFactsStrip";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Chip } from "@/components/ui/chip";
 import type { Tone } from "@/lib/tones";
@@ -257,10 +258,26 @@ export function UnmappedPlanRowView({
 
 /** A payment that named nobody: what happened and when, why it's stuck, and
  *  Flash's id — kept short and linked, the only handle it has. */
-export function UnresolvedSignupRowView({ row, flashUrl, children }: { row: UnresolvedSignupRow; flashUrl: (id: string) => string; children?: React.ReactNode }) {
+export function UnresolvedSignupRowView({
+  row,
+  flashUrl,
+  readFlashRecord,
+  children,
+}: {
+  row: UnresolvedSignupRow;
+  flashUrl: (id: string) => string;
+  /** Given, each row shows Flash's facts inline: plan, price, since, cycles, how it ends. */
+  readFlashRecord?: (id: string) => Promise<unknown>;
+  children?: React.ReactNode;
+}) {
   const why = failureLabel(row.process_error);
+  const id = row.flash_subscription_id;
   return (
-    <li className={rowClass} data-testid={`billing-unresolved-${row.flash_subscription_id ?? row.id}`}>
+    // Three parts: the lead, Flash's facts, the menu. On a desk the facts sit
+    // right-aligned beside the menu; on a phone the menu stays on the lead's
+    // line and the facts take the full width beneath, left-aligned.
+    <li className={rowClass} data-testid={`billing-unresolved-${id ?? row.id}`}>
+      <span className="order-1 min-w-0 flex-1 basis-0">
       <EventLead
         event={row.event}
         title={eventLabel(row.event)}
@@ -285,7 +302,14 @@ export function UnresolvedSignupRowView({ row, flashUrl, children }: { row: Unre
           </>
         }
       />
-      {children}
+      </span>
+      {id && readFlashRecord && (
+        // Inset to the lead's text column on a phone (past the tone dot).
+        <span className="order-3 basis-full pl-[18px] sm:order-2 sm:ml-auto sm:basis-auto sm:pl-0">
+          <FlashFactsStrip id={id} read={readFlashRecord} testId={`billing-unresolved-flash-${id}`} />
+        </span>
+      )}
+      <span className="order-2 sm:order-3">{children}</span>
     </li>
   );
 }

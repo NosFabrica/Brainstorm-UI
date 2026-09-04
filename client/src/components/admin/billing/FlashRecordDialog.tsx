@@ -14,6 +14,7 @@ import { formatAmount, formatBillingDate, formatBillingInterval } from "@/lib/pl
 import { npubFromPubkey } from "@/lib/shareId";
 import { statusTone } from "./DivergenceRows";
 import { describeCycles, describeDunning, describePolicy, readFlashSubscription } from "./flashRecord";
+import { flashRecordKey } from "./FlashFactsStrip";
 
 /**
  * One Flash subscription, read the way an operator asks about it: since when,
@@ -164,7 +165,7 @@ export function FlashRecordDialog({
   onClose: () => void;
 }) {
   const query = useQuery({
-    queryKey: ["/api/admin/billing/flash-record", target?.key],
+    queryKey: flashRecordKey(target?.key ?? ""),
     queryFn: () => target!.read(),
     enabled: !!target,
     // Every read spends our Flash quota, so don't re-ask on a reopen or a retry.

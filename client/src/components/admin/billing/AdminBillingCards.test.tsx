@@ -37,8 +37,17 @@ const getSchedulingPolicies = vi.fn<() => Promise<{ id: number; name: string; sc
   { id: 4, name: "Paid Staging Flash Test", schedule_interval_seconds: 604_800, is_default: false },
 ]);
 const createAdminBillingPlan = vi.fn(async (body: Record<string, unknown>) => ({ id: 9, ...body }));
+// The users table: by default every 64-hex key is an account, so the paste
+// path keeps working; a test that wants "no such account" overrides it.
+const everyKeyIsAnAccount = async (params: { search?: string; size?: number }) => ({
+  items: params.search && /^[0-9a-f]{64}$/i.test(params.search) ? [{ pubkey: params.search.toLowerCase() }] : [],
+  total: 0,
+  pages: 0,
+});
+const getAdminUsers = vi.fn(everyKeyIsAnAccount);
 vi.mock("@/services/api", () => ({
   apiClient: {
+    getAdminUsers: (params: { search?: string; size?: number }) => getAdminUsers(params),
     getSchedulingPolicies: () => getSchedulingPolicies(),
     createAdminBillingPlan: (body: Record<string, unknown>) => createAdminBillingPlan(body),
     getAdminBillingFlashRecordForUnresolved: (subscriptionId: string) =>
@@ -58,6 +67,12 @@ vi.mock("@/services/api", () => ({
     setAdminBillingSubscriptionStatus: (pubkey: string, status: "paused" | "active") =>
       setAdminBillingSubscriptionStatus(pubkey, status),
   },
+}));
+
+// Brainstorm's own profile search — names live on relays, not in the users table.
+const searchByText = vi.fn(async (_q: string) => ({ results: [] as Array<{ pubkey: string; npub: string; name?: string; displayName?: string; picture?: string }>, total: 0, timeMs: 1 }));
+vi.mock("@/lib/profileSearch", () => ({
+  searchByText: (q: string, pov: string, user?: string, max?: number) => searchByText(q),
 }));
 
 const toast = vi.fn();
@@ -1187,10 +1202,176 @@ async function openUnresolvedAction(verb: "attribute" | "dismiss" | "flash-recor
   await userEvent.click(await screen.findByTestId(`billing-unresolved-action-${verb}`));
 }
 
+describe("a signup that named nobody shows Flash's facts on the row", () => {
+  beforeEach(() => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue(unresolvedReport());
+  });
+
+  it("puts plan, price, tenure, cycles and how it ends on the row, without a click", async () => {
+    getAdminBillingFlashRecordForUnresolved.mockResolvedValue({
+      livemode: true,
+      subscriptions: [
+        {
+          id: UNRESOLVED_ID,
+          ref: null,
+          status: "active",
+          createdAt: "2026-08-28T12:00:00.000Z",
+          currentPeriodNumber: 1,
+          currentPeriodStart: "2026-08-27",
+          currentPeriodEnd: "2026-09-27",
+          nextBillingDate: "2026-09-27",
+          canceledAt: "2026-08-31T15:06:09.067Z",
+          cancelReason: "Test",
+          cancelEffectiveDate: "2026-09-27",
+          pricingSnapshot: { planName: "CC - Test", amount: "200", currency: "USD", billingInterval: "monthly" },
+        },
+      ],
+    });
+
+    renderCards();
+
+    const strip = await screen.findByTestId(`billing-unresolved-flash-${UNRESOLVED_ID}`);
+    const text = strip.textContent ?? "";
+    expect(text).toContain("active");
+    expect(text).toContain("CC - Test");
+    expect(text).toContain("$2.00 per month");
+    expect(text).toContain("Since Aug 28, 2026");
+    expect(text).toContain("1 period billed");
+    // Cancelled under end-of-period: the end is the fact, not the next bill.
+    expect(text).toContain("Ends Sep 27, 2026");
+    expect(text).not.toContain("Next bill");
+    // The row's own lead and handle are still there beside it.
+    const row = screen.getByTestId(`billing-unresolved-${UNRESOLVED_ID}`);
+    expect(row.textContent).toContain("Subscription started");
+    expect(row.textContent).toContain(UNRESOLVED_ID.slice(0, 8));
+    expect(getAdminBillingFlashRecordForUnresolved).toHaveBeenCalledWith(UNRESOLVED_ID);
+  });
+
+  it("keeps the row readable when Flash cannot be reached — the facts are extra, not the row", async () => {
+    getAdminBillingFlashRecordForUnresolved.mockRejectedValue(new Error("Could not reach Flash"));
+
+    renderCards();
+
+    const row = await screen.findByTestId(`billing-unresolved-${UNRESOLVED_ID}`);
+    await waitFor(() => expect(getAdminBillingFlashRecordForUnresolved).toHaveBeenCalled());
+    expect(row.textContent).toContain("Subscription started");
+    expect(screen.queryByTestId(`billing-unresolved-flash-${UNRESOLVED_ID}`)).toBeNull();
+    // The menu still offers the full record, which is where the error is explained.
+    expect(screen.getByTestId(`billing-unresolved-actions-${UNRESOLVED_ID}`)).toBeInTheDocument();
+  });
+});
+
 describe("resolving a signup that named nobody", () => {
   beforeEach(() => {
     getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
     getAdminBillingDivergence.mockResolvedValue(unresolvedReport());
+    // clearAllMocks keeps implementations, so a test's override would outlive it.
+    getAdminUsers.mockImplementation(everyKeyIsAnAccount);
+    searchByText.mockResolvedValue({ results: [], total: 0, timeMs: 1 });
+  });
+
+  it("finds a Brainstorm user by name, offers only account holders, and grants only on confirm", async () => {
+    const OTHER = "c".repeat(64);
+    searchByText.mockResolvedValue({
+      results: [
+        { pubkey: PUBKEY, npub: nip19.npubEncode(PUBKEY), name: "lira", displayName: "Lira Flint" },
+        { pubkey: OTHER, npub: nip19.npubEncode(OTHER), displayName: "Not On Brainstorm" },
+      ],
+      total: 2,
+      timeMs: 3,
+    });
+    // Only Lira has an account; the other is a Nostr profile and nothing more.
+    getAdminUsers.mockImplementation(async (params) => ({
+      items: params.search?.toLowerCase() === PUBKEY ? [{ pubkey: PUBKEY }] : [],
+      total: 0,
+      pages: 0,
+    }));
+    attributeAdminBillingUnresolved.mockResolvedValue(ATTRIBUTED);
+
+    renderCards();
+    await openUnresolvedAction("attribute");
+    expect(screen.getByTestId("button-billing-attribute-confirm")).toBeDisabled();
+
+    await userEvent.type(screen.getByTestId("input-billing-attribute-pubkey"), "Lira");
+
+    // Searched by name through Brainstorm's profile search, then checked
+    // against the users table: the one with an account is offered.
+    const row = await screen.findByTestId(`billing-attribute-result-${PUBKEY.slice(0, 8)}`);
+    expect(row.textContent).toContain("Lira Flint");
+    expect(screen.queryByTestId(`billing-attribute-result-${OTHER.slice(0, 8)}`)).toBeNull();
+    expect(screen.getByTestId("billing-attribute-dropped").textContent).toMatch(/1 more .*without a Brainstorm account/);
+    // A result is a candidate, not a decision: nothing is armed yet.
+    expect(screen.getByTestId("button-billing-attribute-confirm")).toBeDisabled();
+
+    await userEvent.click(row);
+
+    // Picking names them on the confirm line and arms the verb — still nothing sent.
+    await waitFor(() =>
+      expect(screen.getByTestId("billing-attribute-confirm-who").textContent).toContain("Lira Flint"),
+    );
+    expect(screen.getByTestId("button-billing-attribute-confirm")).toBeEnabled();
+    expect(attributeAdminBillingUnresolved).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByTestId("button-billing-attribute-confirm"));
+    await waitFor(() =>
+      expect(attributeAdminBillingUnresolved).toHaveBeenCalledWith(UNRESOLVED_ID, PUBKEY),
+    );
+  });
+
+  it("refuses a key nobody on Brainstorm holds — a stranger cannot be granted a plan", async () => {
+    getAdminUsers.mockResolvedValue({ items: [], total: 0, pages: 0 });
+
+    renderCards();
+    await openUnresolvedAction("attribute");
+    await userEvent.type(screen.getByTestId("input-billing-attribute-pubkey"), nip19.npubEncode(PUBKEY));
+
+    const note = await screen.findByTestId("billing-attribute-no-account");
+    expect(note.textContent).toContain("No Brainstorm account has that key");
+    expect(screen.getByTestId("button-billing-attribute-confirm")).toBeDisabled();
+    expect(attributeAdminBillingUnresolved).not.toHaveBeenCalled();
+  });
+
+  it("says when a name matches Nostr profiles but no Brainstorm account", async () => {
+    const OTHER = "c".repeat(64);
+    searchByText.mockResolvedValue({
+      results: [{ pubkey: OTHER, npub: nip19.npubEncode(OTHER), displayName: "Not On Brainstorm" }],
+      total: 1,
+      timeMs: 2,
+    });
+    getAdminUsers.mockResolvedValue({ items: [], total: 0, pages: 0 });
+
+    renderCards();
+    await openUnresolvedAction("attribute");
+    await userEvent.type(screen.getByTestId("input-billing-attribute-pubkey"), "Not On");
+
+    const note = await screen.findByTestId("billing-attribute-no-match");
+    expect(note.textContent).toContain('Nobody on Brainstorm matches "Not On"');
+    expect(note.textContent).toMatch(/1 profile on Nostr matched but has no Brainstorm account/);
+    expect(screen.queryByTestId(`billing-attribute-result-${OTHER.slice(0, 8)}`)).toBeNull();
+    expect(screen.getByTestId("button-billing-attribute-confirm")).toBeDisabled();
+  });
+
+  it("lets the admin change their pick before confirming, disarming the verb again", async () => {
+    searchByText.mockResolvedValue({
+      results: [{ pubkey: PUBKEY, npub: nip19.npubEncode(PUBKEY), displayName: "Lira Flint" }],
+      total: 1,
+      timeMs: 2,
+    });
+
+    renderCards();
+    await openUnresolvedAction("attribute");
+    await userEvent.type(screen.getByTestId("input-billing-attribute-pubkey"), "Lira");
+    await userEvent.click(await screen.findByTestId(`billing-attribute-result-${PUBKEY.slice(0, 8)}`));
+    await waitFor(() => expect(screen.getByTestId("button-billing-attribute-confirm")).toBeEnabled());
+    expect(screen.getByTestId("billing-attribute-picked").textContent).toContain("Lira Flint");
+
+    await userEvent.click(screen.getByTestId("billing-attribute-change"));
+
+    // Back to searching, nobody chosen, nothing armed, nothing sent.
+    expect(screen.getByTestId("input-billing-attribute-pubkey")).toHaveValue("");
+    expect(screen.getByTestId("button-billing-attribute-confirm")).toBeDisabled();
+    expect(attributeAdminBillingUnresolved).not.toHaveBeenCalled();
   });
 
   it("writes one off only after the admin agrees, naming the only handle it has", async () => {
@@ -1273,6 +1454,8 @@ describe("resolving a signup that named nobody", () => {
     renderCards();
     await openUnresolvedAction("attribute");
     await userEvent.type(await screen.findByTestId("input-billing-attribute-pubkey"), PUBKEY);
+    // A pasted key is checked against the users table before it arms the verb.
+    await waitFor(() => expect(screen.getByTestId("button-billing-attribute-confirm")).toBeEnabled());
     await userEvent.click(screen.getByTestId("button-billing-attribute-confirm"));
 
     await waitFor(() =>
@@ -1299,6 +1482,8 @@ describe("resolving a signup that named nobody", () => {
     renderCards();
     await openUnresolvedAction("attribute");
     await userEvent.type(await screen.findByTestId("input-billing-attribute-pubkey"), PUBKEY);
+    // A pasted key is checked against the users table before it arms the verb.
+    await waitFor(() => expect(screen.getByTestId("button-billing-attribute-confirm")).toBeEnabled());
     await userEvent.click(screen.getByTestId("button-billing-attribute-confirm"));
 
     await waitFor(() =>
@@ -1347,6 +1532,8 @@ describe("resolving a signup that named nobody", () => {
     renderCards();
     await openUnresolvedAction("attribute");
     await userEvent.type(await screen.findByTestId("input-billing-attribute-pubkey"), PUBKEY);
+    // A pasted key is checked against the users table before it arms the verb.
+    await waitFor(() => expect(screen.getByTestId("button-billing-attribute-confirm")).toBeEnabled());
     await userEvent.click(screen.getByTestId("button-billing-attribute-confirm"));
 
     await waitFor(() =>
