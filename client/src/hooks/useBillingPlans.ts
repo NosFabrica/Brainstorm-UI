@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { productName } from "@/lib/plans";
 import { fetchPlans, type BillingPlan } from "@/services/subscription";
 import { cadenceDays, FALLBACK_RECALC_DAYS } from "@/lib/plans";
 
@@ -49,7 +50,7 @@ export function useBillingPlans(): {
     cadenceDays(plan?.scheduleIntervalSeconds) ?? FALLBACK_RECALC_DAYS;
 
   const purchasableNames = Array.from(
-    new Set((plans ?? []).filter((p) => p.checkoutUrl).map((p) => p.policyName)),
+    new Set((plans ?? []).filter((p) => p.checkoutUrl).map(productName)),
   );
 
   return {

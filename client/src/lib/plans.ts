@@ -1,3 +1,5 @@
+import type { BillingPlan } from "@/services/subscription";
+
 // Marketing copy, the roadmap, and the formatters every billing surface shares.
 //
 // ## There is no tier set here any more
@@ -414,4 +416,14 @@ export function billingDeadlineMs(iso: string | null | undefined): number | null
   if (!iso) return null;
   const at = asLocalDate(iso, [23, 59, 59, 999]);
   return Number.isNaN(at.getTime()) ? null : at.getTime();
+}
+
+/**
+ * What a plan is called in front of a customer: Flash's plan name, which is
+ * the name on the checkout page and the receipt. The scheduling policy's name
+ * is an operator's label ("Paid Staging Flash Test") and only stands in when
+ * Flash gave the plan no name at all.
+ */
+export function productName(plan: BillingPlan): string {
+  return plan.planName ?? plan.policyName;
 }

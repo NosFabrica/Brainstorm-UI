@@ -33,8 +33,8 @@ vi.mock("@/hooks/useBillingPlans", () => ({
     recalcDaysFor: (p: BillingPlan | undefined) =>
       p?.scheduleIntervalSeconds ? Math.round(p.scheduleIntervalSeconds / 86_400) : 60,
     solePurchasableName:
-      Array.from(new Set((plans ?? []).filter((p) => p.checkoutUrl).map((p) => p.policyName))).length === 1
-        ? (plans ?? []).find((p) => p.checkoutUrl)!.policyName
+      Array.from(new Set((plans ?? []).filter((p) => p.checkoutUrl).map((p) => p.planName ?? p.policyName))).length === 1
+        ? ((plans ?? []).find((p) => p.checkoutUrl)!.planName ?? (plans ?? []).find((p) => p.checkoutUrl)!.policyName)
         : null,
     isLoading: false,
     loadFailed: false,
@@ -43,11 +43,12 @@ vi.mock("@/hooks/useBillingPlans", () => ({
 
 const PAID_ROW: BillingPlan = {
   policyId: 2,
-  policyName: "Priority",
+  // The operator's label for the policy; customers only ever see the plan name.
+  policyName: "Paid Staging Flash Test",
   scheduleIntervalSeconds: 7 * 86_400,
   isDefault: false,
   planId: "019e",
-  planName: "Monthly",
+  planName: "Priority",
   billingInterval: "monthly",
   amountMinor: 200,
   currency: "USD",
@@ -179,9 +180,9 @@ describe("PlanCard — the quiet upsell", () => {
     );
   });
 
-  it("stays generic when several policies are on sale", () => {
+  it("stays generic when several plans are on sale", () => {
     sub = FREE_SUB;
-    plans = [FREE_ROW, PAID_ROW, { ...PAID_ROW, policyId: 3, policyName: "Pro" }];
+    plans = [FREE_ROW, PAID_ROW, { ...PAID_ROW, policyId: 3, policyName: "Pro policy", planId: "pro", planName: "Pro" }];
     renderWithProviders(<PlanCard lastCalculatedMs={null} />);
     expect(screen.getByTestId("insights-plan-link")).toHaveTextContent("See what's on offer");
   });

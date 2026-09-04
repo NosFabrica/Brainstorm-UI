@@ -1,4 +1,5 @@
 import { Link } from "wouter";
+import { productName } from "@/lib/plans";
 import { CalendarClock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
@@ -61,7 +62,7 @@ export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null
 
   // The one thing on sale, when there is exactly one. Several, or none we can
   // name, and the link says "see plans" rather than picking one arbitrarily.
-  const upsell = plans?.find((p) => p.checkoutUrl && p.policyName === solePurchasableName);
+  const upsell = plans?.find((p) => p.checkoutUrl && productName(p) === solePurchasableName);
 
   return (
     <Card className="p-4 mb-4" data-testid="insights-plan-card">

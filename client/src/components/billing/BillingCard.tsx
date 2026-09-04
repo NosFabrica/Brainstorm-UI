@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { productName } from "@/lib/plans";
 import { Link } from "wouter";
 import { AlertTriangle, ArrowRight, ExternalLink, Receipt } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -65,7 +66,10 @@ export function BillingCard() {
   const { plans, billingAvailable, solePurchasableName } = useBillingPlans();
   const [confirming, setConfirming] = useState(false);
 
-  const planName = policy?.name ?? "—";
+  // What they bought, named the way Flash sells it; the policy's admin name
+  // only when the plan list cannot say (not loaded, or the mapping is gone).
+  const bought = plan?.planId ? plans?.find((p) => p.planId === plan.planId) : undefined;
+  const planName = (bought ? productName(bought) : null) ?? policy?.name ?? "—";
   // `is_active: false` means the mapping is no longer sellable. The subscriber
   // keeps the policy and the price; what they lose is the ability to re-buy it.
   const retired = plan !== null && !plan.isActive;

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { productName } from "@/lib/plans";
 import { Loader2, ExternalLink } from "lucide-react";
 import {
   Dialog,
@@ -101,7 +102,7 @@ export function CheckoutDialog({
         {!sent ? (
           <>
             <DialogHeader>
-              <DialogTitle>{plan ? `Get ${plan.policyName}` : "Choose a plan"}</DialogTitle>
+              <DialogTitle>{plan ? `Get ${productName(plan)}` : "Choose a plan"}</DialogTitle>
               <DialogDescription>
                 Cancel any time — you keep it to the end of the period you've paid for.
               </DialogDescription>
@@ -162,7 +163,7 @@ export function CheckoutDialog({
             </div>
 
             <p className="mt-3 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
-              {sent.policyName} starts as soon as the payment clears — usually a
+              {productName(sent)} starts as soon as the payment clears — usually a
               minute or two, though Lightning can take about ten minutes. If it
               still hasn't shown up after that, get in touch and we'll sort it out.
             </p>

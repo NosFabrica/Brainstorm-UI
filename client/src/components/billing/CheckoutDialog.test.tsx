@@ -61,7 +61,7 @@ describe("CheckoutDialog", () => {
 
   it("names the policy it is selling rather than a hardcoded tier", () => {
     renderWithProviders(
-      <CheckoutDialog open onOpenChange={() => {}} plan={{ ...PLAN, policyName: "Rehearsal" }} />,
+      <CheckoutDialog open onOpenChange={() => {}} plan={{ ...PLAN, planName: "Rehearsal" }} />,
     );
     expect(screen.getByTestId("checkout-dialog")).toHaveTextContent("Get Rehearsal");
   });

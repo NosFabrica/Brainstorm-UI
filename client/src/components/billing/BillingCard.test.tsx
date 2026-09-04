@@ -169,10 +169,21 @@ describe("BillingCard — the price is what this subscriber is charged", () => {
     expect(screen.getByTestId("billing-amount")).toHaveTextContent("$2.00 per month");
   });
 
-  it("names the policy they hold", () => {
+  it("names the plan they bought as Flash sells it, not the policy's admin label", () => {
+    sub = paidSub({
+      policy: { id: 9, name: "Paid Staging Flash Test", scheduleIntervalSeconds: 86_400, isDefault: false },
+    });
+    renderWithProviders(<BillingCard />);
+    const plan = screen.getByTestId("billing-plan");
+    expect(plan).toHaveTextContent(PAID_ROW.planName!);
+    expect(plan).not.toHaveTextContent("Paid Staging Flash Test");
+  });
+
+  it("falls back to the policy name when the plan list cannot name what they bought", () => {
     sub = paidSub({
       policy: { id: 9, name: "Staging-Daily", scheduleIntervalSeconds: 86_400, isDefault: false },
     });
+    plans = [FREE_ROW];
     renderWithProviders(<BillingCard />);
     expect(screen.getByTestId("billing-plan")).toHaveTextContent("Staging-Daily");
   });
