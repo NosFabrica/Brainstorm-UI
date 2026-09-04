@@ -300,6 +300,45 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     expect(setAdminBillingBlock).not.toHaveBeenCalled();
   });
 
+  it("reads each Flash row as a sheet — tenure, cycles, price — and flags a test-mode key", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [{ pubkey: PUBKEY, flash_status: "active", flash_subscription_id: "7d3b", scheduling_source: "billing", billing_blocked: false }],
+    });
+    getAdminBillingFlashRecordForSubscriber.mockResolvedValue({
+      livemode: false,
+      subscriptions: [
+        { id: "old", status: "expired", ref: PUBKEY, currentPeriodNumber: 2, createdAt: "2026-01-10T12:00:00.000Z" },
+        {
+          id: "7d3b",
+          status: "active",
+          ref: PUBKEY,
+          currentPeriodNumber: 3,
+          createdAt: "2026-06-20T12:00:00.000Z",
+          pricingSnapshot: { planName: "Priority", amount: "200", currency: "USD", billingInterval: "monthly" },
+        },
+      ],
+    });
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-flash-record"));
+
+    // One sheet per row, so the old expired subscription reads beside the live one.
+    const sheets = await screen.findAllByTestId("flash-sheet");
+    expect(sheets).toHaveLength(2);
+    expect(sheets[0].textContent).toContain("2 periods");
+    expect(sheets[1].textContent).toContain("3 periods billed");
+    expect(sheets[1].textContent).toContain("$2.00 per month");
+    expect(sheets[1].textContent).toContain("Jun 20, 2026");
+    // A test key is a fact about the whole answer, so it sits in the title.
+    expect(screen.getByTestId("billing-flash-record-testmode")).toBeInTheDocument();
+    // The verbatim body is still one click away for anyone who wants it.
+    expect(screen.getByTestId("billing-flash-record-json").textContent).toContain("\"old\"");
+  });
+
   it("keeps \"Flash has no such subscription\" apart from \"couldn't reach Flash\"", async () => {
     getAdminBillingSubscriptions.mockResolvedValue({
       total: 1,

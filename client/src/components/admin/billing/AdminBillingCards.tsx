@@ -80,6 +80,7 @@ import {
   type ProfileBits as DivergenceProfileBits,
 } from "./DivergenceRows";
 import { PlanMappingFormDialog } from "./PlanMappingFormDialog";
+import { FlashRecordDialog, type FlashRecordTarget } from "./FlashRecordDialog";
 import { PLANS_KEY } from "./queryKeys";
 
 /**
@@ -257,87 +258,7 @@ function filterAndSort(
   return out;
 }
 
-/**
- * What Flash itself says, beside what we stored. The divergence report claims
- * the two disagree; this is where that claim is checked at the source, without
- * a shell or a live API key.
- *
- * Read-only — it applies no entitlement and touches no stored row — and the
- * body is Flash's own, so the extra rows a resync would disambiguate away are
- * visible here.
- *
- * One dialog, two handles: a subscriber is looked up by pubkey, an unresolved
- * signup only by its Flash id — which is also the only way to see what state
- * that signup is actually in, since the report row carries no status.
- */
-type FlashRecordTarget = {
-  /** Keeps one record's cached body apart from another's. */
-  key: string;
-  /** How the dialog names it: an npub for a person, the id for a signup. */
-  label: string;
-  read: () => Promise<unknown>;
-};
-
-function FlashRecordDialog({
-  target,
-  onClose,
-}: {
-  target: FlashRecordTarget | null;
-  onClose: () => void;
-}) {
-  const query = useQuery({
-    queryKey: ["/api/admin/billing/flash-record", target?.key],
-    queryFn: () => target!.read(),
-    enabled: !!target,
-    // Every read spends our Flash quota, so don't re-ask on a reopen or a retry.
-    staleTime: 60_000,
-    retry: false,
-    gcTime: 0,
-  });
-  const rows = (query.data as { subscriptions?: unknown[] } | undefined)?.subscriptions;
-
-  return (
-    <Dialog open={!!target} onOpenChange={(o) => !o && onClose()}>
-      <DialogContent className="max-w-2xl" data-testid="dialog-billing-flash-record">
-        <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            Flash's record
-            {Array.isArray(rows) && (
-              <Chip tone={rows.length > 1 ? "warning" : "neutral"} size="sm">
-                {rows.length} {rows.length === 1 ? "row" : "rows"}
-              </Chip>
-            )}
-          </DialogTitle>
-          <DialogDescription>
-            Exactly what Flash returned for {target?.label ?? ""} — every row, not
-            just the one entitlement uses. Nothing was changed by looking.
-          </DialogDescription>
-        </DialogHeader>
-        {query.isPending ? (
-          <div className="flex items-center gap-2 py-6 text-sm text-slate-500 dark:text-slate-400">
-            <Loader2 className="h-4 w-4 animate-spin" /> Asking Flash…
-          </div>
-        ) : query.isError ? (
-          <p className="py-4 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-flash-record-error">
-            {(query.error as Error)?.message}
-          </p>
-        ) : (
-          <pre
-            className="max-h-[50vh] overflow-auto rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 p-3 font-mono text-xs text-slate-700 dark:text-slate-200"
-            data-testid="billing-flash-record-json"
-          >
-            {JSON.stringify(query.data, null, 2)}
-          </pre>
-        )}
-        <DialogFooter>
-          <Button variant="outline" onClick={onClose} data-testid="button-billing-flash-record-close">
-            Close
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
+// The Flash-record dialog and its subscriber sheet live in FlashRecordDialog.tsx.
 
 /**
  * Confirm a consequential write, naming who it lands on — the same shape
@@ -594,7 +515,7 @@ function SubscriberRow({
               data-testid="billing-action-flash-record"
             >
               <span className="flex items-center">
-                <FileJson className="mr-2 h-3.5 w-3.5" /> Flash's raw record
+                <FileJson className="mr-2 h-3.5 w-3.5" /> Flash's record
               </span>
               <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
                 Exactly what Flash says right now, beside what we stored. Read-only —
@@ -823,7 +744,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
       toast({
         title: "Nothing was scheduled",
         description:
-          "Flash accepted the request but reports no cancellation on this subscription. Check Flash's raw record before trying again.",
+          "Flash accepted the request but reports no cancellation on this subscription. Check Flash's record before trying again.",
         variant: "destructive",
       });
       return;
@@ -1629,7 +1550,7 @@ function SignupActionsMenu({
           data-testid={`${itemPrefix}-flash-record`}
         >
           <span className="flex items-center">
-            <FileJson className="mr-2 h-3.5 w-3.5" /> Flash's raw record
+            <FileJson className="mr-2 h-3.5 w-3.5" /> Flash's record
           </span>
           <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
             What state this signup is actually in — it may already be cancelled. Read-only; it changes nothing.
