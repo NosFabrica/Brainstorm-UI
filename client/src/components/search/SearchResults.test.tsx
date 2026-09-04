@@ -47,8 +47,9 @@ const repoCountsMock = vi.fn<() => Promise<{ issues: number; patches: number }>>
 // touches relays; tests seed profiles into this map per case.
 const profileMapMock = new Map<string, { name?: string; picture?: string }>();
 vi.mock("@/services/nostr", () => ({
-  // The person panel asks for the person's tracks; nobody here publishes any.
+  // The person panel asks for the person's tracks and streams; nobody here has any.
   fetchRecentByKinds: () => Promise.resolve([]),
+  fetchLiveStreams: () => Promise.resolve([]),
   fetchProfileMap: vi.fn(() => Promise.resolve(profileMapMock)),
 }));
 

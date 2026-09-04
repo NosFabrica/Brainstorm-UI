@@ -9,7 +9,21 @@ import { usePipAwareAutoStop } from "@/lib/audioPlayer";
  * fullscreen/PiP/volume on desktop + mobile. A fatal load error calls `onError`
  * so the parent can show a "watch externally" fallback.
  */
-export function LiveVideoPlayer({ src, poster, onError }: { src: string; poster?: string; onError?: () => void }) {
+export function LiveVideoPlayer({
+  src,
+  poster,
+  onError,
+  autoStart = false,
+  frameless = false,
+}: {
+  src: string;
+  poster?: string;
+  onError?: () => void;
+  /** Start on mount — for a caller whose own tap already said "play". */
+  autoStart?: boolean;
+  /** No border or rounding of its own, for a caller that already frames it. */
+  frameless?: boolean;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const hlsRef = useRef<any>(null);
@@ -22,6 +36,12 @@ export function LiveVideoPlayer({ src, poster, onError }: { src: string; poster?
   useEffect(() => () => {
     if (videoRef.current && document.pictureInPictureElement === videoRef.current) return;
     try { hlsRef.current?.destroy(); } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    if (autoStart) void start();
+    // Once, on mount: the intent was the caller's tap.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const start = async () => {
@@ -52,7 +72,7 @@ export function LiveVideoPlayer({ src, poster, onError }: { src: string; poster?
   };
 
   return (
-    <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-slate-200 bg-black" data-testid="live-player">
+    <div className={`relative aspect-video w-full overflow-hidden bg-black ${frameless ? "" : "rounded-2xl border border-slate-200"}`} data-testid="live-player">
       <video
         ref={videoRef}
         poster={poster}

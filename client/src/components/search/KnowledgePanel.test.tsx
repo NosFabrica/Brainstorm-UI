@@ -64,9 +64,11 @@ vi.mock("@/lib/wavlake", async (importOriginal) => ({
   wavlakeArtistTracks: (id: string, limit?: number) => wavlakeArtistTracksMock(id, limit),
 }));
 const recentByKindsMock = vi.fn<(pubkey: string, kinds: number[], limit: number) => Promise<NostrEvent[]>>(() => Promise.resolve([]));
+const liveStreamsMock = vi.fn<(pubkey: string) => Promise<NostrEvent[]>>(() => Promise.resolve([]));
 vi.mock("@/services/nostr", () => ({
   fetchProfileMap: vi.fn(() => Promise.resolve(profileMapMock)),
   fetchRecentByKinds: (pubkey: string, kinds: number[], limit: number) => recentByKindsMock(pubkey, kinds, limit),
+  fetchLiveStreams: (pubkey: string) => liveStreamsMock(pubkey),
 }));
 
 // The zap flow is the public profile's — faked to a marker so the panel can
@@ -103,6 +105,7 @@ beforeEach(() => {
   profileMapMock.clear();
   streamCalls = [];
   recentByKindsMock.mockResolvedValue([]);
+  liveStreamsMock.mockResolvedValue([]);
   findWavlakeArtistMock.mockResolvedValue(null);
   wavlakeArtistTracksMock.mockResolvedValue([]);
 });
@@ -691,5 +694,83 @@ describe("the person panel's music, from Wavlake", () => {
     expect(music).toHaveTextContent("Native Song");
     expect(music).not.toHaveTextContent("Wavlake");
     expect(within(music).getByTestId("person-music-more").getAttribute("href")).toBe("/p/npub1ainsley");
+  });
+});
+
+// Benjamin, over TheGrinder (who streams most nights): when someone is live,
+// the panel should lead with the stream, thumbnail and all, playable there.
+describe("the person panel's live stream", () => {
+  const GRINDER = "6".repeat(64);
+  const SHOSHO = "f".repeat(64);
+  const grinder = () =>
+    suggestMock.mockResolvedValueOnce([{ pubkey: GRINDER, npub: "npub1grinder", name: "TheGrinder", wotRank: 0.9, wotFollowers: 3900 }]);
+  const stream = (id: string, status: string, over: Partial<{ streaming: string; created: number; starts: number; viewers: string }> = {}): NostrEvent =>
+    ({
+      id,
+      kind: 30311,
+      pubkey: SHOSHO, // Shosho hosts it; TheGrinder is the host in a p tag
+      created_at: over.created ?? NOW - 600,
+      sig: "s",
+      content: "",
+      tags: [
+        ["d", id],
+        ["title", "Just another Wednesday… 🔞"],
+        ["image", "https://i.nostr.build/Vb6byoSaEEJbqqbs.png"],
+        ["status", status],
+        ["starts", String(over.starts ?? NOW - 3600)],
+        ...(over.streaming ? [["streaming", over.streaming]] : []),
+        ...(over.viewers ? [["current_participants", over.viewers]] : []),
+        ["p", GRINDER, "", "host"],
+      ],
+    }) as NostrEvent;
+
+  it("leads with the live stream — thumbnail, LIVE, viewers — and plays it in place", async () => {
+    grinder();
+    liveStreamsMock.mockResolvedValue([
+      stream("old", "ended", { created: NOW - 86_400 }),
+      stream("now", "live", { streaming: "https://www.twitch.tv/thegrinder", viewers: "42" }),
+    ]);
+    render(<KnowledgePanel query="TheGrinder" pov="nosfabrica" />);
+
+    const live = await screen.findByTestId("person-live");
+    expect(liveStreamsMock).toHaveBeenCalledWith(GRINDER);
+    expect(live).toHaveTextContent(/LIVE/i);
+    expect(live).toHaveTextContent("Just another Wednesday");
+    expect(live).toHaveTextContent(/42 watching/);
+    expect(live.querySelector("img")?.getAttribute("src")).toBe("https://i.nostr.build/Vb6byoSaEEJbqqbs.png");
+    // The stream leads the panel: everything below the name comes after it.
+    const cta = screen.getByTestId("knowledge-panel-profile");
+    expect(live.compareDocumentPosition(cta) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+
+    fireEvent.click(within(live).getByRole("button", { name: /play/i }));
+    expect(within(live).getByTestId("person-live-embed").getAttribute("src")).toContain("player.twitch.tv");
+    expect(within(live).getByTestId("person-live-open").getAttribute("href")).toMatch(/^\/e\//);
+  });
+
+  it("a raw HLS stream starts in our player on the one tap, with no second play button", async () => {
+    grinder();
+    liveStreamsMock.mockResolvedValue([stream("now", "live", { streaming: "https://shosho.live/hls/thegrinder/index.m3u8", viewers: "19" })]);
+    render(<KnowledgePanel query="TheGrinder" pov="nosfabrica" />);
+    const live = await screen.findByTestId("person-live");
+
+    fireEvent.click(within(live).getByRole("button", { name: /play live stream/i }));
+
+    // The panel's tap was the intent; the player must not ask again — and it
+    // sits inside the card's frame, so it draws none of its own.
+    const player = within(live).getByTestId("live-player");
+    expect(within(live).queryByTestId("live-play")).toBeNull();
+    expect(player.className).not.toMatch(/border|rounded-2xl/);
+  });
+
+  it("when nobody is live, says when they last streamed and where to watch it", async () => {
+    grinder();
+    liveStreamsMock.mockResolvedValue([stream("old", "ended", { created: NOW - 86_400 })]);
+    render(<KnowledgePanel query="TheGrinder" pov="nosfabrica" />);
+
+    const last = await screen.findByTestId("person-live-last");
+    expect(last).toHaveTextContent(/Streamed/);
+    expect(last).toHaveTextContent("Just another Wednesday");
+    expect(last.getAttribute("href")).toMatch(/^\/e\//);
+    expect(screen.queryByTestId("person-live")).toBeNull();
   });
 });
