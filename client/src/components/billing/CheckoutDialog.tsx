@@ -162,9 +162,9 @@ export function CheckoutDialog({
             </div>
 
             <p className="mt-3 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500">
-              {sent.policyName} starts as soon as the payment clears. If it
-              doesn't show up within a few minutes, get in touch and we'll sort
-              it out.
+              {sent.policyName} starts as soon as the payment clears — usually a
+              minute or two, though Lightning can take about ten minutes. If it
+              still hasn't shown up after that, get in touch and we'll sort it out.
             </p>
           </>
         )}

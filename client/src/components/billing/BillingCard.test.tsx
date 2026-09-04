@@ -105,6 +105,18 @@ beforeEach(() => {
 });
 
 describe("BillingCard — every date is reported, never worked out", () => {
+  // Enes flagged the placeholder "history will appear once the Flash
+  // integration is complete". Flash never sends us invoices — they live in its
+  // portal, which the subscription already links to. Say that instead.
+  it("points paid subscribers to Flash's portal for invoices, no placeholder promise", () => {
+    sub = paidSub({ manageUrl: "https://vault.example/portal/svc" });
+    renderWithProviders(<BillingCard />);
+    expect(screen.queryByText(/history will appear/i)).toBeNull();
+    const link = screen.getByTestId("billing-invoices-link");
+    expect(link.getAttribute("href")).toBe("https://vault.example/portal/svc");
+    expect(link.textContent).toMatch(/invoices and receipts/i);
+  });
+
   it("shows the period the server sent, both ends of it", () => {
     renderWithProviders(<BillingCard />);
     const row = screen.getByTestId("billing-payment-row");

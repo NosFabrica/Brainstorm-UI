@@ -45,6 +45,20 @@ describe("CheckoutDialog", () => {
     open.mockRestore();
   });
 
+  // One timing story everywhere (Enes): the return page and the poll say
+  // about ten minutes; this dialog said "a few". Cards clear in a minute or
+  // two, Lightning can take about ten.
+  it("tells the waiting buyer the same ten-minute story as the return page", () => {
+    const open = vi.spyOn(window, "open").mockReturnValue(null);
+    renderWithProviders(<CheckoutDialog open onOpenChange={() => {}} plan={PLAN} />);
+    fireEvent.click(screen.getByTestId("plan-cta-0"));
+    const dialog = screen.getByTestId("checkout-dialog");
+    expect(dialog.textContent).toMatch(/about ten minutes/i);
+    expect(dialog.textContent).toMatch(/Lightning/);
+    expect(dialog.textContent).not.toMatch(/a few minutes/i);
+    open.mockRestore();
+  });
+
   it("names the policy it is selling rather than a hardcoded tier", () => {
     renderWithProviders(
       <CheckoutDialog open onOpenChange={() => {}} plan={{ ...PLAN, policyName: "Rehearsal" }} />,

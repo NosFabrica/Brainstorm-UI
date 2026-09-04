@@ -215,11 +215,24 @@ export function BillingCard() {
             </tbody>
           </table>
         </div>
+        {/* Flash never sends us invoices — they live in its portal, which the
+            subscription links to. Say that, rather than promise a history. */}
         {paid && (
           <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
-            Full payment history will appear here once the Flash integration is
-            complete. Payments are processed by Flash — we never hold your card
-            details.
+            Payments are processed by Flash — we never hold your card details.{" "}
+            {manageUrl ? (
+              <a
+                href={manageUrl}
+                target="_blank"
+                rel="noopener"
+                className="font-medium text-brand-link hover:underline"
+                data-testid="billing-invoices-link"
+              >
+                Invoices and receipts are in Flash's portal
+              </a>
+            ) : (
+              "Invoices and receipts are in Flash's portal."
+            )}
           </p>
         )}
       </div>

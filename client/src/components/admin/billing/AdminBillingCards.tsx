@@ -1,9 +1,11 @@
 import type React from "react";
 import { useEffect, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ChevronUp,
   ChevronsUpDown,
   ExternalLink,
@@ -61,6 +63,8 @@ import { orderedSections, subscriptionIdsByEventId, type DivergenceMeta, type Di
 
 import type { CreateAdminBillingPlanBody, SchedulingItem, UnmappedPlanRow, UpdateAdminBillingPlanBody } from "@/services/api";
 import { DIVERGENCE_KEY, POLICIES_KEY, SUBS_KEY } from "./queryKeys";
+
+const PAGE_SIZE = 100;
 import {
   AbandonedCheckoutRowView,
   FailingSyncRowView,
@@ -616,8 +620,9 @@ function SubscriberRow({
                 <CalendarX className="mr-2 h-3.5 w-3.5" /> Cancel subscription
               </span>
               <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
-                Ends the subscription in Flash. On this account that takes effect at the
-                end of the paid period, so they keep their tier until then.
+                Ends the subscription in Flash. Depending on the account's cancellation
+                policy they may keep their tier until the paid period ends — the
+                confirmation says when.
               </span>
             </DropdownMenuItem>
             <DropdownMenuItem
@@ -651,12 +656,15 @@ function SubscriberRow({
 export function AdminBillingCards({ active }: { active: boolean }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  // One page at a time; filters and sort stay in component state across pages.
+  const [page, setPage] = useState(1);
   const subsQuery = useQuery({
-    queryKey: SUBS_KEY,
-    queryFn: () => apiClient.getAdminBillingSubscriptions(),
+    queryKey: [...SUBS_KEY, page],
+    queryFn: () => apiClient.getAdminBillingSubscriptions(page, PAGE_SIZE),
     enabled: active,
     staleTime: 60_000,
     retry: 1,
+    placeholderData: keepPreviousData,
   });
   const divergenceQuery = useQuery({
     queryKey: DIVERGENCE_KEY,
@@ -875,6 +883,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   }
 
   const { items, total } = subsQuery.data;
+  const pages = subsQuery.data.pages ?? 1;
   const divergence = divergenceQuery.data ?? {};
 
   const filtered = filterAndSort(items, profiles, search, statusFilter, sourceFilter, sort);
@@ -1026,10 +1035,30 @@ export function AdminBillingCards({ active }: { active: boolean }) {
                 ))}
               </tbody>
             </table>
-            {total > items.length && (
-              <p className="mt-2 text-xs text-slate-400 dark:text-slate-500">
-                Showing {items.length} of {total}.
-              </p>
+            {pages > 1 && (
+              <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400" data-testid="billing-pager">
+                <button
+                  type="button"
+                  disabled={page <= 1}
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 transition-colors hover:bg-slate-50 disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800"
+                  data-testid="billing-pager-prev"
+                >
+                  <ChevronLeft className="h-3 w-3" /> Prev
+                </button>
+                <span className="tabular-nums">
+                  Page {page} of {pages} · {total} subscribers
+                </span>
+                <button
+                  type="button"
+                  disabled={page >= pages}
+                  onClick={() => setPage((p) => p + 1)}
+                  className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 transition-colors hover:bg-slate-50 disabled:opacity-40 dark:border-slate-800 dark:bg-slate-900 dark:hover:bg-slate-800"
+                  data-testid="billing-pager-next"
+                >
+                  Next <ChevronRight className="h-3 w-3" />
+                </button>
+              </div>
             )}
           </div>
         )}
@@ -1184,9 +1213,9 @@ export function AdminBillingCards({ active }: { active: boolean }) {
         }}
       >
         <>
-          Ends their subscription in Flash. On this account cancellation takes effect at
-          the end of the paid period, so they keep their tier until it lapses — and
-          Flash will still report them active until then. Nothing here refunds anything.
+          Ends their subscription in Flash. Depending on the account's cancellation policy
+          they may keep their tier until the paid period ends — the confirmation says when,
+          and Flash may still report them active until then. Nothing here refunds anything.
           <Input
             value={cancelReason}
             onChange={(e) => setCancelReason(e.target.value)}

@@ -13,7 +13,7 @@ import type {
 import { AdminBillingCards } from "./AdminBillingCards";
 
 const getAdminBillingSubscriptions =
-  vi.fn<() => Promise<{ items: AdminBillingSubscription[]; total: number; pages: number }>>();
+  vi.fn<(page?: number, size?: number) => Promise<{ items: AdminBillingSubscription[]; total: number; pages: number; page?: number }>>();
 const getAdminBillingDivergence =
   vi.fn<() => Promise<Record<string, AdminBillingDivergenceSection>>>();
 const setAdminBillingBlock =
@@ -47,7 +47,7 @@ vi.mock("@/services/api", () => ({
       attributeAdminBillingUnresolved(subscriptionId, pubkey),
     dismissAdminBillingUnresolved: (subscriptionId: string) =>
       dismissAdminBillingUnresolved(subscriptionId),
-    getAdminBillingSubscriptions: () => getAdminBillingSubscriptions(),
+    getAdminBillingSubscriptions: (page?: number, size?: number) => getAdminBillingSubscriptions(page, size),
     getAdminBillingDivergence: () => getAdminBillingDivergence(),
     setAdminBillingBlock: (pubkey: string, blocked: boolean) => setAdminBillingBlock(pubkey, blocked),
     resyncAdminBillingSubscription: (pubkey: string) => resyncAdminBillingSubscription(pubkey),
@@ -553,6 +553,53 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     await waitFor(() => expect(createAdminBillingPlan).toHaveBeenCalledWith(expect.objectContaining({ flash_service_id: "9c1e-service", flash_plan_id: "4f2a-plan" })));
     await waitFor(() => expect(dialog).not.toBeInTheDocument());
     expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Mapping created" }));
+  });
+
+  // Enes: the roster fetched 100 rows and said "Showing N of total" with no
+  // way to the rest. A pager, only when there is more than one page; filters
+  // and sort stay where they were when the page turns.
+  it("pages the roster when the server says there is more, keeping the filters", async () => {
+    const SUB = { pubkey: PUBKEY, flash_status: "active", scheduling_source: "billing", billing_blocked: false } as AdminBillingSubscription;
+    const pageOf = (n: number): AdminBillingSubscription[] =>
+      Array.from({ length: 3 }, (_, i) => ({ ...SUB, pubkey: `${n}${i}`.padEnd(64, "f"), scheduling_name: i === 0 ? "Paid Staging Flash Test" : "Free" }));
+    getAdminBillingSubscriptions.mockImplementation(async (page = 1) => ({ items: pageOf(page), total: 150, pages: 2, page }));
+    getAdminBillingDivergence.mockResolvedValue({});
+    renderCards();
+    await screen.findAllByTestId(/^billing-sub-/);
+    expect(screen.getByTestId("billing-pager")).toHaveTextContent("Page 1 of 2");
+    expect(screen.queryByText(/Showing \d+ of/)).toBeNull();
+    // Filter to the paid policy, then turn the page: the filter survives.
+    fireEvent.change(screen.getByTestId("input-billing-search"), { target: { value: "Paid Staging" } });
+    expect(screen.getAllByTestId(/^billing-sub-/)).toHaveLength(1);
+    await userEvent.click(screen.getByTestId("billing-pager-next"));
+    await waitFor(() => expect(getAdminBillingSubscriptions).toHaveBeenLastCalledWith(2, 100));
+    await waitFor(() => expect(screen.getByTestId("billing-pager")).toHaveTextContent("Page 2 of 2"));
+    expect(screen.getAllByTestId(/^billing-sub-/)).toHaveLength(1);
+    expect(screen.getByTestId("billing-pager-next")).toBeDisabled();
+  });
+
+  it("no pager on a single page", async () => {
+    const SUB = { pubkey: PUBKEY, flash_status: "active", scheduling_source: "billing", billing_blocked: false } as AdminBillingSubscription;
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 1, pages: 1, items: [SUB] });
+    getAdminBillingDivergence.mockResolvedValue({});
+    renderCards();
+    await screen.findAllByTestId(/^billing-sub-/);
+    expect(screen.queryByTestId("billing-pager")).toBeNull();
+  });
+
+  // Enes: Flash §6 says the cancellation policy is account-configurable, so
+  // the copy must not assert end-of-period as fact — the confirmation says when.
+  it("cancel copy reads the policy as configurable, not as fact", async () => {
+    const SUB = { pubkey: PUBKEY, flash_status: "active", scheduling_source: "billing", billing_blocked: false } as AdminBillingSubscription;
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 1, pages: 1, items: [{ ...SUB, flash_subscription_id: "sub_1" }] });
+    getAdminBillingDivergence.mockResolvedValue({});
+    renderCards();
+    await screen.findAllByTestId(/^billing-sub-/);
+    await userEvent.click(screen.getByTestId(`billing-actions-${SUB.pubkey.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-cancel"));
+    const dialog = await screen.findByTestId("dialog-billing-cancel-confirm");
+    expect(dialog.textContent).toMatch(/cancellation policy/i);
+    expect(dialog.textContent).not.toMatch(/at the end of the paid period, so/i);
   });
 
   it("says so plainly when nothing is unsettled", async () => {
