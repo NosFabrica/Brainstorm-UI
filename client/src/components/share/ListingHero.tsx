@@ -11,7 +11,7 @@ import type { MinimalEvent } from "@/lib/noteRefs";
  * A kind-30402 listing on its event page: the photos, the price as the seller
  * wrote it, where it is, how it ships, the description with its links live —
  * and two ways to act. "Message seller" opens the seller in the reader's own
- * Nostr app, where their keys and conversations already live; "Open shop"
+ * Nostr app, where their keys and conversations already live; "Visit shop"
  * goes to the seller's page for this listing when the app published one.
  * There is no checkout of ours: payment happens where the seller sells.
  */
@@ -106,8 +106,9 @@ export function ListingHero({ event }: { event: MinimalEvent }) {
             rel="noopener"
             className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 transition-colors hover:border-brand-accent/40"
             data-testid="listing-hero-shop"
+            title={`Opens ${shopHost} in a new tab`}
           >
-            <Favicon host={shopHost} className="h-3.5 w-3.5" /> Open on {shopHost} <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+            <Favicon host={shopHost} className="h-3.5 w-3.5" /> Visit shop <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
           </a>
         )}
       </div>

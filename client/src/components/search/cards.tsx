@@ -845,7 +845,7 @@ export function ListingCard({ event, author, score, showAuthor = true }: { event
     <CardShell
       event={event}
       openInUrl={l.shopUrl ?? undefined}
-      openInLabel="Open shop"
+      openInLabel="Visit shop"
       openInHost={host}
       openInTestId={`listing-open-${event.id}`}
       fill

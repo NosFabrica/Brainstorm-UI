@@ -57,9 +57,11 @@ describe("ListingHero", () => {
     expect(message.getAttribute("href")).toMatch(/^nostr:(npub1|nprofile1)/);
     expect(message).toHaveTextContent(/Message seller/);
     const shop = screen.getByTestId("listing-hero-shop");
+    // One label for every marketplace; the favicon and a tooltip say which.
+    expect(shop).toHaveTextContent(/^Visit shop$/);
+    expect(shop).toHaveAttribute("title", expect.stringContaining("barattolo.app"));
     expect(shop.getAttribute("href")).toBe("https://barattolo.app/l/maglia-1");
     expect(shop.getAttribute("target")).toBe("_blank");
-    expect(shop).toHaveTextContent(/barattolo\.app/);
     expect(screen.queryByText(/Buy now|Add to cart|Checkout/i)).toBeNull();
   });
 
