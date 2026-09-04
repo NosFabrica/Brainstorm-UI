@@ -232,11 +232,12 @@ export function TrustReviews({
   // Collapsed by default — a summary line, Google's way. The panel's link
   // deep-links here with #trust-reviews and arrives unfolded.
   const [open, setOpen] = useState(() => typeof window !== "undefined" && window.location.hash === "#trust-reviews");
+  // The pen beside Zap opens the composer in place — no scroll. The section
+  // sits just under the header, so moving the page only jolts the reader.
   useEffect(() => {
     if (composeRequest <= 0) return;
     setComposing(true);
     setOpen(true);
-    scrollToReviews();
   }, [composeRequest]);
   // The section renders only once the reviews arrive — after the browser's own
   // hash jump has already happened — so a deep link scrolls itself here, once.

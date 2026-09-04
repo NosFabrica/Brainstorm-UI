@@ -197,15 +197,20 @@ describe("TrustReviews", () => {
     expect(summary.contains(write)).toBe(false);
   });
 
-  it("opens its composer when the page asks (the pen beside Zap)", async () => {
+  // Benjamin: "when users click the pen it does not need to scroll down to
+  // the section, just open it — no scroll, make it clean."
+  it("opens its composer when the page asks (the pen beside Zap) — without scrolling the page", async () => {
     viewerMock = { pubkey: BEN };
     signedInMock = true;
+    const scrollSpy = vi.fn();
+    window.scrollTo = scrollSpy as unknown as typeof window.scrollTo;
     personEndorsementsMock.mockReturnValue({ followedBy: [], total: null, vouches: [] });
     const { rerender } = render(<TrustReviews pubkey={SUBJECT} personal={false} composeRequest={0} />);
     await screen.findByTestId("trust-reviews");
     expect(screen.queryByTestId("vouch-composer")).toBeNull();
     rerender(<TrustReviews pubkey={SUBJECT} personal={false} composeRequest={1} />);
     expect(screen.getByTestId("vouch-composer")).toBeInTheDocument();
+    expect(scrollSpy).not.toHaveBeenCalled();
   });
 
   it("opens unfolded when the page was reached by its deep link, and scrolls there once the reviews land", async () => {
