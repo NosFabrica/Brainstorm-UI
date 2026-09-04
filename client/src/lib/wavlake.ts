@@ -3,6 +3,7 @@
 // become a real player (artwork + title + artist + mp3 + duration).
 
 import { useEffect, useState } from "react";
+import { nip19 } from "nostr-tools";
 
 export interface WavlakeTrack {
   id: string;
@@ -69,4 +70,162 @@ export function useWavlakeTrack(id: string | undefined) {
   }, [id]);
 
   return state;
+}
+
+// ---------------------------------------------------------------------------
+// Wavlake as a music SOURCE, not just a link to unfurl.
+//
+// Live probing (2026-09-04): the musicians Benjamin named publish no native
+// track events at all — their music is on Wavlake, linked from notes. Wavlake's
+// public API is open to the browser: a search names artists and albums, an
+// artist lists albums, an album lists tracks with the mp3. So the words a
+// listener types can find songs where musicians actually keep them, labelled
+// as Wavlake's so nobody mistakes the source.
+// ---------------------------------------------------------------------------
+
+/** A Wavlake track in the shape our player and cards already speak. */
+export interface WavlakeSong {
+  /** Namespaced so a Wavlake id never collides with a Nostr event id in the queue. */
+  id: string;
+  title: string;
+  artist: string;
+  cover?: string;
+  audio: string;
+  durationSec?: number;
+  /** The track's page on Wavlake — where zaps, albums and the artist live. */
+  url: string;
+  source: "wavlake";
+  /** The artist's Nostr key when they linked one on Wavlake; "" otherwise. */
+  artistNpub: string;
+}
+
+export interface WavlakeArtist {
+  id: string;
+  name: string;
+  url: string;
+  artworkUrl?: string;
+  artistNpub: string;
+}
+
+const WAVLAKE_API = "https://wavlake.com/api/v1";
+const WAVLAKE_CATALOG = "https://catalog.wavlake.com/v1";
+const catalogueCache = new Map<string, Promise<unknown>>();
+
+/** Test seam: forget every remembered answer. */
+export function __resetWavlakeCatalogue() {
+  catalogueCache.clear();
+}
+
+async function getJson<T>(url: string): Promise<T | null> {
+  if (!catalogueCache.has(url)) {
+    catalogueCache.set(
+      url,
+      fetch(url, { signal: AbortSignal.timeout(8000) })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+    );
+  }
+  return (await catalogueCache.get(url)) as T | null;
+}
+
+type SearchItem = { id: string; type: string; name: string; url?: string; avatarUrl?: string; artworkUrl?: string };
+type ArtistBody = { id: string; name: string; url?: string; artistArtUrl?: string; artistNpub?: string; albums?: { id: string; title: string; releaseDate?: string }[] };
+type AlbumBody = { id: string; title: string; albumArtUrl?: string; tracks?: { id: string; title: string; artist?: string; duration?: number; mediaUrl?: string; artistNpub?: string }[] };
+
+const normalise = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+
+async function catalogueSearch(term: string): Promise<SearchItem[]> {
+  const body = await getJson<{ success?: boolean; data?: SearchItem[] }>(`${WAVLAKE_CATALOG}/search?term=${encodeURIComponent(term.trim())}`);
+  return Array.isArray(body?.data) ? body.data : [];
+}
+
+async function albumSongs(albumId: string): Promise<WavlakeSong[]> {
+  const album = await getJson<AlbumBody>(`${WAVLAKE_API}/content/album/${encodeURIComponent(albumId)}`);
+  return (album?.tracks ?? [])
+    .filter((t) => t.id && t.title && t.mediaUrl)
+    .map((t) => ({
+      id: `wavlake:${t.id}`,
+      title: t.title,
+      artist: t.artist ?? "",
+      cover: album?.albumArtUrl || undefined,
+      audio: t.mediaUrl as string,
+      durationSec: Number(t.duration) > 0 ? Number(t.duration) : undefined,
+      url: wavlakeTrackUrl(t.id),
+      source: "wavlake" as const,
+      artistNpub: t.artistNpub ?? "",
+    }));
+}
+
+/** An artist's songs, newest release first, capped. */
+export async function wavlakeArtistTracks(artistId: string, limit = 6): Promise<WavlakeSong[]> {
+  const artist = await getJson<ArtistBody>(`${WAVLAKE_API}/content/artist/${encodeURIComponent(artistId)}`);
+  const albums = [...(artist?.albums ?? [])].sort((a, b) => (b.releaseDate ?? "").localeCompare(a.releaseDate ?? ""));
+  const out: WavlakeSong[] = [];
+  for (const album of albums) {
+    if (out.length >= limit) break;
+    out.push(...(await albumSongs(album.id)));
+  }
+  return out.slice(0, limit);
+}
+
+/**
+ * The songs Wavlake has for these words: the matching artists' newest
+ * releases first, then matching albums. Empty, never a throw — an outage at
+ * Wavlake is not a search failure.
+ */
+export async function searchWavlakeTracks(term: string, limit = 6): Promise<WavlakeSong[]> {
+  const q = term.trim();
+  if (q.length < 2) return [];
+  const items = await catalogueSearch(q);
+  const out: WavlakeSong[] = [];
+  const seen = new Set<string>();
+  const push = (songs: WavlakeSong[]) => {
+    for (const s of songs) if (!seen.has(s.id) && out.length < limit) { seen.add(s.id); out.push(s); }
+  };
+  for (const a of items.filter((i) => i.type === "artist").slice(0, 2)) {
+    if (out.length >= limit) break;
+    push(await wavlakeArtistTracks(a.id, limit));
+  }
+  for (const al of items.filter((i) => i.type === "album").slice(0, 3)) {
+    if (out.length >= limit) break;
+    push(await albumSongs(al.id));
+  }
+  return out;
+}
+
+/**
+ * The Wavlake artist who IS this person. By linked Nostr key when the artist
+ * set one, else by the exact name — never a loose match, because "ainsley"
+ * naming Ainsley Costello would also name anyone else called Ainsley.
+ */
+export async function findWavlakeArtist({ name, pubkey }: { name?: string | null; pubkey?: string | null }): Promise<WavlakeArtist | null> {
+  const wanted = name ? normalise(name) : "";
+  if (!wanted) return null;
+  const items = (await catalogueSearch(wanted)).filter((i) => i.type === "artist");
+  const toArtist = (i: SearchItem, npub = ""): WavlakeArtist => ({
+    id: i.id,
+    name: i.name,
+    url: i.url ? `https://wavlake.com/${i.url}` : `https://wavlake.com/artist/${i.id}`,
+    artworkUrl: i.avatarUrl || i.artworkUrl || undefined,
+    artistNpub: npub,
+  });
+  // A linked key is exact; check the candidates' records for it first.
+  if (pubkey) {
+    for (const i of items) {
+      const body = await getJson<ArtistBody>(`${WAVLAKE_API}/content/artist/${encodeURIComponent(i.id)}`);
+      if (body?.artistNpub && pubkeyMatches(body.artistNpub, pubkey)) return toArtist(i, body.artistNpub);
+    }
+  }
+  const exact = items.find((i) => normalise(i.name) === wanted);
+  return exact ? toArtist(exact) : null;
+}
+
+function pubkeyMatches(artistNpub: string, pubkey: string): boolean {
+  if (!artistNpub) return false;
+  if (artistNpub.toLowerCase() === pubkey.toLowerCase()) return true;
+  try {
+    return nip19.npubEncode(pubkey.toLowerCase()) === artistNpub;
+  } catch {
+    return false;
+  }
 }

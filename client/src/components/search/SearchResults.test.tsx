@@ -70,6 +70,13 @@ vi.mock("@/hooks/useAppEndorsements", () => ({
   useAppEndorsements: (address: string | null, opts: unknown) => endorsementsMock(address, opts),
 }));
 let followsMock = new Set<string>();
+// Wavlake as the second music source: nothing unless a test says otherwise.
+const wavlakeSearchMock = vi.fn<(term: string) => Promise<import("@/lib/wavlake").WavlakeSong[]>>(() => Promise.resolve([]));
+vi.mock("@/lib/wavlake", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/wavlake")>()),
+  searchWavlakeTracks: (term: string) => wavlakeSearchMock(term),
+}));
+
 vi.mock("@/hooks/useMyFollows", () => ({
   useMyFollows: () => ({ follows: followsMock, ready: true, signedIn: followsMock.size > 0 }),
 }));
@@ -557,6 +564,29 @@ describe("SearchResults", () => {
     expect(within(card).getByTestId("track-play")).toHaveAttribute("aria-label", "Play");
     expect(screen.queryByTestId("track-card-t2")).toBeNull();
     expect(screen.queryByText(/TOMB-7703/)).toBeNull();
+  });
+
+  // Ainsley Costello publishes no native tracks; her music is on Wavlake. The
+  // Music tab asks Wavlake with the same words and plays what it finds,
+  // labelled as Wavlake's — so the tab is never "Nothing found" for an artist
+  // whose songs are one API away.
+  it("the Music tab plays Wavlake's songs for the words, labelled, when Nostr has none", async () => {
+    wavlakeSearchMock.mockResolvedValue([
+      { id: "wavlake:04cead49", title: "Two Ships", artist: "Ainsley Costello", cover: "https://img/two-ships.jpg", audio: "https://cdn/two-ships.mp3", durationSec: 217, url: "https://wavlake.com/track/04cead49", source: "wavlake", artistNpub: "" },
+    ]);
+    setUrlTab("music");
+    render(<SearchResults query="Ainsley Costello" pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 90 });
+
+    const card = await screen.findByTestId("wavlake-song-wavlake:04cead49");
+    expect(wavlakeSearchMock).toHaveBeenCalledWith("Ainsley Costello");
+    expect(card).toHaveTextContent("Two Ships");
+    expect(card).toHaveTextContent("Ainsley Costello");
+    expect(card).toHaveTextContent("Wavlake");
+    expect(within(card).getByTestId("track-play")).toHaveAttribute("aria-label", "Play");
+    expect(screen.queryByTestId("container-no-results")).toBeNull();
+    // The count counts what is shown, whichever source it came from.
+    expect(screen.getByTestId("text-search-stats")).toHaveTextContent("About 1 result");
   });
 
   it("collapses recurring events on the Events tab behind a +N chip", async () => {

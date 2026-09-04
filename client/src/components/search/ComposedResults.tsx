@@ -7,7 +7,8 @@
  * Media rides a compact row. Sections with nothing to show don't render.
  */
 import { useEffect, useMemo, useState } from "react";
-import { TrackCard } from "@/components/search/cards";
+import { TrackCard, WavlakeSongCard } from "@/components/search/cards";
+import { useWavlakeSongs } from "@/hooks/useWavlakeSongs";
 import { parseTrack } from "@/lib/trackEvent";
 import { setPlaylist } from "@/lib/audioPlayer";
 import { Clock, Loader2 } from "lucide-react";
@@ -138,12 +139,19 @@ export function ComposedResults({
   const happeningF = filtered(happening);
   const mediaF = filtered(media);
   const musicF = filtered(music);
+  // Wavlake is the second source: the same words, its catalogue. Native
+  // tracks lead (Nostr's own, trust-ranked); Wavlake's fill the row.
+  const wavlake = useWavlakeSongs(query, true);
   const listen = useMemo(() => (musicF?.hits ?? []).filter((h) => parseTrack(h.event) !== null).slice(0, 4), [musicF]);
+  const listenWavlake = useMemo(() => wavlake.songs.slice(0, Math.max(0, 4 - listen.length)), [wavlake.songs, listen.length]);
   // The row is a queue: a song that ends hands off to the next one shown.
   useEffect(() => {
-    if (listen.length === 0) return;
-    setPlaylist(listen.map((h) => parseTrack(h.event)!).map((tr) => ({ id: tr.id, src: tr.audio })));
-  }, [listen]);
+    if (listen.length + listenWavlake.length === 0) return;
+    setPlaylist([
+      ...listen.map((h) => parseTrack(h.event)!).map((tr) => ({ id: tr.id, src: tr.audio })),
+      ...listenWavlake.map((s) => ({ id: s.id, src: s.audio })),
+    ]);
+  }, [listen, listenWavlake]);
 
   const visited = useMemo(() => visitedPubkeys(), []);
   // The strip scrolls with a plain mouse wheel too — same feel as the facet chips.
@@ -163,7 +171,7 @@ export function ComposedResults({
   );
 
   const sections = [peopleF, latestF, articlesF, happeningF, mediaF, musicF];
-  const anyContent = sections.some((s) => (s?.hits.length ?? 0) > 0);
+  const anyContent = sections.some((s) => (s?.hits.length ?? 0) > 0) || listenWavlake.length > 0;
   const allSettled = sections.every((s) => s?.eose || s?.error);
   // EVERY section collapses near-duplicates — live verification found the
   // Latest section dominated by one author's three near-identical posts
@@ -241,11 +249,14 @@ export function ComposedResults({
         </Section>
       )}
 
-      {listen.length > 0 && (
+      {listen.length + listenWavlake.length > 0 && (
         <Section id="listen" kicker="Listen" tab="music" onTabChange={onTabChange}>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
             {listen.map((h) => (
               <TrackCard key={h.event.id} event={h.event} author={h.author} score={scoreOf(h.event.pubkey)} />
+            ))}
+            {listenWavlake.map((song) => (
+              <WavlakeSongCard key={song.id} song={song} />
             ))}
           </div>
         </Section>

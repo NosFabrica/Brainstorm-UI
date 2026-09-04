@@ -36,9 +36,10 @@ import {
   type SearchTab,
 } from "@/services/search";
 
-import { AppCard, EventCard, LiveCard, ListCard, MediaCard, RepoCard, platformWords, TrackCard } from "@/components/search/cards";
+import { AppCard, EventCard, LiveCard, ListCard, MediaCard, RepoCard, platformWords, TrackCard, WavlakeSongCard } from "@/components/search/cards";
 import { EVENT_WHEN_LABELS, eventWhenCounts, filterEventsByWhen, type EventWhen } from "@/lib/eventFilters";
 import { parseTrack } from "@/lib/trackEvent";
+import { useWavlakeSongs } from "@/hooks/useWavlakeSongs";
 import { setPlaylist } from "@/lib/audioPlayer";
 import { KnowledgePanel } from "@/components/search/KnowledgePanel";
 import { ComposedResults } from "@/components/search/ComposedResults";
@@ -567,8 +568,12 @@ export function SearchResults({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [rawHits, clientState.verifiedOnly, clientState.reach, reach, allAuthors.map((pk) => scoreOf(pk)).join(",")],
   );
-  const searching = !snapshot || (!snapshot.eose && !snapshot.error && hits.length === 0);
-  const noResults = !!snapshot?.eose && hits.length === 0;
+  // Wavlake is the Music tab's second source: the same words, its catalogue.
+  const wavlake = useWavlakeSongs(query, tab === "music");
+  const searching = !snapshot || (!snapshot.eose && !snapshot.error && hits.length === 0 && (tab !== "music" || wavlake.loading));
+  const noResults = !!snapshot?.eose && hits.length === 0 && (tab !== "music" || (!wavlake.loading && wavlake.songs.length === 0));
+  // What the count line counts: both sources on the Music tab.
+  const shownCount = hits.length + (tab === "music" ? wavlake.songs.length : 0);
   const peopleIdx = useRef(0);
   peopleIdx.current = 0;
 
@@ -677,13 +682,14 @@ export function SearchResults({
   // off to the next one shown, the way a queue does.
   useEffect(() => {
     if (tab !== "music") return;
-    setPlaylist(
-      displayHits
+    setPlaylist([
+      ...displayHits
         .map((h) => parseTrack(h.hit.event))
         .filter((t): t is NonNullable<typeof t> => t !== null)
         .map((t) => ({ id: t.id, src: t.audio })),
-    );
-  }, [tab, displayHits]);
+      ...wavlake.songs.map((s) => ({ id: s.id, src: s.audio })),
+    ]);
+  }, [tab, displayHits, wavlake.songs]);
 
   const profiles = useMemo(() => profilesOf(hits), [hits]);
 
@@ -902,7 +908,7 @@ export function SearchResults({
           {snapshot?.eose && (
             <div className="mb-2 sm:mb-3 px-1">
               <p className="text-xs text-slate-400 dark:text-slate-500" data-testid="text-search-stats">
-                About {hits.length} result{hits.length !== 1 ? "s" : ""}
+                About {shownCount} result{shownCount !== 1 ? "s" : ""}
                 {snapshot.timeMs != null ? ` (${(snapshot.timeMs / 1000).toFixed(2)} seconds)` : ""}
               </p>
             </div>
@@ -986,6 +992,12 @@ export function SearchResults({
               // before this UI learns them.
               return wrap(<MediaCard {...typed} />);
             })}
+            {tab === "music" &&
+              wavlake.songs.map((song) => (
+                <div key={song.id} className="h-full">
+                  <WavlakeSongCard song={song} />
+                </div>
+              ))}
           </div>
         </>
       )}

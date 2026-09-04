@@ -56,6 +56,13 @@ vi.mock("@/hooks/useMyFollows", () => ({
 // Follower faces hydrate through fetchProfileMap — stubbed so jsdom never
 // touches relays; tests seed names per case.
 const profileMapMock = new Map<string, { name?: string; picture?: string }>();
+const findWavlakeArtistMock = vi.fn<(args: { name?: string | null; pubkey?: string | null }) => Promise<import("@/lib/wavlake").WavlakeArtist | null>>(() => Promise.resolve(null));
+const wavlakeArtistTracksMock = vi.fn<(id: string, limit?: number) => Promise<import("@/lib/wavlake").WavlakeSong[]>>(() => Promise.resolve([]));
+vi.mock("@/lib/wavlake", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/wavlake")>()),
+  findWavlakeArtist: (args: { name?: string | null; pubkey?: string | null }) => findWavlakeArtistMock(args),
+  wavlakeArtistTracks: (id: string, limit?: number) => wavlakeArtistTracksMock(id, limit),
+}));
 const recentByKindsMock = vi.fn<(pubkey: string, kinds: number[], limit: number) => Promise<NostrEvent[]>>(() => Promise.resolve([]));
 vi.mock("@/services/nostr", () => ({
   fetchProfileMap: vi.fn(() => Promise.resolve(profileMapMock)),
@@ -96,6 +103,8 @@ beforeEach(() => {
   profileMapMock.clear();
   streamCalls = [];
   recentByKindsMock.mockResolvedValue([]);
+  findWavlakeArtistMock.mockResolvedValue(null);
+  wavlakeArtistTracksMock.mockResolvedValue([]);
 });
 
 // Trust reviews in the panel, Google's knowledge-panel way: an identity chip
@@ -644,5 +653,43 @@ describe("the person panel's music", () => {
     await screen.findByTestId("knowledge-panel-profile");
     await vi.waitFor(() => expect(recentByKindsMock).toHaveBeenCalled());
     expect(screen.queryByTestId("person-music")).toBeNull();
+  });
+});
+
+describe("the person panel's music, from Wavlake", () => {
+  const AINSLEY = "8".repeat(64);
+  const ainsley = () =>
+    suggestMock.mockResolvedValueOnce([{ pubkey: AINSLEY, npub: "npub1ainsley", name: "ainsleycostello", displayName: "Ainsley Costello", wotRank: 0.9, wotFollowers: 4700 }]);
+
+  it("plays the artist's Wavlake songs when they publish no native tracks, and points at Wavlake for the rest", async () => {
+    ainsley();
+    findWavlakeArtistMock.mockResolvedValue({ id: "3dac722c", name: "Ainsley Costello", url: "https://wavlake.com/ainsley-costello", artistNpub: "" });
+    wavlakeArtistTracksMock.mockResolvedValue([
+      { id: "wavlake:04cead49", title: "Two Ships", artist: "Ainsley Costello", audio: "https://cdn/two-ships.mp3", durationSec: 217, url: "https://wavlake.com/track/04cead49", source: "wavlake", artistNpub: "" },
+    ]);
+    render(<KnowledgePanel query="Ainsley Costello" pov="nosfabrica" />);
+
+    const music = await screen.findByTestId("person-music");
+    // Looked up as the person — key first, name second.
+    expect(findWavlakeArtistMock).toHaveBeenCalledWith({ name: "Ainsley Costello", pubkey: AINSLEY });
+    expect(music).toHaveTextContent("Two Ships");
+    expect(music).toHaveTextContent("Wavlake");
+    expect(within(music).getByTestId("track-play")).toBeInTheDocument();
+    const more = within(music).getByTestId("person-music-more");
+    expect(more.getAttribute("href")).toBe("https://wavlake.com/ainsley-costello");
+    expect(more.getAttribute("target")).toBe("_blank");
+  });
+
+  it("prefers the person's own native tracks over Wavlake's when they have both", async () => {
+    ainsley();
+    recentByKindsMock.mockResolvedValue([
+      { id: "n1", kind: 31337, pubkey: AINSLEY, created_at: NOW - 10, sig: "s", content: "", tags: [["d", "n1"], ["title", "Native Song"], ["media", "https://cdn/native.mp3"]] } as NostrEvent,
+    ]);
+    findWavlakeArtistMock.mockResolvedValue({ id: "3dac722c", name: "Ainsley Costello", url: "https://wavlake.com/ainsley-costello", artistNpub: "" });
+    render(<KnowledgePanel query="Ainsley Costello" pov="nosfabrica" />);
+    const music = await screen.findByTestId("person-music");
+    expect(music).toHaveTextContent("Native Song");
+    expect(music).not.toHaveTextContent("Wavlake");
+    expect(within(music).getByTestId("person-music-more").getAttribute("href")).toBe("/p/npub1ainsley");
   });
 });

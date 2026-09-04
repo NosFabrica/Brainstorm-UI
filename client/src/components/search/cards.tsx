@@ -1,4 +1,5 @@
 import { parseTrack } from "@/lib/trackEvent";
+import type { WavlakeSong } from "@/lib/wavlake";
 import { useEffect, useState } from "react";
 /**
  * Typed result cards for the verticals with no existing precedent —
@@ -802,6 +803,32 @@ export function TrackCard({ event, author }: { event: NostrEvent; author: Search
         genre={track.genre}
         durationSec={track.durationSec}
         href={eventPath(event)}
+      />
+    </div>
+  );
+}
+
+
+/**
+ * A song Wavlake has for the words — the same row as a native track, with the
+ * source named, and the title opening the song's Wavlake page (zaps, album,
+ * artist live there; there is no Nostr event to open).
+ */
+export function WavlakeSongCard({ song }: { song: WavlakeSong }) {
+  return (
+    <div
+      className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 py-1"
+      data-testid={`wavlake-song-${song.id}`}
+    >
+      <EmbeddedTrackCard
+        id={song.id}
+        title={song.title}
+        artist={song.artist}
+        cover={song.cover}
+        audio={song.audio}
+        durationSec={song.durationSec}
+        sourceLabel="Wavlake"
+        onOpen={() => window.open(song.url, "_blank", "noopener")}
       />
     </div>
   );

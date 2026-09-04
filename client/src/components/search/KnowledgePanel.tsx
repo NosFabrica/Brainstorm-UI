@@ -7,6 +7,7 @@
 import { useEffect, useState } from "react";
 import { fetchRecentByKinds } from "@/services/nostr";
 import { parseTrack, TRACK_KIND, type Track } from "@/lib/trackEvent";
+import { findWavlakeArtist, wavlakeArtistTracks, type WavlakeArtist, type WavlakeSong } from "@/lib/wavlake";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { Link, useLocation } from "wouter";
 import { ArrowRight, BookOpen, Check, Hash, Package, Users, Zap } from "lucide-react";
@@ -121,6 +122,9 @@ export function KnowledgePanel({
   // The person's own songs — kind 31337 by author, the three newest that
   // actually are songs (the kind is abused; see lib/trackEvent).
   const [personTracks, setPersonTracks] = useState<Track[]>([]);
+  // …and failing those, the Wavlake artist who is this person: by linked
+  // key first, exact name second, never a loose match.
+  const [personWavlake, setPersonWavlake] = useState<{ artist: WavlakeArtist; songs: WavlakeSong[] } | null>(null);
 
   useEffect(() => {
     if (!person) {
@@ -128,13 +132,26 @@ export function KnowledgePanel({
       return;
     }
     let cancelled = false;
+    setPersonWavlake(null);
+    const wavlakeFallback = async () => {
+      const artist = await findWavlakeArtist({ name: person.displayName || person.name, pubkey: person.pubkey });
+      if (!artist || cancelled) return;
+      const songs = await wavlakeArtistTracks(artist.id, 3);
+      if (!cancelled && songs.length > 0) setPersonWavlake({ artist, songs });
+    };
     fetchRecentByKinds(person.pubkey, [TRACK_KIND], 6)
       .then((events) => {
         if (cancelled) return;
-        setPersonTracks(events.map(parseTrack).filter((tr): tr is Track => tr !== null).slice(0, 3));
+        const native = events.map(parseTrack).filter((tr): tr is Track => tr !== null).slice(0, 3);
+        setPersonTracks(native);
+        if (native.length === 0) return wavlakeFallback();
       })
       .catch(() => {
         if (!cancelled) setPersonTracks([]);
+        return wavlakeFallback();
+      })
+      .catch(() => {
+        /* Wavlake down: no row */
       });
     return () => {
       cancelled = true;
@@ -530,18 +547,30 @@ export function KnowledgePanel({
           ))}
         </div>
       )}
-      {personTracks.length > 0 && (
+      {(personTracks.length > 0 || personWavlake) && (
         <div className="mt-3" data-testid="person-music">
           <div className="mb-1 flex items-center justify-between">
             <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Music</span>
-            <Link
-              href={`/p/${person.npub}`}
-              onClick={() => onOpen?.(person)}
-              className="text-[11px] font-medium text-brand-deep dark:text-brand-link hover:underline"
-              data-testid="person-music-more"
-            >
-              All music →
-            </Link>
+            {personTracks.length > 0 ? (
+              <Link
+                href={`/p/${person.npub}`}
+                onClick={() => onOpen?.(person)}
+                className="text-[11px] font-medium text-brand-deep dark:text-brand-link hover:underline"
+                data-testid="person-music-more"
+              >
+                All music →
+              </Link>
+            ) : (
+              <a
+                href={personWavlake!.artist.url}
+                target="_blank"
+                rel="noopener"
+                className="text-[11px] font-medium text-brand-deep dark:text-brand-link hover:underline"
+                data-testid="person-music-more"
+              >
+                All music on Wavlake →
+              </a>
+            )}
           </div>
           <div className="space-y-1">
             {personTracks.map((tr) => (
@@ -557,6 +586,20 @@ export function KnowledgePanel({
                 href={eventPath({ id: tr.id, pubkey: tr.pubkey })}
               />
             ))}
+            {personTracks.length === 0 &&
+              personWavlake?.songs.map((song) => (
+                <EmbeddedTrackCard
+                  key={song.id}
+                  id={song.id}
+                  title={song.title}
+                  artist={song.artist}
+                  cover={song.cover}
+                  audio={song.audio}
+                  durationSec={song.durationSec}
+                  sourceLabel="Wavlake"
+                  onOpen={() => window.open(song.url, "_blank", "noopener")}
+                />
+              ))}
           </div>
         </div>
       )}

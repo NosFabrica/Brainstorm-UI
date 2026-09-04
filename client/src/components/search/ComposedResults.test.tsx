@@ -57,6 +57,13 @@ const author = (pubkey: string, name: string) => ({
   wotRank: null,
   wotFollowers: null,
 });
+// Wavlake as the second music source: nothing unless a test says otherwise.
+const wavlakeSearchMock = vi.fn<(term: string) => Promise<import("@/lib/wavlake").WavlakeSong[]>>(() => Promise.resolve([]));
+vi.mock("@/lib/wavlake", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/wavlake")>()),
+  searchWavlakeTracks: (term: string) => wavlakeSearchMock(term),
+}));
+
 const hitOf = (event: NostrEvent, name = "someone") => ({
   event,
   author: author(event.pubkey, name),
@@ -71,6 +78,8 @@ vi.mock("@/services/unfurl", () => ({ fetchUnfurl: (url: string) => unfurlMock(u
 const sectionCall = (tab: string) => calls.find((c) => c.params.tab === tab)!;
 
 beforeEach(() => {
+  // clearAllMocks keeps implementations; Wavlake must fall silent between tests.
+  wavlakeSearchMock.mockResolvedValue([]);
   calls = [];
   vi.clearAllMocks();
   localStorage.clear();
@@ -411,6 +420,24 @@ describe("ComposedResults", () => {
     expect(within(section).getAllByTestId("track-play")).toHaveLength(2);
     expect(section).not.toHaveTextContent("antennapod");
 
+    fireEvent.click(within(section).getByTestId("serp-more-listen"));
+    expect(onTabChange).toHaveBeenCalledWith("music");
+  });
+
+  it("the Listen row carries Wavlake's songs for the words when Nostr has none, labelled", async () => {
+    wavlakeSearchMock.mockResolvedValue([
+      { id: "wavlake:04cead49", title: "Two Ships", artist: "Ainsley Costello", audio: "https://cdn/two-ships.mp3", durationSec: 217, url: "https://wavlake.com/track/04cead49", source: "wavlake", artistNpub: "" },
+    ]);
+    const onTabChange = vi.fn();
+    render(<ComposedResults query="Ainsley Costello" pov="nosfabrica" onTabChange={onTabChange} />);
+    sectionCall("music").emit({ hits: [], eose: true, timeMs: 80 });
+
+    const section = await screen.findByTestId("serp-section-listen");
+    expect(wavlakeSearchMock).toHaveBeenCalledWith("Ainsley Costello");
+    const card = within(section).getByTestId("wavlake-song-wavlake:04cead49");
+    expect(card).toHaveTextContent("Two Ships");
+    expect(card).toHaveTextContent("Wavlake");
+    expect(within(card).getByTestId("track-play")).toBeInTheDocument();
     fireEvent.click(within(section).getByTestId("serp-more-listen"));
     expect(onTabChange).toHaveBeenCalledWith("music");
   });
