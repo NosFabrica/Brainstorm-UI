@@ -87,6 +87,9 @@ export interface SearchParams {
   /** Required for pov === "mywot". */
   userPubkey?: string;
   limit?: number;
+  /** Epoch lower bound, to the second — the home feed's "last 24 hours".
+   *  (The grammar's since:YYYY-MM-DD is day-precision; this is not.) */
+  since?: number;
 }
 
 const DEFAULT_LIMIT = 100;
@@ -176,7 +179,7 @@ export function searchStream(
       ...(lifted.authors ? { authors: lifted.authors } : {}),
       ...(lifted["#p"] ? { "#p": lifted["#p"] } : {}),
       ...(lifted["#t"] ? { "#t": lifted["#t"] } : {}),
-      ...(lifted.since !== undefined ? { since: lifted.since } : {}),
+      ...(params.since !== undefined ? { since: params.since } : lifted.since !== undefined ? { since: lifted.since } : {}),
       ...(lifted.until !== undefined ? { until: lifted.until } : {}),
       search: withObserver(lifted.search, observer),
       limit: params.limit ?? DEFAULT_LIMIT,
@@ -484,6 +487,51 @@ export function fetchAppZaps(address: string, opts: { limit?: number; timeoutMs?
  * COUNTs keyed by the listing address. Counts off the wire, never pages of
  * events: a results page full of cards must stay cheap.
  */
+/**
+ * Engagement the relay can count today (probed 2026-09-03): zaps (9735) and
+ * replies (1 / 1111) that e-tag the note. Reactions and reposts aren't
+ * indexed (RELAY-ASKS). Two NIP-45 COUNTs, never a page of events; a failed
+ * or slow count reads as zero.
+ */
+export function fetchNoteEngagement(id: string, timeoutMs = 5000): Promise<{ zaps: number; replies: number }> {
+  return new Promise((resolve) => {
+    const relay = searchRelay();
+    if (!relay) return resolve({ zaps: 0, replies: 0 });
+    const result = { zaps: 0, replies: 0 };
+    const subs: { unsubscribe: () => void }[] = [];
+    let done = 0;
+    let settled = false;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      subs.forEach((s) => s.unsubscribe());
+      resolve(result);
+    };
+    const one = () => {
+      if (++done >= 2) finish();
+    };
+    const count = (kinds: number[], key: keyof typeof result) => {
+      try {
+        subs.push(
+          relay.count({ kinds, "#e": [id], search: "include:spam" }).subscribe({
+            next: (r: { count?: number }) => {
+              result[key] = r?.count ?? 0;
+            },
+            error: one,
+            complete: one,
+          }),
+        );
+      } catch {
+        one();
+      }
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    count([9735], "zaps");
+    count([1, 1111], "replies");
+  });
+}
+
 export function fetchAppEndorsementCounts(
   address: string,
   timeoutMs = 5000,

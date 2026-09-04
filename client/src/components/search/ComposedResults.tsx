@@ -15,7 +15,8 @@ import { useTierRing, TierWordChip } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { SerpRow } from "@/components/search/SerpRow";
 import { MediaTiles, TopStories, hasVisual, pickTopStories } from "@/components/search/RichSections";
-import { collapseHits, type HitCluster } from "@/lib/searchCollapse";
+import { collapseHits } from "@/lib/searchCollapse";
+import { ClusterRows, Section, mergeSnapshots, useSectionStream } from "@/components/search/sections";
 import { filterEventsByWhen } from "@/lib/eventFilters";
 import { clientFilterHits } from "@/lib/clientFilters";
 import { readFilters } from "@/lib/searchSyntax";
@@ -30,53 +31,6 @@ import {
   type SearchSnapshot,
   type SearchTab,
 } from "@/services/search";
-
-/** Two section streams as one: hits concatenated in order, settled when both are. */
-function mergeSnapshots(a: SearchSnapshot | null, b: SearchSnapshot | null): SearchSnapshot | null {
-  if (!a) return b;
-  if (!b) return a;
-  return { ...a, hits: [...a.hits, ...b.hits], eose: a.eose && b.eose };
-}
-
-function useSectionStream(query: string, tab: SearchTab, pov: SearchPov, userPubkey: string | undefined, limit: number) {
-  const [snapshot, setSnapshot] = useState<SearchSnapshot | null>(null);
-  useEffect(() => {
-    setSnapshot(null);
-    return searchStream(query, { tab, pov, userPubkey, limit }, setSnapshot);
-  }, [query, tab, pov, userPubkey, limit]);
-  return snapshot;
-}
-
-function Section({
-  id,
-  kicker,
-  tab,
-  onTabChange,
-  children,
-}: {
-  id: string;
-  kicker: string;
-  tab: SearchTab;
-  onTabChange: (t: SearchTab) => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="mt-5 first:mt-0" data-testid={`serp-section-${id}`}>
-      <div className="mb-1.5 flex items-center gap-2">
-        <SectionHeader kicker={kicker} className="flex-1" />
-        <button
-          type="button"
-          onClick={() => onTabChange(tab)}
-          className="shrink-0 text-xs font-medium text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
-          data-testid={`serp-more-${id}`}
-        >
-          More →
-        </button>
-      </div>
-      {children}
-    </section>
-  );
-}
 
 /** Compact person chip for the People strip. */
 function PersonChip({
@@ -118,43 +72,6 @@ function PersonChip({
         </span>
       )}
     </button>
-  );
-}
-
-function ClusterRows({
-  cluster,
-  scoreOf,
-  query,
-}: {
-  cluster: HitCluster;
-  scoreOf: (pk: string) => number | null | undefined;
-  query: string;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const authorName = cluster.primary.author ? getDisplayLabel(cluster.primary.author) : "this author";
-  return (
-    <div>
-      <SerpRow
-        event={cluster.primary.event}
-        author={cluster.primary.author}
-        score={scoreOf(cluster.primary.event.pubkey)}
-        query={query}
-      />
-      {cluster.others.length > 0 && !expanded && (
-        <button
-          type="button"
-          onClick={() => setExpanded(true)}
-          className="ml-2 mt-0.5 rounded-full border border-slate-200 dark:border-slate-800 px-2.5 py-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 hover:border-brand-accent/30"
-          data-testid={`serp-expand-${cluster.primary.event.id}`}
-        >
-          +{cluster.others.length} more from {authorName}
-        </button>
-      )}
-      {expanded &&
-        cluster.others.map((h) => (
-          <SerpRow key={h.event.id} event={h.event} author={h.author} score={scoreOf(h.event.pubkey)} query={query} />
-        ))}
-    </div>
   );
 }
 

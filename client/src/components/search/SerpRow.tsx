@@ -194,16 +194,32 @@ function AuthorLine({
   );
 }
 
+/** "⚡ 12 · 4 replies" — quiet, and silent at zero. */
+export function EngagementLine({ zaps, replies, testId }: { zaps: number; replies: number; testId?: string }) {
+  if (zaps <= 0 && replies <= 0) return null;
+  const parts: string[] = [];
+  if (zaps > 0) parts.push(`⚡ ${zaps}`);
+  if (replies > 0) parts.push(`${replies} ${replies === 1 ? "reply" : "replies"}`);
+  return (
+    <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500" data-testid={testId}>
+      {parts.join(" · ")}
+    </p>
+  );
+}
+
 export function SerpRow({
   event,
   author,
   score,
   query,
+  engagement,
 }: {
   event: NostrEvent;
   author: SearchResult | null;
   score?: number | null;
   query: string;
+  /** Zap / reply counts when the caller fetched them (the home feed does). */
+  engagement?: { zaps: number; replies: number };
 }) {
   const [, setLocation] = useLocation();
   const open = useCallback(() => setLocation(eventPath(event)), [event, setLocation]);

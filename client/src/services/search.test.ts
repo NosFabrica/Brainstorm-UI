@@ -6,7 +6,7 @@
  * what goes on the wire, how snapshots arrive, and that cancellation is real.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { Observable, Subject, of } from "rxjs";
+import { Observable, Subject, of, throwError } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
 import { nip19 } from "nostr-tools";
 
@@ -49,6 +49,7 @@ import {
   fetchAppReviews,
   fetchAppZaps,
   fetchAppEndorsementCounts,
+  fetchNoteEngagement,
   fetchPersonVouches,
   fetchVouchReplies,
   fetchNipPage,
@@ -578,6 +579,39 @@ describe("fetchAppEndorsementCounts", () => {
     expect(filters).toHaveLength(3);
     expect(filters.every((f) => (f["#a"] as string[])[0] === addr && f.search === "include:spam")).toBe(true);
     expect(filters.map((f) => f.kinds as number[])).toEqual(expect.arrayContaining([[1111, 1], [9735], [30267]]));
+  });
+});
+
+// The home feed: "what's happening now" means the last 24 hours, to the
+// second — not the day-precision since:YYYY-MM-DD the query grammar offers.
+describe("searchStream since", () => {
+  it("passes an epoch `since` straight into the NIP-01 filter", async () => {
+    searchStream("", { tab: "notes", pov: "nosfabrica", since: 1_760_000_000 }, () => {});
+    await vi.waitFor(() => expect(reqMock).toHaveBeenCalledTimes(1));
+    const filter = reqMock.mock.calls[0][0] as { since?: number; search: string };
+    expect(filter.since).toBe(1_760_000_000);
+    expect(filter.search).toBe("observer:" + "f".repeat(64));
+  });
+});
+
+// Engagement the relay can count today (probed 2026-09-03): zaps (kind 9735)
+// and replies (kinds 1 / 1111) that `e`-tag the note. Reactions and reposts
+// aren't indexed — RELAY-ASKS. Two COUNTs per note, never a page of events.
+describe("fetchNoteEngagement", () => {
+  it("counts zaps and replies for a note", async () => {
+    const id = "e".repeat(64);
+    countMock.mockImplementation((filter: { kinds: number[] }) => of({ count: filter.kinds[0] === 9735 ? 12 : 4 }));
+    const res = await fetchNoteEngagement(id);
+    expect(res).toEqual({ zaps: 12, replies: 4 });
+    const filters = countMock.mock.calls.map((c) => c[0] as Record<string, unknown>);
+    expect(filters).toHaveLength(2);
+    expect(filters.every((f) => (f["#e"] as string[])[0] === id && f.search === "include:spam")).toBe(true);
+    expect(filters.map((f) => f.kinds as number[])).toEqual(expect.arrayContaining([[9735], [1, 1111]]));
+  });
+
+  it("a failed COUNT reads as zero, never a rejection", async () => {
+    countMock.mockImplementation(() => throwError(() => new Error("relay closed")));
+    await expect(fetchNoteEngagement("e".repeat(64))).resolves.toEqual({ zaps: 0, replies: 0 });
   });
 });
 
