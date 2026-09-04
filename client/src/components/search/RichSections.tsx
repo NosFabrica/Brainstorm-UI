@@ -138,8 +138,23 @@ function TopStoryCard({ story }: { story: TopStory }) {
         />
       ) : (
         // Same footprint without a picture, so the strip stays one height.
-        <div className="flex aspect-[16/10] w-full items-center justify-center bg-gradient-to-br from-brand-primary/10 to-brand-accent/10 dark:from-brand-primary/20 dark:to-brand-accent/15" aria-hidden="true">
-          <Newspaper className="h-6 w-6 text-brand-primary/60" />
+        // Google News' move when an article has no image: the outlet's logo.
+        // (The article's own image arrives once the link-metadata proxy ships.)
+        <div
+          className="flex aspect-[16/10] w-full flex-col items-center justify-center gap-1.5 bg-gradient-to-br from-brand-primary/10 to-brand-accent/10 dark:from-brand-primary/20 dark:to-brand-accent/15"
+          aria-hidden="true"
+          data-testid="story-placeholder"
+        >
+          {news.domain ? (
+            <>
+              <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/5 dark:bg-slate-900 dark:ring-white/10">
+                <Favicon host={news.domain} className="h-8 w-8 rounded-md object-contain" />
+              </span>
+              <span className="max-w-[85%] truncate text-[11px] font-medium text-slate-500 dark:text-slate-400">{news.domain}</span>
+            </>
+          ) : (
+            <Newspaper className="h-6 w-6 text-brand-primary/60" />
+          )}
         </div>
       )}
       <div className="flex min-w-0 flex-1 flex-col p-2.5">
