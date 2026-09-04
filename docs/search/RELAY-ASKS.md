@@ -118,3 +118,21 @@ Endorsement findings (2026-09-03, read-only probe for the reviews work):
 - Personalized re-ranking beyond `observer:` — the observer lens is the
   product; client-side touches (visited-profile pinning) stay on-device
   and labeled.
+
+## 10. Kind 31337 is mostly not music — a track filter, or a content-typed index
+
+Probed 2026-09-04: 8,645 kind-31337 events, but the newest are game state
+JSON, AntennaPod ad-skip data and encrypted blobs — none with a `title` or a
+`media`/`url` tag. Text search over the kind does return real tracks
+(Wavlake, Stemstr, Tunestr), so the UI's Music vertical keeps only hits with a
+title and a playable URL (`lib/trackEvent.ts`). A relay-side filter for that
+shape — or a "has media" facet — would spare every client the same gate and
+let `sort:recent` on Music mean recent songs.
+
+## 11. Fountain episodes play only through the link-metadata proxy (#7)
+
+Podcasters here link `fountain.fm/episode/…`; the page exposes the mp3 as
+`og:audio`, but fountain.fm is not CORS-readable from the browser. Once #7
+ships, a Fountain link can play in place like Wavlake and YouTube do today;
+until then it is a "Listen on Fountain" card.
+

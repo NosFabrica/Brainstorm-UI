@@ -5,7 +5,7 @@
  * card for "liverpool" the way jack gets his.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { nip19, type NostrEvent } from "nostr-tools";
 import type { SearchSnapshot, SearchParams } from "@/services/search";
 
@@ -56,8 +56,10 @@ vi.mock("@/hooks/useMyFollows", () => ({
 // Follower faces hydrate through fetchProfileMap — stubbed so jsdom never
 // touches relays; tests seed names per case.
 const profileMapMock = new Map<string, { name?: string; picture?: string }>();
+const recentByKindsMock = vi.fn<(pubkey: string, kinds: number[], limit: number) => Promise<NostrEvent[]>>(() => Promise.resolve([]));
 vi.mock("@/services/nostr", () => ({
   fetchProfileMap: vi.fn(() => Promise.resolve(profileMapMock)),
+  fetchRecentByKinds: (pubkey: string, kinds: number[], limit: number) => recentByKindsMock(pubkey, kinds, limit),
 }));
 
 // The zap flow is the public profile's — faked to a marker so the panel can
@@ -93,6 +95,7 @@ beforeEach(() => {
   followsMock = new Set();
   profileMapMock.clear();
   streamCalls = [];
+  recentByKindsMock.mockResolvedValue([]);
 });
 
 // Trust reviews in the panel, Google's knowledge-panel way: an identity chip
@@ -604,5 +607,42 @@ describe("the topic panel", () => {
     });
     await screen.findByTestId("search-topic-panel");
     expect(screen.queryByTestId("search-knowledge-panel")).toBeNull();
+  });
+});
+
+// Benjamin: musicians' songs should be findable and playable through search.
+// Google's panel for an artist carries a Songs row; ours carries the person's
+// native tracks (kind 31337), playable in place, with the profile for the rest.
+describe("the person panel's music", () => {
+  const NOVA = "e".repeat(64);
+  const nova = () =>
+    suggestMock.mockResolvedValueOnce([{ pubkey: NOVA, npub: "npub1nova", name: "NOVA", wotRank: 0.8, wotFollowers: 12 }]);
+  const track = (id: string, title: string): NostrEvent =>
+    ({ id, kind: 31337, pubkey: NOVA, created_at: NOW - 100, sig: "s", content: "", tags: [["d", id], ["title", title], ["artist", "NOVA"], ["media", `https://renaissancemachine.ai/music/${id}.mp3`]] }) as NostrEvent;
+
+  it("plays the person's latest tracks in the panel and points at the profile for the rest", async () => {
+    nova();
+    recentByKindsMock.mockResolvedValue([
+      track("t1", "Old Carbon"),
+      track("t2", "Duende"),
+      { id: "junk", kind: 31337, pubkey: NOVA, created_at: NOW - 50, sig: "s", content: "tester", tags: [["d", "x"]] } as NostrEvent,
+    ]);
+    render(<KnowledgePanel query="nova" pov="nosfabrica" />);
+
+    const music = await screen.findByTestId("person-music");
+    expect(recentByKindsMock).toHaveBeenCalledWith(NOVA, [31337], expect.any(Number));
+    expect(music).toHaveTextContent("Old Carbon");
+    expect(music).toHaveTextContent("Duende");
+    expect(within(music).getAllByTestId("track-play")).toHaveLength(2);
+    expect(music).not.toHaveTextContent("tester");
+    expect(within(music).getByTestId("person-music-more").getAttribute("href")).toBe("/p/npub1nova");
+  });
+
+  it("has no music row for someone who publishes none", async () => {
+    nova();
+    render(<KnowledgePanel query="nova" pov="nosfabrica" />);
+    await screen.findByTestId("knowledge-panel-profile");
+    await vi.waitFor(() => expect(recentByKindsMock).toHaveBeenCalled());
+    expect(screen.queryByTestId("person-music")).toBeNull();
   });
 });

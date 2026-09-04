@@ -1,3 +1,4 @@
+import { parseTrack } from "@/lib/trackEvent";
 import { useEffect, useState } from "react";
 /**
  * Typed result cards for the verticals with no existing precedent —
@@ -774,5 +775,34 @@ export function ListCard({ event, author, score }: { event: NostrEvent; author: 
         </div>
       </div>
     </CardShell>
+  );
+}
+
+
+/**
+ * A native track in the results — the same row the profile page plays, on
+ * the card surface every other vertical uses. The cover is the play button;
+ * the title opens the event; the artist is Flash's field or, failing that,
+ * the author's name, since most publishers are the artist.
+ */
+export function TrackCard({ event, author }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
+  const track = parseTrack(event);
+  if (!track) return null;
+  return (
+    <div
+      className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 py-1"
+      data-testid={`track-card-${event.id}`}
+    >
+      <EmbeddedTrackCard
+        id={track.id}
+        title={track.title}
+        artist={track.artist ?? author?.displayName ?? author?.name}
+        cover={track.cover}
+        audio={track.audio}
+        genre={track.genre}
+        durationSec={track.durationSec}
+        href={eventPath(event)}
+      />
+    </div>
   );
 }

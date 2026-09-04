@@ -386,6 +386,43 @@ describe("ComposedResults", () => {
     expect(section.querySelectorAll("[data-testid^='serp-row-']")).toHaveLength(3);
   });
 
+  // Music discovery through search: a query that matches native tracks gets a
+  // Listen row — Google's songs carousel — playable in place. The kind is
+  // abused for game state and ad-skip data, so only real tracks make the row.
+  it("adds a Listen row of playable tracks when the query matches songs, and asks the Music tab for more", async () => {
+    const onTabChange = vi.fn();
+    render(<ComposedResults query="jazz" pov="nosfabrica" onTabChange={onTabChange} />);
+    const nova = "d".repeat(64);
+    const track = (id: string, title: string) =>
+      hitOf(ev(id, 31337, nova, "", [["d", id], ["title", title], ["artist", "NOVA"], ["media", `https://renaissancemachine.ai/music/${id}.mp3`], ["image", `https://renaissancemachine.ai/${id}.jpg`]]), "NOVA");
+    sectionCall("music").emit({
+      hits: [
+        track("s1", "Old Carbon"),
+        track("s2", "Duende"),
+        hitOf(ev("junk", 31337, "e".repeat(64), '{"status":"complete","ads":[]}', [["d", "3244b53c"], ["t", "antennapod-adskip"]]), null),
+      ],
+      eose: true,
+      timeMs: 120,
+    });
+
+    const section = await screen.findByTestId("serp-section-listen");
+    expect(section).toHaveTextContent("Old Carbon");
+    expect(section).toHaveTextContent("Duende");
+    expect(within(section).getAllByTestId("track-play")).toHaveLength(2);
+    expect(section).not.toHaveTextContent("antennapod");
+
+    fireEvent.click(within(section).getByTestId("serp-more-listen"));
+    expect(onTabChange).toHaveBeenCalledWith("music");
+  });
+
+  it("shows no Listen row when nothing on the relay is a song", async () => {
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    sectionCall("music").emit({ hits: [hitOf(ev("junk", 31337, "e".repeat(64), "tester", [["d", "x"]]), null)], eose: true, timeMs: 90 });
+    sectionCall("notes").emit({ hits: [hitOf(ev("n1", 1, "b".repeat(64), "Liverpool are top of the league"), "fan")], eose: true, timeMs: 100 });
+    await screen.findByTestId("serp-section-latest");
+    expect(screen.queryByTestId("serp-section-listen")).toBeNull();
+  });
+
   it("bolds the query terms inside snippets", async () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     sectionCall("notes").emit({

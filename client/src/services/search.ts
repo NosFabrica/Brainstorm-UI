@@ -33,6 +33,7 @@ export type SearchTab =
   | "repos"
   | "events"
   | "live"
+  | "music"
   | "releases"
   | "lists";
 
@@ -46,6 +47,10 @@ export const TAB_KINDS: Record<Exclude<SearchTab, "everything">, number[]> = {
   // confusing tab. Kind 1337 "snippets" is deliberately in NEITHER — live
   // probing showed it ~90% JSON junk; it still surfaces via Everything.
   apps: [32267],
+  // Native tracks (Wavlake, Stemstr, Tunestr). The kind is also abused for
+  // game state and ad-skip data, so the UI keeps only hits with a title and
+  // audio — see lib/trackEvent.
+  music: [31337],
   repos: [30617, 1617, 1618, 1621],
   // Benjamin: "filter by events also". NIP-52 calendar events are their own
   // vertical (the tab does the calendar work — the relay only knows

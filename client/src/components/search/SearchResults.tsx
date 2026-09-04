@@ -36,8 +36,10 @@ import {
   type SearchTab,
 } from "@/services/search";
 
-import { AppCard, EventCard, LiveCard, ListCard, MediaCard, RepoCard, platformWords } from "@/components/search/cards";
+import { AppCard, EventCard, LiveCard, ListCard, MediaCard, RepoCard, platformWords, TrackCard } from "@/components/search/cards";
 import { EVENT_WHEN_LABELS, eventWhenCounts, filterEventsByWhen, type EventWhen } from "@/lib/eventFilters";
+import { parseTrack } from "@/lib/trackEvent";
+import { setPlaylist } from "@/lib/audioPlayer";
 import { KnowledgePanel } from "@/components/search/KnowledgePanel";
 import { ComposedResults } from "@/components/search/ComposedResults";
 import { collapseHits } from "@/lib/searchCollapse";
@@ -49,6 +51,7 @@ const APP_KINDS = new Set(TAB_KINDS.apps);
 const REPO_KINDS = new Set(TAB_KINDS.repos);
 const LIVE_KINDS = new Set(TAB_KINDS.live);
 const EVENT_KINDS = new Set(TAB_KINDS.events);
+const MUSIC_KINDS = new Set(TAB_KINDS.music);
 const LIST_KINDS = new Set(TAB_KINDS.lists);
 const EMPTY_EVENTS = new Map<string, MinimalEvent>();
 
@@ -80,6 +83,7 @@ const MORE_TABS: { key: SearchTab; label: string }[] = [
   { key: "apps", label: "Apps" },
   { key: "repos", label: "Repos" },
   { key: "events", label: "Events" },
+  { key: "music", label: "Music" },
   { key: "live", label: "Live" },
   { key: "lists", label: "Lists" },
 ];
@@ -626,6 +630,8 @@ export function SearchResults({
   const displayHits = useMemo(() => {
     let shown = hits;
     if (tab === "events") shown = filterEventsByWhen(shown, effectiveWhen);
+    // A 31337 without a title and audio is not a song (the kind is abused).
+    if (tab === "music") shown = shown.filter((h) => parseTrack(h.event) !== null);
     if (tab === "apps" && appPlatform) {
       shown = shown.filter((h) => platformWords(h.event).includes(appPlatform));
     }
@@ -666,6 +672,18 @@ export function SearchResults({
     }
     return out;
   }, [hits, tab, appPlatform, appCategory, appLicense, appCategoryTags, clustered, expandedClusters, effectiveWhen]);
+
+  // On the Music tab the results are the playlist: a track that ends hands
+  // off to the next one shown, the way a queue does.
+  useEffect(() => {
+    if (tab !== "music") return;
+    setPlaylist(
+      displayHits
+        .map((h) => parseTrack(h.hit.event))
+        .filter((t): t is NonNullable<typeof t> => t !== null)
+        .map((t) => ({ id: t.id, src: t.audio })),
+    );
+  }, [tab, displayHits]);
 
   const profiles = useMemo(() => profilesOf(hits), [hits]);
 
@@ -957,6 +975,7 @@ export function SearchResults({
               }
               const typed = { event, author: hit.author, score: scoreOf(event.pubkey) };
               if (EVENT_KINDS.has(event.kind)) return wrap(<EventCard {...typed} />);
+              if (MUSIC_KINDS.has(event.kind)) return wrap(<TrackCard {...typed} />);
               if (LIVE_KINDS.has(event.kind)) return wrap(<LiveCard {...typed} />);
               if (APP_KINDS.has(event.kind)) return wrap(<AppCard {...typed} />);
               if (REPO_KINDS.has(event.kind)) return wrap(<RepoCard {...typed} />);

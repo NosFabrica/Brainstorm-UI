@@ -4,9 +4,21 @@
  * then the places sites actually keep them, then the apex domain when the
  * link said www — and only after all of that, the globe.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { Favicon, LinkPreviewCard } from "./LinkPreview";
+
+// Wavlake's catalogue, answered: the card is the inline player, not a fetch test.
+vi.mock("@/lib/wavlake", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/wavlake")>();
+  return {
+    ...real,
+    useWavlakeTrack: (id: string | undefined) =>
+      id
+        ? { loading: false, error: false, track: { id, title: "Need You Whole", artist: "Handled", audioUrl: "https://audio.nostr.build/x.mp3", duration: 201 } }
+        : { loading: false, error: false, track: null },
+  };
+});
 
 function img() {
   return document.querySelector("img[data-testid='favicon']") as HTMLImageElement | null;
@@ -57,5 +69,24 @@ describe("LinkPreviewCard — a YouTube link plays where it is", () => {
     expect(source.getAttribute("href")).toBe("https://youtu.be/dQw4w9WgXcQ");
     expect(source.getAttribute("target")).toBe("_blank");
     expect(source).toHaveTextContent(/YouTube · youtu\.be/);
+  });
+});
+
+describe("LinkPreviewCard — audio links play where they are", () => {
+  it("a Wavlake track link is the inline player, not a card that leaves", () => {
+    render(<LinkPreviewCard url="https://wavlake.com/track/3b6d1e58-2f9d-4a7e-9c1b-0d2a6f7e8a90" />);
+    const card = screen.getByTestId("wavlake-track");
+    expect(card).toHaveTextContent("Need You Whole");
+    expect(card).toHaveTextContent("Handled");
+    expect(screen.getByTestId("track-play")).toHaveAttribute("aria-label", "Play");
+    expect(screen.queryByTestId("link-card")).toBeNull();
+  });
+
+  it("a Fountain episode is a Listen card until the link proxy can fetch its audio", () => {
+    render(<LinkPreviewCard url="https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3" />);
+    const card = screen.getByTestId("link-card-fountain");
+    expect(card).toHaveTextContent(/Listen on Fountain/);
+    expect(card.getAttribute("href")).toBe("https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3");
+    expect(card.getAttribute("target")).toBe("_blank");
   });
 });

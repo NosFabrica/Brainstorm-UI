@@ -5,6 +5,9 @@
  * Probed via the same relay typeahead the box uses; silent unless confident.
  */
 import { useEffect, useState } from "react";
+import { fetchRecentByKinds } from "@/services/nostr";
+import { parseTrack, TRACK_KIND, type Track } from "@/lib/trackEvent";
+import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { Link, useLocation } from "wouter";
 import { ArrowRight, BookOpen, Check, Hash, Package, Users, Zap } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
@@ -115,6 +118,28 @@ export function KnowledgePanel({
   // Upcoming calendar events that name the query — Google's panel lists a few.
   const [topicEvents, setTopicEvents] = useState<SearchHit[] | null>(null);
   const [personSets, setPersonSets] = useState<PersonSetMembership[]>([]);
+  // The person's own songs — kind 31337 by author, the three newest that
+  // actually are songs (the kind is abused; see lib/trackEvent).
+  const [personTracks, setPersonTracks] = useState<Track[]>([]);
+
+  useEffect(() => {
+    if (!person) {
+      setPersonTracks([]);
+      return;
+    }
+    let cancelled = false;
+    fetchRecentByKinds(person.pubkey, [TRACK_KIND], 6)
+      .then((events) => {
+        if (cancelled) return;
+        setPersonTracks(events.map(parseTrack).filter((tr): tr is Track => tr !== null).slice(0, 3));
+      })
+      .catch(() => {
+        if (!cancelled) setPersonTracks([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [person?.pubkey]);
 
   useEffect(() => {
     setPerson(null);
@@ -503,6 +528,36 @@ export function KnowledgePanel({
               </span>
             </Link>
           ))}
+        </div>
+      )}
+      {personTracks.length > 0 && (
+        <div className="mt-3" data-testid="person-music">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Music</span>
+            <Link
+              href={`/p/${person.npub}`}
+              onClick={() => onOpen?.(person)}
+              className="text-[11px] font-medium text-brand-deep dark:text-brand-link hover:underline"
+              data-testid="person-music-more"
+            >
+              All music →
+            </Link>
+          </div>
+          <div className="space-y-1">
+            {personTracks.map((tr) => (
+              <EmbeddedTrackCard
+                key={tr.id}
+                id={tr.id}
+                title={tr.title}
+                artist={tr.artist ?? person.displayName ?? person.name}
+                cover={tr.cover}
+                audio={tr.audio}
+                genre={tr.genre}
+                durationSec={tr.durationSec}
+                href={eventPath({ id: tr.id, pubkey: tr.pubkey })}
+              />
+            ))}
+          </div>
         </div>
       )}
       {person.about && (

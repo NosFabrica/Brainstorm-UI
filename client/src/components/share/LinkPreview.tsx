@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, Globe, Github } from "lucide-react";
+import { ExternalLink, Globe, Github, Headphones } from "lucide-react";
+import { WavlakeTrackCard } from "@/components/share/WavlakeTrackCard";
+import { wavlakeTrackId } from "@/lib/wavlake";
 import { VideoEmbed } from "@/components/share/VideoEmbed";
 import { fetchUnfurl, type Unfurled } from "@/services/unfurl";
 
@@ -144,6 +146,33 @@ export function LinkPreviewCard({ url }: { url: string }) {
   const host = u.hostname.replace(/^www\./, "");
   const yt = youtubeId(u);
   const gh = githubRepo(u);
+
+  // Audio plays where it is too. Wavlake's catalogue gives the track back as
+  // an inline player; Fountain hides the mp3 behind a page the browser cannot
+  // read (RELAY-ASKS #11), so until the link proxy ships it is a Listen card.
+  if (wavlakeTrackId(url)) return <WavlakeTrackCard url={url} />;
+  if (host === "fountain.fm") {
+    return (
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener"
+        className="mt-2 flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-2.5 no-underline hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+        data-testid="link-card-fountain"
+      >
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-primary/10 text-brand-deep dark:text-brand-link">
+          <Headphones className="h-4 w-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-slate-900 dark:text-slate-100">Listen on Fountain</span>
+          <span className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+            <Favicon host={host} className="h-3 w-3" /> {host} · podcast episode
+          </span>
+        </span>
+        <ExternalLink className="h-3.5 w-3.5 shrink-0 text-slate-400" />
+      </a>
+    );
+  }
 
   if (yt) {
     // A video plays where it is. The facade costs YouTube nothing until play;

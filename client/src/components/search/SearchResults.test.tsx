@@ -47,6 +47,8 @@ const repoCountsMock = vi.fn<() => Promise<{ issues: number; patches: number }>>
 // touches relays; tests seed profiles into this map per case.
 const profileMapMock = new Map<string, { name?: string; picture?: string }>();
 vi.mock("@/services/nostr", () => ({
+  // The person panel asks for the person's tracks; nobody here publishes any.
+  fetchRecentByKinds: () => Promise.resolve([]),
   fetchProfileMap: vi.fn(() => Promise.resolve(profileMapMock)),
 }));
 
@@ -522,6 +524,39 @@ describe("SearchResults", () => {
     emit({ hits: [{ event: live, author: author(live.pubkey, "erin"), rank: null }], eose: true, timeMs: 200 });
     expect(await screen.findByText("Nostr Dev Call")).toBeInTheDocument();
     expect(screen.getByTestId("live-status-l1")).toHaveTextContent(/live/i);
+  });
+
+  // Benjamin: musicians like Ainsley Costello should have their songs show up
+  // as playable through search. Kind 31337 is the native track (Wavlake,
+  // Stemstr, Tunestr — 8.6k on the relay), but the kind is also abused for
+  // game state and ad-skip data, so a track is only a track when it has a
+  // title and something to play.
+  it("the Music tab plays native tracks in place and drops the kind's junk", async () => {
+    setUrlTab("music");
+    render(<SearchResults query="jazz" pov="nosfabrica" />);
+    const main = [...allStreams].reverse()[0];
+    expect(main.params.tab).toBe("music");
+
+    const nova = "d".repeat(64);
+    const track = ev("t1", 31337, nova, "", [
+      ["d", "old-carbon"],
+      ["title", "Old Carbon"],
+      ["artist", "NOVA"],
+      ["media", "https://renaissancemachine.ai/music/2026-08-05-old-carbon.mp3"],
+      ["image", "https://renaissancemachine.ai/music/old-carbon.jpg"],
+      ["duration", "214"],
+      ["t", "jazz"],
+    ]);
+    const junk = ev("t2", 31337, "e".repeat(64), '{"players":[{"id":"p1","name":"Dylan"}]}', [["d", "TOMB-7703"]]);
+    emit({ hits: [{ event: track, author: author(nova, "NOVA"), rank: null }, { event: junk, author: null, rank: null }], eose: true, timeMs: 150 });
+
+    const card = await screen.findByTestId("track-card-t1");
+    expect(card).toHaveTextContent("Old Carbon");
+    expect(card).toHaveTextContent("NOVA");
+    // The cover is the play button — the same inline player the profile page uses.
+    expect(within(card).getByTestId("track-play")).toHaveAttribute("aria-label", "Play");
+    expect(screen.queryByTestId("track-card-t2")).toBeNull();
+    expect(screen.queryByText(/TOMB-7703/)).toBeNull();
   });
 
   it("collapses recurring events on the Events tab behind a +N chip", async () => {

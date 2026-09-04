@@ -7,6 +7,9 @@
  * Media rides a compact row. Sections with nothing to show don't render.
  */
 import { useEffect, useMemo, useState } from "react";
+import { TrackCard } from "@/components/search/cards";
+import { parseTrack } from "@/lib/trackEvent";
+import { setPlaylist } from "@/lib/audioPlayer";
 import { Clock, Loader2 } from "lucide-react";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -110,13 +113,17 @@ export function ComposedResults({
     [happeningEvents, happeningLive],
   );
   const media = useSectionStream(fresh, "media", pov, userPubkey, 8);
+  // Listen: native tracks (kind 31337) that match the words — best match, not
+  // recency, because "jazz" should find jazz. The kind is abused for game
+  // state and ad-skip data, so only hits that parse as a song count.
+  const music = useSectionStream(query, "music", pov, userPubkey, 12);
 
   const allHits = useMemo(
     () =>
-      [people, latest, articles, happening, media]
+      [people, latest, articles, happening, media, music]
         .flatMap((s) => s?.hits ?? [])
         .map((h) => h.event.pubkey),
-    [people, latest, articles, happening, media],
+    [people, latest, articles, happening, media, music],
   );
   const scoreOf = useAuthorScores(useMemo(() => [...new Set(allHits)], [allHits]));
   // The client-side filters (Verified only, reach) apply here too, so the
@@ -130,6 +137,13 @@ export function ComposedResults({
   const articlesF = filtered(articles);
   const happeningF = filtered(happening);
   const mediaF = filtered(media);
+  const musicF = filtered(music);
+  const listen = useMemo(() => (musicF?.hits ?? []).filter((h) => parseTrack(h.event) !== null).slice(0, 4), [musicF]);
+  // The row is a queue: a song that ends hands off to the next one shown.
+  useEffect(() => {
+    if (listen.length === 0) return;
+    setPlaylist(listen.map((h) => parseTrack(h.event)!).map((tr) => ({ id: tr.id, src: tr.audio })));
+  }, [listen]);
 
   const visited = useMemo(() => visitedPubkeys(), []);
   // The strip scrolls with a plain mouse wheel too — same feel as the facet chips.
@@ -148,7 +162,7 @@ export function ComposedResults({
     [happeningF],
   );
 
-  const sections = [peopleF, latestF, articlesF, happeningF, mediaF];
+  const sections = [peopleF, latestF, articlesF, happeningF, mediaF, musicF];
   const anyContent = sections.some((s) => (s?.hits.length ?? 0) > 0);
   const allSettled = sections.every((s) => s?.eose || s?.error);
   // EVERY section collapses near-duplicates — live verification found the
@@ -224,6 +238,16 @@ export function ComposedResults({
               ))}
             </div>
           )}
+        </Section>
+      )}
+
+      {listen.length > 0 && (
+        <Section id="listen" kicker="Listen" tab="music" onTabChange={onTabChange}>
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {listen.map((h) => (
+              <TrackCard key={h.event.id} event={h.event} author={h.author} score={scoreOf(h.event.pubkey)} />
+            ))}
+          </div>
         </Section>
       )}
 
