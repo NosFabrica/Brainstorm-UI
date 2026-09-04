@@ -46,9 +46,11 @@ const repoCountsMock = vi.fn<() => Promise<{ issues: number; patches: number }>>
 // Member piles hydrate through fetchProfileMap — stubbed so jsdom never
 // touches relays; tests seed profiles into this map per case.
 const profileMapMock = new Map<string, { name?: string; picture?: string }>();
+// The panel's person can have media of their own — notes with files attached.
+const recentByKindsMock = vi.fn<(pubkey: string, kinds: number[], limit: number) => Promise<NostrEvent[]>>(() => Promise.resolve([]));
 vi.mock("@/services/nostr", () => ({
   // The person panel asks for the person's tracks and streams; nobody here has any.
-  fetchRecentByKinds: () => Promise.resolve([]),
+  fetchRecentByKinds: (pubkey: string, kinds: number[], limit: number) => recentByKindsMock(pubkey, kinds, limit),
   fetchLiveStreams: () => Promise.resolve([]),
   fetchProfileMap: vi.fn(() => Promise.resolve(profileMapMock)),
 }));
@@ -114,13 +116,18 @@ const author = (pubkey: string, name: string) => ({
 });
 
 function emit(partial: Partial<SearchSnapshot>) {
-  // The most recent MAIN stream (the panel's probes are not it).
-  const main = [...allStreams].reverse().find((c) => !isPanelProbe(c.query, c.params))!;
+  // The tab's own stream (the panel's probes are not it, and neither is the
+  // Media tab's companion notes stream): the newest whose tab is the URL's,
+  // else simply the newest main stream.
+  const urlTab = new URLSearchParams(window.location.search).get("t") ?? "everything";
+  const mains = [...allStreams].reverse().filter((c) => !isPanelProbe(c.query, c.params));
+  const main = mains.find((c) => c.params.tab === urlTab) ?? mains[0];
   main.cb({ hits: [], eose: false, timeMs: null, error: null, ...partial });
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  recentByKindsMock.mockResolvedValue([]);
   profileMapMock.clear();
   repoCountsMock.mockResolvedValue({ issues: 0, patches: 0 });
   endorsementsMock.mockReturnValue(null);
@@ -917,6 +924,64 @@ describe("SearchResults", () => {
     const img = (await screen.findByTestId("media-thumb-m1")) as HTMLImageElement;
     expect(img.src).toContain("img.example/sunset.jpg");
     expect(screen.getByText(/sunset over the lake/)).toBeInTheDocument();
+  });
+
+  // Benjamin, over "Rabbit Hole Recap": their videos never reached the Media
+  // tab. Probed: the account has 254 notes and zero events of any media kind;
+  // 22 of its last 40 notes carry a video. On Nostr, most media is a note with
+  // a file attached — so the Media tab asks for notes too and keeps the ones
+  // that carry something to look at.
+  it("the Media tab also shows notes that carry a video or picture, and not the text-only ones", async () => {
+    setUrlTab("media");
+    render(<SearchResults query="Rabbit Hole Recap" pov="nosfabrica" />);
+    const notesStream = [...allStreams].reverse().find((c) => c.params.tab === "notes");
+    expect(notesStream).toBeTruthy();
+
+    // The media-kinds stream answers with nothing…
+    emit({ hits: [], eose: true, timeMs: 120 });
+    // …the notes stream with one episode video and one plain reply.
+    const rhr = "7".repeat(64);
+    const episode = ev("ep395", 1, rhr, "RHR 395: STAY HUMBLE AND STACK SATS https://blossom.primal.net/abc.mp4", [
+      ["imeta", "url https://blossom.primal.net/abc.mp4", "m video/mp4", "image https://blossom.primal.net/abc.jpg"],
+    ]);
+    const plain = ev("reply1", 1, "8".repeat(64), "great episode as always");
+    notesStream!.cb({
+      hits: [{ event: episode, author: author(rhr, "RABBIT HOLE RECAP"), rank: null }, { event: plain, author: author(plain.pubkey, "fan"), rank: null }],
+      eose: true,
+      timeMs: 140,
+    });
+
+    const card = await screen.findByTestId("media-card-ep395");
+    expect(card.querySelector("video")).not.toBeNull();
+    expect(screen.queryByTestId("media-card-reply1")).toBeNull();
+    expect(screen.queryByText(/great episode as always/)).toBeNull();
+    expect(screen.queryByTestId("container-no-results")).toBeNull();
+  });
+
+  // Their own videos don't say "Rabbit Hole Recap" in the text — they're
+  // episode posts. When the query IS a person, the Media tab leads with the
+  // media that person published, the way a channel's videos lead on Google.
+  it("when the query is a person, the Media tab leads with that person's own media", async () => {
+    const RHR = "b".repeat(64);
+    suggestMock.mockResolvedValueOnce([
+      { pubkey: RHR, npub: "npub1rhr", name: "RABBIT HOLE RECAP", about: "a weekly news show", nip05: "rhr@primal.net", wotRank: 0.9, wotFollowers: 7400 },
+    ]);
+    recentByKindsMock.mockResolvedValue([
+      ev("ep396", 1, RHR, "RHR 396 https://blossom.primal.net/396.mp4", [["imeta", "url https://blossom.primal.net/396.mp4", "m video/mp4"]]),
+      ev("plain", 1, RHR, "new episode drops Friday"),
+    ]);
+    setUrlTab("media");
+    render(<SearchResults query="Rabbit Hole Recap" pov="nosfabrica" />);
+    // Neither the media kinds nor the notes mention the show by name.
+    emit({ hits: [], eose: true, timeMs: 100 });
+    [...allStreams].reverse().find((c) => c.params.tab === "notes")!.cb({ hits: [], eose: true, timeMs: 110, error: null });
+
+    const group = await screen.findByTestId("media-from-person");
+    expect(group).toHaveTextContent(/From RABBIT HOLE RECAP/);
+    expect(recentByKindsMock).toHaveBeenCalledWith(RHR, expect.arrayContaining([1]), expect.any(Number));
+    expect(within(group).getByTestId("media-card-ep396").querySelector("video")).not.toBeNull();
+    expect(screen.queryByTestId("media-card-plain")).toBeNull();
+    expect(screen.queryByTestId("container-no-results")).toBeNull();
   });
 
   it("a video result IS a playable video, its raw URL hidden behind a host label", async () => {

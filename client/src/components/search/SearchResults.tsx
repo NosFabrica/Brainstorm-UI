@@ -36,9 +36,10 @@ import {
   type SearchTab,
 } from "@/services/search";
 
-import { AppCard, EventCard, LiveCard, ListCard, MediaCard, RepoCard, platformWords, TrackCard, WavlakeSongCard } from "@/components/search/cards";
+import { AppCard, EventCard, LiveCard, ListCard, MediaCard, RepoCard, platformWords, TrackCard, WavlakeSongCard, mediaUrlOf } from "@/components/search/cards";
 import { EVENT_WHEN_LABELS, eventWhenCounts, filterEventsByWhen, type EventWhen } from "@/lib/eventFilters";
 import { parseTrack } from "@/lib/trackEvent";
+import { fetchRecentByKinds } from "@/services/nostr";
 import { useWavlakeSongs } from "@/hooks/useWavlakeSongs";
 import { setPlaylist } from "@/lib/audioPlayer";
 import { KnowledgePanel } from "@/components/search/KnowledgePanel";
@@ -508,6 +509,35 @@ export function SearchResults({
   const [, setLocation] = useLocation();
   const [tab, setTab] = useState<SearchTab>(tabFromUrl);
   const [snapshot, setSnapshot] = useState<SearchSnapshot | null>(null);
+  // Media on Nostr is mostly a NOTE with a file attached (Rabbit Hole Recap:
+  // 254 notes, no media-kind events, a video in most of them). The Media tab
+  // asks for notes too and keeps the ones that carry something to look at.
+  const [mediaNotes, setMediaNotes] = useState<SearchSnapshot | null>(null);
+  // When the query IS a person, the Media tab leads with what they published
+  // — their episode posts don't repeat their own name in the text.
+  const [panelPerson, setPanelPerson] = useState<SearchResult | null>(null);
+  const [personMedia, setPersonMedia] = useState<SearchHit[]>([]);
+  useEffect(() => {
+    setPersonMedia([]);
+    if (tab !== "media" || !panelPerson) return;
+    let cancelled = false;
+    const who = panelPerson;
+    fetchRecentByKinds(who.pubkey, [1, 20, 21, 22, 34235, 34236], 40)
+      .then((events) => {
+        if (cancelled) return;
+        setPersonMedia(
+          events
+            .filter((e) => mediaUrlOf(e as NostrEvent) !== null)
+            .map((e) => ({ event: e as NostrEvent, author: who, rank: null })),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setPersonMedia([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, panelPerson?.pubkey]);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   // Everything composes its own purpose-ranked section streams — unless the
@@ -536,6 +566,12 @@ export function SearchResults({
     return searchStream(effectiveQuery, { tab, pov, userPubkey, limit }, setSnapshot);
   }, [effectiveQuery, tab, pov, userPubkey, composed]);
 
+  useEffect(() => {
+    setMediaNotes(null);
+    if (composed || tab !== "media") return;
+    return searchStream(effectiveQuery, { tab: "notes", pov, userPubkey, limit: 60 }, setMediaNotes);
+  }, [effectiveQuery, tab, pov, userPubkey, composed]);
+
   const changeTab = useCallback((next: SearchTab) => {
     setTab(next);
     writeTabToUrl(next);
@@ -549,8 +585,17 @@ export function SearchResults({
     [onOpenProfile, setLocation],
   );
 
-  // Keep a ref so the render below sees a stable list even mid-stream.
-  const rawHits = snapshot?.hits ?? [];
+  // Keep a ref so the render below sees a stable list even mid-stream. On the
+  // Media tab the notes that carry media join the media-kind hits.
+  const rawHits = useMemo(() => {
+    const base = snapshot?.hits ?? [];
+    if (tab !== "media" || !mediaNotes) return base;
+    const seen = new Set(base.map((h) => h.event.id));
+    const visual = mediaNotes.hits.filter((h) => !seen.has(h.event.id) && mediaUrlOf(h.event) !== null);
+    return [...base, ...visual];
+  }, [snapshot, mediaNotes, tab]);
+  // The person's own media is its own group above the list; the list drops its duplicates.
+  const personMediaIds = useMemo(() => new Set(personMedia.map((h) => h.event.id)), [personMedia]);
   // The relay only ORDERS by rank — per-card scores come from the shared
   // author-score cache (hashtag-page discipline) for EVERY hit, kind-0
   // included: without this, people cards render bare and the user's
@@ -570,10 +615,13 @@ export function SearchResults({
   );
   // Wavlake is the Music tab's second source: the same words, its catalogue.
   const wavlake = useWavlakeSongs(query, tab === "music");
-  const searching = !snapshot || (!snapshot.eose && !snapshot.error && hits.length === 0 && (tab !== "music" || wavlake.loading));
-  const noResults = !!snapshot?.eose && hits.length === 0 && (tab !== "music" || (!wavlake.loading && wavlake.songs.length === 0));
-  // What the count line counts: both sources on the Music tab.
-  const shownCount = hits.length + (tab === "music" ? wavlake.songs.length : 0);
+  const mediaSettled = tab !== "media" || !!mediaNotes?.eose || !!mediaNotes?.error;
+  const searching =
+    personMedia.length === 0 &&
+    (!snapshot || (!snapshot.eose && !snapshot.error && hits.length === 0 && (tab !== "music" || wavlake.loading)) || (tab === "media" && !mediaSettled && hits.length === 0));
+  const noResults = !!snapshot?.eose && mediaSettled && hits.length === 0 && personMedia.length === 0 && (tab !== "music" || (!wavlake.loading && wavlake.songs.length === 0));
+  // What the count line counts: every source the tab shows.
+  const shownCount = hits.length + (tab === "music" ? wavlake.songs.length : 0) + (tab === "media" ? personMedia.filter((h) => !hits.some((x) => x.event.id === h.event.id)).length : 0);
   const peopleIdx = useRef(0);
   peopleIdx.current = 0;
 
@@ -761,6 +809,7 @@ export function SearchResults({
         pov={pov}
         userPubkey={userPubkey}
         onOpen={onOpenProfile}
+        onPerson={setPanelPerson}
         className="lg:order-2 lg:w-72 lg:shrink-0 lg:sticky lg:top-4"
       />
       <div className="min-w-0 w-full lg:order-1 lg:w-[42rem] lg:flex-none">
@@ -917,7 +966,19 @@ export function SearchResults({
             className={tab === "apps" || tab === "repos" ? "grid grid-cols-1 gap-2.5 lg:grid-cols-2" : "space-y-2 sm:space-y-3"}
             data-testid="container-search-results"
           >
-            {displayHits.map(({ hit, collapsedCount, clusterId }) => {
+            {tab === "media" && panelPerson && personMedia.length > 0 && (
+              <div className="col-span-full mb-1" data-testid="media-from-person">
+                <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  From {getDisplayLabel(panelPerson)}
+                </p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {personMedia.map((h) => (
+                    <MediaCard key={h.event.id} event={h.event} author={h.author} score={scoreOf(h.event.pubkey)} />
+                  ))}
+                </div>
+              </div>
+            )}
+            {displayHits.filter((h) => !(tab === "media" && personMediaIds.has(h.hit.event.id))).map(({ hit, collapsedCount, clusterId }) => {
               const { event } = hit;
               const chip =
                 collapsedCount > 0 ? (
@@ -967,7 +1028,7 @@ export function SearchResults({
                   />
                 );
               }
-              if (NOTE_KINDS.has(event.kind)) {
+              if (NOTE_KINDS.has(event.kind) && tab !== "media") {
                 return wrap(
                   <ShareNoteCard
                     event={event as MinimalEvent}

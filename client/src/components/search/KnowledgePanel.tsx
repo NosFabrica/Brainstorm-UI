@@ -105,11 +105,14 @@ export function KnowledgePanel({
   pov,
   userPubkey,
   onOpen,
+  onPerson,
   className = "",
 }: {
   query: string;
   pov: SearchPov;
   userPubkey?: string;
+  /** Who the panel settled on (null when it did not) — the results page leads with their own media. */
+  onPerson?: (person: SearchResult | null) => void;
   onOpen?: (person: SearchResult) => void;
   className?: string;
 }) {
@@ -124,6 +127,10 @@ export function KnowledgePanel({
   // The person's own songs — kind 31337 by author, the three newest that
   // actually are songs (the kind is abused; see lib/trackEvent).
   const [personTracks, setPersonTracks] = useState<Track[]>([]);
+  useEffect(() => {
+    onPerson?.(person);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [person?.pubkey]);
   // …and failing those, the Wavlake artist who is this person: by linked
   // key first, exact name second, never a loose match.
   const [personWavlake, setPersonWavlake] = useState<{ artist: WavlakeArtist; songs: WavlakeSong[] } | null>(null);
