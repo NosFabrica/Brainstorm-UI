@@ -625,7 +625,7 @@ export function KnowledgePanel({
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{l.title}</span>
                   <span className="block text-[11px] text-slate-500 dark:text-slate-400">
-                    {formatListingPrice(l.price)}
+                    {l.price ? formatListingPrice(l.price) : "Price on request"}
                     {l.location ? ` · ${l.location}` : ""}
                   </span>
                 </span>

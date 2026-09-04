@@ -977,6 +977,46 @@ export function fetchSimilarListings(
 }
 
 /**
+ * Comments on an event, from the relay that indexes them. NIP-22 comments
+ * name their root by coordinate (#A / #a, for addressable things like
+ * listings) or by id (#E / #e); a NIP-10 reply uses #e. Marketplace apps
+ * publish to their own relays, so the profile relays often hold none of it —
+ * the search relay does, but refuses any filter without a lens, hence
+ * include:spam on every request. Never rejects; whatever arrived by the
+ * deadline is the answer.
+ */
+export function fetchCommentsByAddress(address: string | null, eventId: string, timeoutMs = 6000): Promise<NostrEvent[]> {
+  return new Promise((resolve) => {
+    const relay = searchRelay();
+    if (!relay) return resolve([]);
+    const filters: Record<string, unknown>[] = [
+      ...(address ? [{ kinds: [1111], "#A": [address] }, { kinds: [1111], "#a": [address] }] : []),
+      { kinds: [1111], "#E": [eventId] },
+      { kinds: [1, 1111], "#e": [eventId] },
+    ];
+    const byId = new Map<string, NostrEvent>();
+    let open = filters.length;
+    let done = false;
+    const subs = filters.map((f) =>
+      relay.req({ ...f, search: "include:spam", limit: 150 }).subscribe((msg: { type: string; event?: NostrEvent }) => {
+        if (msg.type === "EVENT" && msg.event) byId.set(msg.event.id, msg.event);
+        else if (msg.type === "EOSE" || msg.type === "CLOSED") {
+          if (--open <= 0) finish();
+        }
+      }),
+    );
+    const timer = setTimeout(finish, timeoutMs);
+    function finish() {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      subs.forEach((s) => s.unsubscribe());
+      resolve([...byId.values()]);
+    }
+  });
+}
+
+/**
  * Cheap kind-0 typeahead: resolves at EOSE or the deadline with whatever
  * arrived — never rejects (a silent suggest beats a broken one).
  */

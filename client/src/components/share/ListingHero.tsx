@@ -20,6 +20,8 @@ export function ListingHero({ event }: { event: MinimalEvent }) {
   const [photo, setPhoto] = useState(0);
   if (!l) return null;
   const sellable = isSellable(l);
+  // Sold, hidden, inactive: a status worth a chip. Merely priceless is not.
+  const gone = !sellable && (l.status !== "active" || l.hidden);
   const shopHost = (() => {
     try {
       return l.shopUrl ? new URL(l.shopUrl).hostname.replace(/^www\./, "") : null;
@@ -40,10 +42,14 @@ export function ListingHero({ event }: { event: MinimalEvent }) {
             <ShoppingBag className="h-10 w-10" />
           </span>
         )}
-        <span className="absolute left-3 top-3 rounded-lg bg-slate-900/85 px-2.5 py-1 text-sm font-semibold text-white" data-testid="listing-hero-price">
+        {l.price ? (
+          <span className="absolute left-3 top-3 rounded-lg bg-slate-900/85 px-2.5 py-1 text-sm font-semibold text-white" data-testid="listing-hero-price">
           {formatListingPrice(l.price)}
         </span>
-        {!sellable && (
+        ) : (
+          <span className="absolute left-3 top-3 rounded-lg bg-slate-900/85 px-2.5 py-1 text-sm font-semibold text-white" data-testid="listing-hero-price-unknown">Price on request</span>
+        )}
+        {gone && (
           <span className="absolute right-3 top-3">
             <Chip tone="slate" size="sm" data-testid="listing-hero-status">
               {l.status === "sold" ? "Sold" : l.status}
@@ -118,7 +124,7 @@ export function ListingHero({ event }: { event: MinimalEvent }) {
             {l.shipping.map((s, i) => (
               <li key={s.name + i} className="flex items-center justify-between gap-3">
                 <span className="truncate">{s.name}</span>
-                <span className="shrink-0 tabular-nums text-slate-500 dark:text-slate-400">{formatListingPrice({ amount: s.amount, currency: s.currency || l.price.currency })}</span>
+                <span className="shrink-0 tabular-nums text-slate-500 dark:text-slate-400">{formatListingPrice({ amount: s.amount, currency: s.currency || l.price?.currency || "" })}</span>
               </li>
             ))}
           </ul>

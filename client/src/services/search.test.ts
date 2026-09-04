@@ -62,6 +62,7 @@ import {
   zapStoreUrl,
   fetchSimilarApps,
   fetchSimilarListings,
+  fetchCommentsByAddress,
   searchStream,
   suggestProfiles,
   kindsForTab,
@@ -752,6 +753,37 @@ describe("fetchSimilarListings", () => {
     const similar = await pending;
     expect(similar.map((e) => e.tags.find((t) => t[0] === "d")?.[1])).toEqual(["stein", "cup"]);
     expect(similar[0].created_at).toBe(2);
+  });
+});
+
+describe("fetchCommentsByAddress", () => {
+  // NIP-22 comments name their root by coordinate (#A / #a) or id (#E / #e).
+  // The search relay indexes them but refuses a filter without a lens, so
+  // every request rides include:spam. One comment, however many ways it was
+  // tagged, is one comment.
+  const comment = (id: string, tags: string[][]): NostrEvent =>
+    ({ id: id.padEnd(64, "0"), kind: 1111, pubkey: "c".repeat(64), tags, content: `c-${id}`, created_at: 1, sig: "s" }) as NostrEvent;
+
+  it("asks by coordinate and by id, under the lens, and dedupes", async () => {
+    const { subject } = controllable();
+    const addr = "30402:" + "b".repeat(64) + ":obscura-vpn";
+    const rootId = "e".repeat(64);
+    const pending = fetchCommentsByAddress(addr, rootId);
+    await tick();
+    const filters = reqMock.mock.calls.map((c) => c[0] as Record<string, unknown>);
+    expect(filters).toHaveLength(4);
+    expect(filters.every((f) => f.search === "include:spam")).toBe(true);
+    expect(filters.find((f) => f["#A"])?.["#A"]).toEqual([addr]);
+    expect(filters.find((f) => f["#a"])?.["#a"]).toEqual([addr]);
+    expect(filters.find((f) => f["#E"])?.["#E"]).toEqual([rootId]);
+    expect(filters.find((f) => f["#e"])?.["#e"]).toEqual([rootId]);
+
+    subject.next(frame(comment("q1", [["A", addr], ["K", "30402"]])));
+    subject.next(frame(comment("q1", [["A", addr], ["K", "30402"]]))); // the same comment, arriving again
+    subject.next(frame(comment("q2", [["E", rootId], ["e", rootId]])));
+    subject.next(EOSE);
+    const comments = await pending;
+    expect(comments.map((c) => c.content).sort()).toEqual(["c-q1", "c-q2"]);
   });
 });
 

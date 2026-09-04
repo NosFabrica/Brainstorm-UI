@@ -24,7 +24,8 @@ export interface Listing {
   summary: string | null;
   /** The event's content: the description as the seller wrote it. */
   description: string;
-  price: ListingPrice;
+  /** Null when the seller published no usable price — still a listing, not for sale here. */
+  price: ListingPrice | null;
   images: string[];
   location: string | null;
   /** "active" when the seller said so or said nothing; "sold" and others verbatim. */
@@ -53,7 +54,11 @@ export function parseListing(ev: EventLike): Listing | null {
   const priceTag = ev.tags.find((t) => t[0] === "price");
   const amount = Number(priceTag?.[1]);
   const currency = priceTag?.[2]?.trim().toUpperCase();
-  if (!title || !priceTag || !Number.isFinite(amount) || amount < 0 || !currency) return null;
+  if (!title) return null;
+  const price: ListingPrice | null =
+    priceTag && Number.isFinite(amount) && amount >= 0 && currency
+      ? { amount, currency, ...(priceTag[3] ? { frequency: priceTag[3] } : {}) }
+      : null;
   const images = ev.tags.filter((t) => t[0] === "image" && isHttp(t[1])).map((t) => t[1]);
   const shopUrl = ev.tags.find((t) => (t[0] === "r" || t[0] === "web") && isHttp(t[1]))?.[1] ?? null;
   return {
@@ -63,7 +68,7 @@ export function parseListing(ev: EventLike): Listing | null {
     title,
     summary: tag("summary") ?? null,
     description: (ev.content || "").trim(),
-    price: { amount, currency, ...(priceTag[3] ? { frequency: priceTag[3] } : {}) },
+    price,
     images,
     location: tag("location") ?? null,
     status: (tag("status") || "active").toLowerCase(),
@@ -80,7 +85,7 @@ export function parseListing(ev: EventLike): Listing | null {
 
 /** For sale now: not sold, not hidden, and any status the seller left open. */
 export function isSellable(l: Listing): boolean {
-  return !l.hidden && l.status !== "sold" && l.status !== "deleted" && l.status !== "inactive";
+  return !!l.price && !l.hidden && l.status !== "sold" && l.status !== "deleted" && l.status !== "inactive";
 }
 
 const SYMBOL: Record<string, string> = { USD: "$", EUR: "€", GBP: "£", JPY: "¥", BRL: "R$", CHF: "CHF " };
@@ -95,7 +100,7 @@ export function formatListingPrice(p: ListingPrice): string {
     const whole = Number.isInteger(p.amount);
     text = `${SYMBOL[c]}${new Intl.NumberFormat("en-US", { minimumFractionDigits: whole ? 0 : 2, maximumFractionDigits: 2 }).format(p.amount)}`;
   } else text = `${new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(p.amount)} ${c}`;
-  return p.frequency ? `${text} / ${p.frequency}` : text;
+  return (p.frequency ? `${text} / ${p.frequency}` : text).trim();
 }
 
 /**

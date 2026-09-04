@@ -39,6 +39,14 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string };
 type EventPointer = { id: string; relays?: string[]; author?: string };
 
+/** Addressable kinds (30000–39999) are commented on by coordinate, not id —
+ *  a listing's questions tag `30402:<seller>:<d>`, never the event id. */
+function addressCoordOf(ev: { kind: number; pubkey: string; tags: string[][] }): string | undefined {
+  if (ev.kind < 30000 || ev.kind >= 40000) return undefined;
+  const d = ev.tags.find((t) => t[0] === "d")?.[1];
+  return d === undefined ? undefined : `${ev.kind}:${ev.pubkey}:${d}`;
+}
+
 function decodeEventId(raw: string): EventPointer | null {
   const s = raw.replace(/^nostr:/, "");
   try {
@@ -407,7 +415,7 @@ export default function EventPage() {
             <NoteTagChips eventId={note.id} relayHint={relayHints[0]} canTag={canTagNote} />
 
             {/* Reply thread — teaser-gated for anon, trust-filterable for members. */}
-            <EventThread eventId={note.id} authorNpub={authorNpub} relayHints={relayHints} onGateChange={setThreadGated} />
+            <EventThread eventId={note.id} addressCoord={addressCoordOf(note)} authorNpub={authorNpub} relayHints={relayHints} onGateChange={setThreadGated} />
 
             {/* More from this author — keep readers inside Brainstorm. */}
             {authorPk && <MoreFromAuthor pubkey={authorPk} authorName={authorName} author={profile} relayHints={relayHints} excludeId={note.id} excludeContent={note.content} />}

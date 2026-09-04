@@ -860,7 +860,7 @@ export function ListingCard({ event, author, score, showAuthor = true }: { event
           </span>
         )}
         <span className="absolute left-2 top-2 rounded-md bg-slate-900/85 px-2 py-0.5 text-xs font-semibold text-white" data-testid={`listing-price-${event.id}`}>
-          {formatListingPrice(l.price)}
+          {l.price ? formatListingPrice(l.price) : "Price on request"}
         </span>
         {l.images.length > 1 && (
           <span className="absolute bottom-2 right-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">{l.images.length} photos</span>

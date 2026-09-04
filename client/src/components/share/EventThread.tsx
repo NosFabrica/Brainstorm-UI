@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { MessageSquare, ArrowRight, SlidersHorizontal, Loader2 } from "lucide-react";
 import { fetchEventsByFilter, fetchProfileMap } from "@/services/nostr";
+import { fetchCommentsByAddress } from "@/services/search";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
@@ -105,9 +106,15 @@ export function EventThread({
         filters.push({ "#A": [addressCoord], kinds: [1111], limit: 150 });
         filters.push({ "#a": [addressCoord], kinds: [1111], limit: 150 });
       }
-      const results = await Promise.all(filters.map((f) => fetchEventsByFilter(f, relays, 7000)));
+      // The profile relays AND the search relay: marketplace apps publish
+      // comments to their own relays, which the search relay indexes and the
+      // profile relays never see. One conversation, deduped by id.
+      const [results, indexed] = await Promise.all([
+        Promise.all(filters.map((f) => fetchEventsByFilter(f, relays, 7000))),
+        fetchCommentsByAddress(addressCoord ?? null, eventId).catch(() => [] as MinimalEvent[]),
+      ]);
       const byId = new Map<string, MinimalEvent>();
-      for (const e of results.flat() as MinimalEvent[]) byId.set(e.id, e);
+      for (const e of [...results.flat(), ...indexed] as MinimalEvent[]) byId.set(e.id, e);
       return Array.from(byId.values());
     },
     enabled: !!eventId,

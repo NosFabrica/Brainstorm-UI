@@ -78,4 +78,16 @@ describe("ListingHero", () => {
     expect(desc).toHaveTextContent("Download here the SVG file.");
     expect(desc).toHaveTextContent("• stickers");
   });
+
+  it("a listing with no price still shows its title, photo and story — with 'Price on request' instead of a badge", () => {
+    const ev = { id: "2".repeat(64), kind: 30402, pubkey: SELLER, created_at: 1_788_484_721, sig: "", content: "A VPN that cannot log you.", tags: [["d", "obscura-vpn"], ["title", "Obscura VPN"], ["image", "https://img/vpn.png"], ["t", "privacy"]] };
+    render(<ListingHero event={ev} />);
+    expect(screen.getByTestId("listing-hero-title")).toHaveTextContent("Obscura VPN");
+    expect(screen.getByTestId("listing-hero-photo")).toHaveAttribute("src", "https://img/vpn.png");
+    expect(screen.getByTestId("listing-hero-description")).toHaveTextContent("A VPN that cannot log you.");
+    expect(screen.queryByTestId("listing-hero-price")).toBeNull();
+    expect(screen.getByTestId("listing-hero-price-unknown")).toHaveTextContent("Price on request");
+    // No price is not a status — nothing here is sold or gone.
+    expect(screen.queryByTestId("listing-hero-status")).toBeNull();
+  });
 });

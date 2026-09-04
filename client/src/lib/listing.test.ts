@@ -47,10 +47,13 @@ describe("parseListing — a marketplace listing for a buyer", () => {
     expect(l?.categories).toEqual(["mugs"]);
   });
 
-  it("is not a listing without a title and a price", () => {
-    expect(parseListing(ev([["title", "Free thing"]]))).toBeNull();
+  it("needs a title; without a price it still parses, but is not sellable", () => {
     expect(parseListing(ev([["price", "10", "USD"]]))).toBeNull();
-    expect(parseListing(ev([["title", "x"], ["price", "abc", "USD"]]))).toBeNull();
+    const noPrice = parseListing(ev([["title", "Obscura VPN"], ["summary", "Can't log VPN provider."]]));
+    expect(noPrice?.title).toBe("Obscura VPN");
+    expect(noPrice?.price).toBeNull();
+    expect(isSellable(noPrice!)).toBe(false);
+    expect(parseListing(ev([["title", "x"], ["price", "abc", "USD"]]))?.price).toBeNull();
   });
 
   it("no status means active — 40% of live stock carries none", () => {
