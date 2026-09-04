@@ -7,6 +7,7 @@
  */
 import { useEffect, useState } from "react";
 import { fetchUnfurl } from "@/services/unfurl";
+import { isVideoFileUrl, youtubeThumbnail } from "@/lib/linkThumb";
 import { useLocation } from "wouter";
 import { BookOpen, Newspaper, Play } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
@@ -82,8 +83,10 @@ export function pickTopStories(hits: SearchHit[]): TopStory[] {
   // 2. News without one — only to reach three.
   pass(MIN_STORIES, (hit) => {
     const news = parseNewsShape(hit.event.content);
-    // A picture may still ride in imeta / image tags rather than the text.
-    return news ? { ...news, imageUrl: mediaUrlOf(hit.event) } : null;
+    // A picture may still ride in imeta / image tags rather than the text —
+    // a picture, not the linked video file itself.
+    const media = mediaUrlOf(hit.event);
+    return news ? { ...news, imageUrl: media && IMAGE_RE.test(media) ? media : null } : null;
   });
   // 3. A pictured note — its first line is the headline.
   pass(MIN_STORIES, (hit) => {
@@ -104,9 +107,12 @@ function TopStoryCard({ story }: { story: TopStory }) {
   // News bots post headline + link, no picture — the article has one. Ask
   // the link-metadata proxy (RELAY-ASKS #7; a session breaker keeps this to
   // one request until the endpoint ships) and show what it returns.
+  // Free thumbnails first: YouTube's known address, or the video file itself.
+  const derivedImage = news.url ? youtubeThumbnail(news.url) : null;
+  const videoUrl = news.url && isVideoFileUrl(news.url) ? news.url : null;
   const [unfurledImage, setUnfurledImage] = useState<string | null>(null);
   useEffect(() => {
-    if (news.imageUrl || !news.url) return;
+    if (news.imageUrl || derivedImage || videoUrl || !news.url) return;
     let alive = true;
     void fetchUnfurl(news.url).then((meta) => {
       if (alive && meta?.image) setUnfurledImage(meta.image);
@@ -114,8 +120,8 @@ function TopStoryCard({ story }: { story: TopStory }) {
     return () => {
       alive = false;
     };
-  }, [news.imageUrl, news.url]);
-  const imageUrl = news.imageUrl ?? unfurledImage;
+  }, [news.imageUrl, news.url, derivedImage, videoUrl]);
+  const imageUrl = news.imageUrl ?? derivedImage ?? unfurledImage;
   const open = () => navigate(eventPath(hit.event));
   return (
     <div
@@ -140,6 +146,9 @@ function TopStoryCard({ story }: { story: TopStory }) {
           className="aspect-[16/10] w-full object-cover bg-slate-100 dark:bg-slate-800"
           data-testid="story-image"
         />
+      ) : videoUrl ? (
+        // The link is the video: its first frame is the thumbnail.
+        <video src={`${videoUrl}#t=0.1`} muted playsInline preload="metadata" className="aspect-[16/10] w-full object-cover bg-black" data-testid="story-video" />
       ) : (
         // Same footprint without a picture, so the strip stays one height.
         // Google News' move when an article has no image: the outlet's logo.

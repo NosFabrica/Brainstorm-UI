@@ -165,6 +165,26 @@ describe("ComposedResults — media-rich sections", () => {
     expect(unfurlMock).not.toHaveBeenCalledWith("https://www.liverpoolecho.co.uk/story-1");
   });
 
+  // Benjamin, over three placeholder cards: "can we show the thumbnails for
+  // those videos and articles in Latest?" Two of the three need no proxy at
+  // all: a YouTube link has a thumbnail at a known address, and a link that
+  // IS a video file can show its own first frame.
+  it("YouTube links wear YouTube's thumbnail; video-file links show their first frame", async () => {
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    const YT = "US Downplays Iran Attacks on Bases in Kuwait and the UAE\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ\nRicemoon covers the week.";
+    const MP4 = "NEW - Minister says teams of professionals worked for a year\nhttps://blossom.primal.net/9714.mp4\nFLASH";
+    sectionCall("notes").emit({
+      hits: [hitOf(ev("y1", 1, "1".repeat(64), YT), "Ricemoon"), hitOf(ev("v1", 1, "2".repeat(64), MP4), "FLASH"), hitOf(ev("n3", 1, "3".repeat(64), NEWS(3)), "Echo")],
+      eose: true,
+      timeMs: 100,
+    });
+    const yt = await screen.findByTestId("top-story-y1");
+    expect(yt.querySelector('[data-testid="story-image"]')?.getAttribute("src")).toBe("https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg");
+    const vid = screen.getByTestId("top-story-v1");
+    expect(vid.querySelector('[data-testid="story-video"]')?.getAttribute("src")).toBe("https://blossom.primal.net/9714.mp4#t=0.1");
+    expect(vid.querySelector('[data-testid="story-placeholder"]')).toBeNull();
+  });
+
   it("one or two eligible stories make no strip — three or nothing", async () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     sectionCall("notes").emit({
