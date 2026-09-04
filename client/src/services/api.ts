@@ -478,6 +478,33 @@ export type AdminBillingDivergenceReport = Partial<{
   Record<string, DivergenceSection | undefined>;
 
 /** One `billing_plan` row: which Flash plan grants what, and whether we sell it. */
+/** One service on our Flash account, as `GET /admin/billing/flash/services` lists it. */
+export interface FlashServiceItem {
+  id: string;
+  name: string;
+  description?: string | null;
+  signup_url?: string | null;
+}
+
+/**
+ * One plan as Flash offers it, from `GET /admin/billing/flash/services/{id}/plans`.
+ * `mapping_id` is set when a mapping already claims it, so a picker can show it
+ * as taken. `status` is Flash's ("active" when they offer it); their set is open.
+ */
+export interface FlashPlanItem {
+  id: string;
+  service_id: string;
+  name: string;
+  description?: string | null;
+  amount_minor?: number | null;
+  currency: string;
+  billing_interval?: string | null;
+  status: string;
+  sort_order: number;
+  signup_url?: string | null;
+  mapping_id?: number | null;
+}
+
 export interface AdminBillingPlanMapping {
   id: number;
   flash_service_id: string;
@@ -1176,6 +1203,44 @@ export const apiClient = {
       total: typeof body?.total === "number" ? body.total : 0,
       pages: typeof body?.pages === "number" ? body.pages : 1,
     };
+  },
+
+  /**
+   * The services on our Flash account, read live — what the mapping dialog's
+   * service picker lists, so nobody types a UUID.
+   */
+  async getAdminBillingFlashServices(): Promise<FlashServiceItem[]> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/billing/flash/services`,
+      { signal: AbortSignal.timeout(15000) },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) || `Failed to read Flash's services (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    const body = json?.data ?? json;
+    return (Array.isArray(body) ? body : (body?.services ?? [])) as FlashServiceItem[];
+  },
+
+  /**
+   * The plans Flash offers on one service, read live, each marked with the
+   * mapping that already claims it — so the picker can show a plan as taken.
+   */
+  async getAdminBillingFlashServicePlans(serviceId: string): Promise<FlashPlanItem[]> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/billing/flash/services/${encodeURIComponent(serviceId)}/plans`,
+      { signal: AbortSignal.timeout(15000) },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) || `Failed to read Flash's plans (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    const body = json?.data ?? json;
+    return (Array.isArray(body) ? body : (body?.plans ?? [])) as FlashPlanItem[];
   },
 
   /**

@@ -10,8 +10,8 @@ import {
 } from "@/components/ui/dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { FlashPlanPicker } from "./FlashPlanPicker";
 import type {
   AdminBillingPlanMapping,
   CreateAdminBillingPlanBody,
@@ -20,8 +20,8 @@ import type {
 } from "@/services/api";
 
 const schema = z.object({
-  flash_service_id: z.string().min(1, "Flash service id is required"),
-  flash_plan_id: z.string().min(1, "Flash plan id is required"),
+  flash_service_id: z.string().min(1, "Choose a Flash service"),
+  flash_plan_id: z.string().min(1, "Choose a Flash plan"),
   scheduling_id: z.number().int().positive("Choose what this plan grants"),
   is_active: z.boolean(),
 });
@@ -134,38 +134,22 @@ export function PlanMappingFormDialog({
             {mode === "create" ? "New plan mapping" : "Edit plan mapping"}
           </DialogTitle>
           <DialogDescription>
-            Which Flash plan this is, and which scheduling policy buying it grants.
+            Pick the Flash plan, then which scheduling policy buying it grants.
             Price, period and copy come from Flash.
           </DialogDescription>
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <Label htmlFor="plan-service-id">Flash service id</Label>
-              <Input
-                id="plan-service-id"
-                value={serviceId}
-                onChange={(e) => setServiceId(e.target.value)}
-                data-testid="input-plan-service-id"
-              />
-              {errors.flash_service_id && (
-                <p className="mt-1 text-xs text-red-500">{errors.flash_service_id}</p>
-              )}
-            </div>
-            <div>
-              <Label htmlFor="plan-plan-id">Flash plan id</Label>
-              <Input
-                id="plan-plan-id"
-                value={planId}
-                onChange={(e) => setPlanId(e.target.value)}
-                data-testid="input-plan-plan-id"
-              />
-              {errors.flash_plan_id && (
-                <p className="mt-1 text-xs text-red-500">{errors.flash_plan_id}</p>
-              )}
-            </div>
-          </div>
+          <FlashPlanPicker
+            serviceId={serviceId}
+            planId={planId}
+            ownPlanId={mode === "edit" ? initial?.flash_plan_id : undefined}
+            onChange={(next) => {
+              setServiceId(next.serviceId);
+              setPlanId(next.planId);
+            }}
+            errors={{ service: errors.flash_service_id, plan: errors.flash_plan_id }}
+          />
           {reidentifying && (
             <p className="text-xs text-amber-500" data-testid="plan-mapping-reidentify-warning">
               Changing the Flash ids re-points this mapping at a different plan.

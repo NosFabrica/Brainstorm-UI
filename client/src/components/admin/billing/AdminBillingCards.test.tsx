@@ -47,6 +47,10 @@ const everyKeyIsAnAccount = async (params: { search?: string; size?: number }) =
 const getAdminUsers = vi.fn(everyKeyIsAnAccount);
 vi.mock("@/services/api", () => ({
   apiClient: {
+    // Flash's live list is unavailable in these suites, so the mapping dialog
+    // falls back to its typed-id fields — the path these tests drive.
+    getAdminBillingFlashServices: () => Promise.reject(new Error("Flash list unavailable in this test")),
+    getAdminBillingFlashServicePlans: () => Promise.reject(new Error("Flash list unavailable in this test")),
     getAdminUsers: (params: { search?: string; size?: number }) => getAdminUsers(params),
     getSchedulingPolicies: () => getSchedulingPolicies(),
     createAdminBillingPlan: (body: Record<string, unknown>) => createAdminBillingPlan(body),
