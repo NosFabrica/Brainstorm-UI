@@ -3,12 +3,12 @@
  * page and the home feed: one section stream per band, a kicker + "More →"
  * frame, and rows that fold an author's near-duplicates behind a chip.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SectionHeader } from "@/components/ui/section-header";
 import { SerpRow } from "@/components/search/SerpRow";
 import { getDisplayLabel } from "@/lib/profileSearch";
 import type { HitCluster } from "@/lib/searchCollapse";
-import { searchStream, type SearchPov, type SearchSnapshot, type SearchTab } from "@/services/search";
+import { searchStream, type SearchHit, type SearchPov, type SearchSnapshot, type SearchTab } from "@/services/search";
 
 /** Two section streams as one: hits concatenated in order, settled when both are. */
 export function mergeSnapshots(a: SearchSnapshot | null, b: SearchSnapshot | null): SearchSnapshot | null {
@@ -31,6 +31,36 @@ export function useSectionStream(
     return searchStream(query, { tab, pov, userPubkey, limit, since }, setSnapshot);
   }, [query, tab, pov, userPubkey, limit, since]);
   return snapshot;
+}
+
+/**
+ * A live stream without the list jumping under the reader: hits keep
+ * arriving until the first EOSE; after that, anything new waits behind a
+ * count until the reader asks for it (the feed's "3 new" pill).
+ */
+export function useSettledSnapshot(snapshot: SearchSnapshot | null): {
+  hits: SearchHit[];
+  pendingCount: number;
+  release: () => void;
+  settled: boolean;
+} {
+  const [shown, setShown] = useState<SearchHit[] | null>(null);
+  const settled = !!snapshot && (snapshot.eose || !!snapshot.error);
+  useEffect(() => {
+    if (!snapshot) {
+      setShown(null);
+      return;
+    }
+    // Still filling the first page: show everything as it lands. Freeze on EOSE.
+    if (!settled) setShown(snapshot.hits);
+    else setShown((prev) => prev ?? snapshot.hits);
+  }, [snapshot, settled]);
+  const live = snapshot?.hits ?? [];
+  const hits = shown ?? live;
+  const shownIds = useMemo(() => new Set(hits.map((h) => h.event.id)), [hits]);
+  const pendingCount = settled ? live.filter((h) => !shownIds.has(h.event.id)).length : 0;
+  const release = () => setShown(live);
+  return { hits, pendingCount, release, settled };
 }
 
 export function Section({

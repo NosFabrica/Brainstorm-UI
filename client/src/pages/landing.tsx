@@ -50,6 +50,7 @@ import {
 import { suggestProfiles } from "@/services/search";
 import { SearchResults } from "@/components/search/SearchResults";
 import { PerspectiveToggle } from "@/components/search/PerspectiveToggle";
+import { HomeFeed } from "@/components/feed/HomeFeed";
 import { personAssist, splitFilters, type PersonAssist } from "@/lib/searchSyntax";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
@@ -1184,7 +1185,7 @@ export default function Landing() {
             />
           )}
 
-          {!hasSearched && (
+          {!hasSearched && !feedOpen && (
             <button
               type="button"
               onClick={() => setFeedOpen(!feedOpen)}
@@ -1208,7 +1209,28 @@ export default function Landing() {
             follower, so it can't be re-enabled safely until a backend invite-record
             gates it to genuine, owner-issued invites. */}
 
-        {(hasSearched || homeFeed) && (
+        {/* The zero-query feed is its own page — no tab strip, bands with
+            their own More →. A signed-in viewer on their own perspective
+            gets "From people you trust" first; everyone gets "Across Nostr". */}
+        {homeFeed && (
+          <HomeFeed
+            personal={!!user?.pubkey && canUseMywot && effectivePov === "mywot"}
+            userPubkey={user?.pubkey}
+            onHide={() => setFeedOpen(false)}
+            onBrowse={(tab) => browseVertical(tab)}
+            perspective={
+              <PerspectiveToggle
+                compact
+                pov={effectivePov}
+                user={user}
+                hasMywot={hasMywot}
+                isSearchObserver={isSearchObserver}
+                onChange={setPov}
+              />
+            }
+          />
+        )}
+        {hasSearched && (
           <SearchResults
             query={submitted ?? ""}
             pov={effectivePov}

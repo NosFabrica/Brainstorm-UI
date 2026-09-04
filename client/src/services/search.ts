@@ -33,6 +33,7 @@ export type SearchTab =
   | "repos"
   | "events"
   | "live"
+  | "releases"
   | "lists";
 
 /** One truth for tab → kinds, extracted from the SearchOverTrust app. */
@@ -52,6 +53,8 @@ export const TAB_KINDS: Record<Exclude<SearchTab, "everything">, number[]> = {
   // containers) are in neither; Everything still reaches them.
   events: [31922, 31923],
   live: [30311, 30312, 30313],
+  // Not a tab — the home feed's New releases band streams Zap Store releases.
+  releases: [30063],
   // 30000 = NIP-51 follow sets — Brainstorm's own pinned-tag exports live here.
   lists: [30000, 10003, 10015, 30001, 30003, 30015, 30267, 39701],
 };
@@ -493,6 +496,54 @@ export function fetchAppZaps(address: string, opts: { limit?: number; timeoutMs?
  * indexed (RELAY-ASKS). Two NIP-45 COUNTs, never a page of events; a failed
  * or slow count reads as zero.
  */
+/**
+ * App listings (kind 32267) by address `32267:<pubkey>:<d>` — one REQ on the
+ * search relay for however many addresses, keyed back by address. The home
+ * feed's New releases band needs the listing's name and icon for each
+ * release it shows. EOSE or timeout resolves; never rejects.
+ */
+export function fetchAppsByAddress(addresses: string[], timeoutMs = 5000): Promise<Map<string, NostrEvent>> {
+  return new Promise((resolve) => {
+    const out = new Map<string, NostrEvent>();
+    const parsed = addresses
+      .map((a) => a.split(":"))
+      .filter((p) => p.length >= 3 && p[0] === "32267")
+      .map((p) => ({ pubkey: p[1], d: p.slice(2).join(":") }));
+    if (parsed.length === 0) return resolve(out);
+    const relay = searchRelay();
+    if (!relay) return resolve(out);
+    let sub: { unsubscribe: () => void } | null = null;
+    const timer = setTimeout(finish, timeoutMs);
+    try {
+      sub = relay
+        .req({
+          kinds: [32267],
+          authors: [...new Set(parsed.map((p) => p.pubkey))],
+          "#d": [...new Set(parsed.map((p) => p.d))],
+          search: "include:spam",
+          limit: parsed.length * 2,
+        })
+        .subscribe((msg: { type: string; event?: NostrEvent }) => {
+          if (msg.type === "EVENT" && msg.event) {
+            const e = msg.event;
+            const d = e.tags.find((t) => t[0] === "d")?.[1];
+            if (d === undefined) return;
+            const key = `32267:${e.pubkey}:${d}`;
+            const prev = out.get(key);
+            if (!prev || prev.created_at < e.created_at) out.set(key, e);
+          } else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();
+        });
+    } catch {
+      finish();
+    }
+    function finish() {
+      clearTimeout(timer);
+      sub?.unsubscribe();
+      resolve(out);
+    }
+  });
+}
+
 export function fetchNoteEngagement(id: string, timeoutMs = 5000): Promise<{ zaps: number; replies: number }> {
   return new Promise((resolve) => {
     const relay = searchRelay();

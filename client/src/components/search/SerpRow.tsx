@@ -275,6 +275,7 @@ export function SerpRow({
               <Snippet text={news.description} query={query} lines={2} />
             </div>
           )}
+          {engagement && <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />}
         </div>
         {thumb && !newsThumbFailed && (
           <a
@@ -325,6 +326,7 @@ export function SerpRow({
             <LinkPreviewCard url={cardLink} />
           </div>
         )}
+        {engagement && <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />}
       </div>
       <RowThumb event={event} author={author} score={score} />
     </div>

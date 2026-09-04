@@ -50,6 +50,7 @@ import {
   fetchAppZaps,
   fetchAppEndorsementCounts,
   fetchNoteEngagement,
+  fetchAppsByAddress,
   fetchPersonVouches,
   fetchVouchReplies,
   fetchNipPage,
@@ -612,6 +613,22 @@ describe("fetchNoteEngagement", () => {
   it("a failed COUNT reads as zero, never a rejection", async () => {
     countMock.mockImplementation(() => throwError(() => new Error("relay closed")));
     await expect(fetchNoteEngagement("e".repeat(64))).resolves.toEqual({ zaps: 0, replies: 0 });
+  });
+});
+
+// The home feed's New releases band: one REQ for the listings behind the
+// week's releases, keyed by address, newest version of each listing kept.
+describe("fetchAppsByAddress", () => {
+  it("asks for the listings by author + d in one REQ and keys them by address", async () => {
+    const pk = "b".repeat(64);
+    const listing = { id: "L1", kind: 32267, pubkey: pk, created_at: 5, content: "", sig: "s", tags: [["d", "net.primal.android"], ["name", "Primal"]] } as NostrEvent;
+    const older = { ...listing, id: "L0", created_at: 1 } as NostrEvent;
+    reqMock.mockImplementation(() => of(frame(older), frame(listing), { type: "EOSE", from: "wss://x", id: "s" } as ReqFrame));
+    const map = await fetchAppsByAddress([`32267:${pk}:net.primal.android`, "junk"]);
+    expect([...map.keys()]).toEqual([`32267:${pk}:net.primal.android`]);
+    expect(map.get(`32267:${pk}:net.primal.android`)?.id).toBe("L1");
+    const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter).toMatchObject({ kinds: [32267], authors: [pk], "#d": ["net.primal.android"], search: "include:spam" });
   });
 });
 
