@@ -1,5 +1,5 @@
 import { useMemo, useEffect, useState } from "react";
-import { useRoute, useSearch, useLocation, Link } from "wouter";
+import { useRoute, useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import { ArrowLeft, BadgeCheck, Smartphone, Loader2, MessageSquare, ArrowRight, Share2, Check, X } from "lucide-react";
@@ -115,7 +115,6 @@ export default function EventPage() {
   // `hasLocalSecretKey() || window.nostr`, which quietly excluded every remote
   // signer; this includes them.
   const canTagNote = !!useActiveAccountDisplay()?.pubkey;
-  const fromSearch = new URLSearchParams(useSearch()).get("fromSearch") === "1";
   const [, navigate] = useLocation();
 
   const eventQuery = useQuery({

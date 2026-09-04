@@ -10,6 +10,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { DemoScoreDisplaySwitcher } from "@/components/score/DemoScoreDisplaySwitcher";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LightboxProvider } from "@/components/share/Lightbox";
+import { trackHistoryEntry } from "@/lib/historyState";
 import { AutoScoreReturning } from "@/components/AutoScoreReturning";
 import { AutoActivateBrainstorm } from "@/components/AutoActivateBrainstorm";
 import { AutoPublishAssistant } from "@/components/AutoPublishAssistant";
@@ -81,6 +82,13 @@ import type { ComponentType } from "react";
  *  3. Depending on the surface, the scroller is `window`, `documentElement` or
  *     `body` (notably in an iOS standalone PWA), so reset all three.
  */
+/** Stamps every history entry with its in-app depth, for `useGoBack`. */
+function TrackHistoryDepth() {
+  const [location] = useLocation();
+  useEffect(() => { trackHistoryEntry(); }, [location]);
+  return null;
+}
+
 function ScrollToTop() {
   const [location] = useLocation();
 
@@ -211,6 +219,7 @@ function AdminRoute() {
 function Router() {
   return (
     <>
+      <TrackHistoryDepth />
       <ScrollToTop />
       <StopMediaOnNavigate />
       <Switch>
