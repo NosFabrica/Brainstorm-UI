@@ -133,6 +133,11 @@ export default function Landing() {
   // visitors only — a first-timer has none). `focused` gates that panel.
   const [recent, setRecent] = useState<RecentItem[]>(() => getRecentItems());
   const [focused, setFocused] = useState(false);
+  // Benjamin: "when users refresh to the home screen, don't have the search
+  // history dropdown [showing]" — the box autofocuses on load, and focus
+  // alone used to open recents. Google waits for a gesture: recents appear
+  // once the person has clicked or typed in the box, not on page load.
+  const [engaged, setEngaged] = useState(false);
   const [suggestMaxH, setSuggestMaxH] = useState<number | null>(null);
 
   // The SUBMITTED query — what SearchResults streams for. Distinct from
@@ -619,7 +624,11 @@ export default function Landing() {
     setIsSearching(false);
     // Refocusing reopens the recents dropdown — right for the ⓧ clear
     // button, wrong for the wordmark (a "refresh", not an invitation).
-    if (opts?.refocus !== false) inputRef.current?.focus();
+    // Clearing is a gesture: the box refocuses and recents may show (Google's X).
+    if (opts?.refocus !== false) {
+      setEngaged(true);
+      inputRef.current?.focus();
+    }
     try {
       const url = new URL(window.location.href);
       if (url.searchParams.has("q") || url.searchParams.has("t") || url.searchParams.has("f")) {
@@ -659,7 +668,7 @@ export default function Landing() {
     showSuggestions && (suggestions.length > 0 || isSuggesting || topicMatch.isTopic || tagMatches.length > 0);
   // "Recent" shows under an empty, focused box before any search this session —
   // never alongside the suggestions dropdown or a results list.
-  const showRecent = focused && query.trim() === "" && !hasSearched && !dropdownOpen;
+  const showRecent = engaged && focused && query.trim() === "" && !hasSearched && !dropdownOpen;
   // The zero-query feed ("what's happening on Nostr") is OPT-IN: the
   // pristine home stays the centered Google hero, one control reveals the
   // feed, and the choice sticks per device. Hiding it is one click too.
@@ -831,7 +840,9 @@ export default function Landing() {
                     if (typedSinceSearchRef.current && suggestions.length > 0 && query.trim().length >= 2) setShowSuggestions(true);
                   }}
                   onBlur={() => setFocused(false)}
+                  onPointerDown={() => setEngaged(true)}
                   onKeyDown={(e) => {
+                    setEngaged(true);
                     if (e.key === "ArrowDown" && showSuggestions && suggestions.length > 0) {
                       e.preventDefault();
                       kbdNavRef.current = true;
