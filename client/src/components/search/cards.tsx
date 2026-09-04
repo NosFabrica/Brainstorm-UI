@@ -572,7 +572,9 @@ export function LiveCard({ event, author, score }: { event: NostrEvent; author: 
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 min-w-0">
+          {/* The Watch link sits in the corner — the title row leaves it room
+              so a long title and the live chip never run beneath it. */}
+          <div className={`flex items-center gap-2 min-w-0 ${openIn ? "pr-14" : ""}`}>
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
             {status && (
               <Chip size="sm" tone={LIVE_TONES[status] ?? "neutral"} dot={status === "live"} data-testid={`live-status-${event.id}`}>
