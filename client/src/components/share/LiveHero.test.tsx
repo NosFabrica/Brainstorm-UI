@@ -5,8 +5,9 @@
  * embedded player. Only when neither is possible does the hero hand the
  * viewer to zap.stream.
  */
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { __resetRecordingChecks } from "@/lib/liveStream";
 import { LiveHero } from "./LiveHero";
 
 const stream = (tags: string[][]) => ({
@@ -20,6 +21,12 @@ const stream = (tags: string[][]) => ({
 });
 
 describe("LiveHero", () => {
+  beforeEach(() => {
+    __resetRecordingChecks();
+    // Recording hosts answer unless a test says otherwise.
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 200 })));
+  });
+
   it("a live Twitch stream plays in the page through Twitch's player", () => {
     render(<LiveHero event={stream([["status", "live"], ["streaming", "https://www.twitch.tv/cowboisim"]])} />);
     const frame = screen.getByTestId("live-embed") as HTMLIFrameElement;
@@ -45,25 +52,35 @@ describe("LiveHero", () => {
 
   // A third of ended streams on the relay left a `recording` (zap.stream on
   // nearly all of its). "This stream has ended" was wrong for every one of them.
-  it("an ended stream with a YouTube recording replays through YouTube's player", () => {
+  it("an ended stream with a YouTube recording replays through YouTube's player", async () => {
     render(<LiveHero event={stream([["status", "ended"], ["recording", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"]])} />);
-    const frame = screen.getByTestId("replay-embed") as HTMLIFrameElement;
+    const frame = (await screen.findByTestId("replay-embed")) as HTMLIFrameElement;
     expect(frame.src).toContain("youtube-nocookie.com/embed/dQw4w9WgXcQ");
     expect(screen.queryByText(/This stream has ended/)).toBeNull();
     expect(screen.getByText(/Replay/)).toBeInTheDocument();
   });
 
-  it("an ended stream with an HLS recording replays through the video player", () => {
+  it("an ended stream with an HLS recording replays through the video player", async () => {
     render(<LiveHero event={stream([["status", "ended"], ["recording", "https://customer-51tz.cloudflarestream.com/abc/manifest/video.m3u8"]])} />);
-    expect(screen.getByTestId("live-player")).toBeInTheDocument();
+    expect(await screen.findByTestId("live-player")).toBeInTheDocument();
     expect(screen.queryByText(/This stream has ended/)).toBeNull();
   });
 
-  it("an ended stream with a video-file recording plays it as a video", () => {
+  it("an ended stream with a video-file recording plays it as a video", async () => {
     render(<LiveHero event={stream([["status", "ended"], ["recording", "https://cdn.example/replay.mp4"]])} />);
-    const video = screen.getByTestId("replay-video") as HTMLVideoElement;
+    const video = (await screen.findByTestId("replay-video")) as HTMLVideoElement;
     expect(video.getAttribute("src")).toBe("https://cdn.example/replay.mp4");
     expect(video.hasAttribute("controls")).toBe(true);
+  });
+
+  // Odell's replay: data.zap.stream is gone, and a black player is worse than
+  // the truth.
+  it("a recording that no longer answers reads as ended, with the loss named", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    render(<LiveHero event={stream([["status", "ended"], ["recording", "https://data.zap.stream/recording/2dbb68f0.m3u8"]])} />);
+    expect(await screen.findByTestId("replay-gone")).toHaveTextContent(/recording is no longer available/i);
+    expect(screen.queryByTestId("live-player")).toBeNull();
+    expect(screen.queryByText(/Replay/)).toBeNull();
   });
 
   it("an ended stream with no recording still says so", () => {

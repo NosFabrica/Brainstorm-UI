@@ -783,6 +783,31 @@ describe("the person panel's live stream", () => {
     expect(screen.queryByTestId("person-live")).toBeNull();
   });
 
+  it("a replay whose recording no longer answers is not advertised either", async () => {
+    grinder();
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    liveStreamsMock.mockResolvedValue([
+      { ...stream("old", "ended", { created: NOW - 86_400 }), tags: [...stream("old", "ended").tags, ["recording", "https://data.zap.stream/recording/2dbb68f0.m3u8"]] },
+    ]);
+    render(<KnowledgePanel query="TheGrinder" pov="nosfabrica" />);
+    await screen.findByTestId("knowledge-panel-profile");
+    await vi.waitFor(() => expect(fetch).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 20));
+    expect(screen.queryByTestId("person-live-replay")).toBeNull();
+  });
+
+  it("a replay whose recording answers is advertised and plays through our player", async () => {
+    grinder();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 200 })));
+    liveStreamsMock.mockResolvedValue([
+      { ...stream("old", "ended", { created: NOW - 86_400 }), tags: [...stream("old", "ended").tags, ["recording", "https://customer-51tz.cloudflarestream.com/abc/manifest/video.m3u8"]] },
+    ]);
+    render(<KnowledgePanel query="TheGrinder" pov="nosfabrica" />);
+    const replay = await screen.findByTestId("person-live-replay");
+    fireEvent.click(within(replay).getByRole("button", { name: /play/i }));
+    expect(within(replay).getByTestId("live-player")).toBeInTheDocument();
+  });
+
   it("an ended stream with no recording is not advertised at all", async () => {
     grinder();
     liveStreamsMock.mockResolvedValue([stream("old", "ended", { created: NOW - 86_400 })]);

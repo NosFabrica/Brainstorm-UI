@@ -6,7 +6,7 @@
  */
 import { useEffect, useState } from "react";
 import { fetchLiveStreams, fetchRecentByKinds } from "@/services/nostr";
-import { pickStreams, type PickedStreams } from "@/lib/liveStream";
+import { pickStreams, verifyRecording, type PickedStreams } from "@/lib/liveStream";
 import { PanelLive } from "@/components/search/PanelLive";
 import { parseTrack, TRACK_KIND, type Track } from "@/lib/trackEvent";
 import { findWavlakeArtist, wavlakeArtistTracks, type WavlakeArtist, type WavlakeSong } from "@/lib/wavlake";
@@ -136,8 +136,11 @@ export function KnowledgePanel({
     }
     let cancelled = false;
     fetchLiveStreams(person.pubkey)
-      .then((events) => {
-        if (!cancelled) setPersonStreams(pickStreams(events));
+      .then(async (events) => {
+        const picked = pickStreams(events);
+        // A replay is advertised only after its recording answered.
+        if (picked.replay && !(await verifyRecording(picked.replay.recording as string))) picked.replay = null;
+        if (!cancelled) setPersonStreams(picked);
       })
       .catch(() => {
         if (!cancelled) setPersonStreams({ live: null, upcoming: null, replay: null });

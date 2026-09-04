@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { nip19 } from "nostr-tools";
 import { Radio, Users, ExternalLink, CalendarClock } from "lucide-react";
 import { LiveVideoPlayer } from "@/components/share/LiveVideoPlayer";
 import { isHlsUrl, replayEmbedUrl, streamEmbedUrl } from "@/lib/streamEmbed";
+import { verifyRecording } from "@/lib/liveStream";
 import { isVideoFileUrl } from "@/lib/linkThumb";
 import { relativeEventTime } from "@/lib/calendarEvent";
 import liveDefault from "@/assets/live-default.webp";
@@ -30,6 +31,19 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
 
   const [failed, setFailed] = useState(false);
   const [imgBroken, setImgBroken] = useState(false);
+  // null while the recording is being asked; false is a recording that is gone.
+  const [recordingOk, setRecordingOk] = useState<boolean | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    setRecordingOk(null);
+    if (!recording) return;
+    verifyRecording(recording).then((ok) => {
+      if (!cancelled) setRecordingOk(ok);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [recording]);
   // Branded live-stream cover when the stream has no image / it fails to load.
   const posterImage = !image || imgBroken ? liveDefault : image;
 
@@ -46,9 +60,11 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
   // Ended is not over when the platform kept a recording (probed: a third of
   // ended streams carry one). It plays here the way the live stream did.
   const isEnded = !isLive && !isUpcoming;
-  const replayEmbed = isEnded && recording ? replayEmbedUrl(recording) : null;
-  const replayHls = isEnded && !!recording && !replayEmbed && isHlsUrl(recording) && !failed;
-  const replayFile = isEnded && !!recording && !replayEmbed && !replayHls && isVideoFileUrl(recording);
+  const replayable = isEnded && !!recording && recordingOk === true;
+  const replayGone = isEnded && !!recording && recordingOk === false;
+  const replayEmbed = replayable ? replayEmbedUrl(recording as string) : null;
+  const replayHls = replayable && !replayEmbed && isHlsUrl(recording as string) && !failed;
+  const replayFile = replayable && !replayEmbed && !replayHls && isVideoFileUrl(recording as string);
   const hasReplay = !!replayEmbed || replayHls || replayFile;
   const canEmbed = !!platformEmbed || hls || hasReplay;
 
@@ -105,6 +121,16 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
                     <ExternalLink className="h-4 w-4" /> Watch on zap.stream
                   </a>
                 )}
+              </>
+            ) : replayGone ? (
+              <>
+                <Radio className="h-7 w-7 opacity-70" />
+                <p className="text-sm font-semibold" data-testid="replay-gone">This stream has ended, and its recording is no longer available</p>
+              </>
+            ) : recording && recordingOk === null ? (
+              <>
+                <Radio className="h-7 w-7 opacity-70 animate-pulse" />
+                <p className="text-sm font-semibold">Checking for a recording…</p>
               </>
             ) : recording ? (
               <>
