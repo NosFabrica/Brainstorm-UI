@@ -57,7 +57,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Chip } from "@/components/ui/chip";
 import { tone, type Tone } from "@/lib/tones";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
-import { orderedSections, type DivergenceMeta, type DivergenceTier, type OrderedSection } from "./divergenceSections";
+import { orderedSections, subscriptionIdsByEventId, type DivergenceMeta, type DivergenceTier, type OrderedSection } from "./divergenceSections";
 
 import type { SchedulingItem } from "@/services/api";
 import { DIVERGENCE_KEY, POLICIES_KEY, SUBS_KEY } from "./queryKeys";
@@ -68,6 +68,7 @@ import {
   RetiredPlanRowView,
   StaleSyncRowView,
   UnrecognisedStatusRowView,
+  ExhaustedEventRowView,
   type ProfileBits as DivergenceProfileBits,
 } from "./DivergenceRows";
 
@@ -858,6 +859,17 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   const sections = orderedSections(divergence);
   const faults = sections.filter((x) => x.tier === "fault");
   const record = sections.filter((x) => x.tier === "record");
+  // An exhausted event borrows the Flash id its signup row carries.
+  const handlesByEventId = subscriptionIdsByEventId(divergence);
+  const signupActions = {
+    onViewFlashRecord: (id: string) =>
+      setFlashRecordFor({ key: id, label: id, read: () => apiClient.getAdminBillingFlashRecordForUnresolved(id) }),
+    onAttribute: (id: string) => {
+      setAttributeKeyInput("");
+      setAttributeFor(id);
+    },
+    onDismiss: setDismissFor,
+  };
   const renderSection = (x: OrderedSection) =>
     x.kind === "unresolved_signups" ? (
       <UnresolvedSignupsBlock
@@ -865,18 +877,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
         meta={x.meta}
         section={x.section}
         busyId={busyKey}
-        onViewFlashRecord={(id) =>
-          setFlashRecordFor({
-            key: id,
-            label: id,
-            read: () => apiClient.getAdminBillingFlashRecordForUnresolved(id),
-          })
-        }
-        onAttribute={(id) => {
-          setAttributeKeyInput("");
-          setAttributeFor(id);
-        }}
-        onDismiss={setDismissFor}
+        {...signupActions}
       />
     ) : (
       <DivergenceBlock
@@ -889,6 +890,8 @@ export function AdminBillingCards({ active }: { active: boolean }) {
         policyName={policyName}
         busyKey={busyKey}
         onResync={handleResyncPubkey}
+        handlesByEventId={handlesByEventId}
+        signupActions={signupActions}
       />
     );
 
@@ -1308,6 +1311,8 @@ function DivergenceBlock({
   policyName,
   busyKey,
   onResync,
+  handlesByEventId,
+  signupActions,
 }: {
   kind: string;
   meta: DivergenceMeta | null;
@@ -1317,6 +1322,8 @@ function DivergenceBlock({
   policyName: (id: number | null | undefined) => string;
   busyKey: string | null;
   onResync: (pubkey: string) => void;
+  handlesByEventId: Map<number, string>;
+  signupActions: SignupActions;
 }) {
   const person = (row: Record<string, unknown>) => (typeof row.pubkey === "string" ? profiles.get(row.pubkey) : undefined);
   const busy = (row: Record<string, unknown>) => typeof row.pubkey === "string" && busyKey === row.pubkey;
@@ -1345,6 +1352,19 @@ function DivergenceBlock({
         return <AbandonedCheckoutRowView key={i} row={row as never} profile={person(row)} flashUrl={flashSubscriptionUrl} />;
       case "retired_plan_subscribers":
         return <RetiredPlanRowView key={i} row={row as never} profile={person(row)} flashUrl={flashSubscriptionUrl} policyName={policyName} />;
+      case "exhausted_events": {
+        const eventId = typeof row.id === "number" ? row.id : null;
+        const handle = eventId != null ? handlesByEventId.get(eventId) : undefined;
+        return (
+          <ExhaustedEventRowView key={i} row={row as never}>
+            {handle ? (
+              <SignupActionsMenu id={handle} busy={busyKey === handle} testIdPrefix={`billing-exhausted-actions-${eventId}`} itemPrefix="billing-exhausted-action" {...signupActions} />
+            ) : (
+              <span className="text-[11px] text-slate-400 dark:text-slate-500">no signup to settle — see the Flash dashboard</span>
+            )}
+          </ExhaustedEventRowView>
+        );
+      }
       default:
         return (
           <li key={i}>
@@ -1402,66 +1422,88 @@ function UnresolvedSignupsBlock({
             <li key={id || i} className="flex items-start gap-2" data-testid={`billing-unresolved-${id}`}>
               <DivergenceRow row={row} />
               {id && (
-                <DropdownMenu>
-                  <RowActionsTrigger
-                    label="Signup actions"
-                    busy={busy}
-                    testId={`billing-unresolved-actions-${id}`}
-                    small
-                  />
-                  <DropdownMenuContent align="end" className="w-72">
-                    <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
-                      Actions
-                    </DropdownMenuLabel>
-                    <DropdownMenuItem
-                      onSelect={() => onViewFlashRecord(id)}
-                      className="flex-col items-start gap-0.5"
-                      data-testid="billing-unresolved-action-flash-record"
-                    >
-                      <span className="flex items-center">
-                        <FileJson className="mr-2 h-3.5 w-3.5" /> Flash's raw record
-                      </span>
-                      <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
-                        What state this signup is actually in — it may already be cancelled.
-                        Read-only; it changes nothing.
-                      </span>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem
-                      disabled={busy}
-                      onSelect={() => onAttribute(id)}
-                      className="flex-col items-start gap-0.5"
-                      data-testid="billing-unresolved-action-attribute"
-                    >
-                      <span className="flex items-center">
-                        <UserCheck className="mr-2 h-3.5 w-3.5" /> Attribute to a person
-                      </span>
-                      <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
-                        Attaches this payment to an account and grants whatever its plan
-                        grants — the same way a webhook naming them would have.
-                      </span>
-                    </DropdownMenuItem>
-                    <DropdownMenuItem
-                      disabled={busy}
-                      onSelect={() => onDismiss(id)}
-                      className="flex-col items-start gap-0.5 text-red-600 dark:text-red-400"
-                      data-testid="billing-unresolved-action-dismiss"
-                    >
-                      <span className="flex items-center">
-                        <Ban className="mr-2 h-3.5 w-3.5" /> Dismiss as nobody's
-                      </span>
-                      <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
-                        Clears it from this report without granting anything. Doesn't cancel
-                        or refund — that stays in Flash, which took the money.
-                      </span>
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                <SignupActionsMenu
+                  id={id}
+                  busy={busy}
+                  testIdPrefix={`billing-unresolved-actions-${id}`}
+                  itemPrefix="billing-unresolved-action"
+                  onViewFlashRecord={onViewFlashRecord}
+                  onAttribute={onAttribute}
+                  onDismiss={onDismiss}
+                />
               )}
             </li>
           );
         })}
       </ul>
     </div>
+  );
+}
+
+type SignupActions = {
+  onViewFlashRecord: (subscriptionId: string) => void;
+  onAttribute: (subscriptionId: string) => void;
+  onDismiss: (subscriptionId: string) => void;
+};
+
+/** The three things an admin can do with a signup that named nobody — shared
+ *  by the signup rows and the exhausted events that borrow their handle. */
+function SignupActionsMenu({
+  id,
+  busy,
+  testIdPrefix,
+  itemPrefix,
+  onViewFlashRecord,
+  onAttribute,
+  onDismiss,
+}: SignupActions & { id: string; busy: boolean; testIdPrefix: string; itemPrefix: string }) {
+  return (
+    <DropdownMenu>
+      <RowActionsTrigger label="Signup actions" busy={busy} testId={testIdPrefix} small />
+      <DropdownMenuContent align="end" className="w-72">
+        <DropdownMenuLabel className="text-[11px] uppercase tracking-wide text-slate-400 dark:text-slate-500">
+          Actions
+        </DropdownMenuLabel>
+        <DropdownMenuItem
+          onSelect={() => onViewFlashRecord(id)}
+          className="flex-col items-start gap-0.5"
+          data-testid={`${itemPrefix}-flash-record`}
+        >
+          <span className="flex items-center">
+            <FileJson className="mr-2 h-3.5 w-3.5" /> Flash's raw record
+          </span>
+          <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+            What state this signup is actually in — it may already be cancelled. Read-only; it changes nothing.
+          </span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem
+          disabled={busy}
+          onSelect={() => onAttribute(id)}
+          className="flex-col items-start gap-0.5"
+          data-testid={`${itemPrefix}-attribute`}
+        >
+          <span className="flex items-center">
+            <UserCheck className="mr-2 h-3.5 w-3.5" /> Attribute to a person
+          </span>
+          <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+            Attaches this payment to an account and grants whatever its plan grants — the same way a webhook naming them would have.
+          </span>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          disabled={busy}
+          onSelect={() => onDismiss(id)}
+          className="flex-col items-start gap-0.5 text-red-600 dark:text-red-400"
+          data-testid={`${itemPrefix}-dismiss`}
+        >
+          <span className="flex items-center">
+            <Ban className="mr-2 h-3.5 w-3.5" /> Dismiss as nobody's
+          </span>
+          <span className="pl-[22px] text-[11px] leading-snug text-slate-500 dark:text-slate-400">
+            Clears it from this report without granting anything. Doesn't cancel or refund — that stays in Flash, which took the money.
+          </span>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
