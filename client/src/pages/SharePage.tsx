@@ -71,6 +71,7 @@ import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
 import { FlashIcon } from "@/components/FlashIcon";
 import { ZapModal } from "@/components/ZapModal";
+import { SellingBlock } from "@/components/share/SellingBlock";
 import { ContentTeaserBlock } from "@/components/share/ContentTeaserBlock";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { useShareMeta } from "@/hooks/useShareMeta";
@@ -102,6 +103,9 @@ export default function SharePage() {
   const decoded = useMemo(() => decodeShareId(rawId), [rawId]);
   const pubkey = decoded?.pubkey || "";
   const relayHints = decoded?.relays || [];
+  // How many things this person has for sale — the Selling block reports it
+  // (it fetches even when hidden) so the page and the customizer can tell.
+  const [sellingCount, setSellingCount] = useState(0);
   const npub = pubkey ? safeNpub(pubkey) : "";
   const openLightbox = useLightbox();
   const loggedIn = useHasSession();
@@ -839,7 +843,7 @@ export default function SharePage() {
 
   const profileLoading = profileQuery.isLoading;
   const hasContent =
-    (notesQuery.data?.length ?? 0) > 0 || photos.length > 0 || articles.length > 0 ||
+    (notesQuery.data?.length ?? 0) > 0 || photos.length > 0 || articles.length > 0 || sellingCount > 0 ||
     videos.length > 0 || tracks.length > 0 || liveStreams.has || !!featured || calendarEvents.upcoming.length > 0 || calendarEvents.past.length > 0;
 
   // Keys (sections + hero details) the owner currently has NO content for — the
@@ -849,6 +853,7 @@ export default function SharePage() {
   if (!liveStreams.has) emptyKeys.add("live");
   if (calendarEvents.upcoming.length === 0 && calendarEvents.past.length === 0) emptyKeys.add("events");
   if (articles.length === 0) emptyKeys.add("articles");
+  if (sellingCount === 0) emptyKeys.add("selling");
   if (tracks.length === 0) emptyKeys.add("audio");
   if (videos.length === 0) emptyKeys.add("videos");
   if (gridPhotos.length === 0) emptyKeys.add("photos");
@@ -1286,6 +1291,8 @@ export default function SharePage() {
             </div>
           </ContentTeaserBlock>
         )}
+        <SellingBlock pubkey={pubkey} relayHints={relayHints} hidden={isHidden("selling")} className={orderClass("selling")} onCount={setSellingCount} />
+
         {articles.length > 0 && !isHidden("articles") && (
           <ContentTeaserBlock icon={<FileText className="h-4 w-4" />} title="Articles" onViewAll={scrollToOpenIn} testId="share-block-articles" className={orderClass("articles")}>
             <div className="space-y-3">

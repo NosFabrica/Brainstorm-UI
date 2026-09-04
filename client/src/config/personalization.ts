@@ -65,7 +65,7 @@ export const EMPTY_PERSONALIZATION: PersonalizationPrefs = { contentTypes: [], r
 
 /** Toggleable content sections, in their default display order. */
 export const SECTION_KEYS = [
-  "featured", "live", "events", "articles", "audio", "videos", "photos", "notes",
+  "featured", "live", "events", "selling", "articles", "audio", "videos", "photos", "notes",
 ] as const;
 export type SectionKey = (typeof SECTION_KEYS)[number];
 
@@ -78,6 +78,7 @@ export const SECTION_LABELS: Record<SectionKey, string> = {
   featured: "Featured",
   live: "Live streams",
   events: "Events",
+  selling: "Selling",
   articles: "Articles",
   audio: "Audio",
   videos: "Videos",

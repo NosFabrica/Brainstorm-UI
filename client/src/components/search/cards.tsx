@@ -837,7 +837,7 @@ export function WavlakeSongCard({ song }: { song: WavlakeSong }) {
  * their trust ring, which is the one thing no store can show. The corner
  * opens the seller's own page for it when the app published one.
  */
-export function ListingCard({ event, author, score }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
+export function ListingCard({ event, author, score, showAuthor = true }: { event: NostrEvent; author: SearchResult | null; score?: number | null; showAuthor?: boolean }) {
   const l = parseListing(event);
   if (!l) return null;
   const host = l.shopUrl ? hostOf(l.shopUrl) ?? undefined : undefined;
@@ -870,9 +870,11 @@ export function ListingCard({ event, author, score }: { event: NostrEvent; autho
       {(l.location || l.summary) && (
         <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">{l.location ?? l.summary}</p>
       )}
-      <div className="mt-2">
-        <AuthorRow author={author} score={score} created_at={event.created_at} />
-      </div>
+      {showAuthor && (
+        <div className="mt-2">
+          <AuthorRow author={author} score={score} created_at={event.created_at} />
+        </div>
+      )}
     </CardShell>
   );
 }
