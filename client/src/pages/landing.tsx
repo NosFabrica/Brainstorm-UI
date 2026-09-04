@@ -1071,10 +1071,13 @@ export default function Landing() {
                       key={c.tab}
                       type="button"
                       onMouseDown={(e) => { e.preventDefault(); setFocused(false); browseVertical(c.tab); }}
-                      className="inline-flex shrink-0 items-center gap-1 rounded-full border border-slate-200 dark:border-slate-800 px-2 py-1 text-xs font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 hover:text-brand-deep dark:hover:text-white transition-colors"
+                      // Quiet text links, not nine bordered pills (Benjamin:
+                      // "a lot of chips — shrink them or make it more subtle").
+                      // They wrap to a second line on phones instead of scrolling.
+                      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11.5px] font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand-deep dark:hover:text-white transition-colors"
                       data-testid={`browse-${c.tab}`}
                     >
-                      <c.icon className="h-3 w-3" /> {c.label}
+                      <c.icon className="h-3 w-3 opacity-70" /> {c.label}
                     </button>
                   ))}
                 </div>
