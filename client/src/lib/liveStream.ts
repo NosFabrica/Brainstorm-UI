@@ -19,6 +19,8 @@ export interface LiveStream {
   status: string;
   startsSec: number;
   streaming?: string;
+  /** Where the stream can be watched after it ended, when the platform kept one. */
+  recording?: string;
   viewers?: number;
   createdAt: number;
 }
@@ -36,17 +38,37 @@ export function parseLiveStream(ev: EventLike): LiveStream | null {
     status: (tag("status") || "").toLowerCase(),
     startsSec: Number(tag("starts")) || 0,
     streaming: tag("streaming"),
+    recording: tag("recording"),
     viewers: Number.isFinite(viewers) && viewers >= 0 && tag("current_participants") ? viewers : undefined,
     createdAt: ev.created_at,
   };
 }
 
-/** The one live now (newest if several), and the most recent stream of any status. */
-export function pickStreams(events: EventLike[]): { live: LiveStream | null; latest: LiveStream | null } {
+export interface PickedStreams {
+  /** On air now (newest if several). */
+  live: LiveStream | null;
+  /** Announced and not yet started — the soonest. */
+  upcoming: LiveStream | null;
+  /** The newest ended stream that left a recording. Ended without one is nothing to show. */
+  replay: LiveStream | null;
+}
+
+/**
+ * What a person's streams give a viewer something to do with. An ended stream
+ * with no recording is deliberately absent: probed 2026-09-04, a third of
+ * ended streams carry a `recording`, and advertising the rest sends people to
+ * "This stream has ended".
+ */
+export function pickStreams(events: EventLike[], nowSec = Math.floor(Date.now() / 1000)): PickedStreams {
   const parsed = events.map(parseLiveStream).filter((s): s is LiveStream => s !== null);
   const newestFirst = [...parsed].sort((a, b) => Math.max(b.startsSec, b.createdAt) - Math.max(a.startsSec, a.createdAt));
+  const upcoming = parsed
+    .filter((s) => s.status !== "live" && s.status !== "ended" && (s.status === "planned" || s.startsSec > nowSec))
+    .filter((s) => s.startsSec === 0 || s.startsSec > nowSec - 6 * 3600)
+    .sort((a, b) => a.startsSec - b.startsSec)[0] ?? null;
   return {
     live: newestFirst.find((s) => s.status === "live") ?? null,
-    latest: newestFirst[0] ?? null,
+    upcoming,
+    replay: newestFirst.find((s) => s.status === "ended" && !!s.recording) ?? null,
   };
 }

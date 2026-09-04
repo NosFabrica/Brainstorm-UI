@@ -37,3 +37,27 @@ export function streamEmbedUrl(streaming: string, parentHost: string): string | 
 
 /** An HLS manifest the in-app video player can take. */
 export const isHlsUrl = (url: string): boolean => /\.m3u8(\?|$)/i.test(url);
+
+/**
+ * Where a RECORDING plays inside an iframe: YouTube through the cookieless host
+ * (a replay is a video, not a live channel, so it takes the video embed).
+ * Kick and Twitch VODs have no public embed we can verify — those open the page.
+ */
+export function replayEmbedUrl(recording: string): string | null {
+  let u: URL;
+  try {
+    u = new URL(recording);
+  } catch {
+    return null;
+  }
+  const host = u.hostname.replace(/^(www|m)\./, "").toLowerCase();
+  const segments = u.pathname.split("/").filter(Boolean);
+  let id: string | null = null;
+  if (host === "youtu.be") id = segments[0] ?? null;
+  else if (host === "youtube.com") {
+    if (segments[0] === "watch") id = u.searchParams.get("v");
+    else if (["live", "embed", "shorts", "v"].includes(segments[0] ?? "")) id = segments[1] ?? null;
+  }
+  if (id && /^[\w-]{6,}$/.test(id)) return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&modestbranding=1`;
+  return null;
+}

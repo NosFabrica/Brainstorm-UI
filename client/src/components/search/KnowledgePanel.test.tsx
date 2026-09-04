@@ -762,15 +762,46 @@ describe("the person panel's live stream", () => {
     expect(player.className).not.toMatch(/border|rounded-2xl/);
   });
 
-  it("when nobody is live, says when they last streamed and where to watch it", async () => {
+  // Benjamin, over Joe Martin's dead "Streamed 1mo ago" line: search must never
+  // advertise a stream nobody can watch. An ended stream earns a line only
+  // when it left a recording — and then it plays here, like a live one.
+  it("an ended stream with a recording is a replay that plays in place", async () => {
+    grinder();
+    liveStreamsMock.mockResolvedValue([
+      { ...stream("old", "ended", { created: NOW - 86_400 }), tags: [...stream("old", "ended").tags, ["recording", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"]] },
+    ]);
+    render(<KnowledgePanel query="TheGrinder" pov="nosfabrica" />);
+
+    const replay = await screen.findByTestId("person-live-replay");
+    expect(replay).toHaveTextContent(/Replay/i);
+    expect(replay).toHaveTextContent("Just another Wednesday");
+    expect(replay).toHaveTextContent(/Streamed/);
+    expect(replay.querySelector("img")?.getAttribute("src")).toBe("https://i.nostr.build/Vb6byoSaEEJbqqbs.png");
+
+    fireEvent.click(within(replay).getByRole("button", { name: /play/i }));
+    expect(within(replay).getByTestId("person-live-embed").getAttribute("src")).toContain("youtube-nocookie.com/embed/dQw4w9WgXcQ");
+    expect(screen.queryByTestId("person-live")).toBeNull();
+  });
+
+  it("an ended stream with no recording is not advertised at all", async () => {
     grinder();
     liveStreamsMock.mockResolvedValue([stream("old", "ended", { created: NOW - 86_400 })]);
     render(<KnowledgePanel query="TheGrinder" pov="nosfabrica" />);
-
-    const last = await screen.findByTestId("person-live-last");
-    expect(last).toHaveTextContent(/Streamed/);
-    expect(last).toHaveTextContent("Just another Wednesday");
-    expect(last.getAttribute("href")).toMatch(/^\/e\//);
+    await screen.findByTestId("knowledge-panel-profile");
+    await vi.waitFor(() => expect(liveStreamsMock).toHaveBeenCalled());
     expect(screen.queryByTestId("person-live")).toBeNull();
+    expect(screen.queryByTestId("person-live-replay")).toBeNull();
+    expect(screen.queryByTestId("person-live-last")).toBeNull();
+  });
+
+  it("a planned stream is announced with its start", async () => {
+    grinder();
+    liveStreamsMock.mockResolvedValue([stream("next", "planned", { starts: NOW + 2 * 3600, created: NOW - 60 })]);
+    render(<KnowledgePanel query="TheGrinder" pov="nosfabrica" />);
+
+    const next = await screen.findByTestId("person-live-upcoming");
+    expect(next).toHaveTextContent(/Streams/);
+    expect(next).toHaveTextContent("Just another Wednesday");
+    expect(next.getAttribute("href")).toMatch(/^\/e\//);
   });
 });

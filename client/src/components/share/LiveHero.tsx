@@ -2,7 +2,8 @@ import { useState } from "react";
 import { nip19 } from "nostr-tools";
 import { Radio, Users, ExternalLink, CalendarClock } from "lucide-react";
 import { LiveVideoPlayer } from "@/components/share/LiveVideoPlayer";
-import { isHlsUrl, streamEmbedUrl } from "@/lib/streamEmbed";
+import { isHlsUrl, replayEmbedUrl, streamEmbedUrl } from "@/lib/streamEmbed";
+import { isVideoFileUrl } from "@/lib/linkThumb";
 import { relativeEventTime } from "@/lib/calendarEvent";
 import liveDefault from "@/assets/live-default.webp";
 import type { MinimalEvent } from "@/lib/noteRefs";
@@ -19,6 +20,7 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
   const status = (tag("status") || "").toLowerCase();
   const image = tag("image") || tag("thumb");
   const streaming = tag("streaming");
+  const recording = tag("recording");
   const starts = Number(tag("starts")) || 0;
   const viewers = Number(tag("current_participants")) || 0;
   const summary = (tag("summary") || event.content || "").trim();
@@ -41,7 +43,14 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
   // ones that used to dead-end on "can't play here".)
   const platformEmbed = isLive && streaming ? streamEmbedUrl(streaming, window.location.hostname) : null;
   const hls = isLive && !!streaming && !platformEmbed && isHlsUrl(streaming) && !failed;
-  const canEmbed = !!platformEmbed || hls;
+  // Ended is not over when the platform kept a recording (probed: a third of
+  // ended streams carry one). It plays here the way the live stream did.
+  const isEnded = !isLive && !isUpcoming;
+  const replayEmbed = isEnded && recording ? replayEmbedUrl(recording) : null;
+  const replayHls = isEnded && !!recording && !replayEmbed && isHlsUrl(recording) && !failed;
+  const replayFile = isEnded && !!recording && !replayEmbed && !replayHls && isVideoFileUrl(recording);
+  const hasReplay = !!replayEmbed || replayHls || replayFile;
+  const canEmbed = !!platformEmbed || hls || hasReplay;
 
   return (
     <div data-testid="live-hero">
@@ -58,6 +67,23 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
         </div>
       ) : hls ? (
         <LiveVideoPlayer src={streaming as string} poster={posterImage} onError={() => setFailed(true)} />
+      ) : replayEmbed ? (
+        <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-slate-200 bg-black dark:border-slate-800">
+          <iframe
+            src={replayEmbed}
+            title={`${title} — replay`}
+            allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+            allowFullScreen
+            className="absolute inset-0 h-full w-full"
+            data-testid="replay-embed"
+          />
+        </div>
+      ) : replayHls ? (
+        <LiveVideoPlayer src={recording as string} poster={posterImage} onError={() => setFailed(true)} />
+      ) : replayFile ? (
+        <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-slate-200 bg-black dark:border-slate-800">
+          <video src={recording} poster={posterImage} controls playsInline className="absolute inset-0 h-full w-full object-contain" data-testid="replay-video" />
+        </div>
       ) : (
         <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 dark:border-slate-800" data-testid="live-state">
           <img src={posterImage} alt="" onError={() => setImgBroken(true)} className="absolute inset-0 h-full w-full object-cover opacity-50" />
@@ -80,6 +106,14 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
                   </a>
                 )}
               </>
+            ) : recording ? (
+              <>
+                <Radio className="h-7 w-7 opacity-90" />
+                <p className="text-sm font-semibold">This stream has ended — the recording is on {(() => { try { return new URL(recording).hostname.replace(/^www\./, ""); } catch { return "another site"; } })()}</p>
+                <a href={recording} target="_blank" rel="noopener" className="mt-1 inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-link transition-colors hover:bg-slate-100" data-testid="replay-external">
+                  <ExternalLink className="h-4 w-4" /> Watch the replay
+                </a>
+              </>
             ) : (
               <>
                 <Radio className="h-7 w-7 opacity-70" />
@@ -94,6 +128,11 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
         {isLive && (
           <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-600 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-400">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" /> Live
+          </span>
+        )}
+        {hasReplay && (
+          <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+            Replay
           </span>
         )}
         {isLive && viewers > 0 && <span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {viewers.toLocaleString()} watching</span>}

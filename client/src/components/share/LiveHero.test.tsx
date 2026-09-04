@@ -42,4 +42,32 @@ describe("LiveHero", () => {
     expect(screen.getByText(/can.t play here/)).toBeInTheDocument();
     expect(screen.getByTestId("live-watch-external").getAttribute("href")).toMatch(/^https:\/\/zap\.stream\/naddr1/);
   });
+
+  // A third of ended streams on the relay left a `recording` (zap.stream on
+  // nearly all of its). "This stream has ended" was wrong for every one of them.
+  it("an ended stream with a YouTube recording replays through YouTube's player", () => {
+    render(<LiveHero event={stream([["status", "ended"], ["recording", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"]])} />);
+    const frame = screen.getByTestId("replay-embed") as HTMLIFrameElement;
+    expect(frame.src).toContain("youtube-nocookie.com/embed/dQw4w9WgXcQ");
+    expect(screen.queryByText(/This stream has ended/)).toBeNull();
+    expect(screen.getByText(/Replay/)).toBeInTheDocument();
+  });
+
+  it("an ended stream with an HLS recording replays through the video player", () => {
+    render(<LiveHero event={stream([["status", "ended"], ["recording", "https://customer-51tz.cloudflarestream.com/abc/manifest/video.m3u8"]])} />);
+    expect(screen.getByTestId("live-player")).toBeInTheDocument();
+    expect(screen.queryByText(/This stream has ended/)).toBeNull();
+  });
+
+  it("an ended stream with a video-file recording plays it as a video", () => {
+    render(<LiveHero event={stream([["status", "ended"], ["recording", "https://cdn.example/replay.mp4"]])} />);
+    const video = screen.getByTestId("replay-video") as HTMLVideoElement;
+    expect(video.getAttribute("src")).toBe("https://cdn.example/replay.mp4");
+    expect(video.hasAttribute("controls")).toBe(true);
+  });
+
+  it("an ended stream with no recording still says so", () => {
+    render(<LiveHero event={stream([["status", "ended"]])} />);
+    expect(screen.getByText(/This stream has ended/)).toBeInTheDocument();
+  });
 });

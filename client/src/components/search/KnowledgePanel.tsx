@@ -6,7 +6,7 @@
  */
 import { useEffect, useState } from "react";
 import { fetchLiveStreams, fetchRecentByKinds } from "@/services/nostr";
-import { pickStreams, type LiveStream } from "@/lib/liveStream";
+import { pickStreams, type PickedStreams } from "@/lib/liveStream";
 import { PanelLive } from "@/components/search/PanelLive";
 import { parseTrack, TRACK_KIND, type Track } from "@/lib/trackEvent";
 import { findWavlakeArtist, wavlakeArtistTracks, type WavlakeArtist, type WavlakeSong } from "@/lib/wavlake";
@@ -128,10 +128,10 @@ export function KnowledgePanel({
   // key first, exact name second, never a loose match.
   const [personWavlake, setPersonWavlake] = useState<{ artist: WavlakeArtist; songs: WavlakeSong[] } | null>(null);
   // Their stream: live now leads the panel; otherwise when they last streamed.
-  const [personStreams, setPersonStreams] = useState<{ live: LiveStream | null; latest: LiveStream | null }>({ live: null, latest: null });
+  const [personStreams, setPersonStreams] = useState<PickedStreams>({ live: null, upcoming: null, replay: null });
   useEffect(() => {
     if (!person) {
-      setPersonStreams({ live: null, latest: null });
+      setPersonStreams({ live: null, upcoming: null, replay: null });
       return;
     }
     let cancelled = false;
@@ -140,7 +140,7 @@ export function KnowledgePanel({
         if (!cancelled) setPersonStreams(pickStreams(events));
       })
       .catch(() => {
-        if (!cancelled) setPersonStreams({ live: null, latest: null });
+        if (!cancelled) setPersonStreams({ live: null, upcoming: null, replay: null });
       });
     return () => {
       cancelled = true;
@@ -544,7 +544,7 @@ export function KnowledgePanel({
         </div>
       )}
       {/* Live now leads — the most time-sensitive thing about a person. */}
-      <PanelLive live={personStreams.live} latest={personStreams.latest} />
+      <PanelLive {...personStreams} />
       {/* Nostr's oldest review: who follows them — the most trusted faces, and
           how many verified accounts in all. Then the trust reviews proper. */}
       <FollowedByLine pubkey={person.pubkey} npub={person.npub} personal={pov === "mywot"} testId="person-followed-by" className="mt-2.5" />
