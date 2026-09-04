@@ -12,7 +12,6 @@ import {
   Video as VideoIcon,
   Headphones,
   Radio,
-  Play,
   AlertTriangle,
   ShieldCheck,
   CalendarDays,
@@ -52,6 +51,7 @@ import liveDefault from "@/assets/live-default.webp";
 import { PinIcon } from "@/components/PinIcon";
 import { parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
 import { useLightbox } from "@/components/share/Lightbox";
+import { VideoTile } from "@/components/share/VideoTile";
 import { EventRow } from "@/components/share/EventRow";
 import { OpenInApp } from "@/components/share/OpenInApp";
 import { apiClient } from "@/services/api";
@@ -1336,29 +1336,18 @@ export default function SharePage() {
                 <div key={v.id} className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-black">
                   {/* Tap plays the video here, full view, with who it's from
                       and a way to the post — not a jump to the post page. */}
-                  <button
-                    type="button"
-                    onClick={() =>
+                  <VideoTile
+                    poster={v.poster}
+                    url={v.url}
+                    title={v.title}
+                    onOpen={() =>
                       openLightbox(
                         videos.filter((x) => x.url).map((x) => ({ url: x.url!, kind: "video" as const, poster: x.poster ?? null })),
                         Math.max(0, videos.filter((x) => x.url).findIndex((x) => x.id === v.id)),
                         { author: { name: displayName, npub, picture: profile.picture ?? null }, postHref: eventPath({ id: v.id, pubkey }, relayHints) },
                       )
                     }
-                    className="group relative block aspect-video w-full bg-slate-900 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-                    data-testid="share-video-tile"
-                  >
-                    {v.poster ? (
-                      <img src={v.poster} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover transition-transform duration-200 group-hover:scale-[1.03]" />
-                    ) : v.url ? (
-                      <video src={`${v.url}#t=0.1`} muted playsInline preload="metadata" className="absolute inset-0 w-full h-full object-cover" />
-                    ) : null}
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-black/20 transition-colors">
-                      <span className="h-12 w-12 rounded-full bg-white/90 group-hover:bg-white flex items-center justify-center shadow-lg transition-all group-hover:scale-105">
-                        <Play className="h-5 w-5 text-brand-deep ml-0.5" />
-                      </span>
-                    </div>
-                  </button>
+                  />
                   {v.title && <p className="px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 truncate bg-white dark:bg-slate-900">{v.title}</p>}
                 </div>
               ))}
