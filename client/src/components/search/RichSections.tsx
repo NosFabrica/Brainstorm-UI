@@ -49,7 +49,7 @@ function firstImageIn(content: string): string | null {
  * Which Latest hits earn the strip, one per author, freshest first: pictured
  * news leads; when that runs short of three, unpictured news fills in, then
  * notes that carry a picture (their first line as the headline). Never more
- * than four.
+ * than four, and never fewer than three — short of three, no strip.
  */
 export function pickTopStories(hits: SearchHit[]): TopStory[] {
   const out: TopStory[] = [];
@@ -88,7 +88,9 @@ export function pickTopStories(hits: SearchHit[]): TopStory[] {
     const headline = hit.event.content.replace(URL_IN_TEXT, "").split("\n").map((l) => l.trim()).find(Boolean) ?? "";
     return headline ? { headline: headline.slice(0, 140), url: null, domain: null, imageUrl } : null;
   });
-  return out;
+  // Three or nothing: a strip of one or two is the accident the rule exists
+  // to prevent, so Latest stays rows when there isn't enough to fill it.
+  return out.length >= MIN_STORIES ? out : [];
 }
 
 function TopStoryCard({ story }: { story: TopStory }) {

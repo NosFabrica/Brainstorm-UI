@@ -92,13 +92,14 @@ describe("ComposedResults — media-rich sections", () => {
         hitOf(ev("n1", 1, "1".repeat(64), NEWS(1)), "Echo"),
         hitOf(ev("n2", 1, "2".repeat(64), "Just a plain note about Liverpool"), "fan"),
         hitOf(ev("n3", 1, "3".repeat(64), NEWS(3)), "Guardian"),
+        hitOf(ev("n6", 1, "6".repeat(64), NEWS(6)), "Times"),
       ],
       eose: true,
       timeMs: 100,
     });
     const strip = await screen.findByTestId("serp-top-stories");
     const cards = [...strip.querySelectorAll('[data-testid^="top-story-"]')].map((c) => c.getAttribute("data-testid"));
-    expect(cards).toEqual(["top-story-n1", "top-story-n3"]);
+    expect(cards).toEqual(["top-story-n1", "top-story-n3", "top-story-n6"]);
     const card = screen.getByTestId("top-story-n1");
     expect(card).toHaveTextContent("Liverpool complete the record signing of Bradley Barcola 1");
     expect(card).toHaveTextContent("liverpoolecho.co.uk");
@@ -150,7 +151,7 @@ describe("ComposedResults — media-rich sections", () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     const NO_PIC = "Liverpool confirm the Barcola fee\nhttps://www.theguardian.com/story-4\nSummary 4.";
     sectionCall("notes").emit({
-      hits: [hitOf(ev("n1", 1, "1".repeat(64), NEWS(1)), "Echo"), hitOf(ev("n4", 1, "4".repeat(64), NO_PIC), "Guardian")],
+      hits: [hitOf(ev("n1", 1, "1".repeat(64), NEWS(1)), "Echo"), hitOf(ev("n4", 1, "4".repeat(64), NO_PIC), "Guardian"), hitOf(ev("n3", 1, "3".repeat(64), NEWS(3)), "Times")],
       eose: true,
       timeMs: 100,
     });
@@ -159,6 +160,18 @@ describe("ComposedResults — media-rich sections", () => {
     expect(unfurlMock).toHaveBeenCalledWith("https://www.theguardian.com/story-4");
     // A pictured story never asks.
     expect(unfurlMock).not.toHaveBeenCalledWith("https://www.liverpoolecho.co.uk/story-1");
+  });
+
+  it("one or two eligible stories make no strip — three or nothing", async () => {
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    sectionCall("notes").emit({
+      hits: [hitOf(ev("n1", 1, "1".repeat(64), NEWS(1)), "Echo"), hitOf(ev("n3", 1, "3".repeat(64), NEWS(3)), "Guardian")],
+      eose: true,
+      timeMs: 100,
+    });
+    await screen.findByTestId("serp-row-n1");
+    expect(screen.queryByTestId("serp-top-stories")).toBeNull();
+    expect(screen.getByTestId("serp-row-n3")).toBeInTheDocument();
   });
 
   it("no pictured news, no strip — Latest stays rows", async () => {
