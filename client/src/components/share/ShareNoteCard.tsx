@@ -10,6 +10,7 @@ import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/h
 import { shareTierFor } from "@/components/share/TrustScoreBadge";
 import { VerificationCoin, useTierRing , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { NoteContent } from "@/components/share/NoteContent";
+import { TranslateLine } from "@/components/share/TranslateLine";
 import { parseNoteContent } from "@/lib/noteContent";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { NoteTagRow } from "@/components/share/NoteTagChips";
@@ -240,6 +241,8 @@ export function ShareNoteCard({
 
       <div className={collapsed ? "relative max-h-32 overflow-hidden" : undefined}>
         <NoteContent content={event.content} compact profiles={profiles} linkCard imageOpensThread={!!href} tags={event.tags} authorName={profiles.get(event.pubkey)?.display_name || profiles.get(event.pubkey)?.name} />
+        {/* X's "Translate post" for notes in another language — on-device, quiet. */}
+        {event.content?.trim() && <TranslateLine text={event.content} />}
         {collapsed && (
           <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-white dark:from-slate-900 to-transparent" />
         )}

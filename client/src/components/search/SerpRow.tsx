@@ -15,6 +15,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { nip19 } from "nostr-tools";
 import { Favicon, LinkChip, LinkPreviewCard } from "@/components/share/LinkPreview";
+import { TranslateLine } from "@/components/share/TranslateLine";
 import { useLightbox } from "@/components/share/Lightbox";
 import { eventStore } from "@/lib/eventStore";
 import { MentionChip } from "@/components/share/MentionChip";
@@ -275,6 +276,7 @@ export function SerpRow({
               <Snippet text={news.description} query={query} lines={2} />
             </div>
           )}
+          <TranslateLine text={`${news.headline}\n${news.description ?? ""}`.trim()} />
           {engagement && <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />}
         </div>
         {thumb && !newsThumbFailed && (
@@ -319,6 +321,8 @@ export function SerpRow({
         {body && (
           <div className="mt-0.5">
             <Snippet text={body.slice(0, 300)} query={query} lines={title ? 2 : 3} />
+            {/* X's "Translate post" for text in another language — on-device, quiet. */}
+            <TranslateLine text={body.slice(0, 1000)} />
           </div>
         )}
         {cardLink && (
