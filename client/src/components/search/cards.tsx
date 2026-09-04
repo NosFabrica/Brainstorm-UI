@@ -789,11 +789,9 @@ export function ListCard({ event, author, score }: { event: NostrEvent; author: 
 export function TrackCard({ event, author }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
   const track = parseTrack(event);
   if (!track) return null;
+  // The row draws its own frame; the card adds no second one.
   return (
-    <div
-      className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 py-1"
-      data-testid={`track-card-${event.id}`}
-    >
+    <div data-testid={`track-card-${event.id}`}>
       <EmbeddedTrackCard
         id={track.id}
         title={track.title}
@@ -816,10 +814,7 @@ export function TrackCard({ event, author }: { event: NostrEvent; author: Search
  */
 export function WavlakeSongCard({ song }: { song: WavlakeSong }) {
   return (
-    <div
-      className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 py-1"
-      data-testid={`wavlake-song-${song.id}`}
-    >
+    <div data-testid={`wavlake-song-${song.id}`}>
       <EmbeddedTrackCard
         id={song.id}
         title={song.title}

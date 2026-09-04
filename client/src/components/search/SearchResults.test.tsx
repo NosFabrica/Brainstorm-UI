@@ -562,6 +562,9 @@ describe("SearchResults", () => {
     expect(card).toHaveTextContent("NOVA");
     // The cover is the play button — the same inline player the profile page uses.
     expect(within(card).getByTestId("track-play")).toHaveAttribute("aria-label", "Play");
+    // One frame, not two: the row draws its own border, the card adds none.
+    expect(card.className).not.toMatch(/border|rounded-2xl|px-2/);
+    expect(within(card).getByTestId("embedded-track").className).toMatch(/border/);
     expect(screen.queryByTestId("track-card-t2")).toBeNull();
     expect(screen.queryByText(/TOMB-7703/)).toBeNull();
   });
@@ -584,6 +587,7 @@ describe("SearchResults", () => {
     expect(card).toHaveTextContent("Ainsley Costello");
     expect(card).toHaveTextContent("Wavlake");
     expect(within(card).getByTestId("track-play")).toHaveAttribute("aria-label", "Play");
+    expect(card.className).not.toMatch(/border|rounded-2xl|px-2/);
     expect(screen.queryByTestId("container-no-results")).toBeNull();
     // The count counts what is shown, whichever source it came from.
     expect(screen.getByTestId("text-search-stats")).toHaveTextContent("About 1 result");
