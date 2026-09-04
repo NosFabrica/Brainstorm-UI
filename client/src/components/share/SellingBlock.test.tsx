@@ -6,7 +6,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import type { NostrEvent } from "nostr-tools";
+import { nip19, type NostrEvent } from "nostr-tools";
 
 const recentMock = vi.fn<(pubkey: string, kinds: number[], limit: number) => Promise<NostrEvent[]>>();
 vi.mock("@/services/nostr", () => ({
@@ -55,6 +55,19 @@ describe("SellingBlock", () => {
     const hrefs = within(block).getAllByRole("link").map((a) => a.getAttribute("href"));
     expect(hrefs.some((h) => h?.startsWith("/e/"))).toBe(true);
     await waitFor(() => expect(onCount).toHaveBeenCalledWith(2));
+    expect(within(block).queryByTestId("block-view-all")).toBeNull(); // two fit; nothing to see beyond
+  });
+
+  it("keeps a public page short: the six newest, and a way to all of them", async () => {
+    recentMock.mockResolvedValue(Array.from({ length: 8 }, (_, i) => listing(`l${i}`, `Item ${i}`, 1000 + i)));
+    mount(<SellingBlock pubkey={SELLER} />);
+    const block = await screen.findByTestId("share-block-selling");
+    expect(within(block).getAllByTestId(/^listing-card-/)).toHaveLength(6);
+    expect(within(block).getByText("Item 7")).toBeInTheDocument();
+    expect(within(block).queryByText("Item 1")).toBeNull();
+    const all = within(block).getByTestId("block-view-all");
+    expect(all).toHaveTextContent("See all 8");
+    expect(all).toHaveAttribute("href", `/p/${nip19.npubEncode(SELLER)}/selling`);
   });
 
   it("shows nothing for someone with nothing for sale, and reports zero", async () => {

@@ -922,7 +922,7 @@ describe("the person panel's Selling row", () => {
     expect(rows[0].querySelector("img")?.getAttribute("src")).toBe("https://img/l1.jpg");
     expect(rows[0].getAttribute("href")).toMatch(/^\/e\//);
     expect(selling).not.toHaveTextContent("Venduta");
-    expect(within(selling).getByTestId("person-selling-more").getAttribute("href")).toBe("/p/npub1barattolo");
+    expect(within(selling).getByTestId("person-selling-more").getAttribute("href")).toBe("/p/npub1barattolo/selling");
   });
 
   it("has no Selling row for someone with nothing for sale", async () => {

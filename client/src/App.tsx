@@ -28,6 +28,7 @@ import ProfilePage from "@/pages/ProfilePage";
 import SharePage from "@/pages/SharePage";
 import ConnectionListPage from "@/pages/ConnectionListPage";
 import HopsPathPage from "@/pages/HopsPathPage";
+import SellingPage from "@/pages/SellingPage";
 import ArticlePage from "@/pages/ArticlePage";
 import EventPage from "@/pages/EventPage";
 import WelcomePage from "@/pages/WelcomePage";
@@ -234,6 +235,7 @@ function Router() {
         {/* Deprecated for users — see ProfileRoute. /p/:id is THE profile page. */}
         <Route path="/profile/:npub">{() => <RequireAuth component={ProfileRoute} />}</Route>
         <Route path="/p/:id/hops" component={HopsPathPage} />
+        <Route path="/p/:id/selling" component={SellingPage} />
         <Route path="/p/:id/:type" component={ConnectionListPage} />
         <Route path="/p/:id" component={SharePage} />
         <Route path="/a/:id" component={ArticlePage} />

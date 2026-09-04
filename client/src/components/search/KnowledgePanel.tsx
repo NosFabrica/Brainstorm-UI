@@ -607,7 +607,7 @@ export function KnowledgePanel({
         <div className="mt-3" data-testid="person-selling">
           <div className="mb-1 flex items-center justify-between">
             <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Selling</span>
-            <Link href={`/p/${person.npub}`} onClick={() => onOpen?.(person)} className="text-[11px] font-medium text-brand-deep dark:text-brand-link hover:underline" data-testid="person-selling-more">
+            <Link href={`/p/${person.npub}/selling`} onClick={() => onOpen?.(person)} className="text-[11px] font-medium text-brand-deep dark:text-brand-link hover:underline" data-testid="person-selling-more">
               All →
             </Link>
           </div>
