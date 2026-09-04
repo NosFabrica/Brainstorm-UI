@@ -2,6 +2,8 @@ import { useState } from "react";
 import { Calendar, MapPin, ExternalLink, PlayCircle } from "lucide-react";
 import { parseCalendarEvent, formatEventDate, isUpcoming, relativeEventTime } from "@/lib/calendarEvent";
 import { RsvpButton } from "@/components/share/RsvpButton";
+import { NotesInline } from "@/components/share/NotesInline";
+import { LinkPreviewCard } from "@/components/share/LinkPreview";
 import eventDefault from "@/assets/event-default.webp";
 import type { MinimalEvent } from "@/lib/noteRefs";
 
@@ -21,6 +23,10 @@ export function EventHero({ event }: { event: MinimalEvent }) {
   const upcoming = isUpcoming(e.startSec);
   const rel = relativeEventTime(e.startSec);
   const mapUrl = e.location ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(e.location)}` : null;
+  // The first plain web link in the description — a ticket page, the
+  // organiser's site — earns a metadata card. Media links are the banner's job.
+  const firstLink =
+    (e.summary ?? "").match(/https?:\/\/\S+/g)?.map((u) => u.replace(/[),;!?.]+$/, "")).find((u) => !/\.(?:png|jpe?g|gif|webp|avif|mp4|webm|mov|m3u8)(?:[?#]|$)/i.test(u)) ?? null;
   const timing = e.startSec > 0
     ? upcoming
       ? `Starts ${rel.toLowerCase()}`
@@ -29,7 +35,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
 
   return (
     <div data-testid="event-hero">
-      <img src={heroImage} alt="" loading="lazy" onError={() => setImgBroken(true)} className="mb-4 max-h-72 w-full rounded-xl border border-slate-200 dark:border-slate-800 object-cover" />
+      <img src={heroImage} alt="" loading="lazy" onError={() => setImgBroken(true)} className="mb-4 max-h-72 w-full rounded-xl border border-slate-200 dark:border-slate-800 object-cover" data-testid="event-hero-image" />
 
 
       <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${upcoming ? "border border-emerald-200 bg-emerald-50 text-emerald-700" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"}`}>
@@ -63,12 +69,10 @@ export function EventHero({ event }: { event: MinimalEvent }) {
         )}
       </div>
 
-      {e.summary && e.summary !== e.title && (
-        <p className="mt-4 whitespace-pre-line break-words border-t border-slate-100 dark:border-slate-800/60 pt-4 text-sm leading-relaxed text-slate-600 dark:text-slate-300">{e.summary}</p>
-      )}
-
-      <div className="mt-4 flex flex-wrap items-center gap-2">
-        {/* Going, on Nostr: a NIP-52 RSVP under the reader's key. */}
+      {/* The action sits with the facts — Eventbrite's order — not under a
+          long description. Upcoming: I'm going (a NIP-52 RSVP on Nostr).
+          Past: the recording when there is one. */}
+      <div className="mt-4 flex flex-wrap items-center gap-2" data-testid="event-hero-actions">
         {upcoming && e.startSec > 0 && <RsvpButton event={event} size="md" />}
         {!upcoming && e.recordingUrl && (
           <a
@@ -87,6 +91,22 @@ export function EventHero({ event }: { event: MinimalEvent }) {
           </span>
         )}
       </div>
+
+      {/* The description as a post: paragraphs kept, links as real links with
+          their favicon and domain, mentions as names, and the first web link
+          unfurled into a metadata card when the proxy knows it. */}
+      {e.summary && e.summary !== e.title && (
+        <div className="mt-4 border-t border-slate-100 dark:border-slate-800/60 pt-4" data-testid="event-hero-description">
+          <div className="whitespace-pre-line break-words text-sm leading-relaxed text-slate-600 dark:text-slate-300 [&_a]:align-baseline">
+            <NotesInline text={e.summary} />
+          </div>
+          {firstLink && (
+            <div className="mt-3">
+              <LinkPreviewCard url={firstLink} />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
