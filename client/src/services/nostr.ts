@@ -616,8 +616,15 @@ export async function fetchRecentByKinds(
     ...(opts.relayHints ?? []).map((r) => r.trim()).filter((r) => r.length > 0),
   ]));
 
-  const events = await requestAll(relays, { kinds, authors: [pubkey], limit }, timeoutMs);
-  return events.sort((a, b) => (b.created_at || 0) - (a.created_at || 0)).slice(0, limit);
+  // The search relay's corpus is wider than the content relays' (probed:
+  // a DiVine creator's kind-34236 videos lived only there) — ask it too.
+  const [fromRelays, fromSearch] = await Promise.all([
+    requestAll(relays, { kinds, authors: [pubkey], limit }, timeoutMs),
+    fetchFromSearchRelayByFilter({ kinds, authors: [pubkey], limit }, timeoutMs),
+  ]);
+  const byId = new Map<string, NostrEvent>();
+  for (const e of [...fromRelays, ...fromSearch]) byId.set(e.id, e);
+  return [...byId.values()].sort((a, b) => (b.created_at || 0) - (a.created_at || 0)).slice(0, limit);
 }
 
 /**
@@ -708,6 +715,40 @@ export async function fetchEventsByIds(
   }
 
   return [...found.values()];
+}
+
+/** Any filter against the search relay, with the lens it requires; EOSE or
+ *  timeout resolves, never rejects. */
+function fetchFromSearchRelayByFilter(filter: Record<string, unknown>, timeoutMs: number): Promise<NostrEvent[]> {
+  return new Promise((resolve) => {
+    let relay: ReturnType<typeof searchRelay>;
+    try {
+      relay = searchRelay();
+    } catch {
+      relay = null;
+    }
+    if (!relay) return resolve([]);
+    const events: NostrEvent[] = [];
+    let sub: { unsubscribe: () => void } | null = null;
+    const timer = setTimeout(finish, timeoutMs);
+    try {
+      sub = relay
+        .req({ ...filter, search: "include:spam" } as Parameters<typeof relay.req>[0])
+        .subscribe((msg: { type: string; event?: NostrEvent }) => {
+          if (msg.type === "EVENT" && msg.event) {
+            eventStore.add(msg.event);
+            events.push(msg.event);
+          } else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();
+        });
+    } catch {
+      finish();
+    }
+    function finish() {
+      clearTimeout(timer);
+      sub?.unsubscribe();
+      resolve(events);
+    }
+  });
 }
 
 function fetchFromSearchRelay(ids: string[], timeoutMs: number): Promise<NostrEvent[]> {

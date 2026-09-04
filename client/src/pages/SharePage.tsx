@@ -378,7 +378,9 @@ export default function SharePage() {
 
   const videosQuery = useQuery({
     queryKey: ["share-videos", pubkey],
-    queryFn: () => fetchRecentByKinds(pubkey, [21, 22], 2, { relayHints }),
+    // NIP-71: normal (21) and short (22) videos, plus their addressable
+    // twins (34235 / 34236) — DiVine publishes shorts as 34236.
+    queryFn: () => fetchRecentByKinds(pubkey, [21, 22, 34235, 34236], 4, { relayHints }),
     enabled: !!pubkey,
     staleTime: 5 * 60_000,
     retry: false,
