@@ -11,8 +11,10 @@ const createAdminBillingPlan = vi.fn<(body: unknown) => Promise<AdminBillingPlan
 const updateAdminBillingPlan =
   vi.fn<(id: number, body: unknown) => Promise<AdminBillingPlanMapping>>();
 
+const getBillingPlans = vi.fn<() => Promise<{ plans: unknown[] }>>(async () => ({ plans: [] }));
 vi.mock("@/services/api", () => ({
   apiClient: {
+    getBillingPlans: () => getBillingPlans(),
     getAdminBillingPlanMappings: () => getAdminBillingPlanMappings(),
     getSchedulingPolicies: () => getSchedulingPolicies(),
     createAdminBillingPlan: (body: unknown) => createAdminBillingPlan(body),
@@ -91,6 +93,32 @@ describe("PlanMappingsCard", () => {
     expect(screen.getByText("Withdrawn")).toBeInTheDocument();
     // Flash prices the plan; the row identifies it and says what it grants.
     expect(screen.getByTestId("billing-plan-1")).toHaveTextContent("4f2a");
+  });
+
+  // A mapping is two ids nobody can read. Flash's public plans list already
+  // names and prices each one, so a mapping row says what it sells — and that
+  // an edit made in Flash can take up to ten minutes to show (Enes: the plan
+  // cache tops out at ten).
+  it("names and prices each mapping from Flash's plans list", async () => {
+    getBillingPlans.mockResolvedValue({
+      plans: [
+        { policy_id: 7, policy_name: "Priority", schedule_interval_seconds: 604800, is_default: false, plan_id: "4f2a", plan_name: "Priority", description: null, amount_minor: 200, currency: "USD", billing_interval: "monthly", checkout_url: "https://x", features: null, not_included: null },
+      ],
+    });
+    getAdminBillingPlanMappings.mockResolvedValue([
+      { id: 1, flash_service_id: "9c1e", flash_plan_id: "4f2a", scheduling_id: 7, is_active: true, created_at: "", updated_at: "" } as AdminBillingPlanMapping,
+      { id: 2, flash_service_id: "9c1e", flash_plan_id: "zzzz", scheduling_id: 7, is_active: true, created_at: "", updated_at: "" } as AdminBillingPlanMapping,
+    ]);
+    getSchedulingPolicies.mockResolvedValue(POLICIES);
+    renderCard();
+    const priced = await screen.findByTestId("billing-plan-1");
+    await waitFor(() => expect(priced.textContent).toContain("$2.00"));
+    expect(priced.textContent).toContain("per month");
+    expect(screen.getByTestId("billing-plan-flash-1")).toHaveTextContent("Priority");
+    // A mapping Flash no longer lists says so rather than showing a stale price.
+    const unlisted = screen.getByTestId("billing-plan-2");
+    expect(unlisted.textContent).toMatch(/not in Flash.s current list/i);
+    expect(screen.getByTestId("billing-plans-cache-note").textContent).toMatch(/ten minutes/i);
   });
 
   it("is usable on a fresh instance with nothing mapped yet", async () => {

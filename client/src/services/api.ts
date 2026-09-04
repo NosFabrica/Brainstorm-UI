@@ -313,6 +313,10 @@ export interface AdminBillingSubscription {
   scheduling_name?: string | null;
   scheduling_source: string;
   billing_blocked: boolean;
+  /** The paid period's start; with `current_period_end` the row reads as a span. */
+  current_period_start?: string | null;
+  /** When they're charged again — a renewal that is due vs one that silently stopped. */
+  next_billing_date?: string | null;
 }
 
 /**

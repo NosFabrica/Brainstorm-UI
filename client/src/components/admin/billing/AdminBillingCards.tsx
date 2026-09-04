@@ -59,7 +59,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Chip } from "@/components/ui/chip";
 import { tone, type Tone } from "@/lib/tones";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
-import { orderedSections, subscriptionIdsByEventId, type DivergenceMeta, type DivergenceTier, type OrderedSection } from "./divergenceSections";
+import { DIVERGENCE_META, orderedSections, subscriptionIdsByEventId, type DivergenceMeta, type DivergenceTier, type OrderedSection } from "./divergenceSections";
+import { StatTile } from "@/components/ui/stat-tile";
 
 import type { CreateAdminBillingPlanBody, SchedulingItem, UnmappedPlanRow, UpdateAdminBillingPlanBody } from "@/services/api";
 import { DIVERGENCE_KEY, POLICIES_KEY, SUBS_KEY } from "./queryKeys";
@@ -143,7 +144,7 @@ const td = "px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200";
 
 type ProfileBits = { name?: string; picture?: string };
 
-type SortKey = "subscriber" | "status" | "scheduling" | "source" | "period" | "synced";
+type SortKey = "subscriber" | "status" | "scheduling" | "source" | "period" | "synced" | "nextbill";
 type SortState = { key: SortKey; dir: "asc" | "desc" } | null;
 
 /** Same affordance as the Users tab's SortHeader: label + direction chevrons. */
@@ -243,6 +244,8 @@ function filterAndSort(
         // ISO timestamps sort correctly as strings; missing dates sink to the bottom.
         case "period":
           return s.current_period_end ?? "";
+        case "nextbill":
+          return s.next_billing_date ?? "";
         case "synced":
           return s.last_synced_at ?? "";
       }
@@ -496,7 +499,15 @@ function SubscriberRow({
             </AvatarFallback>
           </Avatar>
           <span className="flex flex-col min-w-0 leading-tight">
-            <span className="truncate max-w-[160px] font-medium">{profile?.name || who.short}</span>
+            <a
+              href={`/p/${who.full}`}
+              target="_blank"
+              rel="noopener"
+              className="truncate max-w-[160px] font-medium hover:text-brand-link hover:underline"
+              title="Open their public profile"
+            >
+              {profile?.name || who.short}
+            </a>
             {profile?.name && (
               <span className="font-mono text-[10px] text-slate-400 dark:text-slate-500 truncate max-w-[160px]">{who.short}</span>
             )}
@@ -513,8 +524,16 @@ function SubscriberRow({
       </td>
       <td className={td}>{scheduling}</td>
       <td className={td} data-testid={`billing-source-${s.pubkey.slice(0, 8)}`}>{s.scheduling_source}</td>
-      <td className={`${td} tabular-nums`}>
-        {formatBillingDate(s.current_period_end)}
+      <td className={`${td} tabular-nums`} data-testid={`billing-period-${s.pubkey.slice(0, 8)}`}>
+        {/* The paid period as a span; the end alone read as a deadline. */}
+        {s.current_period_start ? (
+          <span>
+            <span className="text-slate-400 dark:text-slate-500">{formatBillingDate(s.current_period_start)} → </span>
+            {formatBillingDate(s.current_period_end)}
+          </span>
+        ) : (
+          formatBillingDate(s.current_period_end)
+        )}
         {/* The status column cannot say this: a cancelled subscriber stays
             `active` until the date lands. */}
         {s.cancel_effective_date && (
@@ -522,6 +541,11 @@ function SubscriberRow({
             <Chip tone="warning" size="sm">Ends {formatBillingDate(s.cancel_effective_date)}</Chip>
           </span>
         )}
+      </td>
+      {/* What answers "when is this person charged again" — a renewal that is
+          due looks nothing like one that has silently stopped. */}
+      <td className={`${td} tabular-nums`} data-testid={`billing-nextbill-${s.pubkey.slice(0, 8)}`}>
+        {s.next_billing_date ? formatBillingDate(s.next_billing_date) : <span className="text-slate-400 dark:text-slate-500">—</span>}
       </td>
       <td className={`${td} tabular-nums`}>
         <span className="inline-flex items-center gap-1.5">
@@ -532,6 +556,12 @@ function SubscriberRow({
             </span>
           )}
         </span>
+        {/* The error in words, not just a triangle. */}
+        {s.last_sync_error && (
+          <span className="mt-0.5 block max-w-[220px] truncate font-mono text-[10px] text-amber-600 dark:text-amber-400" title={s.last_sync_error} data-testid={`billing-sync-error-${s.pubkey.slice(0, 8)}`}>
+            {s.last_sync_error}
+          </span>
+        )}
       </td>
       <td className={`${td} text-right`}>
         {/* Admin verbs live here. View-in-Flash and block/unblock are wired;
@@ -895,6 +925,19 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   const sections = orderedSections(divergence);
   const faults = sections.filter((x) => x.tier === "fault");
   const record = sections.filter((x) => x.tier === "record");
+  // Numbers first. Entitled = active or trial; ending = a cancellation is
+  // scheduled but the paid period still runs; faults = the fault tier's counts
+  // (the record tier is for knowing, not a number to worry about).
+  const stats = {
+    active: items.filter((x) => x.flash_status === "active" || x.flash_status === "trial").length,
+    past_due: items.filter((x) => x.flash_status === "past_due").length,
+    pending: items.filter((x) => x.flash_status === "pending").length,
+    ending: items.filter((x) => !!x.cancel_effective_date && (x.flash_status === "active" || x.flash_status === "trial")).length,
+    faults: Object.entries(divergence).reduce(
+      (n, [kind, section]) => n + (section && kind in DIVERGENCE_META && DIVERGENCE_META[kind as keyof typeof DIVERGENCE_META].tier === "fault" ? section.count : 0),
+      0,
+    ),
+  };
   // An exhausted event borrows the Flash id its signup row carries.
   const handlesByEventId = subscriptionIdsByEventId(divergence);
   const signupActions = {
@@ -934,6 +977,26 @@ export function AdminBillingCards({ active }: { active: boolean }) {
 
   return (
     <div className="space-y-6">
+      {/* The tab's numbers, before its lists. The Faults tile is the way down to the report. */}
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5" data-testid="billing-stats">
+        <StatTile value={stats.active} label="Active" tone="success" data-testid="billing-stat-active" />
+        <StatTile value={stats.past_due} label="Past due" tone={stats.past_due > 0 ? "warning" : "neutral"} data-testid="billing-stat-past_due" />
+        <StatTile value={stats.pending} label="Pending" tone="neutral" data-testid="billing-stat-pending" />
+        <StatTile value={stats.ending} label="Ending soon" tone="neutral" data-testid="billing-stat-ending" />
+        <StatTile
+          value={stats.faults}
+          label="Faults"
+          tone={stats.faults > 0 ? "warning" : "success"}
+          role="button"
+          tabIndex={0}
+          onClick={() => document.querySelector('[data-testid="card-billing-divergence"]')?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") document.querySelector('[data-testid="card-billing-divergence"]')?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+          className="cursor-pointer hover:border-brand-accent/40 transition-colors"
+          data-testid="billing-stat-faults"
+        />
+      </div>
       {/* Subscriber roster — attributed by construction (pubkey-keyed). */}
       <div>
         {items.length > 0 && (
@@ -1004,7 +1067,8 @@ export function AdminBillingCards({ active }: { active: boolean }) {
                   <th className={th}><BillingSortHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}><BillingSortHeader label="Scheduling" sortKey="scheduling" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}><BillingSortHeader label="Source" sortKey="source" sort={sort} onSort={toggleSort} /></th>
-                  <th className={th}><BillingSortHeader label="Period ends" sortKey="period" sort={sort} onSort={toggleSort} /></th>
+                  <th className={th}><BillingSortHeader label="Period" sortKey="period" sort={sort} onSort={toggleSort} /></th>
+                  <th className={th}><BillingSortHeader label="Next bill" sortKey="nextbill" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}><BillingSortHeader label="Last synced" sortKey="synced" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}></th>
                 </tr>

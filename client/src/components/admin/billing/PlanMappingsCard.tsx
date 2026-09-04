@@ -13,6 +13,8 @@ import {
   type UpdateAdminBillingPlanBody,
 } from "@/services/api";
 import { PlanMappingFormDialog } from "./PlanMappingFormDialog";
+import { fetchPlans, type BillingPlan } from "@/services/subscription";
+import { formatAmount, formatBillingInterval } from "@/lib/plans";
 
 import { PLANS_KEY, POLICIES_KEY } from "./queryKeys";
 
@@ -23,12 +25,18 @@ type DialogState =
 function PlanRow({
   plan,
   policyName,
+  flash,
+  flashLoaded,
   onEdit,
 }: {
   plan: AdminBillingPlanMapping;
   policyName: string;
+  /** Flash's own listing for this mapping's plan id, when it still lists one. */
+  flash: BillingPlan | null;
+  flashLoaded: boolean;
   onEdit: (plan: AdminBillingPlanMapping) => void;
 }) {
+  const interval = flash ? formatBillingInterval(flash.billingInterval) : null;
   return (
     <Card className="p-4" data-testid={`billing-plan-${plan.id}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -41,7 +49,24 @@ function PlanRow({
               {plan.is_active ? "For sale" : "Withdrawn"}
             </Chip>
           </div>
-          <p className="mt-1 font-mono text-xs text-slate-500 dark:text-slate-400 break-all">
+          {/* What it sells, in Flash's words and price — a mapping is two ids
+              nobody can read. A plan Flash no longer lists says so rather than
+              showing a stale price. */}
+          {flash ? (
+            <p className="mt-1 text-sm text-slate-700 dark:text-slate-200" data-testid={`billing-plan-flash-${plan.id}`}>
+              <span className="font-medium">{flash.planName ?? "Unnamed plan"}</span>
+              <span className="text-slate-500 dark:text-slate-400">
+                {" · "}
+                {formatAmount(flash.amountMinor, flash.currency)}
+                {interval ? ` ${interval}` : ""}
+              </span>
+            </p>
+          ) : flashLoaded ? (
+            <p className="mt-1 text-xs text-amber-600 dark:text-amber-400" data-testid={`billing-plan-flash-${plan.id}`}>
+              Not in Flash's current list — nothing to sell until it is.
+            </p>
+          ) : null}
+          <p className="mt-1 font-mono text-[11px] text-slate-400 dark:text-slate-500 break-all">
             service {plan.flash_service_id} · plan {plan.flash_plan_id}
           </p>
         </div>
@@ -80,6 +105,15 @@ export function PlanMappingsCard({ active }: { active: boolean }) {
     enabled: active,
   });
   // What each mapping grants. Best-effort: a policy we can't name still lists.
+  // Flash's public plans list — names and prices for the ids we map.
+  const flashPlansQuery = useQuery<BillingPlan[]>({
+    queryKey: ["/billing/plans"],
+    queryFn: () => fetchPlans(),
+    enabled: active,
+    staleTime: 60_000,
+    retry: 1,
+  });
+  const flashByPlanId = new Map((flashPlansQuery.data ?? []).filter((p) => p.planId).map((p) => [p.planId as string, p]));
   const policiesQuery = useQuery<SchedulingItem[]>({
     queryKey: POLICIES_KEY,
     queryFn: () => apiClient.getSchedulingPolicies(),
@@ -137,7 +171,10 @@ export function PlanMappingsCard({ active }: { active: boolean }) {
         <p className="text-xs text-slate-500 dark:text-slate-400">
           Which Flash plan buys which scheduling policy, and whether we sell it.
           Price, period and copy are read from Flash and shown on the pricing
-          page — they are not edited here.
+          page — they are not edited here.{" "}
+          <span data-testid="billing-plans-cache-note">
+            An edit made in Flash can take up to ten minutes to show here and on the pricing page.
+          </span>
         </p>
         <Button size="sm" onClick={openCreate} data-testid="button-new-plan-mapping">
           <Plus className="h-3.5 w-3.5 mr-1.5" />
@@ -165,6 +202,8 @@ export function PlanMappingsCard({ active }: { active: boolean }) {
               key={plan.id}
               plan={plan}
               policyName={policyNames.get(plan.scheduling_id) ?? `policy ${plan.scheduling_id}`}
+              flash={flashByPlanId.get(plan.flash_plan_id) ?? null}
+              flashLoaded={flashPlansQuery.isSuccess}
               onEdit={openEdit}
             />
           ))}

@@ -646,6 +646,85 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     expect(orphan.textContent).not.toMatch(/listed above/i);
   });
 
+  // Numbers first: how many are paying, how many are in trouble, how many
+  // are on their way out, and how many faults wait below — all from what the
+  // tab already fetched. The Faults tile is the way down to the report.
+  it("sums the roster and the report into a stat strip", async () => {
+    const row = (pk: string, status: string, over: Partial<AdminBillingSubscription> = {}): AdminBillingSubscription =>
+      ({ pubkey: pk.repeat(64), flash_status: status, scheduling_source: "billing", billing_blocked: false, ...over }) as AdminBillingSubscription;
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 6,
+      pages: 1,
+      items: [
+        row("1", "active"),
+        row("2", "active", { cancel_effective_date: "2026-09-30T00:00:00Z" }),
+        row("3", "past_due"),
+        row("4", "pending"),
+        row("5", "expired"),
+        row("6", "trial"),
+      ],
+    });
+    getAdminBillingDivergence.mockResolvedValue({
+      policy_mismatch: { count: 2, truncated: false, rows: [] },
+      unresolved_signups: { count: 4, truncated: false, rows: [] },
+      abandoned_checkouts: { count: 9, truncated: false, rows: [] }, // for the record — not a fault
+    });
+    renderCards();
+    const strip = await screen.findByTestId("billing-stats");
+    expect(screen.getByTestId("billing-stat-active")).toHaveTextContent("3"); // active + trial, still entitled
+    expect(screen.getByTestId("billing-stat-past_due")).toHaveTextContent("1");
+    expect(screen.getByTestId("billing-stat-pending")).toHaveTextContent("1");
+    expect(screen.getByTestId("billing-stat-ending")).toHaveTextContent("1"); // a cancellation scheduled
+    expect(screen.getByTestId("billing-stat-faults")).toHaveTextContent("6"); // 2 + 4, abandoned excluded
+    expect(strip.textContent).toContain("Ending soon");
+  });
+
+  // Enes: without next_billing_date "an operator cannot tell a renewal that is
+  // due from one that has silently stopped." It's in every row; show it. The
+  // period reads as a span, the sync error as words, and the name is the way
+  // to the person's public profile.
+  it("shows next billing, the period as a span, the sync error in words, and links the name to the profile", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [
+        {
+          pubkey: PUBKEY,
+          flash_status: "active",
+          scheduling_source: "billing",
+          billing_blocked: false,
+          current_period_start: "2026-09-01T12:00:00Z",
+          current_period_end: "2026-09-30T12:00:00Z",
+          next_billing_date: "2026-10-01T12:00:00Z",
+          last_synced_at: "2026-09-04T09:00:00Z",
+          last_sync_error: "401 invalid api key",
+        } as AdminBillingSubscription,
+      ],
+    });
+    getAdminBillingDivergence.mockResolvedValue({});
+    renderCards();
+    const row = await screen.findByTestId(`billing-sub-${PUBKEY.slice(0, 8)}`);
+    expect(screen.getByTestId(`billing-nextbill-${PUBKEY.slice(0, 8)}`)).toHaveTextContent("Oct 1, 2026");
+    expect(screen.getByTestId("sort-billing-nextbill")).toBeInTheDocument();
+    expect(screen.getByTestId(`billing-period-${PUBKEY.slice(0, 8)}`).textContent).toMatch(/Sep 1, 2026.*Sep 30, 2026/);
+    expect(screen.getByTestId(`billing-sync-error-${PUBKEY.slice(0, 8)}`)).toHaveTextContent("401 invalid api key");
+    const profile = row.querySelector(`a[href="/p/${nip19.npubEncode(PUBKEY)}"]`);
+    expect(profile).not.toBeNull();
+    expect(profile?.getAttribute("target")).toBe("_blank");
+  });
+
+  it("a row with no next billing date says so rather than guessing", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [{ pubkey: PUBKEY, flash_status: "expired", scheduling_source: "default", billing_blocked: false, next_billing_date: null } as AdminBillingSubscription],
+    });
+    getAdminBillingDivergence.mockResolvedValue({});
+    renderCards();
+    await screen.findByTestId(`billing-sub-${PUBKEY.slice(0, 8)}`);
+    expect(screen.getByTestId(`billing-nextbill-${PUBKEY.slice(0, 8)}`)).toHaveTextContent("—");
+  });
+
   it("says so plainly when nothing is unsettled", async () => {
     getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
 
