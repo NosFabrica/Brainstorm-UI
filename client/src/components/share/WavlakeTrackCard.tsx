@@ -36,7 +36,7 @@ export function WavlakeTrackCard({ url }: { url: string }) {
         audio={track.audioUrl}
         durationSec={track.duration}
         sourceLabel="Wavlake"
-        onOpen={() => window.open(wavlakeTrackUrl(track.id), "_blank", "noopener,noreferrer")}
+        onOpen={() => window.open(wavlakeTrackUrl(track.id), "_blank", "noopener")}
       />
     </div>
   );

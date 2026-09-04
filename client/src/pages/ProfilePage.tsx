@@ -1444,7 +1444,7 @@ export default function ProfilePage() {
         urlRegex.lastIndex = 0;
         const display = part.replace(/^https?:\/\//, '').replace(/\/$/, '');
         return (
-          <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-brand-primary underline underline-offset-2 decoration-brand-primary/25 break-all" data-testid={`link-about-url-${i}`}>
+          <a key={i} href={part} target="_blank" rel="noopener" className="text-brand-primary underline underline-offset-2 decoration-brand-primary/25 break-all" data-testid={`link-about-url-${i}`}>
             {display}
           </a>
         );

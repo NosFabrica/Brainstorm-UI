@@ -75,7 +75,7 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
                 <Radio className="h-7 w-7 opacity-90" />
                 <p className="text-sm font-semibold">This stream can&apos;t play here</p>
                 {watchUrl && (
-                  <a href={watchUrl} target="_blank" rel="noopener noreferrer" className="mt-1 inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-link transition-colors hover:bg-slate-100" data-testid="live-watch-external">
+                  <a href={watchUrl} target="_blank" rel="noopener" className="mt-1 inline-flex items-center gap-1.5 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-brand-link transition-colors hover:bg-slate-100" data-testid="live-watch-external">
                     <ExternalLink className="h-4 w-4" /> Watch on zap.stream
                   </a>
                 )}
@@ -109,7 +109,7 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
       )}
 
       {watchUrl && canEmbed && (
-        <a href={watchUrl} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand-link hover:underline">
+        <a href={watchUrl} target="_blank" rel="noopener" className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-brand-link hover:underline">
           <ExternalLink className="h-3.5 w-3.5" /> Open in zap.stream
         </a>
       )}

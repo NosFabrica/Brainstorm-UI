@@ -59,7 +59,7 @@ export function Footer({ minimal = false }: { minimal?: boolean }) {
             <a
               href="https://megistus.xyz/"
               target="_blank"
-              rel="noopener noreferrer"
+              rel="noopener"
               data-testid="link-megistus"
               aria-label="Megistus"
               className="opacity-90 hover:opacity-100 transition-opacity"
@@ -70,7 +70,7 @@ export function Footer({ minimal = false }: { minimal?: boolean }) {
             <a
               href="https://nosfabrica.com/"
               target="_blank"
-              rel="noopener noreferrer"
+              rel="noopener"
               data-testid="link-nosfabrica"
               aria-label="Nosfabrica"
               className="opacity-90 hover:opacity-100 transition-opacity"

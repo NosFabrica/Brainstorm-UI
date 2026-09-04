@@ -80,7 +80,7 @@ export function ShareProfileModal({ open, onOpenChange, npub, displayName, pictu
           <a
             href={canonicalUrl}
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noopener"
             className="block rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm hover:border-brand-primary/25 hover:shadow-md transition-all"
             data-testid="share-open-page-card"
           >
@@ -131,7 +131,7 @@ export function ShareProfileModal({ open, onOpenChange, npub, displayName, pictu
             <a
               href={canonicalUrl}
               target="_blank"
-              rel="noopener noreferrer"
+              rel="noopener"
               className="-mt-1 inline-flex items-center gap-1 text-xs font-semibold text-brand-link hover:underline"
               data-testid="share-open-page-link"
             >

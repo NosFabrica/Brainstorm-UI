@@ -346,7 +346,7 @@ export function KeySignInModal({
                           <a
                             href={ext.url}
                             target="_blank"
-                            rel="noopener noreferrer"
+                            rel="noopener"
                             className="inline-flex items-center gap-0.5 font-semibold text-brand-link hover:underline transition-colors"
                             data-testid={`link-install-${ext.name.toLowerCase()}`}
                           >

@@ -50,7 +50,7 @@ export function OpenInApp({ entity, className = "" }: { entity: OpenEntity; clas
           <a
             key={c.name}
             href={c.href}
-            {...(c.external ? { target: "_blank", rel: "noopener noreferrer" } : {})}
+            {...(c.external ? { target: "_blank", rel: "noopener" } : {})}
             className={btn}
             data-testid={c.testId}
           >

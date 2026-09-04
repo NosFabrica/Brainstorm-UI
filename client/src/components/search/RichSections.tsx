@@ -172,7 +172,7 @@ function TopStoryCard({ story }: { story: TopStory }) {
           <a
             href={news.url}
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noopener"
             onClick={(e) => e.stopPropagation()}
             className="mt-1 line-clamp-3 text-[13px] font-semibold leading-snug text-slate-900 dark:text-slate-100 hover:text-brand-primary hover:underline"
           >

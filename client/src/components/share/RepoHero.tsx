@@ -137,7 +137,7 @@ export function RepoHero({ event }: { event: RepoEvent }) {
           <a
             href={web}
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noopener"
             className="inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity"
             data-testid="repo-hero-web"
           >

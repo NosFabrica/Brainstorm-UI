@@ -30,7 +30,7 @@ function PrChip({ url, n }: { url: string; n: string }) {
     <a
       href={url}
       target="_blank"
-      rel="noopener noreferrer"
+      rel="noopener"
       className="inline-flex items-center gap-1 align-middle rounded-md bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[12px] font-medium text-slate-600 dark:text-slate-300 no-underline hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
     >
       <Favicon host={host} className="h-3 w-3 shrink-0" />

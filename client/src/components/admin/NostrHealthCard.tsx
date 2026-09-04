@@ -872,7 +872,7 @@ function AssignedAssistantSection({
                   <a
                     href={profile.website}
                     target="_blank"
-                    rel="noreferrer"
+                    rel="noopener"
                     className={`text-[10px] hover:underline truncate ${
                       isAssistant ? "text-emerald-700 dark:text-emerald-300" : "text-slate-600 dark:text-slate-300"
                     }`}
@@ -999,7 +999,7 @@ function Kind0Panel({
                   <a
                     href={profile.website}
                     target="_blank"
-                    rel="noreferrer"
+                    rel="noopener"
                     className={`text-[10px] hover:underline truncate ${
                       isAssistant ? "text-emerald-700 dark:text-emerald-300" : "text-slate-600 dark:text-slate-300"
                     }`}

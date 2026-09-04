@@ -109,7 +109,7 @@ export function PersonCard({
               <a
                 href={result.website!.startsWith("http") ? result.website! : `https://${result.website}`}
                 target="_blank"
-                rel="noopener noreferrer"
+                rel="noopener"
                 className="hover:underline truncate"
                 onClick={(e) => e.stopPropagation()}
               >

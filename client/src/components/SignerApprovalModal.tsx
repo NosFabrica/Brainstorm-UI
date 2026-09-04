@@ -41,7 +41,7 @@ export function SignerApprovalModal() {
           {/* An anchor, not a handler: the click is the gesture that lets the
               window through, and a popup blocker never sees it. */}
           <Button asChild data-testid="link-approval-open">
-            <a href={approval.url} target="_blank" rel="noopener noreferrer" onClick={approval.opened}>
+            <a href={approval.url} target="_blank" rel="noopener" onClick={approval.opened}>
               <ExternalLink /> Open my signer
             </a>
           </Button>

@@ -155,7 +155,7 @@ function CardShell({
           <a
             href={openInUrl}
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noopener"
             onClick={(e) => e.stopPropagation()}
             className={
               footer

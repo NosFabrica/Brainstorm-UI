@@ -40,7 +40,7 @@ export function openArticleInApp(naddr: string): void {
   const isAndroid = /Android/i.test(navigator.userAgent || "");
 
   if (!isAndroid) {
-    window.open(NOSTRIA_WEB_URL, "_blank", "noopener,noreferrer");
+    window.open(NOSTRIA_WEB_URL, "_blank", "noopener");
     return;
   }
 

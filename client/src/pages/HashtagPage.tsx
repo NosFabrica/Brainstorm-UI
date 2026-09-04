@@ -292,7 +292,7 @@ export default function HashtagPage() {
                     key={c.name}
                     href={c.href}
                     target="_blank"
-                    rel="noopener noreferrer"
+                    rel="noopener"
                     className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 transition-colors hover:border-brand-accent/50"
                     data-testid={`hashtag-client-${c.name}`}
                   >

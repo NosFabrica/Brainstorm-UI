@@ -50,7 +50,7 @@ export function ExternalIdentities({ identities }: { identities: ExternalIdentit
         const title = `${id.label}: ${id.identity}`;
         const cls = "inline-flex items-center text-slate-400 dark:text-slate-500 transition-colors hover:text-brand-link";
         return id.url ? (
-          <a key={`${id.platform}:${id.identity}`} href={id.url} target="_blank" rel="noopener noreferrer" title={title} aria-label={title} className={cls} data-testid="profile-identity">
+          <a key={`${id.platform}:${id.identity}`} href={id.url} target="_blank" rel="noopener" title={title} aria-label={title} className={cls} data-testid="profile-identity">
             <Glyph icon={id.icon} />
           </a>
         ) : (

@@ -788,9 +788,9 @@ export default function SettingsPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-1.5">
-                  <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold text-brand-deep hover:text-brand-accent transition-colors">Amethyst</a>
+                  <a href="https://amethyst.social/#" target="_blank" rel="noopener" className="text-[11px] font-semibold text-brand-deep hover:text-brand-accent transition-colors">Amethyst</a>
                   <span className="text-[10px] text-slate-500 dark:text-slate-400">&middot;</span>
-                  <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="text-[11px] font-semibold text-orange-600 hover:text-orange-700 transition-colors">Nostria</a>
+                  <a href="https://www.nostria.app/" target="_blank" rel="noopener" className="text-[11px] font-semibold text-orange-600 hover:text-orange-700 transition-colors">Nostria</a>
                 </div>
               </div>
             </div>
@@ -1628,7 +1628,7 @@ export default function SettingsPage() {
           <a
             href="https://github.com/NosFabrica"
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noopener"
             className="flex items-center gap-3 rounded-xl border border-brand-accent/15 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm px-4 py-3.5 hover:border-brand-accent/30 hover:shadow-sm transition-all duration-300 group/link"
             data-testid="link-github"
           >
@@ -1645,7 +1645,7 @@ export default function SettingsPage() {
           <a
             href="https://njump.me/npub1healthsx3swcgtknff7zwpg8aj2q7h49zecul5rz490f6z2zp59qnfvp8p"
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noopener"
             className="flex items-center gap-3 rounded-xl border border-brand-accent/15 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm px-4 py-3.5 hover:border-brand-accent/30 hover:shadow-sm transition-all duration-300 group/link"
             data-testid="link-nostr"
           >
@@ -1662,7 +1662,7 @@ export default function SettingsPage() {
           <a
             href="https://nosfabrica.com"
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noopener"
             className="flex items-center gap-3 rounded-xl border border-brand-accent/15 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm px-4 py-3.5 hover:border-brand-accent/30 hover:shadow-sm transition-all duration-300 group/link"
             data-testid="link-website"
           >

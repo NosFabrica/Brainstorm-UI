@@ -48,7 +48,7 @@ const mdComponents: Components = {
       return <img src={url} alt="" loading="lazy" className="my-3 block max-h-[34rem] w-full rounded-xl border border-slate-200 dark:border-slate-800 object-contain" />;
     }
     if (url && bare) return <LinkChip url={url} />;
-    return <a href={url || undefined} target="_blank" rel="noopener noreferrer" className="font-medium text-brand-link underline decoration-brand-link/40 underline-offset-2 hover:decoration-brand-link">{children}</a>;
+    return <a href={url || undefined} target="_blank" rel="noopener" className="font-medium text-brand-link underline decoration-brand-link/40 underline-offset-2 hover:decoration-brand-link">{children}</a>;
   },
 };
 

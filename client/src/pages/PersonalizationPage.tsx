@@ -140,7 +140,7 @@ export default function PersonalizationPage() {
                   <a
                     href="https://amethyst.social/"
                     target="_blank"
-                    rel="noopener noreferrer"
+                    rel="noopener"
                     className="inline-flex items-center gap-0.5 font-semibold text-emerald-700 hover:text-emerald-800 hover:underline transition-colors"
                     data-testid="link-amethyst"
                   >
@@ -151,7 +151,7 @@ export default function PersonalizationPage() {
                   <a
                     href="https://brainstorm.world"
                     target="_blank"
-                    rel="noopener noreferrer"
+                    rel="noopener"
                     className="inline-flex items-center gap-0.5 font-semibold text-emerald-700 hover:text-emerald-800 hover:underline transition-colors"
                     data-testid="link-brainstorm-world"
                   >

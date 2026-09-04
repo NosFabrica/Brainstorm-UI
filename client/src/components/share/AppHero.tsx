@@ -411,7 +411,7 @@ export function AppHero({ event }: { event: AppEvent }) {
           <a
             href={url}
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noopener"
             className={`${SECONDARY_PILL} ${repository ? "" : "col-span-2"}`}
             data-testid="app-hero-website"
           >
@@ -422,7 +422,7 @@ export function AppHero({ event }: { event: AppEvent }) {
           <a
             href={repository}
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noopener"
             className={`${SECONDARY_PILL} ${store && url ? "" : "col-span-2"}`}
             data-testid="app-hero-source"
           >
@@ -434,7 +434,7 @@ export function AppHero({ event }: { event: AppEvent }) {
             href={asset.url}
             download
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noopener"
             title={asset.hash ? `SHA-256 ${asset.hash}` : undefined}
             className={`${SECONDARY_PILL} col-span-2`}
             data-testid="app-hero-download"
@@ -450,7 +450,7 @@ export function AppHero({ event }: { event: AppEvent }) {
           <a
             href={store}
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noopener"
             className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-full bg-brand-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 transition-opacity sm:py-1.5"
             data-testid="app-hero-get"
           >
@@ -461,7 +461,7 @@ export function AppHero({ event }: { event: AppEvent }) {
             <a
               href={url}
               target="_blank"
-              rel="noopener noreferrer"
+              rel="noopener"
               className="col-span-2 inline-flex items-center justify-center gap-1.5 rounded-full bg-brand-primary px-4 py-2 text-xs font-semibold text-white hover:opacity-90 transition-opacity sm:py-1.5"
               data-testid="app-hero-get"
             >

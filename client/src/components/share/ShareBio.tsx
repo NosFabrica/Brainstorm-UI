@@ -57,7 +57,7 @@ export function ShareBio({ text, profiles }: { text: string; profiles?: Map<stri
         if (!part) return null;
         if (/^https?:\/\//i.test(part)) {
           return (
-            <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="break-all text-brand-primary hover:underline">
+            <a key={i} href={part} target="_blank" rel="noopener" className="break-all text-brand-primary hover:underline">
               {part.replace(/^https?:\/\//, "").replace(/\/$/, "")}
             </a>
           );

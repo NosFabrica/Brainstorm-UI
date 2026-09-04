@@ -305,6 +305,10 @@ describe("SearchResults", () => {
     const getIt = screen.getByTestId("app-get-app1");
     expect(getIt.getAttribute("href")).toMatch(/^https:\/\/zapstore\.dev\/apps\/naddr1/);
     expect(getIt.querySelector("img")?.getAttribute("src")).toContain("zapstore.dev");
+    // A new tab (the reader keeps their place) with noopener — but WITH a
+    // referrer, so the destination sees Brainstorm as the traffic source.
+    expect(getIt.getAttribute("target")).toBe("_blank");
+    expect(getIt.getAttribute("rel")).toBe("noopener");
   });
 
   // Benjamin, over the Apps grid: "the containers are all different sizes —

@@ -105,7 +105,10 @@ describe("ComposedResults — media-rich sections", () => {
     expect(card).toHaveTextContent("liverpoolecho.co.uk");
     expect(card.querySelector("img")?.getAttribute("src")).toBe("https://cdn.example/photo-1.jpg");
     // The headline goes to the article; the card sits in the Latest section.
-    expect(card.querySelector('a[href="https://www.liverpoolecho.co.uk/story-1"]')).not.toBeNull();
+    const headline = card.querySelector('a[href="https://www.liverpoolecho.co.uk/story-1"]');
+    expect(headline).not.toBeNull();
+    // Outlets should see Brainstorm in their analytics: noopener, no noreferrer.
+    expect(headline?.getAttribute("rel")).toBe("noopener");
     // Strip items don't repeat as rows; the plain note still does.
     expect(screen.queryByTestId("serp-row-n1")).toBeNull();
     expect(screen.getByTestId("serp-row-n2")).toBeInTheDocument();

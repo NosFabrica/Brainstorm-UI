@@ -54,7 +54,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
           <div className="flex items-center gap-2">
             <MapPin className="h-4 w-4 shrink-0 text-brand-link" />
             {mapUrl ? (
-              <a href={mapUrl} target="_blank" rel="noopener noreferrer" className="font-medium text-brand-link hover:underline">{e.location}</a>
+              <a href={mapUrl} target="_blank" rel="noopener" className="font-medium text-brand-link hover:underline">{e.location}</a>
             ) : (
               <span className="font-medium">{e.location}</span>
             )}
@@ -71,7 +71,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
           <a
             href={googleCalendarUrl(e)}
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noopener"
             className="inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover"
             data-testid="event-add-calendar"
           >
@@ -82,7 +82,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
           <a
             href={e.recordingUrl}
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noopener"
             className="inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover"
             data-testid="event-watch-recording"
           >

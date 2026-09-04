@@ -264,7 +264,7 @@ export function SerpRow({
           <a
             href={news.url}
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noopener"
             onClick={(e) => e.stopPropagation()}
             className="mt-1 block text-[15px] font-semibold leading-snug text-slate-900 dark:text-slate-100 hover:text-brand-primary hover:underline transition-colors break-words line-clamp-2"
             data-testid="news-headline"
@@ -283,7 +283,7 @@ export function SerpRow({
           <a
             href={news.url}
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noopener"
             onClick={(e) => e.stopPropagation()}
             className="shrink-0"
             tabIndex={-1}

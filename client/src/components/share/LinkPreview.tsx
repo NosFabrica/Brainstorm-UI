@@ -59,7 +59,7 @@ export function LinkChip({ url }: { url: string }) {
     <a
       href={url}
       target="_blank"
-      rel="noopener noreferrer"
+      rel="noopener"
       className="inline-flex max-w-full items-center gap-1 rounded-md bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 align-middle text-[13px] font-medium text-brand-link no-underline hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
       data-testid="link-chip"
     >
@@ -102,7 +102,7 @@ function GithubCard({ url, owner, repo, host }: { url: string; owner: string; re
       <a
         href={url}
         target="_blank"
-        rel="noopener noreferrer"
+        rel="noopener"
         className="mt-2 block rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden no-underline hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
         data-testid="link-card-github"
       >
@@ -123,7 +123,7 @@ function GithubCard({ url, owner, repo, host }: { url: string; owner: string; re
     <a
       href={url}
       target="_blank"
-      rel="noopener noreferrer"
+      rel="noopener"
       className="mt-2 flex items-stretch gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 no-underline overflow-hidden hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-sm transition-all"
       data-testid="link-card-github"
     >
@@ -149,7 +149,7 @@ export function LinkPreviewCard({ url }: { url: string }) {
       <a
         href={url}
         target="_blank"
-        rel="noopener noreferrer"
+        rel="noopener"
         className="mt-2 block rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden no-underline hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
         data-testid="link-card-youtube"
       >
@@ -195,7 +195,7 @@ function UnfurledCard({ url, host }: { url: string; host: string }) {
     <a
       href={url}
       target="_blank"
-      rel="noopener noreferrer"
+      rel="noopener"
       onClick={(e) => e.stopPropagation()}
       className="mt-2 flex items-stretch gap-3 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 no-underline hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-sm transition-all"
       data-testid="link-card"

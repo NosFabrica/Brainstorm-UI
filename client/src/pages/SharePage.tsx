@@ -899,7 +899,7 @@ export default function SharePage() {
         <a
           href={normalizeUrl(profile.website)}
           target="_blank"
-          rel="noopener noreferrer"
+          rel="noopener"
           className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand-primary"
           title={profile.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}
           aria-label="Website"
@@ -1430,8 +1430,8 @@ export default function SharePage() {
         <h3 className="text-base font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>New to Brainstorm?</h3>
         <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 max-w-md mx-auto">Brainstorm scores reputation from real human connections — no algorithm. See how it works:</p>
         <div className="mt-3 flex flex-wrap justify-center gap-2">
-          <a href="/what-is-wot" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-3.5 py-2 rounded-full bg-white dark:bg-slate-900 border border-brand-accent/30 text-xs font-semibold text-brand-deep hover:border-brand-accent/60 transition-colors" data-testid="link-what-is-wot">What is a Web of Trust?</a>
-          <a href="/about" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-3.5 py-2 rounded-full bg-white dark:bg-slate-900 border border-brand-accent/30 text-xs font-semibold text-brand-deep hover:border-brand-accent/60 transition-colors" data-testid="link-about">About Brainstorm</a>
+          <a href="/what-is-wot" target="_blank" rel="noopener" className="inline-flex items-center px-3.5 py-2 rounded-full bg-white dark:bg-slate-900 border border-brand-accent/30 text-xs font-semibold text-brand-deep hover:border-brand-accent/60 transition-colors" data-testid="link-what-is-wot">What is a Web of Trust?</a>
+          <a href="/about" target="_blank" rel="noopener" className="inline-flex items-center px-3.5 py-2 rounded-full bg-white dark:bg-slate-900 border border-brand-accent/30 text-xs font-semibold text-brand-deep hover:border-brand-accent/60 transition-colors" data-testid="link-about">About Brainstorm</a>
         </div>
         {!loggedIn && (
           <Link href={`/login?invite=${npub}`} className="mt-4 inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold transition-colors" data-testid="share-get-started">
