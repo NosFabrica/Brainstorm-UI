@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
-import { Radar, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, Radar, SlidersHorizontal } from "lucide-react";
 import { activeFilterCount, applyFilters, datePreset, readFilters, sinceForPreset, type DatePreset, type SearchFilterPatch } from "@/lib/searchSyntax";
 import { clientFilterHits } from "@/lib/clientFilters";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
@@ -66,19 +66,101 @@ function profilesOf(hits: SearchHit[]) {
   return map;
 }
 
-const TABS: { key: SearchTab; label: string }[] = [
+/** Google's row: five verticals in view, the long tail behind More ▾. */
+const PRIMARY_TABS: { key: SearchTab; label: string }[] = [
   { key: "everything", label: "Everything" },
   { key: "people", label: "People" },
   { key: "notes", label: "Notes" },
   { key: "articles", label: "Articles" },
   { key: "media", label: "Media" },
+];
+const MORE_TABS: { key: SearchTab; label: string }[] = [
   { key: "apps", label: "Apps" },
   { key: "repos", label: "Repos" },
   { key: "live", label: "Live" },
   { key: "lists", label: "Lists" },
 ];
+const TABS = [...PRIMARY_TABS, ...MORE_TABS];
 
 const TAB_KEYS = new Set(TABS.map((t) => t.key));
+
+const tabClass = (active: boolean) =>
+  "shrink-0 px-2.5 sm:px-3 py-1.5 text-xs sm:text-[13px] font-medium border-b-2 -mb-px transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded-t " +
+  (active
+    ? "border-brand-primary text-brand-deep dark:text-brand-link"
+    : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200");
+
+/** The More ▾ slot: names the folded vertical that is active (so the row
+ *  always says where you are), otherwise "More". A plain disclosure, not a
+ *  portal — it sits OUTSIDE the scrolling strip so nothing clips it. */
+function MoreTabs({ tab, onChange }: { tab: SearchTab; onChange: (next: SearchTab) => void }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const active = MORE_TABS.find((t) => t.key === tab);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (e: PointerEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative shrink-0">
+      <button
+        type="button"
+        role="tab"
+        aria-selected={!!active}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className={tabClass(!!active) + " inline-flex items-center gap-0.5"}
+        data-testid="search-tab-more"
+      >
+        {active ? active.label : "More"}
+        <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          aria-label="More result types"
+          className="absolute right-0 top-full z-20 mt-1 min-w-[9rem] rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+        >
+          {MORE_TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="menuitem"
+              aria-current={tab === t.key ? "true" : undefined}
+              onClick={() => {
+                setOpen(false);
+                onChange(t.key);
+              }}
+              className={
+                "flex w-full items-center rounded-lg px-3 py-1.5 text-left text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
+                (tab === t.key
+                  ? "font-semibold text-brand-deep dark:text-brand-link"
+                  : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800")
+              }
+              data-testid={`search-tab-${t.key}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function tabFromUrl(): SearchTab {
   try {
@@ -399,10 +481,14 @@ export function SearchResults({
   onPrefetchEnter,
   onPrefetchLeave,
   onQueryRewrite,
+  perspective,
 }: {
   query: string;
   pov: SearchPov;
   userPubkey?: string;
+  /** The page's Brainstorm / My perspective control, seated in the tab row
+   *  beside Filters once results show (one row of chrome, not three). */
+  perspective?: React.ReactNode;
   /** People-card click. Default: the public profile page. */
   onOpenProfile?: (result: SearchResult) => void;
   onPrefetchEnter?: (result: SearchResult) => void;
@@ -572,59 +658,58 @@ export function SearchResults({
 
   return (
     <div className="w-full max-w-2xl lg:max-w-[62rem] mx-auto mt-4 sm:mt-5 text-left" data-testid="search-results">
-      {/* Vertical tabs — underline style on desktop, scrollable on mobile. */}
-      {/* The tab strip scrolls on phones; the Filters button stays pinned at
-          the right edge OUTSIDE the scroller, so its badge is always in view. */}
-      <div className="mb-3 sm:mb-4 -mx-1 flex items-stretch border-b border-slate-100 dark:border-slate-800/60 px-1">
+      {/* One quiet row, Google's anatomy: five tabs (scrolling on phones),
+          then pinned at the right edge — More ▾, the perspective control and
+          Filters — so nothing a person needs ever scrolls out of view. */}
       <div
-        role="tablist"
-        aria-label="Result types"
-        className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-        data-testid="search-tabs"
+        className="mb-2 sm:mb-3 -mx-1 flex items-stretch border-b border-slate-100 dark:border-slate-800/60 px-1"
+        data-testid="search-toolbar"
       >
-        {TABS.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            role="tab"
-            aria-selected={tab === t.key}
-            onClick={() => changeTab(t.key)}
-            className={
-              "shrink-0 px-3 py-2 text-xs sm:text-[13px] font-medium border-b-2 -mb-px transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded-t " +
-              (tab === t.key
-                ? "border-brand-primary text-brand-deep dark:text-brand-link"
-                : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200")
-            }
-            data-testid={`search-tab-${t.key}`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-        {onQueryRewrite && (
-          <button
-            type="button"
-            aria-expanded={filtersOpen}
-            onClick={() => setFiltersOpen((v) => !v)}
-            className={
-              "ml-1 shrink-0 inline-flex items-center gap-1 px-2.5 py-2 text-xs font-medium border-b-2 -mb-px transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded-t " +
-              (filtersOpen
-                ? "border-brand-primary text-brand-deep dark:text-brand-link"
-                : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200")
-            }
-            data-testid="search-filters-toggle"
-          >
-            <SlidersHorizontal className="h-3 w-3" /> Filters
-            {activeFilters > 0 && (
-              <span
-                className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-primary px-1 text-[10px] font-semibold leading-none text-white"
-                data-testid="filters-active-count"
-              >
-                {activeFilters}
-              </span>
-            )}
-          </button>
-        )}
+        <div
+          role="tablist"
+          aria-label="Result types"
+          className="flex min-w-0 flex-1 items-center gap-0.5 sm:gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          data-testid="search-tabs"
+        >
+          {PRIMARY_TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.key}
+              onClick={() => changeTab(t.key)}
+              className={tabClass(tab === t.key)}
+              data-testid={`search-tab-${t.key}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="ml-1 flex shrink-0 items-center gap-1 sm:gap-2">
+          <MoreTabs tab={tab} onChange={changeTab} />
+          {perspective}
+          {onQueryRewrite && (
+            <button
+              type="button"
+              aria-expanded={filtersOpen}
+              aria-label="Filters"
+              onClick={() => setFiltersOpen((v) => !v)}
+              className={tabClass(filtersOpen) + " inline-flex items-center gap-1 !px-2 sm:!px-2.5"}
+              data-testid="search-filters-toggle"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
+              <span className="hidden sm:inline">Filters</span>
+              {activeFilters > 0 && (
+                <span
+                  className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-primary px-1 text-[10px] font-semibold leading-none text-white"
+                  data-testid="filters-active-count"
+                >
+                  {activeFilters}
+                </span>
+              )}
+            </button>
+          )}
+        </div>
       </div>
 
       {filtersOpen && onQueryRewrite && <FiltersPanel query={query} pov={pov} userPubkey={userPubkey} onQueryRewrite={onQueryRewrite} />}

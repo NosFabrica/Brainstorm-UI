@@ -11,8 +11,6 @@ import {
   Check,
   X,
   SlidersHorizontal,
-  Globe,
-  UserRound,
   Clock,
   Radio,
   Newspaper,
@@ -50,6 +48,7 @@ import {
 } from "@/lib/profileSearch";
 import { suggestProfiles } from "@/services/search";
 import { SearchResults } from "@/components/search/SearchResults";
+import { PerspectiveToggle } from "@/components/search/PerspectiveToggle";
 import { personAssist, splitFilters, type PersonAssist } from "@/lib/searchSyntax";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
@@ -1155,101 +1154,18 @@ export default function Landing() {
               field competed with the one thing this screen asks you to do.
               The catalogue's home entry point is /tags/mine instead. */}
 
-          {!user ? (
-            <div className="mt-6 flex flex-col items-center gap-2.5 rounded-2xl backdrop-blur-[2px]" data-testid="text-home-hint">
-              {/* (accent-discipline preview) quiet neutral segmented control —
-                  no gradient chrome, no embedded wordmark (guidelines p16/p17). */}
-              <div role="group" aria-label="Trust perspective" className="inline-flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/50 p-0.5">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-white dark:bg-slate-900 px-3.5 py-1 text-xs font-semibold text-slate-800 dark:text-slate-100 shadow-sm" data-testid="text-home-pov-label">
-                  <Globe className="h-3 w-3 text-brand-primary" /> Brainstorm
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setLocation("/login")}
-                  className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 text-xs font-medium text-slate-500 dark:text-slate-400 transition-colors hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-                  data-testid="toggle-home-pov-signin"
-                >
-                  <UserRound className="h-3 w-3" /> My perspective
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={() => setLocation("/personalization")}
-                className="text-xs text-brand-link hover:underline transition-colors rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-                data-testid="link-home-learn-more"
-              >
-                What is this?
-              </button>
-            </div>
-          ) : (
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs rounded-2xl backdrop-blur-[2px]" data-testid="text-home-hint">
-              {/* Quiet neutral segmented control — active segment is a plain white
-                  chip, no gradient / no wordmark image (guidelines p16/p17). */}
-              <div role="group" aria-label="Trust perspective" className="inline-flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/50 p-0.5" data-testid="toggle-home-pov">
-                <button
-                  type="button"
-                  onClick={() => setPov("nosfabrica")}
-                  aria-pressed={effectivePov === "nosfabrica"}
-                  className={
-                    "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
-                    (effectivePov === "nosfabrica"
-                      ? "bg-white dark:bg-slate-900 font-semibold text-slate-800 dark:text-slate-100 shadow-sm"
-                      : "font-medium text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white")
-                  }
-                  data-testid="toggle-home-pov-nosfabrica"
-                >
-                  <Globe className={`h-3 w-3 ${effectivePov === "nosfabrica" ? "text-brand-primary" : ""}`} /> Brainstorm
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (canUseMywot) setPov("mywot");
-                  }}
-                  disabled={!canUseMywot}
-                  aria-pressed={effectivePov === "mywot"}
-                  title={
-                    !hasMywot
-                      ? "Calculate your trust network in Settings to enable"
-                      : !isSearchObserver
-                        ? "Personalized search isn't available for your account yet"
-                        : undefined
-                  }
-                  className={
-                    "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
-                    (effectivePov === "mywot"
-                      ? "bg-white dark:bg-slate-900 font-semibold text-slate-800 dark:text-slate-100 shadow-sm"
-                      : "font-medium text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white") +
-                    (!canUseMywot ? " opacity-50 cursor-not-allowed" : "")
-                  }
-                  data-testid="toggle-home-pov-mywot"
-                >
-                  <Avatar className="h-4 w-4 shrink-0">
-                    {user.picture ? <AvatarImage src={user.picture} alt="" className="object-cover" /> : null}
-                    <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
-                  </Avatar>{" "}
-                  My perspective
-                </button>
-              </div>
-              {!hasMywot && (
-                <button
-                  type="button"
-                  onClick={() => setLocation("/settings")}
-                  className="inline-flex items-center gap-1 font-medium text-emerald-700 dark:text-emerald-400 hover:underline transition-colors rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-                  data-testid="link-home-calculate-yours"
-                >
-                  Calculate yours <ArrowRight className="h-3 w-3" />
-                </button>
-              )}
-              <span className="text-slate-400 dark:text-slate-500" aria-hidden="true">·</span>
-              <button
-                type="button"
-                onClick={() => setLocation("/personalization")}
-                className="text-brand-link hover:underline transition-colors rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-                data-testid="link-home-learn-more"
-              >
-                What is this?
-              </button>
-            </div>
+          {/* The lens switch sits under the box only while the page is
+              pristine. Once results show it moves into the results' tab row
+              (compact) — one row of chrome between the box and the results,
+              not three. */}
+          {!(hasSearched || homeFeed) && (
+            <PerspectiveToggle
+              pov={effectivePov}
+              user={user}
+              hasMywot={hasMywot}
+              isSearchObserver={isSearchObserver}
+              onChange={setPov}
+            />
           )}
 
           {!hasSearched && (
@@ -1281,6 +1197,16 @@ export default function Landing() {
             query={submitted ?? ""}
             pov={effectivePov}
             userPubkey={user?.pubkey}
+            perspective={
+              <PerspectiveToggle
+                compact
+                pov={effectivePov}
+                user={user}
+                hasMywot={hasMywot}
+                isSearchObserver={isSearchObserver}
+                onChange={setPov}
+              />
+            }
             onOpenProfile={goToProfile}
             onPrefetchEnter={handlePrefetchEnter}
             onPrefetchLeave={handlePrefetchLeave}

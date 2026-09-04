@@ -205,12 +205,67 @@ describe("SearchResults", () => {
     expect(await screen.findByText("NoGood Radio")).toBeInTheDocument();
   });
 
-  it("renders all nine verticals as tabs — Apps and Repos, no Code & git", () => {
+  // Benjamin: the nine-tab strip was "distracting and takes up a lot of
+  // space". Google's shape: five tabs in view, the rest behind More ▾, and
+  // the chosen overflow tab takes the More slot so you can see where you are.
+  it("shows five verticals and folds Apps, Repos, Live and Lists behind More", () => {
     render(<SearchResults query="jack" pov="nosfabrica" />);
-    for (const t of ["everything", "people", "notes", "articles", "media", "apps", "repos", "live", "lists"]) {
+    for (const t of ["everything", "people", "notes", "articles", "media"]) {
       expect(screen.getByTestId(`search-tab-${t}`)).toBeInTheDocument();
     }
+    for (const t of ["apps", "repos", "live", "lists"]) expect(screen.queryByTestId(`search-tab-${t}`)).toBeNull();
     expect(screen.queryByTestId("search-tab-code")).toBeNull();
+
+    const more = screen.getByTestId("search-tab-more");
+    expect(more).toHaveTextContent("More");
+    expect(more.getAttribute("aria-expanded")).toBe("false");
+    fireEvent.click(more);
+    expect(more.getAttribute("aria-expanded")).toBe("true");
+    const menu = screen.getByRole("menu");
+    for (const t of ["apps", "repos", "live", "lists"]) expect(within(menu).getByTestId(`search-tab-${t}`)).toBeInTheDocument();
+
+    fireEvent.click(within(menu).getByTestId("search-tab-apps"));
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(mainStreamCalls().at(-1)![1]).toMatchObject({ tab: "apps" });
+    // The slot now names the active vertical and carries the selected state.
+    expect(screen.getByTestId("search-tab-more")).toHaveTextContent("Apps");
+    expect(screen.getByTestId("search-tab-more").getAttribute("aria-selected")).toBe("true");
+    expect(new URLSearchParams(window.location.search).get("t")).toBe("apps");
+  });
+
+  it("a deep link to a folded vertical opens with that vertical named in the More slot", () => {
+    setUrlTab("lists");
+    render(<SearchResults query="jack" pov="nosfabrica" />);
+    expect(screen.getByTestId("search-tab-more")).toHaveTextContent("Lists");
+    expect(screen.getByTestId("search-tab-everything").getAttribute("aria-selected")).toBe("false");
+  });
+
+  it("the More menu closes on Escape and on a click elsewhere without changing tabs", () => {
+    render(<SearchResults query="jack" pov="nosfabrica" />);
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    expect(screen.getByRole("menu")).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("menu")).toBeNull();
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    fireEvent.pointerDown(document.body);
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(screen.getByTestId("search-tab-everything").getAttribute("aria-selected")).toBe("true");
+    expect(screen.getByTestId("search-tab-more")).toHaveTextContent("More");
+  });
+
+  // The Brainstorm / My perspective control moves INTO this row once results
+  // show (two rows of chrome fewer under the box). The page owns that
+  // control; the row just gives it a seat beside Filters.
+  it("seats the caller's perspective control in the tab row, before Filters", () => {
+    render(
+      <SearchResults query="jack" pov="nosfabrica" onQueryRewrite={() => {}} perspective={<span data-testid="pov-slot">POV</span>} />,
+    );
+    const row = screen.getByTestId("search-toolbar");
+    const slot = within(row).getByTestId("pov-slot");
+    const filters = within(row).getByTestId("search-filters-toggle");
+    expect(slot.compareDocumentPosition(filters) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // and it sits outside the scrolling tab strip, so it never scrolls away
+    expect(screen.getByTestId("search-tabs").contains(slot)).toBe(false);
   });
 
   it("legacy ?t=code deep links land on the Repos tab", () => {
