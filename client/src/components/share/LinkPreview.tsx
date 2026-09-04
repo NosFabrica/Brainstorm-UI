@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Globe, Github, Play } from "lucide-react";
+import { ExternalLink, Globe, Github } from "lucide-react";
+import { VideoEmbed } from "@/components/share/VideoEmbed";
 import { fetchUnfurl, type Unfurled } from "@/services/unfurl";
 
 /**
@@ -145,24 +146,21 @@ export function LinkPreviewCard({ url }: { url: string }) {
   const gh = githubRepo(u);
 
   if (yt) {
+    // A video plays where it is. The facade costs YouTube nothing until play;
+    // the caption keeps the site itself one click away for whoever wants it.
     return (
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener"
-        className="mt-2 block rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden no-underline hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
-        data-testid="link-card-youtube"
-      >
-        <div className="relative aspect-video bg-slate-900">
-          <img src={`https://img.youtube.com/vi/${yt}/hqdefault.jpg`} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="h-11 w-11 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
-              <Play className="h-4 w-4 text-brand-deep ml-0.5" />
-            </span>
-          </div>
-        </div>
-        <div className="px-3 py-2 text-xs font-semibold text-white bg-slate-900">YouTube · {host}</div>
-      </a>
+      <div className="mt-2" data-testid="link-card-youtube">
+        <VideoEmbed url={url} className="!my-0 rounded-b-none" />
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener"
+          className="flex items-center gap-1 rounded-b-xl border border-t-0 border-slate-200 dark:border-slate-800 bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white/80 no-underline hover:text-white"
+          data-testid="link-card-youtube-source"
+        >
+          YouTube · {host} <ExternalLink className="h-3 w-3" />
+        </a>
+      </div>
     );
   }
 
