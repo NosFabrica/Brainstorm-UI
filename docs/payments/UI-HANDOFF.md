@@ -341,6 +341,14 @@ default. `useSubscription` therefore works everywhere instead of failing a query
 
 ### `POST /user/subscription/refresh` — "did my payment land?"
 
+> **2026-09-04 (server 4093c93):** the refresh answer is now
+> `RefreshSubscriptionResponse`, the same view plus `verification`:
+> `verified` | `mismatch` | `unknown` | `not_given` | `unavailable` — what the
+> redirect's `subscriptionId` turned out to be. The return page treats
+> `mismatch` / `unknown` as a refused id (its own "We couldn't verify that
+> payment" state, no poll), `unavailable` as "still confirming, Flash was
+> unreachable", and an absent field (older server) exactly as before.
+
 Authenticated, rate-limited, **empty body**. Re-reads Flash directly and applies the result, rather than
 waiting for the webhook. Returns the same shape as the GET, so the UI can replace state with the response.
 

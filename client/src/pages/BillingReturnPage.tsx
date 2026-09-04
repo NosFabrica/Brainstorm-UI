@@ -32,7 +32,10 @@ export default function BillingReturnPage() {
   const signedIn = useHasSession();
   const { policy, isPaid, status } = useSubscription();
   const qc = useQueryClient();
-  const [phase, setPhase] = useState<"checking" | "confirming" | "done" | "none">("checking");
+  const [phase, setPhase] = useState<"checking" | "confirming" | "done" | "none" | "refused">("checking");
+  // Flash couldn't be asked on the landing refresh: the poll keeps trying,
+  // and the page says why the answer isn't in yet.
+  const [flashUnavailable, setFlashUnavailable] = useState(false);
   const ran = useRef(false);
 
   const params = (() => {
@@ -58,10 +61,17 @@ export default function BillingReturnPage() {
     ran.current = true;
     void refreshSubscription(claimedId)
       .then((sub) => {
-        qc.setQueryData(["/user/subscription"], sub);
+        const { verification, ...subscription } = sub;
+        qc.setQueryData(["/user/subscription"], subscription);
         if (sub.policy && !sub.policy.isDefault && sub.status !== "pending") {
           setPhase("done");
+        } else if (claimedId && (verification === "mismatch" || verification === "unknown")) {
+          // The server checked the redirect's id with Flash and refused it:
+          // it names someone else, nobody, or nothing Flash knows. Polling
+          // would promise a payment that isn't coming to this account.
+          setPhase("refused");
         } else if (paidOutcome || outcome === "pending") {
+          if (verification === "unavailable") setFlashUnavailable(true);
           setPhase("confirming");
           startCheckoutPoll(qc);
         } else {
@@ -123,6 +133,26 @@ export default function BillingReturnPage() {
               </Button>
             </div>
           </>
+        ) : phase === "refused" ? (
+          <>
+            {/* The server checked the redirect's id with Flash and refused it:
+                it names someone else, nobody, or nothing Flash knows. Not a
+                spinner — a spinner promises a payment that isn't coming here. */}
+            <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">We couldn't verify that payment</h1>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300" data-testid="billing-return-refused">
+              The subscription this link names isn't connected to your account, so nothing has changed here.
+              If you did just pay, open Billing in a minute — it can take a moment to land. If it still
+              isn't there, get in touch and we'll sort it out.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <Button asChild className="gap-1.5" data-testid="billing-return-refused-billing">
+                <Link href="/settings?tab=billing">Open Billing <ArrowRight className="h-4 w-4" /></Link>
+              </Button>
+              <Button asChild variant="outline">
+                <Link href="/pricing">Back to pricing</Link>
+              </Button>
+            </div>
+          </>
         ) : phase === "none" ? (
           <>
             <h1 className="text-lg font-bold text-slate-900 dark:text-slate-100">No payment was made</h1>
@@ -151,6 +181,11 @@ export default function BillingReturnPage() {
               again — if it still hasn't cleared, the payment didn't go through, nothing was
               charged, and it's safe to try again.
             </p>
+            {flashUnavailable && (
+              <p className="mt-2 text-xs text-slate-400 dark:text-slate-500" data-testid="billing-return-unavailable">
+                Our payment provider couldn't be reached just now. We'll keep checking.
+              </p>
+            )}
           </>
         )}
       </Card>

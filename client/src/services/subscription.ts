@@ -215,10 +215,28 @@ export async function fetchSubscription(): Promise<Subscription> {
  * `subscriptionId` is the one the checkout redirect named, when it named one.
  * A `pending` return carries none, and neither does the poll.
  */
+/**
+ * What a refresh learned about the id the checkout return handed over
+ * (server 4093c93). `verified`: Flash confirms it carries the caller's
+ * reference. `mismatch`: it exists but names someone else, or nobody.
+ * `unknown`: Flash has no such subscription. `not_given`: a pending return,
+ * read by reference. `unavailable`: Flash could not be asked. Null from an
+ * older server that doesn't say — treated as "still confirming", as before.
+ */
+export type SubscriptionVerification = "verified" | "mismatch" | "unknown" | "not_given" | "unavailable";
+const VERIFICATIONS: SubscriptionVerification[] = ["verified", "mismatch", "unknown", "not_given", "unavailable"];
+
+export type RefreshedSubscription = Subscription & { verification: SubscriptionVerification | null };
+
 export async function refreshSubscription(
   subscriptionId?: string,
-): Promise<Subscription> {
-  return normalize(await apiClient.refreshSubscription(subscriptionId));
+): Promise<RefreshedSubscription> {
+  const raw = await apiClient.refreshSubscription(subscriptionId);
+  const v = (raw as { verification?: unknown } | null)?.verification;
+  return {
+    ...normalize(raw),
+    verification: VERIFICATIONS.includes(v as SubscriptionVerification) ? (v as SubscriptionVerification) : null,
+  };
 }
 
 /**

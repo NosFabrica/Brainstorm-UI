@@ -1010,6 +1010,8 @@ export const apiClient = {
     current_period_end: string | null;
     rail: string | null;
     manage_url?: string | null;
+    /** What the given id turned out to be (server 4093c93); absent on older servers. */
+    verification?: "verified" | "mismatch" | "unknown" | "not_given" | "unavailable";
   }> {
     const response = await authenticatedFetch(
       `${getBrainstormApi()}/user/subscription/refresh`,

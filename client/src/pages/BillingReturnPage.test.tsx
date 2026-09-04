@@ -87,3 +87,47 @@ describe("BillingReturnPage verification", () => {
     await waitFor(() => expect(api.refreshSubscription).toHaveBeenCalledWith(undefined));
   });
 });
+
+// Server 4093c93 (Enes, 2026-09-04): the refresh now says what the redirect's
+// id turned out to be — `verified`, `mismatch` (names someone else or nobody),
+// `unknown` (Flash has no such subscription), `not_given` (a pending return),
+// `unavailable` (Flash could not be asked). A refused id must not be rendered
+// as a payment still confirming.
+describe("BillingReturnPage refused ids", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    api.getSubscription.mockResolvedValue(FREE);
+  });
+
+  it("an id Flash says names someone else is refused, not left confirming", async () => {
+    api.refreshSubscription.mockResolvedValue({ ...FREE, verification: "mismatch" });
+    renderAt("?status=active&subscriptionId=stranger&ref=abc");
+    await waitFor(() => expect(screen.getByTestId("billing-return-refused")).toBeInTheDocument());
+    expect(screen.queryByTestId("billing-return-pending")).toBeNull();
+    expect(screen.getByRole("heading", { name: /couldn.t verify that payment/i })).toBeInTheDocument();
+  });
+
+  it("an id Flash has never heard of is refused the same way", async () => {
+    api.refreshSubscription.mockResolvedValue({ ...FREE, verification: "unknown" });
+    renderAt("?status=active&subscriptionId=nope&ref=abc");
+    await waitFor(() => expect(screen.getByTestId("billing-return-refused")).toBeInTheDocument());
+  });
+
+  it("when Flash could not be asked, keep confirming and say so", async () => {
+    api.refreshSubscription.mockResolvedValue({ ...FREE, verification: "unavailable" });
+    renderAt("?status=active&subscriptionId=7d3b&ref=abc");
+    await waitFor(() => expect(screen.getByTestId("billing-return-pending")).toBeInTheDocument());
+    expect(screen.getByTestId("billing-return-unavailable")).toBeInTheDocument();
+  });
+
+  it("a verified id the server hasn't applied yet still confirms — and an older server without the field behaves as before", async () => {
+    api.refreshSubscription.mockResolvedValue({ ...FREE, verification: "verified" });
+    const first = renderAt("?status=active&subscriptionId=7d3b&ref=abc");
+    await waitFor(() => expect(screen.getByTestId("billing-return-pending")).toBeInTheDocument());
+    expect(screen.queryByTestId("billing-return-unavailable")).toBeNull();
+    first.unmount();
+    api.refreshSubscription.mockResolvedValue(FREE); // no `verification` at all
+    renderAt("?status=active&subscriptionId=7d3b&ref=abc");
+    await waitFor(() => expect(screen.getByTestId("billing-return-pending")).toBeInTheDocument());
+  });
+});
