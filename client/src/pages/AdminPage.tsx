@@ -12,8 +12,11 @@ import { NostrHealthCard } from "@/components/admin/NostrHealthCard";
 import { ScrollableTable } from "@/components/admin/ScrollableTable";
 import { SchedulingCard } from "@/components/admin/scheduling/SchedulingCard";
 import { SchedulingStatsPanel } from "@/components/admin/scheduling/SchedulingStatsPanel";
+import { AdminBillingCards } from "@/components/admin/billing/AdminBillingCards";
+import { PlanMappingsCard } from "@/components/admin/billing/PlanMappingsCard";
 import { UserTierPicker } from "@/components/admin/scheduling/UserTierPicker";
 import { ResyncControl } from "@/components/admin/ResyncControl";
+import { UserActionsMenu } from "@/components/admin/UserActionsMenu";
 import type { SchedulingItem } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -91,6 +94,7 @@ import {
   Maximize2,
   Sparkles,
   CalendarClock,
+  Receipt,
 } from "lucide-react";
 import { Area, AreaChart, Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip as RcTooltip, XAxis, YAxis } from "recharts";
 import { AgentIcon } from "@/components/AgentIcon";
@@ -107,7 +111,7 @@ import { searchByText } from "@/lib/profileSearch";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 
-type AdminTab = "overview" | "users" | "health" | "activity" | "assistants" | "scheduling";
+type AdminTab = "overview" | "users" | "health" | "activity" | "assistants" | "scheduling" | "billing";
 type SortDir = "asc" | "desc";
 type PageSizeOption = 25 | 50 | 100;
 type ActivityTimeRange = "1h" | "24h" | "7d" | "all";
@@ -1758,8 +1762,9 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
     const params = new URLSearchParams(window.location.search);
     const tab = params.get("tab");
-    if (tab === "users" || tab === "activity" || tab === "health") return tab;
+    if (tab === "users" || tab === "activity" || tab === "health" || tab === "scheduling") return tab;
     if (tab === "assistants" && FEATURES.assistantsAdmin) return tab;
+    if (tab === "billing") return tab;
     return "overview";
   });
   const [userSearch, setUserSearch] = useState("");
@@ -2631,6 +2636,12 @@ export default function AdminPage() {
     { key: "overview", label: "Overview", icon: BarChart3 },
     { key: "activity", label: "Activity", icon: Activity },
     { key: "scheduling", label: "Scheduling", icon: CalendarClock },
+    // Gated on nothing. A fresh instance has billing enabled and zero plan
+    // mappings, which is exactly when an admin needs this tab to create the
+    // first one — gating on plans existing would be a bootstrap deadlock, and
+    // the mock flag answers an unrelated question. Where billing isn't
+    // configured the endpoints 404 and the cards say so.
+    { key: "billing" as AdminTab, label: "Billing", icon: Receipt },
     { key: "users", label: "Users", icon: Users },
     ...(FEATURES.assistantsAdmin ? [{ key: "assistants" as AdminTab, label: "Assistants", icon: Sparkles }] : []),
     { key: "health", label: "System Health", icon: Server },
@@ -4008,40 +4019,25 @@ export default function AdminPage() {
                                     schedulingId={u.scheduling_id}
                                     schedulingName={u.scheduling_name}
                                     policies={schedulingPolicies}
+                                    displayName={prof?.name}
+                                    picture={prof?.picture}
                                   />
                                 ) : (
                                   <span className="text-[9px] text-slate-500 dark:text-slate-400">{u.scheduling_name}</span>
                                 )}
                               </td>
                               <td className="px-2 py-2.5 text-center sticky right-0 z-10 bg-white dark:bg-slate-900 group-hover:bg-slate-50 dark:group-hover:bg-slate-900 shadow-[-8px_0_10px_-8px_rgba(15,23,42,0.15)]">
-                                <div className="flex items-center gap-1 justify-center">
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-[10px] text-emerald-600 hover:text-emerald-800 dark:text-emerald-300 no-default-hover-elevate no-default-active-elevate px-2 h-6"
-                                    disabled={isTriggering || bulkRunning || bulkStatuses.get(u.pubkey) === "running"}
-                                    title={bulkRunning || bulkStatuses.get(u.pubkey) === "running" ? "Bulk re-trigger in progress" : undefined}
-                                    onClick={(e) => { e.stopPropagation(); setTriggerConfirmPubkey(u.pubkey); }}
-                                    data-testid={`button-trigger-graperank-${i}`}
-                                  >
-                                    {isTriggering ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Play className="h-3 w-3 mr-1" />}
-                                    {isTriggering ? "..." : "Trigger"}
-                                  </Button>
-                                  <Button
-                                    variant="ghost"
-                                    size="sm"
-                                    className="text-[10px] text-brand-accent hover:text-brand-deep no-default-hover-elevate no-default-active-elevate px-2 h-6"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      window.history.replaceState({}, "", `/admin?tab=users&highlight=${u.pubkey}`);
-                                      navigate(`/profile/${npub}?from=admin&pubkey=${u.pubkey}`);
-                                    }}
-                                    data-testid={`button-view-user-${i}`}
-                                  >
-                                    <Eye className="h-3 w-3 mr-1" /> View
-                                  </Button>
-                                  <ResyncControl pubkey={u.pubkey} />
-                                </div>
+                                <UserActionsMenu
+                                  pubkey={u.pubkey}
+                                  triggering={isTriggering}
+                                  triggerDisabled={bulkRunning || bulkStatuses.get(u.pubkey) === "running"}
+                                  onTrigger={() => setTriggerConfirmPubkey(u.pubkey)}
+                                  onView={() => {
+                                    window.history.replaceState({}, "", `/admin?tab=users&highlight=${u.pubkey}`);
+                                    navigate(`/profile/${npub}?from=admin&pubkey=${u.pubkey}`);
+                                  }}
+                                  testIdSuffix={i}
+                                />
                               </td>
                             </tr>
                             {(isFailedStatus(u.latest_status) || isFailedStatus(u.latest_ta_status)) && !isExpanded && (
@@ -4135,7 +4131,7 @@ export default function AdminPage() {
                           </div>
                           <div className="shrink-0" onClick={(e) => e.stopPropagation()}>
                             {schedulingPolicies.length > 0 ? (
-                              <UserTierPicker pubkey={u.pubkey} schedulingId={u.scheduling_id} schedulingName={u.scheduling_name} policies={schedulingPolicies} />
+                              <UserTierPicker pubkey={u.pubkey} schedulingId={u.scheduling_id} schedulingName={u.scheduling_name} policies={schedulingPolicies} displayName={prof?.name} picture={prof?.picture} />
                             ) : (
                               <span className="text-[10px] text-slate-500 dark:text-slate-400">{u.scheduling_name}</span>
                             )}
@@ -4153,28 +4149,18 @@ export default function AdminPage() {
                           <span className="text-[9px] text-slate-400 dark:text-slate-500">· Updated {timeAgo(u.last_updated) || formatTimestamp(u.last_updated)}</span>
                         </div>
 
-                        <div className="flex items-center gap-1 mt-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-[11px] text-emerald-600 hover:text-emerald-800 dark:text-emerald-300 no-default-hover-elevate no-default-active-elevate px-2 h-7"
-                            disabled={isTriggering || bulkRunning || bulkStatuses.get(u.pubkey) === "running"}
-                            onClick={(e) => { e.stopPropagation(); setTriggerConfirmPubkey(u.pubkey); }}
-                            data-testid={`card-button-trigger-${i}`}
-                          >
-                            {isTriggering ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Play className="h-3 w-3 mr-1" />}
-                            {isTriggering ? "..." : "Trigger"}
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-[11px] text-brand-accent hover:text-brand-deep no-default-hover-elevate no-default-active-elevate px-2 h-7"
-                            onClick={(e) => { e.stopPropagation(); window.history.replaceState({}, "", `/admin?tab=users&highlight=${u.pubkey}`); navigate(`/profile/${npub}?from=admin&pubkey=${u.pubkey}`); }}
-                            data-testid={`card-button-view-${i}`}
-                          >
-                            <Eye className="h-3 w-3 mr-1" /> View
-                          </Button>
-                          <ResyncControl pubkey={u.pubkey} />
+                        <div className="flex items-center justify-end mt-2">
+                          <UserActionsMenu
+                            pubkey={u.pubkey}
+                            triggering={isTriggering}
+                            triggerDisabled={bulkRunning || bulkStatuses.get(u.pubkey) === "running"}
+                            onTrigger={() => setTriggerConfirmPubkey(u.pubkey)}
+                            onView={() => {
+                              window.history.replaceState({}, "", `/admin?tab=users&highlight=${u.pubkey}`);
+                              navigate(`/profile/${npub}?from=admin&pubkey=${u.pubkey}`);
+                            }}
+                            testIdSuffix={`card-${i}`}
+                          />
                         </div>
                       </div>
                     );
@@ -4307,6 +4293,29 @@ export default function AdminPage() {
                 </div>
                 <div className="px-5 py-4">
                   <SchedulingStatsPanel active={activeTab === "scheduling"} />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {activeTab === "billing" && (
+            <div className="grid grid-cols-1 gap-6" data-testid="panel-billing">
+              <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-billing-subscribers">
+                <div className="px-5 py-4 border-b border-brand-accent/10">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Billing</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Who's subscribed via Flash, and which signups aren't attached to an account</p>
+                </div>
+                <div className="px-5 py-4">
+                  <AdminBillingCards active={activeTab === "billing"} />
+                </div>
+              </div>
+              <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-billing-plans">
+                <div className="px-5 py-4 border-b border-brand-accent/10">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Plans on sale</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Which Flash plan buys which scheduling policy, and what it costs</p>
+                </div>
+                <div className="px-5 py-4">
+                  <PlanMappingsCard active={activeTab === "billing"} />
                 </div>
               </div>
             </div>

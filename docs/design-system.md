@@ -58,6 +58,7 @@ Tinted pill for tags, status badges, counts (p17 "Tags & Badges").
 Metric tile (p15: icon + value + label).
 ```tsx
 <StatTile icon={Users} value="1.2K" label="People" tone="brand" aside={<Chip .../>} />
+<StatTile compact value={4} label="Faults" tone="warning" />   // one line: dot · value · label, for a strip of counts above a list
 ```
 
 ## SectionHeader — `components/ui/section-header.tsx`
@@ -68,10 +69,14 @@ Aurora-cyan mono kicker + hairline (the "TRUST OVER NOISE" style labels).
 
 ## Card — `components/ui/card.tsx`
 Canonical surface (semantic tokens → theme-aware). Default is quiet; pass
-`interactive` for the hover-lift (clickable cards only).
+`interactive` for the hover-lift (clickable cards only), or `accent` for the
+Aurora wash + glow when one card in a set genuinely has to be noticed (the
+backup nag, the plan you are on). Reach for `accent` rather than spelling out a
+`border-brand-accent/… ring-…` yourself — the prop carries the dark values too.
 ```tsx
 <Card>…</Card>
 <Card interactive onClick={…}>…</Card>
+<Card accent={isMine}>…</Card>
 ```
 
 ## Also use the existing themed primitives

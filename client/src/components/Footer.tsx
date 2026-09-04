@@ -1,4 +1,5 @@
 import { useLocation } from 'wouter';
+import { useBillingPlans } from '@/hooks/useBillingPlans';
 import { Wordmark } from '@/components/Wordmark';
 
 // Structured, product-grade footer (Google-style tiers). Top tier: the
@@ -11,6 +12,9 @@ import { Wordmark } from '@/components/Wordmark';
 // logos are noise, but the version stamp is still worth keeping.
 export function Footer({ minimal = false }: { minimal?: boolean }) {
   const [, setLocation] = useLocation();
+  // Hidden only on a CONFIRMED no-billing instance (empty plans array) —
+  // loading/error keeps the link, so a transient API blip can't unsell.
+  const { billingAvailable } = useBillingPlans();
 
   const linkClass =
     'text-[13px] text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50';
@@ -51,6 +55,18 @@ export function Footer({ minimal = false }: { minimal?: boolean }) {
             </button>
             <button type="button" onClick={() => setLocation('/what-is-wot')} className={linkClass} data-testid="button-learn-more">
               What is Web of Trust?
+            </button>
+            {/* The footer is where people look to find out whether something
+                costs money. Sits here rather than in the signup funnel on
+                purpose: a price shown before the product has demonstrated
+                itself loses people who would have paid a week later. */}
+            {billingAvailable !== false && (
+              <button type="button" onClick={() => setLocation('/pricing')} className={linkClass} data-testid="link-pricing">
+                Pricing
+              </button>
+            )}
+            <button type="button" onClick={() => setLocation('/roadmap')} className={linkClass} data-testid="link-roadmap">
+              Roadmap
             </button>
           </nav>
 

@@ -43,6 +43,7 @@ import {
   Clock,
   RefreshCw,
   Info,
+  CreditCard,
   Code2,
   Mail,
   HelpCircle,
@@ -94,6 +95,7 @@ import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useSelfOverview, useSelfHistory } from "@/hooks/useSelf";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { ToastAction } from "@/components/ui/toast";
 import { useScoreDisplayMode, type ScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import type { Granularity } from "@/lib/trustLadder";
@@ -114,10 +116,11 @@ import { Footer } from "@/components/Footer";
 import { BrainLogo } from "@/components/BrainLogo";
 import nosFabricaLogo from "@assets/a3d51408e84ca674b5892761fb366072479d962e245602bbc47568acba7c6b_1774042041592.jpg";
 import nostrLogo from "@assets/download_1774042580188.png";
+import { BillingCard } from "@/components/billing/BillingCard";
 import { BrainstormAssistantCard } from "@/components/BrainstormAssistantCard";
 import { TagRelaysCard } from "@/components/settings/TagRelaysCard";
 
-type SettingsTab = "profile" | "trust" | "about";
+type SettingsTab = "profile" | "trust" | "billing" | "about";
 
 // Placeholder agent prompts (the dev team will supply the final, working copy).
 const AGENT_SELFHOST_PROMPT = `You're helping me run my own copy of Brainstorm, an open-source
@@ -153,6 +156,11 @@ const inputCls =
 const TABS: { key: SettingsTab; label: string; icon: typeof User }[] = [
   { key: "profile", label: "Profile", icon: User },
   { key: "trust", label: "Trust & search", icon: ShieldCheck },
+  // Billing lives in Settings because Settings is where you CHANGE things —
+  // cancelling is the most consequential account action in the product, and it
+  // belongs next to the other irreversible ones rather than on a status page
+  // someone lands on while checking a date. The read-only half is on /insights.
+  { key: "billing", label: "Billing", icon: CreditCard },
   { key: "about", label: "About", icon: Info },
 ];
 
@@ -161,7 +169,7 @@ export default function SettingsPage() {
   const search = useSearch();
   const tabParam = new URLSearchParams(search).get("tab");
   const activeTab: SettingsTab =
-    tabParam === "trust" || tabParam === "about" ? tabParam : "profile";
+    tabParam === "trust" || tabParam === "billing" || tabParam === "about" ? tabParam : "profile";
   // Deep links into a specific control, so a "you can change this in Settings"
   // sentence elsewhere lands ON the thing rather than at the top of a tab:
   //   ?focus=backup      → Account > Back up
@@ -226,12 +234,29 @@ export default function SettingsPage() {
       const previousUsedLabel = presetDisplayLabelFromBackend(lastResult?.data?.graperank_preset_used);
       const newLabel = presetDisplayLabel(preset);
       const description = previousUsedLabel
-        ? `Next calculation will use ${newLabel}. Current scores were calculated with ${previousUsedLabel}.`
-        : `Next calculation will use ${newLabel}.`;
+        ? `Your pages use ${newLabel} now. Published numbers still reflect ${previousUsedLabel} until your next calculation.`
+        : `Your pages use ${newLabel} now.`;
+      // Offer — never demand — a recalculation. The switch already worked
+      // in-app (every preset-driven read was just invalidated), so a blocking
+      // "are you sure?" would imply it hadn't, and would punish the
+      // flip-and-compare loop these three buttons invite. But the published
+      // Trusted Assertions — the numbers OTHER apps show — keep the old preset
+      // until the next run, which on the free schedule can be 60 days out.
+      // One click in the toast closes that gap at the moment of highest
+      // intent, and manual recalculation is unlimited so it costs nothing.
       toast({
         title: "Trust perspective updated",
         description,
-        duration: 4000,
+        duration: 8000,
+        action: (
+          <ToastAction
+            altText="Recalculate now"
+            onClick={() => triggerGrapeRankMutation.mutate()}
+            data-testid="toast-recalc-now"
+          >
+            Recalculate now
+          </ToastAction>
+        ),
       });
     },
     onError: (error, _preset, context) => {
@@ -344,7 +369,7 @@ export default function SettingsPage() {
       queryClient.invalidateQueries({ queryKey: ["/user/graperankResult"] });
       toast({
         title: "Recalculation started",
-        description: "Your scores are being recalculated. Redirecting to dashboard...",
+        description: "Recalculating now — redirecting to your dashboard.",
         duration: 4000,
       });
       setTimeout(() => navigate("/dashboard"), 600);
@@ -1754,6 +1779,12 @@ export default function SettingsPage() {
               <BrainstormAssistantCard variant="settings" lastCalculated={lastCalculated} />
               {networkAlertsCard}
               {advancedSection}
+            </div>
+          )}
+
+          {activeTab === "billing" && (
+            <div className="space-y-6" data-testid="tab-content-billing">
+              <BillingCard />
             </div>
           )}
 

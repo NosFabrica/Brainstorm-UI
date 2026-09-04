@@ -28,6 +28,21 @@ vi.mock("wouter", () => ({ useLocation: () => ["/dashboard", (to: string) => nav
 vi.mock("@/components/ShareProfileModal", () => ({ ShareProfileModal: () => null }));
 vi.mock("@/components/ThemeToggle", () => ({ ThemeToggle: () => null }));
 vi.mock("@/services/api", () => ({ apiClient: { getHouseInfluence: async () => 0 } }));
+// The menu's "see plans" row reads the subscription; these tests are about
+// accounts, so pin it to "no policy" rather than standing up the session hook.
+vi.mock("@/hooks/useSubscription", () => ({
+  useSubscription: () => ({
+    subscription: { policy: null, plan: null, status: "none", currentPeriodEnd: null },
+    policy: null,
+    plan: null,
+    isPaid: false,
+    status: "none",
+    currentPeriodEnd: null,
+    isActive: false,
+    isLoading: false,
+    refetch: () => {},
+  }),
+}));
 
 const USER: AccountDisplay = {
   pubkey: "a".repeat(64),
