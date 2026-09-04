@@ -57,6 +57,21 @@ describe("filterEventsByWhen", () => {
     ]);
   });
 
+  // Review catch: an all-day event TODAY (kind 31922 parses to local
+  // midnight) and a multi-day event that started yesterday and ends
+  // tomorrow are both still happening — "upcoming" means not over yet.
+  it("an event still in progress counts as upcoming, ordered by its start", () => {
+    const todayAllDay = hit("todayAllDay", 31922, ymd(0));
+    const running: SearchHit = {
+      ...hit("running", 31923, inHours(-20)),
+      event: { ...hit("running", 31923, inHours(-20)).event, tags: [["d", "running"], ["title", "running"], ["start", inHours(-20)], ["end", inHours(30)]] } as NostrEvent,
+    };
+    const ids = filterEventsByWhen([...hits, todayAllDay, running], "upcoming", now).map((h) => h.event.id);
+    expect(ids.slice(0, 2)).toEqual(["running", "todayAllDay"]);
+    expect(filterEventsByWhen([todayAllDay, running], "past", now)).toEqual([]);
+    expect(eventWhenCounts([todayAllDay, running], now).upcoming).toBe(2);
+  });
+
   it("counts each facet for the chips", () => {
     expect(eventWhenCounts(hits, now)).toEqual({ upcoming: 4, week: 2, month: 3, past: 2, all: 7 });
   });

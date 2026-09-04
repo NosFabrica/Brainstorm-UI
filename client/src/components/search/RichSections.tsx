@@ -5,7 +5,8 @@
  * poster or first frame, captions with author and age). Both open the in-app
  * event page; a story's headline goes out to the article.
  */
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { fetchUnfurl } from "@/services/unfurl";
 import { useLocation } from "wouter";
 import { Newspaper, Play } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
@@ -77,7 +78,8 @@ export function pickTopStories(hits: SearchHit[]): TopStory[] {
   // 2. News without one — only to reach three.
   pass(MIN_STORIES, (hit) => {
     const news = parseNewsShape(hit.event.content);
-    return news ? { ...news, imageUrl: null } : null;
+    // A picture may still ride in imeta / image tags rather than the text.
+    return news ? { ...news, imageUrl: mediaUrlOf(hit.event) } : null;
   });
   // 3. A pictured note — its first line is the headline.
   pass(MIN_STORIES, (hit) => {
@@ -93,6 +95,21 @@ function TopStoryCard({ story }: { story: TopStory }) {
   const [, navigate] = useLocation();
   const [imgFailed, setImgFailed] = useState(false);
   const { hit, news } = story;
+  // News bots post headline + link, no picture — the article has one. Ask
+  // the link-metadata proxy (RELAY-ASKS #7; a session breaker keeps this to
+  // one request until the endpoint ships) and show what it returns.
+  const [unfurledImage, setUnfurledImage] = useState<string | null>(null);
+  useEffect(() => {
+    if (news.imageUrl || !news.url) return;
+    let alive = true;
+    void fetchUnfurl(news.url).then((meta) => {
+      if (alive && meta?.image) setUnfurledImage(meta.image);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [news.imageUrl, news.url]);
+  const imageUrl = news.imageUrl ?? unfurledImage;
   const open = () => navigate(eventPath(hit.event));
   return (
     <div
@@ -108,9 +125,9 @@ function TopStoryCard({ story }: { story: TopStory }) {
       className="group flex w-56 shrink-0 cursor-pointer flex-col overflow-hidden rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
       data-testid={`top-story-${hit.event.id}`}
     >
-      {news.imageUrl && !imgFailed ? (
+      {imageUrl && !imgFailed ? (
         <img
-          src={news.imageUrl}
+          src={imageUrl}
           alt=""
           loading="lazy"
           onError={() => setImgFailed(true)}

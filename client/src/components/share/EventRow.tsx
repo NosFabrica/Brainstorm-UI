@@ -1,5 +1,6 @@
 import { Link } from "wouter";
-import { eventDateTile, relativeEventTime } from "@/lib/calendarEvent";
+import { relativeEventTime } from "@/lib/calendarEvent";
+import { EventDateTile } from "@/components/share/EventDateTile";
 import eventDefault from "@/assets/event-default.webp";
 
 interface EventRowItem {
@@ -17,22 +18,13 @@ interface EventRowItem {
  * (Google Calendar / LinkedIn) and works without an image.
  */
 export function EventRow({ event, href, past = false }: { event: EventRowItem; href: string; past?: boolean }) {
-  const tile = eventDateTile(event.start);
   return (
     <Link
       href={href}
       className={`flex items-center gap-3 rounded-xl border bg-white dark:bg-slate-900 p-2.5 transition-all ${past ? "border-slate-200 dark:border-slate-800 opacity-75 hover:opacity-100" : "border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700"}`}
       data-testid="share-event-row"
     >
-      <div
-        className={`flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-lg border ${
-          past ? "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-400 dark:text-slate-500" : "border-brand-accent/30 bg-brand-deep/[0.06] text-brand-deep"
-        }`}
-        aria-hidden="true"
-      >
-        <span className="text-[9px] font-bold uppercase leading-none tracking-wide">{tile.month}</span>
-        <span className="text-lg font-bold leading-tight tabular-nums">{tile.day}</span>
-      </div>
+      <EventDateTile startSec={event.start} past={past} />
       <img
         src={event.image || eventDefault}
         alt=""

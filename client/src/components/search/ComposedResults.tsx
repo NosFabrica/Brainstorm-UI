@@ -16,6 +16,7 @@ import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { SerpRow } from "@/components/search/SerpRow";
 import { MediaTiles, TopStories, hasVisual, pickTopStories } from "@/components/search/RichSections";
 import { collapseHits, type HitCluster } from "@/lib/searchCollapse";
+import { filterEventsByWhen } from "@/lib/eventFilters";
 import { clientFilterHits } from "@/lib/clientFilters";
 import { readFilters } from "@/lib/searchSyntax";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
@@ -181,7 +182,16 @@ export function ComposedResults({
   // Events split; events lead (a meetup you can still attend beats a replay).
   const happeningEvents = useSectionStream(fresh, "events", pov, userPubkey, 12);
   const happeningLive = useSectionStream(fresh, "live", pov, userPubkey, 8);
-  const happening = useMemo(() => mergeSnapshots(happeningEvents, happeningLive), [happeningEvents, happeningLive]);
+  const happening = useMemo(
+    () =>
+      mergeSnapshots(
+        // Happening means now or next: past meetups don't lead the page
+        // just because they were posted recently.
+        happeningEvents ? { ...happeningEvents, hits: filterEventsByWhen(happeningEvents.hits, "upcoming") } : null,
+        happeningLive,
+      ),
+    [happeningEvents, happeningLive],
+  );
   const media = useSectionStream(fresh, "media", pov, userPubkey, 8);
 
   const allHits = useMemo(

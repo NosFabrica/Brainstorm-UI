@@ -54,6 +54,16 @@ export function formatEventDate(startSec: number, isDateOnly: boolean): string {
 
 export const isUpcoming = (startSec: number): boolean => startSec >= Math.floor(Date.now() / 1000);
 
+/** When the event is over: its `end`, else the end of its day for a
+ *  date-only event, else its start. An all-day event today is still on. */
+export function eventEndSec(e: Pick<CalendarEvent, "startSec" | "endSec" | "isDateOnly">): number {
+  if (e.endSec && e.endSec > e.startSec) return e.endSec;
+  return e.isDateOnly ? e.startSec + 86_400 : e.startSec;
+}
+
+export const isOver = (e: Pick<CalendarEvent, "startSec" | "endSec" | "isDateOnly">, now: number = Math.floor(Date.now() / 1000)): boolean =>
+  e.startSec > 0 && eventEndSec(e) <= now;
+
 /** A calendar "date tile" — short month + day-of-month (e.g. { month: "JUN", day: "9" }). */
 export function eventDateTile(startSec: number): { month: string; day: string } {
   const d = new Date(startSec * 1000);

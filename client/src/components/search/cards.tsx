@@ -25,7 +25,8 @@ import { FeedVideo } from "@/components/share/FeedVideo";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { MentionChip } from "@/components/share/MentionChip";
 import { Favicon } from "@/components/share/LinkPreview";
-import { eventDateTile, formatEventDate, googleCalendarUrl, parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
+import { formatEventDate, googleCalendarUrl, isOver, parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
+import { EventDateTile } from "@/components/share/EventDateTile";
 
 export function tagVal(event: NostrEvent, name: string): string | undefined {
   return event.tags.find((t) => t[0] === name)?.[1];
@@ -600,9 +601,8 @@ export function LiveCard({ event, author, score }: { event: NostrEvent; author: 
  */
 export function EventCard({ event, author, score }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
   const cal = parseCalendarEvent(event);
-  const nowSec = Math.floor(Date.now() / 1000);
-  const past = cal.startSec > 0 && cal.startSec < nowSec;
-  const tile = cal.startSec ? eventDateTile(cal.startSec) : null;
+  // "Past" means over — an all-day event today or a running conference is not.
+  const past = isOver(cal);
   const openIn = past
     ? cal.recordingUrl
       ? { url: cal.recordingUrl, label: "Watch replay", host: hostOf(cal.recordingUrl) ?? undefined }
@@ -620,24 +620,7 @@ export function EventCard({ event, author, score }: { event: NostrEvent; author:
       testId={`event-card-${event.id}`}
     >
       <div className="flex items-start gap-3">
-        <div
-          className={`flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-lg border ${
-            past
-              ? "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-400 dark:text-slate-500"
-              : "border-brand-accent/30 bg-brand-deep/[0.06] text-brand-deep dark:text-brand-link"
-          }`}
-          aria-hidden="true"
-          data-testid="event-date-tile"
-        >
-          {tile ? (
-            <>
-              <span className="text-[9px] font-bold uppercase leading-none tracking-wide">{tile.month}</span>
-              <span className="text-lg font-bold leading-tight tabular-nums">{tile.day}</span>
-            </>
-          ) : (
-            <span className="text-[9px] font-bold uppercase leading-none tracking-wide">TBA</span>
-          )}
-        </div>
+        <EventDateTile startSec={cal.startSec} past={past} testId="event-date-tile" />
         {cal.image && (
           <img src={cal.image} alt="" loading="lazy" className="h-12 w-16 shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800 object-cover" />
         )}

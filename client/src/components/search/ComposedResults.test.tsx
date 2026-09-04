@@ -63,6 +63,11 @@ const hitOf = (event: NostrEvent, name = "someone") => ({
   rank: null,
 });
 
+// The link-metadata proxy (RELAY-ASKS #7): unpictured stories ask it for
+// the article's image. Silent (null) unless a test says otherwise.
+const unfurlMock = vi.fn<(url: string) => Promise<{ title: string | null; description: string | null; image: string | null; siteName: string | null } | null>>(() => Promise.resolve(null));
+vi.mock("@/services/unfurl", () => ({ fetchUnfurl: (url: string) => unfurlMock(url) }));
+
 const sectionCall = (tab: string) => calls.find((c) => c.params.tab === tab)!;
 
 beforeEach(() => {
@@ -132,6 +137,28 @@ describe("ComposedResults — media-rich sections", () => {
     // Strip items don't repeat as rows.
     expect(screen.queryByTestId("serp-row-n5")).toBeNull();
     expect(screen.getByTestId("serp-row-n2")).toBeInTheDocument();
+  });
+
+  // Benjamin, over a placeholder card: "make sure the images are showing
+  // correctly for these". News bots post headline + link, no picture — the
+  // article has one. An unpictured story asks the link-metadata proxy and
+  // shows the article's image when it answers.
+  it("an unpictured story takes its image from the link's metadata", async () => {
+    unfurlMock.mockImplementation((url) =>
+      Promise.resolve(url.includes("theguardian") ? { title: null, description: null, image: "https://i.guim.co.uk/barcola.jpg", siteName: null } : null),
+    );
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    const NO_PIC = "Liverpool confirm the Barcola fee\nhttps://www.theguardian.com/story-4\nSummary 4.";
+    sectionCall("notes").emit({
+      hits: [hitOf(ev("n1", 1, "1".repeat(64), NEWS(1)), "Echo"), hitOf(ev("n4", 1, "4".repeat(64), NO_PIC), "Guardian")],
+      eose: true,
+      timeMs: 100,
+    });
+    const card = await screen.findByTestId("top-story-n4");
+    await vi.waitFor(() => expect(card.querySelector('[data-testid="story-image"]')?.getAttribute("src")).toBe("https://i.guim.co.uk/barcola.jpg"));
+    expect(unfurlMock).toHaveBeenCalledWith("https://www.theguardian.com/story-4");
+    // A pictured story never asks.
+    expect(unfurlMock).not.toHaveBeenCalledWith("https://www.liverpoolecho.co.uk/story-1");
   });
 
   it("no pictured news, no strip — Latest stays rows", async () => {
@@ -233,6 +260,33 @@ describe("ComposedResults", () => {
     expect(onTabChange).toHaveBeenCalledWith("notes");
     // Sections with nothing to show render nothing.
     expect(screen.queryByTestId("serp-section-media")).toBeNull();
+  });
+
+  // Review catch: Happening merged the events stream by publish order, so a
+  // recently POSTED past meetup could lead the page. Happening means now or
+  // next: upcoming calendar events soonest-first, then the live streams.
+  it("Happening shows upcoming events soonest-first, drops past ones, then live streams", async () => {
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    const nowSec = Math.floor(Date.now() / 1000);
+    const cal = (id: string, pk: string, title: string, start: number) =>
+      hitOf(ev(id, 31923, pk, "", [["d", id], ["title", title], ["start", String(start)]]), "club");
+    sectionCall("events").emit({
+      hits: [
+        cal("far", "1".repeat(64), "Liverpool Bitcoin Conference", nowSec + 30 * 86_400),
+        cal("gone", "2".repeat(64), "Liverpool Meetup (July)", nowSec - 30 * 86_400),
+        cal("soon", "3".repeat(64), "Liverpool Nostr Social", nowSec + 2 * 86_400),
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    sectionCall("live").emit({
+      hits: [hitOf(ev("stream", 30311, "4".repeat(64), "", [["d", "s"], ["title", "Anfield Radio"], ["status", "live"]]), "radio")],
+      eose: true,
+      timeMs: 100,
+    });
+    const section = await screen.findByTestId("serp-section-happening");
+    const rows = [...section.querySelectorAll('[data-testid^="serp-row-"]')].map((r) => r.getAttribute("data-testid"));
+    expect(rows).toEqual(["serp-row-soon", "serp-row-far", "serp-row-stream"]);
   });
 
   it("collapses the Happening section's recurring events behind a +N chip", async () => {
