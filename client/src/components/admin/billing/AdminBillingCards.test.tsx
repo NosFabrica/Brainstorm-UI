@@ -406,9 +406,9 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
 
     const signups = await screen.findByTestId("billing-divergence-unresolved_signups");
     const plans = screen.getByTestId("billing-divergence-unmapped_plans");
-    // Headers read as English off the key alone.
-    expect(signups.textContent).toContain("unresolved signups");
-    expect(plans.textContent).toContain("unmapped plans");
+    // Headers are the sections' titles, with their meanings.
+    expect(signups.textContent).toContain("Signups that named nobody");
+    expect(plans.textContent).toContain("Plans not mapped");
     // Each section shows the fields its own fix needs: the service/plan pair an
     // admin would map, and — for a signup that named nobody — nothing but the
     // Flash id, because Flash's payload carries no contact details to show.
@@ -423,6 +423,36 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
       const link = Array.from(block.querySelectorAll("a")).find((a) => a.textContent === id);
       expect(link?.getAttribute("href")).toContain(id);
     }
+  });
+
+  // Enes: "more about knowing what's happening than acting." The report
+  // reads in two tiers — Faults (a paying subscriber is wrong, or a payment
+  // goes nowhere) first, For the record below — each section with its meaning
+  // in plain words, its count as a chip, and no key=value soup.
+  it("reads the report in two tiers, faults first, each section with its meaning", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue({
+      stale_syncs: { count: 1, truncated: false, rows: [{ pubkey: PUBKEY, flash_status: "active", last_synced_at: "2026-08-20T10:00:00Z" }] },
+      policy_mismatch: {
+        count: 1,
+        truncated: false,
+        rows: [{ pubkey: PUBKEY, flash_status: "active", granted_scheduling_id: 4, scheduling_id: 1, scheduling_source: "billing" }],
+      },
+      abandoned_checkouts: { count: 12, truncated: false, rows: [{ pubkey: PUBKEY, flash_subscription_id: "sub_x", sync_error_since: "2026-08-28T09:52:09Z" }] },
+    });
+    renderCards();
+    const faults = await screen.findByTestId("billing-divergence-faults");
+    const record = screen.getByTestId("billing-divergence-record");
+    expect(faults.compareDocumentPosition(record) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(faults.textContent).toContain("Paying and receiving disagree");
+    expect(faults.textContent).toContain("paid cadence");
+    expect(faults.textContent).not.toContain("Abandoned checkouts");
+    expect(record.textContent).toContain("Abandoned checkouts");
+    expect(record.textContent).toContain("the count is the signal");
+    expect(record.textContent).toContain("Not re-read recently");
+    // Counts read as chips, not as `count=12`.
+    expect(record.textContent).not.toContain("count=");
+    expect(screen.getByTestId("billing-divergence-abandoned_checkouts").textContent).toContain("12");
   });
 
   it("says so plainly when nothing is unsettled", async () => {

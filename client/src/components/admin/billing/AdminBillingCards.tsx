@@ -57,6 +57,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Chip } from "@/components/ui/chip";
 import { tone, type Tone } from "@/lib/tones";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
+import { orderedSections, type DivergenceMeta, type DivergenceTier, type OrderedSection } from "./divergenceSections";
 
 const SUBS_KEY = ["/api/admin/billing/subscriptions"];
 const DIVERGENCE_KEY = ["/api/admin/billing/divergence"];
@@ -826,7 +827,33 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   const statuses = Array.from(new Set(items.map((s) => s.flash_status))).sort();
   const sources = Array.from(new Set(items.map((s) => s.scheduling_source))).sort();
   const filtering = search.trim() !== "" || statusFilter !== "all" || sourceFilter !== "all";
-  const divergenceEntries = Object.entries(divergence).filter(([, s]) => s.count > 0);
+  // Faults first, the record below, anything this build doesn't know last.
+  const sections = orderedSections(divergence);
+  const faults = sections.filter((x) => x.tier === "fault");
+  const record = sections.filter((x) => x.tier === "record");
+  const renderSection = (x: OrderedSection) =>
+    x.kind === "unresolved_signups" ? (
+      <UnresolvedSignupsBlock
+        key={x.kind}
+        meta={x.meta}
+        section={x.section}
+        busyId={busyKey}
+        onViewFlashRecord={(id) =>
+          setFlashRecordFor({
+            key: id,
+            label: id,
+            read: () => apiClient.getAdminBillingFlashRecordForUnresolved(id),
+          })
+        }
+        onAttribute={(id) => {
+          setAttributeKeyInput("");
+          setAttributeFor(id);
+        }}
+        onDismiss={setDismissFor}
+      />
+    ) : (
+      <DivergenceBlock key={x.kind} kind={x.kind} meta={x.meta} tier={x.tier} section={x.section} />
+    );
 
   return (
     <div className="space-y-6">
@@ -958,42 +985,22 @@ export function AdminBillingCards({ active }: { active: boolean }) {
       >
         <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">Needs attention</h4>
         <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-          Disagreements between Flash and what users receive — unmatched signups included. Resolve in
-          the Flash dashboard or via the server's admin tools.
+          Everything nobody has settled between Flash and what users receive. Faults first — a paying
+          subscriber on the wrong cadence, a payment going nowhere — then what's worth knowing but isn't
+          broken. Most of this is for knowing; act where a button is offered, or in Flash.
         </p>
         {divergenceQuery.isError ? (
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-divergence-error">
             Couldn't load the divergence report.
           </p>
-        ) : divergenceEntries.length === 0 ? (
+        ) : sections.length === 0 ? (
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-divergence-empty">
             Nothing unsettled — Flash and the scheduler agree.
           </p>
         ) : (
-          <div className="mt-2 space-y-3">
-            {divergenceEntries.map(([kind, section]) =>
-              kind === "unresolved_signups" ? (
-                <UnresolvedSignupsBlock
-                  key={kind}
-                  section={section}
-                  busyId={busyKey}
-                  onViewFlashRecord={(id) =>
-                    setFlashRecordFor({
-                      key: id,
-                      label: id,
-                      read: () => apiClient.getAdminBillingFlashRecordForUnresolved(id),
-                    })
-                  }
-                  onAttribute={(id) => {
-                    setAttributeKeyInput("");
-                    setAttributeFor(id);
-                  }}
-                  onDismiss={setDismissFor}
-                />
-              ) : (
-                <DivergenceBlock key={kind} kind={kind} section={section} />
-              ),
-            )}
+          <div className="mt-3 space-y-4">
+            <DivergenceTierGroup tier="fault" sections={faults} render={renderSection} />
+            <DivergenceTierGroup tier="record" sections={record} render={renderSection} />
           </div>
         )}
       </div>
@@ -1165,16 +1172,61 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   );
 }
 
-/** The section's own heading: its key as English, its count, its truncation admission. */
-function DivergenceHeading({ kind, section }: { kind: string; section: AdminBillingDivergenceSection }) {
+/** A tier of the report: Faults or For the record. Says so when empty. */
+function DivergenceTierGroup({
+  tier,
+  sections,
+  render,
+}: {
+  tier: DivergenceTier;
+  sections: OrderedSection[];
+  render: (x: OrderedSection) => React.ReactNode;
+}) {
+  const fault = tier === "fault";
   return (
-    <div className="flex items-center gap-2">
-      <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">
-        {kind.replaceAll("_", " ")}
-      </span>
-      <Chip tone="warning" size="sm">{section.count}</Chip>
-      {section.truncated && (
-        <span className="text-[11px] text-slate-400 dark:text-slate-500">list capped — more exist</span>
+    <div data-testid={`billing-divergence-${fault ? "faults" : "record"}`}>
+      <div className="flex items-center gap-2">
+        <span className={`text-[11px] font-semibold uppercase tracking-wide ${fault ? "text-amber-700 dark:text-amber-400" : "text-slate-400 dark:text-slate-500"}`}>
+          {fault ? "Faults" : "For the record"}
+        </span>
+        <span className={`h-px flex-1 ${fault ? "bg-amber-200/60 dark:bg-amber-400/20" : "bg-slate-200/70 dark:bg-slate-700/60"}`} />
+      </div>
+      {sections.length === 0 ? (
+        <p className="mt-1.5 text-xs text-slate-400 dark:text-slate-500">
+          {fault ? "No faults — nothing is wrong for anyone paying." : "Nothing to note."}
+        </p>
+      ) : (
+        <div className="mt-2 space-y-3">{sections.map(render)}</div>
+      )}
+    </div>
+  );
+}
+
+/** The section's heading: its title, meaning, count and truncation admission. */
+function DivergenceHeading({
+  kind,
+  meta,
+  tier,
+  section,
+}: {
+  kind: string;
+  meta: DivergenceMeta | null;
+  tier: DivergenceTier;
+  section: AdminBillingDivergenceSection;
+}) {
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">
+          {meta?.title ?? kind.replaceAll("_", " ")}
+        </span>
+        <Chip tone={tier === "fault" ? "warning" : "neutral"} size="sm">{section.count}</Chip>
+        {section.truncated && (
+          <span className="text-[11px] text-slate-400 dark:text-slate-500">list capped — more exist</span>
+        )}
+      </div>
+      {meta?.meaning && (
+        <p className="mt-0.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">{meta.meaning}</p>
       )}
     </div>
   );
@@ -1208,12 +1260,23 @@ function DivergenceRow({ row }: { row: Record<string, unknown> }) {
   );
 }
 
-/** Rows are server-defined free-form objects — render the values, don't guess a schema. */
-function DivergenceBlock({ kind, section }: { kind: string; section: AdminBillingDivergenceSection }) {
+/** A section's rows. Kinds this build knows get typed rows (below); anything
+ *  else renders its values verbatim rather than guessing a schema. */
+function DivergenceBlock({
+  kind,
+  meta,
+  tier,
+  section,
+}: {
+  kind: string;
+  meta: DivergenceMeta | null;
+  tier: DivergenceTier;
+  section: AdminBillingDivergenceSection;
+}) {
   return (
     <div data-testid={`billing-divergence-${kind}`}>
-      <DivergenceHeading kind={kind} section={section} />
-      <ul className="mt-1 space-y-1">
+      <DivergenceHeading kind={kind} meta={meta} tier={tier} section={section} />
+      <ul className="mt-1.5 space-y-1">
         {section.rows.map((row, i) => (
           <li key={i}>
             <DivergenceRow row={row} />
@@ -1239,12 +1302,14 @@ function DivergenceBlock({ kind, section }: { kind: string; section: AdminBillin
  * the only place that shows.
  */
 function UnresolvedSignupsBlock({
+  meta,
   section,
   busyId,
   onViewFlashRecord,
   onAttribute,
   onDismiss,
 }: {
+  meta: DivergenceMeta | null;
   section: AdminBillingDivergenceSection;
   busyId: string | null;
   onViewFlashRecord: (subscriptionId: string) => void;
@@ -1253,12 +1318,7 @@ function UnresolvedSignupsBlock({
 }) {
   return (
     <div data-testid="billing-divergence-unresolved_signups">
-      <DivergenceHeading kind="unresolved_signups" section={section} />
-      <p className="mt-0.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">
-        Payments nobody is receiving anything for. Who paid is visible only in Flash —
-        neither the payment nor the delivery carries a name or an email — so these are
-        settled when the subscriber gets in touch.
-      </p>
+      <DivergenceHeading kind="unresolved_signups" meta={meta} tier="fault" section={section} />
       <ul className="mt-1.5 space-y-1.5">
         {section.rows.map((row, i) => {
           const id =

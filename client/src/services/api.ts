@@ -356,11 +356,98 @@ export interface AdminBillingResolution {
 }
 
 /** One kind of billing disagreement; `truncated` means the list admits it's capped. */
-export interface AdminBillingDivergenceSection {
+/**
+ * One section of the divergence report. Rows are typed per section below (as
+ * the server's OpenAPI names them); the untyped alias stays for a kind this
+ * build doesn't know yet, which the tab renders verbatim.
+ */
+export interface DivergenceSection<R = Record<string, unknown>> {
   count: number;
   truncated: boolean;
-  rows: Record<string, unknown>[];
+  rows: R[];
 }
+export type AdminBillingDivergenceSection = DivergenceSection;
+
+export type DivergenceKind =
+  | "policy_mismatch"
+  | "admin_overrides"
+  | "stale_syncs"
+  | "failing_syncs"
+  | "unresolved_signups"
+  | "unmapped_plans"
+  | "unrecognised_statuses"
+  | "exhausted_events"
+  | "abandoned_checkouts"
+  | "retired_plan_subscribers";
+
+/** granted ≠ live scheduling; `admin_overrides` shares the shape (source = admin). */
+export interface PolicyMismatchRow {
+  pubkey: string;
+  flash_status: string;
+  granted_scheduling_id: number | null;
+  scheduling_id: number | null;
+  scheduling_source: string;
+}
+export interface StaleSyncRow {
+  pubkey: string;
+  flash_status: string;
+  last_synced_at: string | null;
+}
+export interface FailingSyncRow {
+  pubkey: string;
+  last_sync_error: string | null;
+  last_synced_at: string | null;
+}
+export interface UnresolvedSignupRow {
+  id: number;
+  event: string;
+  created_at: string | null;
+  process_error: string | null;
+  flash_subscription_id: string | null;
+}
+export interface UnmappedPlanRow extends UnresolvedSignupRow {
+  external_ref: string | null;
+  flash_service_id: string | null;
+  flash_plan_id: string | null;
+}
+export interface UnrecognisedStatusRow {
+  flash_status: string;
+  subscribers: number;
+}
+export interface ExhaustedEventRow {
+  id: number;
+  event: string;
+  attempts: number;
+  process_error: string | null;
+}
+export interface AbandonedCheckoutRow {
+  pubkey: string;
+  flash_subscription_id: string | null;
+  sync_error_since: string | null;
+}
+export interface RetiredPlanSubscriberRow {
+  pubkey: string;
+  flash_subscription_id: string | null;
+  flash_status: string;
+  billing_plan_id: number | null;
+  granted_scheduling_id: number | null;
+}
+
+/** The whole report. Known kinds typed; the index signature keeps a future
+ *  kind renderable. Every field is read tolerantly — a lagging server may omit some. */
+export type AdminBillingDivergenceReport = Partial<{
+  policy_mismatch: DivergenceSection<PolicyMismatchRow>;
+  admin_overrides: DivergenceSection<PolicyMismatchRow>;
+  stale_syncs: DivergenceSection<StaleSyncRow>;
+  failing_syncs: DivergenceSection<FailingSyncRow>;
+  unresolved_signups: DivergenceSection<UnresolvedSignupRow>;
+  unmapped_plans: DivergenceSection<UnmappedPlanRow>;
+  unrecognised_statuses: DivergenceSection<UnrecognisedStatusRow>;
+  exhausted_events: DivergenceSection<ExhaustedEventRow>;
+  abandoned_checkouts: DivergenceSection<AbandonedCheckoutRow>;
+  retired_plan_subscribers: DivergenceSection<RetiredPlanSubscriberRow>;
+}> &
+  Record<string, DivergenceSection | undefined>;
 
 /** One `billing_plan` row: which Flash plan grants what, and whether we sell it. */
 export interface AdminBillingPlanMapping {
@@ -1278,7 +1365,7 @@ export const apiClient = {
    * by kind (server-defined), each with free-form rows. This is where
    * unattributed/unmatched signups surface, since the roster is pubkey-keyed.
    */
-  async getAdminBillingDivergence(): Promise<Record<string, AdminBillingDivergenceSection>> {
+  async getAdminBillingDivergence(): Promise<AdminBillingDivergenceReport> {
     const response = await authenticatedFetch(
       `${getBrainstormApi()}/admin/billing/divergence`,
       { signal: AbortSignal.timeout(15000) },
@@ -1290,7 +1377,7 @@ export const apiClient = {
       );
     }
     const json = await response.json();
-    return (json?.data ?? json ?? {}) as Record<string, AdminBillingDivergenceSection>;
+    return (json?.data ?? json ?? {}) as AdminBillingDivergenceReport;
   },
 
 
