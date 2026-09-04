@@ -377,10 +377,10 @@ export function ArticlesBento({
   const tiles = rest.slice(0, 3);
   const leadShape = articleShape(lead.primary.event);
   return (
-    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3" data-testid="articles-bento">
+    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3" data-testid="articles-bento">
       <div
         {...openable(() => navigate(eventPath(lead.primary.event)))}
-        className="group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 sm:col-span-2 sm:row-span-2"
+        className="group relative flex cursor-pointer flex-col overflow-hidden rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 col-span-2 sm:row-span-2"
         data-testid={`article-lead-${lead.primary.event.id}`}
       >
         <ArticlePicture src={leadShape.image} className="aspect-[16/9] w-full object-cover bg-slate-100 dark:bg-slate-800" placeholderClass="aspect-[16/9] w-full" />
