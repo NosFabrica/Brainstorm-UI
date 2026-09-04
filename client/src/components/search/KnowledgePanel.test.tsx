@@ -258,6 +258,67 @@ describe("the topic panel", () => {
     expect(screen.getByTestId("topic-panel-feed").getAttribute("href")).toBe("/t/liverpool");
   });
 
+  // Benjamin: "when users type in a search that pulls in an event, those
+  // events should be shown under here like a Google events feel — make it
+  // feel real and relevant, not forced. For example chicago." Google's
+  // knowledge panel lists a few upcoming events with date tiles. Ours does
+  // the same from the Events vertical: upcoming only, soonest first, three
+  // at most, a link to the rest — and nothing at all when nothing is coming up.
+  it("lists up to three upcoming events for the topic, soonest first, with a way to the rest", async () => {
+    render(<KnowledgePanel query="chicago" pov="nosfabrica" />);
+    await vi.waitFor(() => expect(streamCalls.some((c) => c.params.tab === "events")).toBe(true));
+    const eventsProbe = streamCalls.find((c) => c.params.tab === "events")!;
+    expect(eventsProbe.query).toBe("chicago sort:recent");
+    // Topic probe answers first so the topic panel takes the slot.
+    streamCalls[0].emit({
+      hits: [noteHit("t1", "1".repeat(64), "bot", NOW - 100), noteHit("t2", "2".repeat(64), "w", NOW - 200), noteHit("t3", "3".repeat(64), "m", NOW - 300)],
+      eose: true,
+      timeMs: 100,
+    });
+    await screen.findByTestId("search-topic-panel");
+    const DAY = 86_400;
+    const cal = (id: string, title: string, start: number) =>
+      ({ event: { id, kind: 31923, pubkey: "c".repeat(64), created_at: NOW - 1000, content: "", sig: "", tags: [["d", id], ["title", title], ["start", String(start)], ["location", "Chicago, IL"]] } as NostrEvent, author: null, rank: null });
+    eventsProbe.emit({
+      hits: [
+        cal("ev-far", "Chicago Bitcoin Conference", NOW + 40 * DAY),
+        cal("ev-past", "Chicago Meetup (July)", NOW - 30 * DAY),
+        cal("ev-soon", "Chicago Bitcoin Meetup", NOW + 2 * DAY),
+        cal("ev-mid", "Nostr Chicago Social", NOW + 9 * DAY),
+        cal("ev-later", "Lightning Chicago Hack Night", NOW + 20 * DAY),
+      ],
+      eose: true,
+      timeMs: 120,
+    });
+    const block = await screen.findByTestId("topic-events");
+    const rows = [...block.querySelectorAll('[data-testid^="topic-event-"]')].map((r) => r.getAttribute("data-testid"));
+    expect(rows).toEqual(["topic-event-ev-soon", "topic-event-ev-mid", "topic-event-ev-later"]);
+    expect(block).not.toHaveTextContent("July");
+    const soon = screen.getByTestId("topic-event-ev-soon");
+    expect(soon).toHaveTextContent("Chicago Bitcoin Meetup");
+    expect(soon).toHaveTextContent("Chicago, IL");
+    expect(soon.getAttribute("href")).toMatch(/^\/e\//);
+    expect(screen.getByTestId("topic-events-more").getAttribute("href")).toBe("/?q=chicago&t=events");
+  });
+
+  it("stays silent about events when none are coming up", async () => {
+    render(<KnowledgePanel query="chicago" pov="nosfabrica" />);
+    await vi.waitFor(() => expect(streamCalls.some((c) => c.params.tab === "events")).toBe(true));
+    streamCalls[0].emit({
+      hits: [noteHit("t1", "1".repeat(64), "bot", NOW - 100), noteHit("t2", "2".repeat(64), "w", NOW - 200), noteHit("t3", "3".repeat(64), "m", NOW - 300)],
+      eose: true,
+      timeMs: 100,
+    });
+    await screen.findByTestId("search-topic-panel");
+    streamCalls.find((c) => c.params.tab === "events")!.emit({
+      hits: [{ event: { id: "old", kind: 31923, pubkey: "c".repeat(64), created_at: NOW - 1000, content: "", sig: "", tags: [["d", "old"], ["title", "Chicago Meetup"], ["start", String(NOW - 86_400)]] } as NostrEvent, author: null, rank: null }],
+      eose: true,
+      timeMs: 120,
+    });
+    await new Promise((r) => setTimeout(r, 10));
+    expect(screen.queryByTestId("topic-events")).toBeNull();
+  });
+
   it("summarizes the topic's activity: note count and voice count", async () => {
     render(<KnowledgePanel query="liverpool" pov="nosfabrica" />);
     await vi.waitFor(() => expect(streamCalls.length).toBeGreaterThanOrEqual(1));

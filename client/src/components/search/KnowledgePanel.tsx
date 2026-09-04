@@ -17,6 +17,8 @@ import { ZapModal } from "@/components/ZapModal";
 import { visiblePersonSets } from "@/services/endorsements";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { eventPath } from "@/lib/shareId";
+import { eventDateTile, parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
+import { filterEventsByWhen } from "@/lib/eventFilters";
 import { fetchNipPage, fetchPersonSets, searchStream, suggestProfiles, type PersonSetMembership, type SearchHit, type SearchPov } from "@/services/search";
 
 /** One app in the rail: icon, name, summary. Reviews live on the app page —
@@ -109,6 +111,8 @@ export function KnowledgePanel({
   const [topicHits, setTopicHits] = useState<SearchHit[] | null>(null);
   const [nipPage, setNipPage] = useState<NostrEvent | null>(null);
   const [appHits, setAppHits] = useState<SearchHit[] | null>(null);
+  // Upcoming calendar events that name the query — Google's panel lists a few.
+  const [topicEvents, setTopicEvents] = useState<SearchHit[] | null>(null);
   const [personSets, setPersonSets] = useState<PersonSetMembership[]>([]);
 
   useEffect(() => {
@@ -116,6 +120,7 @@ export function KnowledgePanel({
     setTopicHits(null);
     setNipPage(null);
     setAppHits(null);
+    setTopicEvents(null);
     setPersonSets([]);
     if (!isPanelableQuery(query)) return;
     let alive = true;
@@ -154,6 +159,19 @@ export function KnowledgePanel({
       });
       if (matched.length > 0) setAppHits(matched.slice(0, 3));
     });
+    // Events probe (Benjamin: "like a Google events feel — real and
+    // relevant, not forced"): upcoming only, soonest first, and the query
+    // must actually appear in the event's title, place or summary — the
+    // relay's fuzzy text match alone would drag in strays.
+    const cancelEvents = searchStream(`${query} sort:recent`, { tab: "events", pov, userPubkey, limit: 60 }, (snapshot) => {
+      if (!alive || !snapshot.eose) return;
+      const named = snapshot.hits.filter((h) => {
+        const cal = parseCalendarEvent(h.event);
+        return norm(`${cal.title} ${cal.location ?? ""} ${cal.summary ?? ""}`).includes(q);
+      });
+      const upcoming = filterEventsByWhen(named, "upcoming");
+      if (upcoming.length > 0) setTopicEvents(upcoming.slice(0, 3));
+    });
     void suggestProfiles(query, { pov, userPubkey }, { limit: 3 }).then((people) => {
       if (!alive) return;
       const top = people[0];
@@ -170,6 +188,7 @@ export function KnowledgePanel({
       alive = false;
       cancelTopic?.();
       cancelApps();
+      cancelEvents();
     };
   }, [query, pov, userPubkey]);
 
@@ -323,6 +342,48 @@ export function KnowledgePanel({
                 </li>
               ))}
             </ul>
+          </div>
+        )}
+        {topicEvents && topicEvents.length > 0 && (
+          <div className="mt-3" data-testid="topic-events">
+            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Upcoming events</p>
+            <ul className="mt-1.5 space-y-0.5">
+              {topicEvents.map((h) => {
+                const cal = parseCalendarEvent(h.event);
+                const tile = eventDateTile(cal.startSec);
+                return (
+                  <li key={h.event.id}>
+                    <Link
+                      href={eventPath(h.event)}
+                      className="flex items-center gap-2 rounded-lg px-1.5 py-1 -mx-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                      data-testid={`topic-event-${h.event.id}`}
+                    >
+                      <span
+                        className="flex h-9 w-9 shrink-0 flex-col items-center justify-center rounded-md border border-brand-accent/30 bg-brand-deep/[0.06] text-brand-deep dark:text-brand-link"
+                        aria-hidden="true"
+                      >
+                        <span className="text-[8px] font-bold uppercase leading-none tracking-wide">{tile.month}</span>
+                        <span className="text-sm font-bold leading-tight tabular-nums">{tile.day}</span>
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-xs font-semibold text-slate-800 dark:text-slate-100">{cal.title}</span>
+                        <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400">
+                          {relativeEventTime(cal.startSec)}
+                          {cal.location ? ` · ${cal.location}` : ""}
+                        </span>
+                      </span>
+                    </Link>
+                  </li>
+                );
+              })}
+            </ul>
+            <Link
+              href={`/?q=${encodeURIComponent(query)}&t=events`}
+              className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-brand-link hover:underline"
+              data-testid="topic-events-more"
+            >
+              More events <ArrowRight className="h-3 w-3" />
+            </Link>
           </div>
         )}
         {related.length > 0 && (

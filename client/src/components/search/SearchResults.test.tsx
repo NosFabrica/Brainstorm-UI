@@ -14,10 +14,10 @@ const streamMock = vi.fn();
 const cancelMock = vi.fn();
 const suggestMock = vi.fn<() => Promise<unknown[]>>(() => Promise.resolve([]));
 // Every stream registered, with its callback. The KnowledgePanel's probes
-// (the #query topic probe and the limit-6 apps probe) ride the same mock —
-// tests target the MAIN stream.
+// (the #query topic probe, the limit-6 apps probe and the limit-60 events
+// probe) ride the same mock — tests target the MAIN stream.
 const isPanelProbe = (q: string, p?: { tab?: string; limit?: number }) =>
-  q.startsWith("#") || (p?.tab === "apps" && p?.limit === 6);
+  q.startsWith("#") || (p?.tab === "apps" && p?.limit === 6) || (p?.tab === "events" && p?.limit === 60);
 let allStreams: { query: string; params: { tab?: string; limit?: number }; cb: (s: SearchSnapshot) => void }[] = [];
 const mainStreamCalls = () =>
   streamMock.mock.calls.filter(([q, p]) => !isPanelProbe(String(q), p as { tab?: string; limit?: number }));
