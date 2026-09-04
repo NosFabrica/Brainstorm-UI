@@ -78,4 +78,20 @@ describe("ListingRelated", () => {
     expect(opts.excludePubkey).toBe(SELLER);
     expect(screen.queryByTestId("listing-more-from-seller")).toBeNull();
   });
+
+  it("offers the other sizes of this product as options, and keeps them out of the seller's other things", async () => {
+    const variant = (d: string, title: string, at: number): NostrEvent =>
+      ({ id: `${d}-${at}`.padEnd(64, "0"), pubkey: SELLER, kind: 30402, created_at: at, content: "", sig: "", tags: [["d", d], ["title", title], ["price", "12", "USD"], ["image", "https://img/tee.jpg"]] }) as NostrEvent;
+    const self = variant("tee-xl", "Tee — XL", 1000);
+    recentMock.mockResolvedValue([self, variant("tee-l", "Tee — L", 900), variant("tee-m", "Tee — M", 800), listing(SELLER, "mug", "Mug", 700)]);
+    render(<ListingRelated event={self} sellerName="Born To Be Free" />);
+    const options = await screen.findByTestId("listing-options");
+    const chips = within(options).getAllByRole("link");
+    expect(chips.map((c) => c.textContent)).toEqual(["L", "M"]);
+    expect(chips[0].getAttribute("href")).toMatch(/^\/e\//);
+    const row = screen.getByTestId("listing-more-from-seller");
+    expect(within(row).getAllByTestId(/^listing-card-/)).toHaveLength(1);
+    expect(row).toHaveTextContent("Mug");
+    expect(row).not.toHaveTextContent("Tee");
+  });
 });

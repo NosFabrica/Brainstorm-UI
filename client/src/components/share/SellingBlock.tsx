@@ -3,7 +3,8 @@ import { useQuery } from "@tanstack/react-query";
 import { ShoppingBag } from "lucide-react";
 import { nip19, type NostrEvent } from "nostr-tools";
 import { fetchRecentByKinds } from "@/services/nostr";
-import { LISTING_KIND, isSellable, parseListing } from "@/lib/listing";
+import { LISTING_KIND } from "@/lib/listing";
+import { productsFromEvents } from "@/lib/listingVariants";
 import { ListingCard } from "@/components/search/cards";
 import { ContentTeaserBlock } from "./ContentTeaserBlock";
 
@@ -38,22 +39,14 @@ export function SellingBlock({
     staleTime: 5 * 60_000,
     retry: false,
   });
-  const listings = useMemo(
-    () =>
-      (q.data ?? [])
-        .filter((ev) => {
-          const l = parseListing(ev);
-          return !!l && isSellable(l);
-        })
-        .sort((a, b) => b.created_at - a.created_at),
-    [q.data],
-  );
+  // Products, not listings: a shirt in five sizes is one card, "5 options".
+  const products = useMemo(() => productsFromEvents(q.data ?? []), [q.data]);
   useEffect(() => {
-    if (q.isSuccess || q.isError) onCount?.(listings.length);
-  }, [q.isSuccess, q.isError, listings.length]);
+    if (q.isSuccess || q.isError) onCount?.(products.length);
+  }, [q.isSuccess, q.isError, products.length]);
 
-  if (hidden || listings.length === 0) return null;
-  const more = listings.length > SHELF_SIZE;
+  if (hidden || products.length === 0) return null;
+  const more = products.length > SHELF_SIZE;
   return (
     <ContentTeaserBlock
       icon={<ShoppingBag className="h-4 w-4" />}
@@ -61,11 +54,11 @@ export function SellingBlock({
       testId="share-block-selling"
       className={className}
       viewAllHref={more ? `/p/${nip19.npubEncode(pubkey)}/selling` : undefined}
-      viewAllLabel={`See all ${listings.length} →`}
+      viewAllLabel={`See all ${products.length} →`}
     >
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        {listings.slice(0, SHELF_SIZE).map((ev: NostrEvent) => (
-          <ListingCard key={ev.id} event={ev} author={null} showAuthor={false} />
+        {products.slice(0, SHELF_SIZE).map(({ event, group }) => (
+          <ListingCard key={group.id} event={event as NostrEvent} author={null} showAuthor={false} group={{ title: group.title, options: group.options.length }} />
         ))}
       </div>
     </ContentTeaserBlock>

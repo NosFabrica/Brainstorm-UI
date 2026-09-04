@@ -1,8 +1,11 @@
 import { useEffect, useState } from "react";
+import { Link } from "wouter";
 import { nip19, type NostrEvent } from "nostr-tools";
 import { fetchProfileMap, fetchRecentByKinds } from "@/services/nostr";
 import { fetchSimilarListings } from "@/services/search";
 import { APP_TAGS, LISTING_KIND, isSellable, parseListing } from "@/lib/listing";
+import { productsFromEvents, splitVariantTitle, type ProductCard } from "@/lib/listingVariants";
+import { eventPath } from "@/lib/shareId";
 import type { SearchResult } from "@/lib/profileSearch";
 import { ListingCard } from "@/components/search/cards";
 
@@ -22,21 +25,27 @@ const sellable = (evs: NostrEvent[]) =>
  * is selling is the point of a web-of-trust shop.
  */
 export function ListingRelated({ event, sellerName }: { event: ListingLike; sellerName?: string }) {
-  const [mine, setMine] = useState<NostrEvent[]>([]);
+  const [mine, setMine] = useState<ProductCard<NostrEvent>[]>([]);
+  const [options, setOptions] = useState<{ id: string; pubkey: string; label: string }[]>([]);
   const [similar, setSimilar] = useState<NostrEvent[]>([]);
   const [sellers, setSellers] = useState<Map<string, SearchResult>>(new Map());
 
   useEffect(() => {
     let alive = true;
     const address = addressOf(event);
-    void fetchRecentByKinds(event.pubkey, [LISTING_KIND], 12).then((evs) => {
+    void fetchRecentByKinds(event.pubkey, [LISTING_KIND], 30).then((evs) => {
       if (!alive) return;
-      setMine(
-        sellable(evs)
-          .filter((ev) => ev.id !== event.id && addressOf(ev) !== address)
-          .sort((a, b) => b.created_at - a.created_at)
-          .slice(0, 4),
+      // The seller's things as products. The product this listing belongs to
+      // gives its other sizes as options; the rest are "more for sale".
+      const products = productsFromEvents(evs);
+      const isThis = (m: { id: string; pubkey: string; d: string }) => m.id === event.id || `${LISTING_KIND}:${m.pubkey}:${m.d}` === address;
+      const own = products.find((p) => p.group.members.some(isThis));
+      setOptions(
+        (own?.group.members ?? [])
+          .filter((m) => !isThis(m))
+          .map((m) => ({ id: m.id, pubkey: m.pubkey, label: splitVariantTitle(m.title).option ?? m.title })),
       );
+      setMine(products.filter((p) => p !== own).slice(0, 4));
     });
     // The listing's categories as the seller wrote them AND lower-cased — the
     // relay's tag filter is exact, marketplaces are not. App identifiers
@@ -69,15 +78,29 @@ export function ListingRelated({ event, sellerName }: { event: ListingLike; sell
     };
   }, [event.id]);
 
-  if (mine.length === 0 && similar.length === 0) return null;
+  if (mine.length === 0 && similar.length === 0 && options.length === 0) return null;
   return (
     <div className="space-y-5" data-testid="listing-related">
+      {options.length > 0 && (
+        <section data-testid="listing-options" className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Other options</span>
+          {options.map((o) => (
+            <Link
+              key={o.id}
+              href={eventPath({ id: o.id, pubkey: o.pubkey })}
+              className="rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:border-brand-accent/40 transition-colors"
+            >
+              {o.label}
+            </Link>
+          ))}
+        </section>
+      )}
       {mine.length > 0 && (
         <section data-testid="listing-more-from-seller">
           <h2 className="mb-3 text-sm font-bold text-slate-900 dark:text-slate-100">More for sale from {sellerName || "this seller"}</h2>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-            {mine.map((ev) => (
-              <ListingCard key={ev.id} event={ev} author={null} showAuthor={false} />
+            {mine.map(({ event: ev, group }) => (
+              <ListingCard key={group.id} event={ev} author={null} showAuthor={false} group={{ title: group.title, options: group.options.length }} />
             ))}
           </div>
         </section>

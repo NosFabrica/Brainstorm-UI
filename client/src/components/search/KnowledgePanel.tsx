@@ -9,7 +9,8 @@ import { fetchLiveStreams, fetchRecentByKinds } from "@/services/nostr";
 import { pickStreams, verifyRecording, type PickedStreams } from "@/lib/liveStream";
 import { PanelLive } from "@/components/search/PanelLive";
 import { PanelLatestMedia } from "@/components/search/PanelMedia";
-import { formatListingPrice, isSellable, LISTING_KIND, parseListing, type Listing } from "@/lib/listing";
+import { formatListingPrice, LISTING_KIND } from "@/lib/listing";
+import { productsFromEvents, type VariantGroup } from "@/lib/listingVariants";
 import { parseTrack, TRACK_KIND, type Track } from "@/lib/trackEvent";
 import { findWavlakeArtist, wavlakeArtistTracks, type WavlakeArtist, type WavlakeSong } from "@/lib/wavlake";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
@@ -141,7 +142,7 @@ export function KnowledgePanel({
   // Their latest posts that carry media — videos attached, podcast links.
   const [personRecent, setPersonRecent] = useState<NostrEvent[]>([]);
   // What they have for sale — the three newest listings still for sale.
-  const [personListings, setPersonListings] = useState<Listing[]>([]);
+  const [personListings, setPersonListings] = useState<VariantGroup[]>([]);
   useEffect(() => {
     if (!person) {
       setPersonListings([]);
@@ -151,13 +152,8 @@ export function KnowledgePanel({
     fetchRecentByKinds(person.pubkey, [LISTING_KIND], 12)
       .then((events) => {
         if (cancelled) return;
-        setPersonListings(
-          events
-            .map((e) => parseListing(e as NostrEvent))
-            .filter((l): l is Listing => l !== null && isSellable(l))
-            .sort((a, b) => b.createdAt - a.createdAt)
-            .slice(0, 3),
-        );
+        // Products, not listings: a shirt in five sizes is one row.
+        setPersonListings(productsFromEvents(events as NostrEvent[]).slice(0, 3).map((p) => p.group));
       })
       .catch(() => {
         if (!cancelled) setPersonListings([]);
@@ -612,7 +608,9 @@ export function KnowledgePanel({
             </Link>
           </div>
           <div className="space-y-1">
-            {personListings.map((l) => (
+            {personListings.map((g) => {
+              const l = g.primary;
+              return (
               <Link
                 key={l.id}
                 href={eventPath({ id: l.id, pubkey: l.pubkey })}
@@ -623,14 +621,15 @@ export function KnowledgePanel({
                   {l.images[0] ? <img src={l.images[0]} alt="" loading="lazy" className="h-full w-full object-cover" /> : <ShoppingBag className="absolute inset-0 m-auto h-4 w-4 text-slate-400" />}
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{l.title}</span>
+                  <span className="block truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{g.title}</span>
                   <span className="block text-[11px] text-slate-500 dark:text-slate-400">
                     {l.price ? formatListingPrice(l.price) : "Price on request"}
-                    {l.location ? ` · ${l.location}` : ""}
+                    {g.options.length > 1 ? ` · ${g.options.length} options` : l.location ? ` · ${l.location}` : ""}
                   </span>
                 </span>
               </Link>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

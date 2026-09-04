@@ -62,4 +62,19 @@ describe("SellerListings", () => {
     );
     expect(await screen.findByTestId("selling-empty")).toHaveTextContent("Nothing for sale right now");
   });
+
+  it("counts products, not size variants — one shirt in three sizes is one card with 3 options", async () => {
+    const shirt = (size: string, at: number): NostrEvent =>
+      ({ id: `shirt-${size}`.padEnd(64, "0"), pubkey: SELLER, kind: 30402, created_at: at, content: "", sig: "", tags: [["d", `shirt-${size}`], ["title", `Tee — ${size}`], ["price", "35", "USD"], ["image", "https://img/tee.jpg"]] }) as NostrEvent;
+    recentMock.mockResolvedValue([shirt("XL", 3), shirt("L", 2), shirt("M", 1), listing("mug", "Mug", 5)]);
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={qc}>
+        <SellerListings pubkey={SELLER} npub="npub1seller" relayHints={[]} />
+      </QueryClientProvider>,
+    );
+    expect(await screen.findByTestId("selling-count")).toHaveTextContent("2");
+    expect(screen.getAllByTestId(/^listing-card-/)).toHaveLength(2);
+    expect(screen.getByTestId(/^listing-options-/)).toHaveTextContent("3 options");
+  });
 });

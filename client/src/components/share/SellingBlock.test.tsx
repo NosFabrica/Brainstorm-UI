@@ -77,4 +77,21 @@ describe("SellingBlock", () => {
     await waitFor(() => expect(onCount).toHaveBeenCalledWith(0));
     expect(screen.queryByTestId("share-block-selling")).toBeNull();
   });
+
+  it("folds one product in several sizes into one card that says how many options — the count is products, not listings", async () => {
+    const shirt = (size: string, at: number) =>
+      ({ ...listing(`shirt-${size}`, `SOUND COFFEE T-SHIRT — ${size} / PEPPER`, at), tags: [["d", `shirt-${size}`], ["title", `SOUND COFFEE T-SHIRT — ${size} / PEPPER`], ["price", "35", "USD"], ["image", "https://img/shirt.jpg"]] }) as NostrEvent;
+    recentMock.mockResolvedValue([shirt("XXL", 3000), shirt("XL", 2900), shirt("SMALL", 2800), listing("bag", "SOUND COFFEE", 2000)]);
+    const onCount = vi.fn();
+    mount(<SellingBlock pubkey={SELLER} onCount={onCount} />);
+    const block = await screen.findByTestId("share-block-selling");
+    const cards = within(block).getAllByTestId(/^listing-card-/);
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).toHaveTextContent("SOUND COFFEE T-SHIRT");
+    expect(cards[0]).not.toHaveTextContent("XXL");
+    expect(within(cards[0]).getByTestId(/^listing-options-/)).toHaveTextContent("3 options");
+    expect(within(cards[0]).getByRole("link").getAttribute("href")).toMatch(/^\/e\//);
+    expect(within(cards[1]).queryByTestId(/^listing-options-/)).toBeNull();
+    await waitFor(() => expect(onCount).toHaveBeenCalledWith(2));
+  });
 });

@@ -837,7 +837,21 @@ export function WavlakeSongCard({ song }: { song: WavlakeSong }) {
  * their trust ring, which is the one thing no store can show. The corner
  * opens the seller's own page for it when the app published one.
  */
-export function ListingCard({ event, author, score, showAuthor = true }: { event: NostrEvent; author: SearchResult | null; score?: number | null; showAuthor?: boolean }) {
+export function ListingCard({
+  event,
+  author,
+  score,
+  showAuthor = true,
+  group,
+}: {
+  event: NostrEvent;
+  author: SearchResult | null;
+  score?: number | null;
+  showAuthor?: boolean;
+  /** When this card stands for one product published as several listings
+   *  (sizes, colours): the shared title and how many options there are. */
+  group?: { title: string; options: number };
+}) {
   const l = parseListing(event);
   if (!l) return null;
   const host = l.shopUrl ? hostOf(l.shopUrl) ?? undefined : undefined;
@@ -865,8 +879,13 @@ export function ListingCard({ event, author, score, showAuthor = true }: { event
         {l.images.length > 1 && (
           <span className="absolute bottom-2 right-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">{l.images.length} photos</span>
         )}
+        {group && group.options > 1 && (
+          <span className="absolute bottom-2 left-2 rounded-md bg-white/90 px-1.5 py-0.5 text-[10px] font-semibold text-slate-800" data-testid={`listing-options-${event.id}`}>
+            {group.options} options
+          </span>
+        )}
       </div>
-      <p className={`mt-2.5 line-clamp-2 text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100 ${l.shopUrl ? "pr-2" : ""}`}>{l.title}</p>
+      <p className={`mt-2.5 line-clamp-2 text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100 ${l.shopUrl ? "pr-2" : ""}`}>{group?.title ?? l.title}</p>
       {(l.location || l.summary) && (
         <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">{l.location ?? l.summary}</p>
       )}

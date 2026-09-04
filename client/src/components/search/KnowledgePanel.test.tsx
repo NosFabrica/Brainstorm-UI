@@ -925,6 +925,23 @@ describe("the person panel's Selling row", () => {
     expect(within(selling).getByTestId("person-selling-more").getAttribute("href")).toBe("/p/npub1barattolo/selling");
   });
 
+  it("shows one row for a product published in several sizes, saying how many options", async () => {
+    seller();
+    const shirt = (size: string, age: number): NostrEvent =>
+      ({ id: `shirt-${size}`, kind: 30402, pubkey: SELLER, created_at: NOW - age, sig: "s", content: "", tags: [["d", `shirt-${size}`], ["title", `SOUND COFFEE T-SHIRT — ${size} / PEPPER`], ["price", "35", "USD"], ["image", "https://img/shirt.jpg"]] }) as NostrEvent;
+    recentByKindsMock.mockImplementation(async (_pk, kinds) =>
+      kinds.includes(30402) ? [shirt("XXL", 3600), shirt("XL", 7200), shirt("SMALL", 9000), listing("bag", "SOUND COFFEE", 86_400)] : [],
+    );
+    render(<KnowledgePanel query="Barattolo" pov="nosfabrica" />);
+    const selling = await screen.findByTestId("person-selling");
+    const rows = within(selling).getAllByTestId(/^person-selling-item-/);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]).toHaveTextContent("SOUND COFFEE T-SHIRT");
+    expect(rows[0]).not.toHaveTextContent("XXL");
+    expect(rows[0]).toHaveTextContent("3 options");
+    expect(rows[1]).toHaveTextContent("SOUND COFFEE");
+  });
+
   it("has no Selling row for someone with nothing for sale", async () => {
     seller();
     render(<KnowledgePanel query="Barattolo" pov="nosfabrica" />);

@@ -5,7 +5,8 @@ import { ArrowLeft, Loader2, ShoppingBag } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { decodeShareId } from "@/lib/shareId";
 import { fetchProfileForShare, fetchRecentByKinds } from "@/services/nostr";
-import { LISTING_KIND, isSellable, parseListing } from "@/lib/listing";
+import { LISTING_KIND } from "@/lib/listing";
+import { productsFromEvents } from "@/lib/listingVariants";
 import { ListingCard } from "@/components/search/cards";
 import { Chip } from "@/components/ui/chip";
 import { Wordmark } from "@/components/Wordmark";
@@ -37,16 +38,7 @@ export function SellerListings({ pubkey, npub, relayHints }: { pubkey: string; n
     staleTime: 5 * 60_000,
     retry: false,
   });
-  const listings = useMemo(
-    () =>
-      (listingsQuery.data ?? [])
-        .filter((ev) => {
-          const l = parseListing(ev);
-          return !!l && isSellable(l);
-        })
-        .sort((a, b) => b.created_at - a.created_at),
-    [listingsQuery.data],
-  );
+  const products = useMemo(() => productsFromEvents(listingsQuery.data ?? []), [listingsQuery.data]);
   const profile = profileQuery.data;
   const name = profile?.display_name || profile?.name || `${npub.slice(0, 12)}…`;
   const first = name.split(" ")[0];
@@ -83,7 +75,7 @@ export function SellerListings({ pubkey, npub, relayHints }: { pubkey: string; n
           </h1>
           {listingsQuery.isSuccess && (
             <Chip tone="slate" size="sm" data-testid="selling-count">
-              {listings.length}
+              {products.length}
             </Chip>
           )}
         </div>
@@ -92,14 +84,14 @@ export function SellerListings({ pubkey, npub, relayHints }: { pubkey: string; n
           <div className="flex items-center gap-2 text-sm text-slate-400" data-testid="selling-loading">
             <Loader2 className="h-4 w-4 animate-spin" /> Loading…
           </div>
-        ) : listings.length === 0 ? (
+        ) : products.length === 0 ? (
           <p className="text-sm text-slate-500 dark:text-slate-400" data-testid="selling-empty">
             Nothing for sale right now.
           </p>
         ) : (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            {listings.map((ev: NostrEvent) => (
-              <ListingCard key={ev.id} event={ev} author={null} showAuthor={false} />
+            {products.map(({ event, group }) => (
+              <ListingCard key={group.id} event={event as NostrEvent} author={null} showAuthor={false} group={{ title: group.title, options: group.options.length }} />
             ))}
           </div>
         )}
