@@ -895,3 +895,41 @@ describe("the person panel's latest media", () => {
     expect(within(row).getByRole("button", { name: /play/i })).toBeInTheDocument();
   });
 });
+
+// A seller's panel sells: their three newest listings for sale, photo, title
+// and price, each opening the listing; "All" goes to their profile.
+describe("the person panel's Selling row", () => {
+  const SELLER = "9".repeat(64);
+  const seller = () =>
+    suggestMock.mockResolvedValueOnce([{ pubkey: SELLER, npub: "npub1barattolo", name: "Barattolo", wotRank: 0.8, wotFollowers: 300 }]);
+  const listing = (id: string, title: string, age: number, extra: string[][] = []): NostrEvent =>
+    ({ id, kind: 30402, pubkey: SELLER, created_at: NOW - age, sig: "s", content: title, tags: [["d", id], ["title", title], ["price", "14100", "sats"], ["image", `https://img/${id}.jpg`], ...extra] }) as NostrEvent;
+
+  it("lists the three newest listings for sale with photo, title and price, and links to the seller's profile for the rest", async () => {
+    seller();
+    recentByKindsMock.mockImplementation(async (_pk, kinds) =>
+      kinds.includes(30402)
+        ? [listing("l4", "Maglia quattro", 4 * 86_400), listing("l1", "Maglia uno", 86_400), listing("sold", "Venduta", 3600, [["status", "sold"]]), listing("l2", "Maglia due", 2 * 86_400), listing("l3", "Maglia tre", 3 * 86_400)]
+        : [],
+    );
+    render(<KnowledgePanel query="Barattolo" pov="nosfabrica" />);
+
+    const selling = await screen.findByTestId("person-selling");
+    const rows = within(selling).getAllByTestId(/^person-selling-item-/);
+    expect(rows.map((r) => r.getAttribute("data-testid"))).toEqual(["person-selling-item-l1", "person-selling-item-l2", "person-selling-item-l3"]);
+    expect(rows[0]).toHaveTextContent("Maglia uno");
+    expect(rows[0]).toHaveTextContent("14,100 sats");
+    expect(rows[0].querySelector("img")?.getAttribute("src")).toBe("https://img/l1.jpg");
+    expect(rows[0].getAttribute("href")).toMatch(/^\/e\//);
+    expect(selling).not.toHaveTextContent("Venduta");
+    expect(within(selling).getByTestId("person-selling-more").getAttribute("href")).toBe("/p/npub1barattolo");
+  });
+
+  it("has no Selling row for someone with nothing for sale", async () => {
+    seller();
+    render(<KnowledgePanel query="Barattolo" pov="nosfabrica" />);
+    await screen.findByTestId("knowledge-panel-profile");
+    await vi.waitFor(() => expect(recentByKindsMock).toHaveBeenCalled());
+    expect(screen.queryByTestId("person-selling")).toBeNull();
+  });
+});

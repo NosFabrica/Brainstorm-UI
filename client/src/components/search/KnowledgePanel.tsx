@@ -9,11 +9,12 @@ import { fetchLiveStreams, fetchRecentByKinds } from "@/services/nostr";
 import { pickStreams, verifyRecording, type PickedStreams } from "@/lib/liveStream";
 import { PanelLive } from "@/components/search/PanelLive";
 import { PanelLatestMedia } from "@/components/search/PanelMedia";
+import { formatListingPrice, isSellable, LISTING_KIND, parseListing, type Listing } from "@/lib/listing";
 import { parseTrack, TRACK_KIND, type Track } from "@/lib/trackEvent";
 import { findWavlakeArtist, wavlakeArtistTracks, type WavlakeArtist, type WavlakeSong } from "@/lib/wavlake";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { Link, useLocation } from "wouter";
-import { ArrowRight, BookOpen, Check, Hash, Package, Users, Zap } from "lucide-react";
+import { ArrowRight, BookOpen, Check, Hash, Package, Users, Zap, ShoppingBag } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -139,6 +140,32 @@ export function KnowledgePanel({
   const [personStreams, setPersonStreams] = useState<PickedStreams>({ live: null, upcoming: null, replay: null });
   // Their latest posts that carry media — videos attached, podcast links.
   const [personRecent, setPersonRecent] = useState<NostrEvent[]>([]);
+  // What they have for sale — the three newest listings still for sale.
+  const [personListings, setPersonListings] = useState<Listing[]>([]);
+  useEffect(() => {
+    if (!person) {
+      setPersonListings([]);
+      return;
+    }
+    let cancelled = false;
+    fetchRecentByKinds(person.pubkey, [LISTING_KIND], 12)
+      .then((events) => {
+        if (cancelled) return;
+        setPersonListings(
+          events
+            .map((e) => parseListing(e as NostrEvent))
+            .filter((l): l is Listing => l !== null && isSellable(l))
+            .sort((a, b) => b.createdAt - a.createdAt)
+            .slice(0, 3),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setPersonListings([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [person?.pubkey]);
   useEffect(() => {
     if (!person) {
       setPersonRecent([]);
@@ -576,6 +603,37 @@ export function KnowledgePanel({
       {/* Live now leads — the most time-sensitive thing about a person. */}
       <PanelLive {...personStreams} />
       <PanelLatestMedia person={person} events={personRecent} />
+      {personListings.length > 0 && (
+        <div className="mt-3" data-testid="person-selling">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Selling</span>
+            <Link href={`/p/${person.npub}`} onClick={() => onOpen?.(person)} className="text-[11px] font-medium text-brand-deep dark:text-brand-link hover:underline" data-testid="person-selling-more">
+              All →
+            </Link>
+          </div>
+          <div className="space-y-1">
+            {personListings.map((l) => (
+              <Link
+                key={l.id}
+                href={eventPath({ id: l.id, pubkey: l.pubkey })}
+                className="flex items-center gap-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-1.5 hover:border-brand-accent/40 transition-colors"
+                data-testid={`person-selling-item-${l.id}`}
+              >
+                <span className="relative h-11 w-14 shrink-0 overflow-hidden rounded-md bg-slate-100 dark:bg-slate-800">
+                  {l.images[0] ? <img src={l.images[0]} alt="" loading="lazy" className="h-full w-full object-cover" /> : <ShoppingBag className="absolute inset-0 m-auto h-4 w-4 text-slate-400" />}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{l.title}</span>
+                  <span className="block text-[11px] text-slate-500 dark:text-slate-400">
+                    {formatListingPrice(l.price)}
+                    {l.location ? ` · ${l.location}` : ""}
+                  </span>
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
       {/* Nostr's oldest review: who follows them — the most trusted faces, and
           how many verified accounts in all. Then the trust reviews proper. */}
       <FollowedByLine pubkey={person.pubkey} npub={person.npub} personal={pov === "mywot"} testId="person-followed-by" className="mt-2.5" />

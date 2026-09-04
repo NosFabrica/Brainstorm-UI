@@ -44,6 +44,7 @@ export function kindTypeLabel(kind: number): string {
   switch (kind) {
     case 0: return "Person";
     case 31337: return "Track";
+    case 30402: return "Listing";
     case 1: case 11: return "Note";
     case 1111: return "Comment";
     case 30023: case 30024: case 30040: case 30041: return "Article";

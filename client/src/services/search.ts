@@ -30,6 +30,7 @@ export type SearchTab =
   | "articles"
   | "media"
   | "apps"
+  | "shop"
   | "repos"
   | "events"
   | "live"
@@ -47,6 +48,8 @@ export const TAB_KINDS: Record<Exclude<SearchTab, "everything">, number[]> = {
   // confusing tab. Kind 1337 "snippets" is deliberately in NEITHER — live
   // probing showed it ~90% JSON junk; it still surfaces via Everything.
   apps: [32267],
+  // NIP-99 classifieds — the Shop. Sold, hidden and priceless are gated in the UI (lib/listing).
+  shop: [30402],
   // Native tracks (Wavlake, Stemstr, Tunestr). The kind is also abused for
   // game state and ad-skip data, so the UI keeps only hits with a title and
   // audio — see lib/trackEvent.

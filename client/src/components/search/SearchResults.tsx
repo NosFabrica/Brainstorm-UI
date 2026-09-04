@@ -36,9 +36,10 @@ import {
   type SearchTab,
 } from "@/services/search";
 
-import { AppCard, EventCard, LiveCard, ListCard, MediaCard, RepoCard, platformWords, TrackCard, WavlakeSongCard, mediaUrlOf } from "@/components/search/cards";
+import { AppCard, EventCard, LiveCard, ListCard, MediaCard, RepoCard, platformWords, TrackCard, WavlakeSongCard, mediaUrlOf, ListingCard } from "@/components/search/cards";
 import { EVENT_WHEN_LABELS, eventWhenCounts, filterEventsByWhen, type EventWhen } from "@/lib/eventFilters";
 import { parseTrack } from "@/lib/trackEvent";
+import { isSellable, parseListing } from "@/lib/listing";
 import { fetchRecentByKinds } from "@/services/nostr";
 import { useWavlakeSongs } from "@/hooks/useWavlakeSongs";
 import { setPlaylist } from "@/lib/audioPlayer";
@@ -54,6 +55,7 @@ const REPO_KINDS = new Set(TAB_KINDS.repos);
 const LIVE_KINDS = new Set(TAB_KINDS.live);
 const EVENT_KINDS = new Set(TAB_KINDS.events);
 const MUSIC_KINDS = new Set(TAB_KINDS.music);
+const SHOP_KINDS = new Set(TAB_KINDS.shop);
 const LIST_KINDS = new Set(TAB_KINDS.lists);
 const EMPTY_EVENTS = new Map<string, MinimalEvent>();
 
@@ -83,6 +85,7 @@ const PRIMARY_TABS: { key: SearchTab; label: string }[] = [
 ];
 const MORE_TABS: { key: SearchTab; label: string }[] = [
   { key: "apps", label: "Apps" },
+  { key: "shop", label: "Shop" },
   { key: "repos", label: "Repos" },
   { key: "events", label: "Events" },
   { key: "music", label: "Music" },
@@ -591,6 +594,9 @@ export function SearchResults({
   // Media tab the notes that carry media join the media-kind hits.
   const rawHits = useMemo(() => {
     const base = snapshot?.hits ?? [];
+    // A listing is for sale or it is not a result: sold, hidden and priceless
+    // never count, so the count line and the cards agree.
+    if (tab === "shop") return base.filter((h) => { const l = parseListing(h.event); return !!l && isSellable(l); });
     if (tab !== "media" || !mediaNotes) return base;
     const seen = new Set(base.map((h) => h.event.id));
     const visual = mediaNotes.hits.filter((h) => !seen.has(h.event.id) && mediaUrlOf(h.event) !== null);
@@ -642,10 +648,19 @@ export function SearchResults({
   // the chips"), computed from what the results actually run on.
   const [appPlatform, setAppPlatform] = useState<string | null>(null);
   const [appCategory, setAppCategory] = useState<string | null>(null);
+  const [shopCategory, setShopCategory] = useState<string | null>(null);
   useEffect(() => {
     setAppPlatform(null);
     setAppCategory(null);
+    setShopCategory(null);
   }, [tab, query]);
+  // The listings' own categories, counted — the Shop's facets.
+  const shopFacets = useMemo(() => {
+    if (tab !== "shop") return [];
+    const counts = new Map<string, number>();
+    for (const h of hits) for (const c of parseListing(h.event)?.categories ?? []) counts.set(c, (counts.get(c) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  }, [tab, hits]);
   const appFacets = useMemo(() => {
     if (tab !== "apps") return [];
     const counts = new Map<string, number>();
@@ -696,6 +711,9 @@ export function SearchResults({
     if (tab === "apps" && appLicense) {
       shown = shown.filter((h) => appLicenseOf(h.event) === appLicense);
     }
+    if (tab === "shop" && shopCategory) {
+      shown = shown.filter((h) => (parseListing(h.event)?.categories ?? []).includes(shopCategory));
+    }
     if (tab === "media") {
       // Kind 1063 is generic file metadata — Zap Store APKs and other blobs
       // ride it. The Media tab means media: a 1063 stays only when its
@@ -726,7 +744,7 @@ export function SearchResults({
       if (open) for (const h of cluster.others) out.push({ hit: h, collapsedCount: 0, clusterId: "" });
     }
     return out;
-  }, [hits, tab, appPlatform, appCategory, appLicense, appCategoryTags, clustered, expandedClusters, effectiveWhen]);
+  }, [hits, tab, appPlatform, appCategory, appLicense, shopCategory, appCategoryTags, clustered, expandedClusters, effectiveWhen]);
 
   // On the Music tab the results are the playlist: a track that ends hands
   // off to the next one shown, the way a queue does.
@@ -892,6 +910,37 @@ export function SearchResults({
               )}
             </div>
           )}
+          {tab === "shop" && shopFacets.length > 0 && (
+            <FacetRow className="mb-2" testId="shop-facets">
+              <button
+                type="button"
+                onClick={() => setShopCategory(null)}
+                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  shopCategory === null
+                    ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                    : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
+                }`}
+                data-testid="shop-facet-all"
+              >
+                All
+              </button>
+              {shopFacets.map(([cat, count]) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setShopCategory((cur) => (cur === cat ? null : cat))}
+                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                    shopCategory === cat
+                      ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                      : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
+                  }`}
+                  data-testid={`shop-facet-${cat}`}
+                >
+                  {cat} <span className="opacity-60">{count}</span>
+                </button>
+              ))}
+            </FacetRow>
+          )}
           {tab === "apps" && appFacets.length > 0 && (
             <FacetRow className="mb-2" testId="app-facets">
               <button
@@ -966,7 +1015,13 @@ export function SearchResults({
             </div>
           )}
           <div
-            className={tab === "apps" || tab === "repos" ? "grid grid-cols-1 gap-2.5 lg:grid-cols-2" : "space-y-2 sm:space-y-3"}
+            className={
+              tab === "shop"
+                ? "grid grid-cols-2 gap-2.5 sm:grid-cols-3"
+                : tab === "apps" || tab === "repos"
+                  ? "grid grid-cols-1 gap-2.5 lg:grid-cols-2"
+                  : "space-y-2 sm:space-y-3"
+            }
             data-testid="container-search-results"
           >
             {tab === "media" && panelPerson && personMedia.length > 0 && (
@@ -1046,6 +1101,7 @@ export function SearchResults({
               const typed = { event, author: hit.author, score: scoreOf(event.pubkey) };
               if (EVENT_KINDS.has(event.kind)) return wrap(<EventCard {...typed} />);
               if (MUSIC_KINDS.has(event.kind)) return wrap(<TrackCard {...typed} />);
+              if (SHOP_KINDS.has(event.kind)) return wrap(<ListingCard {...typed} />);
               if (LIVE_KINDS.has(event.kind)) return wrap(<LiveCard {...typed} />);
               if (APP_KINDS.has(event.kind)) return wrap(<AppCard {...typed} />);
               if (REPO_KINDS.has(event.kind)) return wrap(<RepoCard {...typed} />);

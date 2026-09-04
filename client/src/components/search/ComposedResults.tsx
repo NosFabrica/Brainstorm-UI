@@ -7,7 +7,8 @@
  * Media rides a compact row. Sections with nothing to show don't render.
  */
 import { useEffect, useMemo, useState } from "react";
-import { TrackCard, WavlakeSongCard } from "@/components/search/cards";
+import { ListingCard, TrackCard, WavlakeSongCard } from "@/components/search/cards";
+import { isSellable, parseListing } from "@/lib/listing";
 import { noteTitle } from "@/lib/noteTitle";
 import { useWavlakeSongs } from "@/hooks/useWavlakeSongs";
 import { parseTrack } from "@/lib/trackEvent";
@@ -122,13 +123,16 @@ export function ComposedResults({
   // recency, because "jazz" should find jazz. The kind is abused for game
   // state and ad-skip data, so only hits that parse as a song count.
   const music = useSectionStream(query, "music", pov, userPubkey, 12);
+  // Shop: things for sale that match the words — best match, since "cashmere"
+  // should find cashmere. Sold, hidden and priceless are gated (lib/listing).
+  const shop = useSectionStream(query, "shop", pov, userPubkey, 12);
 
   const allHits = useMemo(
     () =>
-      [people, latest, articles, happening, media, music]
+      [people, latest, articles, happening, media, music, shop]
         .flatMap((s) => s?.hits ?? [])
         .map((h) => h.event.pubkey),
-    [people, latest, articles, happening, media, music],
+    [people, latest, articles, happening, media, music, shop],
   );
   const scoreOf = useAuthorScores(useMemo(() => [...new Set(allHits)], [allHits]));
   // The client-side filters (Verified only, reach) apply here too, so the
@@ -143,6 +147,22 @@ export function ComposedResults({
   const happeningF = filtered(happening);
   const mediaF = filtered(media);
   const musicF = filtered(music);
+  const shopF = filtered(shop);
+  // Two per seller at most, four in all — one shop's forty mugs are not the row.
+  const shopRow = useMemo(() => {
+    const perSeller = new Map<string, number>();
+    const out: SearchHit[] = [];
+    for (const h of shopF?.hits ?? []) {
+      const l = parseListing(h.event);
+      if (!l || !isSellable(l)) continue;
+      const n = perSeller.get(h.event.pubkey) ?? 0;
+      if (n >= 2) continue;
+      perSeller.set(h.event.pubkey, n + 1);
+      out.push(h);
+      if (out.length >= 4) break;
+    }
+    return out;
+  }, [shopF]);
   // Wavlake is the second source: the same words, its catalogue. Native
   // tracks lead (Nostr's own, trust-ranked); Wavlake's fill the row.
   const wavlake = useWavlakeSongs(query, true);
@@ -174,7 +194,7 @@ export function ComposedResults({
     [happeningF],
   );
 
-  const sections = [peopleF, latestF, articlesF, happeningF, mediaF, musicF];
+  const sections = [peopleF, latestF, articlesF, happeningF, mediaF, musicF, shopF];
   const anyContent = sections.some((s) => (s?.hits.length ?? 0) > 0) || listenWavlake.length > 0 || personMedia.length > 0;
   const allSettled = sections.every((s) => s?.eose || s?.error);
   // EVERY section collapses near-duplicates — live verification found the
@@ -268,6 +288,16 @@ export function ComposedResults({
               ))}
             </div>
           )}
+        </Section>
+      )}
+
+      {shopRow.length > 0 && (
+        <Section id="shop" kicker="Shop" tab="shop" onTabChange={onTabChange}>
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+            {shopRow.map((h) => (
+              <ListingCard key={h.event.id} event={h.event} author={h.author} score={scoreOf(h.event.pubkey)} />
+            ))}
+          </div>
         </Section>
       )}
 

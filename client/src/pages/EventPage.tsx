@@ -17,6 +17,7 @@ import { AppHero } from "@/components/share/AppHero";
 import { RepoHero } from "@/components/share/RepoHero";
 import { FollowSetHero } from "@/components/share/FollowSetHero";
 import { AudioHero } from "@/components/share/AudioHero";
+import { ListingHero } from "@/components/share/ListingHero";
 import { EventHero } from "@/components/share/EventHero";
 import { VideoHero } from "@/components/share/VideoHero";
 import { LiveHero } from "@/components/share/LiveHero";
@@ -361,6 +362,8 @@ export default function EventPage() {
                 <FollowSetHero event={note} />
               ) : note.kind === 31337 ? (
                 <AudioHero event={note} />
+              ) : note.kind === 30402 ? (
+                <ListingHero event={note} />
               ) : note.kind === 31922 || note.kind === 31923 ? (
                 <EventHero event={note} />
               ) : VIDEO_EVENT_KINDS.has(note.kind) ? (

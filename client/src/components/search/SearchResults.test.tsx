@@ -601,6 +601,49 @@ describe("SearchResults", () => {
     expect(screen.getByTestId("text-search-stats")).toHaveTextContent("About 1 result");
   });
 
+  // Benjamin's Shop: NIP-99 listings as photo-led cards, priced as published,
+  // ranked by trust in the seller; sold and priceless never render; the
+  // listings' own categories are the facets.
+  it("the Shop tab shows sellable listings as priced cards and lets a category chip narrow them", async () => {
+    setUrlTab("shop");
+    render(<SearchResults query="maglia" pov="nosfabrica" />);
+    expect([...allStreams].reverse()[0].params.tab).toBe("shop");
+
+    const seller = "9".repeat(64);
+    const listing = (id: string, title: string, tags: string[][]) =>
+      ({ event: ev(id, 30402, seller, `${title} — come nuova`, [["d", id], ["title", title], ...tags]), author: author(seller, "Barattolo"), rank: null });
+    emit({
+      hits: [
+        listing("l1", "Maglia in kashmir donna", [["price", "23550", "sats"], ["image", "https://img/1.jpg"], ["location", "Gubbio (PG)"], ["t", "abbigliamento"], ["t", "kashmir"], ["r", "https://barattolo.app/l/l1"]]),
+        listing("l2", "Maglia mezza stagione", [["price", "14100", "sats"], ["image", "https://img/2.jpg"], ["t", "abbigliamento"]]),
+        listing("sold", "Maglia venduta", [["price", "9000", "sats"], ["status", "sold"], ["t", "abbigliamento"]]),
+        listing("nop", "Regalo senza prezzo", [["image", "https://img/3.jpg"]]),
+      ],
+      eose: true,
+      timeMs: 130,
+    });
+
+    const card = await screen.findByTestId("listing-card-l1");
+    expect(card).toHaveTextContent("Maglia in kashmir donna");
+    expect(card).toHaveTextContent("23,550 sats");
+    expect(card).toHaveTextContent("Gubbio (PG)");
+    expect(card).toHaveTextContent("Barattolo");
+    expect(card.querySelector("img")?.getAttribute("src")).toBe("https://img/1.jpg");
+    // The seller's own page is the way out, in the corner.
+    expect(within(card).getByTestId("listing-open-l1").getAttribute("href")).toBe("https://barattolo.app/l/l1");
+    expect(screen.getByTestId("listing-card-l2")).toBeInTheDocument();
+    expect(screen.queryByTestId("listing-card-sold")).toBeNull();
+    expect(screen.queryByTestId("listing-card-nop")).toBeNull();
+    expect(screen.getByTestId("text-search-stats")).toHaveTextContent("About 2 results");
+
+    // Categories from the listings' own tags, counted; one tap narrows.
+    const facets = screen.getByTestId("shop-facets");
+    expect(within(facets).getByTestId("shop-facet-abbigliamento")).toHaveTextContent("2");
+    fireEvent.click(within(facets).getByTestId("shop-facet-kashmir"));
+    expect(screen.getByTestId("listing-card-l1")).toBeInTheDocument();
+    expect(screen.queryByTestId("listing-card-l2")).toBeNull();
+  });
+
   it("collapses recurring events on the Events tab behind a +N chip", async () => {
     setUrlTab("events");
     render(<SearchResults query="liverpool" pov="nosfabrica" />);

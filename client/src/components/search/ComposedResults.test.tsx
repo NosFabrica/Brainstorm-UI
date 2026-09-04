@@ -491,6 +491,43 @@ describe("ComposedResults", () => {
     expect(grid).not.toHaveTextContent(/nprofile1/);
   });
 
+  // The Shop on Everything: when the words match things for sale, a row of
+  // priced, photographed cards — at most four, two per seller — and More → Shop.
+  it("adds a Shop row of sellable listings when the words match products, two per seller at most", async () => {
+    const onTabChange = vi.fn();
+    render(<ComposedResults query="maglia" pov="nosfabrica" onTabChange={onTabChange} />);
+    const barattolo = "9".repeat(64);
+    const other = "8".repeat(64);
+    const listing = (id: string, seller: string, title: string, extra: string[][] = []) =>
+      hitOf(ev(id, 30402, seller, title, [["d", id], ["title", title], ["price", "14100", "sats"], ["image", `https://img/${id}.jpg`], ...extra]), seller === barattolo ? "Barattolo" : "Altro");
+    sectionCall("shop").emit({
+      hits: [
+        listing("m1", barattolo, "Maglia in kashmir"),
+        listing("m2", barattolo, "Maglia mezza stagione"),
+        listing("m3", barattolo, "Maglia a righe"),
+        listing("m4", other, "Maglia vintage"),
+        listing("sold", other, "Maglia venduta", [["status", "sold"]]),
+      ],
+      eose: true,
+      timeMs: 120,
+    });
+
+    const section = await screen.findByTestId("serp-section-shop");
+    const ids = [...section.querySelectorAll("[data-testid^='listing-card-']")].map((n) => n.getAttribute("data-testid"));
+    expect(ids).toEqual(["listing-card-m1", "listing-card-m2", "listing-card-m4"]);
+    expect(section).toHaveTextContent("14,100 sats");
+    fireEvent.click(within(section).getByTestId("serp-more-shop"));
+    expect(onTabChange).toHaveBeenCalledWith("shop");
+  });
+
+  it("shows no Shop row when nothing for sale matches", async () => {
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    sectionCall("shop").emit({ hits: [hitOf(ev("sold", 30402, "8".repeat(64), "x", [["title", "x"], ["price", "1", "USD"], ["status", "sold"]]), "Altro")], eose: true, timeMs: 90 });
+    sectionCall("notes").emit({ hits: [hitOf(ev("n1", 1, "b".repeat(64), "Liverpool are top of the league"), "fan")], eose: true, timeMs: 100 });
+    await screen.findByTestId("serp-section-latest");
+    expect(screen.queryByTestId("serp-section-shop")).toBeNull();
+  });
+
   it("bolds the query terms inside snippets", async () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     sectionCall("notes").emit({

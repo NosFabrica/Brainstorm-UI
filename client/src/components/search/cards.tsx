@@ -1,4 +1,5 @@
 import { parseTrack } from "@/lib/trackEvent";
+import { formatListingPrice, parseListing } from "@/lib/listing";
 import type { WavlakeSong } from "@/lib/wavlake";
 import { useEffect, useState } from "react";
 /**
@@ -10,7 +11,7 @@ import { useEffect, useState } from "react";
  * primitives per CLAUDE.md: Chip for status/counts, shared tier ring.
  */
 import { Link, useLocation } from "wouter";
-import { Code2, ExternalLink, File, FileAudio, FileVideo, ListChecks, MapPin, Package, Radio } from "lucide-react";
+import { Code2, ExternalLink, File, FileAudio, FileVideo, ListChecks, MapPin, Package, Radio, ShoppingBag } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { nip19 } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -826,5 +827,52 @@ export function WavlakeSongCard({ song }: { song: WavlakeSong }) {
         onOpen={() => window.open(song.url, "_blank", "noopener")}
       />
     </div>
+  );
+}
+
+
+/**
+ * A marketplace listing as a buyer sees it: the photo first, the price as
+ * the seller wrote it, the title, where it is, and who is selling — with
+ * their trust ring, which is the one thing no store can show. The corner
+ * opens the seller's own page for it when the app published one.
+ */
+export function ListingCard({ event, author, score }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
+  const l = parseListing(event);
+  if (!l) return null;
+  const host = l.shopUrl ? hostOf(l.shopUrl) ?? undefined : undefined;
+  return (
+    <CardShell
+      event={event}
+      openInUrl={l.shopUrl ?? undefined}
+      openInLabel="Open shop"
+      openInHost={host}
+      openInTestId={`listing-open-${event.id}`}
+      fill
+      testId={`listing-card-${event.id}`}
+    >
+      <div className="-mx-1 -mt-1 relative aspect-[4/3] overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
+        {l.images[0] ? (
+          <img src={l.images[0]} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+        ) : (
+          <span className="absolute inset-0 flex items-center justify-center text-slate-400 dark:text-slate-500">
+            <ShoppingBag className="h-7 w-7" />
+          </span>
+        )}
+        <span className="absolute left-2 top-2 rounded-md bg-slate-900/85 px-2 py-0.5 text-xs font-semibold text-white" data-testid={`listing-price-${event.id}`}>
+          {formatListingPrice(l.price)}
+        </span>
+        {l.images.length > 1 && (
+          <span className="absolute bottom-2 right-2 rounded-md bg-black/60 px-1.5 py-0.5 text-[10px] font-medium text-white">{l.images.length} photos</span>
+        )}
+      </div>
+      <p className={`mt-2.5 line-clamp-2 text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100 ${l.shopUrl ? "pr-2" : ""}`}>{l.title}</p>
+      {(l.location || l.summary) && (
+        <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">{l.location ?? l.summary}</p>
+      )}
+      <div className="mt-2">
+        <AuthorRow author={author} score={score} created_at={event.created_at} />
+      </div>
+    </CardShell>
   );
 }
