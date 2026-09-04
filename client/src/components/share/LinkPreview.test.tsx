@@ -123,6 +123,36 @@ describe("LinkPreviewCard — audio links play where they are", () => {
     expect(screen.getByTestId("fountain-seek")).toBeInTheDocument();
   });
 
+  it("a long description folds to a few lines and opens fully on More", () => {
+    const long = "Paul Keating and DirectorHodl come on the show to talk about Hummingbird, the documentary they just released. " +
+      "The film started life as a small video idea for Bitcoin Jungle and grew over a couple of years into a feature-length meditation on indigenous prophecy, the fiat system, and the strange gravitational pull of one small town in Costa Rica. " +
+      "The philosophical spine of the film is the prophecy of the Eagle and the Condor, unpacked in some depth.";
+    fountainItemMock.mockReturnValue({
+      loading: false,
+      item: { kind: "episode", id: "x", show: "Plebchain Radio", title: "160 – Of Eagles and Condors", description: long, image: null, audio: "https://cdn/x.mp3", url: "https://fountain.fm/episode/x" },
+    });
+    render(<LinkPreviewCard url="https://fountain.fm/episode/x" />);
+
+    const desc = screen.getByTestId("fountain-description");
+    expect(desc.className).toMatch(/line-clamp/);
+    const more = screen.getByTestId("fountain-more");
+    expect(more).toHaveTextContent(/More/);
+
+    fireEvent.click(more);
+    expect(screen.getByTestId("fountain-description").className).not.toMatch(/line-clamp/);
+    expect(screen.getByTestId("fountain-description")).toHaveTextContent(/Eagle and the Condor/);
+    expect(screen.getByTestId("fountain-more")).toHaveTextContent(/Less/);
+  });
+
+  it("a short description has nothing to unfold, so no More", () => {
+    fountainItemMock.mockReturnValue({
+      loading: false,
+      item: { kind: "episode", id: "y", show: "Show", title: "Short one", description: "A quick chat.", image: null, audio: "https://cdn/y.mp3", url: "https://fountain.fm/episode/y" },
+    });
+    render(<LinkPreviewCard url="https://fountain.fm/episode/y" />);
+    expect(screen.queryByTestId("fountain-more")).toBeNull();
+  });
+
   it("a Fountain link whose page cannot be read is still a Listen card that leaves", () => {
     fountainItemMock.mockReturnValue({ loading: false, item: null });
     render(<LinkPreviewCard url="https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3" />);

@@ -1,4 +1,4 @@
-import { type MouseEvent } from "react";
+import { useState, type MouseEvent } from "react";
 import { AlertCircle, ExternalLink, Headphones, Loader2, Pause, Play } from "lucide-react";
 import { Favicon } from "@/components/share/LinkPreview";
 import { formatTime, seekTrack, toggleTrack, useTrackDuration, useTrackPlayer } from "@/lib/audioPlayer";
@@ -19,9 +19,14 @@ export function FountainCard({ url }: { url: string }) {
   return <FountainItemCard item={item} />;
 }
 
+/** Past this, three lines will not hold it and a More is worth its row. */
+const FOLD_CHARS = 200;
+
 function FountainItemCard({ item }: { item: FountainItem }) {
   const id = `fountain:${item.kind}:${item.id}`;
   const player = useTrackPlayer(id);
+  const [expanded, setExpanded] = useState(false);
+  const foldable = !!item.description && (item.description.length > FOLD_CHARS || item.description.includes("\n"));
   const metaDuration = useTrackDuration(item.audio);
   const total = player.isActive && player.duration ? player.duration : metaDuration ?? 0;
   const pct = total > 0 ? (player.currentTime / total) * 100 : 0;
@@ -73,7 +78,26 @@ function FountainItemCard({ item }: { item: FountainItem }) {
             {item.title}
           </p>
           {item.description && (
-            <p className="mt-1 text-xs leading-relaxed text-slate-600 dark:text-slate-300 line-clamp-3">{item.description}</p>
+            <p
+              className={`mt-1 whitespace-pre-line text-xs leading-relaxed text-slate-600 dark:text-slate-300 ${expanded ? "" : "line-clamp-3"}`}
+              data-testid="fountain-description"
+            >
+              {item.description}
+            </p>
+          )}
+          {foldable && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setExpanded((v) => !v);
+              }}
+              className="mt-1 text-xs font-medium text-brand-deep dark:text-brand-link hover:underline"
+              aria-expanded={expanded}
+              data-testid="fountain-more"
+            >
+              {expanded ? "Less" : "More"}
+            </button>
           )}
         </div>
       </div>
