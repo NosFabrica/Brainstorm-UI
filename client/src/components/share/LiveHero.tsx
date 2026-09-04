@@ -2,6 +2,7 @@ import { useState } from "react";
 import { nip19 } from "nostr-tools";
 import { Radio, Users, ExternalLink, CalendarClock } from "lucide-react";
 import { LiveVideoPlayer } from "@/components/share/LiveVideoPlayer";
+import { isHlsUrl, streamEmbedUrl } from "@/lib/streamEmbed";
 import { relativeEventTime } from "@/lib/calendarEvent";
 import liveDefault from "@/assets/live-default.webp";
 import type { MinimalEvent } from "@/lib/noteRefs";
@@ -33,11 +34,29 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
   let watchUrl: string | undefined;
   try { watchUrl = `https://zap.stream/${nip19.naddrEncode({ kind: 30311, pubkey: event.pubkey, identifier: tag("d") || "", relays: [] })}`; } catch { /* skip */ }
 
-  const canEmbed = isLive && !!streaming && !failed;
+  // Three ways a live stream plays here: an HLS manifest through our player;
+  // a Twitch / Kick / YouTube page through that platform's embedded player;
+  // otherwise nothing embeds and the hero hands off to zap.stream. (Probed
+  // 2026-09-03: most `streaming` tags are .m3u8; the platform pages were the
+  // ones that used to dead-end on "can't play here".)
+  const platformEmbed = isLive && streaming ? streamEmbedUrl(streaming, window.location.hostname) : null;
+  const hls = isLive && !!streaming && !platformEmbed && isHlsUrl(streaming) && !failed;
+  const canEmbed = !!platformEmbed || hls;
 
   return (
     <div data-testid="live-hero">
-      {canEmbed ? (
+      {platformEmbed ? (
+        <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-slate-200 bg-black dark:border-slate-800">
+          <iframe
+            src={platformEmbed}
+            title={title}
+            allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+            allowFullScreen
+            className="absolute inset-0 h-full w-full"
+            data-testid="live-embed"
+          />
+        </div>
+      ) : hls ? (
         <LiveVideoPlayer src={streaming as string} poster={posterImage} onError={() => setFailed(true)} />
       ) : (
         <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 dark:border-slate-800" data-testid="live-state">
