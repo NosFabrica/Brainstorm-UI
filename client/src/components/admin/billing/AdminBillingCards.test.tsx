@@ -32,8 +32,15 @@ const attributeAdminBillingUnresolved =
   vi.fn<(subscriptionId: string, pubkey: string) => Promise<AdminBillingResolution>>();
 const dismissAdminBillingUnresolved =
   vi.fn<(subscriptionId: string) => Promise<AdminBillingResolution>>();
+const getSchedulingPolicies = vi.fn<() => Promise<{ id: number; name: string; schedule_interval_seconds: number; is_default: boolean }[]>>(async () => [
+  { id: 1, name: "Free", schedule_interval_seconds: 5_184_000, is_default: true },
+  { id: 4, name: "Paid Staging Flash Test", schedule_interval_seconds: 604_800, is_default: false },
+]);
+const createAdminBillingPlan = vi.fn(async (body: Record<string, unknown>) => ({ id: 9, ...body }));
 vi.mock("@/services/api", () => ({
   apiClient: {
+    getSchedulingPolicies: () => getSchedulingPolicies(),
+    createAdminBillingPlan: (body: Record<string, unknown>) => createAdminBillingPlan(body),
     getAdminBillingFlashRecordForUnresolved: (subscriptionId: string) =>
       getAdminBillingFlashRecordForUnresolved(subscriptionId),
     attributeAdminBillingUnresolved: (subscriptionId: string, pubkey: string) =>
@@ -453,6 +460,38 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     // Counts read as chips, not as `count=12`.
     expect(record.textContent).not.toContain("count=");
     expect(screen.getByTestId("billing-divergence-abandoned_checkouts").textContent).toContain("12");
+  });
+
+  // A fault row is a person, not a pubkey: who they are, what they pay for
+  // versus what they're on, and the one thing the server can do about it.
+  it("a paying/receiving mismatch names the person, both policies, and offers Resync", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    fetchProfileMap.mockResolvedValue(new Map([[PUBKEY, { name: "Vitor Pamplona", picture: "https://x/v.png" }]]));
+    getAdminBillingDivergence.mockResolvedValue({
+      policy_mismatch: {
+        count: 1,
+        truncated: false,
+        rows: [{ pubkey: PUBKEY, flash_status: "active", granted_scheduling_id: 4, scheduling_id: 1, scheduling_source: "billing" }],
+      },
+      stale_syncs: { count: 1, truncated: false, rows: [{ pubkey: PUBKEY, flash_status: "past_due", last_synced_at: "2026-08-20T10:00:00Z" }] },
+      failing_syncs: { count: 1, truncated: false, rows: [{ pubkey: PUBKEY, last_sync_error: "401 invalid api key", last_synced_at: null }] },
+    });
+    resyncAdminBillingSubscription.mockResolvedValue({ applied: true, reason: "granted" });
+    renderCards();
+    const row = await screen.findByTestId(`billing-mismatch-${PUBKEY.slice(0, 8)}`);
+    await waitFor(() => expect(row.textContent).toContain("Vitor Pamplona"));
+    expect(row.textContent).toContain("Paid Staging Flash Test"); // what they pay for
+    expect(row.textContent).toContain("Free"); // what they're actually on
+    expect(row.textContent).not.toContain("granted_scheduling_id=");
+    fireEvent.click(screen.getByTestId(`billing-divergence-resync-policy_mismatch-${PUBKEY.slice(0, 8)}`));
+    await waitFor(() => expect(resyncAdminBillingSubscription).toHaveBeenCalledWith(PUBKEY));
+    // Stale and failing rows read as dates and errors, with the same Resync.
+    const stale = screen.getByTestId(`billing-stale-${PUBKEY.slice(0, 8)}`);
+    expect(stale.textContent).toContain("Aug 20, 2026");
+    expect(stale.textContent).toContain("past_due");
+    const failing = screen.getByTestId(`billing-failing-${PUBKEY.slice(0, 8)}`);
+    expect(failing.textContent).toContain("401 invalid api key");
+    expect(screen.getByTestId(`billing-divergence-resync-failing_syncs-${PUBKEY.slice(0, 8)}`)).toBeInTheDocument();
   });
 
   it("says so plainly when nothing is unsettled", async () => {

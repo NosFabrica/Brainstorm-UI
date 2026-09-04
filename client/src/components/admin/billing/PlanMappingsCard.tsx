@@ -14,8 +14,7 @@ import {
 } from "@/services/api";
 import { PlanMappingFormDialog } from "./PlanMappingFormDialog";
 
-const PLANS_KEY = ["/api/admin/billing/plans"];
-const POLICIES_KEY = ["/api/admin/scheduling"];
+import { PLANS_KEY, POLICIES_KEY } from "./queryKeys";
 
 type DialogState =
   | { mode: "create"; plan?: undefined }

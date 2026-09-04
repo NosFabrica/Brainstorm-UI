@@ -59,8 +59,17 @@ import { tone, type Tone } from "@/lib/tones";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 import { orderedSections, type DivergenceMeta, type DivergenceTier, type OrderedSection } from "./divergenceSections";
 
-const SUBS_KEY = ["/api/admin/billing/subscriptions"];
-const DIVERGENCE_KEY = ["/api/admin/billing/divergence"];
+import type { SchedulingItem } from "@/services/api";
+import { DIVERGENCE_KEY, POLICIES_KEY, SUBS_KEY } from "./queryKeys";
+import {
+  AbandonedCheckoutRowView,
+  FailingSyncRowView,
+  PolicyMismatchRowView,
+  RetiredPlanRowView,
+  StaleSyncRowView,
+  UnrecognisedStatusRowView,
+  type ProfileBits as DivergenceProfileBits,
+} from "./DivergenceRows";
 
 /**
  * Invoices and refunds still live in Flash; cancelling and pausing no longer do.
@@ -652,6 +661,18 @@ export function AdminBillingCards({ active }: { active: boolean }) {
     staleTime: 60_000,
     retry: 1,
   });
+  // Scheduling policies by id — the report names policies by id only.
+  const policiesQuery = useQuery<SchedulingItem[]>({
+    queryKey: POLICIES_KEY,
+    queryFn: () => apiClient.getSchedulingPolicies(),
+    enabled: active,
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+  const policyName = (id: number | null | undefined): string => {
+    if (id == null) return "—";
+    return policiesQuery.data?.find((p) => p.id === id)?.name ?? `policy #${id}`;
+  };
   const [attributeFor, setAttributeFor] = useState<string | null>(null);
   const [attributeKeyInput, setAttributeKeyInput] = useState("");
   // Either common form is accepted here; only hex ever leaves. Decoding in the
@@ -661,8 +682,13 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   // Before the early returns — hook order must not change between renders. The
   // candidate rides along with the roster so the person about to be granted is
   // named the same way everyone else is.
+  // The report's people ride along too, so a fault row shows who, not a hex.
+  const reportPubkeys = Object.values(divergenceQuery.data ?? {}).flatMap((section) =>
+    (section?.rows ?? []).map((r) => (r as { pubkey?: unknown }).pubkey).filter((pk): pk is string => typeof pk === "string" && pk.length === 64),
+  );
   const profiles = useRosterProfiles([
     ...(subsQuery.data?.items ?? []).map((s) => s.pubkey),
+    ...reportPubkeys,
     ...(attributePubkey ? [attributePubkey] : []),
   ]);
   const [dismissFor, setDismissFor] = useState<string | null>(null);
@@ -699,9 +725,10 @@ export function AdminBillingCards({ active }: { active: boolean }) {
     }
   }
 
-  const handleResync = (s: AdminBillingSubscription) =>
-    runAction(s.pubkey, async () => {
-      const out = await apiClient.resyncAdminBillingSubscription(s.pubkey);
+  const handleResync = (s: AdminBillingSubscription) => handleResyncPubkey(s.pubkey);
+  const handleResyncPubkey = (pubkey: string) =>
+    runAction(pubkey, async () => {
+      const out = await apiClient.resyncAdminBillingSubscription(pubkey);
       toast({
         // `applied: false` is a normal answer, not a failure — say which it was
         // rather than leaving the admin to guess from an unchanged row.
@@ -852,7 +879,17 @@ export function AdminBillingCards({ active }: { active: boolean }) {
         onDismiss={setDismissFor}
       />
     ) : (
-      <DivergenceBlock key={x.kind} kind={x.kind} meta={x.meta} tier={x.tier} section={x.section} />
+      <DivergenceBlock
+        key={x.kind}
+        kind={x.kind}
+        meta={x.meta}
+        tier={x.tier}
+        section={x.section}
+        profiles={profiles}
+        policyName={policyName}
+        busyKey={busyKey}
+        onResync={handleResyncPubkey}
+      />
     );
 
   return (
@@ -1267,22 +1304,59 @@ function DivergenceBlock({
   meta,
   tier,
   section,
+  profiles,
+  policyName,
+  busyKey,
+  onResync,
 }: {
   kind: string;
   meta: DivergenceMeta | null;
   tier: DivergenceTier;
   section: AdminBillingDivergenceSection;
+  profiles: Map<string, DivergenceProfileBits>;
+  policyName: (id: number | null | undefined) => string;
+  busyKey: string | null;
+  onResync: (pubkey: string) => void;
 }) {
-  return (
-    <div data-testid={`billing-divergence-${kind}`}>
-      <DivergenceHeading kind={kind} meta={meta} tier={tier} section={section} />
-      <ul className="mt-1.5 space-y-1">
-        {section.rows.map((row, i) => (
+  const person = (row: Record<string, unknown>) => (typeof row.pubkey === "string" ? profiles.get(row.pubkey) : undefined);
+  const busy = (row: Record<string, unknown>) => typeof row.pubkey === "string" && busyKey === row.pubkey;
+  const typed = (row: Record<string, unknown>, i: number) => {
+    switch (kind) {
+      case "policy_mismatch":
+      case "admin_overrides":
+        return (
+          <PolicyMismatchRowView
+            key={i}
+            kind={kind}
+            row={row as never}
+            profile={person(row)}
+            policyName={policyName}
+            busy={busy(row)}
+            onResync={kind === "policy_mismatch" ? onResync : undefined}
+          />
+        );
+      case "stale_syncs":
+        return <StaleSyncRowView key={i} row={row as never} profile={person(row)} busy={busy(row)} onResync={onResync} />;
+      case "failing_syncs":
+        return <FailingSyncRowView key={i} row={row as never} profile={person(row)} busy={busy(row)} onResync={onResync} />;
+      case "unrecognised_statuses":
+        return <UnrecognisedStatusRowView key={i} row={row as never} />;
+      case "abandoned_checkouts":
+        return <AbandonedCheckoutRowView key={i} row={row as never} profile={person(row)} flashUrl={flashSubscriptionUrl} />;
+      case "retired_plan_subscribers":
+        return <RetiredPlanRowView key={i} row={row as never} profile={person(row)} flashUrl={flashSubscriptionUrl} policyName={policyName} />;
+      default:
+        return (
           <li key={i}>
             <DivergenceRow row={row} />
           </li>
-        ))}
-      </ul>
+        );
+    }
+  };
+  return (
+    <div data-testid={`billing-divergence-${kind}`}>
+      <DivergenceHeading kind={kind} meta={meta} tier={tier} section={section} />
+      <ul className="mt-1.5 space-y-1">{section.rows.map(typed)}</ul>
     </div>
   );
 }
