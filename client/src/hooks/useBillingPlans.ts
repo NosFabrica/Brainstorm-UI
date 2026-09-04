@@ -29,9 +29,10 @@ export function useBillingPlans(): {
   /** Cadence in days for one row, from its own interval. */
   recalcDaysFor: (plan: BillingPlan | undefined) => number;
   /**
-   * The single policy name on sale, when there is exactly one — the account
-   * menu's "Get X". Null when nothing is purchasable or several things are, so
-   * the caller can say "See plans" instead of naming one arbitrarily.
+   * The one product on sale, named the way Flash sells it — the account menu's
+   * "Get X". Several prices for one policy are still one product, named by the
+   * first-listed plan. Null when nothing is purchasable or the plans on sale
+   * grant different policies, so the caller says "See plans" rather than pick.
    */
   solePurchasableName: string | null;
   isLoading: boolean;
@@ -49,15 +50,19 @@ export function useBillingPlans(): {
   const recalcDaysFor = (plan: BillingPlan | undefined) =>
     cadenceDays(plan?.scheduleIntervalSeconds) ?? FALLBACK_RECALC_DAYS;
 
-  const purchasableNames = Array.from(
-    new Set((plans ?? []).filter((p) => p.checkoutUrl).map(productName)),
-  );
+  // One product can sell at several prices — monthly and yearly, or a test
+  // cadence beside the real one — and every price grants the same policy. So
+  // the count that matters is policies on sale, not plans; and the server
+  // lists plans in Flash's order, the operator's own, so the first plan of the
+  // one policy is its headline name.
+  const purchasable = (plans ?? []).filter((p) => p.checkoutUrl);
+  const policiesOnSale = new Set(purchasable.map((p) => p.policyId));
 
   return {
     plans,
     billingAvailable: plans === undefined ? undefined : plans.length > 0,
     recalcDaysFor,
-    solePurchasableName: purchasableNames.length === 1 ? purchasableNames[0] : null,
+    solePurchasableName: policiesOnSale.size === 1 ? productName(purchasable[0]) : null,
     isLoading: query.isPending,
     loadFailed: query.isError,
   };

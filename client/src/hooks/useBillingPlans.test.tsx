@@ -46,14 +46,26 @@ describe("useBillingPlans — what the one thing on sale is called", () => {
     expect(result.current.solePurchasableName).toBe("Priority");
   });
 
-  it("says nothing when several plans are on sale, even if they grant one policy", async () => {
+  it("names one product sold at several prices by its first-listed plan", async () => {
+    // Staging today: Priority monthly and a daily test price, both granting the
+    // same policy. That is one product, and the server lists plans in Flash's
+    // order — the operator's own — so the first one is the headline.
     fetchPlans.mockResolvedValue([
-      plan({ planId: "plan-daily", planName: "Staging - Daily", billingInterval: "daily", amountMinor: 10 }),
       plan({}),
+      plan({ planId: "plan-daily", planName: "Staging - Daily", billingInterval: "daily", amountMinor: 10 }),
     ]);
     const { result } = renderHook(() => useBillingPlans(), { wrapper });
     await waitFor(() => expect(result.current.isLoading).toBe(false));
-    // Two products, one name would be a guess — the caller says "See plans".
+    expect(result.current.solePurchasableName).toBe("Priority");
+  });
+
+  it("says nothing when the plans on sale grant different policies — several products", async () => {
+    fetchPlans.mockResolvedValue([
+      plan({}),
+      plan({ policyId: 7, policyName: "Pro policy", planId: "plan-pro", planName: "Pro", amountMinor: 900 }),
+    ]);
+    const { result } = renderHook(() => useBillingPlans(), { wrapper });
+    await waitFor(() => expect(result.current.isLoading).toBe(false));
     expect(result.current.solePurchasableName).toBeNull();
   });
 

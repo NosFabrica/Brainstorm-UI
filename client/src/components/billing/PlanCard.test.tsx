@@ -32,10 +32,11 @@ vi.mock("@/hooks/useBillingPlans", () => ({
     billingAvailable: plans === undefined ? undefined : plans.length > 0,
     recalcDaysFor: (p: BillingPlan | undefined) =>
       p?.scheduleIntervalSeconds ? Math.round(p.scheduleIntervalSeconds / 86_400) : 60,
-    solePurchasableName:
-      Array.from(new Set((plans ?? []).filter((p) => p.checkoutUrl).map((p) => p.planName ?? p.policyName))).length === 1
-        ? ((plans ?? []).find((p) => p.checkoutUrl)!.planName ?? (plans ?? []).find((p) => p.checkoutUrl)!.policyName)
-        : null,
+    solePurchasableName: (() => {
+      const purchasable = (plans ?? []).filter((p) => p.checkoutUrl);
+      const first = purchasable[0];
+      return new Set(purchasable.map((p) => p.policyId)).size === 1 ? (first.planName ?? first.policyName) : null;
+    })(),
     isLoading: false,
     loadFailed: false,
   }),
