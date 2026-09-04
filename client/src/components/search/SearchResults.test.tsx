@@ -213,7 +213,7 @@ describe("SearchResults", () => {
     for (const t of ["everything", "people", "notes", "articles", "media"]) {
       expect(screen.getByTestId(`search-tab-${t}`)).toBeInTheDocument();
     }
-    for (const t of ["apps", "repos", "live", "lists"]) expect(screen.queryByTestId(`search-tab-${t}`)).toBeNull();
+    for (const t of ["apps", "repos", "events", "live", "lists"]) expect(screen.queryByTestId(`search-tab-${t}`)).toBeNull();
     expect(screen.queryByTestId("search-tab-code")).toBeNull();
 
     const more = screen.getByTestId("search-tab-more");
@@ -222,7 +222,7 @@ describe("SearchResults", () => {
     fireEvent.click(more);
     expect(more.getAttribute("aria-expanded")).toBe("true");
     const menu = screen.getByRole("menu");
-    for (const t of ["apps", "repos", "live", "lists"]) expect(within(menu).getByTestId(`search-tab-${t}`)).toBeInTheDocument();
+    for (const t of ["apps", "repos", "events", "live", "lists"]) expect(within(menu).getByTestId(`search-tab-${t}`)).toBeInTheDocument();
 
     fireEvent.click(within(menu).getByTestId("search-tab-apps"));
     expect(screen.queryByRole("menu")).toBeNull();
@@ -342,6 +342,102 @@ describe("SearchResults", () => {
     expect(within(screen.getByTestId("app-card-app2")).queryByTestId("app-get-slot-app2")).toBeNull();
   });
 
+  // Benjamin: "we should be able to filter by events also — via search
+  // browse filters… view past and future events… in a pretty designed way".
+  // NIP-52 calendar events get their own vertical. The relay only knows
+  // created_at (probed: 44k events, no start-tag filter), so the tab asks
+  // for a deep recent page and does the calendar work here: a When facet
+  // row, Upcoming by default and soonest-first, Past newest-first.
+  describe("Events tab", () => {
+    const DAY = 86_400;
+    const nowSec = Math.floor(Date.now() / 1000);
+    const cal = (id: string, title: string, start: number, extra: string[][] = [], pubkey = "c".repeat(64)) =>
+      ev(id, 31923, pubkey, "", [["d", id], ["title", title], ["start", String(start)], ["location", "Liverpool, UK"], ...extra]);
+    // (The conference has a different organiser — same-author near-identical
+    // titles collapse behind a +N chip, which is its own test below.)
+    const emitEvents = () =>
+      emit({
+        hits: [
+          { event: cal("e-next-month", "Bitcoin Liverpool Conference", nowSec + 20 * DAY, [], "d".repeat(64)), author: author("d".repeat(64), "conf"), rank: null },
+          { event: cal("e-tonight", "Bitcoin Liverpool Meetup", nowSec + 5 * 3600), author: author("c".repeat(64), "club"), rank: null },
+          { event: cal("e-last-week", "Bitcoin Liverpool Meetup (Aug)", nowSec - 7 * DAY), author: author("c".repeat(64), "club"), rank: null },
+        ],
+        eose: true,
+        timeMs: 300,
+      });
+
+    it("is a vertical of its own behind More and asks the relay for a deep recent page", () => {
+      render(<SearchResults query="liverpool" pov="nosfabrica" />);
+      fireEvent.click(screen.getByTestId("search-tab-more"));
+      fireEvent.click(screen.getByTestId("search-tab-events"));
+      const [q, params] = mainStreamCalls().at(-1)!;
+      expect(q).toBe("liverpool sort:recent");
+      expect(params).toMatchObject({ tab: "events", limit: 300 });
+    });
+
+    it("shows upcoming events soonest-first by default, with a When facet row that counts", async () => {
+      setUrlTab("events");
+      render(<SearchResults query="liverpool" pov="nosfabrica" />);
+      emitEvents();
+      const cards = await screen.findAllByTestId(/^event-card-/);
+      expect(cards.map((c) => c.getAttribute("data-testid"))).toEqual(["event-card-e-tonight", "event-card-e-next-month"]);
+      expect(screen.queryByTestId("event-card-e-last-week")).toBeNull();
+      const facets = screen.getByTestId("event-facets");
+      expect(within(facets).getByTestId("event-facet-upcoming")).toHaveTextContent("Upcoming 2");
+      expect(within(facets).getByTestId("event-facet-upcoming").getAttribute("aria-pressed")).toBe("true");
+      expect(within(facets).getByTestId("event-facet-past")).toHaveTextContent("Past 1");
+      // The card reads as an event: a date tile, the title, when, where.
+      const tonight = screen.getByTestId("event-card-e-tonight");
+      expect(within(tonight).getByTestId("event-date-tile")).toBeInTheDocument();
+      expect(tonight).toHaveTextContent("Bitcoin Liverpool Meetup");
+      expect(tonight).toHaveTextContent(/Today|Tomorrow|In \d+ hours/);
+      expect(tonight).toHaveTextContent("Liverpool, UK");
+    });
+
+    it("Past flips to what already happened, newest first", async () => {
+      setUrlTab("events");
+      render(<SearchResults query="liverpool" pov="nosfabrica" />);
+      emitEvents();
+      await screen.findByTestId("event-card-e-tonight");
+      fireEvent.click(screen.getByTestId("event-facet-past"));
+      const cards = screen.getAllByTestId(/^event-card-/);
+      expect(cards.map((c) => c.getAttribute("data-testid"))).toEqual(["event-card-e-last-week"]);
+    });
+
+    it("with nothing upcoming, shows past events and says so instead of an empty page", async () => {
+      setUrlTab("events");
+      render(<SearchResults query="liverpool" pov="nosfabrica" />);
+      emit({
+        hits: [{ event: cal("e-old", "Bitcoin Liverpool Meetup (Aug)", nowSec - 7 * DAY), author: author("c".repeat(64), "club"), rank: null }],
+        eose: true,
+        timeMs: 300,
+      });
+      await screen.findByTestId("event-card-e-old");
+      expect(screen.getByTestId("event-facets-note")).toHaveTextContent(/No upcoming events.*showing past/i);
+    });
+
+    // An upcoming event's link out is the one thing you'd do next: add it
+    // to your calendar. Past events with a recording offer the replay.
+    it("upcoming cards offer Add to calendar; past cards with a recording offer the replay", async () => {
+      setUrlTab("events");
+      render(<SearchResults query="liverpool" pov="nosfabrica" />);
+      emit({
+        hits: [
+          { event: cal("e-up", "Meetup", nowSec + DAY), author: null, rank: null },
+          { event: cal("e-rec", "Talk", nowSec - DAY, [["recording", "https://youtu.be/abc12345"]]), author: null, rank: null },
+        ],
+        eose: true,
+        timeMs: 300,
+      });
+      await screen.findByTestId("event-card-e-up");
+      expect(screen.getByTestId("event-open-e-up").getAttribute("href")).toMatch(/^https:\/\/calendar\.google\.com\//);
+      expect(screen.getByTestId("event-open-e-up")).toHaveTextContent(/Add to calendar/);
+      fireEvent.click(screen.getByTestId("event-facet-past"));
+      expect(screen.getByTestId("event-open-e-rec").getAttribute("href")).toBe("https://youtu.be/abc12345");
+      expect(screen.getByTestId("event-open-e-rec")).toHaveTextContent(/replay/i);
+    });
+  });
+
   // Benjamin: reviews, reviewer faces and quotes stay OFF the search cards —
   // they live on the app page. A card is icon, name, summary, chips, publisher.
   it("app cards carry no reviews, faces or quotes, whatever the network said", async () => {
@@ -419,22 +515,21 @@ describe("SearchResults", () => {
     expect(screen.getByTestId("live-status-l1")).toHaveTextContent(/live/i);
   });
 
-  it("collapses recurring events on the Live tab behind a +N chip", async () => {
-    setUrlTab("live");
+  it("collapses recurring events on the Events tab behind a +N chip", async () => {
+    setUrlTab("events");
     render(<SearchResults query="liverpool" pov="nosfabrica" />);
-    const orange = "6".repeat(64);
-    const mk = (id: string, title: string) =>
-      ({ event: ev(id, 31923, orange, "", [["d", id], ["title", title]]), author: author(orange, "club"), rank: null });
+    const orange = "b".repeat(64);
+    const nowSec = Math.floor(Date.now() / 1000);
+    const mk = (id: string, title: string, days: number) =>
+      ({ event: ev(id, 31923, orange, "", [["d", id], ["title", title], ["start", String(nowSec + days * 86_400)]]), author: author(orange, "club"), rank: null });
     emit({
-      hits: [mk("m1", "Bitcoin Liverpool Meet"), mk("m2", "Bitcoin Liverpool Meetup"), mk("m3", "Bitcoin Liverpool Meetup")],
+      hits: [mk("m1", "Bitcoin Liverpool Meet", 7), mk("m2", "Bitcoin Liverpool Meetup", 37), mk("m3", "Bitcoin Liverpool Meetup", 67)],
       eose: true,
       timeMs: 200,
     });
-    await screen.findByTestId("container-search-results");
-    expect(screen.getAllByTestId(/^live-card-/)).toHaveLength(1);
-
-    fireEvent.click(screen.getByTestId(/^cluster-expand-/));
-    expect(screen.getAllByTestId(/^live-card-/)).toHaveLength(3);
+    await screen.findByTestId("cluster-expand-m1");
+    expect(screen.getAllByTestId(/^event-card-/)).toHaveLength(1);
+    expect(screen.getByTestId("cluster-expand-m1")).toHaveTextContent("+2 more like this");
   });
 
   it("renders a git repo with name and description", async () => {

@@ -99,6 +99,17 @@ Endorsement findings (2026-09-03, read-only probe for the reviews work):
    `data` like the other endpoints. A 404/410/501 opens a session-wide
    breaker (one request, then silence), so shipping the endpoint is the
    only step left; no UI release needed.
+9. **Calendar events by `start`, not `created_at`.** The Events tab
+   (NIP-52 kinds 31922/31923) wants "upcoming, soonest first" and "past,
+   newest first" — the `start` tag, not the publish time. Probed
+   2026-09-03: 44k calendar events indexed, but `since:`/`until:` and
+   `sort:recent` only know `created_at`, and there is no `start` range
+   filter. The UI asks for a 300-deep recent page and does the calendar
+   work on-device (`lib/eventFilters.ts`), which means an event posted a
+   year ago for next month falls off the page. Two extensions would fix
+   it: a `#start` range (`start_since:` / `start_until:` as epoch, or
+   generic tag-range filters) and `sort:start`. Same for kind-30311
+   streams' `starts`.
 
 ## Explicitly NOT asked
 

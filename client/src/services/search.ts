@@ -31,6 +31,7 @@ export type SearchTab =
   | "media"
   | "apps"
   | "repos"
+  | "events"
   | "live"
   | "lists";
 
@@ -45,7 +46,12 @@ export const TAB_KINDS: Record<Exclude<SearchTab, "everything">, number[]> = {
   // probing showed it ~90% JSON junk; it still surfaces via Everything.
   apps: [32267],
   repos: [30617, 1617, 1618, 1621],
-  live: [30311, 30312, 30313, 31922, 31923, 31924],
+  // Benjamin: "filter by events also". NIP-52 calendar events are their own
+  // vertical (the tab does the calendar work — the relay only knows
+  // created_at); Live keeps the NIP-53 streams. Kind 31924 calendars (event
+  // containers) are in neither; Everything still reaches them.
+  events: [31922, 31923],
+  live: [30311, 30312, 30313],
   // 30000 = NIP-51 follow sets — Brainstorm's own pinned-tag exports live here.
   lists: [30000, 10003, 10015, 30001, 30003, 30015, 30267, 39701],
 };

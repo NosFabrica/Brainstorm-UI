@@ -731,4 +731,13 @@ describe("kindsForTab", () => {
     expect("code" in TAB_KINDS).toBe(false);
     expect(Object.values(TAB_KINDS).flat()).not.toContain(1337);
   });
+
+  // Benjamin: "we should be able to filter by events also". NIP-52 calendar
+  // events get their own vertical; Live keeps the NIP-53 streams. Kind 31924
+  // (a calendar — a container of events) leaves the tabs; Everything still
+  // reaches it.
+  it("splits calendar events out of Live into their own Events vertical", () => {
+    expect(kindsForTab("events")).toEqual([31922, 31923]);
+    expect(kindsForTab("live")).toEqual([30311, 30312, 30313]);
+  });
 });

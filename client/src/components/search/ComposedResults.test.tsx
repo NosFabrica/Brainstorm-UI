@@ -160,11 +160,13 @@ describe("ComposedResults", () => {
   it("fires the five purpose-ranked section streams in parallel", () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     const tabs = calls.map((c) => c.params.tab);
-    expect(tabs).toEqual(expect.arrayContaining(["people", "notes", "articles", "live", "media"]));
+    // Happening draws from BOTH calendar events and live streams now that
+    // they are separate verticals.
+    expect(tabs).toEqual(expect.arrayContaining(["people", "notes", "articles", "events", "live", "media"]));
     // Benjamin's call: every CONTENT section leads with what's fresh —
     // scattered timestamps read as random. People stays trust-ranked
     // (no timestamps there to scatter).
-    for (const tab of ["notes", "articles", "live", "media"]) {
+    for (const tab of ["notes", "articles", "events", "live", "media"]) {
       expect(sectionCall(tab).query).toBe("liverpool sort:recent");
     }
     expect(sectionCall("people").query).toBe("liverpool");

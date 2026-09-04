@@ -36,7 +36,8 @@ import {
   type SearchTab,
 } from "@/services/search";
 
-import { AppCard, LiveCard, ListCard, MediaCard, RepoCard, platformWords } from "@/components/search/cards";
+import { AppCard, EventCard, LiveCard, ListCard, MediaCard, RepoCard, platformWords } from "@/components/search/cards";
+import { EVENT_WHEN_LABELS, eventWhenCounts, filterEventsByWhen, type EventWhen } from "@/lib/eventFilters";
 import { KnowledgePanel } from "@/components/search/KnowledgePanel";
 import { ComposedResults } from "@/components/search/ComposedResults";
 import { collapseHits } from "@/lib/searchCollapse";
@@ -47,6 +48,7 @@ const MEDIA_KINDS = new Set(TAB_KINDS.media);
 const APP_KINDS = new Set(TAB_KINDS.apps);
 const REPO_KINDS = new Set(TAB_KINDS.repos);
 const LIVE_KINDS = new Set(TAB_KINDS.live);
+const EVENT_KINDS = new Set(TAB_KINDS.events);
 const LIST_KINDS = new Set(TAB_KINDS.lists);
 const EMPTY_EVENTS = new Map<string, MinimalEvent>();
 
@@ -77,6 +79,7 @@ const PRIMARY_TABS: { key: SearchTab; label: string }[] = [
 const MORE_TABS: { key: SearchTab; label: string }[] = [
   { key: "apps", label: "Apps" },
   { key: "repos", label: "Repos" },
+  { key: "events", label: "Events" },
   { key: "live", label: "Live" },
   { key: "lists", label: "Lists" },
 ];
@@ -522,7 +525,9 @@ export function SearchResults({
     // Client-side filters (Verified only, reach) thin the page after the
     // fact — ask the relay for a deeper one so there is something left.
     const clientFiltered = readFilters(effectiveQuery);
-    const limit = clientFiltered.verifiedOnly || clientFiltered.reach ? 300 : undefined;
+    // Events too: the relay only knows created_at, so the When facet works
+    // over a deep recent page (probed: no start-tag filter or sort).
+    const limit = clientFiltered.verifiedOnly || clientFiltered.reach || tab === "events" ? 300 : undefined;
     return searchStream(effectiveQuery, { tab, pov, userPubkey, limit }, setSnapshot);
   }, [effectiveQuery, tab, pov, userPubkey, composed]);
 
@@ -566,7 +571,14 @@ export function SearchResults({
   // Recurring events (the "liverpool" monthly-meetup dump) collapse on the
   // event-shaped tabs; a chip expands the rest of each cluster.
   const [expandedClusters, setExpandedClusters] = useState<Set<string>>(new Set());
-  const clustered = tab === "live" || tab === "lists";
+  const clustered = tab === "events" || tab === "live" || tab === "lists";
+  // Events facet by WHEN — Upcoming by default (soonest first); with nothing
+  // upcoming the tab shows what just happened and says so.
+  const [eventWhen, setEventWhen] = useState<EventWhen>("upcoming");
+  useEffect(() => setEventWhen("upcoming"), [query]);
+  const eventCounts = useMemo(() => (tab === "events" ? eventWhenCounts(hits) : null), [tab, hits]);
+  const eventsFellBack = tab === "events" && eventWhen === "upcoming" && !!eventCounts && eventCounts.upcoming === 0 && eventCounts.past > 0;
+  const effectiveWhen: EventWhen = eventsFellBack ? "past" : eventWhen;
   // Apps facet by PLATFORM — a one-tap chip row (Benjamin's "categorize by
   // the chips"), computed from what the results actually run on.
   const [appPlatform, setAppPlatform] = useState<string | null>(null);
@@ -613,6 +625,7 @@ export function SearchResults({
   }, [tab, hits]);
   const displayHits = useMemo(() => {
     let shown = hits;
+    if (tab === "events") shown = filterEventsByWhen(shown, effectiveWhen);
     if (tab === "apps" && appPlatform) {
       shown = shown.filter((h) => platformWords(h.event).includes(appPlatform));
     }
@@ -652,7 +665,7 @@ export function SearchResults({
       if (open) for (const h of cluster.others) out.push({ hit: h, collapsedCount: 0, clusterId: "" });
     }
     return out;
-  }, [hits, tab, appPlatform, appCategory, appLicense, appCategoryTags, clustered, expandedClusters]);
+  }, [hits, tab, appPlatform, appCategory, appLicense, appCategoryTags, clustered, expandedClusters, effectiveWhen]);
 
   const profiles = useMemo(() => profilesOf(hits), [hits]);
 
@@ -771,6 +784,38 @@ export function SearchResults({
         </div>
       ) : (
         <>
+          {tab === "events" && eventCounts && (
+            <div className="mb-2.5">
+              <FacetRow testId="event-facets">
+                {(["upcoming", "week", "month", "past", "all"] as EventWhen[]).map((when) => (
+                  <button
+                    key={when}
+                    type="button"
+                    aria-pressed={effectiveWhen === when}
+                    onClick={() => setEventWhen(when)}
+                    className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                      effectiveWhen === when
+                        ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                        : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
+                    }`}
+                    data-testid={`event-facet-${when}`}
+                  >
+                    {EVENT_WHEN_LABELS[when]} <span className="opacity-60">{eventCounts[when]}</span>
+                  </button>
+                ))}
+              </FacetRow>
+              {eventsFellBack && (
+                <p className="mt-1 px-1 text-xs text-slate-400 dark:text-slate-500" data-testid="event-facets-note">
+                  No upcoming events for this search — showing past events.
+                </p>
+              )}
+              {displayHits.length === 0 && !eventsFellBack && (
+                <p className="mt-1 px-1 text-xs text-slate-400 dark:text-slate-500" data-testid="event-facets-empty">
+                  No {EVENT_WHEN_LABELS[effectiveWhen].toLowerCase()} events here — try another window.
+                </p>
+              )}
+            </div>
+          )}
           {tab === "apps" && appFacets.length > 0 && (
             <FacetRow className="mb-2" testId="app-facets">
               <button
@@ -911,6 +956,7 @@ export function SearchResults({
                 );
               }
               const typed = { event, author: hit.author, score: scoreOf(event.pubkey) };
+              if (EVENT_KINDS.has(event.kind)) return wrap(<EventCard {...typed} />);
               if (LIVE_KINDS.has(event.kind)) return wrap(<LiveCard {...typed} />);
               if (APP_KINDS.has(event.kind)) return wrap(<AppCard {...typed} />);
               if (REPO_KINDS.has(event.kind)) return wrap(<RepoCard {...typed} />);

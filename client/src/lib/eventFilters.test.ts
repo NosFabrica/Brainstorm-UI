@@ -1,0 +1,63 @@
+// @vitest-environment node
+/**
+ * The Events tab's "When" facet. Probed 2026-09-03: the search relay holds
+ * 44k NIP-52 calendar events but only knows created_at — it cannot filter
+ * or sort by the `start` tag. So the tab asks for a deep recent page and
+ * does the calendar work here: upcoming soonest-first (what you can still
+ * attend), past newest-first (what just happened), counted per facet.
+ */
+import { describe, expect, it } from "vitest";
+import type { NostrEvent } from "nostr-tools";
+import type { SearchHit } from "@/services/search";
+import { eventWhenCounts, filterEventsByWhen } from "./eventFilters";
+
+const DAY = 86_400;
+const now = 1_760_000_000; // a fixed "now"
+const hit = (id: string, kind: number, start: string): SearchHit => ({
+  event: { id, kind, pubkey: "a".repeat(64), created_at: now, content: "", sig: "", tags: [["d", id], ["title", id], ["start", start]] } as NostrEvent,
+  author: null,
+  rank: null,
+});
+const inHours = (h: number) => String(now + h * 3600);
+const ymd = (offsetDays: number) => {
+  const d = new Date((now + offsetDays * DAY) * 1000);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
+
+const hits = [
+  hit("lastMonth", 31923, inHours(-40 * 24)),
+  hit("yesterday", 31923, inHours(-30)),
+  hit("nextWeek", 31923, inHours(10 * 24)),
+  hit("tonight", 31923, inHours(5)),
+  hit("dateOnlyIn3Days", 31922, ymd(3)),
+  hit("in6Weeks", 31923, inHours(42 * 24)),
+  hit("noStart", 31923, ""),
+];
+
+describe("filterEventsByWhen", () => {
+  it("upcoming: everything from now on, soonest first", () => {
+    expect(filterEventsByWhen(hits, "upcoming", now).map((h) => h.event.id)).toEqual(["tonight", "dateOnlyIn3Days", "nextWeek", "in6Weeks"]);
+  });
+
+  it("this week / this month: the upcoming window, soonest first", () => {
+    expect(filterEventsByWhen(hits, "week", now).map((h) => h.event.id)).toEqual(["tonight", "dateOnlyIn3Days"]);
+    expect(filterEventsByWhen(hits, "month", now).map((h) => h.event.id)).toEqual(["tonight", "dateOnlyIn3Days", "nextWeek"]);
+  });
+
+  it("past: what already started, most recent first", () => {
+    expect(filterEventsByWhen(hits, "past", now).map((h) => h.event.id)).toEqual(["yesterday", "lastMonth"]);
+  });
+
+  // A calendar event with no start is a broken listing, not a date — it
+  // never counts as upcoming or past, and only "all" still shows it (last).
+  it("all: upcoming first, then past, undated last", () => {
+    expect(filterEventsByWhen(hits, "all", now).map((h) => h.event.id)).toEqual([
+      "tonight", "dateOnlyIn3Days", "nextWeek", "in6Weeks", "yesterday", "lastMonth", "noStart",
+    ]);
+  });
+
+  it("counts each facet for the chips", () => {
+    expect(eventWhenCounts(hits, now)).toEqual({ upcoming: 4, week: 2, month: 3, past: 2, all: 7 });
+  });
+});

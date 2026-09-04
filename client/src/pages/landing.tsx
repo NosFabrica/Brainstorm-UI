@@ -13,6 +13,7 @@ import {
   SlidersHorizontal,
   Clock,
   Radio,
+  CalendarDays,
   Newspaper,
   Image as ImageIcon,
   MessageSquare,
@@ -1062,6 +1063,7 @@ export default function Landing() {
                     { tab: "media", label: "Media", icon: ImageIcon },
                     { tab: "apps", label: "Apps", icon: Package },
                     { tab: "repos", label: "Repos", icon: FolderGit2 },
+                    { tab: "events", label: "Events", icon: CalendarDays },
                     { tab: "live", label: "Live", icon: Radio },
                     { tab: "lists", label: "Lists", icon: ListChecks },
                   ].map((c) => (

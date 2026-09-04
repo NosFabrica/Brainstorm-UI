@@ -30,6 +30,13 @@ import {
   type SearchTab,
 } from "@/services/search";
 
+/** Two section streams as one: hits concatenated in order, settled when both are. */
+function mergeSnapshots(a: SearchSnapshot | null, b: SearchSnapshot | null): SearchSnapshot | null {
+  if (!a) return b;
+  if (!b) return a;
+  return { ...a, hits: [...a.hits, ...b.hits], eose: a.eose && b.eose };
+}
+
 function useSectionStream(query: string, tab: SearchTab, pov: SearchPov, userPubkey: string | undefined, limit: number) {
   const [snapshot, setSnapshot] = useState<SearchSnapshot | null>(null);
   useEffect(() => {
@@ -170,7 +177,11 @@ export function ComposedResults({
   const fresh = `${query} sort:recent`.trim();
   const latest = useSectionStream(fresh, "notes", pov, userPubkey, 10);
   const articles = useSectionStream(fresh, "articles", pov, userPubkey, 5);
-  const happening = useSectionStream(fresh, "live", pov, userPubkey, 12);
+  // Happening = calendar events AND live streams, two verticals since the
+  // Events split; events lead (a meetup you can still attend beats a replay).
+  const happeningEvents = useSectionStream(fresh, "events", pov, userPubkey, 12);
+  const happeningLive = useSectionStream(fresh, "live", pov, userPubkey, 8);
+  const happening = useMemo(() => mergeSnapshots(happeningEvents, happeningLive), [happeningEvents, happeningLive]);
   const media = useSectionStream(fresh, "media", pov, userPubkey, 8);
 
   const allHits = useMemo(
@@ -281,7 +292,7 @@ export function ComposedResults({
       )}
 
       {happeningClusters.length > 0 && (
-        <Section id="happening" kicker="Happening" tab="live" onTabChange={onTabChange}>
+        <Section id="happening" kicker="Happening" tab="events" onTabChange={onTabChange}>
           <div className="space-y-1">
             {happeningClusters.map((c) => (
               <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} />

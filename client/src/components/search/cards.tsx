@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
  * primitives per CLAUDE.md: Chip for status/counts, shared tier ring.
  */
 import { Link, useLocation } from "wouter";
-import { Code2, ExternalLink, File, FileAudio, FileVideo, ListChecks, Package, Radio } from "lucide-react";
+import { Code2, ExternalLink, File, FileAudio, FileVideo, ListChecks, MapPin, Package, Radio } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { nip19 } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -25,6 +25,7 @@ import { FeedVideo } from "@/components/share/FeedVideo";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { MentionChip } from "@/components/share/MentionChip";
 import { Favicon } from "@/components/share/LinkPreview";
+import { eventDateTile, formatEventDate, googleCalendarUrl, parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
 
 export function tagVal(event: NostrEvent, name: string): string | undefined {
   return event.tags.find((t) => t[0] === name)?.[1];
@@ -580,6 +581,82 @@ export function LiveCard({ event, author, score }: { event: NostrEvent; author: 
           </div>
           {summary && (
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 break-words line-clamp-2">{summary}</p>
+          )}
+          <div className="mt-1.5">
+            <AuthorRow author={author} score={score} created_at={event.created_at} />
+          </div>
+        </div>
+      </div>
+    </CardShell>
+  );
+}
+
+/**
+ * A NIP-52 calendar event (kind 31922 date / 31923 time) as a card that reads
+ * as an EVENT at a glance — the profile page's date tile (brand-tinted when
+ * upcoming, grey once past), title, when + where, then the host. The link
+ * out is the one thing you'd do next: add an upcoming event to your calendar,
+ * or watch a past one's recording when there is one.
+ */
+export function EventCard({ event, author, score }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
+  const cal = parseCalendarEvent(event);
+  const nowSec = Math.floor(Date.now() / 1000);
+  const past = cal.startSec > 0 && cal.startSec < nowSec;
+  const tile = cal.startSec ? eventDateTile(cal.startSec) : null;
+  const openIn = past
+    ? cal.recordingUrl
+      ? { url: cal.recordingUrl, label: "Watch replay", host: hostOf(cal.recordingUrl) ?? undefined }
+      : null
+    : cal.startSec
+      ? { url: googleCalendarUrl(cal), label: "Add to calendar", host: "calendar.google.com" }
+      : null;
+  return (
+    <CardShell
+      event={event}
+      openInUrl={openIn?.url}
+      openInLabel={openIn?.label}
+      openInHost={openIn?.host}
+      openInTestId={`event-open-${event.id}`}
+      testId={`event-card-${event.id}`}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className={`flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-lg border ${
+            past
+              ? "border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 text-slate-400 dark:text-slate-500"
+              : "border-brand-accent/30 bg-brand-deep/[0.06] text-brand-deep dark:text-brand-link"
+          }`}
+          aria-hidden="true"
+          data-testid="event-date-tile"
+        >
+          {tile ? (
+            <>
+              <span className="text-[9px] font-bold uppercase leading-none tracking-wide">{tile.month}</span>
+              <span className="text-lg font-bold leading-tight tabular-nums">{tile.day}</span>
+            </>
+          ) : (
+            <span className="text-[9px] font-bold uppercase leading-none tracking-wide">TBA</span>
+          )}
+        </div>
+        {cal.image && (
+          <img src={cal.image} alt="" loading="lazy" className="h-12 w-16 shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800 object-cover" />
+        )}
+        <div className="min-w-0 flex-1">
+          <p className={`truncate text-sm font-semibold text-slate-900 dark:text-slate-100 ${openIn ? "pr-24" : ""}`}>{cal.title}</p>
+          {cal.startSec > 0 && (
+            <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">
+              <span className={past ? "" : "font-medium text-brand-deep dark:text-brand-link"}>{relativeEventTime(cal.startSec)}</span>
+              <span className="text-slate-400 dark:text-slate-500"> · {formatEventDate(cal.startSec, cal.isDateOnly)}</span>
+            </p>
+          )}
+          {cal.location && (
+            <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+              <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
+              <span className="truncate">{cal.location}</span>
+            </p>
+          )}
+          {cal.summary && cal.summary !== cal.title && (
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 break-words line-clamp-2">{cal.summary}</p>
           )}
           <div className="mt-1.5">
             <AuthorRow author={author} score={score} created_at={event.created_at} />
