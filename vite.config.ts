@@ -6,6 +6,10 @@ import { fileURLToPath } from "url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+/** Byte-for-byte the body nginx's @preview_down returns. Keep the two in step. */
+export const PREVIEW_DOWN =
+  '{"code":503,"message":"link preview unavailable","data":null}';
+
 function spaFallbackPlugin() {
   return {
     name: "spa-fallback",
@@ -64,5 +68,24 @@ export default defineConfig({
     port: 5000,
     host: "0.0.0.0",
     allowedHosts: true,
+    // Same-origin in development too: the service reads Sec-Fetch-Site to pick
+    // a rate-limit tier, and a cross-origin dev setup lands the SPA in the
+    // tight one.
+    proxy: {
+      "/link-preview": {
+        target: `http://${process.env.OG_UPSTREAM ?? "127.0.0.1:8080"}`,
+        // One hop, so a local service wanting real per-client keys needs
+        // TRUSTED_PROXY_HOPS=1; at its default of 2 it falls back to the peer.
+        xfwd: true,
+        // Vite's own answer here is a plain-text 500; nginx sends the envelope.
+        configure: (proxy) => {
+          proxy.on("error", (_err, _req, res) => {
+            if (!("writeHead" in res) || res.headersSent) return;
+            res.writeHead(503, { "Content-Type": "application/json" });
+            res.end(PREVIEW_DOWN);
+          });
+        },
+      },
+    },
   },
 });
