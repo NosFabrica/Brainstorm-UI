@@ -51,6 +51,7 @@ import { ShareBio } from "@/components/share/ShareBio";
 import liveDefault from "@/assets/live-default.webp";
 import { PinIcon } from "@/components/PinIcon";
 import { parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
+import { useLightbox } from "@/components/share/Lightbox";
 import { EventRow } from "@/components/share/EventRow";
 import { OpenInApp } from "@/components/share/OpenInApp";
 import { apiClient } from "@/services/api";
@@ -102,6 +103,7 @@ export default function SharePage() {
   const pubkey = decoded?.pubkey || "";
   const relayHints = decoded?.relays || [];
   const npub = pubkey ? safeNpub(pubkey) : "";
+  const openLightbox = useLightbox();
   const loggedIn = useHasSession();
   const [shareOpen, setShareOpen] = useState(false);
   const [zapOpen, setZapOpen] = useState(false);
@@ -997,12 +999,29 @@ export default function SharePage() {
               profile to a pictureless one, hiding the fallback. */}
           <div className="flex items-end justify-between gap-3">
             <div className="relative inline-block">
+              {/* Live now: a quiet red ring and a LIVE pill on the avatar —
+                  Instagram / Twitch's convention — that opens the stream.
+                  Benjamin: "make this noticeable subtly and allow users to
+                  click to view the streams." */}
+              {liveStreams.liveNow[0] && (
+                <span className="pointer-events-none absolute -inset-1 rounded-full ring-2 ring-red-500/80 animate-pulse" aria-hidden="true" data-testid="share-live-ring" />
+              )}
               <Avatar key={pubkey} className={`h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white bg-white dark:bg-slate-900 ${tierRing(coinScore01) ?? "shadow-lg"}`}>
                 {profile.picture ? <AvatarImage src={profile.picture} alt={displayName} className="object-cover" /> : null}
                 <AvatarFallback className="overflow-hidden rounded-full">
                   <DefaultAvatarImg flagged={isFlagged} />
                 </AvatarFallback>
               </Avatar>
+              {liveStreams.liveNow[0] && (
+                <Link
+                  href={eventPath({ id: liveStreams.liveNow[0].id, pubkey: liveStreams.liveNow[0].authorPubkey }, relayHints)}
+                  className="absolute -bottom-1 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 rounded-full border-2 border-white dark:border-slate-900 bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm hover:bg-red-500 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+                  title={`Watch live: ${liveStreams.liveNow[0].title}`}
+                  data-testid="share-live-badge"
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" aria-hidden="true" /> Live
+                </Link>
+              )}
               {/* Verification Score — the label-less coin, active-POV, bottom-right of
                   the avatar. Tap opens the shared explainer/compare modal. */}
               <VerificationCoin
@@ -1315,9 +1334,18 @@ export default function SharePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {videos.map((v) => (
                 <div key={v.id} className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-black">
-                  <Link
-                    href={eventPath({ id: v.id, pubkey }, relayHints)}
-                    className="group relative block aspect-video bg-slate-900"
+                  {/* Tap plays the video here, full view, with who it's from
+                      and a way to the post — not a jump to the post page. */}
+                  <button
+                    type="button"
+                    onClick={() =>
+                      openLightbox(
+                        videos.filter((x) => x.url).map((x) => ({ url: x.url!, kind: "video" as const, poster: x.poster ?? null })),
+                        Math.max(0, videos.filter((x) => x.url).findIndex((x) => x.id === v.id)),
+                        { author: { name: displayName, npub, picture: profile.picture ?? null }, postHref: eventPath({ id: v.id, pubkey }, relayHints) },
+                      )
+                    }
+                    className="group relative block aspect-video w-full bg-slate-900 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
                     data-testid="share-video-tile"
                   >
                     {v.poster ? (
@@ -1330,7 +1358,7 @@ export default function SharePage() {
                         <Play className="h-5 w-5 text-brand-deep ml-0.5" />
                       </span>
                     </div>
-                  </Link>
+                  </button>
                   {v.title && <p className="px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 truncate bg-white dark:bg-slate-900">{v.title}</p>}
                 </div>
               ))}

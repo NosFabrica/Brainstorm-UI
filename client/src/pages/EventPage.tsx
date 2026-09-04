@@ -18,6 +18,7 @@ import { RepoHero } from "@/components/share/RepoHero";
 import { FollowSetHero } from "@/components/share/FollowSetHero";
 import { AudioHero } from "@/components/share/AudioHero";
 import { EventHero } from "@/components/share/EventHero";
+import { VideoHero } from "@/components/share/VideoHero";
 import { LiveHero } from "@/components/share/LiveHero";
 import { EventThread } from "@/components/share/EventThread";
 import { ThreadAncestors } from "@/components/share/ThreadAncestors";
@@ -62,6 +63,8 @@ function ago(ts?: number): string {
 }
 
 const NOTE_KINDS = new Set([1, 6, 16]);
+/** NIP-71 videos: normal / short, and their addressable twins (DiVine ships 34236). */
+const VIDEO_EVENT_KINDS = new Set([21, 22, 34235, 34236]);
 const IMG_RE = /\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?|#|$)/i;
 const VID_RE = /\.(mp4|webm|mov|m4v)(\?|#|$)/i;
 
@@ -361,6 +364,8 @@ export default function EventPage() {
                 <AudioHero event={note} />
               ) : note.kind === 31922 || note.kind === 31923 ? (
                 <EventHero event={note} />
+              ) : VIDEO_EVENT_KINDS.has(note.kind) ? (
+                <VideoHero event={note} />
               ) : NOTE_KINDS.has(note.kind) ? (
                 <ShareNoteCard event={note} profiles={profiles} eventsById={eventsById} addrByCoord={addrByCoord} forceExpanded />
               ) : (

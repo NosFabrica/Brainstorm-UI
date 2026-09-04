@@ -653,14 +653,19 @@ export async function fetchLiveStreams(
   // Two filters rather than one, because a platform-hosted stream names the
   // streamer in a `p` tag while a self-hosted one authors it. They share the
   // window: both start now, and neither waits on the other.
-  const [authored, hosted] = await Promise.all([
+  // The search relay's corpus is wider than the content relays' (probed:
+  // a bridged Owncast channel's live event lived only there) — ask it too,
+  // for both shapes.
+  const [authored, hosted, searchAuthored, searchHosted] = await Promise.all([
     requestAll(relays, { kinds: [30311], authors: [pubkey], limit: 8 }, timeoutMs),
     requestAll(relays, { kinds: [30311], "#p": [pubkey], limit: 8 }, timeoutMs),
+    fetchFromSearchRelayByFilter({ kinds: [30311], authors: [pubkey], limit: 8 }, timeoutMs),
+    fetchFromSearchRelayByFilter({ kinds: [30311], "#p": [pubkey], limit: 8 }, timeoutMs),
   ]);
 
   // Keep the latest version per addressable coordinate (kind:pubkey:d).
   const byCoord = new Map<string, NostrEvent>();
-  for (const event of [...authored, ...hosted]) {
+  for (const event of [...authored, ...hosted, ...searchAuthored, ...searchHosted]) {
     const d = event.tags.find((tag) => tag[0] === "d")?.[1] || "";
     const coord = `${event.kind}:${event.pubkey}:${d}`;
     const previous = byCoord.get(coord);

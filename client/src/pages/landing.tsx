@@ -671,16 +671,11 @@ export default function Landing() {
   // "Recent" shows under an empty, focused box before any search this session —
   // never alongside the suggestions dropdown or a results list.
   const showRecent = engaged && focused && query.trim() === "" && !hasSearched && !dropdownOpen;
-  // The zero-query feed ("what's happening on Nostr") is OPT-IN: the
-  // pristine home stays the centered Google hero, one control reveals the
-  // feed, and the choice sticks per device. Hiding it is one click too.
-  const [feedOpen, setFeedOpenState] = useState(() => {
-    try { return localStorage.getItem("brainstorm_home_feed_open") === "1"; } catch { return false; }
-  });
-  const setFeedOpen = useCallback((open: boolean) => {
-    setFeedOpenState(open);
-    try { localStorage.setItem("brainstorm_home_feed_open", open ? "1" : "0"); } catch {}
-  }, []);
+  // The zero-query feed ("what's happening on Nostr") is OPT-IN and
+  // collapsed on every load (Benjamin: "collapsed by default, not expanded
+  // like we have now"): the pristine home stays the centered Google hero,
+  // one control reveals the feed for this visit, and hiding it is one click.
+  const [feedOpen, setFeedOpen] = useState(false);
   const homeFeed = submitted === null && feedOpen;
   const lifted = hasSearched || homeFeed || isSearching || query.trim().length > 0;
 
