@@ -129,10 +129,10 @@ title and a playable URL (`lib/trackEvent.ts`). A relay-side filter for that
 shape — or a "has media" facet — would spare every client the same gate and
 let `sort:recent` on Music mean recent songs.
 
-## 11. Fountain episodes play only through the link-metadata proxy (#7)
+## 11. Fountain — resolved client-side, no proxy needed (2026-09-04)
 
-Podcasters here link `fountain.fm/episode/…`; the page exposes the mp3 as
-`og:audio`, but fountain.fm is not CORS-readable from the browser. Once #7
-ships, a Fountain link can play in place like Wavlake and YouTube do today;
-until then it is a "Listen on Fountain" card.
-
+Earlier note said Fountain episodes needed the link-metadata proxy. Wrong:
+fountain.fm answers the browser with `access-control-allow-origin: *`, and its
+pages carry artwork, show, title, description and the mp3 itself in Open Graph.
+`lib/fountain.ts` reads the page once and the card plays in place. Kept here so
+nobody re-asks for a proxy Fountain does not need.

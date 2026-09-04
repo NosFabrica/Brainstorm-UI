@@ -99,7 +99,7 @@ export function toggleTrack(id: string, src: string) {
   if (typeof window === "undefined") return;
   const a = ensureAudio();
   if (currentId === id) {
-    if (a.paused) { status = "loading"; a.play().catch(() => { status = "error"; emit(); }); }
+    if (a.paused) { status = "loading"; Promise.resolve(a.play()).catch(() => { status = "error"; emit(); }); }
     else { a.pause(); }
     emit();
     return;
@@ -108,7 +108,9 @@ export function toggleTrack(id: string, src: string) {
   status = "loading";
   a.src = src;
   a.currentTime = 0;
-  a.play().catch(() => { status = "error"; emit(); });
+  // Wrapped: a media element that returns nothing from play() (older engines,
+  // test DOMs) must not throw before the store learns which track is active.
+  Promise.resolve(a.play()).catch(() => { status = "error"; emit(); });
   emit();
 }
 

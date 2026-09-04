@@ -8,6 +8,13 @@ import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { Favicon, LinkPreviewCard } from "./LinkPreview";
 
+// Fountain's page, answered or not — the card is the player, not a fetch test.
+const fountainItemMock = vi.fn<(url: string) => { loading: boolean; item: import("@/lib/fountain").FountainItem | null }>(() => ({ loading: false, item: null }));
+vi.mock("@/lib/fountain", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/fountain")>()),
+  useFountainItem: (url: string) => fountainItemMock(url),
+}));
+
 // Wavlake's catalogue, answered: the card is the inline player, not a fetch test.
 vi.mock("@/lib/wavlake", async (importOriginal) => {
   const real = await importOriginal<typeof import("@/lib/wavlake")>();
@@ -82,7 +89,42 @@ describe("LinkPreviewCard — audio links play where they are", () => {
     expect(screen.queryByTestId("link-card")).toBeNull();
   });
 
-  it("a Fountain episode is a Listen card until the link proxy can fetch its audio", () => {
+  it("a Fountain episode is a rich card — artwork, show, title, description — that plays where it is", () => {
+    fountainItemMock.mockReturnValue({
+      loading: false,
+      item: {
+        kind: "episode",
+        id: "T0iRUdk8nBSfUEPLLcJ3",
+        show: "Radio Detox",
+        title: "Right Said Fred",
+        description: "The conversation between Host Heather Larson and Right Said Fred covers the journey of independent artists.",
+        image: "https://hosting-media.riverside.com/logos/b64d.jpeg",
+        audio: "https://api.riverside.com/media/0abf.mp3",
+        url: "https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3",
+      },
+    });
+    render(<LinkPreviewCard url="https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3" />);
+
+    const card = screen.getByTestId("fountain-card");
+    expect(card).toHaveTextContent("Radio Detox");
+    expect(card).toHaveTextContent("Right Said Fred");
+    expect(card).toHaveTextContent(/journey of independent artists/);
+    expect(card).toHaveTextContent(/Fountain/);
+    expect(card.querySelector("img")?.getAttribute("src")).toBe("https://hosting-media.riverside.com/logos/b64d.jpeg");
+    // The page stays one click away; the audio plays here.
+    expect(screen.getByTestId("fountain-open").getAttribute("href")).toBe("https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3");
+    const play = screen.getByTestId("fountain-play");
+    expect(play).toHaveAttribute("aria-label", "Play");
+    // jsdom has no media pipeline; the shared player only needs play() to answer.
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockImplementation(() => Promise.resolve());
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    fireEvent.click(play);
+    // The shared player took it: the card is now the active one, seek bar and all.
+    expect(screen.getByTestId("fountain-seek")).toBeInTheDocument();
+  });
+
+  it("a Fountain link whose page cannot be read is still a Listen card that leaves", () => {
+    fountainItemMock.mockReturnValue({ loading: false, item: null });
     render(<LinkPreviewCard url="https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3" />);
     const card = screen.getByTestId("link-card-fountain");
     expect(card).toHaveTextContent(/Listen on Fountain/);
