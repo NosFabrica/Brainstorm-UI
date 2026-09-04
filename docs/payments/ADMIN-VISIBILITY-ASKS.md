@@ -85,7 +85,7 @@ divergence report once it is exhausted).
 Same endpoint keyed by Flash id for unresolved signups would be welcome but is not needed to
 start.
 
-### 3. Flash's plan list, for admins
+### 3. Flash's plan list, for admins — **shipped 2026-09-04** as `GET /admin/billing/flash/services` and `GET /admin/billing/flash/services/{service_id}/plans`; the mapping dialog picks from them (commit f19f0fea).
 
 ```
 GET /admin/billing/flash-plans
