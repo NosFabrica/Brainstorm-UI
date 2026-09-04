@@ -158,10 +158,13 @@ describe("HomeFeed", () => {
       render(<HomeFeed personal={false} onHide={vi.fn()} onBrowse={vi.fn()} />);
       const tabs = calls.filter((c) => c.params.pov === "nosfabrica").map((c) => c.params.tab);
       expect(tabs).toEqual(expect.arrayContaining(["live", "notes", "events", "media"]));
-      // …except releases, which ship less often and look back a week.
-      const sinces = new Set(calls.filter((c) => c.params.tab !== "releases").map((c) => c.params.since));
+      // …except releases (a week) and events (a month): both are announced
+      // long before they happen, so "the last 24 hours" would miss them.
+      const sinces = new Set(calls.filter((c) => c.params.tab !== "releases" && c.params.tab !== "events").map((c) => c.params.since));
       expect(sinces.size).toBe(1);
-      expect(streamsOf("nosfabrica", "releases")[0].params.since).toBe([...sinces][0]! - 6 * 86_400);
+      const day = [...sinces][0]!;
+      expect(streamsOf("nosfabrica", "releases")[0].params.since).toBe(day - 6 * 86_400);
+      expect(streamsOf("nosfabrica", "events")[0].params.since).toBe(day - 29 * 86_400);
     });
 
     it("Live now leads only while someone is streaming; ended streams don't count", async () => {
