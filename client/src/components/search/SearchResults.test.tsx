@@ -53,6 +53,9 @@ vi.mock("@/services/nostr", () => ({
 // The relay expresses rank as ORDER only — per-author scores come from the
 // shared house-influence cache. Faked here so cards can prove they use it.
 const scoreOfMock = vi.fn<(pk: string) => number | null | undefined>(() => 0.85);
+// Event cards carry the RSVP button, which reads the active account; these
+// tests are signed out — the button is the sign-in door and never publishes.
+vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
 vi.mock("@/hooks/useAuthorScores", () => ({
   useAuthorScores: () => (pk: string) => scoreOfMock(pk),
 }));
@@ -420,9 +423,10 @@ describe("SearchResults", () => {
       expect(screen.getByTestId("event-facets-note")).toHaveTextContent(/No upcoming events.*showing past/i);
     });
 
-    // An upcoming event's link out is the one thing you'd do next: add it
-    // to your calendar. Past events with a recording offer the replay.
-    it("upcoming cards offer Add to calendar; past cards with a recording offer the replay", async () => {
+    // An upcoming event's one action is "I'm going" — a NIP-52 RSVP on
+    // Nostr, no calendar vendor (Benjamin: "I don't want this to go to
+    // Google"). Past events with a recording offer the replay instead.
+    it("upcoming cards offer I'm going; past cards with a recording offer the replay", async () => {
       setUrlTab("events");
       render(<SearchResults query="liverpool" pov="nosfabrica" />);
       emit({
@@ -433,9 +437,10 @@ describe("SearchResults", () => {
         eose: true,
         timeMs: 300,
       });
-      await screen.findByTestId("event-card-e-up");
-      expect(screen.getByTestId("event-open-e-up").getAttribute("href")).toMatch(/^https:\/\/calendar\.google\.com\//);
-      expect(screen.getByTestId("event-open-e-up")).toHaveTextContent(/Add to calendar/);
+      const up = await screen.findByTestId("event-card-e-up");
+      expect(within(up).getByTestId("event-rsvp")).toHaveTextContent(/I'm going/);
+      expect(within(up).queryByTestId("event-open-e-up")).toBeNull();
+      expect(up.querySelector('a[href*="google"]')).toBeNull();
       fireEvent.click(screen.getByTestId("event-facet-past"));
       expect(screen.getByTestId("event-open-e-rec").getAttribute("href")).toBe("https://youtu.be/abc12345");
       expect(screen.getByTestId("event-open-e-rec")).toHaveTextContent(/replay/i);

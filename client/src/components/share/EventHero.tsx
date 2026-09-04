@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Calendar, MapPin, CalendarPlus, ExternalLink, PlayCircle } from "lucide-react";
-import { parseCalendarEvent, formatEventDate, isUpcoming, relativeEventTime, googleCalendarUrl } from "@/lib/calendarEvent";
+import { Calendar, MapPin, ExternalLink, PlayCircle } from "lucide-react";
+import { parseCalendarEvent, formatEventDate, isUpcoming, relativeEventTime } from "@/lib/calendarEvent";
+import { RsvpButton } from "@/components/share/RsvpButton";
 import eventDefault from "@/assets/event-default.webp";
 import type { MinimalEvent } from "@/lib/noteRefs";
 
@@ -67,17 +68,8 @@ export function EventHero({ event }: { event: MinimalEvent }) {
       )}
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        {upcoming && e.startSec > 0 && (
-          <a
-            href={googleCalendarUrl(e)}
-            target="_blank"
-            rel="noopener"
-            className="inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-brand-primary-hover"
-            data-testid="event-add-calendar"
-          >
-            <CalendarPlus className="h-4 w-4" /> Add to calendar
-          </a>
-        )}
+        {/* Going, on Nostr: a NIP-52 RSVP under the reader's key. */}
+        {upcoming && e.startSec > 0 && <RsvpButton event={event} size="md" />}
         {!upcoming && e.recordingUrl && (
           <a
             href={e.recordingUrl}
@@ -89,9 +81,11 @@ export function EventHero({ event }: { event: MinimalEvent }) {
             <PlayCircle className="h-4 w-4" /> Watch recording
           </a>
         )}
-        <span className="inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500">
-          <ExternalLink className="h-3.5 w-3.5" /> {upcoming ? "RSVP by opening in a Nostr app below" : "Open in a Nostr app below"}
-        </span>
+        {!upcoming && (
+          <span className="inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500">
+            <ExternalLink className="h-3.5 w-3.5" /> Open in a Nostr app below
+          </span>
+        )}
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
-// NIP-52 calendar events (kind 31922 date-based / 31923 time-based): parsing,
-// display formatting, and an "Add to calendar" Google link (no login needed).
+// NIP-52 calendar events (kind 31922 date-based / 31923 time-based): parsing
+// and display formatting. Going to one is a NIP-52 RSVP (services/rsvp), not
+// a calendar-vendor link.
 
 import type { MinimalEvent } from "@/lib/noteRefs";
 
@@ -90,15 +91,4 @@ export function relativeEventTime(startSec: number): string {
   else if (abs < 31_536_000) phrase = unit(Math.round(abs / 2_592_000), "month");
   else phrase = unit(Math.round(abs / 31_536_000), "year");
   return diff >= 0 ? `In ${phrase}` : `${phrase} ago`;
-}
-
-/** A Google Calendar "add event" URL — opens a prefilled event, no auth needed. */
-export function googleCalendarUrl(e: CalendarEvent): string {
-  const fmt = (sec: number) => new Date(sec * 1000).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-  const start = fmt(e.startSec);
-  const end = fmt(e.endSec && e.endSec > e.startSec ? e.endSec : e.startSec + 3600);
-  const params = new URLSearchParams({ action: "TEMPLATE", text: e.title, dates: `${start}/${end}` });
-  if (e.summary) params.set("details", e.summary);
-  if (e.location) params.set("location", e.location);
-  return `https://calendar.google.com/calendar/render?${params.toString()}`;
 }

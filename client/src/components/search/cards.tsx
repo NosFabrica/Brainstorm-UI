@@ -25,7 +25,8 @@ import { FeedVideo } from "@/components/share/FeedVideo";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { MentionChip } from "@/components/share/MentionChip";
 import { Favicon } from "@/components/share/LinkPreview";
-import { formatEventDate, googleCalendarUrl, isOver, parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
+import { formatEventDate, isOver, parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
+import { RsvpButton } from "@/components/share/RsvpButton";
 import { EventDateTile } from "@/components/share/EventDateTile";
 
 export function tagVal(event: NostrEvent, name: string): string | undefined {
@@ -122,6 +123,7 @@ function CardShell({
   openInPlacement = "corner",
   openInSlotTestId,
   fill = false,
+  corner,
   testId,
 }: {
   event: NostrEvent;
@@ -139,6 +141,9 @@ function CardShell({
   openInSlotTestId?: string;
   /** Fill the grid cell so a row of cards shares one height. */
   fill?: boolean;
+  /** A control for the top corner that isn't a link out (the RSVP button).
+   *  Lives outside the card's own link like openIn does. */
+  corner?: React.ReactNode;
   testId?: string;
 }) {
   const footer = openInPlacement === "footer";
@@ -150,6 +155,7 @@ function CardShell({
       <Link href={eventPath(event)} className={`block p-3 sm:p-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded-xl ${fill ? "h-full" : ""}`}>
         {children}
       </Link>
+      {corner && <span className="absolute right-2.5 top-2.5" data-testid="card-corner">{corner}</span>}
       {openInUrl && (
         <span className={footer ? "absolute bottom-2.5 right-2.5 sm:bottom-3 sm:right-3" : "absolute right-2.5 top-2.5"} data-testid={openInSlotTestId}>
           <a
@@ -608,13 +614,10 @@ export function EventCard({ event, author, score }: { event: NostrEvent; author:
   const cal = parseCalendarEvent(event);
   // "Past" means over — an all-day event today or a running conference is not.
   const past = isOver(cal);
-  const openIn = past
-    ? cal.recordingUrl
-      ? { url: cal.recordingUrl, label: "Watch replay", host: hostOf(cal.recordingUrl) ?? undefined }
-      : null
-    : cal.startSec
-      ? { url: googleCalendarUrl(cal), label: "Add to calendar", host: "calendar.google.com" }
-      : null;
+  // Past: the replay when there is one. Upcoming: "I'm going" — a NIP-52
+  // RSVP under the reader's key, kept on Nostr (no calendar vendor).
+  const openIn = past && cal.recordingUrl ? { url: cal.recordingUrl, label: "Watch replay", host: hostOf(cal.recordingUrl) ?? undefined } : null;
+  const corner = !past && cal.startSec > 0 ? <RsvpButton event={event} /> : null;
   return (
     <CardShell
       event={event}
@@ -622,6 +625,7 @@ export function EventCard({ event, author, score }: { event: NostrEvent; author:
       openInLabel={openIn?.label}
       openInHost={openIn?.host}
       openInTestId={`event-open-${event.id}`}
+      corner={corner}
       testId={`event-card-${event.id}`}
     >
       <div className="flex items-start gap-3">
@@ -630,7 +634,7 @@ export function EventCard({ event, author, score }: { event: NostrEvent; author:
           <img src={cal.image} alt="" loading="lazy" className="h-12 w-16 shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800 object-cover" />
         )}
         <div className="min-w-0 flex-1">
-          <p className={`truncate text-sm font-semibold text-slate-900 dark:text-slate-100 ${openIn ? "pr-24" : ""}`}>{cal.title}</p>
+          <p className={`truncate text-sm font-semibold text-slate-900 dark:text-slate-100 ${openIn || corner ? "pr-24" : ""}`}>{cal.title}</p>
           {cal.startSec > 0 && (
             <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">
               <span className={past ? "" : "font-medium text-brand-deep dark:text-brand-link"}>{relativeEventTime(cal.startSec)}</span>

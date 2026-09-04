@@ -43,6 +43,9 @@ vi.mock("@/services/search", async (importOriginal) => {
 const appsByAddressMock = vi.fn<(addresses: string[]) => Promise<Map<string, NostrEvent>>>(() => Promise.resolve(new Map()));
 const engagementMock = vi.fn<(id: string) => Promise<{ zaps: number; replies: number }>>(() => Promise.resolve({ zaps: 0, replies: 0 }));
 const scoreOfMock = vi.fn<(pk: string) => number | null | undefined>(() => 0.8);
+// Event cards carry the RSVP button, which reads the active account; these
+// tests are signed out — the button is the sign-in door and never publishes.
+vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
 vi.mock("@/hooks/useAuthorScores", () => ({
   useAuthorScores: () => (pk: string) => scoreOfMock(pk),
 }));
