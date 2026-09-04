@@ -19,6 +19,7 @@ import type {
   StaleSyncRow,
   UnmappedPlanRow,
   UnrecognisedStatusRow,
+  UnresolvedSignupRow,
 } from "@/services/api";
 
 export type ProfileBits = { name?: string; picture?: string };
@@ -248,6 +249,31 @@ export function UnmappedPlanRowView({
       >
         <Plus className="h-3 w-3" /> Create mapping
       </button>
+    </li>
+  );
+}
+
+/** A payment that named nobody: the event, when, why it failed, and Flash's id — the only handle it has. */
+export function UnresolvedSignupRowView({ row, flashUrl, children }: { row: UnresolvedSignupRow; flashUrl: (id: string) => string; children?: React.ReactNode }) {
+  return (
+    <li className={rowClass} data-testid={`billing-unresolved-${row.flash_subscription_id ?? row.id}`}>
+      <span className={`flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 ${meta}`}>
+        <span className="font-mono text-[11px] text-slate-700 dark:text-slate-200">{row.event ?? "event"}</span>
+        {row.created_at && <span>{formatBillingDate(row.created_at)}</span>}
+        {row.process_error && <Chip tone="neutral" size="sm">{row.process_error.replaceAll("_", " ")}</Chip>}
+        {row.flash_subscription_id && (
+          <a
+            href={flashUrl(row.flash_subscription_id)}
+            target="_blank"
+            rel="noopener"
+            className="inline-flex items-center gap-1 font-mono text-[11px] text-brand-link hover:underline"
+            title={row.flash_subscription_id}
+          >
+            {row.flash_subscription_id.slice(0, 8)}… <ExternalLink className="h-3 w-3" />
+          </a>
+        )}
+      </span>
+      {children}
     </li>
   );
 }

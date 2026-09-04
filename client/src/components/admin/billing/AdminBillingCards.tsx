@@ -74,6 +74,7 @@ import {
   UnrecognisedStatusRowView,
   ExhaustedEventRowView,
   UnmappedPlanRowView,
+  UnresolvedSignupRowView,
   type ProfileBits as DivergenceProfileBits,
 } from "./DivergenceRows";
 import { PlanMappingFormDialog } from "./PlanMappingFormDialog";
@@ -1503,14 +1504,13 @@ function UnresolvedSignupsBlock({
   return (
     <div data-testid="billing-divergence-unresolved_signups">
       <DivergenceHeading kind="unresolved_signups" meta={meta} tier="fault" section={section} />
-      <ul className="mt-1.5 space-y-1.5">
+      <ul className="mt-1.5 space-y-1">
         {section.rows.map((row, i) => {
           const id =
             typeof row.flash_subscription_id === "string" ? row.flash_subscription_id : "";
           const busy = !!id && busyId === id;
           return (
-            <li key={id || i} className="flex items-start gap-2" data-testid={`billing-unresolved-${id}`}>
-              <DivergenceRow row={row} />
+            <UnresolvedSignupRowView key={id || i} row={row as never} flashUrl={flashSubscriptionUrl}>
               {id && (
                 <SignupActionsMenu
                   id={id}
@@ -1522,7 +1522,7 @@ function UnresolvedSignupsBlock({
                   onDismiss={onDismiss}
                 />
               )}
-            </li>
+            </UnresolvedSignupRowView>
           );
         })}
       </ul>
