@@ -395,7 +395,10 @@ export function AppCard({ event, author, score }: { event: NostrEvent; author: S
           ))}
           {license && <Chip size="sm" tone="slate">{license}</Chip>}
         </div>
-        <div className={`mt-auto pt-2.5 ${getIt ? "pr-16" : ""}`}>
+        {/* Get it sits in the footer's corner (66px wide with its favicon) —
+            the footer leaves it that room plus a gap, so the timestamp never
+            touches it. Live at 375px, pr-16 left them flush. */}
+        <div className={`mt-auto pt-2.5 ${getIt ? "pr-20" : ""}`}>
           <CuratorFooter kicker="Published by" author={author} score={score} created_at={event.created_at} />
         </div>
       </div>
