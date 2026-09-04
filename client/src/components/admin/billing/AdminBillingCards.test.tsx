@@ -666,7 +666,9 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     });
     getAdminBillingDivergence.mockResolvedValue({
       policy_mismatch: { count: 2, truncated: false, rows: [] },
-      unresolved_signups: { count: 4, truncated: false, rows: [] },
+      unresolved_signups: { count: 4, truncated: false, rows: [{ id: 14, event: "subscription.activated", created_at: null, process_error: "no_reference", flash_subscription_id: "sub_14" }] },
+      // Two gave up; one of them IS signup 14 above — the same problem, counted once.
+      exhausted_events: { count: 2, truncated: false, rows: [{ id: 14, event: "subscription.activated", attempts: 5, process_error: "no_reference" }, { id: 99, event: "subscription.renewed", attempts: 5, process_error: "boom" }] },
       abandoned_checkouts: { count: 9, truncated: false, rows: [] }, // for the record — not a fault
     });
     renderCards();
@@ -675,7 +677,7 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     expect(screen.getByTestId("billing-stat-past_due")).toHaveTextContent("1");
     expect(screen.getByTestId("billing-stat-pending")).toHaveTextContent("1");
     expect(screen.getByTestId("billing-stat-ending")).toHaveTextContent("1"); // a cancellation scheduled
-    expect(screen.getByTestId("billing-stat-faults")).toHaveTextContent("6"); // 2 + 4, abandoned excluded
+    expect(screen.getByTestId("billing-stat-faults")).toHaveTextContent("7"); // 2 + 4 + the one exhausted event not already listed; abandoned excluded
     expect(strip.textContent).toContain("Ending soon");
   });
 
@@ -697,7 +699,7 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
           current_period_end: "2026-09-30T12:00:00Z",
           next_billing_date: "2026-10-01T12:00:00Z",
           last_synced_at: "2026-09-04T09:00:00Z",
-          last_sync_error: "401 invalid api key",
+          last_sync_error: "unknown_subscription",
         } as AdminBillingSubscription,
       ],
     });
@@ -707,7 +709,8 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     expect(screen.getByTestId(`billing-nextbill-${PUBKEY.slice(0, 8)}`)).toHaveTextContent("Oct 1, 2026");
     expect(screen.getByTestId("sort-billing-nextbill")).toBeInTheDocument();
     expect(screen.getByTestId(`billing-period-${PUBKEY.slice(0, 8)}`).textContent).toMatch(/Sep 1, 2026.*Sep 30, 2026/);
-    expect(screen.getByTestId(`billing-sync-error-${PUBKEY.slice(0, 8)}`)).toHaveTextContent("401 invalid api key");
+    // The server's code, in words — not `unknown_subscription`.
+    expect(screen.getByTestId(`billing-sync-error-${PUBKEY.slice(0, 8)}`)).toHaveTextContent("Flash has no such subscription");
     const profile = row.querySelector(`a[href="/p/${nip19.npubEncode(PUBKEY)}"]`);
     expect(profile).not.toBeNull();
     expect(profile?.getAttribute("target")).toBe("_blank");

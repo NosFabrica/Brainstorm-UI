@@ -130,7 +130,7 @@ export function FailingSyncRowView({ row, profile, busy, onResync }: { row: Fail
     <li className={rowClass} data-testid={`billing-failing-${pk8}`}>
       <PersonCell pubkey={row.pubkey ?? ""} profile={profile} />
       <span className={`min-w-0 flex-1 ${meta}`}>
-        <span className="font-mono text-[11px] text-red-600 dark:text-red-400 break-all">{row.last_sync_error ?? "read failed"}</span>
+        <span className="text-[12px] text-red-600 dark:text-red-400 break-words" title={row.last_sync_error ?? undefined}>{failureLabel(row.last_sync_error) ?? "read failed"}</span>
         {row.last_synced_at && <span className="ml-2 text-slate-400 dark:text-slate-500">last good read {formatBillingDate(row.last_synced_at)}</span>}
       </span>
       {row.pubkey && <ResyncButton kind="failing_syncs" pubkey={row.pubkey} busy={busy} onResync={onResync} />}

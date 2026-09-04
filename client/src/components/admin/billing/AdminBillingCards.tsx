@@ -61,6 +61,7 @@ import { tone, type Tone } from "@/lib/tones";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 import { DIVERGENCE_META, orderedSections, subscriptionIdsByEventId, type DivergenceMeta, type DivergenceTier, type OrderedSection } from "./divergenceSections";
 import { StatTile } from "@/components/ui/stat-tile";
+import { failureLabel } from "./billingEventCopy";
 
 import type { CreateAdminBillingPlanBody, SchedulingItem, UnmappedPlanRow, UpdateAdminBillingPlanBody } from "@/services/api";
 import { DIVERGENCE_KEY, POLICIES_KEY, SUBS_KEY } from "./queryKeys";
@@ -558,8 +559,8 @@ function SubscriberRow({
         </span>
         {/* The error in words, not just a triangle. */}
         {s.last_sync_error && (
-          <span className="mt-0.5 block max-w-[220px] truncate font-mono text-[10px] text-amber-600 dark:text-amber-400" title={s.last_sync_error} data-testid={`billing-sync-error-${s.pubkey.slice(0, 8)}`}>
-            {s.last_sync_error}
+          <span className="mt-0.5 block max-w-[220px] truncate text-[10px] text-amber-600 dark:text-amber-400" title={s.last_sync_error} data-testid={`billing-sync-error-${s.pubkey.slice(0, 8)}`}>
+            {failureLabel(s.last_sync_error)}
           </span>
         )}
       </td>
@@ -925,6 +926,8 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   const sections = orderedSections(divergence);
   const faults = sections.filter((x) => x.tier === "fault");
   const record = sections.filter((x) => x.tier === "record");
+  // An exhausted event borrows the Flash id its signup row carries.
+  const handlesByEventId = subscriptionIdsByEventId(divergence);
   // Numbers first. Entitled = active or trial; ending = a cancellation is
   // scheduled but the paid period still runs; faults = the fault tier's counts
   // (the record tier is for knowing, not a number to worry about).
@@ -933,13 +936,15 @@ export function AdminBillingCards({ active }: { active: boolean }) {
     past_due: items.filter((x) => x.flash_status === "past_due").length,
     pending: items.filter((x) => x.flash_status === "pending").length,
     ending: items.filter((x) => !!x.cancel_effective_date && (x.flash_status === "active" || x.flash_status === "trial")).length,
-    faults: Object.entries(divergence).reduce(
-      (n, [kind, section]) => n + (section && kind in DIVERGENCE_META && DIVERGENCE_META[kind as keyof typeof DIVERGENCE_META].tier === "fault" ? section.count : 0),
-      0,
-    ),
+    // Fault-tier counts, minus the exhausted events that are the same signups
+    // already counted above — the sections overlap on purpose; the tile mustn't.
+    faults:
+      Object.entries(divergence).reduce(
+        (n, [kind, section]) => n + (section && kind in DIVERGENCE_META && DIVERGENCE_META[kind as keyof typeof DIVERGENCE_META].tier === "fault" ? section.count : 0),
+        0,
+      ) -
+      (divergence.exhausted_events?.rows ?? []).filter((r) => typeof (r as { id?: unknown }).id === "number" && handlesByEventId.has((r as { id: number }).id)).length,
   };
-  // An exhausted event borrows the Flash id its signup row carries.
-  const handlesByEventId = subscriptionIdsByEventId(divergence);
   const signupActions = {
     onViewFlashRecord: (id: string) =>
       setFlashRecordFor({ key: id, label: id, read: () => apiClient.getAdminBillingFlashRecordForUnresolved(id) }),
