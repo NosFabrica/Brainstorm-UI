@@ -18,6 +18,7 @@ import { RepoHero } from "@/components/share/RepoHero";
 import { FollowSetHero } from "@/components/share/FollowSetHero";
 import { AudioHero } from "@/components/share/AudioHero";
 import { ListingHero } from "@/components/share/ListingHero";
+import { ListingRelated } from "@/components/share/ListingRelated";
 import { EventHero } from "@/components/share/EventHero";
 import { VideoHero } from "@/components/share/VideoHero";
 import { LiveHero } from "@/components/share/LiveHero";
@@ -394,6 +395,10 @@ export default function EventPage() {
                 </div>
               )}
             </div>
+
+            {/* Under a listing: the seller's other things, then similar things
+                from other sellers — a shop page that leads somewhere. */}
+            {note.kind === 30402 && <ListingRelated event={note} sellerName={authorName} />}
 
             {/* What the network says this post is ABOUT (rung C2). Sits under
                 the note itself, where a reader has just finished it and a

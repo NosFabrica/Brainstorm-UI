@@ -929,6 +929,54 @@ export function fetchSimilarApps(
 }
 
 /**
+ * Other sellers' listings in the same categories — the "Similar" row under a
+ * listing. The seller's own items are left out (the page has a row for
+ * those); edits of one listing collapse to the newest; best category overlap
+ * first, then newest. Case-insensitive on the tags, since marketplaces write
+ * "Health & Beauty" and "health & beauty" for the same shelf.
+ */
+export function fetchSimilarListings(
+  categories: string[],
+  selfAddress: string,
+  opts: { excludePubkey?: string; timeoutMs?: number } = {},
+): Promise<NostrEvent[]> {
+  const timeoutMs = opts.timeoutMs ?? 5000;
+  return new Promise((resolve) => {
+    const relay = searchRelay();
+    if (!relay || categories.length === 0) return resolve([]);
+    const wanted = new Set(categories.map((c) => c.toLowerCase()));
+    const byAddress = new Map<string, NostrEvent>();
+    const sub = relay
+      .req({ kinds: [30402], "#t": categories, search: "include:spam", limit: 40 })
+      .subscribe((msg: { type: string; event?: NostrEvent }) => {
+        if (msg.type === "EVENT" && msg.event) {
+          const ev = msg.event;
+          if (opts.excludePubkey && ev.pubkey === opts.excludePubkey) return;
+          const d = ev.tags.find((t) => t[0] === "d")?.[1] ?? "";
+          const addr = `${ev.kind}:${ev.pubkey}:${d}`;
+          if (addr === selfAddress) return;
+          const known = byAddress.get(addr);
+          if (!known || ev.created_at > known.created_at) byAddress.set(addr, ev);
+        } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
+          finish();
+        }
+      });
+    const timer = setTimeout(finish, timeoutMs);
+    function finish() {
+      clearTimeout(timer);
+      sub.unsubscribe();
+      const overlap = (e: NostrEvent) =>
+        new Set(e.tags.filter((t) => t[0] === "t" && t[1] && wanted.has(t[1].toLowerCase())).map((t) => t[1].toLowerCase())).size;
+      resolve(
+        [...byAddress.values()]
+          .sort((a, b) => overlap(b) - overlap(a) || b.created_at - a.created_at)
+          .slice(0, 12),
+      );
+    }
+  });
+}
+
+/**
  * Cheap kind-0 typeahead: resolves at EOSE or the deadline with whatever
  * arrived — never rejects (a silent suggest beats a broken one).
  */

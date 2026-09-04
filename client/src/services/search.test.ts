@@ -61,6 +61,7 @@ import {
   fetchReleaseAsset,
   zapStoreUrl,
   fetchSimilarApps,
+  fetchSimilarListings,
   searchStream,
   suggestProfiles,
   kindsForTab,
@@ -722,6 +723,35 @@ describe("fetchSimilarApps", () => {
     const similar = await pending;
     // Two shared tags beat one; self and the duplicate are gone.
     expect(similar.map((e) => e.tags.find((t) => t[0] === "d")?.[1])).toEqual(["com.amethyst", "com.wisp"]);
+  });
+});
+
+describe("fetchSimilarListings", () => {
+  // A listing's categories → other sellers' listings in them. The seller's
+  // own items have their own row on the page, so they stay out; edits of
+  // one listing collapse to the newest; best category overlap first.
+  const listing = (pk: string, d: string, tags: string[], at = 1): NostrEvent =>
+    ({ id: `${d}-${at}`, kind: 30402, pubkey: pk, tags: [["d", d], ["title", d], ["price", "10", "USD"], ...tags.map((t) => ["t", t])], content: "", created_at: at, sig: "s" }) as NostrEvent;
+
+  it("returns other sellers' listings sharing a category, best overlap first — never the listing itself or its seller's", async () => {
+    const { subject } = controllable();
+    const me = "a".repeat(64);
+    const pending = fetchSimilarListings(["mugs", "bitcoin"], `30402:${me}:mug-1`, { excludePubkey: me });
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter.kinds).toEqual([30402]);
+    expect(filter["#t"]).toEqual(["mugs", "bitcoin"]);
+    expect(filter.search).toBe("include:spam");
+
+    subject.next(frame(listing(me, "mug-1", ["mugs", "bitcoin"]))); // the listing itself
+    subject.next(frame(listing(me, "mug-2", ["mugs", "bitcoin"]))); // same seller — has its own row
+    subject.next(frame(listing("c".repeat(64), "cup", ["mugs"])));
+    subject.next(frame(listing("d".repeat(64), "stein", ["mugs", "bitcoin"])));
+    subject.next(frame(listing("d".repeat(64), "stein", ["mugs", "bitcoin"], 2))); // a newer edit of the same listing
+    subject.next(EOSE);
+    const similar = await pending;
+    expect(similar.map((e) => e.tags.find((t) => t[0] === "d")?.[1])).toEqual(["stein", "cup"]);
+    expect(similar[0].created_at).toBe(2);
   });
 });
 

@@ -42,7 +42,7 @@ type EventLike = { id: string; pubkey: string; kind: number; created_at: number;
 export const LISTING_KIND = 30402;
 
 /** Marketplace apps tag every listing with their own name; that is provenance, not a category. */
-const APP_TAGS = new Set(["shopstr", "bitpopart", "barattolo", "conduit", "plebeian", "plebeian market", "nostrmarket", "nostr market", "2140"]);
+export const APP_TAGS = new Set(["shopstr", "bitpopart", "barattolo", "conduit", "plebeian", "plebeian market", "nostrmarket", "nostr market", "2140"]);
 
 const isHttp = (s: string | undefined): s is string => !!s && /^https?:\/\//i.test(s);
 
