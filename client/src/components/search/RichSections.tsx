@@ -7,7 +7,7 @@
  */
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { Play } from "lucide-react";
+import { Newspaper, Play } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { Favicon } from "@/components/share/LinkPreview";
 import { useLightbox } from "@/components/share/Lightbox";
@@ -29,25 +29,63 @@ function ago(created_at: number): string {
   return new Date(created_at * 1000).toLocaleDateString(undefined, { month: "short", year: "numeric" });
 }
 
-export type TopStory = { hit: SearchHit; news: NewsShape & { imageUrl: string } };
+/** A strip card's content. `url`/`domain` are null for a pictured note that
+ *  isn't news-shaped; `imageUrl` is null for news that came without a picture. */
+export type StoryShape = { headline: string; url: string | null; domain: string | null; imageUrl: string | null };
+export type TopStory = { hit: SearchHit; news: StoryShape };
+
+/** A strip of one or two reads as an accident (Benjamin: "there should always
+ *  be 3") — so the picker fills to this many before it stops looking. */
+const MIN_STORIES = 3;
+const URL_IN_TEXT = /https?:\/\/\S+/g;
+
+function firstImageIn(content: string): string | null {
+  for (const url of content.match(URL_IN_TEXT) ?? []) if (IMAGE_RE.test(url)) return url;
+  return null;
+}
 
 /**
- * Which Latest hits earn the strip: news-shaped notes that carry a picture,
- * one per author, at most four — the freshest first, as they arrive.
+ * Which Latest hits earn the strip, one per author, freshest first: pictured
+ * news leads; when that runs short of three, unpictured news fills in, then
+ * notes that carry a picture (their first line as the headline). Never more
+ * than four.
  */
 export function pickTopStories(hits: SearchHit[]): TopStory[] {
   const out: TopStory[] = [];
   const seenAuthors = new Set<string>();
-  for (const hit of hits) {
-    if (out.length >= MAX_STORIES) break;
-    const e = hit.event;
-    if (tagVal(e, "title") || tagVal(e, "name") || !e.content) continue;
-    const news = parseNewsShape(e.content);
-    const imageUrl = news?.imageUrl ?? tagVal(e, "image") ?? null;
-    if (!news || !imageUrl || seenAuthors.has(e.pubkey)) continue;
-    seenAuthors.add(e.pubkey);
-    out.push({ hit, news: { ...news, imageUrl } });
-  }
+  const seenIds = new Set<string>();
+  const eligible = hits.filter((h) => !tagVal(h.event, "title") && !tagVal(h.event, "name") && !!h.event.content);
+  const take = (hit: SearchHit, news: StoryShape) => {
+    seenAuthors.add(hit.event.pubkey);
+    seenIds.add(hit.event.id);
+    out.push({ hit, news });
+  };
+  const pass = (limit: number, pick: (hit: SearchHit) => StoryShape | null) => {
+    for (const hit of eligible) {
+      if (out.length >= limit) return;
+      if (seenIds.has(hit.event.id) || seenAuthors.has(hit.event.pubkey)) continue;
+      const shape = pick(hit);
+      if (shape) take(hit, shape);
+    }
+  };
+  // 1. News with a picture — up to four.
+  pass(MAX_STORIES, (hit) => {
+    const news = parseNewsShape(hit.event.content);
+    const imageUrl = news?.imageUrl ?? tagVal(hit.event, "image") ?? null;
+    return news && imageUrl ? { ...news, imageUrl } : null;
+  });
+  // 2. News without one — only to reach three.
+  pass(MIN_STORIES, (hit) => {
+    const news = parseNewsShape(hit.event.content);
+    return news ? { ...news, imageUrl: null } : null;
+  });
+  // 3. A pictured note — its first line is the headline.
+  pass(MIN_STORIES, (hit) => {
+    const imageUrl = firstImageIn(hit.event.content) ?? tagVal(hit.event, "image");
+    if (!imageUrl) return null;
+    const headline = hit.event.content.replace(URL_IN_TEXT, "").split("\n").map((l) => l.trim()).find(Boolean) ?? "";
+    return headline ? { headline: headline.slice(0, 140), url: null, domain: null, imageUrl } : null;
+  });
   return out;
 }
 
@@ -70,29 +108,41 @@ function TopStoryCard({ story }: { story: TopStory }) {
       className="group flex w-56 shrink-0 cursor-pointer flex-col overflow-hidden rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
       data-testid={`top-story-${hit.event.id}`}
     >
-      {!imgFailed && (
+      {news.imageUrl && !imgFailed ? (
         <img
           src={news.imageUrl}
           alt=""
           loading="lazy"
           onError={() => setImgFailed(true)}
           className="aspect-[16/10] w-full object-cover bg-slate-100 dark:bg-slate-800"
+          data-testid="story-image"
         />
+      ) : (
+        // Same footprint without a picture, so the strip stays one height.
+        <div className="flex aspect-[16/10] w-full items-center justify-center bg-gradient-to-br from-brand-primary/10 to-brand-accent/10 dark:from-brand-primary/20 dark:to-brand-accent/15" aria-hidden="true">
+          <Newspaper className="h-6 w-6 text-brand-primary/60" />
+        </div>
       )}
       <div className="flex min-w-0 flex-1 flex-col p-2.5">
-        <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
-          <Favicon host={news.domain} className="h-3 w-3 shrink-0 rounded-sm object-contain" />
-          <span className="truncate">{news.domain}</span>
-        </div>
-        <a
-          href={news.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="mt-1 line-clamp-3 text-[13px] font-semibold leading-snug text-slate-900 dark:text-slate-100 hover:text-brand-primary hover:underline"
-        >
-          {news.headline}
-        </a>
+        {news.domain && (
+          <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+            <Favicon host={news.domain} className="h-3 w-3 shrink-0 rounded-sm object-contain" />
+            <span className="truncate">{news.domain}</span>
+          </div>
+        )}
+        {news.url ? (
+          <a
+            href={news.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="mt-1 line-clamp-3 text-[13px] font-semibold leading-snug text-slate-900 dark:text-slate-100 hover:text-brand-primary hover:underline"
+          >
+            {news.headline}
+          </a>
+        ) : (
+          <p className="mt-1 line-clamp-3 text-[13px] font-semibold leading-snug text-slate-900 dark:text-slate-100">{news.headline}</p>
+        )}
         <div className="mt-auto pt-1.5 truncate text-[11px] text-slate-400 dark:text-slate-500">
           {hit.author ? getDisplayLabel(hit.author) : "Unknown"} · {ago(hit.event.created_at)}
         </div>

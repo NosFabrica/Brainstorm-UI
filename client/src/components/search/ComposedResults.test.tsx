@@ -105,6 +105,35 @@ describe("ComposedResults — media-rich sections", () => {
     expect(screen.getByTestId("serp-row-n2")).toBeInTheDocument();
   });
 
+  // Benjamin: "when Latest is showing there should always be 3" — a strip of
+  // two reads as an accident. Pictured news leads; when that runs short the
+  // strip fills to three with unpictured news, then with pictured notes.
+  it("fills the strip to three: pictured news, then unpictured news, then pictured notes", async () => {
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    const NO_PIC = "Liverpool confirm the Barcola fee\nhttps://www.theguardian.com/story-4\nSummary 4.";
+    sectionCall("notes").emit({
+      hits: [
+        hitOf(ev("n1", 1, "1".repeat(64), NEWS(1)), "Echo"),
+        hitOf(ev("n2", 1, "2".repeat(64), "Just a plain note about Liverpool"), "fan"),
+        hitOf(ev("n4", 1, "4".repeat(64), NO_PIC), "Guardian"),
+        hitOf(ev("n5", 1, "5".repeat(64), "Anfield tonight https://cdn.example/anfield.jpg"), "fan2"),
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    const strip = await screen.findByTestId("serp-top-stories");
+    const cards = [...strip.querySelectorAll('[data-testid^="top-story-"]')].map((c) => c.getAttribute("data-testid"));
+    expect(cards).toEqual(["top-story-n1", "top-story-n4", "top-story-n5"]);
+    // The unpictured story still names its source; the pictured note's first line is its headline.
+    expect(screen.getByTestId("top-story-n4")).toHaveTextContent("theguardian.com");
+    expect(screen.getByTestId("top-story-n4").querySelector('[data-testid="story-image"]')).toBeNull();
+    expect(screen.getByTestId("top-story-n5")).toHaveTextContent("Anfield tonight");
+    expect(screen.getByTestId("top-story-n5").querySelector('[data-testid="story-image"]')?.getAttribute("src")).toBe("https://cdn.example/anfield.jpg");
+    // Strip items don't repeat as rows.
+    expect(screen.queryByTestId("serp-row-n5")).toBeNull();
+    expect(screen.getByTestId("serp-row-n2")).toBeInTheDocument();
+  });
+
   it("no pictured news, no strip — Latest stays rows", async () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     sectionCall("notes").emit({ hits: [hitOf(ev("n2", 1, "2".repeat(64), "Just a plain note about Liverpool"))], eose: true, timeMs: 100 });

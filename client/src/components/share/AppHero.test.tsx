@@ -192,6 +192,34 @@ describe("AppHero endorsements", () => {
     expect(screen.getByTestId("app-review-r-vitor").querySelector('[class*="shadow-[0_0_0"]')).not.toBeNull();
   });
 
+  // Benjamin, over an 18-voice page: "we need to shorten the amount of
+  // reviews we show". Three lead — the best-ranked voices — and the rest
+  // wait behind one "Show all N"; the rows take the person page's review
+  // anatomy (hairlines, the text in a speech bubble).
+  it("previews three voices and folds the rest behind Show all", async () => {
+    const many = Array.from({ length: 6 }, (_, i) => ({
+      id: `r${i}`,
+      pubkey: `${(i + 1).toString(16).padStart(2, "0")}`.repeat(32),
+      text: `Review number ${i}`,
+      at: 1_700_000_000 - i * 86_400,
+      version: null,
+      k: "32267",
+      kind: 1111,
+    }));
+    for (const r of many) scoreByPubkey.set(r.pubkey, 0.9);
+    endorsementsMock.mockReturnValue({ ...signals(), reviews: many, reviewCount: 6, zaps: [], zapCount: 0 });
+    render(<AppHero event={FLOTILLA} />);
+    const section = await screen.findByTestId("app-hero-reviews");
+    expect(section.querySelectorAll('li[data-testid^="app-review-"]')).toHaveLength(3);
+    const toggle = screen.getByTestId("app-hero-reviews-toggle");
+    expect(toggle).toHaveTextContent("Show all 6");
+    // Each review's words sit in a bubble, like the person page.
+    expect(screen.getByTestId("app-review-r0").querySelector('[data-testid="app-review-bubble"]')).toHaveTextContent("Review number 0");
+    fireEvent.click(toggle);
+    expect(section.querySelectorAll('li[data-testid^="app-review-"]')).toHaveLength(6);
+    expect(screen.getByTestId("app-hero-reviews-toggle")).toHaveTextContent("Show less");
+  });
+
   it("tells a signed-in viewer whose network hasn't spoken that it is showing all", async () => {
     endorsementsMock.mockReturnValue(signals());
     signedInMock = true;

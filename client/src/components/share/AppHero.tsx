@@ -213,6 +213,9 @@ interface Voice {
   via: "review" | "zap";
 }
 
+/** How many voices lead before "Show all". */
+const REVIEW_PREVIEW = 3;
+
 const GROUP_HEADERS: Record<EndorserGroup, string> = {
   followed: "From people you follow",
   verified: "From verified accounts",
@@ -605,42 +608,39 @@ export function AppHero({ event }: { event: AppEvent }) {
               />
             </div>
           )}
-          {(["followed", "verified", "other"] as EndorserGroup[]).map((group) => {
-            const rows = grouped[group];
-            if (rows.length === 0) return null;
-            if (group === "followed" && !signedIn) return null;
-            // Outsiders fold away — unless they are all there is.
-            const folded = group === "other" && trustedCount > 0 && !othersOpen;
+          {/* Three voices lead (Benjamin: "shorten the amount of reviews we
+              show"); the rest wait behind one Show all. Rows take the person
+              page's review anatomy — hairlines, the words in a speech bubble. */}
+          {(() => {
+            const ordered = (["followed", "verified", "other"] as EndorserGroup[])
+              .filter((group) => group !== "followed" || signedIn)
+              .flatMap((group) => grouped[group].map((v) => ({ group, v })));
+            const shown = othersOpen ? ordered : ordered.slice(0, REVIEW_PREVIEW);
+            const hidden = ordered.length - REVIEW_PREVIEW;
+            let lastGroup: EndorserGroup | null = null;
             return (
-              <div key={group} className="mt-3" data-testid={`app-hero-reviews-${group}`}>
-                {(group !== "other" || trustedCount > 0) && (
-                  <div className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
-                    {GROUP_HEADERS[group]} <span className="text-slate-400 dark:text-slate-500">· {rows.length}</span>
-                  </div>
-                )}
-                {folded ? (
-                  <button
-                    type="button"
-                    onClick={() => setOthersOpen(true)}
-                    className="mt-1 text-xs font-medium text-brand-primary hover:underline"
-                    data-testid="app-hero-reviews-toggle"
-                  >
-                    Show {rows.length} more
-                  </button>
-                ) : (
-                  <ul className="mt-1.5 space-y-3">
-                    {rows.map((v) => {
-                      const author = profiles.get(v.pubkey) ?? null;
-                      const score = groupOf.get(v.pubkey)?.score ?? null;
-                      let npub = "";
-                      try {
-                        npub = nip19.npubEncode(v.pubkey);
-                      } catch {
-                        /* malformed pubkey — row renders without a link */
-                      }
-                      return (
-                        <li key={v.id} className="flex items-start gap-2.5" data-testid={`app-review-${v.id}`}>
-                          <Link href={npub ? `/p/${npub}` : "#"} className="shrink-0">
+              <>
+                <ul className="mt-2.5 divide-y divide-slate-100 dark:divide-slate-800/60 border-y border-slate-100 dark:border-slate-800/60">
+                  {shown.map(({ group, v }) => {
+                    const author = profiles.get(v.pubkey) ?? null;
+                    const score = groupOf.get(v.pubkey)?.score ?? null;
+                    let npub = "";
+                    try {
+                      npub = nip19.npubEncode(v.pubkey);
+                    } catch {
+                      /* malformed pubkey — row renders without a link */
+                    }
+                    const header = group !== lastGroup && (group !== "other" || trustedCount > 0) ? group : null;
+                    lastGroup = group;
+                    return (
+                      <li key={v.id} className="py-3 first:pt-2.5 last:pb-2.5" data-testid={`app-review-${v.id}`}>
+                        {header && (
+                          <div className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500" data-testid={`app-hero-reviews-${header}`}>
+                            {GROUP_HEADERS[header]} <span className="font-medium normal-case tracking-normal">· {grouped[header].length}</span>
+                          </div>
+                        )}
+                        <div className="flex items-start gap-3">
+                          <Link href={npub ? `/p/${npub}` : "#"} className="shrink-0 pt-0.5">
                             <Avatar className={`h-7 w-7 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score, false, "sm", true) ?? ""}`}>
                               {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
                               <AvatarFallback className="overflow-hidden">
@@ -659,23 +659,36 @@ export function AppHero({ event }: { event: AppEvent }) {
                                   <Zap className="h-2.5 w-2.5" /> zap
                                 </span>
                               )}
-                              {v.version && (
-                                <Chip size="sm" tone="slate">on v{v.version}</Chip>
-                              )}
+                              {v.version && <Chip size="sm" tone="slate">on v{v.version}</Chip>}
                               <span className="text-[11px] text-slate-400 dark:text-slate-500">{releaseAge(v.at)}</span>
                             </div>
-                            <div className="mt-0.5 line-clamp-4 break-words text-sm leading-relaxed text-slate-700 dark:text-slate-200">
-                              <NotesInline text={v.text} />
+                            <div
+                              className="mt-1.5 inline-block max-w-full rounded-2xl rounded-tl-md bg-slate-50 dark:bg-slate-800/60 px-3.5 py-2 text-[13px] leading-relaxed text-slate-800 dark:text-slate-100 break-words"
+                              data-testid="app-review-bubble"
+                            >
+                              <div className="line-clamp-4">
+                                <NotesInline text={v.text} />
+                              </div>
                             </div>
                           </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+                {hidden > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setOthersOpen((o) => !o)}
+                    className="mt-2 text-xs font-medium text-brand-primary hover:underline"
+                    data-testid="app-hero-reviews-toggle"
+                  >
+                    {othersOpen ? "Show less" : `Show all ${ordered.length}`}
+                  </button>
                 )}
-              </div>
+              </>
             );
-          })}
+          })()}
         </div>
       )}
       {endorsements && voices.length === 0 && endorsements.reviewCount === 0 && endorsements.zapCount === 0 && releases.length > 0 && (
