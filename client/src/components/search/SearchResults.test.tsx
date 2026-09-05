@@ -807,7 +807,7 @@ describe("SearchResults", () => {
     render(<SearchResults query="nova" pov="nosfabrica" />);
     const nova = "d".repeat(64);
     const mk = (id: string, title: string) =>
-      ev(id, 31337, nova, "", [["d", id], ["title", title], ["artist", "NOVA"], ["media", `https://renaissancemachine.ai/music/${id}.mp3`]]);
+      ev(id, 31337, nova, "", [["d", id], ["title", title], ["artist", "NOVA"], ["media", `https://renaissancemachine.ai/music/${id}.mp3`], ["image", `https://renaissancemachine.ai/music/${id}.jpg`]]);
     emit({ hits: [mk("q1", "Old Carbon"), mk("q2", "Duende")].map((event) => ({ event, author: author(nova, "NOVA"), rank: null })), eose: true, timeMs: 150 });
     await screen.findByTestId("track-card-q1");
     expect(screen.queryByTestId("now-playing-bar")).toBeNull();
@@ -815,8 +815,13 @@ describe("SearchResults", () => {
     fireEvent.click(screen.getByTestId("music-play-all"));
     const bar = await screen.findByTestId("now-playing-bar");
     expect(within(bar).getByTestId("now-playing-title")).toHaveTextContent("Old Carbon");
+    // The bar wears the artwork — a soft wash of the cover behind the words — and names what is next.
+    expect((within(bar).getByTestId("now-playing-backdrop") as HTMLImageElement).src).toBe("https://renaissancemachine.ai/music/q1.jpg");
+    expect(within(bar).getByTestId("now-playing-up-next")).toHaveTextContent("Duende");
     fireEvent.click(within(bar).getByTestId("now-playing-next"));
     await vi.waitFor(() => expect(within(bar).getByTestId("now-playing-title")).toHaveTextContent("Duende"));
+    // Last in the queue: nothing is next.
+    expect(within(bar).queryByTestId("now-playing-up-next")).toBeNull();
   });
 
   // Ainsley Costello publishes no native tracks; her music is on Wavlake. The

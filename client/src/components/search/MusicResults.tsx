@@ -80,7 +80,7 @@ export function MusicResults({
     return browsing ? [...remote, ...native] : [...native, ...remote];
   }, [browsing, shownTracks, trending.songs, wavlake.songs]);
   useEffect(() => {
-    setPlaylist(queue.map((q) => ({ id: q.id, src: q.meta.src })));
+    setPlaylist(queue.map((q) => ({ id: q.id, src: q.meta.src, title: q.meta.title, artist: q.meta.artist, cover: q.meta.cover })));
   }, [queue]);
   const meta = useMemo(() => new Map<string, NowPlayingMeta>(queue.map((q) => [q.id, q.meta])), [queue]);
 

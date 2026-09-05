@@ -5,14 +5,17 @@ import { FlashIcon } from "@/components/FlashIcon";
 import { useTrackPlayer, useTrackDuration, toggleTrack, seekTrack, formatTime } from "@/lib/audioPlayer";
 import audioDefault from "@/assets/audio-default.webp";
 
-/** A small "now playing" equalizer — bars bounce while playing, freeze on pause. */
-function Equalizer({ playing }: { playing: boolean }) {
+/**
+ * The "now playing" equalizer — bars bounce while playing, freeze on pause.
+ * It lives on the cover art, Spotify's playing mark, in white over the dark wash.
+ */
+export function Equalizer({ playing, className = "h-3.5 w-3.5", bar = "bg-brand-primary" }: { playing: boolean; className?: string; bar?: string }) {
   return (
-    <span className="flex h-3.5 w-3.5 shrink-0 items-end gap-[2px]" aria-hidden="true" data-testid="track-eq">
-      {[0, 1, 2].map((i) => (
+    <span className={`flex shrink-0 items-end gap-[2px] ${className}`} aria-hidden="true" data-testid="track-eq">
+      {[0, 1, 2, 3].map((i) => (
         <span
           key={i}
-          className={`w-[2px] flex-1 origin-bottom rounded-full bg-brand-primary ${playing ? "eq-bar" : ""}`}
+          className={`w-[3px] flex-1 origin-bottom rounded-full ${bar} ${playing ? "eq-bar" : ""}`}
           style={{ height: "100%", animationDelay: `${i * 0.18}s`, ...(playing ? {} : { transform: "scaleY(0.4)" }) }}
         />
       ))}
@@ -95,7 +98,7 @@ export function EmbeddedTrackCard({
       <button
         type="button"
         disabled={!playable}
-        onClick={(e) => { e.stopPropagation(); if (audio) toggleTrack(id, audio); }}
+        onClick={(e) => { e.stopPropagation(); if (audio) toggleTrack(id, audio, { title, artist, cover }); }}
         className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg group/cover disabled:cursor-default"
         aria-label={player.isPlaying ? "Pause" : "Play"}
         data-testid="track-play"
@@ -108,8 +111,17 @@ export function EmbeddedTrackCard({
           className="h-full w-full bg-brand-deep/10 object-cover"
         />
         {playable && (
-          <span className="absolute inset-0 flex items-center justify-center bg-black/25 transition-colors group-hover/cover:bg-black/40">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-brand-link shadow-md ring-1 ring-black/5 transition-transform group-hover/cover:scale-105">
+          <span className={`absolute inset-0 flex items-center justify-center transition-colors ${player.isActive ? "bg-black/45" : "bg-black/25 group-hover/cover:bg-black/40"}`}>
+            {/* The active track's mark is the moving bars on its art; the
+                control comes back under the pointer. Idle covers offer Play. */}
+            {player.isActive && !player.isLoading && !player.isError && (
+              <Equalizer playing={player.isPlaying} className="h-5 w-5 group-hover/cover:hidden" bar="bg-white" />
+            )}
+            <span
+              className={`h-7 w-7 items-center justify-center rounded-full bg-white text-brand-link shadow-md ring-1 ring-black/5 transition-transform group-hover/cover:scale-105 ${
+                player.isActive && !player.isLoading && !player.isError ? "hidden group-hover/cover:flex" : "flex"
+              }`}
+            >
               {player.isError ? (
                 <AlertCircle className="h-4 w-4 text-red-500" />
               ) : player.isLoading ? (
@@ -125,10 +137,7 @@ export function EmbeddedTrackCard({
       </button>
 
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          {player.isActive && <Equalizer playing={player.isPlaying} />}
-          <p className={`truncate text-sm font-semibold ${player.isActive ? "text-brand-link" : "text-slate-900 dark:text-slate-100"}`}>{title}</p>
-        </div>
+        <p className={`truncate text-sm font-semibold ${player.isActive ? "text-brand-link" : "text-slate-900 dark:text-slate-100"}`}>{title}</p>
         {artist && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{artist}</p>}
 
         {player.isActive && (

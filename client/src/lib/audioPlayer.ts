@@ -47,15 +47,62 @@ export function formatTime(sec: number): string {
 }
 
 // --- singleton state ---
+export interface PlaylistTrack {
+  id: string;
+  src: string;
+  title?: string;
+  artist?: string;
+  cover?: string;
+}
+export type TrackMeta = Pick<PlaylistTrack, "title" | "artist" | "cover">;
+
 let audio: HTMLAudioElement | null = null;
 let currentId: string | null = null;
 let status: TrackStatus = "idle";
-let playlist: { id: string; src: string }[] = [];
+let playlist: PlaylistTrack[] = [];
+/** What each track is called, for the system's now-playing — from the queue or the row that started it. */
+const metaById = new Map<string, TrackMeta>();
 const listeners = new Set<() => void>();
 
 /** Register the ordered track list so playback auto-advances on `ended`. */
-export function setPlaylist(list: { id: string; src: string }[]) {
+export function setPlaylist(list: PlaylistTrack[]) {
   playlist = list;
+  for (const t of list) if (t.title) metaById.set(t.id, { title: t.title, artist: t.artist, cover: t.cover });
+}
+
+/** The track after this one in the registered playlist, if any. */
+export function peekNext(id: string | null): PlaylistTrack | null {
+  const idx = playlist.findIndex((t) => t.id === id);
+  return idx >= 0 ? playlist[idx + 1] ?? null : null;
+}
+
+/**
+ * System now-playing (Media Session): the lock screen and the browser's media
+ * hub show the title, artist and artwork, and the hardware keys drive the
+ * shared player. Best-effort — absent in test DOMs and old engines.
+ */
+function applyMediaSession(id: string) {
+  if (typeof navigator === "undefined" || !("mediaSession" in navigator) || typeof MediaMetadata === "undefined") return;
+  const meta = metaById.get(id);
+  if (!meta?.title) return;
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: meta.title,
+      artist: meta.artist ?? "",
+      artwork: meta.cover ? [{ src: meta.cover }] : [],
+    });
+  } catch { /* ignore */ }
+}
+/** Idempotent, so it runs with every track start — cheap, and it survives a swapped session object. */
+function wireMediaSessionKeys() {
+  if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+  const set = (name: MediaSessionAction, handler: () => void) => {
+    try { navigator.mediaSession.setActionHandler(name, handler); } catch { /* unsupported action */ }
+  };
+  set("play", () => { if (audio && currentId) Promise.resolve(audio.play()).catch(() => {}); });
+  set("pause", () => pausePlayback());
+  set("nexttrack", () => { playNext(); });
+  set("previoustrack", () => { playPrev(); });
 }
 
 // Cached snapshot — rebuilt only on change so useSyncExternalStore stays stable.
@@ -95,9 +142,11 @@ function ensureAudio(): HTMLAudioElement {
 }
 
 /** Play this track, or toggle play/pause if it's already the active one. */
-export function toggleTrack(id: string, src: string) {
+export function toggleTrack(id: string, src: string, meta?: TrackMeta) {
   if (typeof window === "undefined") return;
   const a = ensureAudio();
+  if (meta?.title) metaById.set(id, meta);
+  wireMediaSessionKeys();
   if (currentId === id) {
     if (a.paused) { status = "loading"; Promise.resolve(a.play()).catch(() => { status = "error"; emit(); }); }
     else { a.pause(); }
@@ -108,6 +157,7 @@ export function toggleTrack(id: string, src: string) {
   status = "loading";
   a.src = src;
   a.currentTime = 0;
+  applyMediaSession(id);
   // Wrapped: a media element that returns nothing from play() (older engines,
   // test DOMs) must not throw before the store learns which track is active.
   Promise.resolve(a.play()).catch(() => { status = "error"; emit(); });
@@ -203,6 +253,15 @@ export function playNext(): boolean {
   const next = idx >= 0 ? playlist[idx + 1] : playlist[0];
   if (!next) return false;
   toggleTrack(next.id, next.src);
+  return true;
+}
+
+/** Back to the previous track in the registered playlist, if there is one. */
+export function playPrev(): boolean {
+  const idx = playlist.findIndex((t) => t.id === currentId);
+  const prev = idx > 0 ? playlist[idx - 1] : undefined;
+  if (!prev) return false;
+  toggleTrack(prev.id, prev.src);
   return true;
 }
 
