@@ -163,7 +163,9 @@ function ensureAudio(): HTMLAudioElement {
     const idx = playlist.findIndex((t) => t.id === currentId);
     const next = idx >= 0 ? playlist[idx + 1] : undefined;
     if (next) { toggleTrack(next.id, next.src); return; } // auto-advance
-    status = "idle"; currentId = null; emit();
+    // The end of the queue: the last track stays current, paused, ready to
+    // play again — Spotify's bar does not blink away when the music stops.
+    status = "paused"; emit();
   });
   audio.addEventListener("error", () => { status = "error"; emit(); });
   return audio;
@@ -317,6 +319,12 @@ export function playFrom(id?: string) {
   const start = id ? playlist.find((t) => t.id === id) : playlist[0];
   if (start && start.id !== currentId) toggleTrack(start.id, start.src);
   else if (start) toggleTrack(start.id, start.src);
+}
+
+/** The player's state right now — a read for tests and non-React callers. */
+export function playerSnapshot() {
+  rebuild();
+  return snapshot;
 }
 
 /** Per-row view of the shared player: is this id active, and its progress. */

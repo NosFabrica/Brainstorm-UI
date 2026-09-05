@@ -85,6 +85,15 @@ describe("NowPlayingBar — the app's one player bar", () => {
     expect(screen.getByTestId("now-playing-title").className).toMatch(/text-white/);
   });
 
+  // Benjamin's audit: Next was hidden on phones — exactly where people listen
+  // most, and where "more from this artist" earns its keep. It shows everywhere.
+  it("keeps Next on phones", () => {
+    render(<NowPlayingBar />);
+    setPlaylist([{ id: "a", src: "https://cdn/a.mp3", title: "A" }, { id: "b", src: "https://cdn/b.mp3", title: "B" }]);
+    act(() => toggleTrack("a", "https://cdn/a.mp3"));
+    expect(screen.getByTestId("now-playing-next").className).not.toMatch(/\bhidden\b/);
+  });
+
   it("the X stops the sound and takes the bar away, and the room goes with it", async () => {
     render(<NowPlayingBar />);
     setPlaylist([{ id: "a", src: "https://cdn/a.mp3", title: "A" }, { id: "b", src: "https://cdn/b.mp3", title: "B" }]);

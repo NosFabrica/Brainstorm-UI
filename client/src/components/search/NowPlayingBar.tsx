@@ -160,7 +160,7 @@ export function NowPlayingBar() {
           type="button"
           onClick={() => playNext()}
           disabled={!next}
-          className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/80 hover:bg-white/10 disabled:opacity-40 sm:flex"
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/80 hover:bg-white/10 disabled:opacity-40"
           aria-label="Next"
           data-testid="now-playing-next"
         >
