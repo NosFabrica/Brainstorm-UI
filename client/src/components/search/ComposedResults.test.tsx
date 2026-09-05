@@ -221,6 +221,24 @@ describe("ComposedResults — media-rich sections", () => {
     expect(screen.getByTestId("serp-row-n2")).toBeInTheDocument();
   });
 
+  // Benjamin, over a strip led by a whisperme.org card with nothing but a big
+  // grey globe: a story without a picture reads as words — the source and the
+  // headline, Google's text-only top-story card — never a placeholder tile.
+  it("an unpictured story is a text card: source and headline, no placeholder tile", async () => {
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    const NO_PIC = "Deplatformed by your payment processor?\nhttps://whisperme.org/story-9\nSummary 9.";
+    sectionCall("notes").emit({
+      hits: [hitOf(ev("n1", 1, "1".repeat(64), NEWS(1)), "Echo"), hitOf(ev("n9", 1, "9".repeat(64), NO_PIC), "WhisperMe"), hitOf(ev("n3", 1, "3".repeat(64), NEWS(3)), "Times")],
+      eose: true,
+      timeMs: 100,
+    });
+    const card = await screen.findByTestId("top-story-n9");
+    expect(card.querySelector('[data-testid="story-placeholder"]')).toBeNull();
+    expect(card.querySelector('[data-testid="story-text"]')).not.toBeNull();
+    expect(card).toHaveTextContent("whisperme.org");
+    expect(card).toHaveTextContent("Deplatformed by your payment processor?");
+  });
+
   // Benjamin, over a placeholder card: "make sure the images are showing
   // correctly for these". News bots post headline + link, no picture — the
   // article has one. An unpictured story asks the link-metadata proxy and

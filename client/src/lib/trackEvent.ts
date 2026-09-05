@@ -41,10 +41,12 @@ export function parseTrack(ev: EventLike): Track | null {
     id: ev.id,
     pubkey: ev.pubkey,
     title,
-    artist: tag("artist") || tag("creator") || tag("c"),
+    // `c` is a CATEGORY on older records (Podcast, Rock, Pop) — a genre, never
+    // the artist; the row falls back to the author's name.
+    artist: tag("artist") || tag("creator"),
     cover: tag("image") || tag("cover"),
     audio,
-    genre: tag("genre") || ev.tags.find((t) => t[0] === "t" && t[1])?.[1],
+    genre: tag("genre") || ev.tags.find((t) => t[0] === "t" && t[1])?.[1] || tag("c"),
     durationSec: Number.isFinite(dur) && dur > 0 ? dur : undefined,
     createdAt: ev.created_at,
   };

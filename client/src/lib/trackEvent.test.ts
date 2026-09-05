@@ -39,3 +39,21 @@ describe("isTestTrack — QA and test publications are not songs", () => {
     expect(isTestTrack(qa([["title", "Testify"], ["artist", "Rage Against the Machine"], ["t", "rock"]]))).toBe(false);
   });
 });
+
+// Live, in Everything's Listen rows: four episodes said "Podcast" where the
+// artist goes. Older kind-31337 records carry a `c` CATEGORY — Podcast, Rock,
+// Pop — not a creator. A category is a genre; the artist line falls back to
+// the author's name, as it does when no artist is given at all.
+describe("parseTrack — a category tag is a genre, never the artist", () => {
+  const ev = (tags: string[][]) => ({ id: "t1", pubkey: "a".repeat(64), kind: 31337, created_at: 1, tags, content: "" });
+  it("reads `c` as the genre and leaves the artist unset", () => {
+    const t = parseTrack(ev([["subject", "Bitcoin Alchemy Podcast"], ["c", "Podcast"], ["media", "https://x.test/ep.mp3"]]));
+    expect(t?.artist).toBeUndefined();
+    expect(t?.genre).toBe("Podcast");
+  });
+  it("a real artist tag still wins", () => {
+    const t = parseTrack(ev([["title", "Old Carbon"], ["artist", "NOVA"], ["c", "Rock"], ["media", "https://x.test/a.mp3"]]));
+    expect(t?.artist).toBe("NOVA");
+    expect(t?.genre).toBe("Rock");
+  });
+});

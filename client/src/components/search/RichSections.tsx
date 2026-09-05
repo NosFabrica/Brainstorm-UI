@@ -10,7 +10,7 @@ import { noteTitle } from "@/lib/noteTitle";
 import { fetchUnfurl } from "@/services/unfurl";
 import { isVideoFileUrl, youtubeThumbnail } from "@/lib/linkThumb";
 import { useLocation } from "wouter";
-import { BookOpen, Newspaper, Play } from "lucide-react";
+import { BookOpen, Play } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { Favicon } from "@/components/share/LinkPreview";
 import { useLightbox } from "@/components/share/Lightbox";
@@ -150,28 +150,13 @@ function TopStoryCard({ story }: { story: TopStory }) {
       ) : videoUrl ? (
         // The link is the video: its first frame is the thumbnail.
         <video src={`${videoUrl}#t=0.1`} muted playsInline preload="metadata" className="aspect-[16/10] w-full object-cover bg-black" data-testid="story-video" />
-      ) : (
-        // Same footprint without a picture, so the strip stays one height.
-        // Google News' move when an article has no image: the outlet's logo.
-        // (The article's own image arrives once the link-metadata proxy ships.)
-        <div
-          className="flex aspect-[16/10] w-full flex-col items-center justify-center gap-1.5 bg-gradient-to-br from-brand-primary/10 to-brand-accent/10 dark:from-brand-primary/20 dark:to-brand-accent/15"
-          aria-hidden="true"
-          data-testid="story-placeholder"
-        >
-          {news.domain ? (
-            <>
-              <span className="flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/5 dark:bg-slate-900 dark:ring-white/10">
-                <Favicon host={news.domain} className="h-8 w-8 rounded-md object-contain" />
-              </span>
-              <span className="max-w-[85%] truncate text-[11px] font-medium text-slate-500 dark:text-slate-400">{news.domain}</span>
-            </>
-          ) : (
-            <Newspaper className="h-6 w-6 text-brand-primary/60" />
-          )}
-        </div>
-      )}
-      <div className="flex min-w-0 flex-1 flex-col p-2.5">
+      ) : null}
+      {/* Without a picture the card is words — Google's text-only top story:
+          the source, then the headline given the room the picture would have
+          had. Never a placeholder tile: a grey globe in a large frame reads as
+          something missing. (The article's own image still arrives from the
+          link-metadata proxy when it knows one.) */}
+      <div className={`flex min-w-0 flex-1 flex-col p-2.5 ${!imageUrl && !videoUrl ? "bg-gradient-to-br from-brand-primary/[0.06] to-brand-accent/[0.08] dark:from-brand-primary/15 dark:to-brand-accent/10" : ""}`} data-testid={!imageUrl && !videoUrl ? "story-text" : undefined}>
         {news.domain && (
           <div className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
             <Favicon host={news.domain} className="h-3 w-3 shrink-0 rounded-sm object-contain" />
@@ -184,12 +169,12 @@ function TopStoryCard({ story }: { story: TopStory }) {
             target="_blank"
             rel="noopener"
             onClick={(e) => e.stopPropagation()}
-            className="mt-1 line-clamp-3 text-[13px] font-semibold leading-snug text-slate-900 dark:text-slate-100 hover:text-brand-primary hover:underline"
+            className={`mt-1 font-semibold leading-snug text-slate-900 dark:text-slate-100 hover:text-brand-primary hover:underline ${!imageUrl && !videoUrl ? "line-clamp-6 text-sm" : "line-clamp-3 text-[13px]"}`}
           >
             {news.headline}
           </a>
         ) : (
-          <p className="mt-1 line-clamp-3 text-[13px] font-semibold leading-snug text-slate-900 dark:text-slate-100">{news.headline}</p>
+          <p className={`mt-1 font-semibold leading-snug text-slate-900 dark:text-slate-100 ${!imageUrl && !videoUrl ? "line-clamp-6 text-sm" : "line-clamp-3 text-[13px]"}`}>{news.headline}</p>
         )}
         <div className="mt-auto pt-1.5 truncate text-[11px] text-slate-400 dark:text-slate-500">
           {hit.author ? getDisplayLabel(hit.author) : "Unknown"} · {ago(hit.event.created_at)}
