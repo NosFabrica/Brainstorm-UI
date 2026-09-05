@@ -15,7 +15,7 @@ import { parseTrack, TRACK_KIND, type Track } from "@/lib/trackEvent";
 import { findWavlakeArtist, wavlakeArtistTracks, type WavlakeArtist, type WavlakeSong } from "@/lib/wavlake";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { Link, useLocation } from "wouter";
-import { ArrowRight, BookOpen, Check, Hash, Package, Users, Zap, ShoppingBag } from "lucide-react";
+import { ArrowRight, BookOpen, CalendarDays, Check, ChevronDown, Hash, Package, ShoppingBag, Users, Zap } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -29,6 +29,7 @@ import { eventPath } from "@/lib/shareId";
 import { parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
 import { EventDateTile } from "@/components/share/EventDateTile";
 import { filterEventsByWhen } from "@/lib/eventFilters";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { fetchNipPage, fetchPersonSets, searchStream, suggestProfiles, type PersonSetMembership, type SearchHit, type SearchPov } from "@/services/search";
 
 /** One app in the rail: icon, name, summary. Reviews live on the app page —
@@ -143,6 +144,11 @@ export function KnowledgePanel({
   const [personRecent, setPersonRecent] = useState<NostrEvent[]>([]);
   // What they have for sale — the three newest listings still for sale.
   const [personListings, setPersonListings] = useState<VariantGroup[]>([]);
+  // Below the desktop breakpoint the rail has nowhere to go and the panel
+  // would fill the first screen; it folds to one row until tapped.
+  const belowLg = useIsMobile(1024);
+  const [expanded, setExpanded] = useState(false);
+  let strip: { icon: React.ReactNode; title: string; line: string } | null = null;
   useEffect(() => {
     if (!person) {
       setPersonListings([]);
@@ -405,24 +411,34 @@ export function KnowledgePanel({
       .sort((a, b) => b[1] - a[1])
       .slice(0, 4)
       .map(([v]) => v);
+    strip = {
+      icon: <Hash className="h-4 w-4 text-brand-primary" />,
+      title: `#${tag}`,
+      line: `${topicHits.length}${topicHits.length >= 24 ? "+" : ""} recent notes · ${voiceCount} ${voiceCount === 1 ? "voice" : "voices"}`,
+    };
+    // Icons in place of sub-headings: faces, date tiles and #chips explain
+    // themselves; a grey label over each only added a line. The title is
+    // the one action — it opens the feed.
+    const block = "mt-3 flex gap-2.5";
+    const gutter = "mt-1 h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-slate-500";
     main = (
       <aside
         className={`w-full rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5`}
         data-testid="search-topic-panel"
       >
-        <div className="flex items-center gap-2.5">
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-primary/10">
+        <Link href={`/t/${encodeURIComponent(tag)}`} className="group flex items-center gap-2.5 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40" data-testid="topic-panel-feed" title={`Open the #${tag} feed`}>
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-primary/10">
             <Hash className="h-5 w-5 text-brand-primary" />
           </span>
-          <div className="min-w-0">
-            <p className="truncate text-base font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
-              #{tag}
-            </p>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-1 truncate text-base font-bold text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors" style={{ fontFamily: "var(--font-display)" }}>
+              #{tag} <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-400 group-hover:text-brand-primary transition-colors" />
+            </span>
+            <span className="block text-[11px] text-slate-500 dark:text-slate-400">
               {daysAgo <= 1 ? "Active today" : daysAgo <= 7 ? "Active this week" : "Topic on Nostr"}
-            </p>
-          </div>
-        </div>
+            </span>
+          </span>
+        </Link>
         {/* What "active" means, in numbers the probe already paid for. */}
         <p className="mt-3 text-xs text-slate-600 dark:text-slate-300" data-testid="topic-activity">
           <span className="font-semibold text-slate-900 dark:text-slate-100">
@@ -433,10 +449,10 @@ export function KnowledgePanel({
           {voiceCount === 1 ? "voice" : "voices"}
         </p>
         {voices.length > 0 && (
-          <div className="mt-3">
-            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Voices on it</p>
+          <div className={block}>
+            <Users className={gutter} aria-label="Voices on it" />
             {/* Named, tappable rows — a face without a name fills nothing. */}
-            <ul className="mt-1.5 space-y-0.5">
+            <ul className="min-w-0 flex-1 space-y-0.5">
               {voices.map((v) => (
                 <li key={v.pubkey}>
                   <Link
@@ -462,9 +478,9 @@ export function KnowledgePanel({
           </div>
         )}
         {topicEvents && topicEvents.length > 0 && (
-          <div className="mt-3" data-testid="topic-events">
-            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Upcoming events</p>
-            <ul className="mt-1.5 space-y-0.5">
+          <div className={block} data-testid="topic-events">
+            <CalendarDays className={gutter} aria-label="Upcoming events" />
+            <ul className="min-w-0 flex-1 space-y-0.5">
               {topicEvents.map((h) => {
                 const cal = parseCalendarEvent(h.event);
                 return (
@@ -486,20 +502,23 @@ export function KnowledgePanel({
                   </li>
                 );
               })}
+              {/* The rest, as a quiet last row of the same list. */}
+              <li>
+                <Link
+                  href={`/?q=${encodeURIComponent(query)}&t=events`}
+                  className="flex items-center gap-1 rounded-lg px-1.5 py-1 -mx-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 hover:text-brand-link transition-colors"
+                  data-testid="topic-events-more"
+                >
+                  More events <ArrowRight className="h-3 w-3" />
+                </Link>
+              </li>
             </ul>
-            <Link
-              href={`/?q=${encodeURIComponent(query)}&t=events`}
-              className="mt-1.5 inline-flex items-center gap-1 text-[11px] font-medium text-brand-link hover:underline"
-              data-testid="topic-events-more"
-            >
-              More events <ArrowRight className="h-3 w-3" />
-            </Link>
           </div>
         )}
         {related.length > 0 && (
-          <div className="mt-3">
-            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Related topics</p>
-            <div className="mt-1.5 flex flex-wrap gap-1">
+          <div className={block}>
+            <Hash className={gutter} aria-label="Related topics" />
+            <div className="flex min-w-0 flex-1 flex-wrap gap-1">
               {related.map((r) => (
                 <Link
                   key={r}
@@ -513,18 +532,23 @@ export function KnowledgePanel({
             </div>
           </div>
         )}
-        <Link
-          href={`/t/${encodeURIComponent(tag)}`}
-          className="mt-3.5 inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
-          data-testid="topic-panel-feed"
-        >
-          Open the #{tag} feed <ArrowRight className="h-3 w-3" />
-        </Link>
       </aside>
     );
   } else if (person) {
     const effectiveRank = person.wotRank ?? scoreOf(person.pubkey) ?? null;
     const followers = person.wotFollowers;
+    strip = {
+      icon: (
+        <Avatar className={`h-8 w-8 border-2 border-slate-200/80 dark:border-slate-800/80 ${tierRing(effectiveRank) ?? ""}`}>
+          {person.picture ? <AvatarImage src={person.picture} alt="" className="object-cover" /> : null}
+          <AvatarFallback className="overflow-hidden">
+            <DefaultAvatarImg />
+          </AvatarFallback>
+        </Avatar>
+      ),
+      title: getDisplayLabel(person),
+      line: [person.nip05?.replace(/^_@/, ""), followers != null ? `${followers.toLocaleString()} followers` : null].filter(Boolean).join(" · ") || "Profile",
+    };
     main = (
     <aside
       role="link"
@@ -756,10 +780,32 @@ export function KnowledgePanel({
   // The rail stacks: the entity panel first, matching apps beneath. The zap
   // dialog mounts OUTSIDE the panel so its clicks never bubble into the
   // panel's own click-through (React events cross portals).
+  const folded = belowLg && !expanded && !!main && !!strip;
   return (
     <div className={`w-full space-y-3 ${className}`}>
-      {main}
-      {apps}
+      {folded ? (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          aria-expanded={false}
+          className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 px-3.5 py-2.5 text-left transition-colors hover:border-slate-200 dark:hover:border-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+          data-testid="panel-strip"
+        >
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-primary/10">{strip!.icon}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
+              {strip!.title}
+            </span>
+            <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400">{strip!.line}</span>
+          </span>
+          <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
+        </button>
+      ) : (
+        <>
+          {main}
+          {apps}
+        </>
+      )}
       {person?.lud16 && (
         <ZapModal
           open={zapOpen}

@@ -271,6 +271,30 @@ describe("the topic panel", () => {
     const panel = await screen.findByTestId("search-topic-panel");
     expect(panel).toHaveTextContent("#liverpool");
     expect(screen.getByTestId("topic-panel-feed").getAttribute("href")).toBe("/t/liverpool");
+    // One action per panel: the title IS the link to the feed. No button
+    // beneath, and no grey sub-headings over blocks that explain themselves.
+    expect(screen.getByTestId("topic-panel-feed")).toHaveTextContent("#liverpool");
+    expect(within(panel).queryByText(/Open the #/)).toBeNull();
+    expect(within(panel).queryByText("Voices on it")).toBeNull();
+    expect(within(panel).queryByText("Related topics")).toBeNull();
+    expect(within(panel).queryByText("Upcoming events")).toBeNull();
+  });
+
+  it("on a phone the panel folds to one row — name and a line — until tapped", async () => {
+    const width = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 375 });
+    try {
+      suggestMock.mockResolvedValueOnce([{ pubkey: "9".repeat(64), npub: "npub1barattolo", name: "Barattolo", wotRank: 0.8, wotFollowers: 300 }]);
+      render(<KnowledgePanel query="Barattolo" pov="nosfabrica" />);
+      const strip = await screen.findByTestId("panel-strip");
+      expect(strip).toHaveTextContent("Barattolo");
+      expect(screen.queryByTestId("search-knowledge-panel")).toBeNull();
+      fireEvent.click(strip);
+      expect(await screen.findByTestId("search-knowledge-panel")).toBeInTheDocument();
+      expect(screen.queryByTestId("panel-strip")).toBeNull();
+    } finally {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+    }
   });
 
   // Benjamin: "when users type in a search that pulls in an event, those
