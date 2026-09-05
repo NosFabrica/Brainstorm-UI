@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { nip19 } from "nostr-tools";
 import { Radio, Users, ExternalLink, CalendarClock } from "lucide-react";
 import { LiveVideoPlayer } from "@/components/share/LiveVideoPlayer";
+import { NotesInline } from "@/components/share/NotesInline";
 import { isHlsUrl, replayEmbedUrl, streamEmbedUrl } from "@/lib/streamEmbed";
 import { verifyRecording } from "@/lib/liveStream";
 import { isVideoFileUrl } from "@/lib/linkThumb";
@@ -171,7 +172,11 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
       </h1>
 
       {summary && summary !== title && (
-        <p className="mt-3 whitespace-pre-line break-words text-sm leading-relaxed text-slate-600 dark:text-slate-300">{summary}</p>
+        // Links are links and people are names — the same inline renderer the
+        // event page uses for its About.
+        <p className="mt-3 whitespace-pre-line break-words text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+          <NotesInline text={summary} />
+        </p>
       )}
 
       {watchUrl && canEmbed && (

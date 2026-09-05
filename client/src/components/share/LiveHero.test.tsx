@@ -53,6 +53,20 @@ describe("LiveHero", () => {
     expect(screen.queryByTestId("live-play")).toBeNull();
   });
 
+  // Benjamin, over mar's replay whose description printed "https://mar101xy.com/live"
+  // as plain text: links in a stream's description are links — the site's
+  // favicon and name, one tap — and a mentioned person is their name.
+  it("a stream's description links its URLs and names its mentions", () => {
+    const npub = "npub1de6l09erjl9r990q7n9ql0rwh8x8n059ht7a267n0q3qe28wua8q20q0sd";
+    render(<LiveHero event={stream([["status", "ended"], ["summary", `Let's Fo Live 🔵 https://mar101xy.com/live with nostr:${npub}`]])} />);
+    const chip = screen.getByTestId("link-chip");
+    expect(chip.getAttribute("href")).toBe("https://mar101xy.com/live");
+    expect(chip).toHaveTextContent("mar101xy.com");
+    expect(screen.getByTestId("mention-chip")).toBeInTheDocument();
+    expect(screen.queryByText(/https:\/\/mar101xy/)).toBeNull();
+    expect(screen.queryByText(/nostr:npub/)).toBeNull();
+  });
+
   it("a live stream with nothing playable hands off to zap.stream", () => {
     render(<LiveHero event={stream([["status", "live"], ["streaming", "https://cornychat.com/room"]])} />);
     expect(screen.getByText(/can.t play here/)).toBeInTheDocument();
