@@ -6,7 +6,7 @@
  * tag, so the title, author, message and diff all come from the text.
  */
 import { describe, expect, it } from "vitest";
-import { gitItemTitleOf, parsePatch } from "./gitPatch";
+import { gitItemSummaryOf, gitItemTitleOf, parsePatch } from "./gitPatch";
 
 const MAIL = [
   "From e7d5515e41b8a9089d229af9a2cf36d373cb0ce7 Mon Sep 17 00:00:00 2001",
@@ -100,5 +100,22 @@ describe("gitItemTitleOf", () => {
     expect(gitItemTitleOf(ev(1621, "## Report\n\nA user on Windows…"))).toBe("Report");
     expect(gitItemTitleOf(ev(1618, "Fixes a stuck warning.\nMore detail."))).toBe("Fixes a stuck warning.");
     expect(gitItemTitleOf(ev(1621, ""))).toBe("Untitled issue");
+  });
+});
+
+describe("gitItemSummaryOf", () => {
+  const ev = (kind: number, content: string, tags: string[][] = []) => ({ kind, content, tags });
+  it("a patch's summary is its commit message, never the title again and never the mail headers", () => {
+    expect(gitItemSummaryOf(ev(1617, MAIL, [["description", "Trust proxy headers for NIP-98 behind TLS proxy\n\nBehind a TLS-terminating proxy…"]]))).toBe(
+      "Behind a TLS-terminating proxy the scheme is http; honour X-Forwarded-*.",
+    );
+    expect(gitItemSummaryOf(ev(1617, SHOW))).toBe("Update github.com/cockroachdb/swiss to a revision that builds with Go 1.27.");
+    // No message in the text: the description tag, minus a repeated title.
+    expect(gitItemSummaryOf(ev(1617, "", [["description", "fix: count deposits\n\nThe treasury balance minus queued sats."]]))).toBe("The treasury balance minus queued sats.");
+  });
+  it("an issue's summary is its body after the title line, marks stripped", () => {
+    expect(gitItemSummaryOf(ev(1621, "## Report\n\nA user on **Windows 10** cannot share.", [["subject", "Report"]]))).toBe("A user on Windows 10 cannot share.");
+    expect(gitItemSummaryOf(ev(1621, "Just one line."))).toBe("");
+    expect(gitItemSummaryOf(ev(1618, "Fixes a stuck warning.\nMore detail here.", [["subject", "fix(git-pool): stale warning"]]))).toBe("Fixes a stuck warning. More detail here.");
   });
 });

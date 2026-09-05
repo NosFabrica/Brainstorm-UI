@@ -24,7 +24,7 @@ import { fetchProfileMap } from "@/services/nostr";
 import { brandForHost } from "@/lib/brands";
 import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitItemLabel, gitLabelsOf, type GitState } from "@/lib/gitStatus";
 import { ago } from "@/lib/ago";
-import { gitItemTitleOf } from "@/lib/gitPatch";
+import { gitItemSummaryOf, gitItemTitleOf } from "@/lib/gitPatch";
 import { fetchRepoCounts, zapStoreUrl } from "@/services/search";
 import { eventPath } from "@/lib/shareId";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
@@ -532,7 +532,7 @@ export function RepoCard({
   // A repo is named by its announcement; an issue, patch or PR by the one
   // title rule — a patch without a subject tag is titled from its own text.
   const name = isRepo ? tagVal(event, "name") ?? tagVal(event, "d") ?? "Unnamed repo" : gitItemTitleOf(event);
-  const description = tagVal(event, "description") ?? (isRepo ? "" : event.content.slice(0, 200));
+  const description = isRepo ? tagVal(event, "description") ?? "" : gitItemSummaryOf(event);
   const repoRef = !isRepo ? tagVal(event, "a")?.split(":")[2] : undefined;
   // How the maintainer triaged it — up to three labels; the strip has the rest.
   const labels = isRepo ? [] : gitLabelsOf(event);

@@ -96,7 +96,9 @@ export function gitItemTitleOf(event: { kind: number; content: string; tags: str
   if (subject) return subject;
   if (event.kind === 1617) {
     const parsed = parsePatch(event.content || "");
-    return parsed.title ?? tag("description") ?? "Untitled patch";
+    // A description tag can run to paragraphs; its first line is the title.
+    const described = tag("description")?.split("\n").map((l) => l.trim()).find((l) => l);
+    return parsed.title ?? described ?? "Untitled patch";
   }
   const firstLine = (event.content || "")
     .split("\n")
@@ -104,4 +106,38 @@ export function gitItemTitleOf(event: { kind: number; content: string; tags: str
     .find((l) => l);
   if (firstLine) return firstLine.length > 120 ? `${firstLine.slice(0, 117)}…` : firstLine;
   return event.kind === 1618 ? "Untitled pull request" : "Untitled issue";
+}
+
+const oneLine = (s: string, max = 200) => {
+  const flat = s
+    .replace(/^#+\s*/gm, "")
+    .replace(/\*\*(.+?)\*\*/g, "$1")
+    .replace(/__(.+?)__/g, "$1")
+    .replace(/`([^`\n]+)`/g, "$1")
+    .replace(/\s+/g, " ")
+    .trim();
+  return flat.length > max ? `${flat.slice(0, max - 1)}…` : flat;
+};
+
+/**
+ * The line under a git item's title on a card. For a patch, its commit
+ * message — never the title again, never git's mail headers; failing that,
+ * the description tag minus a repeated title. For an issue or pull request,
+ * the body after its title line, with markdown marks stripped.
+ */
+export function gitItemSummaryOf(event: { kind: number; content: string; tags: string[][] }): string {
+  const title = gitItemTitleOf(event);
+  const dropTitle = (text: string) => {
+    const lines = text.split("\n");
+    const first = lines.findIndex((l) => l.trim());
+    if (first >= 0 && oneLine(lines[first]) === oneLine(title)) return lines.slice(first + 1).join("\n");
+    return text;
+  };
+  if (event.kind === 1617) {
+    const parsed = parsePatch(event.content || "");
+    if (parsed.message) return oneLine(dropTitle(parsed.message));
+    const description = event.tags.find((t) => t[0] === "description")?.[1] ?? "";
+    return oneLine(dropTitle(description));
+  }
+  return oneLine(dropTitle(event.content || ""));
 }

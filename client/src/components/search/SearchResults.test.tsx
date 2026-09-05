@@ -894,6 +894,9 @@ describe("SearchResults", () => {
     const card = await screen.findByTestId("repo-card-pt1");
     expect(card).toHaveTextContent("chore: bump swiss for Go 1.27 support");
     expect(card).not.toHaveTextContent("Untitled");
+    // The summary is the commit message, not the title again and not git's headers.
+    expect((card.textContent?.match(/chore: bump swiss/g) ?? []).length).toBe(1);
+    expect(card).not.toHaveTextContent("Author: randymcmillan");
   });
 
   it("a repo announcement shows its issue and patch counts, who contributed, and when it was last touched", async () => {
