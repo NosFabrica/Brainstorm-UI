@@ -112,6 +112,29 @@ export function verifyRecording(url: string): Promise<boolean> {
 
 export type LiveState = "live" | "upcoming" | "replay";
 
+/** A "live" event untouched this long is stale. */
+export const LIVE_STALE_AFTER_SEC = 7 * 86_400;
+/** From this age on, a "live" event must prove its stream still answers. */
+export const LIVE_CHECK_AFTER_SEC = 86_400;
+
+/**
+ * The stream URL a "live" event must prove before it shows — when the event is
+ * a day or more old with no viewer count to vouch for it (probed 2026-09-05:
+ * half the two-day-old "live" manifests return 404, every fresh one answers).
+ * Fresh events are trusted; so are ones nobody can HEAD (LiveKit rooms,
+ * platform pages). Null when there is nothing to prove.
+ */
+export function liveNeedsCheck(ev: EventLike, nowSec = Math.floor(Date.now() / 1000)): string | null {
+  const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1]?.trim() || undefined;
+  const status = (tag("status") || "").toLowerCase();
+  if (status !== "live" && status !== "open") return null;
+  const age = nowSec - ev.created_at;
+  if (age < LIVE_CHECK_AFTER_SEC || age > LIVE_STALE_AFTER_SEC) return null;
+  if (Number(tag("current_participants")) > 0) return null;
+  const streaming = tag("streaming");
+  return streaming && /^https?:\/\//i.test(streaming) ? streaming : null;
+}
+
 /**
  * Which shelf a NIP-53 event belongs on — Live, Upcoming, Replays — or none.
  * Probed 2026-09-05 over the 200 newest streams: 97 live, 80 ended (16 with a
@@ -128,8 +151,16 @@ export function liveStateOf(ev: EventLike, nowSec = Math.floor(Date.now() / 1000
   if (!title) return null;
   const status = (tag("status") || "").toLowerCase();
   const starts = Number(tag("starts")) || 0;
-  if (status === "live" || status === "open") return "live";
-  if (status === "ended" || status === "closed") return tag("recording") ? "replay" : null;
+  const ends = Number(tag("ends")) || 0;
+  const over = tag("recording") ? "replay" : null;
+  if (status === "live" || status === "open") {
+    // A status nobody updated is not a broadcast: platforms republish a live
+    // event as viewers come and go, so one untouched for a week — or one past
+    // its own end — is over (Barnoldswick: "live" since 2.4 years ago).
+    if ((ends > 0 && ends < nowSec) || nowSec - ev.created_at > LIVE_STALE_AFTER_SEC) return over;
+    return "live";
+  }
+  if (status === "ended" || status === "closed") return over;
   if (status === "planned" || starts > nowSec) return starts === 0 || starts > nowSec - 6 * 3600 ? "upcoming" : null;
   return null;
 }

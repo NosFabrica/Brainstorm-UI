@@ -743,6 +743,9 @@ export function LiveTile({ event, author, score, state, hostScore }: { event: No
   const stream = parseLiveStream(event);
   const title = tagVal(event, "title") ?? tagVal(event, "name") ?? stream?.title ?? "Live";
   const image = tagVal(event, "image") ?? undefined;
+  // Barnoldswick's "image" was the venue's web page: when a poster fails to
+  // load it gives way, and the channel's own art stands in.
+  const [posterBroken, setPosterBroken] = useState(false);
   const viewers = stream?.viewers;
   const starts = Number(tagVal(event, "starts")) || 0;
   const hostPk = liveHostOf(event);
@@ -768,10 +771,16 @@ export function LiveTile({ event, author, score, state, hostScore }: { event: No
     <div className="group relative min-w-0" data-testid={`live-tile-${event.id}`}>
       <Link href={eventPath(event)} className="block rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40">
         <div className="relative aspect-video overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
-          {image ? (
-            <img src={image} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+          {image && !posterBroken ? (
+            <img src={image} alt="" loading="lazy" onError={() => setPosterBroken(true)} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+          ) : channelPicture ? (
+            <div className="relative h-full w-full" data-testid={`live-art-${event.id}`}>
+              <img src={channelPicture} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full scale-125 object-cover blur-xl opacity-60" />
+              <span className="absolute inset-0 bg-slate-900/30" aria-hidden="true" />
+              <img src={channelPicture} alt="" className="absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full object-cover ring-2 ring-white/80" />
+            </div>
           ) : (
-            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900">
+            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900" data-testid={`live-art-${event.id}`}>
               <Radio className="h-6 w-6 text-slate-400 dark:text-slate-500" />
             </div>
           )}

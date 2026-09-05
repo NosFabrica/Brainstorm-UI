@@ -255,7 +255,8 @@ describe("SearchResults", () => {
     expect(mainStreamCalls()[0][0]).toBe("sort:recent");
     expect(mainStreamCalls()[0][1]).toMatchObject({ tab: "live" });
 
-    const live = ev("l1", 30311, "e".repeat(64), "", [["d", "s"], ["title", "NoGood Radio"], ["status", "live"]]);
+    // Published just now: a "live" nobody updated in a week is stale by design.
+    const live = { ...ev("l1", 30311, "e".repeat(64), "", [["d", "s"], ["title", "NoGood Radio"], ["status", "live"]]), created_at: Math.floor(Date.now() / 1000) };
     emit({ hits: [{ event: live, author: author(live.pubkey, "radio"), rank: null }], eose: true, timeMs: 400 });
     expect(await screen.findByText("NoGood Radio")).toBeInTheDocument();
   });
@@ -589,11 +590,11 @@ describe("SearchResults", () => {
   it("renders a live event with its status pill and title", async () => {
     setUrlTab("live");
     render(<SearchResults query="conf" pov="nosfabrica" />);
-    const live = ev("l1", 30311, "e".repeat(64), "", [
+    const live = { ...ev("l1", 30311, "e".repeat(64), "", [
       ["d", "stream-1"],
       ["title", "Nostr Dev Call"],
       ["status", "live"],
-    ]);
+    ]), created_at: Math.floor(Date.now() / 1000) };
     emit({ hits: [{ event: live, author: author(live.pubkey, "erin"), rank: null }], eose: true, timeMs: 200 });
     expect(await screen.findByText("Nostr Dev Call")).toBeInTheDocument();
     expect(screen.getByTestId("live-status-l1")).toHaveTextContent(/live/i);
@@ -613,7 +614,8 @@ describe("SearchResults", () => {
     profileMapMock.set(host, { name: "erin", picture: "https://img/erin.jpg" });
     setUrlTab("live");
     render(<SearchResults query="" pov="nosfabrica" />);
-    const mk = (id: string, kind: number, tags: string[][]) => ev(id, kind, platform, "", [["d", id], ...tags]);
+    // Every fixture is freshly published: a "live" nobody updated in a week is stale by design.
+    const mk = (id: string, kind: number, tags: string[][]) => ({ ...ev(id, kind, platform, "", [["d", id], ...tags]), created_at: now });
     const hits = [
       mk("l2", 30311, [["title", "Chill Radio"], ["status", "live"], ["current_participants", "5"], ["starts", String(now - 3 * 86_400)], ["t", "radio"]]),
       mk("l1", 30311, [["title", "Nostr Dev Call"], ["status", "live"], ["image", "https://img/dev.jpg"], ["current_participants", "23"], ["starts", String(now - (2 * 3600 + 15 * 60))], ["t", "streaming"], ["t", "tech"], ["p", host, "wss://r", "host"]]),
@@ -657,6 +659,56 @@ describe("SearchResults", () => {
     expect(tiles()).toEqual(["live-tile-r1"]);
     expect(within(screen.getByTestId("live-tile-r1")).getByTestId("live-status-r1")).toHaveTextContent(/Replay/);
     for (const gone of ["r2", "e1", "c1"]) expect(screen.queryByTestId(`live-tile-${gone}`)).toBeNull();
+  });
+
+  // Benjamin, over two "live" tiles with no picture and no stream: "events
+  // showing up as live with no thumbnails, no video replay either — we should
+  // fix this so users don't get confused". A live nobody updated in a week is
+  // gone; one a day old shows only once its stream answers; a poster that is
+  // not a picture gives way to the channel's own art.
+  it("stale live events never show, an old one must prove its stream, and a broken poster falls back to the channel", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    setUrlTab("live");
+    render(<SearchResults query="joe martin" pov="nosfabrica" />);
+    const mk = (id: string, ageSec: number, tags: string[][]) => ({ ...ev(id, 30311, "e".repeat(64), "", [["d", id], ["title", `Show ${id}`], ["status", "live"], ...tags]), created_at: now - ageSec });
+    const hits = [
+      mk("fresh", 600, [["streaming", "https://rec.dead/fresh.m3u8"], ["image", "https://www.venue.example/joe-martin"]]),
+      mk("stale", 78 * 86_400, [["streaming", "https://rec.ok/stale.m3u8"]]),
+      mk("oldok", 2 * 86_400, [["streaming", "https://rec.ok/old.m3u8"]]),
+      mk("olddead", 2 * 86_400, [["streaming", "https://rec.dead/old.m3u8"]]),
+    ].map((event) => ({ event, author: { ...author("e".repeat(64), "tunestr"), picture: "https://img/tunestr.jpg" }, rank: null }));
+    emit({ hits, eose: true, timeMs: 300 });
+
+    const fresh = await screen.findByTestId("live-tile-fresh");
+    // Fresh is trusted without a check, dead manifest or not.
+    expect(fresh).toBeInTheDocument();
+    await vi.waitFor(() => expect(screen.getByTestId("live-tile-oldok")).toBeInTheDocument());
+    expect(screen.queryByTestId("live-tile-stale")).toBeNull();
+    expect(screen.queryByTestId("live-tile-olddead")).toBeNull();
+    expect(screen.getByTestId("live-facet-live")).toHaveTextContent("Live 2");
+
+    // The venue's web page is not a picture: when it fails, the channel's art stands in.
+    const poster = fresh.querySelector("img") as HTMLImageElement;
+    expect(poster.src).toBe("https://www.venue.example/joe-martin");
+    fireEvent.error(poster);
+    const art = within(fresh).getByTestId("live-art-fresh");
+    expect(art.querySelector("img")?.getAttribute("src")).toBe("https://img/tunestr.jpg");
+  });
+
+  // When every stream the words matched is stale or unrecorded, the tab must
+  // say so — never a blank page under a count of eleven.
+  it("the Live tab says when nothing matched is live, upcoming or replayable", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    setUrlTab("live");
+    render(<SearchResults query="joe martin" pov="nosfabrica" />);
+    const stale = { ...ev("stale", 30311, "e".repeat(64), "", [["d", "stale"], ["title", "Joe Martin - Live from Barnoldswick"], ["status", "live"], ["streaming", "https://rec.dead/x.m3u8"]]), created_at: now - 900 * 86_400 };
+    const gone = { ...ev("gone", 30311, "e".repeat(64), "", [["d", "gone"], ["title", "Nostrville"], ["status", "ended"]]), created_at: now - 300 * 86_400 };
+    emit({ hits: [stale, gone].map((event) => ({ event, author: author(event.pubkey, "tunestr"), rank: null })), eose: true, timeMs: 300 });
+    const empty = await screen.findByTestId("live-empty");
+    expect(empty).toHaveTextContent(/nothing live/i);
+    expect(empty).toHaveTextContent(/2 past streams/i);
+    expect(screen.queryByTestId("live-facets")).toBeNull();
+    expect(screen.queryByTestId("container-no-results")).toBeNull();
   });
 
   // Benjamin: musicians like Ainsley Costello should have their songs show up

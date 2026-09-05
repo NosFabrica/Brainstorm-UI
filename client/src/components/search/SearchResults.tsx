@@ -9,7 +9,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
-import { ChevronDown, Radar, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, Radar, Radio, SlidersHorizontal } from "lucide-react";
 import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, readFilters, sinceForPreset, splitFilters, type DatePreset, type SearchFilterPatch } from "@/lib/searchSyntax";
 import { clientFilterHits } from "@/lib/clientFilters";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
@@ -39,7 +39,7 @@ import { fetchEventRsvps, fetchGitCommentCounts, fetchGitStatuses, type EventRsv
 import { GIT_STATE_LABEL, foldForks, gitLabelsOf, gitStateOf, isGitItem, peopleBeforeAgents, type GitState } from "@/lib/gitStatus";
 import { isMediaFile, isSoundtrackFile } from "@/lib/fileMetadata";
 import { AppCard, EventCard, LiveTile, ListCard, MediaCard, RepoCard, TrackCard, platformWords, mediaUrlOf, ListingCard } from "@/components/search/cards";
-import { liveHostOf, liveStateOf, type LiveState } from "@/lib/liveStream";
+import { liveHostOf, liveNeedsCheck, liveStateOf, type LiveState } from "@/lib/liveStream";
 import { useVerifiedRecordings } from "@/hooks/useVerifiedRecordings";
 import { EVENT_WHEN_LABELS, EVENT_WHEN_ORDER, eventWhenCounts, filterEventsByWhen, type EventWhen } from "@/lib/eventFilters";
 import { EventDateTile } from "@/components/share/EventDateTile";
@@ -679,23 +679,42 @@ export function SearchResults({
     if (tab === "live") for (const h of hits) m.set(h.event.id, liveStateOf(h.event));
     return m;
   }, [hits, tab]);
-  const replayUrls = useMemo(
-    () => (tab === "live" ? hits.filter((h) => liveStates.get(h.event.id) === "replay").map((h) => h.event.tags.find((t) => t[0] === "recording")?.[1] ?? "").filter(Boolean) : []),
+  // What must answer before it shows: a replay's recording, and the stream of
+  // a "live" a day or more old with no viewers to vouch for it.
+  const proofUrls = useMemo(
+    () =>
+      tab === "live"
+        ? hits
+            .map((h) => (liveStates.get(h.event.id) === "replay" ? h.event.tags.find((t) => t[0] === "recording")?.[1] ?? "" : liveStates.get(h.event.id) === "live" ? liveNeedsCheck(h.event) ?? "" : ""))
+            .filter(Boolean)
+        : [],
     [hits, tab, liveStates],
   );
-  const verifiedRecordings = useVerifiedRecordings(replayUrls);
+  const proofs = useVerifiedRecordings(proofUrls);
+  const verifiedRecordings = proofs.ok;
+  const proven = useCallback(
+    (e: NostrEvent, st: LiveState | null | undefined) => {
+      if (st === "replay") return verifiedRecordings.has(e.tags.find((t) => t[0] === "recording")?.[1] ?? "");
+      if (st === "live") {
+        const url = liveNeedsCheck(e);
+        return !url || verifiedRecordings.has(url);
+      }
+      return st === "upcoming";
+    },
+    [verifiedRecordings],
+  );
+
   const liveCounts = useMemo(() => {
     const c = { live: 0, upcoming: 0, replay: 0 };
     if (tab !== "live") return c;
     for (const h of hits) {
       const st = liveStates.get(h.event.id);
-      if (st === "live") c.live += 1;
-      else if (st === "upcoming") c.upcoming += 1;
-      else if (st === "replay" && verifiedRecordings.has(h.event.tags.find((t) => t[0] === "recording")?.[1] ?? "")) c.replay += 1;
+      if (st && proven(h.event, st)) c[st] += 1;
     }
     return c;
-  }, [hits, tab, liveStates, verifiedRecordings]);
+  }, [hits, tab, liveStates, proven]);
   const effectiveShelf: LiveState = liveShelf ?? (liveCounts.live > 0 ? "live" : liveCounts.upcoming > 0 ? "upcoming" : liveCounts.replay > 0 ? "replay" : "live");
+  const liveShowable = liveCounts.live + liveCounts.upcoming + liveCounts.replay > 0;
   // Apps facet by PLATFORM — a one-tap chip row (Benjamin's "categorize by
   // the chips"), computed from what the results actually run on.
   const [appPlatform, setAppPlatform] = useState<string | null>(null);
@@ -854,11 +873,9 @@ export function SearchResults({
     if (tab === "live") {
       const starts = (e: NostrEvent) => Number(e.tags.find((t) => t[0] === "starts")?.[1]) || 0;
       const viewers = (e: NostrEvent) => Number(e.tags.find((t) => t[0] === "current_participants")?.[1]) || 0;
-      const recording = (e: NostrEvent) => e.tags.find((t) => t[0] === "recording")?.[1] ?? "";
       shown = shown.filter((h) => {
         const st = liveStates.get(h.event.id);
-        if (st !== effectiveShelf) return false;
-        return st !== "replay" || verifiedRecordings.has(recording(h.event));
+        return st === effectiveShelf && proven(h.event, st);
       });
       // Live: most watched first, as Twitch orders; upcoming: soonest first; replays: newest.
       shown = [...shown].sort((a, b) =>
@@ -911,7 +928,7 @@ export function SearchResults({
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hits, tab, appPlatform, appCategory, appLicense, shopCategory, repoState, repoLabel, gitStatuses, appCategoryTags, clustered, expandedClusters, effectiveWhen, scoreOf, liveStates, effectiveShelf, verifiedRecordings]);
+  }, [hits, tab, appPlatform, appCategory, appLicense, shopCategory, repoState, repoLabel, gitStatuses, appCategoryTags, clustered, expandedClusters, effectiveWhen, scoreOf, liveStates, effectiveShelf, proven]);
 
   // The Events tab is a timeline: the first card of each day carries a header
   // that says the date once — "Today · Fri, Sep 4" — so cards can lead with
@@ -1122,7 +1139,32 @@ export function SearchResults({
               ))}
             </FacetRow>
           )}
-          {tab === "live" && liveCounts.live + liveCounts.upcoming + liveCounts.replay > 0 && (
+          {tab === "live" && !liveShowable && hits.length > 0 && (
+            // Nothing on any shelf yet. While the relay or the proofs are still
+            // answering, hold the shape; once they have, say so — never a blank
+            // page under a count of eleven (Joe Martin's stale "live" pair).
+            !snapshot?.eose || proofs.pending > 0 ? (
+              <div className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3" data-testid="live-skeleton" aria-hidden="true">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="animate-pulse">
+                    <div className="aspect-video rounded-xl bg-slate-200 dark:bg-slate-800" />
+                    <div className="mt-2 h-3 w-3/4 rounded-full bg-slate-200 dark:bg-slate-800" />
+                    <div className="mt-1.5 h-2.5 w-1/2 rounded-full bg-slate-100 dark:bg-slate-800/70" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-2 rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/60 dark:bg-slate-900/60 p-2" data-testid="live-empty">
+                <EmptyState
+                  icon={Radio}
+                  compact
+                  title={query.trim() ? `Nothing live for “${query.trim()}” right now` : "Nothing live right now"}
+                  description={`${hits.length} past ${hits.length === 1 ? "stream" : "streams"} matched, but none is on air, scheduled, or left a recording.`}
+                />
+              </div>
+            )
+          )}
+          {tab === "live" && liveShowable && (
             <FacetRow className="mb-3" testId="live-facets">
               {(["live", "upcoming", "replay"] as LiveState[]).filter((st) => liveCounts[st] > 0).map((st) => (
                 <FacetChip key={st} pressed={effectiveShelf === st} onClick={() => setLiveShelf(st)} count={liveCounts[st]} testId={`live-facet-${st === "replay" ? "replays" : st}`}>

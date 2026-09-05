@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { liveCategoryOf, liveStateOf, onAirLabel, verifyRecording, __resetRecordingChecks } from "./liveStream";
+import { liveCategoryOf, liveNeedsCheck, liveStateOf, onAirLabel, verifyRecording, __resetRecordingChecks } from "./liveStream";
 
 // Odell's year-old replay: the recording host (data.zap.stream) no longer
 // answers at all, and the panel advertised a black player. A recording is
@@ -79,5 +79,32 @@ describe("liveCategoryOf — one category worth a word", () => {
     expect(liveCategoryOf(ev([["t", "streaming"], ["t", "tech"]]))).toBe("tech");
     expect(liveCategoryOf(ev([["t", "livestream"], ["t", "Owncast"], ["t", "video-games"]]))).toBe("video-games");
     expect(liveCategoryOf(ev([["t", "streaming"]]))).toBeNull();
+  });
+});
+
+// Benjamin, over "Joe Martin — Live from Barnoldswick" wearing a LIVE pill:
+// the event was published 2.4 years ago and never updated; "Revolution Rocks
+// — Belgrade" 78 days ago. Platforms republish a live event as viewers come
+// and go, so a "live" nobody has touched in a week is stale; one a day or
+// more old must prove its stream still answers (probed 2026-09-05: half the
+// two-day-old "live" manifests return 404, every fresh one answers).
+describe("stale live — a status nobody updated is not a broadcast", () => {
+  const now = 1_800_000_000;
+  const live = (ageSec: number, extra: string[][] = []) => ({ id: "x", pubkey: "a".repeat(64), kind: 30311, created_at: now - ageSec, tags: [["d", "s"], ["title", "Show"], ["status", "live"], ["streaming", "https://cdn/live.m3u8"], ...extra], content: "" });
+  it("a live older than a week is over — a replay only with a recording", () => {
+    expect(liveStateOf(live(8 * 86_400), now)).toBeNull();
+    expect(liveStateOf(live(8 * 86_400, [["recording", "https://r/x.m3u8"]]), now)).toBe("replay");
+    expect(liveStateOf(live(2 * 86_400), now)).toBe("live");
+  });
+  it("a live whose own end has passed is over", () => {
+    expect(liveStateOf(live(3600, [["ends", String(now - 60)]]), now)).toBeNull();
+    expect(liveStateOf(live(3600, [["ends", String(now + 3600)]]), now)).toBe("live");
+  });
+  it("a live a day or more old must prove its stream answers; a fresh one is trusted", () => {
+    expect(liveNeedsCheck(live(2 * 86_400), now)).toBe("https://cdn/live.m3u8");
+    expect(liveNeedsCheck(live(3600), now)).toBeNull();
+    expect(liveNeedsCheck(live(2 * 86_400, [["current_participants", "12"]]), now)).toBeNull();
+    // Nothing to ask: a LiveKit room or a platform page is not a URL a HEAD can answer for.
+    expect(liveNeedsCheck({ ...live(2 * 86_400), tags: [["d", "s"], ["title", "Show"], ["status", "live"], ["streaming", "wss+livekit://nostrnests.com:443"]] }, now)).toBeNull();
   });
 });
