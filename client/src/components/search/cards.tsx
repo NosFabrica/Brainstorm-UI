@@ -968,10 +968,24 @@ export function EventCard({
   );
 }
 
-export function ListCard({ event, author, score }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
+export function ListCard({
+  event,
+  author,
+  score,
+  group,
+}: {
+  event: NostrEvent;
+  author: SearchResult | null;
+  score?: number | null;
+  /** When this list carries a fold of same-title lists: how many, their union, and the faces most agree on. */
+  group?: { lists: number; members: number; consensus: string[] };
+}) {
   const title = tagVal(event, "title") ?? tagVal(event, "name") ?? tagVal(event, "d") ?? "Untitled list";
   const description = tagVal(event, "description") ?? "";
-  const members = event.tags.filter((t) => t[0] === "p" && t[1]).map((t) => t[1]);
+  const ownMembers = event.tags.filter((t) => t[0] === "p" && t[1]).map((t) => t[1]);
+  const folded = !!group && group.lists > 1;
+  // A folded row shows the faces most lists agree on, and counts everyone once.
+  const members = folded ? group.consensus : ownMembers;
   const otherItems = event.tags.filter((t) => t[0] === "e" || t[0] === "a" || t[0] === "r").length;
   // A people-list (Brainstorm's pinned-tag follow sets are kind 30000) counts
   // MEMBERS and shows their faces; mixed lists keep the generic item count.
@@ -1018,7 +1032,9 @@ export function ListCard({ event, author, score }: { event: NostrEvent; author: 
           <div className="flex items-center gap-2 min-w-0">
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
             <Chip size="sm" tone={isPeopleList ? "info" : "slate"} data-testid={`list-count-${event.id}`}>
-              {count} {isPeopleList ? (count === 1 ? "member" : "members") : count === 1 ? "item" : "items"}
+              {folded
+                ? `${group.lists} lists · ${group.members} ${group.members === 1 ? "person" : "people"}`
+                : `${count} ${isPeopleList ? (count === 1 ? "member" : "members") : count === 1 ? "item" : "items"}`}
             </Chip>
           </div>
           {description && (

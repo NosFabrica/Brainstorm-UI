@@ -1420,6 +1420,40 @@ describe("SearchResults", () => {
     expect(cards[1].getAttribute("data-testid")).toBe("list-card-bm1");
   });
 
+  // The team: "This is bad, right? We have multiple lists of the same tag" —
+  // ten "Nostr devs" packs at 39% overlap. One row per title: the most
+  // trusted curator's list carries the fold, the chip says how many, the
+  // count says how many people all of them add up to, and the faces are the
+  // ones most lists agree on. The chip opens the individual lists.
+  it("folds same-title follow packs into one row with the union, and the chip opens them", async () => {
+    setUrlTab("lists");
+    render(<SearchResults query="nostr devs" pov="nosfabrica" />);
+    const A = "1".repeat(64), B = "2".repeat(64), C = "3".repeat(64), D = "4".repeat(64), E = "5".repeat(64);
+    profileMapMock.set(A, { name: "alice" });
+    const pack = (id: string, pk: string, title: string, members: string[]) => ev(id, 30000, pk, "", [["d", id], ["title", title], ...members.map((m) => ["p", m])]);
+    const hits = [
+      { event: pack("g1", "a".repeat(64), "Nostr devs", [A, B, C]), author: { ...author("a".repeat(64), "curator one"), wotRank: 0.5 }, rank: null },
+      { event: pack("g2", "b".repeat(64), "#nostr-devs", [A, B, D]), author: { ...author("b".repeat(64), "curator two"), wotRank: 0.9 }, rank: null },
+      { event: pack("g3", "c".repeat(64), "Nostr Dev", [A, E]), author: { ...author("c".repeat(64), "curator three"), wotRank: 0.7 }, rank: null },
+      { event: pack("o1", "d".repeat(64), "Bitcoin news", [A, B]), author: { ...author("d".repeat(64), "someone"), wotRank: 0.8 }, rank: null },
+    ];
+    emit({ hits, eose: true, timeMs: 120 });
+    const primary = await screen.findByTestId("list-card-g2");
+    expect(screen.queryByTestId("list-card-g1")).toBeNull();
+    expect(screen.queryByTestId("list-card-g3")).toBeNull();
+    expect(within(primary).getByTestId("list-count-g2")).toHaveTextContent("3 lists · 5 people");
+    // The faces most lists agree on lead: alice is in all three.
+    const faces = within(primary).getByTestId("list-members-g2");
+    expect(faces.textContent).toMatch(/^alice/);
+    expect(screen.getByTestId("list-card-o1")).toBeInTheDocument();
+    const chip = screen.getByTestId("cluster-expand-g2");
+    expect(chip).toHaveTextContent("3 lists");
+    fireEvent.click(chip);
+    expect(screen.getByTestId("list-card-g3")).toBeInTheDocument();
+    expect(screen.getByTestId("list-card-g1")).toBeInTheDocument();
+    expect(within(screen.getByTestId("list-card-g1")).getByTestId("list-count-g1")).toHaveTextContent("3 members");
+  });
+
   it("fresh cards say how real-time they are, not just a date", async () => {
     setUrlTab("lists");
     render(<SearchResults query="" pov="nosfabrica" />);

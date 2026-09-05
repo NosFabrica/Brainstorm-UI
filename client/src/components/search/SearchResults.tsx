@@ -39,6 +39,7 @@ import {
 import { fetchEventRsvps, fetchGitCommentCounts, fetchGitStatuses, type EventRsvps } from "@/services/search";
 import { GIT_STATE_LABEL, foldForks, gitLabelsOf, gitStateOf, isGitItem, peopleBeforeAgents, type GitState } from "@/lib/gitStatus";
 import { isMediaFile, isSoundtrackFile } from "@/lib/fileMetadata";
+import { groupPeoplePacks } from "@/lib/listGroups";
 import { AppCard, EventCard, LiveTile, ListCard, MediaCard, RepoCard, TrackCard, platformWords, mediaUrlOf, ListingCard } from "@/components/search/cards";
 import { liveHostOf, liveNeedsCheck, liveStateOf, type LiveState } from "@/lib/liveStream";
 import { useVerifiedRecordings } from "@/hooks/useVerifiedRecordings";
@@ -63,7 +64,15 @@ const REPO_KINDS = new Set(TAB_KINDS.repos);
 
 /** One row of the flat list: a hit, and — when it leads a fold — how many it
  *  hides, the chip's words, and (for an opened fork) whose fork it is. */
-type DisplayRow = { hit: SearchHit; collapsedCount: number; clusterId: string; chipLabel?: string; forkOf?: string };
+type DisplayRow = {
+  hit: SearchHit;
+  collapsedCount: number;
+  clusterId: string;
+  chipLabel?: string;
+  forkOf?: string;
+  /** A folded same-title follow pack: how many lists, their union, the faces most agree on. */
+  listGroup?: { lists: number; members: number; consensus: string[] };
+};
 const LIVE_KINDS = new Set(TAB_KINDS.live);
 const EVENT_KINDS = new Set(TAB_KINDS.events);
 const MUSIC_KINDS = new Set(TAB_KINDS.music);
@@ -919,6 +928,24 @@ export function SearchResults({
       }
       return folded;
     }
+    if (tab === "lists") {
+      // One row per title: same-tag follow packs fold behind the most trusted
+      // curator's, the union counted once; the chip opens the individual lists.
+      const folded: DisplayRow[] = [];
+      for (const g of groupPeoplePacks(shown, (h) => ({ event: h.event, score: h.author?.wotRank ?? scoreOf(h.event.pubkey) ?? null }))) {
+        const id = g.primary.event.id;
+        const open = expandedClusters.has(id);
+        folded.push({
+          hit: g.primary,
+          collapsedCount: open ? 0 : g.others.length,
+          clusterId: id,
+          chipLabel: `${g.lists} lists`,
+          listGroup: g.lists > 1 ? { lists: g.lists, members: g.members, consensus: g.consensus } : undefined,
+        });
+        if (open) for (const o of g.others) folded.push({ hit: o, collapsedCount: 0, clusterId: "" });
+      }
+      return folded;
+    }
     if (!clustered) return shown.map((h) => ({ hit: h, collapsedCount: 0, clusterId: "" }));
     const out: DisplayRow[] = [];
     for (const cluster of collapseHits(shown)) {
@@ -1315,7 +1342,7 @@ export function SearchResults({
                 </div>
               </div>
             )}
-            {displayHits.filter((h) => !(tab === "media" && personMediaIds.has(h.hit.event.id))).map(({ hit, collapsedCount, clusterId, chipLabel, forkOf }) => {
+            {displayHits.filter((h) => !(tab === "media" && personMediaIds.has(h.hit.event.id))).map(({ hit, collapsedCount, clusterId, chipLabel, forkOf, listGroup }) => {
               const { event } = hit;
               const chip =
                 collapsedCount > 0 ? (
@@ -1402,7 +1429,7 @@ export function SearchResults({
               }
               if (APP_KINDS.has(event.kind)) return wrap(<AppCard {...typed} />);
               if (REPO_KINDS.has(event.kind)) return wrap(<RepoCard {...typed} state={stateOf(event) ?? undefined} comments={gitComments.get(event.id)} forkOf={forkOf} />);
-              if (LIST_KINDS.has(event.kind)) return wrap(<ListCard {...typed} />);
+              if (LIST_KINDS.has(event.kind)) return wrap(<ListCard {...typed} group={listGroup} />);
               if (MEDIA_KINDS.has(event.kind)) return wrap(<MediaCard {...typed} />);
               // Open-set posture: an unmapped kind renders as media-style
               // generic rather than vanishing — the relay may index new kinds
