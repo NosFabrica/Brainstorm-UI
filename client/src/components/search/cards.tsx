@@ -507,6 +507,7 @@ export function RepoCard({
   score,
   state,
   comments,
+  forkOf,
 }: {
   event: NostrEvent;
   author: SearchResult | null;
@@ -514,6 +515,8 @@ export function RepoCard({
   state?: GitState;
   /** Comments on this issue or patch, when the page fetched them. */
   comments?: number;
+  /** For a fork shown under its original: the original's name. */
+  forkOf?: string;
 }) {
   // The Repos tab is a mix: 30617 repo announcements, plus patches (1617) and
   // issues (1621/1618) that target a repo. A type chip tells them apart, and
@@ -561,20 +564,29 @@ export function RepoCard({
           <div className={`flex items-center gap-2 min-w-0 ${dest ? (dest.label.length > 12 ? "pr-36" : "pr-24") : ""}`}>
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
             <Chip size="sm" tone={typeTone}>{typeLabel}</Chip>
-            {/* What became of it — the newest NIP-34 status; none means open. */}
-            {!isRepo && state && (
-              <Chip size="sm" tone={GIT_STATE_TONE[state]} data-testid={`git-state-${event.id}`}>
-                {GIT_STATE_LABEL[state]}
-              </Chip>
-            )}
-            {agent && (
-              <Chip size="sm" tone="slate" icon={Bot} title={`Filed by ${agent}, an agent`} data-testid={`git-agent-${event.id}`}>
-                agent
-              </Chip>
-            )}
           </div>
-          {repoRef && (
-            <p className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500">↳ in {repoRef}</p>
+          {isRepo && forkOf && (
+            <p className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500" data-testid={`repo-fork-of-${event.id}`}>
+              ↳ fork of {forkOf}
+            </p>
+          )}
+          {/* The item's line: which repo, what became of it (the newest NIP-34
+              status; none means open), and who filed it when that was an agent.
+              Below the title so the title keeps its room. */}
+          {!isRepo && (repoRef || state || agent) && (
+            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-[11px] text-slate-400 dark:text-slate-500">
+              {repoRef && <span className="truncate">↳ in {repoRef}</span>}
+              {state && (
+                <Chip size="sm" tone={GIT_STATE_TONE[state]} data-testid={`git-state-${event.id}`}>
+                  {GIT_STATE_LABEL[state]}
+                </Chip>
+              )}
+              {agent && (
+                <Chip size="sm" tone="slate" icon={Bot} title={`Filed by ${agent}, an agent`} data-testid={`git-agent-${event.id}`}>
+                  agent
+                </Chip>
+              )}
+            </div>
           )}
           {labels.length > 0 && (
             <div className="mt-1 flex flex-wrap items-center gap-1" data-testid={`git-labels-${event.id}`}>

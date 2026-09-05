@@ -89,3 +89,43 @@ export function peopleBeforeAgents<T>(items: T[], pick: (item: T) => { event: { 
   };
   return [...items.filter((i) => !isAgent(i)), ...items.filter((i) => isAgent(i))];
 }
+
+/**
+ * A repo's lineage: NIP-34's earliest unique commit (`["r", <sha>, "euc"]`).
+ * Two announcements sharing it describe one codebase — an original and its
+ * forks. Null when the announcement carries none.
+ */
+export function repoLineageOf(event: { tags: string[][] }): string | null {
+  const t = event.tags.find((t) => t[0] === "r" && t[2] === "euc" && t[1]);
+  return t?.[1] ?? null;
+}
+
+/**
+ * Fold repos that share a lineage into one group led by the most trusted
+ * maintainer (highest score; earliest announcement on a tie). Groups keep
+ * the position of their first member; items without a lineage stand alone.
+ */
+export function foldForks<T>(items: T[], pick: (item: T) => { event: { kind: number; created_at: number; tags: string[][] }; score: number | null }): { primary: T; forks: T[] }[] {
+  const groups: { key: string | null; members: T[] }[] = [];
+  const byKey = new Map<string, { key: string | null; members: T[] }>();
+  for (const item of items) {
+    const { event } = pick(item);
+    const key = event.kind === 30617 ? repoLineageOf(event) : null;
+    const home = key ? byKey.get(key) : undefined;
+    if (home) {
+      home.members.push(item);
+      continue;
+    }
+    const g = { key, members: [item] };
+    groups.push(g);
+    if (key) byKey.set(key, g);
+  }
+  return groups.map((g) => {
+    const ranked = [...g.members].sort((a, b) => {
+      const pa = pick(a), pb = pick(b);
+      return (pb.score ?? -1) - (pa.score ?? -1) || pa.event.created_at - pb.event.created_at;
+    });
+    const [primary, ...forks] = ranked;
+    return { primary, forks };
+  });
+}

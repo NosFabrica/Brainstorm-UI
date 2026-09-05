@@ -37,7 +37,7 @@ import {
 } from "@/services/search";
 
 import { fetchGitCommentCounts, fetchGitStatuses } from "@/services/search";
-import { GIT_STATE_LABEL, gitLabelsOf, gitStateOf, isGitItem, peopleBeforeAgents, type GitState } from "@/lib/gitStatus";
+import { GIT_STATE_LABEL, foldForks, gitLabelsOf, gitStateOf, isGitItem, peopleBeforeAgents, type GitState } from "@/lib/gitStatus";
 import { AppCard, EventCard, LiveCard, ListCard, MediaCard, RepoCard, platformWords, TrackCard, WavlakeSongCard, mediaUrlOf, ListingCard } from "@/components/search/cards";
 import { EVENT_WHEN_LABELS, eventWhenCounts, filterEventsByWhen, type EventWhen } from "@/lib/eventFilters";
 import { parseTrack } from "@/lib/trackEvent";
@@ -54,6 +54,10 @@ const ARTICLE_KINDS = new Set(TAB_KINDS.articles);
 const MEDIA_KINDS = new Set(TAB_KINDS.media);
 const APP_KINDS = new Set(TAB_KINDS.apps);
 const REPO_KINDS = new Set(TAB_KINDS.repos);
+
+/** One row of the flat list: a hit, and — when it leads a fold — how many it
+ *  hides, the chip's words, and (for an opened fork) whose fork it is. */
+type DisplayRow = { hit: SearchHit; collapsedCount: number; clusterId: string; chipLabel?: string; forkOf?: string };
 const LIVE_KINDS = new Set(TAB_KINDS.live);
 const EVENT_KINDS = new Set(TAB_KINDS.events);
 const MUSIC_KINDS = new Set(TAB_KINDS.music);
@@ -771,7 +775,7 @@ export function SearchResults({
     }
     return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
   }, [tab, hits]);
-  const displayHits = useMemo(() => {
+  const displayHits = useMemo<DisplayRow[]>(() => {
     let shown = hits;
     if (tab === "events") shown = filterEventsByWhen(shown, effectiveWhen);
     // A 31337 without a title and audio is not a song (the kind is abused).
@@ -820,8 +824,22 @@ export function SearchResults({
       shown = hits.filter((h) => titled(h.event) && itemCount(h.event) > 0);
       shown = [...shown.filter((h) => isPeoplePack(h.event)), ...shown.filter((h) => !isPeoplePack(h.event))];
     }
+    if (tab === "repos") {
+      // One codebase, one card: forks fold behind the most trusted
+      // maintainer's announcement and open on a tap, each naming its parent.
+      const repoName = (h: SearchHit) => h.event.tags.find((t) => t[0] === "name")?.[1] ?? h.event.tags.find((t) => t[0] === "d")?.[1] ?? "the original";
+      const folded: DisplayRow[] = [];
+      for (const g of foldForks(shown, (h) => ({ event: h.event, score: h.author?.wotRank ?? scoreOf(h.event.pubkey) ?? null }))) {
+        const id = g.primary.event.id;
+        const open = expandedClusters.has(id);
+        const n = g.forks.length;
+        folded.push({ hit: g.primary, collapsedCount: open ? 0 : n, clusterId: id, chipLabel: `${n} ${n === 1 ? "fork" : "forks"}` });
+        if (open) for (const f of g.forks) folded.push({ hit: f, collapsedCount: 0, clusterId: "", forkOf: repoName(g.primary) });
+      }
+      return folded;
+    }
     if (!clustered) return shown.map((h) => ({ hit: h, collapsedCount: 0, clusterId: "" }));
-    const out: { hit: SearchHit; collapsedCount: number; clusterId: string }[] = [];
+    const out: DisplayRow[] = [];
     for (const cluster of collapseHits(shown)) {
       const id = cluster.primary.event.id;
       const open = expandedClusters.has(id);
@@ -830,7 +848,7 @@ export function SearchResults({
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hits, tab, appPlatform, appCategory, appLicense, shopCategory, repoState, repoLabel, gitStatuses, appCategoryTags, clustered, expandedClusters, effectiveWhen]);
+  }, [hits, tab, appPlatform, appCategory, appLicense, shopCategory, repoState, repoLabel, gitStatuses, appCategoryTags, clustered, expandedClusters, effectiveWhen, scoreOf]);
 
   // On the Music tab the results are the playlist: a track that ends hands
   // off to the next one shown, the way a queue does.
@@ -1159,7 +1177,7 @@ export function SearchResults({
                 </div>
               </div>
             )}
-            {displayHits.filter((h) => !(tab === "media" && personMediaIds.has(h.hit.event.id))).map(({ hit, collapsedCount, clusterId }) => {
+            {displayHits.filter((h) => !(tab === "media" && personMediaIds.has(h.hit.event.id))).map(({ hit, collapsedCount, clusterId, chipLabel, forkOf }) => {
               const { event } = hit;
               const chip =
                 collapsedCount > 0 ? (
@@ -1171,7 +1189,7 @@ export function SearchResults({
                     className="ml-1 mt-1 rounded-full border border-slate-200 dark:border-slate-800 px-2.5 py-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 hover:border-brand-accent/30"
                     data-testid={`cluster-expand-${clusterId}`}
                   >
-                    +{collapsedCount} more like this
+                    {chipLabel ?? `+${collapsedCount} more like this`}
                   </button>
                 ) : null;
               // Grid tabs (Apps, Repos) stretch every cell so a row of cards
@@ -1227,7 +1245,7 @@ export function SearchResults({
               if (SHOP_KINDS.has(event.kind)) return wrap(<ListingCard {...typed} />);
               if (LIVE_KINDS.has(event.kind)) return wrap(<LiveCard {...typed} />);
               if (APP_KINDS.has(event.kind)) return wrap(<AppCard {...typed} />);
-              if (REPO_KINDS.has(event.kind)) return wrap(<RepoCard {...typed} state={stateOf(event) ?? undefined} comments={gitComments.get(event.id)} />);
+              if (REPO_KINDS.has(event.kind)) return wrap(<RepoCard {...typed} state={stateOf(event) ?? undefined} comments={gitComments.get(event.id)} forkOf={forkOf} />);
               if (LIST_KINDS.has(event.kind)) return wrap(<ListCard {...typed} />);
               if (MEDIA_KINDS.has(event.kind)) return wrap(<MediaCard {...typed} />);
               // Open-set posture: an unmapped kind renders as media-style

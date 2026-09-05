@@ -857,6 +857,34 @@ describe("SearchResults", () => {
     expect(gitStatusesMock).toHaveBeenCalledWith([pr.id]);
   });
 
+  // NIP-34 marks a codebase by its earliest unique commit; two announcements
+  // that share it are the same project — an original and a fork. The most
+  // trusted maintainer's card leads; the forks fold behind "N forks".
+  it("repos sharing an earliest commit fold under the most-trusted maintainer's card, forks one tap away and named", async () => {
+    setUrlTab("repos");
+    const euc = "e".repeat(40);
+    const orig = ev("r1", 30617, "1".repeat(64), "", [["d", "pyramid"], ["name", "pyramid"], ["r", euc, "euc"]]);
+    const fork = ev("r2", 30617, "2".repeat(64), "", [["d", "pyramid"], ["name", "gittr-pyramid"], ["r", euc, "euc"]]);
+    const other = ev("r3", 30617, "3".repeat(64), "", [["d", "ngit"], ["name", "ngit"], ["r", "f".repeat(40), "euc"]]);
+    scoreOfMock.mockImplementation((pk) => (pk.startsWith("1") ? 0.9 : 0.3));
+    try {
+      render(<SearchResults query="pyramid" pov="nosfabrica" />);
+      // The fork arrives first from the relay; trust, not arrival, picks the lead.
+      emit({ hits: [fork, orig, other].map((e) => ({ event: e, author: author(e.pubkey, "dev"), rank: null })), eose: true, timeMs: 200 });
+      await screen.findByTestId("repo-card-r1");
+      expect(screen.queryByTestId("repo-card-r2")).toBeNull();
+      expect(screen.getByTestId("repo-card-r3")).toBeInTheDocument();
+      const chip = screen.getByTestId("cluster-expand-r1");
+      expect(chip).toHaveTextContent("1 fork");
+      fireEvent.click(chip);
+      const forkCard = await screen.findByTestId("repo-card-r2");
+      expect(within(forkCard).getByTestId("repo-fork-of-r2")).toHaveTextContent("fork of pyramid");
+      expect(screen.queryByTestId("cluster-expand-r1")).toBeNull();
+    } finally {
+      scoreOfMock.mockImplementation(() => 0.85);
+    }
+  });
+
   it("a repo announcement shows its issue and patch counts", async () => {
     setUrlTab("repos");
     repoCountsMock.mockResolvedValue({ issues: 12, patches: 3 });
