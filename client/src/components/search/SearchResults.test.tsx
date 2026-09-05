@@ -82,11 +82,29 @@ vi.mock("@/hooks/useAppEndorsements", () => ({
 }));
 let followsMock = new Set<string>();
 // Wavlake as the second music source: nothing unless a test says otherwise.
-const wavlakeSearchMock = vi.fn<(term: string) => Promise<import("@/lib/wavlake").WavlakeSong[]>>(() => Promise.resolve([]));
+type WavlakeSong = import("@/lib/wavlake").WavlakeSong;
+type WavlakeHits = import("@/lib/wavlake").WavlakeCatalogueHits;
+const wavlakeSearchMock = vi.fn<(term: string) => Promise<WavlakeSong[]>>(() => Promise.resolve([]));
+const wavlakeCatalogueMock = vi.fn<(term: string) => Promise<WavlakeHits>>(() => Promise.resolve({ artists: [], albums: [], songs: [] }));
+const wavlakeTrendingMock = vi.fn<(opts?: { genre?: string }) => Promise<WavlakeSong[]>>(() => Promise.resolve([]));
 vi.mock("@/lib/wavlake", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/wavlake")>()),
   searchWavlakeTracks: (term: string) => wavlakeSearchMock(term),
+  searchWavlake: (term: string) => wavlakeCatalogueMock(term),
+  fetchWavlakeTrending: (opts?: { genre?: string }) => wavlakeTrendingMock(opts),
 }));
+const wavlakeSong = (id: string, title: string, artist: string, extra: Partial<WavlakeSong> = {}): WavlakeSong => ({
+  id: `wavlake:${id}`,
+  title,
+  artist,
+  cover: `https://img/${id}.jpg`,
+  audio: `https://cdn/${id}.mp3`,
+  durationSec: 200,
+  url: `https://wavlake.com/track/${id}`,
+  source: "wavlake",
+  artistNpub: "",
+  ...extra,
+});
 
 vi.mock("@/hooks/useMyFollows", () => ({
   useMyFollows: () => ({ follows: followsMock, ready: true, signedIn: followsMock.size > 0 }),
@@ -144,6 +162,8 @@ beforeEach(() => {
   flagsMock.mockImplementation(() => false);
   reachMock.mockReturnValue({ direct: new Set(), friends: new Set(), ready: true });
   scoreOfMock.mockImplementation(() => 0.85);
+  wavlakeCatalogueMock.mockResolvedValue({ artists: [], albums: [], songs: [] });
+  wavlakeTrendingMock.mockResolvedValue([]);
   allStreams = [];
   window.history.replaceState({}, "", "/?q=jack");
 });
@@ -601,11 +621,136 @@ describe("SearchResults", () => {
     expect(card).toHaveTextContent("NOVA");
     // The cover is the play button — the same inline player the profile page uses.
     expect(within(card).getByTestId("track-play")).toHaveAttribute("aria-label", "Play");
-    // One frame, not two: the row draws its own border, the card adds none.
+    // Rows, not boxes: a list of songs reads like Spotify's, hairlines between rows.
     expect(card.className).not.toMatch(/border|rounded-2xl|px-2/);
-    expect(within(card).getByTestId("embedded-track").className).toMatch(/border/);
+    expect(within(card).getByTestId("embedded-track").className).not.toMatch(/\bborder\b/);
+    expect(card.parentElement?.className).toMatch(/divide-y/);
     expect(screen.queryByTestId("track-card-t2")).toBeNull();
     expect(screen.queryByText(/TOMB-7703/)).toBeNull();
+  });
+
+  // Browse led with "QA storage fixture qa41" and "Test Blossom" — Fanfares'
+  // QA bot and blob tests publish the kind. Not songs anyone searched for.
+  it("the Music tab drops QA and test publications", async () => {
+    setUrlTab("music");
+    render(<SearchResults query="" pov="nosfabrica" />);
+    const qa = ev("qa1", 31337, "5".repeat(64), "", [["d", "qa41"], ["title", "QA storage fixture qa41 #2"], ["artist", "ff-qa-creator"], ["t", "fanfares-qa"], ["media", "https://blossom.test/qa41.mp3"]]);
+    const song = ev("s1", 31337, "6".repeat(64), "", [["d", "ten"], ["title", "Ten Bottles"], ["artist", "NOVA"], ["t", "ambient-folk"], ["media", "https://renaissancemachine.ai/music/ten.mp3"]]);
+    emit({ hits: [qa, song].map((event) => ({ event, author: author(event.pubkey, "x"), rank: null })), eose: true, timeMs: 90 });
+    await screen.findByTestId("track-card-s1");
+    expect(screen.queryByTestId("track-card-qa1")).toBeNull();
+  });
+
+  // Benjamin: "should it feel like a Spotify?" Before any words, Spotify shows
+  // a home, not a list. Ours leads with what people are paying for — Wavlake's
+  // top tracks by sats this week, as cover tiles — with genre chips that re-ask
+  // the chart, and the newest native tracks below as the queue.
+  it("the Music tab, before any words, is a discovery front: Trending tiles, genre chips, New on Nostr rows", async () => {
+    wavlakeTrendingMock.mockResolvedValue([
+      wavlakeSong("c1", "Carnival (Live recording)", "Sara Jade", { sats: 7777 }),
+      wavlakeSong("i1", "Ikigai", "Aaron Koenig", { sats: 15000 }),
+    ]);
+    setUrlTab("music");
+    render(<SearchResults query="" pov="nosfabrica" />);
+    const song = ev("s1", 31337, "6".repeat(64), "", [["d", "ten"], ["title", "Ten Bottles"], ["artist", "NOVA"], ["t", "ambient-folk"], ["media", "https://renaissancemachine.ai/music/ten.mp3"]]);
+    emit({ hits: [{ event: song, author: author(song.pubkey, "NOVA"), rank: null }], eose: true, timeMs: 90 });
+
+    const trending = await screen.findByTestId("music-trending");
+    expect(trending).toHaveTextContent("Trending on Wavlake");
+    const tile = within(trending).getByTestId("music-tile-wavlake:c1");
+    expect(tile).toHaveTextContent("Carnival (Live recording)");
+    expect(tile).toHaveTextContent("Sara Jade");
+    expect(tile).toHaveTextContent("7.8k sats");
+    expect(within(tile).getByRole("button", { name: "Play" })).toBeInTheDocument();
+    expect((tile.querySelector("img") as HTMLImageElement).src).toBe("https://img/c1.jpg");
+    expect(wavlakeTrendingMock.mock.calls[0]?.[0]?.genre).toBeUndefined();
+
+    const fresh = screen.getByTestId("music-new");
+    expect(fresh).toHaveTextContent("New on Nostr");
+    expect(within(fresh).getByTestId("track-card-s1")).toHaveTextContent("Ten Bottles");
+
+    // A genre chip re-asks the chart for that genre.
+    const rock = screen.getByTestId("music-genre-rock");
+    fireEvent.click(rock);
+    await vi.waitFor(() => expect(wavlakeTrendingMock).toHaveBeenLastCalledWith({ genre: "rock" }));
+    expect(rock).toHaveAttribute("aria-pressed", "true");
+  });
+
+  // With words, Spotify's anatomy: the artist as the Top result when a name
+  // matches, Songs as rows from both sources, Artists as faces with their
+  // trust rings, Albums as Wavlake tiles — and the results' own genres as chips.
+  it("with words, Music groups results: Top result, Songs, Artists with rings, Albums, genre chips", async () => {
+    wavlakeCatalogueMock.mockResolvedValue({
+      // Live decoy: Wavlake led "nova" with Freddy Donovan — the letters inside a word.
+      artists: [
+        { id: "fr3d", name: "Freddy Donovan", url: "https://wavlake.com/freddy-donovan", artistNpub: "" },
+        { id: "a1", name: "NOVA Sound System", url: "https://wavlake.com/nova-sound-system", artworkUrl: "https://img/nova.jpg", artistNpub: "" },
+      ],
+      albums: [{ id: "al1", title: "Deep Space", artist: "NOVA Sound System", artworkUrl: "https://img/deep.jpg", url: "https://wavlake.com/album/al1" }],
+      songs: [wavlakeSong("w1", "Orbit", "NOVA Sound System")],
+    });
+    setUrlTab("music");
+    render(<SearchResults query="nova" pov="nosfabrica" />);
+    const nova = "d".repeat(64);
+    const mk = (id: string, title: string, genre: string) =>
+      ev(id, 31337, nova, "", [["d", id], ["title", title], ["artist", "NOVA"], ["t", genre], ["media", `https://renaissancemachine.ai/music/${id}.mp3`], ["image", `https://renaissancemachine.ai/music/${id}.jpg`]]);
+    const hits = [mk("g1", "Old Carbon", "jazz"), mk("g2", "Duende", "jazz"), mk("g3", "Fulgurite", "post-rock")].map((event) => ({ event, author: author(nova, "NOVA"), rank: null }));
+    emit({ hits, eose: true, timeMs: 150 });
+
+    const top = await screen.findByTestId("music-top-result");
+    expect(top).toHaveAttribute("data-kind", "artist");
+    // The person on Nostr wins at equal strength: "NOVA" IS the words; the catalogue's NOVA Sound System only starts with them.
+    expect(top).toHaveTextContent("NOVA");
+    expect(top).toHaveTextContent("3 songs");
+    expect(top).not.toHaveTextContent("Freddy Donovan");
+    expect(top).not.toHaveTextContent("NOVA Sound System");
+    expect(within(top).getByTestId("music-top-play")).toHaveAttribute("aria-label", "Play");
+
+    const songs = screen.getByTestId("music-songs");
+    expect(songs).toHaveTextContent("Songs");
+    expect(songs).toHaveTextContent("4");
+    within(songs).getByTestId("track-card-g1");
+    within(songs).getByTestId("wavlake-song-wavlake:w1");
+    within(songs).getByTestId("music-play-all");
+
+    const artists = screen.getByTestId("music-artists");
+    const face = within(artists).getByTestId(`music-artist-${nova.slice(0, 8)}`);
+    expect(face).toHaveTextContent("NOVA");
+    expect(face).toHaveTextContent("3 songs");
+    // The trust ring is the star rating no other store has.
+    expect(face.querySelector('[class*="shadow-[0_0_0"]')).not.toBeNull();
+    const remote = within(artists).getByTestId("music-artist-wavlake-a1");
+    expect(remote).toHaveAttribute("href", "https://wavlake.com/nova-sound-system");
+    expect(remote).toHaveTextContent("Wavlake");
+
+    const albums = screen.getByTestId("music-albums");
+    expect(within(albums).getByTestId("music-album-al1")).toHaveTextContent("Deep Space");
+
+    // Genre chips: only genres two or more tracks share; a chip narrows the songs.
+    expect(screen.getByTestId("music-genre-jazz")).toHaveTextContent("Jazz");
+    expect(screen.queryByTestId("music-genre-post-rock")).toBeNull();
+    fireEvent.click(screen.getByTestId("music-genre-jazz"));
+    expect(screen.queryByTestId("track-card-g3")).toBeNull();
+    expect(screen.getByTestId("track-card-g1")).toBeInTheDocument();
+  });
+
+  // One Play starts the list from the top and a slim bar says what is playing
+  // wherever the page has scrolled to; Next moves down the list.
+  it("Play starts the queue and the now-playing bar follows it", async () => {
+    setUrlTab("music");
+    render(<SearchResults query="nova" pov="nosfabrica" />);
+    const nova = "d".repeat(64);
+    const mk = (id: string, title: string) =>
+      ev(id, 31337, nova, "", [["d", id], ["title", title], ["artist", "NOVA"], ["media", `https://renaissancemachine.ai/music/${id}.mp3`]]);
+    emit({ hits: [mk("q1", "Old Carbon"), mk("q2", "Duende")].map((event) => ({ event, author: author(nova, "NOVA"), rank: null })), eose: true, timeMs: 150 });
+    await screen.findByTestId("track-card-q1");
+    expect(screen.queryByTestId("now-playing-bar")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("music-play-all"));
+    const bar = await screen.findByTestId("now-playing-bar");
+    expect(within(bar).getByTestId("now-playing-title")).toHaveTextContent("Old Carbon");
+    fireEvent.click(within(bar).getByTestId("now-playing-next"));
+    await vi.waitFor(() => expect(within(bar).getByTestId("now-playing-title")).toHaveTextContent("Duende"));
   });
 
   // Ainsley Costello publishes no native tracks; her music is on Wavlake. The
@@ -613,15 +758,17 @@ describe("SearchResults", () => {
   // labelled as Wavlake's — so the tab is never "Nothing found" for an artist
   // whose songs are one API away.
   it("the Music tab plays Wavlake's songs for the words, labelled, when Nostr has none", async () => {
-    wavlakeSearchMock.mockResolvedValue([
-      { id: "wavlake:04cead49", title: "Two Ships", artist: "Ainsley Costello", cover: "https://img/two-ships.jpg", audio: "https://cdn/two-ships.mp3", durationSec: 217, url: "https://wavlake.com/track/04cead49", source: "wavlake", artistNpub: "" },
-    ]);
+    wavlakeCatalogueMock.mockResolvedValue({
+      artists: [],
+      albums: [],
+      songs: [{ id: "wavlake:04cead49", title: "Two Ships", artist: "Ainsley Costello", cover: "https://img/two-ships.jpg", audio: "https://cdn/two-ships.mp3", durationSec: 217, url: "https://wavlake.com/track/04cead49", source: "wavlake", artistNpub: "" }],
+    });
     setUrlTab("music");
     render(<SearchResults query="Ainsley Costello" pov="nosfabrica" />);
     emit({ hits: [], eose: true, timeMs: 90 });
 
     const card = await screen.findByTestId("wavlake-song-wavlake:04cead49");
-    expect(wavlakeSearchMock).toHaveBeenCalledWith("Ainsley Costello");
+    expect(wavlakeCatalogueMock).toHaveBeenCalledWith("Ainsley Costello");
     expect(card).toHaveTextContent("Two Ships");
     expect(card).toHaveTextContent("Ainsley Costello");
     expect(card).toHaveTextContent("Wavlake");

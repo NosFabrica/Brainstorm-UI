@@ -189,6 +189,30 @@ function subscribe(l: () => void) {
 }
 const getSnapshot = () => snapshot;
 
+/**
+ * The player as a whole — which track is active and where it is — for a
+ * now-playing bar that outlives any one row.
+ */
+export function usePlayerState(): { currentId: string | null; status: TrackStatus; currentTime: number; duration: number } {
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}
+
+/** Skip to the next track in the registered playlist, if there is one. */
+export function playNext(): boolean {
+  const idx = playlist.findIndex((t) => t.id === currentId);
+  const next = idx >= 0 ? playlist[idx + 1] : playlist[0];
+  if (!next) return false;
+  toggleTrack(next.id, next.src);
+  return true;
+}
+
+/** Start the registered playlist from its first track (or a given one). */
+export function playFrom(id?: string) {
+  const start = id ? playlist.find((t) => t.id === id) : playlist[0];
+  if (start && start.id !== currentId) toggleTrack(start.id, start.src);
+  else if (start) toggleTrack(start.id, start.src);
+}
+
 /** Per-row view of the shared player: is this id active, and its progress. */
 export function useTrackPlayer(id: string) {
   const s = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);

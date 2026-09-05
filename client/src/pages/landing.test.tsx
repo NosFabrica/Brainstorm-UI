@@ -44,7 +44,7 @@ vi.mock("@/hooks/useActivePerspective", () => ({ useActivePerspective: () => ["n
 vi.mock("@/hooks/useHasMywot", () => ({ useHasMywot: () => ({ hasMywot: false }) }));
 vi.mock("@/hooks/useIsSearchObserver", () => ({ useIsSearchObserver: () => ({ isSearchObserver: false }) }));
 vi.mock("@/hooks/useTags", () => ({ useTagMatches: () => [] }));
-vi.mock("@/lib/wavlake", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/wavlake")>()), searchWavlakeTracks: async () => [] }));
+vi.mock("@/lib/wavlake", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/wavlake")>()), searchWavlakeTracks: async () => [], searchWavlake: async () => ({ artists: [], albums: [], songs: [] }), fetchWavlakeTrending: async () => [] }));
 vi.mock("@/components/feed/HomeFeed", () => ({ HomeFeed: () => null }));
 vi.mock("@/components/FinishSetupBanner", () => ({ FinishSetupBanner: () => null }));
 vi.mock("@/components/AccountCards", () => ({ AccountCards: () => null }));

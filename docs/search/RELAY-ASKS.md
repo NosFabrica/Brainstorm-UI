@@ -129,6 +129,15 @@ title and a playable URL (`lib/trackEvent.ts`). A relay-side filter for that
 shape — or a "has media" facet — would spare every client the same gate and
 let `sort:recent` on Music mean recent songs.
 
+Re-probed 2026-09-05 for the Music tab's discovery front: of the 150 newest
+31337s, 65 are AntennaPod ad-skip data (one publisher), 59 are blob chunks
+(two publishers), 8 carry a title — and 3 of those are Fanfares' QA fixtures
+("QA storage fixture qa41", `t fanfares-qa`). So a wordless browse over the
+kind is 95% not songs and the UI drops QA/test publications too
+(`isTestTrack`). Same ask, sharper: a track-shaped filter (title + media)
+would let a wordless Music browse answer with songs at all; today the UI
+leads the empty state with Wavlake's chart instead.
+
 ## 11. Fountain — resolved client-side, no proxy needed (2026-09-04)
 
 Earlier note said Fountain episodes needed the link-metadata proxy. Wrong:

@@ -4,6 +4,7 @@
  * frame, and rows that fold an author's near-duplicates behind a chip.
  */
 import { useEffect, useMemo, useState } from "react";
+import { useWheelScrollX } from "@/hooks/useWheelScrollX";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SerpRow } from "@/components/search/SerpRow";
@@ -191,5 +192,51 @@ export function SectionSkeleton({ id, kicker, shape }: { id: string; kicker: str
         </div>
       )}
     </section>
+  );
+}
+
+/** A one-line, horizontally scrolling row of facet chips, faded at the right edge. */
+export function FacetRow({ testId, className = "", children }: { testId: string; className?: string; children: React.ReactNode }) {
+  const ref = useWheelScrollX();
+  return (
+    <div
+      ref={ref}
+      className={`-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,black_calc(100%_-_1.25rem),transparent)] ${className}`}
+      data-testid={testId}
+    >
+      {children}
+    </div>
+  );
+}
+
+/** One facet: a pill that is pressed or not, with an optional quiet count. */
+export function FacetChip({
+  pressed,
+  onClick,
+  count,
+  testId,
+  children,
+}: {
+  pressed: boolean;
+  onClick: () => void;
+  count?: number;
+  testId: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      type="button"
+      aria-pressed={pressed}
+      onClick={onClick}
+      className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+        pressed
+          ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+          : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
+      }`}
+      data-testid={testId}
+    >
+      {children}
+      {count != null && <span className="ml-1 opacity-60">{count}</span>}
+    </button>
   );
 }

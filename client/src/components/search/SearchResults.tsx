@@ -13,7 +13,6 @@ import { ChevronDown, Radar, SlidersHorizontal } from "lucide-react";
 import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, readFilters, sinceForPreset, splitFilters, type DatePreset, type SearchFilterPatch } from "@/lib/searchSyntax";
 import { clientFilterHits } from "@/lib/clientFilters";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
-import { useWheelScrollX } from "@/hooks/useWheelScrollX";
 import { eventStore } from "@/lib/eventStore";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -39,15 +38,16 @@ import {
 import { fetchEventRsvps, fetchGitCommentCounts, fetchGitStatuses, type EventRsvps } from "@/services/search";
 import { GIT_STATE_LABEL, foldForks, gitLabelsOf, gitStateOf, isGitItem, peopleBeforeAgents, type GitState } from "@/lib/gitStatus";
 import { isMediaFile, isSoundtrackFile } from "@/lib/fileMetadata";
-import { AppCard, EventCard, LiveCard, ListCard, MediaCard, RepoCard, platformWords, TrackCard, WavlakeSongCard, mediaUrlOf, ListingCard } from "@/components/search/cards";
+import { AppCard, EventCard, LiveCard, ListCard, MediaCard, RepoCard, TrackCard, platformWords, mediaUrlOf, ListingCard } from "@/components/search/cards";
 import { EVENT_WHEN_LABELS, EVENT_WHEN_ORDER, eventWhenCounts, filterEventsByWhen, type EventWhen } from "@/lib/eventFilters";
 import { EventDateTile } from "@/components/share/EventDateTile";
 import { parseCalendarEvent as parseCal, relativeEventTime as relativeDay } from "@/lib/calendarEvent";
-import { parseTrack } from "@/lib/trackEvent";
+import { isTestTrack, parseTrack } from "@/lib/trackEvent";
 import { isSellable, parseListing } from "@/lib/listing";
 import { fetchRecentByKinds } from "@/services/nostr";
-import { useWavlakeSongs } from "@/hooks/useWavlakeSongs";
-import { setPlaylist } from "@/lib/audioPlayer";
+import { useWavlakeSearch } from "@/hooks/useWavlakeSongs";
+import { MusicResults } from "@/components/search/MusicResults";
+import { FacetRow } from "@/components/search/sections";
 import { KnowledgePanel } from "@/components/search/KnowledgePanel";
 import { ComposedResults } from "@/components/search/ComposedResults";
 import { collapseHits } from "@/lib/searchCollapse";
@@ -249,18 +249,6 @@ const SORT_OPTIONS = [
  *  a soft right-edge fade to signal "more", and mouse-wheel → horizontal so a
  *  desktop mouse scrolls it as easily as a phone swipes (trackpads/touch already
  *  scroll it natively). */
-function FacetRow({ testId, className = "", children }: { testId: string; className?: string; children: React.ReactNode }) {
-  const ref = useWheelScrollX();
-  return (
-    <div
-      ref={ref}
-      className={`-mx-1 flex items-center gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,black_calc(100%_-_1.25rem),transparent)] ${className}`}
-      data-testid={testId}
-    >
-      {children}
-    </div>
-  );
-}
 
 /** The filters that are real (probed 2026-09-03). Every control rewrites the
  *  full query (words + tokens) through onQueryRewrite; the landing page keeps
@@ -653,7 +641,7 @@ export function SearchResults({
     [rawHits, clientState.verifiedOnly, clientState.reach, reach, allAuthors.map((pk) => scoreOf(pk)).join(",")],
   );
   // Wavlake is the Music tab's second source: the same words, its catalogue.
-  const wavlake = useWavlakeSongs(query, tab === "music");
+  const wavlake = useWavlakeSearch(query, tab === "music");
   const mediaSettled = tab !== "media" || !!mediaNotes?.eose || !!mediaNotes?.error;
   const searching =
     personMedia.length === 0 &&
@@ -806,7 +794,7 @@ export function SearchResults({
     let shown = hits;
     if (tab === "events") shown = filterEventsByWhen(shown, effectiveWhen);
     // A 31337 without a title and audio is not a song (the kind is abused).
-    if (tab === "music") shown = shown.filter((h) => parseTrack(h.event) !== null);
+    if (tab === "music") shown = shown.filter((h) => parseTrack(h.event) !== null && !isTestTrack(h.event));
     if (tab === "apps" && appPlatform) {
       shown = shown.filter((h) => platformWords(h.event).includes(appPlatform));
     }
@@ -894,19 +882,6 @@ export function SearchResults({
     }
     return out;
   }, [displayHits, tab]);
-
-  // On the Music tab the results are the playlist: a track that ends hands
-  // off to the next one shown, the way a queue does.
-  useEffect(() => {
-    if (tab !== "music") return;
-    setPlaylist([
-      ...displayHits
-        .map((h) => parseTrack(h.hit.event))
-        .filter((t): t is NonNullable<typeof t> => t !== null)
-        .map((t) => ({ id: t.id, src: t.audio })),
-      ...wavlake.songs.map((s) => ({ id: s.id, src: s.audio })),
-    ]);
-  }, [tab, displayHits, wavlake.songs]);
 
   const profiles = useMemo(() => profilesOf(hits), [hits]);
 
@@ -1200,6 +1175,9 @@ export function SearchResults({
               </p>
             </div>
           )}
+          {tab === "music" ? (
+            <MusicResults hits={displayHits.map((d) => d.hit)} query={query} wavlake={wavlake} scoreOf={scoreOf} onOpenProfile={openProfile} />
+          ) : (
           <div
             className={
               tab === "shop"
@@ -1313,13 +1291,8 @@ export function SearchResults({
               // before this UI learns them.
               return wrap(<MediaCard {...typed} />);
             })}
-            {tab === "music" &&
-              wavlake.songs.map((song) => (
-                <div key={song.id} className="h-full">
-                  <WavlakeSongCard song={song} />
-                </div>
-              ))}
           </div>
+          )}
         </>
       )}
       </div>

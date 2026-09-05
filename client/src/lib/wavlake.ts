@@ -4,6 +4,7 @@
 
 import { useEffect, useState } from "react";
 import { nip19 } from "nostr-tools";
+import { nameMatchScore } from "@/lib/nameMatch";
 
 export interface WavlakeTrack {
   id: string;
@@ -97,6 +98,8 @@ export interface WavlakeSong {
   source: "wavlake";
   /** The artist's Nostr key when they linked one on Wavlake; "" otherwise. */
   artistNpub: string;
+  /** Sats zapped to the track over the ranking's window — the trending signal. */
+  sats?: number;
 }
 
 export interface WavlakeArtist {
@@ -168,29 +171,77 @@ export async function wavlakeArtistTracks(artistId: string, limit = 6): Promise<
   return out.slice(0, limit);
 }
 
+export interface WavlakeAlbum {
+  id: string;
+  title: string;
+  /** From the album's tracks when they were fetched; "" when only the name is known. */
+  artist: string;
+  artworkUrl?: string;
+  url: string;
+}
+
+export interface WavlakeCatalogueHits {
+  artists: WavlakeArtist[];
+  albums: WavlakeAlbum[];
+  songs: WavlakeSong[];
+}
+
+const EMPTY_HITS: WavlakeCatalogueHits = { artists: [], albums: [], songs: [] };
+
 /**
- * The songs Wavlake has for these words: the matching artists' newest
- * releases first, then matching albums. Empty, never a throw — an outage at
- * Wavlake is not a search failure.
+ * What Wavlake has for these words, in the catalogue's own three shapes: the
+ * artists and albums it names, and the songs behind them — the matching
+ * artists' newest releases first, then the matching albums' tracks. Empty
+ * lists, never a throw: an outage at Wavlake is not a search failure.
  */
-export async function searchWavlakeTracks(term: string, limit = 6): Promise<WavlakeSong[]> {
+export async function searchWavlake(term: string, limit = 6): Promise<WavlakeCatalogueHits> {
   const q = term.trim();
-  if (q.length < 2) return [];
+  if (q.length < 2) return EMPTY_HITS;
   const items = await catalogueSearch(q);
-  const out: WavlakeSong[] = [];
+  // The catalogue's order is loose ("nova" leads with Freddy Donovan); the
+  // artists whose NAME answers to the words come first, then the rest as given.
+  const artists: WavlakeArtist[] = items
+    .filter((i) => i.type === "artist")
+    .map((i, idx) => ({ i, idx, score: nameMatchScore(i.name, q) }))
+    .sort((a, b) => b.score - a.score || a.idx - b.idx)
+    .slice(0, 3)
+    .map(({ i }) => ({
+      id: i.id,
+      name: i.name,
+      url: i.url ? `https://wavlake.com/${i.url}` : `https://wavlake.com/artist/${i.id}`,
+      artworkUrl: i.avatarUrl || i.artworkUrl || undefined,
+      artistNpub: "",
+    }));
+  const songs: WavlakeSong[] = [];
   const seen = new Set<string>();
-  const push = (songs: WavlakeSong[]) => {
-    for (const s of songs) if (!seen.has(s.id) && out.length < limit) { seen.add(s.id); out.push(s); }
+  const push = (list: WavlakeSong[]) => {
+    for (const s of list) if (!seen.has(s.id) && songs.length < limit) { seen.add(s.id); songs.push(s); }
   };
-  for (const a of items.filter((i) => i.type === "artist").slice(0, 2)) {
-    if (out.length >= limit) break;
-    push(await wavlakeArtistTracks(a.id, limit));
+  for (const a of artists.slice(0, 2)) {
+    if (songs.length >= limit) break;
+    const tracks = await wavlakeArtistTracks(a.id, limit);
+    const linked = tracks.find((t) => t.artistNpub)?.artistNpub;
+    if (linked) a.artistNpub = linked;
+    push(tracks);
   }
-  for (const al of items.filter((i) => i.type === "album").slice(0, 3)) {
-    if (out.length >= limit) break;
-    push(await albumSongs(al.id));
+  const albums: WavlakeAlbum[] = [];
+  for (const al of items.filter((i) => i.type === "album").slice(0, 6)) {
+    const tracks = albums.length < 3 && songs.length < limit ? await albumSongs(al.id) : [];
+    push(tracks);
+    albums.push({
+      id: al.id,
+      title: al.name,
+      artist: tracks[0]?.artist ?? "",
+      artworkUrl: al.artworkUrl || al.avatarUrl || undefined,
+      url: `https://wavlake.com/album/${al.id}`,
+    });
   }
-  return out;
+  return { artists, albums, songs };
+}
+
+/** The songs alone — the shape the Listen row and older callers speak. */
+export async function searchWavlakeTracks(term: string, limit = 6): Promise<WavlakeSong[]> {
+  return (await searchWavlake(term, limit)).songs;
 }
 
 /**
@@ -228,4 +279,39 @@ function pubkeyMatches(artistNpub: string, pubkey: string): boolean {
   } catch {
     return false;
   }
+}
+
+type RankedTrack = { id: string; title: string; artist?: string; albumArtUrl?: string; artistArtUrl?: string; albumId?: string; albumTitle?: string; mediaUrl?: string; url?: string; msatTotal?: string; duration?: number };
+
+/** Wavlake's genre names that its rankings answer for (probed 2026-09-04). */
+export const WAVLAKE_GENRES = ["rock", "hip-hop", "pop", "electronic", "alternative", "country"] as const;
+export type WavlakeGenre = (typeof WAVLAKE_GENRES)[number];
+
+/**
+ * What people are paying for: Wavlake's top tracks by sats over the last
+ * week — a value-for-value chart no play-count list can fake. A week in one
+ * genre can be thin, so fewer than six answers widens the window to a month.
+ * Empty, never a throw.
+ */
+export async function fetchWavlakeTrending({ genre, limit = 12 }: { genre?: string; limit?: number } = {}): Promise<WavlakeSong[]> {
+  const ask = async (days: number): Promise<WavlakeSong[]> => {
+    const g = genre ? `&genre=${encodeURIComponent(genre)}` : "";
+    const body = await getJson<RankedTrack[]>(`${WAVLAKE_API}/content/rankings?sort=sats&days=${days}&limit=${limit}${g}`);
+    return (Array.isArray(body) ? body : [])
+      .filter((t) => t.id && t.title && t.mediaUrl)
+      .map((t) => ({
+        id: `wavlake:${t.id}`,
+        title: t.title,
+        artist: t.artist ?? "",
+        cover: t.albumArtUrl || t.artistArtUrl || undefined,
+        audio: t.mediaUrl as string,
+        durationSec: Number(t.duration) > 0 ? Number(t.duration) : undefined,
+        url: t.url || wavlakeTrackUrl(t.id),
+        source: "wavlake" as const,
+        artistNpub: "",
+        sats: Math.round(Number(t.msatTotal ?? 0) / 1000) || undefined,
+      }));
+  };
+  const week = await ask(7);
+  return week.length >= 6 ? week : ask(30).then((month) => (month.length > week.length ? month : week));
 }

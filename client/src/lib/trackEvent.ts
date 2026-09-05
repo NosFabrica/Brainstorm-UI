@@ -49,3 +49,21 @@ export function parseTrack(ev: EventLike): Track | null {
     createdAt: ev.created_at,
   };
 }
+
+const QA_TAGS = new Set(["fanfares-qa", "test", "qa"]);
+const QA_WORDS = /\b(?:qa|test|tests|fixture)\b/i;
+
+/**
+ * Not a song: a QA or test publication. Browse led with "QA storage fixture
+ * qa41" (Fanfares' QA bot, `t fanfares-qa`) and "Test Blossom" by "test"
+ * (probed 2026-09-04). A track is one when it is tagged as QA/test, or when its
+ * title and artist both read as a test — "Testify" by a real artist is a song.
+ */
+export function isTestTrack(ev: EventLike): boolean {
+  const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1]?.trim() || "";
+  if (ev.tags.some((t) => t[0] === "t" && QA_TAGS.has((t[1] ?? "").toLowerCase()))) return true;
+  const title = tag("title") || tag("subject");
+  const artist = tag("artist") || tag("creator") || tag("c");
+  const artistIsTest = /^(?:test|qa|ff-qa-creator|fanfares-qa)\b/i.test(artist);
+  return artistIsTest && (QA_WORDS.test(title) || title === "");
+}
