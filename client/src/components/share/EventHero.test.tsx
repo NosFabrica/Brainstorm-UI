@@ -124,6 +124,29 @@ describe("EventHero", () => {
   });
 });
 
+// Benjamin: on desktop and mobile the copy, icons and buttons need laying out
+// cleaner — less empty white space, no ragged stacked buttons. The status and
+// the countdown share one line; the two actions share one row, equal halves
+// on a phone and side by side on desktop.
+describe("EventHero — a tight layout", () => {
+  it("puts the two actions in one row, equal on a phone, and the timing beside the status", async () => {
+    render(<EventHero event={{ ...v4v, tags: [...v4v.tags, ["location", "The Meteor, Austin"]] }} />);
+    await screen.findByTestId("event-hero-host");
+    const actions = screen.getByTestId("event-hero-actions");
+    expect(actions.className).toMatch(/grid-cols-2/);
+    expect(actions.className).toMatch(/sm:flex/);
+    const calendar = screen.getByTestId("event-hero-add-to-calendar");
+    expect(calendar.className).toMatch(/w-full/);
+    expect(screen.getByTestId("event-hero-calendar").className).toMatch(/flex-1/);
+    const rsvp = actions.querySelector("button") as HTMLElement;
+    expect(rsvp.className).toMatch(/w-full/);
+    // One line for the state of the event: the chip and the countdown together.
+    const status = screen.getByTestId("event-hero-status");
+    expect(status).toHaveTextContent(/Upcoming event/);
+    expect(within(status).getByTestId("event-hero-timing")).toBeInTheDocument();
+  });
+});
+
 // Benjamin, for the team: "add to calendar" should work with what the device
 // prefers rather than force one system. No browser reveals the calendar app,
 // but the operating system is a strong proxy — so one tap does the likely

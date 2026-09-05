@@ -108,19 +108,25 @@ export function EventHero({ event }: { event: MinimalEvent }) {
           alt=""
           loading="lazy"
           onError={() => setImgBroken(true)}
-          className="aspect-square w-full rounded-2xl border border-slate-200 dark:border-slate-800 object-cover sm:w-56 sm:shrink-0"
+          className="aspect-square w-full rounded-2xl border border-slate-200 dark:border-slate-800 object-cover sm:w-48 sm:shrink-0"
           data-testid="event-hero-image"
         />
-        <div className="mt-4 min-w-0 flex-1 sm:mt-0">
-          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${upcoming ? "border border-emerald-200 bg-emerald-50 text-emerald-700" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"}`}>
-            <Calendar className="h-3 w-3" /> {upcoming ? "Upcoming event" : "Past event"}
-          </span>
-          <h1 className="mt-2 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl" style={{ fontFamily: "var(--font-display)" }} data-testid="event-hero-title">
+        <div className="mt-3 min-w-0 flex-1 sm:mt-0">
+          {/* One line for the state of the event: the chip and the countdown together. */}
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1" data-testid="event-hero-status">
+            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${upcoming ? "border border-emerald-200 bg-emerald-50 text-emerald-700" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"}`}>
+              <Calendar className="h-3 w-3" /> {upcoming ? "Upcoming event" : "Past event"}
+            </span>
+            {timing && (
+              <span className={`text-xs font-semibold ${upcoming ? "text-emerald-600" : "text-slate-400 dark:text-slate-500"}`} data-testid="event-hero-timing">{timing}</span>
+            )}
+          </div>
+          <h1 className="mt-1.5 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl" style={{ fontFamily: "var(--font-display)" }} data-testid="event-hero-title">
             {e.title}
           </h1>
           {/* The host, ringed — the one thing no ticketing site can show. */}
           {hostNpub && (
-            <Link href={`/p/${hostNpub}`} className="mt-2 inline-flex items-center gap-1.5 rounded-full py-0.5 pr-1.5 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors" data-testid="event-hero-host">
+            <Link href={`/p/${hostNpub}`} className="mt-1 inline-flex items-center gap-1.5 rounded-full py-0.5 pr-1.5 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors" data-testid="event-hero-host">
               <Avatar className={`h-5 w-5 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(scoreOf(event.pubkey) ?? null, false, "sm", true) ?? ""}`}>
                 {host?.picture ? <AvatarImage src={host.picture} alt="" className="object-cover" /> : null}
                 <AvatarFallback className="overflow-hidden">
@@ -132,10 +138,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
               </span>
             </Link>
           )}
-          {timing && (
-            <p className={`mt-2 text-sm font-semibold ${upcoming ? "text-emerald-600" : "text-slate-400 dark:text-slate-500"}`} data-testid="event-hero-timing">{timing}</p>
-          )}
-          <div className="mt-3 space-y-2 text-sm text-slate-600 dark:text-slate-300">
+          <div className="mt-3 space-y-1.5 text-sm text-slate-600 dark:text-slate-300">
             {e.startSec > 0 && (
               <div className="flex items-center gap-2.5" data-testid="event-hero-date">
                 <EventDateTile startSec={e.startSec} size="sm" />
@@ -147,7 +150,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
             )}
             {e.location && (
               <div className="flex items-center gap-2.5">
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-800 text-slate-500">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-slate-200 dark:border-slate-800 text-slate-500">
                   <MapPin className="h-4 w-4" />
                 </span>
                 {mapUrl ? (
@@ -160,7 +163,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
           </div>
           {/* Who is going — faces with the count. */}
           {rsvps && rsvps.going > 0 && (
-            <div className="mt-3 flex items-center gap-2" data-testid="event-hero-guests">
+            <div className="mt-2.5 flex items-center gap-2" data-testid="event-hero-guests">
               <span className="flex -space-x-1.5">
                 {faces.map((pk) => {
                   const p = profiles.get(pk);
@@ -182,8 +185,8 @@ export function EventHero({ event }: { event: MinimalEvent }) {
           {/* The action sits with the facts — Eventbrite's order — not under a
               long description. Upcoming: I'm going (a NIP-52 RSVP on Nostr) and
               a calendar file. Past: the recording when there is one. */}
-          <div className="mt-4 flex flex-wrap items-center gap-2" data-testid="event-hero-actions">
-            {upcoming && e.startSec > 0 && <RsvpButton event={event} size="md" />}
+          <div className="mt-3 grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap" data-testid="event-hero-actions">
+            {upcoming && e.startSec > 0 && <RsvpButton event={event} size="md" className="w-full justify-center sm:w-auto" />}
             {upcoming && e.startSec > 0 && <AddToCalendar input={icsInput} onIcs={addToCalendar} />}
             {!upcoming && e.recordingUrl && (
               <a
@@ -239,22 +242,24 @@ function AddToCalendar({ input, onIcs }: { input: IcsInput; onIcs: () => void })
   const outlook = outlookCalendarUrl(input);
   const btn = "inline-flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3.5 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-brand-accent/40 transition-colors";
   const primaryLabel = `Add to ${CALENDAR_LABEL[preferred]}`;
+  // A phone's half-width cell holds one word; the icon and the caret say the rest.
+  const shortLabel = "Calendar";
   const item = "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800";
   return (
-    <div className="relative inline-flex" data-testid="event-hero-add-to-calendar">
+    <div className="relative inline-flex w-full sm:w-auto" data-testid="event-hero-add-to-calendar">
       {preferred === "apple" ? (
-        <button type="button" onClick={onIcs} className={`${btn} rounded-l-xl`} data-testid="event-hero-calendar">
-          <CalendarPlus className="h-4 w-4" /> {primaryLabel}
+        <button type="button" onClick={onIcs} className={`${btn} flex-1 justify-center whitespace-nowrap rounded-l-xl sm:flex-initial`} data-testid="event-hero-calendar">
+          <CalendarPlus className="h-4 w-4" /> <span className="sm:hidden">{shortLabel}</span><span className="hidden sm:inline">{primaryLabel}</span>
         </button>
       ) : (
         <a
           href={preferred === "google" ? google : outlook}
           target="_blank"
           rel="noopener noreferrer"
-          className={`${btn} rounded-l-xl no-underline`}
+          className={`${btn} flex-1 justify-center whitespace-nowrap rounded-l-xl no-underline sm:flex-initial`}
           data-testid="event-hero-calendar"
         >
-          <CalendarPlus className="h-4 w-4" /> {primaryLabel}
+          <CalendarPlus className="h-4 w-4" /> <span className="sm:hidden">{shortLabel}</span><span className="hidden sm:inline">{primaryLabel}</span>
         </a>
       )}
       <button
