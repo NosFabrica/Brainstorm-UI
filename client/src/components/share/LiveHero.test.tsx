@@ -5,7 +5,7 @@
  * embedded player. Only when neither is possible does the hero hand the
  * viewer to zap.stream.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { __resetRecordingChecks } from "@/lib/liveStream";
 import { LiveHero } from "./LiveHero";
@@ -25,7 +25,11 @@ describe("LiveHero", () => {
     __resetRecordingChecks();
     // Recording hosts answer unless a test says otherwise.
     vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 200 })));
+    // The player starts on arrival: take the native-HLS path and let play() succeed.
+    vi.spyOn(HTMLMediaElement.prototype, "canPlayType").mockReturnValue("maybe");
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
   });
+  afterEach(() => vi.restoreAllMocks());
 
   it("a live Twitch stream plays in the page through Twitch's player", () => {
     render(<LiveHero event={stream([["status", "live"], ["streaming", "https://www.twitch.tv/cowboisim"]])} />);
@@ -38,10 +42,15 @@ describe("LiveHero", () => {
     expect(screen.getByText(/Open in zap.stream/)).toBeInTheDocument();
   });
 
-  it("a live HLS stream uses the video player", () => {
+  // Benjamin: a stream opened from the grid should arrive already playing,
+  // not behind a play button.
+  it("a live HLS stream uses the video player and starts playing on arrival", async () => {
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
     render(<LiveHero event={stream([["status", "live"], ["streaming", "https://api-uk.zap.stream/x/live.m3u8"]])} />);
     expect(screen.getByTestId("live-player")).toBeInTheDocument();
     expect(screen.queryByTestId("live-embed")).toBeNull();
+    await vi.waitFor(() => expect(play).toHaveBeenCalled());
+    expect(screen.queryByTestId("live-play")).toBeNull();
   });
 
   it("a live stream with nothing playable hands off to zap.stream", () => {

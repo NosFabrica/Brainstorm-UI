@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Play, Loader2 } from "lucide-react";
+import { Play, Loader2, VolumeX } from "lucide-react";
 import { usePipAwareAutoStop } from "@/lib/audioPlayer";
 
 /**
@@ -19,7 +19,10 @@ export function LiveVideoPlayer({
   src: string;
   poster?: string;
   onError?: () => void;
-  /** Start on mount — for a caller whose own tap already said "play". */
+  /** Start on mount — the stream page opened from a tile, or a caller whose
+   *  own tap already said "play". Browsers allow sound once the viewer has
+   *  clicked anywhere on the site; when they refuse, playback starts muted
+   *  with an Unmute button, and only a refusal of that too waits for a tap. */
   autoStart?: boolean;
   /** No border or rounding of its own, for a caller that already frames it. */
   frameless?: boolean;
@@ -29,6 +32,9 @@ export function LiveVideoPlayer({
   const hlsRef = useRef<any>(null);
   const [started, setStarted] = useState(false);
   const [loading, setLoading] = useState(false);
+  // Started muted because the browser refused sound (a cold deep link, no tap
+  // on the site yet); one Unmute button puts the sound back.
+  const [muted, setMuted] = useState(false);
 
   // Keep the HLS stream feeding a PiP window across navigation; it's torn down
   // when the viewer closes PiP (onClose), or on unmount when NOT in PiP.
@@ -63,12 +69,31 @@ export function LiveVideoPlayer({
         hls.loadSource(src);
         hls.attachMedia(video);
       }
-      await video.play().catch(() => {});
+      try {
+        await video.play();
+      } catch (err) {
+        if ((err as { name?: string })?.name !== "NotAllowedError") throw err;
+        // Sound refused: Twitch's answer — start muted, offer one Unmute.
+        video.muted = true;
+        try {
+          await video.play();
+          setMuted(true);
+        } catch {
+          video.muted = false;
+          setStarted(false);
+        }
+      }
       setLoading(false);
     } catch {
       setLoading(false);
       onError?.();
     }
+  };
+
+  const unmute = () => {
+    const video = videoRef.current;
+    if (video) video.muted = false;
+    setMuted(false);
   };
 
   return (
@@ -82,6 +107,16 @@ export function LiveVideoPlayer({
         data-testid="live-video"
         onError={() => { if (started) onError?.(); }}
       />
+      {started && muted && (
+        <button
+          type="button"
+          onClick={unmute}
+          className="absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full bg-white/95 px-3 py-1.5 text-xs font-semibold text-slate-900 shadow-md transition-transform hover:scale-105"
+          data-testid="live-unmute"
+        >
+          <VolumeX className="h-4 w-4" /> Unmute
+        </button>
+      )}
       {!started && (
         <button
           type="button"

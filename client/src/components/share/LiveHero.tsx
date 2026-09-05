@@ -82,7 +82,8 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
           />
         </div>
       ) : hls ? (
-        <LiveVideoPlayer src={streaming as string} poster={posterImage} onError={() => setFailed(true)} />
+        // Already playing on arrival, the way YouTube and Twitch open a stream.
+        <LiveVideoPlayer src={streaming as string} poster={posterImage} onError={() => setFailed(true)} autoStart />
       ) : replayEmbed ? (
         <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-slate-200 bg-black dark:border-slate-800">
           <iframe
@@ -95,10 +96,10 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
           />
         </div>
       ) : replayHls ? (
-        <LiveVideoPlayer src={recording as string} poster={posterImage} onError={() => setFailed(true)} />
+        <LiveVideoPlayer src={recording as string} poster={posterImage} onError={() => setFailed(true)} autoStart />
       ) : replayFile ? (
         <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-slate-200 bg-black dark:border-slate-800">
-          <video src={recording} poster={posterImage} controls playsInline className="absolute inset-0 h-full w-full object-contain" data-testid="replay-video" />
+          <video src={recording} poster={posterImage} controls autoPlay playsInline className="absolute inset-0 h-full w-full object-contain" data-testid="replay-video" />
         </div>
       ) : (
         <div className="relative flex aspect-video w-full items-center justify-center overflow-hidden rounded-2xl border border-slate-200 bg-slate-900 dark:border-slate-800" data-testid="live-state">
