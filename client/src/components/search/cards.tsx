@@ -140,7 +140,9 @@ function CardShell({
   /** Where the external link sits: the top corner (default) or the footer's
    *  right end, app-store style. Either way it lives OUTSIDE the card's own
    *  link — never an anchor inside an anchor — so the card body leaves it room. */
-  openInPlacement?: "corner" | "footer";
+  /** `corner-icon`: the favicon alone in a small pill, for cards whose corner
+   *  sits over a photo — the label becomes the hover title. */
+  openInPlacement?: "corner" | "footer" | "corner-icon";
   openInSlotTestId?: string;
   /** Fill the grid cell so a row of cards shares one height. */
   fill?: boolean;
@@ -150,6 +152,7 @@ function CardShell({
   testId?: string;
 }) {
   const footer = openInPlacement === "footer";
+  const iconOnly = openInPlacement === "corner-icon";
   return (
     <div
       className={`relative w-full rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 hover:bg-white dark:hover:bg-slate-900 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all duration-150 ${fill ? "h-full" : ""}`}
@@ -166,15 +169,19 @@ function CardShell({
             target="_blank"
             rel="noopener"
             onClick={(e) => e.stopPropagation()}
+            title={iconOnly ? openInLabel ?? "Open in…" : undefined}
+            aria-label={iconOnly ? openInLabel ?? "Open in…" : undefined}
             className={
               footer
                 ? "inline-flex items-center gap-1 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1 text-[11px] font-semibold text-brand-deep dark:text-brand-link hover:border-brand-accent/40 hover:bg-brand-primary/5 transition-colors"
-                : "inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium text-slate-400 dark:text-slate-500 hover:text-brand-deep dark:hover:text-brand-link hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                : iconOnly
+                  ? "flex h-6 w-6 items-center justify-center rounded-full bg-white/90 dark:bg-slate-900/90 shadow-sm ring-1 ring-black/5 dark:ring-white/10 hover:bg-white dark:hover:bg-slate-900 transition-colors"
+                  : "inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-medium text-slate-400 dark:text-slate-500 hover:text-brand-deep dark:hover:text-brand-link hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
             }
             data-testid={openInTestId}
           >
-            {openInHost ? <Favicon host={openInHost} className="h-3 w-3 shrink-0 rounded-sm" /> : <ExternalLink className="h-2.5 w-2.5" />}{" "}
-            {openInLabel ?? "Open in…"}
+            {openInHost ? <Favicon host={openInHost} className={iconOnly ? "h-3.5 w-3.5 shrink-0 rounded-sm" : "h-3 w-3 shrink-0 rounded-sm"} /> : <ExternalLink className={iconOnly ? "h-3 w-3 text-slate-500" : "h-2.5 w-2.5"} />}
+            {!iconOnly && <> {openInLabel ?? "Open in…"}</>}
           </a>
         </span>
       )}
@@ -863,6 +870,7 @@ export function ListingCard({
       openInUrl={l.shopUrl ?? undefined}
       openInLabel="Visit shop"
       openInHost={host}
+      openInPlacement="corner-icon"
       openInTestId={`listing-open-${event.id}`}
       fill
       testId={`listing-card-${event.id}`}

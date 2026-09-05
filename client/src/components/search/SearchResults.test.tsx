@@ -630,7 +630,14 @@ describe("SearchResults", () => {
     expect(card).toHaveTextContent("Barattolo");
     expect(card.querySelector("img")?.getAttribute("src")).toBe("https://img/1.jpg");
     // The seller's own page is the way out, in the corner.
-    expect(within(card).getByTestId("listing-open-l1").getAttribute("href")).toBe("https://barattolo.app/l/l1");
+    const open = within(card).getByTestId("listing-open-l1");
+    expect(open.getAttribute("href")).toBe("https://barattolo.app/l/l1");
+    // Over a photo the corner is the shop's favicon alone in a small pill;
+    // the words wait on hover. Text over busy photography was unreadable.
+    expect(open.textContent?.trim()).toBe("");
+    expect(open.getAttribute("title")).toBe("Visit shop");
+    expect(open.getAttribute("aria-label")).toBe("Visit shop");
+    expect(within(open).getByTestId("favicon")).toBeInTheDocument();
     expect(screen.getByTestId("listing-card-l2")).toBeInTheDocument();
     expect(screen.queryByTestId("listing-card-sold")).toBeNull();
     expect(screen.queryByTestId("listing-card-nop")).toBeNull();
