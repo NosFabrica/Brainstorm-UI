@@ -30,6 +30,7 @@ import { parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
 import { EventDateTile } from "@/components/share/EventDateTile";
 import { filterEventsByWhen } from "@/lib/eventFilters";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { EventRow } from "@/components/search/EventRow";
 import { fetchNipPage, fetchPersonSets, searchStream, suggestProfiles, type PersonSetMembership, type SearchHit, type SearchPov } from "@/services/search";
 
 /** One app in the rail: icon, name, summary. Reviews live on the app page —
@@ -481,27 +482,11 @@ export function KnowledgePanel({
           <div className={block} data-testid="topic-events">
             <CalendarDays className={gutter} aria-label="Upcoming events" />
             <ul className="min-w-0 flex-1 space-y-0.5">
-              {topicEvents.map((h) => {
-                const cal = parseCalendarEvent(h.event);
-                return (
-                  <li key={h.event.id}>
-                    <Link
-                      href={eventPath(h.event)}
-                      className="flex items-center gap-2 rounded-lg px-1.5 py-1 -mx-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
-                      data-testid={`topic-event-${h.event.id}`}
-                    >
-                      <EventDateTile startSec={cal.startSec} size="sm" />
-                      <span className="min-w-0">
-                        <span className="block truncate text-xs font-semibold text-slate-800 dark:text-slate-100">{cal.title}</span>
-                        <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400">
-                          {relativeEventTime(cal.startSec)}
-                          {cal.location ? ` · ${cal.location}` : ""}
-                        </span>
-                      </span>
-                    </Link>
-                  </li>
-                );
-              })}
+              {topicEvents.map((h) => (
+                <li key={h.event.id}>
+                  <EventRow hit={h} showHost={false} testIdPrefix="topic-event" />
+                </li>
+              ))}
               {/* The rest, as a quiet last row of the same list. */}
               <li>
                 <Link

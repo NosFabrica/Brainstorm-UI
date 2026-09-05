@@ -317,7 +317,7 @@ describe("the topic panel", () => {
     await screen.findByTestId("search-topic-panel");
     const DAY = 86_400;
     const cal = (id: string, title: string, start: number) =>
-      ({ event: { id, kind: 31923, pubkey: "c".repeat(64), created_at: NOW - 1000, content: "", sig: "", tags: [["d", id], ["title", title], ["start", String(start)], ["location", "Chicago, IL"]] } as NostrEvent, author: null, rank: null });
+      ({ event: { id, kind: 31923, pubkey: "c".repeat(64), created_at: NOW - 1000, content: "", sig: "", tags: [["d", id], ["title", title], ["start", String(start)], ["location", "200 N La Salle St, Chicago, IL, United States"], ...(id === "ev-soon" ? [["image", "https://img/soon.jpg"]] : [])] } as NostrEvent, author: null, rank: null });
     eventsProbe.emit({
       hits: [
         cal("ev-far", "Chicago Bitcoin Conference", NOW + 40 * DAY),
@@ -335,7 +335,11 @@ describe("the topic panel", () => {
     expect(block).not.toHaveTextContent("July");
     const soon = screen.getByTestId("topic-event-ev-soon");
     expect(soon).toHaveTextContent("Chicago Bitcoin Meetup");
+    // Luma's row: the time and the town, not the postal address; the cover as a square.
+    expect(soon).toHaveTextContent(/\d{1,2}:\d{2}|All day/);
     expect(soon).toHaveTextContent("Chicago, IL");
+    expect(soon).not.toHaveTextContent("La Salle");
+    expect(within(soon).getByTestId("cover-topic-event-ev-soon").getAttribute("src")).toBe("https://img/soon.jpg");
     expect(soon.getAttribute("href")).toMatch(/^\/e\//);
     expect(screen.getByTestId("topic-events-more").getAttribute("href")).toBe("/?q=chicago&t=events");
   });

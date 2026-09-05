@@ -107,6 +107,7 @@ export function ClusterRows({
   query,
   engagementOf,
   showType = true,
+  renderRow,
 }: {
   cluster: HitCluster;
   scoreOf: (pk: string) => number | null | undefined;
@@ -115,19 +116,20 @@ export function ClusterRows({
   engagementOf?: (id: string) => { zaps: number; replies: number } | null;
   /** Say the kind on each row only where a section mixes kinds. */
   showType?: boolean;
+  /** A different row for this kind of thing — an event row, say. */
+  renderRow?: (hit: SearchHit) => React.ReactNode;
 }) {
   const [expanded, setExpanded] = useState(false);
   const authorName = cluster.primary.author ? getDisplayLabel(cluster.primary.author) : "this author";
+  const row = (h: SearchHit) =>
+    renderRow ? (
+      renderRow(h)
+    ) : (
+      <SerpRow event={h.event} author={h.author} score={scoreOf(h.event.pubkey)} query={query} engagement={engagementOf?.(h.event.id) ?? undefined} showType={showType} />
+    );
   return (
     <div>
-      <SerpRow
-        event={cluster.primary.event}
-        author={cluster.primary.author}
-        score={scoreOf(cluster.primary.event.pubkey)}
-        query={query}
-        engagement={engagementOf?.(cluster.primary.event.id) ?? undefined}
-        showType={showType}
-      />
+      {row(cluster.primary)}
       {cluster.others.length > 0 && !expanded && (
         <button
           type="button"
@@ -138,18 +140,7 @@ export function ClusterRows({
           +{cluster.others.length} more from {authorName}
         </button>
       )}
-      {expanded &&
-        cluster.others.map((h) => (
-          <SerpRow
-            key={h.event.id}
-            event={h.event}
-            author={h.author}
-            score={scoreOf(h.event.pubkey)}
-            query={query}
-            engagement={engagementOf?.(h.event.id) ?? undefined}
-            showType={showType}
-          />
-        ))}
+      {expanded && cluster.others.map((h) => <div key={h.event.id}>{row(h)}</div>)}
     </div>
   );
 }

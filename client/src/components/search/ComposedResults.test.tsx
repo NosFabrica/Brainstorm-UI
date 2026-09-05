@@ -21,6 +21,7 @@ vi.mock("@/services/search", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/search")>();
   return {
     ...actual,
+    fetchEventRsvps: (addresses: string[]) => eventRsvpsMock(addresses),
     searchStream: (query: string, params: SearchParams, onSnapshot: (s: SearchSnapshot) => void) => {
       const call: StreamCall = {
         query,
@@ -38,6 +39,7 @@ vi.mock("@/services/search", async (importOriginal) => {
   };
 });
 const scoreOfMock = vi.fn<(pk: string) => number | null | undefined>(() => 0.8);
+const eventRsvpsMock = vi.fn<(addresses: string[]) => Promise<Map<string, { going: number; faces: string[] }>>>(() => Promise.resolve(new Map()));
 vi.mock("@/hooks/useAuthorScores", () => ({
   useAuthorScores: () => (pk: string) => scoreOfMock(pk),
 }));
@@ -424,7 +426,8 @@ describe("ComposedResults", () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     const nowSec = Math.floor(Date.now() / 1000);
     const cal = (id: string, pk: string, title: string, start: number) =>
-      hitOf(ev(id, 31923, pk, "", [["d", id], ["title", title], ["start", String(start)]]), "club");
+      hitOf(ev(id, 31923, pk, "", [["d", id], ["title", title], ["start", String(start)], ["location", "The Baltic Fleet, 33A Wapping, Liverpool, UK"], ["image", `https://img/${id}.jpg`]]), "club");
+    eventRsvpsMock.mockResolvedValue(new Map([["31923:" + "3".repeat(64) + ":soon", { going: 2, faces: ["7".repeat(64), "8".repeat(64)] }]]));
     sectionCall("events").emit({
       hits: [
         cal("far", "1".repeat(64), "Liverpool Bitcoin Conference", nowSec + 30 * 86_400),
@@ -440,8 +443,16 @@ describe("ComposedResults", () => {
       timeMs: 100,
     });
     const section = await screen.findByTestId("serp-section-happening");
-    const rows = [...section.querySelectorAll('[data-testid^="serp-row-"]')].map((r) => r.getAttribute("data-testid"));
-    expect(rows).toEqual(["serp-row-soon", "serp-row-far", "serp-row-stream"]);
+    const rows = [...section.querySelectorAll('[data-testid^="event-row-"], [data-testid^="serp-row-"]')].map((r) => r.getAttribute("data-testid"));
+    expect(rows).toEqual(["event-row-soon", "event-row-far", "serp-row-stream"]);
+    // Luma's row: the time and the town, the host, the cover, who is going.
+    const soon = screen.getByTestId("event-row-soon");
+    expect(soon).toHaveTextContent(/\d{1,2}:\d{2}|All day/);
+    expect(soon).toHaveTextContent("The Baltic Fleet, Liverpool");
+    expect(soon).not.toHaveTextContent("33A Wapping");
+    expect(soon).toHaveTextContent(/By\s*club/);
+    expect(within(soon).getByTestId("cover-event-row-soon").getAttribute("src")).toBe("https://img/soon.jpg");
+    expect(await within(soon).findByText(/2 going/)).toBeInTheDocument();
   });
 
   it("collapses the Happening section's recurring events behind a +N chip", async () => {
@@ -457,10 +468,10 @@ describe("ComposedResults", () => {
       timeMs: 200,
     });
     const section = await screen.findByTestId("serp-section-happening");
-    expect(section.querySelectorAll("[data-testid^='serp-row-']")).toHaveLength(1);
+    expect(section.querySelectorAll("[data-testid^='event-row-']")).toHaveLength(1);
 
     fireEvent.click(screen.getByTestId("serp-expand-m1"));
-    expect(section.querySelectorAll("[data-testid^='serp-row-']")).toHaveLength(3);
+    expect(section.querySelectorAll("[data-testid^='event-row-']")).toHaveLength(3);
   });
 
   // Music discovery through search: a query that matches native tracks gets a

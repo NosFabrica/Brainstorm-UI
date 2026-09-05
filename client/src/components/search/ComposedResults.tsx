@@ -6,7 +6,7 @@
  * lives); Articles keep best-match; Happening collapses recurring events;
  * Media rides a compact row. Sections with nothing to show don't render.
  */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState  } from "react";
 import { ListingCard, TrackCard, WavlakeSongCard } from "@/components/search/cards";
 import { isSellable, parseListing } from "@/lib/listing";
 import { noteTitle } from "@/lib/noteTitle";
@@ -23,6 +23,8 @@ import { SerpRow } from "@/components/search/SerpRow";
 import { ArticlesBento, MediaTiles, TopStories, hasCover, hasVisual, pickTopStories } from "@/components/search/RichSections";
 import { collapseHits } from "@/lib/searchCollapse";
 import { ClusterRows, Section, SectionSkeleton, mergeSnapshots, useSectionStream } from "@/components/search/sections";
+import { EventRow } from "@/components/search/EventRow";
+import { fetchEventRsvps, type EventRsvps } from "@/services/search";
 import { isFeedAccount } from "@/lib/feedAccount";
 import { tierForScore01 } from "@/lib/verificationTier";
 import type { HitCluster } from "@/lib/searchCollapse";
@@ -230,6 +232,28 @@ export function ComposedResults({
     () => [...coveredArticles.slice(4), ...articleClusters.filter((c) => !hasCover(c.primary.event))],
     [articleClusters, coveredArticles],
   );
+  // Who is going to what Happening shows — one request for the section.
+  const [happeningRsvps, setHappeningRsvps] = useState<Map<string, EventRsvps>>(new Map());
+  const calendarAddr = (e: { kind: number; pubkey: string; tags: string[][] }) => `${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`;
+  const happeningEventAddrs = useMemo(
+    () => (happeningF ? happeningF.hits.filter((h) => h.event.kind === 31922 || h.event.kind === 31923).map((h) => calendarAddr(h.event)) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [happeningF],
+  );
+  const happeningAddrKey = happeningEventAddrs.join(",");
+  useEffect(() => {
+    if (!happeningAddrKey) {
+      setHappeningRsvps(new Map());
+      return;
+    }
+    let alive = true;
+    void fetchEventRsvps(happeningAddrKey.split(",")).then((m) => {
+      if (alive) setHappeningRsvps(m);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [happeningAddrKey]);
   const happeningClusters = useMemo(
     () => (happeningF ? collapseHits(happeningF.hits, undefined, { maxPerAuthor: 2 }) : []),
     [happeningF],
@@ -366,7 +390,17 @@ export function ComposedResults({
         <Section id="happening" kicker="Happening" tab="events" onTabChange={onTabChange}>
           <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
             {happeningClusters.map((c) => (
-              <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} />
+              <ClusterRows
+                key={c.primary.event.id}
+                cluster={c}
+                scoreOf={scoreOf}
+                query={query}
+                renderRow={
+                  c.primary.event.kind === 31922 || c.primary.event.kind === 31923
+                    ? (h) => <EventRow hit={h} score={scoreOf(h.event.pubkey)} going={happeningRsvps.get(calendarAddr(h.event))?.going ?? 0} />
+                    : undefined
+                }
+              />
             ))}
           </div>
         </Section>

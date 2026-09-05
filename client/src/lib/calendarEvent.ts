@@ -99,3 +99,28 @@ export function formatEventTime(startSec: number, isDateOnly: boolean): string {
   if (isDateOnly) return "All day";
   return new Date(startSec * 1000).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
+
+const COUNTRY = /^(usa|u\.s\.a\.|united states( of america)?|us|uk|united kingdom|england|scotland|wales|canada|germany|deutschland|france|spain|españa|italy|italia|netherlands|nederland|switzerland|schweiz|austria|österreich|australia|mexico|méxico|brazil|brasil|portugal|slovakia|slovensko|czechia|czech republic|česko|poland|polska|ireland|belgium|sweden|norway|denmark|finland|japan|argentina|el salvador|south africa|india|nigeria)$/i;
+const STREET = /^\d|\b(st|street|ave|avenue|rd|road|blvd|boulevard|dr|drive|ln|lane|way|hwy|highway|pl|place|sq|square)\.?$/i;
+
+/**
+ * The venue and the town, the way Luma names a place — not the postal
+ * address. "235 Robert Parker Coffin Road, Long Grove, IL, USA" → "Long
+ * Grove, IL"; "Juniata Brewing Company, 1102 Susquehanna Ave, Huntingdon, PA
+ * 16652" → "Juniata Brewing Company, Huntingdon". Streets, postcodes and
+ * countries go; what is left is the venue (when there is more after it) and
+ * the town.
+ */
+export function shortPlace(location: string | undefined | null): string {
+  if (!location) return "";
+  const parts: string[] = [];
+  for (const raw of location.split(/,\s*/)) {
+    let part = raw.trim().replace(/\s+\d{4,}(?:-\d+)?$/, "").trim(); // "PA 16652" → "PA"
+    if (!part || /^\d+$/.test(part) || COUNTRY.test(part) || STREET.test(part)) continue;
+    if (parts[parts.length - 1]?.toLowerCase() === part.toLowerCase()) continue;
+    parts.push(part);
+  }
+  if (parts.length === 0) return location.split(/,\s*/)[0]?.trim() ?? location;
+  if (parts.length >= 3) return `${parts[0]}, ${parts[1]}`;
+  return parts.join(", ");
+}
