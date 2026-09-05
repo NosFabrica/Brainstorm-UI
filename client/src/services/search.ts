@@ -1188,6 +1188,57 @@ export function fetchRepoByAddress(address: string, timeoutMs = 5000): Promise<N
   });
 }
 
+export interface EventRsvps {
+  /** People whose latest answer is "accepted". */
+  going: number;
+  /** Their pubkeys, newest answer first — the faces on the card. */
+  faces: string[];
+}
+
+/**
+ * Who is going, for a page of calendar events: NIP-52 RSVPs (kind 31925)
+ * name their event by coordinate and carry a status. One request per page;
+ * a person's newest answer is the one that counts.
+ */
+export function fetchEventRsvps(addresses: string[], timeoutMs = 5000): Promise<Map<string, EventRsvps>> {
+  return new Promise((resolve) => {
+    const out = new Map<string, EventRsvps>();
+    const relay = searchRelay();
+    if (!relay || addresses.length === 0) return resolve(out);
+    const wanted = new Set(addresses);
+    const latest = new Map<string, Map<string, { status: string; at: number }>>();
+    const sub = relay
+      .req({ kinds: [31925], "#a": addresses, search: "include:spam", limit: Math.max(500, addresses.length * 20) })
+      .subscribe((msg: { type: string; event?: NostrEvent }) => {
+        if (msg.type === "EVENT" && msg.event) {
+          const ev = msg.event;
+          const addr = ev.tags.find((t) => t[0] === "a" && wanted.has(t[1]))?.[1];
+          if (!addr) return;
+          const status = (ev.tags.find((t) => t[0] === "status")?.[1] ?? "").toLowerCase();
+          const people = latest.get(addr) ?? new Map();
+          const known = people.get(ev.pubkey);
+          if (!known || ev.created_at > known.at) people.set(ev.pubkey, { status, at: ev.created_at });
+          latest.set(addr, people);
+        } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
+          finish();
+        }
+      });
+    const timer = setTimeout(finish, timeoutMs);
+    let done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      sub.unsubscribe();
+      for (const [addr, people] of latest) {
+        const going = [...people.entries()].filter(([, v]) => v.status === "accepted").sort((a, b) => b[1].at - a[1].at);
+        if (going.length) out.set(addr, { going: going.length, faces: going.slice(0, 6).map(([pk]) => pk) });
+      }
+      resolve(out);
+    }
+  });
+}
+
 /**
  * Cheap kind-0 typeahead: resolves at EOSE or the deadline with whatever
  * arrived — never rejects (a silent suggest beats a broken one).

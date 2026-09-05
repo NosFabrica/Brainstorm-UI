@@ -92,3 +92,10 @@ export function relativeEventTime(startSec: number): string {
   else phrase = unit(Math.round(abs / 31_536_000), "year");
   return diff >= 0 ? `In ${phrase}` : `${phrase} ago`;
 }
+
+/** The clock time an event starts — "7:00 PM" — or "All day" for a date-only event. */
+export function formatEventTime(startSec: number, isDateOnly: boolean): string {
+  if (!startSec) return "";
+  if (isDateOnly) return "All day";
+  return new Date(startSec * 1000).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}

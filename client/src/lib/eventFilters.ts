@@ -11,14 +11,37 @@
 import type { SearchHit } from "@/services/search";
 import { eventEndSec, parseCalendarEvent } from "@/lib/calendarEvent";
 
-export type EventWhen = "upcoming" | "week" | "month" | "past" | "all";
+export type EventWhen = "upcoming" | "today" | "weekend" | "week" | "month" | "past" | "all";
 
 export const EVENT_WHEN_LABELS: Record<EventWhen, string> = {
   upcoming: "Upcoming",
+  today: "Today",
+  weekend: "This weekend",
   week: "This week",
   month: "This month",
   past: "Past",
   all: "All",
+};
+
+/** The strip's order — Luma's quick picks first, then the wider windows. */
+export const EVENT_WHEN_ORDER: EventWhen[] = ["upcoming", "today", "weekend", "week", "month", "past", "all"];
+
+const endOfToday = (now: number): number => {
+  const d = new Date(now * 1000);
+  d.setHours(24, 0, 0, 0);
+  return Math.floor(d.getTime() / 1000);
+};
+
+/** Saturday 00:00 to Monday 00:00 of the weekend we are in, or the coming one. */
+const weekendWindow = (now: number): { from: number; to: number } => {
+  const d = new Date(now * 1000);
+  const dow = d.getDay(); // 0 Sun … 6 Sat
+  const sat = new Date(d);
+  sat.setDate(d.getDate() + (dow === 6 ? 0 : dow === 0 ? -1 : 6 - dow));
+  sat.setHours(0, 0, 0, 0);
+  const mon = new Date(sat);
+  mon.setDate(sat.getDate() + 2);
+  return { from: Math.floor(sat.getTime() / 1000), to: Math.floor(mon.getTime() / 1000) };
 };
 
 const DAY = 86_400;
@@ -36,6 +59,12 @@ function inWindow(span: { start: number; end: number }, when: EventWhen, now: nu
   switch (when) {
     case "upcoming":
       return on;
+    case "today":
+      return on && span.start < endOfToday(now);
+    case "weekend": {
+      const w = weekendWindow(now);
+      return on && span.start >= w.from && span.start < w.to;
+    }
     case "week":
       return on && span.start < now + 7 * DAY;
     case "month":
@@ -60,5 +89,5 @@ export function filterEventsByWhen(hits: SearchHit[], when: EventWhen, now: numb
 export function eventWhenCounts(hits: SearchHit[], now: number = Math.floor(Date.now() / 1000)): Record<EventWhen, number> {
   const spans = hits.map(spanOf);
   const count = (when: EventWhen) => spans.filter((s) => inWindow(s, when, now)).length;
-  return { upcoming: count("upcoming"), week: count("week"), month: count("month"), past: count("past"), all: count("all") };
+  return { upcoming: count("upcoming"), today: count("today"), weekend: count("weekend"), week: count("week"), month: count("month"), past: count("past"), all: count("all") };
 }

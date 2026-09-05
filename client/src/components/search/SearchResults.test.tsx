@@ -39,8 +39,11 @@ vi.mock("@/services/search", async (importOriginal) => {
     fetchRepoCounts: (...args: unknown[]) => repoCountsMock(...(args as [])),
     fetchGitStatuses: (ids: string[]) => gitStatusesMock(ids),
     fetchGitCommentCounts: (ids: string[]) => gitCommentsMock(ids),
+    fetchEventRsvps: (addresses: string[]) => eventRsvpsMock(addresses),
   };
 });
+// Who is going, per event address — nobody unless a test says otherwise.
+const eventRsvpsMock = vi.fn<(addresses: string[]) => Promise<Map<string, { going: number; faces: string[] }>>>(() => Promise.resolve(new Map()));
 const gitCommentsMock = vi.fn<(ids: string[]) => Promise<Map<string, number>>>(() => Promise.resolve(new Map()));
 // Issue / patch states for the Repos tab — none unless a test says otherwise.
 const gitStatusesMock = vi.fn<(ids: string[]) => Promise<Map<string, { kind: number; at: number }>>>(() => Promise.resolve(new Map()));
@@ -415,12 +418,35 @@ describe("SearchResults", () => {
       expect(within(facets).getByTestId("event-facet-upcoming")).toHaveTextContent("Upcoming 2");
       expect(within(facets).getByTestId("event-facet-upcoming").getAttribute("aria-pressed")).toBe("true");
       expect(within(facets).getByTestId("event-facet-past")).toHaveTextContent("Past 1");
-      // The card reads as an event: a date tile, the title, when, where.
+      // The card reads as an event: the start time, the title, who hosts, where.
       const tonight = screen.getByTestId("event-card-e-tonight");
-      expect(within(tonight).getByTestId("event-date-tile")).toBeInTheDocument();
+      expect(within(tonight).getByTestId("event-time-e-tonight")).toHaveTextContent(/\d{1,2}:\d{2}/);
       expect(tonight).toHaveTextContent("Bitcoin Liverpool Meetup");
-      expect(tonight).toHaveTextContent(/Today|Tomorrow|In \d+ hours/);
       expect(tonight).toHaveTextContent("Liverpool, UK");
+      expect(tonight).toHaveTextContent(/By\s*club/);
+    });
+
+    // Luma's list is a timeline: a header per day, cards under it that lead
+    // with the start time — the date is said once — and the guests who said
+    // they are going, as faces with a count.
+    it("is a timeline: a header per day with the date said once, cards led by their time, and who is going", async () => {
+      setUrlTab("events");
+      const addr = "31923:" + "c".repeat(64) + ":e-tonight";
+      eventRsvpsMock.mockResolvedValue(new Map([[addr, { going: 3, faces: ["1".repeat(64), "2".repeat(64), "3".repeat(64)] }]]));
+      render(<SearchResults query="liverpool" pov="nosfabrica" />);
+      emitEvents();
+      await screen.findByTestId("event-card-e-tonight");
+      const days = screen.getAllByTestId(/^event-day-/);
+      expect(days).toHaveLength(2);
+      expect(days[0]).toHaveTextContent(/Today|Tomorrow/);
+      expect(days[1]).toHaveTextContent(new Date((nowSec + 20 * DAY) * 1000).toLocaleDateString(undefined, { month: "short" }));
+      // The date is in the header, not repeated on every card.
+      expect(within(screen.getByTestId("event-card-e-tonight")).queryByTestId("event-date-tile")).toBeNull();
+      expect(eventRsvpsMock).toHaveBeenCalledWith(expect.arrayContaining([addr]));
+      const going = await within(screen.getByTestId("event-card-e-tonight")).findByTestId("event-going-e-tonight");
+      expect(going).toHaveTextContent("3 going");
+      expect(going.querySelectorAll('[data-testid^="event-going-face-"]')).toHaveLength(3);
+      expect(within(screen.getByTestId("event-card-e-next-month")).queryByTestId("event-going-e-next-month")).toBeNull();
     });
 
     it("Past flips to what already happened, newest first", async () => {

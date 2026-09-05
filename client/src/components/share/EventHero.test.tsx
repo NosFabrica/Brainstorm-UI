@@ -7,11 +7,22 @@
  * favicons; the first link earns a metadata card when the proxy knows it.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
 const unfurlMock = vi.fn<(url: string) => Promise<{ title: string | null; description: string | null; image: string | null; siteName: string | null } | null>>(() => Promise.resolve(null));
 vi.mock("@/services/unfurl", () => ({ fetchUnfurl: (url: string) => unfurlMock(url) }));
+const profileMapMock = vi.fn<(pks: string[]) => Promise<Map<string, { name?: string; display_name?: string; picture?: string }>>>(() => Promise.resolve(new Map()));
+vi.mock("@/services/nostr", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/services/nostr")>()),
+  fetchProfileMap: (pks: string[]) => profileMapMock(pks),
+}));
+const rsvpsMock = vi.fn<(addresses: string[]) => Promise<Map<string, { going: number; faces: string[] }>>>(() => Promise.resolve(new Map()));
+vi.mock("@/services/search", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/services/search")>()),
+  fetchEventRsvps: (addresses: string[]) => rsvpsMock(addresses),
+}));
+vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.7 }));
 
 import { EventHero } from "./EventHero";
 
@@ -35,6 +46,8 @@ const v4v = {
 beforeEach(() => {
   vi.clearAllMocks();
   unfurlMock.mockImplementation(() => Promise.resolve(null));
+  profileMapMock.mockResolvedValue(new Map());
+  rsvpsMock.mockResolvedValue(new Map());
 });
 
 describe("EventHero", () => {
@@ -72,5 +85,39 @@ describe("EventHero", () => {
     render(<EventHero event={past} />);
     expect(screen.queryByTestId("event-rsvp")).toBeNull();
     expect(screen.getByTestId("event-watch-recording").getAttribute("href")).toBe("https://youtu.be/abc12345678");
+  });
+
+  // Luma's page: the cover beside the facts, the host named, the date tile
+  // with start, end and zone, who is going, and a calendar file of the
+  // reader's own — no vendor between them and their calendar.
+  it("lays out like Luma: host named, start to end with the zone, guests as faces, and Add to calendar hands over an .ics", async () => {
+    profileMapMock.mockImplementation(async (pks) => new Map(pks.map((pk) => [pk, pk === v4v.pubkey ? { name: "v4v", display_name: "V4V Chicago" } : { name: `guest-${pk.slice(0, 2)}` }])));
+    const addr = `31923:${v4v.pubkey}:v4v`;
+    rsvpsMock.mockResolvedValue(new Map([[addr, { going: 3, faces: ["1".repeat(64), "2".repeat(64), "3".repeat(64)] }]]));
+    const timed = { ...v4v, tags: [...v4v.tags, ["end", String(NOW + 10 * 86_400 + 2 * 3600)], ["start_tzid", "America/Chicago"]] };
+    const createObjectURL = vi.fn(() => "blob:ics");
+    const revokeObjectURL = vi.fn();
+    Object.assign(URL, { createObjectURL, revokeObjectURL });
+    const clicks: string[] = [];
+    const origClick = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function () { clicks.push(this.getAttribute("download") ?? ""); };
+    try {
+      render(<EventHero event={timed} />);
+      expect(await screen.findByTestId("event-hero-host")).toHaveTextContent("V4V Chicago");
+      const when = screen.getByTestId("event-hero-when");
+      expect(when).toHaveTextContent(/\d{1,2}:\d{2}/); // a start time
+      expect(when).toHaveTextContent(/–|to/); // and an end
+      expect(when).toHaveTextContent("Chicago");
+      const guests = await screen.findByTestId("event-hero-guests");
+      expect(guests).toHaveTextContent("3 going");
+      expect(guests.querySelectorAll('[data-testid^="event-hero-guest-"]')).toHaveLength(3);
+      expect(rsvpsMock).toHaveBeenCalledWith([addr]);
+      fireEvent.click(screen.getByTestId("event-hero-ics"));
+      expect(createObjectURL).toHaveBeenCalled();
+      expect(clicks[0]).toMatch(/\.ics$/);
+      expect(clicks[0]).toMatch(/v4v/i);
+    } finally {
+      HTMLAnchorElement.prototype.click = origClick;
+    }
   });
 });

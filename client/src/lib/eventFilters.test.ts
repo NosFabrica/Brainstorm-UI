@@ -73,6 +73,33 @@ describe("filterEventsByWhen", () => {
   });
 
   it("counts each facet for the chips", () => {
-    expect(eventWhenCounts(hits, now)).toEqual({ upcoming: 4, week: 2, month: 3, past: 2, all: 7 });
+    expect(eventWhenCounts(hits, now)).toEqual({
+      today: expect.any(Number),
+      weekend: expect.any(Number), upcoming: 4, week: 2, month: 3, past: 2, all: 7 });
+  });
+
+  // Luma's quick picks: what is on today, and what is on this weekend.
+  it("today: what is still on before midnight; weekend: Saturday and Sunday, this or the coming one", () => {
+    const local = new Date(now * 1000);
+    const dow = local.getDay(); // 0 Sun … 6 Sat
+    const daysToSat = dow === 6 ? 0 : dow === 0 ? -1 : 6 - dow; // the weekend we are in, or the next
+    const satNoon = new Date(local); satNoon.setDate(local.getDate() + daysToSat); satNoon.setHours(12, 0, 0, 0);
+    const sunNoon = new Date(satNoon); sunNoon.setDate(satNoon.getDate() + 1);
+    const laterTonight = new Date(local); laterTonight.setHours(23, 30, 0, 0);
+    const extra = [
+      hit("laterTonight", 31923, String(Math.floor(laterTonight.getTime() / 1000))),
+      hit("satNoon", 31923, String(Math.floor(satNoon.getTime() / 1000))),
+      hit("sunNoon", 31923, String(Math.floor(sunNoon.getTime() / 1000))),
+    ];
+    const todays = filterEventsByWhen([...hits, ...extra], "today", now).map((h) => h.event.id);
+    expect(todays).toContain("laterTonight");
+    expect(todays).not.toContain("nextWeek");
+    expect(todays).not.toContain("yesterday");
+    const weekend = filterEventsByWhen([...hits, ...extra], "weekend", now).map((h) => h.event.id);
+    expect(weekend).toEqual(expect.arrayContaining(["satNoon", "sunNoon"]));
+    expect(weekend).not.toContain("in6Weeks");
+    const counts = eventWhenCounts([...hits, ...extra], now);
+    expect(counts.today).toBeGreaterThanOrEqual(1);
+    expect(counts.weekend).toBeGreaterThanOrEqual(2);
   });
 });

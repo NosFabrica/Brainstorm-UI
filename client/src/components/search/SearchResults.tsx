@@ -36,10 +36,12 @@ import {
   type SearchTab,
 } from "@/services/search";
 
-import { fetchGitCommentCounts, fetchGitStatuses } from "@/services/search";
+import { fetchEventRsvps, fetchGitCommentCounts, fetchGitStatuses, type EventRsvps } from "@/services/search";
 import { GIT_STATE_LABEL, foldForks, gitLabelsOf, gitStateOf, isGitItem, peopleBeforeAgents, type GitState } from "@/lib/gitStatus";
 import { AppCard, EventCard, LiveCard, ListCard, MediaCard, RepoCard, platformWords, TrackCard, WavlakeSongCard, mediaUrlOf, ListingCard } from "@/components/search/cards";
-import { EVENT_WHEN_LABELS, eventWhenCounts, filterEventsByWhen, type EventWhen } from "@/lib/eventFilters";
+import { EVENT_WHEN_LABELS, EVENT_WHEN_ORDER, eventWhenCounts, filterEventsByWhen, type EventWhen } from "@/lib/eventFilters";
+import { EventDateTile } from "@/components/share/EventDateTile";
+import { parseCalendarEvent as parseCal, relativeEventTime as relativeDay } from "@/lib/calendarEvent";
 import { parseTrack } from "@/lib/trackEvent";
 import { isSellable, parseListing } from "@/lib/listing";
 import { fetchRecentByKinds } from "@/services/nostr";
@@ -682,6 +684,30 @@ export function SearchResults({
   const [repoState, setRepoState] = useState<GitState | null>(null);
   const [gitStatuses, setGitStatuses] = useState<Map<string, { kind: number; at: number }>>(new Map());
   const [gitComments, setGitComments] = useState<Map<string, number>>(new Map());
+  // Events tab: who is going — one request per page, keyed by event coordinate.
+  const [eventRsvps, setEventRsvps] = useState<Map<string, EventRsvps>>(new Map());
+  const eventAddresses = useMemo(
+    () =>
+      tab === "events"
+        ? hits.filter((h) => h.event.kind === 31922 || h.event.kind === 31923).map((h) => `${h.event.kind}:${h.event.pubkey}:${h.event.tags.find((t) => t[0] === "d")?.[1] ?? ""}`)
+        : [],
+    [hits, tab],
+  );
+  const eventAddrKey = eventAddresses.join(",");
+  useEffect(() => {
+    if (!eventAddrKey) {
+      setEventRsvps(new Map());
+      return;
+    }
+    let alive = true;
+    void fetchEventRsvps(eventAddrKey.split(",")).then((m) => {
+      if (alive) setEventRsvps(m);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [eventAddrKey]);
+  const rsvpsOf = (e: NostrEvent) => eventRsvps.get(`${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`);
   const gitItemIds = useMemo(
     () => (tab === "repos" ? hits.filter((h) => isGitItem(h.event.kind)).map((h) => h.event.id) : []),
     [hits, tab],
@@ -850,6 +876,27 @@ export function SearchResults({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hits, tab, appPlatform, appCategory, appLicense, shopCategory, repoState, repoLabel, gitStatuses, appCategoryTags, clustered, expandedClusters, effectiveWhen, scoreOf]);
 
+  // The Events tab is a timeline: the first card of each day carries a header
+  // that says the date once — "Today · Fri, Sep 4" — so cards can lead with
+  // their time. Undated events gather at the end.
+  const eventDayHeaders = useMemo(() => {
+    const out = new Map<string, { key: string; startSec: number; label: string }>();
+    if (tab !== "events") return out;
+    let last: string | null = null;
+    for (const row of displayHits) {
+      const cal = parseCal(row.hit.event);
+      const d = cal.startSec ? new Date(cal.startSec * 1000) : null;
+      const key = d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` : "tba";
+      if (key === last) continue;
+      last = key;
+      const rel = d ? relativeDay(cal.startSec) : "";
+      const dayWord = rel === "Today" || rel === "Tomorrow" || rel === "Yesterday" ? rel : null;
+      const long = d ? d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "";
+      out.set(row.hit.event.id, { key, startSec: cal.startSec, label: d ? (dayWord ? `${dayWord} · ${long}` : long) : "Date to be announced" });
+    }
+    return out;
+  }, [displayHits, tab]);
+
   // On the Music tab the results are the playlist: a track that ends hands
   // off to the next one shown, the way a queue does.
   useEffect(() => {
@@ -985,7 +1032,7 @@ export function SearchResults({
           {tab === "events" && eventCounts && (
             <div className="mb-2.5">
               <FacetRow testId="event-facets">
-                {(["upcoming", "week", "month", "past", "all"] as EventWhen[]).map((when) => (
+                {EVENT_WHEN_ORDER.filter((when) => !((when === "today" || when === "weekend") && eventCounts[when] === 0)).map((when) => (
                   <button
                     key={when}
                     type="button"
@@ -1194,8 +1241,20 @@ export function SearchResults({
                 ) : null;
               // Grid tabs (Apps, Repos) stretch every cell so a row of cards
               // shares one height; list tabs are unaffected by h-full.
+              const day = eventDayHeaders.get(event.id);
               const wrap = (card: React.ReactNode) => (
                 <div key={event.id} className="h-full">
+                  {day && (
+                    <div className={`flex items-center gap-2.5 ${eventDayHeaders.keys().next().value === event.id ? "" : "pt-3"} pb-1.5`} data-testid={`event-day-${day.key}`}>
+                      {day.startSec > 0 ? (
+                        <EventDateTile startSec={day.startSec} size="sm" testId="day-header-tile" />
+                      ) : (
+                        <span className="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600" aria-hidden="true" />
+                      )}
+                      <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{day.label}</span>
+                      <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" aria-hidden="true" />
+                    </div>
+                  )}
                   {card}
                   {chip}
                 </div>
@@ -1240,7 +1299,10 @@ export function SearchResults({
                 );
               }
               const typed = { event, author: hit.author, score: scoreOf(event.pubkey) };
-              if (EVENT_KINDS.has(event.kind)) return wrap(<EventCard {...typed} />);
+              if (EVENT_KINDS.has(event.kind)) {
+                const r = rsvpsOf(event);
+                return wrap(<EventCard {...typed} going={r?.going ?? 0} faces={r?.faces ?? []} />);
+              }
               if (MUSIC_KINDS.has(event.kind)) return wrap(<TrackCard {...typed} />);
               if (SHOP_KINDS.has(event.kind)) return wrap(<ListingCard {...typed} />);
               if (LIVE_KINDS.has(event.kind)) return wrap(<LiveCard {...typed} />);

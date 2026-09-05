@@ -67,6 +67,7 @@ import {
   fetchGitCommentCounts,
   fetchRepoForks,
   fetchRepoByAddress,
+  fetchEventRsvps,
   searchStream,
   suggestProfiles,
   kindsForTab,
@@ -913,6 +914,40 @@ describe("fetchRepoByAddress", () => {
     subject.next(EOSE);
     expect((await pending)?.id).toBe("2".repeat(64));
     expect(await fetchRepoByAddress("not-a-coordinate")).toBeNull();
+  });
+});
+
+describe("fetchEventRsvps", () => {
+  // NIP-52 RSVPs (kind 31925) name their event by coordinate and carry a
+  // status. One request per page; a person's newest answer is the one that
+  // counts; "going" is the accepted ones, faces newest first.
+  const rsvp = (id: string, addr: string, pk: string, status: string, at: number): NostrEvent =>
+    ({ id: id.padEnd(64, "0"), kind: 31925, pubkey: pk, tags: [["a", addr], ["status", status], ["d", id]], content: "", created_at: at, sig: "s" }) as NostrEvent;
+
+  it("counts who is going per event, a person's latest answer winning", async () => {
+    const { subject } = controllable();
+    const A = "31923:" + "a".repeat(64) + ":meetup", B = "31923:" + "b".repeat(64) + ":talk";
+    const pending = fetchEventRsvps([A, B]);
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter.kinds).toEqual([31925]);
+    expect(filter["#a"]).toEqual([A, B]);
+    expect(filter.search).toBe("include:spam");
+    subject.next(frame(rsvp("r1", A, "1".repeat(64), "accepted", 100)));
+    subject.next(frame(rsvp("r2", A, "2".repeat(64), "accepted", 110)));
+    subject.next(frame(rsvp("r3", A, "2".repeat(64), "declined", 120))); // changed their mind
+    subject.next(frame(rsvp("r4", A, "3".repeat(64), "tentative", 130)));
+    subject.next(frame(rsvp("r5", B, "4".repeat(64), "accepted", 140)));
+    subject.next(EOSE);
+    const byEvent = await pending;
+    expect(byEvent.get(A)).toEqual({ going: 1, faces: ["1".repeat(64)] });
+    expect(byEvent.get(B)).toEqual({ going: 1, faces: ["4".repeat(64)] });
+  });
+
+  it("asks nothing for an empty page", async () => {
+    controllable();
+    expect((await fetchEventRsvps([])).size).toBe(0);
+    expect(reqMock).not.toHaveBeenCalled();
   });
 });
 

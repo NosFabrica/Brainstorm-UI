@@ -32,7 +32,7 @@ import { FeedVideo } from "@/components/share/FeedVideo";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { MentionChip } from "@/components/share/MentionChip";
 import { Favicon } from "@/components/share/LinkPreview";
-import { formatEventDate, isOver, parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
+import { formatEventDate, isOver, parseCalendarEvent, relativeEventTime, formatEventTime } from "@/lib/calendarEvent";
 import { RsvpButton } from "@/components/share/RsvpButton";
 import { EventDateTile } from "@/components/share/EventDateTile";
 
@@ -738,7 +738,60 @@ export function LiveCard({ event, author, score }: { event: NostrEvent; author: 
  * out is the one thing you'd do next: add an upcoming event to your calendar,
  * or watch a past one's recording when there is one.
  */
-export function EventCard({ event, author, score }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
+/** Profiles for a few faces: the store first, one fetch for the rest. */
+function useFaceProfiles(pubkeys: string[]): Map<string, MemberProfile> {
+  const [profiles, setProfiles] = useState<Map<string, MemberProfile>>(new Map());
+  const key = pubkeys.join(",");
+  useEffect(() => {
+    if (!key) return;
+    const known = new Map<string, MemberProfile>();
+    const missing: string[] = [];
+    for (const pk of key.split(",")) {
+      const stored = eventStore.getReplaceable(0, pk);
+      if (stored) {
+        try {
+          known.set(pk, JSON.parse(stored.content) as MemberProfile);
+        } catch { /* unparseable — fallback face */ }
+      } else missing.push(pk);
+    }
+    setProfiles(known);
+    if (missing.length === 0) return;
+    let alive = true;
+    void fetchProfileMap(missing).then((res) => {
+      if (!alive || res.size === 0) return;
+      setProfiles((prev) => {
+        const next = new Map(prev);
+        for (const [pk, content] of res) next.set(pk, content as MemberProfile);
+        return next;
+      });
+    });
+    return () => {
+      alive = false;
+    };
+  }, [key]);
+  return profiles;
+}
+
+/**
+ * A calendar event the way Luma lays one out: the start time leads, then
+ * the title, who hosts it, where, and who said they are going — faces with
+ * a count — with the cover as a square on the right. The date is not here:
+ * the Events tab says it once, in the day header above.
+ */
+export function EventCard({
+  event,
+  author,
+  score,
+  going = 0,
+  faces = [],
+}: {
+  event: NostrEvent;
+  author: SearchResult | null;
+  score?: number | null;
+  /** People whose latest RSVP is "accepted", and up to a few of their faces. */
+  going?: number;
+  faces?: string[];
+}) {
   const cal = parseCalendarEvent(event);
   // "Past" means over — an all-day event today or a running conference is not.
   const past = isOver(cal);
@@ -746,6 +799,10 @@ export function EventCard({ event, author, score }: { event: NostrEvent; author:
   // RSVP under the reader's key, kept on Nostr (no calendar vendor).
   const openIn = past && cal.recordingUrl ? { url: cal.recordingUrl, label: "Watch replay", host: hostOf(cal.recordingUrl) ?? undefined } : null;
   const corner = !past && cal.startSec > 0 ? <RsvpButton event={event} /> : null;
+  const shownFaces = faces.slice(0, 4);
+  const faceProfiles = useFaceProfiles(shownFaces);
+  const faceScoreOf = useAuthorScores(shownFaces);
+  const tierRing = useTierRing();
   return (
     <CardShell
       event={event}
@@ -757,36 +814,55 @@ export function EventCard({ event, author, score }: { event: NostrEvent; author:
       testId={`event-card-${event.id}`}
     >
       <div className="flex items-start gap-3">
-        <EventDateTile startSec={cal.startSec} past={past} testId="event-date-tile" />
-        {cal.image && (
-          <img src={cal.image} alt="" loading="lazy" className="h-12 w-16 shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800 object-cover" />
-        )}
         <div className="min-w-0 flex-1">
-          <p className={`truncate text-sm font-semibold text-slate-900 dark:text-slate-100 ${openIn || corner ? "pr-24" : ""}`}>{cal.title}</p>
           {cal.startSec > 0 && (
-            <p className="mt-0.5 text-xs text-slate-600 dark:text-slate-300">
-              <span className={past ? "" : "font-medium text-brand-deep dark:text-brand-link"}>{relativeEventTime(cal.startSec)}</span>
-              <span className="text-slate-400 dark:text-slate-500"> · {formatEventDate(cal.startSec, cal.isDateOnly)}</span>
+            <p className={`text-xs font-semibold ${past ? "text-slate-400 dark:text-slate-500" : "text-brand-deep dark:text-brand-link"}`} data-testid={`event-time-${event.id}`}>
+              {formatEventTime(cal.startSec, cal.isDateOnly)}
+              {past && <span className="ml-1.5 font-normal text-slate-400 dark:text-slate-500">· {relativeEventTime(cal.startSec)}</span>}
             </p>
           )}
+          <p className={`mt-0.5 text-[15px] font-semibold leading-snug text-slate-900 dark:text-slate-100 line-clamp-2 ${openIn || corner ? "pr-24" : ""}`}>{cal.title}</p>
+          <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
+            <Avatar className={`h-4 w-4 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null, false, "sm", true) ?? ""}`}>
+              {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
+              <AvatarFallback className="overflow-hidden">
+                <DefaultAvatarImg />
+              </AvatarFallback>
+            </Avatar>
+            <span className="truncate">By {author ? getDisplayLabel(author) : "an unknown host"}</span>
+          </div>
           {cal.location && (
-            <p className="mt-0.5 flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
+            <p className="mt-1 flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400">
               <MapPin className="h-3 w-3 shrink-0" aria-hidden="true" />
               <span className="truncate">{cal.location}</span>
             </p>
           )}
-          {cal.summary && cal.summary !== cal.title && (
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 break-words line-clamp-2">{cal.summary}</p>
+          {going > 0 && (
+            <div className="mt-2 flex items-center gap-2" data-testid={`event-going-${event.id}`}>
+              <span className="flex -space-x-1.5">
+                {shownFaces.map((pk) => {
+                  const profile = faceProfiles.get(pk);
+                  return (
+                    <Avatar key={pk} className={`h-5 w-5 border border-white dark:border-slate-900 ${tierRing(faceScoreOf(pk) ?? null, false, "sm", true) ?? ""}`} data-testid={`event-going-face-${pk}`}>
+                      {profile?.picture ? <AvatarImage src={profile.picture} alt="" className="object-cover" /> : null}
+                      <AvatarFallback className="overflow-hidden">
+                        <DefaultAvatarImg />
+                      </AvatarFallback>
+                    </Avatar>
+                  );
+                })}
+              </span>
+              <span className="text-xs text-slate-500 dark:text-slate-400">{going} going</span>
+            </div>
           )}
-          <div className="mt-1.5">
-            <AuthorRow author={author} score={score} created_at={event.created_at} />
-          </div>
         </div>
+        {cal.image && (
+          <img src={cal.image} alt="" loading="lazy" className="h-20 w-20 shrink-0 rounded-xl bg-slate-100 dark:bg-slate-800 object-cover sm:h-24 sm:w-24" data-testid={`event-cover-${event.id}`} />
+        )}
       </div>
     </CardShell>
   );
 }
-
 
 export function ListCard({ event, author, score }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
   const title = tagVal(event, "title") ?? tagVal(event, "name") ?? tagVal(event, "d") ?? "Untitled list";
