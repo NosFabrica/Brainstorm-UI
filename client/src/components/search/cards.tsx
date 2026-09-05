@@ -94,11 +94,14 @@ function CuratorFooter({
   author,
   score,
   created_at,
+  others = 0,
 }: {
   kicker: string;
   author: SearchResult | null;
   score?: number | null;
   created_at: number;
+  /** How many more curators stand behind this one — a folded row of same-title lists. */
+  others?: number;
 }) {
   const tierRing = useTierRing();
   return (
@@ -113,8 +116,14 @@ function CuratorFooter({
             <DefaultAvatarImg />
           </AvatarFallback>
         </Avatar>
-        <span className="truncate text-xs font-medium leading-none text-slate-600 dark:text-slate-300">
-          {author ? getDisplayLabel(author) : "Unknown"}
+        {/* The name gives way on a narrow row; the count behind it never does. */}
+        <span className="flex min-w-0 items-baseline text-xs font-medium leading-none text-slate-600 dark:text-slate-300">
+          <span className="truncate">{author ? getDisplayLabel(author) : "Unknown"}</span>
+          {others > 0 && (
+            <span className="shrink-0 whitespace-pre font-normal text-slate-500 dark:text-slate-400">
+              {` & ${others} ${others === 1 ? "other" : "others"}`}
+            </span>
+          )}
         </span>
       </span>
       <span className="shrink-0 text-[11px] leading-none text-slate-400 dark:text-slate-500">{fmtWhen(created_at)}</span>
@@ -1084,7 +1093,7 @@ export function ListCard({
                   phones it takes its own full-width row, flush left with
                   everything else — whose web of trust this list speaks for
                   is part of the value, not a footnote crammed underneath. */}
-              <CuratorFooter kicker="Curated by" author={author} score={score} created_at={event.created_at} />
+              <CuratorFooter kicker="Curated by" author={author} score={score} created_at={event.created_at} others={folded ? group.lists - 1 : 0} />
             </div>
           ) : (
             <div className="mt-1.5">

@@ -1444,8 +1444,11 @@ describe("SearchResults", () => {
     expect(within(primary).getByTestId("list-count-g2")).toHaveTextContent("3 lists · 5 people");
     // The faces most lists agree on lead: alice is in all three.
     const faces = within(primary).getByTestId("list-members-g2");
-    expect(faces.textContent).toMatch(/^alice/);
+    await vi.waitFor(() => expect(faces.textContent).toMatch(/^alice/));
+    // The row says what it is: the curator who carries the fold, and how many stand behind them.
+    expect(primary).toHaveTextContent("curator two & 2 others");
     expect(screen.getByTestId("list-card-o1")).toBeInTheDocument();
+    expect(screen.getByTestId("list-card-o1")).not.toHaveTextContent(/others/);
     const chip = screen.getByTestId("cluster-expand-g2");
     expect(chip).toHaveTextContent("3 lists");
     fireEvent.click(chip);
