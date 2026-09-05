@@ -106,6 +106,12 @@ const wavlakeSong = (id: string, title: string, artist: string, extra: Partial<W
   ...extra,
 });
 
+// A replay is advertised only after its recording answers; here "rec.ok" answers.
+vi.mock("@/lib/liveStream", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/liveStream")>()),
+  verifyRecording: (url: string) => Promise.resolve(url.includes("rec.ok")),
+}));
+
 vi.mock("@/hooks/useMyFollows", () => ({
   useMyFollows: () => ({ follows: followsMock, ready: true, signedIn: followsMock.size > 0 }),
 }));
@@ -590,6 +596,66 @@ describe("SearchResults", () => {
     emit({ hits: [{ event: live, author: author(live.pubkey, "erin"), rank: null }], eose: true, timeMs: 200 });
     expect(await screen.findByText("Nostr Dev Call")).toBeInTheDocument();
     expect(screen.getByTestId("live-status-l1")).toHaveTextContent(/live/i);
+  });
+
+  // Benjamin: "when users are searching live it needs to be laid out like
+  // YouTube or Twitch… simple, less is more". The thumbnail is the card: a
+  // grid of 16:9 posters wearing a LIVE pill with the viewer count and how
+  // long it has been on; the title and the channel below — the streamer the
+  // `p host` tag names, never the platform that published. Three shelves,
+  // Live · Upcoming · Replays, live sorted by viewers; an ended stream is a
+  // replay only after its recording answers; closed rooms never show.
+  it("the Live tab is a YouTube-style grid with LIVE pills, viewers, time on air, the host as channel, and Live · Upcoming · Replays shelves", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const platform = "e".repeat(64);
+    const host = "f".repeat(64);
+    profileMapMock.set(host, { name: "erin", picture: "https://img/erin.jpg" });
+    setUrlTab("live");
+    render(<SearchResults query="" pov="nosfabrica" />);
+    const mk = (id: string, kind: number, tags: string[][]) => ev(id, kind, platform, "", [["d", id], ...tags]);
+    const hits = [
+      mk("l2", 30311, [["title", "Chill Radio"], ["status", "live"], ["current_participants", "5"], ["starts", String(now - 3 * 86_400)], ["t", "radio"]]),
+      mk("l1", 30311, [["title", "Nostr Dev Call"], ["status", "live"], ["image", "https://img/dev.jpg"], ["current_participants", "23"], ["starts", String(now - (2 * 3600 + 15 * 60))], ["t", "streaming"], ["t", "tech"], ["p", host, "wss://r", "host"]]),
+      mk("r1", 30311, [["title", "Yesterday's show"], ["status", "ended"], ["recording", "https://rec.ok/r1.m3u8"]]),
+      mk("r2", 30311, [["title", "Lost show"], ["status", "ended"], ["recording", "https://rec.dead/r2.m3u8"]]),
+      mk("e1", 30311, [["title", "Gone"], ["status", "ended"]]),
+      mk("m1", 30313, [["title", "Grounded Value"], ["status", "planned"], ["starts", String(now + 3 * 3600)]]),
+      mk("c1", 30312, [["status", "closed"], ["room", "x"]]),
+    ].map((event) => ({ event, author: author(platform, "zap.stream"), rank: null }));
+    emit({ hits, eose: true, timeMs: 300 });
+
+    const grid = await screen.findByTestId("container-search-results");
+    expect(grid.className).toMatch(/grid/);
+    const tiles = () => [...grid.querySelectorAll('[data-testid^="live-tile-"]')].map((n) => n.getAttribute("data-testid"));
+    // Live first, most watched first.
+    expect(tiles()).toEqual(["live-tile-l1", "live-tile-l2"]);
+    const l1 = screen.getByTestId("live-tile-l1");
+    expect(within(l1).getByTestId("live-status-l1")).toHaveTextContent(/LIVE/);
+    expect(within(l1).getByTestId("live-status-l1")).toHaveTextContent("23");
+    expect(within(l1).getByTestId("live-onair-l1")).toHaveTextContent("2h 15m");
+    expect(screen.queryByTestId("live-onair-l2")).toBeNull();
+    expect((l1.querySelector("img") as HTMLImageElement).src).toBe("https://img/dev.jpg");
+    await vi.waitFor(() => expect(l1).toHaveTextContent("erin"));
+    expect(l1).not.toHaveTextContent("zap.stream");
+    // One quiet category, the generic platform words dropped.
+    expect(l1).toHaveTextContent("tech");
+    expect(l1).not.toHaveTextContent("streaming");
+    expect(l1.querySelector("a")?.getAttribute("href")).toMatch(/^\/e\//);
+
+    // Shelves with counts; Replays counts only the recording that answered.
+    const facets = screen.getByTestId("live-facets");
+    expect(within(facets).getByTestId("live-facet-live")).toHaveAttribute("aria-pressed", "true");
+    expect(within(facets).getByTestId("live-facet-live")).toHaveTextContent("Live 2");
+    expect(within(facets).getByTestId("live-facet-upcoming")).toHaveTextContent("Upcoming 1");
+    await vi.waitFor(() => expect(within(facets).getByTestId("live-facet-replays")).toHaveTextContent("Replays 1"));
+
+    fireEvent.click(within(facets).getByTestId("live-facet-upcoming"));
+    expect(tiles()).toEqual(["live-tile-m1"]);
+    expect(within(screen.getByTestId("live-tile-m1")).getByTestId("live-status-m1")).toHaveTextContent(/Upcoming/);
+    fireEvent.click(within(facets).getByTestId("live-facet-replays"));
+    expect(tiles()).toEqual(["live-tile-r1"]);
+    expect(within(screen.getByTestId("live-tile-r1")).getByTestId("live-status-r1")).toHaveTextContent(/Replay/);
+    for (const gone of ["r2", "e1", "c1"]) expect(screen.queryByTestId(`live-tile-${gone}`)).toBeNull();
   });
 
   // Benjamin: musicians like Ainsley Costello should have their songs show up

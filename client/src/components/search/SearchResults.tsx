@@ -38,7 +38,9 @@ import {
 import { fetchEventRsvps, fetchGitCommentCounts, fetchGitStatuses, type EventRsvps } from "@/services/search";
 import { GIT_STATE_LABEL, foldForks, gitLabelsOf, gitStateOf, isGitItem, peopleBeforeAgents, type GitState } from "@/lib/gitStatus";
 import { isMediaFile, isSoundtrackFile } from "@/lib/fileMetadata";
-import { AppCard, EventCard, LiveCard, ListCard, MediaCard, RepoCard, TrackCard, platformWords, mediaUrlOf, ListingCard } from "@/components/search/cards";
+import { AppCard, EventCard, LiveTile, ListCard, MediaCard, RepoCard, TrackCard, platformWords, mediaUrlOf, ListingCard } from "@/components/search/cards";
+import { liveHostOf, liveStateOf, type LiveState } from "@/lib/liveStream";
+import { useVerifiedRecordings } from "@/hooks/useVerifiedRecordings";
 import { EVENT_WHEN_LABELS, EVENT_WHEN_ORDER, eventWhenCounts, filterEventsByWhen, type EventWhen } from "@/lib/eventFilters";
 import { EventDateTile } from "@/components/share/EventDateTile";
 import { parseCalendarEvent as parseCal, relativeEventTime as relativeDay } from "@/lib/calendarEvent";
@@ -47,7 +49,7 @@ import { isSellable, parseListing } from "@/lib/listing";
 import { fetchRecentByKinds } from "@/services/nostr";
 import { useWavlakeSearch } from "@/hooks/useWavlakeSongs";
 import { MusicResults } from "@/components/search/MusicResults";
-import { FacetRow } from "@/components/search/sections";
+import { FacetChip, FacetRow } from "@/components/search/sections";
 import { KnowledgePanel } from "@/components/search/KnowledgePanel";
 import { ComposedResults } from "@/components/search/ComposedResults";
 import { collapseHits } from "@/lib/searchCollapse";
@@ -627,7 +629,12 @@ export function SearchResults({
   // author-score cache (hashtag-page discipline) for EVERY hit, kind-0
   // included: without this, people cards render bare and the user's
   // verification-display settings have nothing to show.
-  const allAuthors = useMemo(() => [...new Set(rawHits.map((h) => h.event.pubkey))], [rawHits]);
+  // Streams are published by platforms for their streamers: the host's key
+  // joins the score request so the channel row can wear the streamer's ring.
+  const allAuthors = useMemo(
+    () => [...new Set(rawHits.flatMap((h) => (LIVE_KINDS.has(h.event.kind) ? [h.event.pubkey, liveHostOf(h.event) ?? h.event.pubkey] : [h.event.pubkey])))],
+    [rawHits],
+  );
   const scoreOf = useAuthorScores(allAuthors);
   // The filters the relay can't do, done here (probed: filter:rank ignored,
   // no hops): Verified only via those scores, reach via the viewer's graph.
@@ -663,6 +670,32 @@ export function SearchResults({
   const eventCounts = useMemo(() => (tab === "events" ? eventWhenCounts(hits) : null), [tab, hits]);
   const eventsFellBack = tab === "events" && eventWhen === "upcoming" && !!eventCounts && eventCounts.upcoming === 0 && eventCounts.past > 0;
   const effectiveWhen: EventWhen = eventsFellBack ? "past" : eventWhen;
+  // Live tab: three shelves — Live · Upcoming · Replays. Live leads when
+  // anyone is on; a replay counts only once its recording answers.
+  const [liveShelf, setLiveShelf] = useState<LiveState | null>(null);
+  useEffect(() => setLiveShelf(null), [query]);
+  const liveStates = useMemo(() => {
+    const m = new Map<string, LiveState | null>();
+    if (tab === "live") for (const h of hits) m.set(h.event.id, liveStateOf(h.event));
+    return m;
+  }, [hits, tab]);
+  const replayUrls = useMemo(
+    () => (tab === "live" ? hits.filter((h) => liveStates.get(h.event.id) === "replay").map((h) => h.event.tags.find((t) => t[0] === "recording")?.[1] ?? "").filter(Boolean) : []),
+    [hits, tab, liveStates],
+  );
+  const verifiedRecordings = useVerifiedRecordings(replayUrls);
+  const liveCounts = useMemo(() => {
+    const c = { live: 0, upcoming: 0, replay: 0 };
+    if (tab !== "live") return c;
+    for (const h of hits) {
+      const st = liveStates.get(h.event.id);
+      if (st === "live") c.live += 1;
+      else if (st === "upcoming") c.upcoming += 1;
+      else if (st === "replay" && verifiedRecordings.has(h.event.tags.find((t) => t[0] === "recording")?.[1] ?? "")) c.replay += 1;
+    }
+    return c;
+  }, [hits, tab, liveStates, verifiedRecordings]);
+  const effectiveShelf: LiveState = liveShelf ?? (liveCounts.live > 0 ? "live" : liveCounts.upcoming > 0 ? "upcoming" : liveCounts.replay > 0 ? "replay" : "live");
   // Apps facet by PLATFORM — a one-tap chip row (Benjamin's "categorize by
   // the chips"), computed from what the results actually run on.
   const [appPlatform, setAppPlatform] = useState<string | null>(null);
@@ -818,6 +851,24 @@ export function SearchResults({
       // People's issues before agents' — the partition Latest uses for feeds.
       shown = peopleBeforeAgents(shown, (h) => ({ event: h.event, author: h.author }));
     }
+    if (tab === "live") {
+      const starts = (e: NostrEvent) => Number(e.tags.find((t) => t[0] === "starts")?.[1]) || 0;
+      const viewers = (e: NostrEvent) => Number(e.tags.find((t) => t[0] === "current_participants")?.[1]) || 0;
+      const recording = (e: NostrEvent) => e.tags.find((t) => t[0] === "recording")?.[1] ?? "";
+      shown = shown.filter((h) => {
+        const st = liveStates.get(h.event.id);
+        if (st !== effectiveShelf) return false;
+        return st !== "replay" || verifiedRecordings.has(recording(h.event));
+      });
+      // Live: most watched first, as Twitch orders; upcoming: soonest first; replays: newest.
+      shown = [...shown].sort((a, b) =>
+        effectiveShelf === "live"
+          ? viewers(b.event) - viewers(a.event) || b.event.created_at - a.event.created_at
+          : effectiveShelf === "upcoming"
+            ? starts(a.event) - starts(b.event)
+            : b.event.created_at - a.event.created_at,
+      );
+    }
     if (tab === "media") {
       // Kind 1063 is generic file metadata — Zap Store APKs and other blobs
       // ride it. The Media tab means media: a 1063 stays only when its
@@ -860,7 +911,7 @@ export function SearchResults({
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hits, tab, appPlatform, appCategory, appLicense, shopCategory, repoState, repoLabel, gitStatuses, appCategoryTags, clustered, expandedClusters, effectiveWhen, scoreOf]);
+  }, [hits, tab, appPlatform, appCategory, appLicense, shopCategory, repoState, repoLabel, gitStatuses, appCategoryTags, clustered, expandedClusters, effectiveWhen, scoreOf, liveStates, effectiveShelf, verifiedRecordings]);
 
   // The Events tab is a timeline: the first card of each day carries a header
   // that says the date once — "Today · Fri, Sep 4" — so cards can lead with
@@ -1071,6 +1122,15 @@ export function SearchResults({
               ))}
             </FacetRow>
           )}
+          {tab === "live" && liveCounts.live + liveCounts.upcoming + liveCounts.replay > 0 && (
+            <FacetRow className="mb-3" testId="live-facets">
+              {(["live", "upcoming", "replay"] as LiveState[]).filter((st) => liveCounts[st] > 0).map((st) => (
+                <FacetChip key={st} pressed={effectiveShelf === st} onClick={() => setLiveShelf(st)} count={liveCounts[st]} testId={`live-facet-${st === "replay" ? "replays" : st}`}>
+                  {st === "live" ? "Live" : st === "upcoming" ? "Upcoming" : "Replays"}
+                </FacetChip>
+              ))}
+            </FacetRow>
+          )}
           {tab === "shop" && shopFacets.length > 0 && (
             <FacetRow className="mb-2" testId="shop-facets">
               <button
@@ -1182,7 +1242,9 @@ export function SearchResults({
             className={
               tab === "shop"
                 ? "grid grid-cols-2 gap-2.5 sm:grid-cols-3"
-                : tab === "apps" || tab === "repos"
+                : tab === "live"
+                  ? "grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3"
+                  : tab === "apps" || tab === "repos"
                   ? "grid grid-cols-1 gap-2.5 lg:grid-cols-2"
                   : "space-y-2 sm:space-y-3"
             }
@@ -1281,7 +1343,10 @@ export function SearchResults({
               }
               if (MUSIC_KINDS.has(event.kind)) return wrap(<TrackCard {...typed} />);
               if (SHOP_KINDS.has(event.kind)) return wrap(<ListingCard {...typed} />);
-              if (LIVE_KINDS.has(event.kind)) return wrap(<LiveCard {...typed} />);
+              if (LIVE_KINDS.has(event.kind)) {
+                const hostPk = liveHostOf(event);
+                return wrap(<LiveTile {...typed} state={liveStates.get(event.id) ?? liveStateOf(event) ?? "live"} hostScore={hostPk ? scoreOf(hostPk) : undefined} />);
+              }
               if (APP_KINDS.has(event.kind)) return wrap(<AppCard {...typed} />);
               if (REPO_KINDS.has(event.kind)) return wrap(<RepoCard {...typed} state={stateOf(event) ?? undefined} comments={gitComments.get(event.id)} forkOf={forkOf} />);
               if (LIST_KINDS.has(event.kind)) return wrap(<ListCard {...typed} />);

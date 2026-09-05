@@ -236,7 +236,12 @@ export function FacetChip({
       data-testid={testId}
     >
       {children}
-      {count != null && <span className="ml-1 opacity-60">{count}</span>}
+      {count != null && (
+        <>
+          {" "}
+          <span className="opacity-60">{count}</span>
+        </>
+      )}
     </button>
   );
 }

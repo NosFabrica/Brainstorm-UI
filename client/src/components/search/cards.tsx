@@ -33,6 +33,7 @@ import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { MentionChip } from "@/components/share/MentionChip";
 import { Favicon } from "@/components/share/LinkPreview";
 import { formatEventDate, isOver, parseCalendarEvent, relativeEventTime, formatEventTime } from "@/lib/calendarEvent";
+import { liveCategoryOf, liveHostOf, onAirLabel, parseLiveStream, type LiveState } from "@/lib/liveStream";
 import { RsvpButton } from "@/components/share/RsvpButton";
 import { EventDateTile } from "@/components/share/EventDateTile";
 
@@ -726,6 +727,99 @@ export function LiveCard({ event, author, score }: { event: NostrEvent; author: 
         </div>
       </div>
     </CardShell>
+  );
+}
+
+/**
+ * A stream the way YouTube and Twitch show one: the thumbnail IS the card. A
+ * 16:9 poster wearing its state — a red LIVE pill with the viewer count, or
+ * Upcoming, or Replay — and how long it has been on; the title below; then
+ * the channel: the streamer the `p host` tag names (platforms publish for
+ * their streamers, so the author is usually zap.stream), with one quiet
+ * category. The tile opens our stream page, which plays it in place; the
+ * corner keeps the way out to zap.stream.
+ */
+export function LiveTile({ event, author, score, state, hostScore }: { event: NostrEvent; author: SearchResult | null; score?: number | null; state: LiveState; hostScore?: number | null }) {
+  const stream = parseLiveStream(event);
+  const title = tagVal(event, "title") ?? tagVal(event, "name") ?? stream?.title ?? "Live";
+  const image = tagVal(event, "image") ?? undefined;
+  const viewers = stream?.viewers;
+  const starts = Number(tagVal(event, "starts")) || 0;
+  const hostPk = liveHostOf(event);
+  const hostIsAuthor = !hostPk || hostPk === event.pubkey;
+  const faces = useFaceProfiles(hostIsAuthor ? [] : [hostPk as string]);
+  const hostProfile = hostIsAuthor ? undefined : faces.get(hostPk as string);
+  const channelName = hostProfile ? hostProfile.display_name || hostProfile.name || "" : author ? getDisplayLabel(author) : "";
+  const channelPicture = hostProfile ? hostProfile.picture : author?.picture;
+  const tierRing = useTierRing();
+  const ring = tierRing(hostIsAuthor ? score : hostScore, false, "sm", true) ?? "";
+  const category = liveCategoryOf(event);
+  const onAir = state === "live" ? onAirLabel(starts) : null;
+  const naddr = naddrOf(event);
+  const openIn = event.kind === 30311 && naddr ? `https://zap.stream/${naddr}` : undefined;
+  // Bespoke overlays, not Chips: pills over a picture need their own contrast.
+  const pill =
+    state === "live"
+      ? "bg-red-600 text-white"
+      : state === "upcoming"
+        ? "bg-white/90 text-slate-900 dark:bg-slate-900/90 dark:text-slate-100"
+        : "bg-black/70 text-white";
+  return (
+    <div className="group relative min-w-0" data-testid={`live-tile-${event.id}`}>
+      <Link href={eventPath(event)} className="block rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40">
+        <div className="relative aspect-video overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
+          {image ? (
+            <img src={image} alt="" loading="lazy" className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]" />
+          ) : (
+            <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900">
+              <Radio className="h-6 w-6 text-slate-400 dark:text-slate-500" />
+            </div>
+          )}
+          <span
+            className={`absolute left-2 top-2 inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 text-[11px] font-semibold shadow-sm ${pill}`}
+            data-testid={`live-status-${event.id}`}
+          >
+            {state === "live" && <span className="h-1.5 w-1.5 rounded-full bg-white" aria-hidden="true" />}
+            {state === "live" ? <span className="tracking-wide">LIVE</span> : state === "upcoming" ? "Upcoming" : "Replay"}
+            {state === "live" && viewers != null && viewers > 0 && (
+              <span className="font-medium tabular-nums opacity-90">· {viewers}</span>
+            )}
+          </span>
+          {onAir && (
+            <span className="absolute bottom-2 right-2 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] font-medium tabular-nums text-white" data-testid={`live-onair-${event.id}`}>
+              {onAir}
+            </span>
+          )}
+          {state === "upcoming" && starts > 0 && (
+            <span className="absolute bottom-2 right-2 rounded-md bg-black/70 px-1.5 py-0.5 text-[11px] font-medium text-white">
+              {relativeEventTime(starts)} · {formatEventTime(starts, false)}
+            </span>
+          )}
+        </div>
+        <p className="mt-2 line-clamp-2 text-sm font-medium leading-snug text-slate-900 dark:text-slate-100">{title}</p>
+      </Link>
+      <div className={`mt-1.5 flex items-center gap-2 ${openIn ? "pr-7" : ""}`}>
+        <Avatar className={`h-6 w-6 shrink-0 ${ring}`}>
+          {channelPicture ? <AvatarImage src={channelPicture} alt="" className="object-cover" /> : null}
+          <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
+        </Avatar>
+        <span className="min-w-0 truncate text-xs text-slate-600 dark:text-slate-300">{channelName}</span>
+        {category && <span className="shrink-0 truncate text-[11px] text-slate-400 dark:text-slate-500">· {category}</span>}
+      </div>
+      {openIn && (
+        <a
+          href={openIn}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-brand-link dark:hover:bg-slate-800"
+          aria-label="Watch on zap.stream"
+          title="Watch on zap.stream"
+          data-testid={`live-watch-${event.id}`}
+        >
+          <Favicon host="zap.stream" className="h-3.5 w-3.5 rounded-sm" />
+        </a>
+      )}
+    </div>
   );
 }
 

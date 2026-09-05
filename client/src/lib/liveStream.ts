@@ -109,3 +109,60 @@ export function verifyRecording(url: string): Promise<boolean> {
   }
   return recordingChecks.get(url)!;
 }
+
+export type LiveState = "live" | "upcoming" | "replay";
+
+/**
+ * Which shelf a NIP-53 event belongs on — Live, Upcoming, Replays — or none.
+ * Probed 2026-09-05 over the 200 newest streams: 97 live, 80 ended (16 with a
+ * recording), 0 planned; kind 30313 meetings carry the planned ones; kind
+ * 30312 rooms are 8k mostly-closed, untitled machine records. So: live or open
+ * is live; ended or closed is a replay only with a recording; planned (or a
+ * start still ahead) is upcoming unless it was due more than six hours ago;
+ * anything untitled is nothing at all.
+ */
+export function liveStateOf(ev: EventLike, nowSec = Math.floor(Date.now() / 1000)): LiveState | null {
+  if (ev.kind !== 30311 && ev.kind !== 30312 && ev.kind !== 30313) return null;
+  const tag = (k: string) => ev.tags.find((t) => t[0] === k)?.[1]?.trim() || undefined;
+  const title = tag("title") || tag("name") || (ev.kind === 30311 ? tag("summary") : undefined);
+  if (!title) return null;
+  const status = (tag("status") || "").toLowerCase();
+  const starts = Number(tag("starts")) || 0;
+  if (status === "live" || status === "open") return "live";
+  if (status === "ended" || status === "closed") return tag("recording") ? "replay" : null;
+  if (status === "planned" || starts > nowSec) return starts === 0 || starts > nowSec - 6 * 3600 ? "upcoming" : null;
+  return null;
+}
+
+/**
+ * How long a stream has been on — "2h 15m" — while that still says something.
+ * Half the live streams have been "on" for over a day (radio, Owncast servers
+ * that never end): past 24 hours the number is noise, so nothing.
+ */
+export function onAirLabel(startsSec: number, nowSec = Math.floor(Date.now() / 1000)): string | null {
+  if (!startsSec) return null;
+  const diff = nowSec - startsSec;
+  if (diff < 0 || diff >= 86_400) return null;
+  if (diff < 60) return "just started";
+  const h = Math.floor(diff / 3600);
+  const m = Math.floor((diff % 3600) / 60);
+  if (h === 0) return `${m}m`;
+  return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
+/** The streamer: the `p` tag marked host (platforms publish for their streamers). */
+export function liveHostOf(ev: EventLike): string | null {
+  return ev.tags.find((t) => t[0] === "p" && t[3] === "host")?.[1] ?? null;
+}
+
+const GENERIC_LIVE_TAGS = new Set(["streaming", "stream", "livestream", "live", "owncast", "247", "24/7", "nostr", "zap.stream", "video"]);
+
+/** One category worth a word — the first `t` that is not a platform word. */
+export function liveCategoryOf(ev: EventLike): string | null {
+  for (const t of ev.tags) {
+    if (t[0] !== "t" || !t[1]) continue;
+    const v = t[1].trim().toLowerCase();
+    if (v && !GENERIC_LIVE_TAGS.has(v)) return v;
+  }
+  return null;
+}
