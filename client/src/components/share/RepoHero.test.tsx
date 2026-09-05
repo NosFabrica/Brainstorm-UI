@@ -99,4 +99,16 @@ describe("RepoHero", () => {
     await Promise.resolve();
     expect(screen.queryByTestId("repo-hero-activity")).toBeNull();
   });
+
+  it("activity lists people's issues before agents', and marks the agents'", async () => {
+    const item = (id: string, subject: string, at: number, agent?: string): NostrEvent =>
+      ({ id: id.padEnd(64, "0"), kind: 1621, pubkey: "5".repeat(64), created_at: at, content: subject, sig: "", tags: [["a", `30617:${MAINTAINER}:ngit`], ["subject", subject], ...(agent ? [["buzz-origin-agent", agent]] : [])] }) as NostrEvent;
+    activityMock.mockResolvedValue([item("a1", "Prove warm coverage", 300, "Sentinel"), item("h1", "Windows: screen share fails", 200), item("a2", "Reuse condensed rows", 100, "PM")]);
+    render(<RepoHero event={NGIT} />);
+    const activity = await screen.findByTestId("repo-hero-activity");
+    const order = [...activity.querySelectorAll('[data-testid^="repo-activity-"]')].filter((el) => !/agent/.test(el.getAttribute("data-testid") ?? "")).map((el) => el.getAttribute("data-testid"));
+    expect(order[0]).toBe("repo-activity-" + "h1".padEnd(64, "0"));
+    expect(activity.querySelector('[data-testid="repo-activity-agent-' + "a1".padEnd(64, "0") + '"]')).not.toBeNull();
+    expect(activity.querySelector('[data-testid="repo-activity-agent-' + "h1".padEnd(64, "0") + '"]')).toBeNull();
+  });
 });

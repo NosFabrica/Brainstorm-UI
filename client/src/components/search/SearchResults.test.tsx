@@ -38,8 +38,10 @@ vi.mock("@/services/search", async (importOriginal) => {
     suggestProfiles: (...args: unknown[]) => suggestMock(...(args as [])),
     fetchRepoCounts: (...args: unknown[]) => repoCountsMock(...(args as [])),
     fetchGitStatuses: (ids: string[]) => gitStatusesMock(ids),
+    fetchGitCommentCounts: (ids: string[]) => gitCommentsMock(ids),
   };
 });
+const gitCommentsMock = vi.fn<(ids: string[]) => Promise<Map<string, number>>>(() => Promise.resolve(new Map()));
 // Issue / patch states for the Repos tab — none unless a test says otherwise.
 const gitStatusesMock = vi.fn<(ids: string[]) => Promise<Map<string, { kind: number; at: number }>>>(() => Promise.resolve(new Map()));
 const repoCountsMock = vi.fn<() => Promise<{ issues: number; patches: number }>>(() =>
@@ -810,6 +812,35 @@ describe("SearchResults", () => {
     expect(screen.getByTestId("repo-card-i2")).toBeInTheDocument();
     expect(screen.queryByTestId("repo-card-i1")).toBeNull();
     expect(screen.queryByTestId("repo-card-i3")).toBeNull();
+  });
+
+  it("issues show how much conversation they have, and people's issues come before agents' — marked", async () => {
+    setUrlTab("repos");
+    const byAgent = ev("i1", 1621, "1".repeat(64), "add ngit pr edit API", [["a", "30617:" + "9".repeat(64) + ":ngit"], ["subject", "add ngit pr edit API"], ["buzz-origin-agent", "PM"]]);
+    const byPerson = ev("i2", 1621, "2".repeat(64), "crash on start", [["a", "30617:" + "9".repeat(64) + ":ngit"], ["subject", "crash on start"]]);
+    const byBot = ev("i3", 1621, "3".repeat(64), "add tests", [["a", "30617:" + "9".repeat(64) + ":ngit"], ["subject", "add tests"]]);
+    gitCommentsMock.mockResolvedValue(new Map([[byPerson.id, 3]]));
+    render(<SearchResults query="ngit" pov="nosfabrica" />);
+    emit({
+      hits: [
+        { event: byBot, author: { ...author(byBot.pubkey, "Yuki (Personal Agent)"), bot: true }, rank: null },
+        { event: byAgent, author: author(byAgent.pubkey, "dev"), rank: null },
+        { event: byPerson, author: author(byPerson.pubkey, "dev"), rank: null },
+      ],
+      eose: true,
+      timeMs: 200,
+    });
+
+    const person = await screen.findByTestId("repo-card-i2");
+    expect(within(person).getByTestId("git-comments-i2")).toHaveTextContent("3 comments");
+    expect(within(screen.getByTestId("repo-card-i1")).queryByTestId("git-comments-i1")).toBeNull();
+    const order = [...document.querySelectorAll('[data-testid^="repo-card-"]')].map((c) => c.getAttribute("data-testid"));
+    expect(order).toEqual(["repo-card-i2", "repo-card-i3", "repo-card-i1"]);
+    expect(within(screen.getByTestId("repo-card-i3")).getByTestId("git-agent-i3").getAttribute("title")).toMatch(/Yuki/);
+    const mark = within(screen.getByTestId("repo-card-i1")).getByTestId("git-agent-i1");
+    expect(mark).toHaveTextContent("agent");
+    expect(mark.getAttribute("title")).toMatch(/PM/);
+    expect(within(person).queryByTestId("git-agent-i2")).toBeNull();
   });
 
   it("a repo announcement shows its issue and patch counts", async () => {

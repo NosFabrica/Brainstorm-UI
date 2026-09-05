@@ -1055,6 +1055,43 @@ export function fetchGitStatuses(ids: string[], timeoutMs = 5000): Promise<Map<s
 }
 
 /**
+ * How much conversation a page of issues has: NIP-22 comments name their
+ * root in an uppercase E tag, so one request tallies them per issue. A
+ * comment seen twice counts once.
+ */
+export function fetchGitCommentCounts(ids: string[], timeoutMs = 5000): Promise<Map<string, number>> {
+  return new Promise((resolve) => {
+    const out = new Map<string, number>();
+    const relay = searchRelay();
+    if (!relay || ids.length === 0) return resolve(out);
+    const wanted = new Set(ids);
+    const seen = new Set<string>();
+    const sub = relay
+      .req({ kinds: [1111], "#E": ids, search: "include:spam", limit: Math.max(500, ids.length * 10) })
+      .subscribe((msg: { type: string; event?: NostrEvent }) => {
+        if (msg.type === "EVENT" && msg.event) {
+          const ev = msg.event;
+          if (seen.has(ev.id)) return;
+          seen.add(ev.id);
+          const root = ev.tags.find((t) => t[0] === "E" && wanted.has(t[1]))?.[1];
+          if (root) out.set(root, (out.get(root) ?? 0) + 1);
+        } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
+          finish();
+        }
+      });
+    const timer = setTimeout(finish, timeoutMs);
+    let done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      sub.unsubscribe();
+      resolve(out);
+    }
+  });
+}
+
+/**
  * Cheap kind-0 typeahead: resolves at EOSE or the deadline with whatever
  * arrived — never rejects (a silent suggest beats a broken one).
  */

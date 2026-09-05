@@ -19,6 +19,7 @@ import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { Chip } from "@/components/ui/chip";
 import { eventPath } from "@/lib/shareId";
 import { fetchRepoActivity, kind0ToSearchResult } from "@/services/search";
+import { gitAgentOf, peopleBeforeAgents } from "@/lib/gitStatus";
 
 // Structural minimum (EventPage hands heroes MinimalEvent, which has no sig).
 type RepoEvent = {
@@ -75,12 +76,25 @@ export function RepoHero({ event }: { event: RepoEvent }) {
   const web = tagVal(event, "web");
 
   const [activity, setActivity] = useState<NostrEvent[]>([]);
+
+  const [activityAuthors, setActivityAuthors] = useState<Map<string, { name?: string; displayName?: string; bot?: boolean }>>(new Map());
   const address = d ? `30617:${event.pubkey}:${d}` : null;
   useEffect(() => {
     if (!address) return;
     let alive = true;
-    void fetchRepoActivity(address).then((items) => {
-      if (alive) setActivity(items);
+    void fetchRepoActivity(address).then(async (items) => {
+      if (!alive) return;
+      // Who filed each one — the profile says "agent" when the event does not.
+      const pubkeys = [...new Set(items.map((i) => i.pubkey))];
+      const profiles = pubkeys.length ? await fetchProfileMap(pubkeys).catch(() => new Map()) : new Map();
+      if (!alive) return;
+      const authors = new Map<string, { name?: string; displayName?: string; bot?: boolean }>();
+      for (const [pk, c] of profiles as Map<string, { name?: string; display_name?: string; bot?: boolean }>) {
+        authors.set(pk, { name: c.name, displayName: c.display_name, bot: c.bot === true });
+      }
+      setActivityAuthors(authors);
+      // People's items first, agents' after — nothing hidden, each marked.
+      setActivity(peopleBeforeAgents(items, (i) => ({ event: i, author: authors.get(i.pubkey) })));
     });
     return () => {
       alive = false;
@@ -178,6 +192,11 @@ export function RepoHero({ event }: { event: RepoEvent }) {
                   <span className="min-w-0 flex-1 truncate text-sm text-slate-700 dark:text-slate-200">
                     {item.tags.find((t) => t[0] === "subject")?.[1] ?? item.content.slice(0, 80) ?? "Untitled"}
                   </span>
+                  {gitAgentOf(item, activityAuthors.get(item.pubkey)) && (
+                    <span className="shrink-0 text-[10px] font-medium text-slate-400 dark:text-slate-500" title={`Filed by ${gitAgentOf(item, activityAuthors.get(item.pubkey))}, an agent`} data-testid={`repo-activity-agent-${item.id}`}>
+                      agent
+                    </span>
+                  )}
                   <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">{ago(item.created_at)}</span>
                 </Link>
               </li>

@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
  * primitives per CLAUDE.md: Chip for status/counts, shared tier ring.
  */
 import { Link, useLocation } from "wouter";
-import { Code2, ExternalLink, File, FileAudio, FileVideo, ListChecks, MapPin, Package, Radio, ShoppingBag } from "lucide-react";
+import { Bot, Code2, ExternalLink, File, FileAudio, FileVideo, ListChecks, MapPin, MessageSquare, Package, Radio, ShoppingBag } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { nip19 } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -22,7 +22,7 @@ import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { eventStore } from "@/lib/eventStore";
 import { fetchProfileMap } from "@/services/nostr";
 import { brandForHost } from "@/lib/brands";
-import { GIT_STATE_LABEL, GIT_STATE_TONE, gitLabelsOf, type GitState } from "@/lib/gitStatus";
+import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitLabelsOf, type GitState } from "@/lib/gitStatus";
 import { fetchRepoCounts, zapStoreUrl } from "@/services/search";
 import { eventPath } from "@/lib/shareId";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
@@ -501,7 +501,20 @@ export function repoDestination(event: NostrEvent): { url: string; host: string;
   }
 }
 
-export function RepoCard({ event, author, score, state }: { event: NostrEvent; author: SearchResult | null; score?: number | null; state?: GitState }) {
+export function RepoCard({
+  event,
+  author,
+  score,
+  state,
+  comments,
+}: {
+  event: NostrEvent;
+  author: SearchResult | null;
+  score?: number | null;
+  state?: GitState;
+  /** Comments on this issue or patch, when the page fetched them. */
+  comments?: number;
+}) {
   // The Repos tab is a mix: 30617 repo announcements, plus patches (1617) and
   // issues (1621/1618) that target a repo. A type chip tells them apart, and
   // a patch/issue names the repo it belongs to (from its a-tag) — the context
@@ -514,6 +527,7 @@ export function RepoCard({ event, author, score, state }: { event: NostrEvent; a
   const repoRef = !isRepo ? tagVal(event, "a")?.split(":")[2] : undefined;
   // How the maintainer triaged it — up to three labels; the strip has the rest.
   const labels = isRepo ? [] : gitLabelsOf(event);
+  const agent = isRepo ? null : gitAgentOf(event, author);
   const dest = repoDestination(event);
   // The "is anyone working on this?" signal — issue/patch counts for the repo
   // (announcements only; a lone patch/issue has none of its own).
@@ -553,6 +567,11 @@ export function RepoCard({ event, author, score, state }: { event: NostrEvent; a
                 {GIT_STATE_LABEL[state]}
               </Chip>
             )}
+            {agent && (
+              <Chip size="sm" tone="slate" icon={Bot} title={`Filed by ${agent}, an agent`} data-testid={`git-agent-${event.id}`}>
+                agent
+              </Chip>
+            )}
           </div>
           {repoRef && (
             <p className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500">↳ in {repoRef}</p>
@@ -566,6 +585,11 @@ export function RepoCard({ event, author, score, state }: { event: NostrEvent; a
           )}
           {description && (
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 break-words line-clamp-2">{description}</p>
+          )}
+          {!isRepo && (comments ?? 0) > 0 && (
+            <p className="mt-1.5 inline-flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400" data-testid={`git-comments-${event.id}`}>
+              <MessageSquare className="h-3 w-3" /> {comments} {comments === 1 ? "comment" : "comments"}
+            </p>
           )}
           {isRepo && (counts.issues > 0 || counts.patches > 0) && (
             <div className="mt-1.5 flex flex-wrap items-center gap-1.5" data-testid={`repo-counts-${event.id}`}>

@@ -64,6 +64,7 @@ import {
   fetchSimilarListings,
   fetchCommentsByAddress,
   fetchGitStatuses,
+  fetchGitCommentCounts,
   searchStream,
   suggestProfiles,
   kindsForTab,
@@ -819,6 +820,33 @@ describe("fetchGitStatuses", () => {
     controllable();
     expect((await fetchGitStatuses([])).size).toBe(0);
     expect(reqMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("fetchGitCommentCounts", () => {
+  // NIP-22 comments on an issue name it in an uppercase E (root) tag; one
+  // request per page tallies them per issue.
+  const comment = (id: string, root: string): NostrEvent =>
+    ({ id: id.padEnd(64, "0"), kind: 1111, pubkey: "c".repeat(64), tags: [["E", root, "", "root"], ["K", "1621"], ["e", root], ["k", "1621"]], content: "…", created_at: 1, sig: "s" }) as NostrEvent;
+
+  it("asks by the issues' ids under the lens and counts comments per issue, once each", async () => {
+    const { subject } = controllable();
+    const a = "1".repeat(64), b = "2".repeat(64), quiet = "3".repeat(64);
+    const pending = fetchGitCommentCounts([a, b, quiet]);
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter.kinds).toEqual([1111]);
+    expect(filter["#E"]).toEqual([a, b, quiet]);
+    expect(filter.search).toBe("include:spam");
+    subject.next(frame(comment("c1", a)));
+    subject.next(frame(comment("c2", a)));
+    subject.next(frame(comment("c2", a))); // the same comment again
+    subject.next(frame(comment("c3", b)));
+    subject.next(EOSE);
+    const counts = await pending;
+    expect(counts.get(a)).toBe(2);
+    expect(counts.get(b)).toBe(1);
+    expect(counts.get(quiet)).toBeUndefined();
   });
 });
 

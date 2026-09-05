@@ -36,8 +36,8 @@ import {
   type SearchTab,
 } from "@/services/search";
 
-import { fetchGitStatuses } from "@/services/search";
-import { GIT_STATE_LABEL, gitLabelsOf, gitStateOf, type GitState } from "@/lib/gitStatus";
+import { fetchGitCommentCounts, fetchGitStatuses } from "@/services/search";
+import { GIT_STATE_LABEL, gitLabelsOf, gitStateOf, peopleBeforeAgents, type GitState } from "@/lib/gitStatus";
 import { AppCard, EventCard, LiveCard, ListCard, MediaCard, RepoCard, platformWords, TrackCard, WavlakeSongCard, mediaUrlOf, ListingCard } from "@/components/search/cards";
 import { EVENT_WHEN_LABELS, eventWhenCounts, filterEventsByWhen, type EventWhen } from "@/lib/eventFilters";
 import { parseTrack } from "@/lib/trackEvent";
@@ -677,6 +677,7 @@ export function SearchResults({
   // keyed by item id (NIP-34 status events, newest wins; none means open).
   const [repoState, setRepoState] = useState<GitState | null>(null);
   const [gitStatuses, setGitStatuses] = useState<Map<string, { kind: number; at: number }>>(new Map());
+  const [gitComments, setGitComments] = useState<Map<string, number>>(new Map());
   const gitItemIds = useMemo(
     () => (tab === "repos" ? hits.filter((h) => h.event.kind === 1621 || h.event.kind === 1617).map((h) => h.event.id) : []),
     [hits, tab],
@@ -688,8 +689,12 @@ export function SearchResults({
       return;
     }
     let alive = true;
-    void fetchGitStatuses(gitIdsKey.split(",")).then((m) => {
+    const ids = gitIdsKey.split(",");
+    void fetchGitStatuses(ids).then((m) => {
       if (alive) setGitStatuses(m);
+    });
+    void fetchGitCommentCounts(ids).then((m) => {
+      if (alive) setGitComments(m);
     });
     return () => {
       alive = false;
@@ -790,6 +795,10 @@ export function SearchResults({
     }
     if (tab === "repos" && repoLabel) {
       shown = shown.filter((h) => gitLabelsOf(h.event).includes(repoLabel));
+    }
+    if (tab === "repos") {
+      // People's issues before agents' — the partition Latest uses for feeds.
+      shown = peopleBeforeAgents(shown, (h) => ({ event: h.event, author: h.author }));
     }
     if (tab === "media") {
       // Kind 1063 is generic file metadata — Zap Store APKs and other blobs
@@ -1219,7 +1228,7 @@ export function SearchResults({
               if (SHOP_KINDS.has(event.kind)) return wrap(<ListingCard {...typed} />);
               if (LIVE_KINDS.has(event.kind)) return wrap(<LiveCard {...typed} />);
               if (APP_KINDS.has(event.kind)) return wrap(<AppCard {...typed} />);
-              if (REPO_KINDS.has(event.kind)) return wrap(<RepoCard {...typed} state={stateOf(event) ?? undefined} />);
+              if (REPO_KINDS.has(event.kind)) return wrap(<RepoCard {...typed} state={stateOf(event) ?? undefined} comments={gitComments.get(event.id)} />);
               if (LIST_KINDS.has(event.kind)) return wrap(<ListCard {...typed} />);
               if (MEDIA_KINDS.has(event.kind)) return wrap(<MediaCard {...typed} />);
               // Open-set posture: an unmapped kind renders as media-style

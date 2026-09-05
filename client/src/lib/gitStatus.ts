@@ -48,3 +48,35 @@ export function gitRepoNameOf(event: { tags: string[][] }): string | null {
 export function gitLabelsOf(event: { tags: string[][] }): string[] {
   return [...new Set(event.tags.filter((t) => t[0] === "t" && t[1]?.trim()).map((t) => t[1].trim().toLowerCase()))];
 }
+
+/**
+ * Who filed it — a person, or an agent? Two tells: the event's own
+ * `buzz-origin-agent` tag (with the agent's name), or an author that says
+ * so — a NIP-24 `bot: true` profile, or "agent" / "bot" as a whole word in
+ * the name ("Yuki (Personal Agent)", "DanConwayDev's Agent"). Probed
+ * 2026-09-05: under the house lens no browse issue carried the tag, but
+ * 41 of 100 came from such authors. Legitimate work — a page where most
+ * issues are agent-written just reads like a job queue, so people lead and
+ * agents follow, each marked. Null for a person.
+ */
+const AGENT_WORD = /(?:^|[^a-z])(?:agent|bot)(?:$|[^a-z])/i;
+
+export type AgentAuthor = { name?: string; displayName?: string; bot?: boolean } | null | undefined;
+
+export function gitAgentOf(event: { tags: string[][] }, author?: AgentAuthor): string | null {
+  const t = event.tags.find((t) => t[0] === "buzz-origin-agent");
+  if (t) return t[1]?.trim() || "agent";
+  if (!author) return null;
+  const label = author.displayName || author.name || "";
+  if (author.bot === true || AGENT_WORD.test(author.name ?? "") || AGENT_WORD.test(author.displayName ?? "")) return label || "agent";
+  return null;
+}
+
+/** People's items first, agents' after — a stable partition. */
+export function peopleBeforeAgents<T>(items: T[], pick: (item: T) => { event: { tags: string[][] }; author?: AgentAuthor }): T[] {
+  const isAgent = (i: T) => {
+    const { event, author } = pick(i);
+    return !!gitAgentOf(event, author);
+  };
+  return [...items.filter((i) => !isAgent(i)), ...items.filter((i) => isAgent(i))];
+}

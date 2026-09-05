@@ -4,7 +4,7 @@
  * patch and "resolved" on an issue — the same event, the right word.
  */
 import { describe, expect, it } from "vitest";
-import { gitStateOf, GIT_STATE_LABEL } from "./gitStatus";
+import { gitStateOf, GIT_STATE_LABEL, gitAgentOf } from "./gitStatus";
 
 describe("gitStateOf", () => {
   it("maps status kinds to states, with the right word for the item", () => {
@@ -18,5 +18,24 @@ describe("gitStateOf", () => {
     expect(gitStateOf(undefined, 1621)).toBe("open");
     expect(GIT_STATE_LABEL.open).toBe("Open");
     expect(GIT_STATE_LABEL.merged).toBe("Merged");
+  });
+});
+
+describe("gitAgentOf", () => {
+  it("names the agent that filed an issue, and nothing for a person", () => {
+    expect(gitAgentOf({ tags: [["buzz-origin-agent", "Sentinel"], ["subject", "x"]] })).toBe("Sentinel");
+    expect(gitAgentOf({ tags: [["buzz-origin-agent", ""]] })).toBe("agent");
+    expect(gitAgentOf({ tags: [["subject", "x"]] })).toBeNull();
+  });
+  // Probed 2026-09-05: under the house lens no browse issue carried the tag,
+  // but 37 of 100 came from "Yuki (Personal Agent)" (bot: true) and four from
+  // "DanConwayDev's Agent". The author says it when the event does not.
+  it("reads the author too: a bot flag, or agent or bot in the name", () => {
+    const issue = { tags: [["subject", "x"]] };
+    expect(gitAgentOf(issue, { name: "yuki", displayName: "Yuki (Personal Agent)", bot: true })).toBe("Yuki (Personal Agent)");
+    expect(gitAgentOf(issue, { displayName: "DanConwayDev's Agent" })).toBe("DanConwayDev's Agent");
+    expect(gitAgentOf(issue, { name: "buildbot" })).toBeNull(); // whole words only
+    expect(gitAgentOf(issue, { name: "Derek Ross" })).toBeNull();
+    expect(gitAgentOf(issue, null)).toBeNull();
   });
 });
