@@ -63,6 +63,7 @@ import {
   fetchSimilarApps,
   fetchSimilarListings,
   fetchCommentsByAddress,
+  fetchGitStatuses,
   searchStream,
   suggestProfiles,
   kindsForTab,
@@ -784,6 +785,40 @@ describe("fetchCommentsByAddress", () => {
     subject.next(EOSE);
     const comments = await pending;
     expect(comments.map((c) => c.content).sort()).toEqual(["c-q1", "c-q2"]);
+  });
+});
+
+describe("fetchGitStatuses", () => {
+  // One request for a page of issues and patches: status events reference
+  // their item by a root e-tag; the newest per item wins.
+  const status = (id: string, kind: number, target: string, at: number): NostrEvent =>
+    ({ id: id.padEnd(64, "0"), kind, pubkey: "m".repeat(64), tags: [["e", target, "wss://x", "root"], ["a", "30617:" + "a".repeat(64) + ":repo"]], content: "", created_at: at, sig: "s" }) as NostrEvent;
+
+  it("asks for every status kind by the items' ids, under the lens, and keeps the newest per item", async () => {
+    const { subject } = controllable();
+    const issue = "1".repeat(64), patch = "2".repeat(64), quiet = "3".repeat(64);
+    const pending = fetchGitStatuses([issue, patch, quiet]);
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter.kinds).toEqual([1630, 1631, 1632, 1633]);
+    expect(filter["#e"]).toEqual([issue, patch, quiet]);
+    expect(filter.search).toBe("include:spam");
+
+    subject.next(frame(status("s1", 1630, issue, 100)));
+    subject.next(frame(status("s2", 1632, issue, 200))); // closed later — wins
+    subject.next(frame(status("s3", 1631, patch, 150)));
+    subject.next(frame(status("s0", 1630, issue, 50))); // an older reopen, ignored
+    subject.next(EOSE);
+    const statuses = await pending;
+    expect(statuses.get(issue)).toEqual({ kind: 1632, at: 200 });
+    expect(statuses.get(patch)).toEqual({ kind: 1631, at: 150 });
+    expect(statuses.has(quiet)).toBe(false);
+  });
+
+  it("asks nothing for an empty page", async () => {
+    controllable();
+    expect((await fetchGitStatuses([])).size).toBe(0);
+    expect(reqMock).not.toHaveBeenCalled();
   });
 });
 

@@ -1018,6 +1018,43 @@ export function fetchCommentsByAddress(address: string | null, eventId: string, 
 }
 
 /**
+ * What became of a page of issues and patches: one request for all of them.
+ * NIP-34 status events (1630–1633) name their item by a root e-tag; the
+ * newest per item wins. Under include:spam like every relay request here.
+ */
+export function fetchGitStatuses(ids: string[], timeoutMs = 5000): Promise<Map<string, { kind: number; at: number }>> {
+  return new Promise((resolve) => {
+    const out = new Map<string, { kind: number; at: number }>();
+    const relay = searchRelay();
+    if (!relay || ids.length === 0) return resolve(out);
+    const wanted = new Set(ids);
+    const sub = relay
+      .req({ kinds: [1630, 1631, 1632, 1633], "#e": ids, search: "include:spam", limit: Math.max(200, ids.length * 4) })
+      .subscribe((msg: { type: string; event?: NostrEvent }) => {
+        if (msg.type === "EVENT" && msg.event) {
+          const ev = msg.event;
+          for (const t of ev.tags) {
+            if (t[0] !== "e" || !wanted.has(t[1])) continue;
+            const known = out.get(t[1]);
+            if (!known || ev.created_at > known.at) out.set(t[1], { kind: ev.kind, at: ev.created_at });
+          }
+        } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
+          finish();
+        }
+      });
+    const timer = setTimeout(finish, timeoutMs);
+    let done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      sub.unsubscribe();
+      resolve(out);
+    }
+  });
+}
+
+/**
  * Cheap kind-0 typeahead: resolves at EOSE or the deadline with whatever
  * arrived — never rejects (a silent suggest beats a broken one).
  */

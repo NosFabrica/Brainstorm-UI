@@ -22,6 +22,7 @@ import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { eventStore } from "@/lib/eventStore";
 import { fetchProfileMap } from "@/services/nostr";
 import { brandForHost } from "@/lib/brands";
+import { GIT_STATE_LABEL, GIT_STATE_TONE, type GitState } from "@/lib/gitStatus";
 import { fetchRepoCounts, zapStoreUrl } from "@/services/search";
 import { eventPath } from "@/lib/shareId";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
@@ -500,7 +501,7 @@ export function repoDestination(event: NostrEvent): { url: string; host: string;
   }
 }
 
-export function RepoCard({ event, author, score }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
+export function RepoCard({ event, author, score, state }: { event: NostrEvent; author: SearchResult | null; score?: number | null; state?: GitState }) {
   // The Repos tab is a mix: 30617 repo announcements, plus patches (1617) and
   // issues (1621/1618) that target a repo. A type chip tells them apart, and
   // a patch/issue names the repo it belongs to (from its a-tag) — the context
@@ -544,6 +545,12 @@ export function RepoCard({ event, author, score }: { event: NostrEvent; author: 
           <div className={`flex items-center gap-2 min-w-0 ${dest ? (dest.label.length > 12 ? "pr-36" : "pr-24") : ""}`}>
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
             <Chip size="sm" tone={typeTone}>{typeLabel}</Chip>
+            {/* What became of it — the newest NIP-34 status; none means open. */}
+            {!isRepo && state && (
+              <Chip size="sm" tone={GIT_STATE_TONE[state]} data-testid={`git-state-${event.id}`}>
+                {GIT_STATE_LABEL[state]}
+              </Chip>
+            )}
           </div>
           {repoRef && (
             <p className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500">↳ in {repoRef}</p>

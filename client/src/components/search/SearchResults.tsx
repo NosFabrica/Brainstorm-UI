@@ -36,6 +36,8 @@ import {
   type SearchTab,
 } from "@/services/search";
 
+import { fetchGitStatuses } from "@/services/search";
+import { GIT_STATE_LABEL, gitStateOf, type GitState } from "@/lib/gitStatus";
 import { AppCard, EventCard, LiveCard, ListCard, MediaCard, RepoCard, platformWords, TrackCard, WavlakeSongCard, mediaUrlOf, ListingCard } from "@/components/search/cards";
 import { EVENT_WHEN_LABELS, eventWhenCounts, filterEventsByWhen, type EventWhen } from "@/lib/eventFilters";
 import { parseTrack } from "@/lib/trackEvent";
@@ -671,6 +673,41 @@ export function SearchResults({
   const [appPlatform, setAppPlatform] = useState<string | null>(null);
   const [appCategory, setAppCategory] = useState<string | null>(null);
   const [shopCategory, setShopCategory] = useState<string | null>(null);
+  // Repos tab: what became of each issue and patch — one request per page,
+  // keyed by item id (NIP-34 status events, newest wins; none means open).
+  const [repoState, setRepoState] = useState<GitState | null>(null);
+  const [gitStatuses, setGitStatuses] = useState<Map<string, { kind: number; at: number }>>(new Map());
+  const gitItemIds = useMemo(
+    () => (tab === "repos" ? hits.filter((h) => h.event.kind === 1621 || h.event.kind === 1617).map((h) => h.event.id) : []),
+    [hits, tab],
+  );
+  const gitIdsKey = gitItemIds.join(",");
+  useEffect(() => {
+    if (!gitIdsKey) {
+      setGitStatuses(new Map());
+      return;
+    }
+    let alive = true;
+    void fetchGitStatuses(gitIdsKey.split(",")).then((m) => {
+      if (alive) setGitStatuses(m);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [gitIdsKey]);
+  const stateOf = (e: NostrEvent): GitState | null =>
+    e.kind === 1621 || e.kind === 1617 ? gitStateOf(gitStatuses.get(e.id)?.kind, e.kind) : null;
+  const repoStateFacets = useMemo(() => {
+    if (tab !== "repos") return [] as [GitState, number][];
+    const counts = new Map<GitState, number>();
+    for (const h of hits) {
+      const st = stateOf(h.event);
+      if (st) counts.set(st, (counts.get(st) ?? 0) + 1);
+    }
+    const order: GitState[] = ["open", "merged", "resolved", "closed", "draft"];
+    return order.filter((k) => counts.has(k)).map((k) => [k, counts.get(k)!] as [GitState, number]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hits, tab, gitStatuses]);
   useEffect(() => {
     setAppPlatform(null);
     setAppCategory(null);
@@ -736,6 +773,10 @@ export function SearchResults({
     if (tab === "shop" && shopCategory) {
       shown = shown.filter((h) => (parseListing(h.event)?.categories ?? []).includes(shopCategory));
     }
+    if (tab === "repos" && repoState) {
+      // A state names issues and patches; repo announcements have none.
+      shown = shown.filter((h) => stateOf(h.event) === repoState);
+    }
     if (tab === "media") {
       // Kind 1063 is generic file metadata — Zap Store APKs and other blobs
       // ride it. The Media tab means media: a 1063 stays only when its
@@ -766,7 +807,8 @@ export function SearchResults({
       if (open) for (const h of cluster.others) out.push({ hit: h, collapsedCount: 0, clusterId: "" });
     }
     return out;
-  }, [hits, tab, appPlatform, appCategory, appLicense, shopCategory, appCategoryTags, clustered, expandedClusters, effectiveWhen]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hits, tab, appPlatform, appCategory, appLicense, shopCategory, repoState, gitStatuses, appCategoryTags, clustered, expandedClusters, effectiveWhen]);
 
   // On the Music tab the results are the playlist: a track that ends hands
   // off to the next one shown, the way a queue does.
@@ -931,6 +973,29 @@ export function SearchResults({
                 </p>
               )}
             </div>
+          )}
+          {tab === "repos" && repoStateFacets.length > 0 && (
+            <FacetRow className="mb-2" testId="repo-state-facets">
+              <button
+                type="button"
+                onClick={() => setRepoState(null)}
+                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoState === null ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"}`}
+                data-testid="repo-state-all"
+              >
+                All
+              </button>
+              {repoStateFacets.map(([st, count]) => (
+                <button
+                  key={st}
+                  type="button"
+                  onClick={() => setRepoState(repoState === st ? null : st)}
+                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoState === st ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"}`}
+                  data-testid={`repo-state-${st}`}
+                >
+                  {GIT_STATE_LABEL[st]} {count}
+                </button>
+              ))}
+            </FacetRow>
           )}
           {tab === "shop" && shopFacets.length > 0 && (
             <FacetRow className="mb-2" testId="shop-facets">
@@ -1126,7 +1191,7 @@ export function SearchResults({
               if (SHOP_KINDS.has(event.kind)) return wrap(<ListingCard {...typed} />);
               if (LIVE_KINDS.has(event.kind)) return wrap(<LiveCard {...typed} />);
               if (APP_KINDS.has(event.kind)) return wrap(<AppCard {...typed} />);
-              if (REPO_KINDS.has(event.kind)) return wrap(<RepoCard {...typed} />);
+              if (REPO_KINDS.has(event.kind)) return wrap(<RepoCard {...typed} state={stateOf(event) ?? undefined} />);
               if (LIST_KINDS.has(event.kind)) return wrap(<ListCard {...typed} />);
               if (MEDIA_KINDS.has(event.kind)) return wrap(<MediaCard {...typed} />);
               // Open-set posture: an unmapped kind renders as media-style

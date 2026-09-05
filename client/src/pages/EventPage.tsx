@@ -15,6 +15,7 @@ import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { NoteContent } from "@/components/share/NoteContent";
 import { AppHero } from "@/components/share/AppHero";
 import { RepoHero } from "@/components/share/RepoHero";
+import { GitStatusLine } from "@/components/share/GitStatusLine";
 import { FollowSetHero } from "@/components/share/FollowSetHero";
 import { AudioHero } from "@/components/share/AudioHero";
 import { ListingHero } from "@/components/share/ListingHero";
@@ -361,6 +362,8 @@ export default function EventPage() {
 
             {/* The event — notes via the rich card; media kinds render their media. */}
             <div className={`rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm ${replyRefs(note).parentId || replyRefs(note).rootId ? "ring-1 ring-brand-primary/15" : ""}`} data-testid="event-note">
+              {/* An issue or a patch: what became of it, first. */}
+              {(note.kind === 1621 || note.kind === 1617) && <GitStatusLine event={note} className="mb-3" />}
               {note.kind === 30311 ? (
                 <LiveHero event={note} />
               ) : note.kind === 32267 ? (

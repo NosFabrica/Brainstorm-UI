@@ -37,8 +37,11 @@ vi.mock("@/services/search", async (importOriginal) => {
     },
     suggestProfiles: (...args: unknown[]) => suggestMock(...(args as [])),
     fetchRepoCounts: (...args: unknown[]) => repoCountsMock(...(args as [])),
+    fetchGitStatuses: (ids: string[]) => gitStatusesMock(ids),
   };
 });
+// Issue / patch states for the Repos tab — none unless a test says otherwise.
+const gitStatusesMock = vi.fn<(ids: string[]) => Promise<Map<string, { kind: number; at: number }>>>(() => Promise.resolve(new Map()));
 const repoCountsMock = vi.fn<() => Promise<{ issues: number; patches: number }>>(() =>
   Promise.resolve({ issues: 0, patches: 0 }),
 );
@@ -755,6 +758,35 @@ describe("SearchResults", () => {
     const link = await screen.findByTestId("repo-open-ns1");
     expect(link).toHaveTextContent("nsite.lol");
     expect(link.textContent).not.toContain("npub1");
+  });
+
+  // What became of it: the newest status event per issue or patch, as a chip,
+  // and a State strip to narrow the tab to open issues or merged patches.
+  it("issues and patches wear their state, and the State strip narrows to one", async () => {
+    setUrlTab("repos");
+    const issue = ev("i1", 1621, "1".repeat(64), "crashes on start", [["a", "30617:" + "9".repeat(64) + ":armada"], ["subject", "crashes on start"]]);
+    const merged = ev("p1", 1617, "2".repeat(64), "fix: startup crash", [["a", "30617:" + "9".repeat(64) + ":armada"], ["subject", "fix: startup crash"]]);
+    const fresh = ev("p2", 1617, "3".repeat(64), "feat: dark mode", [["a", "30617:" + "9".repeat(64) + ":armada"], ["subject", "feat: dark mode"]]);
+    const repo = ev("r1", 30617, "9".repeat(64), "", [["d", "armada"], ["name", "armada"]]);
+    gitStatusesMock.mockResolvedValue(new Map([[issue.id, { kind: 1632, at: 200 }], [merged.id, { kind: 1631, at: 150 }]]));
+    render(<SearchResults query="armada" pov="nosfabrica" />);
+    emit({ hits: [repo, issue, merged, fresh].map((e) => ({ event: e, author: author(e.pubkey, "dev"), rank: null })), eose: true, timeMs: 200 });
+
+    expect(await screen.findByTestId("git-state-i1")).toHaveTextContent("Closed");
+    expect(screen.getByTestId("git-state-p1")).toHaveTextContent("Merged");
+    expect(screen.getByTestId("git-state-p2")).toHaveTextContent("Open"); // no status event yet
+    expect(screen.queryByTestId("git-state-r1")).toBeNull(); // a repo has no state
+    expect(gitStatusesMock).toHaveBeenCalledWith(expect.arrayContaining([issue.id, merged.id, fresh.id]));
+
+    const strip = screen.getByTestId("repo-state-facets");
+    expect(within(strip).getByTestId("repo-state-merged")).toHaveTextContent("Merged 1");
+    expect(within(strip).getByTestId("repo-state-closed")).toHaveTextContent("Closed 1");
+    fireEvent.click(within(strip).getByTestId("repo-state-merged"));
+    expect(screen.getByTestId("repo-card-p1")).toBeInTheDocument();
+    expect(screen.queryByTestId("repo-card-i1")).toBeNull();
+    expect(screen.queryByTestId("repo-card-r1")).toBeNull();
+    fireEvent.click(within(strip).getByTestId("repo-state-all"));
+    expect(screen.getByTestId("repo-card-r1")).toBeInTheDocument();
   });
 
   it("a repo announcement shows its issue and patch counts", async () => {
