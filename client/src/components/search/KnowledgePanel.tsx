@@ -704,6 +704,8 @@ export function KnowledgePanel({
                 genre={tr.genre}
                 durationSec={tr.durationSec}
                 href={eventPath({ id: tr.id, pubkey: tr.pubkey })}
+                artistHref={`/p/${person.npub}`}
+                artistPubkey={tr.pubkey}
               />
             ))}
             {personTracks.length === 0 &&
@@ -718,6 +720,8 @@ export function KnowledgePanel({
                   durationSec={song.durationSec}
                   sourceLabel="Wavlake"
                   onOpen={() => window.open(song.url, "_blank", "noopener")}
+                  pageUrl={song.url}
+                  artistHref={`/p/${person.npub}`}
                 />
               ))}
           </div>

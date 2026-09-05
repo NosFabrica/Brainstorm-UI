@@ -82,6 +82,7 @@ vi.mock("@/components/ZapModal", () => ({
 }));
 
 import { KnowledgePanel } from "./KnowledgePanel";
+import { closePlayer, trackMeta } from "@/lib/audioPlayer";
 
 function noteHit(id: string, pubkey: string, name: string, created_at: number, tags: string[][] = []) {
   return {
@@ -676,6 +677,13 @@ describe("the person panel's music", () => {
     expect(within(music).getAllByTestId("track-play")).toHaveLength(2);
     expect(music).not.toHaveTextContent("tester");
     expect(within(music).getByTestId("person-music-more").getAttribute("href")).toBe("/p/npub1nova");
+    // Playing from here hands the app's bar the artist — their profile to
+    // link, their key for "more from this artist" — like every other row.
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    fireEvent.click(within(music).getAllByTestId("track-play")[0]);
+    expect(trackMeta("t1")).toMatchObject({ title: "Old Carbon", artistHref: "/p/npub1nova", artistPubkey: NOVA });
+    closePlayer();
+    vi.restoreAllMocks();
   });
 
   it("has no music row for someone who publishes none", async () => {
