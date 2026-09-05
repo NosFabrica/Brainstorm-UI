@@ -431,6 +431,9 @@ describe("SearchResults", () => {
       expect(screen.getByTestId(`app-card-${id}`).className).toMatch(/\bh-full\b/);
       expect(screen.getByTestId(`app-summary-${id}`).className).toMatch(/line-clamp-2/);
       expect(screen.getByTestId(`app-summary-${id}`).className).toMatch(/min-h-/);
+      // Licences left the strip because they are not how people browse; the
+      // card follows — the app page keeps the licence.
+      expect(screen.getByTestId(`app-card-${id}`)).not.toHaveTextContent("GPL-3.0-or-later");
     }
     // No Get it at all → the slot is simply absent, the footer stays put.
     expect(within(screen.getByTestId("app-card-app2")).queryByTestId("app-get-slot-app2")).toBeNull();
@@ -1414,6 +1417,20 @@ describe("SearchResults", () => {
 
   // Apps was the one tab with two chip rows. One row now: platforms, a
   // hairline, then the apps' own categories — like Repos.
+  // Benjamin, over PlayOnDlna on a phone: a blank line sat where its summary
+  // would be. The slot is reserved for a short summary, not for none.
+  it("an app with no summary closes the gap", async () => {
+    setUrlTab("apps");
+    render(<SearchResults query="" pov="nosfabrica" />);
+    const bare = ev("bare", 32267, "7".repeat(64), "", [["d", "bare"], ["name", "PlayOnDlna"], ["f", "android-arm64-v8a"]]);
+    emit({ hits: [{ event: bare, author: author(bare.pubkey, "Zapstore"), rank: null }], eose: true, timeMs: 90 });
+    const card = await screen.findByTestId("app-card-bare");
+    expect(within(card).queryByTestId("app-summary-bare")).toBeNull();
+    // The chips sit in the text column, beside the icon — under the name, not under the icon's height.
+    const chips = within(card).getByTestId("app-platforms-bare");
+    expect(chips.parentElement).toBe(within(card).getByText("PlayOnDlna").parentElement);
+  });
+
   it("the Apps strip is one row: platforms, then categories, without counts", async () => {
     setUrlTab("apps");
     render(<SearchResults query="" pov="nosfabrica" />);

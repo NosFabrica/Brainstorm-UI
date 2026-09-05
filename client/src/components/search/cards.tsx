@@ -381,7 +381,7 @@ export function platformWords(event: NostrEvent): string[] {
 
 /**
  * A Zap Store listing (kind 32267) as a real app-store card: the app's own
- * icon, name, summary, platforms, license — and "Get it" out to the app's
+ * icon, name, summary, platforms — and "Get it" out to the app's
  * site (falling back to its repository). Vitor's split, the
  * Apps half: listings stop masquerading as "code".
  */
@@ -389,7 +389,6 @@ export function AppCard({ event, author, score }: { event: NostrEvent; author: S
   const name = tagVal(event, "name") ?? tagVal(event, "d") ?? "Untitled app";
   const summary = tagVal(event, "summary") ?? event.content.slice(0, 200);
   const icon = tagVal(event, "icon") ?? tagVal(event, "image");
-  const license = tagVal(event, "license");
   const platforms = platformWords(event);
   // Where you actually GET it: the app's Zap Store page (signature-verified
   // installs), falling back to the site / repo only for listings without one.
@@ -406,20 +405,30 @@ export function AppCard({ event, author, score }: { event: NostrEvent; author: S
       fill
       testId={`app-card-${event.id}`}
     >
-      {/* One shape for every card, app-store style: text on the left, the
-          app's icon in the top-right corner, a two-line summary slot that is
-          reserved even when the summary is short, one line of chips, and a
-          footer pushed to the bottom — so a grid row lines up edge to edge. */}
+      {/* One shape for every card, app-store style: text on the left — name,
+          a two-line summary slot when there is a summary, one line of chips —
+          the app's icon in the top-right corner, and a footer pushed to the
+          bottom, so a grid row lines up edge to edge. */}
       <div className="flex h-full flex-col">
         <div className="flex items-start gap-3">
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
+            {summary && (
             <p
               className="mt-0.5 min-h-[2rem] text-xs leading-4 text-slate-500 dark:text-slate-400 break-words line-clamp-2"
               data-testid={`app-summary-${event.id}`}
             >
               {summary}
             </p>
+          )}
+            {/* The chips live in the text column, beside the icon: with no
+                summary they rise to sit under the name instead of leaving the
+                icon's height as a gap (PlayOnDlna on a phone). */}
+            <div className="mt-2 flex h-5 items-center gap-1.5 overflow-hidden" data-testid={`app-platforms-${event.id}`}>
+              {platforms.map((p) => (
+                <Chip key={p} size="sm" tone="slate">{p}</Chip>
+              ))}
+            </div>
           </div>
           <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800 flex items-center justify-center shadow-sm ring-1 ring-slate-900/5 dark:ring-white/10">
             {icon ? (
@@ -428,12 +437,6 @@ export function AppCard({ event, author, score }: { event: NostrEvent; author: S
               <Package className="h-5 w-5 text-slate-400 dark:text-slate-500" />
             )}
           </div>
-        </div>
-        <div className="mt-2 flex h-5 items-center gap-1.5 overflow-hidden">
-          {platforms.map((p) => (
-            <Chip key={p} size="sm" tone="slate">{p}</Chip>
-          ))}
-          {license && <Chip size="sm" tone="slate">{license}</Chip>}
         </div>
         {/* Get it sits in the footer's corner (66px wide with its favicon) —
             the footer leaves it that room plus a gap, so the timestamp never
