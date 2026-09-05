@@ -725,6 +725,34 @@ describe("SearchResults", () => {
     for (const gone of ["r2", "e1", "c1"]) expect(screen.queryByTestId(`live-tile-${gone}`)).toBeNull();
   });
 
+  it("a stream nothing can play never reaches the grid, viewer counts read compact, and the category yields the row to the host on phones", async () => {
+    const now = Math.floor(Date.now() / 1000);
+    const platform = "e".repeat(64);
+    setUrlTab("live");
+    render(<SearchResults query="" pov="nosfabrica" />);
+    const mk = (id: string, tags: string[][]) => ({ ...ev(id, 30311, platform, "", [["d", id], ...tags]), created_at: now });
+    const hits = [
+      // Probed 2026-09-05: a QA event with a fake count and an ftp:// stream topped the grid.
+      mk("q1", [["title", "QA: non-web streaming scheme"], ["status", "live"], ["current_participants", "99999"], ["streaming", "ftp://example.com/not-a-web-url"]]),
+      mk("l3", [["title", "Big Show"], ["status", "live"], ["current_participants", "12345"], ["streaming", "https://cdn/x.m3u8"], ["t", "music"]]),
+      mk("l4", [["title", "Small Show"], ["status", "live"], ["current_participants", "7"], ["streaming", "https://cdn/y.m3u8"]]),
+    ].map((event) => ({ event, author: author(platform, "zap.stream"), rank: null }));
+    emit({ hits, eose: true, timeMs: 300 });
+
+    const grid = await screen.findByTestId("container-search-results");
+    const tiles = [...grid.querySelectorAll('[data-testid^="live-tile-"]')].map((n) => n.getAttribute("data-testid"));
+    expect(tiles).toEqual(["live-tile-l3", "live-tile-l4"]);
+    expect(within(screen.getByTestId("live-facets")).getByTestId("live-facet-live")).toHaveTextContent("Live 2");
+    const l3 = screen.getByTestId("live-tile-l3");
+    expect(within(l3).getByTestId("live-status-l3")).toHaveTextContent("12.3k");
+    expect(within(l3).getByTestId("live-status-l3")).not.toHaveTextContent("12345");
+    // 46 of 66 host names were cut to make room for "· video-games" on a
+    // 166px tile: on phones the category hides and the name has the row.
+    const category = within(l3).getByText(/· music/);
+    expect(category).toHaveClass("hidden");
+    expect(category).toHaveClass("sm:inline");
+  });
+
   // Benjamin, over two "live" tiles with no picture and no stream: "events
   // showing up as live with no thumbnails, no video replay either — we should
   // fix this so users don't get confused". A live nobody updated in a week is

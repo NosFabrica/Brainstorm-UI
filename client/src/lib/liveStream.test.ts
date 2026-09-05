@@ -108,3 +108,18 @@ describe("stale live — a status nobody updated is not a broadcast", () => {
     expect(liveNeedsCheck({ ...live(2 * 86_400), tags: [["d", "s"], ["title", "Show"], ["status", "live"], ["streaming", "wss+livekit://nostrnests.com:443"]] }, now)).toBeNull();
   });
 });
+
+describe("a stream nothing can play is not a broadcast", () => {
+  // Probed 2026-09-05: "QA: non-web streaming scheme" — streaming
+  // ftp://example.com/not-a-web-url, 99999 viewers — led the Live grid.
+  const now = 1_760_000_000;
+  const live = (tags: string[][]) => ({ kind: 30311, created_at: now - 3600, tags: [["d", "s"], ["title", "QA: non-web streaming scheme"], ["status", "live"], ...tags] });
+  it("drops a live event whose streaming URL is not a web URL; web, socket and announced-only streams stay", () => {
+    expect(liveStateOf(live([["streaming", "ftp://example.com/not-a-web-url"], ["current_participants", "99999"]]), now)).toBeNull();
+    expect(liveStateOf(live([["streaming", "https://cdn.zap.stream/x/live.m3u8"]]), now)).toBe("live");
+    expect(liveStateOf(live([["streaming", "wss://livekit.example/room"]]), now)).toBe("live");
+    expect(liveStateOf(live([]), now)).toBe("live");
+    // An unplayable stream with a real recording: the recording can play, so a replay.
+    expect(liveStateOf(live([["streaming", "ftp://x/y"], ["recording", "https://r/x.m3u8"]]), now)).toBe("replay");
+  });
+});

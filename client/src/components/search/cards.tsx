@@ -24,6 +24,7 @@ import { fetchProfileMap } from "@/services/nostr";
 import { brandForHost } from "@/lib/brands";
 import { profileHrefOf } from "@/lib/upNext";
 import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitItemLabel, gitLabelsOf, type GitState } from "@/lib/gitStatus";
+import { compactCount } from "@/lib/compactCount";
 import { ago } from "@/lib/ago";
 import { gitItemSummaryOf, gitItemTitleOf } from "@/lib/gitPatch";
 import { fetchRepoCounts, zapStoreUrl } from "@/services/search";
@@ -805,7 +806,7 @@ export function LiveTile({ event, author, score, state, hostScore }: { event: No
             {state === "live" && <span className="h-1.5 w-1.5 rounded-full bg-white" aria-hidden="true" />}
             {state === "live" ? <span className="tracking-wide">LIVE</span> : state === "upcoming" ? "Upcoming" : "Replay"}
             {state === "live" && viewers != null && viewers > 0 && (
-              <span className="font-medium tabular-nums opacity-90">· {viewers}</span>
+              <span className="font-medium tabular-nums opacity-90">· {compactCount(viewers)}</span>
             )}
           </span>
           {onAir && (
@@ -827,7 +828,9 @@ export function LiveTile({ event, author, score, state, hostScore }: { event: No
           <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
         </Avatar>
         <span className="min-w-0 truncate text-xs text-slate-600 dark:text-slate-300">{channelName}</span>
-        {category && <span className="shrink-0 truncate text-[11px] text-slate-400 dark:text-slate-500">· {category}</span>}
+        {/* The category waits for a wider tile: on a phone's 166px it cut 46 of
+            66 host names ("The Old Timey Computer Show" kept 27px). */}
+        {category && <span className="hidden sm:inline shrink-0 truncate text-[11px] text-slate-400 dark:text-slate-500">· {category}</span>}
       </div>
       {openIn && (
         <a

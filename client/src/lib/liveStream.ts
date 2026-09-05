@@ -158,6 +158,11 @@ export function liveStateOf(ev: EventLike, nowSec = Math.floor(Date.now() / 1000
     // event as viewers come and go, so one untouched for a week — or one past
     // its own end — is over (Barnoldswick: "live" since 2.4 years ago).
     if ((ends > 0 && ends < nowSec) || nowSec - ev.created_at > LIVE_STALE_AFTER_SEC) return over;
+    // And a stream nothing can play is not one either: a streaming URL that
+    // is not a web or socket URL (probed 2026-09-05, a QA event's ftp:// with
+    // 99999 "viewers" led the grid). An announced stream with no URL yet stays.
+    const streaming = tag("streaming");
+    if (streaming && !/^(https?|wss?):\/\//i.test(streaming)) return over;
     return "live";
   }
   if (status === "ended" || status === "closed") return over;
