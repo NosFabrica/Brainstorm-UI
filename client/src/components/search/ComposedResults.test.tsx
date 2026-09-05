@@ -94,6 +94,31 @@ describe("ComposedResults — media-rich sections", () => {
   const NEWS = (n: number) =>
     `Liverpool complete the record signing of Bradley Barcola ${n}\nhttps://www.liverpoolecho.co.uk/story-${n}\nSummary ${n}. https://cdn.example/photo-${n}.jpg`;
 
+  // Apple's surfaces hold their shape: the sections that nearly always
+  // answer reserve their space and fade in, instead of popping the page
+  // around under the reader. Sections further down appear as they arrive.
+  it("People, Latest and Articles hold their place while loading, then fill or collapse", async () => {
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    expect(screen.getByTestId("serp-skeleton-people")).toBeInTheDocument();
+    expect(screen.getByTestId("serp-skeleton-latest")).toBeInTheDocument();
+    expect(screen.getByTestId("serp-skeleton-articles")).toBeInTheDocument();
+    expect(screen.queryByTestId("serp-skeleton-shop")).toBeNull();
+    expect(screen.queryByTestId("serp-skeleton-happening")).toBeNull();
+
+    sectionCall("people").emit({ hits: [hitOf(ev("p1", 0, "a".repeat(64), JSON.stringify({ name: "kop" })), "kop")], eose: false, timeMs: 50 });
+    const people = await screen.findByTestId("serp-section-people");
+    expect(screen.queryByTestId("serp-skeleton-people")).toBeNull();
+    expect(people.className).toMatch(/fadeIn/);
+
+    // Nothing at all → the placeholder collapses rather than sit empty.
+    sectionCall("notes").emit({ hits: [], eose: true, timeMs: 80 });
+    await vi.waitFor(() => expect(screen.queryByTestId("serp-skeleton-latest")).toBeNull());
+    expect(screen.queryByTestId("serp-section-latest")).toBeNull();
+
+    // Still waiting → still holding its place.
+    expect(screen.getByTestId("serp-skeleton-articles")).toBeInTheDocument();
+  });
+
   it("leads Latest with a Top stories strip of news-shaped notes, the rest as rows", async () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     sectionCall("notes").emit({

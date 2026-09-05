@@ -22,7 +22,7 @@ import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { SerpRow } from "@/components/search/SerpRow";
 import { ArticlesBento, MediaTiles, TopStories, hasCover, hasVisual, pickTopStories } from "@/components/search/RichSections";
 import { collapseHits } from "@/lib/searchCollapse";
-import { ClusterRows, Section, mergeSnapshots, useSectionStream } from "@/components/search/sections";
+import { ClusterRows, Section, SectionSkeleton, mergeSnapshots, useSectionStream } from "@/components/search/sections";
 import { isFeedAccount } from "@/lib/feedAccount";
 import { tierForScore01 } from "@/lib/verificationTier";
 import type { HitCluster } from "@/lib/searchCollapse";
@@ -103,6 +103,14 @@ function PersonChip({
 function peopleFirst(clusters: HitCluster[]): HitCluster[] {
   return [...clusters.filter((c) => !isFeedAccount(c.primary.author)), ...clusters.filter((c) => isFeedAccount(c.primary.author))];
 }
+
+/** A stream that has not answered yet — no hits and no end-of-stored-events. */
+function stillLoading(snapshot: SearchSnapshot | null): boolean {
+  return !snapshot || (!snapshot.eose && snapshot.hits.length === 0);
+}
+
+/** Content fades into the place its skeleton held (index.css's fadeIn keyframes). */
+const FADE = "motion-safe:animate-[fadeIn_0.3s_ease-out]";
 
 export function ComposedResults({
   query,
@@ -280,8 +288,9 @@ export function ComposedResults({
         </p>
       )}
 
+      {peopleOrdered.length === 0 && stillLoading(peopleF) && <SectionSkeleton id="people" kicker="People" shape="people" />}
       {peopleOrdered.length > 0 && (
-        <Section id="people" kicker="People" tab="people" onTabChange={onTabChange}>
+        <Section id="people" kicker="People" tab="people" onTabChange={onTabChange} className={FADE}>
           {/* More people than fit → arrow paging, Google-carousel style.
               Touch scrolling still works; the arrows are for mouse users
               who otherwise see a stagnant strip. */}
@@ -305,16 +314,18 @@ export function ComposedResults({
         </Section>
       )}
 
+      {(latestF?.hits.length ?? 0) === 0 && stillLoading(latestF) && <SectionSkeleton id="latest" kicker="Latest" shape="rows" />}
       {(latestF?.hits.length ?? 0) > 0 && (
-        <Section id="latest" kicker="Latest" tab="notes" onTabChange={onTabChange}>
+        <Section id="latest" kicker="Latest" tab="notes" onTabChange={onTabChange} className={FADE}>
           <TopStories stories={topStories} stripRef={storiesRef} />
           {/* Only notes here — no "· Note" on every row. */}
           <div className="divide-y divide-slate-100 dark:divide-slate-800/60">{clustersOf(latestF, storyIds, { showType: false, peopleFirst: true })}</div>
         </Section>
       )}
 
+      {(articlesF?.hits.length ?? 0) === 0 && stillLoading(articlesF) && <SectionSkeleton id="articles" kicker="Articles" shape="bento" />}
       {(articlesF?.hits.length ?? 0) > 0 && (
-        <Section id="articles" kicker="Articles" tab="articles" onTabChange={onTabChange}>
+        <Section id="articles" kicker="Articles" tab="articles" onTabChange={onTabChange} className={FADE}>
           {/* A bento — lead + tiles — breaks the run of rows; overflow stays rows. */}
           <ArticlesBento clusters={coveredArticles} scoreOf={scoreOf} />
           {articleRows.length > 0 && (

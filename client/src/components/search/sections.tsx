@@ -5,6 +5,7 @@
  */
 import { useEffect, useMemo, useState } from "react";
 import { SectionHeader } from "@/components/ui/section-header";
+import { Skeleton } from "@/components/ui/skeleton";
 import { SerpRow } from "@/components/search/SerpRow";
 import { getDisplayLabel } from "@/lib/profileSearch";
 import type { HitCluster } from "@/lib/searchCollapse";
@@ -70,6 +71,7 @@ export function Section({
   onTabChange,
   children,
   testIdPrefix = "serp-section",
+  className = "",
 }: {
   id: string;
   kicker: string;
@@ -77,9 +79,10 @@ export function Section({
   onTabChange: (t: SearchTab) => void;
   children: React.ReactNode;
   testIdPrefix?: string;
+  className?: string;
 }) {
   return (
-    <section className="mt-5 first:mt-0" data-testid={`${testIdPrefix}-${id}`}>
+    <section className={`mt-5 first:mt-0 ${className}`} data-testid={`${testIdPrefix}-${id}`}>
       <div className="mb-2 flex items-baseline gap-2">
         <SectionHeader variant="title" kicker={kicker} className="flex-1" />
         {/* Quiet until hovered: the title carries the section, the link
@@ -148,5 +151,54 @@ export function ClusterRows({
           />
         ))}
     </div>
+  );
+}
+
+/**
+ * A section's place, held while its stream answers — the title in place and
+ * quiet shapes where the content will land, so the page keeps its shape
+ * instead of reflowing under the reader. Collapses (the caller renders
+ * nothing) when the answer is empty.
+ */
+export function SectionSkeleton({ id, kicker, shape }: { id: string; kicker: string; shape: "people" | "rows" | "bento" }) {
+  return (
+    <section className="mt-5 first:mt-0" data-testid={`serp-skeleton-${id}`} aria-busy="true" aria-label={`Loading ${kicker}`}>
+      <div className="mb-2 flex items-baseline gap-2">
+        <SectionHeader variant="title" kicker={kicker} className="flex-1 opacity-60" />
+      </div>
+      {shape === "people" && (
+        <div className="flex gap-2.5 overflow-hidden -mx-1 px-1">
+          {Array.from({ length: 6 }, (_, i) => (
+            <div key={i} className="flex w-28 shrink-0 flex-col items-center gap-2 p-3">
+              <Skeleton className="h-12 w-12 rounded-full" />
+              <Skeleton className="h-3 w-16 rounded" />
+            </div>
+          ))}
+        </div>
+      )}
+      {shape === "rows" && (
+        <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
+          {Array.from({ length: 3 }, (_, i) => (
+            <div key={i} className="flex items-start gap-3 px-2 py-3 -mx-2">
+              <div className="min-w-0 flex-1 space-y-2">
+                <div className="flex items-center gap-1.5">
+                  <Skeleton className="h-5 w-5 rounded-full" />
+                  <Skeleton className="h-3 w-24 rounded" />
+                </div>
+                <Skeleton className="h-3 w-full rounded" />
+                <Skeleton className="h-3 w-3/4 rounded" />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {shape === "bento" && (
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <Skeleton className="col-span-2 aspect-[16/9] w-full rounded-2xl sm:row-span-2" />
+          <Skeleton className="aspect-[16/10] w-full rounded-2xl" />
+          <Skeleton className="hidden aspect-[16/10] w-full rounded-2xl sm:block" />
+        </div>
+      )}
+    </section>
   );
 }
