@@ -110,6 +110,20 @@ describe("GitItemHero", () => {
     expect(screen.getByTestId("git-item-body")).toHaveTextContent("Fixes a stuck warning.");
   });
 
+  // Bug reports lead with screenshots as bare URLs. A reader wants the
+  // picture, not the address.
+  it("a bare image URL in an issue body shows as the image", async () => {
+    const issue = { id: "5".repeat(64), kind: 1621, pubkey: "a".repeat(64), created_at: 1, content: "https://blossom.ditto.pub/4f18c2dd.webp\n\nArmada never receives relay lists. See https://example.org/docs for context.", tags: [["a", REPO_ADDR], ["subject", "relay lists"]] };
+    render(<GitItemHero event={issue} />);
+    const body = screen.getByTestId("git-item-body");
+    const img = body.querySelector("img");
+    expect(img?.getAttribute("src")).toBe("https://blossom.ditto.pub/4f18c2dd.webp");
+    expect(body).not.toHaveTextContent("blossom.ditto.pub/4f18c2dd.webp");
+    // An ordinary link stays a link.
+    const link = [...body.querySelectorAll("a")].find((a) => a.getAttribute("href") === "https://example.org/docs");
+    expect(link).toBeTruthy();
+  });
+
   it("an issue nobody has touched is open, with the repo named even before it resolves", async () => {
     repoMock.mockResolvedValue(null);
     const issue = { id: "4".repeat(64), kind: 1621, pubkey: "a".repeat(64), created_at: 1, content: "plain words", tags: [["a", REPO_ADDR]] };

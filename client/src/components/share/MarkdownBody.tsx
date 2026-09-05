@@ -2,6 +2,8 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeSanitize from "rehype-sanitize";
 
+const IMAGE_URL = /\.(?:png|jpe?g|gif|webp|avif)(?:\?|#|$)/i;
+
 /**
  * Markdown as the author meant it — headings, emphasis, lists, code, links
  * — sanitised, with links opening in a new tab. For bodies written in
@@ -17,11 +19,20 @@ export function MarkdownBody({ text, className = "" }: { text: string; className
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[rehypeSanitize]}
         components={{
-          a: ({ href, children }) => (
-            <a href={typeof href === "string" ? href : undefined} target="_blank" rel="noopener">
-              {children}
-            </a>
-          ),
+          a: ({ href, children }) => {
+            const url = typeof href === "string" ? href : "";
+            const text = Array.isArray(children) ? children.map((c) => (typeof c === "string" ? c : "")).join("") : String(children ?? "");
+            // A bare picture URL (autolinked, text equal to the address) is the
+            // picture — bug reports lead with screenshots this way.
+            if (url && text.trim() === url.trim() && IMAGE_URL.test(url)) {
+              return <img src={url} alt="" loading="lazy" className="my-2 block max-h-[34rem] max-w-full rounded-lg border border-slate-200 dark:border-slate-800 object-contain" />;
+            }
+            return (
+              <a href={url || undefined} target="_blank" rel="noopener">
+                {children}
+              </a>
+            );
+          },
         }}
       >
         {text}
