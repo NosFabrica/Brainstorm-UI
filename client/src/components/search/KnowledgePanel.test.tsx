@@ -947,14 +947,20 @@ describe("the person panel's latest media", () => {
     recentByKindsMock.mockImplementation(async (_pk, kinds) =>
       kinds.includes(1) ? [{ id: "pod1", kind: 1, pubkey: RHR, created_at: NOW - 3600, sig: "s", content: "New pod is up https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3", tags: [] } as NostrEvent] : [],
     );
-    fountainItemFetchMock.mockResolvedValue({ kind: "episode", id: "T0iRUdk8nBSfUEPLLcJ3", show: "Rabbit Hole Recap", title: "RHR 422: The Pod", description: null, image: "https://img/pod.jpg", audio: "https://cdn/pod.mp3", url: "https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3" });
+    // Fountain's page title carries its own call to action; the row does not.
+    fountainItemFetchMock.mockResolvedValue({ kind: "episode", id: "T0iRUdk8nBSfUEPLLcJ3", show: "Rabbit Hole Recap", title: "RHR 422: The Pod • Watch on Fountain", description: null, image: "https://img/pod.jpg", audio: "https://cdn/pod.mp3", url: "https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3" });
     render(<KnowledgePanel query="Rabbit Hole Recap" pov="nosfabrica" />);
 
+    // Benjamin: podcasts should play like the audio files, so the UI is
+    // universal — the same track row as music, with Fountain named as the source.
     const row = await screen.findByTestId("person-media-item-pod1");
-    expect(row).toHaveTextContent("RHR 422: The Pod");
-    expect(row).toHaveTextContent(/Podcast/);
+    const track = within(row).getByTestId("embedded-track");
+    expect(track).toHaveTextContent("RHR 422: The Pod");
+    expect(track).not.toHaveTextContent(/Watch on Fountain/);
+    expect(track).toHaveTextContent("Rabbit Hole Recap");
+    expect(track).toHaveTextContent("Fountain");
     expect(row.querySelector("img")?.getAttribute("src")).toBe("https://img/pod.jpg");
-    expect(within(row).getByRole("button", { name: /play/i })).toBeInTheDocument();
+    expect(within(row).getByTestId("track-play")).toHaveAttribute("aria-label", "Play");
   });
 });
 
