@@ -357,7 +357,8 @@ function KnowledgePanelBody({
   const foldedKeys = blockCandidates.map((b) => b.key).filter((k) => !chosen.includes(k));
   const renderBlock = (key: string) => {
     if (!person) return null;
-    if (key === "live") return <PanelLive {...personStreams} />;
+    if (key === "live")
+      return <PanelLive {...personStreams} author={{ name: getDisplayLabel(person), npub: person.npub, picture: person.picture ?? null, score01: person.wotRank ?? scoreOf(person.pubkey) ?? null }} />;
     if (key === "media") return <PanelLatestMedia person={person} events={personRecent} />;
     if (key === "selling")
       return (

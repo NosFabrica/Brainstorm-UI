@@ -766,8 +766,13 @@ describe("the person panel's live stream", () => {
     const cta = screen.getByTestId("knowledge-panel-profile");
     expect(live.compareDocumentPosition(cta) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
+    // The one tap: full view, playing, credited — the way the videos in Latest open.
     fireEvent.click(within(live).getByRole("button", { name: /play/i }));
-    expect(within(live).getByTestId("person-live-embed").getAttribute("src")).toContain("player.twitch.tv");
+    expect(openLightboxMock).toHaveBeenLastCalledWith(
+      [expect.objectContaining({ kind: "embed", url: expect.stringContaining("player.twitch.tv") })],
+      0,
+      expect.objectContaining({ author: expect.objectContaining({ name: "TheGrinder" }), postHref: expect.stringMatching(/^\/e\//) }),
+    );
     expect(within(live).getByTestId("person-live-open").getAttribute("href")).toMatch(/^\/e\//);
   });
 
@@ -778,12 +783,12 @@ describe("the person panel's live stream", () => {
     const live = await screen.findByTestId("person-live");
 
     fireEvent.click(within(live).getByRole("button", { name: /play live stream/i }));
-
-    // The panel's tap was the intent; the player must not ask again — and it
-    // sits inside the card's frame, so it draws none of its own.
-    const player = within(live).getByTestId("live-player");
-    expect(within(live).queryByTestId("live-play")).toBeNull();
-    expect(player.className).not.toMatch(/border|rounded-2xl/);
+    // A raw stream opens full view through our HLS player.
+    expect(openLightboxMock).toHaveBeenLastCalledWith(
+      [expect.objectContaining({ kind: "hls", url: "https://shosho.live/hls/thegrinder/index.m3u8" })],
+      0,
+      expect.anything(),
+    );
   });
 
   // Benjamin, over Joe Martin's dead "Streamed 1mo ago" line: search must never
@@ -803,7 +808,11 @@ describe("the person panel's live stream", () => {
     expect(replay.querySelector("img")?.getAttribute("src")).toBe("https://i.nostr.build/Vb6byoSaEEJbqqbs.png");
 
     fireEvent.click(within(replay).getByRole("button", { name: /play/i }));
-    expect(within(replay).getByTestId("person-live-embed").getAttribute("src")).toContain("youtube-nocookie.com/embed/dQw4w9WgXcQ");
+    expect(openLightboxMock).toHaveBeenLastCalledWith(
+      [expect.objectContaining({ kind: "embed", url: expect.stringContaining("youtube-nocookie.com/embed/dQw4w9WgXcQ") })],
+      0,
+      expect.objectContaining({ postHref: expect.stringMatching(/^\/e\//) }),
+    );
     expect(screen.queryByTestId("person-live")).toBeNull();
   });
 
@@ -829,25 +838,11 @@ describe("the person panel's live stream", () => {
     render(<KnowledgePanel query="TheGrinder" pov="nosfabrica" />);
     const replay = await screen.findByTestId("person-live-replay");
     fireEvent.click(within(replay).getByRole("button", { name: /play/i }));
-    expect(within(replay).getByTestId("live-player")).toBeInTheDocument();
-  });
-
-  // Benjamin, over the replay playing small in the rail: "not able to expand
-  // this from the search". While it plays, one Expand control opens the
-  // stream page, which picks up playing at full width.
-  it("a playing replay offers Expand, which opens the stream page", async () => {
-    grinder();
-    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 200 })));
-    liveStreamsMock.mockResolvedValue([
-      { ...stream("old", "ended", { created: NOW - 86_400 }), tags: [...stream("old", "ended").tags, ["recording", "https://customer-51tz.cloudflarestream.com/abc/manifest/video.m3u8"]] },
-    ]);
-    render(<KnowledgePanel query="TheGrinder" pov="nosfabrica" />);
-    const replay = await screen.findByTestId("person-live-replay");
-    expect(within(replay).queryByTestId("person-live-expand")).toBeNull();
-    fireEvent.click(within(replay).getByRole("button", { name: /play/i }));
-    const expand = within(replay).getByTestId("person-live-expand");
-    expect(expand.getAttribute("href")).toMatch(/^\/e\//);
-    expect(expand.getAttribute("aria-label")).toMatch(/expand/i);
+    expect(openLightboxMock).toHaveBeenLastCalledWith(
+      [expect.objectContaining({ kind: "hls", url: "https://customer-51tz.cloudflarestream.com/abc/manifest/video.m3u8" })],
+      0,
+      expect.anything(),
+    );
   });
 
   it("an ended stream with no recording is not advertised at all", async () => {

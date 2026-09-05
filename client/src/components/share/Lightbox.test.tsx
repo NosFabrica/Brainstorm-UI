@@ -69,6 +69,21 @@ describe("Lightbox", () => {
     expect(video.hasAttribute("playsinline")).toBe(true);
   });
 
+  // Benjamin, over a replay in the rail: it should expand and play like the
+  // videos in Latest. A stream is a lightbox item too — HLS through our
+  // player, a platform page through its own.
+  it("plays an HLS stream through our player, and a platform page through its embed", () => {
+    render(
+      <LightboxProvider>
+        <Opener items={[{ url: "https://data.zap.stream/recording/abc.m3u8", kind: "hls", poster: "https://cdn.example/poster.jpg" }, { url: "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1", kind: "embed" }]} />
+      </LightboxProvider>,
+    );
+    fireEvent.click(screen.getByText("open"));
+    expect(screen.getByTestId("lightbox-hls").querySelector('[data-testid="live-player"]')).not.toBeNull();
+    fireEvent.click(screen.getByTestId("lightbox-next"));
+    expect((screen.getByTestId("lightbox-embed") as HTMLIFrameElement).getAttribute("src")).toContain("youtube-nocookie.com/embed/dQw4w9WgXcQ");
+  });
+
   it("still shows plain URL strings as images", () => {
     render(
       <LightboxProvider>

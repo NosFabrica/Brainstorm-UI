@@ -5,6 +5,7 @@ import { ArrowUpRight, X, ChevronLeft, ChevronRight } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
+import { LiveVideoPlayer } from "@/components/share/LiveVideoPlayer";
 
 /**
  * X-style media lightbox. Any component can open it via {@link useLightbox}
@@ -16,13 +17,14 @@ import { useTierRing } from "@/components/score/VerificationCoin";
  * arrow + swipe navigation through the set, and a counter. Close via the X
  * button, a backdrop tap, or Esc. Desktop + mobile friendly.
  */
-export type LightboxItem = string | { url: string; kind: "image" | "video"; poster?: string | null };
+/** `hls` is a live or recorded HLS stream through our player; `embed` a platform player's page URL (YouTube, Twitch…). */
+export type LightboxItem = string | { url: string; kind: "image" | "video" | "hls" | "embed"; poster?: string | null };
 /** Who the media is from and where the post lives — the quiet bar in full view. */
 export type LightboxContextInfo = {
   author?: { name: string; npub: string; picture?: string | null; score01?: number | null } | null;
   postHref?: string | null;
 };
-type MediaItem = { url: string; kind: "image" | "video"; poster: string | null };
+type MediaItem = { url: string; kind: "image" | "video" | "hls" | "embed"; poster: string | null };
 type LightboxState = { images: MediaItem[]; index: number; context: LightboxContextInfo | null } | null;
 
 const LightboxContext = createContext<(items: LightboxItem[], index: number, context?: LightboxContextInfo) => void>(() => {});
@@ -150,7 +152,24 @@ function LightboxOverlay({
         </>
       )}
 
-      {images[index].kind === "video" ? (
+      {images[index].kind === "hls" ? (
+        // A stream, live or recorded: our HLS player, starting at once — the
+        // same full view a clip gets, so a replay in the rail expands like a video.
+        <div key={images[index].url} onClick={(e) => e.stopPropagation()} className="w-[96vw] max-w-5xl overflow-hidden rounded-lg bg-black shadow-2xl" data-testid="lightbox-hls">
+          <LiveVideoPlayer src={images[index].url} poster={images[index].poster ?? undefined} autoStart frameless />
+        </div>
+      ) : images[index].kind === "embed" ? (
+        <div key={images[index].url} onClick={(e) => e.stopPropagation()} className="aspect-video w-[96vw] max-w-5xl overflow-hidden rounded-lg bg-black shadow-2xl">
+          <iframe
+            src={images[index].url}
+            title="Stream"
+            allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
+            allowFullScreen
+            className="h-full w-full"
+            data-testid="lightbox-embed"
+          />
+        </div>
+      ) : images[index].kind === "video" ? (
         <video
           key={images[index].url}
           src={images[index].url}
