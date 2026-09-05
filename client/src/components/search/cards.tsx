@@ -21,6 +21,7 @@ import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { eventStore } from "@/lib/eventStore";
 import { fetchProfileMap } from "@/services/nostr";
+import { brandForHost } from "@/lib/brands";
 import { fetchRepoCounts, zapStoreUrl } from "@/services/search";
 import { eventPath } from "@/lib/shareId";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
@@ -274,6 +275,7 @@ export function MediaCard({ event, author, score }: { event: NostrEvent; author:
       return null;
     }
   })();
+  const brand = brandForHost(host);
   const open = () => navigate(eventPath(event));
   return (
     // A div-with-navigate, not an <a>: the media inside is INTERACTIVE
@@ -333,7 +335,17 @@ export function MediaCard({ event, author, score }: { event: NostrEvent; author:
         </div>
       )}
       {host && !isAudio && (
-        <p className="mt-1.5 text-[11px] text-slate-400 dark:text-slate-500">via {host}</p>
+        <p className="mt-1.5 flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500">
+          via{" "}
+          {brand ? (
+            // The partner's own mark, with its x-height of clear space.
+            <span className="inline-flex items-center px-1 py-0.5">
+              <brand.Wordmark />
+            </span>
+          ) : (
+            host
+          )}
+        </p>
       )}
     </div>
   );

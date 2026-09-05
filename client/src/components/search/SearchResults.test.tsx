@@ -976,6 +976,22 @@ describe("SearchResults", () => {
     expect(screen.getByText(/sunset over the lake/)).toBeInTheDocument();
   });
 
+  // A partner's own mark, by their rules: Divine's logotype in place of the
+  // bare host, Dark Green on light and Green on dark, the name always "Divine".
+  it("a Divine video's byline carries the Divine wordmark instead of the host; other hosts stay text", async () => {
+    setUrlTab("media");
+    render(<SearchResults query="dance" pov="nosfabrica" />);
+    const divine = ev("dv1", 34236, "8".repeat(64), "late night dance", [["d", "dv1"], ["title", "late night dance"], ["imeta", "url https://media.divine.video/clips/abc.mp4", "m video/mp4", "image https://media.divine.video/clips/abc.jpg"]]);
+    const other = ev("bl1", 21, "9".repeat(64), "another clip", [["d", "bl1"], ["title", "another clip"], ["imeta", "url https://blossom.primal.net/xyz.mp4", "m video/mp4"]]);
+    emit({ hits: [{ event: divine, author: author(divine.pubkey, "dancer"), rank: null }, { event: other, author: author(other.pubkey, "someone"), rank: null }], eose: true, timeMs: 200 });
+    const card = await screen.findByTestId("media-card-dv1");
+    const mark = within(card).getByRole("img", { name: "Divine" });
+    expect(mark.tagName.toLowerCase()).toBe("svg");
+    expect(card).not.toHaveTextContent("media.divine.video");
+    expect(card).toHaveTextContent(/via/);
+    expect(screen.getByTestId("media-card-bl1")).toHaveTextContent("via blossom.primal.net");
+  });
+
   // Benjamin, over "Rabbit Hole Recap": their videos never reached the Media
   // tab. Probed: the account has 254 notes and zero events of any media kind;
   // 22 of its last 40 notes carry a video. On Nostr, most media is a note with
@@ -1045,9 +1061,10 @@ describe("SearchResults", () => {
     const card = await screen.findByTestId("media-card-sv1");
     // The feed's click-to-play video player, not a 64px thumb.
     expect(card.querySelector("video")).not.toBeNull();
-    // The caption drops the URL; a quiet host label says where it lives.
+    // The caption drops the URL; a quiet source label says where it lives —
+    // for a Divine host, Divine's own wordmark rather than the domain.
     expect(card.textContent).not.toContain("https://media.divine.video/abc123.mp4");
-    expect(card).toHaveTextContent("media.divine.video");
+    expect(within(card).getByRole("img", { name: "Divine" })).toBeInTheDocument();
     expect(card).toHaveTextContent("street clip");
   });
 

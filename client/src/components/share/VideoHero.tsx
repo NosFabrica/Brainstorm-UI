@@ -1,6 +1,6 @@
 /**
  * A NIP-71 video event (kinds 21 / 22, and the addressable 34235 / 34236 —
- * DiVine publishes shorts as 34236) as the post page's hero: the video with
+ * Divine publishes shorts as 34236) as the post page's hero: the video with
  * native controls and its poster, upright when the imeta says it's portrait,
  * then title and summary. The URL often carries no file extension — the
  * imeta's `m video/*` is what makes it a video, not the URL's tail.

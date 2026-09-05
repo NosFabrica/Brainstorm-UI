@@ -617,7 +617,7 @@ export async function fetchRecentByKinds(
   ]));
 
   // The search relay's corpus is wider than the content relays' (probed:
-  // a DiVine creator's kind-34236 videos lived only there) — ask it too.
+  // a Divine creator's kind-34236 videos lived only there) — ask it too.
   const [fromRelays, fromSearch] = await Promise.all([
     requestAll(relays, { kinds, authors: [pubkey], limit }, timeoutMs),
     fetchFromSearchRelayByFilter({ kinds, authors: [pubkey], limit }, timeoutMs),
