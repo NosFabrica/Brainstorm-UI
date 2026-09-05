@@ -26,6 +26,7 @@ import { useTierRing } from "@/components/score/VerificationCoin";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { compactCount } from "@/lib/compactCount";
 import { nameMatchScore } from "@/lib/nameMatch";
+import { profileHrefOf } from "@/lib/upNext";
 import { eventPath } from "@/lib/shareId";
 import audioDefault from "@/assets/audio-default.webp";
 
@@ -75,8 +76,8 @@ export function MusicResults({
   // The page is the queue, in the order it is shown; the app's bar knows every
   // track on it by name, cover and page.
   const queue = useMemo(() => {
-    const native = shownTracks.map((t) => ({ id: t.track.id, src: t.track.audio, title: t.track.title, artist: t.track.artist ?? (t.hit.author ? getDisplayLabel(t.hit.author) : undefined), cover: t.track.cover, href: eventPath(t.hit.event) }));
-    const remote = (browsing ? trending.songs : wavlake.songs).map((s) => ({ id: s.id, src: s.audio, title: s.title, artist: s.artist, cover: s.cover, href: s.url }));
+    const native = shownTracks.map((t) => ({ id: t.track.id, src: t.track.audio, title: t.track.title, artist: t.track.artist ?? (t.hit.author ? getDisplayLabel(t.hit.author) : undefined), cover: t.track.cover, href: eventPath(t.hit.event), artistHref: t.hit.author ? `/p/${t.hit.author.npub}` : undefined, artistPubkey: t.hit.event.pubkey }));
+    const remote = (browsing ? trending.songs : wavlake.songs).map((s) => ({ id: s.id, src: s.audio, title: s.title, artist: s.artist, cover: s.cover, href: s.url, artistHref: profileHrefOf(s.artistNpub) }));
     return browsing ? [...remote, ...native] : [...native, ...remote];
   }, [browsing, shownTracks, trending.songs, wavlake.songs]);
   useEffect(() => {

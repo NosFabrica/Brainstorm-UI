@@ -10,6 +10,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { closePlayer, setPlaylist, toggleTrack } from "@/lib/audioPlayer";
 import { __resetBottomChrome } from "@/lib/bottomChrome";
+const moreMock = vi.fn(async (_meta: unknown) => [] as import("@/lib/audioPlayer").PlaylistTrack[]);
+vi.mock("@/lib/upNext", () => ({ moreFromArtist: (meta: unknown) => moreMock(meta) }));
 import { NowPlayingBar } from "./NowPlayingBar";
 
 describe("NowPlayingBar — the app's one player bar", () => {
@@ -43,6 +45,24 @@ describe("NowPlayingBar — the app's one player bar", () => {
     expect(link.getAttribute("href")).toBe("https://wavlake.com/track/1");
     expect(link.getAttribute("target")).toBe("_blank");
     expect(document.documentElement.style.getPropertyValue("--bs-chrome-player")).not.toBe("");
+  });
+
+  // Benjamin: should Next work when someone plays one track? It does — with
+  // more from the same artist, found quietly; and the artist's name is the
+  // way to their profile when they have one.
+  it("a lone track gets an Up next from its artist, and the artist links to their profile", async () => {
+    moreMock.mockResolvedValue([{ id: "t2", src: "https://cdn/t2.mp3", title: "Duende", artist: "NOVA" }]);
+    render(<NowPlayingBar />);
+    setPlaylist([]);
+    act(() => toggleTrack("t1", "https://cdn/t1.mp3", { title: "Old Carbon", artist: "NOVA", artistHref: "/p/npub1nova", artistPubkey: "d".repeat(64) }));
+    expect(screen.getByTestId("now-playing-artist").getAttribute("href")).toBe("/p/npub1nova");
+    expect(screen.getByTestId("now-playing-next")).toBeDisabled();
+    await screen.findByTestId("now-playing-up-next");
+    expect(screen.getByTestId("now-playing-up-next")).toHaveTextContent("Duende");
+    expect(moreMock).toHaveBeenCalledWith(expect.objectContaining({ id: "t1", artist: "NOVA", artistPubkey: "d".repeat(64) }));
+    expect(screen.getByTestId("now-playing-next")).not.toBeDisabled();
+    fireEvent.click(screen.getByTestId("now-playing-next"));
+    expect(screen.getByTestId("now-playing-title")).toHaveTextContent("Duende");
   });
 
   it("the X stops the sound and takes the bar away, and the room goes with it", () => {

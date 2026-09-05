@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { Loader2, Pause, Play, SkipForward, X } from "lucide-react";
-import { closePlayer, formatTime, peekNext, playNext, seekTrack, togglePlayback, trackMeta, usePlayerState } from "@/lib/audioPlayer";
+import { closePlayer, extendPlaylist, formatTime, peekNext, playNext, seekTrack, togglePlayback, trackMeta, usePlayerState } from "@/lib/audioPlayer";
+import { moreFromArtist } from "@/lib/upNext";
 import { registerBottomChrome } from "@/lib/bottomChrome";
 import { Equalizer } from "@/components/share/EmbeddedTrackCard";
 import audioDefault from "@/assets/audio-default.webp";
@@ -30,6 +31,24 @@ export function NowPlayingBar() {
     const h = el?.offsetHeight || 64;
     return registerBottomChrome("player", `${h}px`);
   }, [shown]);
+
+  // A lone track with nothing behind it asks its artist for more — once per
+  // track — so Next always has somewhere to go. No queue to manage.
+  const asked = useRef<Set<string>>(new Set());
+  const currentId = player.currentId;
+  const nextNow = peekNext(currentId);
+  useEffect(() => {
+    if (!currentId || !current?.title || nextNow || asked.current.has(currentId)) return;
+    asked.current.add(currentId);
+    let alive = true;
+    void moreFromArtist({ id: currentId, ...current }).then((more) => {
+      if (alive && more.length > 0 && peekNext(currentId) === null) extendPlaylist(more);
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentId, nextNow]);
 
   if (!shown || !player.currentId || !current) return null;
   const id = player.currentId;
@@ -81,7 +100,14 @@ export function NowPlayingBar() {
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
             <p className={`truncate text-sm font-semibold ${ink}`} data-testid="now-playing-title">{title}</p>
-            {current.artist && <p className={`hidden truncate text-xs sm:block ${inkSoft}`}>{current.artist}</p>}
+            {current.artist &&
+              (current.artistHref ? (
+                <Link href={current.artistHref} className={`hidden truncate text-xs hover:underline sm:block ${inkSoft}`} data-testid="now-playing-artist">
+                  {current.artist}
+                </Link>
+              ) : (
+                <p className={`hidden truncate text-xs sm:block ${inkSoft}`}>{current.artist}</p>
+              ))}
           </div>
           <div className="mt-1 flex items-center gap-2">
             <div

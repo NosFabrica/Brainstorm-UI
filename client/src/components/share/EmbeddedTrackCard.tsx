@@ -43,6 +43,8 @@ export function EmbeddedTrackCard({
   sourceLabel,
   onOpen,
   pageUrl,
+  artistHref,
+  artistPubkey,
   flat = false,
   durationSec,
 }: {
@@ -60,6 +62,9 @@ export function EmbeddedTrackCard({
   onOpen?: () => void;
   /** The track's page on its source site, for the app's now-playing bar to link. */
   pageUrl?: string;
+  /** The artist's profile, for the bar's name to link; their Nostr key, for "more from this artist". */
+  artistHref?: string;
+  artistPubkey?: string;
   /** No frame of its own — a row in a list that draws hairlines between rows. */
   flat?: boolean;
   /** Known total duration (skips the metadata probe when provided). */
@@ -101,7 +106,7 @@ export function EmbeddedTrackCard({
       <button
         type="button"
         disabled={!playable}
-        onClick={(e) => { e.stopPropagation(); if (audio) toggleTrack(id, audio, { title, artist, cover, href: href ?? pageUrl }); }}
+        onClick={(e) => { e.stopPropagation(); if (audio) toggleTrack(id, audio, { title, artist, cover, href: href ?? pageUrl, artistHref, artistPubkey }); }}
         className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg group/cover disabled:cursor-default"
         aria-label={player.isPlaying ? "Pause" : "Play"}
         data-testid="track-play"

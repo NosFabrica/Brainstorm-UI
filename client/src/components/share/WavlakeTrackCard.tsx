@@ -1,6 +1,7 @@
 import { useWavlakeTrack, wavlakeTrackId, wavlakeTrackUrl } from "@/lib/wavlake";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { LinkChip } from "@/components/share/LinkPreview";
+import { profileHrefOf } from "@/lib/upNext";
 
 /**
  * Resolves a wavlake.com/track/<id> link into a real inline player (artwork +
@@ -38,6 +39,7 @@ export function WavlakeTrackCard({ url }: { url: string }) {
         sourceLabel="Wavlake"
         onOpen={() => window.open(wavlakeTrackUrl(track.id), "_blank", "noopener")}
         pageUrl={wavlakeTrackUrl(track.id)}
+        artistHref={profileHrefOf(track.artistNpub)}
       />
     </div>
   );

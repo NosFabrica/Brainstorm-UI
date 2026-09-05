@@ -55,8 +55,12 @@ export interface PlaylistTrack {
   cover?: string;
   /** Where the track's page is: an in-app path, or an absolute URL on the source's site. */
   href?: string;
+  /** The artist's profile — in-app when they are on Nostr — for the bar's name to link. */
+  artistHref?: string;
+  /** The artist's Nostr key when the track is theirs on Nostr: "more from this artist" asks by it. */
+  artistPubkey?: string;
 }
-export type TrackMeta = Pick<PlaylistTrack, "title" | "artist" | "cover" | "href">;
+export type TrackMeta = Pick<PlaylistTrack, "title" | "artist" | "cover" | "href" | "artistHref" | "artistPubkey">;
 
 let audio: HTMLAudioElement | null = null;
 let currentId: string | null = null;
@@ -69,7 +73,24 @@ const listeners = new Set<() => void>();
 /** Register the ordered track list so playback auto-advances on `ended`. */
 export function setPlaylist(list: PlaylistTrack[]) {
   playlist = list;
-  for (const t of list) if (t.title) metaById.set(t.id, { title: t.title, artist: t.artist, cover: t.cover, href: t.href });
+  for (const t of list) if (t.title) metaById.set(t.id, { title: t.title, artist: t.artist, cover: t.cover, href: t.href, artistHref: t.artistHref, artistPubkey: t.artistPubkey });
+}
+
+/**
+ * Line more tracks up right after the active one — "more from this artist"
+ * when a lone track had nothing behind it. Each id once; what was already
+ * queued after stays, after the new ones. A track that was never in a list
+ * becomes the head of one.
+ */
+export function extendPlaylist(tracks: PlaylistTrack[]) {
+  const idx = playlist.findIndex((t) => t.id === currentId);
+  const head = idx >= 0 ? playlist.slice(0, idx + 1) : currentId ? [{ id: currentId, src: audio?.src ?? "", ...(metaById.get(currentId) ?? {}) }] : [];
+  const tail = idx >= 0 ? playlist.slice(idx + 1) : [];
+  const seen = new Set(head.map((t) => t.id));
+  const fresh = tracks.filter((t) => !seen.has(t.id) && (seen.add(t.id), true));
+  const rest = tail.filter((t) => !seen.has(t.id) && (seen.add(t.id), true));
+  setPlaylist([...head, ...fresh, ...rest]);
+  emit();
 }
 
 /** What a track is called, when a row or the queue said. */

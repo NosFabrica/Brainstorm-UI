@@ -22,6 +22,7 @@ import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { eventStore } from "@/lib/eventStore";
 import { fetchProfileMap } from "@/services/nostr";
 import { brandForHost } from "@/lib/brands";
+import { profileHrefOf } from "@/lib/upNext";
 import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitItemLabel, gitLabelsOf, type GitState } from "@/lib/gitStatus";
 import { ago } from "@/lib/ago";
 import { gitItemSummaryOf, gitItemTitleOf } from "@/lib/gitPatch";
@@ -1103,6 +1104,8 @@ export function TrackCard({ event, author, flat }: { event: NostrEvent; author: 
         genre={track.genre}
         durationSec={track.durationSec}
         href={eventPath(event)}
+        artistHref={author ? `/p/${author.npub}` : undefined}
+        artistPubkey={event.pubkey}
         flat={flat}
       />
     </div>
@@ -1128,6 +1131,7 @@ export function WavlakeSongCard({ song, flat }: { song: WavlakeSong; flat?: bool
         sourceLabel="Wavlake"
         onOpen={() => window.open(song.url, "_blank", "noopener")}
         pageUrl={song.url}
+        artistHref={profileHrefOf(song.artistNpub)}
         flat={flat}
       />
     </div>

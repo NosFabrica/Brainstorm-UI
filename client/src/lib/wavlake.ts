@@ -13,6 +13,8 @@ export interface WavlakeTrack {
   artworkUrl?: string;
   audioUrl: string;
   duration?: number; // seconds
+  /** The artist's Nostr key when they linked one on Wavlake. */
+  artistNpub?: string;
 }
 
 const UUID_TAIL = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
@@ -73,6 +75,7 @@ export function useWavlakeTrack(id: string | undefined) {
           artworkUrl: d.artworkUrl || d.avatarUrl || undefined,
           audioUrl: d.liveUrl,
           duration: Number(d.duration) || undefined,
+          artistNpub: d.artistNpub || undefined,
         };
         cache.set(id, track);
         if (!cancelled) setState({ loading: false, track, error: false });

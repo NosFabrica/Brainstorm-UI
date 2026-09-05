@@ -6,7 +6,7 @@
  * fed from the queue's own metadata.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { closePlayer, playNext, setPlaylist, stopAllMedia, toggleTrack } from "./audioPlayer";
+import { closePlayer, extendPlaylist, peekNext, playNext, setPlaylist, stopAllMedia, toggleTrack } from "./audioPlayer";
 
 type Handler = (() => void) | null;
 const handlers = new Map<string, Handler>();
@@ -75,5 +75,29 @@ describe("audioPlayer — music outlives the page", () => {
     closePlayer();
     expect(pause).toHaveBeenCalled();
     expect(navigator.mediaSession?.metadata ?? null).toBeNull();
+  });
+});
+
+describe("audioPlayer — extending the line-up behind the active track", () => {
+  beforeEach(() => {
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+  });
+  afterEach(() => { closePlayer(); vi.restoreAllMocks(); });
+
+  it("lines new tracks up right after the active one, once each, keeping what was already queued", () => {
+    setPlaylist([{ id: "a", src: "https://cdn/a.mp3", title: "A" }]);
+    toggleTrack("a", "https://cdn/a.mp3");
+    extendPlaylist([{ id: "b", src: "https://cdn/b.mp3", title: "B" }, { id: "a", src: "https://cdn/a.mp3", title: "A" }, { id: "c", src: "https://cdn/c.mp3", title: "C" }]);
+    expect(peekNext("a")?.id).toBe("b");
+    expect(peekNext("b")?.id).toBe("c");
+    expect(peekNext("c")).toBeNull();
+  });
+
+  it("a lone track that was never in a list becomes the head of one", () => {
+    setPlaylist([]);
+    toggleTrack("solo", "https://cdn/s.mp3", { title: "Solo" });
+    extendPlaylist([{ id: "n", src: "https://cdn/n.mp3", title: "N" }]);
+    expect(peekNext("solo")?.id).toBe("n");
   });
 });
