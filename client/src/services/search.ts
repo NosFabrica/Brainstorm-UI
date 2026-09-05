@@ -801,7 +801,7 @@ export function fetchRepoActivity(address: string, timeoutMs = 5000): Promise<No
     if (!relay) return resolve([]);
     const items: NostrEvent[] = [];
     const sub = relay
-      .req({ kinds: [1621, 1617], "#a": [address], search: "include:spam", limit: 20 })
+      .req({ kinds: [1621, 1617, 1618], "#a": [address], search: "include:spam", limit: 20 })
       .subscribe((msg: { type: string; event?: NostrEvent }) => {
         if (msg.type === "EVENT" && msg.event) items.push(msg.event);
         else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();

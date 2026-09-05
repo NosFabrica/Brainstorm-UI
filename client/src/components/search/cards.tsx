@@ -22,7 +22,7 @@ import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { eventStore } from "@/lib/eventStore";
 import { fetchProfileMap } from "@/services/nostr";
 import { brandForHost } from "@/lib/brands";
-import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitLabelsOf, type GitState } from "@/lib/gitStatus";
+import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitItemLabel, gitLabelsOf, type GitState } from "@/lib/gitStatus";
 import { fetchRepoCounts, zapStoreUrl } from "@/services/search";
 import { eventPath } from "@/lib/shareId";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
@@ -520,8 +520,8 @@ export function RepoCard({
   // a patch/issue names the repo it belongs to (from its a-tag) — the context
   // that makes a lone "fix: …" card mean something.
   const isRepo = event.kind === 30617;
-  const typeLabel = event.kind === 1617 ? "Patch" : isRepo ? "Repo" : "Issue";
-  const typeTone: "info" | "success" | "warning" = event.kind === 1617 ? "info" : isRepo ? "success" : "warning";
+  const typeLabel = isRepo ? "Repo" : gitItemLabel(event.kind);
+  const typeTone: "info" | "success" | "warning" = event.kind === 1617 || event.kind === 1618 ? "info" : isRepo ? "success" : "warning";
   const name = tagVal(event, "name") ?? tagVal(event, "subject") ?? tagVal(event, "d") ?? "Untitled";
   const description = tagVal(event, "description") ?? (isRepo ? "" : event.content.slice(0, 200));
   const repoRef = !isRepo ? tagVal(event, "a")?.split(":")[2] : undefined;

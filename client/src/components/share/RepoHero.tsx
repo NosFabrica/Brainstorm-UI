@@ -19,7 +19,7 @@ import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { Chip } from "@/components/ui/chip";
 import { eventPath } from "@/lib/shareId";
 import { fetchRepoActivity, kind0ToSearchResult } from "@/services/search";
-import { gitAgentOf, peopleBeforeAgents } from "@/lib/gitStatus";
+import { gitAgentOf, gitItemLabel, peopleBeforeAgents } from "@/lib/gitStatus";
 
 // Structural minimum (EventPage hands heroes MinimalEvent, which has no sig).
 type RepoEvent = {
@@ -186,8 +186,8 @@ export function RepoHero({ event }: { event: RepoEvent }) {
                   className="flex items-baseline gap-2 rounded-lg px-2 py-1.5 -mx-2 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
                   data-testid={`repo-activity-${item.id}`}
                 >
-                  <Chip size="sm" tone={item.kind === 1617 ? "info" : "warning"}>
-                    {item.kind === 1617 ? "Patch" : "Issue"}
+                  <Chip size="sm" tone={item.kind === 1617 || item.kind === 1618 ? "info" : "warning"}>
+                    {gitItemLabel(item.kind)}
                   </Chip>
                   <span className="min-w-0 flex-1 truncate text-sm text-slate-700 dark:text-slate-200">
                     {item.tags.find((t) => t[0] === "subject")?.[1] ?? item.content.slice(0, 80) ?? "Untitled"}

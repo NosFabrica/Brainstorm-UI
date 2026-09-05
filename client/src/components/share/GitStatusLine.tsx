@@ -23,7 +23,7 @@ export function GitStatusLine({ event, className = "" }: { event: GitItem; class
     };
   }, [event.id]);
   const repo = gitRepoNameOf(event);
-  const kindLabel = event.kind === 1617 ? "Patch" : "Issue";
+  const kindLabel = event.kind === 1617 ? "Patch" : event.kind === 1618 ? "Pull request" : "Issue";
   if (statusKind === null) return null;
   const state = gitStateOf(statusKind, event.kind);
   return (

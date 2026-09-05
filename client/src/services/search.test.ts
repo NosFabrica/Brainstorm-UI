@@ -364,7 +364,7 @@ describe("fetchRepoActivity", () => {
     const pending = fetchRepoActivity(ADDR);
     await tick();
     const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
-    expect(filter.kinds).toEqual([1621, 1617]);
+    expect(filter.kinds).toEqual([1621, 1617, 1618]); // issues, patches, pull requests
     expect(filter["#a"]).toEqual([ADDR]);
     expect(filter.search).toBe("include:spam");
 

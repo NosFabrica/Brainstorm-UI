@@ -843,6 +843,20 @@ describe("SearchResults", () => {
     expect(within(person).queryByTestId("git-agent-i2")).toBeNull();
   });
 
+  // NIP-34's newer kind 1618 is a pull request — most agent-filed work rides
+  // it. It is a git item like a patch: typed, stated, counted.
+  it("a pull request (kind 1618) is typed PR and carries its state", async () => {
+    setUrlTab("repos");
+    const pr = ev("pr1", 1618, "1".repeat(64), "Prove warm coverage", [["a", "30617:" + "9".repeat(64) + ":gitworkshop"], ["subject", "Prove warm coverage"]]);
+    gitStatusesMock.mockResolvedValue(new Map([[pr.id, { kind: 1631, at: 9 }]]));
+    render(<SearchResults query="gitworkshop" pov="nosfabrica" />);
+    emit({ hits: [{ event: pr, author: author(pr.pubkey, "dev"), rank: null }], eose: true, timeMs: 200 });
+    const card = await screen.findByTestId("repo-card-pr1");
+    expect(card).toHaveTextContent("PR");
+    expect(within(card).getByTestId("git-state-pr1")).toHaveTextContent("Merged");
+    expect(gitStatusesMock).toHaveBeenCalledWith([pr.id]);
+  });
+
   it("a repo announcement shows its issue and patch counts", async () => {
     setUrlTab("repos");
     repoCountsMock.mockResolvedValue({ issues: 12, patches: 3 });

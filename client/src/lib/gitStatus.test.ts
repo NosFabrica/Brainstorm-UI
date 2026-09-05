@@ -13,6 +13,7 @@ describe("gitStateOf", () => {
     expect(gitStateOf(1631, 1621)).toBe("resolved");
     expect(gitStateOf(1632, 1621)).toBe("closed");
     expect(gitStateOf(1633, 1617)).toBe("draft");
+    expect(gitStateOf(1631, 1618)).toBe("merged"); // a pull request merges like a patch
   });
   it("no status event means open", () => {
     expect(gitStateOf(undefined, 1621)).toBe("open");

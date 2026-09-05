@@ -5,12 +5,21 @@
  */
 export const GIT_STATUS_KINDS = [1630, 1631, 1632, 1633] as const;
 
+/** The things a status can describe: a patch (1617), a pull request (1618), an issue (1621). */
+export const GIT_ITEM_KINDS = [1617, 1618, 1621] as const;
+export function isGitItem(kind: number): boolean {
+  return kind === 1617 || kind === 1618 || kind === 1621;
+}
+export function gitItemLabel(kind: number): string {
+  return kind === 1617 ? "Patch" : kind === 1618 ? "PR" : "Issue";
+}
+
 export type GitState = "open" | "merged" | "resolved" | "closed" | "draft";
 
 export function gitStateOf(statusKind: number | undefined, itemKind: number): GitState {
   switch (statusKind) {
     case 1631:
-      return itemKind === 1617 ? "merged" : "resolved";
+      return itemKind === 1617 || itemKind === 1618 ? "merged" : "resolved";
     case 1632:
       return "closed";
     case 1633:

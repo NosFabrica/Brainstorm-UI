@@ -37,7 +37,7 @@ import {
 } from "@/services/search";
 
 import { fetchGitCommentCounts, fetchGitStatuses } from "@/services/search";
-import { GIT_STATE_LABEL, gitLabelsOf, gitStateOf, peopleBeforeAgents, type GitState } from "@/lib/gitStatus";
+import { GIT_STATE_LABEL, gitLabelsOf, gitStateOf, isGitItem, peopleBeforeAgents, type GitState } from "@/lib/gitStatus";
 import { AppCard, EventCard, LiveCard, ListCard, MediaCard, RepoCard, platformWords, TrackCard, WavlakeSongCard, mediaUrlOf, ListingCard } from "@/components/search/cards";
 import { EVENT_WHEN_LABELS, eventWhenCounts, filterEventsByWhen, type EventWhen } from "@/lib/eventFilters";
 import { parseTrack } from "@/lib/trackEvent";
@@ -679,7 +679,7 @@ export function SearchResults({
   const [gitStatuses, setGitStatuses] = useState<Map<string, { kind: number; at: number }>>(new Map());
   const [gitComments, setGitComments] = useState<Map<string, number>>(new Map());
   const gitItemIds = useMemo(
-    () => (tab === "repos" ? hits.filter((h) => h.event.kind === 1621 || h.event.kind === 1617).map((h) => h.event.id) : []),
+    () => (tab === "repos" ? hits.filter((h) => isGitItem(h.event.kind)).map((h) => h.event.id) : []),
     [hits, tab],
   );
   const gitIdsKey = gitItemIds.join(",");
@@ -700,15 +700,14 @@ export function SearchResults({
       alive = false;
     };
   }, [gitIdsKey]);
-  const stateOf = (e: NostrEvent): GitState | null =>
-    e.kind === 1621 || e.kind === 1617 ? gitStateOf(gitStatuses.get(e.id)?.kind, e.kind) : null;
+  const stateOf = (e: NostrEvent): GitState | null => (isGitItem(e.kind) ? gitStateOf(gitStatuses.get(e.id)?.kind, e.kind) : null);
   const [repoLabel, setRepoLabel] = useState<string | null>(null);
   // The labels maintainers actually used on these results, most common first.
   const repoLabelFacets = useMemo(() => {
     if (tab !== "repos") return [] as [string, number][];
     const counts = new Map<string, number>();
     for (const h of hits) {
-      if (h.event.kind !== 1621 && h.event.kind !== 1617) continue;
+      if (!isGitItem(h.event.kind)) continue;
       for (const l of gitLabelsOf(h.event)) counts.set(l, (counts.get(l) ?? 0) + 1);
     }
     return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 8);
