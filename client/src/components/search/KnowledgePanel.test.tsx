@@ -577,41 +577,17 @@ describe("the topic panel", () => {
     expect(nipPageMock).toHaveBeenCalledWith(["nip-5", "nip-05"]);
   });
 
-  it("a person's follow-set memberships badge their panel with exporter counts", async () => {
-    suggestMock.mockResolvedValueOnce([
-      { pubkey: "b".repeat(64), npub: "npub1david", name: "david", wotRank: 0.9, wotFollowers: 42 },
-    ]);
-    const P1 = "1".repeat(64);
-    const P2 = "2".repeat(64);
-    const P3 = "3".repeat(64);
-    // The badge opens the list of the publisher the network trusts most.
-    scoreOfMock.mockImplementation((pk) => ({ [P1]: 0.3, [P2]: 0.9, [P3]: null })[pk] ?? 0.7);
-    personSetsMock.mockResolvedValue([
-      { title: "Verified Human", exporters: 3, exporterPubkeys: [P1, P2, P3], sets: [{ id: "a".repeat(64), pubkey: P1 }, { id: "b".repeat(64), pubkey: P2 }, { id: "c".repeat(64), pubkey: P3 }] },
-      { title: "AOS 2026 Participant", exporters: 2, exporterPubkeys: [P1, P2], sets: [{ id: "d".repeat(64), pubkey: P1 }, { id: "e".repeat(64), pubkey: P2 }] },
-      // One account's private list name — not a credential, whoever they are.
-      // Benjamin's "Plebs · 1" catch.
-      { title: "Plebs", exporters: 1, exporterPubkeys: ["9".repeat(64)], sets: [{ id: "f".repeat(64), pubkey: "9".repeat(64) }] },
-    ]);
+  // The team: the new search is "all very busy". The panel no longer wears
+  // "Listed in" pills — the Lists tab carries that — and shows the person's
+  // two freshest blocks with the rest behind one quiet row (see below).
+  it("the panel carries no Listed-in pills any more", async () => {
+    suggestMock.mockResolvedValueOnce([{ pubkey: "b".repeat(64), npub: "npub1david", name: "david", wotRank: 0.9, wotFollowers: 42 }]);
+    personSetsMock.mockResolvedValue([{ title: "Verified Human", exporters: 3, exporterPubkeys: ["1".repeat(64)], sets: [{ id: "a".repeat(64), pubkey: "1".repeat(64) }] }]);
     render(<KnowledgePanel query="david" pov="nosfabrica" />);
     await screen.findByTestId("search-knowledge-panel");
-    // Asked about THIS person.
-    await vi.waitFor(() => expect(personSetsMock).toHaveBeenCalledWith("b".repeat(64)));
-    const badge = await screen.findByTestId("person-set-Verified Human");
-    expect(badge).toHaveTextContent("Verified Human");
-    expect(badge).toHaveTextContent("3");
-    // Two publishers agreeing stays; one publisher's list goes.
-    expect(screen.getByTestId("person-set-AOS 2026 Participant")).toHaveTextContent("2");
-    expect(screen.queryByTestId("person-set-Plebs")).toBeNull();
-    // And the badges say what they are.
-    expect(screen.getByTestId("person-sets")).toHaveTextContent("Listed in");
-    // Each badge opens a specific list's page — the one from the publisher the
-    // network trusts most (P2 at 0.9) — not a search.
-    const href = badge.closest("a")?.getAttribute("href") ?? "";
-    expect(href).toMatch(/^\/e\/nevent1/);
-    const decoded = nip19.decode(href.slice("/e/".length));
-    expect(decoded.type).toBe("nevent");
-    expect((decoded.data as { id: string; author?: string }).id).toBe("b".repeat(64));
+    await new Promise((r) => setTimeout(r, 30));
+    expect(screen.queryByTestId("person-sets")).toBeNull();
+    expect(personSetsMock).not.toHaveBeenCalled();
   });
 
   // Google's knowledge panel is one big click-through to the entity, with
@@ -1023,5 +999,53 @@ describe("the person panel's Selling row", () => {
     await screen.findByTestId("knowledge-panel-profile");
     await vi.waitFor(() => expect(recentByKindsMock).toHaveBeenCalled());
     expect(screen.queryByTestId("person-selling")).toBeNull();
+  });
+});
+
+// Benjamin, after choosing to keep every block: "I think that is too much".
+// The header, the followed-by line and the two freshest blocks show — a live
+// stream or replay first, then whichever of Latest, Music or Selling has the
+// newest item — and the rest waits behind one quiet "More from <name>" row.
+describe("the person panel carries two blocks by default", () => {
+  const HANDLED = "7".repeat(64);
+  const handled = () => suggestMock.mockResolvedValueOnce([{ pubkey: HANDLED, npub: "npub1handled", name: "Handled", wotRank: 0.9, wotFollowers: 300 }]);
+  const at = (age: number) => NOW - age;
+  const track = (id: string, age: number): NostrEvent => ({ id, kind: 31337, pubkey: HANDLED, created_at: at(age), sig: "s", content: "", tags: [["d", id], ["title", `Song ${id}`], ["media", `https://x/${id}.mp3`]] }) as NostrEvent;
+  const video = (id: string, age: number): NostrEvent => ({ id, kind: 1, pubkey: HANDLED, created_at: at(age), sig: "s", content: `clip https://blossom.primal.net/${id}.mp4`, tags: [["imeta", `url https://blossom.primal.net/${id}.mp4`, "m video/mp4", `image https://blossom.primal.net/${id}.jpg`]] }) as NostrEvent;
+  const listing = (id: string, age: number): NostrEvent => ({ id, kind: 30402, pubkey: HANDLED, created_at: at(age), sig: "s", content: "cd", tags: [["d", id], ["title", `CD ${id}`], ["price", "1000", "sats"]] }) as NostrEvent;
+  const replay = (): NostrEvent => ({ id: "rep", kind: 30311, pubkey: HANDLED, created_at: at(86_400), sig: "s", content: "", tags: [["d", "rep"], ["title", "Last show"], ["status", "ended"], ["recording", "https://rec.ok/show.m3u8"]] }) as NostrEvent;
+
+  it("shows the replay and the freshest of the rest, folds the others behind one row, and opens them on tap", async () => {
+    handled();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 200 })));
+    liveStreamsMock.mockResolvedValue([replay()]);
+    recentByKindsMock.mockImplementation(async (_pk, kinds) =>
+      kinds.includes(31337) ? [track("t1", 60)] : kinds.includes(30402) ? [listing("l1", 3600)] : kinds.includes(1) ? [video("v1", 7 * 86_400)] : [],
+    );
+    render(<KnowledgePanel query="Handled" pov="nosfabrica" />);
+    // The live block first, then the newest of the rest — music, a minute old.
+    await screen.findByTestId("person-live-replay");
+    await screen.findByTestId("person-music");
+    expect(screen.queryByTestId("person-selling")).toBeNull();
+    expect(screen.queryByTestId("person-media")).toBeNull();
+    const more = await screen.findByTestId("panel-more-toggle");
+    expect(more).toHaveTextContent(/More from Handled/);
+    fireEvent.click(more);
+    expect(await screen.findByTestId("person-selling")).toBeInTheDocument();
+    expect(await screen.findByTestId("person-media")).toBeInTheDocument();
+    // The order inside the panel: live, music, then the fold.
+    const panel = screen.getByTestId("search-knowledge-panel");
+    const ids = [...panel.querySelectorAll('[data-testid="person-live-replay"], [data-testid="person-music"], [data-testid="person-selling"], [data-testid="person-media"]')].map((e) => e.getAttribute("data-testid"));
+    expect(ids).toEqual(["person-live-replay", "person-music", "person-selling", "person-media"]);
+  });
+
+  it("with two blocks or fewer there is nothing to fold", async () => {
+    handled();
+    liveStreamsMock.mockResolvedValue([]);
+    recentByKindsMock.mockImplementation(async (_pk, kinds) => (kinds.includes(31337) ? [track("t1", 60)] : []));
+    render(<KnowledgePanel query="Handled" pov="nosfabrica" />);
+    await screen.findByTestId("person-music");
+    await new Promise((r) => setTimeout(r, 30));
+    expect(screen.queryByTestId("panel-more-toggle")).toBeNull();
   });
 });

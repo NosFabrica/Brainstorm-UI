@@ -8,7 +8,7 @@ import { useEffect, useState } from "react";
 import { fetchLiveStreams, fetchRecentByKinds } from "@/services/nostr";
 import { pickStreams, verifyRecording, type PickedStreams } from "@/lib/liveStream";
 import { PanelLive } from "@/components/search/PanelLive";
-import { PanelLatestMedia } from "@/components/search/PanelMedia";
+import { PanelLatestMedia, fountainLinksOf, latestVideos } from "@/components/search/PanelMedia";
 import { formatListingPrice, LISTING_KIND } from "@/lib/listing";
 import { productsFromEvents, type VariantGroup } from "@/lib/listingVariants";
 import { parseTrack, TRACK_KIND, type Track } from "@/lib/trackEvent";
@@ -23,7 +23,6 @@ import { VerificationCoin, useTierRing, TierWordChip, useQuietTrustChrome, Quiet
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { FlaggedChip, FollowedByLine, PanelIdentityChip, PanelVouches } from "@/components/search/EndorsementLine";
 import { ZapModal } from "@/components/ZapModal";
-import { visiblePersonSets } from "@/services/endorsements";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { eventPath } from "@/lib/shareId";
 import { parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
@@ -31,7 +30,7 @@ import { EventDateTile } from "@/components/share/EventDateTile";
 import { filterEventsByWhen } from "@/lib/eventFilters";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { EventRow } from "@/components/search/EventRow";
-import { fetchNipPage, fetchPersonSets, searchStream, suggestProfiles, type PersonSetMembership, type SearchHit, type SearchPov } from "@/services/search";
+import { fetchNipPage, searchStream, suggestProfiles, type SearchHit, type SearchPov } from "@/services/search";
 
 /** One app in the rail: icon, name, summary. Reviews live on the app page —
  *  no review copy on search surfaces (Benjamin). */
@@ -141,7 +140,6 @@ function KnowledgePanelBody({
   const [appHits, setAppHits] = useState<SearchHit[] | null>(null);
   // Upcoming calendar events that name the query — Google's panel lists a few.
   const [topicEvents, setTopicEvents] = useState<SearchHit[] | null>(null);
-  const [personSets, setPersonSets] = useState<PersonSetMembership[]>([]);
   // The person's own songs — kind 31337 by author, the three newest that
   // actually are songs (the kind is abused; see lib/trackEvent).
   const [personTracks, setPersonTracks] = useState<Track[]>([]);
@@ -258,7 +256,6 @@ function KnowledgePanelBody({
     setNipPage(null);
     setAppHits(null);
     setTopicEvents(null);
-    setPersonSets([]);
     if (!isPanelableQuery(query)) return;
     let alive = true;
     // A NIP-shaped query is a spec lookup, not a person or topic hunt —
@@ -312,14 +309,7 @@ function KnowledgePanelBody({
     void suggestProfiles(query, { pov, userPubkey }, { limit: 3 }).then((people) => {
       if (!alive) return;
       const top = people[0];
-      if (top && isStrongMatch(query, top)) {
-        setPerson(top);
-        // Staging's tag badges, our social-proof twist: how many exporters'
-        // follow sets vouch for this person, per tag.
-        void fetchPersonSets(top.pubkey).then((sets) => {
-          if (alive) setPersonSets(sets);
-        });
-      }
+      if (top && isStrongMatch(query, top)) setPerson(top);
     });
     return () => {
       alive = false;
@@ -332,13 +322,149 @@ function KnowledgePanelBody({
   // Relay hits carry no rank numbers (order-only wire) — the panel's ring,
   // coin and tier word feed from the shared author-score cache like every card.
   const scoreOf = useAuthorScores(person && person.wotRank == null ? [person.pubkey] : []);
-  // A follow-set badge needs two publishers agreeing on the title — one
-  // account's private list names stay out (Benjamin's "Plebs · 1" catch).
-  const shownSets = visiblePersonSets(personSets);
-  // A badge opens ONE list's page: the most trusted publisher's.
-  const exporterScoreOf = useAuthorScores(shownSets.flatMap((s) => s.exporterPubkeys));
-  const bestSetOf = (m: PersonSetMembership) =>
-    [...m.sets].sort((a, b) => (exporterScoreOf(b.pubkey) ?? -1) - (exporterScoreOf(a.pubkey) ?? -1))[0];
+  // Benjamin, after keeping every block: "I think that is too much". The
+  // header and the followed-by line always; then the two freshest blocks —
+  // a live stream or replay first, then whichever of Latest, Music or Selling
+  // has the newest item — and the rest behind one quiet "More from" row.
+  const hasLive = !!(personStreams.live || personStreams.upcoming || personStreams.replay);
+  const mediaAt = Math.max(0, ...latestVideos(personRecent).map((v) => v.at), ...fountainLinksOf(personRecent).map((f) => f.event.created_at));
+  const sellingAt = Math.max(0, ...personListings.map((g) => g.primary.createdAt ?? 0));
+  const musicAt = Math.max(0, ...personTracks.map((t) => t.createdAt), personWavlake ? 1 : 0);
+  const blockCandidates = [
+    ...(hasLive ? [{ key: "live", at: Number.POSITIVE_INFINITY }] : []),
+    ...(mediaAt > 0 ? [{ key: "media", at: mediaAt }] : []),
+    ...(sellingAt > 0 ? [{ key: "selling", at: sellingAt }] : []),
+    ...(musicAt > 0 ? [{ key: "music", at: musicAt }] : []),
+  ].sort((a, b) => b.at - a.at);
+  const candidateKeys = blockCandidates.map((b) => b.key).join(",");
+  // Sticky: the first two to arrive stay put as later blocks load, so the
+  // panel never reshuffles under the reader — only a live stream cuts in.
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [moreOpen, setMoreOpen] = useState(false);
+  useEffect(() => {
+    setChosen([]);
+    setMoreOpen(false);
+  }, [person?.pubkey]);
+  useEffect(() => {
+    const avail = candidateKeys ? candidateKeys.split(",") : [];
+    setChosen((prev) => {
+      let next = prev.filter((k) => avail.includes(k));
+      if (avail.includes("live") && !next.includes("live")) next = ["live", ...next].slice(0, 2);
+      for (const k of avail) if (next.length < 2 && !next.includes(k)) next.push(k);
+      return next.length === prev.length && next.every((k, i) => k === prev[i]) ? prev : next;
+    });
+  }, [candidateKeys]);
+  const foldedKeys = blockCandidates.map((b) => b.key).filter((k) => !chosen.includes(k));
+  const renderBlock = (key: string) => {
+    if (!person) return null;
+    if (key === "live") return <PanelLive {...personStreams} />;
+    if (key === "media") return <PanelLatestMedia person={person} events={personRecent} />;
+    if (key === "selling")
+      return (
+        <>
+    {personListings.length > 0 && (
+      <div className="mt-3" data-testid="person-selling">
+        <div className="mb-1 flex items-center justify-between">
+          <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Selling</span>
+          <Link href={`/p/${person.npub}/selling`} onClick={() => onOpen?.(person)} className="text-[11px] font-medium text-brand-deep dark:text-brand-link hover:underline" data-testid="person-selling-more">
+            All →
+          </Link>
+        </div>
+        <div className="space-y-1">
+          {personListings.map((g) => {
+            const l = g.primary;
+            return (
+            <Link
+              key={l.id}
+              href={eventPath({ id: l.id, pubkey: l.pubkey })}
+              className="flex items-center gap-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-1.5 hover:border-brand-accent/40 transition-colors"
+              data-testid={`person-selling-item-${l.id}`}
+            >
+              <span className="relative h-11 w-14 shrink-0 overflow-hidden rounded-md bg-slate-100 dark:bg-slate-800">
+                {l.images[0] ? <img src={l.images[0]} alt="" loading="lazy" className="h-full w-full object-cover" /> : <ShoppingBag className="absolute inset-0 m-auto h-4 w-4 text-slate-400" />}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{g.title}</span>
+                <span className="block text-[11px] text-slate-500 dark:text-slate-400">
+                  {l.price ? formatListingPrice(l.price) : "Price on request"}
+                  {g.options.length > 1 ? ` · ${g.options.length} options` : l.location ? ` · ${l.location}` : ""}
+                </span>
+              </span>
+            </Link>
+            );
+          })}
+        </div>
+      </div>
+    )}
+        </>
+      );
+    if (key === "music")
+      return (
+        <>
+    {(personTracks.length > 0 || personWavlake) && (
+      <div className="mt-3" data-testid="person-music">
+        <div className="mb-1 flex items-center justify-between">
+          <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Music</span>
+          {personTracks.length > 0 ? (
+            <Link
+              href={`/p/${person.npub}`}
+              onClick={() => onOpen?.(person)}
+              className="text-[11px] font-medium text-brand-deep dark:text-brand-link hover:underline"
+              data-testid="person-music-more"
+            >
+              All music →
+            </Link>
+          ) : (
+            <a
+              href={personWavlake!.artist.url}
+              target="_blank"
+              rel="noopener"
+              className="text-[11px] font-medium text-brand-deep dark:text-brand-link hover:underline"
+              data-testid="person-music-more"
+            >
+              All music on Wavlake →
+            </a>
+          )}
+        </div>
+        <div className="space-y-1">
+          {personTracks.map((tr) => (
+            <EmbeddedTrackCard
+              key={tr.id}
+              id={tr.id}
+              title={tr.title}
+              artist={tr.artist ?? person.displayName ?? person.name}
+              cover={tr.cover}
+              audio={tr.audio}
+              genre={tr.genre}
+              durationSec={tr.durationSec}
+              href={eventPath({ id: tr.id, pubkey: tr.pubkey })}
+              artistHref={`/p/${person.npub}`}
+              artistPubkey={tr.pubkey}
+            />
+          ))}
+          {personTracks.length === 0 &&
+            personWavlake?.songs.map((song) => (
+              <EmbeddedTrackCard
+                key={song.id}
+                id={song.id}
+                title={song.title}
+                artist={song.artist}
+                cover={song.cover}
+                audio={song.audio}
+                durationSec={song.durationSec}
+                sourceLabel="Wavlake"
+                onOpen={() => window.open(song.url, "_blank", "noopener")}
+                pageUrl={song.url}
+                artistHref={`/p/${person.npub}`}
+              />
+            ))}
+        </div>
+      </div>
+    )}
+        </>
+      );
+    return null;
+  };
   const [, navigate] = useLocation();
   const [zapOpen, setZapOpen] = useState(false);
   // Google's knowledge panel is one click-through to the entity; the links
@@ -618,128 +744,37 @@ function KnowledgePanelBody({
           )}
         </div>
       )}
-      {/* Live now leads — the most time-sensitive thing about a person. */}
-      <PanelLive {...personStreams} />
-      <PanelLatestMedia person={person} events={personRecent} />
-      {personListings.length > 0 && (
-        <div className="mt-3" data-testid="person-selling">
-          <div className="mb-1 flex items-center justify-between">
-            <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Selling</span>
-            <Link href={`/p/${person.npub}/selling`} onClick={() => onOpen?.(person)} className="text-[11px] font-medium text-brand-deep dark:text-brand-link hover:underline" data-testid="person-selling-more">
-              All →
-            </Link>
-          </div>
-          <div className="space-y-1">
-            {personListings.map((g) => {
-              const l = g.primary;
-              return (
-              <Link
-                key={l.id}
-                href={eventPath({ id: l.id, pubkey: l.pubkey })}
-                className="flex items-center gap-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-1.5 hover:border-brand-accent/40 transition-colors"
-                data-testid={`person-selling-item-${l.id}`}
-              >
-                <span className="relative h-11 w-14 shrink-0 overflow-hidden rounded-md bg-slate-100 dark:bg-slate-800">
-                  {l.images[0] ? <img src={l.images[0]} alt="" loading="lazy" className="h-full w-full object-cover" /> : <ShoppingBag className="absolute inset-0 m-auto h-4 w-4 text-slate-400" />}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{g.title}</span>
-                  <span className="block text-[11px] text-slate-500 dark:text-slate-400">
-                    {l.price ? formatListingPrice(l.price) : "Price on request"}
-                    {g.options.length > 1 ? ` · ${g.options.length} options` : l.location ? ` · ${l.location}` : ""}
-                  </span>
-                </span>
-              </Link>
-              );
-            })}
-          </div>
-        </div>
-      )}
       {/* Nostr's oldest review: who follows them — the most trusted faces, and
           how many verified accounts in all. Then the trust reviews proper. */}
       <FollowedByLine pubkey={person.pubkey} npub={person.npub} personal={pov === "mywot"} testId="person-followed-by" className="mt-2.5" />
       <PanelVouches pubkey={person.pubkey} npub={person.npub} personal={pov === "mywot"} />
-      {shownSets.length > 0 && (
-        <div className="mt-2.5 flex flex-wrap items-center gap-1" data-testid="person-sets">
-          <span className="mr-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Listed in</span>
-          {shownSets.map((m) => (
-            // Each badge opens the lists that carry the title — the Lists
-            // vertical searched for it, every set a card with its curator.
-            <Link
-              key={m.title}
-              href={eventPath(bestSetOf(m))}
-              title={`Open the “${m.title}” list (${m.exporters} publishers keep one)`}
-              className="inline-flex items-center gap-1 rounded-full bg-brand-primary/5 dark:bg-brand-primary/15 px-2 py-0.5 text-[11px] font-medium text-brand-deep dark:text-brand-link hover:bg-brand-primary/10 dark:hover:bg-brand-primary/25 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-              data-testid={`person-set-${m.title}`}
-            >
-              {m.title}
-              <span className="rounded-full bg-brand-primary/10 dark:bg-brand-primary/25 px-1 text-[10px] font-semibold">
-                {m.exporters}
-              </span>
-            </Link>
-          ))}
-        </div>
+      {/* The two freshest blocks — a live stream or replay first — then one
+          quiet row for the rest. Benjamin, after keeping every block: "I think
+          that is too much"; the team: "all very busy now". */}
+      {chosen.map((key) => (
+        <div key={key}>{renderBlock(key)}</div>
+      ))}
+      {foldedKeys.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setMoreOpen((v) => !v)}
+          aria-expanded={moreOpen}
+          className="mt-3 flex w-full items-center justify-between rounded-lg px-1 py-1.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-brand-link transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+          data-testid="panel-more-toggle"
+        >
+          <span>More from {getDisplayLabel(person)}</span>
+          <span className="flex items-center gap-1 text-[11px]">
+            {foldedKeys.length}
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${moreOpen ? "rotate-180" : ""}`} />
+          </span>
+        </button>
       )}
-      {(personTracks.length > 0 || personWavlake) && (
-        <div className="mt-3" data-testid="person-music">
-          <div className="mb-1 flex items-center justify-between">
-            <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Music</span>
-            {personTracks.length > 0 ? (
-              <Link
-                href={`/p/${person.npub}`}
-                onClick={() => onOpen?.(person)}
-                className="text-[11px] font-medium text-brand-deep dark:text-brand-link hover:underline"
-                data-testid="person-music-more"
-              >
-                All music →
-              </Link>
-            ) : (
-              <a
-                href={personWavlake!.artist.url}
-                target="_blank"
-                rel="noopener"
-                className="text-[11px] font-medium text-brand-deep dark:text-brand-link hover:underline"
-                data-testid="person-music-more"
-              >
-                All music on Wavlake →
-              </a>
-            )}
+      {moreOpen &&
+        foldedKeys.map((key) => (
+          <div key={key} data-testid="panel-more">
+            {renderBlock(key)}
           </div>
-          <div className="space-y-1">
-            {personTracks.map((tr) => (
-              <EmbeddedTrackCard
-                key={tr.id}
-                id={tr.id}
-                title={tr.title}
-                artist={tr.artist ?? person.displayName ?? person.name}
-                cover={tr.cover}
-                audio={tr.audio}
-                genre={tr.genre}
-                durationSec={tr.durationSec}
-                href={eventPath({ id: tr.id, pubkey: tr.pubkey })}
-                artistHref={`/p/${person.npub}`}
-                artistPubkey={tr.pubkey}
-              />
-            ))}
-            {personTracks.length === 0 &&
-              personWavlake?.songs.map((song) => (
-                <EmbeddedTrackCard
-                  key={song.id}
-                  id={song.id}
-                  title={song.title}
-                  artist={song.artist}
-                  cover={song.cover}
-                  audio={song.audio}
-                  durationSec={song.durationSec}
-                  sourceLabel="Wavlake"
-                  onOpen={() => window.open(song.url, "_blank", "noopener")}
-                  pageUrl={song.url}
-                  artistHref={`/p/${person.npub}`}
-                />
-              ))}
-          </div>
-        </div>
-      )}
+        ))}
       {person.about && (
         <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-300 break-words line-clamp-4">
           {person.about}
