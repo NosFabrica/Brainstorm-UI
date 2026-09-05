@@ -24,6 +24,8 @@ vi.mock("@/services/search", async (importOriginal) => ({
 }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.7 }));
 
+const openLightboxMock = vi.fn();
+vi.mock("@/components/share/Lightbox", () => ({ useLightbox: () => openLightboxMock }));
 import { EventHero } from "./EventHero";
 
 const NOW = Math.floor(Date.now() / 1000);
@@ -121,6 +123,39 @@ describe("EventHero", () => {
     } finally {
       HTMLAnchorElement.prototype.click = origClick;
     }
+  });
+});
+
+// Benjamin asked what else would make the page cleaner. Three things: the
+// whole poster shows — Raystown's wide flyer was cropped to a square and lost
+// its own title — letter-boxed over a blur of itself; a tap opens it large;
+// and the place is plain text, purple only under the pointer, so purple is
+// left for the one thing to do and green for the one thing to know.
+describe("EventHero — the poster whole, tappable, and one accent colour", () => {
+  it("shows the whole poster over a blur of itself and opens it in the lightbox", async () => {
+    render(<EventHero event={v4v} />);
+    await screen.findByTestId("event-hero-host");
+    const poster = screen.getByTestId("event-hero-image");
+    expect(poster.className).toMatch(/object-contain/);
+    expect(screen.getByTestId("event-hero-image-blur").getAttribute("src")).toBe("https://cdn.example/v4v.jpg");
+    fireEvent.click(screen.getByTestId("event-hero-poster"));
+    expect(openLightboxMock).toHaveBeenCalledWith(
+      [{ url: "https://cdn.example/v4v.jpg", kind: "image" }],
+      0,
+      expect.objectContaining({ postHref: expect.stringMatching(/^\/e\//) }),
+    );
+  });
+
+  it("the place is slate, not a second accent", async () => {
+    render(<EventHero event={v4v} />);
+    await screen.findByTestId("event-hero-host");
+    // The fixture's own place, linked to a map.
+    const place = document.querySelector('a[href*="google.com/maps"]') as HTMLElement;
+    expect(place).not.toBeNull();
+    // Purple only under the pointer — never at rest.
+    expect(place.className).not.toMatch(/(^|\s)text-brand-link/);
+    expect(place.className).toMatch(/text-slate/);
+    expect(place.className).toMatch(/hover:text-brand-link/);
   });
 });
 

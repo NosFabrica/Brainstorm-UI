@@ -5,6 +5,7 @@ import { Calendar, CalendarPlus, MapPin, ExternalLink, PlayCircle, ChevronDown }
 import { parseCalendarEvent, formatEventDate, formatEventTime, isUpcoming, relativeEventTime } from "@/lib/calendarEvent";
 import { RsvpButton } from "@/components/share/RsvpButton";
 import { NotesInline } from "@/components/share/NotesInline";
+import { useLightbox } from "@/components/share/Lightbox";
 import { LinkPreviewCard } from "@/components/share/LinkPreview";
 import { EventDateTile } from "@/components/share/EventDateTile";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -31,6 +32,7 @@ type Profile = { name?: string; display_name?: string; picture?: string };
 export function EventHero({ event }: { event: MinimalEvent }) {
   const e = parseCalendarEvent(event);
   const [imgBroken, setImgBroken] = useState(false);
+  const openLightbox = useLightbox();
   const heroImage = !e.image || imgBroken ? eventDefault : e.image;
   const upcoming = isUpcoming(e.startSec);
   const rel = relativeEventTime(e.startSec);
@@ -102,15 +104,34 @@ export function EventHero({ event }: { event: MinimalEvent }) {
   return (
     <div data-testid="event-hero">
       <div className="sm:flex sm:items-start sm:gap-5">
-        {/* The cover, square, beside the facts — a poster, not a banner. */}
-        <img
-          src={heroImage}
-          alt=""
-          loading="lazy"
-          onError={() => setImgBroken(true)}
-          className="aspect-square w-full rounded-2xl border border-slate-200 dark:border-slate-800 object-cover sm:w-48 sm:shrink-0"
-          data-testid="event-hero-image"
-        />
+        {/* The cover, square, beside the facts — a poster, not a banner. Shown
+            whole: hosts upload flyers of every shape, and a square crop cut
+            Raystown's own title off. It sits letter-boxed over a blur of
+            itself — Apple TV's trick — and a tap opens it large. */}
+        <button
+          type="button"
+          onClick={() =>
+            openLightbox([{ url: heroImage, kind: "image" }], 0, {
+              author: hostNpub ? { name: hostName ?? hostNpub.slice(0, 12), npub: hostNpub, picture: host?.picture ?? null, score01: scoreOf(event.pubkey) ?? null } : null,
+              postHref: eventPath(event),
+            })
+          }
+          aria-label="View the poster"
+          className="relative block aspect-square w-full overflow-hidden rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 sm:w-48 sm:shrink-0"
+          data-testid="event-hero-poster"
+        >
+          {!imgBroken && e.image && (
+            <img src={heroImage} alt="" aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full scale-125 object-cover blur-xl opacity-70" data-testid="event-hero-image-blur" />
+          )}
+          <img
+            src={heroImage}
+            alt=""
+            loading="lazy"
+            onError={() => setImgBroken(true)}
+            className="relative h-full w-full object-contain"
+            data-testid="event-hero-image"
+          />
+        </button>
         <div className="mt-3 min-w-0 flex-1 sm:mt-0">
           {/* One line for the state of the event: the chip and the countdown together. */}
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1" data-testid="event-hero-status">
@@ -154,7 +175,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
                   <MapPin className="h-4 w-4" />
                 </span>
                 {mapUrl ? (
-                  <a href={mapUrl} target="_blank" rel="noopener" className="font-medium text-brand-link hover:underline">{e.location}</a>
+                  <a href={mapUrl} target="_blank" rel="noopener" className="font-medium text-slate-700 dark:text-slate-200 hover:text-brand-link hover:underline">{e.location}</a>
                 ) : (
                   <span className="font-medium">{e.location}</span>
                 )}
