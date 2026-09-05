@@ -59,6 +59,7 @@ import LoginPage from "@/pages/LoginPage";
 import { FEATURES } from "@/config/featureFlags";
 import { PovAutoDefault } from "@/components/PovBadge";
 import { MobileTabBar } from "@/components/MobileTabBar";
+import { NowPlayingBar } from "@/components/search/NowPlayingBar";
 import { CommandPalette } from "@/components/CommandPalette";
 import { MobileSearchOverlay } from "@/components/MobileSearchOverlay";
 import { UnlockModal } from "@/components/UnlockModal";
@@ -118,10 +119,10 @@ function ScrollToTop() {
   return null;
 }
 
-// Stop inline media when the route changes — the shared audio track and any
-// playing <video>. A Picture-in-Picture video is deliberately EXEMPT: it keeps
-// playing across the app like a YouTube mini-player until the user closes it.
-// Audio keeps its position so returning resumes. Skips the first render.
+// Stop inline VIDEO when the route changes. A Picture-in-Picture video is
+// deliberately EXEMPT: it keeps playing across the app like a YouTube
+// mini-player until the user closes it. Music is exempt too: it has the
+// app-wide NowPlayingBar, whose X is how a song stops. Skips the first render.
 function StopMediaOnNavigate() {
   const [location] = useLocation();
   const first = useRef(true);
@@ -289,6 +290,7 @@ function App() {
             <CrossTabIdentity />
             <PovAutoDefault />
             <MobileTabBar />
+            <NowPlayingBar />
             <CommandPalette />
             <MobileSearchOverlay />
             <ScoringStatusBar />

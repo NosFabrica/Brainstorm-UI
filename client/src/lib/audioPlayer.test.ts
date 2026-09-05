@@ -6,7 +6,7 @@
  * fed from the queue's own metadata.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { playNext, setPlaylist, toggleTrack } from "./audioPlayer";
+import { closePlayer, playNext, setPlaylist, stopAllMedia, toggleTrack } from "./audioPlayer";
 
 type Handler = (() => void) | null;
 const handlers = new Map<string, Handler>();
@@ -42,5 +42,38 @@ describe("audioPlayer — Media Session", () => {
     expect(session.metadata?.title).toBe("B");
     handlers.get("previoustrack")!();
     expect(session.metadata?.title).toBe("A");
+  });
+});
+
+// The bar follows the listener across the app now, so the music does too:
+// leaving a page stops its videos, never the song.
+describe("audioPlayer — music outlives the page", () => {
+  beforeEach(() => {
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+  });
+  afterEach(() => { closePlayer(); vi.restoreAllMocks(); });
+
+  it("a route change pauses videos on the page but not the shared audio", () => {
+    const video = document.createElement("video");
+    document.body.appendChild(video);
+    Object.defineProperty(video, "paused", { value: false, configurable: true });
+    toggleTrack("a", "https://cdn/a.mp3", { title: "A" });
+    const pause = vi.mocked(HTMLMediaElement.prototype.pause);
+    pause.mockClear();
+    stopAllMedia();
+    // Exactly the page's video, once — the shared player kept going.
+    expect(pause).toHaveBeenCalledTimes(1);
+    expect(pause.mock.instances[0]).toBe(video);
+    video.remove();
+  });
+
+  it("closePlayer stops the sound and forgets the track", () => {
+    toggleTrack("a", "https://cdn/a.mp3", { title: "A" });
+    const pause = vi.mocked(HTMLMediaElement.prototype.pause);
+    pause.mockClear();
+    closePlayer();
+    expect(pause).toHaveBeenCalled();
+    expect(navigator.mediaSession?.metadata ?? null).toBeNull();
   });
 });

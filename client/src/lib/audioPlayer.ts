@@ -53,8 +53,10 @@ export interface PlaylistTrack {
   title?: string;
   artist?: string;
   cover?: string;
+  /** Where the track's page is: an in-app path, or an absolute URL on the source's site. */
+  href?: string;
 }
-export type TrackMeta = Pick<PlaylistTrack, "title" | "artist" | "cover">;
+export type TrackMeta = Pick<PlaylistTrack, "title" | "artist" | "cover" | "href">;
 
 let audio: HTMLAudioElement | null = null;
 let currentId: string | null = null;
@@ -67,7 +69,12 @@ const listeners = new Set<() => void>();
 /** Register the ordered track list so playback auto-advances on `ended`. */
 export function setPlaylist(list: PlaylistTrack[]) {
   playlist = list;
-  for (const t of list) if (t.title) metaById.set(t.id, { title: t.title, artist: t.artist, cover: t.cover });
+  for (const t of list) if (t.title) metaById.set(t.id, { title: t.title, artist: t.artist, cover: t.cover, href: t.href });
+}
+
+/** What a track is called, when a row or the queue said. */
+export function trackMeta(id: string | null): TrackMeta | undefined {
+  return id ? metaById.get(id) : undefined;
 }
 
 /** The track after this one in the registered playlist, if any. */
@@ -164,26 +171,45 @@ export function toggleTrack(id: string, src: string, meta?: TrackMeta) {
   emit();
 }
 
-/** Pause the active track but keep its position, so it can resume. Used on
- *  route changes — inline media is tied to its page (X / Facebook / LinkedIn). */
+/** Play or pause whatever is active — the bar's button, the hardware key. */
+export function togglePlayback() {
+  if (!audio || !currentId) return;
+  if (audio.paused) { status = "loading"; Promise.resolve(audio.play()).catch(() => { status = "error"; emit(); }); emit(); }
+  else audio.pause();
+}
+
+/** Pause the active track but keep its position, so it can resume. */
 export function pausePlayback() {
   if (audio && !audio.paused) audio.pause(); // the 'pause' listener sets status + emits
 }
 
 /**
- * Hard-stop every kind of inline media at once: the shared audio track, any
- * `<video>`/`<audio>` element still in the DOM, and an active Picture-in-Picture
- * window. PiP (and, in some browsers, a detached media element) keeps playing
- * across a client-side route change unless it's explicitly closed — so this is
- * called on every navigation to guarantee leaving a page stops the sound, the
- * way X and YouTube behave when there's no dedicated mini-player.
+ * Close the player: stop the sound, forget the track, tell the system nothing
+ * plays. The bar's X. The queue stays registered, so Play from any row starts again.
+ */
+export function closePlayer() {
+  if (audio) {
+    try { audio.pause(); } catch { /* ignore */ }
+    try { audio.removeAttribute("src"); audio.load(); } catch { /* ignore */ }
+  }
+  currentId = null;
+  status = "idle";
+  if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
+    try { navigator.mediaSession.metadata = null; } catch { /* ignore */ }
+  }
+  emit();
+}
+
+/**
+ * Stop the page's inline VIDEO on a route change: any `<video>`/`<audio>`
+ * element still in the DOM, except an active Picture-in-Picture window — PiP
+ * is a deliberate mini-player that persists across the app until closed. The
+ * shared audio track is NOT here: music has its own bar that follows the
+ * listener across pages (Spotify, SoundCloud), so leaving a page never stops
+ * the song — the bar's X does.
  */
 export function stopAllMedia() {
-  pausePlayback();
   if (typeof document === "undefined") return;
-  // A Picture-in-Picture video is a deliberate mini-player: it persists across
-  // the app (YouTube / Google standard) until the user closes it. So we never
-  // exit PiP here — we just pause every OTHER playing media element.
   try {
     const pip = document.pictureInPictureElement;
     document.querySelectorAll<HTMLMediaElement>("video, audio").forEach((m) => {

@@ -1118,6 +1118,7 @@ export function WavlakeSongCard({ song, flat }: { song: WavlakeSong; flat?: bool
         durationSec={song.durationSec}
         sourceLabel="Wavlake"
         onOpen={() => window.open(song.url, "_blank", "noopener")}
+        pageUrl={song.url}
         flat={flat}
       />
     </div>

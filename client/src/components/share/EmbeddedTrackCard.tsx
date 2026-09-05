@@ -42,6 +42,7 @@ export function EmbeddedTrackCard({
   onZap,
   sourceLabel,
   onOpen,
+  pageUrl,
   flat = false,
   durationSec,
 }: {
@@ -57,6 +58,8 @@ export function EmbeddedTrackCard({
   sourceLabel?: string;
   /** Overrides the internal /e navigation for the row-open (e.g. open externally). */
   onOpen?: () => void;
+  /** The track's page on its source site, for the app's now-playing bar to link. */
+  pageUrl?: string;
   /** No frame of its own — a row in a list that draws hairlines between rows. */
   flat?: boolean;
   /** Known total duration (skips the metadata probe when provided). */
@@ -98,7 +101,7 @@ export function EmbeddedTrackCard({
       <button
         type="button"
         disabled={!playable}
-        onClick={(e) => { e.stopPropagation(); if (audio) toggleTrack(id, audio, { title, artist, cover }); }}
+        onClick={(e) => { e.stopPropagation(); if (audio) toggleTrack(id, audio, { title, artist, cover, href: href ?? pageUrl }); }}
         className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg group/cover disabled:cursor-default"
         aria-label={player.isPlaying ? "Pause" : "Play"}
         data-testid="track-play"

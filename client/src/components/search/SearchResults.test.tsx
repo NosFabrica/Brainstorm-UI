@@ -130,6 +130,7 @@ const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; friends: 
 vi.mock("@/hooks/useNetworkReach", () => ({ useNetworkReach: (pk?: string | null) => reachMock(pk) }));
 
 import { SearchResults } from "./SearchResults";
+import { NowPlayingBar } from "./NowPlayingBar";
 
 function ev(id: string, kind: number, pubkey = "a".repeat(64), content = "", tags: string[][] = []): NostrEvent {
   return { id, kind, pubkey, tags, content, created_at: 1_700_000_000, sig: "s" } as NostrEvent;
@@ -804,7 +805,8 @@ describe("SearchResults", () => {
   // wherever the page has scrolled to; Next moves down the list.
   it("Play starts the queue and the now-playing bar follows it", async () => {
     setUrlTab("music");
-    render(<SearchResults query="nova" pov="nosfabrica" />);
+    // The bar is mounted once at the app shell; here it sits beside the results.
+    render(<><SearchResults query="nova" pov="nosfabrica" /><NowPlayingBar /></>);
     const nova = "d".repeat(64);
     const mk = (id: string, title: string) =>
       ev(id, 31337, nova, "", [["d", id], ["title", title], ["artist", "NOVA"], ["media", `https://renaissancemachine.ai/music/${id}.mp3`], ["image", `https://renaissancemachine.ai/music/${id}.jpg`]]);

@@ -16,7 +16,7 @@ import type { SearchHit } from "@/services/search";
 import { parseTrack, type Track } from "@/lib/trackEvent";
 import { WAVLAKE_GENRES, type WavlakeAlbum, type WavlakeArtist, type WavlakeSong } from "@/lib/wavlake";
 import { useWavlakeTrending } from "@/hooks/useWavlakeTrending";
-import { playFrom, setPlaylist, toggleTrack, usePlayerState, useTrackPlayer } from "@/lib/audioPlayer";
+import { playFrom, setPlaylist, toggleTrack, useTrackPlayer } from "@/lib/audioPlayer";
 import { TrackCard, WavlakeSongCard } from "@/components/search/cards";
 import { FacetChip, FacetRow } from "@/components/search/sections";
 import { SectionHeader } from "@/components/ui/section-header";
@@ -27,7 +27,6 @@ import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { compactCount } from "@/lib/compactCount";
 import { nameMatchScore } from "@/lib/nameMatch";
 import { eventPath } from "@/lib/shareId";
-import { NowPlayingBar, type NowPlayingMeta } from "@/components/search/NowPlayingBar";
 import audioDefault from "@/assets/audio-default.webp";
 
 type NativeTrack = { hit: SearchHit; track: Track };
@@ -73,16 +72,16 @@ export function MusicResults({
   }, [browsing, tracks]);
   const shownTracks = useMemo(() => (browsing || !genre ? tracks : tracks.filter((t) => genresOf(t).includes(genre))), [browsing, genre, tracks]);
 
-  // The page is the queue, in the order it is shown; the bar knows every track on it.
+  // The page is the queue, in the order it is shown; the app's bar knows every
+  // track on it by name, cover and page.
   const queue = useMemo(() => {
-    const native = shownTracks.map((t) => ({ id: t.track.id, meta: { title: t.track.title, artist: t.track.artist ?? (t.hit.author ? getDisplayLabel(t.hit.author) : undefined), cover: t.track.cover, src: t.track.audio } }));
-    const remote = (browsing ? trending.songs : wavlake.songs).map((s) => ({ id: s.id, meta: { title: s.title, artist: s.artist, cover: s.cover, src: s.audio } }));
+    const native = shownTracks.map((t) => ({ id: t.track.id, src: t.track.audio, title: t.track.title, artist: t.track.artist ?? (t.hit.author ? getDisplayLabel(t.hit.author) : undefined), cover: t.track.cover, href: eventPath(t.hit.event) }));
+    const remote = (browsing ? trending.songs : wavlake.songs).map((s) => ({ id: s.id, src: s.audio, title: s.title, artist: s.artist, cover: s.cover, href: s.url }));
     return browsing ? [...remote, ...native] : [...native, ...remote];
   }, [browsing, shownTracks, trending.songs, wavlake.songs]);
   useEffect(() => {
-    setPlaylist(queue.map((q) => ({ id: q.id, src: q.meta.src, title: q.meta.title, artist: q.meta.artist, cover: q.meta.cover })));
+    setPlaylist(queue);
   }, [queue]);
-  const meta = useMemo(() => new Map<string, NowPlayingMeta>(queue.map((q) => [q.id, q.meta])), [queue]);
 
   // Artists: the tracks' authors, most songs first, then Wavlake's.
   const authors = useMemo(() => {
@@ -199,16 +198,8 @@ export function MusicResults({
           )}
         </>
       )}
-      {/* Room under the last row for the fixed bar while something plays. */}
-      <NowPlayingBar meta={meta} />
-      <BarSpacer meta={meta} />
     </div>
   );
-}
-
-function BarSpacer({ meta }: { meta: Map<string, NowPlayingMeta> }) {
-  const { currentId } = usePlayerState();
-  return currentId && meta.has(currentId) ? <div className="h-20" aria-hidden="true" /> : null;
 }
 
 function MusicSection({ title, hint, count, action, testId, children }: { title: string; hint?: string; count?: number; action?: React.ReactNode; testId: string; children: React.ReactNode }) {
