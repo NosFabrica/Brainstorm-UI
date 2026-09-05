@@ -54,8 +54,13 @@ export function gitRepoNameOf(event: { tags: string[][] }): string | null {
 }
 
 /** An issue's or patch's labels — its `t` tags, lower-cased, de-duplicated. */
+/** NIP-34's own t-tags: where a patch sits in its series, not how it was triaged. */
+const STRUCTURAL_TAGS = new Set(["root", "root-revision", "cover-letter"]);
+
 export function gitLabelsOf(event: { tags: string[][] }): string[] {
-  return [...new Set(event.tags.filter((t) => t[0] === "t" && t[1]?.trim()).map((t) => t[1].trim().toLowerCase()))];
+  return [...new Set(event.tags.filter((t) => t[0] === "t" && t[1]?.trim()).map((t) => t[1].trim().toLowerCase()))].filter(
+    (l) => !STRUCTURAL_TAGS.has(l),
+  );
 }
 
 /**

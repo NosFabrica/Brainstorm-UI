@@ -111,3 +111,28 @@ export function collapseHits(
   }
   return kept;
 }
+
+/**
+ * Google's host-diversity rule for a flat list: an author keeps their first
+ * `cap` items where the relay placed them; everything after rides the last
+ * kept item's fold (the "+N more from them" chip). Nothing vanishes, and
+ * other authors' items are untouched. Order follows the input.
+ */
+export function capPerAuthor<T>(items: T[], authorOf: (item: T) => string, cap: number): { item: T; overflow: T[] }[] {
+  const rows: { item: T; overflow: T[] }[] = [];
+  const lastKept = new Map<string, { item: T; overflow: T[] }>();
+  const seen = new Map<string, number>();
+  for (const item of items) {
+    const author = authorOf(item);
+    const n = seen.get(author) ?? 0;
+    if (n < cap) {
+      const row = { item, overflow: [] as T[] };
+      rows.push(row);
+      lastKept.set(author, row);
+      seen.set(author, n + 1);
+    } else {
+      lastKept.get(author)!.overflow.push(item);
+    }
+  }
+  return rows;
+}

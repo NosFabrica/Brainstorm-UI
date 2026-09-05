@@ -54,7 +54,7 @@ import { MusicResults } from "@/components/search/MusicResults";
 import { FacetChip, FacetRow } from "@/components/search/sections";
 import { KnowledgePanel } from "@/components/search/KnowledgePanel";
 import { ComposedResults } from "@/components/search/ComposedResults";
-import { collapseHits } from "@/lib/searchCollapse";
+import { capPerAuthor, collapseHits } from "@/lib/searchCollapse";
 
 const NOTE_KINDS = new Set(TAB_KINDS.notes);
 const ARTICLE_KINDS = new Set(TAB_KINDS.articles);
@@ -795,15 +795,28 @@ export function SearchResults({
   }, [gitIdsKey]);
   const stateOf = (e: NostrEvent): GitState | null => (isGitItem(e.kind) ? gitStateOf(gitStatuses.get(e.id)?.kind, e.kind) : null);
   const [repoLabel, setRepoLabel] = useState<string | null>(null);
-  // The labels maintainers actually used on these results, most common first.
+  // The labels maintainers share, most common first. A label is a triage
+  // convention when more than one author reaches for it; one author's private
+  // vocabulary — probed 2026-09-05, a test harness's "qa", "conflict-pair",
+  // "nonlinear" led the strip — stays on their cards. On a one-author page
+  // every label is theirs anyway, so all count.
   const repoLabelFacets = useMemo(() => {
     if (tab !== "repos") return [] as [string, number][];
     const counts = new Map<string, number>();
+    const authorsOf = new Map<string, Set<string>>();
+    const authors = new Set<string>();
     for (const h of hits) {
       if (!isGitItem(h.event.kind)) continue;
-      for (const l of gitLabelsOf(h.event)) counts.set(l, (counts.get(l) ?? 0) + 1);
+      authors.add(h.event.pubkey);
+      for (const l of gitLabelsOf(h.event)) {
+        counts.set(l, (counts.get(l) ?? 0) + 1);
+        (authorsOf.get(l) ?? authorsOf.set(l, new Set()).get(l)!).add(h.event.pubkey);
+      }
     }
-    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 8);
+    return [...counts.entries()]
+      .filter(([l]) => authors.size === 1 || (authorsOf.get(l)?.size ?? 0) > 1)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 8);
   }, [hits, tab]);
   const repoStateFacets = useMemo(() => {
     if (tab !== "repos") return [] as [GitState, number][];
@@ -914,14 +927,33 @@ export function SearchResults({
     if (tab === "repos") {
       // One codebase, one card: forks fold behind the most trusted
       // maintainer's announcement and open on a tap, each naming its parent.
+      // And one maintainer, three cards: Google's host-diversity rule. Probed
+      // 2026-09-05, one company's 23 bare repos filled the first screens; the
+      // rest now ride their third card's "+20 more from …" chip. A page that
+      // is all one author's has no one to make room for, so it stays whole.
       const repoName = (h: SearchHit) => h.event.tags.find((t) => t[0] === "name")?.[1] ?? h.event.tags.find((t) => t[0] === "d")?.[1] ?? "the original";
+      const groups = foldForks(shown, (h) => ({ event: h.event, score: h.author?.wotRank ?? scoreOf(h.event.pubkey) ?? null }));
+      const authors = new Set(shown.map((h) => h.event.pubkey));
+      const rows = authors.size > 1 ? capPerAuthor(groups, (g) => g.primary.event.pubkey, 3) : groups.map((g) => ({ item: g, overflow: [] as typeof groups }));
       const folded: DisplayRow[] = [];
-      for (const g of foldForks(shown, (h) => ({ event: h.event, score: h.author?.wotRank ?? scoreOf(h.event.pubkey) ?? null }))) {
+      for (const { item: g, overflow } of rows) {
         const id = g.primary.event.id;
         const open = expandedClusters.has(id);
-        const n = g.forks.length;
-        folded.push({ hit: g.primary, collapsedCount: open ? 0 : n, clusterId: id, chipLabel: `${n} ${n === 1 ? "fork" : "forks"}` });
-        if (open) for (const f of g.forks) folded.push({ hit: f, collapsedCount: 0, clusterId: "", forkOf: repoName(g.primary) });
+        const forks = g.forks.length;
+        const more = overflow.reduce((n, o) => n + 1 + o.forks.length, 0);
+        const who = g.primary.author?.displayName || g.primary.author?.name || "this maintainer";
+        const parts = [
+          forks > 0 ? `${forks} ${forks === 1 ? "fork" : "forks"}` : null,
+          more > 0 ? `+${more} more from ${who}` : null,
+        ].filter(Boolean);
+        folded.push({ hit: g.primary, collapsedCount: open ? 0 : forks + more, clusterId: id, chipLabel: parts.join(" · ") });
+        if (open) {
+          for (const f of g.forks) folded.push({ hit: f, collapsedCount: 0, clusterId: "", forkOf: repoName(g.primary) });
+          for (const o of overflow) {
+            folded.push({ hit: o.primary, collapsedCount: 0, clusterId: "" });
+            for (const f of o.forks) folded.push({ hit: f, collapsedCount: 0, clusterId: "", forkOf: repoName(o.primary) });
+          }
+        }
       }
       return folded;
     }

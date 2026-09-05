@@ -4,7 +4,7 @@
  * patch and "resolved" on an issue — the same event, the right word.
  */
 import { describe, expect, it } from "vitest";
-import { gitStateOf, GIT_STATE_LABEL, gitAgentOf } from "./gitStatus";
+import { gitStateOf, GIT_STATE_LABEL, gitAgentOf, gitLabelsOf } from "./gitStatus";
 
 describe("gitStateOf", () => {
   it("maps status kinds to states, with the right word for the item", () => {
@@ -38,5 +38,14 @@ describe("gitAgentOf", () => {
     expect(gitAgentOf(issue, { name: "buildbot" })).toBeNull(); // whole words only
     expect(gitAgentOf(issue, { name: "Derek Ross" })).toBeNull();
     expect(gitAgentOf(issue, null)).toBeNull();
+  });
+});
+
+describe("gitLabelsOf", () => {
+  it("reads the maintainer's labels, never NIP-34's structural t-tags", () => {
+    // A patch series marks its root and cover letter with t-tags; they say
+    // where a patch sits, not how it was triaged.
+    expect(gitLabelsOf({ tags: [["t", "root"], ["t", "cover-letter"], ["t", "Bug"], ["t", "root-revision"], ["t", "android"]] })).toEqual(["bug", "android"]);
+    expect(gitLabelsOf({ tags: [["t", "root"]] })).toEqual([]);
   });
 });

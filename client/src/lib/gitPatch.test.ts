@@ -118,4 +118,12 @@ describe("gitItemSummaryOf", () => {
     expect(gitItemSummaryOf(ev(1621, "Just one line."))).toBe("");
     expect(gitItemSummaryOf(ev(1618, "Fixes a stuck warning.\nMore detail here.", [["subject", "fix(git-pool): stale warning"]]))).toBe("Fixes a stuck warning. More detail here.");
   });
+  it("links and pasted images leave the summary — the words stay", () => {
+    // Live shape: an Armada issue whose body opens with two blossom screenshots.
+    expect(
+      gitItemSummaryOf(ev(1621, "Report\n\nhttps://blossom.ditto.pub/4f18c2dd.webp https://blossom.ditto.pub/2c615f16.webp Armada crashes on start.", [["subject", "Report"]])),
+    ).toBe("Armada crashes on start.");
+    expect(gitItemSummaryOf(ev(1621, "Report\n\n![screen](https://x.y/a.png) See [the log](https://x.y/log) for details.", [["subject", "Report"]]))).toBe("See the log for details.");
+    expect(gitItemSummaryOf(ev(1621, "Report\n\nhttps://x.y/a.png", [["subject", "Report"]]))).toBe("");
+  });
 });

@@ -108,6 +108,13 @@ export function gitItemTitleOf(event: { kind: number; content: string; tags: str
   return event.kind === 1618 ? "Untitled pull request" : "Untitled issue";
 }
 
+/** Pasted screenshots and bare links carry nothing a summary can say. */
+const dropLinks = (s: string) =>
+  s
+    .replace(/!\[[^\]]*\]\([^)]*\)/g, " ") // ![alt](url) — an image
+    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1") // [words](url) — keep the words
+    .replace(/https?:\/\/\S+/g, " ");
+
 const oneLine = (s: string, max = 200) => {
   const flat = s
     .replace(/^#+\s*/gm, "")
@@ -135,9 +142,9 @@ export function gitItemSummaryOf(event: { kind: number; content: string; tags: s
   };
   if (event.kind === 1617) {
     const parsed = parsePatch(event.content || "");
-    if (parsed.message) return oneLine(dropTitle(parsed.message));
+    if (parsed.message) return oneLine(dropLinks(dropTitle(parsed.message)));
     const description = event.tags.find((t) => t[0] === "description")?.[1] ?? "";
-    return oneLine(dropTitle(description));
+    return oneLine(dropLinks(dropTitle(description)));
   }
-  return oneLine(dropTitle(event.content || ""));
+  return oneLine(dropLinks(dropTitle(event.content || "")));
 }

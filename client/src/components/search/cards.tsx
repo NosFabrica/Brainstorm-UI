@@ -535,12 +535,13 @@ export function RepoCard({
   forkOf?: string;
 }) {
   // The Repos tab is a mix: 30617 repo announcements, plus patches (1617) and
-  // issues (1621/1618) that target a repo. A type chip tells them apart, and
-  // a patch/issue names the repo it belongs to (from its a-tag) — the context
-  // that makes a lone "fix: …" card mean something.
+  // issues (1621/1618) that target a repo. A repo is the default thing here
+  // and wears no chip; a patch or issue says what it is and names the repo it
+  // belongs to (from its a-tag) — the context that makes a lone "fix: …"
+  // card mean something.
   const isRepo = event.kind === 30617;
-  const typeLabel = isRepo ? "Repo" : gitItemLabel(event.kind);
-  const typeTone: "info" | "success" | "warning" = event.kind === 1617 || event.kind === 1618 ? "info" : isRepo ? "success" : "warning";
+  const typeLabel = isRepo ? null : gitItemLabel(event.kind);
+  const typeTone: "info" | "warning" = event.kind === 1617 || event.kind === 1618 ? "info" : "warning";
   // A repo is named by its announcement; an issue, patch or PR by the one
   // title rule — a patch without a subject tag is titled from its own text.
   const name = isRepo ? tagVal(event, "name") ?? tagVal(event, "d") ?? "Unnamed repo" : gitItemTitleOf(event);
@@ -599,7 +600,7 @@ export function RepoCard({
               leaves it room so a long title's type chip never slides under it. */}
           <div className={`flex items-center gap-2 min-w-0 ${dest ? (dest.label.length > 12 ? "pr-36" : "pr-24") : ""}`}>
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
-            <Chip size="sm" tone={typeTone}>{typeLabel}</Chip>
+            {typeLabel && <Chip size="sm" tone={typeTone}>{typeLabel}</Chip>}
           </div>
           {isRepo && forkOf && (
             <p className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500" data-testid={`repo-fork-of-${event.id}`}>
@@ -685,8 +686,8 @@ export function RepoCard({
         </div>
         {/* CardShell parks the external "Open repo" link absolutely in this
             corner (it must live outside the card's own link — nested anchors
-            are invalid). The glyph is decorative, the type chip already names
-            the kind — so it only takes the corner when nothing else does. */}
+            are invalid). The glyph is decorative, the card's shape already
+            says "repo" — so it only takes the corner when nothing else does. */}
         {!dest && (
           <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800" data-testid={`repo-glyph-${event.id}`}>
             <Code2 className="h-4 w-4 text-slate-500 dark:text-slate-400" />

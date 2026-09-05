@@ -1051,8 +1051,9 @@ describe("SearchResults", () => {
     expect(await screen.findByText("vespa-relay")).toBeInTheDocument();
     expect(screen.getByText("Search relay over Vespa")).toBeInTheDocument();
     const card = screen.getByTestId("repo-card-r1");
-    // A repo announcement is labeled and closes on the enterprise footer.
-    expect(card).toHaveTextContent("Repo");
+    // On the Repos tab a repo is the default thing — no "Repo" chip on 45 of
+    // 100 cards (probed 2026-09-05); issues and PRs announce themselves.
+    expect(within(card).queryByText("Repo")).toBeNull();
     expect(card).toHaveTextContent("Maintained by");
   });
 
@@ -1158,28 +1159,47 @@ describe("SearchResults", () => {
     expect(screen.getByTestId("repo-card-r1")).toBeInTheDocument();
   });
 
-  it("issues wear their labels, and the strip narrows by label after state", async () => {
+  it("issues wear their labels; the strip offers only labels more than one maintainer uses, and narrows by them", async () => {
     setUrlTab("repos");
+    // Probed 2026-09-05: "qa", "conflict-pair", "nonlinear"… were one test
+    // harness's private vocabulary — 15 items, one author — and led the strip.
+    // A label is a shared convention when two authors reach for it.
     const bug = ev("i1", 1621, "1".repeat(64), "crashes on start", [["a", "30617:" + "9".repeat(64) + ":armada"], ["subject", "crashes on start"], ["t", "bug"], ["t", "android"]]);
-    const wish = ev("i2", 1621, "2".repeat(64), "dark mode please", [["a", "30617:" + "9".repeat(64) + ":armada"], ["subject", "dark mode please"], ["t", "enhancement"]]);
+    const wish = ev("i2", 1621, "2".repeat(64), "dark mode please", [["a", "30617:" + "9".repeat(64) + ":armada"], ["subject", "dark mode please"], ["t", "enhancement"], ["t", "bug"]]);
     const plain = ev("i3", 1621, "3".repeat(64), "question", [["a", "30617:" + "9".repeat(64) + ":armada"], ["subject", "question"]]);
+    const harness = ev("i4", 1621, "4".repeat(64), "case 7", [["a", "30617:" + "9".repeat(64) + ":armada"], ["subject", "case 7"], ["t", "qa"], ["t", "conflict-pair"]]);
     render(<SearchResults query="armada" pov="nosfabrica" />);
-    emit({ hits: [bug, wish, plain].map((e) => ({ event: e, author: author(e.pubkey, "dev"), rank: null })), eose: true, timeMs: 200 });
+    emit({ hits: [bug, wish, plain, harness].map((e) => ({ event: e, author: author(e.pubkey, "dev"), rank: null })), eose: true, timeMs: 200 });
 
     const card = await screen.findByTestId("repo-card-i1");
     const labels = within(card).getByTestId("git-labels-i1");
     expect(labels).toHaveTextContent("bug");
-    expect(labels).toHaveTextContent("android");
+    expect(labels).toHaveTextContent("android"); // the card still shows what its maintainer set
     expect(within(screen.getByTestId("repo-card-i3")).queryByTestId("git-labels-i3")).toBeNull();
 
     const strip = screen.getByTestId("repo-state-facets");
     expect(within(strip).getByTestId("repo-label-bug")).toHaveTextContent("bug");
     expect(within(strip).getByTestId("repo-label-bug")).not.toHaveTextContent(/\d/);
-    expect(within(strip).getByTestId("repo-label-enhancement")).toHaveTextContent("enhancement");
-    fireEvent.click(within(strip).getByTestId("repo-label-enhancement"));
+    expect(within(strip).queryByTestId("repo-label-qa")).toBeNull();
+    expect(within(strip).queryByTestId("repo-label-conflict-pair")).toBeNull();
+    expect(within(strip).queryByTestId("repo-label-enhancement")).toBeNull();
+    fireEvent.click(within(strip).getByTestId("repo-label-bug"));
+    expect(screen.getByTestId("repo-card-i1")).toBeInTheDocument();
     expect(screen.getByTestId("repo-card-i2")).toBeInTheDocument();
-    expect(screen.queryByTestId("repo-card-i1")).toBeNull();
     expect(screen.queryByTestId("repo-card-i3")).toBeNull();
+    expect(screen.queryByTestId("repo-card-i4")).toBeNull();
+  });
+
+  it("when every item on the page is one maintainer's, their labels are the strip", async () => {
+    setUrlTab("repos");
+    const a = ev("i1", 1621, "1".repeat(64), "groups: kick", [["a", "30617:" + "9".repeat(64) + ":relay29"], ["subject", "groups: kick"], ["t", "nip29"]]);
+    const b = ev("i2", 1621, "1".repeat(64), "groups: join", [["a", "30617:" + "9".repeat(64) + ":relay29"], ["subject", "groups: join"], ["t", "nip29"], ["t", "groups"]]);
+    render(<SearchResults query="nip29" pov="nosfabrica" />);
+    emit({ hits: [a, b].map((e) => ({ event: e, author: author(e.pubkey, "fiatjaf"), rank: null })), eose: true, timeMs: 200 });
+    await screen.findByTestId("repo-card-i1");
+    const strip = screen.getByTestId("repo-state-facets");
+    expect(within(strip).getByTestId("repo-label-nip29")).toBeInTheDocument();
+    expect(within(strip).getByTestId("repo-label-groups")).toBeInTheDocument();
   });
 
   it("issues show how much conversation they have, and people's issues come before agents' — marked", async () => {
@@ -1265,6 +1285,38 @@ describe("SearchResults", () => {
     // The summary is the commit message, not the title again and not git's headers.
     expect((card.textContent?.match(/chore: bump swiss/g) ?? []).length).toBe(1);
     expect(card).not.toHaveTextContent("Author: randymcmillan");
+  });
+
+  it("a maintainer gets three cards on the Repos tab; the rest fold behind '+N more from them' and open on a tap", async () => {
+    setUrlTab("repos");
+    const sirius = "5".repeat(64);
+    const repo = (id: string, pk: string, name: string) => ev(id, 30617, pk, "", [["d", name], ["name", name]]);
+    const hits = [repo("s1", sirius, "iris-stack"), repo("o1", "6".repeat(64), "ngit"), repo("s2", sirius, "hashtree"), repo("s3", sirius, "fips-ts"), repo("s4", sirius, "iris-drive"), repo("s5", sirius, "iris-native")];
+    render(<SearchResults query="" pov="nosfabrica" />);
+    emit({ hits: hits.map((e) => ({ event: e, author: author(e.pubkey, e.pubkey === sirius ? "Sirius Business Ltd" : "Dan"), rank: null })), eose: true, timeMs: 200 });
+    await screen.findByTestId("repo-card-s1");
+    expect(screen.getByTestId("repo-card-o1")).toBeInTheDocument();
+    expect(screen.getByTestId("repo-card-s3")).toBeInTheDocument();
+    expect(screen.queryByTestId("repo-card-s4")).toBeNull();
+    expect(screen.queryByTestId("repo-card-s5")).toBeNull();
+    const chip = screen.getByTestId("cluster-expand-s3");
+    expect(chip).toHaveTextContent("+2 more from Sirius Business Ltd");
+    expect(screen.queryByTestId("cluster-expand-s1")).toBeNull();
+    fireEvent.click(chip);
+    expect(screen.getByTestId("repo-card-s4")).toBeInTheDocument();
+    expect(screen.getByTestId("repo-card-s5")).toBeInTheDocument();
+    expect(screen.queryByTestId("cluster-expand-s3")).toBeNull();
+  });
+
+  it("a page that is all one maintainer's does not fold — there is no one else to make room for", async () => {
+    setUrlTab("repos");
+    const sirius = "5".repeat(64);
+    const hits = ["a", "b", "c", "d"].map((n) => ev(`s-${n}`, 30617, sirius, "", [["d", `iris-${n}`], ["name", `iris-${n}`]]));
+    render(<SearchResults query="iris" pov="nosfabrica" />);
+    emit({ hits: hits.map((e) => ({ event: e, author: author(e.pubkey, "Sirius Business Ltd"), rank: null })), eose: true, timeMs: 200 });
+    await screen.findByTestId("repo-card-s-a");
+    expect(screen.getByTestId("repo-card-s-d")).toBeInTheDocument();
+    expect(screen.queryByTestId("cluster-expand-s-c")).toBeNull();
   });
 
   it("a repo announcement shows its issue and patch counts, who contributed, and when it was last touched", async () => {

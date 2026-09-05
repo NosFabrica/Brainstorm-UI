@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 import type { NostrEvent } from "nostr-tools";
-import { collapseHits } from "./searchCollapse";
+import { capPerAuthor, collapseHits } from "./searchCollapse";
 import type { SearchHit } from "@/services/search";
 
 const NOW = 1_760_000_000;
@@ -116,5 +116,17 @@ describe("collapseHits", () => {
       NOW,
     );
     expect(clusters.map((c) => c.primary.event.pubkey[0])).toEqual(["6", "c"]);
+  });
+});
+
+describe("capPerAuthor", () => {
+  // Live shape (Repos browse, 2026-09-05): one maintainer's 23 bare repos
+  // filled the first screens. Google shows two per site and folds the rest.
+  it("keeps an author's first N in place; the rest ride the Nth's fold, nothing vanishes", () => {
+    const rows = capPerAuthor(["s1", "o1", "s2", "s3", "s4", "s5", "o2"], (id) => id[0], 3);
+    expect(rows.map((r) => r.item)).toEqual(["s1", "o1", "s2", "s3", "o2"]);
+    expect(rows.find((r) => r.item === "s3")?.overflow).toEqual(["s4", "s5"]);
+    expect(rows.find((r) => r.item === "s1")?.overflow).toEqual([]);
+    expect(rows.find((r) => r.item === "o2")?.overflow).toEqual([]);
   });
 });
