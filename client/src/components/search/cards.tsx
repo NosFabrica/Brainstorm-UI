@@ -787,7 +787,7 @@ export function ListCard({ event, author, score }: { event: NostrEvent; author: 
  * the title opens the event; the artist is Flash's field or, failing that,
  * the author's name, since most publishers are the artist.
  */
-export function TrackCard({ event, author }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
+export function TrackCard({ event, author, flat }: { event: NostrEvent; author: SearchResult | null; score?: number | null; flat?: boolean }) {
   const track = parseTrack(event);
   if (!track) return null;
   // The row draws its own frame; the card adds no second one.
@@ -802,6 +802,7 @@ export function TrackCard({ event, author }: { event: NostrEvent; author: Search
         genre={track.genre}
         durationSec={track.durationSec}
         href={eventPath(event)}
+        flat={flat}
       />
     </div>
   );
@@ -813,7 +814,7 @@ export function TrackCard({ event, author }: { event: NostrEvent; author: Search
  * source named, and the title opening the song's Wavlake page (zaps, album,
  * artist live there; there is no Nostr event to open).
  */
-export function WavlakeSongCard({ song }: { song: WavlakeSong }) {
+export function WavlakeSongCard({ song, flat }: { song: WavlakeSong; flat?: boolean }) {
   return (
     <div data-testid={`wavlake-song-${song.id}`}>
       <EmbeddedTrackCard
@@ -825,6 +826,7 @@ export function WavlakeSongCard({ song }: { song: WavlakeSong }) {
         durationSec={song.durationSec}
         sourceLabel="Wavlake"
         onOpen={() => window.open(song.url, "_blank", "noopener")}
+        flat={flat}
       />
     </div>
   );

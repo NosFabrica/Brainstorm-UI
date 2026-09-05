@@ -80,15 +80,17 @@ export function Section({
 }) {
   return (
     <section className="mt-5 first:mt-0" data-testid={`${testIdPrefix}-${id}`}>
-      <div className="mb-1.5 flex items-center gap-2">
-        <SectionHeader kicker={kicker} className="flex-1" />
+      <div className="mb-2 flex items-baseline gap-2">
+        <SectionHeader variant="title" kicker={kicker} className="flex-1" />
+        {/* Quiet until hovered: the title carries the section, the link
+            only has to be findable. */}
         <button
           type="button"
           onClick={() => onTabChange(tab)}
-          className="shrink-0 text-xs font-medium text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
+          className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
           data-testid={`${testIdPrefix === "serp-section" ? "serp-more" : `${testIdPrefix}-more`}-${id}`}
         >
-          More →
+          See all
         </button>
       </div>
       {children}

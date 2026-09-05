@@ -65,6 +65,12 @@ Aurora-cyan mono kicker + hairline (the "TRUST OVER NOISE" style labels).
 ```tsx
 <SectionHeader kicker="Identity" icon={UserRound} />
 ```
+`variant="title"` renders a sentence-case heading in the display face instead
+— for surfaces that stack many sections (the search results page), where a
+column of coloured kickers reads as decoration. Colour stays with the content.
+```tsx
+<SectionHeader variant="title" kicker="Latest" />
+```
 
 ## Card — `components/ui/card.tsx`
 Canonical surface (semantic tokens → theme-aware). Default is quiet; pass

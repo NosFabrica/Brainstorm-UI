@@ -419,6 +419,9 @@ describe("ComposedResults", () => {
     expect(section).toHaveTextContent("Duende");
     expect(within(section).getAllByTestId("track-play")).toHaveLength(2);
     expect(section).not.toHaveTextContent("antennapod");
+    // A stream reads as rows: no song draws its own frame here (the Music
+    // tab's grid still does).
+    for (const row of within(section).getAllByTestId("embedded-track")) expect(row.className).not.toMatch(/\bborder\b/);
 
     fireEvent.click(within(section).getByTestId("serp-more-listen"));
     expect(onTabChange).toHaveBeenCalledWith("music");

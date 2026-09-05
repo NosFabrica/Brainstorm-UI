@@ -39,6 +39,7 @@ export function EmbeddedTrackCard({
   onZap,
   sourceLabel,
   onOpen,
+  flat = false,
   durationSec,
 }: {
   id: string;
@@ -53,6 +54,8 @@ export function EmbeddedTrackCard({
   sourceLabel?: string;
   /** Overrides the internal /e navigation for the row-open (e.g. open externally). */
   onOpen?: () => void;
+  /** No frame of its own — a row in a list that draws hairlines between rows. */
+  flat?: boolean;
   /** Known total duration (skips the metadata probe when provided). */
   durationSec?: number;
 }) {
@@ -77,9 +80,15 @@ export function EmbeddedTrackCard({
   return (
     <div
       onClick={onRowClick}
-      className={`group flex items-center gap-3 rounded-xl border bg-white dark:bg-slate-900 p-2.5 transition-colors ${
-        player.isActive ? "border-brand-link/30 ring-1 ring-brand-link/10" : "border-slate-200 dark:border-slate-800"
-      } ${href ? "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700" : ""}`}
+      className={
+        flat
+          ? `group flex items-center gap-3 rounded-lg px-1 py-2 transition-colors ${player.isActive ? "bg-brand-link/[0.04]" : ""} ${
+              href ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900/60" : ""
+            }`
+          : `group flex items-center gap-3 rounded-xl border bg-white dark:bg-slate-900 p-2.5 transition-colors ${
+              player.isActive ? "border-brand-link/30 ring-1 ring-brand-link/10" : "border-slate-200 dark:border-slate-800"
+            } ${href ? "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700" : ""}`
+      }
       data-testid="embedded-track"
     >
       {/* Cover = play / pause control */}

@@ -273,7 +273,7 @@ export function ComposedResults({
       {(latestF?.hits.length ?? 0) > 0 && (
         <Section id="latest" kicker="Latest" tab="notes" onTabChange={onTabChange}>
           <TopStories stories={topStories} stripRef={storiesRef} />
-          <div className="space-y-0.5">{clustersOf(latestF, storyIds)}</div>
+          <div className="divide-y divide-slate-100 dark:divide-slate-800/60">{clustersOf(latestF, storyIds)}</div>
         </Section>
       )}
 
@@ -282,7 +282,7 @@ export function ComposedResults({
           {/* A bento — lead + tiles — breaks the run of rows; overflow stays rows. */}
           <ArticlesBento clusters={articleClusters} scoreOf={scoreOf} />
           {articleClusters.length > 4 && (
-            <div className="mt-2 space-y-0.5">
+            <div className="mt-2 divide-y divide-slate-100 dark:divide-slate-800/60">
               {articleClusters.slice(4).map((c) => (
                 <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} />
               ))}
@@ -303,12 +303,13 @@ export function ComposedResults({
 
       {listen.length + listenWavlake.length > 0 && (
         <Section id="listen" kicker="Listen" tab="music" onTabChange={onTabChange}>
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {/* Rows, not boxes: a stream of songs reads like a list. */}
+          <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
             {listen.map((h) => (
-              <TrackCard key={h.event.id} event={h.event} author={h.author} score={scoreOf(h.event.pubkey)} />
+              <TrackCard key={h.event.id} event={h.event} author={h.author} score={scoreOf(h.event.pubkey)} flat />
             ))}
             {listenWavlake.map((song) => (
-              <WavlakeSongCard key={song.id} song={song} />
+              <WavlakeSongCard key={song.id} song={song} flat />
             ))}
           </div>
         </Section>
@@ -316,7 +317,7 @@ export function ComposedResults({
 
       {happeningClusters.length > 0 && (
         <Section id="happening" kicker="Happening" tab="events" onTabChange={onTabChange}>
-          <div className="space-y-1">
+          <div className="divide-y divide-slate-100 dark:divide-slate-800/60">
             {happeningClusters.map((c) => (
               <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} />
             ))}
@@ -327,7 +328,7 @@ export function ComposedResults({
       {(mediaF?.hits.length ?? 0) + mediaTiles.length > 0 && (
         <Section id="media" kicker="Media" tab="media" onTabChange={onTabChange}>
           <MediaTiles hits={mediaTiles} scoreOf={scoreOf} />
-          <div className="space-y-0.5">{clustersOf(mediaF, mediaTileIds)}</div>
+          <div className="divide-y divide-slate-100 dark:divide-slate-800/60">{clustersOf(mediaF, mediaTileIds)}</div>
         </Section>
       )}
     </div>
