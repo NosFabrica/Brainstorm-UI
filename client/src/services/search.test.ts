@@ -66,6 +66,7 @@ import {
   fetchGitStatuses,
   fetchGitCommentCounts,
   fetchRepoForks,
+  fetchRepoByAddress,
   searchStream,
   suggestProfiles,
   kindsForTab,
@@ -893,6 +894,25 @@ describe("fetchRepoForks", () => {
     const forks = await pending;
     expect(forks.map((f) => f.pubkey.slice(0, 1))).toEqual(["b", "c"]);
     expect(forks[0].created_at).toBe(2);
+  });
+});
+
+describe("fetchRepoByAddress", () => {
+  it("resolves a 30617 coordinate to its newest announcement, or null", async () => {
+    const { subject } = controllable();
+    const pk = "b".repeat(64);
+    const pending = fetchRepoByAddress(`30617:${pk}:ngit`);
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter.kinds).toEqual([30617]);
+    expect(filter.authors).toEqual([pk]);
+    expect(filter["#d"]).toEqual(["ngit"]);
+    expect(filter.search).toBe("include:spam");
+    subject.next(frame({ id: "1".repeat(64), kind: 30617, pubkey: pk, tags: [["d", "ngit"]], content: "", created_at: 1, sig: "s" } as NostrEvent));
+    subject.next(frame({ id: "2".repeat(64), kind: 30617, pubkey: pk, tags: [["d", "ngit"]], content: "", created_at: 5, sig: "s" } as NostrEvent));
+    subject.next(EOSE);
+    expect((await pending)?.id).toBe("2".repeat(64));
+    expect(await fetchRepoByAddress("not-a-coordinate")).toBeNull();
   });
 });
 

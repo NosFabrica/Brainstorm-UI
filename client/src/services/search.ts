@@ -1156,6 +1156,39 @@ export function fetchRepoForks(euc: string, selfAddress: string, timeoutMs = 500
 }
 
 /**
+ * The repo behind a NIP-34 coordinate ("30617:<pubkey>:<d>") — its newest
+ * announcement, so an issue can link to its repo's page. Null when the
+ * coordinate is malformed or nothing answers.
+ */
+export function fetchRepoByAddress(address: string, timeoutMs = 5000): Promise<NostrEvent | null> {
+  return new Promise((resolve) => {
+    const [kind, pubkey, ...rest] = address.split(":");
+    const d = rest.join(":");
+    const relay = searchRelay();
+    if (!relay || kind !== "30617" || !/^[0-9a-f]{64}$/i.test(pubkey ?? "")) return resolve(null);
+    let best: NostrEvent | null = null;
+    const sub = relay
+      .req({ kinds: [30617], authors: [pubkey], "#d": [d], search: "include:spam", limit: 3 })
+      .subscribe((msg: { type: string; event?: NostrEvent }) => {
+        if (msg.type === "EVENT" && msg.event) {
+          if (!best || msg.event.created_at > best.created_at) best = msg.event;
+        } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
+          finish();
+        }
+      });
+    const timer = setTimeout(finish, timeoutMs);
+    let done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      sub.unsubscribe();
+      resolve(best);
+    }
+  });
+}
+
+/**
  * Cheap kind-0 typeahead: resolves at EOSE or the deadline with whatever
  * arrived — never rejects (a silent suggest beats a broken one).
  */

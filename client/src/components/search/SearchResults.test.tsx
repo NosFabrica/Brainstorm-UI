@@ -885,6 +885,17 @@ describe("SearchResults", () => {
     }
   });
 
+  it("a patch without a subject tag is titled from its own text, never 'Untitled' or its d-tag", async () => {
+    setUrlTab("repos");
+    const body = ["commit 000c2b0b9fdbc529e89ffbedb24ecaee04bcc0db", "Author: randymcmillan <r@x>", "Date:   Fri Sep 4 11:35:43 2026 -0400", "", "    chore: bump swiss for Go 1.27 support", "", "diff --git a/go.mod b/go.mod", "+x"].join("\n");
+    const patch = ev("pt1", 1617, "1".repeat(64), body, [["d", "."], ["a", "30617:" + "9".repeat(64) + ":kubo"], ["commit", "000c2b0b9fdbc529e89ffbedb24ecaee04bcc0db"]]);
+    render(<SearchResults query="kubo" pov="nosfabrica" />);
+    emit({ hits: [{ event: patch, author: author(patch.pubkey, "randy"), rank: null }], eose: true, timeMs: 200 });
+    const card = await screen.findByTestId("repo-card-pt1");
+    expect(card).toHaveTextContent("chore: bump swiss for Go 1.27 support");
+    expect(card).not.toHaveTextContent("Untitled");
+  });
+
   it("a repo announcement shows its issue and patch counts, who contributed, and when it was last touched", async () => {
     setUrlTab("repos");
     const now = Math.floor(Date.now() / 1000);
