@@ -1153,7 +1153,9 @@ describe("SearchResults", () => {
 
   // A partner's own mark, by their rules: Divine's logotype in place of the
   // bare host, Dark Green on light and Green on dark, the name always "Divine".
-  it("a Divine video's byline carries the Divine wordmark instead of the host; other hosts stay text", async () => {
+  // Benjamin, over "via cdn.midjourney.com": a CDN hostname tells a reader
+  // nothing, so the byline exists only for a brand people recognise.
+  it("a Divine video's byline carries the Divine wordmark; an unbranded host gets no byline at all", async () => {
     setUrlTab("media");
     render(<SearchResults query="dance" pov="nosfabrica" />);
     const divine = ev("dv1", 34236, "8".repeat(64), "late night dance", [["d", "dv1"], ["title", "late night dance"], ["imeta", "url https://media.divine.video/clips/abc.mp4", "m video/mp4", "image https://media.divine.video/clips/abc.jpg"]]);
@@ -1164,7 +1166,34 @@ describe("SearchResults", () => {
     expect(mark.tagName.toLowerCase()).toBe("svg");
     expect(card).not.toHaveTextContent("media.divine.video");
     expect(card).toHaveTextContent(/via/);
-    expect(screen.getByTestId("media-card-bl1")).toHaveTextContent("via blossom.primal.net");
+    const plain = screen.getByTestId("media-card-bl1");
+    expect(plain).not.toHaveTextContent(/via/);
+    expect(plain).not.toHaveTextContent("blossom.primal.net");
+  });
+
+  // Divine publishes each clip's soundtrack as its own kind-1063 file
+  // ("m audio/wav", allow_audio_reuse, an `a` back to the 34236 video) so
+  // other creators can reuse the sound. Benjamin, over one of them: "why does
+  // this show divine, video media - but its audio?" It is audio — and it
+  // duplicates a video that is already in the results, so it stays out.
+  it("a Divine sound-reuse file stays out of the Media tab; its video stays in", async () => {
+    setUrlTab("media");
+    render(<SearchResults query="oh no" pov="nosfabrica" />);
+    const pk = "8".repeat(64);
+    const video = ev("dvid", 34236, pk, "Oh No!!", [["d", "e4d2"], ["title", "Oh No!!"], ["imeta", "url https://media.divine.video/clips/e4d2.mp4", "m video/mp4"]]);
+    const sound = ev("dsnd", 1063, pk, "Oh No!!", [
+      ["url", "https://media.divine.video/1bb23d.wav"],
+      ["m", "audio/wav"],
+      ["duration", "6.324"],
+      ["title", "Oh No!!"],
+      ["allow_audio_reuse", "true"],
+      ["a", `34236:${pk}:e4d2`, "wss://relay.divine.video"],
+    ]);
+    const song = ev("indie", 1063, "9".repeat(64), "a whole song", [["url", "https://cdn.example/song.mp3"], ["m", "audio/mpeg"]]);
+    emit({ hits: [video, sound, song].map((event) => ({ event, author: author(event.pubkey, "x"), rank: null })), eose: true, timeMs: 90 });
+    await screen.findByTestId("media-card-dvid");
+    await screen.findByTestId("media-card-indie");
+    expect(screen.queryByTestId("media-card-dsnd")).toBeNull();
   });
 
   // Benjamin, over "Rabbit Hole Recap": their videos never reached the Media
@@ -1286,6 +1315,19 @@ describe("SearchResults", () => {
     emit({ hits: [{ event: track, author: author(track.pubkey, "breezy"), rank: null }], eose: true, timeMs: 200 });
     const card = await screen.findByTestId("media-card-au1");
     expect(card.querySelector('[data-testid="embedded-track"]')).not.toBeNull();
+    // The track's source pill follows the byline rule: the brand's name, never the raw host.
+    expect(card).toHaveTextContent("Divine");
+    expect(card).not.toHaveTextContent(/media\.divine\.video/i);
+  });
+
+  it("an audio result from an unbranded host carries no source pill", async () => {
+    setUrlTab("media");
+    render(<SearchResults query="demo" pov="nosfabrica" />);
+    const track = ev("au2", 1222, "9".repeat(64), "demo take", [["imeta", "url https://blossom.band/take.mp3", "m audio/mpeg"]]);
+    emit({ hits: [{ event: track, author: author(track.pubkey, "someone"), rank: null }], eose: true, timeMs: 200 });
+    const card = await screen.findByTestId("media-card-au2");
+    expect(card.querySelector('[data-testid="embedded-track"]')).not.toBeNull();
+    expect(card).not.toHaveTextContent("blossom.band");
   });
 
   it("a video with a poster image in imeta shows the poster, not an icon", async () => {

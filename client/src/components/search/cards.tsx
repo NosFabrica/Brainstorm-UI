@@ -318,7 +318,7 @@ export function MediaCard({ event, author, score }: { event: NostrEvent; author:
             artist={author ? getDisplayLabel(author) : undefined}
             cover={poster ?? undefined}
             audio={url}
-            sourceLabel={host ?? undefined}
+            sourceLabel={brand?.name}
           />
         </div>
       ) : (isImage || poster) && url ? (
@@ -337,17 +337,15 @@ export function MediaCard({ event, author, score }: { event: NostrEvent; author:
           })()}
         </div>
       )}
-      {host && !isAudio && (
+      {/* The byline exists only for a brand people recognise — a CDN hostname
+          tells a reader nothing, and the picture speaks for itself. */}
+      {brand && !isAudio && (
         <p className="mt-1.5 flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500">
           via{" "}
-          {brand ? (
-            // The partner's own mark, with its x-height of clear space.
-            <span className="inline-flex items-center px-1 py-0.5">
-              <brand.Wordmark />
-            </span>
-          ) : (
-            host
-          )}
+          {/* The partner's own mark, with its x-height of clear space. */}
+          <span className="inline-flex items-center px-1 py-0.5">
+            <brand.Wordmark />
+          </span>
         </p>
       )}
     </div>

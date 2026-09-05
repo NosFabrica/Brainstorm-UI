@@ -38,6 +38,7 @@ import {
 
 import { fetchEventRsvps, fetchGitCommentCounts, fetchGitStatuses, type EventRsvps } from "@/services/search";
 import { GIT_STATE_LABEL, foldForks, gitLabelsOf, gitStateOf, isGitItem, peopleBeforeAgents, type GitState } from "@/lib/gitStatus";
+import { isMediaFile, isSoundtrackFile } from "@/lib/fileMetadata";
 import { AppCard, EventCard, LiveCard, ListCard, MediaCard, RepoCard, platformWords, TrackCard, WavlakeSongCard, mediaUrlOf, ListingCard } from "@/components/search/cards";
 import { EVENT_WHEN_LABELS, EVENT_WHEN_ORDER, eventWhenCounts, filterEventsByWhen, type EventWhen } from "@/lib/eventFilters";
 import { EventDateTile } from "@/components/share/EventDateTile";
@@ -832,12 +833,9 @@ export function SearchResults({
     if (tab === "media") {
       // Kind 1063 is generic file metadata — Zap Store APKs and other blobs
       // ride it. The Media tab means media: a 1063 stays only when its
-      // declared mime is image/video/audio. (Everything still shows the rest.)
-      const mimeOf = (e: NostrEvent) => e.tags.find((t) => t[0] === "m")?.[1] ?? "";
-      shown = hits.filter((h) => {
-        if (h.event.kind !== 1063) return true;
-        return /^(image|video|audio)\//.test(mimeOf(h.event));
-      });
+      // declared mime is image/video/audio, and not when it is a video's
+      // reusable soundtrack (lib/fileMetadata). Everything still shows the rest.
+      shown = hits.filter((h) => h.event.kind !== 1063 || (isMediaFile(h.event) && !isSoundtrackFile(h.event)));
     }
     if (tab === "lists") {
       // Lists must earn their place: untitled or empty ones are app
