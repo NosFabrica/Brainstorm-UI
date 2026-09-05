@@ -65,6 +65,7 @@ import {
   fetchCommentsByAddress,
   fetchGitStatuses,
   fetchGitCommentCounts,
+  fetchRepoForks,
   searchStream,
   suggestProfiles,
   kindsForTab,
@@ -864,6 +865,34 @@ describe("fetchGitCommentCounts", () => {
     expect(counts.get(a)).toBe(2);
     expect(counts.get(b)).toBe(1);
     expect(counts.get(quiet)).toBeUndefined();
+  });
+});
+
+describe("fetchRepoForks", () => {
+  // Announcements sharing an earliest unique commit are one codebase. The
+  // relay answers a #r filter on the commit; the repo itself is left out and
+  // one announcement per maintainer counts once.
+  const repo = (pk: string, d: string, euc: string, at = 1): NostrEvent =>
+    ({ id: `${d}-${at}`.padEnd(64, "0"), kind: 30617, pubkey: pk, tags: [["d", d], ["name", d], ["r", euc, "euc"]], content: "", created_at: at, sig: "s" }) as NostrEvent;
+
+  it("returns the other announcements of the same codebase, deduped by maintainer", async () => {
+    const { subject } = controllable();
+    const euc = "2cfca0e64c2270bf7f1086c66db810c453fea187";
+    const me = "a".repeat(64);
+    const pending = fetchRepoForks(euc, `30617:${me}:gitnostr`);
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter.kinds).toEqual([30617]);
+    expect(filter["#r"]).toEqual([euc]);
+    expect(filter.search).toBe("include:spam");
+    subject.next(frame(repo(me, "gitnostr", euc)));           // itself
+    subject.next(frame(repo("b".repeat(64), "gitnostr", euc, 1)));
+    subject.next(frame(repo("b".repeat(64), "gitnostr", euc, 2))); // a newer edit by the same maintainer
+    subject.next(frame(repo("c".repeat(64), "gitnostr-fork", euc)));
+    subject.next(EOSE);
+    const forks = await pending;
+    expect(forks.map((f) => f.pubkey.slice(0, 1))).toEqual(["b", "c"]);
+    expect(forks[0].created_at).toBe(2);
   });
 });
 

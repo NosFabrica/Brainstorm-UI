@@ -1121,6 +1121,41 @@ export function fetchGitCommentCounts(ids: string[], timeoutMs = 5000): Promise<
 }
 
 /**
+ * The other announcements of one codebase: NIP-34 marks a repo by its
+ * earliest unique commit, and the relay answers a #r filter on it. The repo
+ * itself is left out; one announcement per maintainer, the newest.
+ */
+export function fetchRepoForks(euc: string, selfAddress: string, timeoutMs = 5000): Promise<NostrEvent[]> {
+  return new Promise((resolve) => {
+    const relay = searchRelay();
+    if (!relay || !euc) return resolve([]);
+    const byMaintainer = new Map<string, NostrEvent>();
+    const sub = relay
+      .req({ kinds: [30617], "#r": [euc], search: "include:spam", limit: 50 })
+      .subscribe((msg: { type: string; event?: NostrEvent }) => {
+        if (msg.type === "EVENT" && msg.event) {
+          const ev = msg.event;
+          const d = ev.tags.find((t) => t[0] === "d")?.[1] ?? "";
+          if (`${ev.kind}:${ev.pubkey}:${d}` === selfAddress) return;
+          const known = byMaintainer.get(ev.pubkey);
+          if (!known || ev.created_at > known.created_at) byMaintainer.set(ev.pubkey, ev);
+        } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
+          finish();
+        }
+      });
+    const timer = setTimeout(finish, timeoutMs);
+    let done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      sub.unsubscribe();
+      resolve([...byMaintainer.values()]);
+    }
+  });
+}
+
+/**
  * Cheap kind-0 typeahead: resolves at EOSE or the deadline with whatever
  * arrived — never rejects (a silent suggest beats a broken one).
  */
