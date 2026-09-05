@@ -19,6 +19,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { X } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PersonCard } from "@/components/search/PersonCard";
+import { QuietTrustChrome } from "@/components/score/VerificationCoin";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
@@ -963,6 +964,7 @@ export function SearchResults({
   const profiles = useMemo(() => profilesOf(hits), [hits]);
 
   return (
+    <QuietTrustChrome>
     <div className="w-full max-w-2xl lg:max-w-[62rem] mx-auto mt-4 sm:mt-5 text-left" data-testid="search-results">
       {/* One quiet row, Google's anatomy: five tabs (scrolling on phones),
           then pinned at the right edge — More ▾, the perspective control and
@@ -1414,5 +1416,6 @@ export function SearchResults({
       </div>
       </div>
     </div>
+    </QuietTrustChrome>
   );
 }

@@ -7,7 +7,7 @@
 import { Check, Copy, Globe, Users, Zap } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { VerificationCoin, useTierRing, TierWordChip, useCoinReplacedByRing } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing, TierWordChip, useCoinReplacedByRing, useQuietTrustChrome } from "@/components/score/VerificationCoin";
 import { FlaggedChip, PersonCardSlot } from "@/components/search/EndorsementLine";
 import { copyToClipboard } from "@/lib/clipboard";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
@@ -44,6 +44,7 @@ export function PersonCard({
   showFollowedBy?: boolean;
 }) {
   const tierRing = useTierRing();
+  const quiet = useQuietTrustChrome();
   const coinReplaced = useCoinReplacedByRing();
   const websiteDisplay = result.website
     ? result.website.replace(/^https?:\/\//, "").replace(/\/$/, "")
@@ -79,7 +80,7 @@ export function PersonCard({
               score01={result.wotRank}
               pov={pov === "mywot" ? "personalized" : "global"}
               size={22}
-              className={tierRing(result.wotRank) && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1"}
+              className={quiet || (tierRing(result.wotRank) && coinReplaced) ? "sr-only" : "absolute -bottom-1 -right-1"}
             />
           )}
         </div>

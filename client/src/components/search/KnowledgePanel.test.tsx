@@ -189,7 +189,8 @@ describe("the person panel's endorsements", () => {
     render(<KnowledgePanel query="david" pov="nosfabrica" />);
     const line = await screen.findByTestId("person-followed-by");
     await vi.waitFor(() => expect(line).toHaveTextContent("Followed by alice, bob & 1.2k verified accounts"));
-    expect(line.querySelector('[class*="shadow-[0_0_0"]')).not.toBeNull();
+    // Search wears no trust rings; the faces are plain.
+    expect(line.querySelector('[class*="shadow-[0_0_0"]')).toBeNull();
     expect(personEndorsementsMock).toHaveBeenCalledWith(DAVID, false);
     // Where the line leads: the full followers list.
     expect(line.closest("a")?.getAttribute("href")).toBe("/p/npub1david/followers");
@@ -399,10 +400,8 @@ describe("the topic panel", () => {
     const voice = screen.getByTestId(`topic-voice-${"1".repeat(64)}`);
     expect(voice).toHaveTextContent("kop");
     expect(voice.getAttribute("href")).toBe("/p/npub1kop");
-    // The trust-tier ring rides every avatar in the app — voices included
-    // (useAuthorScores is mocked to 0.7 → a ringed tier).
-    const ringed = voice.querySelector('[class*="shadow-[0_0_0"]');
-    expect(ringed).not.toBeNull();
+    // Search wears no trust rings — voices included.
+    expect(voice.querySelector('[class*="shadow-[0_0_0"]')).toBeNull();
   });
 
   it("suggests related topics from tags that ride along on the notes", async () => {

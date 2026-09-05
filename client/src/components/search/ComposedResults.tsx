@@ -13,11 +13,11 @@ import { noteTitle } from "@/lib/noteTitle";
 import { useWavlakeSongs } from "@/hooks/useWavlakeSongs";
 import { parseTrack } from "@/lib/trackEvent";
 import { setPlaylist } from "@/lib/audioPlayer";
-import { Check, Clock, Loader2 } from "lucide-react";
+import { Clock, Loader2, HelpCircle } from "lucide-react";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { useTierRing } from "@/components/score/VerificationCoin";
+import { useTierRing, QuietTrustChrome } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { SerpRow } from "@/components/search/SerpRow";
 import { ArticlesBento, MediaTiles, TopStories, hasCover, hasVisual, pickTopStories } from "@/components/search/RichSections";
@@ -26,7 +26,6 @@ import { ClusterRows, Section, SectionSkeleton, mergeSnapshots, useSectionStream
 import { EventRow } from "@/components/search/EventRow";
 import { fetchEventRsvps, type EventRsvps } from "@/services/search";
 import { isFeedAccount } from "@/lib/feedAccount";
-import { tierForScore01 } from "@/lib/verificationTier";
 import type { HitCluster } from "@/lib/searchCollapse";
 import { filterEventsByWhen } from "@/lib/eventFilters";
 import { clientFilterHits } from "@/lib/clientFilters";
@@ -34,6 +33,7 @@ import { readFilters } from "@/lib/searchSyntax";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
 import { visitedPubkeys } from "@/lib/recentSearches";
 import { useWheelScrollX } from "@/hooks/useWheelScrollX";
+import { UNKNOWN_EXPLAINER, bucketFor } from "@/lib/trustLadder";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import {
   searchStream,
@@ -57,14 +57,15 @@ function PersonChip({
 }) {
   const tierRing = useTierRing();
   const pk8 = person.pubkey.slice(0, 8);
-  // The ring already grades the person; a small check says "verified" once,
-  // and the word waits on hover. Six pills in a row said it six times.
-  const verified = typeof score === "number" && tierForScore01(score) !== "unverified";
+  // Nearly everyone here is verified by construction — the relay ranks
+  // through the web of trust — so the strip says nothing about it. Only the
+  // exception is marked: a person no one in the network has vouched for.
+  const outside = typeof score === "number" && bucketFor(score, false) === "unknown";
   return (
     <button
       type="button"
       onClick={() => onOpen(person)}
-      title={verified ? `${getDisplayLabel(person)} · Verified by the network` : getDisplayLabel(person)}
+      title={outside ? `${getDisplayLabel(person)} · ${UNKNOWN_EXPLAINER}` : getDisplayLabel(person)}
       className="flex w-28 shrink-0 flex-col items-center gap-1.5 rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 p-3 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
       data-testid={`serp-person-${pk8}`}
     >
@@ -75,13 +76,13 @@ function PersonChip({
             <DefaultAvatarImg />
           </AvatarFallback>
         </Avatar>
-        {verified && (
+        {outside && (
           <span
-            className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-brand-primary text-white ring-2 ring-white dark:ring-slate-900"
-            aria-label="Verified by the network"
-            data-testid={`person-verified-${pk8}`}
+            className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-slate-300 text-white ring-2 ring-white dark:bg-slate-600 dark:ring-slate-900"
+            aria-label="Outside your network"
+            data-testid={`person-outside-${pk8}`}
           >
-            <Check className="h-2.5 w-2.5" strokeWidth={3} />
+            <HelpCircle className="h-3 w-3" strokeWidth={2.5} />
           </span>
         )}
       </span>
@@ -114,7 +115,18 @@ function stillLoading(snapshot: SearchSnapshot | null): boolean {
 /** Content fades into the place its skeleton held (index.css's fadeIn keyframes). */
 const FADE = "motion-safe:animate-[fadeIn_0.3s_ease-out]";
 
-export function ComposedResults({
+/** Search's composed page — quiet trust chrome wherever it is mounted. */
+export function ComposedResults(props: ComposedResultsProps) {
+  return (
+    <QuietTrustChrome>
+      <ComposedResultsBody {...props} />
+    </QuietTrustChrome>
+  );
+}
+
+type ComposedResultsProps = Parameters<typeof ComposedResultsBody>[0];
+
+function ComposedResultsBody({
   query,
   pov,
   userPubkey,

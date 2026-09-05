@@ -19,7 +19,7 @@ import { ArrowRight, BookOpen, CalendarDays, Check, ChevronDown, Hash, Package, 
 import type { NostrEvent } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { VerificationCoin, useTierRing, TierWordChip } from "@/components/score/VerificationCoin";
+import { VerificationCoin, useTierRing, TierWordChip, useQuietTrustChrome, QuietTrustChrome } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { FlaggedChip, FollowedByLine, PanelIdentityChip, PanelVouches } from "@/components/search/EndorsementLine";
 import { ZapModal } from "@/components/ZapModal";
@@ -105,7 +105,18 @@ const TOPIC_MIN_NOTES = 3;
 // Only a LIVING topic earns the slot — stale tags don't outrank people.
 const TOPIC_FRESH_SECONDS = 7 * 86400;
 
-export function KnowledgePanel({
+/** The rail's panel — quiet trust chrome wherever it is mounted. */
+export function KnowledgePanel(props: KnowledgePanelProps) {
+  return (
+    <QuietTrustChrome>
+      <KnowledgePanelBody {...props} />
+    </QuietTrustChrome>
+  );
+}
+
+type KnowledgePanelProps = Parameters<typeof KnowledgePanelBody>[0];
+
+function KnowledgePanelBody({
   query,
   pov,
   userPubkey,
@@ -122,6 +133,8 @@ export function KnowledgePanel({
   className?: string;
 }) {
   const tierRing = useTierRing();
+  // Search's quiet chrome: the coin is for screen readers; the word speaks only as the exception.
+  const quietChrome = useQuietTrustChrome();
   const [person, setPerson] = useState<SearchResult | null>(null);
   const [topicHits, setTopicHits] = useState<SearchHit[] | null>(null);
   const [nipPage, setNipPage] = useState<NostrEvent | null>(null);
@@ -562,7 +575,7 @@ export function KnowledgePanel({
               score01={effectiveRank}
               pov={pov === "mywot" ? "personalized" : "global"}
               size={22}
-              className="absolute -bottom-1 -right-1"
+              className={quietChrome ? "sr-only" : "absolute -bottom-1 -right-1"}
             />
           )}
         </div>

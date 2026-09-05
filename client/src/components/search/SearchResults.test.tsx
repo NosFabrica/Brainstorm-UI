@@ -179,6 +179,31 @@ const setUrlTab = (t: string | null) =>
   window.history.replaceState({}, "", t ? `/?q=jack&t=${t}` : "/?q=jack");
 
 describe("SearchResults", () => {
+  // The team: Brainstorm is praised for being clean and the new search is
+  // "all very busy" — the blue ring around every profile "is just more
+  // information that doesn't need to be there", and Verified badges say
+  // nothing "if all of them are verified". So search wears no rings, and
+  // trust speaks only as the exception: a person outside the network says so.
+  it("search wears no trust rings and marks only the exception — a person outside the network", async () => {
+    setUrlTab("people");
+    render(<SearchResults query="jack" pov="nosfabrica" />);
+    const inside = { ...author("1".repeat(64), "jack"), wotRank: 0.85 };
+    // Below the network's line (0.02): no one has vouched for them.
+    const outside = { ...author("2".repeat(64), "jack imposter"), wotRank: 0.01 };
+    emit({ hits: [{ event: person("p1", inside.pubkey, "jack"), author: inside, rank: null }, { event: person("p2", outside.pubkey, "jack imposter"), author: outside, rank: null }], eose: true, timeMs: 100 });
+    const first = await screen.findByTestId("result-profile-0");
+    // (The coin keeps its own border for screen readers only; a visible ring is what must be gone.)
+    const visibleRing = (root: HTMLElement) => root.querySelector('[class*="shadow-[0_0_0"]:not(.sr-only)');
+    expect(visibleRing(first)).toBeNull();
+    expect(first).not.toHaveTextContent(/Verified/);
+    expect(within(first).queryByTestId("tier-word-chip")).toBeNull();
+    const second = screen.getByTestId("result-profile-1");
+    expect(visibleRing(second)).toBeNull();
+    expect(within(second).getByTestId("tier-word-chip")).toHaveTextContent("Outside your network");
+    // Nothing else in the results wears a ring either.
+    expect(visibleRing(screen.getByTestId("search-results"))).toBeNull();
+  });
+
   it("streams people into profile cards, skeleton first, count line at EOSE", async () => {
     setUrlTab("people");
     render(<SearchResults query="jack" pov="nosfabrica" />);
@@ -863,8 +888,8 @@ describe("SearchResults", () => {
     const face = within(artists).getByTestId(`music-artist-${nova.slice(0, 8)}`);
     expect(face).toHaveTextContent("NOVA");
     expect(face).toHaveTextContent("3 songs");
-    // The trust ring is the star rating no other store has.
-    expect(face.querySelector('[class*="shadow-[0_0_0"]')).not.toBeNull();
+    // Search wears no trust rings (the team: "the blue circle thing… doesn't need to be there").
+    expect(face.querySelector('[class*="shadow-[0_0_0"]')).toBeNull();
     const remote = within(artists).getByTestId("music-artist-wavlake-a1");
     expect(remote).toHaveAttribute("href", "https://wavlake.com/nova-sound-system");
     expect(remote).toHaveTextContent("Wavlake");
@@ -1413,7 +1438,7 @@ describe("SearchResults", () => {
     expect(screen.getByTestId("list-card-old1")).toHaveTextContent(/[A-Z][a-z]{2} \d/);
   });
 
-  it("a Brainstorm follow set shows its members as trust-ringed faces", async () => {
+  it("a Brainstorm follow set shows its members as named faces", async () => {
     setUrlTab("lists");
     profileMapMock.set("1".repeat(64), { name: "david" });
     render(<SearchResults query="verified human" pov="nosfabrica" />);
@@ -1430,10 +1455,10 @@ describe("SearchResults", () => {
     expect(await screen.findByText("Verified Human")).toBeInTheDocument();
     // Members, not generic "items".
     expect(screen.getByTestId("list-count-fs1")).toHaveTextContent("3 members");
-    // The face pile wears the app's tier rings (scores from the shared cache).
+    // Search wears no trust rings, face piles included.
     const pile = screen.getByTestId("list-members-fs1");
     const ringed = [...pile.querySelectorAll("span")].filter((el) => el.className.includes("shadow-[0_0_0"));
-    expect(ringed.length).toBe(3);
+    expect(ringed.length).toBe(0);
     // Faces carry NAMES, staging-style — an anonymous circle sells nothing.
     expect(await screen.findByText("david")).toBeInTheDocument();
   });

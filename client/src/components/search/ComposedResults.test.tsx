@@ -691,11 +691,29 @@ describe("ComposedResults", () => {
     );
     expect(names[0]).toBe(`serp-person-${visited.slice(0, 8)}`);
     expect(screen.getByTestId(`visited-${visited.slice(0, 8)}`)).toBeInTheDocument();
-    // Six "Verified" pills in a row said it six times. The ring and a small
-    // check say it once each; the word is on hover.
+    // Nearly everyone here is verified by construction, so the strip says
+    // nothing about it: no ring, no check. Only an exception is marked.
     const chip = screen.getByTestId(`serp-person-${fresh.slice(0, 8)}`);
     expect(chip).not.toHaveTextContent(/Verified|Trusted/);
-    expect(within(chip).getByTestId(`person-verified-${fresh.slice(0, 8)}`)).toBeInTheDocument();
-    expect(chip.getAttribute("title")).toMatch(/verified/i);
+    expect(within(chip).queryByTestId(`person-verified-${fresh.slice(0, 8)}`)).toBeNull();
+    expect(within(chip).queryByTestId(`person-outside-${fresh.slice(0, 8)}`)).toBeNull();
+    expect(chip.querySelector('[class*="shadow-[0_0_0"]')).toBeNull();
+  });
+
+  it("the People strip marks a person outside the network, and only them", async () => {
+    render(<ComposedResults query="jack" pov="nosfabrica" onTabChange={vi.fn()} />);
+    const inside = "1".repeat(64);
+    const outside = "2".repeat(64);
+    sectionCall("people").emit({
+      hits: [
+        { event: ev("k1", 0, inside, JSON.stringify({ name: "jack" })), author: { pubkey: inside, npub: "npub1jack", name: "jack", wotRank: 0.85, wotFollowers: 10 }, rank: null },
+        { event: ev("k2", 0, outside, JSON.stringify({ name: "jack imposter" })), author: { pubkey: outside, npub: "npub1imp", name: "jack imposter", wotRank: 0.01, wotFollowers: 0 }, rank: null },
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    await screen.findByTestId(`serp-person-${inside.slice(0, 8)}`);
+    expect(screen.queryByTestId(`person-outside-${inside.slice(0, 8)}`)).toBeNull();
+    expect(screen.getByTestId(`person-outside-${outside.slice(0, 8)}`)).toHaveAttribute("aria-label", "Outside your network");
   });
 });

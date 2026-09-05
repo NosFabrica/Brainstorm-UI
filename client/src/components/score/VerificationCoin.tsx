@@ -1,8 +1,9 @@
+import { createContext, useContext, type ReactNode } from "react";
 import { Check, HelpCircle, Flag } from "lucide-react";
 import { TRUST_TIER_COLORS } from "@/services/trustThreshold";
 import { useScoreDisplayMode, type ScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
-import { rungFor, UNKNOWN_EXPLAINER, type Glyph } from "@/lib/trustLadder";
+import { bucketFor, rungFor, UNKNOWN_EXPLAINER, type Glyph } from "@/lib/trustLadder";
 import type { ScorePov } from "@/components/score/TrustScorePov";
 import { tierForScore01, type VerificationTier } from "@/lib/verificationTier";
 
@@ -155,6 +156,26 @@ const RING_BY_HUE_SM: Record<string, string> = {
  * The coin goes `sr-only` rather than unmounted so its aria-label (the tier
  * word) and any onClick (the explainer modal) survive the visual swap.
  */
+/**
+ * Quiet trust chrome — search's setting. The team: Brainstorm is praised for
+ * being clean, and the ring around every profile in results "is just more
+ * information that doesn't need to be there"; Verified badges say nothing
+ * "if all of them are verified", which, ranked through the web of trust,
+ * they nearly all are. Inside this provider no avatar wears a ring, the coin
+ * stays for screen readers only, and the tier word speaks only as the
+ * exception: a person outside the network. Everywhere else the display-mode
+ * setting rules as before.
+ */
+const TrustChromeContext = createContext<{ quiet: boolean }>({ quiet: false });
+
+export function QuietTrustChrome({ children }: { children: ReactNode }) {
+  return <TrustChromeContext.Provider value={{ quiet: true }}>{children}</TrustChromeContext.Provider>;
+}
+
+export function useQuietTrustChrome(): boolean {
+  return useContext(TrustChromeContext).quiet;
+}
+
 export function useTierRing(): (
   score01: number | null | undefined,
   flagged?: boolean,
@@ -170,8 +191,9 @@ export function useTierRing(): (
 ) => string | null {
   const [mode] = useScoreDisplayMode();
   const [granularity] = useTierGranularity();
+  const quiet = useQuietTrustChrome();
   return (score01, flagged = false, size = "md", always = false) => {
-    if (mode === "off") return null;
+    if (quiet || mode === "off") return null;
     // The ring is the ambient tier layer in every mode except Off (uniformity
     // review): Level wears it around the avatar with the pips on top; only
     // Number keeps big avatars bare, since the digit coin already carries the
@@ -382,6 +404,23 @@ export function TierWordChip({
 }) {
   const [mode] = useScoreDisplayMode();
   const [granularity] = useTierGranularity();
+  const quiet = useQuietTrustChrome();
+  if (quiet) {
+    // Silence means verified. Only a person outside the network is marked.
+    if (mode === "off" || flagged || typeof score01 !== "number" || !Number.isFinite(score01)) return null;
+    if (bucketFor(score01, false) !== "unknown") return null;
+    const grey = rungFor(null, false, "simple");
+    return (
+      <span
+        className={`inline-flex shrink-0 items-center rounded-full px-2 py-0.5 text-[11px] font-medium leading-none ${className}`}
+        style={{ color: grey.color, backgroundColor: `${grey.color}1a` }}
+        title={UNKNOWN_EXPLAINER}
+        data-testid="tier-word-chip"
+      >
+        Outside your network
+      </span>
+    );
+  }
   if (mode !== "word") return null;
   if (!flagged && (typeof score01 !== "number" || !Number.isFinite(score01))) return null;
   const rung = rungFor(score01, flagged, granularity);
