@@ -151,3 +151,13 @@ stalls the whole page. Until then the UI never sends those sorts for a
 browse: the Filters panel greys them with "needs a search term", and a
 shared link carrying one falls back to newest first.
 
+## 13. Repo state (kind 30618) is not indexed (2026-09-05)
+
+NIP-34's repository state event carries HEAD, branches and tags — what
+would let a repo card say "v1.13.1" or "12 branches" and let the repo page
+offer a release. A COUNT of kind 30618 under include:spam returns 0, against
+7,389 repo announcements and 6,375 pull requests. The Repos tab therefore
+shows status, labels, comments, contributors and activity, but never a
+version. Ask: index 30618 (replaceable, keyed by the repo's d-tag), so the
+newest state per repo answers a `#a`/`d` lookup like everything else here.
+
