@@ -132,6 +132,7 @@ export function kind0ToSearchResult(event: NostrEvent): SearchResult {
     website: str("website"),
     lud16: str("lud16"),
     banner: str("banner"),
+    bot: meta.bot === true ? true : undefined,
     createdAt: event.created_at,
     wotRank: null,
     wotFollowers: null,

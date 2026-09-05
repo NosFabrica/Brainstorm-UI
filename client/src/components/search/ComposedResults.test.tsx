@@ -121,6 +121,48 @@ describe("ComposedResults — media-rich sections", () => {
     // Strip items don't repeat as rows; the plain note still does.
     expect(screen.queryByTestId("serp-row-n1")).toBeNull();
     expect(screen.getByTestId("serp-row-n2")).toBeInTheDocument();
+    // Latest is only notes: saying "· Note" on every row says nothing.
+    expect(within(screen.getByTestId("serp-row-n2")).queryByTestId("serp-type")).toBeNull();
+  });
+
+  // People first, feeds after: nothing hidden, but a network of people leads.
+  it("sorts feed accounts after people in Latest and marks them, and lets a person's article lead the bento", async () => {
+    render(<ComposedResults query="bitcoin" pov="nosfabrica" onTabChange={vi.fn()} />);
+    const feedHit = (id: string, pk: string, name: string, bot?: boolean) => ({
+      event: ev(id, 1, pk, `Price update ${id}`),
+      author: { ...author(pk, name), ...(bot ? { bot: true } : {}) },
+      rank: null,
+    });
+    sectionCall("notes").emit({
+      hits: [
+        feedHit("f1", "1".repeat(64), "Bitcoin Magazine (News Bot)"),
+        hitOf(ev("h1", 1, "2".repeat(64), "Bought my first sats today"), "alice"),
+        feedHit("f2", "3".repeat(64), "quietwire", true),
+        hitOf(ev("h2", 1, "4".repeat(64), "Running a node is easier than it looks"), "bob"),
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    const latest = await screen.findByTestId("serp-section-latest");
+    const rows = [...latest.querySelectorAll('[data-testid^="serp-row-"]')].map((r) => r.getAttribute("data-testid"));
+    expect(rows).toEqual(["serp-row-h1", "serp-row-h2", "serp-row-f1", "serp-row-f2"]);
+    expect(within(screen.getByTestId("serp-row-f1")).getByTestId("serp-feed")).toBeInTheDocument();
+    expect(within(screen.getByTestId("serp-row-f2")).getByTestId("serp-feed")).toBeInTheDocument();
+    expect(within(screen.getByTestId("serp-row-h1")).queryByTestId("serp-feed")).toBeNull();
+
+    const article = (id: string, pk: string, name: string, bot?: boolean) => ({
+      event: ev(id, 30023, pk, "Body", [["d", id], ["title", `Article ${id}`], ["image", `https://cdn.example/${id}.jpg`]]),
+      author: { ...author(pk, name), ...(bot ? { bot: true } : {}) },
+      rank: null,
+    });
+    sectionCall("articles").emit({
+      hits: [article("fa", "5".repeat(64), "TFTC (News Bot)"), article("pa", "6".repeat(64), "carol")],
+      eose: true,
+      timeMs: 100,
+    });
+    const articles = await screen.findByTestId("serp-section-articles");
+    expect(within(articles).getByTestId("article-lead-pa")).toBeInTheDocument();
+    expect(within(articles).getByTestId("article-tile-fa")).toBeInTheDocument();
   });
 
   // Benjamin: "when Latest is showing there should always be 3" — a strip of
@@ -211,7 +253,7 @@ describe("ComposedResults — media-rich sections", () => {
   // article with a big picture, compact picture tiles beside it, then any
   // overflow as rows. Articles without a picture get the outlet-style
   // placeholder rather than a broken frame.
-  it("lays Articles out as a bento: a lead with a big image, tiles beside it, rows for the rest", async () => {
+  it("lays Articles out as a bento of covered pieces — lead, tiles — with coverless ones as rows beneath", async () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     const article = (id: string, pk: string, title: string, image?: string) =>
       hitOf(
@@ -235,14 +277,15 @@ describe("ComposedResults — media-rich sections", () => {
     expect(lead).toHaveTextContent("Summary of Anfield through the ages");
     expect(lead).toHaveTextContent("author-a1");
     expect(lead.querySelector('[data-testid="article-image"]')?.getAttribute("src")).toBe("https://cdn.example/anfield.jpg");
+    // Covered articles fill the grid; the one without a cover is not an empty
+    // tile but a text row beneath — nothing dropped, no tile left blank.
     const tiles = [...section.querySelectorAll('[data-testid^="article-tile-"]')].map((t) => t.getAttribute("data-testid"));
-    expect(tiles).toEqual(["article-tile-a2", "article-tile-a3", "article-tile-a4"]);
-    // No picture → placeholder, never a broken frame.
-    expect(within(section).getByTestId("article-tile-a3").querySelector('[data-testid="article-image"]')).toBeNull();
-    expect(within(section).getByTestId("article-tile-a3").querySelector('[data-testid="article-placeholder"]')).not.toBeNull();
-    // The fifth stays a row beneath the grid.
-    expect(within(section).getByTestId("serp-row-a5")).toBeInTheDocument();
+    expect(tiles).toEqual(["article-tile-a2", "article-tile-a4", "article-tile-a5"]);
+    expect(within(section).queryByTestId("article-placeholder")).toBeNull();
+    expect(within(section).getByTestId("serp-row-a3")).toBeInTheDocument();
+    expect(within(section).getByTestId("serp-row-a3")).toHaveTextContent("Scouse cuisine, ranked");
     expect(within(section).queryByTestId("serp-row-a1")).toBeNull();
+    expect(within(section).queryByTestId("serp-row-a5")).toBeNull();
     // The lead opens the article.
     fireEvent.click(lead);
     expect(window.location.pathname).toMatch(/^\/e\/nevent1/);
@@ -563,5 +606,11 @@ describe("ComposedResults", () => {
     );
     expect(names[0]).toBe(`serp-person-${visited.slice(0, 8)}`);
     expect(screen.getByTestId(`visited-${visited.slice(0, 8)}`)).toBeInTheDocument();
+    // Six "Verified" pills in a row said it six times. The ring and a small
+    // check say it once each; the word is on hover.
+    const chip = screen.getByTestId(`serp-person-${fresh.slice(0, 8)}`);
+    expect(chip).not.toHaveTextContent(/Verified|Trusted/);
+    expect(within(chip).getByTestId(`person-verified-${fresh.slice(0, 8)}`)).toBeInTheDocument();
+    expect(chip.getAttribute("title")).toMatch(/verified/i);
   });
 });

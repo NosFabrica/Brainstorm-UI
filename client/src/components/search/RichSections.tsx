@@ -318,6 +318,11 @@ export function hasVisual(e: NostrEvent): boolean {
 /* ------------------------------------------------------------------ */
 
 /** A long-form event's face: title, summary, picture, from its tags. */
+/** An article with a cover image belongs in the picture grid; one without is a row. */
+export function hasCover(e: NostrEvent): boolean {
+  return !!tagVal(e, "image");
+}
+
 function articleShape(e: NostrEvent) {
   return {
     title: tagVal(e, "title") ?? "Untitled",

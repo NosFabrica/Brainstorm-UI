@@ -4,7 +4,7 @@
  * own perspective leads ("From people you trust") with an "Across Nostr"
  * house-lens block beneath; visitors get only the wider block. Last 24 hours,
  * live-updating, opt-in behind the toggle, no tab strip — each band carries
- * its own "More →". The seam is mocked per stream, like ComposedResults.
+ * its own "See all". The seam is mocked per stream, like ComposedResults.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
@@ -305,12 +305,12 @@ describe("HomeFeed", () => {
     });
   });
 
-  it("each band's More → opens that vertical as a browse", async () => {
+  it("each band's See all opens that vertical as a browse", async () => {
     const onBrowse = vi.fn();
     render(<HomeFeed personal={false} onHide={vi.fn()} onBrowse={onBrowse} />);
     streamsOf("nosfabrica", "notes")[0].emit({ hits: [hitOf(ev("n1", 1, "1".repeat(64), "hello"))], eose: true, timeMs: 100 });
     await screen.findByTestId("serp-row-n1");
-    fireEvent.click(within(screen.getByTestId("feed-band-latest")).getByRole("button", { name: /more/i }));
+    fireEvent.click(within(screen.getByTestId("feed-band-latest")).getByRole("button", { name: /see all/i }));
     expect(onBrowse).toHaveBeenCalledWith("notes");
   });
 });

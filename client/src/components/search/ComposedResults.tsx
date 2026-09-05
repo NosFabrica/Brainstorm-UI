@@ -13,16 +13,19 @@ import { noteTitle } from "@/lib/noteTitle";
 import { useWavlakeSongs } from "@/hooks/useWavlakeSongs";
 import { parseTrack } from "@/lib/trackEvent";
 import { setPlaylist } from "@/lib/audioPlayer";
-import { Clock, Loader2 } from "lucide-react";
+import { Check, Clock, Loader2 } from "lucide-react";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { useTierRing, TierWordChip } from "@/components/score/VerificationCoin";
+import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { SerpRow } from "@/components/search/SerpRow";
-import { ArticlesBento, MediaTiles, TopStories, hasVisual, pickTopStories } from "@/components/search/RichSections";
+import { ArticlesBento, MediaTiles, TopStories, hasCover, hasVisual, pickTopStories } from "@/components/search/RichSections";
 import { collapseHits } from "@/lib/searchCollapse";
 import { ClusterRows, Section, mergeSnapshots, useSectionStream } from "@/components/search/sections";
+import { isFeedAccount } from "@/lib/feedAccount";
+import { tierForScore01 } from "@/lib/verificationTier";
+import type { HitCluster } from "@/lib/searchCollapse";
 import { filterEventsByWhen } from "@/lib/eventFilters";
 import { clientFilterHits } from "@/lib/clientFilters";
 import { readFilters } from "@/lib/searchSyntax";
@@ -52,23 +55,37 @@ function PersonChip({
 }) {
   const tierRing = useTierRing();
   const pk8 = person.pubkey.slice(0, 8);
+  // The ring already grades the person; a small check says "verified" once,
+  // and the word waits on hover. Six pills in a row said it six times.
+  const verified = typeof score === "number" && tierForScore01(score) !== "unverified";
   return (
     <button
       type="button"
       onClick={() => onOpen(person)}
+      title={verified ? `${getDisplayLabel(person)} · Verified by the network` : getDisplayLabel(person)}
       className="flex w-28 shrink-0 flex-col items-center gap-1.5 rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 p-3 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
       data-testid={`serp-person-${pk8}`}
     >
-      <Avatar className={`h-12 w-12 border-2 border-slate-200/80 dark:border-slate-800/80 ${tierRing(score) ?? ""}`}>
-        {person.picture ? <AvatarImage src={person.picture} alt="" className="object-cover" /> : null}
-        <AvatarFallback className="overflow-hidden">
-          <DefaultAvatarImg />
-        </AvatarFallback>
-      </Avatar>
+      <span className="relative">
+        <Avatar className={`h-12 w-12 border-2 border-slate-200/80 dark:border-slate-800/80 ${tierRing(score) ?? ""}`}>
+          {person.picture ? <AvatarImage src={person.picture} alt="" className="object-cover" /> : null}
+          <AvatarFallback className="overflow-hidden">
+            <DefaultAvatarImg />
+          </AvatarFallback>
+        </Avatar>
+        {verified && (
+          <span
+            className="absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-brand-primary text-white ring-2 ring-white dark:ring-slate-900"
+            aria-label="Verified by the network"
+            data-testid={`person-verified-${pk8}`}
+          >
+            <Check className="h-2.5 w-2.5" strokeWidth={3} />
+          </span>
+        )}
+      </span>
       <span className="w-full truncate text-center text-xs font-semibold text-slate-800 dark:text-slate-100">
         {getDisplayLabel(person)}
       </span>
-      <TierWordChip score01={score} />
       {visited && (
         <span
           className="inline-flex items-center gap-0.5 text-[10px] text-slate-400 dark:text-slate-500"
@@ -79,6 +96,12 @@ function PersonChip({
       )}
     </button>
   );
+}
+
+/** People first, feeds after — a stable partition, so the relay's order
+ *  holds within each half and nothing is dropped. */
+function peopleFirst(clusters: HitCluster[]): HitCluster[] {
+  return [...clusters.filter((c) => !isFeedAccount(c.primary.author)), ...clusters.filter((c) => isFeedAccount(c.primary.author))];
 }
 
 export function ComposedResults({
@@ -188,7 +211,17 @@ export function ComposedResults({
     );
   }, [peopleF, visited]);
 
-  const articleClusters = useMemo(() => (articlesF ? collapseHits(articlesF.hits, undefined, { maxPerAuthor: 2 }) : []), [articlesF]);
+  const articleClusters = useMemo(
+    () => (articlesF ? peopleFirst(collapseHits(articlesF.hits, undefined, { maxPerAuthor: 2 })) : []),
+    [articlesF],
+  );
+  // Covered pieces fill the picture grid; a coverless one is a text row
+  // beneath it, never an empty tile.
+  const coveredArticles = useMemo(() => articleClusters.filter((c) => hasCover(c.primary.event)), [articleClusters]);
+  const articleRows = useMemo(
+    () => [...coveredArticles.slice(4), ...articleClusters.filter((c) => !hasCover(c.primary.event))],
+    [articleClusters, coveredArticles],
+  );
   const happeningClusters = useMemo(
     () => (happeningF ? collapseHits(happeningF.hits, undefined, { maxPerAuthor: 2 }) : []),
     [happeningF],
@@ -200,10 +233,12 @@ export function ComposedResults({
   // EVERY section collapses near-duplicates — live verification found the
   // Latest section dominated by one author's three near-identical posts
   // within minutes of shipping the Happening-only version.
-  const clustersOf = (snapshot: SearchSnapshot | null, exclude?: Set<string>) =>
-    (snapshot ? collapseHits(snapshot.hits.filter((h) => !exclude?.has(h.event.id)), undefined, { maxPerAuthor: 2 }) : []).map((c) => (
-      <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} />
+  const clustersOf = (snapshot: SearchSnapshot | null, exclude?: Set<string>, opts: { showType?: boolean; peopleFirst?: boolean } = {}) => {
+    const clusters = snapshot ? collapseHits(snapshot.hits.filter((h) => !exclude?.has(h.event.id)), undefined, { maxPerAuthor: 2 }) : [];
+    return (opts.peopleFirst ? peopleFirst(clusters) : clusters).map((c) => (
+      <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} showType={opts.showType ?? true} />
     ));
+  };
   // Google leads its news with a Top stories strip: pictured news-shaped
   // notes become cards, the rest stay rows beneath.
   const topStories = useMemo(() => (latestF ? pickTopStories(latestF.hits) : []), [latestF]);
@@ -273,18 +308,19 @@ export function ComposedResults({
       {(latestF?.hits.length ?? 0) > 0 && (
         <Section id="latest" kicker="Latest" tab="notes" onTabChange={onTabChange}>
           <TopStories stories={topStories} stripRef={storiesRef} />
-          <div className="divide-y divide-slate-100 dark:divide-slate-800/60">{clustersOf(latestF, storyIds)}</div>
+          {/* Only notes here — no "· Note" on every row. */}
+          <div className="divide-y divide-slate-100 dark:divide-slate-800/60">{clustersOf(latestF, storyIds, { showType: false, peopleFirst: true })}</div>
         </Section>
       )}
 
       {(articlesF?.hits.length ?? 0) > 0 && (
         <Section id="articles" kicker="Articles" tab="articles" onTabChange={onTabChange}>
           {/* A bento — lead + tiles — breaks the run of rows; overflow stays rows. */}
-          <ArticlesBento clusters={articleClusters} scoreOf={scoreOf} />
-          {articleClusters.length > 4 && (
-            <div className="mt-2 divide-y divide-slate-100 dark:divide-slate-800/60">
-              {articleClusters.slice(4).map((c) => (
-                <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} />
+          <ArticlesBento clusters={coveredArticles} scoreOf={scoreOf} />
+          {articleRows.length > 0 && (
+            <div className={`${coveredArticles.length > 0 ? "mt-2 " : ""}divide-y divide-slate-100 dark:divide-slate-800/60`}>
+              {articleRows.map((c) => (
+                <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} showType={false} />
               ))}
             </div>
           )}

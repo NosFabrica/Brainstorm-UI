@@ -103,12 +103,15 @@ export function ClusterRows({
   scoreOf,
   query,
   engagementOf,
+  showType = true,
 }: {
   cluster: HitCluster;
   scoreOf: (pk: string) => number | null | undefined;
   query: string;
   /** Quiet zap / reply counts for a row, when the caller fetched them. */
   engagementOf?: (id: string) => { zaps: number; replies: number } | null;
+  /** Say the kind on each row only where a section mixes kinds. */
+  showType?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
   const authorName = cluster.primary.author ? getDisplayLabel(cluster.primary.author) : "this author";
@@ -120,6 +123,7 @@ export function ClusterRows({
         score={scoreOf(cluster.primary.event.pubkey)}
         query={query}
         engagement={engagementOf?.(cluster.primary.event.id) ?? undefined}
+        showType={showType}
       />
       {cluster.others.length > 0 && !expanded && (
         <button
@@ -140,6 +144,7 @@ export function ClusterRows({
             score={scoreOf(h.event.pubkey)}
             query={query}
             engagement={engagementOf?.(h.event.id) ?? undefined}
+            showType={showType}
           />
         ))}
     </div>

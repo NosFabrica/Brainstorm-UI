@@ -12,7 +12,9 @@ import { Link, useLocation } from "wouter";
 import type { NostrEvent } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { Rss } from "lucide-react";
 import { useTierRing } from "@/components/score/VerificationCoin";
+import { isFeedAccount } from "@/lib/feedAccount";
 import { nip19 } from "nostr-tools";
 import { Favicon, LinkChip, LinkPreviewCard } from "@/components/share/LinkPreview";
 import { TranslateLine } from "@/components/share/TranslateLine";
@@ -169,11 +171,14 @@ function AuthorLine({
   score,
   created_at,
   type,
+  feed = false,
 }: {
   author: SearchResult | null;
   score?: number | null;
   created_at: number;
   type?: string;
+  /** An automated feed account — said quietly, so a reader knows the voice. */
+  feed?: boolean;
 }) {
   const tierRing = useTierRing();
   return (
@@ -191,6 +196,11 @@ function AuthorLine({
       {type && (
         <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500" data-testid="serp-type">
           · {type}
+        </span>
+      )}
+      {feed && (
+        <span className="inline-flex shrink-0 items-center gap-0.5 text-[11px] text-slate-400 dark:text-slate-500" title="An automated feed account" data-testid="serp-feed">
+          · <Rss className="h-3 w-3" /> feed
         </span>
       )}
     </div>
@@ -216,6 +226,7 @@ export function SerpRow({
   score,
   query,
   engagement,
+  showType = true,
 }: {
   event: NostrEvent;
   author: SearchResult | null;
@@ -223,6 +234,8 @@ export function SerpRow({
   query: string;
   /** Zap / reply counts when the caller fetched them (the home feed does). */
   engagement?: { zaps: number; replies: number };
+  /** "· Note", "· Event" — only worth saying where kinds mix. */
+  showType?: boolean;
 }) {
   const [, setLocation] = useLocation();
   const open = useCallback(() => setLocation(eventPath(event)), [event, setLocation]);
@@ -314,7 +327,7 @@ export function SerpRow({
   return (
     <div {...rowProps}>
       <div className="min-w-0 flex-1">
-        <AuthorLine author={author} score={score} created_at={event.created_at} type={kindTypeLabel(event.kind)} />
+        <AuthorLine author={author} score={score} created_at={event.created_at} type={showType ? kindTypeLabel(event.kind) : undefined} feed={isFeedAccount(author)} />
         {title && (
           <div className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors [&>p]:font-semibold [&>p]:text-sm">
             <Snippet text={title} query={query} lines={2} />

@@ -6,7 +6,7 @@
  * only the wider block. Everything is the last 24 hours, to the second, and
  * the streams stay open so new posts keep arriving. No tab strip: the
  * perspective control and one way out sit above the bands, and every band
- * carries its own "More →" into that vertical's browse.
+ * carries its own "See all" into that vertical's browse.
  */
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
