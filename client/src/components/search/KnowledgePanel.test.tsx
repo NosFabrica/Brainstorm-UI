@@ -849,6 +849,24 @@ describe("the person panel's live stream", () => {
     expect(within(replay).getByTestId("live-player")).toBeInTheDocument();
   });
 
+  // Benjamin, over the replay playing small in the rail: "not able to expand
+  // this from the search". While it plays, one Expand control opens the
+  // stream page, which picks up playing at full width.
+  it("a playing replay offers Expand, which opens the stream page", async () => {
+    grinder();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 200 })));
+    liveStreamsMock.mockResolvedValue([
+      { ...stream("old", "ended", { created: NOW - 86_400 }), tags: [...stream("old", "ended").tags, ["recording", "https://customer-51tz.cloudflarestream.com/abc/manifest/video.m3u8"]] },
+    ]);
+    render(<KnowledgePanel query="TheGrinder" pov="nosfabrica" />);
+    const replay = await screen.findByTestId("person-live-replay");
+    expect(within(replay).queryByTestId("person-live-expand")).toBeNull();
+    fireEvent.click(within(replay).getByRole("button", { name: /play/i }));
+    const expand = within(replay).getByTestId("person-live-expand");
+    expect(expand.getAttribute("href")).toMatch(/^\/e\//);
+    expect(expand.getAttribute("aria-label")).toMatch(/expand/i);
+  });
+
   it("an ended stream with no recording is not advertised at all", async () => {
     grinder();
     liveStreamsMock.mockResolvedValue([stream("old", "ended", { created: NOW - 86_400 })]);
@@ -881,6 +899,22 @@ describe("the person panel's latest media", () => {
     suggestMock.mockResolvedValueOnce([{ pubkey: RHR, npub: "npub1rhr", name: "RABBIT HOLE RECAP", wotRank: 0.9, wotFollowers: 7400 }]);
   const video = (id: string, n: number, age: number): NostrEvent =>
     ({ id, kind: 1, pubkey: RHR, created_at: NOW - age, sig: "s", content: `RHR ${n}: EPISODE TITLE WITH nostr:nprofile1qqsabc AND nostr:nprofile1qqsdef https://blossom.primal.net/${id}.mp4`, tags: [["imeta", `url https://blossom.primal.net/${id}.mp4`, "m video/mp4", `image https://blossom.primal.net/${id}.jpg`]] }) as NostrEvent;
+
+  // Benjamin, over Joe Martin's videos showing a dark square: "should these
+  // videos have image thumbnails". A clip that published no poster still has a
+  // first frame — the browser fetches just the metadata and paints it.
+  it("a video without a poster shows its first frame as the thumbnail", async () => {
+    rhr();
+    const bare = { id: "bare1", kind: 1, pubkey: RHR, created_at: NOW - 60, sig: "s", content: "New morning routine https://blossom.primal.net/bare1.mp4", tags: [["imeta", "url https://blossom.primal.net/bare1.mp4", "m video/mp4"]] } as NostrEvent;
+    recentByKindsMock.mockImplementation(async (_pk, kinds) => (kinds.includes(1) ? [bare] : []));
+    render(<KnowledgePanel query="Rabbit Hole Recap" pov="nosfabrica" />);
+    const row = await screen.findByTestId("person-media-item-bare1");
+    expect(row.querySelector("img")).toBeNull();
+    const frame = row.querySelector("video") as HTMLVideoElement;
+    expect(frame.getAttribute("src")).toBe("https://blossom.primal.net/bare1.mp4#t=0.1");
+    expect(frame.getAttribute("preload")).toBe("metadata");
+    expect(frame.muted).toBe(true);
+  });
 
   it("lists the newest three videos with poster, clean title and age, and plays one in the lightbox", async () => {
     rhr();

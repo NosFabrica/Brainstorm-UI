@@ -87,6 +87,7 @@ export function PanelLatestMedia({ person, events, max = 3 }: { person: SearchRe
               key={item.id}
               testId={`person-media-item-${item.id}`}
               poster={item.poster}
+              videoUrl={item.url}
               title={item.title}
               label="Video"
               at={item.at}
@@ -122,7 +123,7 @@ function PodcastRow({ item }: { item: Extract<LatestMediaItem, { kind: "podcast"
   );
 }
 
-function MediaRow({ testId, poster, title, label, at, href, icon, onPlay, playing }: { testId: string; poster: string | null; title: string; label: string; at: number; href: string; icon: React.ReactNode; onPlay: () => void; playing: boolean }) {
+function MediaRow({ testId, poster, videoUrl, title, label, at, href, icon, onPlay, playing }: { testId: string; poster: string | null; /** A clip without a poster still has a first frame: the browser paints it from the metadata alone. */ videoUrl?: string; title: string; label: string; at: number; href: string; icon: React.ReactNode; onPlay: () => void; playing: boolean }) {
   return (
     <div className="flex items-center gap-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-1.5" data-testid={testId}>
       <button
@@ -131,7 +132,13 @@ function MediaRow({ testId, poster, title, label, at, href, icon, onPlay, playin
         className="group/cover relative h-11 w-16 shrink-0 overflow-hidden rounded-md bg-slate-900"
         aria-label={playing ? `Pause ${title}` : `Play ${title}`}
       >
-        {poster ? <img src={poster} alt="" loading="lazy" className="h-full w-full object-cover" /> : <span className="absolute inset-0 flex items-center justify-center text-slate-500">{icon}</span>}
+        {poster ? (
+          <img src={poster} alt="" loading="lazy" className="h-full w-full object-cover" />
+        ) : videoUrl ? (
+          <video src={`${videoUrl}#t=0.1`} preload="metadata" muted playsInline tabIndex={-1} aria-hidden className="pointer-events-none h-full w-full object-cover" />
+        ) : (
+          <span className="absolute inset-0 flex items-center justify-center text-slate-500">{icon}</span>
+        )}
         <span className="absolute inset-0 flex items-center justify-center bg-black/25 transition-colors group-hover/cover:bg-black/40">
           <span className="flex h-6 w-6 items-center justify-center rounded-full bg-white/95 text-brand-primary shadow">
             {playing ? <Pause className="h-3 w-3 fill-current" /> : <Play className="ml-px h-3 w-3 fill-current" />}

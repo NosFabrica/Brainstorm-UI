@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "wouter";
-import { ArrowRight, Play, Radio } from "lucide-react";
+import { ArrowRight, Play, Radio, Maximize2 } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { LiveVideoPlayer } from "@/components/share/LiveVideoPlayer";
 import { isHlsUrl, replayEmbedUrl, streamEmbedUrl } from "@/lib/streamEmbed";
@@ -28,6 +28,7 @@ export function PanelLive({ live, upcoming, replay }: PickedStreams) {
     return (
       <div className="mt-3 overflow-hidden rounded-xl border border-rose-200 dark:border-rose-500/30 bg-white dark:bg-slate-900" data-testid="person-live">
         <div className="relative aspect-video bg-slate-900">
+          {playing && <ExpandLink href={href} />}
           {playing && embed ? (
             <iframe
               src={embed}
@@ -121,6 +122,7 @@ function ReplayCard({ stream }: { stream: LiveStream }) {
   return (
     <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900" data-testid="person-live-replay">
       <div className="relative aspect-video bg-slate-900">
+        {playing && <ExpandLink href={href} />}
         {playing && embed ? (
           <iframe src={embed} title={`${stream.title} — replay`} className="absolute inset-0 h-full w-full" allow="autoplay; fullscreen; picture-in-picture" allowFullScreen data-testid="person-live-embed" />
         ) : playing && hls ? (
@@ -157,5 +159,24 @@ function ReplayCard({ stream }: { stream: LiveStream }) {
         </Link>
       </div>
     </div>
+  );
+}
+
+/**
+ * The rail is a preview. Benjamin, over a replay playing small: "not able to
+ * expand this from the search". While it plays, one control opens the stream
+ * page, which starts playing at full width on arrival.
+ */
+function ExpandLink({ href }: { href: string }) {
+  return (
+    <Link
+      href={href}
+      className="absolute right-2 top-2 z-10 flex h-7 w-7 items-center justify-center rounded-md bg-black/60 text-white shadow transition-colors hover:bg-black/80"
+      aria-label="Expand"
+      title="Expand"
+      data-testid="person-live-expand"
+    >
+      <Maximize2 className="h-3.5 w-3.5" />
+    </Link>
   );
 }
