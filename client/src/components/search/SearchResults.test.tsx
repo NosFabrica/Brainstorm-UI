@@ -1115,6 +1115,18 @@ describe("SearchResults", () => {
     expect(video.getAttribute("preload")).toBe("metadata");
   });
 
+  it("Filters offers a visitor one line to sign in for their own perspective; a member sees none", () => {
+    render(<SearchResults query="bitcoin" pov="nosfabrica" onQueryRewrite={vi.fn()} />);
+    fireEvent.click(screen.getByTestId("search-filters-toggle"));
+    const line = screen.getByTestId("filters-signin");
+    expect(line).toHaveTextContent("Sign in to rank through your own network");
+    expect(within(line).getByRole("link").getAttribute("href")).toMatch(/^\/login/);
+    cleanup();
+    render(<SearchResults query="bitcoin" pov="nosfabrica" userPubkey={"a".repeat(64)} onQueryRewrite={vi.fn()} />);
+    fireEvent.click(screen.getByTestId("search-filters-toggle"));
+    expect(screen.queryByTestId("filters-signin")).toBeNull();
+  });
+
   it("filters write visible syntax into the query via onQueryRewrite", async () => {
     const rewrite = vi.fn();
     render(<SearchResults query="bitcoin" pov="nosfabrica" onQueryRewrite={rewrite} />);

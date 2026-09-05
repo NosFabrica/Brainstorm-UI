@@ -6,7 +6,7 @@
  * back, so stale results structurally cannot flash).
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
 import { ChevronDown, Radar, SlidersHorizontal } from "lucide-react";
@@ -307,6 +307,14 @@ function FiltersPanel({
       className="mb-3 flex flex-wrap items-end gap-x-4 gap-y-2.5 rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 p-3"
       data-testid="search-filters-panel"
     >
+      {!userPubkey && (
+        <p className="basis-full text-xs text-slate-500 dark:text-slate-400" data-testid="filters-signin">
+          Sign in to rank through your own network.{" "}
+          <Link href="/login" className="font-medium text-brand-link hover:underline">
+            Sign in →
+          </Link>
+        </p>
+      )}
       <label className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
         Sort
         <select

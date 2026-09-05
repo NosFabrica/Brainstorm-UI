@@ -56,4 +56,10 @@ describe("PerspectiveToggle", () => {
     fireEvent.click(info);
     expect(window.location.pathname).toBe("/personalization");
   });
+
+  it("compact, signed out: renders nothing — a disabled lens is a promise the page cannot keep; the sign-in door lives in Filters", () => {
+    const { container } = render(<PerspectiveToggle compact pov="nosfabrica" user={null} hasMywot={false} isSearchObserver={false} onChange={() => {}} />);
+    expect(container.firstChild).toBeNull();
+    expect(screen.queryByTestId("toggle-home-pov-signin")).toBeNull();
+  });
 });

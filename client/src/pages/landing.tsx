@@ -780,11 +780,12 @@ export default function Landing() {
       {/* No height floor needed for the hide/show below: the right-hand control
           (36px) is taller than the B (28px), so the header measures 76px either
           way and the hero never shifts. */}
+      {/* The pristine landing keeps this bar: empty centre, actions right. Once
+          a search has run the page becomes a tool — the hero folds into one
+          compact band (small mark · box · actions) and this bar steps aside so
+          results start high (Benjamin, 2026-09-04: "Apple-like clean"). */}
+      {!hasSearched && (
       <header className="relative z-20 flex items-center px-4 sm:px-8 py-5 short:py-2.5" data-testid="home-header">
-        {/* No top-left mark, even on results (Benjamin's call during search-
-            expansion review): the wordmark hero stays on screen in both
-            states, so a corner B duplicated it. The box's X (clearSearch) is
-            the way back to a clean page. */}
 
         {/* Center: the finish-setup nudge — this is the page a fresh sign-in
             lands on, so the one persistent reminder has to live here too.
@@ -803,17 +804,29 @@ export default function Landing() {
           )}
         </div>
       </header>
+      )}
 
       {/* `short:` = a phone in landscape. It lands on the desktop side of every
           width breakpoint, so the optical-centering offset and the generous
           desktop padding both have to be neutralised by height, not width. `!`
           because these override `sm:` utilities of equal specificity. */}
-      <main className={`relative z-10 flex-1 flex flex-col items-center px-4 ${dropdownOpen || lifted ? "justify-start pt-6 sm:pt-10 short:!pt-2" : "justify-center -mt-10 sm:-mt-16 short:justify-start short:!mt-0 short:pt-2"}`}>
-        <div ref={heroRef} className="w-full max-w-2xl mx-auto text-center motion-safe:animate-[homeFadeUp_0.5s_ease-out]">
+      <main className={`relative z-10 flex-1 flex flex-col items-center px-4 ${hasSearched ? "justify-start pt-3 sm:pt-4" : dropdownOpen || lifted ? "justify-start pt-6 sm:pt-10 short:!pt-2" : "justify-center -mt-10 sm:-mt-16 short:justify-start short:!mt-0 short:pt-2"}`}>
+        {/* Two shapes, one tree: the centred hero before a search; after it, a
+            compact band — mark left, box centre, actions right — that wraps
+            to two rows on a phone (mark and actions above, box below). */}
+        <div
+          ref={heroRef}
+          className={
+            hasSearched
+              ? "w-full max-w-6xl mx-auto flex flex-wrap items-center gap-x-3 gap-y-2 sm:flex-nowrap sm:gap-x-5"
+              : "w-full max-w-2xl mx-auto text-center motion-safe:animate-[homeFadeUp_0.5s_ease-out]"
+          }
+          data-testid={hasSearched ? "search-band" : "search-hero"}
+        >
           <style>{`@keyframes homeFadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }`}</style>
 
-          <div className="flex flex-col items-center mb-8 short:mb-3.5">
-            <h1 className="mb-2.5 short:mb-1.5" data-testid="text-home-title">
+          <div className={hasSearched ? "order-1 flex shrink-0 items-center" : "flex flex-col items-center mb-8 short:mb-3.5"}>
+            <h1 className={hasSearched ? "flex items-center" : "mb-2.5 short:mb-1.5"} data-testid="text-home-title">
               {/* Wordmark <img> carries the "Brainstorm" accessible name (its
                   alt), so no sr-only duplicate. */}
               {/* Website hero → wordmark. Stays the Aurora gradient (a reserved
@@ -844,21 +857,27 @@ export default function Landing() {
                 className="cursor-pointer rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
                 data-testid="wordmark-home"
               >
-                <Wordmark height={52} variant="gradient" className="mx-auto dark:hidden short:!h-9" />
-                <Wordmark height={52} variant="white" className="mx-auto hidden dark:block short:!h-9" />
+                <Wordmark height={hasSearched ? 26 : 52} variant="gradient" className={hasSearched ? "dark:hidden" : "mx-auto dark:hidden short:!h-9"} />
+                <Wordmark height={hasSearched ? 26 : 52} variant="white" className={hasSearched ? "hidden dark:block" : "mx-auto hidden dark:block short:!h-9"} />
               </button>
             </h1>
-            <p className="text-slate-700 dark:text-slate-100 text-base sm:text-lg short:!text-sm font-medium" data-testid="text-home-subtitle">
-              Search through the people you trust.
-            </p>
+            {!hasSearched && (
+              <p className="text-slate-700 dark:text-slate-100 text-base sm:text-lg short:!text-sm font-medium" data-testid="text-home-subtitle">
+                Search through the people you trust.
+              </p>
+            )}
           </div>
 
-          <div ref={searchContainerRef} className="relative">
+          <div ref={searchContainerRef} className={hasSearched ? "relative order-3 basis-full sm:order-2 sm:basis-auto sm:flex-1 sm:min-w-0 sm:max-w-2xl sm:mx-auto" : "relative"}>
             <form onSubmit={onSubmit} className="relative group" data-testid="form-home-search">
               {/* (accent-discipline preview) focus "bloom" glow removed — the
                   crisp border + shadow below is the guideline focus treatment. */}
               <div className="relative flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full pl-5 pr-2 py-2 shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_18px_rgba(0,0,0,0.08)] focus-within:border-brand-primary/[0.4] focus-within:shadow-[0_4px_18px_rgb(var(--brand-primary)/0.12)] transition-all duration-300">
-                <Search className="h-5 w-5 text-slate-400 dark:text-slate-500 shrink-0" />
+                {hasSearched && isSearching ? (
+                  <Loader2 className="h-5 w-5 shrink-0 animate-spin text-brand-primary" data-testid="band-searching" />
+                ) : (
+                  <Search className="h-5 w-5 text-slate-400 dark:text-slate-500 shrink-0" />
+                )}
                 <div className="relative flex-1 min-w-0">
                 <input
                   ref={inputRef}
@@ -939,6 +958,9 @@ export default function Landing() {
                     <X className="h-4 w-4" />
                   </button>
                 )}
+                {/* The band has no button: Enter searches, the magnifier spins
+                    while it runs. The pristine landing keeps the purple call. */}
+                {!hasSearched && (
                 <button
                   type="submit"
                   aria-label="Search"
@@ -960,6 +982,7 @@ export default function Landing() {
                     </>
                   )}
                 </button>
+                )}
               </div>
             </form>
 
@@ -1196,6 +1219,17 @@ export default function Landing() {
             )}
           </div>
 
+          {/* Band, right: the same account actions the pristine bar carries. */}
+          {hasSearched && (
+            <div className="order-2 ml-auto flex shrink-0 items-center gap-1 sm:order-3 sm:ml-0 sm:gap-2" data-testid="band-actions">
+              {user ? (
+                <AccountMenu user={user} onLogout={handleLogout} active="home" />
+              ) : (
+                <SignInButton variant="primary" label="Sign in" className="!rounded-full sm:px-5" data-testid="button-home-sign-in" />
+              )}
+            </div>
+          )}
+
           {/* No browse link here on purpose. Tags reach this page through the
               search box itself — type two characters and matching tags appear
               in the dropdown above the people. A second, static CTA under the
@@ -1227,6 +1261,14 @@ export default function Landing() {
             </button>
           )}
         </div>
+
+        {/* The finish-setup nudge lives in the pristine bar; once that bar has
+            stepped aside it sits under the band instead. Self-hides when done. */}
+        {hasSearched && (
+          <div className="mt-2 flex w-full justify-center">
+            <FinishSetupBanner />
+          </div>
+        )}
 
         {/* One account-level card at a time: unlock → backup. Setup nudging
             (follow list, activation) lives ONLY in the header's
