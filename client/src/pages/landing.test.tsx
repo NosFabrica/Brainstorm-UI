@@ -67,13 +67,13 @@ describe("browsing a vertical with filters, signed out", () => {
     await waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(0));
     const before = mainStreamCalls().length;
     fireEvent.click(await screen.findByTestId("search-filters-toggle"));
-    fireEvent.click(screen.getByTestId("filter-verified"));
-    await waitFor(() => expect(fParam()).toBe("trust:verified"));
+    fireEvent.click(screen.getByTestId("filters-advanced-toggle"));
+    fireEvent.click(screen.getByTestId("filter-spam"));
+    await waitFor(() => expect(fParam()).toBe("include:spam"));
     expect(new URLSearchParams(window.location.search).get("t")).toBe("notes");
-    expect(screen.getByTestId("filter-verified")).toBeChecked();
+    expect(screen.getByTestId("filter-spam")).toBeChecked();
     expect(screen.getByTestId("filters-active-count")).toHaveTextContent("1");
-    // The browse re-ran for the same tab (the verified gate itself is applied
-    // on the device — the token stays off the wire).
+    // The browse re-ran for the same tab with the token on the wire.
     await waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(before));
     expect((mainStreamCalls().at(-1)![1] as { tab?: string }).tab).toBe("notes");
     // The words stay empty: browsing, not searching for a token.
@@ -81,18 +81,19 @@ describe("browsing a vertical with filters, signed out", () => {
   });
 
   it("a shared browse link restores its filter", async () => {
-    window.history.replaceState({}, "", "/?t=notes&f=trust%3Averified");
+    window.history.replaceState({}, "", "/?t=notes&f=include%3Aspam");
     render(<Landing />);
     fireEvent.click(await screen.findByTestId("search-filters-toggle"));
-    expect(screen.getByTestId("filter-verified")).toBeChecked();
+    // Advanced opens itself when one of its controls is set by the link.
+    expect(screen.getByTestId("filter-spam")).toBeChecked();
     expect(screen.getByTestId("filters-active-count")).toHaveTextContent("1");
   });
 
   it("clearing the last filter returns to the plain browse link", async () => {
-    window.history.replaceState({}, "", "/?t=notes&f=trust%3Averified");
+    window.history.replaceState({}, "", "/?t=notes&f=include%3Aspam");
     render(<Landing />);
     fireEvent.click(await screen.findByTestId("search-filters-toggle"));
-    fireEvent.click(screen.getByTestId("filter-verified"));
+    fireEvent.click(screen.getByTestId("filter-spam"));
     await waitFor(() => expect(fParam()).toBeNull());
     expect(window.location.search).toBe("?t=notes");
     expect(screen.queryByTestId("filters-active-count")).toBeNull();

@@ -283,6 +283,11 @@ function FiltersPanel({
   const preset = datePreset(state);
   // "Custom range" stays open once chosen, even before a day is picked.
   const [customDates, setCustomDates] = useState(preset === "custom");
+  const advancedActive = !!state.reach || state.includeSpam || !!state.rankAs;
+  const [advancedOpen, setAdvancedOpen] = useState(advancedActive);
+  useEffect(() => {
+    if (advancedActive) setAdvancedOpen(true);
+  }, [advancedActive]);
   const [rankAsDraft, setRankAsDraft] = useState("");
   const [rankAsOptions, setRankAsOptions] = useState<SearchResult[]>([]);
   const write = (patch: SearchFilterPatch) => onQueryRewrite(applyFilters(query, patch));
@@ -392,6 +397,21 @@ function FiltersPanel({
           </label>
         </>
       )}
+      {/* Sort and date are the two anyone uses; the rest waits behind one
+          word (the team: less busy), and comes forward by itself when one of
+          its controls is set — by a shared link, say. */}
+      <button
+        type="button"
+        onClick={() => setAdvancedOpen((v) => !v)}
+        aria-expanded={advancedOpen}
+        className="basis-full flex items-center gap-1 text-left text-[11px] font-medium text-slate-500 dark:text-slate-400 hover:text-brand-link"
+        data-testid="filters-advanced-toggle"
+      >
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${advancedOpen ? "rotate-180" : ""}`} />
+        Advanced
+      </button>
+      {advancedOpen && (
+        <div className="basis-full flex flex-wrap items-end gap-x-4 gap-y-3" data-testid="filters-advanced">
       {/* Trust distance — how far the search casts its net. The relay has no
           hops, so this reads the viewer's own follow graph (Benjamin's
           slider); with nobody signed in there is no "you", so it isn't there. */}
@@ -425,16 +445,6 @@ function FiltersPanel({
           </div>
         </div>
       )}
-      <label className="flex items-center gap-1.5 pb-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
-        <input
-          type="checkbox"
-          className="h-3.5 w-3.5 accent-brand-primary"
-          checked={state.verifiedOnly}
-          onChange={(e) => write({ verifiedOnly: e.target.checked })}
-          data-testid="filter-verified"
-        />
-        Verified accounts only
-      </label>
       <label className="flex items-center gap-1.5 pb-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
         <input
           type="checkbox"
@@ -508,6 +518,8 @@ function FiltersPanel({
           </>
         )}
       </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -664,8 +676,8 @@ export function SearchResults({
     personMedia.length === 0 &&
     (!snapshot || (!snapshot.eose && !snapshot.error && hits.length === 0 && (tab !== "music" || wavlake.loading)) || (tab === "media" && !mediaSettled && hits.length === 0));
   const noResults = !!snapshot?.eose && mediaSettled && hits.length === 0 && personMedia.length === 0 && (tab !== "music" || (!wavlake.loading && wavlake.songs.length === 0));
-  // What the count line counts: every source the tab shows.
-  const shownCount = hits.length + (tab === "music" ? wavlake.songs.length : 0) + (tab === "media" ? personMedia.filter((h) => !hits.some((x) => x.event.id === h.event.id)).length : 0);
+  // What the count line counts, when it shows: every source the tab shows.
+  const extraCount = (tab === "music" ? wavlake.songs.length : 0) + (tab === "media" ? personMedia.filter((h) => !hits.some((x) => x.event.id === h.event.id)).length : 0);
   const peopleIdx = useRef(0);
   peopleIdx.current = 0;
 
@@ -840,18 +852,6 @@ export function SearchResults({
     }
     return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
   }, [tab, hits, appCategoryTags]);
-  const [appLicense, setAppLicense] = useState<string | null>(null);
-  useEffect(() => setAppLicense(null), [tab, query]);
-  const appLicenseOf = (e: NostrEvent) => e.tags.find((t) => t[0] === "license")?.[1]?.trim() ?? null;
-  const appLicenseFacets = useMemo(() => {
-    if (tab !== "apps") return [];
-    const counts = new Map<string, number>();
-    for (const h of hits) {
-      const lic = appLicenseOf(h.event);
-      if (lic) counts.set(lic, (counts.get(lic) ?? 0) + 1);
-    }
-    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6);
-  }, [tab, hits]);
   const displayHits = useMemo<DisplayRow[]>(() => {
     let shown = hits;
     if (tab === "events") shown = filterEventsByWhen(shown, effectiveWhen);
@@ -862,9 +862,6 @@ export function SearchResults({
     }
     if (tab === "apps" && appCategory) {
       shown = shown.filter((h) => appCategoryTags(h.event).includes(appCategory));
-    }
-    if (tab === "apps" && appLicense) {
-      shown = shown.filter((h) => appLicenseOf(h.event) === appLicense);
     }
     if (tab === "shop" && shopCategory) {
       shown = shown.filter((h) => (parseListing(h.event)?.categories ?? []).includes(shopCategory));
@@ -956,7 +953,7 @@ export function SearchResults({
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hits, tab, appPlatform, appCategory, appLicense, shopCategory, repoState, repoLabel, gitStatuses, appCategoryTags, clustered, expandedClusters, effectiveWhen, scoreOf, liveStates, effectiveShelf, proven]);
+  }, [hits, tab, appPlatform, appCategory, shopCategory, repoState, repoLabel, gitStatuses, appCategoryTags, clustered, expandedClusters, effectiveWhen, scoreOf, liveStates, effectiveShelf, proven]);
 
   // The Events tab is a timeline: the first card of each day carries a header
   // that says the date once — "Today · Fri, Sep 4" — so cards can lead with
@@ -987,6 +984,19 @@ export function SearchResults({
     }
     return out;
   }, [displayHits, tab, effectiveWhen]);
+
+  // A chip or a Filters control has narrowed the page.
+  const narrowed =
+    activeFilters > 0 ||
+    !!shopCategory ||
+    !!appPlatform ||
+    !!appCategory ||
+    !!repoState ||
+    !!repoLabel ||
+    (tab === "events" && eventWhen !== "upcoming") ||
+    (tab === "live" && liveShelf !== null);
+  const totalCount = rawHits.length + extraCount;
+  const displayedCount = displayHits.length + extraCount;
 
   const profiles = useMemo(() => profilesOf(hits), [hits]);
 
@@ -1158,7 +1168,7 @@ export function SearchResults({
                   className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoState === st ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"}`}
                   data-testid={`repo-state-${st}`}
                 >
-                  {GIT_STATE_LABEL[st]} {count}
+                  {GIT_STATE_LABEL[st]}
                 </button>
               ))}
               {repoStateFacets.length > 0 && repoLabelFacets.length > 0 && (
@@ -1172,7 +1182,7 @@ export function SearchResults({
                   className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoLabel === label ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"}`}
                   data-testid={`repo-label-${label}`}
                 >
-                  {label} {count}
+                  {label}
                 </button>
               ))}
             </FacetRow>
@@ -1237,12 +1247,12 @@ export function SearchResults({
                   }`}
                   data-testid={`shop-facet-${cat}`}
                 >
-                  {cat} <span className="opacity-60">{count}</span>
+                  {cat}
                 </button>
               ))}
             </FacetRow>
           )}
-          {tab === "apps" && appFacets.length > 0 && (
+          {tab === "apps" && (appFacets.length > 0 || appCategoryFacets.length > 0) && (
             <FacetRow className="mb-2" testId="app-facets">
               <button
                 type="button"
@@ -1268,50 +1278,37 @@ export function SearchResults({
                   }`}
                   data-testid={`app-facet-${platform.toLowerCase()}`}
                 >
-                  {platform} <span className="opacity-60">{count}</span>
+                  {platform}
                 </button>
               ))}
-            </FacetRow>
-          )}
-          {tab === "apps" && (appCategoryFacets.length > 0 || appLicenseFacets.length > 0) && (
-            <FacetRow className="mb-2.5" testId="app-cat-facets">
-              {appCategoryFacets.map(([cat, count]) => (
+              {/* One row, like Repos: platforms, a hairline, then the apps' own
+                  categories. Licences are a fact for the app page, not a way
+                  people browse. */}
+              {appCategoryFacets.length > 0 && <span className="mx-0.5 h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />}
+              {appCategoryFacets.map(([cat]) => (
                 <button
                   key={cat}
                   type="button"
                   onClick={() => setAppCategory((cur) => (cur === cat ? null : cat))}
-                  className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                     appCategory === cat
                       ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                      : "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-brand-accent/40 hover:text-slate-700 dark:hover:text-slate-200"
+                      : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
                   }`}
                   data-testid={`app-cat-facet-${cat}`}
                 >
-                  #{cat} <span className="opacity-60">{count}</span>
-                </button>
-              ))}
-              {appLicenseFacets.map(([lic, count]) => (
-                <button
-                  key={lic}
-                  type="button"
-                  onClick={() => setAppLicense((cur) => (cur === lic ? null : lic))}
-                  className={`shrink-0 rounded-full border px-2.5 py-0.5 font-mono text-[11px] transition-colors ${
-                    appLicense === lic
-                      ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
-                      : "border-slate-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:border-brand-accent/40 hover:text-slate-700 dark:hover:text-slate-200"
-                  }`}
-                  data-testid={`app-lic-facet-${lic.toLowerCase()}`}
-                >
-                  {lic} <span className="opacity-60">{count}</span>
+                  #{cat}
                 </button>
               ))}
             </FacetRow>
           )}
-          {snapshot?.eose && (
+          {/* No count by default — Google dropped it from the default view too.
+              The number does work only when a chip or a filter narrows the
+              page: what matched, of how many. */}
+          {narrowed && totalCount > 0 && (
             <div className="mb-2 sm:mb-3 px-1">
               <p className="text-xs text-slate-400 dark:text-slate-500" data-testid="text-search-stats">
-                About {shownCount} result{shownCount !== 1 ? "s" : ""}
-                {snapshot.timeMs != null ? ` (${(snapshot.timeMs / 1000).toFixed(2)} seconds)` : ""}
+                {displayedCount} of {totalCount} match
               </p>
             </div>
           )}

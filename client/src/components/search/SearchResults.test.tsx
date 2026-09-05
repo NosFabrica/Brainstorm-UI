@@ -175,6 +175,13 @@ beforeEach(() => {
   window.history.replaceState({}, "", "/?q=jack");
 });
 
+
+/** The Filters panel keeps its rarer controls behind Advanced; open it if it isn't. */
+const openAdvanced = () => {
+  const toggle = screen.getByTestId("filters-advanced-toggle");
+  if (toggle.getAttribute("aria-expanded") !== "true") fireEvent.click(toggle);
+};
+
 const setUrlTab = (t: string | null) =>
   window.history.replaceState({}, "", t ? `/?q=jack&t=${t}` : "/?q=jack");
 
@@ -225,7 +232,9 @@ describe("SearchResults", () => {
     });
     expect(await screen.findByText("alice")).toBeInTheDocument();
     expect(screen.queryByTestId("container-search-loading")).toBeNull();
-    expect(screen.getByTestId("text-search-stats").textContent).toContain("0.42");
+    // No count line by default — Google dropped it from the default view too;
+    // the number does work only when a filter narrows the page.
+    expect(screen.queryByTestId("text-search-stats")).toBeNull();
   });
 
   it("switching tabs cancels the stream and starts a new one with that tab", async () => {
@@ -953,7 +962,7 @@ describe("SearchResults", () => {
     expect(card.className).not.toMatch(/border|rounded-2xl|px-2/);
     expect(screen.queryByTestId("container-no-results")).toBeNull();
     // The count counts what is shown, whichever source it came from.
-    expect(screen.getByTestId("text-search-stats")).toHaveTextContent("About 1 result");
+    expect(screen.queryByTestId("text-search-stats")).toBeNull();
   });
 
   // Benjamin's Shop: NIP-99 listings as photo-led cards, priced as published,
@@ -996,14 +1005,18 @@ describe("SearchResults", () => {
     expect(screen.getByTestId("listing-card-l2")).toBeInTheDocument();
     expect(screen.queryByTestId("listing-card-sold")).toBeNull();
     expect(screen.queryByTestId("listing-card-nop")).toBeNull();
-    expect(screen.getByTestId("text-search-stats")).toHaveTextContent("About 2 results");
+    expect(screen.queryByTestId("text-search-stats")).toBeNull();
 
-    // Categories from the listings' own tags, counted; one tap narrows.
+    // Categories from the listings' own tags, as plain words (the team: less
+    // busy — Google's chips carry no numbers); one tap narrows, and only then
+    // does a count appear: what matched, of how many.
     const facets = screen.getByTestId("shop-facets");
-    expect(within(facets).getByTestId("shop-facet-abbigliamento")).toHaveTextContent("2");
+    expect(within(facets).getByTestId("shop-facet-abbigliamento")).toHaveTextContent("abbigliamento");
+    expect(within(facets).getByTestId("shop-facet-abbigliamento")).not.toHaveTextContent(/\d/);
     fireEvent.click(within(facets).getByTestId("shop-facet-kashmir"));
     expect(screen.getByTestId("listing-card-l1")).toBeInTheDocument();
     expect(screen.queryByTestId("listing-card-l2")).toBeNull();
+    expect(screen.getByTestId("text-search-stats")).toHaveTextContent("1 of 2 match");
   });
 
   it("collapses recurring events on the Events tab behind a +N chip", async () => {
@@ -1131,8 +1144,9 @@ describe("SearchResults", () => {
     expect(gitStatusesMock).toHaveBeenCalledWith(expect.arrayContaining([issue.id, merged.id, fresh.id]));
 
     const strip = screen.getByTestId("repo-state-facets");
-    expect(within(strip).getByTestId("repo-state-merged")).toHaveTextContent("Merged 1");
-    expect(within(strip).getByTestId("repo-state-closed")).toHaveTextContent("Closed 1");
+    expect(within(strip).getByTestId("repo-state-merged")).toHaveTextContent("Merged");
+    expect(within(strip).getByTestId("repo-state-merged")).not.toHaveTextContent(/\d/);
+    expect(within(strip).getByTestId("repo-state-closed")).toHaveTextContent("Closed");
     fireEvent.click(within(strip).getByTestId("repo-state-merged"));
     expect(screen.getByTestId("repo-card-p1")).toBeInTheDocument();
     expect(screen.queryByTestId("repo-card-i1")).toBeNull();
@@ -1156,8 +1170,9 @@ describe("SearchResults", () => {
     expect(within(screen.getByTestId("repo-card-i3")).queryByTestId("git-labels-i3")).toBeNull();
 
     const strip = screen.getByTestId("repo-state-facets");
-    expect(within(strip).getByTestId("repo-label-bug")).toHaveTextContent("bug 1");
-    expect(within(strip).getByTestId("repo-label-enhancement")).toHaveTextContent("enhancement 1");
+    expect(within(strip).getByTestId("repo-label-bug")).toHaveTextContent("bug");
+    expect(within(strip).getByTestId("repo-label-bug")).not.toHaveTextContent(/\d/);
+    expect(within(strip).getByTestId("repo-label-enhancement")).toHaveTextContent("enhancement");
     fireEvent.click(within(strip).getByTestId("repo-label-enhancement"));
     expect(screen.getByTestId("repo-card-i2")).toBeInTheDocument();
     expect(screen.queryByTestId("repo-card-i1")).toBeNull();
@@ -1358,7 +1373,8 @@ describe("SearchResults", () => {
 
     // Categories with counts, best first; a t-tag that just restates a
     // platform word never becomes a category chip.
-    expect(screen.getByTestId("app-cat-facet-nostr-client")).toHaveTextContent("2");
+    expect(screen.getByTestId("app-cat-facet-nostr-client")).toHaveTextContent("nostr-client");
+    expect(screen.getByTestId("app-cat-facet-nostr-client")).not.toHaveTextContent(/\d/);
     expect(screen.queryByTestId("app-cat-facet-android")).toBeNull();
 
     fireEvent.click(screen.getByTestId("app-cat-facet-nostr-client"));
@@ -1391,11 +1407,33 @@ describe("SearchResults", () => {
       timeMs: 90,
     });
     await screen.findByText("Amethyst");
-    expect(screen.getByTestId("app-lic-facet-mit")).toHaveTextContent("2");
-    fireEvent.click(screen.getByTestId("app-lic-facet-mit"));
-    expect(screen.getByText("Damus")).toBeInTheDocument();
+    // A licence is a fact for the app page, not a way people browse: no licence chips.
+    expect(screen.queryByTestId("app-lic-facet-mit")).toBeNull();
+    expect(screen.queryByTestId("app-cat-facets")).toBeNull();
+  });
+
+  // Apps was the one tab with two chip rows. One row now: platforms, a
+  // hairline, then the apps' own categories — like Repos.
+  it("the Apps strip is one row: platforms, then categories, without counts", async () => {
+    setUrlTab("apps");
+    render(<SearchResults query="" pov="nosfabrica" />);
+    const app = (id: string, name: string, fs: string[], cats: string[]) =>
+      ev(id, 32267, id.repeat(32).slice(0, 64), "", [["d", id], ["name", name], ...fs.map((f) => ["f", f]), ...cats.map((c) => ["t", c])]);
+    emit({
+      hits: [app("c1", "Amethyst", ["android-arm64-v8a"], ["nostr-client", "android"]), app("c2", "Damus", ["ios"], ["nostr-client"]), app("c3", "Nucube", ["web"], ["cube"])].map((event) => ({ event, author: author(event.pubkey, "x"), rank: null })),
+      eose: true,
+      timeMs: 90,
+    });
+    await screen.findByText("Amethyst");
+    const strip = screen.getByTestId("app-facets");
+    expect(within(strip).getByTestId("app-facet-android")).not.toHaveTextContent(/\d/);
+    const cat = within(strip).getByTestId("app-cat-facet-nostr-client");
+    expect(cat).not.toHaveTextContent(/\d/);
+    // Platforms come first, categories after.
+    expect(within(strip).getByTestId("app-facet-android").compareDocumentPosition(cat) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    fireEvent.click(cat);
     expect(screen.queryByText("Nucube")).toBeNull();
-    expect(screen.queryByText("Mystery")).toBeNull();
+    expect(screen.getByTestId("text-search-stats")).toHaveTextContent("2 of 3 match");
   });
 
   it("lists earn their place: untitled and empty junk hides, people-packs lead", async () => {
@@ -1762,6 +1800,7 @@ describe("SearchResults", () => {
     render(<SearchResults query="bitcoin" pov="nosfabrica" onQueryRewrite={rewrite} />);
 
     fireEvent.click(screen.getByTestId("search-filters-toggle"));
+    openAdvanced();
     fireEvent.change(screen.getByTestId("filter-sort"), { target: { value: "recent" } });
     expect(rewrite).toHaveBeenLastCalledWith("bitcoin sort:recent");
 
@@ -1783,6 +1822,7 @@ describe("SearchResults", () => {
     ]);
     render(<SearchResults query="jack" pov="nosfabrica" onQueryRewrite={rewrite} />);
     fireEvent.click(screen.getByTestId("search-filters-toggle"));
+    openAdvanced();
 
     fireEvent.change(screen.getByTestId("filter-rank-as"), { target: { value: "fia" } });
     const option = await screen.findByTestId(`rank-as-option-${hex.slice(0, 8)}`);
@@ -1828,9 +1868,9 @@ describe("SearchResults", () => {
       scoreOfMock.mockImplementation((pk) => (pk === UNRATED ? null : 0.85));
       const { rerender } = render(<SearchResults query="jack" pov="nosfabrica" onQueryRewrite={rewrite} />);
       fireEvent.click(screen.getByTestId("search-filters-toggle"));
-      fireEvent.click(screen.getByTestId("filter-verified"));
-      expect(rewrite).toHaveBeenLastCalledWith("jack trust:verified");
-      // The page honours the token itself — the relay never sees it.
+      // The Verified-only control is gone (results are verified by construction);
+      // the token still works for a shared link, and the page honours it itself.
+      expect(screen.queryByTestId("filter-verified")).toBeNull();
       rerender(<SearchResults query="jack trust:verified" pov="nosfabrica" onQueryRewrite={rewrite} />);
       emit({
         hits: [
@@ -1873,10 +1913,12 @@ describe("SearchResults", () => {
       const rewrite = vi.fn();
       render(<SearchResults query="jack" pov="nosfabrica" onQueryRewrite={rewrite} />);
       fireEvent.click(screen.getByTestId("search-filters-toggle"));
+    openAdvanced();
       expect(screen.queryByTestId("filter-reach")).toBeNull();
       cleanup();
       render(<SearchResults query="jack" pov="nosfabrica" userPubkey={"e".repeat(64)} onQueryRewrite={rewrite} />);
       fireEvent.click(screen.getByTestId("search-filters-toggle"));
+    openAdvanced();
       const reach = screen.getByTestId("filter-reach");
       expect(reach).toHaveTextContent("People you follow");
       expect(reach).toHaveTextContent("Friends of friends");
@@ -1921,10 +1963,31 @@ describe("SearchResults", () => {
         <SearchResults query="btc sort:rank include:spam trust:verified reach:friends" pov="nosfabrica" userPubkey={"e".repeat(64)} onQueryRewrite={vi.fn()} />,
       );
       fireEvent.click(screen.getByTestId("search-filters-toggle"));
+    openAdvanced();
       expect((screen.getByTestId("filter-sort") as HTMLSelectElement).value).toBe("rank");
+      // Advanced opens itself when one of its controls is set.
+      expect(screen.getByTestId("filters-advanced-toggle").getAttribute("aria-expanded")).toBe("true");
       expect((screen.getByTestId("filter-spam") as HTMLInputElement).checked).toBe(true);
-      expect((screen.getByTestId("filter-verified") as HTMLInputElement).checked).toBe(true);
       expect(screen.getByTestId("filter-reach-friends").getAttribute("aria-pressed")).toBe("true");
+    });
+
+    // The team: less busy. Sort and date show at once — the two anyone uses;
+    // trust distance, unranked accounts and Rank as wait behind one word.
+    it("the Filters panel shows sort and date up front, and the rest behind Advanced", () => {
+      render(<SearchResults query="btc" pov="nosfabrica" userPubkey={"e".repeat(64)} onQueryRewrite={vi.fn()} />);
+      fireEvent.click(screen.getByTestId("search-filters-toggle"));
+      expect(screen.getByTestId("filter-sort")).toBeInTheDocument();
+      expect(screen.getByTestId("filter-date")).toBeInTheDocument();
+      expect(screen.queryByTestId("filter-spam")).toBeNull();
+      expect(screen.queryByTestId("filter-reach")).toBeNull();
+      expect(screen.queryByTestId("filter-rank-as")).toBeNull();
+      const advanced = screen.getByTestId("filters-advanced-toggle");
+      expect(advanced.getAttribute("aria-expanded")).toBe("false");
+      fireEvent.click(advanced);
+      expect(screen.getByTestId("filter-spam")).toBeInTheDocument();
+      expect(screen.getByTestId("filter-reach")).toBeInTheDocument();
+      expect(screen.getByTestId("filter-rank-as")).toBeInTheDocument();
+      expect(screen.queryByTestId("filter-verified")).toBeNull();
     });
   });
 

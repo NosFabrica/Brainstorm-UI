@@ -129,7 +129,7 @@ export function MusicResults({
             All
           </FacetChip>
           {genreFacets.map((g) => (
-            <FacetChip key={g.key} pressed={genre === g.key} onClick={() => setGenre((cur) => (cur === g.key ? null : g.key))} count={g.count || undefined} testId={`music-genre-${g.key}`}>
+            <FacetChip key={g.key} pressed={genre === g.key} onClick={() => setGenre((cur) => (cur === g.key ? null : g.key))} testId={`music-genre-${g.key}`}>
               {genreLabel(g.key)}
             </FacetChip>
           ))}
