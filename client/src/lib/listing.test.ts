@@ -79,6 +79,14 @@ describe("formatListingPrice — shown exactly as priced, never converted", () =
     expect(formatListingPrice({ amount: 8, currency: "USDC" })).toBe("8 USDC");
   });
 
+  // Benjamin, over a "$0" pill on the Shop tab: a zero reads as a mistake.
+  // The seller wrote a number, and the number means free.
+  it("a price of zero reads as Free, whatever the currency", () => {
+    expect(formatListingPrice({ amount: 0, currency: "USD" })).toBe("Free");
+    expect(formatListingPrice({ amount: 0, currency: "SATS" })).toBe("Free");
+    expect(formatListingPrice({ amount: 0, currency: "EUR", frequency: "month" })).toBe("Free");
+  });
+
   it("names the cadence when a price recurs", () => {
     expect(formatListingPrice({ amount: 5, currency: "USD", frequency: "month" })).toBe("$5 / month");
   });

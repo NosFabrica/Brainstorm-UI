@@ -92,6 +92,8 @@ const SYMBOL: Record<string, string> = { USD: "$", EUR: "€", GBP: "£", JPY: "
 
 /** "23,550 sats", "$12", "€15", "CHF 14.50", "0.0021 BTC", "8 USDC" — as priced. */
 export function formatListingPrice(p: ListingPrice): string {
+  // Zero is not a price to print — "$0" reads as a mistake — it is a gift.
+  if (p.amount === 0) return "Free";
   const c = p.currency.toUpperCase();
   let text: string;
   if (c === "SAT" || c === "SATS") text = `${new Intl.NumberFormat("en-US").format(p.amount)} ${p.amount === 1 ? "sat" : "sats"}`;
