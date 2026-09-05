@@ -98,3 +98,24 @@ describe("browsing a vertical with filters, signed out", () => {
     expect(screen.queryByTestId("filters-active-count")).toBeNull();
   });
 });
+
+// Benjamin, over the panel's related topics (#texas, #restaurants…): "nothing
+// happens when users click on these". They are in-app links to /?q=…, which
+// change the URL without a popstate; the results must follow the URL anyway.
+describe("an in-app link to another search", () => {
+  beforeEach(() => {
+    cleanup();
+    allStreams = [];
+    streamMock.mockClear();
+    window.history.replaceState({}, "", "/?q=austin");
+  });
+
+  it("re-runs the search for the words in the new URL", async () => {
+    render(<Landing />);
+    await waitFor(() => expect(mainStreamCalls().some(([q]) => q === "austin")).toBe(true));
+    // What a wouter <Link href="/?q=liverpool"> does.
+    window.history.pushState({}, "", "/?q=liverpool");
+    await waitFor(() => expect(mainStreamCalls().some(([q]) => q === "liverpool")).toBe(true));
+    expect((screen.getByTestId("input-home-search") as HTMLInputElement).value).toBe("liverpool");
+  });
+});

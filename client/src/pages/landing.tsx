@@ -1,4 +1,4 @@
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { hasHopped, markHopped, trackHistoryEntry } from "@/lib/historyState";
 import { copyToClipboard } from "@/lib/clipboard";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
@@ -605,6 +605,25 @@ export default function Landing() {
     },
     [query, filters, setLocation, resetResults],
   );
+
+  // In-app links to /?q=… — the panel's related topics and "More events", the
+  // home's trending tags — change the URL through pushState, which fires no
+  // popstate. Benjamin, over #texas: "nothing happens when users click on
+  // these". The URL's words are the truth: when they differ from what is
+  // showing, run them, exactly as Back does.
+  const search = useSearch();
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    const q = (params.get("q") || "").trim();
+    const f = (params.get("f") || "").trim();
+    if (!q || `${q} ${f}`.trim() === submitted) return;
+    setQuery(q);
+    setFilters(f);
+    didInitFromUrlRef.current = true;
+    handleSearch(q, f, "pop");
+    // `submitted` is read, not a trigger: a change in it is the search this effect started.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, handleSearch]);
 
   // Sync the back/forward buttons with the search results list.
   useEffect(() => {
