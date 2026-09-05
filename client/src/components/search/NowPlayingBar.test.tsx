@@ -65,13 +65,35 @@ describe("NowPlayingBar — the app's one player bar", () => {
     expect(screen.getByTestId("now-playing-title")).toHaveTextContent("Duende");
   });
 
-  it("the X stops the sound and takes the bar away, and the room goes with it", () => {
+  // Benjamin: how should the bar carry itself — enterprise, Apple-ish, on
+  // desktop and mobile, light and dark? Always dark, Spotify's constant, with
+  // the artwork as a glow under a strong scrim so white type reads over any
+  // cover (Joe Martin's pale one had swallowed the title); docked, never
+  // hiding on scroll; and it rises when a track starts and drops on close.
+  it("is always dark with the art as a glow, docked, and rises into view", () => {
+    render(<NowPlayingBar />);
+    act(() => toggleTrack("bare", "https://cdn/bare.mp3", { title: "No Cover Here", artist: "Someone" }));
+    const bar = screen.getByTestId("now-playing-bar");
+    expect(bar.className).toMatch(/bg-slate-950/);
+    expect(bar.className).toMatch(/fixed/);
+    expect(bar.className).toMatch(/np-rise/);
+    expect(screen.getByTestId("now-playing-title").className).toMatch(/text-white/);
+    expect(screen.queryByTestId("now-playing-backdrop")).toBeNull();
+    act(() => toggleTrack("art", "https://cdn/art.mp3", { title: "Pale Cover", artist: "Joe Martin", cover: "https://img/pale.jpg" }));
+    expect(screen.getByTestId("now-playing-backdrop")).toBeInTheDocument();
+    expect(screen.getByTestId("now-playing-scrim")).toBeInTheDocument();
+    expect(screen.getByTestId("now-playing-title").className).toMatch(/text-white/);
+  });
+
+  it("the X stops the sound and takes the bar away, and the room goes with it", async () => {
     render(<NowPlayingBar />);
     setPlaylist([{ id: "a", src: "https://cdn/a.mp3", title: "A" }, { id: "b", src: "https://cdn/b.mp3", title: "B" }]);
     act(() => toggleTrack("a", "https://cdn/a.mp3"));
     expect(screen.getByTestId("now-playing-bar")).toBeInTheDocument();
     fireEvent.click(screen.getByTestId("now-playing-close"));
-    expect(screen.queryByTestId("now-playing-bar")).toBeNull();
+    // It drops out of view first, then it is gone and the sound with it.
+    expect(screen.getByTestId("now-playing-bar").className).toMatch(/np-drop/);
+    await vi.waitFor(() => expect(screen.queryByTestId("now-playing-bar")).toBeNull());
     expect(pause).toHaveBeenCalled();
     expect(document.documentElement.style.getPropertyValue("--bs-chrome-player")).toBe("");
     // Closed is closed: the queue does not carry on by itself.

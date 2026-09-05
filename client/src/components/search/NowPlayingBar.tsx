@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "wouter";
 import { Loader2, Pause, Play, SkipForward, X } from "lucide-react";
 import { closePlayer, extendPlaylist, formatTime, peekNext, playNext, seekTrack, togglePlayback, trackMeta, usePlayerState } from "@/lib/audioPlayer";
@@ -23,6 +23,19 @@ export function NowPlayingBar() {
   const current = trackMeta(player.currentId);
   const shown = !!player.currentId && !!current?.title;
   const ref = useRef<HTMLDivElement>(null);
+  // Closing drops the bar out of view first, then stops the sound.
+  const [leaving, setLeaving] = useState(false);
+  const leaveTimer = useRef<number | null>(null);
+  useEffect(() => () => { if (leaveTimer.current) window.clearTimeout(leaveTimer.current); }, []);
+  const close = () => {
+    if (leaving) return;
+    setLeaving(true);
+    leaveTimer.current = window.setTimeout(() => {
+      leaveTimer.current = null;
+      setLeaving(false);
+      closePlayer();
+    }, 180);
+  };
 
   // Occupy our height while shown, so pages pad under us and floating things stack above.
   useEffect(() => {
@@ -57,9 +70,6 @@ export function NowPlayingBar() {
   const loading = player.status === "loading";
   const next = peekNext(id);
   const upNext = trackMeta(next?.id ?? null);
-  const dressed = !!current.cover;
-  const ink = dressed ? "text-white" : "text-slate-900 dark:text-slate-100";
-  const inkSoft = dressed ? "text-white/70" : "text-slate-500 dark:text-slate-400";
   const external = !!current.href && /^https?:\/\//i.test(current.href);
   const title = current.href ? (
     external ? (
@@ -70,21 +80,26 @@ export function NowPlayingBar() {
   ) : (
     current.title
   );
+
   return (
+    // Always dark — Spotify's constant, in light and dark mode alike — with
+    // the artwork as a soft colour glow under a strong scrim, so white type
+    // reads over any cover, pale ones included. Docked: it never hides or
+    // shrinks on scroll; pause must never be a hunt.
     <div
       ref={ref}
-      className={`fixed inset-x-0 z-40 border-t ${dressed ? "border-white/10 bg-slate-900" : "border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur"}`}
+      className={`fixed inset-x-0 z-40 border-t border-white/10 bg-slate-950 text-white ${leaving ? "np-drop" : "np-rise"}`}
       style={{ bottom: "var(--bs-chrome-tabbar, 0px)" }}
       data-testid="now-playing-bar"
     >
-      {dressed && (
+      {current.cover && (
         <>
-          <img src={current.cover} alt="" aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full scale-150 object-cover blur-2xl opacity-70" data-testid="now-playing-backdrop" />
-          <span className="pointer-events-none absolute inset-0 bg-slate-950/45" aria-hidden="true" />
+          <img src={current.cover} alt="" aria-hidden="true" className="pointer-events-none absolute inset-0 h-full w-full scale-150 object-cover blur-2xl opacity-60" data-testid="now-playing-backdrop" />
+          <span className="pointer-events-none absolute inset-0 bg-gradient-to-r from-slate-950/85 via-slate-950/70 to-slate-950/85" aria-hidden="true" data-testid="now-playing-scrim" />
         </>
       )}
       <div className="relative mx-auto flex max-w-6xl items-center gap-3 px-3 py-2 sm:px-4">
-        <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-brand-deep/10">
+        <span className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-white/10">
           <img
             src={current.cover || audioDefault}
             alt=""
@@ -99,14 +114,14 @@ export function NowPlayingBar() {
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-baseline gap-2">
-            <p className={`truncate text-sm font-semibold ${ink}`} data-testid="now-playing-title">{title}</p>
+            <p className="truncate text-sm font-semibold text-white" data-testid="now-playing-title">{title}</p>
             {current.artist &&
               (current.artistHref ? (
-                <Link href={current.artistHref} className={`hidden truncate text-xs hover:underline sm:block ${inkSoft}`} data-testid="now-playing-artist">
+                <Link href={current.artistHref} className="hidden truncate text-xs text-white/70 hover:underline sm:block" data-testid="now-playing-artist">
                   {current.artist}
                 </Link>
               ) : (
-                <p className={`hidden truncate text-xs sm:block ${inkSoft}`}>{current.artist}</p>
+                <p className="hidden truncate text-xs text-white/70 sm:block">{current.artist}</p>
               ))}
           </div>
           <div className="mt-1 flex items-center gap-2">
@@ -118,16 +133,16 @@ export function NowPlayingBar() {
                 const r = e.currentTarget.getBoundingClientRect();
                 seekTrack(id, (e.clientX - r.left) / r.width);
               }}
-              className={`relative h-1 flex-1 cursor-pointer rounded-full ${dressed ? "bg-white/25" : "bg-slate-200 dark:bg-slate-700"}`}
+              className="relative h-1 flex-1 cursor-pointer rounded-full bg-white/20"
             >
-              <div className={`absolute inset-y-0 left-0 rounded-full ${dressed ? "bg-white" : "bg-brand-primary"}`} style={{ width: `${pct}%` }} />
+              <div className="absolute inset-y-0 left-0 rounded-full bg-white" style={{ width: `${pct}%` }} />
             </div>
-            <span className={`hidden shrink-0 text-[11px] font-medium tabular-nums sm:inline ${inkSoft}`}>
+            <span className="hidden shrink-0 text-[11px] font-medium tabular-nums text-white/70 sm:inline">
               {player.status === "error" ? "Couldn't play" : `${formatTime(player.currentTime)} / ${formatTime(player.duration)}`}
             </span>
           </div>
           {upNext?.title && (
-            <p className={`mt-0.5 hidden truncate text-[11px] sm:block ${inkSoft}`} data-testid="now-playing-up-next">
+            <p className="mt-0.5 hidden truncate text-[11px] text-white/60 sm:block" data-testid="now-playing-up-next">
               Up next · {upNext.title}
             </p>
           )}
@@ -135,7 +150,7 @@ export function NowPlayingBar() {
         <button
           type="button"
           onClick={() => togglePlayback()}
-          className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full transition-transform hover:scale-105 ${dressed ? "bg-white text-slate-900" : "bg-slate-900 text-white dark:bg-white dark:text-slate-900"}`}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white text-slate-900 transition-transform hover:scale-105"
           aria-label={playing ? "Pause" : "Play"}
           data-testid="now-playing-toggle"
         >
@@ -145,7 +160,7 @@ export function NowPlayingBar() {
           type="button"
           onClick={() => playNext()}
           disabled={!next}
-          className={`hidden h-8 w-8 shrink-0 items-center justify-center rounded-full disabled:opacity-40 sm:flex ${dressed ? "text-white/80 hover:bg-white/10" : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"}`}
+          className="hidden h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/80 hover:bg-white/10 disabled:opacity-40 sm:flex"
           aria-label="Next"
           data-testid="now-playing-next"
         >
@@ -153,8 +168,8 @@ export function NowPlayingBar() {
         </button>
         <button
           type="button"
-          onClick={() => closePlayer()}
-          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${dressed ? "text-white/70 hover:bg-white/10 hover:text-white" : "text-slate-400 hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"}`}
+          onClick={close}
+          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/70 hover:bg-white/10 hover:text-white"
           aria-label="Close player"
           title="Close"
           data-testid="now-playing-close"
