@@ -43,7 +43,7 @@ import { liveHostOf, liveNeedsCheck, liveStateOf, type LiveState } from "@/lib/l
 import { useVerifiedRecordings } from "@/hooks/useVerifiedRecordings";
 import { EVENT_WHEN_LABELS, EVENT_WHEN_ORDER, eventWhenCounts, filterEventsByWhen, type EventWhen } from "@/lib/eventFilters";
 import { EventDateTile } from "@/components/share/EventDateTile";
-import { parseCalendarEvent as parseCal, relativeEventTime as relativeDay } from "@/lib/calendarEvent";
+import { isOver, parseCalendarEvent as parseCal, relativeEventTime as relativeDay } from "@/lib/calendarEvent";
 import { isTestTrack, parseTrack } from "@/lib/trackEvent";
 import { isSellable, parseListing } from "@/lib/listing";
 import { fetchRecentByKinds } from "@/services/nostr";
@@ -937,9 +937,18 @@ export function SearchResults({
     const out = new Map<string, { key: string; startSec: number; label: string }>();
     if (tab !== "events") return out;
     let last: string | null = null;
+    const nowSec = Math.floor(Date.now() / 1000);
     for (const row of displayHits) {
       const cal = parseCal(row.hit.event);
       const d = cal.startSec ? new Date(cal.startSec * 1000) : null;
+      // Already running — a conference on its second day, a walk series that
+      // started last week — is not a date to lead Upcoming with; it is "Ongoing".
+      if (d && cal.startSec < nowSec && !isOver(cal) && effectiveWhen !== "past") {
+        if (last === "ongoing") continue;
+        last = "ongoing";
+        out.set(row.hit.event.id, { key: "ongoing", startSec: 0, label: "Ongoing" });
+        continue;
+      }
       const key = d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` : "tba";
       if (key === last) continue;
       last = key;
@@ -949,7 +958,7 @@ export function SearchResults({
       out.set(row.hit.event.id, { key, startSec: cal.startSec, label: d ? (dayWord ? `${dayWord} · ${long}` : long) : "Date to be announced" });
     }
     return out;
-  }, [displayHits, tab]);
+  }, [displayHits, tab, effectiveWhen]);
 
   const profiles = useMemo(() => profilesOf(hits), [hits]);
 

@@ -477,6 +477,33 @@ describe("SearchResults", () => {
       expect(within(screen.getByTestId("event-card-e-next-month")).queryByTestId("event-going-e-next-month")).toBeNull();
     });
 
+    // Benjamin, over the phone view: a header "Wed, Sep 2" led the Upcoming
+    // shelf — a bird-walk series that started days ago and runs on for weeks.
+    // Ongoing is not a date; the shelf says so. And the RSVP pill in the
+    // card's corner was squeezing titles to "Kansas City Sovereign…" on a
+    // phone, where the event page has the real button: it hides below sm and
+    // the title takes the width.
+    it("an event already running leads Upcoming under \"Ongoing\", and phones give the title its width", async () => {
+      setUrlTab("events");
+      render(<SearchResults query="raystown" pov="nosfabrica" />);
+      const pk = "c".repeat(64);
+      const running = ev("e-running", 31922, pk, "", [["d", "walks"], ["title", "Migration Morning Bird Walks"], ["start", new Date((nowSec - 3 * DAY) * 1000).toISOString().slice(0, 10)], ["end", new Date((nowSec + 10 * DAY) * 1000).toISOString().slice(0, 10)]]);
+      const later = ev("e-later", 31923, pk, "", [["d", "later"], ["title", "Juniata College Women's Soccer"], ["start", String(nowSec + 6 * DAY)], ["end", String(nowSec + 6 * DAY + 7200)]]);
+      emit({ hits: [running, later].map((event) => ({ event, author: author(pk, "Raystown Events"), rank: null })), eose: true, timeMs: 120 });
+      await screen.findByTestId("event-card-e-running");
+      const days = screen.getAllByTestId(/^event-day-/);
+      expect(days[0].getAttribute("data-testid")).toBe("event-day-ongoing");
+      expect(days[0]).toHaveTextContent("Ongoing");
+      expect(days[0].querySelector('[data-testid="day-header-tile"]')).toBeNull();
+      expect(days[1]).not.toHaveTextContent("Ongoing");
+      const card = screen.getByTestId("event-card-e-running");
+      const corner = within(card).getByTestId("card-corner");
+      expect((corner.firstElementChild as HTMLElement).className).toMatch(/hidden sm:inline-flex/);
+      const title = within(card).getByText("Migration Morning Bird Walks");
+      expect(title.className).toMatch(/sm:pr-24/);
+      expect(title.className).not.toMatch(/(^|\s)pr-24/);
+    });
+
     it("Past flips to what already happened, newest first", async () => {
       setUrlTab("events");
       render(<SearchResults query="liverpool" pov="nosfabrica" />);

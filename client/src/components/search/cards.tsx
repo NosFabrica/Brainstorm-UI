@@ -900,7 +900,9 @@ export function EventCard({
   // Past: the replay when there is one. Upcoming: "I'm going" — a NIP-52
   // RSVP under the reader's key, kept on Nostr (no calendar vendor).
   const openIn = past && cal.recordingUrl ? { url: cal.recordingUrl, label: "Watch replay", host: hostOf(cal.recordingUrl) ?? undefined } : null;
-  const corner = !past && cal.startSec > 0 ? <RsvpButton event={event} /> : null;
+  // The RSVP pill hides on phones: it was squeezing titles in the card's
+  // corner, and the event page carries the real button.
+  const corner = !past && cal.startSec > 0 ? <span className="hidden sm:inline-flex"><RsvpButton event={event} /></span> : null;
   const shownFaces = faces.slice(0, 4);
   const faceProfiles = useFaceProfiles(shownFaces);
   const faceScoreOf = useAuthorScores(shownFaces);
@@ -923,7 +925,7 @@ export function EventCard({
               {past && <span className="ml-1.5 font-normal text-slate-400 dark:text-slate-500">· {relativeEventTime(cal.startSec)}</span>}
             </p>
           )}
-          <p className={`mt-0.5 text-[15px] font-semibold leading-snug text-slate-900 dark:text-slate-100 line-clamp-2 ${openIn || corner ? "pr-24" : ""}`}>{cal.title}</p>
+          <p className={`mt-0.5 text-[15px] font-semibold leading-snug text-slate-900 dark:text-slate-100 line-clamp-2 ${openIn ? "pr-24" : corner ? "sm:pr-24" : ""}`}>{cal.title}</p>
           <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300">
             <Avatar className={`h-4 w-4 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(score ?? null, false, "sm", true) ?? ""}`}>
               {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
