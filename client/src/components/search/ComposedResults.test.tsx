@@ -369,6 +369,37 @@ describe("ComposedResults — media-rich sections", () => {
   });
 });
 
+// Benjamin, over five grey squares in TheGrinder's Media: "how can we show
+// thumbnails for this media". There is nothing to show — the Satellite CDN
+// answers 502 and Flare's bucket no longer exists — so, as Google does with a
+// dead image, the tile leaves the grid. The note stays reachable as text.
+describe("Media tiles whose media is gone", () => {
+  it("a video that fails to load, or a picture that does, leaves the grid; the rest stay", async () => {
+    render(<ComposedResults query="thegrinder" pov="nosfabrica" onTabChange={vi.fn()} />);
+    sectionCall("media").emit({
+      hits: [
+        hitOf(ev("a".repeat(64), 1, "1".repeat(64), "Detroit: Become Human https://flare-pub.s3.amazonaws.com/u/x/video/1z", [["imeta", "url https://flare-pub.s3.amazonaws.com/u/x/video/1z", "m video/mp4"]]), "TheGrinder"),
+        hitOf(ev("b".repeat(64), 20, "1".repeat(64), "Old photo", [["imeta", "url https://cdn.satellite.earth/gone.jpg", "m image/jpeg"]]), "TheGrinder"),
+        hitOf(ev("c".repeat(64), 20, "1".repeat(64), "GM coffeechain", [["imeta", "url https://i.nostr.build/fine.png", "m image/jpeg"]]), "TheGrinder"),
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    const dead = await screen.findByTestId(`media-tile-${"a".repeat(64)}`);
+    const frame = dead.querySelector("video")!;
+    expect(frame).not.toBeNull();
+    fireEvent.error(frame);
+    expect(screen.queryByTestId(`media-tile-${"a".repeat(64)}`)).toBeNull();
+
+    const photo = screen.getByTestId(`media-tile-${"b".repeat(64)}`);
+    fireEvent.error(photo.querySelector("img")!);
+    expect(screen.queryByTestId(`media-tile-${"b".repeat(64)}`)).toBeNull();
+
+    expect(screen.getByTestId(`media-tile-${"c".repeat(64)}`)).toBeInTheDocument();
+    expect(screen.getByTestId("serp-media-grid").querySelectorAll('[data-testid^="media-tile-"]:not([data-testid$="-media"]):not([data-testid$="-caption"]):not([data-testid$="-play"])')).toHaveLength(1);
+  });
+});
+
 describe("ComposedResults", () => {
   it("fires the five purpose-ranked section streams in parallel", () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);

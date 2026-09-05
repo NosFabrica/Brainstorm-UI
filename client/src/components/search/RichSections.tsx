@@ -215,7 +215,7 @@ export function TopStories({ stories, stripRef }: { stories: TopStory[]; stripRe
   );
 }
 
-function MediaTile({ hit, score }: { hit: SearchHit; score?: number | null }) {
+function MediaTile({ hit, score, onGone }: { hit: SearchHit; score?: number | null; /** The media no longer answers — the tile should leave the grid. */ onGone?: () => void }) {
   const [, navigate] = useLocation();
   const openLightbox = useLightbox();
   const [imgFailed, setImgFailed] = useState(false);
@@ -257,10 +257,23 @@ function MediaTile({ hit, score }: { hit: SearchHit; score?: number | null }) {
         className="relative aspect-[4/3] cursor-pointer bg-slate-100 dark:bg-slate-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
         data-testid="media-tile-media"
       >
+        {/* Dead media leaves the grid (Google's rule for a broken image): a
+            poster that fails falls back to the video's first frame when there
+            is one; when that fails too — or a picture alone fails — the tile
+            tells the grid it is gone. */}
         {poster && !imgFailed ? (
-          <img src={poster} alt="" loading="lazy" onError={() => setImgFailed(true)} className="absolute inset-0 h-full w-full object-cover" />
+          <img
+            src={poster}
+            alt=""
+            loading="lazy"
+            onError={() => {
+              setImgFailed(true);
+              if (!(url && isVideo)) onGone?.();
+            }}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
         ) : url && isVideo ? (
-          <video src={`${url}#t=0.1`} preload="metadata" muted playsInline tabIndex={-1} aria-hidden className="pointer-events-none absolute inset-0 h-full w-full object-cover" />
+          <video src={`${url}#t=0.1`} preload="metadata" muted playsInline tabIndex={-1} aria-hidden onError={() => onGone?.()} className="pointer-events-none absolute inset-0 h-full w-full object-cover" />
         ) : null}
         {isVideo && (
           <span
@@ -297,11 +310,15 @@ function MediaTile({ hit, score }: { hit: SearchHit; score?: number | null }) {
 
 /** The Media tile grid — two across on phones, three on wider screens. */
 export function MediaTiles({ hits, scoreOf }: { hits: SearchHit[]; scoreOf?: (pk: string) => number | null | undefined }) {
-  if (hits.length === 0) return null;
+  // Tiles whose media no longer answers (a dead CDN, a deleted bucket) leave
+  // the grid, so it reflows without holes.
+  const [gone, setGone] = useState<Set<string>>(() => new Set());
+  const shown = hits.filter((h) => !gone.has(h.event.id));
+  if (shown.length === 0) return null;
   return (
     <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3" data-testid="serp-media-grid">
-      {hits.map((h) => (
-        <MediaTile key={h.event.id} hit={h} score={scoreOf?.(h.event.pubkey)} />
+      {shown.map((h) => (
+        <MediaTile key={h.event.id} hit={h} score={scoreOf?.(h.event.pubkey)} onGone={() => setGone((prev) => new Set(prev).add(h.event.id))} />
       ))}
     </div>
   );
