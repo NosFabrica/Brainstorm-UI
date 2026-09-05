@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { findWavlakeArtist, searchWavlakeTracks, searchWavlake, fetchWavlakeTrending, __resetWavlakeCatalogue } from "./wavlake";
+import { findWavlakeArtist, searchWavlakeTracks, searchWavlake, fetchWavlakeTrending, wavlakeTrackId, __resetWavlakeCatalogue } from "./wavlake";
 
 // Wavlake's public API as probed 2026-09-04: search names artists and albums,
 // an artist lists albums, an album lists tracks with the mp3.
@@ -161,5 +161,21 @@ describe("searchWavlake — artists, albums and songs for the words", () => {
   it("answers three empty lists when Wavlake is unreachable", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw new Error("offline"); }));
     expect(await searchWavlake("ainsley costello")).toEqual({ artists: [], albums: [], songs: [] });
+  });
+});
+
+// Benjamin, over a Latest row linking stablekraft.app: "this should be able to
+// play audio in brainstorm". Probed 2026-09-05: StableKraft is a storefront on
+// Wavlake's catalogue — its artwork is on Wavlake's CDN and the UUID at the end
+// of its `track` parameter answers at catalog.wavlake.com/v1/tracks/<id>.
+describe("wavlakeTrackId — StableKraft links carry Wavlake track ids", () => {
+  it("reads the track id from a stablekraft.app album link", () => {
+    expect(wavlakeTrackId("https://stablekraft.app/album/empty-passenger-seat-1768077672996?track=empty-passenger-seat-1768077672996-d2e8e9cc-6f5d-44e6-8144-b7500545fb2d")).toBe("d2e8e9cc-6f5d-44e6-8144-b7500545fb2d");
+    expect(wavlakeTrackId("https://www.stablekraft.app/album/x?track=x-d2e8e9cc-6f5d-44e6-8144-b7500545fb2d&ref=1")).toBe("d2e8e9cc-6f5d-44e6-8144-b7500545fb2d");
+  });
+  it("leaves a StableKraft album page without a track, and other sites, alone", () => {
+    expect(wavlakeTrackId("https://stablekraft.app/album/empty-passenger-seat-1768077672996")).toBeUndefined();
+    expect(wavlakeTrackId("https://example.com/album/x?track=x-d2e8e9cc-6f5d-44e6-8144-b7500545fb2d")).toBeUndefined();
+    expect(wavlakeTrackId("https://wavlake.com/track/81c98053-ce9b-4824-b689-fe0934fe7b00")).toBe("81c98053-ce9b-4824-b689-fe0934fe7b00");
   });
 });

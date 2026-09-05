@@ -24,6 +24,8 @@ import { MentionChip } from "@/components/share/MentionChip";
 import { fetchProfileMap } from "@/services/nostr";
 import { highlightTerms } from "@/lib/highlight";
 import { parseNewsShape } from "@/lib/newsShape";
+import { wavlakeTrackId } from "@/lib/wavlake";
+import { WavlakeTrackCard } from "@/components/share/WavlakeTrackCard";
 import { eventPath } from "@/lib/shareId";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
@@ -259,6 +261,33 @@ export function SerpRow({
       "group flex cursor-pointer items-start gap-3 rounded-lg px-2 py-2.5 -mx-2 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40",
     "data-testid": `serp-row-${event.id}`,
   };
+
+  if (news && wavlakeTrackId(news.url)) {
+    // The link IS a song (Wavlake, or a StableKraft storefront on its
+    // catalogue): play it here, in the row, instead of pointing at the page.
+    return (
+      <div {...rowProps}>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5 min-w-0" data-testid="news-source">
+            <AuthorLine author={author} score={score} created_at={event.created_at} />
+            <span className="hidden sm:inline-flex items-center gap-1 min-w-0 text-[11px] text-slate-400 dark:text-slate-500">
+              ·
+              <Favicon host={news.domain} className="h-3 w-3 rounded-sm shrink-0 object-contain" />
+              <span className="truncate">{news.domain}</span>
+            </span>
+          </div>
+          {/* The poster's words — the headline was only ever the note's text. */}
+          <div className="mt-1 [&>p]:text-slate-700 dark:[&>p]:text-slate-200">
+            <Snippet text={[news.headline, news.description].filter(Boolean).join(" ")} query={query} lines={2} />
+          </div>
+          <div onClick={(e) => e.stopPropagation()}>
+            <WavlakeTrackCard url={news.url} />
+          </div>
+          {engagement && <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />}
+        </div>
+      </div>
+    );
+  }
 
   if (news) {
     const thumb = news.imageUrl ?? tagVal(event, "image") ?? null;

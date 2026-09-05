@@ -35,6 +35,17 @@ const unfurlMock = vi.fn<(url: string) => Promise<{ title: string | null; descri
 vi.mock("@/services/unfurl", () => ({ fetchUnfurl: (url: string) => unfurlMock(url) }));
 const openLightboxMock = vi.fn();
 vi.mock("@/components/share/Lightbox", () => ({ useLightbox: () => openLightboxMock }));
+// Wavlake's catalogue, answered: the row's player is the point, not the fetch.
+vi.mock("@/lib/wavlake", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/wavlake")>();
+  return {
+    ...real,
+    useWavlakeTrack: (id: string | undefined) =>
+      id
+        ? { loading: false, error: false, track: { id, title: "Born To Die Young", artist: "Joe Martin", artworkUrl: "https://img/btdy.jpg", audioUrl: "https://cdn/btdy.mp3", duration: 236 } }
+        : { loading: false, error: false, track: null },
+  };
+});
 
 function note(content: string, tags: string[][] = []): NostrEvent {
   return {
@@ -121,6 +132,24 @@ describe("SerpRow — media taps", () => {
 });
 
 describe("SerpRow", () => {
+  // Benjamin, over Reed's boost of a StableKraft song: "this should be able to
+  // play audio in brainstorm but we cant right now". A news-shaped note whose
+  // link is a song plays the song here, in the row.
+  it("a note linking a StableKraft or Wavlake song plays it in the row", () => {
+    const boost = note(
+      '⚡ 333 sats • "Born To Die Young" by Joe Martin\n\nBoost more music\n\nhttps://stablekraft.app/album/empty-passenger-seat-1768077672996?track=empty-passenger-seat-1768077672996-d2e8e9cc-6f5d-44e6-8144-b7500545fb2d',
+    );
+    render(<SerpRow event={boost} author={author} score={0.7} query="joe martin" />);
+    const track = screen.getByTestId("wavlake-track");
+    expect(track).toHaveTextContent("Born To Die Young");
+    expect(track).toHaveTextContent("Joe Martin");
+    expect(screen.getByTestId("track-play")).toHaveAttribute("aria-label", "Play");
+    expect(screen.queryByTestId("news-headline")).toBeNull();
+    expect(screen.queryByTestId("news-thumb")).toBeNull();
+    // The words that were not the song stay.
+    expect(screen.getByTestId(`serp-row-${boost.id}`)).toHaveTextContent(/Boost more music/);
+  });
+
   it("renders a news-shaped note as a news card with a clickable headline", () => {
     render(<SerpRow event={note(NEWS)} author={author} score={0.7} query="liverpool" />);
 

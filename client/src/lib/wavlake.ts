@@ -15,13 +15,27 @@ export interface WavlakeTrack {
   duration?: number; // seconds
 }
 
-/** Extract a Wavlake track id from a URL (wavlake.com/track/<uuid>), else undefined. */
+const UUID_TAIL = /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/i;
+
+/**
+ * Extract a Wavlake track id from a URL, else undefined: wavlake.com/track/<uuid>,
+ * or a StableKraft album link — stablekraft.app is a storefront on Wavlake's
+ * catalogue (probed 2026-09-05: its artwork is on Wavlake's CDN and the UUID
+ * ending its `track` parameter answers at catalog.wavlake.com), so its songs
+ * play here the way Wavlake's do.
+ */
 export function wavlakeTrackId(url: string): string | undefined {
   try {
     const u = new URL(url);
-    if (!/(^|\.)wavlake\.com$/i.test(u.hostname)) return undefined;
-    const m = u.pathname.match(/\/track\/([0-9a-f-]{8,})/i);
-    return m?.[1];
+    if (/(^|\.)wavlake\.com$/i.test(u.hostname)) {
+      const m = u.pathname.match(/\/track\/([0-9a-f-]{8,})/i);
+      return m?.[1];
+    }
+    if (/(^|\.)stablekraft\.app$/i.test(u.hostname)) {
+      const track = u.searchParams.get("track") ?? "";
+      return track.match(UUID_TAIL)?.[1]?.toLowerCase();
+    }
+    return undefined;
   } catch {
     return undefined;
   }
