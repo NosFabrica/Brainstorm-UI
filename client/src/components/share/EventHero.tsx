@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { nip19 } from "nostr-tools";
-import { Calendar, CalendarPlus, MapPin, ExternalLink, PlayCircle } from "lucide-react";
+import { Calendar, CalendarPlus, MapPin, ExternalLink, PlayCircle, ChevronDown } from "lucide-react";
 import { parseCalendarEvent, formatEventDate, formatEventTime, isUpcoming, relativeEventTime } from "@/lib/calendarEvent";
 import { RsvpButton } from "@/components/share/RsvpButton";
 import { NotesInline } from "@/components/share/NotesInline";
@@ -13,7 +13,8 @@ import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { fetchProfileMap } from "@/services/nostr";
 import { fetchEventRsvps, type EventRsvps } from "@/services/search";
-import { buildIcs, downloadIcs, icsFileName } from "@/lib/ics";
+import { buildIcs, downloadIcs, icsFileName, type IcsInput } from "@/lib/ics";
+import { CALENDAR_LABEL, detectCalendarPlatform, googleCalendarUrl, outlookCalendarUrl, preferredCalendar } from "@/lib/calendarLinks";
 import { eventPath } from "@/lib/shareId";
 import eventDefault from "@/assets/event-default.webp";
 import type { MinimalEvent } from "@/lib/noteRefs";
@@ -83,10 +84,20 @@ export function EventHero({ event }: { event: MinimalEvent }) {
     const end = !e.isDateOnly && e.endSec > e.startSec ? ` – ${formatEventTime(e.endSec, false)}` : "";
     return `${start}${end}`;
   }, [e.startSec, e.endSec, e.isDateOnly]);
-  const addToCalendar = () => {
-    const url = typeof window !== "undefined" ? `${window.location.origin}${eventPath(event)}` : undefined;
-    downloadIcs(icsFileName(e.title), buildIcs({ uid: `${address}@brainstorm`, title: e.title, startSec: e.startSec, endSec: e.endSec, isDateOnly: e.isDateOnly, location: e.location, description: e.summary, url }));
-  };
+  const icsInput = useMemo(
+    () => ({
+      uid: `${address}@brainstorm`,
+      title: e.title,
+      startSec: e.startSec,
+      endSec: e.endSec,
+      isDateOnly: e.isDateOnly,
+      location: e.location,
+      description: e.summary,
+      url: typeof window !== "undefined" ? `${window.location.origin}${eventPath(event)}` : undefined,
+    }),
+    [address, e.title, e.startSec, e.endSec, e.isDateOnly, e.location, e.summary, event],
+  );
+  const addToCalendar = () => downloadIcs(icsFileName(e.title), buildIcs(icsInput));
 
   return (
     <div data-testid="event-hero">
@@ -173,16 +184,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
               a calendar file. Past: the recording when there is one. */}
           <div className="mt-4 flex flex-wrap items-center gap-2" data-testid="event-hero-actions">
             {upcoming && e.startSec > 0 && <RsvpButton event={event} size="md" />}
-            {upcoming && e.startSec > 0 && (
-              <button
-                type="button"
-                onClick={addToCalendar}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3.5 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-brand-accent/40 transition-colors"
-                data-testid="event-hero-ics"
-              >
-                <CalendarPlus className="h-4 w-4" /> Add to calendar
-              </button>
-            )}
+            {upcoming && e.startSec > 0 && <AddToCalendar input={icsInput} onIcs={addToCalendar} />}
             {!upcoming && e.recordingUrl && (
               <a
                 href={e.recordingUrl}
@@ -216,6 +218,74 @@ export function EventHero({ event }: { event: MinimalEvent }) {
               <LinkPreviewCard url={firstLink} />
             </div>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * "Add to calendar" the way the device wants it. One tap does the likely
+ * thing — Apple Calendar on an iPhone or Mac (the .ics opens straight in it),
+ * Google Calendar on Android, Outlook on Windows — and a caret offers all
+ * four to anyone who uses something else. The team asked to work with what
+ * the device prefers rather than force one system; no browser reveals the
+ * calendar app, but the operating system is the next best thing.
+ */
+function AddToCalendar({ input, onIcs }: { input: IcsInput; onIcs: () => void }) {
+  const [open, setOpen] = useState(false);
+  const preferred = useMemo(() => preferredCalendar(detectCalendarPlatform()), []);
+  const google = googleCalendarUrl(input);
+  const outlook = outlookCalendarUrl(input);
+  const btn = "inline-flex items-center gap-1.5 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3.5 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:border-brand-accent/40 transition-colors";
+  const primaryLabel = `Add to ${CALENDAR_LABEL[preferred]}`;
+  const item = "flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-sm text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800";
+  return (
+    <div className="relative inline-flex" data-testid="event-hero-add-to-calendar">
+      {preferred === "apple" ? (
+        <button type="button" onClick={onIcs} className={`${btn} rounded-l-xl`} data-testid="event-hero-calendar">
+          <CalendarPlus className="h-4 w-4" /> {primaryLabel}
+        </button>
+      ) : (
+        <a
+          href={preferred === "google" ? google : outlook}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={`${btn} rounded-l-xl no-underline`}
+          data-testid="event-hero-calendar"
+        >
+          <CalendarPlus className="h-4 w-4" /> {primaryLabel}
+        </a>
+      )}
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Other calendars"
+        className={`${btn} -ml-px rounded-r-xl px-2`}
+        data-testid="event-hero-calendar-more"
+      >
+        <ChevronDown className="h-4 w-4" />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          className="absolute left-0 top-full z-20 mt-1 w-56 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-1 shadow-lg"
+          data-testid="event-hero-calendar-menu"
+        >
+          <button type="button" role="menuitem" className={item} onClick={() => { setOpen(false); onIcs(); }} data-testid="event-hero-cal-apple">
+            Apple Calendar
+          </button>
+          <a role="menuitem" href={google} target="_blank" rel="noopener noreferrer" className={`${item} no-underline`} onClick={() => setOpen(false)} data-testid="event-hero-cal-google">
+            Google Calendar
+          </a>
+          <a role="menuitem" href={outlook} target="_blank" rel="noopener noreferrer" className={`${item} no-underline`} onClick={() => setOpen(false)} data-testid="event-hero-cal-outlook">
+            Outlook
+          </a>
+          <button type="button" role="menuitem" className={item} onClick={() => { setOpen(false); onIcs(); }} data-testid="event-hero-cal-ics">
+            Download .ics file
+          </button>
         </div>
       )}
     </div>

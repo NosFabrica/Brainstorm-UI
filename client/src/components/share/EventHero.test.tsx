@@ -6,7 +6,7 @@
  * under a long description; links in the description are real links with
  * favicons; the first link earns a metadata card when the proxy knows it.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
@@ -112,12 +112,70 @@ describe("EventHero", () => {
       expect(guests).toHaveTextContent("3 going");
       expect(guests.querySelectorAll('[data-testid^="event-hero-guest-"]')).toHaveLength(3);
       expect(rsvpsMock).toHaveBeenCalledWith([addr]);
-      fireEvent.click(screen.getByTestId("event-hero-ics"));
+      // The file lives behind the caret for everyone, whatever the device leads with.
+      fireEvent.click(screen.getByTestId("event-hero-calendar-more"));
+      fireEvent.click(screen.getByTestId("event-hero-cal-ics"));
       expect(createObjectURL).toHaveBeenCalled();
       expect(clicks[0]).toMatch(/\.ics$/);
       expect(clicks[0]).toMatch(/v4v/i);
     } finally {
       HTMLAnchorElement.prototype.click = origClick;
     }
+  });
+});
+
+// Benjamin, for the team: "add to calendar" should work with what the device
+// prefers rather than force one system. No browser reveals the calendar app,
+// but the operating system is a strong proxy — so one tap does the likely
+// thing, and a caret offers Apple, Google, Outlook and the file to everyone.
+describe("EventHero — Add to calendar follows the device", () => {
+  const timed = () => ({ ...v4v, tags: [...v4v.tags, ["end", String(NOW + 10 * 86_400 + 2 * 3600)], ["location", "600 Brazos St, Austin, TX"]] });
+  const ua = (value: string) => Object.defineProperty(window.navigator, "userAgent", { value, configurable: true });
+  const uaBefore = window.navigator.userAgent;
+  afterEach(() => { ua(uaBefore); vi.restoreAllMocks(); });
+
+  it("on an iPhone the button hands the event to Apple Calendar as a file", async () => {
+    ua("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605 Safari/604");
+    const clicks: string[] = [];
+    const orig = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function () { clicks.push(this.getAttribute("download") ?? ""); };
+    Object.assign(URL, { createObjectURL: vi.fn(() => "blob:ics"), revokeObjectURL: vi.fn() });
+    try {
+      render(<EventHero event={timed()} />);
+      await screen.findByTestId("event-hero-host");
+      const primary = screen.getByTestId("event-hero-calendar");
+      expect(primary).toHaveTextContent("Add to Apple Calendar");
+      fireEvent.click(primary);
+      expect(clicks[0]).toMatch(/\.ics$/);
+    } finally {
+      HTMLAnchorElement.prototype.click = orig;
+    }
+  });
+
+  it("on Android the button is a Google Calendar link; on Windows, Outlook; the caret lists all four", async () => {
+    ua("Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/120 Mobile Safari/537.36");
+    const { unmount } = render(<EventHero event={timed()} />);
+    await screen.findByTestId("event-hero-host");
+    const google = screen.getByTestId("event-hero-calendar");
+    expect(google).toHaveTextContent("Add to Google Calendar");
+    expect(google.getAttribute("href")).toContain("calendar.google.com");
+    // The fixture's own place rides along.
+    expect(new URL(google.getAttribute("href")!).searchParams.get("location")).toMatch(/Fork & Coin/);
+    expect(new URL(google.getAttribute("href")!).searchParams.get("dates")).toMatch(/^\d{8}T\d{6}Z\/\d{8}T\d{6}Z$/);
+    expect(google.getAttribute("target")).toBe("_blank");
+    fireEvent.click(screen.getByTestId("event-hero-calendar-more"));
+    const menu = screen.getByTestId("event-hero-calendar-menu");
+    expect(within(menu).getByTestId("event-hero-cal-apple")).toHaveTextContent("Apple Calendar");
+    expect(within(menu).getByTestId("event-hero-cal-google").getAttribute("href")).toContain("calendar.google.com");
+    expect(within(menu).getByTestId("event-hero-cal-outlook").getAttribute("href")).toContain("outlook.live.com");
+    expect(within(menu).getByTestId("event-hero-cal-ics")).toHaveTextContent(/\.ics/);
+    unmount();
+
+    ua("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120");
+    render(<EventHero event={timed()} />);
+    await screen.findByTestId("event-hero-host");
+    const outlook = screen.getByTestId("event-hero-calendar");
+    expect(outlook).toHaveTextContent("Add to Outlook");
+    expect(outlook.getAttribute("href")).toContain("outlook.live.com");
   });
 });
