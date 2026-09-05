@@ -885,9 +885,10 @@ describe("SearchResults", () => {
     }
   });
 
-  it("a repo announcement shows its issue and patch counts", async () => {
+  it("a repo announcement shows its issue and patch counts, who contributed, and when it was last touched", async () => {
     setUrlTab("repos");
-    repoCountsMock.mockResolvedValue({ issues: 12, patches: 3 });
+    const now = Math.floor(Date.now() / 1000);
+    repoCountsMock.mockResolvedValue({ issues: 12, patches: 3, contributors: ["1".repeat(64), "2".repeat(64), "3".repeat(64), "4".repeat(64)], lastAt: now - 3 * 3600 });
     render(<SearchResults query="relay" pov="nosfabrica" />);
     const repo = ev("rc1", 30617, "f".repeat(64), "", [["d", "ngit"], ["name", "ngit"]]);
     emit({ hits: [{ event: repo, author: author(repo.pubkey, "dan"), rank: null }], eose: true, timeMs: 200 });
@@ -895,6 +896,12 @@ describe("SearchResults", () => {
     expect(repoCountsMock).toHaveBeenCalledWith("30617:" + "f".repeat(64) + ":ngit");
     expect(await within(card).findByText(/12 issues/)).toBeInTheDocument();
     expect(within(card).getByText(/3 patches/)).toBeInTheDocument();
+    // Who stands behind it: a count and up to three ringed faces.
+    const who = within(card).getByTestId("repo-contributors-rc1");
+    expect(who).toHaveTextContent("4 contributors");
+    expect(who.querySelectorAll('[data-testid^="repo-contributor-face-"]')).toHaveLength(3);
+    // And whether it is alive.
+    expect(within(card).getByTestId("repo-active-rc1")).toHaveTextContent(/active 3h ago/);
   });
 
   it("labels patches and issues and shows the repo they belong to", async () => {

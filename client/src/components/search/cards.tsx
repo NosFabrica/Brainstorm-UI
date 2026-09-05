@@ -23,6 +23,7 @@ import { eventStore } from "@/lib/eventStore";
 import { fetchProfileMap } from "@/services/nostr";
 import { brandForHost } from "@/lib/brands";
 import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitItemLabel, gitLabelsOf, type GitState } from "@/lib/gitStatus";
+import { ago } from "@/lib/ago";
 import { fetchRepoCounts, zapStoreUrl } from "@/services/search";
 import { eventPath } from "@/lib/shareId";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
@@ -501,6 +502,8 @@ export function repoDestination(event: NostrEvent): { url: string; host: string;
   }
 }
 
+type MemberProfile = { name?: string; display_name?: string; picture?: string };
+
 export function RepoCard({
   event,
   author,
@@ -535,17 +538,35 @@ export function RepoCard({
   // The "is anyone working on this?" signal — issue/patch counts for the repo
   // (announcements only; a lone patch/issue has none of its own).
   const d = tagVal(event, "d");
-  const [counts, setCounts] = useState<{ issues: number; patches: number }>({ issues: 0, patches: 0 });
+  const [counts, setCounts] = useState<{ issues: number; patches: number; contributors: string[]; lastAt: number | null }>({ issues: 0, patches: 0, contributors: [], lastAt: null });
   useEffect(() => {
     if (!isRepo || !d) return;
     let alive = true;
     void fetchRepoCounts(`30617:${event.pubkey}:${d}`).then((c) => {
-      if (alive) setCounts(c);
+      if (alive) setCounts({ issues: c.issues, patches: c.patches, contributors: c.contributors ?? [], lastAt: c.lastAt ?? null });
     });
     return () => {
       alive = false;
     };
   }, [isRepo, d, event.pubkey]);
+  // Who stands behind it: up to three contributors, ringed by trust, and
+  // their names when a profile is at hand.
+  const faces = counts.contributors.slice(0, 3);
+  const faceScoreOf = useAuthorScores(faces);
+  const faceRing = useTierRing();
+  const [faceProfiles, setFaceProfiles] = useState<Map<string, MemberProfile>>(new Map());
+  useEffect(() => {
+    if (faces.length === 0) return;
+    let alive = true;
+    void fetchProfileMap(faces).then((res) => {
+      if (!alive || res.size === 0) return;
+      setFaceProfiles(new Map([...res].map(([pk, c]) => [pk, c as MemberProfile])));
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [faces.join(",")]);
   return (
     // Identity flush left, the code glyph balancing the top-right corner —
     // the App/List/Repo-page anatomy, now on the card too.
@@ -610,6 +631,36 @@ export function RepoCard({
               )}
               {counts.patches > 0 && (
                 <Chip size="sm" tone="info">{counts.patches} {counts.patches === 1 ? "patch" : "patches"}</Chip>
+              )}
+            </div>
+          )}
+          {isRepo && (counts.contributors.length > 0 || counts.lastAt) && (
+            <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500 dark:text-slate-400">
+              {counts.contributors.length > 0 && (
+                <span className="inline-flex items-center gap-1.5" data-testid={`repo-contributors-${event.id}`}>
+                  <span className="flex -space-x-1.5">
+                    {faces.map((pk) => {
+                      const profile = faceProfiles.get(pk);
+                      return (
+                        <Avatar
+                          key={pk}
+                          title={profile?.display_name || profile?.name || undefined}
+                          className={`h-5 w-5 border border-white dark:border-slate-900 ${faceRing(faceScoreOf(pk) ?? null, false, "sm", true) ?? ""}`}
+                          data-testid={`repo-contributor-face-${pk}`}
+                        >
+                          {profile?.picture ? <AvatarImage src={profile.picture} alt="" className="object-cover" /> : null}
+                          <AvatarFallback className="overflow-hidden">
+                            <DefaultAvatarImg />
+                          </AvatarFallback>
+                        </Avatar>
+                      );
+                    })}
+                  </span>
+                  {counts.contributors.length} {counts.contributors.length === 1 ? "contributor" : "contributors"}
+                </span>
+              )}
+              {counts.lastAt && (
+                <span data-testid={`repo-active-${event.id}`}>active {ago(counts.lastAt)}</span>
               )}
             </div>
           )}
@@ -733,7 +784,6 @@ export function EventCard({ event, author, score }: { event: NostrEvent; author:
   );
 }
 
-type MemberProfile = { name?: string; display_name?: string; picture?: string };
 
 export function ListCard({ event, author, score }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
   const title = tagVal(event, "title") ?? tagVal(event, "name") ?? tagVal(event, "d") ?? "Untitled list";

@@ -821,14 +821,26 @@ export function fetchRepoActivity(address: string, timeoutMs = 5000): Promise<No
  * These are TOTALS referencing the repo, not open-vs-closed: distinguishing
  * open from resolved needs NIP-34 status events, which COUNT can't filter on.
  */
-export function fetchRepoCounts(
-  address: string,
-  timeoutMs = 5000,
-): Promise<{ issues: number; patches: number }> {
+export interface RepoCounts {
+  issues: number;
+  patches: number;
+  /** Distinct authors of the repo's patches and pull requests, newest first. */
+  contributors: string[];
+  /** When anything — issue, patch, pull request — last touched the repo. */
+  lastAt: number | null;
+}
+
+/**
+ * The "is anyone working on this?" signals for a repo card: how many issues
+ * and patches (NIP-45 COUNTs, keyed by the repo address), who has sent
+ * patches or pull requests, and when anything last happened — the last two
+ * read off one small recent page of the repo's items.
+ */
+export function fetchRepoCounts(address: string, timeoutMs = 5000): Promise<RepoCounts> {
   return new Promise((resolve) => {
     const relay = searchRelay();
-    if (!relay) return resolve({ issues: 0, patches: 0 });
-    const result = { issues: 0, patches: 0 };
+    const result: RepoCounts = { issues: 0, patches: 0, contributors: [], lastAt: null };
+    if (!relay) return resolve(result);
     const subs: { unsubscribe: () => void }[] = [];
     let done = 0;
     let settled = false;
@@ -840,7 +852,7 @@ export function fetchRepoCounts(
       resolve(result);
     };
     const one = () => {
-      if (++done >= 2) finish();
+      if (++done >= 3) finish();
     };
     const count = (kind: number, key: "issues" | "patches") => {
       subs.push(
@@ -861,6 +873,23 @@ export function fetchRepoCounts(
     const timer = setTimeout(finish, timeoutMs);
     count(1621, "issues");
     count(1617, "patches");
+    const seen = new Set<string>();
+    subs.push(
+      relay
+        .req({ kinds: [1617, 1618, 1621], "#a": [address], search: "include:spam", limit: 24 })
+        .subscribe((msg: { type: string; event?: NostrEvent }) => {
+          if (msg.type === "EVENT" && msg.event) {
+            const ev = msg.event;
+            if (ev.created_at > (result.lastAt ?? 0)) result.lastAt = ev.created_at;
+            if ((ev.kind === 1617 || ev.kind === 1618) && !seen.has(ev.pubkey)) {
+              seen.add(ev.pubkey);
+              result.contributors.push(ev.pubkey);
+            }
+          } else if (msg.type === "EOSE" || msg.type === "CLOSED") {
+            one();
+          }
+        }),
+    );
   });
 }
 

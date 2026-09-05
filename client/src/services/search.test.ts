@@ -422,13 +422,30 @@ describe("fetchRepoCounts", () => {
   // NIP-45 COUNT for the repo's issues (1621) and patches (1617), keyed by the
   // repo address. A count is a number off the wire, not a page of events — the
   // right tool for the "is this repo alive?" card signal.
-  it("counts issues and patches for the address, through the lens", async () => {
+  it("counts issues and patches for the address, through the lens — and reads who contributed and when it was last touched", async () => {
     const addr = "30617:" + "b".repeat(64) + ":ngit";
     countMock.mockImplementation((filter: { kinds: number[] }) =>
       of({ count: filter.kinds[0] === 1621 ? 3 : 1 }),
     );
-    const res = await fetchRepoCounts(addr);
-    expect(res).toEqual({ issues: 3, patches: 1 });
+    const { subject } = controllable();
+    const item = (id: string, kind: number, pk: string, at: number): NostrEvent =>
+      ({ id: id.padEnd(64, "0"), kind, pubkey: pk, tags: [["a", addr]], content: "", created_at: at, sig: "s" }) as NostrEvent;
+    const pending = fetchRepoCounts(addr);
+    await tick();
+    const page = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(page.kinds).toEqual([1617, 1618, 1621]);
+    expect(page["#a"]).toEqual([addr]);
+    expect(page.search).toBe("include:spam");
+    subject.next(frame(item("p1", 1617, "1".repeat(64), 500)));
+    subject.next(frame(item("p2", 1618, "2".repeat(64), 700)));
+    subject.next(frame(item("p3", 1617, "1".repeat(64), 300))); // the same contributor again
+    subject.next(frame(item("i1", 1621, "3".repeat(64), 900))); // an issue: activity, not a contribution
+    subject.next(EOSE);
+    const res = await pending;
+    expect(res.issues).toBe(3);
+    expect(res.patches).toBe(1);
+    expect(res.contributors).toEqual(["1".repeat(64), "2".repeat(64)]);
+    expect(res.lastAt).toBe(900);
     const filters = countMock.mock.calls.map((c) => c[0] as Record<string, unknown>);
     expect(filters.every((f) => (f["#a"] as string[])[0] === addr && f.search === "include:spam")).toBe(true);
     expect(filters.map((f) => (f.kinds as number[])[0]).sort()).toEqual([1617, 1621]);
