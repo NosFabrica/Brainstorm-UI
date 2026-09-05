@@ -1122,6 +1122,34 @@ describe("SearchResults", () => {
     expect(video.getAttribute("preload")).toBe("metadata");
   });
 
+  it("in browse, the trust and follower sorts are unavailable — a link carrying one falls back to newest, and the panel says why", async () => {
+    window.history.replaceState({}, "", "/?t=notes&f=sort%3Arank");
+    render(<SearchResults query="sort:rank" pov="nosfabrica" onQueryRewrite={vi.fn()} />);
+    await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(0));
+    const [q] = mainStreamCalls().at(-1)!;
+    expect(String(q)).toMatch(/sort:recent/);
+    expect(String(q)).not.toMatch(/sort:rank/);
+    fireEvent.click(screen.getByTestId("search-filters-toggle"));
+    const sort = screen.getByTestId("filter-sort") as HTMLSelectElement;
+    expect(sort).toHaveValue("recent");
+    const option = (v: string) => [...sort.querySelectorAll("option")].find((o) => o.value === v)!;
+    expect(option("rank").disabled).toBe(true);
+    expect(option("followers").disabled).toBe(true);
+    expect(option("recent").disabled).toBe(false);
+    expect(screen.getByTestId("filter-sort-hint")).toHaveTextContent(/need a search term/i);
+  });
+
+  it("with words, every sort is offered and honoured", async () => {
+    render(<SearchResults query="bitcoin sort:rank" pov="nosfabrica" onQueryRewrite={vi.fn()} />);
+    await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(0));
+    expect(String(mainStreamCalls().at(-1)![0])).toMatch(/sort:rank/);
+    fireEvent.click(screen.getByTestId("search-filters-toggle"));
+    const sort = screen.getByTestId("filter-sort") as HTMLSelectElement;
+    expect(sort).toHaveValue("rank");
+    expect([...sort.querySelectorAll("option")].every((o) => !o.disabled)).toBe(true);
+    expect(screen.queryByTestId("filter-sort-hint")).toBeNull();
+  });
+
   it("Filters offers a visitor one line to sign in for their own perspective; a member sees none", () => {
     render(<SearchResults query="bitcoin" pov="nosfabrica" onQueryRewrite={vi.fn()} />);
     fireEvent.click(screen.getByTestId("search-filters-toggle"));

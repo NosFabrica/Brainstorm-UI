@@ -136,3 +136,18 @@ fountain.fm answers the browser with `access-control-allow-origin: *`, and its
 pages carry artwork, show, title, description and the mp3 itself in Open Graph.
 `lib/fountain.ts` reads the page once and the card plays in place. Kept here so
 nobody re-asks for a proxy Fountain does not need.
+
+## 12. A wordless browse cannot be sorted by rank or followers (2026-09-05)
+
+Probed with one connection per request: `sort:recent observer:<house>` over
+notes answers in ~400 ms; `sort:rank observer:<house>` and
+`sort:followers observer:<house>` with no words never answer (no EOSE in 15 s,
+no CLOSED). With words ("bitcoin sort:rank") the same sorts answer fine. Two
+asks: (a) either answer a wordless rank/follower sort or CLOSE it with a
+reason, and (b) the relay appears to serve one connection's subscriptions in
+order — while the hung request sat open, every later REQ on that socket got
+nothing. Clients multiplex on one socket, so a single unanswerable request
+stalls the whole page. Until then the UI never sends those sorts for a
+browse: the Filters panel greys them with "needs a search term", and a
+shared link carrying one falls back to newest first.
+

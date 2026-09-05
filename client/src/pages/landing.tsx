@@ -153,8 +153,9 @@ export default function Landing() {
       const params = new URLSearchParams(window.location.search);
       const q = params.get("q")?.trim();
       if (q) return `${q} ${params.get("f") ?? ""}`.trim();
-      // ?t= without ?q= is a deep link into browsing that vertical.
-      return params.get("t") ? "" : null;
+      // ?t= without ?q= is a deep link into browsing that vertical — with
+      // whatever filters the link carries: in browse the filters ARE the query.
+      return params.get("t") ? (params.get("f") ?? "").trim() : null;
     } catch { return null; }
   });
   const hasSearched = submitted !== null;
@@ -484,7 +485,8 @@ export default function Landing() {
   // keeps browsing that tab; nothing at all returns to the pristine home.
   const resetResults = useCallback(() => {
     searchAbortRef.current++;
-    setSubmitted(new URLSearchParams(window.location.search).get("t") ? "" : null);
+    const params = new URLSearchParams(window.location.search);
+    setSubmitted(params.get("t") ? (params.get("f") ?? "").trim() : null);
     setIsSearching(false);
   }, []);
 
@@ -613,6 +615,8 @@ export default function Landing() {
       setQuery(q);
       setFilters(f);
       didInitFromUrlRef.current = true;
+      // Back/forward: the URL is the truth for the filters too.
+      setFilters(f);
       if (q.trim()) handleSearch(q, f, "pop");
       else resetResults();
     };
@@ -689,8 +693,8 @@ export default function Landing() {
       url.searchParams.set("t", tabKey);
       window.history.pushState({}, "", url.pathname + url.search);
     } catch {}
-    setSubmitted("");
-  }, [cancelSuggest]);
+    setSubmitted(filters.trim());
+  }, [cancelSuggest, filters]);
 
   // The suggestions dropdown is open whenever we have something to show.
   // We lift the search box toward the top when it opens (or once a search is
@@ -1327,7 +1331,22 @@ export default function Landing() {
               const { text, tokens } = splitFilters(next);
               setFilters(tokens);
               if (text !== query.trim()) setQuery(text);
-              void handleSearch(text, tokens);
+              if (text) {
+                void handleSearch(text, tokens);
+                return;
+              }
+              // Browse — a tab, no words. Google's tools work for everyone,
+              // signed in or not, and live in the URL: the filters are the
+              // whole query here, so re-run the browse with them and carry
+              // them in `f` for Back, reload and sharing.
+              try {
+                const url = new URL(window.location.href);
+                if (tokens) url.searchParams.set("f", tokens);
+                else url.searchParams.delete("f");
+                window.history.pushState({}, "", url.pathname + url.search);
+                trackHistoryEntry();
+              } catch {}
+              setSubmitted(tokens);
             }}
           />
         )}

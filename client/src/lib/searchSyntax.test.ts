@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { nip19 } from "nostr-tools";
-import { activeFilterCount, applyFilters, datePreset, liftQuery, personAssist, readFilters, sinceForPreset, splitFilters } from "./searchSyntax";
+import { activeFilterCount, applyFilters, datePreset, liftQuery, personAssist, readFilters, sinceForPreset, splitFilters, browseSafeQuery } from "./searchSyntax";
 
 // Probed 2026-09-03: the relay ignores filter:rank and knows no hops. The
 // controls that need those are done on the CLIENT, but still speak grammar —
@@ -189,5 +189,23 @@ describe("readFilters", () => {
       includeSpam: false,
       rankAs: null,
     });
+  });
+});
+
+describe("browseSafeQuery", () => {
+  // Probed 2026-09-05: the relay never answers a wordless browse sorted by
+  // rank or followers, and a hung request stalls every other request on the
+  // same connection. Browse falls back to newest; words keep their sort.
+  it("a wordless browse cannot be rank- or follower-sorted — it falls back to newest first", () => {
+    expect(readFilters(browseSafeQuery("sort:rank")).sort).toBe("recent");
+    const kept = readFilters(browseSafeQuery("sort:followers trust:verified"));
+    expect(kept.sort).toBe("recent");
+    expect(kept.verifiedOnly).toBe(true);
+    expect(browseSafeQuery("sort:recent")).toBe("sort:recent");
+    expect(browseSafeQuery("")).toBe("");
+  });
+  it("a query with words keeps whatever sort it asked for", () => {
+    expect(browseSafeQuery("bitcoin sort:rank")).toBe("bitcoin sort:rank");
+    expect(browseSafeQuery("bitcoin sort:followers")).toBe("bitcoin sort:followers");
   });
 });

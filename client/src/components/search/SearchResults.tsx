@@ -10,7 +10,7 @@ import { Link, useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
 import { ChevronDown, Radar, SlidersHorizontal } from "lucide-react";
-import { activeFilterCount, applyFilters, datePreset, readFilters, sinceForPreset, type DatePreset, type SearchFilterPatch } from "@/lib/searchSyntax";
+import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, readFilters, sinceForPreset, splitFilters, type DatePreset, type SearchFilterPatch } from "@/lib/searchSyntax";
 import { clientFilterHits } from "@/lib/clientFilters";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
 import { useWheelScrollX } from "@/hooks/useWheelScrollX";
@@ -267,7 +267,10 @@ function FiltersPanel({
   userPubkey?: string;
   onQueryRewrite: (next: string) => void;
 }) {
-  const state = readFilters(query);
+  // What the relay will actually run: a wordless browse cannot be rank- or
+  // follower-sorted, so the panel shows the fallback and greys those two.
+  const browsing = !splitFilters(query).text;
+  const state = readFilters(browsing ? browseSafeQuery(query) : query);
   const preset = datePreset(state);
   // "Custom range" stays open once chosen, even before a day is picked.
   const [customDates, setCustomDates] = useState(preset === "custom");
@@ -324,9 +327,16 @@ function FiltersPanel({
           data-testid="filter-sort"
         >
           {SORT_OPTIONS.map((o) => (
-            <option key={o.value} value={o.value}>{o.label}</option>
+            <option key={o.value} value={o.value} disabled={browsing && BROWSE_UNAVAILABLE_SORTS.has(o.value)}>
+              {o.label}
+            </option>
           ))}
         </select>
+        {browsing && (
+          <span className="text-[10px] font-normal text-slate-400 dark:text-slate-500" data-testid="filter-sort-hint">
+            Trust and follower sorts need a search term
+          </span>
+        )}
       </label>
       <label className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
         Time
@@ -559,10 +569,14 @@ export function SearchResults({
   const composed = tab === "everything" && !userSorted;
   // Content tabs land on what's fresh by default; People keeps trust rank,
   // and a typed sort: is always honored verbatim.
+  // A browse (no words) asking for a sort the relay cannot run over the whole
+  // index falls back to newest — the relay never answers it, and a hung
+  // request stalls everything else on the connection (RELAY-ASKS #12).
+  const safeQuery = browseSafeQuery(query);
   const effectiveQuery =
     !userSorted && tab !== "everything" && tab !== "people"
-      ? `${query} sort:recent`.trim()
-      : query;
+      ? `${safeQuery} sort:recent`.trim()
+      : safeQuery;
 
   useEffect(() => {
     if (composed) {
@@ -621,7 +635,7 @@ export function SearchResults({
   // The filters the relay can't do, done here (probed: filter:rank ignored,
   // no hops): Verified only via those scores, reach via the viewer's graph.
   const reach = useNetworkReach(userPubkey);
-  const clientState = readFilters(query);
+  const clientState = readFilters(safeQuery);
   // The box no longer shows filter tokens — the Filters button says how many are on.
   const activeFilters = activeFilterCount(clientState);
   const hits = useMemo(

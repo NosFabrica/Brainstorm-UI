@@ -264,3 +264,21 @@ export function readFilters(query: string): SearchFilterState {
     rankAs: observerTok ? observerTok.slice(9) : null,
   };
 }
+
+/** Sorts the relay cannot run over a wordless browse — it never answers, and a
+ *  hung request stalls every other request on the same connection (probed
+ *  2026-09-05). Offered again the moment there are words. */
+export const BROWSE_UNAVAILABLE_SORTS: ReadonlySet<string> = new Set(["rank", "followers"]);
+
+/**
+ * The query the relay can actually answer. A browse (no words) asking for a
+ * rank or follower sort falls back to newest first; anything with words is
+ * left exactly as asked.
+ */
+export function browseSafeQuery(query: string): string {
+  const { text } = splitFilters(query);
+  if (text) return query;
+  const state = readFilters(query);
+  if (state.sort && BROWSE_UNAVAILABLE_SORTS.has(state.sort)) return applyFilters(query, { sort: "recent" });
+  return query;
+}
