@@ -34,7 +34,7 @@ function profileFromStore(pubkey: string): MentionProfile | null {
   }
 }
 
-export function MentionChip({ uri }: { uri: string }) {
+export function MentionChip({ uri, plain = false }: { uri: string; /** The name alone, no link or picture — for text that is itself a link (a headline). */ plain?: boolean }) {
   const pubkey = mentionPubkey(uri);
   const [profile, setProfile] = useState<MentionProfile | null>(() =>
     pubkey ? profileFromStore(pubkey) : null,
@@ -53,6 +53,7 @@ export function MentionChip({ uri }: { uri: string }) {
   if (!pubkey) return <span>{uri}</span>;
   const npub = nip19.npubEncode(pubkey);
   const name = profile?.display_name || profile?.name || `${npub.slice(0, 10)}…`;
+  if (plain) return <span data-testid="mention-name">@{name}</span>;
   return (
     <span onClick={(e) => e.stopPropagation()}>
       <Link

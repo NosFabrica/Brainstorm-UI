@@ -74,6 +74,23 @@ export function kindTypeLabel(kind: number): string {
 
 
 
+/**
+ * A headline is words: a mentioned person by name (no second anchor inside
+ * the story's link), and no addresses — the picture is the thumbnail, the
+ * story is the link. Benjamin, over "GTAing with nostr:npub1de6l09… is Live!
+ * https://i.nostr.build/….png": never the raw id form.
+ */
+function Headline({ text, query }: { text: string; query: string }) {
+  const parts = text.split(TOKEN_SPLIT_RE).filter((p) => !/^https?:\/\//i.test(p));
+  return (
+    <>
+      {parts.map((part, i) =>
+        /^nostr:/i.test(part) ? <MentionChip key={i} uri={part} plain /> : <Marked key={i} text={part.replace(/\s{2,}/g, " ")} query={query} />,
+      )}
+    </>
+  );
+}
+
 /** Bold the query terms in a run of plain text. */
 function Marked({ text, query }: { text: string; query: string }) {
   return (
@@ -313,7 +330,7 @@ export function SerpRow({
             className="mt-1 block text-[15px] font-semibold leading-snug text-slate-900 dark:text-slate-100 hover:text-brand-primary hover:underline transition-colors break-words line-clamp-2"
             data-testid="news-headline"
           >
-            <Marked text={news.headline} query={query} />
+            <Headline text={news.headline} query={query} />
           </a>
           {news.description && (
             <div className="mt-1 [&>p]:text-slate-600 dark:[&>p]:text-slate-300">

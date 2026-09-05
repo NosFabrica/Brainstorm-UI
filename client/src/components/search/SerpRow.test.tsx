@@ -189,6 +189,25 @@ describe("SerpRow", () => {
     expect(screen.getByTestId("serp-type")).toHaveTextContent("Note");
   });
 
+  // Benjamin, over Shosho's "GTAing with nostr:npub1de6l09… is Live!
+  // https://i.nostr.build/….png": the person and the event should show
+  // professionally, never as a raw id. The headline names the person and
+  // drops the picture's address — the picture is already the thumbnail.
+  it("a news headline names a mentioned person and drops raw URLs", () => {
+    const carol = "c".repeat(64);
+    knownProfiles.set(carol, { id: "f".repeat(64), kind: 0, pubkey: carol, tags: [], content: JSON.stringify({ name: "TheGrinder" }), created_at: 1, sig: "s" } as NostrEvent);
+    const npub = nip19.npubEncode(carol);
+    const shosho = note(`GTAing 🔞 with nostr:${npub} is Live! https://i.nostr.build/Vb6byoSaEEJbqqbs.png\nhttps://shosho.live/thegrinder`);
+    render(<SerpRow event={shosho} author={author} score={0.7} query="thegrinder" />);
+    const headline = screen.getByTestId("news-headline");
+    expect(headline).toHaveTextContent("GTAing 🔞 with @TheGrinder is Live!");
+    expect(headline).not.toHaveTextContent(/nostr:|npub1|i\.nostr\.build/);
+    expect(headline.getAttribute("href")).toBe("https://shosho.live/thegrinder");
+    // One link, the story's: the name inside a headline is text, not a second anchor.
+    expect(headline.querySelector("a")).toBeNull();
+    expect((screen.getByTestId("news-thumb") as HTMLImageElement).src).toContain("i.nostr.build");
+  });
+
   it("labels a news-shaped note as News", () => {
     render(<SerpRow event={note(NEWS)} author={author} score={0.7} query="liverpool" />);
     expect(screen.getByTestId("serp-type")).toHaveTextContent("News");
