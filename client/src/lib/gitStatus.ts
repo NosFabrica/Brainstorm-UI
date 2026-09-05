@@ -43,3 +43,8 @@ export function gitRepoNameOf(event: { tags: string[][] }): string | null {
   const d = a?.split(":")[2];
   return d || null;
 }
+
+/** An issue's or patch's labels — its `t` tags, lower-cased, de-duplicated. */
+export function gitLabelsOf(event: { tags: string[][] }): string[] {
+  return [...new Set(event.tags.filter((t) => t[0] === "t" && t[1]?.trim()).map((t) => t[1].trim().toLowerCase()))];
+}

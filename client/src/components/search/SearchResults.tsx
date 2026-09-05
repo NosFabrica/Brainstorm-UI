@@ -37,7 +37,7 @@ import {
 } from "@/services/search";
 
 import { fetchGitStatuses } from "@/services/search";
-import { GIT_STATE_LABEL, gitStateOf, type GitState } from "@/lib/gitStatus";
+import { GIT_STATE_LABEL, gitLabelsOf, gitStateOf, type GitState } from "@/lib/gitStatus";
 import { AppCard, EventCard, LiveCard, ListCard, MediaCard, RepoCard, platformWords, TrackCard, WavlakeSongCard, mediaUrlOf, ListingCard } from "@/components/search/cards";
 import { EVENT_WHEN_LABELS, eventWhenCounts, filterEventsByWhen, type EventWhen } from "@/lib/eventFilters";
 import { parseTrack } from "@/lib/trackEvent";
@@ -697,6 +697,17 @@ export function SearchResults({
   }, [gitIdsKey]);
   const stateOf = (e: NostrEvent): GitState | null =>
     e.kind === 1621 || e.kind === 1617 ? gitStateOf(gitStatuses.get(e.id)?.kind, e.kind) : null;
+  const [repoLabel, setRepoLabel] = useState<string | null>(null);
+  // The labels maintainers actually used on these results, most common first.
+  const repoLabelFacets = useMemo(() => {
+    if (tab !== "repos") return [] as [string, number][];
+    const counts = new Map<string, number>();
+    for (const h of hits) {
+      if (h.event.kind !== 1621 && h.event.kind !== 1617) continue;
+      for (const l of gitLabelsOf(h.event)) counts.set(l, (counts.get(l) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, 8);
+  }, [hits, tab]);
   const repoStateFacets = useMemo(() => {
     if (tab !== "repos") return [] as [GitState, number][];
     const counts = new Map<GitState, number>();
@@ -777,6 +788,9 @@ export function SearchResults({
       // A state names issues and patches; repo announcements have none.
       shown = shown.filter((h) => stateOf(h.event) === repoState);
     }
+    if (tab === "repos" && repoLabel) {
+      shown = shown.filter((h) => gitLabelsOf(h.event).includes(repoLabel));
+    }
     if (tab === "media") {
       // Kind 1063 is generic file metadata — Zap Store APKs and other blobs
       // ride it. The Media tab means media: a 1063 stays only when its
@@ -808,7 +822,7 @@ export function SearchResults({
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hits, tab, appPlatform, appCategory, appLicense, shopCategory, repoState, gitStatuses, appCategoryTags, clustered, expandedClusters, effectiveWhen]);
+  }, [hits, tab, appPlatform, appCategory, appLicense, shopCategory, repoState, repoLabel, gitStatuses, appCategoryTags, clustered, expandedClusters, effectiveWhen]);
 
   // On the Music tab the results are the playlist: a track that ends hands
   // off to the next one shown, the way a queue does.
@@ -974,7 +988,7 @@ export function SearchResults({
               )}
             </div>
           )}
-          {tab === "repos" && repoStateFacets.length > 0 && (
+          {tab === "repos" && (repoStateFacets.length > 0 || repoLabelFacets.length > 0) && (
             <FacetRow className="mb-2" testId="repo-state-facets">
               <button
                 type="button"
@@ -993,6 +1007,20 @@ export function SearchResults({
                   data-testid={`repo-state-${st}`}
                 >
                   {GIT_STATE_LABEL[st]} {count}
+                </button>
+              ))}
+              {repoStateFacets.length > 0 && repoLabelFacets.length > 0 && (
+                <span className="mx-0.5 h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
+              )}
+              {repoLabelFacets.map(([label, count]) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => setRepoLabel(repoLabel === label ? null : label)}
+                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoLabel === label ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"}`}
+                  data-testid={`repo-label-${label}`}
+                >
+                  {label} {count}
                 </button>
               ))}
             </FacetRow>

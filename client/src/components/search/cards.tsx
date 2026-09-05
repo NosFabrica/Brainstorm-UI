@@ -22,7 +22,7 @@ import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { eventStore } from "@/lib/eventStore";
 import { fetchProfileMap } from "@/services/nostr";
 import { brandForHost } from "@/lib/brands";
-import { GIT_STATE_LABEL, GIT_STATE_TONE, type GitState } from "@/lib/gitStatus";
+import { GIT_STATE_LABEL, GIT_STATE_TONE, gitLabelsOf, type GitState } from "@/lib/gitStatus";
 import { fetchRepoCounts, zapStoreUrl } from "@/services/search";
 import { eventPath } from "@/lib/shareId";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
@@ -512,6 +512,8 @@ export function RepoCard({ event, author, score, state }: { event: NostrEvent; a
   const name = tagVal(event, "name") ?? tagVal(event, "subject") ?? tagVal(event, "d") ?? "Untitled";
   const description = tagVal(event, "description") ?? (isRepo ? "" : event.content.slice(0, 200));
   const repoRef = !isRepo ? tagVal(event, "a")?.split(":")[2] : undefined;
+  // How the maintainer triaged it — up to three labels; the strip has the rest.
+  const labels = isRepo ? [] : gitLabelsOf(event);
   const dest = repoDestination(event);
   // The "is anyone working on this?" signal — issue/patch counts for the repo
   // (announcements only; a lone patch/issue has none of its own).
@@ -554,6 +556,13 @@ export function RepoCard({ event, author, score, state }: { event: NostrEvent; a
           </div>
           {repoRef && (
             <p className="mt-0.5 truncate text-[11px] text-slate-400 dark:text-slate-500">↳ in {repoRef}</p>
+          )}
+          {labels.length > 0 && (
+            <div className="mt-1 flex flex-wrap items-center gap-1" data-testid={`git-labels-${event.id}`}>
+              {labels.slice(0, 3).map((l) => (
+                <Chip key={l} size="sm" tone="slate">{l}</Chip>
+              ))}
+            </div>
           )}
           {description && (
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 break-words line-clamp-2">{description}</p>

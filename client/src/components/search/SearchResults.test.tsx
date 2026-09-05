@@ -789,6 +789,29 @@ describe("SearchResults", () => {
     expect(screen.getByTestId("repo-card-r1")).toBeInTheDocument();
   });
 
+  it("issues wear their labels, and the strip narrows by label after state", async () => {
+    setUrlTab("repos");
+    const bug = ev("i1", 1621, "1".repeat(64), "crashes on start", [["a", "30617:" + "9".repeat(64) + ":armada"], ["subject", "crashes on start"], ["t", "bug"], ["t", "android"]]);
+    const wish = ev("i2", 1621, "2".repeat(64), "dark mode please", [["a", "30617:" + "9".repeat(64) + ":armada"], ["subject", "dark mode please"], ["t", "enhancement"]]);
+    const plain = ev("i3", 1621, "3".repeat(64), "question", [["a", "30617:" + "9".repeat(64) + ":armada"], ["subject", "question"]]);
+    render(<SearchResults query="armada" pov="nosfabrica" />);
+    emit({ hits: [bug, wish, plain].map((e) => ({ event: e, author: author(e.pubkey, "dev"), rank: null })), eose: true, timeMs: 200 });
+
+    const card = await screen.findByTestId("repo-card-i1");
+    const labels = within(card).getByTestId("git-labels-i1");
+    expect(labels).toHaveTextContent("bug");
+    expect(labels).toHaveTextContent("android");
+    expect(within(screen.getByTestId("repo-card-i3")).queryByTestId("git-labels-i3")).toBeNull();
+
+    const strip = screen.getByTestId("repo-state-facets");
+    expect(within(strip).getByTestId("repo-label-bug")).toHaveTextContent("bug 1");
+    expect(within(strip).getByTestId("repo-label-enhancement")).toHaveTextContent("enhancement 1");
+    fireEvent.click(within(strip).getByTestId("repo-label-enhancement"));
+    expect(screen.getByTestId("repo-card-i2")).toBeInTheDocument();
+    expect(screen.queryByTestId("repo-card-i1")).toBeNull();
+    expect(screen.queryByTestId("repo-card-i3")).toBeNull();
+  });
+
   it("a repo announcement shows its issue and patch counts", async () => {
     setUrlTab("repos");
     repoCountsMock.mockResolvedValue({ issues: 12, patches: 3 });
