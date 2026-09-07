@@ -4301,13 +4301,9 @@ export default function AdminPage() {
           {activeTab === "billing" && (
             <div className="grid grid-cols-1 gap-6" data-testid="panel-billing">
               <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-billing-subscribers">
-                <div className="px-5 py-4 border-b border-brand-accent/10">
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Billing</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Who's subscribed via Flash, and which signups aren't attached to an account</p>
-                </div>
-                <div className="px-5 py-4">
-                  <AdminBillingCards active={activeTab === "billing"} />
-                </div>
+                {/* The header is the roster's own — count, page, source and the
+                    controls — the User Database's anatomy. */}
+                <AdminBillingCards active={activeTab === "billing"} />
               </div>
               <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-billing-plans">
                 <div className="px-5 py-4 border-b border-brand-accent/10">

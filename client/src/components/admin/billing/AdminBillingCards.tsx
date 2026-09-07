@@ -61,6 +61,7 @@ import { tone, type Tone } from "@/lib/tones";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 import { DIVERGENCE_META, orderedSections, subscriptionIdsByEventId, type DivergenceMeta, type DivergenceTier, type OrderedSection, groupSignups, splitExhausted, type SignupHandle } from "./divergenceSections";
 import { StatTile } from "@/components/ui/stat-tile";
+import { ScrollableTable } from "@/components/admin/ScrollableTable";
 import { failureLabel } from "./billingEventCopy";
 
 import type { CreateAdminBillingPlanBody, SchedulingItem, UnmappedPlanRow, UpdateAdminBillingPlanBody } from "@/services/api";
@@ -143,8 +144,11 @@ function shortNpub(pubkey: string): { short: string; full: string } {
   }
 }
 
-const th = "px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400";
-const td = "px-3 py-2.5 text-sm text-slate-700 dark:text-slate-200";
+// The User Database's grid, so the two admin rosters read as one system:
+// shaded header row, column rules, hairline rows.
+const th = "px-2 py-2.5 align-middle whitespace-nowrap text-left border-r border-slate-200 dark:border-slate-800 text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400";
+const thLast = "px-2 py-2.5 align-middle whitespace-nowrap text-center text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400";
+const td = "px-2 py-2.5 text-sm text-slate-700 dark:text-slate-200 border-r border-slate-100 dark:border-slate-800/60";
 
 type ProfileBits = { name?: string; picture?: string };
 
@@ -162,7 +166,7 @@ function BillingSortHeader({ label, sortKey, sort, onSort }: {
   return (
     <button
       type="button"
-      className="flex items-center gap-1 uppercase tracking-wide font-semibold hover:text-slate-800 dark:hover:text-slate-200 transition-colors whitespace-nowrap"
+      className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider hover:text-slate-800 dark:hover:text-slate-200 transition-colors whitespace-nowrap"
       onClick={() => onSort(sortKey)}
       data-testid={`sort-billing-${sortKey}`}
     >
@@ -411,7 +415,7 @@ function SubscriberRow({
   // payments→scheduler connection this tab exists to make visible.
   const scheduling = s.granted_scheduling_name ?? s.scheduling_name ?? "—";
   return (
-    <tr className="border-b border-brand-accent/5" data-testid={`billing-sub-${s.pubkey.slice(0, 8)}`}>
+    <tr className="border-b border-slate-200 dark:border-slate-800 hover:bg-slate-50/60 dark:hover:bg-slate-900/60 transition-colors" data-testid={`billing-sub-${s.pubkey.slice(0, 8)}`}>
       <td className={td} title={profile?.name ? `${profile.name} — ${who.full}` : who.full}>
         <span className="flex items-center gap-2 min-w-0">
           <Avatar className="h-6 w-6 shrink-0">
@@ -918,33 +922,25 @@ export function AdminBillingCards({ active }: { active: boolean }) {
     );
 
   return (
-    <div className="space-y-6">
-      {/* The tab's numbers in one line above its lists — counts, not the
-          subject, so they take a row and not a band. Faults is the way down to the report. */}
-      <div className="flex flex-wrap items-center gap-2" data-testid="billing-stats">
-        <StatTile compact value={stats.active} label="Active" tone="success" data-testid="billing-stat-active" />
-        <StatTile compact value={stats.past_due} label="Past due" tone={stats.past_due > 0 ? "warning" : "neutral"} data-testid="billing-stat-past_due" />
-        <StatTile compact value={stats.pending} label="Pending" tone="neutral" data-testid="billing-stat-pending" />
-        <StatTile compact value={stats.ending} label="Ending soon" tone="neutral" data-testid="billing-stat-ending" />
-        <StatTile
-          compact
-          value={stats.faults}
-          label="Faults"
-          tone={stats.faults > 0 ? "warning" : "success"}
-          role="button"
-          tabIndex={0}
-          onClick={() => document.querySelector('[data-testid="card-billing-divergence"]')?.scrollIntoView({ behavior: "smooth", block: "start" })}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") document.querySelector('[data-testid="card-billing-divergence"]')?.scrollIntoView({ behavior: "smooth", block: "start" });
-          }}
-          className="cursor-pointer hover:border-brand-accent/40 transition-colors"
-          data-testid="billing-stat-faults"
-        />
-      </div>
-      {/* Subscriber roster — attributed by construction (pubkey-keyed). */}
-      <div>
+    <div>
+      {/* The User Database's header, so the two rosters read as one system:
+          the name, then count · page · source, with the search and filters
+          beside them. */}
+      <div className="px-3 sm:px-5 py-4 border-b border-brand-accent/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" data-testid="billing-roster-header">
+        <div>
+          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Billing</h3>
+          <div className="flex flex-wrap items-center gap-3 mt-1">
+            <span className="text-xs text-slate-500 dark:text-slate-400">
+              {(filtering ? filtered.length : total).toLocaleString()} {(filtering ? filtered.length : total) === 1 ? "subscriber" : "subscribers"}{filtering ? " (filtered)" : ""}
+            </span>
+            <span className="text-[10px] text-slate-400 dark:text-slate-500">|</span>
+            <span className="text-[10px] text-slate-400 dark:text-slate-500">Page {page} of {pages}</span>
+            <span className="text-[10px] text-slate-400 dark:text-slate-500">|</span>
+            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">Source: /admin/billing/subscriptions</span>
+          </div>
+        </div>
         {items.length > 0 && (
-          <div className="mb-3 flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <div className="relative w-full sm:w-56">
               <input
                 type="text"
@@ -994,6 +990,32 @@ export function AdminBillingCards({ active }: { active: boolean }) {
             )}
           </div>
         )}
+      </div>
+    <div className="px-3 sm:px-5 py-4 space-y-6">
+      {/* The tab's numbers in one line above its lists — counts, not the
+          subject, so they take a row and not a band. Faults is the way down to the report. */}
+      <div className="flex flex-wrap items-center gap-2" data-testid="billing-stats">
+        <StatTile compact value={stats.active} label="Active" tone="success" data-testid="billing-stat-active" />
+        <StatTile compact value={stats.past_due} label="Past due" tone={stats.past_due > 0 ? "warning" : "neutral"} data-testid="billing-stat-past_due" />
+        <StatTile compact value={stats.pending} label="Pending" tone="neutral" data-testid="billing-stat-pending" />
+        <StatTile compact value={stats.ending} label="Ending soon" tone="neutral" data-testid="billing-stat-ending" />
+        <StatTile
+          compact
+          value={stats.faults}
+          label="Faults"
+          tone={stats.faults > 0 ? "warning" : "success"}
+          role="button"
+          tabIndex={0}
+          onClick={() => document.querySelector('[data-testid="card-billing-divergence"]')?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") document.querySelector('[data-testid="card-billing-divergence"]')?.scrollIntoView({ behavior: "smooth", block: "start" });
+          }}
+          className="cursor-pointer hover:border-brand-accent/40 transition-colors"
+          data-testid="billing-stat-faults"
+        />
+      </div>
+      {/* Subscriber roster — attributed by construction (pubkey-keyed). */}
+      <div>
         {items.length === 0 ? (
           <p className="py-4 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-subscribers-empty">
             No subscribers yet.
@@ -1003,10 +1025,11 @@ export function AdminBillingCards({ active }: { active: boolean }) {
             No subscribers match your filters.
           </p>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[640px]" data-testid="table-billing-subscribers">
+          <div>
+            <ScrollableTable>
+            <table className="w-full text-left min-w-[760px] border-collapse border border-slate-200 dark:border-slate-800" data-testid="table-billing-subscribers">
               <thead>
-                <tr className="border-b border-brand-accent/10">
+                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">
                   <th className={th}><BillingSortHeader label="Subscriber" sortKey="subscriber" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}><BillingSortHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}><BillingSortHeader label="Scheduling" sortKey="scheduling" sort={sort} onSort={toggleSort} /></th>
@@ -1014,7 +1037,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
                   <th className={th}><BillingSortHeader label="Period" sortKey="period" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}><BillingSortHeader label="Next bill" sortKey="nextbill" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}><BillingSortHeader label="Last synced" sortKey="synced" sort={sort} onSort={toggleSort} /></th>
-                  <th className={th}></th>
+                  <th className={thLast}>Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1044,6 +1067,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
                 ))}
               </tbody>
             </table>
+            </ScrollableTable>
             {pages > 1 && (
               <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500 dark:text-slate-400" data-testid="billing-pager">
                 <button
@@ -1297,6 +1321,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
     </div>
   );
 }

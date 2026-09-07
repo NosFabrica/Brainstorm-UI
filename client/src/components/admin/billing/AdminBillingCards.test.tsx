@@ -788,6 +788,33 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     expect(screen.queryByTestId("billing-exhausted-action-dismiss")).toBeNull();
   });
 
+  // Benjamin: "make the billing tab more like the Users tab — don't overkill
+  // it." The roster wears the User Database's anatomy: a header with the count,
+  // the page and the source beside the search and filters, over a bordered
+  // grid with a shaded header row and column rules.
+  it("reads like the user database: count, page and source in the header beside the controls, over a bordered grid", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 2,
+      pages: 1,
+      items: [
+        { pubkey: PUBKEY, flash_status: "active", scheduling_source: "billing", billing_blocked: false },
+        { pubkey: "2".repeat(64), flash_status: "past_due", scheduling_source: "admin", billing_blocked: false },
+      ],
+    });
+    renderCards();
+    const header = await screen.findByTestId("billing-roster-header");
+    expect(header).toHaveTextContent("2 subscribers");
+    expect(header).toHaveTextContent("Page 1 of 1");
+    expect(header).toHaveTextContent("Source: /admin/billing/subscriptions");
+    expect(within(header).getByTestId("input-billing-search")).toBeInTheDocument();
+    expect(within(header).getByTestId("select-billing-status")).toBeInTheDocument();
+    const table = screen.getByTestId("table-billing-subscribers");
+    expect(table.className).toMatch(/border-collapse/);
+    const firstTh = table.querterySelector ? null : table.querySelector("thead th");
+    expect(firstTh?.className).toMatch(/border-r/);
+    expect(table.querySelector("thead tr")?.className).toMatch(/bg-slate-50/);
+  });
+
   // Numbers first: how many are paying, how many are in trouble, how many
   // are on their way out, and how many faults wait below — all from what the
   // tab already fetched. The Faults tile is the way down to the report.
