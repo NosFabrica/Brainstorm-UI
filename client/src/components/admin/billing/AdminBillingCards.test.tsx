@@ -550,6 +550,15 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     expect(stale.textContent).toContain("Past due");
     const failing = screen.getByTestId(`billing-failing-${PUBKEY.slice(0, 8)}`);
     expect(failing.textContent).toContain("401 invalid api key");
+    // On a phone (below sm) the message takes a line of its own under the
+    // person and Resync stays on the first line — at 390px it used to wrap
+    // one word, then one letter, per line beside the button.
+    const failingMeta = within(failing).getByTestId(`billing-failing-meta-${PUBKEY.slice(0, 8)}`);
+    expect(failingMeta).toHaveClass("basis-full");
+    expect(failingMeta).toHaveClass("sm:basis-auto");
+    expect(within(failing).getByRole("button", { name: /resync/i })).toHaveClass("order-2");
+    const staleMeta = within(stale).getByTestId(`billing-stale-meta-${PUBKEY.slice(0, 8)}`);
+    expect(staleMeta).toHaveClass("basis-full");
     expect(screen.getByTestId(`billing-divergence-resync-failing_syncs-${PUBKEY.slice(0, 8)}`)).toBeInTheDocument();
   });
 
@@ -885,6 +894,22 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     const link = within(retired).getByTestId(`billing-retired-flash-${"2".repeat(8)}`);
     expect(link.textContent?.trim()).toBe("Flash");
     expect(link.className).not.toMatch(/border/);
+  });
+
+  // On a phone the grid scrolls sideways; its date cells must not wrap, or
+  // every row grows to twice its desktop height before the table widens.
+  it("the roster's date cells keep to one line so the grid widens instead of the rows", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [{ pubkey: PUBKEY, flash_status: "active", scheduling_source: "billing", billing_blocked: false, current_period_start: "2026-09-07T00:00:00Z", current_period_end: "2026-09-08T00:00:00Z", next_billing_date: "2026-09-08T00:00:00Z", last_synced_at: "2026-09-07T00:00:00Z" }],
+    });
+    renderCards();
+    const pk8 = PUBKEY.slice(0, 8);
+    await screen.findByTestId(`billing-period-${pk8}`);
+    for (const cell of ["period", "nextbill", "synced"]) {
+      expect(screen.getByTestId(`billing-${cell}-${pk8}`)).toHaveClass("whitespace-nowrap");
+    }
   });
 
   // Numbers first: how many are paying, how many are in trouble, how many

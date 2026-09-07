@@ -61,14 +61,14 @@ export function PersonCell({ pubkey, profile }: { pubkey: string; profile?: Prof
   );
 }
 
-export function ResyncButton({ kind, pubkey, busy, onResync }: { kind: string; pubkey: string; busy: boolean; onResync: (pubkey: string) => void }) {
+export function ResyncButton({ kind, pubkey, busy, onResync, className = "" }: { kind: string; pubkey: string; busy: boolean; onResync: (pubkey: string) => void; className?: string }) {
   return (
     <button
       type="button"
       disabled={busy}
       onClick={() => onResync(pubkey)}
       title="Re-read this subscriber from Flash now and reapply what it grants"
-      className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-brand-accent/40 hover:text-brand-deep disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-white"
+      className={`inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-brand-accent/40 hover:text-brand-deep disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-white ${className}`}
       data-testid={`billing-divergence-resync-${kind}-${pubkey.slice(0, 8)}`}
     >
       {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} Resync
@@ -115,13 +115,16 @@ export function PolicyMismatchRowView({
 export function StaleSyncRowView({ row, profile, busy, onResync }: { row: StaleSyncRow; profile?: ProfileBits; busy: boolean; onResync: (pubkey: string) => void }) {
   const pk8 = row.pubkey?.slice(0, 8) ?? "";
   return (
+    // Three parts: the person, the facts, Resync. On a desk they share one
+    // line; on a phone Resync stays beside the person and the facts take a
+    // full line beneath, inset to the name.
     <li className={rowClass} data-testid={`billing-stale-${pk8}`}>
-      <PersonCell pubkey={row.pubkey ?? ""} profile={profile} />
-      <span className={`flex items-center gap-2 ${meta}`}>
+      <span className="order-1 min-w-0"><PersonCell pubkey={row.pubkey ?? ""} profile={profile} /></span>
+      <span className={`order-3 flex basis-full flex-wrap items-center gap-2 pl-[34px] sm:order-2 sm:basis-auto sm:flex-1 sm:pl-0 ${meta}`} data-testid={`billing-stale-meta-${pk8}`}>
         {row.flash_status && <Chip tone={statusTone(row.flash_status)} size="sm">{statusLabel(row.flash_status)}</Chip>}
         <span>Last read {row.last_synced_at ? formatBillingDate(row.last_synced_at) : "never"}</span>
       </span>
-      {row.pubkey && <ResyncButton kind="stale_syncs" pubkey={row.pubkey} busy={busy} onResync={onResync} />}
+      {row.pubkey && <ResyncButton kind="stale_syncs" pubkey={row.pubkey} busy={busy} onResync={onResync} className="order-2 sm:order-3" />}
     </li>
   );
 }
@@ -129,13 +132,15 @@ export function StaleSyncRowView({ row, profile, busy, onResync }: { row: StaleS
 export function FailingSyncRowView({ row, profile, busy, onResync }: { row: FailingSyncRow; profile?: ProfileBits; busy: boolean; onResync: (pubkey: string) => void }) {
   const pk8 = row.pubkey?.slice(0, 8) ?? "";
   return (
+    // Same three parts as a stale row: at 390px the message used to wrap one
+    // word, then one letter, per line in the sliver left beside Resync.
     <li className={rowClass} data-testid={`billing-failing-${pk8}`}>
-      <PersonCell pubkey={row.pubkey ?? ""} profile={profile} />
-      <span className={`min-w-0 flex-1 ${meta}`}>
+      <span className="order-1 min-w-0"><PersonCell pubkey={row.pubkey ?? ""} profile={profile} /></span>
+      <span className={`order-3 min-w-0 basis-full pl-[34px] sm:order-2 sm:basis-auto sm:flex-1 sm:pl-0 ${meta}`} data-testid={`billing-failing-meta-${pk8}`}>
         <span className="text-[12px] text-red-600 dark:text-red-400 break-words" title={row.last_sync_error ?? undefined}>{failureLabel(row.last_sync_error) ?? "read failed"}</span>
         {row.last_synced_at && <span className="ml-2 text-slate-400 dark:text-slate-500">last good read {formatBillingDate(row.last_synced_at)}</span>}
       </span>
-      {row.pubkey && <ResyncButton kind="failing_syncs" pubkey={row.pubkey} busy={busy} onResync={onResync} />}
+      {row.pubkey && <ResyncButton kind="failing_syncs" pubkey={row.pubkey} busy={busy} onResync={onResync} className="order-2 sm:order-3" />}
     </li>
   );
 }

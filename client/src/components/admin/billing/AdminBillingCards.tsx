@@ -465,7 +465,9 @@ function SubscriberRow({
       </td>
       <td className={td}>{scheduling}</td>
       <td className={td} data-testid={`billing-source-${s.pubkey.slice(0, 8)}`}>{sourceLabel(s.scheduling_source)}</td>
-      <td className={`${td} tabular-nums`} data-testid={`billing-period-${s.pubkey.slice(0, 8)}`}>
+      {/* Dates keep to one line: on a phone the grid widens and scrolls rather
+          than every row growing to twice its height. */}
+      <td className={`${td} tabular-nums whitespace-nowrap`} data-testid={`billing-period-${s.pubkey.slice(0, 8)}`}>
         {/* The paid period as a span; the end alone read as a deadline. */}
         {s.current_period_start ? (
           <span>
@@ -487,10 +489,10 @@ function SubscriberRow({
       </td>
       {/* What answers "when is this person charged again" — a renewal that is
           due looks nothing like one that has silently stopped. */}
-      <td className={`${td} tabular-nums`} data-testid={`billing-nextbill-${s.pubkey.slice(0, 8)}`}>
+      <td className={`${td} tabular-nums whitespace-nowrap`} data-testid={`billing-nextbill-${s.pubkey.slice(0, 8)}`}>
         {s.next_billing_date ? formatBillingDate(s.next_billing_date) : <span className="text-slate-400 dark:text-slate-500">—</span>}
       </td>
-      <td className={`${td} tabular-nums`}>
+      <td className={`${td} tabular-nums whitespace-nowrap`} data-testid={`billing-synced-${s.pubkey.slice(0, 8)}`}>
         <span className="inline-flex items-center gap-1.5">
           {formatBillingDate(s.last_synced_at)}
           {s.last_sync_error && (
