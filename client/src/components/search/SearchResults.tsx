@@ -319,10 +319,16 @@ function FiltersPanel({
     }`;
   const field =
     "h-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-accent/30";
+  // Every field is a caption over a control of ONE height and ONE width rule:
+  // half a phone row each (two up), a fixed column on desktop. Nothing under
+  // a control — a hint inside one column used to push its neighbour down.
+  const column =
+    "flex min-w-0 flex-1 basis-[8.5rem] flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400 sm:flex-none sm:basis-auto";
+  const control = `${field} w-full sm:w-44`;
 
   return (
     <div
-      className="mb-3 flex flex-wrap items-end gap-x-4 gap-y-2.5 rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 p-3"
+      className="mb-3 flex flex-wrap items-start gap-x-4 gap-y-2.5 rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 p-3"
       data-testid="search-filters-panel"
     >
       {!userPubkey && (
@@ -333,10 +339,10 @@ function FiltersPanel({
           </Link>
         </p>
       )}
-      <label className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+      <label className={column}>
         Sort
         <select
-          className={field}
+          className={control}
           value={state.sort ?? ""}
           onChange={(e) => write({ sort: e.target.value || null })}
           data-testid="filter-sort"
@@ -347,16 +353,11 @@ function FiltersPanel({
             </option>
           ))}
         </select>
-        {browsing && (
-          <span className="text-[10px] font-normal text-slate-400 dark:text-slate-500" data-testid="filter-sort-hint">
-            Trust and follower sorts need a search term
-          </span>
-        )}
       </label>
-      <label className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+      <label className={column}>
         Time
         <select
-          className={field}
+          className={control}
           value={showDates ? "custom" : preset}
           onChange={(e) => {
             const next = e.target.value as DatePreset;
@@ -376,27 +377,32 @@ function FiltersPanel({
       </label>
       {showDates && (
         <>
-          <label className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+          <label className={column}>
             From day
             <input
               type="date"
-              className={field}
+              className={control}
               value={state.since ?? ""}
               onChange={(e) => write({ since: e.target.value || null })}
               data-testid="filter-since"
             />
           </label>
-          <label className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+          <label className={column}>
             To day
             <input
               type="date"
-              className={field}
+              className={control}
               value={state.until ?? ""}
               onChange={(e) => write({ until: e.target.value || null })}
               data-testid="filter-until"
             />
           </label>
         </>
+      )}
+      {browsing && (
+        <p className="basis-full -mt-1 text-[10px] text-slate-400 dark:text-slate-500" data-testid="filter-sort-hint">
+          Trust and follower sorts need a search term
+        </p>
       )}
       {/* Sort and date are the two anyone uses; the rest waits behind one
           word (the team: less busy), and comes forward by itself when one of
@@ -456,7 +462,7 @@ function FiltersPanel({
         />
         Include unranked accounts
       </label>
-      <div className="relative flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+      <div className="relative flex min-w-0 flex-1 basis-full flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400 sm:flex-none sm:basis-auto">
         See results through someone else's eyes
         {state.rankAs ? (
           (() => {
@@ -488,7 +494,7 @@ function FiltersPanel({
             <input
               type="text"
               placeholder="Type a name…"
-              className={`${field} w-48`}
+              className={`${field} w-full sm:w-48`}
               value={rankAsDraft}
               onChange={(e) => setRankAsDraft(e.target.value)}
               data-testid="filter-rank-as"

@@ -1994,6 +1994,20 @@ describe("SearchResults", () => {
     expect(screen.getByTestId("filter-sort-hint")).toHaveTextContent(/need a search term/i);
   });
 
+  it("the browse hint is a footnote under the row, not a tenant of the Sort column — Sort and Time stand at one height", () => {
+    window.history.replaceState({}, "", "/?t=notes");
+    render(<SearchResults query="" pov="nosfabrica" onQueryRewrite={vi.fn()} />);
+    fireEvent.click(screen.getByTestId("search-filters-toggle"));
+    const sort = screen.getByTestId("filter-sort");
+    const time = screen.getByTestId("filter-date");
+    const hint = screen.getByTestId("filter-sort-hint");
+    expect(sort.closest("label")).not.toContainElement(hint);
+    expect(hint.className).toMatch(/basis-full/);
+    // Same field, same height, same width rule — nothing to line up by eye.
+    expect(time.className).toBe(sort.className);
+    expect(sort.closest("label")!.className).toBe(time.closest("label")!.className);
+  });
+
   it("with words, every sort is offered and honoured", async () => {
     render(<SearchResults query="bitcoin sort:rank" pov="nosfabrica" onQueryRewrite={vi.fn()} />);
     await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(0));
