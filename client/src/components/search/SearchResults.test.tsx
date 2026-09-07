@@ -57,11 +57,15 @@ const repoCountsMock = vi.fn<() => Promise<{ issues: number; patches: number }>>
 const profileMapMock = new Map<string, { name?: string; picture?: string }>();
 // The panel's person can have media of their own — notes with files attached.
 const recentByKindsMock = vi.fn<(pubkey: string, kinds: number[], limit: number) => Promise<NostrEvent[]>>(() => Promise.resolve([]));
+// Events the notes on the page quote — a test that wants a quote resolved seeds one.
+const refEventsMock = vi.fn<(ids: string[]) => Promise<NostrEvent[]>>(() => Promise.resolve([]));
 vi.mock("@/services/nostr", () => ({
   // The person panel asks for the person's tracks and streams; nobody here has any.
   fetchRecentByKinds: (pubkey: string, kinds: number[], limit: number) => recentByKindsMock(pubkey, kinds, limit),
   fetchLiveStreams: () => Promise.resolve([]),
   fetchProfileMap: vi.fn(() => Promise.resolve(profileMapMock)),
+  fetchEventsByIds: (ids: string[]) => refEventsMock(ids),
+  fetchAddressableEvents: () => Promise.resolve(new Map()),
 }));
 
 // The relay expresses rank as ORDER only — per-author scores come from the
@@ -2275,5 +2279,45 @@ describe("SearchResults", () => {
     render(<SearchResults query="zzz" pov="nosfabrica" />);
     emit({ hits: [], eose: true, timeMs: 100 });
     expect(await screen.findByTestId("container-no-results")).toBeInTheDocument();
+  });
+});
+
+// The Notes tab showed "@nprofile1q…", "Replying to @someone" and "↳ quoted
+// note" (megistus, 2026-09-07) because search knew only each hit's author.
+// A note names who it mentions, who it answers, and shows what it quotes.
+describe("notes on the search page name who they mention", () => {
+  it("a note's mention, reply target and quote read as people and a card, never raw keys", async () => {
+    setUrlTab("notes");
+    const CAROL = "c".repeat(64);
+    const DAVE = "d".repeat(64);
+    const QUOTER = "b".repeat(64);
+    const QUOTED = "e".repeat(64);
+    profileMapMock.set(CAROL, { name: "carol" });
+    profileMapMock.set(DAVE, { name: "dave" });
+    profileMapMock.set(QUOTER, { name: "quoter" });
+    refEventsMock.mockResolvedValue([{ id: QUOTED, kind: 1, pubkey: QUOTER, content: "the quoted words", tags: [], created_at: 1, sig: "s" } as NostrEvent]);
+    render(<SearchResults query="bitcoin" pov="nosfabrica" />);
+    const note = ev("n1", 1, "a".repeat(64), `Yo quiero nostr:${nip19.nprofileEncode({ pubkey: CAROL })} nostr:${nip19.neventEncode({ id: QUOTED })}`, [
+      ["e", "f".repeat(64), "", "reply"],
+      ["p", DAVE],
+    ]);
+    emit({ hits: [{ event: note, author: author(note.pubkey, "alice"), rank: null }], eose: true, timeMs: 300 });
+    const card = await screen.findByTestId("note-card");
+    await vi.waitFor(() => expect(card).toHaveTextContent("@carol"));
+    expect(card).not.toHaveTextContent("nprofile1");
+    expect(screen.getByTestId("note-reply-context")).toHaveTextContent("dave");
+    const quote = await screen.findByTestId("embedded-note");
+    expect(quote).toHaveTextContent("the quoted words");
+    expect(quote).toHaveTextContent("quoter");
+    expect(card).not.toHaveTextContent("quoted note");
+  });
+
+  it("tells the page which tab is showing, on arrival and on a tab change", () => {
+    setUrlTab("notes");
+    const onTabChange = vi.fn();
+    render(<SearchResults query="bitcoin" pov="nosfabrica" onTabChange={onTabChange} />);
+    expect(onTabChange).toHaveBeenCalledWith("notes");
+    fireEvent.click(screen.getByTestId("search-tab-articles"));
+    expect(onTabChange).toHaveBeenLastCalledWith("articles");
   });
 });

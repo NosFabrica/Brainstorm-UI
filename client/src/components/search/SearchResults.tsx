@@ -24,6 +24,7 @@ import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { eventPath } from "@/lib/shareId";
+import { useNoteRefs } from "@/hooks/useNoteRefs";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import {
@@ -79,9 +80,10 @@ const EVENT_KINDS = new Set(TAB_KINDS.events);
 const MUSIC_KINDS = new Set(TAB_KINDS.music);
 const SHOP_KINDS = new Set(TAB_KINDS.shop);
 const LIST_KINDS = new Set(TAB_KINDS.lists);
-const EMPTY_EVENTS = new Map<string, MinimalEvent>();
 
 /** ShareNoteCard's profile map, built from the hits' hydrated authors. */
+const NO_NOTES: MinimalEvent[] = [];
+
 function profilesOf(hits: SearchHit[]) {
   const map = new Map<string, { name?: string; display_name?: string; picture?: string; nip05?: string }>();
   for (const hit of hits) {
@@ -539,6 +541,7 @@ export function SearchResults({
   onPrefetchEnter,
   onPrefetchLeave,
   onQueryRewrite,
+  onTabChange,
   perspective,
 }: {
   query: string;
@@ -554,9 +557,14 @@ export function SearchResults({
   /** The Filters panel rewrites the query THROUGH the caller so the new
    *  tokens land visibly in the search box and resubmit. */
   onQueryRewrite?: (next: string) => void;
+  /** Which tab is showing — the box words its placeholder by it. */
+  onTabChange?: (tab: SearchTab) => void;
 }) {
   const [, setLocation] = useLocation();
   const [tab, setTab] = useState<SearchTab>(tabFromUrl);
+  useEffect(() => {
+    onTabChange?.(tab);
+  }, [tab, onTabChange]);
   const [snapshot, setSnapshot] = useState<SearchSnapshot | null>(null);
   // Media on Nostr is mostly a NOTE with a file attached (Rabbit Hole Recap:
   // 254 notes, no media-kind events, a video in most of them). The Media tab
@@ -1074,7 +1082,21 @@ export function SearchResults({
   const totalCount = rawHits.length + extraCount;
   const displayedCount = displayHits.length + extraCount;
 
-  const profiles = useMemo(() => profilesOf(hits), [hits]);
+  // Everything the notes refer to — quoted events, mentioned and answered
+  // people — resolved once, store-first, so a note names who it mentions
+  // instead of "@nprofile1q…" (the profile page's recipe, shared).
+  // Asked once the stream has settled, so a snapshot every few hundred
+  // milliseconds does not re-key the fetch; the fetchers are store-first.
+  const noteEvents = useMemo(
+    () => (snapshot?.eose ? hits.filter((h) => NOTE_KINDS.has(h.event.kind)).map((h) => h.event as MinimalEvent) : NO_NOTES),
+    [hits, snapshot?.eose],
+  );
+  const noteRefs = useNoteRefs(noteEvents);
+  const profiles = useMemo(() => {
+    const map = profilesOf(hits);
+    for (const [pk, p] of noteRefs.profiles) if (!map.has(pk)) map.set(pk, p);
+    return map;
+  }, [hits, noteRefs.profiles]);
 
   return (
     <QuietTrustChrome>
@@ -1484,7 +1506,8 @@ export function SearchResults({
                   <ShareNoteCard
                     event={event as MinimalEvent}
                     profiles={profiles}
-                    eventsById={EMPTY_EVENTS}
+                    eventsById={noteRefs.eventsById}
+                    addrByCoord={noteRefs.addrByCoord}
                     href={eventPath(event)}
                     showAuthor
                     authorScore={scoreOf(event.pubkey)}

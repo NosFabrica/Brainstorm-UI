@@ -245,7 +245,7 @@ export function ShareNoteCard({
       )}
 
       <div className={collapsed ? "relative max-h-32 overflow-hidden" : undefined}>
-        <NoteContent content={event.content} compact profiles={profiles} linkCard imageOpensThread={!!href} tags={event.tags} authorName={profiles.get(event.pubkey)?.display_name || profiles.get(event.pubkey)?.name} />
+        <NoteContent content={event.content} compact profiles={profiles} linkCard imageOpensThread={!!href} tags={event.tags} embeddedIds={new Set(quoted.map((q) => q.id))} authorName={profiles.get(event.pubkey)?.display_name || profiles.get(event.pubkey)?.name} />
         {/* X's "Translate post" for notes in another language — on-device, quiet. */}
         {event.content?.trim() && <TranslateLine text={event.content} />}
         {collapsed && (

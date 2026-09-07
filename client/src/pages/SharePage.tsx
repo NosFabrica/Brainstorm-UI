@@ -32,7 +32,7 @@ import { wavlakeSongHref } from "@/lib/upNext";
 import { WavlakeSongCard } from "@/components/search/cards";
 import { useCopied } from "@/hooks/useCopied";
 import { useActiveAccount } from "applesauce-react/hooks";
-import { fetchProfileForShare, fetchRecentByKinds, fetchLiveStreams, fetchEventsByIds, fetchAddressableEvents, fetchProfileMap, fetchExternalIdentities, fetchOutboxRelayList, fetchProfilePrefs, publishProfilePrefs } from "@/services/nostr";
+import { fetchProfileForShare, fetchRecentByKinds, fetchLiveStreams, fetchEventsByIds, fetchProfileMap, fetchExternalIdentities, fetchOutboxRelayList, fetchProfilePrefs, publishProfilePrefs } from "@/services/nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { parseIdentities } from "@/lib/externalIdentity";
 import { ProfileDetails } from "@/components/share/ProfileDetails";
@@ -41,7 +41,8 @@ import { TrustReviews } from "@/components/share/TrustReviews";
 import { PanelIdentityChip } from "@/components/search/EndorsementLine";
 import { usePersonEndorsements } from "@/hooks/usePersonEndorsements";
 import { nip19 } from "nostr-tools";
-import { collectRefs, mentionPubkeysFromContent, type MinimalEvent } from "@/lib/noteRefs";
+import { mentionPubkeysFromContent, type MinimalEvent } from "@/lib/noteRefs";
+import { useNoteRefs } from "@/hooks/useNoteRefs";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
@@ -734,7 +735,12 @@ export default function SharePage() {
   // latest notes, and without it here its @mentions read as "@nprofile1q…"
   // (Joe Martin's pinned music video, 2026-09-05).
   const noteEvents = (notesQuery.data ?? []) as MinimalEvent[];
-  const refs = useMemo(() => collectRefs(featured ? [featured, ...noteEvents] : noteEvents), [featured, noteEvents]);
+  // Everything these notes refer to — quoted events, articles, and a profile
+  // for everyone mentioned, answered or quoted, plus the bio's own mentions —
+  // through the hook the search page shares (one recipe, both pages).
+  const refNotes = useMemo(() => (featured ? [featured, ...noteEvents] : noteEvents), [featured, noteEvents]);
+  const bioMentions = useMemo(() => mentionPubkeysFromContent(profile.about || ""), [profile.about]);
+  const { profiles: noteProfiles, eventsById, addrByCoord } = useNoteRefs(refNotes, { relays: relayHints, extraPubkeys: bioMentions });
 
   /**
    * What the network says these notes are about (ACCEPTANCE Floor A's C2 clause:
@@ -750,62 +756,6 @@ export default function SharePage() {
   );
   const { data: noteTags } = useEventTagsBatch(taggableNoteIds);
 
-  const refEventsQuery = useQuery({
-    queryKey: ["share-ref-events", pubkey, refs.ids],
-    queryFn: () => fetchEventsByIds(refs.ids, Array.from(new Set([...relayHints, ...PROFILE_RELAYS]))),
-    enabled: !!pubkey && refs.ids.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-
-  const eventsById = useMemo(() => {
-    const m = new Map<string, MinimalEvent>();
-    for (const ev of (refEventsQuery.data ?? []) as MinimalEvent[]) m.set(ev.id, ev);
-    return m;
-  }, [refEventsQuery.data]);
-
-  // Addressable refs (NIP-23 articles etc.) referenced inside the notes.
-  const addrEventsQuery = useQuery({
-    queryKey: ["share-addr-events", pubkey, refs.addrs.map((a) => `${a.kind}:${a.pubkey}:${a.identifier}`).join(",")],
-    queryFn: () => fetchAddressableEvents(refs.addrs, Array.from(new Set([...relayHints, ...PROFILE_RELAYS]))),
-    enabled: !!pubkey && refs.addrs.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-
-  const addrByCoord = useMemo(() => {
-    const m = new Map<string, MinimalEvent>();
-    const src = addrEventsQuery.data as Map<string, MinimalEvent> | undefined;
-    if (src) for (const [k, v] of src) m.set(k, v as MinimalEvent);
-    return m;
-  }, [addrEventsQuery.data]);
-
-  // All pubkeys needing profiles = referenced pubkeys + authors of resolved events.
-  const allRefPubkeys = useMemo(() => {
-    const set = new Set<string>(refs.pubkeys);
-    for (const ev of eventsById.values()) {
-      set.add(ev.pubkey);
-      // Resolve @names for anyone tagged inside a quoted/referenced note too.
-      mentionPubkeysFromContent(ev.content).forEach((pk) => set.add(pk));
-    }
-    for (const ev of addrByCoord.values()) set.add(ev.pubkey);
-    // Resolve any real nostr: @mentions embedded in the bio so they render as names.
-    mentionPubkeysFromContent(profile.about || "").forEach((pk) => set.add(pk));
-    return Array.from(set);
-  }, [refs.pubkeys, eventsById, addrByCoord, profile.about]);
-
-  const profilesQuery = useQuery({
-    queryKey: ["share-ref-profiles", pubkey, allRefPubkeys],
-    queryFn: () => fetchProfileMap(allRefPubkeys),
-    enabled: !!pubkey && allRefPubkeys.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-
-  const noteProfiles = useMemo(
-    () => (profilesQuery.data ?? new Map()) as Map<string, { name?: string; display_name?: string; picture?: string; nip05?: string }>,
-    [profilesQuery.data],
-  );
 
   // Roles this person set under the retired "What you do" editor. No longer
   // rendered — offered back to them in the tag picker so the signal isn't just

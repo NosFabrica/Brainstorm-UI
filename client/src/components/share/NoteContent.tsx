@@ -68,10 +68,14 @@ export function NoteContent({
   imageOpensThread = false,
   tags = [],
   authorName,
+  embeddedIds,
 }: {
   content: string;
   compact?: boolean;
   profiles?: Map<string, ProfileLite>;
+  /** Quoted events the card renders in full below — their inline stub would
+   *  say "↳ quoted note" above the quote itself, so it leaves the prose. */
+  embeddedIds?: ReadonlySet<string>;
   /** Render a rich preview card for the primary link below the body. */
   linkCard?: boolean;
   /** In a clickable feed card: render images as cropped thumbnails whose click
@@ -171,7 +175,9 @@ export function NoteContent({
               );
             }
             if (id) {
-              // Links to the on-site event page; also embedded as a card below.
+              // Embedded as a card below? Then the card IS the quote.
+              if (embeddedIds?.has(id)) return null;
+              // Links to the on-site event page.
               return (
                 <button key={i} type="button" onClick={() => navigate(`/e/${token.bech32}`)} className="text-brand-link font-medium hover:underline">
                   ↳ quoted note

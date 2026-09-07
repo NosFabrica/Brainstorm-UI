@@ -9,12 +9,10 @@ import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { searchContentByHashtag, rankHashtagEvents, type SortMode } from "@/lib/contentSearch";
-import { fetchProfileMap } from "@/services/nostr";
 import { getActivePreset, presetDisplayLabel, presetDescription, type TrustPreset } from "@/services/trustThreshold";
 import { eventPath } from "@/lib/shareId";
-import { mentionPubkeysFromContent, type MinimalEvent } from "@/lib/noteRefs";
-
-const EMPTY = new Map<string, MinimalEvent>();
+import type { MinimalEvent } from "@/lib/noteRefs";
+import { useNoteRefs } from "@/hooks/useNoteRefs";
 
 // Tag hygiene for the "related topics" row — mirror the profile "Posts about" rules.
 const VALID_TAG = /^[\p{L}\p{N}][\p{L}\p{N} _-]*$/u;
@@ -148,23 +146,11 @@ export default function HashtagPage() {
     return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([t]) => t);
   }, [events, tag]);
 
-  // Profiles for authors + everyone @-mentioned / p-tagged in the visible feed.
-  const refPubkeys = useMemo(() => {
-    const set = new Set<string>();
-    for (const ev of events) {
-      set.add(ev.pubkey);
-      mentionPubkeysFromContent(ev.content || "").forEach((pk) => set.add(pk));
-      for (const t of ev.tags) if (t[0] === "p" && t[1]) set.add(t[1]);
-    }
-    return [...set];
-  }, [events]);
-  const profilesQuery = useQuery({
-    queryKey: ["hashtag-profiles", refPubkeys.join(",")],
-    queryFn: () => fetchProfileMap(refPubkeys),
-    enabled: refPubkeys.length > 0,
-    staleTime: 5 * 60_000,
-  });
-  const profiles = profilesQuery.data ?? new Map();
+  // Everything the feed's notes refer to — the people mentioned, answered or
+  // quoted, and the quoted notes themselves — through the shared hook; the
+  // authors ride along as extra pubkeys.
+  const authorPubkeys = useMemo(() => [...new Set(events.map((ev) => ev.pubkey))], [events]);
+  const { profiles, eventsById, addrByCoord } = useNoteRefs(events as MinimalEvent[], { extraPubkeys: authorPubkeys });
 
   const loading = contentQuery.isLoading;
   const shareUrl = typeof window !== "undefined" ? `${window.location.origin}/t/${tag}` : "";
@@ -274,7 +260,7 @@ export default function HashtagPage() {
                   <EmbeddedArticleCard key={ev.id} event={ev as MinimalEvent} author={profiles.get(ev.pubkey)} />
                 ) : (
                   <div key={ev.id} className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm">
-                    <ShareNoteCard event={ev as MinimalEvent} profiles={profiles} eventsById={EMPTY} href={eventPath(ev)} showAuthor authorScore={scores.get(ev.pubkey)} />
+                    <ShareNoteCard event={ev as MinimalEvent} profiles={profiles} eventsById={eventsById} addrByCoord={addrByCoord} href={eventPath(ev)} showAuthor authorScore={scores.get(ev.pubkey)} />
                   </div>
                 ),
               )}
