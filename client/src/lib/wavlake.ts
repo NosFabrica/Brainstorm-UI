@@ -332,3 +332,19 @@ export async function fetchWavlakeTrending({ genre, limit = 12 }: { genre?: stri
   const week = await ask(7);
   return week.length >= 6 ? week : ask(30).then((month) => (month.length > week.length ? month : week));
 }
+
+/**
+ * One Audio shelf from two sources — a person's relay tracks first, then
+ * their Wavlake songs — the same song never twice (a relay track that IS a
+ * Wavlake song carries its id in the audio URL, or simply its title), capped.
+ */
+export function mergeArtistAudio<T extends { title: string; audio?: string }>(native: T[], songs: WavlakeSong[], cap: number): { native: T[]; songs: WavlakeSong[] } {
+  const kept = native.slice(0, cap);
+  const titles = new Set(kept.map((t) => t.title.trim().toLowerCase()));
+  const urls = kept.map((t) => t.audio ?? "").join(" ").toLowerCase();
+  const room = Math.max(0, cap - kept.length);
+  const fill = songs
+    .filter((s) => !titles.has(s.title.trim().toLowerCase()) && !urls.includes(s.id.replace(/^wavlake:/, "").toLowerCase()))
+    .slice(0, room);
+  return { native: kept, songs: fill };
+}

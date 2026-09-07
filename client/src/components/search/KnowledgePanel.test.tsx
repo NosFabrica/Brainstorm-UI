@@ -1044,3 +1044,23 @@ describe("the person panel carries two blocks by default", () => {
     expect(screen.queryByTestId("panel-more-toggle")).toBeNull();
   });
 });
+
+// A search scoped to one person — the public profile's "View all" hands the
+// search from:npub… — keeps that person in the panel beside their results.
+describe("a person-scoped search keeps the person in the panel", () => {
+  const JOE = "e".repeat(64);
+  it("from:npub… shows that person without a name match", async () => {
+    suggestMock.mockResolvedValueOnce([{ pubkey: JOE, npub: nip19.npubEncode(JOE), name: "Joe Martin", wotRank: 0.8, wotFollowers: 5400 }]);
+    render(<KnowledgePanel query={`from:${nip19.npubEncode(JOE)}`} pov="nosfabrica" />);
+    const panel = await screen.findByTestId("search-knowledge-panel");
+    expect(panel).toHaveTextContent("Joe Martin");
+    // The probe asked for people with the scoped query itself, so the relay's author filter answers.
+    expect(suggestMock).toHaveBeenCalled();
+  });
+  it("a scope with a stranger's answer shows nobody", async () => {
+    suggestMock.mockResolvedValueOnce([{ pubkey: "f".repeat(64), npub: "npub1other", name: "Someone Else", wotRank: 0.8, wotFollowers: 5 }]);
+    render(<KnowledgePanel query={`from:${nip19.npubEncode(JOE)}`} pov="nosfabrica" />);
+    await new Promise((r) => setTimeout(r, 50));
+    expect(screen.queryByTestId("search-knowledge-panel")).toBeNull();
+  });
+});

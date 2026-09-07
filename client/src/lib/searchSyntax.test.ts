@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { nip19 } from "nostr-tools";
-import { activeFilterCount, applyFilters, datePreset, liftQuery, personAssist, readFilters, sinceForPreset, splitFilters, browseSafeQuery } from "./searchSyntax";
+import { activeFilterCount, applyFilters, datePreset, liftQuery, personAssist, readFilters, sinceForPreset, splitFilters, browseSafeQuery, personScope, scopedSearchHref } from "./searchSyntax";
 
 // Probed 2026-09-03: the relay ignores filter:rank and knows no hops. The
 // controls that need those are done on the CLIENT, but still speak grammar —
@@ -207,5 +207,29 @@ describe("browseSafeQuery", () => {
   it("a query with words keeps whatever sort it asked for", () => {
     expect(browseSafeQuery("bitcoin sort:rank")).toBe("bitcoin sort:rank");
     expect(browseSafeQuery("bitcoin sort:followers")).toBe("bitcoin sort:followers");
+  });
+});
+
+describe("a person scope — a search that is one person's work in one vertical", () => {
+  // The public profile's "View all" hands the search a scope, not a name:
+  // "joe martin" as words pulls in strangers' articles; from:npub… is his.
+  const hex = "3".repeat(64);
+  const npub = nip19.npubEncode(hex);
+  it("personScope reads a query that is exactly one from: key", () => {
+    expect(personScope(`from:${npub}`)).toBe(hex);
+    expect(personScope(`  from:${hex} `)).toBe(hex);
+  });
+  it("words, a second key, a tag or a date beside it make it a search, not a scope", () => {
+    expect(personScope(`from:${npub} liverpool`)).toBeNull();
+    expect(personScope(`from:${npub} from:${nip19.npubEncode("4".repeat(64))}`)).toBeNull();
+    expect(personScope(`from:${npub} #nostr`)).toBeNull();
+    expect(personScope(`from:${npub} since:2026-01-01`)).toBeNull();
+    expect(personScope(`to:${npub}`)).toBeNull();
+    expect(personScope("joe martin")).toBeNull();
+    expect(personScope("")).toBeNull();
+  });
+  it("scopedSearchHref is the search page, scoped to the person, on the vertical", () => {
+    expect(scopedSearchHref(hex, "articles")).toBe(`/?q=from%3A${npub}&t=articles`);
+    expect(scopedSearchHref(hex, "music")).toBe(`/?q=from%3A${npub}&t=music`);
   });
 });

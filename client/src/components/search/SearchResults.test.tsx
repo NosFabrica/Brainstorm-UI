@@ -5,6 +5,7 @@
  * and per-kind result rendering. The seam (services/search) is mocked — its
  * own suite covers the wire; these tests cover what a searcher sees.
  */
+import { nip19 } from "nostr-tools";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
@@ -87,6 +88,10 @@ type WavlakeHits = import("@/lib/wavlake").WavlakeCatalogueHits;
 const wavlakeSearchMock = vi.fn<(term: string) => Promise<WavlakeSong[]>>(() => Promise.resolve([]));
 const wavlakeCatalogueMock = vi.fn<(term: string) => Promise<WavlakeHits>>(() => Promise.resolve({ artists: [], albums: [], songs: [] }));
 const wavlakeTrendingMock = vi.fn<(opts?: { genre?: string }) => Promise<WavlakeSong[]>>(() => Promise.resolve([]));
+// A person's Wavlake catalogue (a search scoped to them): nothing unless a test says so.
+type Catalogue = import("@/hooks/useArtistCatalogue").ArtistCatalogue;
+const catalogueMock = vi.fn<(pubkey: string | null | undefined) => Catalogue>(() => ({ artist: null, songs: [], loading: false }));
+vi.mock("@/hooks/useArtistCatalogue", () => ({ useArtistCatalogue: (pk: string | null | undefined) => catalogueMock(pk) }));
 vi.mock("@/lib/wavlake", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/wavlake")>()),
   searchWavlakeTracks: (term: string) => wavlakeSearchMock(term),
@@ -838,6 +843,35 @@ describe("SearchResults", () => {
     expect(card.parentElement?.className).toMatch(/divide-y/);
     expect(screen.queryByTestId("track-card-t2")).toBeNull();
     expect(screen.queryByText(/TOMB-7703/)).toBeNull();
+  });
+
+  // The public profile's "View all" on Audio hands the search from:npub…:
+  // that person's card on top and their whole catalogue — the one relay
+  // track beside the six on Wavlake (Joe Martin, 2026-09-05) — with no text
+  // search for the words "from:npub…" at Wavlake.
+  it("a Music search scoped to a person shows their artist card and their whole catalogue", async () => {
+    const joe = "e".repeat(64);
+    const npub = nip19.npubEncode(joe);
+    catalogueMock.mockImplementation((pk) =>
+      pk === joe
+        ? { artist: { id: "art-1", name: "Joe Martin", url: "https://wavlake.com/joe-martin", artistNpub: npub }, songs: [wavlakeSong("w1", "Hand Me Down Heart", "Joe Martin"), wavlakeSong("w2", "Checkmate", "Joe Martin")], loading: false }
+        : { artist: null, songs: [], loading: false },
+    );
+    setUrlTab("music");
+    render(<SearchResults query={`from:${npub}`} pov="nosfabrica" />);
+    const track = ev("j1", 31337, joe, "", [["d", "j1"], ["title", "High Gravity"], ["artist", "Joe Martin"], ["media", "https://cdn/hg.mp3"]]);
+    emit({ hits: [{ event: track, author: author(joe, "Joe Martin"), rank: null }], eose: true, timeMs: 150 });
+
+    const top = await screen.findByTestId("music-top-result");
+    expect(top).toHaveAttribute("data-kind", "artist");
+    expect(top).toHaveTextContent("Joe Martin");
+    expect(top).toHaveTextContent("3 songs");
+    const songs = screen.getByTestId("music-songs");
+    within(songs).getByTestId("track-card-j1");
+    within(songs).getByTestId("wavlake-song-wavlake:w1");
+    within(songs).getByTestId("wavlake-song-wavlake:w2");
+    expect(wavlakeCatalogueMock).not.toHaveBeenCalledWith(expect.stringContaining("from:"));
+    catalogueMock.mockImplementation(() => ({ artist: null, songs: [], loading: false }));
   });
 
   // Browse led with "QA storage fixture qa41" and "Test Blossom" — Fanfares'

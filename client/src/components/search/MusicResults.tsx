@@ -9,6 +9,7 @@
  * faces with their trust rings, Albums as Wavlake tiles. One Play starts the
  * whole queue; a slim bar at the bottom says what is playing.
  */
+import { personScope } from "@/lib/searchSyntax";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { Loader2, Pause, Play } from "lucide-react";
@@ -101,6 +102,18 @@ export function MusicResults({
   // catalogue at equal strength; else the best song.
   const top = useMemo(() => {
     if (browsing) return null;
+    // Scoped to one person: they are the top result — on Nostr when they have
+    // tracks here, else their Wavlake artist — whatever the words say.
+    const scoped = personScope(query);
+    if (scoped) {
+      const mine = authors.find((a) => a.author.pubkey === scoped);
+      if (mine) {
+        const n = mine.count + wavlake.songs.length;
+        return { kind: "artist" as const, name: getDisplayLabel(mine.author), image: mine.author.picture, sub: `Artist · ${n} ${n === 1 ? "song" : "songs"}`, author: mine.author, playId: mine.first.track.id, score: scoreOf(mine.author.pubkey) ?? null };
+      }
+      const a = wavlake.artists[0];
+      if (a) return { kind: "artist" as const, name: a.name, image: a.artworkUrl, sub: "Artist · Wavlake", href: a.url, external: true, playId: wavlake.songs[0]?.id, score: null as number | null };
+    }
     const author = authors.map((a) => ({ a, score: nameMatchScore(getDisplayLabel(a.author), query) })).filter((x) => x.score > 0).sort((x, y) => y.score - x.score)[0];
     const remote = wavlake.artists.map((a) => ({ a, score: nameMatchScore(a.name, query) })).filter((x) => x.score > 0).sort((x, y) => y.score - x.score)[0];
     if (author && (!remote || author.score >= remote.score)) {

@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from "react";
-import { useRoute, useSearch, Link } from "wouter";
+import { useRoute, useSearch, useLocation, Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   MessageSquare,
@@ -24,6 +24,10 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { decodeShareId, npubFromPubkey, nostrUriFor, eventPath } from "@/lib/shareId";
 import { relativeTime } from "@/lib/relativeTime";
+import { scopedSearchHref } from "@/lib/searchSyntax";
+import { mergeArtistAudio } from "@/lib/wavlake";
+import { useArtistCatalogue } from "@/hooks/useArtistCatalogue";
+import { WavlakeSongCard } from "@/components/search/cards";
 import { useCopied } from "@/hooks/useCopied";
 import { useActiveAccount } from "applesauce-react/hooks";
 import { fetchProfileForShare, fetchRecentByKinds, fetchLiveStreams, fetchEventsByIds, fetchAddressableEvents, fetchProfileMap, fetchExternalIdentities, fetchOutboxRelayList, fetchProfilePrefs, publishProfilePrefs } from "@/services/nostr";
@@ -622,10 +626,19 @@ export default function SharePage() {
     [musicQuery.data],
   );
 
+  // The person's Wavlake catalogue beside their relay tracks: Joe Martin
+  // publishes one track to relays and six to Wavlake (2026-09-05). The artist
+  // is matched by their linked Nostr key, else their exact name — never loosely.
+  const catalogue = useArtistCatalogue(pubkey || null, { name: profile.display_name || profile.name || null, limit: 6 });
+  const audio = useMemo(() => mergeArtistAudio(tracks, catalogue.songs, 3), [tracks, catalogue.songs]);
+
   // Register the ordered, playable tracks so the shared player auto-advances.
   useEffect(() => {
-    setPlaylist(tracks.filter((t) => t.audio).map((t) => ({ id: t.id, src: t.audio as string })));
-  }, [tracks]);
+    setPlaylist([
+      ...audio.native.filter((t) => t.audio).map((t) => ({ id: t.id, src: t.audio as string, title: t.title, artist: t.artist, cover: t.cover })),
+      ...audio.songs.map((s) => ({ id: s.id, src: s.audio, title: s.title, artist: s.artist, cover: s.cover, href: s.url })),
+    ]);
+  }, [audio]);
 
   // NIP-53 live streams (kind 30311) → live now + upcoming only (no replays).
   const liveStreams = useMemo(() => {
@@ -825,7 +838,12 @@ export default function SharePage() {
   );
 
   const openInRef = useRef<HTMLElement>(null);
-  const scrollToOpenIn = () => openInRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  // "View all" on a block is a search scoped to this person on that vertical —
+  // every article, note, photo, video, song or stream of theirs, and nobody
+  // else's. It used to scroll to "Open in a Nostr client", which showed no
+  // more of anything (Benjamin, 2026-09-05).
+  const [, setLocation] = useLocation();
+  const viewAllIn = (tab: string) => setLocation(scopedSearchHref(pubkey, tab));
   // Whose distance the DegreeChip measures — follows the perspective toggle,
   // falls back to House, works logged out. See useHopsOrigin.
   const hopsOrigin = useHopsOrigin();
@@ -845,7 +863,7 @@ export default function SharePage() {
   const profileLoading = profileQuery.isLoading;
   const hasContent =
     (notesQuery.data?.length ?? 0) > 0 || photos.length > 0 || articles.length > 0 || sellingCount > 0 ||
-    videos.length > 0 || tracks.length > 0 || liveStreams.has || !!featured || calendarEvents.upcoming.length > 0 || calendarEvents.past.length > 0;
+    videos.length > 0 || audio.native.length + audio.songs.length > 0 || liveStreams.has || !!featured || calendarEvents.upcoming.length > 0 || calendarEvents.past.length > 0;
 
   // Keys (sections + hero details) the owner currently has NO content for — the
   // customizer greys these out so a toggle never misleadingly reads as "on".
@@ -855,7 +873,7 @@ export default function SharePage() {
   if (calendarEvents.upcoming.length === 0 && calendarEvents.past.length === 0) emptyKeys.add("events");
   if (articles.length === 0) emptyKeys.add("articles");
   if (sellingCount === 0) emptyKeys.add("selling");
-  if (tracks.length === 0) emptyKeys.add("audio");
+  if (audio.native.length + audio.songs.length === 0) emptyKeys.add("audio");
   if (videos.length === 0) emptyKeys.add("videos");
   if (gridPhotos.length === 0) emptyKeys.add("photos");
   if (noteEvents.length === 0) emptyKeys.add("notes");
@@ -1243,7 +1261,7 @@ export default function SharePage() {
         )}
         {/* Events — upcoming leads; a small, muted "Past events" group below. */}
         {(calendarEvents.upcoming.length > 0 || calendarEvents.past.length > 0) && !isHidden("events") && (
-          <ContentTeaserBlock icon={<CalendarDays className="h-4 w-4" />} title={calendarEvents.upcoming.length > 0 ? "Upcoming events" : "Past events"} onViewAll={scrollToOpenIn} testId="share-block-events" className={orderClass("events")}>
+          <ContentTeaserBlock icon={<CalendarDays className="h-4 w-4" />} title={calendarEvents.upcoming.length > 0 ? "Upcoming events" : "Past events"} onViewAll={() => viewAllIn("events")} testId="share-block-events" className={orderClass("events")}>
             <div className="space-y-2">
               {calendarEvents.upcoming.map((ev) => (
                 <EventRow key={ev.id} event={ev} href={eventPath({ id: ev.id, pubkey }, relayHints)} />
@@ -1260,7 +1278,7 @@ export default function SharePage() {
         <SellingBlock pubkey={pubkey} relayHints={relayHints} hidden={isHidden("selling")} className={orderClass("selling")} onCount={setSellingCount} />
 
         {articles.length > 0 && !isHidden("articles") && (
-          <ContentTeaserBlock icon={<FileText className="h-4 w-4" />} title="Articles" onViewAll={scrollToOpenIn} testId="share-block-articles" className={orderClass("articles")}>
+          <ContentTeaserBlock icon={<FileText className="h-4 w-4" />} title="Articles" onViewAll={() => viewAllIn("articles")} testId="share-block-articles" className={orderClass("articles")}>
             <div className="space-y-3">
               {(articlesQuery.data ?? []).map((ev) => (
                 <EmbeddedArticleCard
@@ -1274,7 +1292,7 @@ export default function SharePage() {
         )}
 
         {noteEvents.length > 0 && !isHidden("notes") && (
-          <ContentTeaserBlock icon={<MessageSquare className="h-4 w-4" />} title="Latest notes" onViewAll={scrollToOpenIn} testId="share-block-notes" className={orderClass("notes")}>
+          <ContentTeaserBlock icon={<MessageSquare className="h-4 w-4" />} title="Latest notes" onViewAll={() => viewAllIn("notes")} testId="share-block-notes" className={orderClass("notes")}>
             <div className="space-y-4">
               {noteEvents.map((ev) => (
                 <div key={ev.id} className="pb-4 border-b border-slate-100 dark:border-slate-800/60 last:border-0 last:pb-0">
@@ -1286,7 +1304,7 @@ export default function SharePage() {
         )}
 
         {gridPhotos.length > 0 && !isHidden("photos") && (
-          <ContentTeaserBlock icon={<ImageIcon className="h-4 w-4" />} title="Photos" onViewAll={scrollToOpenIn} testId="share-block-photos" className={orderClass("photos")}>
+          <ContentTeaserBlock icon={<ImageIcon className="h-4 w-4" />} title="Photos" onViewAll={() => viewAllIn("media")} testId="share-block-photos" className={orderClass("photos")}>
             <div className="grid grid-cols-3 gap-2">
               {gridPhotos.map((photo) => (
                 <Link
@@ -1309,7 +1327,7 @@ export default function SharePage() {
         )}
 
         {videos.length > 0 && !isHidden("videos") && (
-          <ContentTeaserBlock icon={<VideoIcon className="h-4 w-4" />} title="Videos" onViewAll={scrollToOpenIn} testId="share-block-videos" className={orderClass("videos")}>
+          <ContentTeaserBlock icon={<VideoIcon className="h-4 w-4" />} title="Videos" onViewAll={() => viewAllIn("media")} testId="share-block-videos" className={orderClass("videos")}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {videos.map((v) => (
                 <div key={v.id} className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-black">
@@ -1334,10 +1352,10 @@ export default function SharePage() {
           </ContentTeaserBlock>
         )}
 
-        {tracks.length > 0 && !isHidden("audio") && (
-          <ContentTeaserBlock icon={<Headphones className="h-4 w-4" />} title="Audio" onViewAll={scrollToOpenIn} testId="share-block-music" className={orderClass("audio")}>
+        {audio.native.length + audio.songs.length > 0 && !isHidden("audio") && (
+          <ContentTeaserBlock icon={<Headphones className="h-4 w-4" />} title="Audio" onViewAll={() => viewAllIn("music")} testId="share-block-music" className={orderClass("audio")}>
             <div className="space-y-2">
-              {tracks.map((t) => (
+              {audio.native.map((t) => (
                 <EmbeddedTrackCard
                   key={t.id}
                   id={t.id}
@@ -1350,13 +1368,16 @@ export default function SharePage() {
                   onZap={profile.lud16 ? () => setZapOpen(true) : undefined}
                 />
               ))}
+              {audio.songs.map((song) => (
+                <WavlakeSongCard key={song.id} song={song} />
+              ))}
             </div>
           </ContentTeaserBlock>
         )}
 
         {/* Live — live now + upcoming streams (NIP-53). Click opens the viewer. */}
         {liveStreams.has && !isHidden("live") && (
-          <ContentTeaserBlock icon={<Radio className="h-4 w-4" />} title={liveStreams.liveNow.length > 0 ? "Live now" : "Upcoming live"} onViewAll={scrollToOpenIn} testId="share-block-live" className={orderClass("live")}>
+          <ContentTeaserBlock icon={<Radio className="h-4 w-4" />} title={liveStreams.liveNow.length > 0 ? "Live now" : "Upcoming live"} onViewAll={() => viewAllIn("live")} testId="share-block-live" className={orderClass("live")}>
             <div className="space-y-2">
               {[...liveStreams.liveNow, ...liveStreams.upcoming].map((s) => {
                 const isLive = s.status === "live";

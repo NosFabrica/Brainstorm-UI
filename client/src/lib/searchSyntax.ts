@@ -282,3 +282,27 @@ export function browseSafeQuery(query: string): string {
   if (state.sort && BROWSE_UNAVAILABLE_SORTS.has(state.sort)) return applyFilters(query, { sort: "recent" });
   return query;
 }
+
+/**
+ * A person scope: a query that is exactly one `from:` key and nothing else —
+ * "everything this person published", to be narrowed by the tab. The public
+ * profile's "View all" hands the search this, not a name: words pull in
+ * strangers who share them (Benjamin, over "joe martin" on Articles). The
+ * hex pubkey, or null for any other query.
+ */
+export function personScope(query: string): string | null {
+  const lifted = liftQuery(query);
+  if (lifted.search.trim() !== "" || lifted["#t"] || lifted["#p"] || lifted.since !== undefined || lifted.until !== undefined) return null;
+  return lifted.authors?.length === 1 ? lifted.authors[0] : null;
+}
+
+/** The search page, scoped to one person, on one vertical. */
+export function scopedSearchHref(pubkey: string, tab: string): string {
+  let key = pubkey;
+  try {
+    key = nip19.npubEncode(pubkey);
+  } catch {
+    // a malformed key stays as typed — the box will show the failure
+  }
+  return `/?q=${encodeURIComponent(`from:${key}`)}&t=${encodeURIComponent(tab)}`;
+}

@@ -10,7 +10,7 @@ import { Link, useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
 import { ChevronDown, Radar, Radio, SlidersHorizontal } from "lucide-react";
-import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, readFilters, sinceForPreset, splitFilters, type DatePreset, type SearchFilterPatch } from "@/lib/searchSyntax";
+import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, readFilters, sinceForPreset, splitFilters, type DatePreset, type SearchFilterPatch, personScope } from "@/lib/searchSyntax";
 import { clientFilterHits } from "@/lib/clientFilters";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
 import { eventStore } from "@/lib/eventStore";
@@ -50,6 +50,7 @@ import { isTestTrack, parseTrack } from "@/lib/trackEvent";
 import { isSellable, parseListing } from "@/lib/listing";
 import { fetchRecentByKinds } from "@/services/nostr";
 import { useWavlakeSearch } from "@/hooks/useWavlakeSongs";
+import { useArtistCatalogue } from "@/hooks/useArtistCatalogue";
 import { MusicResults } from "@/components/search/MusicResults";
 import { FacetChip, FacetRow } from "@/components/search/sections";
 import { KnowledgePanel } from "@/components/search/KnowledgePanel";
@@ -669,8 +670,16 @@ export function SearchResults({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [rawHits, clientState.verifiedOnly, clientState.reach, reach, allAuthors.map((pk) => scoreOf(pk)).join(",")],
   );
-  // Wavlake is the Music tab's second source: the same words, its catalogue.
-  const wavlake = useWavlakeSearch(query, tab === "music");
+  // Wavlake is the Music tab's second source: the same words, its catalogue —
+  // or, when the search is scoped to one person (from:npub…, the profile's
+  // "View all"), that person's own catalogue: the artist who is them and every
+  // song of theirs, with no text search for the key.
+  const scopedTo = personScope(query);
+  const wavlakeWords = useWavlakeSearch(query, tab === "music" && !scopedTo);
+  const catalogue = useArtistCatalogue(tab === "music" ? scopedTo : null);
+  const wavlake = scopedTo
+    ? { artists: catalogue.artist ? [catalogue.artist] : [], albums: [], songs: catalogue.songs, loading: catalogue.loading }
+    : wavlakeWords;
   const mediaSettled = tab !== "media" || !!mediaNotes?.eose || !!mediaNotes?.error;
   const searching =
     personMedia.length === 0 &&

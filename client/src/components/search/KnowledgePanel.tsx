@@ -17,6 +17,7 @@ import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { Link, useLocation } from "wouter";
 import { ArrowRight, BookOpen, CalendarDays, Check, ChevronDown, Hash, Package, ShoppingBag, Users, Zap } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
+import { personScope } from "@/lib/searchSyntax";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing, TierWordChip, useQuietTrustChrome, QuietTrustChrome } from "@/components/score/VerificationCoin";
@@ -256,6 +257,21 @@ function KnowledgePanelBody({
     setNipPage(null);
     setAppHits(null);
     setTopicEvents(null);
+    // A search scoped to one person (from:npub…, the public profile's "View
+    // all") keeps that person in the panel beside their results — the relay's
+    // author filter answers the scoped query itself, so no name match is asked.
+    const scoped = personScope(query);
+    if (scoped) {
+      let scopedAlive = true;
+      void suggestProfiles(query, { pov, userPubkey }, { limit: 1 }).then((people) => {
+        if (!scopedAlive) return;
+        const who = people.find((p) => p.pubkey === scoped);
+        if (who) setPerson(who);
+      });
+      return () => {
+        scopedAlive = false;
+      };
+    }
     if (!isPanelableQuery(query)) return;
     let alive = true;
     // A NIP-shaped query is a spec lookup, not a person or topic hunt —

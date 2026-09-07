@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { findWavlakeArtist, searchWavlakeTracks, searchWavlake, fetchWavlakeTrending, wavlakeTrackId, __resetWavlakeCatalogue } from "./wavlake";
+import { findWavlakeArtist, searchWavlakeTracks, searchWavlake, fetchWavlakeTrending, wavlakeTrackId, mergeArtistAudio, __resetWavlakeCatalogue, type WavlakeSong } from "./wavlake";
 
 // Wavlake's public API as probed 2026-09-04: search names artists and albums,
 // an artist lists albums, an album lists tracks with the mp3.
@@ -177,5 +177,31 @@ describe("wavlakeTrackId — StableKraft links carry Wavlake track ids", () => {
     expect(wavlakeTrackId("https://stablekraft.app/album/empty-passenger-seat-1768077672996")).toBeUndefined();
     expect(wavlakeTrackId("https://example.com/album/x?track=x-d2e8e9cc-6f5d-44e6-8144-b7500545fb2d")).toBeUndefined();
     expect(wavlakeTrackId("https://wavlake.com/track/81c98053-ce9b-4824-b689-fe0934fe7b00")).toBe("81c98053-ce9b-4824-b689-fe0934fe7b00");
+  });
+});
+
+// The profile's Audio block: the person's relay tracks first, then their
+// Wavlake songs, the same song never twice, three in all.
+describe("mergeArtistAudio — one shelf from two sources", () => {
+  const song = (id: string, title: string): WavlakeSong => ({ id: `wavlake:${id}`, title, artist: "Joe Martin", audio: `https://cdn/${id}.mp3`, url: `https://wavlake.com/track/${id}`, source: "wavlake", artistNpub: "" });
+  it("relay tracks lead, Wavlake fills to the cap", () => {
+    const out = mergeArtistAudio([{ id: "n1", title: "High Gravity", audio: "https://cdn/hg.mp3" }], [song("a", "Hand Me Down Heart"), song("b", "Checkmate"), song("c", "Coal Town")], 3);
+    expect(out.native.map((t) => t.id)).toEqual(["n1"]);
+    expect(out.songs.map((s) => s.title)).toEqual(["Hand Me Down Heart", "Checkmate"]);
+  });
+  it("a relay track that IS a Wavlake song — by its id in the audio URL, or the same title — shows once", () => {
+    const out = mergeArtistAudio(
+      [{ id: "n1", title: "Checkmate", audio: "https://d12wklypp119aj.cloudfront.net/track/bbbb2222-6f5d-44e6-8144-b7500545fb2d.mp3" }, { id: "n2", title: "hand me down heart", audio: "https://cdn/x.mp3" }],
+      [song("aaaa1111-6f5d-44e6-8144-b7500545fb2d", "Hand Me Down Heart"), song("bbbb2222-6f5d-44e6-8144-b7500545fb2d", "Checkmate"), song("cccc3333-6f5d-44e6-8144-b7500545fb2d", "Coal Town")],
+      3,
+    );
+    expect(out.native).toHaveLength(2);
+    expect(out.songs.map((s) => s.title)).toEqual(["Coal Town"]);
+  });
+  it("more relay tracks than the cap leave no room for Wavlake", () => {
+    const native = ["1", "2", "3", "4"].map((n) => ({ id: n, title: `t${n}`, audio: `https://cdn/${n}.mp3` }));
+    const out = mergeArtistAudio(native, [song("a", "x")], 3);
+    expect(out.native).toHaveLength(3);
+    expect(out.songs).toEqual([]);
   });
 });
