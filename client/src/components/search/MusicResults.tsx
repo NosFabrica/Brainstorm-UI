@@ -27,7 +27,7 @@ import { useTierRing } from "@/components/score/VerificationCoin";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { compactCount } from "@/lib/compactCount";
 import { nameMatchScore } from "@/lib/nameMatch";
-import { profileHrefOf } from "@/lib/upNext";
+import { profileHrefOf, wavlakeArtistHref, wavlakeSongHref } from "@/lib/upNext";
 import { eventPath } from "@/lib/shareId";
 import audioDefault from "@/assets/audio-default.webp";
 
@@ -78,7 +78,7 @@ export function MusicResults({
   // track on it by name, cover and page.
   const queue = useMemo(() => {
     const native = shownTracks.map((t) => ({ id: t.track.id, src: t.track.audio, title: t.track.title, artist: t.track.artist ?? (t.hit.author ? getDisplayLabel(t.hit.author) : undefined), cover: t.track.cover, href: eventPath(t.hit.event), artistHref: t.hit.author ? `/p/${t.hit.author.npub}` : undefined, artistPubkey: t.hit.event.pubkey }));
-    const remote = (browsing ? trending.songs : wavlake.songs).map((s) => ({ id: s.id, src: s.audio, title: s.title, artist: s.artist, cover: s.cover, href: s.url, artistHref: profileHrefOf(s.artistNpub) }));
+    const remote = (browsing ? trending.songs : wavlake.songs).map((s) => ({ id: s.id, src: s.audio, title: s.title, artist: s.artist, cover: s.cover, href: wavlakeSongHref(s), artistHref: profileHrefOf(s.artistNpub) }));
     return browsing ? [...remote, ...native] : [...native, ...remote];
   }, [browsing, shownTracks, trending.songs, wavlake.songs]);
   useEffect(() => {
@@ -112,7 +112,7 @@ export function MusicResults({
         return { kind: "artist" as const, name: getDisplayLabel(mine.author), image: mine.author.picture, sub: `Artist · ${n} ${n === 1 ? "song" : "songs"}`, author: mine.author, playId: mine.first.track.id, score: scoreOf(mine.author.pubkey) ?? null };
       }
       const a = wavlake.artists[0];
-      if (a) return { kind: "artist" as const, name: a.name, image: a.artworkUrl, sub: "Artist · Wavlake", href: a.url, external: true, playId: wavlake.songs[0]?.id, score: null as number | null };
+      if (a) return { kind: "artist" as const, name: a.name, image: a.artworkUrl, sub: "Artist · Wavlake", href: wavlakeArtistHref(a), external: false, playId: wavlake.songs[0]?.id, score: null as number | null };
     }
     const author = authors.map((a) => ({ a, score: nameMatchScore(getDisplayLabel(a.author), query) })).filter((x) => x.score > 0).sort((x, y) => y.score - x.score)[0];
     const remote = wavlake.artists.map((a) => ({ a, score: nameMatchScore(a.name, query) })).filter((x) => x.score > 0).sort((x, y) => y.score - x.score)[0];
@@ -123,12 +123,12 @@ export function MusicResults({
     if (remote) {
       const { a } = remote;
       const first = wavlake.songs.find((s) => normalise(s.artist) === normalise(a.name)) ?? wavlake.songs[0];
-      return { kind: "artist" as const, name: a.name, image: a.artworkUrl, sub: "Artist · Wavlake", href: a.url, external: true, playId: first?.id, score: null as number | null };
+      return { kind: "artist" as const, name: a.name, image: a.artworkUrl, sub: "Artist · Wavlake", href: wavlakeArtistHref(a), external: false, playId: first?.id, score: null as number | null };
     }
     const first = shownTracks[0];
     if (first) return { kind: "song" as const, name: first.track.title, image: first.track.cover, sub: first.track.artist ?? (first.hit.author ? getDisplayLabel(first.hit.author) : "Song"), href: eventPath(first.hit.event), external: false, playId: first.track.id, score: null as number | null };
     const song = wavlake.songs[0];
-    if (song) return { kind: "song" as const, name: song.title, image: song.cover, sub: `${song.artist} · Wavlake`, href: song.url, external: true, playId: song.id, score: null as number | null };
+    if (song) return { kind: "song" as const, name: song.title, image: song.cover, sub: `${song.artist} · Wavlake`, href: wavlakeSongHref(song), external: false, playId: song.id, score: null as number | null };
     return null;
   }, [browsing, query, wavlake.artists, wavlake.songs, authors, shownTracks, scoreOf]);
 
@@ -192,7 +192,7 @@ export function MusicResults({
                   <ArtistFace key={a.author.pubkey} name={getDisplayLabel(a.author)} image={a.author.picture} score={scoreOf(a.author.pubkey) ?? null} sub={`${a.count} ${a.count === 1 ? "song" : "songs"}`} onClick={() => onOpenProfile(a.author)} testId={`music-artist-${a.author.pubkey.slice(0, 8)}`} />
                 ))}
                 {wavlake.artists.map((a) => (
-                  <ArtistFace key={a.id} name={a.name} image={a.artworkUrl} score={null} sub="Wavlake" href={a.url} testId={`music-artist-wavlake-${a.id}`} />
+                  <ArtistFace key={a.id} name={a.name} image={a.artworkUrl} score={null} sub="Wavlake" href={wavlakeArtistHref(a)} testId={`music-artist-wavlake-${a.id}`} />
                 ))}
               </FacetRow>
             </MusicSection>
@@ -294,10 +294,10 @@ function SongTile({ song }: { song: WavlakeSong }) {
           {player.isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : player.isPlaying ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 translate-x-[1px] fill-current" />}
         </button>
       </div>
-      <a href={song.url} target="_blank" rel="noopener noreferrer" className="mt-2 block">
+      <Link href={wavlakeSongHref(song)} className="mt-2 block">
         <p className={`truncate text-sm font-medium ${player.isActive ? "text-brand-link" : "text-slate-900 dark:text-slate-100"}`}>{song.title}</p>
         <p className="truncate text-xs text-slate-500 dark:text-slate-400">{song.artist}</p>
-      </a>
+      </Link>
       {song.sats != null && song.sats > 0 && (
         <p className="mt-0.5 text-[11px] tabular-nums text-slate-400 dark:text-slate-500">{compactCount(song.sats)} sats</p>
       )}
@@ -322,7 +322,7 @@ function ArtistFace({ name, image, score, sub, onClick, href, testId }: { name: 
   );
   const cls = "flex w-20 shrink-0 flex-col items-center rounded-xl p-1 text-left hover:bg-slate-50 dark:hover:bg-slate-900/60";
   return href ? (
-    <a href={href} target="_blank" rel="noopener noreferrer" className={cls} data-testid={testId}>{body}</a>
+    <Link href={href} className={cls} data-testid={testId}>{body}</Link>
   ) : (
     <button type="button" onClick={onClick} className={cls} data-testid={testId}>{body}</button>
   );

@@ -1055,7 +1055,8 @@ describe("SearchResults", () => {
     // Search wears no trust rings (the team: "the blue circle thing… doesn't need to be there").
     expect(face.querySelector('[class*="shadow-[0_0_0"]')).toBeNull();
     const remote = within(artists).getByTestId("music-artist-wavlake-a1");
-    expect(remote).toHaveAttribute("href", "https://wavlake.com/nova-sound-system");
+    // A Wavlake artist opens their music HERE, not the Wavlake site.
+    expect(remote).toHaveAttribute("href", "/?q=NOVA%20Sound%20System&t=music");
     expect(remote).toHaveTextContent("Wavlake");
 
     const albums = screen.getByTestId("music-albums");

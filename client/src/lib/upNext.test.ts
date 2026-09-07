@@ -12,7 +12,7 @@ vi.mock("@/services/nostr", () => ({ fetchRecentByKinds: (pk: string, kinds: num
 const catalogueMock = vi.fn(async () => ({ artists: [], albums: [], songs: [] as unknown[] }));
 vi.mock("@/lib/wavlake", async (importOriginal) => ({ ...(await importOriginal<typeof import("@/lib/wavlake")>()), searchWavlake: (term: string) => catalogueMock(term) }));
 
-import { moreFromArtist } from "./upNext";
+import { moreFromArtist, wavlakeArtistHref, wavlakeSongHref } from "./upNext";
 
 const NOVA = "d".repeat(64);
 const track = (id: string, title: string) => ({ id, kind: 31337, pubkey: NOVA, created_at: 1, tags: [["d", id], ["title", title], ["artist", "NOVA"], ["media", `https://x/${id}.mp3`], ["image", `https://x/${id}.jpg`]], content: "" });
@@ -43,12 +43,32 @@ describe("moreFromArtist", () => {
     const next = await moreFromArtist({ id: "wavlake:cur", artist: "Ainsley Costello" });
     expect(catalogueMock).toHaveBeenCalledWith("Ainsley Costello");
     expect(next.map((t) => t.title)).toEqual(["Old Song"]);
-    expect(next[0]).toMatchObject({ id: "wavlake:o1", src: "https://cdn/o.mp3", href: "https://wavlake.com/track/o1" });
+    // The bar's title link stays in Brainstorm: the artist's music here, never the Wavlake site.
+    expect(next[0]).toMatchObject({ id: "wavlake:o1", src: "https://cdn/o.mp3", href: "/?q=Ainsley%20Costello&t=music" });
   });
 
   it("nothing to go on, or a source that is down, is an empty list", async () => {
     expect(await moreFromArtist({ id: "lone" })).toEqual([]);
     recentMock.mockRejectedValue(new Error("offline"));
     expect(await moreFromArtist({ id: "cur", artist: "NOVA", artistPubkey: NOVA })).toEqual([]);
+  });
+});
+
+// Benjamin: "that should not send users to the Wavlake site, it should send
+// them to Brainstorm posts — we want users to stay here." A Wavlake song or
+// artist opens the artist here: their profile when they linked a Nostr key,
+// else their music on the Music tab.
+describe("in-app destinations for Wavlake", () => {
+  const song = (artistNpub: string) => ({ id: "wavlake:1", title: "Two Ships", artist: "Ainsley Costello", audio: "https://cdn/1.mp3", url: "https://wavlake.com/track/1", source: "wavlake" as const, artistNpub });
+  it("a song by an artist with a linked key opens their Brainstorm profile", () => {
+    const npub = "npub13qrrw2h4z52m7jh0spefrwtysl4psfkfv6j4j672se5hkhvtyw7qu0almy";
+    expect(wavlakeSongHref(song(npub))).toBe(`/p/${npub}`);
+  });
+  it("a song by an unlinked artist opens their music here", () => {
+    expect(wavlakeSongHref(song(""))).toBe("/?q=Ainsley%20Costello&t=music");
+  });
+  it("an artist likewise — never the Wavlake site", () => {
+    expect(wavlakeArtistHref({ id: "a1", name: "NOVA Sound System", url: "https://wavlake.com/nova-sound-system", artistNpub: "" })).toBe("/?q=NOVA%20Sound%20System&t=music");
+    expect(wavlakeArtistHref({ id: "a2", name: "X", url: "https://wavlake.com/x", artistNpub: "npub13qrrw2h4z52m7jh0spefrwtysl4psfkfv6j4j672se5hkhvtyw7qu0almy" })).toMatch(/^\/p\/npub1/);
   });
 });

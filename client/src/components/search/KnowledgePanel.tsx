@@ -17,7 +17,7 @@ import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { Link, useLocation } from "wouter";
 import { ArrowRight, BookOpen, CalendarDays, Check, ChevronDown, Hash, Package, ShoppingBag, Users, Zap } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
-import { readFilters, scopeOf } from "@/lib/searchSyntax";
+import { readFilters, scopeOf, scopedSearchHref } from "@/lib/searchSyntax";
 import { DEFAULT_VERIFIED_LINE } from "@/services/trustThreshold";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -443,15 +443,13 @@ function KnowledgePanelBody({
               All music →
             </Link>
           ) : (
-            <a
-              href={personWavlake!.artist.url}
-              target="_blank"
-              rel="noopener"
+            <Link
+              href={scopedSearchHref(person.pubkey, "music")}
               className="text-[11px] font-medium text-brand-deep dark:text-brand-link hover:underline"
               data-testid="person-music-more"
             >
-              All music on Wavlake →
-            </a>
+              All music →
+            </Link>
           )}
         </div>
         <div className="space-y-1">
@@ -481,8 +479,9 @@ function KnowledgePanelBody({
                 audio={song.audio}
                 durationSec={song.durationSec}
                 sourceLabel="Wavlake"
-                onOpen={() => window.open(song.url, "_blank", "noopener")}
-                pageUrl={song.url}
+                sourceHost="wavlake.com"
+                onOpen={() => navigate(`/p/${person.npub}`)}
+                pageUrl={`/p/${person.npub}`}
                 artistHref={`/p/${person.npub}`}
               />
             ))}

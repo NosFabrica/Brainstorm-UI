@@ -28,6 +28,7 @@ import { scopedSearchHref } from "@/lib/searchSyntax";
 import { mergeArtistAudio } from "@/lib/wavlake";
 import { liveStateOf } from "@/lib/liveStream";
 import { useArtistCatalogue } from "@/hooks/useArtistCatalogue";
+import { wavlakeSongHref } from "@/lib/upNext";
 import { WavlakeSongCard } from "@/components/search/cards";
 import { useCopied } from "@/hooks/useCopied";
 import { useActiveAccount } from "applesauce-react/hooks";
@@ -637,7 +638,7 @@ export default function SharePage() {
   useEffect(() => {
     setPlaylist([
       ...audio.native.filter((t) => t.audio).map((t) => ({ id: t.id, src: t.audio as string, title: t.title, artist: t.artist, cover: t.cover })),
-      ...audio.songs.map((s) => ({ id: s.id, src: s.audio, title: s.title, artist: s.artist, cover: s.cover, href: s.url })),
+      ...audio.songs.map((s) => ({ id: s.id, src: s.audio, title: s.title, artist: s.artist, cover: s.cover, href: wavlakeSongHref(s) })),
     ]);
   }, [audio]);
 

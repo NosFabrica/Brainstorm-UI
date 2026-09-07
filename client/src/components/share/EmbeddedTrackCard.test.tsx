@@ -45,4 +45,16 @@ describe("EmbeddedTrackCard — the playing mark lives on the cover", () => {
     expect(cover).toHaveAttribute("aria-label", "Play");
     expect(within(cover).getByTestId("track-eq")).toBeInTheDocument();
   });
+
+  // Benjamin: the source should show Wavlake's own mark, not the word in
+  // capitals — and it is a badge, not a door: nothing here leaves Brainstorm.
+  it("names its source with the source's mark, and the mark is no link", () => {
+    state = { ...state, isActive: false, isPlaying: false };
+    render(<EmbeddedTrackCard {...track} sourceLabel="Wavlake" sourceHost="wavlake.com" />);
+    const chip = screen.getByTestId("track-source");
+    expect(chip).toHaveTextContent("Wavlake");
+    expect(chip.querySelector('[data-testid="favicon"]')).toHaveAttribute("src", expect.stringContaining("wavlake.com"));
+    expect(chip.closest("a")).toBeNull();
+    expect(chip.querySelector("a")).toBeNull();
+  });
 });

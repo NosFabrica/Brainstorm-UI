@@ -689,9 +689,14 @@ describe("the person panel's music, from Wavlake", () => {
     expect(music).toHaveTextContent("Two Ships");
     expect(music).toHaveTextContent("Wavlake");
     expect(within(music).getByTestId("track-play")).toBeInTheDocument();
+    // "All music" stays in Brainstorm: the person's music on the Music tab, never the Wavlake site.
     const more = within(music).getByTestId("person-music-more");
-    expect(more.getAttribute("href")).toBe("https://wavlake.com/ainsley-costello");
-    expect(more.getAttribute("target")).toBe("_blank");
+    expect(more.getAttribute("href")).toBe(`/?q=from%3A${nip19.npubEncode(AINSLEY)}&t=music`);
+    expect(more.getAttribute("target")).toBeNull();
+    // The source wears its own mark and is no link.
+    const source = within(music).getAllByTestId("track-source")[0];
+    expect(source.querySelector('[data-testid="favicon"]')).toHaveAttribute("src", expect.stringContaining("wavlake.com"));
+    expect(source.closest("a")).toBeNull();
   });
 
   it("prefers the person's own native tracks over Wavlake's when they have both", async () => {

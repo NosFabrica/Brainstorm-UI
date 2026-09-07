@@ -2,6 +2,7 @@ import { type MouseEvent } from "react";
 import { useLocation } from "wouter";
 import { Play, Pause, Loader2, AlertCircle } from "lucide-react";
 import { FlashIcon } from "@/components/FlashIcon";
+import { Favicon } from "@/components/share/LinkPreview";
 import { useTrackPlayer, useTrackDuration, toggleTrack, seekTrack, formatTime } from "@/lib/audioPlayer";
 import audioDefault from "@/assets/audio-default.webp";
 
@@ -41,6 +42,7 @@ export function EmbeddedTrackCard({
   href,
   onZap,
   sourceLabel,
+  sourceHost,
   onOpen,
   pageUrl,
   artistHref,
@@ -58,6 +60,8 @@ export function EmbeddedTrackCard({
   onZap?: () => void;
   /** Small provider tag shown in the rail (e.g. "Wavlake"). */
   sourceLabel?: string;
+  /** The provider's host, for its own mark beside the name (e.g. "wavlake.com"). A badge, never a link. */
+  sourceHost?: string;
   /** Overrides the internal /e navigation for the row-open (e.g. open externally). */
   onOpen?: () => void;
   /** The track's page on its source site, for the app's now-playing bar to link. */
@@ -177,7 +181,12 @@ export function EmbeddedTrackCard({
       {/* Right rail: source tag, genre chip, total time (idle), zap. */}
       <div className="flex shrink-0 items-center gap-2">
         {sourceLabel && (
-          <span className="hidden rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:inline">{sourceLabel}</span>
+          // The source's own mark, the way the app brands zap.stream and GitHub:
+          // the mark at every width, the name from sm up. A badge, not a door.
+          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400" title={sourceLabel} data-testid="track-source">
+            {sourceHost && <Favicon host={sourceHost} className="h-3 w-3 rounded-sm" />}
+            <span className="hidden sm:inline">{sourceLabel}</span>
+          </span>
         )}
         {genre && (
           <span className={`hidden rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 transition-opacity sm:inline ${revealCls}`}>

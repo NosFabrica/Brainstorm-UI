@@ -6,7 +6,7 @@
  */
 import { nip19 } from "nostr-tools";
 import { fetchRecentByKinds } from "@/services/nostr";
-import { searchWavlake } from "@/lib/wavlake";
+import { searchWavlake, type WavlakeArtist, type WavlakeSong } from "@/lib/wavlake";
 import { parseTrack } from "@/lib/trackEvent";
 import { eventPath } from "@/lib/shareId";
 import type { PlaylistTrack, TrackMeta } from "@/lib/audioPlayer";
@@ -23,6 +23,18 @@ export function profileHrefOf(key: string | undefined | null): string | undefine
   return undefined;
 }
 
+/**
+ * Where a Wavlake song or artist opens ON BRAINSTORM — never the Wavlake site
+ * (Benjamin: "we want users to stay here"). The artist's profile when they
+ * linked a Nostr key on Wavlake; else their music on the Music tab, by name.
+ */
+export function wavlakeArtistHref(artist: Pick<WavlakeArtist, "name" | "artistNpub">): string {
+  return profileHrefOf(artist.artistNpub) ?? `/?q=${encodeURIComponent(artist.name)}&t=music`;
+}
+export function wavlakeSongHref(song: Pick<WavlakeSong, "artist" | "artistNpub">): string {
+  return wavlakeArtistHref({ name: song.artist, artistNpub: song.artistNpub });
+}
+
 export async function moreFromArtist(current: TrackMeta & { id: string }, limit = 12): Promise<PlaylistTrack[]> {
   try {
     if (current.id.startsWith("wavlake:")) {
@@ -32,7 +44,7 @@ export async function moreFromArtist(current: TrackMeta & { id: string }, limit 
       return songs
         .filter((s) => s.id !== current.id && normalise(s.artist) === want)
         .slice(0, limit)
-        .map((s) => ({ id: s.id, src: s.audio, title: s.title, artist: s.artist, cover: s.cover, href: s.url, artistHref: profileHrefOf(s.artistNpub) }));
+        .map((s) => ({ id: s.id, src: s.audio, title: s.title, artist: s.artist, cover: s.cover, href: wavlakeSongHref(s), artistHref: profileHrefOf(s.artistNpub) }));
     }
     if (current.artistPubkey) {
       const events = await fetchRecentByKinds(current.artistPubkey, [31337], limit + 1);

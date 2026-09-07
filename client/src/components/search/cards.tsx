@@ -22,7 +22,7 @@ import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { eventStore } from "@/lib/eventStore";
 import { fetchProfileMap } from "@/services/nostr";
 import { brandForHost } from "@/lib/brands";
-import { profileHrefOf } from "@/lib/upNext";
+import { profileHrefOf, wavlakeSongHref } from "@/lib/upNext";
 import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitItemLabel, gitLabelsOf, type GitState } from "@/lib/gitStatus";
 import { compactCount } from "@/lib/compactCount";
 import { ago } from "@/lib/ago";
@@ -1153,6 +1153,11 @@ export function TrackCard({ event, author, flat }: { event: NostrEvent; author: 
  * artist live there; there is no Nostr event to open).
  */
 export function WavlakeSongCard({ song, flat }: { song: WavlakeSong; flat?: boolean }) {
+  // Opening a Wavlake song stays in Brainstorm — the artist's profile, or
+  // their music here (Benjamin: "we want users to stay here"). Wavlake is
+  // named as the source with its own mark, a badge and not a door.
+  const [, navigate] = useLocation();
+  const here = wavlakeSongHref(song);
   return (
     <div data-testid={`wavlake-song-${song.id}`}>
       <EmbeddedTrackCard
@@ -1163,8 +1168,9 @@ export function WavlakeSongCard({ song, flat }: { song: WavlakeSong; flat?: bool
         audio={song.audio}
         durationSec={song.durationSec}
         sourceLabel="Wavlake"
-        onOpen={() => window.open(song.url, "_blank", "noopener")}
-        pageUrl={song.url}
+        sourceHost="wavlake.com"
+        onOpen={() => navigate(here)}
+        pageUrl={here}
         artistHref={profileHrefOf(song.artistNpub)}
         flat={flat}
       />

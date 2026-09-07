@@ -120,7 +120,7 @@ function PodcastRow({ item, show }: { item: Extract<LatestMediaItem, { kind: "po
         artist={show ?? undefined}
         cover={item.poster ?? undefined}
         audio={item.audio}
-        sourceLabel="Fountain"
+        sourceLabel="Fountain" sourceHost="fountain.fm"
         href={item.href}
       />
     </div>
