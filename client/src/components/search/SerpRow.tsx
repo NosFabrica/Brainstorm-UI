@@ -21,7 +21,7 @@ import { TranslateLine } from "@/components/share/TranslateLine";
 import { useLightbox } from "@/components/share/Lightbox";
 import { eventStore } from "@/lib/eventStore";
 import { MentionChip } from "@/components/share/MentionChip";
-import { fetchProfileMap } from "@/services/nostr";
+import { fetchEventsByIds, fetchProfileMap } from "@/services/nostr";
 import { highlightTerms } from "@/lib/highlight";
 import { parseNewsShape } from "@/lib/newsShape";
 import { wavlakeTrackId } from "@/lib/wavlake";
@@ -42,7 +42,42 @@ function ago(created_at: number): string {
 const IMAGE_RE = /\.(?:png|jpe?g|gif|webp|avif)(?:\?|#|$)/i;
 // Splits out both web links and nostr mention URIs so each renders as its
 // clickable self — a domain chip, or the mentioned PERSON.
-const TOKEN_SPLIT_RE = /(https?:\/\/\S+|nostr:n(?:pub|profile)1[02-9ac-hj-np-z]+)/gi;
+const TOKEN_SPLIT_RE = /(https?:\/\/\S+|nostr:n(?:pub|profile|event|ote)1[02-9ac-hj-np-z]+)/gi;
+const EVENT_REF_RE = /^nostr:n(?:event|ote)1/i;
+
+/**
+ * The first `max` characters of a note, never cutting through a link or a
+ * nostr: token — half a token is raw text nothing can render, and that is
+ * how "nostr:nprofile1qqsgqke57…" reached a row.
+ */
+function clipAtToken(text: string, max: number): string {
+  if (text.length <= max) return text;
+  let cut = max;
+  for (const m of text.matchAll(/https?:\/\/\S+|nostr:n(?:pub|profile|event|ote)1[02-9ac-hj-np-z]+/gi)) {
+    const start = m.index ?? 0;
+    if (start >= max) break;
+    if (start + m[0].length > max) {
+      cut = start;
+      break;
+    }
+  }
+  return text.slice(0, cut).trimEnd();
+}
+
+/** The events a text quotes — `nostr:nevent1…` / `nostr:note1…` — by id. */
+function quotedIn(text: string): { id: string; uri: string }[] {
+  const out: { id: string; uri: string }[] = [];
+  for (const uri of text.match(/nostr:n(?:event|ote)1[02-9ac-hj-np-z]+/gi) ?? []) {
+    try {
+      const d = nip19.decode(uri.slice("nostr:".length).toLowerCase());
+      const id = d.type === "note" ? (d.data as string) : d.type === "nevent" ? (d.data as { id: string }).id : null;
+      if (id && !out.some((q) => q.id === id)) out.push({ id, uri });
+    } catch {
+      /* not decodable — stays as typed */
+    }
+  }
+  return out;
+}
 
 /** What kind of thing a result is — the Google-style micro label. */
 export function kindTypeLabel(kind: number): string {
@@ -82,7 +117,7 @@ export function kindTypeLabel(kind: number): string {
  * https://i.nostr.build/….png": never the raw id form.
  */
 function Headline({ text, query }: { text: string; query: string }) {
-  const parts = text.split(TOKEN_SPLIT_RE).filter((p) => !/^https?:\/\//i.test(p));
+  const parts = text.split(TOKEN_SPLIT_RE).filter((p) => !/^https?:\/\//i.test(p) && !EVENT_REF_RE.test(p));
   return (
     <>
       {parts.map((part, i) =>
@@ -179,10 +214,68 @@ export function Snippet({ text, query, lines = 3 }: { text: string; query: strin
             </span>
           );
         }
+        // A quoted event renders as the post beneath the row, not as its key.
+        if (EVENT_REF_RE.test(part)) return null;
         if (/^nostr:/i.test(part)) return <MentionChip key={i} uri={part} />;
         return <Marked key={i} text={part} query={query} />;
       })}
     </p>
+  );
+}
+
+/**
+ * The post a row quotes, beneath the row — like the first web link's card.
+ * Store-first (search results are stored on arrival), one relay fallback;
+ * the person via the same chip the snippet uses. Until it arrives, nothing;
+ * if it never does, a small link to the event so the quote is never lost.
+ */
+function QuotedNoteCard({ id, uri, query }: { id: string; uri: string; query: string }) {
+  const [, navigate] = useLocation();
+  const [quoted, setQuoted] = useState<NostrEvent | null>(() => eventStore.getEvent(id) ?? null);
+  const [missing, setMissing] = useState(false);
+  useEffect(() => {
+    if (quoted) return;
+    let alive = true;
+    fetchEventsByIds([id])
+      .then((list) => {
+        if (!alive) return;
+        const hit = list.find((e) => e.id === id);
+        if (hit) setQuoted(hit);
+        else setMissing(true);
+      })
+      .catch(() => {
+        if (alive) setMissing(true);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [id, quoted]);
+  if (missing) {
+    return (
+      <Link href={`/e/${uri.slice("nostr:".length)}`} className="mt-1.5 inline-flex items-center text-xs font-medium text-brand-link hover:underline" data-testid="serp-quote-link">
+        ↳ quoted note
+      </Link>
+    );
+  }
+  if (!quoted) return null;
+  return (
+    <div
+      role="link"
+      tabIndex={0}
+      onClick={() => navigate(eventPath(quoted))}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") navigate(eventPath(quoted));
+      }}
+      className="mt-2 cursor-pointer rounded-xl border border-slate-200 dark:border-slate-800 bg-white/70 dark:bg-slate-900/60 px-3 py-2 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+      data-testid="serp-quote"
+    >
+      <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
+        <MentionChip uri={`nostr:${nip19.npubEncode(quoted.pubkey)}`} />
+      </div>
+      <div className="mt-0.5 text-[13px] [&>p]:text-slate-600 dark:[&>p]:text-slate-300">
+        <Snippet text={quoted.content.slice(0, 240)} query={query} lines={2} />
+      </div>
+    </div>
   );
 }
 
@@ -383,7 +476,7 @@ export function SerpRow({
         )}
         {body && (
           <div className="mt-0.5">
-            <Snippet text={body.slice(0, 300)} query={query} lines={title ? 2 : 3} />
+            <Snippet text={clipAtToken(body, 300)} query={query} lines={title ? 2 : 3} />
             {/* X's "Translate post" for text in another language — on-device, quiet. */}
             <TranslateLine text={body.slice(0, 1000)} />
           </div>
@@ -393,6 +486,11 @@ export function SerpRow({
             <LinkPreviewCard url={cardLink} />
           </div>
         )}
+        {quotedIn(body).slice(0, 1).map((q) => (
+          <div key={q.id} onClick={(e) => e.stopPropagation()}>
+            <QuotedNoteCard id={q.id} uri={q.uri} query={query} />
+          </div>
+        ))}
         {engagement && <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />}
       </div>
       <RowThumb event={event} author={author} score={score} />

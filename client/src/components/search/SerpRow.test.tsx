@@ -13,8 +13,11 @@ import { SerpRow } from "./SerpRow";
 vi.mock("@/hooks/useAuthorScores", () => ({
   useAuthorScores: () => () => 0.7,
 }));
+// Events a row's note quotes — a test that wants one resolved seeds it here.
+const quotedEvents = new Map<string, NostrEvent>();
 vi.mock("@/services/nostr", () => ({
   fetchProfileMap: vi.fn(() => Promise.resolve(new Map())),
+  fetchEventsByIds: vi.fn((ids: string[]) => Promise.resolve(ids.map((id) => quotedEvents.get(id)).filter(Boolean))),
 }));
 // The real store verifies signatures (and jsdom's TextEncoder trips @noble),
 // so known-profile lookups are faked per test.
@@ -274,5 +277,35 @@ it("a video-only result gets a first-frame thumb, not a blank", () => {
     expect(row).toHaveTextContent("A comedian is one who entertains through comedy. Celya AB (born 1995)");
     expect(row.textContent).not.toMatch(/\[\[|==/);
     expect(row).toHaveTextContent("Wiki");
+  });
+
+  // A quote arrived as its raw "nostr:nevent1…" token in the row (megistus,
+  // 2026-09-07). The token leaves the text and the quoted post shows beneath,
+  // the way the first web link earns its card.
+  it("a quoted note shows as the post beneath the row, its token gone from the text", async () => {
+    const quoter = "b".repeat(64);
+    knownProfiles.set(quoter, { id: "9".repeat(64), kind: 0, pubkey: quoter, tags: [], content: JSON.stringify({ name: "quoter" }), created_at: 1, sig: "s" } as NostrEvent);
+    const quotedId = "e".repeat(64);
+    quotedEvents.set(quotedId, { id: quotedId, kind: 1, pubkey: quoter, tags: [], content: "the quoted words, worth reading", created_at: 1, sig: "s" } as NostrEvent);
+    render(<SerpRow event={note(`Yo quiero nostr:${nip19.neventEncode({ id: quotedId })}`)} author={author} score={0.7} query="quiero" />);
+    const row = screen.getByTestId(`serp-row-${"e".repeat(64)}`);
+    expect(row).toHaveTextContent("Yo quiero");
+    expect(row).not.toHaveTextContent("nostr:nevent");
+    const quote = await screen.findByTestId("serp-quote");
+    expect(quote).toHaveTextContent("the quoted words, worth reading");
+    expect(quote).toHaveTextContent("quoter");
+  });
+
+  // The row shows a note's first 300 characters. A mention sitting on that
+  // boundary was sliced in half — "nostr:nprofile1qqsgqke57…" as text
+  // (megistus's rows, 2026-09-07). The clip stops before a token it would cut.
+  it("a mention on the clip boundary is kept whole or dropped, never sliced into raw text", () => {
+    const carol = "c".repeat(64);
+    knownProfiles.set(carol, { id: "f".repeat(64), kind: 0, pubkey: carol, tags: [], content: JSON.stringify({ name: "carol" }), created_at: 1, sig: "s" } as NostrEvent);
+    const words = Array.from({ length: 60 }, (_, i) => `word${i}`).join(" ").slice(0, 285);
+    render(<SerpRow event={note(`${words} cc nostr:${nip19.npubEncode(carol)} and more after`)} author={author} score={0.7} query="word1" />);
+    const row = screen.getByTestId(`serp-row-${"e".repeat(64)}`);
+    expect(row).not.toHaveTextContent(/nostr:n/);
+    expect(row).toHaveTextContent("word0");
   });
 });
