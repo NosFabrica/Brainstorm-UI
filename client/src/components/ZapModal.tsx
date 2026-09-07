@@ -11,6 +11,7 @@ import { Copy, Check, ExternalLink, Loader2, AlertTriangle, ArrowRight, Wallet, 
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { FlashIcon } from "@/components/FlashIcon";
 import { copyToClipboard } from "@/lib/clipboard";
+import { useCopied } from "@/hooks/useCopied";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useActiveAccount } from "applesauce-react/hooks";
 import { signAs } from "@/accounts/signing";
@@ -57,6 +58,9 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
   // The lightning address read from the recipient's CRYPTOGRAPHICALLY VERIFIED
   // kind-0 — the only address we resolve/pay (never the unverified prop).
   const [verifiedLud16, setVerifiedLud16] = useState<string | null>(null);
+  // Some people open this dialog for the address, not an invoice: a copy
+  // glyph beside the verified address, once it is verified.
+  const recipientCopy = useCopied();
 
   // Whoever is signed in signs the zap request; with nobody, it goes out anonymously.
   const account = useActiveAccount();
@@ -199,6 +203,18 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
               <p className="text-xs text-slate-400 dark:text-slate-500 truncate font-mono inline-flex items-center gap-1 max-w-full">
                 {isVerified && <ShieldCheck className="h-3 w-3 text-emerald-500 shrink-0" />}
                 <span className="truncate">{displayAddr}</span>
+                {isVerified && (
+                  <button
+                    type="button"
+                    onClick={() => void recipientCopy.copy(displayAddr)}
+                    title={recipientCopy.copied ? "Copied" : "Copy lightning address"}
+                    aria-label="Copy lightning address"
+                    className="shrink-0 p-0.5 rounded text-slate-400 dark:text-slate-500 hover:text-brand-primary transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+                    data-testid="zap-copy-recipient"
+                  >
+                    {recipientCopy.copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                  </button>
+                )}
               </p>
             </div>
           </div>
