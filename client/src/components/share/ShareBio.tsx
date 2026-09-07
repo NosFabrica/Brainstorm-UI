@@ -5,12 +5,23 @@ import { searchByText } from "@/lib/profileSearch";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string };
 
-// Split on, in order: URLs, real Nostr mentions (nostr:npub/nprofile), #hashtags,
-// or a plain "@Name" org/person mention. The plain-@ branch requires a
+// Split on, in order: URLs, mail the author labelled as mail, real Nostr
+// mentions (nostr:npub/nprofile), #hashtags, or a plain "@Name" org/person
+// mention. The plain-@ branch requires a
 // Title-cased name (so "@ SOUND HSA" matches but "jon@soundhsa.com" — where @ is
 // preceded by a word char — and lowercase noise do not), capturing up to four
 // capitalized words so multi-word org names resolve.
-const TOKEN = /(https?:\/\/[^\s<>"')\]]+|nostr:(?:npub1|nprofile1)[a-z0-9]+|#[\p{L}\p{N}_]+|(?<![\w@./])@ ?[A-Z][\p{L}\p{N}]*(?: [A-Z][\p{L}\p{N}&]*){0,3})/gu;
+// An email address the author CALLS mail — "email:", "e-mail", "mail -",
+// "contact", or written as mailto:. A bare name@domain is left as text: on
+// Nostr it is more often a Fediverse handle (suedioh77@mas.to), a lightning
+// address or a NIP-05 than an email (census of 600 profiles, 2026-09-05).
+const EMAIL = "[\\w.+-]+@[\\w-]+(?:\\.[\\w-]+)+";
+const LABELLED_EMAIL = `(?<=(?:[Ee]-?[Mm]ail|[Mm]ail|[Cc]ontact)\\s*[:=\\-–—]?\\s*)${EMAIL}`;
+const TOKEN = new RegExp(
+  `(https?:\\/\\/[^\\s<>"')\\]]+|mailto:${EMAIL}|${LABELLED_EMAIL}|nostr:(?:npub1|nprofile1)[a-z0-9]+|#[\\p{L}\\p{N}_]+|(?<![\\w@./])@ ?[A-Z][\\p{L}\\p{N}]*(?: [A-Z][\\p{L}\\p{N}&]*){0,3})`,
+  "gu",
+);
+const IS_EMAIL = new RegExp(`^(?:mailto:)?${EMAIL}$`);
 
 /**
  * A plain-text "@Name" bio mention (e.g. "Co-founder @ SOUND HSA"). There's no
@@ -55,6 +66,14 @@ export function ShareBio({ text, profiles }: { text: string; profiles?: Map<stri
     <>
       {text.split(TOKEN).map((part, i) => {
         if (!part) return null;
+        if (IS_EMAIL.test(part)) {
+          const address = part.replace(/^mailto:/, "");
+          return (
+            <a key={i} href={`mailto:${address}`} title="Send an email" className="break-words text-brand-primary hover:underline" data-testid="bio-email">
+              {address}
+            </a>
+          );
+        }
         if (/^https?:\/\//i.test(part)) {
           return (
             <a key={i} href={part} target="_blank" rel="noopener" className="break-words text-brand-primary hover:underline">
