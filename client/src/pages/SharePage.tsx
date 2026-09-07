@@ -26,6 +26,7 @@ import { decodeShareId, npubFromPubkey, nostrUriFor, eventPath } from "@/lib/sha
 import { relativeTime } from "@/lib/relativeTime";
 import { scopedSearchHref } from "@/lib/searchSyntax";
 import { mergeArtistAudio } from "@/lib/wavlake";
+import { liveStateOf } from "@/lib/liveStream";
 import { useArtistCatalogue } from "@/hooks/useArtistCatalogue";
 import { WavlakeSongCard } from "@/components/search/cards";
 import { useCopied } from "@/hooks/useCopied";
@@ -660,9 +661,14 @@ export default function SharePage() {
         // Forward-looking label only when the start is actually in the future.
         timing: starts && starts >= nowSec ? `Starts ${relativeEventTime(starts).toLowerCase()}` : "Planned",
       };
-    }).filter((s) => s.status !== "ended"); // recordings/replays aren't reliable — show live + upcoming
-    const liveNow = parsed.filter((s) => s.status === "live");
-    const upcoming = parsed.filter((s) => s.status !== "live").sort((a, b) => a.starts - b.starts).slice(0, 2);
+    });
+    // Which shelf each stream is on by the Live tab's rule (liveStateOf): a
+    // "live" nobody updated for a week is over — no badge on the avatar, no
+    // "Live now" block (Benjamin, over a months-old LIVE badge: "deceiving").
+    // Replays are not this page's business; the Live tab has them.
+    const stateById = new Map(evs.map((ev) => [ev.id, liveStateOf(ev, nowSec)]));
+    const liveNow = parsed.filter((s) => stateById.get(s.id) === "live");
+    const upcoming = parsed.filter((s) => stateById.get(s.id) === "upcoming").sort((a, b) => a.starts - b.starts).slice(0, 2);
     return { liveNow, upcoming, has: liveNow.length + upcoming.length > 0 };
   }, [liveQuery.data]);
 

@@ -110,4 +110,26 @@ describe("LiveHero", () => {
     render(<LiveHero event={stream([["status", "ended"]])} />);
     expect(screen.getByText(/This stream has ended/)).toBeInTheDocument();
   });
+
+  // Benjamin, over a "LIVE · 3 watching · Started 4 months ago" hero with no
+  // replay: "deceiving". Platforms republish a live event while it runs; one
+  // untouched for months is over, whatever its status tag still says — the
+  // Live tab's rule (liveStateOf), now the hero's too.
+  it("a 'live' nobody updated for months is over: no LIVE pill, no viewers, and it says so", () => {
+    const now = Math.floor(Date.now() / 1000);
+    const stale = { ...stream([["status", "live"], ["streaming", "https://cdn/x/live.m3u8"], ["current_participants", "3"], ["starts", String(now - 120 * 86_400)]]), created_at: now - 120 * 86_400 };
+    render(<LiveHero event={stale} />);
+    expect(screen.queryByTestId("live-pill")).toBeNull();
+    expect(screen.queryByText(/watching/)).toBeNull();
+    expect(screen.queryByTestId("live-watch-external")).toBeNull();
+    expect(screen.getByText("This stream has ended")).toBeInTheDocument();
+    expect(screen.getByText(/Streamed 4 months ago/)).toBeInTheDocument();
+  });
+
+  it("a fresh live stream still wears the pill", () => {
+    const now = Math.floor(Date.now() / 1000);
+    const fresh = { ...stream([["status", "live"], ["streaming", "https://www.twitch.tv/somebody"], ["current_participants", "3"]]), created_at: now - 600 };
+    render(<LiveHero event={fresh} />);
+    expect(screen.getByTestId("live-pill")).toHaveTextContent(/live/i);
+  });
 });

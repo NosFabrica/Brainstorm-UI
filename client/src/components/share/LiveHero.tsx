@@ -4,7 +4,7 @@ import { Radio, Users, ExternalLink, CalendarClock } from "lucide-react";
 import { LiveVideoPlayer } from "@/components/share/LiveVideoPlayer";
 import { NotesInline } from "@/components/share/NotesInline";
 import { isHlsUrl, replayEmbedUrl, streamEmbedUrl } from "@/lib/streamEmbed";
-import { verifyRecording } from "@/lib/liveStream";
+import { verifyRecording, liveStateOf } from "@/lib/liveStream";
 import { isVideoFileUrl } from "@/lib/linkThumb";
 import { relativeEventTime } from "@/lib/calendarEvent";
 import liveDefault from "@/assets/live-default.webp";
@@ -27,8 +27,12 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
   const viewers = Number(tag("current_participants")) || 0;
   const summary = (tag("summary") || event.content || "").trim();
   const nowSec = Math.floor(Date.now() / 1000);
-  const isLive = status === "live";
-  const isUpcoming = !isLive && (status === "planned" || (starts > nowSec && status !== "ended"));
+  // Which shelf this stream is on by the Live tab's rule: a "live" nobody
+  // updated for a week, or past its own end, is over whatever its status tag
+  // says (Benjamin, over "LIVE · 3 watching · Started 4 months ago": "deceiving").
+  const state = liveStateOf(event, nowSec);
+  const isLive = state === "live";
+  const isUpcoming = state === "upcoming";
 
   const [failed, setFailed] = useState(false);
   const [imgBroken, setImgBroken] = useState(false);
@@ -154,7 +158,7 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
 
       <div className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
         {isLive && (
-          <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-600 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-400">
+          <span className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-600 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-400" data-testid="live-pill">
             <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-red-500" /> Live
           </span>
         )}
@@ -164,7 +168,7 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
           </span>
         )}
         {isLive && viewers > 0 && <span className="inline-flex items-center gap-1"><Users className="h-3.5 w-3.5" /> {viewers.toLocaleString()} watching</span>}
-        {starts > 0 && <span>{isLive ? "Started" : isUpcoming ? "Starts" : "Was"} {relativeEventTime(starts).toLowerCase()}</span>}
+        {starts > 0 && <span>{isLive ? "Started" : isUpcoming ? "Starts" : "Streamed"} {relativeEventTime(starts).toLowerCase()}</span>}
       </div>
 
       <h1 className="mt-1.5 text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl" style={{ fontFamily: "var(--font-display)" }} data-testid="live-hero-title">

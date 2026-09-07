@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { liveCategoryOf, liveNeedsCheck, liveStateOf, onAirLabel, verifyRecording, __resetRecordingChecks } from "./liveStream";
+import { liveCategoryOf, liveNeedsCheck, liveStateOf, onAirLabel, pickStreams, verifyRecording, __resetRecordingChecks } from "./liveStream";
 
 // Odell's year-old replay: the recording host (data.zap.stream) no longer
 // answers at all, and the panel advertised a black player. A recording is
@@ -121,5 +121,27 @@ describe("a stream nothing can play is not a broadcast", () => {
     expect(liveStateOf(live([]), now)).toBe("live");
     // An unplayable stream with a real recording: the recording can play, so a replay.
     expect(liveStateOf(live([["streaming", "ftp://x/y"], ["recording", "https://r/x.m3u8"]]), now)).toBe("replay");
+  });
+});
+
+describe("pickStreams — the person panel's live, upcoming and replay, by the same rule as the Live tab", () => {
+  const now = 1_800_000_000;
+  const ev = (id: string, ageSec: number, tags: string[][]) => ({ id, pubkey: "a".repeat(64), kind: 30311, created_at: now - ageSec, tags: [["d", id], ["title", "Moon Bear Radio"], ...tags], content: "" });
+  it("a 'live' untouched for months is not live; with a recording it is the replay", () => {
+    const stale = ev("s", 120 * 86_400, [["status", "live"], ["streaming", "https://cdn/x.m3u8"], ["current_participants", "3"]]);
+    expect(pickStreams([stale], now)).toEqual({ live: null, upcoming: null, replay: null });
+    const staleWithRec = ev("r", 120 * 86_400, [["status", "live"], ["streaming", "https://cdn/x.m3u8"], ["recording", "https://rec/x.m3u8"]]);
+    const picked = pickStreams([staleWithRec], now);
+    expect(picked.live).toBeNull();
+    expect(picked.replay?.id).toBe("r");
+  });
+  it("a fresh live stream is live; a planned one is upcoming; an ended one with a recording is the replay", () => {
+    const live = ev("l", 600, [["status", "live"], ["streaming", "https://cdn/x.m3u8"]]);
+    const planned = ev("p", 60, [["status", "planned"], ["starts", String(now + 7200)]]);
+    const ended = ev("e", 3600, [["status", "ended"], ["recording", "https://rec/e.m3u8"]]);
+    const picked = pickStreams([ended, planned, live], now);
+    expect(picked.live?.id).toBe("l");
+    expect(picked.upcoming?.id).toBe("p");
+    expect(picked.replay?.id).toBe("e");
   });
 });

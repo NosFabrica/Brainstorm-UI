@@ -60,16 +60,19 @@ export interface PickedStreams {
  * "This stream has ended".
  */
 export function pickStreams(events: EventLike[], nowSec = Math.floor(Date.now() / 1000)): PickedStreams {
-  const parsed = events.map(parseLiveStream).filter((s): s is LiveStream => s !== null);
-  const newestFirst = [...parsed].sort((a, b) => Math.max(b.startsSec, b.createdAt) - Math.max(a.startsSec, a.createdAt));
+  // The shelf each stream is on comes from liveStateOf — the Live tab's rule —
+  // so a "live" nobody updated for months is not live here either.
+  const parsed = events
+    .map((ev) => ({ stream: parseLiveStream(ev), state: liveStateOf(ev, nowSec) }))
+    .filter((x): x is { stream: LiveStream; state: LiveState | null } => x.stream !== null);
+  const newestFirst = [...parsed].sort((a, b) => Math.max(b.stream.startsSec, b.stream.createdAt) - Math.max(a.stream.startsSec, a.stream.createdAt));
   const upcoming = parsed
-    .filter((s) => s.status !== "live" && s.status !== "ended" && (s.status === "planned" || s.startsSec > nowSec))
-    .filter((s) => s.startsSec === 0 || s.startsSec > nowSec - 6 * 3600)
-    .sort((a, b) => a.startsSec - b.startsSec)[0] ?? null;
+    .filter((x) => x.state === "upcoming")
+    .sort((a, b) => a.stream.startsSec - b.stream.startsSec)[0]?.stream ?? null;
   return {
-    live: newestFirst.find((s) => s.status === "live") ?? null,
+    live: newestFirst.find((x) => x.state === "live")?.stream ?? null,
     upcoming,
-    replay: newestFirst.find((s) => s.status === "ended" && !!s.recording) ?? null,
+    replay: newestFirst.find((x) => x.state === "replay")?.stream ?? null,
   };
 }
 
