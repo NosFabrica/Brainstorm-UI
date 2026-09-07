@@ -17,6 +17,7 @@ import { useLightbox } from "@/components/share/Lightbox";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
 import { parseNewsShape, type NewsShape } from "@/lib/newsShape";
 import { eventPath } from "@/lib/shareId";
+import { articleBrief } from "@/lib/wiki";
 import { getDisplayLabel } from "@/lib/profileSearch";
 import type { SearchHit } from "@/services/search";
 import type { HitCluster } from "@/lib/searchCollapse";
@@ -328,7 +329,7 @@ export function hasCover(e: NostrEvent): boolean {
 function articleShape(e: NostrEvent) {
   return {
     title: tagVal(e, "title") ?? "Untitled",
-    summary: tagVal(e, "summary") ?? "",
+    summary: articleBrief(e),
     image: tagVal(e, "image") ?? null,
   };
 }

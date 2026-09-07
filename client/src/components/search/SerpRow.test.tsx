@@ -260,4 +260,19 @@ it("a video-only result gets a first-frame thumb, not a blank", () => {
     fireEvent.click(screen.getByTestId(`serp-row-${"e".repeat(64)}`));
     expect(window.location.pathname).toMatch(/^\/e\//);
   });
+
+  // GitCitadel's wiki pages are AsciiDoc: opened in a row they read
+  // "[[comedian]]" and "== Comedians" (2026-09-07). A row shows the words.
+  it("a wiki page's row reads its words, not its markup", () => {
+    const wiki = {
+      ...note("A [[comedian]] is one who entertains through [[comedy]].\n\n== Comedians\n=== A\n* [[Celya AB]] (born 1995)", [["d", "list-of-comedians"], ["title", "List of comedians"]]),
+      kind: 30818,
+    } as NostrEvent;
+    render(<SerpRow event={wiki} author={author} score={0.7} query="comedians" />);
+    const row = screen.getByTestId(`serp-row-${wiki.id}`);
+    expect(row).toHaveTextContent("List of comedians");
+    expect(row).toHaveTextContent("A comedian is one who entertains through comedy. Celya AB (born 1995)");
+    expect(row.textContent).not.toMatch(/\[\[|==/);
+    expect(row).toHaveTextContent("Wiki");
+  });
 });

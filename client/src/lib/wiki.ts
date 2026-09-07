@@ -69,3 +69,15 @@ export function wikiPlainText(content: string): string {
     .replace(/\s+/g, " ")
     .trim();
 }
+
+/**
+ * The line under an article's title on a card. A long-form article says it
+ * in its summary tag; a wiki page has none, so its opening words stand in.
+ */
+export function articleBrief(event: { kind: number; content: string; tags: string[][] }, max = 220): string {
+  const summary = event.tags.find((t) => t[0] === "summary")?.[1];
+  if (summary) return summary;
+  if (event.kind !== 30818) return "";
+  const words = wikiPlainText(event.content);
+  return words.length > max ? `${words.slice(0, max).replace(/\s+\S*$/, "")}…` : words;
+}

@@ -27,6 +27,7 @@ import { parseNewsShape } from "@/lib/newsShape";
 import { wavlakeTrackId } from "@/lib/wavlake";
 import { WavlakeTrackCard } from "@/components/share/WavlakeTrackCard";
 import { eventPath } from "@/lib/shareId";
+import { wikiPlainText } from "@/lib/wiki";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
 
@@ -363,7 +364,8 @@ export function SerpRow({
     );
   }
 
-  const body = event.content || tagVal(event, "summary") || tagVal(event, "description") || "";
+  // A wiki page is AsciiDoc; the row shows its words, not "[[comedian]]".
+  const body = (event.kind === 30818 ? wikiPlainText(event.content) : event.content) || tagVal(event, "summary") || tagVal(event, "description") || "";
   // The row's first plain web link earns a metadata card (title, description,
   // image) when the unfurl proxy knows it — Google shows the page, not the
   // domain. Media links are the thumbnail's business, not a card's.

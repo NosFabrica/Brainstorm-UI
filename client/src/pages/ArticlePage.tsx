@@ -140,6 +140,17 @@ export default function ArticlePage() {
   const tag = (k: string) => ev?.tags.find((t) => t[0] === k)?.[1];
   const title = tag("title") || "Untitled article";
   const summary = tag("summary") || "";
+  // A wiki page mirrored from elsewhere names its source in an "s" tag
+  // (GitCitadel: the Wikipedia URL). Attribution is owed, and one line does it.
+  const sourceUrl = ev?.kind === 30818 && /^https?:\/\//.test(tag("s") || "") ? tag("s")! : "";
+  const sourceName = (() => {
+    try {
+      const host = new URL(sourceUrl).hostname.replace(/^www\./, "");
+      return /(^|\.)wikipedia\.org$/.test(host) ? "Wikipedia" : host;
+    } catch {
+      return "";
+    }
+  })();
   const image = tag("image");
   const profile = (profileQuery.data ?? {}) as { display_name?: string; name?: string; picture?: string; nip05?: string };
   const authorName = profile.display_name || profile.name || (ptr ? nip19.npubEncode(ptr.pubkey).slice(0, 12) + "…" : "Unknown");
@@ -205,6 +216,14 @@ export default function ArticlePage() {
               {title}
             </h1>
             {summary && <p className="mt-2 text-lg text-slate-500 dark:text-slate-400 leading-snug">{summary}</p>}
+            {sourceUrl && sourceName && (
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="article-source">
+                Mirrored from{" "}
+                <a href={sourceUrl} target="_blank" rel="noopener" className="font-medium text-brand-link hover:underline">
+                  {sourceName}
+                </a>
+              </p>
+            )}
 
             {/* Author + trust + date */}
             <div className="mt-4 flex items-center gap-3 border-b border-slate-100 dark:border-slate-800/60 pb-5">
