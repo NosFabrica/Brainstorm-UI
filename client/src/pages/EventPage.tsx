@@ -147,7 +147,8 @@ export default function EventPage() {
     ? note.tags.find((t) => t[0] === "p" && (t[3] || "").toLowerCase() === "host")?.[1] || note.tags.find((t) => t[0] === "p")?.[1]
     : undefined;
   const authorPk = liveHost || note?.pubkey || ptr?.author || "";
-  const isArticle = note?.kind === 30023;
+  // Long-form (30023) and wiki pages (30818) both read on the article reader.
+  const isArticle = note?.kind === 30023 || note?.kind === 30818;
   const mediaUrls = useMemo(() => (note && !NOTE_KINDS.has(note.kind) ? eventMediaUrls(note) : []), [note]);
 
   // Long-form events belong on the article reader — hand off to /a.

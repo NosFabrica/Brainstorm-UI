@@ -359,9 +359,9 @@ describe("ComposedResults — media-rich sections", () => {
     expect(within(section).getByTestId("serp-row-a3")).toHaveTextContent("Scouse cuisine, ranked");
     expect(within(section).queryByTestId("serp-row-a1")).toBeNull();
     expect(within(section).queryByTestId("serp-row-a5")).toBeNull();
-    // The lead opens the article.
+    // The lead opens the article on the reader, addressed by kind, author and name.
     fireEvent.click(lead);
-    expect(window.location.pathname).toMatch(/^\/e\/nevent1/);
+    expect(window.location.pathname).toMatch(/^\/a\/naddr1/);
   });
 
   it("no pictured news, no strip — Latest stays rows", async () => {
