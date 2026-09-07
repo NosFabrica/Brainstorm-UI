@@ -211,3 +211,9 @@ export function splitExhausted<R extends { id?: unknown }>(rows: R[], handles: M
   }
   return { standalone, folded };
 }
+
+/** The first sentence of a meaning — enough on a daily visit; the rest rides on hover. */
+export function firstSentence(text: string): string {
+  const m = text.match(/^.*?[.!?](?=\s|$)/);
+  return m ? m[0] : text;
+}

@@ -125,7 +125,9 @@ describe("PlanMappingsCard", () => {
     const priced = await screen.findByTestId("billing-plan-1");
     await waitFor(() => expect(priced.textContent).toContain("$2.00"));
     expect(priced.textContent).toContain("per month");
-    expect(screen.getByTestId("billing-plan-flash-1")).toHaveTextContent("Priority");
+    // Tier and Flash's plan share the name "Priority": the row says it once, in its header.
+    expect(screen.getByTestId("billing-plan-1")).toHaveTextContent("Priority");
+    expect(screen.getByTestId("billing-plan-flash-1")).toHaveTextContent("$2.00 per month");
     // A mapping Flash no longer lists says so rather than showing a stale price.
     const unlisted = screen.getByTestId("billing-plan-2");
     expect(unlisted.textContent).toMatch(/not in Flash.s current list/i);
@@ -161,6 +163,44 @@ describe("PlanMappingsCard", () => {
     expect(within(screen.getByTestId("billing-plan-1")).getByText("For sale")).toBeInTheDocument();
     expect(within(screen.getByTestId("billing-plan-2")).getByText("Not in Flash")).toBeInTheDocument();
     expect(within(screen.getByTestId("billing-plan-3")).getByText("Withdrawn")).toBeInTheDocument();
+  });
+
+  // Benjamin, reviewing Plans on sale: the card said its one sentence twice;
+  // withdrawn rows wore an amber line about Flash that was beside the point;
+  // "Priority · Priority · $2.00" said the name twice; New mapping sat in the
+  // body where the Users tab keeps its action in the header.
+  it("says its sentence once, in the header beside New mapping, and speaks of tiers", async () => {
+    getAdminBillingPlanMappings.mockResolvedValue([plan()]);
+    renderCard();
+    const header = await screen.findByTestId("billing-plans-header");
+    expect(header).toHaveTextContent("Plans on sale");
+    expect(header).toHaveTextContent(/which tier/i);
+    expect(within(header).getByTestId("button-new-plan-mapping")).toBeInTheDocument();
+    expect(screen.getAllByText(/Which Flash plan buys which/i)).toHaveLength(1);
+    expect(screen.getByTestId("billing-plans-cache-note").textContent).toMatch(/ten minutes/i);
+    expect(document.body.textContent).not.toMatch(/scheduling policy/i);
+  });
+
+  it("a withdrawn mapping says so in grey; only a mapping Flash dropped wears the amber line; a name said once", async () => {
+    getBillingPlans.mockResolvedValue({
+      plans: [
+        { policy_id: 7, policy_name: "Priority", schedule_interval_seconds: 604800, is_default: false, plan_id: "4f2a", plan_name: "Priority", description: null, amount_minor: 200, currency: "USD", billing_interval: "monthly", checkout_url: "https://x", features: null, not_included: null },
+      ],
+    });
+    getAdminBillingPlanMappings.mockResolvedValue([
+      plan({ id: 1, flash_plan_id: "4f2a", is_active: true }),
+      plan({ id: 2, flash_plan_id: "zzzz", is_active: true }),
+      plan({ id: 3, flash_plan_id: "old1", is_active: false }),
+    ]);
+    renderCard();
+    await waitFor(() => expect(screen.getByTestId("billing-plan-flash-1").textContent).toContain("$2.00"));
+    // Tier and Flash's plan share a name: said once.
+    expect(screen.getByTestId("billing-plan-flash-1").textContent?.trim()).toBe("$2.00 per month");
+    expect(screen.getByTestId("billing-plan-flash-2").textContent).toMatch(/not in Flash.s current list/i);
+    const withdrawn = screen.getByTestId("billing-plan-3");
+    expect(withdrawn.textContent).toMatch(/Withdrawn — not offered on the pricing page/);
+    expect(withdrawn.textContent).not.toMatch(/not in Flash.s current list/i);
+    expect(screen.getByTestId("billing-plan-flash-3").className).not.toMatch(/amber/);
   });
 
   it("is usable on a fresh instance with nothing mapped yet", async () => {

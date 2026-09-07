@@ -513,7 +513,8 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     expect(faults.textContent).toContain("paid cadence");
     expect(faults.textContent).not.toContain("Abandoned checkouts");
     expect(record.textContent).toContain("Abandoned checkouts");
-    expect(record.textContent).toContain("the count is the signal");
+    // The meaning's first sentence shows; the rest waits on hover of the line.
+    expect(screen.getByTestId("billing-divergence-meaning-abandoned_checkouts").getAttribute("title")).toContain("the count is the signal");
     expect(record.textContent).toContain("Not re-read recently");
     // Counts read as chips, not as `count=12`.
     expect(record.textContent).not.toContain("count=");
@@ -853,6 +854,37 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     const other8 = OTHER.slice(0, 8);
     await waitFor(() => expect(screen.getByTestId(`billing-interval-${other8}`)).toHaveTextContent("—"));
     expect(screen.getByTestId(`billing-cycle-${other8}`)).toHaveTextContent("—");
+  });
+
+  // Benjamin, reviewing Needs attention: the whole card wore the warning
+  // colour though most rows are for the record; the copy ran three sentences
+  // an admin re-reads daily; the retired-plan rows repeated their heading and
+  // wore bordered buttons where the abandoned row has a quiet link.
+  it("the report is a neutral card whose Faults kicker carries the warning, with one-sentence copy and the rest on hover", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue({
+      failing_syncs: { count: 1, truncated: false, rows: [{ pubkey: PUBKEY, last_sync_error: "401 invalid api key", last_synced_at: "2026-09-07T00:00:00Z" }] },
+      retired_plan_subscribers: { count: 1, truncated: false, rows: [{ pubkey: "2".repeat(64), flash_status: "active", flash_subscription_id: "sub_r", granted_scheduling_id: 7 }] },
+    });
+    renderCards();
+    const card = await screen.findByTestId("card-billing-divergence");
+    expect(card.className).not.toMatch(/amber/);
+    expect(card.textContent).toContain("What Flash and Brainstorm disagree on.");
+    expect(card.textContent).not.toContain("Most of this is for knowing");
+    const faults = screen.getByTestId("billing-divergence-faults");
+    expect(faults.querySelector("span")?.className).toMatch(/amber/);
+    // The section's meaning: first sentence shown, all of it on hover.
+    const failing = screen.getByTestId("billing-divergence-failing_syncs");
+    const meaning = within(failing).getByTestId("billing-divergence-meaning-failing_syncs");
+    expect(meaning.textContent).toBe("The read from Flash failed and it still matters — a bad API key, or a paying subscriber we've lost track of.");
+    expect(meaning.getAttribute("title")).toContain("Abandoned checkouts are kept out");
+    // A retired-plan row says what it grants, not what its heading already said, and links quietly.
+    const retired = screen.getByTestId(`billing-retired-${"2".repeat(8)}`);
+    expect(retired.textContent).not.toMatch(/Renewing on a retired plan/);
+    expect(retired.textContent).toMatch(/Grants/);
+    const link = within(retired).getByTestId(`billing-retired-flash-${"2".repeat(8)}`);
+    expect(link.textContent?.trim()).toBe("Flash");
+    expect(link.className).not.toMatch(/border/);
   });
 
   // Numbers first: how many are paying, how many are in trouble, how many

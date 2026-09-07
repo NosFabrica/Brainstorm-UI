@@ -4306,13 +4306,8 @@ export default function AdminPage() {
                 <AdminBillingCards active={activeTab === "billing"} />
               </div>
               <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-billing-plans">
-                <div className="px-5 py-4 border-b border-brand-accent/10">
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Plans on sale</h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Which Flash plan buys which scheduling policy, and what it costs</p>
-                </div>
-                <div className="px-5 py-4">
-                  <PlanMappingsCard active={activeTab === "billing"} />
-                </div>
+                {/* The header is the card's own — its sentence once, New mapping beside it. */}
+                <PlanMappingsCard active={activeTab === "billing"} />
               </div>
             </div>
           )}

@@ -59,7 +59,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Chip } from "@/components/ui/chip";
 import { tone, type Tone } from "@/lib/tones";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
-import { DIVERGENCE_META, orderedSections, subscriptionIdsByEventId, type DivergenceMeta, type DivergenceTier, type OrderedSection, groupSignups, splitExhausted, type SignupHandle } from "./divergenceSections";
+import { DIVERGENCE_META, orderedSections, subscriptionIdsByEventId, type DivergenceMeta, type DivergenceTier, type OrderedSection, groupSignups, splitExhausted, type SignupHandle, firstSentence } from "./divergenceSections";
 import { StatTile } from "@/components/ui/stat-tile";
 import { ScrollableTable } from "@/components/admin/ScrollableTable";
 import { failureLabel, sourceLabel, statusLabel } from "./billingEventCopy";
@@ -1125,15 +1125,18 @@ export function AdminBillingCards({ active }: { active: boolean }) {
       </div>
 
       {/* Divergence — the server's "everything nobody has settled" report. */}
+      {/* A neutral card: most of its rows are for the record, so the warning
+          colour belongs to the Faults kicker and the counts, not the whole band
+          (colour to communicate, not decorate). One sentence of intro — an
+          admin reads this daily; each section's first sentence follows, the
+          rest on hover. */}
       <div
-        className="rounded-xl border border-amber-200/60 dark:border-amber-400/20 bg-amber-50/50 dark:bg-amber-400/[0.06] px-4 py-3"
+        className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/40 px-4 py-3"
         data-testid="card-billing-divergence"
       >
         <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100">Needs attention</h4>
         <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-          Everything nobody has settled between Flash and what users receive. Faults first — a paying
-          subscriber on the wrong cadence, a payment going nowhere — then what's worth knowing but isn't
-          broken. Most of this is for knowing; act where a button is offered, or in Flash.
+          What Flash and Brainstorm disagree on. Faults first, then what is worth knowing.
         </p>
         {divergenceQuery.isError ? (
           <p className="mt-2 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-divergence-error">
@@ -1401,7 +1404,9 @@ function DivergenceHeading({
         )}
       </div>
       {meta?.meaning && (
-        <p className="mt-0.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400">{meta.meaning}</p>
+        <p className="mt-0.5 text-[11px] leading-snug text-slate-500 dark:text-slate-400" title={meta.meaning} data-testid={`billing-divergence-meaning-${kind}`}>
+          {firstSentence(meta.meaning)}
+        </p>
       )}
     </div>
   );

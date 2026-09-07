@@ -175,21 +175,23 @@ export function RetiredPlanRowView({ row, profile, flashUrl, policyName }: { row
   return (
     <li className={rowClass} data-testid={`billing-retired-${pk8}`}>
       <PersonCell pubkey={row.pubkey ?? ""} profile={profile} />
+      {/* The heading already says they renew on a retired plan; the row says
+          what that grants, and links out the way the abandoned row does. */}
       <span className={`flex flex-wrap items-center gap-2 ${meta}`}>
         {row.flash_status && <Chip tone={statusTone(row.flash_status)} size="sm">{statusLabel(row.flash_status)}</Chip>}
-        <span>Renewing on a retired plan · grants {policyName(row.granted_scheduling_id)}</span>
+        <span>{row.granted_scheduling_id != null ? `Grants ${policyName(row.granted_scheduling_id)}` : "Grants nothing yet"}</span>
+        {row.flash_subscription_id && (
+          <a
+            href={flashUrl(row.flash_subscription_id)}
+            target="_blank"
+            rel="noopener"
+            className="inline-flex items-center gap-1 text-brand-link hover:underline"
+            data-testid={`billing-retired-flash-${pk8}`}
+          >
+            Flash <ExternalLink className="h-3 w-3" />
+          </a>
+        )}
       </span>
-      {row.flash_subscription_id && (
-        <a
-          href={flashUrl(row.flash_subscription_id)}
-          target="_blank"
-          rel="noopener"
-          className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 hover:border-brand-accent/40 hover:text-brand-deep dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-white"
-          data-testid={`billing-retired-flash-${pk8}`}
-        >
-          View in Flash <ExternalLink className="h-3 w-3" />
-        </a>
-      )}
     </li>
   );
 }

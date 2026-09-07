@@ -8,7 +8,7 @@
  * signup); the id map lets the exhausted row borrow the signup's handle.
  */
 import { describe, expect, it } from "vitest";
-import { DIVERGENCE_META, groupSignups, orderedSections, splitExhausted, subscriptionIdsByEventId } from "./divergenceSections";
+import { DIVERGENCE_META, firstSentence, groupSignups, orderedSections, splitExhausted, subscriptionIdsByEventId } from "./divergenceSections";
 
 const section = (rows: Record<string, unknown>[] = [{}]) => ({ count: rows.length, truncated: false, rows });
 
@@ -94,5 +94,15 @@ describe("splitExhausted", () => {
     );
     expect(out.folded).toBe(1);
     expect(out.standalone.map((r) => r.id)).toEqual([42, 99]);
+  });
+});
+
+// A section's meaning is worth reading once; on a daily visit the first
+// sentence is enough and the rest waits on hover.
+describe("firstSentence", () => {
+  it("keeps the first sentence, whole, and leaves a one-sentence text alone", () => {
+    expect(firstSentence("The read from Flash failed and it still matters — a bad API key. Abandoned checkouts are kept out.")).toBe("The read from Flash failed and it still matters — a bad API key.");
+    expect(firstSentence("Renewing normally on a plan nobody can buy any more.")).toBe("Renewing normally on a plan nobody can buy any more.");
+    expect(firstSentence("Started but never paid; Flash discards them. Individually boring.")).toBe("Started but never paid; Flash discards them.");
   });
 });

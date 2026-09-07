@@ -51,13 +51,19 @@ function PlanRow({
             </Chip>
           </div>
           {/* What it sells, in Flash's words and price — a mapping is two ids
-              nobody can read. A plan Flash no longer lists says so rather than
-              showing a stale price. */}
-          {flash ? (
+              nobody can read. When Flash's plan name is the tier's name it is
+              said once. A withdrawn mapping says so in grey; only a mapping we
+              sell that Flash no longer lists wears the amber line. */}
+          {status === "withdrawn" ? (
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400" data-testid={`billing-plan-flash-${plan.id}`}>
+              Withdrawn — not offered on the pricing page.
+            </p>
+          ) : flash ? (
             <p className="mt-1 text-sm text-slate-700 dark:text-slate-200" data-testid={`billing-plan-flash-${plan.id}`}>
-              <span className="font-medium">{flash.planName ?? "Unnamed plan"}</span>
-              <span className="text-slate-500 dark:text-slate-400">
-                {" · "}
+              {flash.planName && flash.planName.trim().toLowerCase() !== policyName.trim().toLowerCase() && (
+                <span className="font-medium">{flash.planName}{" · "}</span>
+              )}
+              <span className={flash.planName && flash.planName.trim().toLowerCase() !== policyName.trim().toLowerCase() ? "text-slate-500 dark:text-slate-400" : ""}>
                 {formatAmount(flash.amountMinor, flash.currency)}
                 {interval ? ` ${interval}` : ""}
               </span>
@@ -181,21 +187,25 @@ export function PlanMappingsCard({ active }: { active: boolean }) {
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          Which Flash plan buys which scheduling policy, and whether we sell it.
-          Price, period and copy are read from Flash and shown on the pricing
-          page — they are not edited here.{" "}
-          <span data-testid="billing-plans-cache-note">
-            An edit made in Flash can take up to ten minutes to show here and on the pricing page.
-          </span>
-        </p>
+    <div>
+      {/* The card's own header, the User Database's anatomy: the name and its
+          one sentence on the left, the action on the right. */}
+      <div className="px-3 sm:px-5 py-4 border-b border-brand-accent/10 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3" data-testid="billing-plans-header">
+        <div>
+          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Plans on sale</h3>
+          <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+            Which Flash plan buys which tier, and what it costs.{" "}
+            <span data-testid="billing-plans-cache-note">
+              Prices and copy come from Flash and can take up to ten minutes to update here and on the pricing page.
+            </span>
+          </p>
+        </div>
         <Button size="sm" onClick={openCreate} data-testid="button-new-plan-mapping">
           <Plus className="h-3.5 w-3.5 mr-1.5" />
           New mapping
         </Button>
       </div>
+    <div className="px-3 sm:px-5 py-4 space-y-3">
 
       {plansQuery.isPending ? (
         <div className="flex items-center gap-2 py-6 text-sm text-slate-500 dark:text-slate-400">
@@ -258,6 +268,7 @@ export function PlanMappingsCard({ active }: { active: boolean }) {
           onSubmit={handleSubmit}
         />
       )}
+    </div>
     </div>
   );
 }
