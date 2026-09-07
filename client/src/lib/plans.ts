@@ -360,6 +360,14 @@ const BILLING_INTERVALS: Record<string, string> = {
  * pricing page or price it with no period. So an unknown word reads as itself,
  * and an absent one returns null so the caller shows a price alone.
  */
+/** The interval as a column reads it — "Monthly", not "per month". Unknown words pass through, capitalised. */
+const BILLING_CADENCE: Record<string, string> = { daily: "Daily", weekly: "Weekly", monthly: "Monthly", yearly: "Yearly", one_off: "One-time" };
+export function formatBillingCadence(interval: string | null | undefined): string | null {
+  const word = typeof interval === "string" ? interval.trim() : "";
+  if (!word) return null;
+  return BILLING_CADENCE[word.toLowerCase()] ?? word.charAt(0).toUpperCase() + word.slice(1);
+}
+
 export function formatBillingInterval(interval: string | null | undefined): string | null {
   const word = typeof interval === "string" ? interval.trim() : "";
   if (!word) return null;

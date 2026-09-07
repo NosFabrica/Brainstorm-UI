@@ -13,6 +13,7 @@ import {
   formatBillingInterval,
   nextScheduledLabel,
   SUBSCRIPTION_STATUS_LABEL,
+  formatBillingCadence,
 } from "./plans";
 
 /**
@@ -237,5 +238,16 @@ describe("billingDeadlineMs — still ahead of us?", () => {
   it("is null when there is nothing to compare against", () => {
     expect(billingDeadlineMs(null)).toBeNull();
     expect(billingDeadlineMs("not a date")).toBeNull();
+  });
+});
+
+describe("formatBillingCadence", () => {
+  it("names the interval as a column would — Monthly, not 'per month' — and passes unknown words through", () => {
+    expect(formatBillingCadence("monthly")).toBe("Monthly");
+    expect(formatBillingCadence("yearly")).toBe("Yearly");
+    expect(formatBillingCadence("one_off")).toBe("One-time");
+    expect(formatBillingCadence("Quarterly")).toBe("Quarterly");
+    expect(formatBillingCadence(null)).toBeNull();
+    expect(formatBillingCadence("  ")).toBeNull();
   });
 });

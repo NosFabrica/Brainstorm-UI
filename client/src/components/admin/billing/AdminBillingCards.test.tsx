@@ -815,6 +815,46 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     expect(table.querySelector("thead tr")?.className).toMatch(/bg-slate-50/);
   });
 
+  // Benjamin: "are we able to add in the cycle and interval after period?"
+  // The roster row carries neither; Flash's own record for the subscriber does
+  // (the row's "Flash's record" action already reads it). So each row asks
+  // once, cached, and says the cadence and which billing period they are on.
+  it("shows each subscriber's billing interval and cycle after the period, from Flash's record", async () => {
+    const OTHER = "2".repeat(64);
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 2,
+      pages: 1,
+      items: [
+        { pubkey: PUBKEY, flash_status: "active", flash_subscription_id: "7d3b", scheduling_source: "billing", billing_blocked: false },
+        { pubkey: OTHER, flash_status: "active", scheduling_source: "admin", billing_blocked: false },
+      ],
+    });
+    getAdminBillingFlashRecordForSubscriber.mockImplementation(async (pubkey: string) => {
+      if (pubkey !== PUBKEY) throw new Error("Flash has no such subscription");
+      return {
+        livemode: true,
+        subscriptions: [
+          { id: "old", status: "expired", ref: PUBKEY, currentPeriodNumber: 12, pricingSnapshot: { planName: "Priority", amount: "200", currency: "USD", billingInterval: "yearly" } },
+          { id: "7d3b", status: "active", ref: PUBKEY, currentPeriodNumber: 3, pricingSnapshot: { planName: "Priority", amount: "200", currency: "USD", billingInterval: "monthly" } },
+        ],
+      };
+    });
+    renderCards();
+    const table = await screen.findByTestId("table-billing-subscribers");
+    const headers = [...table.querySelectorAll("thead th")].map((th) => th.textContent?.trim());
+    expect(headers.indexOf("Interval")).toBe(headers.indexOf("Period") + 1);
+    expect(headers.indexOf("Cycle")).toBe(headers.indexOf("Period") + 2);
+    // The record that IS this roster row — not whichever Flash listed first.
+    const pk8 = PUBKEY.slice(0, 8);
+    await waitFor(() => expect(screen.getByTestId(`billing-interval-${pk8}`)).toHaveTextContent("Monthly"));
+    expect(screen.getByTestId(`billing-cycle-${pk8}`)).toHaveTextContent("3");
+    expect(screen.getByTestId(`billing-cycle-${pk8}`)).toHaveAttribute("title", "3 periods billed");
+    // Flash has no such subscription: the cells say nothing, not a guess.
+    const other8 = OTHER.slice(0, 8);
+    await waitFor(() => expect(screen.getByTestId(`billing-interval-${other8}`)).toHaveTextContent("—"));
+    expect(screen.getByTestId(`billing-cycle-${other8}`)).toHaveTextContent("—");
+  });
+
   // Numbers first: how many are paying, how many are in trouble, how many
   // are on their way out, and how many faults wait below — all from what the
   // tab already fetched. The Faults tile is the way down to the report.

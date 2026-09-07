@@ -3,7 +3,7 @@ import { Loader2 } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
 import { formatAmount, formatBillingDate, formatBillingInterval } from "@/lib/plans";
 import { statusTone } from "./DivergenceRows";
-import { describeCycles, readFlashSubscription } from "./flashRecord";
+import { describeCycles, readFlashSubscription, type FlashSubscriptionRecord } from "./flashRecord";
 
 /** Shared with the record dialog, so a row that already asked Flash feeds the dialog. */
 export const flashRecordKey = (id: string) => ["/api/admin/billing/flash-record", id] as const;
@@ -17,6 +17,33 @@ export const flashRecordKey = (id: string) => ["/api/admin/billing/flash-record"
  * record dialog uses, so opening it costs nothing more. Absent or unreachable,
  * the strip is simply not there: the row's lead and handle never depend on it.
  */
+/**
+ * Flash's record for one subscription, read once and cached for five minutes
+ * (the same read the record dialog makes). `preferId` picks the row that IS
+ * ours when Flash lists several for a ref; otherwise the first. `record` is
+ * null while pending, on error, and when Flash lists nothing.
+ */
+export function useFlashSubscriptionRecord(
+  id: string,
+  read: (id: string) => Promise<unknown>,
+  preferId?: string | null,
+): { pending: boolean; record: FlashSubscriptionRecord | null; rows: number } {
+  const query = useQuery({
+    queryKey: flashRecordKey(id),
+    queryFn: async () => (await read(id)) ?? null,
+    staleTime: 5 * 60_000,
+    retry: false,
+    enabled: !!id,
+  });
+  const body = query.data as { subscriptions?: unknown[] } | null | undefined;
+  const rows = Array.isArray(body?.subscriptions) ? body.subscriptions : [];
+  if (query.isPending) return { pending: true, record: null, rows: 0 };
+  if (query.isError || rows.length === 0) return { pending: false, record: null, rows: 0 };
+  const parsed = rows.map(readFlashSubscription);
+  const record = (preferId ? parsed.find((r) => r.id === preferId) : undefined) ?? parsed[0];
+  return { pending: false, record, rows: rows.length };
+}
+
 export function FlashFactsStrip({
   id,
   read,

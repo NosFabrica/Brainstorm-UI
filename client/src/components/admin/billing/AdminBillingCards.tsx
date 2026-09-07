@@ -39,7 +39,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useToast } from "@/hooks/use-toast";
-import { formatBillingDate } from "@/lib/plans";
+import { formatBillingCadence, formatBillingDate } from "@/lib/plans";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -63,6 +63,8 @@ import { DIVERGENCE_META, orderedSections, subscriptionIdsByEventId, type Diverg
 import { StatTile } from "@/components/ui/stat-tile";
 import { ScrollableTable } from "@/components/admin/ScrollableTable";
 import { failureLabel } from "./billingEventCopy";
+import { useFlashSubscriptionRecord } from "./FlashFactsStrip";
+import { describeCycles } from "./flashRecord";
 
 import type { CreateAdminBillingPlanBody, SchedulingItem, UnmappedPlanRow, UpdateAdminBillingPlanBody } from "@/services/api";
 import { DIVERGENCE_KEY, POLICIES_KEY, SUBS_KEY } from "./queryKeys";
@@ -411,6 +413,7 @@ function SubscriberRow({
 }) {
   const who = shortNpub(s.pubkey);
   const paused = s.flash_status === "paused";
+  const flash = useFlashSubscriptionRecord(s.pubkey, (pk) => apiClient.getAdminBillingFlashRecordForSubscriber(pk), s.flash_subscription_id);
   // What the subscription grants vs what the user is actually in — the
   // payments→scheduler connection this tab exists to make visible.
   const scheduling = s.granted_scheduling_name ?? s.scheduling_name ?? "—";
@@ -469,6 +472,15 @@ function SubscriberRow({
             <Chip tone="warning" size="sm">Ends {formatBillingDate(s.cancel_effective_date)}</Chip>
           </span>
         )}
+      </td>
+      {/* The cadence and which billing period they are on — Flash's record
+          says, read once per row and cached; "—" where Flash has no such
+          subscription (Benjamin: "add in the cycle and interval after period"). */}
+      <td className={td} data-testid={`billing-interval-${s.pubkey.slice(0, 8)}`}>
+        {flash.pending ? <span className="text-slate-300 dark:text-slate-600">…</span> : (formatBillingCadence(flash.record?.billingInterval) ?? <span className="text-slate-400 dark:text-slate-500">—</span>)}
+      </td>
+      <td className={`${td} tabular-nums`} title={flash.record ? describeCycles(flash.record) ?? undefined : undefined} data-testid={`billing-cycle-${s.pubkey.slice(0, 8)}`}>
+        {flash.pending ? <span className="text-slate-300 dark:text-slate-600">…</span> : flash.record?.currentPeriodNumber ?? <span className="text-slate-400 dark:text-slate-500">—</span>}
       </td>
       {/* What answers "when is this person charged again" — a renewal that is
           due looks nothing like one that has silently stopped. */}
@@ -1035,6 +1047,8 @@ export function AdminBillingCards({ active }: { active: boolean }) {
                   <th className={th}><BillingSortHeader label="Scheduling" sortKey="scheduling" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}><BillingSortHeader label="Source" sortKey="source" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}><BillingSortHeader label="Period" sortKey="period" sort={sort} onSort={toggleSort} /></th>
+                  <th className={th}>Interval</th>
+                  <th className={th}>Cycle</th>
                   <th className={th}><BillingSortHeader label="Next bill" sortKey="nextbill" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}><BillingSortHeader label="Last synced" sortKey="synced" sort={sort} onSort={toggleSort} /></th>
                   <th className={thLast}>Actions</th>
