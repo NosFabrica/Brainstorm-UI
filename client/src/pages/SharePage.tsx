@@ -710,8 +710,11 @@ export default function SharePage() {
   // Rich-note references: collect the pubkeys + event ids the notes mention /
   // reply to / quote / repost, then resolve them in two batched relay queries so
   // the cards can show names, avatars, and embedded notes (Primal-style).
+  // The featured post counts too: pinned months ago, it is rarely among the
+  // latest notes, and without it here its @mentions read as "@nprofile1q…"
+  // (Joe Martin's pinned music video, 2026-09-05).
   const noteEvents = (notesQuery.data ?? []) as MinimalEvent[];
-  const refs = useMemo(() => collectRefs(noteEvents), [noteEvents]);
+  const refs = useMemo(() => collectRefs(featured ? [featured, ...noteEvents] : noteEvents), [featured, noteEvents]);
 
   /**
    * What the network says these notes are about (ACCEPTANCE Floor A's C2 clause:
