@@ -37,6 +37,7 @@ function PlanRow({
   onEdit: (plan: AdminBillingPlanMapping) => void;
 }) {
   const interval = flash ? formatBillingInterval(flash.billingInterval) : null;
+  const status = saleStatus(plan, flash, flashLoaded);
   return (
     <Card className="p-4" data-testid={`billing-plan-${plan.id}`}>
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -45,8 +46,8 @@ function PlanRow({
             <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">
               {policyName}
             </span>
-            <Chip tone={plan.is_active ? "success" : "neutral"} size="sm">
-              {plan.is_active ? "For sale" : "Withdrawn"}
+            <Chip tone={status === "for_sale" ? "success" : status === "not_in_flash" ? "warning" : "neutral"} size="sm">
+              {status === "for_sale" ? "For sale" : status === "not_in_flash" ? "Not in Flash" : "Withdrawn"}
             </Chip>
           </div>
           {/* What it sells, in Flash's words and price — a mapping is two ids
@@ -82,6 +83,20 @@ function PlanRow({
       </div>
     </Card>
   );
+}
+
+/**
+ * What a mapping's status actually is. `is_active` is our switch; whether
+ * Flash still lists the plan is Flash's. A mapping we sell that Flash no
+ * longer lists sells nothing, and must not wear "For sale" — three rows all
+ * named "Priority" with the one that sells in the middle was the complaint.
+ * Until Flash's list has loaded, our switch is the best word we have.
+ */
+export type SaleStatus = "for_sale" | "not_in_flash" | "withdrawn";
+export function saleStatus(plan: Pick<AdminBillingPlanMapping, "is_active">, flash: BillingPlan | null, flashLoaded: boolean): SaleStatus {
+  if (!plan.is_active) return "withdrawn";
+  if (flashLoaded && !flash) return "not_in_flash";
+  return "for_sale";
 }
 
 /**
@@ -196,17 +211,36 @@ export function PlanMappingsCard({ active }: { active: boolean }) {
           put a policy up for sale.
         </p>
       ) : (
-        <div className="space-y-3">
-          {plans.map((plan) => (
-            <PlanRow
-              key={plan.id}
-              plan={plan}
-              policyName={policyNames.get(plan.scheduling_id) ?? `policy ${plan.scheduling_id}`}
-              flash={flashByPlanId.get(plan.flash_plan_id) ?? null}
-              flashLoaded={flashPlansQuery.isSuccess}
-              onEdit={openEdit}
-            />
-          ))}
+        // What sells first, under its own heading, then what does not — the
+        // status is the structure, not something to read off each chip.
+        <div className="space-y-4">
+          {(
+            [
+              { key: "selling", label: "Selling now", plans: plans.filter((p) => saleStatus(p, flashByPlanId.get(p.flash_plan_id) ?? null, flashPlansQuery.isSuccess) === "for_sale") },
+              { key: "not-selling", label: "Not selling", plans: plans.filter((p) => saleStatus(p, flashByPlanId.get(p.flash_plan_id) ?? null, flashPlansQuery.isSuccess) !== "for_sale") },
+            ] as const
+          )
+            .filter((g) => g.plans.length > 0)
+            .map((g) => (
+              <div key={g.key} className="space-y-2" data-testid={`billing-plans-group-${g.key}`}>
+                <p className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                  {g.label}
+                  <Chip tone={g.key === "selling" ? "success" : "neutral"} size="sm">{g.plans.length}</Chip>
+                </p>
+                {[...g.plans]
+                  .sort((a, b) => (policyNames.get(a.scheduling_id) ?? "").localeCompare(policyNames.get(b.scheduling_id) ?? "") || a.id - b.id)
+                  .map((plan) => (
+                    <PlanRow
+                      key={plan.id}
+                      plan={plan}
+                      policyName={policyNames.get(plan.scheduling_id) ?? `policy ${plan.scheduling_id}`}
+                      flash={flashByPlanId.get(plan.flash_plan_id) ?? null}
+                      flashLoaded={flashPlansQuery.isSuccess}
+                      onEdit={openEdit}
+                    />
+                  ))}
+              </div>
+            ))}
         </div>
       )}
 

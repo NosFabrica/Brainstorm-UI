@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { AdminBillingPlanMapping, SchedulingItem } from "@/services/api";
@@ -82,6 +82,12 @@ beforeEach(() => {
 
 describe("PlanMappingsCard", () => {
   it("lists every mapping, retired ones included, and says what each grants", async () => {
+    // Flash lists the plan we sell; the chip says "For sale" only when that is true.
+    getBillingPlans.mockResolvedValue({
+      plans: [
+        { policy_id: 7, policy_name: "Priority", schedule_interval_seconds: 604800, is_default: false, plan_id: "4f2a", plan_name: "Priority", description: null, amount_minor: 200, currency: "USD", billing_interval: "monthly", checkout_url: "https://x", features: null, not_included: null },
+      ],
+    });
     getAdminBillingPlanMappings.mockResolvedValue([
       plan(),
       plan({ id: 2, flash_plan_id: "019e", scheduling_id: 7, is_active: false }),
@@ -92,7 +98,8 @@ describe("PlanMappingsCard", () => {
     await screen.findByTestId("billing-plan-1");
     expect(screen.getByTestId("billing-plan-2")).toBeInTheDocument();
     // The tier is the policy, named — there is no tier string to show.
-    expect(screen.getAllByText("Priority")).toHaveLength(2);
+    expect(within(screen.getByTestId("billing-plan-1")).getAllByText("Priority").length).toBeGreaterThan(0);
+    expect(within(screen.getByTestId("billing-plan-2")).getAllByText("Priority").length).toBeGreaterThan(0);
     expect(screen.getByText("For sale")).toBeInTheDocument();
     expect(screen.getByText("Withdrawn")).toBeInTheDocument();
     // Flash prices the plan; the row identifies it and says what it grants.
@@ -123,6 +130,37 @@ describe("PlanMappingsCard", () => {
     const unlisted = screen.getByTestId("billing-plan-2");
     expect(unlisted.textContent).toMatch(/not in Flash.s current list/i);
     expect(screen.getByTestId("billing-plans-cache-note").textContent).toMatch(/ten minutes/i);
+  });
+
+  // Benjamin, over three rows all named "Priority" with the one that sells in
+  // the middle: "make sure the active plans show at the top and it's clear
+  // which plans are active and which are not and what their status is."
+  it("puts what sells first under its own heading, then what does not — and each row says which it is", async () => {
+    getBillingPlans.mockResolvedValue({
+      plans: [
+        { policy_id: 7, policy_name: "Priority", schedule_interval_seconds: 604800, is_default: false, plan_id: "4f2a", plan_name: "Priority", description: null, amount_minor: 200, currency: "USD", billing_interval: "monthly", checkout_url: "https://x", features: null, not_included: null },
+      ],
+    });
+    getAdminBillingPlanMappings.mockResolvedValue([
+      plan({ id: 3, flash_plan_id: "old1", is_active: false }), // withdrawn by us
+      plan({ id: 2, flash_plan_id: "zzzz", is_active: true }), // we sell it, Flash no longer lists it
+      plan({ id: 1, flash_plan_id: "4f2a", is_active: true }), // selling
+    ]);
+    const { container } = renderCard();
+    await waitFor(() => expect(screen.getByTestId("billing-plan-1").textContent).toContain("$2.00"));
+    const order = [...container.querelectorAll ? [] : container.querySelectorAll('[data-testid^="billing-plan-"]')]
+      .map((e) => e.getAttribute("data-testid") as string)
+      .filter((id) => /^billing-plan-\d+$/.test(id));
+    expect(order).toEqual(["billing-plan-1", "billing-plan-2", "billing-plan-3"]);
+    const selling = screen.getByTestId("billing-plans-group-selling");
+    expect(selling).toHaveTextContent("Selling now");
+    expect(selling).toHaveTextContent("1");
+    const rest = screen.getByTestId("billing-plans-group-not-selling");
+    expect(rest).toHaveTextContent("Not selling");
+    expect(rest).toHaveTextContent("2");
+    expect(within(screen.getByTestId("billing-plan-1")).getByText("For sale")).toBeInTheDocument();
+    expect(within(screen.getByTestId("billing-plan-2")).getByText("Not in Flash")).toBeInTheDocument();
+    expect(within(screen.getByTestId("billing-plan-3")).getByText("Withdrawn")).toBeInTheDocument();
   });
 
   it("is usable on a fresh instance with nothing mapped yet", async () => {
