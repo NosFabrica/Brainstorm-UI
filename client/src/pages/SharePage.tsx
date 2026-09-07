@@ -909,16 +909,23 @@ export default function SharePage() {
       {followButtons}
     </div>
   );
-  // Mobile: the same actions in their own row under the identity so the
-  // primary button can fill the width. Nothing sits across from the avatar.
-  const mobileFollowRow = (
-    <div className="mt-3 flex items-center gap-2 sm:hidden" data-testid="share-actions-mobile">
+  // Phone: the icon actions sit across from the avatar, in the slot under
+  // the banner (X's placement) — a lone magnifier in its own row read as
+  // orphaned (Benjamin, 2026-09-07). Follow/⋯ keep their own full-width row
+  // below the identity, so the primary button can stretch; signed out there
+  // is no such row.
+  const mobileTopIcons = (
+    <div className="flex items-center gap-1 sm:hidden" data-testid="share-actions-mobile-top">
       {searchIcon}
-      {followsYouChip}
       {reviewIcon}
-      {followButtons}
     </div>
   );
+  const mobileFollowRow = followButtons ? (
+    <div className="mt-3 flex items-center gap-2 sm:hidden" data-testid="share-actions-mobile">
+      {followsYouChip}
+      {followButtons}
+    </div>
+  ) : null;
 
   return (
     <ShareShell onShare={() => setShareOpen(true)}>
@@ -976,9 +983,10 @@ export default function SharePage() {
                 className={tierRing(coinScore01) && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1"}
               />
             </div>
-            {/* Desktop: chip + pen + Follow/⋯ top-right. On phones they render
-                in a row below the identity instead. */}
+            {/* Desktop: magnifier + chip + pen + Follow/⋯ top-right. Phones:
+                the icons here, Follow/⋯ in a row below the identity. */}
             {topRightActions}
+            {mobileTopIcons}
           </div>
 
           <div className="mt-2.5 md:flex md:gap-6 md:items-start">
