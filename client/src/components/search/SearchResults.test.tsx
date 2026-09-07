@@ -898,6 +898,72 @@ describe("SearchResults", () => {
     catalogueMock.mockImplementation(() => ({ artist: null, songs: [], loading: false }));
   });
 
+  // Probed 2026-09-05, "Ainsley Costello" under the house lens: 38 of the 40
+  // newest notes came from two aéPiot spam accounts scoring 0 and 0.0198 — the
+  // relay's lens let them through. Search holds the verified line itself, says
+  // how many it held back, and "Show everyone" (Include spam) lifts it.
+  describe("the search floor", () => {
+    const SPAM = "3".repeat(64);
+    const REAL = "5".repeat(64);
+    const spamNote = () => ev("s1", 1, SPAM, "#STRANGE #OCCASION https://aepiot.com/?q=strange", []);
+    const realNote = () => ev("r1", 1, REAL, "Share Your Bitcoin Journey Ep 15 is live.", []);
+    const both = () => [{ event: spamNote(), author: author(SPAM, "aéPiot"), rank: null }, { event: realNote(), author: author(REAL, "David"), rank: null }];
+
+    it("an account below the verified line stays off the page; the page says so; Show everyone lifts the floor", async () => {
+      scoreOfMock.mockImplementation((pk) => (pk === SPAM ? 0.0198 : 0.85));
+      const rewrite = vi.fn();
+      setUrlTab("notes");
+      render(<SearchResults query="ainsley" pov="nosfabrica" onQueryRewrite={rewrite} />);
+      emit({ hits: both(), eose: true, timeMs: 150 });
+      await screen.findByText(/Share Your Bitcoin Journey/);
+      expect(screen.queryByText(/aepiot/)).toBeNull();
+      const notice = screen.getByTestId("search-floor-notice");
+      expect(notice).toHaveTextContent(/1 result hidden/);
+      fireEvent.click(within(notice).getByTestId("search-floor-show-all"));
+      expect(rewrite).toHaveBeenCalledWith("ainsley include:spam");
+    });
+
+    it("Include spam shows everyone, and the page has nothing to confess", async () => {
+      scoreOfMock.mockImplementation((pk) => (pk === SPAM ? 0.0198 : 0.85));
+      setUrlTab("notes");
+      render(<SearchResults query="ainsley include:spam" pov="nosfabrica" onQueryRewrite={vi.fn()} />);
+      emit({ hits: both(), eose: true, timeMs: 150 });
+      await screen.findByText(/aepiot/);
+      expect(screen.queryByTestId("search-floor-notice")).toBeNull();
+    });
+
+    it("under a person's own perspective the floor is off — their lens, their view", async () => {
+      scoreOfMock.mockImplementation((pk) => (pk === SPAM ? 0.0198 : 0.85));
+      setUrlTab("notes");
+      render(<SearchResults query="ainsley" pov="mywot" userPubkey={"9".repeat(64)} onQueryRewrite={vi.fn()} />);
+      emit({ hits: both(), eose: true, timeMs: 150 });
+      await screen.findByText(/aepiot/);
+      expect(screen.queryByTestId("search-floor-notice")).toBeNull();
+    });
+
+    it("when the floor hides everything, the empty page still says so and offers everyone", async () => {
+      scoreOfMock.mockImplementation((pk) => (pk === SPAM ? 0.0198 : 0.85));
+      const rewrite = vi.fn();
+      setUrlTab("people");
+      render(<SearchResults query="web 4.0 semantic layer" pov="nosfabrica" onQueryRewrite={rewrite} />);
+      emit({ hits: [{ event: ev("k0", 0, SPAM, JSON.stringify({ name: "Web 4.0 Semantic Layer" }), []), author: author(SPAM, "Web 4.0 Semantic Layer"), rank: null }], eose: true, timeMs: 150 });
+      const notice = await screen.findByTestId("search-floor-notice");
+      expect(notice).toHaveTextContent(/1 result hidden/);
+      expect(screen.getByTestId("container-no-results")).toBeInTheDocument();
+      fireEvent.click(within(notice).getByTestId("search-floor-show-all"));
+      expect(rewrite).toHaveBeenCalledWith("web 4.0 semantic layer include:spam");
+    });
+
+    it("a score still loading is no verdict — the hit stays until the house has spoken", async () => {
+      scoreOfMock.mockImplementation((pk) => (pk === SPAM ? undefined : 0.85));
+      setUrlTab("notes");
+      render(<SearchResults query="ainsley" pov="nosfabrica" onQueryRewrite={vi.fn()} />);
+      emit({ hits: both(), eose: true, timeMs: 150 });
+      await screen.findByText(/aepiot/);
+      expect(screen.queryByTestId("search-floor-notice")).toBeNull();
+    });
+  });
+
   // Browse led with "QA storage fixture qa41" and "Test Blossom" — Fanfares'
   // QA bot and blob tests publish the kind. Not songs anyone searched for.
   it("the Music tab drops QA and test publications", async () => {

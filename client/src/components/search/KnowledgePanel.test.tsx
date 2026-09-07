@@ -1070,3 +1070,33 @@ describe("a person-scoped search keeps the person in the panel", () => {
     expect(screen.queryByTestId("search-knowledge-panel")).toBeNull();
   });
 });
+
+// The panel is Google's knowledge card: it must never hand the slot to a spam
+// account whose display name happens to be the words (the aéPiot accounts name
+// themselves "Web 4.0 Semantic Layer…"; probed 2026-09-05, score 0.0198). The
+// same floor the results hold; a person the searcher scoped to explicitly is
+// their choice and still shows.
+describe("the panel holds the verified line", () => {
+  const SPAM = "3".repeat(64);
+  const spammer = { pubkey: SPAM, npub: nip19.npubEncode(SPAM), name: "Web 4.0 Semantic Layer", wotRank: null, wotFollowers: 4 };
+  it("a name match below the line does not take the panel", async () => {
+    scoreOfMock.mockImplementation((pk) => (pk === SPAM ? 0.0198 : 0.7));
+    suggestMock.mockResolvedValueOnce([spammer]);
+    render(<KnowledgePanel query="web 4.0 semantic layer" pov="nosfabrica" />);
+    await new Promise((r) => setTimeout(r, 60));
+    expect(screen.queryByTestId("search-knowledge-panel")).toBeNull();
+    scoreOfMock.mockImplementation(() => 0.7);
+  });
+  it("a name match above the line takes it as before", async () => {
+    suggestMock.mockResolvedValueOnce([{ ...spammer, name: "Joe Martin", wotRank: 0.8 }]);
+    render(<KnowledgePanel query="joe martin" pov="nosfabrica" />);
+    expect(await screen.findByTestId("search-knowledge-panel")).toHaveTextContent("Joe Martin");
+  });
+  it("a person the searcher scoped to shows whatever their score", async () => {
+    scoreOfMock.mockImplementation((pk) => (pk === SPAM ? 0.0198 : 0.7));
+    suggestMock.mockResolvedValueOnce([spammer]);
+    render(<KnowledgePanel query={`from:${nip19.npubEncode(SPAM)}`} pov="nosfabrica" />);
+    expect(await screen.findByTestId("search-knowledge-panel")).toHaveTextContent("Web 4.0 Semantic Layer");
+    scoreOfMock.mockImplementation(() => 0.7);
+  });
+});

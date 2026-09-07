@@ -17,7 +17,8 @@ import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { Link, useLocation } from "wouter";
 import { ArrowRight, BookOpen, CalendarDays, Check, ChevronDown, Hash, Package, ShoppingBag, Users, Zap } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
-import { scopeOf } from "@/lib/searchSyntax";
+import { readFilters, scopeOf } from "@/lib/searchSyntax";
+import { DEFAULT_VERIFIED_LINE } from "@/services/trustThreshold";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing, TierWordChip, useQuietTrustChrome, QuietTrustChrome } from "@/components/score/VerificationCoin";
@@ -340,6 +341,14 @@ function KnowledgePanelBody({
   // Relay hits carry no rank numbers (order-only wire) — the panel's ring,
   // coin and tier word feed from the shared author-score cache like every card.
   const scoreOf = useAuthorScores(person && person.wotRank == null ? [person.pubkey] : []);
+  // The floor the results hold, held here too: a name match whose house score
+  // is known and below the verified line does not take the panel (the aéPiot
+  // accounts name themselves after whatever they spam). A person the searcher
+  // scoped to is their choice; a searcher asking for everyone, or looking
+  // through their own perspective, keeps their view.
+  const floor = !readFilters(query).includeSpam && pov !== "mywot" && !scopeOf(query);
+  const personScore = person ? (person.wotRank ?? scoreOf(person.pubkey)) : undefined;
+  const personBelowLine = floor && typeof personScore === "number" && personScore < DEFAULT_VERIFIED_LINE;
   // Benjamin, after keeping every block: "I think that is too much". The
   // header and the followed-by line always; then the two freshest blocks —
   // a live stream or replay first, then whichever of Latest, Music or Selling
@@ -677,7 +686,7 @@ function KnowledgePanelBody({
         )}
       </aside>
     );
-  } else if (person) {
+  } else if (person && !personBelowLine) {
     const effectiveRank = person.wotRank ?? scoreOf(person.pubkey) ?? null;
     const followers = person.wotFollowers;
     strip = {

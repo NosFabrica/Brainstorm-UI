@@ -13,6 +13,25 @@ export type Reach = "follows" | "friends";
 export interface ClientFilterState {
   verifiedOnly: boolean;
   reach: Reach | null;
+  /**
+   * The search floor: hide an author whose score is KNOWN and below the
+   * verified line — the same line the badge draws. Probed 2026-09-05: the
+   * relay's house lens let two aéPiot accounts scoring 0 and 0.0198 fill 38 of
+   * the 40 newest "Ainsley Costello" notes. A score still loading, or one the
+   * house has no data for, is no verdict — those stay. Off under "Include
+   * spam" and under a person's own perspective (their lens, their view).
+   */
+  belowLine?: boolean;
+}
+
+/** Known and under the line — the one case the floor acts on. */
+function underLine(score: number | null | undefined, line: number): boolean {
+  return typeof score === "number" && score < line;
+}
+
+/** How many of these hits the floor would hide — for the page to say so. */
+export function countBelowLine(hits: SearchHit[], scoreOf: (pk: string) => number | null | undefined, line = DEFAULT_VERIFIED_LINE): number {
+  return hits.filter((h) => underLine(scoreOf(h.event.pubkey), line)).length;
 }
 
 export interface NetworkReach {
@@ -33,6 +52,7 @@ export function clientFilterHits<H extends SearchHit>(
   return hits.filter((h) => {
     const pk = h.event.pubkey;
     if (state.verifiedOnly && (ctx.scoreOf(pk) ?? -1) < line) return false;
+    if (state.belowLine && underLine(ctx.scoreOf(pk), line)) return false;
     if (state.reach && ctx.reach.ready) {
       const set = state.reach === "follows" ? ctx.reach.direct : ctx.reach.friends;
       if (!set.has(pk)) return false;

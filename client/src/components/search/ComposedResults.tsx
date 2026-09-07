@@ -28,8 +28,8 @@ import { fetchEventRsvps, type EventRsvps } from "@/services/search";
 import { isFeedAccount } from "@/lib/feedAccount";
 import type { HitCluster } from "@/lib/searchCollapse";
 import { filterEventsByWhen } from "@/lib/eventFilters";
-import { clientFilterHits } from "@/lib/clientFilters";
-import { readFilters } from "@/lib/searchSyntax";
+import { clientFilterHits, countBelowLine } from "@/lib/clientFilters";
+import { applyFilters, readFilters } from "@/lib/searchSyntax";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
 import { visitedPubkeys } from "@/lib/recentSearches";
 import { useWheelScrollX } from "@/hooks/useWheelScrollX";
@@ -132,12 +132,15 @@ function ComposedResultsBody({
   userPubkey,
   onTabChange,
   onOpenProfile,
+  onQueryRewrite,
   personMedia = [],
 }: {
   query: string;
   pov: SearchPov;
   userPubkey?: string;
   onTabChange: (t: SearchTab) => void;
+  /** Rewrites the box — the floor's "Show everyone" adds include:spam. */
+  onQueryRewrite?: (next: string) => void;
   /** When the query IS a person: their own media, which leads the Media section. */
   personMedia?: SearchHit[];
   onOpenProfile?: (person: SearchResult) => void;
@@ -184,8 +187,18 @@ function ComposedResultsBody({
   // composed page and the tabs agree on what the box says.
   const reach = useNetworkReach(userPubkey);
   const clientState = readFilters(query);
+  // The search floor, as the tabs hold it: accounts below the verified line
+  // stay off every section unless the searcher asks for everyone or looks
+  // through their own perspective.
+  const floor = !clientState.includeSpam && pov !== "mywot";
   const filtered = (s: SearchSnapshot | null): SearchSnapshot | null =>
-    s ? { ...s, hits: clientFilterHits(s.hits, { verifiedOnly: clientState.verifiedOnly, reach: clientState.reach }, { scoreOf, reach }) } : null;
+    s ? { ...s, hits: clientFilterHits(s.hits, { verifiedOnly: clientState.verifiedOnly, reach: clientState.reach, belowLine: floor }, { scoreOf, reach }) } : null;
+  const hiddenBelowLine = floor
+    ? countBelowLine(
+        [...new Map([people, latest, articles, happening, media, music, shop].flatMap((s) => s?.hits ?? []).map((h) => [h.event.id, h])).values()],
+        scoreOf,
+      )
+    : 0;
   const peopleF = filtered(people);
   const latestF = filtered(latest);
   const articlesF = filtered(articles);
@@ -423,6 +436,20 @@ function ComposedResultsBody({
           <MediaTiles hits={mediaTiles} scoreOf={scoreOf} />
           <div className="divide-y divide-slate-100 dark:divide-slate-800/60">{clustersOf(mediaF, mediaTileIds)}</div>
         </Section>
+      )}
+      {/* What the floor held back, said once and quietly, with the one tap that lifts it. */}
+      {hiddenBelowLine > 0 && (
+        <p className="mt-2 px-1 text-xs text-slate-400 dark:text-slate-500" data-testid="search-floor-notice">
+          {hiddenBelowLine} {hiddenBelowLine === 1 ? "result" : "results"} hidden from accounts below the verified line ·{" "}
+          <button
+            type="button"
+            onClick={() => onQueryRewrite?.(applyFilters(query, { includeSpam: true }))}
+            className="font-medium text-slate-500 hover:text-brand-link dark:text-slate-400 transition-colors"
+            data-testid="search-floor-show-all"
+          >
+            Show everyone
+          </button>
+        </p>
       )}
     </div>
   );

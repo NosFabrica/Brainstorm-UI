@@ -121,6 +121,34 @@ describe("ComposedResults — media-rich sections", () => {
     expect(screen.getByTestId("serp-skeleton-articles")).toBeInTheDocument();
   });
 
+  // The same floor the tabs hold (probed 2026-09-05: two aéPiot accounts
+  // scoring 0 and 0.0198 filled 38 of the 40 newest "Ainsley Costello"
+  // notes): known-low authors stay off every section, the page says how many
+  // once, and "Show everyone" lifts it.
+  it("holds the verified line across the sections, says how many it held back, and Show everyone lifts it", async () => {
+    const SPAM = "3".repeat(64);
+    scoreOfMock.mockImplementation((pk) => (pk === SPAM ? 0.0198 : 0.8));
+    const rewrite = vi.fn();
+    render(<ComposedResults query="ainsley" pov="nosfabrica" onTabChange={vi.fn()} onQueryRewrite={rewrite} />);
+    sectionCall("notes").emit({
+      hits: [
+        hitOf(ev("n1", 1, SPAM, "#STRANGE #OCCASION https://aepiot.com/?q=strange"), "aéPiot"),
+        hitOf(ev("n2", 1, SPAM, "#RIGHT #HERE https://aepiot.ro/"), "aéPiot"),
+        hitOf(ev("n3", 1, "5".repeat(64), "Share Your Bitcoin Journey Ep 15 is live."), "David"),
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    await screen.findByTestId("serp-row-n3");
+    expect(screen.queryByTestId("serp-row-n1")).toBeNull();
+    expect(screen.queryByTestId("serp-row-n2")).toBeNull();
+    const notice = screen.getByTestId("search-floor-notice");
+    expect(notice).toHaveTextContent(/2 results hidden/);
+    fireEvent.click(within(notice).getByTestId("search-floor-show-all"));
+    expect(rewrite).toHaveBeenCalledWith("ainsley include:spam");
+    scoreOfMock.mockImplementation(() => 0.8);
+  });
+
   it("leads Latest with a Top stories strip of news-shaped notes, the rest as rows", async () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     sectionCall("notes").emit({

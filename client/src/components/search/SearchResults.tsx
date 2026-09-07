@@ -11,7 +11,7 @@ import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
 import { ChevronDown, Radar, Radio, SlidersHorizontal } from "lucide-react";
 import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, readFilters, sinceForPreset, splitFilters, type DatePreset, type SearchFilterPatch, scopeOf } from "@/lib/searchSyntax";
-import { clientFilterHits } from "@/lib/clientFilters";
+import { clientFilterHits, countBelowLine } from "@/lib/clientFilters";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
 import { eventStore } from "@/lib/eventStore";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -663,13 +663,37 @@ export function SearchResults({
   // no hops): Verified only via those scores, reach via the viewer's graph.
   const reach = useNetworkReach(userPubkey);
   const clientState = readFilters(safeQuery);
+  // The search floor: accounts below the verified line stay off the page
+  // unless the searcher asks for everyone (Include spam) or is looking through
+  // their own perspective — their lens, their view. Probed 2026-09-05: the
+  // relay's house lens let two aéPiot accounts (scores 0 and 0.0198) fill 38
+  // of the 40 newest "Ainsley Costello" notes.
+  const floor = !clientState.includeSpam && pov !== "mywot";
   // The box no longer shows filter tokens — the Filters button says how many are on.
   const activeFilters = activeFilterCount(clientState);
   const hits = useMemo(
-    () => clientFilterHits(rawHits, { verifiedOnly: clientState.verifiedOnly, reach: clientState.reach }, { scoreOf, reach }),
+    () => clientFilterHits(rawHits, { verifiedOnly: clientState.verifiedOnly, reach: clientState.reach, belowLine: floor }, { scoreOf, reach }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rawHits, clientState.verifiedOnly, clientState.reach, reach, allAuthors.map((pk) => scoreOf(pk)).join(",")],
+    [rawHits, clientState.verifiedOnly, clientState.reach, floor, reach, allAuthors.map((pk) => scoreOf(pk)).join(",")],
   );
+  const hiddenBelowLine = floor ? countBelowLine(rawHits, scoreOf) : 0;
+  // What the floor held back, said once and quietly — Google's "some results
+  // were removed" — with the one tap that lifts it. Rendered under the list,
+  // and on an emptied page in place of a bare "Nothing found".
+  const floorNotice =
+    hiddenBelowLine > 0 ? (
+      <p className="mt-4 px-1 text-xs text-slate-400 dark:text-slate-500" data-testid="search-floor-notice">
+        {hiddenBelowLine} {hiddenBelowLine === 1 ? "result" : "results"} hidden from accounts below the verified line ·{" "}
+        <button
+          type="button"
+          onClick={() => onQueryRewrite?.(applyFilters(query, { includeSpam: true }))}
+          className="font-medium text-slate-500 hover:text-brand-link dark:text-slate-400 transition-colors"
+          data-testid="search-floor-show-all"
+        >
+          Show everyone
+        </button>
+      </p>
+    ) : null;
   // Wavlake is the Music tab's second source: the same words, its catalogue —
   // or, when the search is scoped to one person (from:npub…, the profile's
   // "View all"), that person's own catalogue: the artist who is them and every
@@ -1127,6 +1151,7 @@ export function SearchResults({
           userPubkey={userPubkey}
           onTabChange={changeTab}
           onOpenProfile={openProfile}
+          onQueryRewrite={onQueryRewrite}
         />
       ) : snapshot?.error ? (
         <div
@@ -1158,9 +1183,10 @@ export function SearchResults({
               icon={Radar}
               compact
               title="Nothing found"
-              description="Try different words, another tab, or paste an npub directly."
+              description={hiddenBelowLine > 0 ? "Everything that matched came from accounts below the verified line." : "Try different words, another tab, or paste an npub directly."}
             />
           </div>
+          {floorNotice}
         </div>
       ) : (
         <>
@@ -1481,6 +1507,7 @@ export function SearchResults({
             })}
           </div>
           )}
+          {floorNotice}
         </>
       )}
       </div>
