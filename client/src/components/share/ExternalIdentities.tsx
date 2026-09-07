@@ -19,7 +19,7 @@ import { FaLinkedin } from "react-icons/fa";
 // Accurate official brand marks (Simple Icons), monochrome via currentColor so
 // they stay subtle + cohesive with the rest of the profile's link row.
 function Glyph({ icon }: { icon: IdentityIcon }) {
-  const cls = "h-4 w-4";
+  const cls = "h-3.5 w-3.5";
   switch (icon) {
     case "github": return <SiGithub className={cls} aria-hidden="true" />;
     case "x": return <SiX className={cls} aria-hidden="true" />;
@@ -37,25 +37,34 @@ function Glyph({ icon }: { icon: IdentityIcon }) {
 }
 
 /**
- * The NIP-39 external-account row: subtle, clickable platform icons (GitHub, X,
- * Telegram, Mastodon, …) that link to the linked account. Displayed as links —
- * NOT presented as cryptographically verified — so it sits inline with the
- * profile's other links (website, lightning).
+ * The NIP-39 linked accounts (GitHub, X, Telegram, Mastodon, …), one row
+ * each: the platform's mark, its name, and the handle — so a reader sees
+ * WHICH account, not a mystery glyph (the icon-only strip was the
+ * complaint). Displayed as links — NOT presented as cryptographically
+ * verified — with the profile's other facts (website, lightning).
  */
 export function ExternalIdentities({ identities }: { identities: ExternalIdentity[] }) {
   if (!identities.length) return null;
+  const row = "flex items-center gap-1.5 min-w-0 text-xs text-slate-600 dark:text-slate-300";
   return (
     <>
       {identities.map((id) => {
         const title = `${id.label}: ${id.identity}`;
-        const cls = "inline-flex items-center text-slate-400 dark:text-slate-500 transition-colors hover:text-brand-link";
+        const body = (
+          <>
+            <span className="shrink-0 text-slate-400 dark:text-slate-500"><Glyph icon={id.icon} /></span>
+            <span className="truncate">
+              {id.label} · {id.identity}
+            </span>
+          </>
+        );
         return id.url ? (
-          <a key={`${id.platform}:${id.identity}`} href={id.url} target="_blank" rel="noopener" title={title} aria-label={title} className={cls} data-testid="profile-identity">
-            <Glyph icon={id.icon} />
+          <a key={`${id.platform}:${id.identity}`} href={id.url} target="_blank" rel="noopener noreferrer" title={title} className={`${row} hover:text-brand-link transition-colors`} data-testid="profile-identity">
+            {body}
           </a>
         ) : (
-          <span key={`${id.platform}:${id.identity}`} title={title} aria-label={title} className="inline-flex items-center text-slate-400 dark:text-slate-500" data-testid="profile-identity">
-            <Glyph icon={id.icon} />
+          <span key={`${id.platform}:${id.identity}`} title={title} className={row} data-testid="profile-identity">
+            {body}
           </span>
         );
       })}

@@ -6,7 +6,6 @@ import {
   Image as ImageIcon,
   FileText,
   BadgeCheck,
-  Globe,
   ArrowRight,
   Wifi,
   Video as VideoIcon,
@@ -25,12 +24,12 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { decodeShareId, npubFromPubkey, nostrUriFor, eventPath } from "@/lib/shareId";
 import { relativeTime } from "@/lib/relativeTime";
-import { copyToClipboard } from "@/lib/clipboard";
+import { useCopied } from "@/hooks/useCopied";
 import { useActiveAccount } from "applesauce-react/hooks";
 import { fetchProfileForShare, fetchRecentByKinds, fetchLiveStreams, fetchEventsByIds, fetchAddressableEvents, fetchProfileMap, fetchExternalIdentities, fetchOutboxRelayList, fetchProfilePrefs, publishProfilePrefs } from "@/services/nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { parseIdentities } from "@/lib/externalIdentity";
-import { ExternalIdentities } from "@/components/share/ExternalIdentities";
+import { ProfileDetails } from "@/components/share/ProfileDetails";
 import { FollowedByRow } from "@/components/share/FollowedByRow";
 import { TrustReviews } from "@/components/share/TrustReviews";
 import { PanelIdentityChip } from "@/components/search/EndorsementLine";
@@ -46,7 +45,7 @@ import { TopicChips } from "@/components/share/TopicChips";
 import { ProfileTagChips } from "@/components/share/ProfileTagChips";
 import { useEventTagsBatch } from "@/hooks/useTags";
 import { LegacyRolePrompt } from "@/components/share/LegacyRolePrompt";
-import { ShareBio } from "@/components/share/ShareBio";
+import { ProfileBio } from "@/components/share/ProfileBio";
 import liveDefault from "@/assets/live-default.webp";
 import { PinIcon } from "@/components/PinIcon";
 import { parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
@@ -69,7 +68,6 @@ import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } f
 import { extractImageUrls, extractVideoUrls, extractVideoPoster } from "@/lib/noteContent";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
-import { FlashIcon } from "@/components/FlashIcon";
 import { ZapModal } from "@/components/ZapModal";
 import { SellingBlock } from "@/components/share/SellingBlock";
 import { ContentTeaserBlock } from "@/components/share/ContentTeaserBlock";
@@ -113,7 +111,7 @@ export default function SharePage() {
   const [zapOpen, setZapOpen] = useState(false);
   // The pen beside Zap: each press asks the Trust reviews line to open its composer.
   const [composeRequest, setComposeRequest] = useState(0);
-  const [npubCopied, setNpubCopied] = useState(false);
+  const npubCopy = useCopied();
   const [scoreModalOpen, setScoreModalOpen] = useState(false);
   // One shared lens for the whole stats block: verified (trust-filtered) vs all
   // (raw). Defaults to verified — Brainstorm's bot-free view is the headline.
@@ -883,11 +881,12 @@ export default function SharePage() {
   // coin) instead of the dashed "—", which is a verdict.
   const coinLoading =
     scorePov === "personalized" ? overviewQuery.isLoading : houseRankQuery.isLoading && overviewQuery.isLoading;
-  // Contact as compact clickable icons — website, lightning address, external
-  // identities. Lives top-right with the actions (and has a mobile fallback row),
-  // never as verbose text at the bottom.
-  // Zap gives sats; the pen gives a vouch — peers in the same icon row, one
-  // tap on both surfaces. Signed-in viewers on someone else's page only.
+  // The facts a profile states — website, lightning address, linked accounts —
+  // read as text rows under the bio (ProfileDetails). They used to be icon-only
+  // glyphs up here; a power user could not find the bolt, and tapping it
+  // opened a zap flow when they wanted the address (2026-09-05). Top-right
+  // now holds ACTIONS only: the review pen beside Follow/⋯.
+  // The pen gives a vouch. Signed-in viewers on someone else's page only.
   const hasMyReview = !!currentUser?.pubkey && !!myEndorsements?.vouches?.some((v) => v.pubkey === currentUser.pubkey);
   const reviewIcon = canReview ? (
     <button
@@ -903,43 +902,6 @@ export default function SharePage() {
       <PenLine className="h-4 w-4" />
     </button>
   ) : null;
-  const hasContactIcons = !!(profile.website || profile.lud16 || (identities.length > 0 && !isHidden("identities")) || reviewIcon);
-  const contactIcons = hasContactIcons ? (
-    <>
-      {profile.website && (
-        <a
-          href={normalizeUrl(profile.website)}
-          target="_blank"
-          rel="noopener"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand-primary"
-          title={profile.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}
-          aria-label="Website"
-          data-testid="share-website"
-        >
-          <Globe className="h-4 w-4" />
-        </a>
-      )}
-      {profile.lud16 && (
-        <button
-          type="button"
-          onClick={() => setZapOpen(true)}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[#F7931A] transition-colors hover:bg-[#F7931A]/10 hover:text-[#e07f12]"
-          title={`Lightning — ${profile.lud16}`}
-          aria-label="Lightning address"
-          data-testid="share-lightning"
-        >
-          <FlashIcon className="h-4 w-4" />
-        </button>
-      )}
-      {reviewIcon}
-      {identities.length > 0 && !isHidden("identities") && (
-        <span className="inline-flex items-center gap-2.5" data-testid="share-identities">
-          <ExternalIdentities identities={identities} />
-        </span>
-      )}
-    </>
-  ) : null;
-
   // The action pieces, kept separate so we can place them differently per
   // breakpoint: a "Follows you" chip, the contact icons, and the Follow/⋯ (or
   // the owner's ⋯). On desktop all three sit together top-right with the avatar.
@@ -964,27 +926,22 @@ export default function SharePage() {
     />
   )) : null;
   const hasFollowActions = !!followButtons;
-  const hasActions = loggedIn || hasContactIcons;
+  const hasActions = loggedIn || !!reviewIcon;
 
-  // Desktop: chip + icons + Follow/⋯ together, top-right with the avatar.
+  // Desktop: chip + pen + Follow/⋯ together, top-right with the avatar.
   const topRightActions = hasActions ? (
     <div className="hidden sm:flex items-center gap-2 shrink-0" data-testid="share-actions-topright">
       {followsYouChip}
-      {contactIcons}
+      {reviewIcon}
       {followButtons}
     </div>
   ) : null;
-  // Mobile: just the contact icons, top-right across from the avatar.
-  const mobileTopIcons = hasContactIcons ? (
-    <div className="flex sm:hidden items-center gap-1 shrink-0" data-testid="share-icons-mobile">
-      {contactIcons}
-    </div>
-  ) : null;
-  // Mobile: the Follow/⋯ actions (+ follows-you chip) in their own row so the
-  // primary button can fill the width.
-  const mobileFollowRow = hasFollowActions ? (
+  // Mobile: the same actions in their own row under the identity so the
+  // primary button can fill the width. Nothing sits across from the avatar.
+  const mobileFollowRow = hasFollowActions || reviewIcon ? (
     <div className="mt-3 flex items-center gap-2 sm:hidden" data-testid="share-actions-mobile">
       {followsYouChip}
+      {reviewIcon}
       {followButtons}
     </div>
   ) : null;
@@ -1045,10 +1002,9 @@ export default function SharePage() {
                 className={tierRing(coinScore01) && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1"}
               />
             </div>
-            {/* Desktop: chip + icons + Follow/⋯. Mobile: just the contact icons
-                here (top-right under the banner); Follow/⋯ render in a row below. */}
+            {/* Desktop: chip + pen + Follow/⋯ top-right. On phones they render
+                in a row below the identity instead. */}
             {topRightActions}
-            {mobileTopIcons}
           </div>
 
           <div className="mt-2.5 md:flex md:gap-6 md:items-start">
@@ -1076,12 +1032,12 @@ export default function SharePage() {
               <code className="text-xs text-slate-400 dark:text-slate-500 font-mono truncate max-w-[170px] sm:max-w-[300px]">{npub}</code>
               <button
                 type="button"
-                onClick={async () => { if (await copyToClipboard(npub)) { setNpubCopied(true); setTimeout(() => setNpubCopied(false), 1500); } }}
+                onClick={() => void npubCopy.copy(npub)}
                 className="p-0.5 text-slate-400 dark:text-slate-500 hover:text-brand-primary transition-colors shrink-0"
                 title="Copy npub"
                 data-testid="share-copy-npub"
               >
-                {npubCopied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                {npubCopy.copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
               </button>
             </div>
           )}
@@ -1112,11 +1068,18 @@ export default function SharePage() {
             <LegacyRolePrompt pubkey={pubkey} legacyRoles={legacyRoleLabels} />
           )}
 
-          {!isHidden("bio") && profile.about && (
-            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-snug line-clamp-2" data-testid="share-bio">
-              <ShareBio text={profile.about} profiles={noteProfiles} />
-            </p>
-          )}
+          {/* The bio: three lines at rest, all of it on a tap. */}
+          {!isHidden("bio") && profile.about && <ProfileBio text={profile.about} profiles={noteProfiles} />}
+
+          {/* The facts under it — website, lightning (tap copies; Zap pays),
+              linked accounts — as readable rows, not glyphs. */}
+          <ProfileDetails
+            website={profile.website}
+            lud16={profile.lud16}
+            lud06={profile.lud06}
+            identities={isHidden("identities") ? [] : identities}
+            onZap={() => setZapOpen(true)}
+          />
 
           {/* "Posts about" — top hashtags as a skills-style chip row. */}
           {!isHidden("topics") && <TopicChips topics={topics} />}
@@ -1535,8 +1498,4 @@ function NotFoundCard({ rawId }: { rawId: string }) {
 
 function safeNpub(pubkey: string): string {
   try { return npubFromPubkey(pubkey); } catch { return ""; }
-}
-
-function normalizeUrl(url: string): string {
-  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
 }
