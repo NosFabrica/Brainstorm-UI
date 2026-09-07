@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useRoute, Link } from "wouter";
+import { useRoute, Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -14,6 +14,7 @@ import { fetchAddressableEvents, fetchProfile } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 import { openArticleInApp } from "@/lib/articleLinks";
 import { npubFromPubkey } from "@/lib/shareId";
+import { wikiToMarkdown } from "@/lib/wiki";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { EventThread } from "@/components/share/EventThread";
@@ -35,9 +36,28 @@ const VID_RE = /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i;
  * (Full og-image/title/description previews for arbitrary links await the
  * /api/unfurl proxy — see LinkPreview.tsx.)
  */
+function InAppLink({ href, children }: { href: string; children?: React.ReactNode }) {
+  const [, navigate] = useLocation();
+  return (
+    <a
+      href={href}
+      onClick={(e) => {
+        e.preventDefault();
+        navigate(href);
+      }}
+      className="font-medium text-brand-link underline decoration-brand-link/40 underline-offset-2 hover:decoration-brand-link"
+      data-testid="article-wikilink"
+    >
+      {children}
+    </a>
+  );
+}
+
 const mdComponents: Components = {
   a({ href, children }) {
     const url = typeof href === "string" ? href : "";
+    // A link into Brainstorm itself (a wiki topic's articles search) stays here.
+    if (url.startsWith("/")) return <InAppLink href={url}>{children}</InAppLink>;
     const text = Array.isArray(children) ? children.map((c) => (typeof c === "string" ? c : "")).join("") : String(children ?? "");
     const bare = !!url && text.trim() === url.trim(); // an autolinked bare URL, not [label](url)
     if (url && videoEmbedFor(url)) return <VideoEmbed url={url} />;
@@ -212,7 +232,7 @@ export default function ArticlePage() {
             {/* Full article body — Brainstorm is the reading destination. */}
             <div className="mt-6 prose prose-slate dark:prose-invert max-w-none prose-headings:font-bold prose-a:text-brand-link prose-img:rounded-xl" data-testid="article-body">
               <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={mdComponents}>
-                {ev.content || ""}
+                {ev.kind === 30818 ? wikiToMarkdown(ev.content || "") : ev.content || ""}
               </ReactMarkdown>
             </div>
 

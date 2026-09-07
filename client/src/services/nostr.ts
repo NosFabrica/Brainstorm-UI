@@ -847,12 +847,30 @@ export async function fetchAddressableEvents(
   );
   // The filter is a cross-product of the requested kinds, authors and d-tags, so
   // it matches coordinates nobody asked for; `wanted` is what narrows it back.
-  for (const event of events) {
+  const keep = (event: NostrEvent) => {
     const d = event.tags.find((tag) => tag[0] === "d")?.[1] ?? "";
     const key = `${event.kind}:${event.pubkey}:${d}`;
-    if (!wanted.has(key)) continue;
+    if (!wanted.has(key)) return;
     const existing = result.get(key);
     if (!existing || (event.created_at || 0) > (existing.created_at || 0)) result.set(key, event);
+  };
+  for (const event of events) keep(event);
+
+  // Last resort, as fetchEventsByIds does: the SEARCH relay, whose corpus is
+  // wider than the content relays'. GitCitadel's wiki articles (kind 30818)
+  // were listed by search and unopenable — their naddr names no relay, and
+  // the content relays never had them (Benjamin, 2026-09-05).
+  const missing = valid.filter((c) => !result.has(coordKey(c)));
+  if (missing.length) {
+    const found = await fetchFromSearchRelayByFilter(
+      {
+        kinds: Array.from(new Set(missing.map((c) => c.kind))),
+        authors: Array.from(new Set(missing.map((c) => c.pubkey))),
+        "#d": Array.from(new Set(missing.map((c) => c.identifier))),
+      },
+      Math.min(timeoutMs, 5000),
+    );
+    for (const event of found) keep(event);
   }
   return result;
 }
