@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { timeZoneSetter } from "@/test/utils";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
@@ -556,7 +556,7 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
   // says what's wrong, the exhausted row says nothing will fix it alone. The
   // exhausted row borrows the signup's Flash id so an admin can settle it
   // from either place; with no signup to borrow from it is read-only.
-  it("an exhausted event offers Attribute/Dismiss when a signup row carries its Flash id, else reads only", async () => {
+  it("an exhausted event a signup lists folds into it; one with no signup to borrow from reads only", async () => {
     getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
     getAdminBillingDivergence.mockResolvedValue({
       unresolved_signups: {
@@ -575,15 +575,17 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     });
     dismissAdminBillingUnresolved.mockResolvedValue({ subscription_id: "sub_14", applied: false, reason: "dismissed" } as AdminBillingResolution);
     renderCards();
-    const withHandle = await screen.findByTestId("billing-exhausted-14");
-    expect(withHandle.textContent).toMatch(/gave up after 5 tries/i);
-    expect(screen.getByTestId("billing-exhausted-actions-14")).toBeInTheDocument();
+    // The exhausted event a signup already lists folds into that signup: its
+    // attempts ride the delivery line, and the one menu sits on the signup.
+    const group = await screen.findByTestId("billing-unresolved-sub_14");
+    expect(within(group).getByTestId("billing-unresolved-delivery-14").textContent).toMatch(/gave up after 5 tries/i);
+    expect(screen.queryByTestId("billing-exhausted-14")).toBeNull();
     const orphan = screen.getByTestId("billing-exhausted-77");
     expect(screen.queryByTestId("billing-exhausted-actions-77")).toBeNull();
     expect(orphan.textContent).toMatch(/no signup to settle/i);
-    // The menu is the signups' menu: dismissing goes through the same call, keyed by the Flash id.
-    await userEvent.click(screen.getByTestId("billing-exhausted-actions-14"));
-    await userEvent.click(await screen.findByTestId("billing-exhausted-action-dismiss"));
+    // Dismissing from the signup goes through the one call, keyed by the Flash id.
+    await userEvent.click(screen.getByTestId("billing-unresolved-actions-sub_14"));
+    await userEvent.click(await screen.findByTestId("billing-unresolved-action-dismiss"));
     await userEvent.click(await screen.findByTestId("button-billing-dismiss-confirm"));
     await waitFor(() => expect(dismissAdminBillingUnresolved).toHaveBeenCalledWith("sub_14"));
   });
@@ -664,7 +666,7 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
   // row reads as what happened and when, then why it's stuck — never the
   // server's event names or failure codes. An exhausted event that is also
   // listed above says so, so four stuck signups don't read as eight problems.
-  it("signup and exhausted rows read in plain words, and an exhausted event listed above says so", async () => {
+  it("signup rows read in plain words, and an exhausted event already listed folds into its signup", async () => {
     getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
     getAdminBillingDivergence.mockResolvedValue({
       unresolved_signups: {
@@ -690,18 +692,100 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     expect(signup.textContent).not.toContain("no_reference");
     // The Flash id is an identifier, kept short and linked, not a paragraph.
     expect(signup.textContent).toContain("01a048e0");
-
-    const listedAbove = screen.getByTestId("billing-exhausted-29");
-    expect(listedAbove.textContent).toContain("Subscription cancelled");
-    expect(listedAbove.textContent).toMatch(/gave up after 5 tries/i);
-    expect(listedAbove.textContent).toMatch(/listed above/i);
-    expect(listedAbove.textContent).not.toContain("subscription.canceled");
-    expect(listedAbove.textContent).not.toContain("#29");
+    // The exhausted event that IS this signup folds into it: its attempts ride
+    // the delivery line, and the exhausted section says what it folded.
+    expect(signup.textContent).toMatch(/gave up after 5 tries/i);
+    expect(signup.textContent).not.toContain("#29");
+    expect(screen.queryByTestId("billing-exhausted-29")).toBeNull();
+    expect(screen.getByTestId("billing-divergence-exhausted_events").textContent).toMatch(/1 listed above/i);
 
     const orphan = screen.getByTestId("billing-exhausted-88");
     expect(orphan.textContent).toContain("Payment overdue");
     expect(orphan.textContent).toContain("Plan not mapped");
     expect(orphan.textContent).not.toMatch(/listed above/i);
+  });
+
+  // Enes: "One signup reads as one problem." Two deliveries of one nobody's
+  // payment — started, then cancelled — used to render as two rows with two
+  // menus, and again in the exhausted section: four rows, one payment. Now one
+  // entry per Flash subscription, its deliveries and their attempts beneath,
+  // one menu; the exhausted section keeps only what is not already shown, and
+  // every heading still reconciles with the server's count.
+  it("one signup reads as one problem: grouped by Flash subscription, deliveries beneath, one menu", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue({
+      unresolved_signups: {
+        count: 3,
+        truncated: false,
+        rows: [
+          { id: 14, event: "subscription.activated", created_at: "2026-09-02T10:00:00Z", process_error: "no_reference", flash_subscription_id: "sub_a" },
+          { id: 16, event: "subscription.activated", created_at: "2026-09-01T10:00:00Z", process_error: "no_reference", flash_subscription_id: "sub_b" },
+          { id: 15, event: "subscription.canceled", created_at: "2026-09-04T10:00:00Z", process_error: "no_reference", flash_subscription_id: "sub_a" },
+        ],
+      },
+      exhausted_events: {
+        count: 3,
+        truncated: false,
+        rows: [
+          { id: 14, event: "subscription.activated", attempts: 5, process_error: "no_reference" },
+          { id: 15, event: "subscription.canceled", attempts: 5, process_error: "no_reference" },
+          { id: 99, event: "subscription.renewed", attempts: 5, process_error: "boom" },
+        ],
+      },
+    });
+    renderCards();
+    const signups = await screen.findByTestId("billing-divergence-unresolved_signups");
+    // One entry per subscription, one menu each — and the chip says both numbers.
+    expect(screen.getAllByTestId("billing-unresolved-actions-sub_a")).toHaveLength(1);
+    expect(screen.getAllByTestId("billing-unresolved-actions-sub_b")).toHaveLength(1);
+    expect(signups.textContent).toContain("3 deliveries");
+    expect(signups.textContent).toContain("2 signups");
+    // The deliveries sit under their entry, with the attempts the replay gave up after.
+    const groupA = screen.getByTestId("billing-unresolved-sub_a");
+    const d14 = within(groupA).getByTestId("billing-unresolved-delivery-14");
+    const d15 = within(groupA).getByTestId("billing-unresolved-delivery-15");
+    expect(d14.textContent).toContain("Subscription started");
+    expect(d14.textContent).toMatch(/gave up after 5 tries/i);
+    expect(d15.textContent).toContain("Subscription cancelled");
+    expect(within(screen.getByTestId("billing-unresolved-sub_b")).getByTestId("billing-unresolved-delivery-16").textContent).not.toMatch(/gave up/i);
+    // The exhausted section keeps only the event nobody lists above, and says what it folded.
+    expect(screen.queryByTestId("billing-exhausted-14")).toBeNull();
+    expect(screen.queryByTestId("billing-exhausted-15")).toBeNull();
+    expect(screen.getByTestId("billing-exhausted-99")).toBeInTheDocument();
+    const exhausted = screen.getByTestId("billing-divergence-exhausted_events");
+    expect(exhausted.textContent).toMatch(/3/);
+    expect(exhausted.textContent).toMatch(/2 listed above/i);
+    // No two rendered rows share a test id.
+    const ids = [...document.querySelectorAll("[data-testid]")].map((e) => e.getAttribute("data-testid"));
+    const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
+    expect(dupes).toEqual([]);
+  });
+
+  // An exhausted event that borrows its Flash id from Plans not mapped is an
+  // identified, paying subscriber. Attribute and Flash's record mean something
+  // there; "Dismiss as nobody's" can only be refused by the server (404), so
+  // it is not offered — an action that cannot succeed reads as a failure.
+  it("an exhausted event borrowing from Plans not mapped offers Attribute and the record, never Dismiss", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue({
+      unmapped_plans: {
+        count: 1,
+        truncated: false,
+        rows: [{ id: 42, event: "subscription.renewed", created_at: "2026-09-01T10:00:00Z", process_error: "unknown_plan", flash_subscription_id: "sub_amara", external_ref: PUBKEY, flash_service_id: "9c1e", flash_plan_id: "4f2a" }],
+      },
+      exhausted_events: {
+        count: 1,
+        truncated: false,
+        rows: [{ id: 42, event: "subscription.renewed", attempts: 5, process_error: "unknown_plan" }],
+      },
+    });
+    renderCards();
+    const row = await screen.findByTestId("billing-exhausted-42");
+    expect(row.textContent).toMatch(/listed above/i);
+    await userEvent.click(screen.getByTestId("billing-exhausted-actions-42"));
+    expect(await screen.findByTestId("billing-exhausted-action-attribute")).toBeInTheDocument();
+    expect(screen.getByTestId("billing-exhausted-action-flash-record")).toBeInTheDocument();
+    expect(screen.queryByTestId("billing-exhausted-action-dismiss")).toBeNull();
   });
 
   // Numbers first: how many are paying, how many are in trouble, how many
@@ -1510,6 +1594,61 @@ describe("resolving a signup that named nobody", () => {
     await waitFor(() => expect(dialog.textContent).toContain("Lira Flint"));
     // Which payment this grant lands on must not disappear behind who gets it.
     expect(dialog.textContent).toContain(UNRESOLVED_ID);
+  });
+
+  // Enes: the client cannot promise an exact count — the report lists only
+  // deliveries that failed, while a dismiss also settles ones still inside
+  // their retry budget — so the dialog states a floor, and the toast reports
+  // what was actually settled, from the response the handlers used to discard.
+  it("a signup with several deliveries: the dialog states a floor, the toast says how many were settled", async () => {
+    getAdminBillingDivergence.mockResolvedValue({
+      unresolved_signups: {
+        count: 2,
+        truncated: false,
+        rows: [
+          { id: 41, event: "subscription.activated", created_at: "2026-08-31T15:00:00Z", process_error: "no_reference", flash_subscription_id: UNRESOLVED_ID },
+          { id: 43, event: "subscription.canceled", created_at: "2026-09-02T15:00:00Z", process_error: "no_reference", flash_subscription_id: UNRESOLVED_ID },
+        ],
+      },
+    });
+    dismissAdminBillingUnresolved.mockResolvedValue({ ...DISMISSED, events_settled: 2 });
+
+    renderCards();
+    await openUnresolvedAction("dismiss");
+    const dialog = await screen.findByTestId("dialog-billing-dismiss-confirm");
+    expect(dialog.textContent).toMatch(/at least 2 deliveries/i);
+    expect(dialog.textContent).not.toMatch(/exactly/i);
+    await userEvent.click(screen.getByTestId("button-billing-dismiss-confirm"));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Signup dismissed", description: expect.stringContaining("2 deliveries were settled") }),
+      ),
+    );
+  });
+
+  it("a single delivery keeps the plain words — no count to report", async () => {
+    dismissAdminBillingUnresolved.mockResolvedValue(DISMISSED);
+    renderCards();
+    await openUnresolvedAction("dismiss");
+    const dialog = await screen.findByTestId("dialog-billing-dismiss-confirm");
+    expect(dialog.textContent).not.toMatch(/at least/i);
+    await userEvent.click(screen.getByTestId("button-billing-dismiss-confirm"));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Signup dismissed" })));
+    expect((toast.mock.calls.at(-1)![0] as { description: string }).description).not.toMatch(/were settled/);
+  });
+
+  it("attributing reports the settled deliveries too", async () => {
+    attributeAdminBillingUnresolved.mockResolvedValue({ ...ATTRIBUTED, events_settled: 3 });
+    renderCards();
+    await openUnresolvedAction("attribute");
+    await userEvent.type(await screen.findByTestId("input-billing-attribute-pubkey"), PUBKEY);
+    await waitFor(() => expect(screen.getByTestId("button-billing-attribute-confirm")).toBeEnabled());
+    await userEvent.click(screen.getByTestId("button-billing-attribute-confirm"));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Signup attributed", description: expect.stringContaining("3 deliveries were settled") }),
+      ),
+    );
   });
 
   it("calls a refusal what it is — nothing changed, not a system failure", async () => {

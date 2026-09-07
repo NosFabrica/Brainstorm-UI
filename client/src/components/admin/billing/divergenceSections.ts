@@ -113,15 +113,101 @@ export function orderedSections(report: Record<string, AdminBillingDivergenceSec
   return out;
 }
 
-/** Webhook event id → Flash subscription id, from the signup sections that
- *  carry one. An exhausted event borrows its handle from here. */
-export function subscriptionIdsByEventId(report: Record<string, AdminBillingDivergenceSection | undefined>): Map<number, string> {
-  const map = new Map<number, string>();
-  for (const kind of ["unresolved_signups", "unmapped_plans"]) {
+export type SignupSectionKind = "unresolved_signups" | "unmapped_plans";
+
+/** A Flash id an exhausted event may borrow, and which section lent it: a
+ *  handle from Plans not mapped is an identified, paying subscriber, so
+ *  "Dismiss as nobody's" cannot succeed for it (the server 404s). */
+export interface SignupHandle {
+  subscriptionId: string;
+  from: SignupSectionKind;
+}
+
+/** Webhook event id → the Flash subscription id a signup section carries for
+ *  it, and which section. A signup that named nobody wins over a plan not mapped. */
+export function subscriptionIdsByEventId(report: Record<string, AdminBillingDivergenceSection | undefined>): Map<number, SignupHandle> {
+  const map = new Map<number, SignupHandle>();
+  for (const kind of ["unresolved_signups", "unmapped_plans"] as SignupSectionKind[]) {
     for (const row of report[kind]?.rows ?? []) {
       const r = row as { id?: unknown; flash_subscription_id?: unknown };
-      if (typeof r.id === "number" && typeof r.flash_subscription_id === "string" && r.flash_subscription_id) map.set(r.id, r.flash_subscription_id);
+      if (typeof r.id === "number" && typeof r.flash_subscription_id === "string" && r.flash_subscription_id && !map.has(r.id)) {
+        map.set(r.id, { subscriptionId: r.flash_subscription_id, from: kind });
+      }
     }
   }
   return map;
+}
+
+/** One webhook delivery of a signup that named nobody, with how many times the
+ *  replay tried before giving up — when the exhausted section knows. */
+export interface SignupDelivery {
+  id: number;
+  event: string;
+  created_at: string | null;
+  process_error: string | null;
+  attempts?: number;
+}
+
+/** One signup — one Flash subscription — and every delivery of it the report lists. */
+export interface SignupGroup {
+  /** Null for a delivery that carries no Flash id at all; it stands alone. */
+  subscriptionId: string | null;
+  deliveries: SignupDelivery[];
+}
+
+/**
+ * One signup reads as one problem (Enes): two deliveries — started, then
+ * cancelled — of one nobody's payment carry one Flash id, so they are one
+ * entry with one menu. Groups keep the order of first appearance; a row with
+ * no Flash id cannot be settled and stands alone. The exhausted section's
+ * attempts ride the delivery line instead of repeating the row.
+ */
+export function groupSignups(rows: ReadonlyArray<unknown>, exhausted: ReadonlyArray<unknown> = []): SignupGroup[] {
+  const attempts = new Map<number, number>();
+  for (const e of exhausted) {
+    const r = e as { id?: unknown; attempts?: unknown };
+    if (typeof r.id === "number" && typeof r.attempts === "number") attempts.set(r.id, r.attempts);
+  }
+  const groups: SignupGroup[] = [];
+  const byId = new Map<string, SignupGroup>();
+  for (const row of rows) {
+    const r = row as { id?: unknown; event?: unknown; created_at?: unknown; process_error?: unknown; flash_subscription_id?: unknown };
+    const id = typeof r.id === "number" ? r.id : -1;
+    const delivery: SignupDelivery = {
+      id,
+      event: typeof r.event === "string" ? r.event : "",
+      created_at: typeof r.created_at === "string" ? r.created_at : null,
+      process_error: typeof r.process_error === "string" ? r.process_error : null,
+      ...(attempts.has(id) ? { attempts: attempts.get(id) } : {}),
+    };
+    const sid = typeof r.flash_subscription_id === "string" && r.flash_subscription_id ? r.flash_subscription_id : null;
+    if (!sid) {
+      groups.push({ subscriptionId: null, deliveries: [delivery] });
+      continue;
+    }
+    const existing = byId.get(sid);
+    if (existing) existing.deliveries.push(delivery);
+    else {
+      const g = { subscriptionId: sid, deliveries: [delivery] };
+      byId.set(sid, g);
+      groups.push(g);
+    }
+  }
+  return groups;
+}
+
+/**
+ * The exhausted events worth their own row: an event a signup group already
+ * shows adds only its attempts, which the group carries, so it folds. An event
+ * with no handle, or one borrowed from Plans not mapped, still stands alone.
+ */
+export function splitExhausted<R extends { id?: unknown }>(rows: R[], handles: Map<number, SignupHandle>): { standalone: R[]; folded: number } {
+  const standalone: R[] = [];
+  let folded = 0;
+  for (const row of rows) {
+    const id = typeof row.id === "number" ? row.id : null;
+    if (id != null && handles.get(id)?.from === "unresolved_signups") folded += 1;
+    else standalone.push(row);
+  }
+  return { standalone, folded };
 }

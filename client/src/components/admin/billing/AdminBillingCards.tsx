@@ -59,7 +59,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Chip } from "@/components/ui/chip";
 import { tone, type Tone } from "@/lib/tones";
 import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
-import { DIVERGENCE_META, orderedSections, subscriptionIdsByEventId, type DivergenceMeta, type DivergenceTier, type OrderedSection } from "./divergenceSections";
+import { DIVERGENCE_META, orderedSections, subscriptionIdsByEventId, type DivergenceMeta, type DivergenceTier, type OrderedSection, groupSignups, splitExhausted, type SignupHandle } from "./divergenceSections";
 import { StatTile } from "@/components/ui/stat-tile";
 import { failureLabel } from "./billingEventCopy";
 
@@ -76,7 +76,7 @@ import {
   UnrecognisedStatusRowView,
   ExhaustedEventRowView,
   UnmappedPlanRowView,
-  UnresolvedSignupRowView,
+  SignupGroupView,
   type ProfileBits as DivergenceProfileBits,
 } from "./DivergenceRows";
 import { PlanMappingFormDialog } from "./PlanMappingFormDialog";
@@ -793,14 +793,21 @@ export function AdminBillingCards({ active }: { active: boolean }) {
    * subscription that has already lapsed. That is an answer, not a failure, so
    * it is reported as one, with the server's own reason for it.
    */
+  // How many stored deliveries a settlement actually closed — the server says,
+  // and when it is more than one the admin should hear it (a signup started and
+  // then cancelled is two deliveries; one still inside its retry budget was
+  // never even listed).
+  const settledNote = (n: number | undefined) => (typeof n === "number" && n > 1 ? ` ${n} deliveries were settled.` : "");
   const handleAttribute = (subscriptionId: string, pubkey: string) =>
     runAction(subscriptionId, async () => {
       const out = await apiClient.attributeAdminBillingUnresolved(subscriptionId, pubkey);
       toast({
         title: out.applied ? "Signup attributed" : "Attributed, but nothing was granted",
-        description: out.applied
-          ? "It now belongs to them and the plan's tier is applied — they're in the roster above."
-          : `${out.entitlement_reason ? entitlementReasonText(out.entitlement_reason) : "No tier was applied."} The signup is settled either way, so it leaves this report.`,
+        description:
+          (out.applied
+            ? "It now belongs to them and the plan's tier is applied — they're in the roster above."
+            : `${out.entitlement_reason ? entitlementReasonText(out.entitlement_reason) : "No tier was applied."} The signup is settled either way, so it leaves this report.`) +
+          settledNote(out.events_settled),
       });
     }, "Nothing was changed");
 
@@ -810,11 +817,12 @@ export function AdminBillingCards({ active }: { active: boolean }) {
 
   const handleDismiss = (subscriptionId: string) =>
     runAction(subscriptionId, async () => {
-      await apiClient.dismissAdminBillingUnresolved(subscriptionId);
+      const out = await apiClient.dismissAdminBillingUnresolved(subscriptionId);
       toast({
         title: "Signup dismissed",
         description:
-          "Written off as nobody's — nothing was granted and this leaves the report. Flash still holds the payment; cancel or refund there if it needs it.",
+          "Written off as nobody's — nothing was granted and this leaves the report. Flash still holds the payment; cancel or refund there if it needs it." +
+          settledNote(out.events_settled),
       });
     }, "Nothing was changed");
 
@@ -868,6 +876,11 @@ export function AdminBillingCards({ active }: { active: boolean }) {
       ) -
       (divergence.exhausted_events?.rows ?? []).filter((r) => typeof (r as { id?: unknown }).id === "number" && handlesByEventId.has((r as { id: number }).id)).length,
   };
+  // The deliveries the report lists for the signup being dismissed — a floor
+  // for the dialog's count.
+  const dismissDeliveries = dismissFor
+    ? groupSignups(divergence.unresolved_signups?.rows ?? []).find((g) => g.subscriptionId === dismissFor)?.deliveries.length ?? 1
+    : 1;
   const signupActions = {
     onViewFlashRecord: (id: string) =>
       setFlashRecordFor({ key: id, label: id, read: () => apiClient.getAdminBillingFlashRecordForUnresolved(id) }),
@@ -883,6 +896,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
         key={x.kind}
         meta={x.meta}
         section={x.section}
+        exhaustedRows={divergence.exhausted_events?.rows ?? []}
         busyId={busyKey}
         {...signupActions}
       />
@@ -1168,7 +1182,9 @@ export function AdminBillingCards({ active }: { active: boolean }) {
       </ConfirmSubscriptionAction>
 
       {/* No person to name — the provider's own card tests are the common case
-          here, and the subscription id is all such a row has. */}
+          here, and the subscription id is all such a row has. The count is a
+          floor, never exact: the report lists only deliveries that failed, and
+          a dismiss also settles one still inside its retry budget. */}
       <ConfirmSubscriptionAction
         subject={dismissFor ? { handle: dismissFor } : null}
         kind="dismiss"
@@ -1181,9 +1197,10 @@ export function AdminBillingCards({ active }: { active: boolean }) {
           if (id) await handleDismiss(id);
         }}
       >
-        Grants nothing and clears it from this report, so the sweep stops re-checking
-        it. It does not cancel or refund anything — Flash took the money and that stays
-        there.
+        {dismissDeliveries > 1
+          ? `Grants nothing and clears at least ${dismissDeliveries} deliveries of this signup from the report — the ones listed, and any still being retried — so the sweep stops re-checking it.`
+          : "Grants nothing and clears it from this report, so the sweep stops re-checking it."}{" "}
+        It does not cancel or refund anything — Flash took the money and that stays there.
       </ConfirmSubscriptionAction>
 
       {/* Every write that reaches Flash names the person before it happens, the
@@ -1320,11 +1337,15 @@ function DivergenceHeading({
   meta,
   tier,
   section,
+  countLabel,
 }: {
   kind: string;
   meta: DivergenceMeta | null;
   tier: DivergenceTier;
   section: AdminBillingDivergenceSection;
+  /** Both numbers when the list shows fewer entries than the server counts —
+   *  "3 deliveries · 2 signups", "3 · 2 listed above" — so the chip still reconciles. */
+  countLabel?: string;
 }) {
   return (
     <div>
@@ -1332,7 +1353,7 @@ function DivergenceHeading({
         <span className="text-[13px] font-semibold text-slate-900 dark:text-slate-100">
           {meta?.title ?? kind.replaceAll("_", " ")}
         </span>
-        <Chip tone={tier === "fault" ? "warning" : "neutral"} size="sm">{section.count}</Chip>
+        <Chip tone={tier === "fault" ? "warning" : "neutral"} size="sm">{countLabel ?? section.count}</Chip>
         {section.truncated && (
           <span className="text-[11px] text-slate-400 dark:text-slate-500">list capped — more exist</span>
         )}
@@ -1395,7 +1416,7 @@ function DivergenceBlock({
   policyName: (id: number | null | undefined) => string;
   busyKey: string | null;
   onResync: (pubkey: string) => void;
-  handlesByEventId: Map<number, string>;
+  handlesByEventId: Map<number, SignupHandle>;
   signupActions: SignupActions;
   onCreateMapping: (row: UnmappedPlanRow) => void;
 }) {
@@ -1437,7 +1458,17 @@ function DivergenceBlock({
         return (
           <ExhaustedEventRowView key={i} row={row as never} listedAbove={!!handle}>
             {handle ? (
-              <SignupActionsMenu id={handle} busy={busyKey === handle} testIdPrefix={`billing-exhausted-actions-${eventId}`} itemPrefix="billing-exhausted-action" {...signupActions} />
+              // A handle borrowed from Plans not mapped is an identified, paying
+              // subscriber: Attribute and Flash's record mean something there,
+              // "Dismiss as nobody's" can only be refused (404) — so it is not offered.
+              <SignupActionsMenu
+                id={handle.subscriptionId}
+                busy={busyKey === handle.subscriptionId}
+                canDismiss={handle.from !== "unmapped_plans"}
+                testIdPrefix={`billing-exhausted-actions-${eventId}`}
+                itemPrefix="billing-exhausted-action"
+                {...signupActions}
+              />
             ) : (
               <span className="text-[11px] text-slate-400 dark:text-slate-500">no signup to settle — see the Flash dashboard</span>
             )}
@@ -1452,10 +1483,19 @@ function DivergenceBlock({
         );
     }
   };
+  // An exhausted event a signup group already shows adds only its attempts,
+  // which the group carries — it folds; the heading keeps the server's count
+  // and says how many folded, so the number still reconciles.
+  const exhausted = kind === "exhausted_events" ? splitExhausted(section.rows, handlesByEventId) : null;
+  const rows = exhausted ? exhausted.standalone : section.rows;
+  const countLabel =
+    exhausted && exhausted.folded > 0
+      ? `${section.count} · ${exhausted.folded === section.count ? (section.count === 2 ? "both" : "all") : exhausted.folded} listed above`
+      : undefined;
   return (
     <div data-testid={`billing-divergence-${kind}`}>
-      <DivergenceHeading kind={kind} meta={meta} tier={tier} section={section} />
-      <ul className="mt-1.5 space-y-1">{section.rows.map(typed)}</ul>
+      <DivergenceHeading kind={kind} meta={meta} tier={tier} section={section} countLabel={countLabel} />
+      {rows.length > 0 && <ul className="mt-1.5 space-y-1">{rows.map(typed)}</ul>}
     </div>
   );
 }
@@ -1477,6 +1517,7 @@ function DivergenceBlock({
 function UnresolvedSignupsBlock({
   meta,
   section,
+  exhaustedRows,
   busyId,
   onViewFlashRecord,
   onAttribute,
@@ -1484,32 +1525,35 @@ function UnresolvedSignupsBlock({
 }: {
   meta: DivergenceMeta | null;
   section: AdminBillingDivergenceSection;
+  /** The exhausted section's rows: the attempts a delivery gave up after ride its line. */
+  exhaustedRows: ReadonlyArray<unknown>;
   busyId: string | null;
   onViewFlashRecord: (subscriptionId: string) => void;
   onAttribute: (subscriptionId: string) => void;
   onDismiss: (subscriptionId: string) => void;
 }) {
+  // One signup reads as one problem: two events (started, then cancelled) carry
+  // one Flash id, so they are one entry with one menu — the menu sits on the
+  // thing it acts on, and what a dismiss will clear is listed beneath it.
+  const groups = groupSignups(section.rows, exhaustedRows);
+  const countLabel = groups.length < section.count ? `${section.count} deliveries · ${groups.length} ${groups.length === 1 ? "signup" : "signups"}` : undefined;
   return (
     <div data-testid="billing-divergence-unresolved_signups">
-      <DivergenceHeading kind="unresolved_signups" meta={meta} tier="fault" section={section} />
-      <ul className="mt-1.5 space-y-1">
-        {section.rows.map((row, i) => {
-          const id =
-            typeof row.flash_subscription_id === "string" ? row.flash_subscription_id : "";
-          const busy = !!id && busyId === id;
+      <DivergenceHeading kind="unresolved_signups" meta={meta} tier="fault" section={section} countLabel={countLabel} />
+      <ul className="mt-1.5 space-y-1.5">
+        {groups.map((group) => {
+          const id = group.subscriptionId;
           return (
-            // Two events (started, then cancelled) can carry one Flash id; the
-            // event id is what makes a row unique.
-            <UnresolvedSignupRowView
-              key={`${id ?? "row"}-${(row as { id?: number }).id ?? i}`}
-              row={row as never}
+            <SignupGroupView
+              key={id ?? `delivery-${group.deliveries[0]?.id}`}
+              group={group}
               flashUrl={flashSubscriptionUrl}
               readFlashRecord={(sid) => apiClient.getAdminBillingFlashRecordForUnresolved(sid)}
             >
               {id && (
                 <SignupActionsMenu
                   id={id}
-                  busy={busy}
+                  busy={busyId === id}
                   testIdPrefix={`billing-unresolved-actions-${id}`}
                   itemPrefix="billing-unresolved-action"
                   onViewFlashRecord={onViewFlashRecord}
@@ -1517,7 +1561,7 @@ function UnresolvedSignupsBlock({
                   onDismiss={onDismiss}
                 />
               )}
-            </UnresolvedSignupRowView>
+            </SignupGroupView>
           );
         })}
       </ul>
@@ -1536,12 +1580,13 @@ type SignupActions = {
 function SignupActionsMenu({
   id,
   busy,
+  canDismiss = true,
   testIdPrefix,
   itemPrefix,
   onViewFlashRecord,
   onAttribute,
   onDismiss,
-}: SignupActions & { id: string; busy: boolean; testIdPrefix: string; itemPrefix: string }) {
+}: SignupActions & { id: string; busy: boolean; canDismiss?: boolean; testIdPrefix: string; itemPrefix: string }) {
   return (
     <DropdownMenu>
       <RowActionsTrigger label="Signup actions" busy={busy} testId={testIdPrefix} small />
@@ -1575,6 +1620,7 @@ function SignupActionsMenu({
             Attaches this payment to an account and grants whatever its plan grants — the same way a webhook naming them would have.
           </span>
         </DropdownMenuItem>
+        {canDismiss && (
         <DropdownMenuItem
           disabled={busy}
           onSelect={() => onDismiss(id)}
@@ -1588,6 +1634,7 @@ function SignupActionsMenu({
             Clears it from this report without granting anything. Doesn't cancel or refund — that stays in Flash, which took the money.
           </span>
         </DropdownMenuItem>
+        )}
       </DropdownMenuContent>
     </DropdownMenu>
   );

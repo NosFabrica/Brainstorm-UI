@@ -7,6 +7,7 @@
 import { Loader2, Plus, RefreshCw, User, ExternalLink } from "lucide-react";
 import { eventLabel, eventTone, failureLabel } from "./billingEventCopy";
 import { FlashFactsStrip } from "./FlashFactsStrip";
+import type { SignupGroup } from "./divergenceSections";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Chip } from "@/components/ui/chip";
 import type { Tone } from "@/lib/tones";
@@ -310,6 +311,67 @@ export function UnresolvedSignupRowView({
         </span>
       )}
       <span className="order-2 sm:order-3">{children}</span>
+    </li>
+  );
+}
+
+/**
+ * One signup that named nobody — one Flash subscription — as one entry (Enes:
+ * "One signup reads as one problem"): the Flash id and Flash's facts once in
+ * the header, the menu on the thing it acts on, and every delivery the report
+ * lists beneath, each with when it happened, why it's stuck and how many
+ * tries the replay gave up after. What a dismiss will clear is what is shown.
+ */
+export function SignupGroupView({
+  group,
+  flashUrl,
+  readFlashRecord,
+  children,
+}: {
+  group: SignupGroup;
+  flashUrl: (id: string) => string;
+  readFlashRecord?: (id: string) => Promise<unknown>;
+  children?: React.ReactNode;
+}) {
+  const sid = group.subscriptionId;
+  const key = sid ?? `delivery-${group.deliveries[0]?.id ?? "x"}`;
+  return (
+    <li className="rounded-lg bg-white/60 px-2.5 py-2 dark:bg-slate-900/40" data-testid={`billing-unresolved-${key}`}>
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+        <span className="order-1 flex min-w-0 items-center gap-2">
+          {sid ? (
+            <a
+              href={flashUrl(sid)}
+              target="_blank"
+              rel="noopener"
+              className="inline-flex items-center gap-1 font-mono text-[12px] text-brand-link hover:underline"
+              title={sid}
+              data-testid={`billing-unresolved-flash-link-${sid}`}
+            >
+              {sid.slice(0, 8)}… <ExternalLink className="h-3 w-3" />
+            </a>
+          ) : (
+            <span className={meta}>No Flash id on this delivery — nothing here can settle it</span>
+          )}
+        </span>
+        {sid && readFlashRecord && (
+          <span className="order-3 basis-full sm:order-2 sm:ml-auto sm:basis-auto">
+            <FlashFactsStrip id={sid} read={readFlashRecord} testId={`billing-unresolved-flash-${sid}`} />
+          </span>
+        )}
+        <span className="order-2 sm:order-3">{children}</span>
+      </div>
+      <ul className="mt-1.5 space-y-1 border-l border-slate-200 pl-3 dark:border-slate-700">
+        {group.deliveries.map((d) => {
+          const why = failureLabel(d.process_error);
+          const tries = d.attempts != null ? `gave up after ${d.attempts} ${d.attempts === 1 ? "try" : "tries"}` : null;
+          return (
+            <li key={d.id} data-testid={`billing-unresolved-delivery-${d.id}`}>
+              <EventLead event={d.event} title={eventLabel(d.event)} date={d.created_at} sub={[why, tries].filter(Boolean).join(" · ") || undefined} />
+            </li>
+          );
+        })}
+      </ul>
     </li>
   );
 }
