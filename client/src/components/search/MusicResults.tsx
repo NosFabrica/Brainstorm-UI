@@ -9,7 +9,7 @@
  * faces with their trust rings, Albums as Wavlake tiles. One Play starts the
  * whole queue; a slim bar at the bottom says what is playing.
  */
-import { personScope } from "@/lib/searchSyntax";
+import { scopeOf } from "@/lib/searchSyntax";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { Loader2, Pause, Play } from "lucide-react";
@@ -104,7 +104,7 @@ export function MusicResults({
     if (browsing) return null;
     // Scoped to one person: they are the top result — on Nostr when they have
     // tracks here, else their Wavlake artist — whatever the words say.
-    const scoped = personScope(query);
+    const scoped = scopeOf(query)?.pubkey;
     if (scoped) {
       const mine = authors.find((a) => a.author.pubkey === scoped);
       if (mine) {

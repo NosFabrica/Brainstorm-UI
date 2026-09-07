@@ -306,3 +306,17 @@ export function scopedSearchHref(pubkey: string, tab: string): string {
   }
   return `/?q=${encodeURIComponent(`from:${key}`)}&t=${encodeURIComponent(tab)}`;
 }
+
+/**
+ * The one `from:` key in a query and the words beside it — what the box shows
+ * as a person chip plus typed words, never as a raw token (Benjamin: "we should
+ * never show the raw scope"). Null when there is no key, two keys, or a to:.
+ */
+export function scopeOf(query: string): { pubkey: string; token: string; rest: string } | null {
+  const tokens = query.trim().split(/\s+/).filter(Boolean);
+  const keys = tokens.filter((t) => /^(from|to):\S+$/i.test(t));
+  if (keys.length !== 1 || !/^from:/i.test(keys[0])) return null;
+  const pubkey = keyToHex(keys[0].slice("from:".length));
+  if (!pubkey) return null;
+  return { pubkey, token: keys[0], rest: tokens.filter((t) => t !== keys[0]).join(" ") };
+}

@@ -1057,6 +1057,12 @@ describe("a person-scoped search keeps the person in the panel", () => {
     // The probe asked for people with the scoped query itself, so the relay's author filter answers.
     expect(suggestMock).toHaveBeenCalled();
   });
+  it("words beside the scope keep the person too", async () => {
+    suggestMock.mockResolvedValueOnce([{ pubkey: JOE, npub: nip19.npubEncode(JOE), name: "Joe Martin", wotRank: 0.8, wotFollowers: 5400 }]);
+    render(<KnowledgePanel query={`from:${nip19.npubEncode(JOE)} valentine`} pov="nosfabrica" />);
+    expect(await screen.findByTestId("search-knowledge-panel")).toHaveTextContent("Joe Martin");
+  });
+
   it("a scope with a stranger's answer shows nobody", async () => {
     suggestMock.mockResolvedValueOnce([{ pubkey: "f".repeat(64), npub: "npub1other", name: "Someone Else", wotRank: 0.8, wotFollowers: 5 }]);
     render(<KnowledgePanel query={`from:${nip19.npubEncode(JOE)}`} pov="nosfabrica" />);

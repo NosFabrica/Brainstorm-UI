@@ -52,7 +52,8 @@ import { suggestProfiles } from "@/services/search";
 import { SearchResults } from "@/components/search/SearchResults";
 import { PerspectiveToggle } from "@/components/search/PerspectiveToggle";
 import { HomeFeed } from "@/components/feed/HomeFeed";
-import { personAssist, splitFilters, type PersonAssist } from "@/lib/searchSyntax";
+import { personAssist, scopeOf, splitFilters, type PersonAssist } from "@/lib/searchSyntax";
+import { ScopeChip } from "@/components/search/ScopeChip";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
 import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
@@ -511,7 +512,9 @@ export default function Landing() {
       return;
     }
     // Remember this query for the "Recent" list (de-duped, most-recent-first).
-    setRecent(pushRecentQuery(q));
+    // A search scoped to a person (from:npub…) is a step from their profile,
+    // not words anyone typed — and a key is nothing to show in a list.
+    if (!scopeOf(q)) setRecent(pushRecentQuery(q));
     // Running a full search cancels any pending/in-flight suggestion request and
     // closes the dropdown so it can't reopen on top of the results list.
     window.clearTimeout(suggestTimerRef.current);
@@ -673,6 +676,14 @@ export default function Landing() {
     cancelSuggest();
     handleSearch();
   };
+
+  // A query scoped to one person shows that person as a chip, never the raw
+  // from:npub… token (Benjamin: "we should never show the raw scope"). The
+  // box's text is the words beside the key; the key rides first in `query`
+  // so typing keeps its spaces (the words are typed, not re-derived).
+  const scope = scopeOf(query);
+  const words = scope ? (query.startsWith(scope.token) ? query.slice(scope.token.length).replace(/^\s+/, "") : scope.rest) : query;
+  const setWords = (v: string) => (scope ? `${scope.token} ${v}` : v);
 
   const clearSearch = useCallback((opts?: { refocus?: boolean }) => {
     searchAbortRef.current++;
@@ -901,14 +912,29 @@ export default function Landing() {
                 ) : (
                   <Search className="h-5 w-5 text-slate-400 dark:text-slate-500 shrink-0" />
                 )}
+                {scope && (
+                  <ScopeChip
+                    pubkey={scope.pubkey}
+                    onRemove={() => {
+                      // Drop the scope: the words alone search, or the box empties.
+                      if (scope.rest) {
+                        setQuery(scope.rest);
+                        void handleSearch(scope.rest);
+                      } else {
+                        clearSearch();
+                      }
+                    }}
+                  />
+                )}
                 <div className="relative flex-1 min-w-0">
                 <input
                   ref={inputRef}
                   type="text"
-                  value={query}
+                  value={words}
                   onChange={(e) => {
-                    setQuery(e.target.value);
-                    scheduleSuggest(e.target.value);
+                    const next = setWords(e.target.value);
+                    setQuery(next);
+                    scheduleSuggest(next);
                   }}
                   onFocus={() => {
                     setFocused(true);
@@ -938,8 +964,14 @@ export default function Landing() {
                       if (showSuggestions && kbdNavRef.current && activeSuggestion >= 0 && suggestions[activeSuggestion]) {
                         e.preventDefault();
                         goToProfile(suggestions[activeSuggestion]);
+                        return;
                       }
-                      // otherwise let the form submit handler run (full search)
+                      // Otherwise Enter IS the search — run it here rather than
+                      // trusting the form's implicit submission (a synthetic key,
+                      // or a second field in the form, would silently swallow it).
+                      e.preventDefault();
+                      cancelSuggest();
+                      void handleSearch();
                     } else if (e.key === "Escape") {
                       setShowSuggestions(false);
                       setActiveSuggestion(-1);
@@ -956,6 +988,11 @@ export default function Landing() {
                   aria-activedescendant={showSuggestions && activeSuggestion >= 0 ? `home-suggestion-opt-${activeSuggestion}` : undefined}
                   data-testid="input-home-search"
                 />
+                {scope && words.length === 0 && (
+                  <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center overflow-hidden">
+                    <span className="truncate text-slate-400 dark:text-slate-500 text-base">Search their posts</span>
+                  </span>
+                )}
                 {query.length === 0 && (
                   <span
                     aria-hidden="true"

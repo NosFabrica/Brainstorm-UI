@@ -874,6 +874,30 @@ describe("SearchResults", () => {
     catalogueMock.mockImplementation(() => ({ artist: null, songs: [], loading: false }));
   });
 
+  // Words typed beside the person chip search within their music: the
+  // catalogue narrows by title, the artist stays on top, and Wavlake is never
+  // asked for the raw key.
+  it("words beside a person scope narrow that person's catalogue by title", async () => {
+    const joe = "e".repeat(64);
+    const npub = nip19.npubEncode(joe);
+    catalogueMock.mockImplementation((pk) =>
+      pk === joe
+        ? { artist: { id: "art-1", name: "Joe Martin", url: "https://wavlake.com/joe-martin", artistNpub: npub }, songs: [wavlakeSong("w1", "Hand Me Down Heart", "Joe Martin"), wavlakeSong("w2", "Checkmate", "Joe Martin")], loading: false }
+        : { artist: null, songs: [], loading: false },
+    );
+    setUrlTab("music");
+    render(<SearchResults query={`from:${npub} check`} pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 150 });
+
+    const top = await screen.findByTestId("music-top-result");
+    expect(top).toHaveTextContent("Joe Martin");
+    const songs = screen.getByTestId("music-songs");
+    within(songs).getByTestId("wavlake-song-wavlake:w2");
+    expect(within(songs).queryByTestId("wavlake-song-wavlake:w1")).toBeNull();
+    expect(wavlakeCatalogueMock).not.toHaveBeenCalledWith(expect.stringContaining("from:"));
+    catalogueMock.mockImplementation(() => ({ artist: null, songs: [], loading: false }));
+  });
+
   // Browse led with "QA storage fixture qa41" and "Test Blossom" — Fanfares'
   // QA bot and blob tests publish the kind. Not songs anyone searched for.
   it("the Music tab drops QA and test publications", async () => {

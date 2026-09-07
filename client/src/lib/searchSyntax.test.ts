@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { nip19 } from "nostr-tools";
-import { activeFilterCount, applyFilters, datePreset, liftQuery, personAssist, readFilters, sinceForPreset, splitFilters, browseSafeQuery, personScope, scopedSearchHref } from "./searchSyntax";
+import { activeFilterCount, applyFilters, datePreset, liftQuery, personAssist, readFilters, sinceForPreset, splitFilters, browseSafeQuery, personScope, scopedSearchHref, scopeOf } from "./searchSyntax";
 
 // Probed 2026-09-03: the relay ignores filter:rank and knows no hops. The
 // controls that need those are done on the CLIENT, but still speak grammar —
@@ -231,5 +231,21 @@ describe("a person scope — a search that is one person's work in one vertical"
   it("scopedSearchHref is the search page, scoped to the person, on the vertical", () => {
     expect(scopedSearchHref(hex, "articles")).toBe(`/?q=from%3A${npub}&t=articles`);
     expect(scopedSearchHref(hex, "music")).toBe(`/?q=from%3A${npub}&t=music`);
+  });
+});
+
+describe("scopeOf — the one from: token the box shows as a person, and the words beside it", () => {
+  const hex = "3".repeat(64);
+  const npub = nip19.npubEncode(hex);
+  it("splits the scope from the words, keeping the token as typed", () => {
+    expect(scopeOf(`from:${npub} alone in valentine`)).toEqual({ pubkey: hex, token: `from:${npub}`, rest: "alone in valentine" });
+    expect(scopeOf(`valentine from:${npub}`)).toEqual({ pubkey: hex, token: `from:${npub}`, rest: "valentine" });
+    expect(scopeOf(`from:${npub}`)).toEqual({ pubkey: hex, token: `from:${npub}`, rest: "" });
+  });
+  it("two keys, a to:, or no key at all is not a scope", () => {
+    expect(scopeOf(`from:${npub} from:${nip19.npubEncode("4".repeat(64))}`)).toBeNull();
+    expect(scopeOf(`to:${npub}`)).toBeNull();
+    expect(scopeOf("joe martin")).toBeNull();
+    expect(scopeOf("from:nobody")).toBeNull();
   });
 });

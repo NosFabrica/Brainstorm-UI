@@ -10,7 +10,7 @@ import { Link, useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
 import { ChevronDown, Radar, Radio, SlidersHorizontal } from "lucide-react";
-import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, readFilters, sinceForPreset, splitFilters, type DatePreset, type SearchFilterPatch, personScope } from "@/lib/searchSyntax";
+import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, readFilters, sinceForPreset, splitFilters, type DatePreset, type SearchFilterPatch, scopeOf } from "@/lib/searchSyntax";
 import { clientFilterHits } from "@/lib/clientFilters";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
 import { eventStore } from "@/lib/eventStore";
@@ -674,12 +674,17 @@ export function SearchResults({
   // or, when the search is scoped to one person (from:npub…, the profile's
   // "View all"), that person's own catalogue: the artist who is them and every
   // song of theirs, with no text search for the key.
-  const scopedTo = personScope(query);
-  const wavlakeWords = useWavlakeSearch(query, tab === "music" && !scopedTo);
+  // Words typed beside the person chip narrow that catalogue by title.
+  const scope = scopeOf(query);
+  const scopedTo = scope?.pubkey ?? null;
+  const wavlakeWords = useWavlakeSearch(query, tab === "music" && !scope);
   const catalogue = useArtistCatalogue(tab === "music" ? scopedTo : null);
-  const wavlake = scopedTo
-    ? { artists: catalogue.artist ? [catalogue.artist] : [], albums: [], songs: catalogue.songs, loading: catalogue.loading }
-    : wavlakeWords;
+  const wavlake = useMemo(() => {
+    if (!scope) return wavlakeWords;
+    const words = scope.rest.toLowerCase().split(/\s+/).filter(Boolean);
+    const songs = words.length === 0 ? catalogue.songs : catalogue.songs.filter((s) => words.every((w) => s.title.toLowerCase().includes(w)));
+    return { artists: catalogue.artist ? [catalogue.artist] : [], albums: [], songs, loading: catalogue.loading };
+  }, [scope, wavlakeWords, catalogue]);
   const mediaSettled = tab !== "media" || !!mediaNotes?.eose || !!mediaNotes?.error;
   const searching =
     personMedia.length === 0 &&
@@ -1247,7 +1252,7 @@ export function SearchResults({
                 <EmptyState
                   icon={Radio}
                   compact
-                  title={query.trim() ? `Nothing live for “${query.trim()}” right now` : "Nothing live right now"}
+                  title={scopedTo ? "Nothing live from them right now" : query.trim() ? `Nothing live for “${query.trim()}” right now` : "Nothing live right now"}
                   description={`${hits.length} past ${hits.length === 1 ? "stream" : "streams"} matched, but none is on air, scheduled, or left a recording.`}
                 />
               </div>

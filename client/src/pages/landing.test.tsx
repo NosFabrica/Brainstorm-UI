@@ -7,6 +7,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { SearchSnapshot } from "@/services/search";
+import { nip19 } from "nostr-tools";
+import { getRecentItems } from "@/lib/recentSearches";
 
 const streamMock = vi.fn();
 let allStreams: { query: string; params: { tab?: string; limit?: number }; cb: (s: SearchSnapshot) => void }[] = [];
@@ -26,11 +28,13 @@ vi.mock("@/services/search", async (importOriginal) => {
     fetchRepoCounts: async () => ({ issues: 0, patches: 0 }),
   };
 });
+// Profiles a test wants the page to know, by pubkey.
+const knownProfiles = new Map<string, { name?: string; display_name?: string; picture?: string }>();
 vi.mock("@/services/nostr", () => ({
   fetchProfile: async () => null,
   fetchRecentByKinds: async () => [],
   fetchLiveStreams: async () => [],
-  fetchProfileMap: async () => new Map(),
+  fetchProfileMap: async (pks: string[]) => new Map(pks.filter((pk) => knownProfiles.has(pk)).map((pk) => [pk, knownProfiles.get(pk)!])),
 }));
 vi.mock("@/services/api", () => ({ apiClient: new Proxy({}, { get: () => async () => null }) }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
@@ -118,5 +122,70 @@ describe("an in-app link to another search", () => {
     window.history.pushState({}, "", "/?q=liverpool");
     await waitFor(() => expect(mainStreamCalls().some(([q]) => q === "liverpool")).toBe(true));
     expect((screen.getByTestId("input-home-search") as HTMLInputElement).value).toBe("liverpool");
+  });
+});
+
+// A search scoped to one person — the public profile's "View all" — shows the
+// person in the box, never the raw from:npub… token (Benjamin, 2026-09-05:
+// "we should never show the raw scope"). Words typed beside the chip search
+// within their posts; the chip's X drops the scope.
+describe("a search scoped to a person shows them in the box, never the raw key", () => {
+  const JOE = "e".repeat(64);
+  const npub = nip19.npubEncode(JOE);
+  beforeEach(() => {
+    cleanup();
+    allStreams = [];
+    streamMock.mockClear();
+    knownProfiles.set(JOE, { display_name: "Joe Martin", picture: "https://img/joe.jpg" });
+    window.history.replaceState({}, "", `/?q=from%3A${npub}&t=music`);
+  });
+
+  it("the box shows the person as a chip with empty words, and the wire gets the scope", async () => {
+    render(<Landing />);
+    const chip = await screen.findByTestId("search-scope-chip");
+    await waitFor(() => expect(chip).toHaveTextContent("Joe Martin"));
+    expect((screen.getByTestId("input-home-search") as HTMLInputElement).value).toBe("");
+    expect(screen.getByTestId("form-home-search")).not.toHaveTextContent("npub1");
+    // The Music tab adds its own newest-first order after the scope.
+    await waitFor(() => expect(mainStreamCalls().some(([q]) => String(q).startsWith(`from:${npub}`))).toBe(true));
+  });
+
+  it("words typed beside the chip search within that person's posts", async () => {
+    render(<Landing />);
+    await screen.findByTestId("search-scope-chip");
+    const input = screen.getByTestId("input-home-search") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "alone in " } });
+    expect(input.value).toBe("alone in "); // the space survives — the words are typed, not re-derived
+    fireEvent.change(input, { target: { value: "alone in valentine" } });
+    fireEvent.submit(screen.getByTestId("form-home-search"));
+    await waitFor(() => expect(mainStreamCalls().some(([q]) => String(q).startsWith(`from:${npub} alone in valentine`))).toBe(true));
+    expect(new URLSearchParams(window.location.search).get("q")).toBe(`from:${npub} alone in valentine`);
+    expect(input.value).toBe("alone in valentine");
+    expect(screen.getByTestId("search-scope-chip")).toHaveTextContent("Joe Martin");
+  });
+
+  it("Enter in the box runs the scoped words, without relying on the form's implicit submit", async () => {
+    render(<Landing />);
+    await screen.findByTestId("search-scope-chip");
+    const input = screen.getByTestId("input-home-search") as HTMLInputElement;
+    fireEvent.change(input, { target: { value: "checkmate" } });
+    fireEvent.keyDown(input, { key: "Enter" });
+    await waitFor(() => expect(mainStreamCalls().some(([q]) => String(q).startsWith(`from:${npub} checkmate`))).toBe(true));
+    expect(new URLSearchParams(window.location.search).get("q")).toBe(`from:${npub} checkmate`);
+  });
+
+  it("the chip's X drops the scope and leaves an empty box", async () => {
+    render(<Landing />);
+    fireEvent.click(await screen.findByTestId("search-scope-remove"));
+    expect(screen.queryByTestId("search-scope-chip")).toBeNull();
+    expect((screen.getByTestId("input-home-search") as HTMLInputElement).value).toBe("");
+    expect(new URLSearchParams(window.location.search).get("q")).toBeNull();
+  });
+
+  it("a scoped search never lands in recents as a raw key", async () => {
+    render(<Landing />);
+    await screen.findByTestId("search-scope-chip");
+    await waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(0));
+    expect(getRecentItems().some((r) => r.type === "query" && r.q.includes("from:"))).toBe(false);
   });
 });

@@ -17,7 +17,7 @@ import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { Link, useLocation } from "wouter";
 import { ArrowRight, BookOpen, CalendarDays, Check, ChevronDown, Hash, Package, ShoppingBag, Users, Zap } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
-import { personScope } from "@/lib/searchSyntax";
+import { scopeOf } from "@/lib/searchSyntax";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing, TierWordChip, useQuietTrustChrome, QuietTrustChrome } from "@/components/score/VerificationCoin";
@@ -258,12 +258,14 @@ function KnowledgePanelBody({
     setAppHits(null);
     setTopicEvents(null);
     // A search scoped to one person (from:npub…, the public profile's "View
-    // all") keeps that person in the panel beside their results — the relay's
-    // author filter answers the scoped query itself, so no name match is asked.
-    const scoped = personScope(query);
-    if (scoped) {
+    // all"), with or without words beside it, keeps that person in the panel
+    // beside their results — the relay's author filter answers the scope, so
+    // no name match is asked; the words are the results' business.
+    const scope = scopeOf(query);
+    const scoped = scope?.pubkey;
+    if (scope && scoped) {
       let scopedAlive = true;
-      void suggestProfiles(query, { pov, userPubkey }, { limit: 1 }).then((people) => {
+      void suggestProfiles(scope.token, { pov, userPubkey }, { limit: 1 }).then((people) => {
         if (!scopedAlive) return;
         const who = people.find((p) => p.pubkey === scoped);
         if (who) setPerson(who);
