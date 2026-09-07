@@ -2677,16 +2677,21 @@ export default function AdminPage() {
             </div>
           </div>
 
-          <div className="mb-2 flex items-center gap-2">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Current system state</span>
-            <span className="inline-flex items-center gap-1 text-[9px] text-emerald-600 dark:text-emerald-400">
+          {/* One line on a desk; on a phone the kicker and "live now" share the
+              first line and the note takes a line of its own beneath — three
+              narrow columns of wrapped words was the alternative. */}
+          <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1" data-testid="system-state-line">
+            <span className="whitespace-nowrap text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Current system state</span>
+            <span className="inline-flex items-center gap-1 whitespace-nowrap text-[9px] text-emerald-600 dark:text-emerald-400">
               <span className="relative flex h-1.5 w-1.5">
                 <span className="absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75 animate-ping" />
                 <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
               </span>
               live now
             </span>
-            <span className="text-[9px] text-slate-400 dark:text-slate-500">· mini-charts show the last 24h · window filters affect the charts below, not these</span>
+            <span className="basis-full text-[9px] text-slate-400 dark:text-slate-500 sm:basis-auto" data-testid="system-state-note">
+              <span className="hidden sm:inline">· </span>mini-charts show the last 24h · window filters affect the charts below, not these
+            </span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2.5" data-testid="section-kpi-strip">
             <KpiCard
