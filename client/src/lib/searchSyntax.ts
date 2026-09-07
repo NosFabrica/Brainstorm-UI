@@ -320,3 +320,35 @@ export function scopeOf(query: string): { pubkey: string; token: string; rest: s
   if (!pubkey) return null;
   return { pubkey, token: keys[0], rest: tokens.filter((t) => t !== keys[0]).join(" ") };
 }
+
+/** What a content tab's things are called, for the scoped box's placeholder. */
+const TAB_THINGS: Record<string, string> = {
+  notes: "notes",
+  articles: "articles",
+  media: "media",
+  music: "music",
+  live: "live streams",
+  events: "events",
+  apps: "apps",
+  repos: "repos",
+  lists: "lists",
+  shop: "shop",
+};
+
+/**
+ * The empty scoped box says what typing will do ON THIS TAB, with the
+ * person's name — "Search everything from means", "Search means's notes".
+ * Until the name arrives it says "Search their posts": true, never blank.
+ */
+export function scopedPlaceholder(tab: string, name: string | null): string {
+  if (!name) return "Search their posts";
+  const thing = TAB_THINGS[tab];
+  return thing ? `Search ${name}'s ${thing}` : `Search everything from ${name}`;
+}
+
+/** The typeahead's footer row under a scope — the person, never the raw key. */
+export function seeAllLabel(words: string, name: string | null): string {
+  const who = name || "them";
+  const w = words.trim();
+  return w ? `See all results for "${w}" from ${who}` : `See everything from ${who}`;
+}

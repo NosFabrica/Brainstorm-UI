@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback, startTransition, memo } from "react";
+import { scopedSearchHref } from "@/lib/searchSyntax";
 import { AppHeader } from "@/components/AppHeader";
 import { GlossBackground } from "@/components/GlossBackground";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
@@ -1994,6 +1995,8 @@ export default function ProfilePage() {
   // NOT "how others see you": every viewer with their own web of trust computes a
   // different number, so there is no single score to promise.
   const isOwnProfile = !!user?.pubkey && !!hexPubkey && user.pubkey === hexPubkey;
+  const searchPostsName = displayNostrProfile?.display_name || displayNostrProfile?.name;
+  const searchPostsLabel = isOwnProfile ? "Search your posts" : searchPostsName ? `Search ${searchPostsName}'s posts` : "Search their posts";
   const houseInfluence01 = useMemo(() => {
     const r = seed?.wotRankNosfabrica ?? nosfabricaRankQuery.data;
     if (typeof r !== "number" || !Number.isFinite(r)) return null;
@@ -2398,6 +2401,16 @@ export default function ProfilePage() {
                       })()}
                       <button
                         type="button"
+                        onClick={() => hexPubkey && navigate(scopedSearchHref(hexPubkey, "everything"))}
+                        className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+                        aria-label={searchPostsLabel}
+                        title={searchPostsLabel}
+                        data-testid="button-search-posts"
+                      >
+                        <SearchIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => navigate(`/p/${displayNpub}`)}
                         className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
                         data-testid="link-public-page"
@@ -2487,6 +2500,16 @@ export default function ProfilePage() {
                     </>
                   ) : (
                     <>
+                      <button
+                        type="button"
+                        onClick={() => hexPubkey && navigate(scopedSearchHref(hexPubkey, "everything"))}
+                        className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+                        aria-label={searchPostsLabel}
+                        title={searchPostsLabel}
+                        data-testid="button-search-posts"
+                      >
+                        <SearchIcon className="h-4 w-4" />
+                      </button>
                       <button
                         type="button"
                         onClick={() => navigate(`/p/${displayNpub}`)}

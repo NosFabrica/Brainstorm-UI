@@ -15,7 +15,7 @@ import { parseTrack, TRACK_KIND, type Track } from "@/lib/trackEvent";
 import { findWavlakeArtist, wavlakeArtistTracks, type WavlakeArtist, type WavlakeSong } from "@/lib/wavlake";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
 import { Link, useLocation } from "wouter";
-import { ArrowRight, BookOpen, CalendarDays, Check, ChevronDown, Hash, Package, ShoppingBag, Users, Zap } from "lucide-react";
+import { ArrowRight, BookOpen, CalendarDays, Check, ChevronDown, Hash, Package, Search, ShoppingBag, Users, Zap } from "lucide-react";
 import type { NostrEvent } from "nostr-tools";
 import { readFilters, scopeOf, scopedSearchHref } from "@/lib/searchSyntax";
 import { DEFAULT_VERIFIED_LINE } from "@/services/trustThreshold";
@@ -815,6 +815,18 @@ function KnowledgePanelBody({
       >
         Full profile & trust deep-dive <ArrowRight className="h-3 w-3" />
       </Link>
+      {/* Everything they published, searchable — the door X and YouTube put
+          on a profile, here where the search already is. Once the search IS
+          scoped to them, the box is that door. */}
+      {scopeOf(query)?.pubkey !== person.pubkey && (
+        <Link
+          href={scopedSearchHref(person.pubkey, "everything")}
+          className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-brand-link transition-colors"
+          data-testid="knowledge-panel-search"
+        >
+          <Search className="h-3.5 w-3.5" /> Search their posts
+        </Link>
+      )}
     </aside>
     );
   }

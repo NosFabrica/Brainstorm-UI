@@ -52,7 +52,8 @@ import { suggestProfiles } from "@/services/search";
 import { SearchResults } from "@/components/search/SearchResults";
 import { PerspectiveToggle } from "@/components/search/PerspectiveToggle";
 import { HomeFeed } from "@/components/feed/HomeFeed";
-import { personAssist, scopeOf, splitFilters, type PersonAssist } from "@/lib/searchSyntax";
+import { personAssist, scopeOf, splitFilters, type PersonAssist, scopedPlaceholder, seeAllLabel } from "@/lib/searchSyntax";
+import { useProfileMap } from "@/hooks/useProfileMap";
 import { ScopeChip } from "@/components/search/ScopeChip";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
@@ -72,6 +73,7 @@ const ANON_POV = "nosfabrica" as const;
 // for returning visitors who've already seen the rotating hints (see
 // SEEN_SEARCH_HINTS_KEY). Kept deliberately generic (mainstream names +
 // topics, no insider references) so it reads for a broad audience.
+const NO_PUBKEYS: string[] = [];
 const PLACEHOLDER_EXAMPLES = [
   "Search people and topics…",
   'Search "Maria"',
@@ -684,6 +686,27 @@ export default function Landing() {
   const scope = scopeOf(query);
   const words = scope ? (query.startsWith(scope.token) ? query.slice(scope.token.length).replace(/^\s+/, "") : scope.rest) : query;
   const setWords = (v: string) => (scope ? `${scope.token} ${v}` : v);
+  // The person's name, for the placeholder — the chip's hook and cache, not a
+  // second fetch. A profile with no name stays "their": never a key.
+  const scopeProfiles = useProfileMap(scope ? [scope.pubkey] : NO_PUBKEYS);
+  const scopeProfile = scope ? scopeProfiles.get(scope.pubkey) : undefined;
+  const scopeName = scopeProfile && (scopeProfile.displayName || scopeProfile.name) ? getDisplayLabel(scopeProfile) : null;
+  // Which results tab is showing, so the box can say "Search means's notes";
+  // seeded from the URL, then told by the results as tabs change.
+  const [activeTab, setActiveTab] = useState<string>(() => new URLSearchParams(window.location.search).get("t") || "everything");
+  // Arriving scoped — the profile's magnifier, a "View all" — the cursor is
+  // already in the box (X's profile search). Once per person, so typing and
+  // re-renders never have their focus stolen.
+  const focusedScopeRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!scope) {
+      focusedScopeRef.current = null;
+      return;
+    }
+    if (focusedScopeRef.current === scope.pubkey) return;
+    focusedScopeRef.current = scope.pubkey;
+    inputRef.current?.focus();
+  }, [scope?.pubkey]);
 
   const clearSearch = useCallback((opts?: { refocus?: boolean }) => {
     searchAbortRef.current++;
@@ -731,7 +754,9 @@ export default function Landing() {
   // under way) so the list/results have room.
   // When the typed query is itself a nostr entity/link (npub/nevent/note/naddr/…),
   // the dropdown's action row resolves it straight to the right landing page.
-  const entityMatch = useMemo(() => resolveEntityToPath(query.trim()), [query]);
+  // Under a scope only the WORDS can be a pasted key — the scope's own npub
+  // is the person, not an entity to open.
+  const entityMatch = useMemo(() => resolveEntityToPath((scope ? words : query).trim()), [query, scope, words]);
   const topicMatch = useMemo(() => parseTopicQuery(query), [query]);
   // Tags the query matches. Skipped entirely for `#topic` queries — those are
   // already routed at the hashtag feed and shouldn't offer a second answer.
@@ -990,7 +1015,7 @@ export default function Landing() {
                 />
                 {scope && words.length === 0 && (
                   <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center overflow-hidden">
-                    <span className="truncate text-slate-400 dark:text-slate-500 text-base">Search their posts</span>
+                    <span className="truncate text-slate-400 dark:text-slate-500 text-base" data-testid="text-scope-placeholder">{scopedPlaceholder(activeTab, scopeName)}</span>
                   </span>
                 )}
                 {query.length === 0 && (
@@ -1148,7 +1173,7 @@ export default function Landing() {
                       {entityMatch ? (
                         <><ArrowRight className="h-3.5 w-3.5 shrink-0" />Open this {entityMatch.kind} →</>
                       ) : (
-                        <><Search className="h-3.5 w-3.5 shrink-0" />See all results for "{query.trim()}"</>
+                        <><Search className="h-3.5 w-3.5 shrink-0" />{scope ? seeAllLabel(words, scopeName) : `See all results for "${query.trim()}"`}</>
                       )}
                     </button>
                   </>
@@ -1365,6 +1390,7 @@ export default function Landing() {
         )}
         {hasSearched && (
           <SearchResults
+            onTabChange={setActiveTab}
             query={submitted ?? ""}
             pov={effectivePov}
             userPubkey={user?.pubkey}

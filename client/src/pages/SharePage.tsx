@@ -1,26 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useRoute, useSearch, useLocation, Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  MessageSquare,
-  Image as ImageIcon,
-  FileText,
-  BadgeCheck,
-  ArrowRight,
-  Wifi,
-  Video as VideoIcon,
-  Headphones,
-  Radio,
-  AlertTriangle,
-  ShieldCheck,
-  CalendarDays,
-  Copy,
-  Check,
-  SlidersHorizontal,
-  UserPlus,
-  FileQuestion,
-  PenLine,
-} from "lucide-react";
+import { MessageSquare, Image as ImageIcon, FileText, BadgeCheck, ArrowRight, Wifi, Video as VideoIcon, Headphones, Radio, AlertTriangle, ShieldCheck, CalendarDays, Copy, Check, SlidersHorizontal, UserPlus, FileQuestion, PenLine, Search } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { decodeShareId, npubFromPubkey, nostrUriFor, eventPath } from "@/lib/shareId";
 import { relativeTime } from "@/lib/relativeTime";
@@ -863,7 +844,7 @@ export default function SharePage() {
   // read as text rows under the bio (ProfileDetails). They used to be icon-only
   // glyphs up here; a power user could not find the bolt, and tapping it
   // opened a zap flow when they wanted the address (2026-09-05). Top-right
-  // now holds ACTIONS only: the review pen beside Follow/⋯.
+  // now holds ACTIONS only: the magnifier and the review pen beside Follow/⋯.
   // The pen gives a vouch. Signed-in viewers on someone else's page only.
   const hasMyReview = !!currentUser?.pubkey && !!myEndorsements?.vouches?.some((v) => v.pubkey === currentUser.pubkey);
   const reviewIcon = canReview ? (
@@ -880,6 +861,21 @@ export default function SharePage() {
       <PenLine className="h-4 w-4" />
     </button>
   ) : null;
+  // The magnifier: everything this person published, searchable — the door
+  // X, YouTube and Facebook put on a profile. Everyone gets it; search is public.
+  const searchLabel = profile.display_name || profile.name ? `Search ${displayName}'s posts` : "Search their posts";
+  const searchIcon = (
+    <button
+      type="button"
+      onClick={() => setLocation(scopedSearchHref(pubkey, "everything"))}
+      className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand-primary"
+      title={searchLabel}
+      aria-label={searchLabel}
+      data-testid="share-search-posts"
+    >
+      <Search className="h-4 w-4" />
+    </button>
+  );
   // The action pieces, kept separate so we can place them differently per
   // breakpoint: a "Follows you" chip, the contact icons, and the Follow/⋯ (or
   // the owner's ⋯). On desktop all three sit together top-right with the avatar.
@@ -903,26 +899,26 @@ export default function SharePage() {
       alreadyReported={!!rel.report}
     />
   )) : null;
-  const hasFollowActions = !!followButtons;
-  const hasActions = loggedIn || !!reviewIcon;
-
-  // Desktop: chip + pen + Follow/⋯ together, top-right with the avatar.
-  const topRightActions = hasActions ? (
+  // Desktop: magnifier + chip + pen + Follow/⋯ together, top-right with the
+  // avatar. Always present now — the magnifier is for everyone.
+  const topRightActions = (
     <div className="hidden sm:flex items-center gap-2 shrink-0" data-testid="share-actions-topright">
+      {searchIcon}
       {followsYouChip}
       {reviewIcon}
       {followButtons}
     </div>
-  ) : null;
+  );
   // Mobile: the same actions in their own row under the identity so the
   // primary button can fill the width. Nothing sits across from the avatar.
-  const mobileFollowRow = hasFollowActions || reviewIcon ? (
+  const mobileFollowRow = (
     <div className="mt-3 flex items-center gap-2 sm:hidden" data-testid="share-actions-mobile">
+      {searchIcon}
       {followsYouChip}
       {reviewIcon}
       {followButtons}
     </div>
-  ) : null;
+  );
 
   return (
     <ShareShell onShare={() => setShareOpen(true)}>

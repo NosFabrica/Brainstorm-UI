@@ -11,6 +11,8 @@ import { nip19 } from "nostr-tools";
 import { getRecentItems } from "@/lib/recentSearches";
 
 const streamMock = vi.fn();
+// People the typeahead offers; a test that needs a dropdown seeds one.
+const suggestMock = vi.fn<(...args: unknown[]) => Promise<unknown[]>>(async () => []);
 let allStreams: { query: string; params: { tab?: string; limit?: number }; cb: (s: SearchSnapshot) => void }[] = [];
 const isPanelProbe = (q: string, p?: { tab?: string; limit?: number }) =>
   q.startsWith("#") || (p?.tab === "apps" && p?.limit === 6) || (p?.tab === "events" && p?.limit === 60);
@@ -24,7 +26,7 @@ vi.mock("@/services/search", async (importOriginal) => {
       streamMock(args[0], args[1]);
       return () => {};
     },
-    suggestProfiles: async () => [],
+    suggestProfiles: (...args: unknown[]) => suggestMock(...args),
     fetchRepoCounts: async () => ({ issues: 0, patches: 0 }),
   };
 });
@@ -35,6 +37,8 @@ vi.mock("@/services/nostr", () => ({
   fetchRecentByKinds: async () => [],
   fetchLiveStreams: async () => [],
   fetchProfileMap: async (pks: string[]) => new Map(pks.filter((pk) => knownProfiles.has(pk)).map((pk) => [pk, knownProfiles.get(pk)!])),
+  fetchEventsByIds: async () => [],
+  fetchAddressableEvents: async () => new Map(),
 }));
 vi.mock("@/services/api", () => ({ apiClient: new Proxy({}, { get: () => async () => null }) }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
@@ -187,5 +191,49 @@ describe("a search scoped to a person shows them in the box, never the raw key",
     await screen.findByTestId("search-scope-chip");
     await waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(0));
     expect(getRecentItems().some((r) => r.type === "query" && r.q.includes("from:"))).toBe(false);
+  });
+});
+
+// The scoped box says what typing does ON THIS TAB, with the person's name
+// (Facebook: "Search Sam's profile"; YouTube's channel search) and — since the
+// user just tapped "search" — the cursor is already in it (X's profile search).
+describe("the scoped box names the tab and the person, and is ready to type", () => {
+  const JOE = "e".repeat(64);
+  const npub = nip19.npubEncode(JOE);
+  beforeEach(() => {
+    cleanup();
+    allStreams = [];
+    streamMock.mockClear();
+    suggestMock.mockReset();
+    suggestMock.mockResolvedValue([]);
+    knownProfiles.set(JOE, { display_name: "Joe Martin", picture: "https://img/joe.jpg" });
+    window.history.replaceState({}, "", `/?q=from%3A${npub}&t=music`);
+  });
+
+  it("the empty box names the tab's things and the person, and follows a tab change", async () => {
+    render(<Landing />);
+    await waitFor(() => expect(screen.getByTestId("text-scope-placeholder")).toHaveTextContent("Search Joe Martin's music"));
+    fireEvent.click(screen.getByTestId("search-tab-notes"));
+    await waitFor(() => expect(screen.getByTestId("text-scope-placeholder")).toHaveTextContent("Search Joe Martin's notes"));
+    fireEvent.click(screen.getByTestId("search-tab-everything"));
+    await waitFor(() => expect(screen.getByTestId("text-scope-placeholder")).toHaveTextContent("Search everything from Joe Martin"));
+    expect(screen.getByTestId("form-home-search")).not.toHaveTextContent("npub1");
+  });
+
+  it("arriving scoped, the cursor is already in the box", async () => {
+    render(<Landing />);
+    await screen.findByTestId("search-scope-chip");
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByTestId("input-home-search")));
+  });
+
+  it("the typeahead's footer names the person, never the key", async () => {
+    const GAL = "f".repeat(64);
+    suggestMock.mockResolvedValue([{ pubkey: GAL, npub: nip19.npubEncode(GAL), name: "Guitar Gal", wotRank: null, wotFollowers: null }]);
+    render(<Landing />);
+    await screen.findByTestId("search-scope-chip");
+    fireEvent.change(screen.getByTestId("input-home-search"), { target: { value: "guitar" } });
+    const footer = await screen.findByTestId("home-suggestion-see-all", {}, { timeout: 3000 });
+    await waitFor(() => expect(footer).toHaveTextContent('See all results for "guitar" from Joe Martin'));
+    expect(footer).not.toHaveTextContent("npub1");
   });
 });

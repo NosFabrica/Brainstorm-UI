@@ -1105,3 +1105,26 @@ describe("the panel holds the verified line", () => {
     scoreOfMock.mockImplementation(() => 0.7);
   });
 });
+
+// Meeting a person in the rail, one tap searches everything they published —
+// the door X and YouTube put on a profile, here where the search already is.
+describe("the panel offers a search of everything this person published", () => {
+  const NOVA = "e".repeat(64);
+  const nova = () =>
+    suggestMock.mockResolvedValueOnce([{ pubkey: NOVA, npub: "npub1nova", name: "NOVA", wotRank: 0.8, wotFollowers: 12 }]);
+  it("a person panel carries the row, scoped to them on Everything", async () => {
+    nova();
+    render(<KnowledgePanel query="nova" pov="nosfabrica" />);
+    await screen.findByTestId("knowledge-panel-profile");
+    const row = screen.getByTestId("knowledge-panel-search");
+    expect(row).toHaveTextContent("Search their posts");
+    expect(row.getAttribute("href")).toBe(`/?q=from%3A${nip19.npubEncode(NOVA)}&t=everything`);
+  });
+
+  it("once the search IS scoped to them, the box is the search — no row", async () => {
+    suggestMock.mockResolvedValueOnce([{ pubkey: NOVA, npub: nip19.npubEncode(NOVA), name: "nova", wotRank: 0.8, wotFollowers: 5400 }]);
+    render(<KnowledgePanel query={`from:${nip19.npubEncode(NOVA)}`} pov="nosfabrica" />);
+    await screen.findByTestId("search-knowledge-panel");
+    expect(screen.queryByTestId("knowledge-panel-search")).toBeNull();
+  });
+});

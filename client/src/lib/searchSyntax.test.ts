@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { nip19 } from "nostr-tools";
-import { activeFilterCount, applyFilters, datePreset, liftQuery, personAssist, readFilters, sinceForPreset, splitFilters, browseSafeQuery, personScope, scopedSearchHref, scopeOf } from "./searchSyntax";
+import { activeFilterCount, applyFilters, browseSafeQuery, datePreset, liftQuery, personAssist, personScope, readFilters, scopeOf, scopedPlaceholder, scopedSearchHref, seeAllLabel, sinceForPreset, splitFilters } from "./searchSyntax";
 
 // Probed 2026-09-03: the relay ignores filter:rank and knows no hops. The
 // controls that need those are done on the CLIENT, but still speak grammar —
@@ -247,5 +247,38 @@ describe("scopeOf — the one from: token the box shows as a person, and the wor
     expect(scopeOf(`to:${npub}`)).toBeNull();
     expect(scopeOf("joe martin")).toBeNull();
     expect(scopeOf("from:nobody")).toBeNull();
+  });
+});
+
+// The box scoped to a person says what typing will do ON THIS TAB, with their
+// name — Facebook's "Search Sam's profile", YouTube's channel search. Never
+// the raw key, and never a blank while the name is still arriving.
+describe("scopedPlaceholder — the empty scoped box, per tab, with their name", () => {
+  it("Everything and People search everything from them", () => {
+    expect(scopedPlaceholder("everything", "means")).toBe("Search everything from means");
+    expect(scopedPlaceholder("people", "means")).toBe("Search everything from means");
+  });
+  it("a content tab names its kind", () => {
+    expect(scopedPlaceholder("notes", "means")).toBe("Search means's notes");
+    expect(scopedPlaceholder("articles", "means")).toBe("Search means's articles");
+    expect(scopedPlaceholder("media", "means")).toBe("Search means's media");
+    expect(scopedPlaceholder("music", "means")).toBe("Search means's music");
+    expect(scopedPlaceholder("live", "means")).toBe("Search means's live streams");
+    expect(scopedPlaceholder("shop", "means")).toBe("Search means's shop");
+  });
+  it("an unknown tab and a name still on its way fall back to something true", () => {
+    expect(scopedPlaceholder("whatever", "means")).toBe("Search everything from means");
+    expect(scopedPlaceholder("notes", null)).toBe("Search their posts");
+  });
+});
+
+describe("seeAllLabel — the typeahead's footer row under a scope, never the raw key", () => {
+  it("words search within the person; no words browse everything from them", () => {
+    expect(seeAllLabel("guitar", "Joe Martin")).toBe('See all results for "guitar" from Joe Martin');
+    expect(seeAllLabel("", "Joe Martin")).toBe("See everything from Joe Martin");
+  });
+  it("a name still arriving reads as them", () => {
+    expect(seeAllLabel("guitar", null)).toBe('See all results for "guitar" from them');
+    expect(seeAllLabel("", null)).toBe("See everything from them");
   });
 });
