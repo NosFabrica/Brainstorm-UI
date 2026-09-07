@@ -4,6 +4,7 @@ import { Chip } from "@/components/ui/chip";
 import { formatAmount, formatBillingDate, formatBillingInterval } from "@/lib/plans";
 import { statusTone } from "./DivergenceRows";
 import { describeCycles, readFlashSubscription, type FlashSubscriptionRecord } from "./flashRecord";
+import { statusLabel } from "./billingEventCopy";
 
 /** Shared with the record dialog, so a row that already asked Flash feeds the dialog. */
 export const flashRecordKey = (id: string) => ["/api/admin/billing/flash-record", id] as const;
@@ -98,7 +99,7 @@ export function FlashFactsStrip({
     >
       <span className="flex flex-wrap items-center gap-1.5 text-slate-700 dark:text-slate-200">
         <Chip tone={statusTone(r.status)} size="sm">
-          {r.status}
+          {statusLabel(r.status)}
         </Chip>
         {plan && <span className="font-medium">{plan}</span>}
       </span>

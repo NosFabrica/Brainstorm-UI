@@ -146,14 +146,14 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     expect(row1.textContent).toContain("npub1");
     expect(row1.textContent).toContain("priority-weekly");
     // Source is its own column, not folded into the scheduling cell.
-    expect(screen.getByTestId(`billing-source-${PUBKEY.slice(0, 8)}`).textContent).toBe("billing");
-    expect(screen.getByTestId(`billing-source-${"b".repeat(8)}`).textContent).toBe("manual");
+    expect(screen.getByTestId(`billing-source-${PUBKEY.slice(0, 8)}`).textContent).toBe("Paid via Flash");
+    expect(screen.getByTestId(`billing-source-${"b".repeat(8)}`).textContent).toBe("Manual");
     // Every row carries the admin actions menu.
     expect(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`)).toBeInTheDocument();
     expect(screen.getByTestId(`billing-actions-${"b".repeat(8)}`)).toBeInTheDocument();
     // Unknown statuses render, blocked shows its flag — nothing crashes.
     const row2 = screen.getByTestId(`billing-sub-${"b".repeat(8)}`);
-    expect(row2.textContent).toContain("some_future_status");
+    expect(row2.textContent).toContain("Some future status") // an unknown status survives, as readable words;
     expect(screen.getByTestId(`billing-blocked-${"b".repeat(8)}`)).toBeInTheDocument();
   });
 
@@ -405,10 +405,10 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     fireEvent.change(screen.getByTestId("input-billing-search"), { target: { value: "" } });
     fireEvent.click(screen.getByTestId("sort-billing-status"));
     let rows = screen.getAllByTestId(/^billing-sub-/);
-    expect(rows[0].textContent).toContain("active");
+    expect(rows[0].textContent).toContain("Active");
     fireEvent.click(screen.getByTestId("sort-billing-status"));
     rows = screen.getAllByTestId(/^billing-sub-/);
-    expect(rows[0].textContent).toContain("expired");
+    expect(rows[0].textContent).toContain("Expired");
   });
 
   it("surfaces the divergence report, honoring its truncation admission", async () => {
@@ -546,7 +546,7 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     // Stale and failing rows read as dates and errors, with the same Resync.
     const stale = screen.getByTestId(`billing-stale-${PUBKEY.slice(0, 8)}`);
     expect(stale.textContent).toContain("Aug 20, 2026");
-    expect(stale.textContent).toContain("past_due");
+    expect(stale.textContent).toContain("Past due");
     const failing = screen.getByTestId(`billing-failing-${PUBKEY.slice(0, 8)}`);
     expect(failing.textContent).toContain("401 invalid api key");
     expect(screen.getByTestId(`billing-divergence-resync-failing_syncs-${PUBKEY.slice(0, 8)}`)).toBeInTheDocument();
@@ -1302,8 +1302,40 @@ describe("cancelling and pausing from the billing tab", () => {
     await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
 
     const row = screen.getByTestId(`billing-sub-${PUBKEY.slice(0, 8)}`);
-    expect(row.textContent).toContain("active");
-    expect(screen.getByTestId(`billing-ends-${PUBKEY.slice(0, 8)}`).textContent).toContain("Ends");
+    expect(row.textContent).toContain("Active");
+    // The ending sits under the status, where the fact belongs — not in the period.
+    const ends = screen.getByTestId(`billing-ends-${PUBKEY.slice(0, 8)}`);
+    expect(ends.textContent).toContain("Ends Sep 20, 2026");
+    expect(ends.closest("td")).toBe(row.querySelector('[data-testid^="billing-status-"]'));
+  });
+
+  // Benjamin, over the roster: the words. Chips said `past_due`; the header
+  // said Scheduling where the Users tab says Tier; an expired row still wore
+  // an "Ends …" chip for a date that had already passed.
+  it("speaks in words: status chips, a Tier header, sources in plain English, and an ending only while it still matters", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 2,
+      pages: 1,
+      items: [
+        { pubkey: PUBKEY, flash_status: "past_due", scheduling_source: "billing", billing_blocked: false, current_period_end: "2026-09-05T00:00:00Z" },
+        { pubkey: "2".repeat(64), flash_status: "expired", scheduling_source: "default", billing_blocked: false, current_period_end: "2026-09-02T00:00:00Z", cancel_effective_date: "2026-09-01" },
+      ],
+    });
+    renderCards();
+    const table = await screen.findByTestId("table-billing-subscribers");
+    const headers = [...table.querySelectorAll("thead th")].map((th) => th.textContent?.trim());
+    expect(headers).toContain("Tier");
+    expect(headers).not.toContain("Scheduling");
+    expect(screen.getByTestId("input-billing-search")).toHaveAttribute("placeholder", expect.stringContaining("tier"));
+    const pk8 = PUBKEY.slice(0, 8);
+    expect(screen.getByTestId(`billing-status-${pk8}`)).toHaveTextContent("Past due");
+    expect(screen.getByTestId(`billing-status-${pk8}`)).not.toHaveTextContent("past_due");
+    expect(screen.getByTestId(`billing-source-${pk8}`)).toHaveTextContent("Paid via Flash");
+    const other8 = "2".repeat(8);
+    expect(screen.getByTestId(`billing-status-${other8}`)).toHaveTextContent("Expired");
+    expect(screen.getByTestId(`billing-source-${other8}`)).toHaveTextContent("Default");
+    // Already over: no "Ends" for a date that has passed.
+    expect(screen.queryByTestId(`billing-ends-${other8}`)).toBeNull();
   });
 });
 
@@ -1388,7 +1420,7 @@ describe("a signup that named nobody shows Flash's facts on the row", () => {
 
     const strip = await screen.findByTestId(`billing-unresolved-flash-${UNRESOLVED_ID}`);
     const text = strip.textContent ?? "";
-    expect(text).toContain("active");
+    expect(text).toContain("Active");
     expect(text).toContain("CC - Test");
     expect(text).toContain("$2.00 per month");
     expect(text).toContain("Since Aug 28, 2026");

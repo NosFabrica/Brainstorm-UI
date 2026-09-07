@@ -5,7 +5,7 @@
  * Rows read every field tolerantly: a lagging server may omit some.
  */
 import { Loader2, Plus, RefreshCw, User, ExternalLink } from "lucide-react";
-import { eventLabel, eventTone, failureLabel } from "./billingEventCopy";
+import { eventLabel, eventTone, failureLabel, statusLabel } from "./billingEventCopy";
 import { FlashFactsStrip } from "./FlashFactsStrip";
 import type { SignupGroup } from "./divergenceSections";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -99,7 +99,7 @@ export function PolicyMismatchRowView({
     <li className={rowClass} data-testid={`billing-${kind === "policy_mismatch" ? "mismatch" : "override"}-${pk8}`}>
       <PersonCell pubkey={row.pubkey ?? ""} profile={profile} />
       <span className={`flex flex-wrap items-center gap-x-2 gap-y-0.5 ${meta}`}>
-        {row.flash_status && <Chip tone={statusTone(row.flash_status)} size="sm">{row.flash_status}</Chip>}
+        {row.flash_status && <Chip tone={statusTone(row.flash_status)} size="sm">{statusLabel(row.flash_status)}</Chip>}
         <span>
           Pays for <span className="font-medium text-slate-700 dark:text-slate-200">{policyName(row.granted_scheduling_id)}</span>
           {" · on "}
@@ -118,7 +118,7 @@ export function StaleSyncRowView({ row, profile, busy, onResync }: { row: StaleS
     <li className={rowClass} data-testid={`billing-stale-${pk8}`}>
       <PersonCell pubkey={row.pubkey ?? ""} profile={profile} />
       <span className={`flex items-center gap-2 ${meta}`}>
-        {row.flash_status && <Chip tone={statusTone(row.flash_status)} size="sm">{row.flash_status}</Chip>}
+        {row.flash_status && <Chip tone={statusTone(row.flash_status)} size="sm">{statusLabel(row.flash_status)}</Chip>}
         <span>Last read {row.last_synced_at ? formatBillingDate(row.last_synced_at) : "never"}</span>
       </span>
       {row.pubkey && <ResyncButton kind="stale_syncs" pubkey={row.pubkey} busy={busy} onResync={onResync} />}
@@ -176,7 +176,7 @@ export function RetiredPlanRowView({ row, profile, flashUrl, policyName }: { row
     <li className={rowClass} data-testid={`billing-retired-${pk8}`}>
       <PersonCell pubkey={row.pubkey ?? ""} profile={profile} />
       <span className={`flex flex-wrap items-center gap-2 ${meta}`}>
-        {row.flash_status && <Chip tone={statusTone(row.flash_status)} size="sm">{row.flash_status}</Chip>}
+        {row.flash_status && <Chip tone={statusTone(row.flash_status)} size="sm">{statusLabel(row.flash_status)}</Chip>}
         <span>Renewing on a retired plan · grants {policyName(row.granted_scheduling_id)}</span>
       </span>
       {row.flash_subscription_id && (

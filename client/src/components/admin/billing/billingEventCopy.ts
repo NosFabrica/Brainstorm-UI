@@ -60,3 +60,42 @@ export function failureLabel(code: string | null | undefined): string | null {
   if (!code) return null;
   return FAILURE_LABELS[code] ?? humanize(code);
 }
+
+/** A readable fallback for a word we have not seen: `on_hold_review` → "On hold review". */
+function words(code: string): string {
+  const w = code.replace(/[_-]+/g, " ").trim();
+  return w ? w.charAt(0).toUpperCase() + w.slice(1) : "";
+}
+
+const STATUS_WORDS: Record<string, string> = {
+  active: "Active",
+  trial: "Trial",
+  pending: "Pending",
+  past_due: "Past due",
+  paused: "Paused",
+  expired: "Expired",
+  canceled: "Cancelled",
+  cancelled: "Cancelled",
+  grace: "Grace period",
+};
+
+/** Flash's subscription status as an admin reads it. Unknown values stay readable, never hidden. */
+export function statusLabel(status: string | null | undefined): string {
+  const key = (status ?? "").trim().toLowerCase();
+  if (!key) return "Unknown";
+  return STATUS_WORDS[key] ?? words(key);
+}
+
+const SOURCE_WORDS: Record<string, string> = {
+  billing: "Paid via Flash",
+  admin: "Admin-set",
+  default: "Default",
+  manual: "Manual",
+};
+
+/** Who set the tier — `scheduling_source` in words. */
+export function sourceLabel(source: string | null | undefined): string {
+  const key = (source ?? "").trim().toLowerCase();
+  if (!key) return "—";
+  return SOURCE_WORDS[key] ?? words(key);
+}

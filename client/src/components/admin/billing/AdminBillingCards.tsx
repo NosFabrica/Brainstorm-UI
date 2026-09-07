@@ -62,7 +62,7 @@ import { decodeShareId, npubFromPubkey } from "@/lib/shareId";
 import { DIVERGENCE_META, orderedSections, subscriptionIdsByEventId, type DivergenceMeta, type DivergenceTier, type OrderedSection, groupSignups, splitExhausted, type SignupHandle } from "./divergenceSections";
 import { StatTile } from "@/components/ui/stat-tile";
 import { ScrollableTable } from "@/components/admin/ScrollableTable";
-import { failureLabel } from "./billingEventCopy";
+import { failureLabel, sourceLabel, statusLabel } from "./billingEventCopy";
 import { useFlashSubscriptionRecord } from "./FlashFactsStrip";
 import { describeCycles } from "./flashRecord";
 
@@ -445,16 +445,26 @@ function SubscriberRow({
           </span>
         </span>
       </td>
-      <td className={td}>
-        <span className="inline-flex items-center gap-1.5">
-          <Chip tone={statusTone(s.flash_status)} size="sm">{s.flash_status}</Chip>
-          {s.billing_blocked && (
-            <Chip tone="danger" size="sm" data-testid={`billing-blocked-${s.pubkey.slice(0, 8)}`}>blocked</Chip>
+      <td className={td} data-testid={`billing-status-${s.pubkey.slice(0, 8)}`}>
+        <span className="flex flex-col items-start gap-0.5">
+          <span className="inline-flex items-center gap-1.5">
+            <Chip tone={statusTone(s.flash_status)} size="sm">{statusLabel(s.flash_status)}</Chip>
+            {s.billing_blocked && (
+              <Chip tone="danger" size="sm" data-testid={`billing-blocked-${s.pubkey.slice(0, 8)}`}>blocked</Chip>
+            )}
+          </span>
+          {/* The status column cannot say this by itself: a cancelled subscriber
+              stays `active` until the date lands. Said only while it still
+              matters — an expired row's end has already passed. */}
+          {s.cancel_effective_date && (s.flash_status === "active" || s.flash_status === "trial") && (
+            <span className="text-[11px] text-amber-600 dark:text-amber-400" data-testid={`billing-ends-${s.pubkey.slice(0, 8)}`}>
+              Ends {formatBillingDate(s.cancel_effective_date)}
+            </span>
           )}
         </span>
       </td>
       <td className={td}>{scheduling}</td>
-      <td className={td} data-testid={`billing-source-${s.pubkey.slice(0, 8)}`}>{s.scheduling_source}</td>
+      <td className={td} data-testid={`billing-source-${s.pubkey.slice(0, 8)}`}>{sourceLabel(s.scheduling_source)}</td>
       <td className={`${td} tabular-nums`} data-testid={`billing-period-${s.pubkey.slice(0, 8)}`}>
         {/* The paid period as a span; the end alone read as a deadline. */}
         {s.current_period_start ? (
@@ -464,13 +474,6 @@ function SubscriberRow({
           </span>
         ) : (
           formatBillingDate(s.current_period_end)
-        )}
-        {/* The status column cannot say this: a cancelled subscriber stays
-            `active` until the date lands. */}
-        {s.cancel_effective_date && (
-          <span className="ml-1.5 inline-flex" data-testid={`billing-ends-${s.pubkey.slice(0, 8)}`}>
-            <Chip tone="warning" size="sm">Ends {formatBillingDate(s.cancel_effective_date)}</Chip>
-          </span>
         )}
       </td>
       {/* The cadence and which billing period they are on — Flash's record
@@ -956,7 +959,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
             <div className="relative w-full sm:w-56">
               <input
                 type="text"
-                placeholder="Search name, npub, scheduling…"
+                placeholder="Search name, npub, tier…"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full px-3 py-1.5 pr-7 text-xs rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 focus:border-brand-accent/40"
@@ -980,7 +983,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
               <SelectContent>
                 <SelectItem value="all">All statuses</SelectItem>
                 {statuses.map((s) => (
-                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                  <SelectItem key={s} value={s}>{statusLabel(s)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -991,7 +994,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
               <SelectContent>
                 <SelectItem value="all">All sources</SelectItem>
                 {sources.map((s) => (
-                  <SelectItem key={s} value={s}>{s}</SelectItem>
+                  <SelectItem key={s} value={s}>{sourceLabel(s)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -1044,7 +1047,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
                 <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">
                   <th className={th}><BillingSortHeader label="Subscriber" sortKey="subscriber" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}><BillingSortHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} /></th>
-                  <th className={th}><BillingSortHeader label="Scheduling" sortKey="scheduling" sort={sort} onSort={toggleSort} /></th>
+                  <th className={th}><BillingSortHeader label="Tier" sortKey="scheduling" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}><BillingSortHeader label="Source" sortKey="source" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}><BillingSortHeader label="Period" sortKey="period" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}>Interval</th>
