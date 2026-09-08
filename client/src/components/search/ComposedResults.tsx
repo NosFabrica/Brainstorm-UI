@@ -25,6 +25,14 @@ import { collapseHits } from "@/lib/searchCollapse";
 import { ClusterRows, Section, SectionSkeleton, mergeSnapshots, useSectionStream } from "@/components/search/sections";
 import { EventRow } from "@/components/search/EventRow";
 import { fetchEventRsvps, type EventRsvps } from "@/services/search";
+import { isMediaFile, isSoundtrackFile } from "@/lib/fileMetadata";
+
+/** A file-metadata hit stays in Media only when the file is a picture, a video or a sound. */
+function dropNonMediaFiles<T extends { hits: SearchHit[] } | null | undefined>(section: T): T {
+  if (!section) return section;
+  const hits = section.hits.filter((h) => h.event.kind !== 1063 || (isMediaFile(h.event) && !isSoundtrackFile(h.event)));
+  return hits.length === section.hits.length ? section : ({ ...section, hits } as T);
+}
 import { isFeedAccount } from "@/lib/feedAccount";
 import type { HitCluster } from "@/lib/searchCollapse";
 import { filterEventsByWhen } from "@/lib/eventFilters";
@@ -203,7 +211,11 @@ function ComposedResultsBody({
   const latestF = filtered(latest);
   const articlesF = filtered(articles);
   const happeningF = filtered(happening);
-  const mediaF = filtered(media);
+  // Kind 1063 is generic file metadata — Zap Store's installers ride it
+  // beside pictures. The Media TAB keeps a 1063 only for a media mime (and
+  // not a video's reusable soundtrack); the section follows the same rule,
+  // or Amethyst's releases become eight grey tiles.
+  const mediaF = dropNonMediaFiles(filtered(media));
   const musicF = filtered(music);
   const shopF = filtered(shop);
   // Two per seller at most, four in all — one shop's forty mugs are not the row.

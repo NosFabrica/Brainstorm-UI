@@ -371,6 +371,25 @@ describe("ComposedResults — media-rich sections", () => {
     expect(screen.queryByTestId("serp-top-stories")).toBeNull();
   });
 
+  // Amethyst's Media read as eight grey tiles named "com.vitorpamplona.amethyst@1.05.1"
+  // (2026-09-07): Zap Store's per-release installers ride kind 1063 too. The
+  // Media TAB already keeps a 1063 only for a media mime; the section follows.
+  it("an installer riding kind 1063 is not media — no tile, no row; a picture riding it stays", async () => {
+    render(<ComposedResults query="amethyst" pov="nosfabrica" onTabChange={vi.fn()} />);
+    sectionCall("media").emit({
+      hits: [
+        hitOf(ev("3".repeat(64), 1063, "3".repeat(64), "com.vitorpamplona.amethyst@1.05.1", [["m", "application/vnd.android.package-archive"], ["url", "https://github.com/x/amethyst.apk"], ["size", "45839275"]]), "Amethyst"),
+        hitOf(ev("4".repeat(64), 1063, "4".repeat(64), "", [["m", "image/jpeg"], ["url", "https://cdn.example/pic.jpg"]]), "Pic"),
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    await screen.findByTestId(`media-tile-${"4".repeat(64)}`);
+    expect(screen.queryByTestId(`media-tile-${"3".repeat(64)}`)).toBeNull();
+    expect(screen.queryByTestId(`serp-row-${"3".repeat(64)}`)).toBeNull();
+    expect(screen.queryByText(/amethyst@1\.05\.1/)).toBeNull();
+  });
+
   it("renders Media as a tile grid: photos as images, videos with a play badge, captions with author and age", async () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     sectionCall("media").emit({

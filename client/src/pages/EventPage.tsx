@@ -14,6 +14,8 @@ import { collectRefs, addrCoord, replyRefs, type MinimalEvent } from "@/lib/note
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { NoteContent } from "@/components/share/NoteContent";
 import { AppHero } from "@/components/share/AppHero";
+import { FileHero } from "@/components/share/FileHero";
+import { isMediaFile } from "@/lib/fileMetadata";
 import { RepoHero } from "@/components/share/RepoHero";
 import { GitItemHero } from "@/components/share/GitItemHero";
 import { isGitItem } from "@/lib/gitStatus";
@@ -370,6 +372,8 @@ export default function EventPage() {
                 <LiveHero event={note} />
               ) : note.kind === 32267 ? (
                 <AppHero event={note} />
+              ) : note.kind === 1063 && !isMediaFile(note) ? (
+                <FileHero event={note} />
               ) : note.kind === 30617 ? (
                 <RepoHero event={note} />
               ) : note.kind === 30000 ? (
