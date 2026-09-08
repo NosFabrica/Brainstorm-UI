@@ -71,6 +71,17 @@ export function nostrUriFor(pubkey: string, relays: string[] = []): string {
   }
 }
 
+/** A bare nprofile carrying up to four of the person's relays — the form a
+ *  power user copies to hand another client both the key and where the
+ *  events live. "" when the key does not encode. */
+export function nprofileFor(pubkey: string, relays: string[] = []): string {
+  try {
+    return nip19.nprofileEncode({ pubkey, relays: relays.slice(0, 4) });
+  } catch {
+    return "";
+  }
+}
+
 /**
  * A `nostr:` URI (NIP-21) for an EVENT — used by the event page's "open in your
  * Nostr app". Encodes an `nevent` (id + relay hints + author) so the note is

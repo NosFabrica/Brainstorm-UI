@@ -1,3 +1,4 @@
+import { isAndroid } from "@/lib/platform";
 import { nip19 } from "nostr-tools";
 import type { MinimalEvent } from "@/lib/noteRefs";
 
@@ -37,9 +38,7 @@ export function naddrForEvent(event: MinimalEvent): string | null {
  */
 export function openArticleInApp(naddr: string): void {
   if (typeof window === "undefined" || !naddr) return;
-  const isAndroid = /Android/i.test(navigator.userAgent || "");
-
-  if (!isAndroid) {
+  if (!isAndroid()) {
     window.open(NOSTRIA_WEB_URL, "_blank", "noopener");
     return;
   }

@@ -8,7 +8,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { nip19 } from "nostr-tools";
-import { eventPath } from "./shareId";
+import { eventPath, nprofileFor } from "./shareId";
 
 const PK = "a".repeat(64);
 const ID = "e".repeat(64);
@@ -26,5 +26,24 @@ describe("eventPath", () => {
     expect(eventPath({ id: ID, pubkey: PK, kind: 30023, tags: [["d", "why-bitcoin"]] }).startsWith("/a/naddr1")).toBe(true);
     expect(eventPath({ id: ID, pubkey: PK, kind: 1, tags: [] }).startsWith("/e/nevent1")).toBe(true);
     expect(eventPath({ id: ID, pubkey: PK }).startsWith("/e/nevent1")).toBe(true);
+  });
+});
+
+// Power users copy an nprofile from the ⋯ menu (team, 2026-09-08). One that
+// carries the person's relays tells the next client where their events live.
+describe("nprofileFor", () => {
+  it("carries up to four of the person's relays, the pubkey intact", () => {
+    const relays = ["wss://a.example", "wss://b.example", "wss://c.example", "wss://d.example", "wss://e.example", "wss://f.example"];
+    const decoded = nip19.decode(nprofileFor(PK, relays));
+    expect(decoded.type).toBe("nprofile");
+    expect(decoded.data).toMatchObject({ pubkey: PK, relays: relays.slice(0, 4) });
+  });
+  it("with no relays it is still an nprofile", () => {
+    const decoded = nip19.decode(nprofileFor(PK));
+    expect(decoded.type).toBe("nprofile");
+    expect((decoded.data as { relays?: string[] }).relays ?? []).toEqual([]);
+  });
+  it("a bad pubkey encodes to nothing", () => {
+    expect(nprofileFor("not-a-key")).toBe("");
   });
 });
