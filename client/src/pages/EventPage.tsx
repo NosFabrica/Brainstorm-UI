@@ -30,15 +30,19 @@ import { EventThread } from "@/components/share/EventThread";
 import { ThreadAncestors } from "@/components/share/ThreadAncestors";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { useLightbox } from "@/components/share/Lightbox";
-import { OpenInApp } from "@/components/share/OpenInApp";
+import { EntityMenu } from "@/components/share/EntityMenu";
 import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
-import { npubFromPubkey, nostrUriForEvent } from "@/lib/shareId";
+import { neventFor, npubFromPubkey, nostrUriForEvent } from "@/lib/shareId";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { BrainLogo } from "@/components/BrainLogo";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+
+/** The header ⋯ matches the 36px Share button beside it at every width. */
+const HEADER_MENU_CLASS =
+  "inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200 transition-colors";
 
 type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string };
 type EventPointer = { id: string; relays?: string[]; author?: string };
@@ -249,6 +253,10 @@ export default function EventPage() {
   );
 
   const openInApp = nostrUriForEvent(ptr?.id || "", relayHints, authorPk || undefined);
+  // The ⋯ in the header: copies of the event's ids and "Open in" another
+  // client. The URL may have carried a bare id or a note1 — a real nevent
+  // is what to copy and what the web apps want.
+  const nevent = ptr ? neventFor(ptr.id, relayHints, authorPk || undefined) : "";
 
   const [copied, setCopied] = useState(false);
   // When the thread's anon signup gate is showing, suppress the page's own
@@ -296,6 +304,17 @@ export default function EventPage() {
             >
               {copied ? <><Check className="h-4 w-4" /> Copied</> : <><Share2 className="h-4 w-4" /> Share</>}
             </button>
+            {ptr && nevent && (
+              <EntityMenu
+                entity={{ kind: "event", bech32: nevent, uri: openInApp }}
+                copies={[
+                  { id: "nevent", label: "Copy nevent", value: nevent },
+                  { id: "event-id", label: "Copy event ID", value: ptr.id },
+                ]}
+                triggerTestId="event-menu"
+                triggerClassName={HEADER_MENU_CLASS}
+              />
+            )}
           </>
         }
       />
@@ -454,11 +473,6 @@ export default function EventPage() {
                 </p>
               )}
             </div>
-            )}
-
-            {/* Secondary escape hatch — open in a Nostr client to reply/zap. */}
-            {openInApp && (
-              <OpenInApp entity={{ kind: "event", bech32: raw, uri: openInApp }} className="mt-6" />
             )}
 
             <div className="mt-8 text-center">

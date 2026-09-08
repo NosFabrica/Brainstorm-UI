@@ -18,12 +18,16 @@ import { wikiToMarkdown } from "@/lib/wiki";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { EventThread } from "@/components/share/EventThread";
-import { OpenInApp } from "@/components/share/OpenInApp";
+import { EntityMenu } from "@/components/share/EntityMenu";
 import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { BrainLogo } from "@/components/BrainLogo";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useHasSession } from "@/hooks/useHasSession";
+
+/** The header ⋯, 36px at every width like the header controls beside it. */
+const HEADER_MENU_CLASS =
+  "inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200 transition-colors";
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?.*)?$/i;
 const VID_RE = /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i;
@@ -176,11 +180,23 @@ export default function ArticlePage() {
     <div className="min-h-screen bg-gradient-to-b from-slate-50 dark:from-slate-950 to-white dark:to-slate-900">
       <PublicPageHeader
         maxWidthClass="max-w-3xl"
-        actions={authorNpub ? (
-          <Link href={`/p/${authorNpub}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-link hover:underline">
-            <ArrowLeft className="h-4 w-4" /> Profile
-          </Link>
-        ) : undefined}
+        actions={
+          <>
+            {authorNpub && (
+              <Link href={`/p/${authorNpub}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-link hover:underline">
+                <ArrowLeft className="h-4 w-4" /> Profile
+              </Link>
+            )}
+            {ptr && (
+              <EntityMenu
+                entity={{ kind: "article", bech32: naddr, uri: `nostr:${naddr}` }}
+                copies={[{ id: "naddr", label: "Copy naddr", value: naddr }]}
+                triggerTestId="article-menu"
+                triggerClassName={HEADER_MENU_CLASS}
+              />
+            )}
+          </>
+        }
       />
 
       <main className="mx-auto max-w-3xl px-4 sm:px-6 py-6 sm:py-10">
@@ -287,9 +303,6 @@ export default function ArticlePage() {
               )}
             </div>
             )}
-
-            {/* Secondary escape hatch — open in a Nostr client to read/zap. */}
-            <OpenInApp entity={{ kind: "article", bech32: naddr, uri: `nostr:${naddr}` }} className="mt-6" />
           </article>
           </ShareNavProvider>
         )}

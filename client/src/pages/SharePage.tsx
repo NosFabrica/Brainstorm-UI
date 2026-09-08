@@ -3,7 +3,7 @@ import { useRoute, useSearch, useLocation, Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { MessageSquare, Image as ImageIcon, FileText, BadgeCheck, ArrowRight, Wifi, Video as VideoIcon, Headphones, Radio, AlertTriangle, ShieldCheck, CalendarDays, Copy, Check, SlidersHorizontal, UserPlus, FileQuestion, PenLine, Search } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
-import { decodeShareId, npubFromPubkey, nostrUriFor, eventPath } from "@/lib/shareId";
+import { decodeShareId, npubFromPubkey, eventPath } from "@/lib/shareId";
 import { relativeTime } from "@/lib/relativeTime";
 import { scopedSearchHref } from "@/lib/searchSyntax";
 import { mergeArtistAudio } from "@/lib/wavlake";
@@ -40,7 +40,6 @@ import { parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
 import { useLightbox } from "@/components/share/Lightbox";
 import { VideoTile } from "@/components/share/VideoTile";
 import { EventRow } from "@/components/share/EventRow";
-import { OpenInApp } from "@/components/share/OpenInApp";
 import { apiClient } from "@/services/api";
 import { parseProfilePrefs, loadProfilePrefsDraft, saveProfilePrefsDraft, clearProfilePrefsDraft } from "@/lib/personalization";
 import { SECTION_KEYS, ROLE_LABELS, EMPTY_PROFILE_PREFS, type SectionKey, type ProfilePrefs } from "@/config/personalization";
@@ -48,7 +47,9 @@ import { ProfileCustomizer } from "@/components/share/ProfileCustomizer";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { DegreeChip } from "@/components/DegreeChip";
 import { useRelationshipBadges } from "@/hooks/useRelationshipBadges";
-import { ProfileActions, OwnerActions } from "@/components/share/ProfileActions";
+import { FollowButton } from "@/components/share/FollowButton";
+import { ProfileMenu } from "@/components/share/ProfileMenu";
+import { isAdminPubkey } from "@/config/adminAccess";
 import { Stat, StatLensToggle, type StatLens } from "@/components/share/StatToggle";
 import { NegativeSignalStats } from "@/components/share/NegativeSignalStats";
 import { useScorePov, TrustScoreModal } from "@/components/score/TrustScorePov";
@@ -68,6 +69,8 @@ import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC } from "@/lib/profileDefaults"
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useHopsOrigin } from "@/hooks/useHopsOrigin";
+
+const NO_RELAYS: string[] = [];
 
 type ProfileContentLike = Record<string, string | undefined>;
 
@@ -433,18 +436,26 @@ export default function SharePage() {
   // NIP-65 (kind 10002) relay list → "Active on N relays" presence signal.
   const relaysQuery = useQuery({
     queryKey: ["share-relays", pubkey],
+    // The relay URLs themselves, write relays first: the count feeds the
+    // tenure line, the first four ride in the nprofile a power user copies.
     queryFn: async () => {
       const ev = await fetchOutboxRelayList(pubkey);
-      if (!ev) return 0;
-      const set = new Set<string>();
-      for (const t of ev.tags || []) if (t[0] === "r" && typeof t[1] === "string") set.add(t[1].replace(/\/$/, "").toLowerCase());
-      return set.size;
+      if (!ev) return [] as string[];
+      const write: string[] = [];
+      const readOnly: string[] = [];
+      for (const t of ev.tags || []) {
+        if (t[0] !== "r" || typeof t[1] !== "string") continue;
+        (t[2] === "read" ? readOnly : write).push(t[1].replace(/\/$/, "").toLowerCase());
+      }
+      return [...new Set([...write, ...readOnly])];
     },
     enabled: !!pubkey,
     staleTime: 10 * 60_000,
     retry: false,
   });
-  const relayCount = relaysQuery.data ?? 0;
+  const relays = relaysQuery.data ?? NO_RELAYS;
+  const relayCount = relays.length;
+  const profileRelays = relays.length ? relays : relayHints;
 
   const profile = (profileQuery.data ?? {}) as ProfileContentLike;
   const displayName = profile.display_name || profile.name || (npub ? npub.slice(0, 12) + "…" : "Nostr profile");
@@ -775,7 +786,6 @@ export default function SharePage() {
       : null,
   );
 
-  const openInRef = useRef<HTMLElement>(null);
   // "View all" on a block is a search scoped to this person on that vertical —
   // every article, note, photo, video, song or stream of theirs, and nobody
   // else's. It used to scroll to "Open in a Nostr client", which showed no
@@ -877,53 +887,56 @@ export default function SharePage() {
     </button>
   );
   // The action pieces, kept separate so we can place them differently per
-  // breakpoint: a "Follows you" chip, the contact icons, and the Follow/⋯ (or
-  // the owner's ⋯). On desktop all three sit together top-right with the avatar.
-  // On mobile the contact icons move up to the top-right slot under the banner
-  // (filling the dead space across from the avatar) while the Follow/⋯ actions
-  // drop to their own full-width row so the primary button can stretch.
+  // breakpoint: the magnifier, a "Follows you" chip, the review pen, Follow
+  // (signed in, not the owner) and the ⋯ menu — everyone's, since it holds
+  // the copies and the open-in links (team, 2026-09-08).
   const followsYouChip = loggedIn && rel.enabled && !isOwner && !rel.loading && rel.followsYou ? (
     <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400" data-testid="share-follows-you">
       <UserPlus className="h-3 w-3" /> Follows you
     </span>
   ) : null;
-  const followButtons = loggedIn ? (isOwner ? (
-    <OwnerActions npub={npub} />
-  ) : (
-    <ProfileActions
-      key={`${rel.isFollowing}-${rel.isMuted}-${!!rel.report}`}
-      targetPubkey={pubkey}
+  // Keyed so a late-arriving relationship resyncs the optimistic state.
+  const followButton = loggedIn && !isOwner ? (
+    <FollowButton key={String(rel.isFollowing)} targetPubkey={pubkey} initialFollowing={rel.isFollowing} />
+  ) : null;
+  const profileMenu = (
+    <ProfileMenu
+      key={`${rel.isMuted}-${!!rel.report}`}
+      pubkey={pubkey}
       npub={npub}
-      initialFollowing={rel.isFollowing}
+      relays={profileRelays}
+      viewer={{ loggedIn, isOwner, isAdmin: isAdminPubkey(currentUser?.pubkey) }}
       initialMuted={rel.isMuted}
       alreadyReported={!!rel.report}
     />
-  )) : null;
-  // Desktop: magnifier + chip + pen + Follow/⋯ together, top-right with the
-  // avatar. Always present now — the magnifier is for everyone.
+  );
+  // Desktop: magnifier + chip + pen + Follow + ⋯ together, top-right with
+  // the avatar.
   const topRightActions = (
     <div className="hidden sm:flex items-center gap-2 shrink-0" data-testid="share-actions-topright">
       {searchIcon}
       {followsYouChip}
       {reviewIcon}
-      {followButtons}
+      {followButton}
+      {profileMenu}
     </div>
   );
   // Phone: the icon actions sit across from the avatar, in the slot under
   // the banner (X's placement) — a lone magnifier in its own row read as
-  // orphaned (Benjamin, 2026-09-07). Follow/⋯ keep their own full-width row
-  // below the identity, so the primary button can stretch; signed out there
-  // is no such row.
+  // orphaned (Benjamin, 2026-09-07). Follow keeps its own full-width row
+  // below the identity, so the primary button can stretch; signed out
+  // there is no such row.
   const mobileTopIcons = (
     <div className="flex items-center gap-1 sm:hidden" data-testid="share-actions-mobile-top">
       {searchIcon}
       {reviewIcon}
+      {profileMenu}
     </div>
   );
-  const mobileFollowRow = followButtons ? (
+  const mobileFollowRow = followButton ? (
     <div className="mt-3 flex items-center gap-2 sm:hidden" data-testid="share-actions-mobile">
       {followsYouChip}
-      {followButtons}
+      {followButton}
     </div>
   ) : null;
 
@@ -1380,26 +1393,6 @@ export default function SharePage() {
           />
         )}
       </div>
-
-      {/* Open in a Nostr client (shared component, consistent with /e and /a) */}
-      <section ref={openInRef} className="mt-6">
-        <OpenInApp entity={{ kind: "profile", bech32: npub, uri: nostrUriFor(pubkey, relayHints) }} />
-      </section>
-
-      {/* Learn more (Brainstorm public resources) + funnel */}
-      <section className="mt-6 rounded-2xl bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] border border-brand-accent/20 p-5 text-center" data-testid="share-learn-more">
-        <h3 className="text-base font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>New to Brainstorm?</h3>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 max-w-md mx-auto">Brainstorm scores reputation from real human connections — no algorithm. See how it works:</p>
-        <div className="mt-3 flex flex-wrap justify-center gap-2">
-          <a href="/what-is-wot" target="_blank" rel="noopener" className="inline-flex items-center px-3.5 py-2 rounded-full bg-white dark:bg-slate-900 border border-brand-accent/30 text-xs font-semibold text-brand-deep hover:border-brand-accent/60 transition-colors" data-testid="link-what-is-wot">What is a Web of Trust?</a>
-          <a href="/about" target="_blank" rel="noopener" className="inline-flex items-center px-3.5 py-2 rounded-full bg-white dark:bg-slate-900 border border-brand-accent/30 text-xs font-semibold text-brand-deep hover:border-brand-accent/60 transition-colors" data-testid="link-about">About Brainstorm</a>
-        </div>
-        {!loggedIn && (
-          <Link href={`/login?invite=${npub}`} className="mt-4 inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold transition-colors" data-testid="share-get-started">
-            Create your free account <ArrowRight className="h-4 w-4" />
-          </Link>
-        )}
-      </section>
 
       {/* Footer */}
       <div className="mt-6 mb-2 text-center">
