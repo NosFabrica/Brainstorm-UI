@@ -609,8 +609,13 @@ export function SearchResults({
   // index falls back to newest — the relay never answers it, and a hung
   // request stalls everything else on the connection (RELAY-ASKS #12).
   const safeQuery = browseSafeQuery(query);
+  // Articles are evergreen: with words typed, relevance leads. Recent-first
+  // put the page named "List of comedians" 26th under a month of news; best
+  // match had it first, the other comedian lists behind it (relay probe,
+  // 2026-09-07). A wordless browse still asks newest — there is nothing to match.
+  const articlesByRelevance = tab === "articles" && !!splitFilters(query).text;
   const effectiveQuery =
-    !userSorted && tab !== "everything" && tab !== "people"
+    !userSorted && tab !== "everything" && tab !== "people" && !articlesByRelevance
       ? `${safeQuery} sort:recent`.trim()
       : safeQuery;
 

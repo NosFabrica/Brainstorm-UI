@@ -37,7 +37,7 @@ import { isFeedAccount } from "@/lib/feedAccount";
 import type { HitCluster } from "@/lib/searchCollapse";
 import { filterEventsByWhen } from "@/lib/eventFilters";
 import { clientFilterHits, countBelowLine } from "@/lib/clientFilters";
-import { applyFilters, readFilters } from "@/lib/searchSyntax";
+import { applyFilters, readFilters, splitFilters } from "@/lib/searchSyntax";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
 import { visitedPubkeys } from "@/lib/recentSearches";
 import { useWheelScrollX } from "@/hooks/useWheelScrollX";
@@ -159,7 +159,9 @@ function ComposedResultsBody({
   // recent. People stays trust-ranked; there are no timestamps to scatter.
   const fresh = `${query} sort:recent`.trim();
   const latest = useSectionStream(fresh, "notes", pov, userPubkey, 10);
-  const articles = useSectionStream(fresh, "articles", pov, userPubkey, 5);
+  // Articles are evergreen: with words typed, relevance leads (recent-first
+  // buried the page named "List of comedians" 26th; best match had it first).
+  const articles = useSectionStream(splitFilters(query).text ? query : fresh, "articles", pov, userPubkey, 5);
   // Happening = calendar events AND live streams, two verticals since the
   // Events split; events lead (a meetup you can still attend beats a replay).
   const happeningEvents = useSectionStream(fresh, "events", pov, userPubkey, 12);

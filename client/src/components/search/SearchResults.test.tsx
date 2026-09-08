@@ -2320,4 +2320,34 @@ describe("notes on the search page name who they mention", () => {
     fireEvent.click(screen.getByTestId("search-tab-articles"));
     expect(onTabChange).toHaveBeenLastCalledWith("articles");
   });
+
 });
+
+// Recent-first buried the page named "List of comedians" at position 26
+// under this month's news; best match puts it first (relay probe, 2026-09-07).
+// Articles are evergreen: with words typed, relevance leads. A wordless
+// browse still asks newest — the relay cannot rank the whole index.
+describe("the Articles tab orders worded searches by best match", () => {
+    it("words on Articles go to the relay without a sort; a browse still asks newest first", async () => {
+      setUrlTab("articles");
+      render(<SearchResults query="list of comedians" pov="nosfabrica" />);
+      await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(0));
+      expect(String(mainStreamCalls().at(-1)![0])).toBe("list of comedians");
+      cleanup();
+      render(<SearchResults query="" pov="nosfabrica" />);
+      await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(1));
+      expect(String(mainStreamCalls().at(-1)![0])).toBe("sort:recent");
+    });
+
+    it("Notes keep fresh-first, and a typed sort on Articles is honoured verbatim", async () => {
+      setUrlTab("notes");
+      render(<SearchResults query="list of comedians" pov="nosfabrica" />);
+      await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(0));
+      expect(String(mainStreamCalls().at(-1)![0])).toBe("list of comedians sort:recent");
+      cleanup();
+      setUrlTab("articles");
+      render(<SearchResults query="comedians sort:recent" pov="nosfabrica" />);
+      await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(1));
+      expect(String(mainStreamCalls().at(-1)![0])).toBe("comedians sort:recent");
+    });
+  });

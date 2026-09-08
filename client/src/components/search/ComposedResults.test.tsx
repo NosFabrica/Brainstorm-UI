@@ -472,12 +472,13 @@ describe("ComposedResults", () => {
     // Happening draws from BOTH calendar events and live streams now that
     // they are separate verticals.
     expect(tabs).toEqual(expect.arrayContaining(["people", "notes", "articles", "events", "live", "media"]));
-    // Benjamin's call: every CONTENT section leads with what's fresh —
-    // scattered timestamps read as random. People stays trust-ranked
-    // (no timestamps there to scatter).
-    for (const tab of ["notes", "articles", "events", "live", "media"]) {
+    // Benjamin's call: the CONTENT sections lead with what's fresh —
+    // scattered timestamps read as random. People stays trust-ranked (no
+    // timestamps there to scatter); Articles are evergreen and go by match.
+    for (const tab of ["notes", "events", "live", "media"]) {
       expect(sectionCall(tab).query).toBe("liverpool sort:recent");
     }
+    expect(sectionCall("articles").query).toBe("liverpool");
     expect(sectionCall("people").query).toBe("liverpool");
     expect(sectionCall("people").params.limit).toBeLessThanOrEqual(10);
   });
@@ -762,5 +763,11 @@ describe("ComposedResults", () => {
     await screen.findByTestId(`serp-person-${inside.slice(0, 8)}`);
     expect(screen.queryByTestId(`person-outside-${inside.slice(0, 8)}`)).toBeNull();
     expect(screen.getByTestId(`person-outside-${outside.slice(0, 8)}`)).toHaveAttribute("aria-label", "Outside your network");
+  });
+
+  it("the Articles section asks for the best match while the other content sections ask for the newest", async () => {
+    render(<ComposedResults query="list of comedians" pov="nosfabrica" onTabChange={vi.fn()} />);
+    expect(sectionCall("articles").query).toBe("list of comedians");
+    expect(sectionCall("notes").query).toBe("list of comedians sort:recent");
   });
 });
