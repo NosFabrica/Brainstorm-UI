@@ -51,7 +51,6 @@ import {
 import { suggestProfiles } from "@/services/search";
 import { SearchResults } from "@/components/search/SearchResults";
 import { PerspectiveToggle } from "@/components/search/PerspectiveToggle";
-import { HomeFeed } from "@/components/feed/HomeFeed";
 import { personAssist, scopeOf, splitFilters, type PersonAssist, scopedPlaceholder, seeAllLabel } from "@/lib/searchSyntax";
 import { useProfileMap } from "@/hooks/useProfileMap";
 import { ScopeChip } from "@/components/search/ScopeChip";
@@ -766,13 +765,7 @@ export default function Landing() {
   // "Recent" shows under an empty, focused box before any search this session —
   // never alongside the suggestions dropdown or a results list.
   const showRecent = engaged && focused && query.trim() === "" && !hasSearched && !dropdownOpen;
-  // The zero-query feed ("what's happening on Nostr") is OPT-IN and
-  // collapsed on every load (Benjamin: "collapsed by default, not expanded
-  // like we have now"): the pristine home stays the centered Google hero,
-  // one control reveals the feed for this visit, and hiding it is one click.
-  const [feedOpen, setFeedOpen] = useState(false);
-  const homeFeed = submitted === null && feedOpen;
-  const lifted = hasSearched || homeFeed || isSearching || query.trim().length > 0;
+  const lifted = hasSearched || isSearching || query.trim().length > 0;
 
   // Measure the room left below the search box and cap whichever panel is open.
   // Both panels are `absolute top-full`, so without a cap they run straight off
@@ -1325,7 +1318,7 @@ export default function Landing() {
               pristine. Once results show it moves into the results' tab row
               (compact) — one row of chrome between the box and the results,
               not three. */}
-          {!(hasSearched || homeFeed) && (
+          {!hasSearched && (
             <PerspectiveToggle
               pov={effectivePov}
               user={user}
@@ -1333,17 +1326,6 @@ export default function Landing() {
               isSearchObserver={isSearchObserver}
               onChange={setPov}
             />
-          )}
-
-          {!hasSearched && !feedOpen && (
-            <button
-              type="button"
-              onClick={() => setFeedOpen(!feedOpen)}
-              className="mt-4 inline-flex items-center gap-1 text-xs font-medium text-slate-400 dark:text-slate-500 hover:text-brand-deep dark:hover:text-white transition-colors rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-              data-testid="home-feed-toggle"
-            >
-              {feedOpen ? "Hide the feed ▴" : "What's happening now ▾"}
-            </button>
           )}
         </div>
 
@@ -1367,27 +1349,10 @@ export default function Landing() {
             follower, so it can't be re-enabled safely until a backend invite-record
             gates it to genuine, owner-issued invites. */}
 
-        {/* The zero-query feed is its own page — no tab strip, bands with
-            their own More →. A signed-in viewer on their own perspective
-            gets "From people you trust" first; everyone gets "Across Nostr". */}
-        {homeFeed && (
-          <HomeFeed
-            personal={!!user?.pubkey && canUseMywot && effectivePov === "mywot"}
-            userPubkey={user?.pubkey}
-            onHide={() => setFeedOpen(false)}
-            onBrowse={(tab) => browseVertical(tab)}
-            perspective={
-              <PerspectiveToggle
-                compact
-                pov={effectivePov}
-                user={user}
-                hasMywot={hasMywot}
-                isSearchObserver={isSearchObserver}
-                onChange={setPov}
-              />
-            }
-          />
-        )}
+        {/* The home feed ("What's happening now") is unmounted for now
+            (Benjamin, 2026-09-09: "let's remove this for now"); the pristine
+            home is the centered hero and nothing below it. components/feed/
+            HomeFeed keeps the bands for when it comes back. */}
         {hasSearched && (
           <SearchResults
             onTabChange={setActiveTab}
