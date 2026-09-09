@@ -88,9 +88,11 @@ export function FollowSetHero({ event }: { event: SetEvent }) {
 
   return (
     <div data-testid="follow-set-hero">
-      {/* Title left, the list glyph top-right — the settled anatomy. The curator
-          is not named here: the page's author row above the card already does. */}
-      <div className="flex items-start justify-between gap-4">
+      {/* Title left, the list glyph right — the settled anatomy, at the title's
+          own height: the glyph says "a list", it is not the list's picture
+          (Benjamin, 2026-09-09: "this icon is big"). The curator is not named
+          here: the page's author row above the card already does. */}
+      <div className="flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
@@ -102,8 +104,8 @@ export function FollowSetHero({ event }: { event: SetEvent }) {
           </div>
           {description && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 break-words">{description}</p>}
         </div>
-        <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl bg-slate-100 dark:bg-slate-800 shadow-sm">
-          <ListChecks className="h-8 w-8 text-slate-400 dark:text-slate-500" />
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800" data-testid="set-hero-glyph">
+          <ListChecks className="h-5 w-5 text-slate-400 dark:text-slate-500" />
         </div>
       </div>
 
