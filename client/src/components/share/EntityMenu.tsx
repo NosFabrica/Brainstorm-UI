@@ -65,7 +65,8 @@ function CopyMenuItem({ item }: { item: CopyItem }) {
  * The ⋯ menu on a public page — profile, note, article. It holds the
  * power-user things so the page stays clean: `leading` (Mute, Report),
  * then copies of the keys, then "Open in" another Nostr client (the offers
- * follow the platform — lib/openInApp), then `trailing` (Advanced view).
+ * follow the platform and the kind — lib/openInApp; the section is absent
+ * when no client renders the thing), then `trailing` (Advanced view).
  * Team, 2026-09-08: "power users will appreciate this; normies can safely
  * ignore it."
  */
@@ -109,22 +110,28 @@ export function EntityMenu({
         {copies.map((item) => (
           <CopyMenuItem key={item.id} item={item} />
         ))}
-        <DropdownMenuSeparator />
-        <DropdownMenuLabel className="text-[10px] font-bold tracking-[0.15em] uppercase text-slate-400 dark:text-slate-500">Open in</DropdownMenuLabel>
-        {links.map((link) => (
-          <DropdownMenuItem key={link.id} asChild className="gap-2">
-            <a href={link.href} {...(link.external ? { target: "_blank", rel: "noopener" } : {})} data-testid={`open-${link.id}`}>
-              {link.id === "default" ? (
-                <Smartphone className="h-4 w-4" />
-              ) : LOGO[link.id] ? (
-                <img src={LOGO[link.id]} alt="" className="h-4 w-4 rounded object-contain" />
-              ) : (
-                <Globe className="h-4 w-4" />
-              )}
-              {link.label}
-            </a>
-          </DropdownMenuItem>
-        ))}
+        {/* Only clients that render this kind — none for a list or a
+            listing today (lib/openInApp), and then no heading over nothing. */}
+        {links.length > 0 && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuLabel className="text-[10px] font-bold tracking-[0.15em] uppercase text-slate-400 dark:text-slate-500">Open in</DropdownMenuLabel>
+            {links.map((link) => (
+              <DropdownMenuItem key={link.id} asChild className="gap-2">
+                <a href={link.href} {...(link.external ? { target: "_blank", rel: "noopener" } : {})} data-testid={`open-${link.id}`}>
+                  {link.id === "default" ? (
+                    <Smartphone className="h-4 w-4" />
+                  ) : LOGO[link.id] ? (
+                    <img src={LOGO[link.id]} alt="" className="h-4 w-4 rounded object-contain" />
+                  ) : (
+                    <Globe className="h-4 w-4" />
+                  )}
+                  {link.label}
+                </a>
+              </DropdownMenuItem>
+            ))}
+          </>
+        )}
         {trailing && (
           <>
             <DropdownMenuSeparator />

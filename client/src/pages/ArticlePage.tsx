@@ -246,7 +246,7 @@ export default function ArticlePage() {
               </Link>
               {ptr && (
                 <EntityMenu
-                  entity={{ kind: "article", bech32: naddr, uri: `nostr:${naddr}` }}
+                  entity={{ kind: "article", eventKind: ev.kind, bech32: naddr, uri: `nostr:${naddr}` }}
                   copies={[{ id: "naddr", label: "Copy naddr", value: naddr, hint: "The article's address, for Nostr apps" }]}
                   triggerTestId="article-menu"
                 />

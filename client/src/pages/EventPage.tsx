@@ -347,7 +347,7 @@ export default function EventPage() {
               </Link>
               {ptr && nevent && (
                 <EntityMenu
-                  entity={{ kind: "event", bech32: nevent, uri: openInApp }}
+                  entity={{ kind: "event", eventKind: note.kind, bech32: nevent, uri: openInApp }}
                   copies={[
                     { id: "nevent", label: "Copy nevent", value: nevent, hint: "The note's id plus where to find it" },
                     { id: "event-id", label: "Copy event ID", value: ptr.id, hint: "The raw 64-character id" },

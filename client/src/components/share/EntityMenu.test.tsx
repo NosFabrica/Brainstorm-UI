@@ -115,4 +115,24 @@ describe("EntityMenu", () => {
     expect(within(menu).queryByTestId("open-amethyst")).toBeNull();
     expect(within(menu).queryByTestId("open-default")).toBeNull();
   });
+
+  // Benjamin, 2026-09-09: Ditto and Primal 404 on lists, shop listings and
+  // more. When no client renders the kind, the menu keeps the copies and
+  // drops the "Open in" section altogether — no heading over nothing.
+  it("with no client to offer, the menu has the copies and no Open in section", async () => {
+    const nevent = nip19.neventEncode({ id: "e".repeat(64) });
+    render(
+      <EntityMenu
+        entity={{ kind: "event", eventKind: 30000, bech32: nevent, uri: `nostr:${nevent}` }}
+        copies={[{ id: "nevent", label: "Copy nevent", value: nevent }]}
+        ua={MAC}
+      />,
+    );
+    const menu = await open();
+    expect(within(menu).getByTestId("menu-copy-nevent")).toBeInTheDocument();
+    expect(menu).not.toHaveTextContent(/Open in/);
+    expect(within(menu).queryByTestId("open-ditto")).toBeNull();
+    expect(within(menu).queryByTestId("open-primal")).toBeNull();
+    expect(within(menu).queryAllByRole("separator")).toHaveLength(0);
+  });
 });

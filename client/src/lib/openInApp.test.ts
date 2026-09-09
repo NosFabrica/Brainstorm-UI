@@ -18,7 +18,9 @@ const MAC = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) Chrome/124.0 Safari
 const npub = nip19.npubEncode("a".repeat(64));
 const profile: OpenEntity = { kind: "profile", bech32: npub, uri: `nostr:${npub}` };
 const nevent = nip19.neventEncode({ id: "e".repeat(64) });
-const note: OpenEntity = { kind: "event", bech32: nevent, uri: `nostr:${nevent}` };
+const note: OpenEntity = { kind: "event", eventKind: 1, bech32: nevent, uri: `nostr:${nevent}` };
+const listing: OpenEntity = { kind: "event", eventKind: 30402, bech32: nevent, uri: `nostr:${nevent}` };
+const followSet: OpenEntity = { kind: "event", eventKind: 30000, bech32: nevent, uri: `nostr:${nevent}` };
 
 describe("appLinksFor", () => {
   it("on a desktop a profile opens on the web — Ditto, Nostria, Primal — and nothing native", () => {
@@ -60,7 +62,32 @@ describe("appLinksFor", () => {
   });
 
   it("an entity with no nostr: URI never offers the default app or Amethyst", () => {
-    const links = appLinksFor({ kind: "event", bech32: nevent, uri: "" }, PIXEL);
+    const links = appLinksFor({ kind: "event", eventKind: 1, bech32: nevent, uri: "" }, PIXEL);
     expect(links.map((l) => l.id)).toEqual(["ditto", "primal"]);
+  });
+
+  // Benjamin, 2026-09-09: "there are multiple event types that Ditto and
+  // Primal don't open and return as 404". Opened one real event per kind in
+  // both: Primal's /e/ renders kind-1 notes only; Ditto renders NIP-99
+  // listings in full. A client is offered only for what it renders.
+  it("a shop listing opens in Ditto, which renders it, and never in Primal, which answers 404", () => {
+    expect(appLinksFor(listing, MAC).map((l) => l.id)).toEqual(["ditto"]);
+  });
+
+  it("a follow set opens in no web client — both answer 404 or an empty post", () => {
+    expect(appLinksFor(followSet, MAC)).toEqual([]);
+  });
+
+  it("a long-form article opens in both, Primal on its reads path; a wiki page only in Ditto, which has a wiki route", () => {
+    const naddr = nip19.naddrEncode({ kind: 30023, pubkey: "a".repeat(64), identifier: "hello" });
+    const article = appLinksFor({ kind: "article", eventKind: 30023, bech32: naddr, uri: `nostr:${naddr}` }, MAC);
+    expect(article.map((l) => l.id)).toEqual(["ditto", "primal"]);
+    expect(article[1].href).toBe(`https://primal.net/a/${naddr}`);
+    const wiki = appLinksFor({ kind: "article", eventKind: 30818, bech32: naddr, uri: `nostr:${naddr}` }, MAC);
+    expect(wiki.map((l) => l.id)).toEqual(["ditto"]);
+  });
+
+  it("on Android a follow set still hands off to Amethyst and the default app — native apps are not the ones that 404", () => {
+    expect(appLinksFor(followSet, PIXEL).map((l) => l.id)).toEqual(["amethyst", "default"]);
   });
 });
