@@ -239,6 +239,44 @@ describe("searchStream — more", () => {
   });
 });
 
+// Benjamin (2026-09-09), over mar's scoped Live tab: "this user has
+// replays, but when I search by that user I'm not seeing any under Live".
+// A NIP-53 stream is published by the streaming platform's key with the
+// streamer as its `p` host, so "mar's streams" are the ones she HOSTS —
+// probed: 161 ended streams under her own key, none with a recording; 300
+// under the platform's, 67 with replays. A person scope on the Live tab
+// asks by host.
+describe("searchStream — a person's live streams", () => {
+  const MAR = "c7acabf1fed201a53185e4dc5e0c6bae2bc5db19d73abf840535f305d8f05180";
+  const MAR_NPUB = "npub1c7k2hu076gq62vv9unw9urrt4c4utkce6uatlpq9xhestk8s2xqql8qh4c";
+
+  it("a person scope on the Live tab asks the relay for streams they host, not streams they authored", async () => {
+    controllable();
+    searchStream(`from:${MAR_NPUB} sort:recent`, { tab: "live", pov: "nosfabrica" }, () => {});
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as { kinds?: number[]; authors?: string[]; "#p"?: string[] };
+    expect(filter.kinds).toEqual([30311, 30312, 30313]);
+    expect(filter["#p"]).toEqual([MAR]);
+    expect(filter.authors).toBeUndefined();
+  });
+
+  // `#p` matches any role. A stream she hosted is hers; one where she was a
+  // guest speaker belongs to whoever hosted it.
+  it("keeps the streams they host and drops the ones they only spoke on", async () => {
+    const { subject } = controllable();
+    const snaps: SearchSnapshot[] = [];
+    searchStream(`from:${MAR_NPUB} sort:recent`, { tab: "live", pov: "nosfabrica" }, (s) => snaps.push(s));
+    await tick();
+    const stream = (id: string, role: string | null) => ({ id, kind: 30311, pubkey: "d".repeat(64), tags: [["d", id], ["status", "ended"], role === null ? ["p", MAR] : ["p", MAR, "", role]], content: "", created_at: 10, sig: "s" }) as NostrEvent;
+    subject.next(frame(stream("hosted", "host")));
+    subject.next(frame(stream("unroled", null)));
+    subject.next(frame(stream("guest", "speaker")));
+    subject.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["hosted", "unroled"]);
+  });
+});
+
 describe("browse mode — no keyword at all", () => {
   // Benjamin's ask: "what if they just want to see all the live events?"
   // A keyword can only NARROW. An empty query with a kinds set is a valid

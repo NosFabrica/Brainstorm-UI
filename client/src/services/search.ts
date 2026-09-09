@@ -199,10 +199,22 @@ export function searchStream(
     // never sees those prefixes — verified by probing); the relay's own
     // extensions (sort:/include:spam/filter:rank:/observer:) stay in `search`.
     const lifted = liftQuery(query);
+    // A NIP-53 stream is published by the streaming platform's key with the
+    // streamer as its `p` host, so a person's live streams are the ones they
+    // HOST, not the ones their key authored (probed 2026-09-09: mar's own key
+    // holds 161 ended streams with no recording; the platform's holds her 300
+    // recent ones, 67 with replays). On the Live tab a person scope asks by host.
+    const byHost = params.tab === "live" && !!lifted.authors;
+    const p = byHost ? [...new Set([...(lifted["#p"] ?? []), ...(lifted.authors ?? [])])] : lifted["#p"];
+    // `#p` matches any role; a stream is theirs when they host it (a missing
+    // role reads as host — self-published streams often carry none).
+    const hosts = byHost ? new Set(lifted.authors) : null;
+    const hostedByThem = (event: NostrEvent) =>
+      !hosts || event.tags.some((t) => t[0] === "p" && hosts.has(t[1]) && (!t[3] || t[3].toLowerCase() === "host"));
     const filter: import("nostr-tools").Filter = {
       ...(kinds ? { kinds } : {}),
-      ...(lifted.authors ? { authors: lifted.authors } : {}),
-      ...(lifted["#p"] ? { "#p": lifted["#p"] } : {}),
+      ...(lifted.authors && !byHost ? { authors: lifted.authors } : {}),
+      ...(p && p.length ? { "#p": p } : {}),
       ...(lifted["#t"] ? { "#t": lifted["#t"] } : {}),
       ...(params.since !== undefined ? { since: params.since } : lifted.since !== undefined ? { since: lifted.since } : {}),
       ...(lifted.until !== undefined ? { until: lifted.until } : {}),
@@ -273,7 +285,7 @@ export function searchStream(
         if (msg.type === "EVENT" && msg.event) {
           const event = msg.event;
           received++;
-          if (seen.has(event.id)) return;
+          if (seen.has(event.id) || !hostedByThem(event)) return;
           seen.add(event.id);
           fresh++;
           oldest = Math.min(oldest, event.created_at);
