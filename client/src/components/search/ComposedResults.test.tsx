@@ -46,8 +46,15 @@ vi.mock("@/hooks/useAuthorScores", () => ({
 // The media lightbox — faked so tiles can prove a tap opens the MEDIA, not the post.
 const openLightboxMock = vi.fn();
 vi.mock("@/components/share/Lightbox", () => ({ useLightbox: () => openLightboxMock }));
+// People a headline mentions resolve through the profile fetch; seeded per test.
+const knownNames = new Map<string, { name: string }>();
+vi.mock("@/services/nostr", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/services/nostr")>()),
+  fetchProfileMap: async (pks: string[]) => new Map(pks.filter((pk) => knownNames.has(pk)).map((pk) => [pk, knownNames.get(pk)!])),
+}));
 
 import { ComposedResults } from "./ComposedResults";
+import { nip19 } from "nostr-tools";
 
 function ev(id: string, kind: number, pubkey: string, content = "", tags: string[][] = [], created_at = 1_760_000_000): NostrEvent {
   return { id, kind, pubkey, tags, content, created_at, sig: "s" } as NostrEvent;
@@ -147,6 +154,28 @@ describe("ComposedResults — media-rich sections", () => {
     fireEvent.click(within(notice).getByTestId("search-floor-show-all"));
     expect(rewrite).toHaveBeenCalledWith("ainsley include:spam");
     scoreOfMock.mockImplementation(() => 0.8);
+  });
+
+  // A Top story read "Livestream with nostr:npub19r9qrxmckj2…is Live!" — the
+  // raw key in the headline, where the plain rows already say the name
+  // (Benjamin, 2026-09-09). A story tile names the person it mentions too.
+  it("a story tile names the person its headline mentions, never the raw key", async () => {
+    const JOE = "7".repeat(64);
+    knownNames.set(JOE, { name: "Joe Martin" });
+    render(<ComposedResults query="joe martin" pov="nosfabrica" onTabChange={vi.fn()} />);
+    sectionCall("notes").emit({
+      // Three or nothing — the strip needs company (7f6971ab).
+      hits: [
+        hitOf(ev("s1", 1, "8".repeat(64), `Livestream with nostr:${nip19.npubEncode(JOE)} is Live! https://shosho.live/joemartin`), "shosho.live"),
+        hitOf(ev("s2", 1, "2".repeat(64), NEWS(2)), "Echo"),
+        hitOf(ev("s3", 1, "3".repeat(64), NEWS(3)), "Guardian"),
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    const card = await screen.findByTestId("top-story-s1");
+    await vi.waitFor(() => expect(card).toHaveTextContent("Livestream with @Joe Martin is Live!"));
+    expect(card).not.toHaveTextContent("nostr:npub");
   });
 
   it("leads Latest with a Top stories strip of news-shaped notes, the rest as rows", async () => {

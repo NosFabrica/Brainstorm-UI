@@ -116,7 +116,9 @@ export function kindTypeLabel(kind: number): string {
  * story is the link. Benjamin, over "GTAing with nostr:npub1de6l09… is Live!
  * https://i.nostr.build/….png": never the raw id form.
  */
-function Headline({ text, query }: { text: string; query: string }) {
+/** A headline's text with its people named and its links and event keys
+ *  dropped — the story tiles and media captions use it too. */
+export function Headline({ text, query }: { text: string; query: string }) {
   const parts = text.split(TOKEN_SPLIT_RE).filter((p) => !/^https?:\/\//i.test(p) && !EVENT_REF_RE.test(p));
   return (
     <>

@@ -18,6 +18,7 @@ import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/sear
 import { parseNewsShape, type NewsShape } from "@/lib/newsShape";
 import { eventPath } from "@/lib/shareId";
 import { articleBrief } from "@/lib/wiki";
+import { Headline } from "@/components/search/SerpRow";
 import { getDisplayLabel } from "@/lib/profileSearch";
 import type { SearchHit } from "@/services/search";
 import type { HitCluster } from "@/lib/searchCollapse";
@@ -172,10 +173,14 @@ function TopStoryCard({ story }: { story: TopStory }) {
             onClick={(e) => e.stopPropagation()}
             className={`mt-1 font-semibold leading-snug text-slate-900 dark:text-slate-100 hover:text-brand-primary hover:underline ${!imageUrl && !videoUrl ? "line-clamp-6 text-sm" : "line-clamp-3 text-[13px]"}`}
           >
-            {news.headline}
+            {/* The person a headline mentions is named, as in the rows —
+                "Livestream with nostr:npub19r9…" is nobody's headline. */}
+            <Headline text={news.headline} query="" />
           </a>
         ) : (
-          <p className={`mt-1 font-semibold leading-snug text-slate-900 dark:text-slate-100 ${!imageUrl && !videoUrl ? "line-clamp-6 text-sm" : "line-clamp-3 text-[13px]"}`}>{news.headline}</p>
+          <p className={`mt-1 font-semibold leading-snug text-slate-900 dark:text-slate-100 ${!imageUrl && !videoUrl ? "line-clamp-6 text-sm" : "line-clamp-3 text-[13px]"}`}>
+            <Headline text={news.headline} query="" />
+          </p>
         )}
         <div className="mt-auto pt-1.5 truncate text-[11px] text-slate-400 dark:text-slate-500">
           {hit.author ? getDisplayLabel(hit.author) : "Unknown"} · {ago(hit.event.created_at)}
