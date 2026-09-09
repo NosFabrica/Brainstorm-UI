@@ -50,4 +50,16 @@ describe("groupPeoplePacks — one row per title", () => {
     const groups = groupPeoplePacks([pack("l1", "1".repeat(64), "Art", [A]), bookmarks], (x) => x);
     expect(groups.map((g) => [g.primary.event.id, g.lists])).toEqual([["l1", 1], ["bm", 1]]);
   });
+
+  // Opening a fold shows all its people with how many of the lists agree on
+  // each (Benjamin, 2026-09-09: "78 people, but the list I clicked has 5").
+  it("says how many of the lists each person is on", () => {
+    const pack = (id: string, pubkey: string, members: string[]) =>
+      ({ event: { id, pubkey, kind: 30000, created_at: 1, tags: [["title", "Podcasts"], ...members.map((m) => ["p", m])] }, score: 0.5 });
+    const [group] = groupPeoplePacks([pack("a", "1".repeat(64), ["x", "y"]), pack("b", "2".repeat(64), ["x", "z"]), pack("c", "3".repeat(64), ["x"])], (i) => i);
+    expect(group.lists).toBe(3);
+    expect(group.members).toBe(3);
+    expect(group.agreement).toEqual({ x: 3, y: 1, z: 1 });
+    expect(group.consensus[0]).toBe("x");
+  });
 });

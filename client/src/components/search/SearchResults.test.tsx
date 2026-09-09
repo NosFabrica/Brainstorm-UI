@@ -1686,10 +1686,13 @@ describe("SearchResults", () => {
 
   // The team: "This is bad, right? We have multiple lists of the same tag" —
   // ten "Nostr devs" packs at 39% overlap. One row per title: the most
-  // trusted curator's list carries the fold, the chip says how many, the
-  // count says how many people all of them add up to, and the faces are the
-  // ones most lists agree on. The chip opens the individual lists.
-  it("folds same-title follow packs into one row with the union, and the chip opens them", async () => {
+  // trusted curator's list carries the fold, the count says how many people
+  // all of them add up to, and the faces are the ones most lists agree on.
+  // The row promises a group, so a tap opens the group where it is — the
+  // lists with their own counts and doors, and everyone across them — not
+  // one list of five (Benjamin, 2026-09-09: "it said 78 people, the list
+  // I clicked has 5").
+  it("folds same-title follow packs into one row with the union, and a tap opens the group where it is", async () => {
     setUrlTab("lists");
     render(<SearchResults query="nostr devs" pov="nosfabrica" />);
     const A = "1".repeat(64), B = "2".repeat(64), C = "3".repeat(64), D = "4".repeat(64), E = "5".repeat(64);
@@ -1713,12 +1716,21 @@ describe("SearchResults", () => {
     expect(primary).toHaveTextContent("curator two & 2 others");
     expect(screen.getByTestId("list-card-o1")).toBeInTheDocument();
     expect(screen.getByTestId("list-card-o1")).not.toHaveTextContent(/others/);
-    const chip = screen.getByTestId("cluster-expand-g2");
-    expect(chip).toHaveTextContent("3 lists");
-    fireEvent.click(chip);
-    expect(screen.getByTestId("list-card-g3")).toBeInTheDocument();
-    expect(screen.getByTestId("list-card-g1")).toBeInTheDocument();
-    expect(within(screen.getByTestId("list-card-g1")).getByTestId("list-count-g1")).toHaveTextContent("3 members");
+    // No chip beside the card; the card itself is the door to the group.
+    expect(screen.queryByTestId("cluster-expand-g2")).toBeNull();
+    fireEvent.click(within(primary).getByTestId("list-group-toggle-g2"));
+    const group = screen.getByTestId("list-group-g2");
+    const rows = within(group).getAllByTestId(/^list-group-list-/);
+    expect(rows.map((r) => r.getAttribute("data-testid"))).toEqual(["list-group-list-g2", "list-group-list-g3", "list-group-list-g1"]);
+    expect(rows[2]).toHaveTextContent("curator one");
+    expect(rows[2]).toHaveTextContent("3 members");
+    expect(within(rows[2]).getByRole("link", { name: /open/i }).getAttribute("href")).toMatch(/^\/e\//);
+    const people = within(group).getByTestId("list-group-people");
+    expect(within(people).getAllByTestId(/^list-group-person-/)).toHaveLength(5);
+    // alice is on all three lists; the badge says so.
+    expect(within(people).getByTestId(`list-group-person-${A}`)).toHaveTextContent("3 of 3");
+    fireEvent.click(within(primary).getByTestId("list-group-toggle-g2"));
+    expect(screen.queryByTestId("list-group-g2")).toBeNull();
   });
 
   it("fresh cards say how real-time they are, not just a date", async () => {

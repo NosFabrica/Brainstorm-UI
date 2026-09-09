@@ -18,6 +18,8 @@ export interface ListGroup<T> {
   members: number;
   /** Every member, the ones most lists agree on first, then the primary's order. */
   consensus: string[];
+  /** How many of the lists carry each member — "on 3 of 8 lists" when the fold opens. */
+  agreement: Record<string, number>;
 }
 
 const NOT_PLURAL = new Set(["news", "physics", "economics", "politics", "mathematics", "analysis", "chess"]);
@@ -61,6 +63,6 @@ export function groupPeoplePacks<T>(items: T[], pick: (item: T) => { event: Even
     const consensus = [...counts.keys()].sort(
       (a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0) || (primaryOrder.get(a) ?? Infinity) - (primaryOrder.get(b) ?? Infinity),
     );
-    return { key, primary, others, lists: ranked.length, members: counts.size, consensus };
+    return { key, primary, others, lists: ranked.length, members: counts.size, consensus, agreement: Object.fromEntries(counts) };
   });
 }

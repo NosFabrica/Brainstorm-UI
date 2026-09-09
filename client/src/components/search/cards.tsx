@@ -19,6 +19,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { Chip } from "@/components/ui/chip";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
+import { useProfileMap } from "@/hooks/useProfileMap";
 import { eventStore } from "@/lib/eventStore";
 import { fetchProfileMap } from "@/services/nostr";
 import { brandForHost } from "@/lib/brands";
@@ -28,7 +29,7 @@ import { compactCount } from "@/lib/compactCount";
 import { ago } from "@/lib/ago";
 import { gitItemSummaryOf, gitItemTitleOf } from "@/lib/gitPatch";
 import { fetchRepoCounts, zapStoreUrl } from "@/services/search";
-import { eventPath } from "@/lib/shareId";
+import { eventPath, npubFromPubkey } from "@/lib/shareId";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { FeedVideo } from "@/components/share/FeedVideo";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
@@ -984,6 +985,89 @@ export function EventCard({
   );
 }
 
+/** A fold of same-title lists, as the card carries it: the count, the union, and the lists themselves. */
+export type ListGroupView = {
+  lists: number;
+  members: number;
+  consensus: string[];
+  agreement: Record<string, number>;
+  items: { event: NostrEvent; author: SearchResult | null; score?: number | null }[];
+};
+
+/**
+ * The group behind a folded row, opened in place: every list with its curator,
+ * its own member count and its own door, then everyone across them with how
+ * many of the lists agree — so the number on the card is true where you land.
+ */
+function ListGroupPanel({ group, primaryId }: { group: ListGroupView; primaryId: string }) {
+  const profiles = useProfileMap(group.consensus);
+  const label = (pk: string) => {
+    const p = profiles.get(pk);
+    if (p) return getDisplayLabel(p);
+    try {
+      return `${npubFromPubkey(pk).slice(0, 10)}…`;
+    } catch {
+      return pk.slice(0, 8);
+    }
+  };
+  const href = (pk: string) => {
+    try {
+      return `/p/${npubFromPubkey(pk)}`;
+    } catch {
+      return "#";
+    }
+  };
+  return (
+    <div className="space-y-3 border-t border-slate-100 dark:border-slate-800/60 px-3 pb-3 pt-3 sm:px-4 sm:pb-4" data-testid={`list-group-${primaryId}`}>
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">{group.lists} lists</p>
+        <ul className="mt-1 divide-y divide-slate-100 dark:divide-slate-800/60">
+          {group.items.map(({ event, author }) => {
+            const n = event.tags.filter((t) => t[0] === "p" && t[1]).length;
+            return (
+              <li key={event.id} className="flex items-center gap-2 py-1.5 text-xs" data-testid={`list-group-list-${event.id}`}>
+                <Avatar className="h-5 w-5 shrink-0 border border-slate-200/80 dark:border-slate-800/80">
+                  {author?.picture ? <AvatarImage src={author.picture} alt="" className="object-cover" /> : null}
+                  <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
+                </Avatar>
+                <span className="min-w-0 flex-1 truncate text-slate-700 dark:text-slate-200">
+                  {author ? getDisplayLabel(author) : "Unknown"}
+                  <span className="text-slate-400 dark:text-slate-500"> · {n} {n === 1 ? "member" : "members"}</span>
+                </span>
+                <Link href={eventPath(event)} className="shrink-0 font-medium text-brand-link hover:underline">Open</Link>
+              </li>
+            );
+          })}
+        </ul>
+      </div>
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">{group.members} people</p>
+        <div className="mt-1.5 flex flex-wrap gap-1.5" data-testid="list-group-people">
+          {group.consensus.map((pk) => {
+            const on = group.agreement[pk] ?? 1;
+            const p = profiles.get(pk);
+            return (
+              <Link
+                key={pk}
+                href={href(pk)}
+                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-0.5 pl-0.5 pr-2 text-[11px] text-slate-700 dark:text-slate-200 hover:border-brand-accent/40"
+                data-testid={`list-group-person-${pk}`}
+              >
+                <Avatar className="h-5 w-5 shrink-0">
+                  {p?.picture ? <AvatarImage src={p.picture} alt="" className="object-cover" /> : null}
+                  <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
+                </Avatar>
+                <span className="max-w-[9rem] truncate">{label(pk)}</span>
+                {on > 1 && <span className="text-[10px] text-slate-400 dark:text-slate-500">{on} of {group.lists}</span>}
+              </Link>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ListCard({
   event,
   author,
@@ -993,9 +1077,11 @@ export function ListCard({
   event: NostrEvent;
   author: SearchResult | null;
   score?: number | null;
-  /** When this list carries a fold of same-title lists: how many, their union, and the faces most agree on. */
-  group?: { lists: number; members: number; consensus: string[] };
+  /** When this list carries a fold of same-title lists: how many, their union, the faces most agree on, and the lists. */
+  group?: ListGroupView;
 }) {
+  // A folded row opens its group in place — the card is the door, not a link.
+  const [open, setOpen] = useState(false);
   const title = tagVal(event, "title") ?? tagVal(event, "name") ?? tagVal(event, "d") ?? "Untitled list";
   const description = tagVal(event, "description") ?? "";
   const ownMembers = event.tags.filter((t) => t[0] === "p" && t[1]).map((t) => t[1]);
@@ -1039,68 +1125,110 @@ export function ListCard({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [event.id]);
+  const header = (
+    <div className="flex items-center gap-2 min-w-0">
+      <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
+      <Chip size="sm" tone={isPeopleList ? "info" : "slate"} data-testid={`list-count-${event.id}`}>
+        {folded
+          ? `${group.lists} lists · ${group.members} ${group.members === 1 ? "person" : "people"}`
+          : `${count} ${isPeopleList ? (count === 1 ? "member" : "members") : count === 1 ? "item" : "items"}`}
+      </Chip>
+    </div>
+  );
+  const faces = isPeopleList ? (
+    <div className="flex flex-wrap items-start gap-2.5" data-testid={`list-members-${event.id}`}>
+      {members.slice(0, 5).map((pk, i) => {
+        const profile = profiles.get(pk);
+        const memberName = profile?.display_name || profile?.name;
+        return (
+          // Phones fit 3 faces + the counter on ONE row; sm+ shows 5.
+          <span key={pk} className={`w-12 flex-col items-center gap-1 ${i >= 3 ? "hidden sm:flex" : "flex"}`}>
+            <Avatar
+              className={`h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(memberScoreOf(pk) ?? null, false, "sm", true) ?? ""}`}
+            >
+              {profile?.picture ? <AvatarImage src={profile.picture} alt="" className="object-cover" /> : null}
+              <AvatarFallback className="overflow-hidden">
+                <DefaultAvatarImg />
+              </AvatarFallback>
+            </Avatar>
+            <span className="w-full truncate text-center text-[10px] leading-tight text-slate-600 dark:text-slate-300">
+              {memberName ?? "…"}
+            </span>
+          </span>
+        );
+      })}
+      {members.length > 3 && (
+        <span className="flex w-12 flex-col items-center gap-1 sm:hidden">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+            +{members.length - 3}
+          </span>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400">more</span>
+        </span>
+      )}
+      {members.length > 5 && (
+        <span className="hidden w-12 flex-col items-center gap-1 sm:flex">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+            +{members.length - 5}
+          </span>
+          <span className="text-[10px] text-slate-500 dark:text-slate-400">more</span>
+        </span>
+      )}
+    </div>
+  ) : null;
+  const glyph = (
+    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
+      <ListChecks className="h-4 w-4 text-slate-500 dark:text-slate-400" />
+    </div>
+  );
+
+  if (folded) {
+    return (
+      <div
+        className="relative w-full rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 hover:bg-white dark:hover:bg-slate-900 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all duration-150"
+        data-testid={`list-card-${event.id}`}
+      >
+        <button
+          type="button"
+          onClick={() => setOpen((v) => !v)}
+          aria-expanded={open}
+          className="block w-full rounded-t-xl p-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 sm:p-4"
+          data-testid={`list-group-toggle-${event.id}`}
+        >
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0 flex-1">
+              {header}
+              {description && <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 break-words line-clamp-2">{description}</p>}
+              <div className="mt-2">{faces}</div>
+            </div>
+            {glyph}
+          </div>
+        </button>
+        <div className="px-3 pb-3 sm:px-4 sm:pb-4">
+          <CuratorFooter kicker="Curated by" author={author} score={score} created_at={event.created_at} others={group.lists - 1} />
+        </div>
+        {open && <ListGroupPanel group={group} primaryId={event.id} />}
+      </div>
+    );
+  }
+
   return (
     <CardShell event={event} testId={`list-card-${event.id}`}>
       {/* Content flush left, the list glyph balancing the top-right corner —
           the same anatomy the app and repo pages settled on. */}
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-2 min-w-0">
-            <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{title}</p>
-            <Chip size="sm" tone={isPeopleList ? "info" : "slate"} data-testid={`list-count-${event.id}`}>
-              {folded
-                ? `${group.lists} lists · ${group.members} ${group.members === 1 ? "person" : "people"}`
-                : `${count} ${isPeopleList ? (count === 1 ? "member" : "members") : count === 1 ? "item" : "items"}`}
-            </Chip>
-          </div>
+          {header}
           {description && (
             <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 break-words line-clamp-2">{description}</p>
           )}
           {isPeopleList ? (
             <div className="mt-2 flex flex-wrap items-end justify-between gap-x-4 gap-y-2">
-              <div className="flex flex-wrap items-start gap-2.5" data-testid={`list-members-${event.id}`}>
-              {members.slice(0, 5).map((pk, i) => {
-                const profile = profiles.get(pk);
-                const memberName = profile?.display_name || profile?.name;
-                return (
-                  // Phones fit 3 faces + the counter on ONE row; sm+ shows 5.
-                  <span key={pk} className={`w-12 flex-col items-center gap-1 ${i >= 3 ? "hidden sm:flex" : "flex"}`}>
-                    <Avatar
-                      className={`h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(memberScoreOf(pk) ?? null, false, "sm", true) ?? ""}`}
-                    >
-                      {profile?.picture ? <AvatarImage src={profile.picture} alt="" className="object-cover" /> : null}
-                      <AvatarFallback className="overflow-hidden">
-                        <DefaultAvatarImg />
-                      </AvatarFallback>
-                    </Avatar>
-                    <span className="w-full truncate text-center text-[10px] leading-tight text-slate-600 dark:text-slate-300">
-                      {memberName ?? "…"}
-                    </span>
-                  </span>
-                );
-              })}
-              {members.length > 3 && (
-                <span className="flex w-12 flex-col items-center gap-1 sm:hidden">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                    +{members.length - 3}
-                  </span>
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400">more</span>
-                </span>
-              )}
-              {members.length > 5 && (
-                <span className="hidden w-12 flex-col items-center gap-1 sm:flex">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-semibold text-slate-500 dark:text-slate-400">
-                    +{members.length - 5}
-                  </span>
-                  <span className="text-[10px] text-slate-500 dark:text-slate-400">more</span>
-                </span>
-              )}
-              </div>
+              {faces}
               {/* The curator balances the pile on the right on desktop; on
                   phones it takes its own full-width row, flush left with
                   everything else — whose web of trust this list speaks for
                   is part of the value, not a footnote crammed underneath. */}
-              <CuratorFooter kicker="Curated by" author={author} score={score} created_at={event.created_at} others={folded ? group.lists - 1 : 0} />
+              <CuratorFooter kicker="Curated by" author={author} score={score} created_at={event.created_at} others={0} />
             </div>
           ) : (
             <div className="mt-1.5">
@@ -1108,9 +1236,7 @@ export function ListCard({
             </div>
           )}
         </div>
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
-          <ListChecks className="h-4 w-4 text-slate-500 dark:text-slate-400" />
-        </div>
+        {glyph}
       </div>
     </CardShell>
   );

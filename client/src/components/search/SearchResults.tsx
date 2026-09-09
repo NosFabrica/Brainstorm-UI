@@ -41,7 +41,7 @@ import { fetchEventRsvps, fetchGitCommentCounts, fetchGitStatuses, type EventRsv
 import { GIT_STATE_LABEL, foldForks, gitLabelsOf, gitStateOf, isGitItem, peopleBeforeAgents, type GitState } from "@/lib/gitStatus";
 import { isMediaFile, isSoundtrackFile } from "@/lib/fileMetadata";
 import { groupPeoplePacks } from "@/lib/listGroups";
-import { AppCard, EventCard, LiveTile, ListCard, MediaCard, RepoCard, TrackCard, platformWords, mediaUrlOf, ListingCard } from "@/components/search/cards";
+import { AppCard, EventCard, LiveTile, ListCard, MediaCard, RepoCard, TrackCard, platformWords, mediaUrlOf, ListingCard, type ListGroupView } from "@/components/search/cards";
 import { liveHostOf, liveNeedsCheck, liveStateOf, type LiveState } from "@/lib/liveStream";
 import { useVerifiedRecordings } from "@/hooks/useVerifiedRecordings";
 import { EVENT_WHEN_LABELS, EVENT_WHEN_ORDER, eventWhenCounts, filterEventsByWhen, type EventWhen } from "@/lib/eventFilters";
@@ -73,7 +73,7 @@ type DisplayRow = {
   chipLabel?: string;
   forkOf?: string;
   /** A folded same-title follow pack: how many lists, their union, the faces most agree on. */
-  listGroup?: { lists: number; members: number; consensus: string[] };
+  listGroup?: ListGroupView;
 };
 const LIVE_KINDS = new Set(TAB_KINDS.live);
 const EVENT_KINDS = new Set(TAB_KINDS.events);
@@ -1016,19 +1016,27 @@ export function SearchResults({
     }
     if (tab === "lists") {
       // One row per title: same-tag follow packs fold behind the most trusted
-      // curator's, the union counted once; the chip opens the individual lists.
+      // curator's, the union counted once. The row promises a group, so the
+      // card itself opens the group in place — every list with its own count
+      // and door, everyone across them — rather than one list of five
+      // (Benjamin, 2026-09-09). No chip, no extra rows.
       const folded: DisplayRow[] = [];
       for (const g of groupPeoplePacks(shown, (h) => ({ event: h.event, score: h.author?.wotRank ?? scoreOf(h.event.pubkey) ?? null }))) {
-        const id = g.primary.event.id;
-        const open = expandedClusters.has(id);
         folded.push({
           hit: g.primary,
-          collapsedCount: open ? 0 : g.others.length,
-          clusterId: id,
-          chipLabel: `${g.lists} lists`,
-          listGroup: g.lists > 1 ? { lists: g.lists, members: g.members, consensus: g.consensus } : undefined,
+          collapsedCount: 0,
+          clusterId: "",
+          listGroup:
+            g.lists > 1
+              ? {
+                  lists: g.lists,
+                  members: g.members,
+                  consensus: g.consensus,
+                  agreement: g.agreement,
+                  items: [g.primary, ...g.others].map((h) => ({ event: h.event, author: h.author, score: h.author?.wotRank ?? scoreOf(h.event.pubkey) ?? null })),
+                }
+              : undefined,
         });
-        if (open) for (const o of g.others) folded.push({ hit: o, collapsedCount: 0, clusterId: "" });
       }
       return folded;
     }
