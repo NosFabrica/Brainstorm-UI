@@ -74,4 +74,23 @@ describe("EntityMenu", () => {
     expect(within(menu).getByTestId("open-amethyst")).not.toHaveAttribute("target");
     expect(within(menu).getByTestId("open-default")).toHaveAttribute("href", `nostr:${npub}`);
   });
+
+  // "Why would they want this?" (Benjamin, over Copy nprofile, 2026-09-08):
+  // a row can say what its key is for, in a muted line under the label.
+  it("a copy row carries its hint under the label, and keeps it while saying Copied", async () => {
+    render(
+      <EntityMenu
+        entity={entity}
+        copies={[{ id: "nprofile", label: "Copy nprofile", value: npub, hint: "Their key plus the relays their posts live on" }, ...copies]}
+        ua={MAC}
+      />,
+    );
+    const menu = await open();
+    const row = within(menu).getByTestId("menu-copy-nprofile");
+    expect(within(row).getByTestId("menu-copy-nprofile-hint")).toHaveTextContent("Their key plus the relays their posts live on");
+    expect(within(menu).queryByTestId("menu-copy-npub-hint")).toBeNull();
+    fireEvent.click(row);
+    await waitFor(() => expect(row).toHaveTextContent("Copied"));
+    expect(row).toHaveTextContent("Their key plus the relays their posts live on");
+  });
 });

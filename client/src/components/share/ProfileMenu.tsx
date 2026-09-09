@@ -70,10 +70,12 @@ export function ProfileMenu({
   };
 
   const nprofile = nprofileFor(pubkey, relays);
+  // Each row says what its key is for — "why would they want this?"
+  // (Benjamin, 2026-09-08). Share owns the human link; these are for machines.
   const copies = [
-    { id: "npub", label: "Copy npub", value: npub },
-    { id: "hex", label: "Copy public key (hex)", value: pubkey },
-    ...(nprofile ? [{ id: "nprofile", label: "Copy nprofile", value: nprofile }] : []),
+    { id: "npub", label: "Copy npub", value: npub, hint: "Their public key, for Nostr apps and mentions" },
+    { id: "hex", label: "Copy public key (hex)", value: pubkey, hint: "The raw key, for developers and relay tools" },
+    ...(nprofile ? [{ id: "nprofile", label: "Copy nprofile", value: nprofile, hint: "Their key plus the relays their posts live on" }] : []),
   ];
 
   const social = viewer.loggedIn && !viewer.isOwner;

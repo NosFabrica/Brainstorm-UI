@@ -15,7 +15,13 @@ import {
 import { useCopied } from "@/hooks/useCopied";
 import { appLinksFor, type AppLinkId, type OpenEntity } from "@/lib/openInApp";
 
-export type CopyItem = { id: string; label: string; value: string };
+export type CopyItem = {
+  id: string;
+  label: string;
+  value: string;
+  /** What the key is for, under the label — "why would they want this?" */
+  hint?: string;
+};
 
 /** The ⋯ trigger — the chrome the profile's menu always had, so it sits beside Follow unchanged. */
 export const MENU_TRIGGER_CLASS =
@@ -33,7 +39,7 @@ function CopyMenuItem({ item }: { item: CopyItem }) {
   const { copied, copy } = useCopied();
   return (
     <DropdownMenuItem
-      className="gap-2"
+      className={`gap-2 ${item.hint ? "items-start" : ""}`}
       // The menu stays open: the row itself says it worked.
       onSelect={(e) => {
         e.preventDefault();
@@ -41,8 +47,15 @@ function CopyMenuItem({ item }: { item: CopyItem }) {
       }}
       data-testid={`menu-copy-${item.id}`}
     >
-      {copied ? <Check className="h-4 w-4 text-emerald-500" /> : <Copy className="h-4 w-4" />}
-      {copied ? "Copied" : item.label}
+      {copied ? <Check className={`h-4 w-4 text-emerald-500 ${item.hint ? "mt-0.5" : ""}`} /> : <Copy className={`h-4 w-4 ${item.hint ? "mt-0.5" : ""}`} />}
+      <span className="min-w-0">
+        <span className="block">{copied ? "Copied" : item.label}</span>
+        {item.hint && (
+          <span className="block text-[11px] leading-snug text-slate-400 dark:text-slate-500" data-testid={`menu-copy-${item.id}-hint`}>
+            {item.hint}
+          </span>
+        )}
+      </span>
     </DropdownMenuItem>
   );
 }

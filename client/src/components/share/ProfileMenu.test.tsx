@@ -105,4 +105,12 @@ describe("ProfileMenu", () => {
     fireEvent.click(within(menu).getByTestId("menu-copy-hex"));
     await waitFor(() => expect(copyMock).toHaveBeenLastCalledWith(PK));
   });
+
+  it("the three copy rows say what each key is for", async () => {
+    menuFor({ loggedIn: false, isOwner: false, isAdmin: false });
+    const menu = await open();
+    expect(within(menu).getByTestId("menu-copy-npub-hint")).toHaveTextContent("Their public key, for Nostr apps and mentions");
+    expect(within(menu).getByTestId("menu-copy-hex-hint")).toHaveTextContent("The raw key, for developers and relay tools");
+    expect(within(menu).getByTestId("menu-copy-nprofile-hint")).toHaveTextContent("Their key plus the relays their posts live on");
+  });
 });

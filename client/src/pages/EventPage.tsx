@@ -308,8 +308,8 @@ export default function EventPage() {
               <EntityMenu
                 entity={{ kind: "event", bech32: nevent, uri: openInApp }}
                 copies={[
-                  { id: "nevent", label: "Copy nevent", value: nevent },
-                  { id: "event-id", label: "Copy event ID", value: ptr.id },
+                  { id: "nevent", label: "Copy nevent", value: nevent, hint: "The note's id plus where to find it" },
+                  { id: "event-id", label: "Copy event ID", value: ptr.id, hint: "The raw 64-character id" },
                 ]}
                 triggerTestId="event-menu"
                 triggerClassName={HEADER_MENU_CLASS}
