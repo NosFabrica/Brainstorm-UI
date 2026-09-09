@@ -69,4 +69,46 @@ describe("TagPersonButton — tags already on the profile", () => {
     fireEvent.click(agree);
     expect(applyMock).not.toHaveBeenCalled();
   });
+
+});
+
+// Picking a tag published a public, undeletable statement about someone on
+// one click (Benjamin, 2026-09-09: "it did not ask me for confirmation"). A
+// tag not yet on the profile asks first, inside the picker; the answer
+// shows at once and the trigger never spins.
+describe("TagPersonButton — adding a tag asks first", () => {
+  it("typing a new tag and picking it shows a confirm panel; Cancel publishes nothing", async () => {
+    tags = [];
+    render(<TagPersonButton pubkey={PK} variant="link" />);
+    await openPicker();
+    fireEvent.change(screen.getByTestId("share-tag-search"), { target: { value: "Ham Radio" } });
+    fireEvent.click(await screen.findByTestId("share-tag-create"));
+    const confirm = screen.getByTestId("share-tag-confirm");
+    expect(confirm).toHaveTextContent('Add "Ham Radio"?');
+    expect(confirm).toHaveTextContent(/anyone can see this/i);
+    expect(confirm).toHaveTextContent(/no delete/i);
+    expect(applyMock).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByTestId("share-tag-confirm-cancel"));
+    expect(screen.queryByTestId("share-tag-confirm")).toBeNull();
+    expect(applyMock).not.toHaveBeenCalled();
+  });
+
+  it("after Add, the answer shows at once and the trigger never spins while the relays are slow", async () => {
+    tags = [];
+    let settle: (v: unknown) => void = () => {};
+    applyMock.mockImplementationOnce(() => new Promise((r) => { settle = r; }));
+    render(<TagPersonButton pubkey={PK} variant="link" />);
+    await openPicker();
+    fireEvent.change(screen.getByTestId("share-tag-search"), { target: { value: "Ham Radio" } });
+    fireEvent.click(await screen.findByTestId("share-tag-create"));
+    fireEvent.click(screen.getByTestId("share-tag-confirm-add"));
+    await waitFor(() => expect(applyMock).toHaveBeenCalled());
+    // The relays have not answered; the page already says so, and the way in stays put.
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: 'Added "Ham Radio"' }));
+    const trigger = screen.getByTestId("share-add-tag");
+    expect(trigger).not.toBeDisabled();
+    expect(trigger).toHaveTextContent("Tag");
+    expect(trigger.querySelector(".animate-spin")).toBeNull();
+    settle({});
+  });
 });

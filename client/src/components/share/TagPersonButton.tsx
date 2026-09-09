@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Loader2, Check } from "lucide-react";
+import { Plus, Check } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import {
   Command,
@@ -60,6 +60,9 @@ export function TagPersonButton({
 }) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
+  // A tag not yet on the profile asks first: what it is, and that it is
+  // public and permanent. Agree/Disagree on existing tags stay one tap.
+  const [pendingAdd, setPendingAdd] = useState<{ label: string; description?: string; run: () => Promise<void> } | null>(null);
   const { toast } = useToast();
   const { data } = useProfileTags(pubkey);
   const applyTag = useApplyTag(pubkey);
@@ -179,30 +182,36 @@ export function TagPersonButton({
     }
   }
 
+  /** Stage an add behind the confirm panel. */
+  const confirmAdd = (label: string, run: () => Promise<void>, description?: string) => setPendingAdd({ label, description, run });
+
   /**
    * Apply a tag we already have coordinates for. Skips `resolveOrMintTag`
    * entirely — we picked this one off the catalogue, so there is nothing to
    * resolve and no chance of minting a duplicate by a name near-miss.
    */
+  // The chip shows the moment you confirm (useApplyTag is optimistic) and so
+  // does the word; the relays reconcile quietly, and only a failure speaks.
+  const addedToast = (label: string) =>
+    toast({
+      title: `Added "${label}"`,
+      description: isOwner ? "Others can see this on your profile." : "Anyone can see this on their profile.",
+    });
+
   async function applyExisting(tag: { authorPubkey: string; slug: string }, label: string) {
     setOpen(false);
     setSearch("");
+    addedToast(label);
     try {
       const result = await applyTag.mutateAsync({ tag, displayName: label });
       if (result.failedAt) {
         toast({
-          title: "Couldn't add that tag",
-          description: "Give it another try in a moment.",
+          title: `Couldn't add "${label}"`,
+          description: "The relays did not take it. Give it another try in a moment.",
           variant: "destructive",
         });
         return;
       }
-      toast({
-        title: `Added "${label}"`,
-        description: isOwner
-          ? "Others can see this on your profile."
-          : "Anyone can see this on their profile.",
-      });
     } catch {
       toast({
         title: "Couldn't add that tag",
@@ -216,6 +225,7 @@ export function TagPersonButton({
   async function addByName(name: string) {
     setOpen(false);
     setSearch("");
+    addedToast(name);
     try {
       // Reuse the tag everyone else already uses when there is one, so counts
       // accumulate on a single tag instead of splitting across duplicates.
@@ -226,18 +236,12 @@ export function TagPersonButton({
       // we must not claim success — the tag exists but nothing points at it.
       if (result.failedAt) {
         toast({
-          title: "Couldn't finish adding that tag",
-          description: "Give it another try in a moment.",
+          title: `Couldn't finish adding "${name}"`,
+          description: "The relays did not take it. Give it another try in a moment.",
           variant: "destructive",
         });
         return;
       }
-      toast({
-        title: `Added "${name}"`,
-        description: isOwner
-          ? "Others can see this on your profile."
-          : "Anyone can see this on their profile.",
-      });
     } catch {
       toast({
         title: "Couldn't add that tag",
@@ -248,7 +252,13 @@ export function TagPersonButton({
   }
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        if (!next) setPendingAdd(null);
+      }}
+    >
       <PopoverTrigger asChild>
         <button
           type="button"
@@ -258,17 +268,43 @@ export function TagPersonButton({
               : "inline-flex items-center gap-1 rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-500 transition-colors hover:border-brand-primary hover:text-brand-primary dark:border-slate-600 dark:text-slate-400"
           }
           data-testid="share-add-tag"
-          disabled={applyTag.isPending}
         >
-          {applyTag.isPending ? (
-            <Loader2 className="h-3 w-3 animate-spin" />
-          ) : (
-            <Plus className="h-3 w-3" />
-          )}
+          <Plus className="h-3 w-3" />
           {variant === "link" ? "Tag" : "Add a tag"}
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" align="start">
+        {pendingAdd ? (
+          <div className="p-3" data-testid="share-tag-confirm">
+            <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">Add "{pendingAdd.label}"?</p>
+            {pendingAdd.description && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{pendingAdd.description}</p>}
+            <p className="mt-2 text-xs leading-relaxed text-slate-500 dark:text-slate-400">
+              {isOwner ? "Others can see this on your profile" : "Anyone can see this on their profile"}, and there is no delete — only disagreeing later.
+            </p>
+            <div className="mt-3 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setPendingAdd(null)}
+                className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
+                data-testid="share-tag-confirm-cancel"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const { run } = pendingAdd;
+                  setPendingAdd(null);
+                  void run();
+                }}
+                className="rounded-lg bg-brand-primary px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-primary-hover"
+                data-testid="share-tag-confirm-add"
+              >
+                Add tag
+              </button>
+            </div>
+          </div>
+        ) : (
         <Command shouldFilter>
           <CommandInput
             placeholder={isOwner ? "What are you known for?" : "What are they known for?"}
@@ -281,7 +317,7 @@ export function TagPersonButton({
 
             {isNew && (
               <CommandGroup heading="Add your own">
-                <CommandItem value={typed} onSelect={() => addByName(typed)} data-testid="share-tag-create">
+                <CommandItem value={typed} onSelect={() => confirmAdd(typed, () => addByName(typed))} data-testid="share-tag-create">
                   <Plus className="mr-2 h-3.5 w-3.5" />
                   {typed}
                 </CommandItem>
@@ -317,7 +353,7 @@ export function TagPersonButton({
                   <CommandItem
                     key={label}
                     value={label}
-                    onSelect={() => addByName(label)}
+                    onSelect={() => confirmAdd(label, () => addByName(label))}
                     data-testid="share-tag-legacy"
                   >
                     <Plus className="mr-2 h-3.5 w-3.5" />
@@ -336,7 +372,7 @@ export function TagPersonButton({
                   <CommandItem
                     key={e.key}
                     value={e.label}
-                    onSelect={() => applyExisting(e.tag, e.label)}
+                    onSelect={() => confirmAdd(e.label, () => applyExisting(e.tag, e.label), e.description)}
                     data-testid="share-tag-existing"
                   >
                     <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
@@ -363,7 +399,7 @@ export function TagPersonButton({
                   <CommandItem
                     key={e.key}
                     value={e.label}
-                    onSelect={() => applyExisting(e.tag, e.label)}
+                    onSelect={() => confirmAdd(e.label, () => applyExisting(e.tag, e.label), e.description)}
                     data-testid="share-tag-unverified"
                   >
                     <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
@@ -390,7 +426,7 @@ export function TagPersonButton({
                   <CommandItem
                     key={e.key}
                     value={e.label}
-                    onSelect={() => applyExisting(e.tag, e.label)}
+                    onSelect={() => confirmAdd(e.label, () => applyExisting(e.tag, e.label), e.description)}
                     data-testid="share-tag-content"
                   >
                     <Plus className="mr-2 h-3.5 w-3.5 shrink-0" />
@@ -414,7 +450,7 @@ export function TagPersonButton({
                   <CommandItem
                     key={role.key}
                     value={role.label}
-                    onSelect={() => addByName(role.label)}
+                    onSelect={() => confirmAdd(role.label, () => addByName(role.label))}
                     data-testid="share-tag-option"
                   >
                     {role.label}
@@ -424,6 +460,7 @@ export function TagPersonButton({
             )}
           </CommandList>
         </Command>
+        )}
       </PopoverContent>
     </Popover>
   );

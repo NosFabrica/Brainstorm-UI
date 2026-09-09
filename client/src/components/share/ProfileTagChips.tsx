@@ -64,6 +64,7 @@ export function ProfileTagChips({
           tag.myStance === "dispute" ? "you disagreed" : "",
         ].filter(Boolean);
         const stanceNote = notes.length ? ` · ${notes.join(" · ")}` : "";
+        const pendingNote = tag.pending ? " · Publishing…" : "";
         // Floor B: after you take your own tag back it must stay visible and
         // honest rather than vanishing. Uncounted tags render faded.
         const faded = !tag.counted;
@@ -74,13 +75,16 @@ export function ProfileTagChips({
           <Chip
             key={tag.key}
             tone={onlySelfDeclared(tag) ? "slate" : tag.myStance === "apply" ? "accent" : "brand"}
-            title={(tag.description ? `${who} — ${tag.description}` : who) + stanceNote}
+            title={(tag.description ? `${who} — ${tag.description}` : who) + stanceNote + pendingNote}
             data-testid="share-tag-chip"
             data-self-declared={onlySelfDeclared(tag) ? "true" : undefined}
             data-counted={tag.counted ? "true" : "false"}
+            data-pending={tag.pending ? "true" : undefined}
             className={[
               authorNpub ? "transition-opacity hover:opacity-80" : "",
               faded ? "opacity-50" : "",
+              // Not yet on the relays: a little lighter, until they answer.
+              tag.pending ? "opacity-60" : "",
             ].filter(Boolean).join(" ") || undefined}
           >
             {tag.name}

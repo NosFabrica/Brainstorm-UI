@@ -37,4 +37,12 @@ describe("ProfileTagChips", () => {
     render(<ProfileTagChips pubkey={PK} canTag isOwner />);
     expect(screen.getByTestId("share-tags-manage")).toHaveAttribute("href", "/tags/mine");
   });
+
+  it("a tag still on its way to the relays looks like it, and says so", () => {
+    tags = [{ ...tag("Ham Radio"), pending: true }];
+    render(<ProfileTagChips pubkey={PK} canTag />);
+    const chip = screen.getByTestId("share-tag-chip");
+    expect(chip).toHaveAttribute("data-pending", "true");
+    expect(chip.getAttribute("title")).toMatch(/publishing/i);
+  });
 });
