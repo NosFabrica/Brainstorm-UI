@@ -1253,7 +1253,12 @@ export function SearchResults({
         userPubkey={userPubkey}
         onOpen={onOpenProfile}
         onPerson={setPanelPerson}
-        className="lg:order-2 lg:w-72 lg:shrink-0 lg:sticky lg:top-4"
+        // Not pinned: the panel is context for the query, read at the top, and
+        // it scrolls away with the page the way Google's does. Pinned, it
+        // followed the reader down every page and ducked under the search
+        // band (Benjamin, 2026-09-09: "I don't like how this gets covered and
+        // always stays in view"). The Top pill brings it back in one tap.
+        className="lg:order-2 lg:w-72 lg:shrink-0"
       />
       <div className="min-w-0 w-full lg:order-1 lg:w-[42rem] lg:flex-none">
       {composed ? (
