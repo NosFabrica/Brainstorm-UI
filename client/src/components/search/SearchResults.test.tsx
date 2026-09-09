@@ -2388,3 +2388,19 @@ describe("more results", () => {
     expect(screen.queryByTestId("search-more")).toBeNull();
   });
 });
+
+// Benjamin (2026-09-09): "fix the live stream indicators to properly
+// distinguish between actual live streams and replays." Off the Live tab —
+// a flat list under a typed sort — a stream that ended without a recording
+// wore a LIVE pill, because nothing had classified it and the tile assumed.
+describe("a stream's pill off the Live tab", () => {
+  it("a stream that ended without a recording reads Ended, never LIVE", async () => {
+    render(<SearchResults query="tunic sort:recent" pov="nosfabrica" />);
+    const over = ev("s-over", 30311, "d".repeat(64), "", [["d", "s-over"], ["title", "mar says.. tunic"], ["status", "ended"]]);
+    emit({ hits: [{ event: over, author: author("d".repeat(64), "letsfo"), rank: null }], eose: true });
+    const pill = await screen.findByTestId("live-status-s-over");
+    expect(pill).toHaveTextContent(/ended/i);
+    expect(pill).not.toHaveTextContent(/live/i);
+  });
+});
+

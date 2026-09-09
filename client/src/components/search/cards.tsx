@@ -755,7 +755,8 @@ export function LiveCard({ event, author, score }: { event: NostrEvent; author: 
  * category. The tile opens our stream page, which plays it in place; the
  * corner keeps the way out to zap.stream.
  */
-export function LiveTile({ event, author, score, state, hostScore }: { event: NostrEvent; author: SearchResult | null; score?: number | null; state: LiveState; hostScore?: number | null }) {
+/** `state` null: a stream that is over with nothing to replay — it says Ended, never LIVE. */
+export function LiveTile({ event, author, score, state, hostScore }: { event: NostrEvent; author: SearchResult | null; score?: number | null; state: LiveState | null; hostScore?: number | null }) {
   const stream = parseLiveStream(event);
   const title = tagVal(event, "title") ?? tagVal(event, "name") ?? stream?.title ?? "Live";
   const image = tagVal(event, "image") ?? undefined;
@@ -805,7 +806,7 @@ export function LiveTile({ event, author, score, state, hostScore }: { event: No
             data-testid={`live-status-${event.id}`}
           >
             {state === "live" && <span className="h-1.5 w-1.5 rounded-full bg-white" aria-hidden="true" />}
-            {state === "live" ? <span className="tracking-wide">LIVE</span> : state === "upcoming" ? "Upcoming" : "Replay"}
+            {state === "live" ? <span className="tracking-wide">LIVE</span> : state === "upcoming" ? "Upcoming" : state === "replay" ? "Replay" : "Ended"}
             {state === "live" && viewers != null && viewers > 0 && (
               <span className="font-medium tabular-nums opacity-90">· {compactCount(viewers)}</span>
             )}

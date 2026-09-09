@@ -1545,7 +1545,7 @@ export function SearchResults({
               if (SHOP_KINDS.has(event.kind)) return wrap(<ListingCard {...typed} />);
               if (LIVE_KINDS.has(event.kind)) {
                 const hostPk = liveHostOf(event);
-                return wrap(<LiveTile {...typed} state={liveStates.get(event.id) ?? liveStateOf(event) ?? "live"} hostScore={hostPk ? scoreOf(hostPk) : undefined} />);
+                return wrap(<LiveTile {...typed} state={liveStates.get(event.id) ?? liveStateOf(event)} hostScore={hostPk ? scoreOf(hostPk) : undefined} />);
               }
               if (APP_KINDS.has(event.kind)) return wrap(<AppCard {...typed} />);
               if (REPO_KINDS.has(event.kind)) return wrap(<RepoCard {...typed} state={stateOf(event) ?? undefined} comments={gitComments.get(event.id)} forkOf={forkOf} />);
