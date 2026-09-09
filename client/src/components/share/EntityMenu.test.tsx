@@ -93,4 +93,26 @@ describe("EntityMenu", () => {
     await waitFor(() => expect(row).toHaveTextContent("Copied"));
     expect(row).toHaveTextContent("Their key plus the relays their posts live on");
   });
+
+  // The hashtag page's "Open in" footer moves into a ⋯ beside its title.
+  it("a hashtag menu offers Copy link and the two web searches — nothing native, no Ditto", async () => {
+    render(
+      <EntityMenu
+        entity={{ kind: "hashtag", bech32: "bitcoin", uri: "" }}
+        copies={[{ id: "link", label: "Copy link", value: "https://brainstorm.world/t/bitcoin", hint: "This page's address" }]}
+        ua={PIXEL}
+      />,
+    );
+    const menu = await open();
+    expect(within(menu).getByTestId("menu-copy-link-hint")).toHaveTextContent("This page's address");
+    const primal = within(menu).getByTestId("open-primal");
+    expect(primal).toHaveAttribute("href", "https://primal.net/search/%23bitcoin");
+    expect(primal).toHaveAttribute("target", "_blank");
+    const band = within(menu).getByTestId("open-nostrband");
+    expect(band).toHaveAttribute("href", "https://nostr.band/?q=%23bitcoin");
+    expect(band.querySelector("img")).toBeNull();
+    expect(within(menu).queryByTestId("open-ditto")).toBeNull();
+    expect(within(menu).queryByTestId("open-amethyst")).toBeNull();
+    expect(within(menu).queryByTestId("open-default")).toBeNull();
+  });
 });

@@ -17,6 +17,7 @@ export function PageHeader({
   size = "page",
   className = "",
   testId,
+  actions,
 }: {
   kicker: string;
   title: ReactNode;
@@ -24,8 +25,15 @@ export function PageHeader({
   size?: "page" | "hero";
   className?: string;
   testId?: string;
+  /** Something that acts on the page's subject, seated beside the title — a ⋯. */
+  actions?: ReactNode;
 }) {
   const titleSize = size === "hero" ? "text-4xl sm:text-5xl" : "text-3xl sm:text-4xl";
+  const h1 = (
+    <h1 className={`font-brand ${titleSize} font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-[1.1] ${actions ? "min-w-0 break-words" : ""}`}>
+      {title}
+    </h1>
+  );
   return (
     <header className={`max-w-3xl ${className}`} data-testid={testId}>
       <div className="flex items-center gap-2.5 mb-5">
@@ -34,9 +42,14 @@ export function PageHeader({
         </span>
         <div className="h-px w-12 bg-brand-accent/40" />
       </div>
-      <h1 className={`font-brand ${titleSize} font-bold text-slate-900 dark:text-slate-100 tracking-tight leading-[1.1]`}>
-        {title}
-      </h1>
+      {actions ? (
+        <div className="flex items-start justify-between gap-3">
+          {h1}
+          <div className="shrink-0 pt-1">{actions}</div>
+        </div>
+      ) : (
+        h1
+      )}
       {subtitle && (
         <p className="mt-5 text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-2xl">
           {subtitle}

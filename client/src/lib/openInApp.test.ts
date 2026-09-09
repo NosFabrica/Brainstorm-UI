@@ -49,4 +49,18 @@ describe("appLinksFor", () => {
     );
     expect(amethyst.external).toBe(false);
   });
+
+  // A hashtag page's "Open in" footer moves into a ⋯ (team, 2026-09-08). A
+  // tag has no nostr: URI, so nothing native can open it — web search only.
+  it("a hashtag opens on Primal's search and nostr.band, and nothing native even on Android", () => {
+    const links = appLinksFor({ kind: "hashtag", bech32: "bitcoin", uri: "" }, PIXEL);
+    expect(links.map((l) => l.id)).toEqual(["primal", "nostrband"]);
+    expect(links.map((l) => l.href)).toEqual(["https://primal.net/search/%23bitcoin", "https://nostr.band/?q=%23bitcoin"]);
+    expect(links.every((l) => l.external)).toBe(true);
+  });
+
+  it("an entity with no nostr: URI never offers the default app or Amethyst", () => {
+    const links = appLinksFor({ kind: "event", bech32: nevent, uri: "" }, PIXEL);
+    expect(links.map((l) => l.id)).toEqual(["ditto", "primal"]);
+  });
 });
