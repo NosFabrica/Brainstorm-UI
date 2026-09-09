@@ -38,6 +38,8 @@ import {
   type SearchHandle,
 } from "@/services/search";
 import { MoreResults } from "./MoreResults";
+import { SorryPage } from "@/components/sorry/SorryPage";
+import { retryNow, useServerStatus } from "@/lib/serverStatus";
 
 import { fetchEventRsvps, fetchGitCommentCounts, fetchGitStatuses, type EventRsvps } from "@/services/search";
 import { GIT_STATE_LABEL, foldForks, gitLabelsOf, gitStateOf, isGitItem, peopleBeforeAgents, type GitState } from "@/lib/gitStatus";
@@ -599,6 +601,8 @@ export function SearchResults({
     onTabChange?.(tab);
   }, [tab, onTabChange]);
   const [snapshot, setSnapshot] = useState<SearchSnapshot | null>(null);
+  // Whether the relay behind every search is answering (lib/serverStatus).
+  const serverStatus = useServerStatus();
   // The tab's live stream, so the end of the page can ask it for more.
   const streamRef = useRef<SearchHandle | null>(null);
   const firstRun = useRef(true);
@@ -663,7 +667,7 @@ export function SearchResults({
     return () => {
       scrollAtLeave.current = typeof window !== "undefined" ? window.scrollY : 0;
     };
-  }, [effectiveQuery, tab, pov, userPubkey, composed]);
+  }, [effectiveQuery, tab, pov, userPubkey, composed, serverStatus.recovery]);
 
   useEffect(() => {
     if (composed) {
@@ -704,7 +708,7 @@ export function SearchResults({
       if (streamRef.current === handle) streamRef.current = null;
       handle();
     };
-  }, [effectiveQuery, tab, pov, userPubkey, composed]);
+  }, [effectiveQuery, tab, pov, userPubkey, composed, serverStatus.recovery]);
 
   useEffect(() => {
     setMediaNotes(null);
@@ -1261,7 +1265,11 @@ export function SearchResults({
         className="lg:order-2 lg:w-72 lg:shrink-0"
       />
       <div className="min-w-0 w-full lg:order-1 lg:w-[42rem] lg:flex-none">
-      {composed ? (
+      {serverStatus.search === "down" ? (
+        // The relay is the thing that is down: the results area says so, and
+        // the box, the tabs and Filters above stay usable.
+        <SorryPage scope="search" variant="inline" onRetry={() => retryNow("search")} signedIn={!!userPubkey} />
+      ) : composed ? (
         <ComposedResults
           query={query}
           personMedia={personMedia}

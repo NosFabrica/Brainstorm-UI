@@ -13,6 +13,12 @@ import type { SearchSnapshot } from "@/services/search";
 
 const streamMock = vi.fn();
 const moreMock = vi.fn();
+const serverStatusMock = vi.fn(() => ({ api: "ok" as const, search: "ok" as const, recovery: 0, checking: false, nextProbeAt: null as number | null }));
+const retryNowMock = vi.fn();
+vi.mock("@/lib/serverStatus", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/serverStatus")>();
+  return { ...actual, useServerStatus: () => serverStatusMock(), retryNow: (scope: "api" | "search") => retryNowMock(scope) };
+});
 const cancelMock = Object.assign(vi.fn(), { more: moreMock });
 const suggestMock = vi.fn<() => Promise<unknown[]>>(() => Promise.resolve([]));
 // Every stream registered, with its callback. The KnowledgePanel's probes
@@ -2431,3 +2437,35 @@ describe("coming back to a search", () => {
   });
 });
 
+// The search relay is down: the results area says so — the box, the tabs
+// and Filters stay usable — on every tab, the composed Everything page
+// included; and when the relay is back the search restarts by itself.
+describe("when the search relay is down", () => {
+  beforeEach(() => {
+    serverStatusMock.mockReturnValue({ api: "ok", search: "ok", recovery: 0, checking: false, nextProbeAt: null });
+  });
+
+  it("the results area is the sorry state on a tab and on Everything, and Try again asks the store", async () => {
+    serverStatusMock.mockReturnValue({ api: "ok", search: "down", recovery: 0, checking: false, nextProbeAt: null });
+    setUrlTab("notes");
+    const first = render(<SearchResults query="nostr" pov="nosfabrica" />);
+    expect(screen.getByTestId("sorry-search")).toBeInTheDocument();
+    expect(screen.queryByTestId("container-search-loading")).toBeNull();
+    expect(screen.getByTestId("search-toolbar")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("sorry-retry"));
+    expect(retryNowMock).toHaveBeenCalledWith("search");
+    first.unmount();
+    setUrlTab("");
+    render(<SearchResults query="nostr" pov="nosfabrica" />);
+    expect(screen.getByTestId("sorry-search")).toBeInTheDocument();
+  });
+
+  it("a recovery restarts the search", async () => {
+    setUrlTab("notes");
+    const { rerender } = render(<SearchResults query="nostr" pov="nosfabrica" />);
+    const before = allStreams.filter((c) => !isPanelProbe(c.query, c.params)).length;
+    serverStatusMock.mockReturnValue({ api: "ok", search: "ok", recovery: 1, checking: false, nextProbeAt: null });
+    rerender(<SearchResults query="nostr" pov="nosfabrica" />);
+    expect(allStreams.filter((c) => !isPanelProbe(c.query, c.params)).length).toBe(before + 1);
+  });
+});

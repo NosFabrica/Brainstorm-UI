@@ -67,8 +67,9 @@ import { UnlockModal } from "@/components/UnlockModal";
 import { CrossTabIdentity } from "@/components/CrossTabIdentity";
 import { SignerApprovalModal } from "@/components/SignerApprovalModal";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { RequireAuth } from "@/components/RequireAuth";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { isAdminPubkey } from "@/config/adminAccess";
-import type { ComponentType } from "react";
 
 /**
  * Land every route change at the top of the page.
@@ -151,28 +152,6 @@ function SearchRedirect() {
   return <Redirect to={`/${search}`} replace />;
 }
 
-// Account-only pages are hidden from anonymous visitors: no preview, just a
-// clean redirect to the dedicated sign-in page (carrying ?next=<requested path>
-// so users return after signing in). Public pages (/, /p/:id,
-// /faq, /what-is-wot, /how-search-works, /personalization, /about, /nostr) render for everyone.
-function RequireAuth({ component: Component }: { component: ComponentType }) {
-  const [location] = useLocation();
-  // Identity is known synchronously on the first render — accounts bootstrap at
-  // module load precisely so this guard never bounces a signed-in user.
-  const signedIn = useActiveAccountDisplay();
-  if (!signedIn) {
-    const next =
-      location && location.startsWith("/") && location !== "/login"
-        ? `?next=${encodeURIComponent(location)}`
-        : "";
-    // `replace`, not push: pushing leaves the gated URL in history, so pressing
-    // Back returns to it, RequireAuth fires again and shoves you forward to
-    // /login — a trap you can't reverse out of. Replacing means Back skips
-    // straight past to wherever you actually came from.
-    return <Redirect to={`/login${next}`} replace />;
-  }
-  return <Component />;
-}
 
 /**
  * `/profile/:npub` — the old analytics view, now admin-only.
@@ -228,12 +207,14 @@ function AdminRoute() {
 }
 
 function Router() {
+  const [location] = useLocation();
   return (
     <>
       <TrackHistoryDepth />
       <ScrollToTop />
       <StopMediaOnNavigate />
       <SoloPlayback />
+      <ErrorBoundary resetKey={location}>
       <Switch>
         <Route path="/" component={Landing} />
         <Route path="/login" component={LoginPage} />
@@ -283,6 +264,7 @@ function Router() {
         <Route path="/admin">{() => <RequireAuth component={AdminRoute} />}</Route>
         <Route component={NotFound} />
       </Switch>
+      </ErrorBoundary>
     </>
   );
 }

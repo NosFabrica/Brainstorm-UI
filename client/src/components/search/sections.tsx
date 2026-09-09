@@ -19,6 +19,8 @@ export function mergeSnapshots(a: SearchSnapshot | null, b: SearchSnapshot | nul
   return { ...a, hits: [...a.hits, ...b.hits], eose: a.eose && b.eose };
 }
 
+import { useServerStatus } from "@/lib/serverStatus";
+
 export function useSectionStream(
   query: string,
   tab: SearchTab,
@@ -28,10 +30,12 @@ export function useSectionStream(
   since?: number,
 ): SearchSnapshot | null {
   const [snapshot, setSnapshot] = useState<SearchSnapshot | null>(null);
+  // A section restarts when the relay comes back from an outage (lib/serverStatus).
+  const { recovery } = useServerStatus();
   useEffect(() => {
     setSnapshot(null);
     return searchStream(query, { tab, pov, userPubkey, limit, since }, setSnapshot);
-  }, [query, tab, pov, userPubkey, limit, since]);
+  }, [query, tab, pov, userPubkey, limit, since, recovery]);
   return snapshot;
 }
 
