@@ -4,8 +4,9 @@
  * tap on a clip anywhere in the app gives the clip — full view, playing —
  * the way X, Instagram and TikTok do. Plain URL strings still mean images.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { installSoloPlayback, playSolo } from "@/lib/playback";
 import { LightboxProvider, useLightbox } from "./Lightbox";
 
 type OpenArgs = Parameters<ReturnType<typeof useLightbox>>;
@@ -93,5 +94,23 @@ describe("Lightbox", () => {
     fireEvent.click(screen.getByText("open"));
     expect(screen.getByTestId("lightbox-image").getAttribute("src")).toBe("https://cdn.example/a.jpg");
     expect(screen.getByTestId("lightbox-counter")).toHaveTextContent("1 / 2");
+  });
+
+  // A stream expanded full view plays with sound as it opens — the music bar
+  // yields to it (lib/playback; Benjamin, 2026-09-09).
+  it("a stream embed opened full view takes the floor from the music", () => {
+    const stop = installSoloPlayback(document);
+    const music = { pause: vi.fn() };
+    playSolo(music);
+    render(
+      <LightboxProvider>
+        <Opener items={[{ url: "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1", kind: "embed" }]} />
+      </LightboxProvider>,
+    );
+    expect(music.pause).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("open"));
+    expect(screen.getByTestId("lightbox-embed")).toBeInTheDocument();
+    expect(music.pause).toHaveBeenCalledTimes(1);
+    stop();
   });
 });

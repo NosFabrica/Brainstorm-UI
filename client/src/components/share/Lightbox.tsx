@@ -6,6 +6,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { LiveVideoPlayer } from "@/components/share/LiveVideoPlayer";
+import { useSoloEmbed } from "@/lib/playback";
 
 /**
  * X-style media lightbox. Any component can open it via {@link useLightbox}
@@ -69,6 +70,11 @@ function LightboxOverlay({
   const multi = images.length > 1;
   const touchX = useRef<number | null>(null);
   const tierRing = useTierRing();
+  // A stream embed plays with sound as it opens: it takes the floor and the
+  // music bar yields (lib/playback). The video and HLS items are <video>
+  // elements the document listener already sees.
+  const embedFrame = useRef<HTMLIFrameElement | null>(null);
+  useSoloEmbed(embedFrame, images[index].kind === "embed", images[index].url);
 
   const go = useCallback(
     (dir: 1 | -1) => {
@@ -161,6 +167,7 @@ function LightboxOverlay({
       ) : images[index].kind === "embed" ? (
         <div key={images[index].url} onClick={(e) => e.stopPropagation()} className="aspect-video w-[96vw] max-w-5xl overflow-hidden rounded-lg bg-black shadow-2xl">
           <iframe
+            ref={embedFrame}
             src={images[index].url}
             title="Stream"
             allow="autoplay; fullscreen; picture-in-picture; encrypted-media"

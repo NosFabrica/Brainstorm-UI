@@ -97,3 +97,15 @@ Whose trust scores the User is looking at — the house's or their own. Orthogon
 to the Active Account: Perspective changes what you see, Active Account changes
 who you are. Each Account keeps its own.
 _Avoid_: POV, view, observer, lens
+
+## Playback
+
+- **The floor** — the app plays one sound at a time. Whatever starts sounding
+  takes the floor and whatever held it pauses (`lib/playback.ts`). The music
+  bar is one voice; a live stream, a replay, a note's clip once unmuted, an
+  embedded player are the others. Muted playback (a clip autoplaying as it
+  scrolls into view) makes no sound and takes nothing.
+- **Best-effort embeds** — an embedded player is an iframe: the music always
+  yields to it; it yields to the music only where its provider listens
+  (YouTube, Vimeo).
+

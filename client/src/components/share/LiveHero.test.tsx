@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { __resetRecordingChecks } from "@/lib/liveStream";
 import { LiveHero } from "./LiveHero";
+import { installSoloPlayback, playSolo } from "@/lib/playback";
 
 const stream = (tags: string[][]) => ({
   id: "1".repeat(64),
@@ -131,5 +132,18 @@ describe("LiveHero", () => {
     const fresh = { ...stream([["status", "live"], ["streaming", "https://www.twitch.tv/somebody"], ["current_participants", "3"]]), created_at: now - 600 };
     render(<LiveHero event={fresh} />);
     expect(screen.getByTestId("live-pill")).toHaveTextContent(/live/i);
+  });
+
+  // The stream page plays on arrival, with sound — a listener who came in
+  // with the music bar playing heard both (Benjamin, 2026-09-09). The embed
+  // takes the floor as it mounts; the music yields.
+  it("a platform stream playing on arrival takes the floor from the music", () => {
+    const stop = installSoloPlayback(document);
+    const music = { pause: vi.fn() };
+    playSolo(music);
+    render(<LiveHero event={stream([["status", "live"], ["streaming", "https://www.twitch.tv/cowboisim"]])} />);
+    expect(screen.getByTestId("live-embed")).toBeInTheDocument();
+    expect(music.pause).toHaveBeenCalledTimes(1);
+    stop();
   });
 });

@@ -6,7 +6,8 @@
  * fed from the queue's own metadata.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { closePlayer, extendPlaylist, peekNext, playNext, setPlaylist, stopAllMedia, toggleTrack } from "./audioPlayer";
+import { closePlayer, extendPlaylist, peekNext, playNext, setPlaylist, stopAllMedia, toggleTrack, togglePlayback } from "./audioPlayer";
+import { installSoloPlayback } from "./playback";
 
 type Handler = (() => void) | null;
 const handlers = new Map<string, Handler>();
@@ -99,5 +100,38 @@ describe("audioPlayer — extending the line-up behind the active track", () => 
     toggleTrack("solo", "https://cdn/s.mp3", { title: "Solo" });
     extendPlaylist([{ id: "n", src: "https://cdn/n.mp3", title: "N" }]);
     expect(peekNext("solo")?.id).toBe("n");
+  });
+});
+
+// One sound at a time (lib/playback): a listener who starts a track over a
+// playing video hears the track, not both (Benjamin, 2026-09-09).
+describe("audioPlayer — takes the floor", () => {
+  let stop: () => void;
+  beforeEach(() => {
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+    vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+    stop = installSoloPlayback(document);
+  });
+  afterEach(() => {
+    stop();
+    closePlayer();
+    document.body.innerHTML = "";
+    vi.restoreAllMocks();
+  });
+
+  it("starting a track pauses the video that was sounding; resuming after a pause does too", () => {
+    const stream = document.createElement("video");
+    const streamPause = vi.fn();
+    stream.pause = streamPause;
+    document.body.appendChild(stream);
+    stream.dispatchEvent(new Event("play"));
+    toggleTrack("a", "https://cdn/a.mp3", { title: "A" });
+    expect(streamPause).toHaveBeenCalledTimes(1);
+    // The listener pauses the track, plays the stream again, then resumes the track.
+    togglePlayback();
+    stream.dispatchEvent(new Event("play"));
+    Object.defineProperty(HTMLMediaElement.prototype, "paused", { get: () => true, configurable: true });
+    togglePlayback();
+    expect(streamPause).toHaveBeenCalledTimes(2);
   });
 });

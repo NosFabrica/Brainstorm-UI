@@ -6,6 +6,7 @@
 
 import { useSyncExternalStore, useState, useEffect, useRef, type RefObject } from "react";
 import type { MinimalEvent } from "@/lib/noteRefs";
+import { playSolo, type Sounding } from "@/lib/playback";
 
 export type TrackStatus = "idle" | "loading" | "playing" | "paused" | "error";
 
@@ -64,6 +65,8 @@ export type TrackMeta = Pick<PlaylistTrack, "title" | "artist" | "cover" | "href
 
 let audio: HTMLAudioElement | null = null;
 let currentId: string | null = null;
+/** The music as one voice in the app's one-sound-at-a-time rule (lib/playback). */
+const musicHolder: Sounding = { pause: () => pausePlayback() };
 let status: TrackStatus = "idle";
 let playlist: PlaylistTrack[] = [];
 /** What each track is called, for the system's now-playing — from the queue or the row that started it. */
@@ -127,7 +130,7 @@ function wireMediaSessionKeys() {
   const set = (name: MediaSessionAction, handler: () => void) => {
     try { navigator.mediaSession.setActionHandler(name, handler); } catch { /* unsupported action */ }
   };
-  set("play", () => { if (audio && currentId) Promise.resolve(audio.play()).catch(() => {}); });
+  set("play", () => { if (audio && currentId) { playSolo(musicHolder); Promise.resolve(audio.play()).catch(() => {}); } });
   set("pause", () => pausePlayback());
   set("nexttrack", () => { playNext(); });
   set("previoustrack", () => { playPrev(); });
@@ -178,7 +181,7 @@ export function toggleTrack(id: string, src: string, meta?: TrackMeta) {
   if (meta?.title) metaById.set(id, meta);
   wireMediaSessionKeys();
   if (currentId === id) {
-    if (a.paused) { status = "loading"; Promise.resolve(a.play()).catch(() => { status = "error"; emit(); }); }
+    if (a.paused) { status = "loading"; playSolo(musicHolder); Promise.resolve(a.play()).catch(() => { status = "error"; emit(); }); }
     else { a.pause(); }
     emit();
     return;
@@ -188,6 +191,7 @@ export function toggleTrack(id: string, src: string, meta?: TrackMeta) {
   a.src = src;
   a.currentTime = 0;
   applyMediaSession(id);
+  playSolo(musicHolder);
   // Wrapped: a media element that returns nothing from play() (older engines,
   // test DOMs) must not throw before the store learns which track is active.
   Promise.resolve(a.play()).catch(() => { status = "error"; emit(); });
@@ -197,7 +201,7 @@ export function toggleTrack(id: string, src: string, meta?: TrackMeta) {
 /** Play or pause whatever is active — the bar's button, the hardware key. */
 export function togglePlayback() {
   if (!audio || !currentId) return;
-  if (audio.paused) { status = "loading"; Promise.resolve(audio.play()).catch(() => { status = "error"; emit(); }); emit(); }
+  if (audio.paused) { status = "loading"; playSolo(musicHolder); Promise.resolve(audio.play()).catch(() => { status = "error"; emit(); }); emit(); }
   else audio.pause();
 }
 

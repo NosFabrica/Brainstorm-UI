@@ -23,7 +23,7 @@ describe("streamEmbedUrl", () => {
   });
 
   it("turns YouTube watch / live / short links into the embed player", () => {
-    const want = "https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&playsinline=1";
+    const want = "https://www.youtube.com/embed/dQw4w9WgXcQ?autoplay=1&playsinline=1&enablejsapi=1";
     expect(streamEmbedUrl("https://www.youtube.com/watch?v=dQw4w9WgXcQ", "x")).toBe(want);
     expect(streamEmbedUrl("https://youtube.com/live/dQw4w9WgXcQ?feature=share", "x")).toBe(want);
     expect(streamEmbedUrl("https://youtu.be/dQw4w9WgXcQ", "x")).toBe(want);

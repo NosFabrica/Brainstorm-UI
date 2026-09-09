@@ -30,7 +30,8 @@ export function streamEmbedUrl(streaming: string, parentHost: string): string | 
     else if (segments[0] === "watch") id = u.searchParams.get("v");
     else if (segments[0] === "live" || segments[0] === "embed" || segments[0] === "shorts") id = segments[1] ?? null;
     if (!id || !/^[\w-]{6,}$/.test(id)) return null;
-    return `https://www.youtube.com/embed/${id}?autoplay=1&playsinline=1`;
+    // enablejsapi: the page can tell the player to pause when the music takes the floor (lib/playback).
+    return `https://www.youtube.com/embed/${id}?autoplay=1&playsinline=1&enablejsapi=1`;
   }
   return null;
 }
@@ -58,6 +59,6 @@ export function replayEmbedUrl(recording: string): string | null {
     if (segments[0] === "watch") id = u.searchParams.get("v");
     else if (["live", "embed", "shorts", "v"].includes(segments[0] ?? "")) id = segments[1] ?? null;
   }
-  if (id && /^[\w-]{6,}$/.test(id)) return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&modestbranding=1`;
+  if (id && /^[\w-]{6,}$/.test(id)) return `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1`;
   return null;
 }

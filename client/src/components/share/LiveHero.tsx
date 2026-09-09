@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { nip19 } from "nostr-tools";
 import { Radio, Users, ExternalLink, CalendarClock } from "lucide-react";
+import { useSoloEmbed } from "@/lib/playback";
 import { LiveVideoPlayer } from "@/components/share/LiveVideoPlayer";
 import { NotesInline } from "@/components/share/NotesInline";
 import { isHlsUrl, replayEmbedUrl, streamEmbedUrl } from "@/lib/streamEmbed";
@@ -72,12 +73,20 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
   const replayFile = replayable && !replayEmbed && !replayHls && isVideoFileUrl(recording as string);
   const hasReplay = !!replayEmbed || replayHls || replayFile;
   const canEmbed = !!platformEmbed || hls || hasReplay;
+  // An embed plays on arrival, with sound: it takes the floor as it mounts and
+  // the music bar yields (lib/playback). The HLS player is a <video> the
+  // document listener already sees.
+  const liveFrame = useRef<HTMLIFrameElement | null>(null);
+  const replayFrame = useRef<HTMLIFrameElement | null>(null);
+  useSoloEmbed(liveFrame, !!platformEmbed);
+  useSoloEmbed(replayFrame, !!replayEmbed);
 
   return (
     <div data-testid="live-hero">
       {platformEmbed ? (
         <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-slate-200 bg-black dark:border-slate-800">
           <iframe
+            ref={liveFrame}
             src={platformEmbed}
             title={title}
             allow="autoplay; fullscreen; picture-in-picture; encrypted-media"
@@ -92,6 +101,7 @@ export function LiveHero({ event }: { event: MinimalEvent }) {
       ) : replayEmbed ? (
         <div className="relative aspect-video w-full overflow-hidden rounded-2xl border border-slate-200 bg-black dark:border-slate-800">
           <iframe
+            ref={replayFrame}
             src={replayEmbed}
             title={`${title} — replay`}
             allow="autoplay; fullscreen; picture-in-picture; encrypted-media"

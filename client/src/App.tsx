@@ -4,6 +4,7 @@ import { AccountsProvider, EventStoreProvider } from "applesauce-react/providers
 import { accountManager } from "@/accounts";
 import { eventStore } from "@/services/nostr";
 import { stopAllMedia } from "@/lib/audioPlayer";
+import { installSoloPlayback } from "@/lib/playback";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -133,6 +134,14 @@ function StopMediaOnNavigate() {
   return null;
 }
 
+// One sound at a time: whatever starts sounding — the music bar, a stream,
+// a clip the reader unmutes, an embed — takes the floor and the rest pause.
+// One document listener covers every media element (lib/playback).
+function SoloPlayback() {
+  useEffect(() => installSoloPlayback(), []);
+  return null;
+}
+
 // The search experience now lives on the home page (`/`). Old `/search` links
 // (and `/search?q=...` deep links) redirect to `/` preserving the query so they
 // keep working.
@@ -224,6 +233,7 @@ function Router() {
       <TrackHistoryDepth />
       <ScrollToTop />
       <StopMediaOnNavigate />
+      <SoloPlayback />
       <Switch>
         <Route path="/" component={Landing} />
         <Route path="/login" component={LoginPage} />
