@@ -170,3 +170,27 @@ shows status, labels, comments, contributors and activity, but never a
 version. Ask: index 30618 (replaceable, keyed by the repo's d-tag), so the
 newest state per repo answers a `#a`/`d` lookup like everything else here.
 
+
+## 14. Paging: time is the cursor under `sort:recent`; best match has none (2026-09-09)
+
+Benjamin: "search pages are getting capped" — one page of 100 and a wall. The UI
+now turns pages as the reader reaches the bottom (`lib/searchStream`'s `more`).
+Probed the same day against the staging relay:
+
+- **`sort:recent` pages cleanly by `until`.** A second REQ with the same filter and
+  `until` = the oldest `created_at` seen returns the next 100 older events with no
+  overlap beyond the boundary second (which the UI dedupes by id). `limit` is
+  honoured to at least 400 in one REQ.
+- **Best match has no cursor.** `until` on a ranked query narrows the time window
+  instead of continuing the ranking (the newest results fall off). But the ranking
+  is stable as the limit grows — `limit 200` is exactly the `limit 100` plus a tail
+  — so the UI's "more" under best match is a bigger ask, keeping only the tail it
+  has not seen. Cost: the relay re-sends the head every page (100, then 200, then
+  300 …). Fine for a few pages; not for deep browsing.
+- **The end is inferred, not stated.** A page the relay returns short is taken as
+  the last; there is no total. A closed subscription per turned page keeps the
+  50-subscription cap out of reach.
+
+Ask: an `offset:` (or opaque cursor) for ranked queries, so a ranked page 2 is
+"the next 100" rather than "the first 200 again"; and a result total on EOSE
+(ties to #5) so the UI can say "showing 300 of 1,204" instead of just "more".

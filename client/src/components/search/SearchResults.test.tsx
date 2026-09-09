@@ -12,7 +12,8 @@ import type { NostrEvent } from "nostr-tools";
 import type { SearchSnapshot } from "@/services/search";
 
 const streamMock = vi.fn();
-const cancelMock = vi.fn();
+const moreMock = vi.fn();
+const cancelMock = Object.assign(vi.fn(), { more: moreMock });
 const suggestMock = vi.fn<() => Promise<unknown[]>>(() => Promise.resolve([]));
 // Every stream registered, with its callback. The KnowledgePanel's probes
 // (the #query topic probe, the limit-6 apps probe and the limit-60 events
@@ -2362,4 +2363,28 @@ describe("the Articles tab orders worded searches by best match", () => {
       await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(1));
       expect(String(mainStreamCalls().at(-1)![0])).toBe("comedians sort:recent");
     });
+  
+});
+
+describe("more results", () => {
+  // Benjamin (2026-09-09): "search pages are getting capped" — an endless
+  // feed feel when there is more. The end of a page offers it; choosing it
+  // turns the page and the rows grow in place.
+  it("the end of a page offers more, choosing it turns the page, and the rows grow in place", async () => {
+    setUrlTab("notes");
+    render(<SearchResults query="nostr" pov="nosfabrica" />);
+    const hits = (n: number) => Array.from({ length: n }, (_, i) => ({ event: ev(`n${i}`, 1, "a".repeat(64), `note ${i}`), author: author("a".repeat(64), "alice"), rank: null }));
+    emit({ hits: hits(3), eose: true, exhausted: false });
+    await screen.findByText("note 2");
+    const more = screen.getByTestId("search-more");
+    expect(more).toHaveTextContent(/more/i);
+    fireEvent.click(more);
+    expect(moreMock).toHaveBeenCalledTimes(1);
+    emit({ hits: hits(3), eose: true, loadingMore: true });
+    await vi.waitFor(() => expect(screen.getByTestId("search-more")).toBeDisabled());
+    emit({ hits: hits(5), eose: true, exhausted: true });
+    await screen.findByText("note 4");
+    expect(screen.getByText("note 0")).toBeInTheDocument();
+    expect(screen.queryByTestId("search-more")).toBeNull();
   });
+});

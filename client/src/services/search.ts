@@ -88,7 +88,14 @@ export interface SearchSnapshot {
   /** Stamped at EOSE — the "About N results in Xs" line. */
   timeMs: number | null;
   error: string | null;
+  /** A further page is on its way (the handle's `more`). */
+  loadingMore?: boolean;
+  /** The last page brought nothing new — there is no more to turn. */
+  exhausted?: boolean;
 }
+
+/** Cancel by calling it; `more` turns the next page once the current one has ended. */
+export type SearchHandle = (() => void) & { more: () => void };
 
 export type SearchPov = "nosfabrica" | "mywot";
 
@@ -161,15 +168,21 @@ export function searchStream(
   query: string,
   params: SearchParams,
   onSnapshot: (snapshot: SearchSnapshot) => void,
-): () => void {
+): SearchHandle {
   let cancelled = false;
   let unsubscribe: (() => void) | null = null;
+  let turnPage: (() => void) | null = null;
 
   const hits: SearchHit[] = [];
+  // Paging state — the page's end, whether another is on its way, and
+  // whether the relay has anything left to give.
+  let eose = false;
+  let loadingMore = false;
+  let exhausted = false;
   const startedAt = Date.now();
   const emit = (partial: Partial<SearchSnapshot>) => {
     if (cancelled) return;
-    onSnapshot({ hits: [...hits], eose: false, timeMs: null, error: null, ...partial });
+    onSnapshot({ hits: [...hits], eose, timeMs: null, error: null, loadingMore, exhausted, ...partial });
   };
 
   void (async () => {
@@ -238,34 +251,81 @@ export function searchStream(
       return null;
     };
 
-    const sub = relay.req(filter).subscribe((msg: { type: string; event?: NostrEvent; reason?: string }) => {
-      if (cancelled) return;
-      if (msg.type === "EVENT" && msg.event) {
-        const event = msg.event;
-        // Into the store the moment it arrives: the search relay's corpus is
-        // wider than the content relays', so a clicked result must render
-        // from what we already hold, not from relays that may lack it.
-        eventStore.add(event);
-        hits.push({ event, author: noteAuthor(event), rank: null });
-        emit({});
-      } else if (msg.type === "EOSE") {
-        emit({ eose: true, timeMs: Date.now() - startedAt });
-      } else if (msg.type === "CLOSED") {
-        emit({ error: msg.reason ?? "Search ended unexpectedly" });
-      }
-    });
+    // --- Pages. The first REQ stays open so the relay can keep streaming
+    // what arrives; every further page closes at its EOSE (the relay caps
+    // concurrent subscriptions). Hits are deduped by id across pages: a
+    // recent-sorted page is asked `until` the oldest second seen, which
+    // returns that second again, and a best-match page is a bigger ask that
+    // repeats the whole ranking so far (probed 2026-09-09: the top of the
+    // ranking is stable as the limit grows).
+    const seen = new Set<string>();
+    const pageLimit = filter.limit ?? DEFAULT_LIMIT;
+    const recent = /(^|\s)sort:recent(\s|$)/.test(filter.search ?? "");
+    let oldest = Infinity;
+    let pagesTurned = 0;
+    const pageSubs: { unsubscribe: () => void }[] = [];
+
+    const openPage = (pageFilter: import("nostr-tools").Filter, closeAtEose: boolean) => {
+      let received = 0;
+      let fresh = 0;
+      const sub = relay.req(pageFilter).subscribe((msg: { type: string; event?: NostrEvent; reason?: string }) => {
+        if (cancelled) return;
+        if (msg.type === "EVENT" && msg.event) {
+          const event = msg.event;
+          received++;
+          if (seen.has(event.id)) return;
+          seen.add(event.id);
+          fresh++;
+          oldest = Math.min(oldest, event.created_at);
+          // Into the store the moment it arrives: the search relay's corpus is
+          // wider than the content relays', so a clicked result must render
+          // from what we already hold, not from relays that may lack it.
+          eventStore.add(event);
+          hits.push({ event, author: noteAuthor(event), rank: null });
+          emit({});
+        } else if (msg.type === "EOSE") {
+          eose = true;
+          loadingMore = false;
+          // A page the relay returned short is the last one — counted as the
+          // relay sent it, before dedupe: an `until` page always carries the
+          // boundary second again. A full page with nothing new is the end too.
+          if (received < (pageFilter.limit ?? pageLimit) || fresh === 0) exhausted = true;
+          if (closeAtEose) sub.unsubscribe();
+          emit({ timeMs: Date.now() - startedAt });
+        } else if (msg.type === "CLOSED") {
+          loadingMore = false;
+          emit({ error: msg.reason ?? "Search ended unexpectedly" });
+        }
+      });
+      pageSubs.push(sub);
+    };
+
+    turnPage = () => {
+      if (cancelled || !eose || loadingMore || exhausted) return;
+      loadingMore = true;
+      pagesTurned++;
+      const next: import("nostr-tools").Filter = recent
+        ? { ...filter, until: oldest }
+        : { ...filter, limit: pageLimit * (pagesTurned + 1) };
+      emit({});
+      openPage(next, true);
+    };
+
+    openPage(filter, false);
     unsubscribe = () => {
-      sub.unsubscribe();
+      for (const sub of pageSubs) sub.unsubscribe();
       hydrateSub?.unsubscribe();
       if (hydrateTimer) clearTimeout(hydrateTimer);
     };
     if (cancelled) unsubscribe();
   })();
 
-  return () => {
+  const handle = (() => {
     cancelled = true;
     unsubscribe?.();
-  };
+  }) as SearchHandle;
+  handle.more = () => turnPage?.();
+  return handle;
 }
 
 export interface AppRelease {

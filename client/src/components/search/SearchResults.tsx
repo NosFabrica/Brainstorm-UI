@@ -35,7 +35,9 @@ import {
   type SearchPov,
   type SearchSnapshot,
   type SearchTab,
+  type SearchHandle,
 } from "@/services/search";
+import { MoreResults } from "./MoreResults";
 
 import { fetchEventRsvps, fetchGitCommentCounts, fetchGitStatuses, type EventRsvps } from "@/services/search";
 import { GIT_STATE_LABEL, foldForks, gitLabelsOf, gitStateOf, isGitItem, peopleBeforeAgents, type GitState } from "@/lib/gitStatus";
@@ -566,6 +568,8 @@ export function SearchResults({
     onTabChange?.(tab);
   }, [tab, onTabChange]);
   const [snapshot, setSnapshot] = useState<SearchSnapshot | null>(null);
+  // The tab's live stream, so the end of the page can ask it for more.
+  const streamRef = useRef<SearchHandle | null>(null);
   // Media on Nostr is mostly a NOTE with a file attached (Rabbit Hole Recap:
   // 254 notes, no media-kind events, a video in most of them). The Media tab
   // asks for notes too and keeps the ones that carry something to look at.
@@ -631,7 +635,12 @@ export function SearchResults({
     // Events too: the relay only knows created_at, so the When facet works
     // over a deep recent page (probed: no start-tag filter or sort).
     const limit = clientFiltered.verifiedOnly || clientFiltered.reach || tab === "events" ? 300 : undefined;
-    return searchStream(effectiveQuery, { tab, pov, userPubkey, limit }, setSnapshot);
+    const handle = searchStream(effectiveQuery, { tab, pov, userPubkey, limit }, setSnapshot);
+    streamRef.current = handle;
+    return () => {
+      if (streamRef.current === handle) streamRef.current = null;
+      handle();
+    };
   }, [effectiveQuery, tab, pov, userPubkey, composed]);
 
   useEffect(() => {
@@ -1549,6 +1558,11 @@ export function SearchResults({
             })}
           </div>
           )}
+          <MoreResults
+            show={!!snapshot?.eose && !snapshot.error && !snapshot.exhausted}
+            loading={!!snapshot?.loadingMore}
+            onMore={() => streamRef.current?.more()}
+          />
           {floorNotice}
         </>
       )}

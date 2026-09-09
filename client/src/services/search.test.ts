@@ -136,6 +136,109 @@ describe("searchStream", () => {
   });
 });
 
+// Benjamin (2026-09-09): "right now search pages are getting capped" — one
+// page of a hundred and a wall. Probed the relay the same day: with
+// sort:recent a second REQ with `until` at the oldest seen returns the next
+// hundred older, no overlap — time is the cursor. The handle's `more` turns
+// that page.
+describe("searchStream — more", () => {
+  /** One controllable subject per REQ, in the order the stream opens them. */
+  function pages(n: number) {
+    const subjects = Array.from({ length: n }, () => new Subject<ReqFrame>());
+    reqMock.mockImplementation(() => {
+      const idx = reqMock.mock.calls.length - 1;
+      return new Observable<ReqFrame>((subscriber) => {
+        const inner = subjects[idx].subscribe(subscriber);
+        return () => inner.unsubscribe();
+      });
+    });
+    return subjects;
+  }
+  const note = (id: string, created_at: number): NostrEvent => ({ id, kind: 1, pubkey: "a".repeat(64), tags: [], content: id, created_at, sig: "s" }) as NostrEvent;
+
+  it("asked for more, a recent-sorted stream requests the page older than what it has and appends it", async () => {
+    const [first, second] = pages(2);
+    const snaps: SearchSnapshot[] = [];
+    const handle = searchStream("sort:recent", { tab: "notes", pov: "nosfabrica", limit: 3 }, (s) => snaps.push(s));
+    await tick();
+    first.next(frame(note("n1", 3000)));
+    first.next(frame(note("n2", 2000)));
+    first.next(frame(note("n3", 1000)));
+    first.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.eose).toBe(true);
+
+    handle.more();
+    await tick();
+    expect(reqMock).toHaveBeenCalledTimes(2);
+    const page2 = reqMock.mock.calls[1][0] as { until?: number; limit: number; search: string; kinds?: number[] };
+    expect(page2.until).toBe(1000);
+    expect(page2.limit).toBe(3);
+    expect(page2.search).toBe((reqMock.mock.calls[0][0] as { search: string }).search);
+    expect(page2.kinds).toEqual((reqMock.mock.calls[0][0] as { kinds?: number[] }).kinds);
+
+    second.next(frame(note("n3", 1000))); // the boundary second comes back — once
+    second.next(frame(note("n4", 900)));
+    second.next(frame(note("n5", 800)));
+    second.next(EOSE);
+    await tick();
+    const last = snaps.at(-1)!;
+    expect(last.hits.map((h) => h.event.id)).toEqual(["n1", "n2", "n3", "n4", "n5"]);
+    expect(last.eose).toBe(true);
+    handle();
+  });
+
+  it("a short page is the last: the stream says so, and a further more() opens nothing", async () => {
+    const [first, second] = pages(3);
+    const snaps: SearchSnapshot[] = [];
+    const handle = searchStream("sort:recent", { tab: "notes", pov: "nosfabrica", limit: 3 }, (s) => snaps.push(s));
+    await tick();
+    first.next(frame(note("n1", 3000)));
+    first.next(frame(note("n2", 2000)));
+    first.next(frame(note("n3", 1000)));
+    first.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.exhausted).toBe(false);
+    handle.more();
+    await tick();
+    expect(snaps.at(-1)!.loadingMore).toBe(true);
+    second.next(frame(note("n4", 900)));
+    second.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.hits).toHaveLength(4);
+    expect(snaps.at(-1)!.loadingMore).toBe(false);
+    expect(snaps.at(-1)!.exhausted).toBe(true);
+    handle.more();
+    await tick();
+    expect(reqMock).toHaveBeenCalledTimes(2);
+    handle();
+  });
+
+  // Best match has no time cursor: the relay's ranking is stable as the
+  // limit grows (200 is the 100 plus a tail), so more is a bigger ask and
+  // only the tail is new.
+  it("a best-match stream asks again with a bigger page and keeps only the tail it had not seen", async () => {
+    const [first, second] = pages(2);
+    const snaps: SearchSnapshot[] = [];
+    const handle = searchStream("bitcoin", { tab: "notes", pov: "nosfabrica", limit: 3 }, (s) => snaps.push(s));
+    await tick();
+    for (const [id, at] of [["r1", 5], ["r2", 9], ["r3", 2]] as const) first.next(frame(note(id, at)));
+    first.next(EOSE);
+    await tick();
+    handle.more();
+    await tick();
+    const page2 = reqMock.mock.calls[1][0] as { until?: number; limit: number };
+    expect(page2.until).toBeUndefined();
+    expect(page2.limit).toBe(6);
+    for (const [id, at] of [["r1", 5], ["r2", 9], ["r3", 2], ["r4", 7], ["r5", 1]] as const) second.next(frame(note(id, at)));
+    second.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["r1", "r2", "r3", "r4", "r5"]);
+    expect(snaps.at(-1)!.exhausted).toBe(true);
+    handle();
+  });
+});
+
 describe("browse mode — no keyword at all", () => {
   // Benjamin's ask: "what if they just want to see all the live events?"
   // A keyword can only NARROW. An empty query with a kinds set is a valid
