@@ -898,7 +898,7 @@ export default function SharePage() {
   ) : null;
   // Keyed so a late-arriving relationship resyncs the optimistic state.
   const followButton = loggedIn && !isOwner ? (
-    <FollowButton key={String(rel.isFollowing)} targetPubkey={pubkey} initialFollowing={rel.isFollowing} />
+    <FollowButton key={String(rel.isFollowing)} targetPubkey={pubkey} initialFollowing={rel.isFollowing} displayName={displayName} />
   ) : null;
   const profileMenu = (
     <ProfileMenu
