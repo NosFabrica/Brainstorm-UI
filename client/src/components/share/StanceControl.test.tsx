@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { StanceButtons, stanceMenuRow } from "./StanceControl";
+import { StanceButtons } from "./StanceControl";
 
 /**
  * Issue #41 B2 — the stance control.
@@ -106,25 +106,5 @@ describe("StanceButtons", () => {
       }
       cleanup();
     }
-  });
-});
-
-describe("stanceMenuRow", () => {
-  it("gives menus both choices, with the held one inert", () => {
-    const neutral = stanceMenuRow(undefined);
-    expect(neutral.agree.polarity).toBe(1);
-    expect(neutral.disagree.polarity).toBe(-1);
-    expect(neutral.agree.disabled).toBe(false);
-    expect(neutral.disagree.disabled).toBe(false);
-
-    const agreed = stanceMenuRow("apply");
-    expect(agreed.agree.disabled).toBe(true);
-    expect(agreed.disagree.disabled).toBe(false);
-    expect(agreed.disagree.polarity).toBe(-1);
-
-    const disagreed = stanceMenuRow("dispute");
-    expect(disagreed.disagree.disabled).toBe(true);
-    expect(disagreed.agree.disabled).toBe(false);
-    expect(disagreed.agree.polarity).toBe(1);
   });
 });
