@@ -108,6 +108,12 @@ export interface SearchParams {
   /** Epoch lower bound, to the second — the home feed's "last 24 hours".
    *  (The grammar's since:YYYY-MM-DD is day-precision; this is not.) */
   since?: number;
+  /**
+   * The pages a previous life of this search had loaded (a reader came back
+   * from a result): shown at once, the first page refreshes in front of them,
+   * and the next page turns from their end.
+   */
+  seed?: SearchHit[];
 }
 
 const DEFAULT_LIMIT = 100;
@@ -182,10 +188,24 @@ export function searchStream(
 
   const hits: SearchHit[] = [];
   // Paging state — the page's end, whether another is on its way, and
-  // whether the relay has anything left to give.
+  // whether the relay has anything left to give. Hits are deduped by id
+  // across pages (and against the seed); `oldest` is the recent-sort cursor.
   let eose = false;
   let loadingMore = false;
   let exhausted = false;
+  const seen = new Set<string>();
+  const pageLimit = params.limit ?? DEFAULT_LIMIT;
+  let oldest = Infinity;
+  let pagesTurned = 0;
+  const seed = params.seed ?? [];
+  for (const h of seed) {
+    if (seen.has(h.event.id)) continue;
+    seen.add(h.event.id);
+    hits.push(h);
+    oldest = Math.min(oldest, h.event.created_at);
+  }
+  // A seed of three pages means the next best-match ask is the fourth.
+  if (seed.length) pagesTurned = Math.max(0, Math.ceil(seed.length / pageLimit) - 1);
   const startedAt = Date.now();
   const emit = (partial: Partial<SearchSnapshot>) => {
     if (cancelled) return;
@@ -277,16 +297,15 @@ export function searchStream(
     // returns that second again, and a best-match page is a bigger ask that
     // repeats the whole ranking so far (probed 2026-09-09: the top of the
     // ranking is stable as the limit grows).
-    const seen = new Set<string>();
-    const pageLimit = filter.limit ?? DEFAULT_LIMIT;
     const recent = /(^|\s)sort:recent(\s|$)/.test(filter.search ?? "");
-    let oldest = Infinity;
-    let pagesTurned = 0;
     const pageSubs: { unsubscribe: () => void }[] = [];
 
     const openPage = (pageFilter: import("nostr-tools").Filter, closeAtEose: boolean) => {
       let received = 0;
       let fresh = 0;
+      // The first page of a seeded stream is a refresh: what it brings is
+      // newer than the seed and goes in front of it, in arrival order.
+      let insertAt = 0;
       const sub = relay.req(pageFilter).subscribe((msg: { type: string; event?: NostrEvent; reason?: string }) => {
         if (cancelled) return;
         if (msg.type === "EVENT" && msg.event) {
@@ -300,7 +319,9 @@ export function searchStream(
           // wider than the content relays', so a clicked result must render
           // from what we already hold, not from relays that may lack it.
           eventStore.add(event);
-          hits.push({ event, author: noteAuthor(event), rank: null });
+          const hit = { event, author: noteAuthor(event), rank: null };
+          if (!closeAtEose && seed.length) hits.splice(insertAt++, 0, hit);
+          else hits.push(hit);
           emit({});
         } else if (msg.type === "EOSE") {
           eose = true;
@@ -348,6 +369,8 @@ export function searchStream(
     unsubscribe?.();
   }) as SearchHandle;
   handle.more = () => turnPage?.();
+  // A seeded search has something to show before the relay answers.
+  if (seed.length) emit({});
   return handle;
 }
 

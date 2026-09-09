@@ -5,7 +5,7 @@
  * in-flight stream and starts a fresh one (a cancelled handle never calls
  * back, so stale results structurally cannot flash).
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
@@ -535,6 +535,37 @@ function FiltersPanel({
   );
 }
 
+/**
+ * What a search had loaded, for its next life. Opening a result and coming
+ * back used to restart at page one (2026-09-09): a reader ten pages deep
+ * landed at the top with nothing below. Module-level so it outlives the
+ * page; ten minutes and eight searches deep, which is a browsing session.
+ */
+const SEARCH_MEMORY = new Map<string, { hits: SearchHit[]; scrollY: number; at: number }>();
+const SEARCH_MEMORY_TTL_MS = 10 * 60_000;
+const SEARCH_MEMORY_SIZE = 8;
+function rememberKey(query: string, tab: string, pov: string, userPubkey?: string): string {
+  return [query, tab, pov, userPubkey ?? ""].join("\u0000");
+}
+function rememberSearch(key: string, hits: SearchHit[], scrollY: number): void {
+  SEARCH_MEMORY.delete(key);
+  SEARCH_MEMORY.set(key, { hits, scrollY, at: Date.now() });
+  while (SEARCH_MEMORY.size > SEARCH_MEMORY_SIZE) SEARCH_MEMORY.delete(SEARCH_MEMORY.keys().next().value as string);
+}
+/** Tests: forget every search. */
+export function __resetSearchMemory(): void {
+  SEARCH_MEMORY.clear();
+}
+function recallSearch(key: string): { hits: SearchHit[]; scrollY: number } | null {
+  const m = SEARCH_MEMORY.get(key);
+  if (!m) return null;
+  if (Date.now() - m.at > SEARCH_MEMORY_TTL_MS) {
+    SEARCH_MEMORY.delete(key);
+    return null;
+  }
+  return m;
+}
+
 export function SearchResults({
   query,
   pov,
@@ -570,6 +601,7 @@ export function SearchResults({
   const [snapshot, setSnapshot] = useState<SearchSnapshot | null>(null);
   // The tab's live stream, so the end of the page can ask it for more.
   const streamRef = useRef<SearchHandle | null>(null);
+  const firstRun = useRef(true);
   // Media on Nostr is mostly a NOTE with a file attached (Rabbit Hole Recap:
   // 254 notes, no media-kind events, a video in most of them). The Media tab
   // asks for notes too and keeps the ones that carry something to look at.
@@ -623,21 +655,52 @@ export function SearchResults({
       ? `${safeQuery} sort:recent`.trim()
       : safeQuery;
 
+  // Where the reader was when this search left the page. Read in a layout
+  // cleanup: on a navigation the app scrolls to the top in its own layout
+  // effect, and a passive cleanup would read zero.
+  const scrollAtLeave = useRef(0);
+  useLayoutEffect(() => {
+    return () => {
+      scrollAtLeave.current = typeof window !== "undefined" ? window.scrollY : 0;
+    };
+  }, [effectiveQuery, tab, pov, userPubkey, composed]);
+
   useEffect(() => {
     if (composed) {
       setSnapshot(null);
       return;
     }
-    setSnapshot(null);
     // Client-side filters (Verified only, reach) thin the page after the
     // fact — ask the relay for a deeper one so there is something left.
     const clientFiltered = readFilters(effectiveQuery);
     // Events too: the relay only knows created_at, so the When facet works
     // over a deep recent page (probed: no start-tag filter or sort).
     const limit = clientFiltered.verifiedOnly || clientFiltered.reach || tab === "events" ? 300 : undefined;
-    const handle = searchStream(effectiveQuery, { tab, pov, userPubkey, limit }, setSnapshot);
+    // A search this tab ran before comes back with the pages it had, before
+    // the relay answers — and, when the page itself is coming back (a reader
+    // returning from a result), to where they were in it.
+    const key = rememberKey(effectiveQuery, tab, pov, userPubkey);
+    const remembered = recallSearch(key);
+    const restoreScroll = firstRun.current && remembered ? remembered.scrollY : null;
+    firstRun.current = false;
+    let latest: SearchSnapshot | null = remembered ? { hits: remembered.hits, eose: false, timeMs: null, error: null } : null;
+    setSnapshot(latest);
+    const handle = searchStream(effectiveQuery, { tab, pov, userPubkey, limit, seed: remembered?.hits }, (snap) => {
+      latest = snap;
+      setSnapshot(snap);
+    });
     streamRef.current = handle;
+    let pending: number | ReturnType<typeof setTimeout> | null = null;
+    if (restoreScroll != null && restoreScroll > 0) {
+      // After paint — and after the app's own scroll-to-top on navigation.
+      pending =
+        typeof requestAnimationFrame === "function"
+          ? requestAnimationFrame(() => window.scrollTo({ top: restoreScroll, behavior: "instant" as ScrollBehavior }))
+          : setTimeout(() => window.scrollTo({ top: restoreScroll, behavior: "instant" as ScrollBehavior }), 0);
+    }
     return () => {
+      if (latest && latest.hits.length) rememberSearch(key, latest.hits, scrollAtLeave.current);
+      if (typeof pending === "number" && typeof cancelAnimationFrame === "function") cancelAnimationFrame(pending);
       if (streamRef.current === handle) streamRef.current = null;
       handle();
     };

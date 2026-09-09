@@ -72,8 +72,7 @@ import {
   suggestProfiles,
   kindsForTab,
   TAB_KINDS,
-  type SearchSnapshot,
-} from "./search";
+  type SearchSnapshot, type SearchHit } from "./search";
 
 const HOUSE = "f".repeat(64);
 
@@ -286,6 +285,52 @@ describe("searchStream — more", () => {
 // probed: 161 ended streams under her own key, none with a recording; 300
 // under the platform's, 67 with replays. A person scope on the Live tab
 // asks by host.
+// Opening a result and coming back used to restart the search at page one
+// (2026-09-09): a reader ten pages deep landed at the top with nothing
+// below. A stream can be seeded with the pages a previous life had — they
+// show at once, the first page refreshes in front of them, and the next
+// page turns from the seed's end.
+describe("searchStream — seeded from a previous life", () => {
+  function pages(n: number) {
+    const subjects = Array.from({ length: n }, () => new Subject<ReqFrame>());
+    reqMock.mockImplementation(() => {
+      const idx = reqMock.mock.calls.length - 1;
+      return new Observable<ReqFrame>((subscriber) => {
+        const inner = subjects[idx].subscribe(subscriber);
+        return () => inner.unsubscribe();
+      });
+    });
+    return subjects;
+  }
+  const note = (id: string, created_at: number): NostrEvent => ({ id, kind: 1, pubkey: "a".repeat(64), tags: [], content: id, created_at, sig: "s" }) as NostrEvent;
+  const hit = (id: string, created_at: number): SearchHit => ({ event: note(id, created_at), author: null, rank: null });
+
+  it("shows the seed at once, refreshes the first page in front of it, and turns the next page from its end", async () => {
+    const [first, second] = pages(2);
+    const snaps: SearchSnapshot[] = [];
+    const seed = [hit("n1", 3000), hit("n2", 2000), hit("n3", 1000)];
+    const handle = searchStream("sort:recent", { tab: "notes", pov: "nosfabrica", limit: 3, seed }, (s) => snaps.push(s));
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["n1", "n2", "n3"]);
+    expect(snaps.at(-1)!.eose).toBe(false);
+    await tick();
+    first.next(frame(note("n0", 4000)));
+    first.next(frame(note("n1", 3000)));
+    first.next(frame(note("n2", 2000)));
+    first.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["n0", "n1", "n2", "n3"]);
+    expect(snaps.at(-1)!.eose).toBe(true);
+    handle.more();
+    await tick();
+    expect((reqMock.mock.calls[1][0] as { until?: number }).until).toBe(1000);
+    second.next(frame(note("n4", 900)));
+    second.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["n0", "n1", "n2", "n3", "n4"]);
+    handle();
+  });
+});
+
 describe("searchStream — a person's live streams", () => {
   const MAR = "c7acabf1fed201a53185e4dc5e0c6bae2bc5db19d73abf840535f305d8f05180";
   const MAR_NPUB = "npub1c7k2hu076gq62vv9unw9urrt4c4utkce6uatlpq9xhestk8s2xqql8qh4c";

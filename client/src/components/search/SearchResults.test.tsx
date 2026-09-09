@@ -139,7 +139,7 @@ vi.mock("@/hooks/useAuthorFlags", () => ({
 const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; friends: Set<string>; ready: boolean }>(() => ({ direct: new Set(), friends: new Set(), ready: true }));
 vi.mock("@/hooks/useNetworkReach", () => ({ useNetworkReach: (pk?: string | null) => reachMock(pk) }));
 
-import { SearchResults } from "./SearchResults";
+import { SearchResults, __resetSearchMemory } from "./SearchResults";
 import { NowPlayingBar } from "./NowPlayingBar";
 
 function ev(id: string, kind: number, pubkey = "a".repeat(64), content = "", tags: string[][] = []): NostrEvent {
@@ -169,6 +169,7 @@ function emit(partial: Partial<SearchSnapshot>) {
 }
 
 beforeEach(() => {
+  __resetSearchMemory();
   vi.clearAllMocks();
   recentByKindsMock.mockResolvedValue([]);
   profileMapMock.clear();
@@ -2401,6 +2402,32 @@ describe("a stream's pill off the Live tab", () => {
     const pill = await screen.findByTestId("live-status-s-over");
     expect(pill).toHaveTextContent(/ended/i);
     expect(pill).not.toHaveTextContent(/live/i);
+  });
+});
+
+// Opening a result and coming back restarted the search at page one, so a
+// reader ten pages deep landed at the top with nothing below (2026-09-09).
+// The tab remembers the pages it had and where the reader was, and comes
+// back to both before the relay answers.
+describe("coming back to a search", () => {
+  it("shows the pages it had at once, seeds the stream with them, and returns to where the reader was", async () => {
+    setUrlTab("notes");
+    const hits = (n: number) => Array.from({ length: n }, (_, i) => ({ event: ev(`n${i}`, 1, "a".repeat(64), `note ${i}`), author: author("a".repeat(64), "alice"), rank: null }));
+    const first = render(<SearchResults query="nostr" pov="nosfabrica" />);
+    emit({ hits: hits(5), eose: true });
+    await screen.findByText("note 4");
+    Object.defineProperty(window, "scrollY", { value: 2400, configurable: true });
+    first.unmount();
+    const jump = vi.spyOn(window, "scrollTo").mockImplementation(() => {});
+    allStreams.length = 0;
+    render(<SearchResults query="nostr" pov="nosfabrica" />);
+    // Before any snapshot from the new stream: the five rows are already there.
+    expect(screen.getByText("note 4")).toBeInTheDocument();
+    const again = allStreams.filter((c) => !isPanelProbe(c.query, c.params)).find((c) => c.params.tab === "notes")!;
+    expect((again.params as { seed?: unknown[] }).seed).toHaveLength(5);
+    await vi.waitFor(() => expect(jump).toHaveBeenCalledWith(expect.objectContaining({ top: 2400 })));
+    jump.mockRestore();
+    Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
   });
 });
 

@@ -49,6 +49,7 @@ import {
   type SearchResult,
 } from "@/lib/profileSearch";
 import { suggestProfiles } from "@/services/search";
+import { BackToTop } from "@/components/search/BackToTop";
 import { SearchResults } from "@/components/search/SearchResults";
 import { PerspectiveToggle } from "@/components/search/PerspectiveToggle";
 import { personAssist, scopeOf, splitFilters, type PersonAssist, scopedPlaceholder, seeAllLabel } from "@/lib/searchSyntax";
@@ -815,7 +816,7 @@ export default function Landing() {
   // viewport, and 100vh measures the large (toolbar-hidden) viewport — so the
   // bottom of the page sits under the chrome exactly when room is scarcest.
   return (
-    <div className="min-h-[100dvh] bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col relative overflow-hidden" data-testid="page-home">
+    <div className="min-h-[100dvh] bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col relative [overflow-x:clip]" data-testid="page-home">
       <GlossBackground />
       {/* Aurora glow behind the hero — soft at rest, blooms when the search goes
           active, so the wordmark + search feel alive without any idle noise. */}
@@ -870,7 +871,7 @@ export default function Landing() {
           ref={heroRef}
           className={
             hasSearched
-              ? "w-full max-w-6xl mx-auto flex flex-wrap items-center gap-x-3 gap-y-2 sm:flex-nowrap sm:gap-x-5"
+              ? "sticky top-0 z-30 -mt-3 sm:-mt-4 py-2 sm:py-2.5 w-full max-w-6xl mx-auto flex flex-wrap items-center gap-x-3 gap-y-2 sm:flex-nowrap sm:gap-x-5 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md"
               : "w-full max-w-2xl mx-auto text-center motion-safe:animate-[homeFadeUp_0.5s_ease-out]"
           }
           data-testid={hasSearched ? "search-band" : "search-hero"}
@@ -1354,6 +1355,8 @@ export default function Landing() {
             home is the centered hero and nothing below it. components/feed/
             HomeFeed keeps the bands for when it comes back. */}
         {hasSearched && (
+          <>
+          <BackToTop />
           <SearchResults
             onTabChange={setActiveTab}
             query={submitted ?? ""}
@@ -1396,6 +1399,7 @@ export default function Landing() {
               setSubmitted(tokens);
             }}
           />
+          </>
         )}
       </main>
 
