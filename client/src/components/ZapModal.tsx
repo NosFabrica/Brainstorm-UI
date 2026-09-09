@@ -13,6 +13,7 @@ import { FlashIcon } from "@/components/FlashIcon";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useCopied } from "@/hooks/useCopied";
 import { initialsFor } from "@/lib/profileDefaults";
+import { condenseLightning } from "@/lib/profileFacts";
 import { useActiveAccount } from "applesauce-react/hooks";
 import { signAs } from "@/accounts/signing";
 import { isUnlockCancelled } from "@/accounts/local-signer";
@@ -191,18 +192,22 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
           </DialogHeader>
         </div>
 
-        <div className="px-5 sm:px-6 pb-5 sm:pb-6">
+        <div className="min-w-0 px-5 sm:px-6 pb-5 sm:pb-6">
           {/* Recipient */}
           <div className="flex items-center gap-2.5 mb-4">
             <Avatar className="h-9 w-9 rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
               {picture ? <AvatarImage src={picture} alt={displayName} className="object-cover" /> : null}
               <AvatarFallback className="rounded-full bg-brand-primary/15 text-brand-primary text-xs font-bold">{initialsFor(displayName)}</AvatarFallback>
             </Avatar>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{displayName}</p>
-              <p className="text-xs text-slate-400 dark:text-slate-500 truncate font-mono inline-flex items-center gap-1 max-w-full">
+              {/* Condensed, with the whole address on the title and in the copy.
+                  `min-w-0` on the truncating span: an unbreakable 63-character
+                  address otherwise widens the dialog's grid column and pushes
+                  the inputs past its border. */}
+              <p className="flex w-full min-w-0 items-center gap-1 font-mono text-xs text-slate-400 dark:text-slate-500">
                 {isVerified && <ShieldCheck className="h-3 w-3 text-emerald-500 shrink-0" />}
-                <span className="truncate">{displayAddr}</span>
+                <span className="min-w-0 truncate" title={displayAddr} data-testid="zap-recipient-address">{condenseLightning(displayAddr)}</span>
                 {isVerified && (
                   <button
                     type="button"

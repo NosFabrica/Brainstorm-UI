@@ -11,8 +11,9 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 const copyMock = vi.fn(async (_text: string) => true);
 vi.mock("@/lib/clipboard", () => ({ copyToClipboard: (text: string) => copyMock(text) }));
 vi.mock("applesauce-react/hooks", () => ({ useActiveAccount: () => null }));
+const verifiedLud16Mock = vi.fn(async () => ({ verified: true, lud16: "joemartinmusic@getalby.com" }));
 vi.mock("@/services/nostr", () => ({
-  getVerifiedProfileLud16: async () => ({ verified: true, lud16: "joemartinmusic@getalby.com" }),
+  getVerifiedProfileLud16: () => verifiedLud16Mock(),
   signEventWithEphemeralKey: async () => ({}),
 }));
 vi.mock("@/lib/zap", async (importOriginal) => {
@@ -29,6 +30,19 @@ describe("ZapModal — the recipient row", () => {
   beforeEach(() => {
     copyMock.mockReset();
     copyMock.mockResolvedValue(true);
+  });
+
+  // A 63-character npub.cash address ran past the dialog's border (Benjamin,
+  // 2026-09-09). The recipient line condenses it — domain kept — and copies it whole.
+  it("a long recipient address reads condensed and copies whole", async () => {
+    const long = "npub1m2lrszeztt0jvte79nukgcx5s7d3t7ha9apjtyukqr79cw6s5y3qqgeeph@npub.cash";
+    verifiedLud16Mock.mockResolvedValueOnce({ verified: true, lud16: long });
+    render(<ZapModal open onOpenChange={() => {}} recipientPubkey={"b".repeat(64)} lud16={long} displayName="Handled" />);
+    const copy = await screen.findByTestId("zap-copy-recipient");
+    expect(screen.getByTestId("zap-recipient-address")).toHaveTextContent("npub1m2l…geeph@npub.cash");
+    expect(screen.getByTestId("zap-recipient-address")).toHaveAttribute("title", long);
+    fireEvent.click(copy);
+    expect(copyMock).toHaveBeenCalledWith(long);
   });
 
   it("the verified address can be copied with one tap, and says so", async () => {

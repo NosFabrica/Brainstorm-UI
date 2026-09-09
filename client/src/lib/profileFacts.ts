@@ -46,9 +46,23 @@ export interface LightningTarget {
 }
 
 /** The lightning target to copy: a LUD-16 address wins over an LNURL. */
+/**
+ * A lightning address a reader can take in. The domain is what they
+ * recognise; a local part longer than a handle — an npub-based one runs to
+ * 63 characters — is shortened the way an npub is. Copy always gets the
+ * whole address (Benjamin, 2026-09-09: "condense it so it's more presentable").
+ */
+export function condenseLightning(address: string): string {
+  const at = address.lastIndexOf("@");
+  if (at < 0) return address;
+  const local = address.slice(0, at);
+  const domain = address.slice(at);
+  return local.length > 20 ? `${local.slice(0, 8)}…${local.slice(-5)}${domain}` : address;
+}
+
 export function lightningTarget(lud16: unknown, lud06: unknown): LightningTarget | null {
   const address = typeof lud16 === "string" ? lud16.trim() : "";
-  if (address.includes("@")) return { address, display: address, zappable: true };
+  if (address.includes("@")) return { address, display: condenseLightning(address), zappable: true };
   const lnurl = typeof lud06 === "string" ? lud06.trim() : "";
   if (/^lnurl1/i.test(lnurl)) {
     const display = lnurl.length > 20 ? `${lnurl.slice(0, 12)}…${lnurl.slice(-6)}` : lnurl;

@@ -7,7 +7,7 @@
  * "I want to read any of their website links … copy the lightning address."
  */
 import { describe, expect, it } from "vitest";
-import { lightningTarget, websiteLinks } from "./profileFacts";
+import { condenseLightning, lightningTarget, websiteLinks } from "./profileFacts";
 
 describe("websiteLinks — every link a profile lists, readable and openable", () => {
   it("one URL: the label drops the scheme and trailing slash, the href keeps it", () => {
@@ -36,6 +36,19 @@ describe("lightningTarget — the address to copy, and whether the zap flow can 
     const lnurl = "lnurl1dp68gurn8ghj7um9wfmxjcm99e3k7mf0v9cxj0m385ekvcenxc6r2c35xvukxefcv5mkvv34x5ekzd3ev56nyd3hxqurzepexejxxepnxscrvwfnv9nxzcn9xq6xyefhvgcxxcmyxymnserxfq5fns";
     expect(lightningTarget(undefined, lnurl)).toEqual({ address: lnurl, display: `${lnurl.slice(0, 12)}…${lnurl.slice(-6)}`, zappable: false });
   });
+  // Benjamin (2026-09-09), over a 63-character npub.cash address: "whenever
+  // users' wallet addresses are too long we should condense it so it's more
+  // presentable." The domain is what a reader recognises; the local part is
+  // shortened like an npub. The address itself stays whole for copying.
+  it("a long address condenses for display — the local part shortened, the domain kept — and stays whole to copy", () => {
+    const long = "npub1m2lrszeztt0jvte79nukgcx5s7d3t7ha9apjtyukqr79cw6s5y3qqgeeph@npub.cash";
+    const t = lightningTarget(long, undefined)!;
+    expect(t.address).toBe(long);
+    expect(t.display).toBe("npub1m2l…geeph@npub.cash");
+    expect(t.zappable).toBe(true);
+    expect(condenseLightning("alice@getalby.com")).toBe("alice@getalby.com");
+  });
+
   it("when both are set, the address wins", () => {
     expect(lightningTarget("me@wallet.com", "lnurl1abcdefghijklmnop")?.address).toBe("me@wallet.com");
   });
