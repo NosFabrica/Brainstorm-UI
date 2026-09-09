@@ -111,6 +111,13 @@ export interface SearchParams {
 }
 
 const DEFAULT_LIMIT = 100;
+/**
+ * How deep best match will go. It has no cursor, so each further page is a
+ * bigger ask that repeats the ranking so far — and the relay sends MORE than
+ * asked (probed 2026-09-09: asked 600, got 1003). Six pages of a hundred is
+ * the honest depth; past it the list says it has reached the end.
+ */
+const RANKED_PAGE_CEILING = 600;
 
 /** Kind-0 event → the SearchResult currency the whole app renders. */
 export function kind0ToSearchResult(event: NostrEvent): SearchResult {
@@ -314,11 +321,15 @@ export function searchStream(
 
     turnPage = () => {
       if (cancelled || !eose || loadingMore || exhausted) return;
+      const nextLimit = pageLimit * (pagesTurned + 2);
+      if (!recent && nextLimit > RANKED_PAGE_CEILING) {
+        exhausted = true;
+        emit({});
+        return;
+      }
       loadingMore = true;
       pagesTurned++;
-      const next: import("nostr-tools").Filter = recent
-        ? { ...filter, until: oldest }
-        : { ...filter, limit: pageLimit * (pagesTurned + 1) };
+      const next: import("nostr-tools").Filter = recent ? { ...filter, until: oldest } : { ...filter, limit: nextLimit };
       emit({});
       openPage(next, true);
     };

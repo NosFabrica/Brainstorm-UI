@@ -190,6 +190,10 @@ Probed the same day against the staging relay:
 - **The end is inferred, not stated.** A page the relay returns short is taken as
   the last; there is no total. A closed subscription per turned page keeps the
   50-subscription cap out of reach.
+- **`limit` is not a ceiling.** Asked for 600 the relay sent 1003; for 1000, 1467;
+  for 2000, 2469 (the same day). So a best-match page never reads as short, and
+  the UI stops asking past a 600 ceiling instead, taking "nothing new arrived" as
+  the end. Worth a look on the relay side: a `limit` that means at most.
 
 Ask: an `offset:` (or opaque cursor) for ranked queries, so a ranked page 2 is
 "the next 100" rather than "the first 200 again"; and a result total on EOSE

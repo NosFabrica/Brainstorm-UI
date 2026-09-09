@@ -237,6 +237,46 @@ describe("searchStream — more", () => {
     expect(snaps.at(-1)!.exhausted).toBe(true);
     handle();
   });
+
+  // Probed 2026-09-09: the relay sends MORE than `limit` (asked 600, got
+  // 1003; asked 2000, got 2469). A bigger ask each page would pull thousands
+  // on a long scroll, so best match stops asking past a ceiling — and the
+  // page never reads as short, so "nothing new" is the end.
+  it("best match stops turning pages past a ceiling, without a request", async () => {
+    const [first] = pages(2);
+    const snaps: SearchSnapshot[] = [];
+    const handle = searchStream("bitcoin", { tab: "notes", pov: "nosfabrica", limit: 350 }, (s) => snaps.push(s));
+    await tick();
+    for (let i = 0; i < 350; i++) first.next(frame(note(`b${i}`, 10_000 - i)));
+    first.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.exhausted).toBe(false);
+    handle.more(); // would ask for 700
+    await tick();
+    expect(reqMock).toHaveBeenCalledTimes(1);
+    expect(snaps.at(-1)!.exhausted).toBe(true);
+    expect(snaps.at(-1)!.loadingMore).toBe(false);
+    handle();
+  });
+
+  it("a relay that sends more than asked still ends the paging when nothing new arrives", async () => {
+    const [first, second] = pages(2);
+    const snaps: SearchSnapshot[] = [];
+    const handle = searchStream("bitcoin", { tab: "notes", pov: "nosfabrica", limit: 2 }, (s) => snaps.push(s));
+    await tick();
+    for (const id of ["a1", "a2", "a3"]) first.next(frame(note(id, 5))); // three for a limit of two
+    first.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.exhausted).toBe(false);
+    handle.more();
+    await tick();
+    for (const id of ["a1", "a2", "a3", "a2", "a1"]) second.next(frame(note(id, 5))); // five, nothing new
+    second.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.hits).toHaveLength(3);
+    expect(snaps.at(-1)!.exhausted).toBe(true);
+    handle();
+  });
 });
 
 // Benjamin (2026-09-09), over mar's scoped Live tab: "this user has
