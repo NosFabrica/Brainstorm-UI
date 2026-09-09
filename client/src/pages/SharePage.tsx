@@ -49,6 +49,7 @@ import { DegreeChip } from "@/components/DegreeChip";
 import { useRelationshipBadges } from "@/hooks/useRelationshipBadges";
 import { FollowButton } from "@/components/share/FollowButton";
 import { ProfileMenu } from "@/components/share/ProfileMenu";
+import { TagPersonButton } from "@/components/share/TagPersonButton";
 import { ShareButton } from "@/components/share/ShareButton";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { Stat, StatLensToggle, type StatLens } from "@/components/share/StatToggle";
@@ -1031,9 +1032,6 @@ export default function SharePage() {
                 as a button that did nothing). */}
             {followsYouChip}
           </div>
-          {/* NIP-38 status — a live "now" line under the name (general + now-playing). */}
-          {!isHidden("status") && status.general && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 leading-snug" data-testid="share-status">{status.general}</p>}
-          {!isHidden("status") && status.music && <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400" data-testid="share-status-music">♪ {status.music}</p>}
           {/* npub — subtle + copyable so logged-out visitors can verify identity. */}
           {npub && (
             <div className="flex items-center gap-1.5 mt-1" data-testid="share-npub">
@@ -1055,29 +1053,13 @@ export default function SharePage() {
               (above), not here. */}
           {mobileFollowRow}
 
-          {/* Tags — what the network says about this person, counted from the
-              configured trust perspective. Reads from relays only, so it renders
-              for logged-out visitors too.
-              These replaced the self-declared "What you do" role chips that used
-              to sit below (the placeholder this slot's old TODO referred to).
-              The `roles` field stays in ProfilePrefs so nobody's stored data is
-              erased — it just no longer renders. */}
-          <ProfileTagChips
-            pubkey={pubkey}
-            canTag={canTag}
-            isOwner={isOwner}
-            legacyRoles={legacyRoleLabels}
-          />
-
-          {/* The prompt half of Q2's "one-time, owner-prompted conversion".
-              Only the owner sees it, only when they have roles that aren't
-              tags yet, and only until they answer it once. */}
-          {isOwner && canTag && pubkey && legacyRoleLabels.length > 0 && (
-            <LegacyRolePrompt pubkey={pubkey} legacyRoles={legacyRoleLabels} />
-          )}
-
-          {/* The bio: three lines at rest, all of it on a tap. */}
+          {/* The bio: three lines at rest, all of it on a tap. Right under the
+              identity — where every network puts it (Benjamin, 2026-09-08: it
+              sat below a status, the key and an empty tag row). */}
           {!isHidden("bio") && profile.about && <ProfileBio text={profile.about} profiles={noteProfiles} />}
+          {/* NIP-38 status — a live "now" line, quiet, under the bio (general + now-playing). */}
+          {!isHidden("status") && status.general && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 leading-snug" data-testid="share-status">{status.general}</p>}
+          {!isHidden("status") && status.music && <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400" data-testid="share-status-music">♪ {status.music}</p>}
 
           {/* The facts under it — website, lightning (tap copies; Zap pays),
               linked accounts — as readable rows, not glyphs. */}
@@ -1089,8 +1071,30 @@ export default function SharePage() {
             onZap={() => setZapOpen(true)}
           />
 
-          {/* "Posts about" — top hashtags as a skills-style chip row. */}
-          {!isHidden("topics") && <TopicChips topics={topics} />}
+          {/* "Known for" — what the network says about this person, counted from
+              the configured trust perspective. Reads from relays only, so it
+              renders for logged-out visitors too; only when there is something
+              to say (the "+ Tag" way in sits on the Posts about row below).
+              These replaced the self-declared "What you do" role chips that used
+              to sit below (the placeholder this slot's old TODO referred to).
+              The `roles` field stays in ProfilePrefs so nobody's stored data is
+              erased — it just no longer renders. */}
+          <ProfileTagChips pubkey={pubkey} canTag={canTag} isOwner={isOwner} />
+
+          {/* The prompt half of Q2's "one-time, owner-prompted conversion".
+              Only the owner sees it, only when they have roles that aren't
+              tags yet, and only until they answer it once. */}
+          {isOwner && canTag && pubkey && legacyRoleLabels.length > 0 && (
+            <LegacyRolePrompt pubkey={pubkey} legacyRoles={legacyRoleLabels} />
+          )}
+
+          {/* "Posts about" — top hashtags as a skills-style chip row, with the
+              quiet "+ Tag" for a signed-in tagger at its end. Hiding topics
+              keeps the way in. */}
+          <TopicChips
+            topics={isHidden("topics") ? [] : topics}
+            trailing={canTag && pubkey ? <TagPersonButton pubkey={pubkey} isOwner={isOwner} legacyRoles={legacyRoleLabels} variant="link" /> : undefined}
+          />
 
           {/* Prominent, factual flag — when reported beyond the follower-scaled
               threshold (house POV → same verdict for every viewer). */}

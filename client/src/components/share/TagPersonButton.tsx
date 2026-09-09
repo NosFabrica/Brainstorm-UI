@@ -43,8 +43,11 @@ export function TagPersonButton({
   pubkey,
   isOwner = false,
   legacyRoles = [],
+  variant = "pill",
 }: {
   pubkey: string;
+  /** "pill": the dotted chip. "link": a quiet "+ Tag" beside other chips (the profile's Posts about row). */
+  variant?: "pill" | "link";
   /** Only changes wording — the permission is the same either way. */
   isOwner?: boolean;
   /**
@@ -249,7 +252,11 @@ export function TagPersonButton({
       <PopoverTrigger asChild>
         <button
           type="button"
-          className="inline-flex items-center gap-1 rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-500 transition-colors hover:border-brand-primary hover:text-brand-primary dark:border-slate-600 dark:text-slate-400"
+          className={
+            variant === "link"
+              ? "inline-flex items-center gap-0.5 text-[11px] font-semibold text-slate-400 transition-colors hover:text-brand-primary dark:text-slate-500"
+              : "inline-flex items-center gap-1 rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-500 transition-colors hover:border-brand-primary hover:text-brand-primary dark:border-slate-600 dark:text-slate-400"
+          }
           data-testid="share-add-tag"
           disabled={applyTag.isPending}
         >
@@ -258,7 +265,7 @@ export function TagPersonButton({
           ) : (
             <Plus className="h-3 w-3" />
           )}
-          Add a tag
+          {variant === "link" ? "Tag" : "Add a tag"}
         </button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-0" align="start">
