@@ -29,7 +29,7 @@ import { compactCount } from "@/lib/compactCount";
 import { ago } from "@/lib/ago";
 import { gitItemSummaryOf, gitItemTitleOf } from "@/lib/gitPatch";
 import { fetchRepoCounts, zapStoreUrl } from "@/services/search";
-import { eventPath, npubFromPubkey } from "@/lib/shareId";
+import { eventPath } from "@/lib/shareId";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { FeedVideo } from "@/components/share/FeedVideo";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
@@ -996,27 +996,12 @@ export type ListGroupView = {
 
 /**
  * The group behind a folded row, opened in place: every list with its curator,
- * its own member count and its own door, then everyone across them with how
- * many of the lists agree — so the number on the card is true where you land.
+ * its own member count and its own door — so the number on the card is true
+ * where you land. The people themselves are not repeated here (Benjamin,
+ * 2026-09-09: "remove this section"): the faces on the row already say who
+ * the lists agree on, and each list's own page has its roster.
  */
 function ListGroupPanel({ group, primaryId }: { group: ListGroupView; primaryId: string }) {
-  const profiles = useProfileMap(group.consensus);
-  const label = (pk: string) => {
-    const p = profiles.get(pk);
-    if (p) return getDisplayLabel(p);
-    try {
-      return `${npubFromPubkey(pk).slice(0, 10)}…`;
-    } catch {
-      return pk.slice(0, 8);
-    }
-  };
-  const href = (pk: string) => {
-    try {
-      return `/p/${npubFromPubkey(pk)}`;
-    } catch {
-      return "#";
-    }
-  };
   return (
     <div className="space-y-3 border-t border-slate-100 dark:border-slate-800/60 px-3 pb-3 pt-3 sm:px-4 sm:pb-4" data-testid={`list-group-${primaryId}`}>
       <div>
@@ -1039,30 +1024,6 @@ function ListGroupPanel({ group, primaryId }: { group: ListGroupView; primaryId:
             );
           })}
         </ul>
-      </div>
-      <div>
-        <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-slate-400 dark:text-slate-500">{group.members} people</p>
-        <div className="mt-1.5 flex flex-wrap gap-1.5" data-testid="list-group-people">
-          {group.consensus.map((pk) => {
-            const on = group.agreement[pk] ?? 1;
-            const p = profiles.get(pk);
-            return (
-              <Link
-                key={pk}
-                href={href(pk)}
-                className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 py-0.5 pl-0.5 pr-2 text-[11px] text-slate-700 dark:text-slate-200 hover:border-brand-accent/40"
-                data-testid={`list-group-person-${pk}`}
-              >
-                <Avatar className="h-5 w-5 shrink-0">
-                  {p?.picture ? <AvatarImage src={p.picture} alt="" className="object-cover" /> : null}
-                  <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
-                </Avatar>
-                <span className="max-w-[9rem] truncate">{label(pk)}</span>
-                {on > 1 && <span className="text-[10px] text-slate-400 dark:text-slate-500">{on} of {group.lists}</span>}
-              </Link>
-            );
-          })}
-        </div>
       </div>
     </div>
   );

@@ -80,18 +80,16 @@ export function FollowSetHero({ event }: { event: SetEvent }) {
   const members = event.tags.filter((t) => t[0] === "p" && t[1]).map((t) => t[1]);
 
   const tierRing = useTierRing();
-  const scoreOf = useAuthorScores([event.pubkey, ...members.slice(0, 50)]);
-  const profiles = useProfiles([event.pubkey, ...members]);
+  const scoreOf = useAuthorScores(members.slice(0, 50));
+  const profiles = useProfiles(members);
   const [rosterOpen, setRosterOpen] = useState(false);
 
-  const curator = profiles.get(event.pubkey);
-  const curatorName = curator?.display_name || curator?.name;
-  const curatorNpub = npubOf(event.pubkey);
   const shown = rosterOpen ? members : members.slice(0, ROSTER_FOLD);
 
   return (
     <div data-testid="follow-set-hero">
-      {/* Identity left, the list glyph top-right — the settled anatomy. */}
+      {/* Title left, the list glyph top-right — the settled anatomy. The curator
+          is not named here: the page's author row above the card already does. */}
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
@@ -102,25 +100,6 @@ export function FollowSetHero({ event }: { event: SetEvent }) {
               {members.length} {members.length === 1 ? "member" : "members"}
             </Chip>
           </div>
-          {curatorNpub && (
-            <Link
-              href={`/p/${curatorNpub}`}
-              className="mt-0.5 inline-flex items-center gap-1.5 rounded-full py-0.5 pr-1.5 hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors"
-              data-testid="set-hero-curator"
-            >
-              <Avatar
-                className={`h-[18px] w-[18px] border border-slate-200/80 dark:border-slate-800/80 ${tierRing(scoreOf(event.pubkey) ?? null, false, "sm", true) ?? ""}`}
-              >
-                {curator?.picture ? <AvatarImage src={curator.picture} alt="" className="object-cover" /> : null}
-                <AvatarFallback className="overflow-hidden">
-                  <DefaultAvatarImg />
-                </AvatarFallback>
-              </Avatar>
-              <span className="text-xs font-medium text-brand-link">
-                {curatorName ?? `${curatorNpub.slice(0, 12)}…`}
-              </span>
-            </Link>
-          )}
           {description && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 break-words">{description}</p>}
         </div>
         <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl bg-slate-100 dark:bg-slate-800 shadow-sm">

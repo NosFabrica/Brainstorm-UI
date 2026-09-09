@@ -1689,9 +1689,8 @@ describe("SearchResults", () => {
   // trusted curator's list carries the fold, the count says how many people
   // all of them add up to, and the faces are the ones most lists agree on.
   // The row promises a group, so a tap opens the group where it is — the
-  // lists with their own counts and doors, and everyone across them — not
-  // one list of five (Benjamin, 2026-09-09: "it said 78 people, the list
-  // I clicked has 5").
+  // lists with their own counts and doors — not one list of five (Benjamin,
+  // 2026-09-09: "it said 78 people, the list I clicked has 5").
   it("folds same-title follow packs into one row with the union, and a tap opens the group where it is", async () => {
     setUrlTab("lists");
     render(<SearchResults query="nostr devs" pov="nosfabrica" />);
@@ -1725,10 +1724,11 @@ describe("SearchResults", () => {
     expect(rows[2]).toHaveTextContent("curator one");
     expect(rows[2]).toHaveTextContent("3 members");
     expect(within(rows[2]).getByRole("link", { name: /open/i }).getAttribute("href")).toMatch(/^\/e\//);
-    const people = within(group).getByTestId("list-group-people");
-    expect(within(people).getAllByTestId(/^list-group-person-/)).toHaveLength(5);
-    // alice is on all three lists; the badge says so.
-    expect(within(people).getByTestId(`list-group-person-${A}`)).toHaveTextContent("3 of 3");
+    // No wall of person chips under the lists (Benjamin, 2026-09-09: "remove
+    // this section") — the faces on the row already say who the lists agree
+    // on, and each list's own page has its roster.
+    expect(within(group).queryByTestId("list-group-people")).toBeNull();
+    expect(within(group).queryAllByTestId(/^list-group-person-/)).toHaveLength(0);
     fireEvent.click(within(primary).getByTestId("list-group-toggle-g2"));
     expect(screen.queryByTestId("list-group-g2")).toBeNull();
   });

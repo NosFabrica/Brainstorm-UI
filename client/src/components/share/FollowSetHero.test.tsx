@@ -73,14 +73,16 @@ describe("FollowSetHero", () => {
     expect(screen.getByTestId(`set-member-${BOB}`)).toHaveTextContent("npub1");
   });
 
-  it("names the curator", () => {
+  // The hero sits under the page's author row, which already names the
+  // curator with their ring and Verified chip; naming them again inside the
+  // card read as a duplicate header (Benjamin, 2026-09-09).
+  it("does not repeat the curator — the author row above the card names them", () => {
     knownProfiles.set(CURATOR, {
       id: "p".repeat(64), kind: 0, pubkey: CURATOR, tags: [],
       content: JSON.stringify({ name: "Dr. Edo Paz" }), created_at: 1, sig: "s",
     } as NostrEvent);
     render(<FollowSetHero event={SET} />);
-    const curator = screen.getByTestId("set-hero-curator");
-    expect(curator).toHaveTextContent("Dr. Edo Paz");
-    expect(curator.getAttribute("href")).toBe(`/p/${nip19.npubEncode(CURATOR)}`);
+    expect(screen.queryByTestId("set-hero-curator")).toBeNull();
+    expect(screen.queryByText("Dr. Edo Paz")).toBeNull();
   });
 });
