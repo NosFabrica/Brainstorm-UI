@@ -36,13 +36,21 @@ export function useFlashSubscriptionRecord(
     retry: false,
     enabled: !!id,
   });
-  const body = query.data as { subscriptions?: unknown[] } | null | undefined;
-  const rows = Array.isArray(body?.subscriptions) ? body.subscriptions : [];
   if (query.isPending) return { pending: true, record: null, rows: 0 };
-  if (query.isError || rows.length === 0) return { pending: false, record: null, rows: 0 };
-  const parsed = rows.map(readFlashSubscription);
-  const record = (preferId ? parsed.find((r) => r.id === preferId) : undefined) ?? parsed[0];
-  return { pending: false, record, rows: rows.length };
+  if (query.isError) return { pending: false, record: null, rows: 0 };
+  return { pending: false, record: recordFromBody(query.data, preferId), rows: rowsOf(query.data).length };
+}
+
+function rowsOf(body: unknown): unknown[] {
+  const b = body as { subscriptions?: unknown[] } | null | undefined;
+  return Array.isArray(b?.subscriptions) ? b.subscriptions : [];
+}
+
+/** The record in a `/flash` body — the row that IS ours when Flash lists several for a ref, else the first; null when it lists nothing. */
+export function recordFromBody(body: unknown, preferId?: string | null): FlashSubscriptionRecord | null {
+  const parsed = rowsOf(body).map(readFlashSubscription);
+  if (!parsed.length) return null;
+  return (preferId ? parsed.find((r) => r.id === preferId) : undefined) ?? parsed[0];
 }
 
 export function FlashFactsStrip({

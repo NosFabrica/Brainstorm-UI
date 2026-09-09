@@ -5,8 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatAmount, formatBillingInterval } from "@/lib/plans";
 import { apiClient, type FlashPlanItem } from "@/services/api";
+import { FLASH_SERVICES_KEY } from "./queryKeys";
 
-export const FLASH_SERVICES_KEY = ["admin-billing-flash-services"] as const;
 export const flashPlansKey = (serviceId: string) => ["admin-billing-flash-plans", serviceId] as const;
 
 const SELECT_CLASS =

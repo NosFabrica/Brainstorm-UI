@@ -12,11 +12,12 @@ const updateAdminBillingPlan =
   vi.fn<(id: number, body: unknown) => Promise<AdminBillingPlanMapping>>();
 
 const getBillingPlans = vi.fn<() => Promise<{ plans: unknown[] }>>(async () => ({ plans: [] }));
+const getAdminBillingFlashServices = vi.fn<() => Promise<FlashServiceItem[]>>(async () => { throw new Error("Flash list unavailable in this test"); });
 vi.mock("@/services/api", () => ({
   apiClient: {
     // Flash's live list is unavailable in these suites, so the mapping dialog
     // falls back to its typed-id fields — the path these tests drive.
-    getAdminBillingFlashServices: () => Promise.reject(new Error("Flash list unavailable in this test")),
+    getAdminBillingFlashServices: () => getAdminBillingFlashServices(),
     getAdminBillingFlashServicePlans: () => Promise.reject(new Error("Flash list unavailable in this test")),
     getBillingPlans: () => getBillingPlans(),
     getAdminBillingPlanMappings: () => getAdminBillingPlanMappings(),
@@ -294,5 +295,21 @@ describe("PlanMappingsCard", () => {
     expect(screen.queryByTestId("billing-plan-blurb-1")).not.toBeInTheDocument();
     expect(screen.queryByTestId("billing-plan-includes-1")).not.toBeInTheDocument();
     expect(screen.queryByTestId("billing-plan-excludes-1")).not.toBeInTheDocument();
+  });
+
+  // Benjamin (2026-09-09): the tab must say which Flash service — production
+  // or staging — a thing belongs to. A mapping printed its service as a bare
+  // id; the account's services list knows the name.
+  it("names each mapping's Flash service when the account's list knows it, and keeps the id when it does not", async () => {
+    getAdminBillingFlashServices.mockResolvedValue([{ id: "9c1e", name: "Brainstorm - Testing ***" }]);
+    getAdminBillingPlanMappings.mockResolvedValue([
+      { id: 1, flash_service_id: "9c1e", flash_plan_id: "4f2a", scheduling_id: 7, is_active: true, created_at: "", updated_at: "" } as AdminBillingPlanMapping,
+      { id: 2, flash_service_id: "0000", flash_plan_id: "zzzz", scheduling_id: 7, is_active: true, created_at: "", updated_at: "" } as AdminBillingPlanMapping,
+    ]);
+    renderCard();
+    await screen.findByTestId("billing-plan-1");
+    await waitFor(() => expect(screen.getByTestId("billing-plan-service-1")).toHaveTextContent("Brainstorm - Testing ***"));
+    expect(screen.getByTestId("billing-plan-service-1")).not.toHaveTextContent("9c1e");
+    expect(screen.getByTestId("billing-plan-service-2")).toHaveTextContent("0000");
   });
 });

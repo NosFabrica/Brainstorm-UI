@@ -117,6 +117,33 @@ the policy per subscription; this puts one line above the roster — "Renewals r
 3 days apart, 7-day grace, then cancel; cancellations take effect at period end" — and a
 **Test mode** banner on the whole tab when the key is not live, instead of only inside a dialog.
 
+### 6. The Flash service on the roster row, and a filter for it — asked 2026-09-09
+
+Benjamin: "we need to see the service name so we can distinguish whether it's on production or
+staging — right now we can't tell where the users are coming from." Flash keeps one service per
+environment, and the server already knows each subscriber's: `parse_subscription` reads Flash's
+`serviceId`/`planId`, and `user_subscription.billing_plan_id` → `billing_plan.flash_service_id`.
+`BillingSubscriptionItem` returns neither.
+
+```
+GET /admin/billing/subscriptions?service_id=<flash service id>   # optional filter
+
+BillingSubscriptionItem gains
+flash_service_id:  str | None    # billing_plan.flash_service_id through billing_plan_id
+flash_plan_id:     str | None    # billing_plan.flash_plan_id
+```
+
+A projection, not new data — one join in `build_billing_subscriptions_stmt`. The filter matters
+because the roster pages at 100: without it "staging only" means "on this page".
+
+**What ships in the UI meanwhile** (2026-09-09): the roster reads the service off the Flash
+record each row already fetches for Interval and Cycle (`serviceId` on Flash's subscription
+object), names it through `GET /admin/billing/flash/services`, shows it as a **Service** column
+(sortable, searchable) and a segmented **All services · Brainstorm · …** switch that appears once
+the account has more than one service. Page-local, best-effort: a row Flash has no record for
+shows "—" and stays under All. The record sheet names the service too. When the field lands on the
+row, the column reads it directly and the switch passes `service_id` to the server.
+
 ### 5. The `rail` column
 
 `user_subscription.rail` exists and nothing writes it. Flash's external API does not expose the

@@ -1,4 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
+import { apiClient } from "@/services/api";
+import { FLASH_SERVICES_KEY } from "./queryKeys";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Chip } from "@/components/ui/chip";
@@ -22,7 +24,7 @@ import { flashRecordKey } from "./FlashFactsStrip";
  * renewal is going, and how it ends. Every line is a fact off Flash's record;
  * a fact Flash did not send is simply not on the sheet.
  */
-export function FlashSubscriptionSheet({ raw }: { raw: unknown }) {
+export function FlashSubscriptionSheet({ raw, serviceName }: { raw: unknown; /** The service's name from the account's list; the id stands in when unknown. */ serviceName?: string }) {
   const r = readFlashSubscription(raw);
   const price =
     r.amountMinor !== null && r.currency ? formatAmount(r.amountMinor, r.currency) : null;
@@ -77,6 +79,9 @@ export function FlashSubscriptionSheet({ raw }: { raw: unknown }) {
           <Fact label="Next bill" value={formatBillingDate(r.nextBillingDate)} testId="flash-sheet-next-bill" />
         )}
         <Fact label="Account" value={accountLabel(r.ref)} testId="flash-sheet-ref" />
+        {/* Which Flash service — one per environment — so an operator can tell a
+            production subscription from a staging one. */}
+        {r.serviceId && <Fact label="Service" value={serviceName ?? r.serviceId} testId="flash-sheet-service" />}
       </dl>
 
       {dunning && (
@@ -173,6 +178,16 @@ export function FlashRecordDialog({
     retry: false,
     gcTime: 0,
   });
+  const services = useQuery({
+    queryKey: FLASH_SERVICES_KEY,
+    queryFn: () => apiClient.getAdminBillingFlashServices(),
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const serviceNameOf = (row: unknown): string | undefined => {
+    const id = readFlashSubscription(row).serviceId;
+    return id ? services.data?.find((svc) => svc.id === id)?.name : undefined;
+  };
   const body = query.data as { subscriptions?: unknown[]; livemode?: unknown } | undefined;
   const rows = Array.isArray(body?.subscriptions) ? body.subscriptions : null;
   // Flash marks every response with the key's mode; a test key is worth a flag.
@@ -211,7 +226,7 @@ export function FlashRecordDialog({
         ) : (
           <div className="space-y-3 max-h-[60vh] overflow-auto pr-1">
             {rows?.map((row, i) => (
-              <FlashSubscriptionSheet key={(row as { id?: string })?.id ?? i} raw={row} />
+              <FlashSubscriptionSheet key={(row as { id?: string })?.id ?? i} raw={row} serviceName={serviceNameOf(row)} />
             ))}
             <details className="group">
               <summary className="cursor-pointer text-xs font-medium text-slate-500 dark:text-slate-400 hover:underline">

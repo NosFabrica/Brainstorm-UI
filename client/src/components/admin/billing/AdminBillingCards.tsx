@@ -1,6 +1,6 @@
 import type React from "react";
-import { useEffect, useState } from "react";
-import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useMemo, useState } from "react";
+import { keepPreviousData, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AlertTriangle,
   ChevronDown,
@@ -63,11 +63,11 @@ import { DIVERGENCE_META, orderedSections, subscriptionIdsByEventId, type Diverg
 import { StatTile } from "@/components/ui/stat-tile";
 import { ScrollableTable } from "@/components/admin/ScrollableTable";
 import { failureLabel, sourceLabel, statusLabel } from "./billingEventCopy";
-import { useFlashSubscriptionRecord } from "./FlashFactsStrip";
+import { flashRecordKey, recordFromBody, useFlashSubscriptionRecord } from "./FlashFactsStrip";
 import { describeCycles } from "./flashRecord";
 
 import type { CreateAdminBillingPlanBody, SchedulingItem, UnmappedPlanRow, UpdateAdminBillingPlanBody } from "@/services/api";
-import { DIVERGENCE_KEY, POLICIES_KEY, SUBS_KEY } from "./queryKeys";
+import { DIVERGENCE_KEY, FLASH_SERVICES_KEY, POLICIES_KEY, SUBS_KEY } from "./queryKeys";
 
 const PAGE_SIZE = 100;
 import {
@@ -154,7 +154,7 @@ const td = "px-2 py-2.5 text-sm text-slate-700 dark:text-slate-200 border-r bord
 
 type ProfileBits = { name?: string; picture?: string };
 
-type SortKey = "subscriber" | "status" | "scheduling" | "source" | "period" | "synced" | "nextbill";
+type SortKey = "subscriber" | "status" | "service" | "scheduling" | "source" | "period" | "synced" | "nextbill";
 type SortState = { key: SortKey; dir: "asc" | "desc" } | null;
 
 /** Same affordance as the Users tab's SortHeader: label + direction chevrons. */
@@ -224,12 +224,18 @@ function filterAndSort(
   search: string,
   statusFilter: string,
   sourceFilter: string,
+  serviceFilter: string,
+  /** Flash service per subscriber: undefined while the record is still loading, null when Flash has none. */
+  serviceOf: Map<string, string | null | undefined>,
+  serviceLabelOf: (serviceId: string | null | undefined) => string,
   sort: SortState,
 ): AdminBillingSubscription[] {
   const q = search.trim().toLowerCase();
   let out = items.filter((s) => {
     if (statusFilter !== "all" && s.flash_status !== statusFilter) return false;
     if (sourceFilter !== "all" && s.scheduling_source !== sourceFilter) return false;
+    // A row whose service is unknown is not known to be on the chosen one.
+    if (serviceFilter !== "all" && serviceOf.get(s.pubkey) !== serviceFilter) return false;
     if (!q) return true;
     const name = profiles.get(s.pubkey)?.name?.toLowerCase() ?? "";
     const scheduling = (s.granted_scheduling_name ?? s.scheduling_name ?? "").toLowerCase();
@@ -237,7 +243,8 @@ function filterAndSort(
       name.includes(q) ||
       shortNpub(s.pubkey).full.toLowerCase().includes(q) ||
       s.pubkey.toLowerCase().includes(q) ||
-      scheduling.includes(q)
+      scheduling.includes(q) ||
+      serviceLabelOf(serviceOf.get(s.pubkey)).toLowerCase().includes(q)
     );
   });
   if (sort) {
@@ -247,6 +254,8 @@ function filterAndSort(
           return (profiles.get(s.pubkey)?.name ?? shortNpub(s.pubkey).full).toLowerCase();
         case "status":
           return s.flash_status;
+        case "service":
+          return serviceLabelOf(serviceOf.get(s.pubkey)).toLowerCase();
         case "scheduling":
           return (s.granted_scheduling_name ?? s.scheduling_name ?? "").toLowerCase();
         case "source":
@@ -399,8 +408,11 @@ function SubscriberRow({
   onCancel,
   onPause,
   onResume,
+  serviceNames,
 }: {
   s: AdminBillingSubscription;
+  /** Flash service id → name from the account's services list; empty while that list is unavailable. */
+  serviceNames: Map<string, string>;
   profile?: ProfileBits;
   busy: boolean;
   onBlock: (s: AdminBillingSubscription) => void;
@@ -462,6 +474,19 @@ function SubscriberRow({
             </span>
           )}
         </span>
+      </td>
+      {/* Which Flash service — production or staging — the subscription lives
+          on, off the Flash record this row already reads. */}
+      <td className={td} data-testid={`billing-service-${s.pubkey.slice(0, 8)}`}>
+        {flash.pending ? (
+          <span className="text-slate-300 dark:text-slate-600">…</span>
+        ) : flash.record?.serviceId ? (
+          serviceNames.get(flash.record.serviceId) ?? (
+            <span className="font-mono text-[11px]" title={flash.record.serviceId}>{flash.record.serviceId.slice(0, 8)}…</span>
+          )
+        ) : (
+          <span className="text-slate-400 dark:text-slate-500">—</span>
+        )}
       </td>
       <td className={td}>{scheduling}</td>
       <td className={td} data-testid={`billing-source-${s.pubkey.slice(0, 8)}`}>{sourceLabel(s.scheduling_source)}</td>
@@ -657,6 +682,50 @@ export function AdminBillingCards({ active }: { active: boolean }) {
     staleTime: 5 * 60_000,
     retry: 1,
   });
+  // Flash keeps one service per environment, so a subscriber's service says
+  // whether they came in through production or staging (Benjamin, 2026-09-09:
+  // "right now we can't tell where the users are coming from"). The roster
+  // row carries no service; the Flash record each row reads does.
+  const servicesQuery = useQuery({
+    queryKey: FLASH_SERVICES_KEY,
+    queryFn: () => apiClient.getAdminBillingFlashServices(),
+    enabled: active,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const serviceNames = useMemo(() => new Map((servicesQuery.data ?? []).map((svc) => [svc.id, svc.name])), [servicesQuery.data]);
+  const pageItems = subsQuery.data?.items ?? [];
+  // The same query the rows run (same key, one fetch), so the filter can read
+  // every row's service without a second round of requests.
+  const recordQueries = useQueries({
+    queries: pageItems.map((s) => ({
+      queryKey: flashRecordKey(s.pubkey),
+      queryFn: async () => (await apiClient.getAdminBillingFlashRecordForSubscriber(s.pubkey)) ?? null,
+      staleTime: 5 * 60_000,
+      retry: false,
+    })),
+  });
+  const serviceOf = useMemo(
+    () =>
+      new Map<string, string | null | undefined>(
+        pageItems.map((s, i) => {
+          const q = recordQueries[i];
+          return [s.pubkey, q?.isPending ? undefined : (recordFromBody(q?.data, s.flash_subscription_id)?.serviceId ?? null)];
+        }),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pageItems, recordQueries.map((q) => `${q.isPending}:${q.dataUpdatedAt}`).join("|")],
+  );
+  const serviceLabelOf = (id: string | null | undefined): string => (id ? serviceNames.get(id) ?? `${id.slice(0, 8)}…` : "");
+  // The switch lists the account's services (one per environment) plus any
+  // service a row names that the list does not — and only when there is a
+  // choice to make.
+  const serviceOptions = useMemo(() => {
+    const ids = new Set<string>((servicesQuery.data ?? []).map((svc) => svc.id));
+    for (const id of serviceOf.values()) if (id) ids.add(id);
+    return Array.from(ids).map((id) => ({ id, label: serviceLabelOf(id) })).sort((a, b) => a.label.localeCompare(b.label));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [servicesQuery.data, serviceOf, serviceNames]);
   const policyName = (id: number | null | undefined): string => {
     if (id == null) return "—";
     return policiesQuery.data?.find((p) => p.id === id)?.name ?? `policy #${id}`;
@@ -687,6 +756,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
+  const [serviceFilter, setServiceFilter] = useState<string>("all");
   const [sort, setSort] = useState<SortState>(null);
   const [confirmBlock, setConfirmBlock] = useState<AdminBillingSubscription | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<AdminBillingSubscription | null>(null);
@@ -870,10 +940,10 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   const pages = subsQuery.data.pages ?? 1;
   const divergence = divergenceQuery.data ?? {};
 
-  const filtered = filterAndSort(items, profiles, search, statusFilter, sourceFilter, sort);
+  const filtered = filterAndSort(items, profiles, search, statusFilter, sourceFilter, serviceFilter, serviceOf, serviceLabelOf, sort);
   const statuses = Array.from(new Set(items.map((s) => s.flash_status))).sort();
   const sources = Array.from(new Set(items.map((s) => s.scheduling_source))).sort();
-  const filtering = search.trim() !== "" || statusFilter !== "all" || sourceFilter !== "all";
+  const filtering = search.trim() !== "" || statusFilter !== "all" || sourceFilter !== "all" || serviceFilter !== "all";
   // Faults first, the record below, anything this build doesn't know last.
   const sections = orderedSections(divergence);
   const faults = sections.filter((x) => x.tier === "fault");
@@ -978,6 +1048,30 @@ export function AdminBillingCards({ active }: { active: boolean }) {
                 </button>
               )}
             </div>
+            {serviceOptions.length > 1 && (
+              <div
+                role="group"
+                aria-label="Flash service"
+                className="inline-flex h-8 items-center rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 p-0.5"
+                data-testid="billing-service-filter"
+              >
+                {[{ id: "all", label: "All services" }, ...serviceOptions].map((opt) => {
+                  const pressed = serviceFilter === opt.id;
+                  return (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      aria-pressed={pressed}
+                      onClick={() => setServiceFilter(opt.id)}
+                      className={`h-7 rounded-lg px-2.5 text-xs font-medium transition-colors ${pressed ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900" : "text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"}`}
+                      data-testid={`billing-service-filter-${opt.id}`}
+                    >
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="w-32 h-8 text-xs rounded-xl border-slate-200 dark:border-slate-800" data-testid="select-billing-status">
                 <SelectValue />
@@ -1044,11 +1138,12 @@ export function AdminBillingCards({ active }: { active: boolean }) {
         ) : (
           <div>
             <ScrollableTable>
-            <table className="w-full text-left min-w-[760px] border-collapse border border-slate-200 dark:border-slate-800" data-testid="table-billing-subscribers">
+            <table className="w-full text-left min-w-[860px] border-collapse border border-slate-200 dark:border-slate-800" data-testid="table-billing-subscribers">
               <thead>
                 <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50/80 dark:bg-slate-900/80">
                   <th className={th}><BillingSortHeader label="Subscriber" sortKey="subscriber" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}><BillingSortHeader label="Status" sortKey="status" sort={sort} onSort={toggleSort} /></th>
+                  <th className={th}><BillingSortHeader label="Service" sortKey="service" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}><BillingSortHeader label="Tier" sortKey="scheduling" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}><BillingSortHeader label="Source" sortKey="source" sort={sort} onSort={toggleSort} /></th>
                   <th className={th}><BillingSortHeader label="Period" sortKey="period" sort={sort} onSort={toggleSort} /></th>
@@ -1065,6 +1160,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
                     key={s.pubkey}
                     s={s}
                     profile={profiles.get(s.pubkey)}
+                    serviceNames={serviceNames}
                     busy={busyKey === s.pubkey}
                     onBlock={setConfirmBlock}
                     onUnblock={(sub) => handleSetBlock(sub, false)}

@@ -9,6 +9,7 @@ import type {
   AdminBillingResolution,
   AdminBillingSubscription,
   AdminBillingSubscriptionAction,
+  FlashServiceItem,
 } from "@/services/api";
 import { AdminBillingCards } from "./AdminBillingCards";
 
@@ -20,6 +21,7 @@ const setAdminBillingBlock =
   vi.fn<(pubkey: string, blocked: boolean) => Promise<{ pubkey: string; blocked: boolean; revoked: boolean }>>();
 const resyncAdminBillingSubscription =
   vi.fn<(pubkey: string) => Promise<{ applied: boolean; reason: string }>>();
+const getAdminBillingFlashServices = vi.fn<() => Promise<FlashServiceItem[]>>();
 const getAdminBillingFlashRecordForSubscriber =
   vi.fn<(pubkey: string) => Promise<unknown>>();
 const cancelAdminBillingSubscription =
@@ -49,7 +51,7 @@ vi.mock("@/services/api", () => ({
   apiClient: {
     // Flash's live list is unavailable in these suites, so the mapping dialog
     // falls back to its typed-id fields — the path these tests drive.
-    getAdminBillingFlashServices: () => Promise.reject(new Error("Flash list unavailable in this test")),
+    getAdminBillingFlashServices: () => getAdminBillingFlashServices(),
     getAdminBillingFlashServicePlans: () => Promise.reject(new Error("Flash list unavailable in this test")),
     getAdminUsers: (params: { search?: string; size?: number }) => getAdminUsers(params),
     getSchedulingPolicies: () => getSchedulingPolicies(),
@@ -102,6 +104,9 @@ function renderCards() {
 beforeEach(() => {
   vi.clearAllMocks();
   getAdminBillingDivergence.mockResolvedValue({});
+  // Flash's live list is unavailable by default, so the mapping dialog falls
+  // back to its typed-id fields; the roster's service tests resolve it.
+  getAdminBillingFlashServices.mockReset().mockRejectedValue(new Error("Flash list unavailable in this test"));
   fetchProfileMap.mockResolvedValue(new Map());
 });
 
@@ -1901,5 +1906,82 @@ describe("resolving a signup that named nobody", () => {
     expect(await screen.findByTestId("billing-flash-record-error")).toHaveTextContent(
       "Flash has no subscription for this record.",
     );
+  });
+});
+
+// Benjamin (2026-09-09): "we need to see the service name so we can
+// distinguish whether it's on production or staging — right now we can't
+// tell where the users are coming from." Flash keeps one service per
+// environment. The roster row carries no service, but the Flash record each
+// row already reads does: `serviceId`, named through the account's services.
+describe("the Flash service each subscriber lives on", () => {
+  const A = "a".repeat(64);
+  const B = "b".repeat(64);
+  const SERVICES: FlashServiceItem[] = [
+    { id: "svc-live", name: "Brainstorm" },
+    { id: "svc-stg", name: "Brainstorm Staging" },
+  ];
+  const SUB = { flash_status: "active", scheduling_source: "billing", billing_blocked: false } as AdminBillingSubscription;
+  const recordOn = (serviceId: string, pubkey: string) => ({
+    livemode: true,
+    subscriptions: [{ id: `sub_${pubkey.slice(0, 4)}`, ref: pubkey, status: "active", serviceId, planId: "plan_1" }],
+  });
+
+  it("each row names the service its Flash record belongs to", async () => {
+    getAdminBillingFlashServices.mockResolvedValue(SERVICES);
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 2, pages: 1, items: [{ ...SUB, pubkey: A }, { ...SUB, pubkey: B }] });
+    getAdminBillingFlashRecordForSubscriber.mockImplementation(async (pubkey: string) => recordOn(pubkey === A ? "svc-live" : "svc-stg", pubkey));
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId(`billing-service-${A.slice(0, 8)}`)).toHaveTextContent("Brainstorm"));
+    expect(screen.getByTestId(`billing-service-${B.slice(0, 8)}`)).toHaveTextContent("Brainstorm Staging");
+  });
+
+  it("a service switch narrows the roster to one environment, counts it, and survives turning the page", async () => {
+    getAdminBillingFlashServices.mockResolvedValue(SERVICES);
+    const pageOf = (n: number): AdminBillingSubscription[] =>
+      Array.from({ length: 3 }, (_, i) => ({ ...SUB, pubkey: `${n}${i}`.padEnd(64, "f") }));
+    getAdminBillingSubscriptions.mockImplementation(async (page = 1) => ({ items: pageOf(page), total: 6, pages: 2, page }));
+    // On each page the first row is a staging signup, the rest are live.
+    getAdminBillingFlashRecordForSubscriber.mockImplementation(async (pubkey: string) => recordOn(pubkey[1] === "0" ? "svc-stg" : "svc-live", pubkey));
+    renderCards();
+    await screen.findAllByTestId(/^billing-sub-/);
+    await waitFor(() => expect(screen.getByTestId("billing-service-10ffffff")).toHaveTextContent("Brainstorm Staging"));
+    expect(screen.getAllByTestId(/^billing-sub-/)).toHaveLength(3);
+    await userEvent.click(screen.getByTestId("billing-service-filter-svc-stg"));
+    expect(screen.getByTestId("billing-service-filter-svc-stg")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getAllByTestId(/^billing-sub-/)).toHaveLength(1);
+    expect(screen.getByTestId("billing-filter-count")).toHaveTextContent("1 of 3");
+    await userEvent.click(screen.getByTestId("billing-pager-next"));
+    await waitFor(() => expect(getAdminBillingSubscriptions).toHaveBeenLastCalledWith(2, 100));
+    await waitFor(() => expect(screen.getByTestId("billing-service-20ffffff")).toHaveTextContent("Brainstorm Staging"));
+    expect(screen.getByTestId("billing-service-filter-svc-stg")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getAllByTestId(/^billing-sub-/)).toHaveLength(1);
+    await userEvent.click(screen.getByTestId("billing-service-filter-all"));
+    expect(screen.getAllByTestId(/^billing-sub-/)).toHaveLength(3);
+  });
+
+  it("a subscriber Flash has no record for shows a dash, stays under All services, and leaves a chosen service", async () => {
+    getAdminBillingFlashServices.mockResolvedValue(SERVICES);
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 2, pages: 1, items: [{ ...SUB, pubkey: A }, { ...SUB, pubkey: B }] });
+    getAdminBillingFlashRecordForSubscriber.mockImplementation(async (pubkey: string) => {
+      if (pubkey === B) throw new Error("Flash has no subscription for this record.");
+      return recordOn("svc-live", pubkey);
+    });
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId(`billing-service-${A.slice(0, 8)}`)).toHaveTextContent("Brainstorm"));
+    await waitFor(() => expect(screen.getByTestId(`billing-service-${B.slice(0, 8)}`)).toHaveTextContent("—"));
+    expect(screen.getAllByTestId(/^billing-sub-/)).toHaveLength(2);
+    await userEvent.click(screen.getByTestId("billing-service-filter-svc-live"));
+    expect(screen.getAllByTestId(/^billing-sub-/)).toHaveLength(1);
+    expect(screen.getByTestId("billing-filter-count")).toHaveTextContent("1 of 2");
+  });
+
+  it("with one service on the account there is nothing to switch, so no switch", async () => {
+    getAdminBillingFlashServices.mockResolvedValue([SERVICES[0]]);
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 1, pages: 1, items: [{ ...SUB, pubkey: A }] });
+    getAdminBillingFlashRecordForSubscriber.mockImplementation(async (pubkey: string) => recordOn("svc-live", pubkey));
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId(`billing-service-${A.slice(0, 8)}`)).toHaveTextContent("Brainstorm"));
+    expect(screen.queryByTestId("billing-service-filter")).toBeNull();
   });
 });

@@ -127,4 +127,20 @@ describe("FlashSubscriptionSheet — how it is going wrong, and how it ends", ()
     }
     expect(screen.getByTestId("flash-sheet").textContent).not.toContain("—");
   });
+
+  // Benjamin (2026-09-09): admins need to tell a production subscription from
+  // a staging one. Flash keeps one service per environment, and the record
+  // names it.
+  it("names the Flash service the subscription lives on, by name when the account's list knows it", () => {
+    render(<FlashSubscriptionSheet raw={{ ...ACTIVE, serviceId: "svc-stg" }} serviceName="Brainstorm Staging" />);
+    expect(screen.getByTestId("flash-sheet-service")).toHaveTextContent("Brainstorm Staging");
+  });
+
+  it("falls back to the service id when no name is known, and says nothing when the record names none", () => {
+    const { unmount } = render(<FlashSubscriptionSheet raw={{ ...ACTIVE, serviceId: "svc-stg" }} />);
+    expect(screen.getByTestId("flash-sheet-service")).toHaveTextContent("svc-stg");
+    unmount();
+    render(<FlashSubscriptionSheet raw={ACTIVE} />);
+    expect(screen.queryByTestId("flash-sheet-service")).toBeNull();
+  });
 });

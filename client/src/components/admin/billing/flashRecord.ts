@@ -32,6 +32,9 @@ export interface FlashSubscriptionRecord {
   id: string | null;
   /** Our hex pubkey when the checkout carried one; null is a signup that named nobody. */
   ref: string | null;
+  /** The Flash service (one per environment) and plan the subscription lives on. */
+  serviceId: string | null;
+  planId: string | null;
   /** Verbatim. Unknown values must survive to be seen. */
   status: string;
   planName: string | null;
@@ -89,6 +92,8 @@ export function readFlashSubscription(raw: unknown): FlashSubscriptionRecord {
   return {
     id: str(r.id),
     ref: str(r.ref),
+    serviceId: str(r.serviceId),
+    planId: str(r.planId),
     status: str(r.status) ?? "unknown",
     planName: pricing ? str(pricing.planName) : null,
     amountMinor: pricing ? num(pricing.amount) : null,

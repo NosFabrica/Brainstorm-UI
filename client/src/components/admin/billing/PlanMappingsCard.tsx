@@ -16,7 +16,7 @@ import { PlanMappingFormDialog } from "./PlanMappingFormDialog";
 import { fetchPlans, type BillingPlan } from "@/services/subscription";
 import { formatAmount, formatBillingInterval } from "@/lib/plans";
 
-import { PLANS_KEY, POLICIES_KEY } from "./queryKeys";
+import { FLASH_SERVICES_KEY, PLANS_KEY, POLICIES_KEY } from "./queryKeys";
 
 type DialogState =
   | { mode: "create"; plan?: undefined }
@@ -28,7 +28,10 @@ function PlanRow({
   flash,
   flashLoaded,
   onEdit,
+  serviceName,
 }: {
+  /** The Flash service's name from the account's list; the id stands in when unknown. */
+  serviceName?: string;
   plan: AdminBillingPlanMapping;
   policyName: string;
   /** Flash's own listing for this mapping's plan id, when it still lists one. */
@@ -73,8 +76,11 @@ function PlanRow({
               Not in Flash's current list — nothing to sell until it is.
             </p>
           ) : null}
+          {/* Which Flash service — production or staging — this plan sells on. */}
           <p className="mt-1 font-mono text-[11px] text-slate-400 dark:text-slate-500 break-all">
-            service {plan.flash_service_id} · plan {plan.flash_plan_id}
+            service{" "}
+            <span title={plan.flash_service_id} data-testid={`billing-plan-service-${plan.id}`}>{serviceName ?? plan.flash_service_id}</span>
+            {" "}· plan {plan.flash_plan_id}
           </p>
         </div>
         <Button
@@ -125,6 +131,15 @@ export function PlanMappingsCard({ active }: { active: boolean }) {
     queryFn: () => apiClient.getAdminBillingPlanMappings(),
     enabled: active,
   });
+  // Flash keeps one service per environment; the name says which this plan sells on.
+  const servicesQuery = useQuery({
+    queryKey: FLASH_SERVICES_KEY,
+    queryFn: () => apiClient.getAdminBillingFlashServices(),
+    enabled: active,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+  const serviceNameOf = (id: string): string | undefined => servicesQuery.data?.find((svc) => svc.id === id)?.name;
   // What each mapping grants. Best-effort: a policy we can't name still lists.
   // Flash's public plans list — names and prices for the ids we map.
   const flashPlansQuery = useQuery<BillingPlan[]>({
@@ -241,6 +256,7 @@ export function PlanMappingsCard({ active }: { active: boolean }) {
                   .sort((a, b) => (policyNames.get(a.scheduling_id) ?? "").localeCompare(policyNames.get(b.scheduling_id) ?? "") || a.id - b.id)
                   .map((plan) => (
                     <PlanRow
+                      serviceName={serviceNameOf(plan.flash_service_id)}
                       key={plan.id}
                       plan={plan}
                       policyName={policyNames.get(plan.scheduling_id) ?? `policy ${plan.scheduling_id}`}
