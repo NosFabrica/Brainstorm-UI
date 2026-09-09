@@ -887,9 +887,10 @@ export default function SharePage() {
     </button>
   );
   // The action pieces, kept separate so we can place them differently per
-  // breakpoint: the magnifier, a "Follows you" chip, the review pen, Follow
-  // (signed in, not the owner) and the ⋯ menu — everyone's, since it holds
-  // the copies and the open-in links (team, 2026-09-08).
+  // breakpoint: the magnifier, the review pen, Follow (signed in, not the
+  // owner) and the ⋯ menu — everyone's, since it holds the copies and the
+  // open-in links (team, 2026-09-08). "Follows you" is not an action; it
+  // sits on the identity line.
   const followsYouChip = loggedIn && rel.enabled && !isOwner && !rel.loading && rel.followsYou ? (
     <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400" data-testid="share-follows-you">
       <UserPlus className="h-3 w-3" /> Follows you
@@ -910,12 +911,10 @@ export default function SharePage() {
       alreadyReported={!!rel.report}
     />
   );
-  // Desktop: magnifier + chip + pen + Follow + ⋯ together, top-right with
-  // the avatar.
+  // Desktop: magnifier + pen + Follow + ⋯ together, top-right with the avatar.
   const topRightActions = (
     <div className="hidden sm:flex items-center gap-2 shrink-0" data-testid="share-actions-topright">
       {searchIcon}
-      {followsYouChip}
       {reviewIcon}
       {followButton}
       {profileMenu}
@@ -935,7 +934,6 @@ export default function SharePage() {
   );
   const mobileFollowRow = followButton ? (
     <div className="mt-3 flex items-center gap-2 sm:hidden" data-testid="share-actions-mobile">
-      {followsYouChip}
       {followButton}
     </div>
   ) : null;
@@ -1027,6 +1025,11 @@ export default function SharePage() {
                 <BadgeCheck className="h-4 w-4" /> {profile.nip05.replace(/^_@/, "")}
               </span>
             )}
+            {/* "Follows you" is a fact about the two of you, not an action — it
+                sits with the identity, beside the handle, where X, Bluesky and
+                Mastodon put it (Benjamin, 2026-09-08: in the button row it read
+                as a button that did nothing). */}
+            {followsYouChip}
           </div>
           {/* NIP-38 status — a live "now" line under the name (general + now-playing). */}
           {!isHidden("status") && status.general && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 leading-snug" data-testid="share-status">{status.general}</p>}
