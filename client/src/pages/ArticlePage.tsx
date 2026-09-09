@@ -7,7 +7,7 @@ import rehypeSanitize from "rehype-sanitize";
 import { VideoEmbed, videoEmbedFor } from "@/components/share/VideoEmbed";
 import { LinkChip } from "@/components/share/LinkPreview";
 import { nip19 } from "nostr-tools";
-import { ArrowLeft, ArrowRight, BadgeCheck, Smartphone, Loader2, FileText } from "lucide-react";
+import { ArrowRight, BadgeCheck, Smartphone, Loader2, FileText } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { fetchAddressableEvents, fetchProfile } from "@/services/nostr";
@@ -19,15 +19,13 @@ import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { EventThread } from "@/components/share/EventThread";
 import { EntityMenu } from "@/components/share/EntityMenu";
+import { ShareButton } from "@/components/share/ShareButton";
 import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { BrainLogo } from "@/components/BrainLogo";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useHasSession } from "@/hooks/useHasSession";
 
-/** The header ⋯, 36px at every width like the header controls beside it. */
-const HEADER_MENU_CLASS =
-  "inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200 transition-colors";
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?.*)?$/i;
 const VID_RE = /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i;
@@ -180,23 +178,7 @@ export default function ArticlePage() {
     <div className="min-h-screen bg-gradient-to-b from-slate-50 dark:from-slate-950 to-white dark:to-slate-900">
       <PublicPageHeader
         maxWidthClass="max-w-3xl"
-        actions={
-          <>
-            {authorNpub && (
-              <Link href={`/p/${authorNpub}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-link hover:underline">
-                <ArrowLeft className="h-4 w-4" /> Profile
-              </Link>
-            )}
-            {ptr && (
-              <EntityMenu
-                entity={{ kind: "article", bech32: naddr, uri: `nostr:${naddr}` }}
-                copies={[{ id: "naddr", label: "Copy naddr", value: naddr, hint: "The article's address, for Nostr apps" }]}
-                triggerTestId="article-menu"
-                triggerClassName={HEADER_MENU_CLASS}
-              />
-            )}
-          </>
-        }
+        actions={<ShareButton url={typeof window !== "undefined" ? window.location.href : ""} title={`${title} — Brainstorm`} />}
       />
 
       <main className="mx-auto max-w-3xl px-4 sm:px-6 py-6 sm:py-10">
@@ -241,8 +223,8 @@ export default function ArticlePage() {
               </p>
             )}
 
-            {/* Author + trust + date */}
-            <div className="mt-4 flex items-center gap-3 border-b border-slate-100 dark:border-slate-800/60 pb-5">
+            {/* Author + trust + date — and the ⋯, on the object it acts on. */}
+            <div className="mt-4 flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/60 pb-5">
               <Link href={authorNpub ? `/p/${authorNpub}` : "#"} className="flex items-center gap-2.5 min-w-0 hover:opacity-80">
                 <span className="relative shrink-0">
                   <Avatar className={`h-11 w-11 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 ${tierRing(score01) ?? ""}`}>
@@ -262,6 +244,13 @@ export default function ArticlePage() {
                   <span className="text-xs text-slate-400 dark:text-slate-500">{publishedAgo(ev)}</span>
                 </div>
               </Link>
+              {ptr && (
+                <EntityMenu
+                  entity={{ kind: "article", bech32: naddr, uri: `nostr:${naddr}` }}
+                  copies={[{ id: "naddr", label: "Copy naddr", value: naddr, hint: "The article's address, for Nostr apps" }]}
+                  triggerTestId="article-menu"
+                />
+              )}
             </div>
 
             {/* Full article body — Brainstorm is the reading destination. */}

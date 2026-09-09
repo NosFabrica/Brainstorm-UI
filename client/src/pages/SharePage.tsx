@@ -49,6 +49,7 @@ import { DegreeChip } from "@/components/DegreeChip";
 import { useRelationshipBadges } from "@/hooks/useRelationshipBadges";
 import { FollowButton } from "@/components/share/FollowButton";
 import { ProfileMenu } from "@/components/share/ProfileMenu";
+import { ShareButton } from "@/components/share/ShareButton";
 import { isAdminPubkey } from "@/config/adminAccess";
 import { Stat, StatLensToggle, type StatLens } from "@/components/share/StatToggle";
 import { NegativeSignalStats } from "@/components/share/NegativeSignalStats";
@@ -98,7 +99,6 @@ export default function SharePage() {
   const npub = pubkey ? safeNpub(pubkey) : "";
   const openLightbox = useLightbox();
   const loggedIn = useHasSession();
-  const [shareOpen, setShareOpen] = useState(false);
   const [zapOpen, setZapOpen] = useState(false);
   // The pen beside Zap: each press asks the Trust reviews line to open its composer.
   const [composeRequest, setComposeRequest] = useState(0);
@@ -941,7 +941,17 @@ export default function SharePage() {
   ) : null;
 
   return (
-    <ShareShell onShare={() => setShareOpen(true)}>
+    <ShareShell
+      actions={
+        <ShareButton
+          url={canonicalUrl}
+          title={`${displayName} on Brainstorm`}
+          modal={(ctl) => (
+            <ShareProfileModal {...ctl} npub={npub} displayName={displayName} picture={profile.picture} nip05={profile.nip05} canonicalUrl={canonicalUrl} score01={houseScore01} onOwnPage />
+          )}
+        />
+      }
+    >
       <ShareNavProvider>
       {/* Identity hero */}
       <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden" data-testid="share-hero">
@@ -1422,7 +1432,6 @@ export default function SharePage() {
         onOpenChange={setScoreModalOpen}
         scores={{ personalized: score01, global: houseScore01 }}
       />
-      <ShareProfileModal open={shareOpen} onOpenChange={setShareOpen} npub={npub} displayName={displayName} picture={profile.picture} nip05={profile.nip05} canonicalUrl={canonicalUrl} score01={houseScore01} onOwnPage />
       {profile.lud16 && (
         <ZapModal open={zapOpen} onOpenChange={setZapOpen} recipientPubkey={pubkey} lud16={profile.lud16} displayName={displayName} picture={profile.picture} />
       )}
@@ -1446,17 +1455,10 @@ export default function SharePage() {
   );
 }
 
-function ShareShell({ children, onShare }: { children: React.ReactNode; onShare?: () => void }) {
+function ShareShell({ children, actions }: { children: React.ReactNode; actions?: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col">
-      <PublicPageHeader
-        maxWidthClass="max-w-4xl"
-        actions={onShare ? (
-          <button type="button" onClick={onShare} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold transition-colors" data-testid="share-open-modal">
-            Share
-          </button>
-        ) : undefined}
-      />
+      <PublicPageHeader maxWidthClass="max-w-4xl" actions={actions} />
       <main className="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 py-6">{children}</main>
     </div>
   );

@@ -2,7 +2,7 @@ import { useMemo, useEffect, useState } from "react";
 import { useRoute, useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
-import { ArrowLeft, BadgeCheck, Smartphone, Loader2, MessageSquare, ArrowRight, Share2, Check, X } from "lucide-react";
+import { BadgeCheck, Smartphone, Loader2, MessageSquare, ArrowRight, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { fetchEventsByIds, fetchAddressableEvents, fetchProfile, fetchProfileMap } from "@/services/nostr";
@@ -31,6 +31,7 @@ import { ThreadAncestors } from "@/components/share/ThreadAncestors";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { useLightbox } from "@/components/share/Lightbox";
 import { EntityMenu } from "@/components/share/EntityMenu";
+import { ShareButton } from "@/components/share/ShareButton";
 import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
 import { neventFor, npubFromPubkey, nostrUriForEvent } from "@/lib/shareId";
 import { initialsFor } from "@/lib/profileDefaults";
@@ -40,9 +41,6 @@ import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 
-/** The header ⋯ matches the 36px Share button beside it at every width. */
-const HEADER_MENU_CLASS =
-  "inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200 transition-colors";
 
 type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string };
 type EventPointer = { id: string; relays?: string[]; author?: string };
@@ -258,17 +256,9 @@ export default function EventPage() {
   // is what to copy and what the web apps want.
   const nevent = ptr ? neventFor(ptr.id, relayHints, authorPk || undefined) : "";
 
-  const [copied, setCopied] = useState(false);
   // When the thread's anon signup gate is showing, suppress the page's own
   // (now-duplicate) "Who can you trust online?" funnel.
   const [threadGated, setThreadGated] = useState(false);
-  const onShare = async () => {
-    const url = typeof window !== "undefined" ? window.location.href : "";
-    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
-      try { await navigator.share({ title: `${authorName} on Brainstorm`, url }); return; } catch { /* fall through to copy */ }
-    }
-    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* ignore */ }
-  };
 
   // Sign up from here → come back to this exact event afterward.
   const here = typeof window !== "undefined" ? window.location.pathname : "";
@@ -289,34 +279,7 @@ export default function EventPage() {
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950">
       <PublicPageHeader
         maxWidthClass="max-w-2xl"
-        actions={
-          <>
-            {authorNpub && (
-              <Link href={`/p/${authorNpub}`} className="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-brand-deep">
-                View profile <ArrowRight className="h-4 w-4" />
-              </Link>
-            )}
-            <button
-              type="button"
-              onClick={onShare}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold transition-colors"
-              data-testid="event-share"
-            >
-              {copied ? <><Check className="h-4 w-4" /> Copied</> : <><Share2 className="h-4 w-4" /> Share</>}
-            </button>
-            {ptr && nevent && (
-              <EntityMenu
-                entity={{ kind: "event", bech32: nevent, uri: openInApp }}
-                copies={[
-                  { id: "nevent", label: "Copy nevent", value: nevent, hint: "The note's id plus where to find it" },
-                  { id: "event-id", label: "Copy event ID", value: ptr.id, hint: "The raw 64-character id" },
-                ]}
-                triggerTestId="event-menu"
-                triggerClassName={HEADER_MENU_CLASS}
-              />
-            )}
-          </>
-        }
+        actions={<ShareButton url={typeof window !== "undefined" ? window.location.href : ""} title={`${authorName} on Brainstorm`} />}
       />
 
       <main className="mx-auto max-w-2xl px-4 sm:px-6 py-6 sm:py-8">
@@ -360,8 +323,9 @@ export default function EventPage() {
                 permalinked reply reads in context instead of floating alone. */}
             <ThreadAncestors note={note} relayHints={relayHints} />
 
-            {/* Author header */}
-            <div className="flex items-center gap-3 mb-4">
+            {/* Author header — and the ⋯, on the object it acts on (X puts it
+                on the post, not the page). */}
+            <div className="flex items-center justify-between gap-3 mb-4">
               <Link href={authorNpub ? `/p/${authorNpub}` : "#"} className="flex items-center gap-2.5 min-w-0 hover:opacity-80">
                 <span className="relative shrink-0">
                   <Avatar className={`h-12 w-12 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 ${tierRing(score01) ?? ""}`}>
@@ -381,6 +345,16 @@ export default function EventPage() {
                   <span className="text-xs text-slate-400 dark:text-slate-500">{ago(note.created_at)}</span>
                 </div>
               </Link>
+              {ptr && nevent && (
+                <EntityMenu
+                  entity={{ kind: "event", bech32: nevent, uri: openInApp }}
+                  copies={[
+                    { id: "nevent", label: "Copy nevent", value: nevent, hint: "The note's id plus where to find it" },
+                    { id: "event-id", label: "Copy event ID", value: ptr.id, hint: "The raw 64-character id" },
+                  ]}
+                  triggerTestId="event-menu"
+                />
+              )}
             </div>
 
             {/* The event — notes via the rich card; media kinds render their media. */}

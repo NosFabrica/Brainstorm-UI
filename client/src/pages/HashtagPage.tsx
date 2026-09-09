@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { useParams, Link, useLocation } from "wouter";
+import { useParams, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Hash, ShieldCheck, Share2, Check, ExternalLink, Info } from "lucide-react";
-import { BrainLogo } from "@/components/BrainLogo";
+import { Hash, ShieldCheck, Info } from "lucide-react";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { PageHeader } from "@/components/PageHeader";
+import { ShareButton } from "@/components/share/ShareButton";
+import { EntityMenu } from "@/components/share/EntityMenu";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
@@ -104,7 +105,6 @@ export default function HashtagPage() {
   // landing on what's FRESH — Top stays one tap away for the greatest hits.
   const [sort, setSort] = useState<SortMode>("latest");
   const [preset, setPreset] = useState<TrustPreset>(() => getActivePreset());
-  const [copied, setCopied] = useState(false);
 
   const contentQuery = useQuery({
     queryKey: ["hashtag-content", tag],
@@ -154,32 +154,13 @@ export default function HashtagPage() {
 
   const loading = contentQuery.isLoading;
   const shareUrl = typeof window !== "undefined" ? `${window.location.origin}/t/${tag}` : "";
-  const onShare = async () => {
-    try {
-      if (navigator.share) { await navigator.share({ title: `#${tag} · Brainstorm`, url: shareUrl }); return; }
-    } catch { /* user cancelled */ return; }
-    try { await navigator.clipboard.writeText(shareUrl); setCopied(true); setTimeout(() => setCopied(false), 1800); } catch { /* ignore */ }
-  };
-  const clientLinks = [
-    { name: "Primal", href: `https://primal.net/search/${encodeURIComponent(`#${tag}`)}` },
-    { name: "nostr.band", href: `https://nostr.band/?q=${encodeURIComponent(`#${tag}`)}` },
-  ];
 
   return (
     <ShareNavProvider>
       <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col">
         <PublicPageHeader
           maxWidthClass="max-w-2xl"
-          actions={
-            <button
-              type="button"
-              onClick={onShare}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5 text-sm font-semibold text-slate-700 dark:text-slate-200 transition-colors hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-900"
-              data-testid="hashtag-share"
-            >
-              {copied ? <><Check className="h-4 w-4 text-emerald-600" /> Copied</> : <><Share2 className="h-4 w-4" /> Share</>}
-            </button>
-          }
+          actions={<ShareButton url={shareUrl} title={`#${tag} · Brainstorm`} />}
         />
 
         <main className="w-full max-w-2xl mx-auto px-4 sm:px-6 py-8 flex-1" data-testid="hashtag-page">
@@ -187,6 +168,13 @@ export default function HashtagPage() {
             kicker="Topic"
             title={<><Hash className="inline-block h-7 w-7 -mt-1 text-brand-accent" />{tag}</>}
             subtitle="Notes and articles on this topic — ranked by your network, spam filtered out."
+            actions={
+              <EntityMenu
+                entity={{ kind: "hashtag", bech32: tag, uri: "" }}
+                copies={[{ id: "link", label: "Copy link", value: shareUrl, hint: "This page's address" }]}
+                triggerTestId="hashtag-menu"
+              />
+            }
           />
 
           {/* Related topics */}
@@ -269,25 +257,6 @@ export default function HashtagPage() {
           </div>
 
           {/* Cross-client: no universal hashtag deep-link, so link the clients that have one. */}
-          {!loading && events.length > 0 && (
-            <div className="mt-10 border-t border-slate-200 dark:border-slate-800 pt-6" data-testid="hashtag-openin">
-              <p className="text-[11px] font-mono font-semibold uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">Explore #{tag} elsewhere</p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {clientLinks.map((c) => (
-                  <a
-                    key={c.name}
-                    href={c.href}
-                    target="_blank"
-                    rel="noopener"
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 transition-colors hover:border-brand-accent/50"
-                    data-testid={`hashtag-client-${c.name}`}
-                  >
-                    {c.name} <ExternalLink className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
-                  </a>
-                ))}
-              </div>
-            </div>
-          )}
         </main>
       </div>
     </ShareNavProvider>
