@@ -1,9 +1,6 @@
 import type { ReactNode } from "react";
-import { Check, Copy, Globe, MoreHorizontal, Smartphone } from "lucide-react";
-import amethystLogoImg from "@/assets/amethyst-logo.png";
-import nostriaIconImg from "@/assets/nostria-icon.png";
-import dittoLogoImg from "@/assets/ditto-logo.png";
-import primalLogoImg from "@/assets/primal-logo.png";
+import { Check, Copy, MoreHorizontal } from "lucide-react";
+import { AppLinkIcon } from "@/components/share/AppLinkIcon";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,7 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useCopied } from "@/hooks/useCopied";
-import { appLinksFor, type AppLinkId, type OpenEntity } from "@/lib/openInApp";
+import { appLinksFor, type OpenEntity } from "@/lib/openInApp";
 
 export type CopyItem = {
   id: string;
@@ -26,14 +23,6 @@ export type CopyItem = {
 /** The ⋯ trigger — the chrome the profile's menu always had, so it sits beside Follow unchanged. */
 export const MENU_TRIGGER_CLASS =
   "inline-flex h-9 w-9 md:h-8 md:w-8 shrink-0 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-slate-800 dark:hover:text-slate-200 transition-colors";
-
-// No asset for nostr.band — it falls back to a globe.
-const LOGO: Partial<Record<Exclude<AppLinkId, "default">, string>> = {
-  amethyst: amethystLogoImg,
-  ditto: dittoLogoImg,
-  nostria: nostriaIconImg,
-  primal: primalLogoImg,
-};
 
 /** One copy row: its own 1.5 s "Copied" so two rows never share a check. */
 function CopyMenuItem({ item }: { item: CopyItem }) {
@@ -119,13 +108,7 @@ export function EntityMenu({
             {links.map((link) => (
               <DropdownMenuItem key={link.id} asChild className="gap-2">
                 <a href={link.href} {...(link.external ? { target: "_blank", rel: "noopener" } : {})} data-testid={`open-${link.id}`}>
-                  {link.id === "default" ? (
-                    <Smartphone className="h-4 w-4" />
-                  ) : LOGO[link.id] ? (
-                    <img src={LOGO[link.id]} alt="" className="h-4 w-4 rounded object-contain" />
-                  ) : (
-                    <Globe className="h-4 w-4" />
-                  )}
+                  <AppLinkIcon id={link.id} />
                   {link.label}
                 </a>
               </DropdownMenuItem>

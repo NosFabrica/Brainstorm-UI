@@ -7,18 +7,18 @@ import rehypeSanitize from "rehype-sanitize";
 import { VideoEmbed, videoEmbedFor } from "@/components/share/VideoEmbed";
 import { LinkChip } from "@/components/share/LinkPreview";
 import { nip19 } from "nostr-tools";
-import { ArrowRight, BadgeCheck, Smartphone, Loader2, FileText } from "lucide-react";
+import { ArrowRight, BadgeCheck, Loader2, FileText } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { fetchAddressableEvents, fetchProfile } from "@/services/nostr";
 import { apiClient } from "@/services/api";
-import { openArticleInApp } from "@/lib/articleLinks";
 import { npubFromPubkey } from "@/lib/shareId";
 import { wikiToMarkdown } from "@/lib/wiki";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { EventThread } from "@/components/share/EventThread";
 import { EntityMenu } from "@/components/share/EntityMenu";
+import { OpenElsewhere } from "@/components/share/OpenElsewhere";
 import { ShareButton } from "@/components/share/ShareButton";
 import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
@@ -196,13 +196,8 @@ export default function ArticlePage() {
           <div className="text-center py-20">
             <FileText className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto" />
             <p className="mt-3 text-slate-600 dark:text-slate-300 font-medium">We couldn’t find this article on the relays.</p>
-            <button
-              type="button"
-              onClick={() => openArticleInApp(naddr)}
-              className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover px-4 py-2 text-sm font-semibold text-white"
-            >
-              <Smartphone className="h-4 w-4" /> Try opening in an app
-            </button>
+            {/* The naddr says which kind it is, so only clients that render it are offered. */}
+            <OpenElsewhere entity={{ kind: "article", eventKind: ptr.kind, bech32: naddr, uri: `nostr:${naddr}` }} className="mt-5" />
           </div>
         ) : (
           <ShareNavProvider>
