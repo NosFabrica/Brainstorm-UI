@@ -222,10 +222,12 @@ export function RepoHero({ event }: { event: RepoEvent }) {
             </div>
           )}
         </div>
-        {/* The corner is decorative only while there is nothing to say. */}
+        {/* The corner is decorative only while there is nothing to say — and
+            then at the title's height, a type mark, not a picture the card
+            does not have (the list card's rule, 2026-09-09). */}
         {!hasNumbers && (
-          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-3xl bg-slate-100 dark:bg-slate-800 shadow-sm" data-testid="repo-hero-glyph">
-            <FolderGit2 className="h-8 w-8 text-slate-400 dark:text-slate-500" />
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800" data-testid="repo-hero-glyph">
+            <FolderGit2 className="h-5 w-5 text-slate-400 dark:text-slate-500" />
           </div>
         )}
       </div>
