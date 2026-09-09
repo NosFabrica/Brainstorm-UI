@@ -25,8 +25,18 @@ const zapReqMock = vi.fn();
 vi.mock("@/lib/zapstoreRelay", () => ({
   zapstoreRelay: () => ({ req: (...args: unknown[]) => zapReqMock(...args) }),
 }));
+/** The relay's socket state as search.ts reads it — tests move it. */
+const relayState = { connected: true, ready: true, lastMessageAt: Date.now() };
+const reportSearchFailureMock = vi.fn();
+vi.mock("@/lib/serverStatus", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/serverStatus")>();
+  return { ...actual, reportSearchFailure: () => reportSearchFailureMock() };
+});
 vi.mock("@/lib/searchRelay", () => ({
   searchRelay: () => ({
+    get connected() { return relayState.connected; },
+    get ready() { return relayState.ready; },
+    get lastMessageAt() { return relayState.lastMessageAt; },
     req: (...args: unknown[]) => reqMock(...args),
     count: (...args: unknown[]) => countMock(...args),
   }),
@@ -359,6 +369,61 @@ describe("searchStream — a person's live streams", () => {
     subject.next(EOSE);
     await tick();
     expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["hosted", "unroled"]);
+  });
+});
+
+// A dead relay used to be an eternal skeleton: the request errored into an
+// uncaught rxjs throw, or hung, and the snapshot never changed. Now the
+// stream says so, and tells the server-status store when the socket is the
+// reason (2026-09-09: the sorry page).
+describe("searchStream — when the relay fails", () => {
+  beforeEach(() => {
+    relayState.connected = true;
+    relayState.ready = true;
+    relayState.lastMessageAt = Date.now();
+  });
+
+  it("a request that errors while the socket is down says so and tells the store; a rate limit is a friendly line and nothing more", async () => {
+    const { RelayClosedError } = await import("applesauce-relay");
+    const { subject } = controllable();
+    const snaps: SearchSnapshot[] = [];
+    relayState.connected = false;
+    searchStream("bitcoin", { tab: "notes", pov: "nosfabrica" }, (s) => snaps.push(s));
+    await tick();
+    subject.error(new Event("error"));
+    await tick();
+    expect(snaps.at(-1)!.error).toMatch(/quick break/i);
+    expect(reportSearchFailureMock).toHaveBeenCalledTimes(1);
+
+    reportSearchFailureMock.mockClear();
+    relayState.connected = true;
+    const second = controllable();
+    const snaps2: SearchSnapshot[] = [];
+    searchStream("bitcoin", { tab: "notes", pov: "nosfabrica" }, (s) => snaps2.push(s));
+    await tick();
+    second.subject.error(new RelayClosedError("rate-limited: too many concurrent subscriptions (max 50)"));
+    await tick();
+    expect(snaps2.at(-1)!.error).toMatch(/too many searches/i);
+    expect(reportSearchFailureMock).not.toHaveBeenCalled();
+  });
+
+  it("a request nothing answers for ten seconds while the socket is down tells the store", async () => {
+    vi.useFakeTimers();
+    try {
+      controllable();
+      const snaps: SearchSnapshot[] = [];
+      relayState.connected = false;
+      relayState.ready = false;
+      const handle = searchStream("bitcoin", { tab: "notes", pov: "nosfabrica" }, (s) => snaps.push(s));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(reportSearchFailureMock).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(reportSearchFailureMock).toHaveBeenCalledTimes(1);
+      expect(snaps.at(-1)!.error).toMatch(/quick break/i);
+      handle();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

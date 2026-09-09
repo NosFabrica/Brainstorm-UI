@@ -16,6 +16,8 @@
  */
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
+import { RelayClosedError } from "applesauce-relay";
+import { reportSearchFailure } from "@/lib/serverStatus";
 import { searchRelay } from "@/lib/searchRelay";
 import { zapstoreRelay } from "@/lib/zapstoreRelay";
 import { eventStore } from "@/lib/eventStore";
@@ -124,6 +126,10 @@ const DEFAULT_LIMIT = 100;
  * the honest depth; past it the list says it has reached the end.
  */
 const RANKED_PAGE_CEILING = 600;
+/** How long a page may go unanswered before the stream says something. */
+const REQ_DEADLINE_MS = 10_000;
+/** What the reader sees when the relay is the reason — the sorry page's line. */
+const SEARCH_BREAK = "Search is taking a quick break.";
 
 /** Kind-0 event → the SearchResult currency the whole app renders. */
 export function kind0ToSearchResult(event: NostrEvent): SearchResult {
@@ -269,6 +275,9 @@ export function searchStream(
       if (cancelled || pendingAuthors.size === 0) return;
       const authors = [...pendingAuthors];
       pendingAuthors.clear();
+      // The previous flush's REQ stays open otherwise — each one counted
+      // against the relay's 50 concurrent subscriptions.
+      hydrateSub?.unsubscribe();
       hydrateSub = relay
         .req({ kinds: [0], authors, search: "include:spam", limit: authors.length })
         .subscribe((msg: { type: string; event?: NostrEvent }) => {
@@ -306,8 +315,36 @@ export function searchStream(
       // The first page of a seeded stream is a refresh: what it brings is
       // newer than the seed and goes in front of it, in arrival order.
       let insertAt = 0;
-      const sub = relay.req(pageFilter).subscribe((msg: { type: string; event?: NostrEvent; reason?: string }) => {
+      // Ten seconds with no frame at all: on a dead socket that is the
+      // outage (the request hangs in the library's reconnect backoff); on a
+      // live one it is a half-open socket nothing can tell apart from slow.
+      const deadline = setTimeout(() => {
+        if (cancelled || answered) return;
+        if (!relay.connected) {
+          reportSearchFailure();
+          emit({ error: SEARCH_BREAK });
+        } else if (Date.now() - relay.lastMessageAt > REQ_DEADLINE_MS) {
+          emit({ error: "Search is not answering right now. Try again in a moment." });
+        }
+      }, REQ_DEADLINE_MS);
+      let answered = false;
+      const sub = relay.req(pageFilter).subscribe({
+        error: (err: unknown) => {
+          clearTimeout(deadline);
+          if (cancelled) return;
+          loadingMore = false;
+          // A prefixed CLOSED — rate-limited:, error:, blocked: — errors the
+          // observable instead of arriving as a frame. The socket is fine.
+          if (err instanceof RelayClosedError) {
+            emit({ error: /rate-limited/i.test(err.message) ? "Too many searches are open — give it a moment and try again." : `Search was refused: ${err.message}` });
+            return;
+          }
+          if (!relay.connected) reportSearchFailure();
+          emit({ error: relay.connected ? "Search ended unexpectedly" : SEARCH_BREAK });
+        },
+        next: (msg: { type: string; event?: NostrEvent; reason?: string }) => {
         if (cancelled) return;
+        answered = true;
         if (msg.type === "EVENT" && msg.event) {
           const event = msg.event;
           received++;
@@ -336,8 +373,9 @@ export function searchStream(
           loadingMore = false;
           emit({ error: msg.reason ?? "Search ended unexpectedly" });
         }
+        },
       });
-      pageSubs.push(sub);
+      pageSubs.push({ unsubscribe: () => { clearTimeout(deadline); sub.unsubscribe(); } });
     };
 
     turnPage = () => {

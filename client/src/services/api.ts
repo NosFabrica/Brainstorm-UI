@@ -10,9 +10,19 @@ import {
 import { EXTENSION_COLD_BOOT_WAIT_MS, waitForExtension } from "@/accounts/login";
 import { accountManager } from "@/accounts";
 import { activeAccount } from "@/accounts/signing";
+import { observeApiFetch } from "@/lib/serverStatus";
 
 const RAW_API_URL = env.VITE_API_URL;
 const API_BASE_URL = RAW_API_URL.replace(/\/+$/, "");
+
+// Every method below fetches for itself, and several swallow their errors
+// into friendly strings — so the one place that sees all of them is here:
+// the module's own `fetch`, which lets the server-status store hear each
+// transport failure (lib/serverStatus; the sorry page). A lazy delegate, so
+// a test's stubbed global fetch still intercepts. Quiet during the 401
+// redirect, whose aborted requests look like a dead server.
+const fetch: typeof globalThis.fetch = (input, init) =>
+  isRedirectingToLogin ? globalThis.fetch(input, init) : observeApiFetch(globalThis.fetch(input, init), String(input));
 
 if (!API_BASE_URL) {
   // eslint-disable-next-line no-console

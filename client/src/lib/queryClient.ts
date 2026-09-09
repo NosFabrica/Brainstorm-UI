@@ -1,3 +1,4 @@
+import { onRecover } from "@/lib/serverStatus";
 import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 async function throwIfResNotOk(res: Response) {
@@ -54,4 +55,10 @@ export const queryClient = new QueryClient({
       retry: false,
     },
   },
+});
+
+// The API came back after an outage: refetch everything the pages asked for
+// while it was down, so they refill without a reload (lib/serverStatus).
+onRecover(() => {
+  void queryClient.invalidateQueries();
 });

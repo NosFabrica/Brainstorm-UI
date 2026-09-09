@@ -10,6 +10,7 @@
 import type { Relay } from "applesauce-relay";
 import { pool } from "./relayPool";
 import { env } from "./runtimeEnv";
+import { watchRelay } from "@/lib/serverStatus";
 
 let cached: Relay | null | undefined;
 
@@ -24,5 +25,8 @@ export function searchRelay(): Relay | null {
     return cached;
   }
   cached = pool.relay(url);
+  // The server-status store reads this socket's own reconnect signals, so
+  // the search page can say "taking a quick break" instead of a skeleton.
+  watchRelay(cached);
   return cached;
 }
