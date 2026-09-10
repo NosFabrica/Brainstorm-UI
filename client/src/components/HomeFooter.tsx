@@ -5,9 +5,6 @@ const LINKS = [
   { label: "How search works", path: "/how-search-works" },
   { label: "Developers", path: "/developers" },
   { label: "Q&A", path: "/faq" },
-  // The documents a buyer agrees to at checkout, findable from the page everyone passes.
-  { label: "Privacy", path: "/privacy" },
-  { label: "Terms", path: "/terms" },
 ];
 
 /** The home page's quiet bottom row. */

@@ -1,5 +1,6 @@
 import { useLocation } from 'wouter';
 import { useBillingPlans } from '@/hooks/useBillingPlans';
+import { useSubscription } from '@/hooks/useSubscription';
 import { Wordmark } from '@/components/Wordmark';
 
 // Structured, product-grade footer (Google-style tiers). Top tier: the
@@ -15,6 +16,9 @@ export function Footer({ minimal = false }: { minimal?: boolean }) {
   // Hidden only on a CONFIRMED no-billing instance (empty plans array) —
   // loading/error keeps the link, so a transient API blip can't unsell.
   const { billingAvailable } = useBillingPlans();
+  // Pricing and Roadmap are the pitch; someone on a paid policy has already
+  // said yes. Same rule as the account menu's "Get Priority" row.
+  const { isPaid } = useSubscription();
 
   const linkClass =
     'text-[13px] text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white transition-colors rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50';
@@ -60,14 +64,16 @@ export function Footer({ minimal = false }: { minimal?: boolean }) {
                 costs money. Sits here rather than in the signup funnel on
                 purpose: a price shown before the product has demonstrated
                 itself loses people who would have paid a week later. */}
-            {billingAvailable !== false && (
+            {!isPaid && billingAvailable !== false && (
               <button type="button" onClick={() => setLocation('/pricing')} className={linkClass} data-testid="link-pricing">
                 Pricing
               </button>
             )}
-            <button type="button" onClick={() => setLocation('/roadmap')} className={linkClass} data-testid="link-roadmap">
-              Roadmap
-            </button>
+            {!isPaid && (
+              <button type="button" onClick={() => setLocation('/roadmap')} className={linkClass} data-testid="link-roadmap">
+                Roadmap
+              </button>
+            )}
             {/* The documents a buyer agrees to at checkout — findable from every
                 page that carries this footer, not only from /login. */}
             <button type="button" onClick={() => setLocation('/privacy')} className={linkClass} data-testid="link-privacy">

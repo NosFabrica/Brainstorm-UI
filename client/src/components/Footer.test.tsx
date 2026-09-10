@@ -6,9 +6,14 @@ import { Footer } from "./Footer";
 const navigate = vi.fn();
 vi.mock("wouter", () => ({ useLocation: () => ["/pricing", (to: string) => navigate(to)] }));
 vi.mock("@/hooks/useBillingPlans", () => ({ useBillingPlans: () => ({ billingAvailable: true }) }));
+const sub = vi.hoisted(() => ({ isPaid: false }));
+vi.mock("@/hooks/useSubscription", () => ({ useSubscription: () => ({ isPaid: sub.isPaid }) }));
 
 describe("Footer", () => {
-  beforeEach(() => navigate.mockClear());
+  beforeEach(() => {
+    navigate.mockClear();
+    sub.isPaid = false;
+  });
 
   // With payments live, the documents a buyer agrees to belong where people
   // look for them — the footer on Pricing, Settings and every info page. Until
@@ -22,6 +27,16 @@ describe("Footer", () => {
     expect(navigate).toHaveBeenLastCalledWith("/privacy");
     fireEvent.click(screen.getByRole("button", { name: "Terms" }));
     expect(navigate).toHaveBeenLastCalledWith("/terms");
+  });
+
+  // Pricing and Roadmap are the pitch, and someone on Priority has already
+  // said yes (Benjamin, 2026-09-10) — the same rule that hides the account
+  // menu's "Get Priority" row. The documents stay: a subscriber needs them most.
+  it("drops Pricing and Roadmap for someone on a paid policy", () => {
+    sub.isPaid = true;
+    render(<Footer />);
+    const labels = Array.from(screen.getByRole("navigation").querySelectorAll("button")).map((b) => b.textContent?.trim());
+    expect(labels).toEqual(["Built on Nostr", "What is Web of Trust?", "Privacy", "Terms"]);
   });
 
   it("keeps the workspace footer to the brand and version", () => {
