@@ -4,8 +4,8 @@
  * status chip, a date, an error — and, where the server has one, the action.
  * Rows read every field tolerantly: a lagging server may omit some.
  */
-import { Loader2, Plus, RefreshCw, User, ExternalLink } from "lucide-react";
-import { eventLabel, eventTone, failureLabel, statusLabel } from "./billingEventCopy";
+import { Loader2, Plus, RefreshCw, RotateCcw, User, ExternalLink } from "lucide-react";
+import { eventLabel, eventTone, failureLabel, sourceLabel, statusLabel } from "./billingEventCopy";
 import { FlashFactsStrip } from "./FlashFactsStrip";
 import type { SignupGroup } from "./divergenceSections";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -61,6 +61,9 @@ export function PersonCell({ pubkey, profile }: { pubkey: string; profile?: Prof
   );
 }
 
+const rowActionClass =
+  "inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-brand-accent/40 hover:text-brand-deep disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-white";
+
 export function ResyncButton({ kind, pubkey, busy, onResync, className = "" }: { kind: string; pubkey: string; busy: boolean; onResync: (pubkey: string) => void; className?: string }) {
   return (
     <button
@@ -68,10 +71,27 @@ export function ResyncButton({ kind, pubkey, busy, onResync, className = "" }: {
       disabled={busy}
       onClick={() => onResync(pubkey)}
       title="Re-read this subscriber from Flash now and reapply what it grants"
-      className={`inline-flex shrink-0 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 transition-colors hover:border-brand-accent/40 hover:text-brand-deep disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:text-white ${className}`}
+      className={`${rowActionClass} ${className}`}
       data-testid={`billing-divergence-resync-${kind}-${pubkey.slice(0, 8)}`}
     >
       {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} Resync
+    </button>
+  );
+}
+
+/** Lets go of an admin's override so billing decides the tier again — never a
+ *  PUT of the default policy, which would itself be an override. */
+function ResetOverrideButton({ pubkey, busy, onReset }: { pubkey: string; busy: boolean; onReset: (pubkey: string) => void }) {
+  return (
+    <button
+      type="button"
+      disabled={busy}
+      onClick={() => onReset(pubkey)}
+      title="Drop the admin override so billing decides this tier again"
+      className={rowActionClass}
+      data-testid={`billing-divergence-reset-${pubkey.slice(0, 8)}`}
+    >
+      {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />} Reset to default
     </button>
   );
 }
@@ -86,6 +106,7 @@ export function PolicyMismatchRowView({
   policyName,
   busy,
   onResync,
+  onReset,
 }: {
   kind: "policy_mismatch" | "admin_overrides";
   row: PolicyMismatchRow;
@@ -93,6 +114,8 @@ export function PolicyMismatchRowView({
   policyName: (id: number | null | undefined) => string;
   busy: boolean;
   onResync?: (pubkey: string) => void;
+  /** Only where an admin holds the tier — there is nothing to let go of otherwise. */
+  onReset?: (pubkey: string) => void;
 }) {
   const pk8 = row.pubkey?.slice(0, 8) ?? "";
   return (
@@ -105,9 +128,10 @@ export function PolicyMismatchRowView({
           {" · on "}
           <span className="font-medium text-slate-700 dark:text-slate-200">{policyName(row.scheduling_id)}</span>
         </span>
-        {row.scheduling_source && <span className="text-slate-400 dark:text-slate-500">set by {row.scheduling_source}</span>}
+        {row.scheduling_source && <span className="text-slate-400 dark:text-slate-500">{sourceLabel(row.scheduling_source)}</span>}
       </span>
       {onResync && row.pubkey && <ResyncButton kind={kind} pubkey={row.pubkey} busy={busy} onResync={onResync} />}
+      {onReset && row.pubkey && <ResetOverrideButton pubkey={row.pubkey} busy={busy} onReset={onReset} />}
     </li>
   );
 }

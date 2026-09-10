@@ -150,6 +150,36 @@ row, the column reads it directly and the switch passes `service_id` to the serv
 payment method (see below), so either drop the column or leave it for the day Flash adds the
 field. Flagging so it is a decision, not a surprise.
 
+### 7. Who set the tier, wherever the tier picker is — asked 2026-09-10
+
+Reported from staging: an admin comped a user to Priority, they paid anyway, and moving them to
+the free policy did not stick. Any `PUT /admin/users/{pubkey}/scheduling` records
+`scheduling_source = admin` — the default policy included — and billing neither grants over nor
+revokes against an admin source. The server's fix is `DELETE /admin/users/{pubkey}/scheduling/override`
+(`feat/payments`), which lets go and answers with the policy billing settles on.
+
+The tier picker (Users tab, a user's page, a policy's member list) cannot offer that release,
+because it cannot tell an override is in force: `AdminUserListItem` (`GET /admin/users`) carries
+`scheduling_id` and `scheduling_name` but not the source, and neither does the policy members list
+(`GET /admin/scheduling/{id}/users`).
+
+```
+AdminUserListItem, and the members list rows, gain
+scheduling_source:  "default" | "billing" | "admin"   # user.scheduling_source, already a column
+```
+
+One column in each select. What the UI does with it: an **Admin-set** mark beside the picker and a
+**Reset to default** next to it, the same release the report offers.
+
+**What ships in the UI meanwhile** (2026-09-10): **Reset to default** on each row of Needs
+attention → Admin overrides, whose rows already carry the source. It confirms on a dialog naming
+the person, calls the release (never a PUT of the default policy), and the toast names the policy
+the server returned — a paying subscriber's Priority, not an assumed "free".
+
+**Not changed, needs a decision:** a policy card's "Move to default tier" (`SchedulingCard`) still
+assigns the default policy, which records `admin` — the literal "moving them to free doesn't
+stick" path. Swapping it for the release changes what the button means for a paying user.
+
 ---
 
 ## For Pierre (Flash)

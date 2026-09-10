@@ -67,7 +67,7 @@ import { flashRecordKey, recordFromBody, useFlashSubscriptionRecord } from "./Fl
 import { describeCycles } from "./flashRecord";
 
 import type { CreateAdminBillingPlanBody, SchedulingItem, UnmappedPlanRow, UpdateAdminBillingPlanBody } from "@/services/api";
-import { DIVERGENCE_KEY, FLASH_SERVICES_KEY, POLICIES_KEY, SUBS_KEY } from "./queryKeys";
+import { DIVERGENCE_KEY, FLASH_SERVICES_KEY, POLICIES_KEY, SUBS_KEY, USERS_KEY } from "./queryKeys";
 
 const PAGE_SIZE = 100;
 import {
@@ -311,7 +311,7 @@ function ConfirmSubscriptionAction({
 }: {
   /** Null closes the dialog — there is nothing to confirm without a subject. */
   subject: ConfirmSubject | null;
-  kind: "cancel" | "pause" | "resume" | "attribute" | "dismiss";
+  kind: "cancel" | "pause" | "resume" | "attribute" | "dismiss" | "reset";
   title: string;
   confirmLabel: string;
   confirmDisabled?: boolean;
@@ -763,6 +763,8 @@ export function AdminBillingCards({ active }: { active: boolean }) {
   const [cancelReason, setCancelReason] = useState("");
   const [confirmPause, setConfirmPause] = useState<AdminBillingSubscription | null>(null);
   const [confirmResume, setConfirmResume] = useState<AdminBillingSubscription | null>(null);
+  // The pubkey whose admin override is about to be dropped.
+  const [confirmReset, setConfirmReset] = useState<string | null>(null);
   const [flashRecordFor, setFlashRecordFor] = useState<FlashRecordTarget | null>(null);
   // Keyed by whatever handle the row has: a pubkey for a subscriber, a Flash
   // subscription id for a signup that named nobody.
@@ -817,6 +819,21 @@ export function AdminBillingCards({ active }: { active: boolean }) {
         description: entitlementReasonText(out.reason),
       });
     });
+
+  // Drops an admin's override. The server re-reads billing before it answers,
+  // so the toast names where they landed — a paying subscriber stays on what
+  // they pay for — rather than assuming the default.
+  const handleResetPubkey = (pubkey: string) =>
+    runAction(pubkey, async () => {
+      const out = await apiClient.clearUserSchedulingOverride(pubkey);
+      toast({
+        title: "Reset to default",
+        description: `Now on ${out.scheduling_name}. Billing decides their tier from here.`,
+      });
+      // The Users tab and the policies' member lists show the tier too.
+      await queryClient.invalidateQueries({ queryKey: USERS_KEY });
+      await queryClient.invalidateQueries({ queryKey: POLICIES_KEY });
+    }, "Couldn't reset to default");
 
   const handleSetBlock = (s: AdminBillingSubscription, blocked: boolean) =>
     runAction(s.pubkey, async () => {
@@ -1002,6 +1019,7 @@ export function AdminBillingCards({ active }: { active: boolean }) {
         policyName={policyName}
         busyKey={busyKey}
         onResync={handleResyncPubkey}
+        onReset={setConfirmReset}
         handlesByEventId={handlesByEventId}
         signupActions={signupActions}
         onCreateMapping={setMappingFor}
@@ -1348,6 +1366,23 @@ export function AdminBillingCards({ active }: { active: boolean }) {
       {/* Every write that reaches Flash names the person before it happens, the
           same way a manual tier change does. */}
       <ConfirmSubscriptionAction
+        subject={confirmReset ? { pubkey: confirmReset, profile: profiles.get(confirmReset) } : null}
+        kind="reset"
+        title="Reset this tier to default?"
+        confirmLabel="Reset to default"
+        destructive={false}
+        onDismiss={() => setConfirmReset(null)}
+        onConfirm={async () => {
+          const pubkey = confirmReset;
+          setConfirmReset(null);
+          if (pubkey) await handleResetPubkey(pubkey);
+        }}
+      >
+        Drops the admin override, so billing decides from now on — a paying subscriber keeps the policy they pay for;
+        anyone else returns to the default.
+      </ConfirmSubscriptionAction>
+
+      <ConfirmSubscriptionAction
         subject={subjectOf(confirmCancel)}
         kind="cancel"
         title="Cancel this subscription in Flash?"
@@ -1549,6 +1584,7 @@ function DivergenceBlock({
   policyName,
   busyKey,
   onResync,
+  onReset,
   handlesByEventId,
   signupActions,
   onCreateMapping,
@@ -1561,6 +1597,7 @@ function DivergenceBlock({
   policyName: (id: number | null | undefined) => string;
   busyKey: string | null;
   onResync: (pubkey: string) => void;
+  onReset: (pubkey: string) => void;
   handlesByEventId: Map<number, SignupHandle>;
   signupActions: SignupActions;
   onCreateMapping: (row: UnmappedPlanRow) => void;
@@ -1580,6 +1617,7 @@ function DivergenceBlock({
             policyName={policyName}
             busy={busy(row)}
             onResync={kind === "policy_mismatch" ? onResync : undefined}
+            onReset={kind === "admin_overrides" ? onReset : undefined}
           />
         );
       case "stale_syncs":

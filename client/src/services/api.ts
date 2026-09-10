@@ -409,6 +409,16 @@ export type DivergenceKind =
   | "retired_plan_subscribers";
 
 /** granted ≠ live scheduling; `admin_overrides` shares the shape (source = admin). */
+/**
+ * One user's scheduling as the server has it after an admin action — for a
+ * released override, the policy billing settled on in the same request.
+ */
+export interface AdminUserDetail {
+  pubkey: string;
+  scheduling_id: number | null;
+  scheduling_name: string;
+}
+
 export interface PolicyMismatchRow {
   pubkey: string;
   flash_status: string;
@@ -757,6 +767,28 @@ export const apiClient = {
       throw new Error(
         (await extractApiError(response)) ||
           `Failed to resync observer (${response.status})`,
+      );
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  /**
+   * Drops an admin's override so billing decides again. Assigning any policy —
+   * the default included — records the admin as its source, which billing
+   * will neither grant over nor revoke against; only this verb lets go. The
+   * server re-reads billing before answering, so the result is the policy in
+   * effect now: a paying subscriber comes back on what they pay for.
+   */
+  async clearUserSchedulingOverride(pubkey: string): Promise<AdminUserDetail> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/users/${pubkey}/scheduling/override`,
+      // Waits on a Flash read before it answers.
+      { method: "DELETE", signal: AbortSignal.timeout(30000) },
+    );
+    if (!response.ok) {
+      throw new Error(
+        (await extractApiError(response)) || `Failed to reset the scheduling override (${response.status})`,
       );
     }
     const json = await response.json();

@@ -9,6 +9,7 @@ import type {
   AdminBillingResolution,
   AdminBillingSubscription,
   AdminBillingSubscriptionAction,
+  AdminUserDetail,
   FlashServiceItem,
 } from "@/services/api";
 import { AdminBillingCards } from "./AdminBillingCards";
@@ -21,6 +22,8 @@ const setAdminBillingBlock =
   vi.fn<(pubkey: string, blocked: boolean) => Promise<{ pubkey: string; blocked: boolean; revoked: boolean }>>();
 const resyncAdminBillingSubscription =
   vi.fn<(pubkey: string) => Promise<{ applied: boolean; reason: string }>>();
+const clearUserSchedulingOverride = vi.fn<(pubkey: string) => Promise<AdminUserDetail>>();
+const assignUserScheduling = vi.fn<(pubkey: string, schedulingId: number) => Promise<unknown>>();
 const getAdminBillingFlashServices = vi.fn<() => Promise<FlashServiceItem[]>>();
 const getAdminBillingFlashRecordForSubscriber =
   vi.fn<(pubkey: string) => Promise<unknown>>();
@@ -66,6 +69,8 @@ vi.mock("@/services/api", () => ({
     getAdminBillingDivergence: () => getAdminBillingDivergence(),
     setAdminBillingBlock: (pubkey: string, blocked: boolean) => setAdminBillingBlock(pubkey, blocked),
     resyncAdminBillingSubscription: (pubkey: string) => resyncAdminBillingSubscription(pubkey),
+    clearUserSchedulingOverride: (pubkey: string) => clearUserSchedulingOverride(pubkey),
+    assignUserScheduling: (pubkey: string, schedulingId: number) => assignUserScheduling(pubkey, schedulingId),
     getAdminBillingFlashRecordForSubscriber: (pubkey: string) =>
       getAdminBillingFlashRecordForSubscriber(pubkey),
     cancelAdminBillingSubscription: (pubkey: string, reason?: string) =>
@@ -565,6 +570,79 @@ describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", ()
     const staleMeta = within(stale).getByTestId(`billing-stale-meta-${PUBKEY.slice(0, 8)}`);
     expect(staleMeta).toHaveClass("basis-full");
     expect(screen.getByTestId(`billing-divergence-resync-failing_syncs-${PUBKEY.slice(0, 8)}`)).toBeInTheDocument();
+  });
+
+  // Staging, 2026-09-10: an admin comped someone to Priority, they paid
+  // anyway, and moving them to the free policy didn't stick — assigning any
+  // policy records the admin as its source, and billing will neither grant
+  // over nor revoke against that. The row that lists them lets go of the
+  // override instead, and says where they landed rather than assuming.
+  it("an admin override row resets to default by releasing the override, never by assigning a policy", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    fetchProfileMap.mockResolvedValue(new Map([[PUBKEY, { name: "Vitor Pamplona" }]]));
+    getAdminBillingDivergence.mockResolvedValue({
+      admin_overrides: {
+        count: 1,
+        truncated: false,
+        rows: [{ pubkey: PUBKEY, flash_status: "active", granted_scheduling_id: 4, scheduling_id: 1, scheduling_source: "admin" }],
+      },
+    });
+    // A paying subscriber comes back on what they pay for.
+    clearUserSchedulingOverride.mockResolvedValue({ pubkey: PUBKEY, scheduling_id: 4, scheduling_name: "Priority" });
+    renderCards();
+    const row = await screen.findByTestId(`billing-override-${PUBKEY.slice(0, 8)}`);
+    expect(row.textContent).toContain("Admin-set"); // the roster's word for it, not the raw enum
+    fireEvent.click(within(row).getByRole("button", { name: /reset to default/i }));
+
+    // Nothing changes until the admin confirms, on a dialog naming the person.
+    const dialog = await screen.findByTestId("dialog-billing-reset-confirm");
+    await waitFor(() => expect(dialog.textContent).toContain("Vitor Pamplona"));
+    expect(clearUserSchedulingOverride).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByTestId("button-billing-reset-confirm"));
+
+    await waitFor(() => expect(clearUserSchedulingOverride).toHaveBeenCalledWith(PUBKEY));
+    expect(assignUserScheduling).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Reset to default", description: expect.stringContaining("Priority") }),
+      ),
+    );
+    expect(JSON.stringify(toast.mock.calls)).not.toMatch(/free/i);
+  });
+
+  it("keeping the override calls nothing", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue({
+      admin_overrides: {
+        count: 1,
+        truncated: false,
+        rows: [{ pubkey: PUBKEY, flash_status: "active", granted_scheduling_id: 4, scheduling_id: 1, scheduling_source: "admin" }],
+      },
+    });
+    renderCards();
+    const row = await screen.findByTestId(`billing-override-${PUBKEY.slice(0, 8)}`);
+    fireEvent.click(within(row).getByRole("button", { name: /reset to default/i }));
+    const dialog = await screen.findByTestId("dialog-billing-reset-confirm");
+    fireEvent.click(within(dialog).getByTestId("button-billing-reset-dismiss"));
+    await waitFor(() => expect(screen.queryByTestId("dialog-billing-reset-confirm")).not.toBeInTheDocument());
+    expect(clearUserSchedulingOverride).not.toHaveBeenCalled();
+    expect(assignUserScheduling).not.toHaveBeenCalled();
+  });
+
+  // A mismatch billing holds has no override to let go of — Resync is its verb.
+  it("a billing-held mismatch offers Resync and no reset", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue({
+      policy_mismatch: {
+        count: 1,
+        truncated: false,
+        rows: [{ pubkey: PUBKEY, flash_status: "active", granted_scheduling_id: 4, scheduling_id: 1, scheduling_source: "billing" }],
+      },
+    });
+    renderCards();
+    const row = await screen.findByTestId(`billing-mismatch-${PUBKEY.slice(0, 8)}`);
+    expect(within(row).getByRole("button", { name: /resync/i })).toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: /reset/i })).toBeNull();
   });
 
   // Exhausted events overlap the signup sections by design: the signup row
