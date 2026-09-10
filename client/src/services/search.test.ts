@@ -392,7 +392,7 @@ describe("searchStream — when the relay fails", () => {
     await tick();
     subject.error(new Event("error"));
     await tick();
-    expect(snaps.at(-1)!.error).toMatch(/quick break/i);
+    expect(snaps.at(-1)!.error).toMatch(/running behind/i);
     expect(reportSearchFailureMock).toHaveBeenCalledTimes(1);
 
     reportSearchFailureMock.mockClear();
@@ -419,7 +419,7 @@ describe("searchStream — when the relay fails", () => {
       expect(reportSearchFailureMock).not.toHaveBeenCalled();
       await vi.advanceTimersByTimeAsync(10_000);
       expect(reportSearchFailureMock).toHaveBeenCalledTimes(1);
-      expect(snaps.at(-1)!.error).toMatch(/quick break/i);
+      expect(snaps.at(-1)!.error).toMatch(/running behind/i);
       handle();
     } finally {
       vi.useRealTimers();

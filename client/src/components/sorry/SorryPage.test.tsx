@@ -15,7 +15,7 @@ describe("SorryPage", () => {
     render(<SorryPage scope="search" variant="page" onRetry={retry} nextTryInSec={12} />);
     expect(screen.getAllByRole("img", { name: /brainstorm/i }).length).toBeGreaterThan(0);
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent("Oops!");
-    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Search is taking a quick break.");
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Search is running behind.");
     expect(screen.getByText(/working hard to catch up/i)).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: /try again/i }));
     expect(retry).toHaveBeenCalledTimes(1);
@@ -27,7 +27,7 @@ describe("SorryPage", () => {
 
   it("api down offers the search as the way out; search down offers the dashboard only to someone signed in", () => {
     const { unmount } = render(<SorryPage scope="api" variant="page" onRetry={() => {}} />);
-    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Brainstorm is taking a quick break.");
+    expect(screen.getByRole("heading", { level: 2 })).toHaveTextContent("Brainstorm is running behind.");
     expect(screen.getByTestId("sorry-secondary")).toHaveAttribute("href", "/");
     unmount();
     const anon = render(<SorryPage scope="search" variant="inline" onRetry={() => {}} />);

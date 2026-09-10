@@ -129,7 +129,7 @@ const RANKED_PAGE_CEILING = 600;
 /** How long a page may go unanswered before the stream says something. */
 const REQ_DEADLINE_MS = 10_000;
 /** What the reader sees when the relay is the reason — the sorry page's line. */
-const SEARCH_BREAK = "Search is taking a quick break.";
+const SEARCH_BREAK = "Search is running behind.";
 
 /** Kind-0 event → the SearchResult currency the whole app renders. */
 export function kind0ToSearchResult(event: NostrEvent): SearchResult {

@@ -19,15 +19,22 @@ import { Wordmark } from "@/components/Wordmark";
  */
 export type SorryScope = "api" | "search" | "app";
 
+/**
+ * The drawing and the words have to agree. An earlier line said the service
+ * was "taking a quick break", which is rest — and the illustration is a bird
+ * sprinting flat out (Benjamin, 2026-09-09: "it doesn't look like the image
+ * is taking a quick break"). Running behind hands straight off to the body's
+ * "catch up": one thought across two lines.
+ */
 const COPY: Record<SorryScope, { headline: string; line: string; body: string }> = {
   search: {
     headline: "Oops!",
-    line: "Search is taking a quick break.",
+    line: "Search is running behind.",
     body: "Our servers are working hard to catch up. Please try again soon!",
   },
   api: {
     headline: "Oops!",
-    line: "Brainstorm is taking a quick break.",
+    line: "Brainstorm is running behind.",
     body: "Our servers are working hard to catch up. Please try again soon!",
   },
   app: {

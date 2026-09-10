@@ -26,7 +26,7 @@ export function searchRelay(): Relay | null {
   }
   cached = pool.relay(url);
   // The server-status store reads this socket's own reconnect signals, so
-  // the search page can say "taking a quick break" instead of a skeleton.
+  // the search page can say it is running behind instead of showing a skeleton.
   watchRelay(cached);
   return cached;
 }

@@ -1,7 +1,7 @@
 /**
  * The UI is a JavaScript payload that never goes down; the servers behind it
  * do. This store notices — the API over HTTP, the search relay over its
- * socket — so the app can say "taking a quick break" instead of a skeleton
+ * socket — so the app can say what is running behind instead of a skeleton
  * or a bare 500 (Benjamin + the dev, 2026-09-09). A verdict is never one
  * failed call: two failures on different routes inside a window earn a
  * confirming probe, and only the probe's answer decides.

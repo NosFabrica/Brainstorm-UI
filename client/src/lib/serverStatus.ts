@@ -3,7 +3,7 @@
  *
  * The UI is a JavaScript payload that never goes down; the Brainstorm API
  * (HTTP) and the search relay (a socket) do. This store notices, so the app
- * can say "taking a quick break" where the thing that is down would have
+ * can say what is running behind, where the thing that is down would have
  * been — the dashboard when the API fails, the results when the relay does —
  * instead of a skeleton or a bare 500 (Benjamin + the dev, 2026-09-09).
  *
