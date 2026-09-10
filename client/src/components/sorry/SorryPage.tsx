@@ -55,18 +55,15 @@ function SorryArt({ className = "" }: { className?: string }) {
   if (gone) return null;
   return (
     <div className={`relative mx-auto ${className}`}>
-      <div className="pointer-events-none absolute inset-0 -z-10 rounded-[50%] bg-brand-primary/15 blur-3xl" aria-hidden="true" />
-      {/* The bird runs on the spot: a CSS bob over the still frame, which
-          stays sharp at any size and costs nothing to load — the page shows
-          when the servers are already struggling. Still for anyone whose
-          system asks for less motion. */}
-      <img
-        src="/brand/sorry-ostrich.png"
-        alt=""
-        className="mx-auto w-full rounded-3xl motion-safe:animate-run-bob"
-        onError={() => setGone(true)}
-        data-testid="sorry-art"
+      {/* A soft pool under the feet, not a halo around the figure: it grounds
+          the bird the way an error page's illustration sits still on the
+          page. Benjamin, 2026-09-09: the bob "looks dizzy" — nothing here
+          moves. */}
+      <div
+        className="pointer-events-none absolute inset-x-[12%] bottom-[6%] -z-10 h-[18%] rounded-[50%] bg-brand-primary/10 blur-2xl dark:bg-brand-primary/20"
+        aria-hidden="true"
       />
+      <img src="/brand/sorry-ostrich.png" alt="" className="mx-auto w-full" onError={() => setGone(true)} data-testid="sorry-art" />
     </div>
   );
 }
@@ -140,7 +137,7 @@ export function SorryPage({
         className="rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 px-5 py-8 text-center"
         data-testid={`sorry-${scope}`}
       >
-        <SorryArt className="mb-4 max-w-[220px]" />
+        <SorryArt className="mb-5 max-w-[190px]" />
         <h3 className="text-xl font-medium tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
           {copy.line}
         </h3>
@@ -163,7 +160,7 @@ export function SorryPage({
         </Link>
       </header>
       <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-10 text-center sm:px-6">
-        <SorryArt className="mb-6 max-w-sm" />
+        <SorryArt className="mb-7 max-w-[260px]" />
         <h1 className="text-5xl font-medium tracking-tight text-brand-deep dark:text-brand-link sm:text-6xl" style={{ fontFamily: "var(--font-display)" }}>
           {copy.headline}
         </h1>

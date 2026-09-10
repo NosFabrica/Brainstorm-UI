@@ -151,10 +151,6 @@ export default {
           "0%, 100%": { transform: "translateY(0)" },
           "50%": { transform: "translateY(-12px)" },
         },
-        "run-bob": {
-          "0%, 100%": { transform: "translateY(0) rotate(-0.7deg)" },
-          "50%": { transform: "translateY(-2.5%) rotate(0.7deg)" },
-        },
         "fade-up": {
           from: { opacity: "0", transform: "translateY(16px)" },
           to: { opacity: "1", transform: "translateY(0)" },
@@ -179,10 +175,6 @@ export default {
         "accordion-up": "accordion-up 0.2s ease-out",
         "gradient-x": "gradient-x 6s ease infinite",
         "float": "float 6s ease-in-out infinite",
-        // A running cycle for the sorry page's ostrich: the still frame is
-        // 426 KB and stays crisp at any size, where ten seconds of
-        // transparent video cost 4.3 MB at a third the resolution.
-        "run-bob": "run-bob 0.9s ease-in-out infinite",
         "fade-up": "fade-up 0.5s ease-out forwards",
         "blob-morph": "blob-morph 14s ease-in-out infinite",
       },
