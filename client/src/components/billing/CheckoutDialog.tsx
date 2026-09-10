@@ -130,6 +130,20 @@ export function CheckoutDialog({
               your wallet there, so have it handy. Payment is handled by Flash —
               your card details never reach Brainstorm.
             </p>
+            {/* The last screen before Flash, so agreeing here means something.
+                The documents open beside the dialog, not over it, so reading
+                them doesn't cost the buyer their place. */}
+            <p className="mt-1.5 text-[11px] leading-relaxed text-slate-400 dark:text-slate-500" data-testid="checkout-legal">
+              By continuing, you agree to our{" "}
+              <a href="/terms" target="_blank" rel="noopener noreferrer" className="font-medium text-brand-link hover:underline">
+                Terms of Use
+              </a>{" "}
+              and{" "}
+              <a href="/privacy" target="_blank" rel="noopener noreferrer" className="font-medium text-brand-link hover:underline">
+                Privacy Notice
+              </a>
+              .
+            </p>
           </>
         ) : (
           <>

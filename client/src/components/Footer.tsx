@@ -68,6 +68,14 @@ export function Footer({ minimal = false }: { minimal?: boolean }) {
             <button type="button" onClick={() => setLocation('/roadmap')} className={linkClass} data-testid="link-roadmap">
               Roadmap
             </button>
+            {/* The documents a buyer agrees to at checkout — findable from every
+                page that carries this footer, not only from /login. */}
+            <button type="button" onClick={() => setLocation('/privacy')} className={linkClass} data-testid="link-privacy">
+              Privacy
+            </button>
+            <button type="button" onClick={() => setLocation('/terms')} className={linkClass} data-testid="link-terms">
+              Terms
+            </button>
           </nav>
 
           {/* Partners — NosFabrica badge → Megistus lockup (black art; Megistus inverts in dark) */}

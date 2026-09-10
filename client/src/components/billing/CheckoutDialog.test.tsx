@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { screen, fireEvent } from "@testing-library/react";
+import { screen, fireEvent, within } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
 import { CheckoutDialog } from "./CheckoutDialog";
 import type { BillingPlan } from "@/services/subscription";
@@ -30,6 +30,25 @@ const PLAN: BillingPlan = {
 
 describe("CheckoutDialog", () => {
   beforeEach(() => localStorage.clear());
+
+  // Payments are live: the last screen before Flash is where agreeing to the
+  // Terms means something. The documents open beside the dialog, not over it,
+  // so reading them doesn't cost the buyer their place.
+  it("says continuing means agreeing to the Terms of Use and Privacy Notice, and leaves the small print as it was", () => {
+    renderWithProviders(<CheckoutDialog open onOpenChange={() => {}} plan={PLAN} />);
+    const dialog = screen.getByTestId("checkout-dialog");
+
+    expect(dialog.textContent).toContain("By continuing, you agree to our Terms of Use and Privacy Notice.");
+    const terms = within(dialog).getByRole("link", { name: "Terms of Use" });
+    const privacy = within(dialog).getByRole("link", { name: "Privacy Notice" });
+    expect(terms).toHaveAttribute("href", "/terms");
+    expect(privacy).toHaveAttribute("href", "/privacy");
+    for (const link of [terms, privacy]) {
+      expect(link).toHaveAttribute("target", "_blank");
+      expect(link.getAttribute("rel")).toContain("noopener");
+    }
+    expect(dialog.textContent).toContain("Payment is handled by Flash — your card details never reach Brainstorm.");
+  });
 
   it("opens checkout from the click itself, carrying the buyer's ref", () => {
     // Synchronously in the handler, or popup blockers eat it — and `ref` is
