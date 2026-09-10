@@ -56,7 +56,17 @@ function SorryArt({ className = "" }: { className?: string }) {
   return (
     <div className={`relative mx-auto ${className}`}>
       <div className="pointer-events-none absolute inset-0 -z-10 rounded-[50%] bg-brand-primary/15 blur-3xl" aria-hidden="true" />
-      <img src="/brand/sorry-ostrich.png" alt="" className="mx-auto w-full rounded-3xl" onError={() => setGone(true)} data-testid="sorry-art" />
+      {/* The bird runs on the spot: a CSS bob over the still frame, which
+          stays sharp at any size and costs nothing to load — the page shows
+          when the servers are already struggling. Still for anyone whose
+          system asks for less motion. */}
+      <img
+        src="/brand/sorry-ostrich.png"
+        alt=""
+        className="mx-auto w-full rounded-3xl motion-safe:animate-run-bob"
+        onError={() => setGone(true)}
+        data-testid="sorry-art"
+      />
     </div>
   );
 }
