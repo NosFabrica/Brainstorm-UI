@@ -237,3 +237,35 @@ describe("the scoped box names the tab and the person, and is ready to type", ()
     expect(footer).not.toHaveTextContent("npub1");
   });
 });
+
+// Once a search has run, the box, the mark and the account sit in a band
+// pinned to the top of the page. It was painted at all times and only as wide
+// as the results column, so at the top of a dark page it read as a flat
+// rectangle laid over the aurora, with visible left and right edges
+// (Benjamin, 2026-09-09: "it doesn't blend in well to start the page"). The
+// band is see-through until the reader scrolls under it, like every other
+// header in the app.
+describe("the search band as the page scrolls", () => {
+  beforeEach(() => {
+    cleanup();
+    allStreams = [];
+    streamMock.mockClear();
+    Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
+    window.history.replaceState({}, "", "/?q=austin");
+  });
+
+  it("is see-through at the top of the page and frosts once the reader scrolls under it", () => {
+    render(<Landing />);
+    const backdrop = screen.getByTestId("search-band-backdrop");
+    expect(backdrop).toHaveAttribute("data-frosted", "false");
+
+    Object.defineProperty(window, "scrollY", { value: 240, configurable: true });
+    fireEvent.scroll(window);
+    expect(backdrop).toHaveAttribute("data-frosted", "true");
+
+    Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
+    fireEvent.scroll(window);
+    expect(backdrop).toHaveAttribute("data-frosted", "false");
+  });
+});
+

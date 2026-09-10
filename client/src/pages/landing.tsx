@@ -181,6 +181,21 @@ export default function Landing() {
   // load-in through the Web Animations API (a remount would re-trigger
   // the input's autoFocus and reopen the recents dropdown).
   const heroRef = useRef<HTMLDivElement | null>(null);
+  // Whether the reader has scrolled under the pinned band. It is see-through
+  // over the top of the page and frosts only once there is content behind it
+  // — the same rule as PublicPageHeader, and the reason the band no longer
+  // reads as a slab laid over the aurora in dark mode.
+  const [bandFrosted, setBandFrosted] = useState(false);
+  useEffect(() => {
+    if (!hasSearched) {
+      setBandFrosted(false);
+      return;
+    }
+    const onScroll = () => setBandFrosted(window.scrollY > 6);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [hasSearched]);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const didInitFromUrlRef = useRef(false);
@@ -871,12 +886,29 @@ export default function Landing() {
           ref={heroRef}
           className={
             hasSearched
-              ? "sticky top-0 z-30 -mt-3 sm:-mt-4 py-2 sm:py-2.5 w-full max-w-6xl mx-auto flex flex-wrap items-center gap-x-3 gap-y-2 sm:flex-nowrap sm:gap-x-5 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md"
+              ? "sticky top-0 z-30 -mt-3 sm:-mt-4 py-2 sm:py-2.5 w-full max-w-6xl mx-auto flex flex-wrap items-center gap-x-3 gap-y-2 sm:flex-nowrap sm:gap-x-5"
               : "w-full max-w-2xl mx-auto text-center motion-safe:animate-[homeFadeUp_0.5s_ease-out]"
           }
           data-testid={hasSearched ? "search-band" : "search-hero"}
         >
           <style>{`@keyframes homeFadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }`}</style>
+
+          {/* The band's paint, on its own layer: the content row is only as
+              wide as the results column, so painting the row itself drew a
+              rectangle with two hard edges down the middle of the page. This
+              spans the viewport instead, and stays clear until scrolled. */}
+          {hasSearched && (
+            <div
+              aria-hidden="true"
+              data-frosted={bandFrosted}
+              data-testid="search-band-backdrop"
+              className={`pointer-events-none absolute inset-y-0 left-1/2 -z-10 w-screen -translate-x-1/2 border-b transition-[background-color,box-shadow,border-color] duration-300 ${
+                bandFrosted
+                  ? "border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl shadow-sm dark:shadow-none"
+                  : "border-transparent bg-transparent"
+              }`}
+            />
+          )}
 
           <div className={hasSearched ? "order-1 flex shrink-0 items-center" : "flex flex-col items-center mb-8 short:mb-3.5"}>
             <h1 className={hasSearched ? "flex items-center" : "mb-2.5 short:mb-1.5"} data-testid="text-home-title">
