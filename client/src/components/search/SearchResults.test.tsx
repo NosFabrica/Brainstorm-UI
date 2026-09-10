@@ -2072,41 +2072,6 @@ describe("SearchResults", () => {
     expect(rewrite).toHaveBeenLastCalledWith("bitcoin include:spam");
   });
 
-  // Benjamin's UX review: nobody types an npub or a 0–100 number. People are
-  // picked by NAME; the trust floor speaks the user's own tier ladder.
-  it("Rank as… is a people picker — type a name, pick a face, never see hex", async () => {
-    const rewrite = vi.fn();
-    const hex = "7".repeat(64);
-    suggestMock.mockResolvedValue([
-      { pubkey: hex, npub: "npub1fiatjaf", name: "fiatjaf", picture: "https://img.example/f.jpg", wotRank: 0.9, wotFollowers: 10 },
-    ]);
-    render(<SearchResults query="jack" pov="nosfabrica" onQueryRewrite={rewrite} />);
-    fireEvent.click(screen.getByTestId("search-filters-toggle"));
-    openAdvanced();
-
-    fireEvent.change(screen.getByTestId("filter-rank-as"), { target: { value: "fia" } });
-    const option = await screen.findByTestId(`rank-as-option-${hex.slice(0, 8)}`);
-    expect(option).toHaveTextContent("fiatjaf");
-    fireEvent.click(option);
-
-    expect(rewrite).toHaveBeenLastCalledWith(`jack observer:${hex}`);
-  });
-
-  it("a chosen observer shows as the person, and clears with one click", async () => {
-    const rewrite = vi.fn();
-    const hex = "7".repeat(64);
-    render(
-      <SearchResults query={`jack observer:${hex}`} pov="nosfabrica" onQueryRewrite={rewrite} />,
-    );
-    fireEvent.click(screen.getByTestId("search-filters-toggle"));
-    // Selected state: a person chip (name resolves when known; npub-short
-    // degrade otherwise), not a hex input.
-    const chip = screen.getByTestId("rank-as-selected");
-    expect(chip.textContent).not.toContain(hex);
-    fireEvent.click(screen.getByTestId("rank-as-clear"));
-    expect(rewrite).toHaveBeenLastCalledWith("jack");
-  });
-
   // Probed 2026-09-03: the relay ignores filter:rank and has no hops token, and
   // sort:text orders exactly like include:spam. Benjamin: show only filters
   // that are real. So the panel drops those, and the two that people still
@@ -2232,7 +2197,7 @@ describe("SearchResults", () => {
     });
 
     // The team: less busy. Sort and date show at once — the two anyone uses;
-    // trust distance, unranked accounts and Rank as wait behind one word.
+    // trust distance and unranked accounts wait behind one word.
     it("the Filters panel shows sort and date up front, and the rest behind Advanced", () => {
       render(<SearchResults query="btc" pov="nosfabrica" userPubkey={"e".repeat(64)} onQueryRewrite={vi.fn()} />);
       fireEvent.click(screen.getByTestId("search-filters-toggle"));
@@ -2240,13 +2205,15 @@ describe("SearchResults", () => {
       expect(screen.getByTestId("filter-date")).toBeInTheDocument();
       expect(screen.queryByTestId("filter-spam")).toBeNull();
       expect(screen.queryByTestId("filter-reach")).toBeNull();
-      expect(screen.queryByTestId("filter-rank-as")).toBeNull();
       const advanced = screen.getByTestId("filters-advanced-toggle");
       expect(advanced.getAttribute("aria-expanded")).toBe("false");
       fireEvent.click(advanced);
       expect(screen.getByTestId("filter-spam")).toBeInTheDocument();
       expect(screen.getByTestId("filter-reach")).toBeInTheDocument();
-      expect(screen.getByTestId("filter-rank-as")).toBeInTheDocument();
+      // Ranking through someone else's eyes is gone — nobody asked to see the
+      // network as a stranger sees it (Benjamin, 2026-09-09: "this is not
+      // needed"). The lens is the Brainstorm / My perspective toggle.
+      expect(screen.queryByTestId("filter-rank-as")).toBeNull();
       expect(screen.queryByTestId("filter-verified")).toBeNull();
     });
   });

@@ -14,9 +14,6 @@ import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQu
 import { clientFilterHits, countBelowLine } from "@/lib/clientFilters";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
 import { eventStore } from "@/lib/eventStore";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { X } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PersonCard } from "@/components/search/PersonCard";
 import { QuietTrustChrome } from "@/components/score/VerificationCoin";
@@ -29,7 +26,6 @@ import type { MinimalEvent } from "@/lib/noteRefs";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import {
   searchStream,
-  suggestProfiles,
   TAB_KINDS,
   type SearchHit,
   type SearchPov,
@@ -235,25 +231,6 @@ const DATE_PRESETS: { value: DatePreset; label: string }[] = [
   { value: "custom", label: "Custom range" },
 ];
 
-/** A chosen observer shows as a PERSON — name from the store when known,
- *  a short npub degrade when not. Never bare hex. */
-function observerDisplay(pubkey: string): { name: string; picture?: string } {
-  try {
-    const known = eventStore.getReplaceable(0, pubkey);
-    if (known) {
-      const meta = JSON.parse(known.content) as { name?: string; display_name?: string; picture?: string };
-      const name = meta.display_name || meta.name;
-      if (name) return { name, picture: meta.picture };
-    }
-  } catch {
-    /* fall through to npub */
-  }
-  try {
-    return { name: `${nip19.npubEncode(pubkey).slice(0, 12)}…` };
-  } catch {
-    return { name: `${pubkey.slice(0, 8)}…` };
-  }
-}
 
 // Every option here changes the relay's order — probed 2026-09-03. "Text match
 // only" went: it ordered exactly like "Include unranked" and confused people.
@@ -290,33 +267,13 @@ function FiltersPanel({
   const preset = datePreset(state);
   // "Custom range" stays open once chosen, even before a day is picked.
   const [customDates, setCustomDates] = useState(preset === "custom");
-  const advancedActive = !!state.reach || state.includeSpam || !!state.rankAs;
+  const advancedActive = !!state.reach || state.includeSpam;
   const [advancedOpen, setAdvancedOpen] = useState(advancedActive);
   useEffect(() => {
     if (advancedActive) setAdvancedOpen(true);
   }, [advancedActive]);
-  const [rankAsDraft, setRankAsDraft] = useState("");
-  const [rankAsOptions, setRankAsOptions] = useState<SearchResult[]>([]);
   const write = (patch: SearchFilterPatch) => onQueryRewrite(applyFilters(query, patch));
 
-  // People are picked by NAME — the box that asked for "npub or hex" is gone.
-  useEffect(() => {
-    const q = rankAsDraft.trim();
-    if (q.length < 2) {
-      setRankAsOptions([]);
-      return;
-    }
-    let alive = true;
-    const timer = setTimeout(() => {
-      void suggestProfiles(q, { pov, userPubkey }, { limit: 5 }).then((people) => {
-        if (alive) setRankAsOptions(people);
-      });
-    }, 150);
-    return () => {
-      alive = false;
-      clearTimeout(timer);
-    };
-  }, [rankAsDraft, pov, userPubkey]);
 
   const showDates = customDates || preset === "custom";
   const segment = (on: boolean) =>
@@ -468,69 +425,6 @@ function FiltersPanel({
         />
         Include unranked accounts
       </label>
-      <div className="relative flex min-w-0 flex-1 basis-full flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400 sm:flex-none sm:basis-auto">
-        See results through someone else's eyes
-        {state.rankAs ? (
-          (() => {
-            const who = observerDisplay(state.rankAs);
-            return (
-              <span
-                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-brand-primary/30 bg-brand-primary/5 dark:bg-brand-primary/15 px-2 text-xs font-medium text-slate-700 dark:text-slate-200"
-                data-testid="rank-as-selected"
-              >
-                <Avatar className="h-5 w-5">
-                  {who.picture ? <AvatarImage src={who.picture} alt="" className="object-cover" /> : null}
-                  <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
-                </Avatar>
-                <span className="max-w-[10rem] truncate">{who.name}</span>
-                <button
-                  type="button"
-                  aria-label="Stop ranking as this person"
-                  className="rounded-full p-0.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                  onClick={() => write({ rankAs: null })}
-                  data-testid="rank-as-clear"
-                >
-                  <X className="h-3 w-3" />
-                </button>
-              </span>
-            );
-          })()
-        ) : (
-          <>
-            <input
-              type="text"
-              placeholder="Type a name…"
-              className={`${field} w-full sm:w-48`}
-              value={rankAsDraft}
-              onChange={(e) => setRankAsDraft(e.target.value)}
-              data-testid="filter-rank-as"
-            />
-            {rankAsOptions.length > 0 && (
-              <div className="absolute top-full z-20 mt-1 w-56 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-lg">
-                {rankAsOptions.map((p) => (
-                  <button
-                    key={p.pubkey}
-                    type="button"
-                    className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-xs hover:bg-slate-50 dark:hover:bg-slate-800"
-                    onClick={() => {
-                      setRankAsDraft("");
-                      setRankAsOptions([]);
-                      write({ rankAs: p.pubkey });
-                    }}
-                    data-testid={`rank-as-option-${p.pubkey.slice(0, 8)}`}
-                  >
-                    <Avatar className="h-5 w-5 shrink-0">
-                      {p.picture ? <AvatarImage src={p.picture} alt="" className="object-cover" /> : null}
-                      <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
-                    </Avatar>
-                    <span className="truncate font-medium text-slate-800 dark:text-slate-100">{getDisplayLabel(p)}</span>
-                  </button>
-                ))}
-              </div>
-            )}
-          </>
-        )}
-      </div>
         </div>
       )}
     </div>
