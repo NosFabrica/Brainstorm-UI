@@ -21,11 +21,27 @@ const USERS_KEY = ["/api/admin/users"];
  * Admin action: force a full re-assert (resync) of one observer's published
  * state on the relay and/or Vespa. Confirms first — it re-pushes the observer's
  * entire above-cutoff set, so it's heavier than a normal recompute trigger.
+ *
+ * Renders its own trigger button by default; pass `open`/`onOpenChange` (and
+ * `showTrigger={false}`) to drive the dialog from elsewhere — e.g. the Users
+ * tab's three-dot menu, where the dialog must outlive the menu's unmount.
  */
-export function ResyncControl({ pubkey }: { pubkey: string }) {
+export function ResyncControl({
+  pubkey,
+  open: controlledOpen,
+  onOpenChange,
+  showTrigger = true,
+}: {
+  pubkey: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  showTrigger?: boolean;
+}) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = onOpenChange ?? setUncontrolledOpen;
   const [target, setTarget] = useState("both");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,18 +71,20 @@ export function ResyncControl({ pubkey }: { pubkey: string }) {
 
   return (
     <>
-      <Button
-        variant="ghost"
-        size="sm"
-        className="text-[10px] text-amber-600 hover:text-amber-800 no-default-hover-elevate no-default-active-elevate px-2 h-6"
-        onClick={(e) => {
-          e.stopPropagation();
-          setError(null);
-          setOpen(true);
-        }}
-      >
-        <RefreshCw className="h-3 w-3 mr-1" /> Resync
-      </Button>
+      {showTrigger && (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="text-[10px] text-amber-600 hover:text-amber-800 no-default-hover-elevate no-default-active-elevate px-2 h-6"
+          onClick={(e) => {
+            e.stopPropagation();
+            setError(null);
+            setOpen(true);
+          }}
+        >
+          <RefreshCw className="h-3 w-3 mr-1" /> Resync
+        </Button>
+      )}
 
       <Dialog open={open} onOpenChange={(o) => !busy && setOpen(o)}>
         <DialogContent onClick={(e) => e.stopPropagation()}>

@@ -70,6 +70,13 @@ export default function LoginPage() {
 
   const signedIn = useActiveAccountDisplay();
   const { identities, recheckExtension } = useLoginPicker();
+  const switchHint = (() => {
+    try {
+      return new URLSearchParams(window.location.search).get("switch") === "1";
+    } catch {
+      return false;
+    }
+  })();
   const hasAccounts = identities.length > 0;
   const nextPath = getNextPath();
   const inviterPubkey = getInviterPubkey();
@@ -204,6 +211,14 @@ export default function LoginPage() {
             </p>
           </div>
 
+          {/* Sent here from a payment that belongs to another account on this
+              device: say which account to pick before they pick one. */}
+          {switchHint && (
+            <Alert className="mb-4" data-testid="login-switch-hint">
+              <AlertCircle className="h-4 w-4" />
+              <AlertDescription>Sign in with the account that made the payment — it's waiting there.</AlertDescription>
+            </Alert>
+          )}
           {error && (
             <Alert variant="destructive" className="mb-4" data-testid="text-login-error">
               <AlertCircle className="h-4 w-4" />
