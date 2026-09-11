@@ -1,13 +1,18 @@
 /**
  * Link metadata for plain URLs. A browser can't read another site's title or
- * description (CORS), so this asks our server's unfurl proxy — the ask in
- * docs/search/RELAY-ASKS.md #7: `GET /api/unfurl?url=…` → `{ title,
- * description, image, siteName }` (wrapped in `data` or bare). Wired ahead
- * of the endpoint: when the server answers, link cards light up sitewide;
- * until then the first 404 opens a session-wide breaker and nothing else
- * asks. Per-URL failures (a page that won't unfurl) are cached as null.
+ * description (CORS), so this asks our own origin, which nginx proxies to the
+ * link-preview service: `GET /link-preview?url=…` → `{ title, description,
+ * image, siteName }` wrapped in `data`.
+ *
+ * Same-origin is load-bearing, not tidiness. The service picks a rate-limit
+ * tier from `Sec-Fetch-Site`: same-origin traffic gets a ceiling no real user
+ * meets, everything else gets a tight throttle. Asking the API host instead
+ * would make our own SPA look like a stranger and land it in the throttle.
+ *
+ * Per-URL results are memoised for the session, failures included — a page
+ * that won't unfurl is asked once. Concurrency is capped so a feed of link
+ * notes doesn't open twenty sockets at first paint.
  */
-import { env } from "@/lib/runtimeEnv";
 
 export interface Unfurled {
   title: string | null;
@@ -16,23 +21,41 @@ export interface Unfurled {
   siteName: string | null;
 }
 
+/** Beyond the service's own deadline, so a slow answer still arrives. */
+const TIMEOUT_MS = 6000;
+/** A feed paints many cards at once; the service is one small pod. */
+const MAX_IN_FLIGHT = 4;
+
 const cache = new Map<string, Promise<Unfurled | null>>();
-let endpointMissing = false;
+let inFlight = 0;
+let waiting: (() => void)[] = [];
 
 function str(v: unknown): string | null {
   return typeof v === "string" && v.trim() ? v.trim() : null;
 }
 
-async function ask(url: string): Promise<Unfurled | null> {
-  const base = (env.VITE_API_URL || "").replace(/\/+$/, "");
+async function gate<T>(run: () => Promise<T>): Promise<T> {
+  if (inFlight >= MAX_IN_FLIGHT) {
+    await new Promise<void>((resolve) => waiting.push(resolve));
+  }
+  inFlight += 1;
   try {
-    const res = await fetch(`${base}/api/unfurl?url=${encodeURIComponent(url)}`);
-    if (res.status === 404 || res.status === 410 || res.status === 501) {
-      endpointMissing = true;
-      return null;
-    }
+    return await run();
+  } finally {
+    inFlight -= 1;
+    waiting.shift()?.();
+  }
+}
+
+async function ask(url: string): Promise<Unfurled | null> {
+  try {
+    const res = await fetch(`/link-preview?url=${encodeURIComponent(url)}`, {
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+    });
     if (!res.ok) return null;
     const json = (await res.json()) as { data?: Record<string, unknown> } & Record<string, unknown>;
+    // The service always wraps; tolerate a bare body so a proxy that unwraps
+    // on our behalf doesn't silently blank every card.
     const body = (json && typeof json.data === "object" && json.data ? json.data : json) as Record<string, unknown>;
     const out: Unfurled = {
       title: str(body.title),
@@ -47,10 +70,9 @@ async function ask(url: string): Promise<Unfurled | null> {
 }
 
 export function fetchUnfurl(url: string): Promise<Unfurled | null> {
-  if (endpointMissing) return Promise.resolve(null);
   let p = cache.get(url);
   if (!p) {
-    p = ask(url);
+    p = gate(() => ask(url));
     cache.set(url, p);
   }
   return p;
@@ -59,5 +81,6 @@ export function fetchUnfurl(url: string): Promise<Unfurled | null> {
 /** Test seam. */
 export function __resetUnfurl(): void {
   cache.clear();
-  endpointMissing = false;
+  inFlight = 0;
+  waiting = [];
 }

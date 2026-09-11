@@ -1,15 +1,17 @@
 // @vitest-environment jsdom
 /**
  * Link metadata for plain URLs — the browser can't read another site's title
- * or description (CORS), so this asks our server's unfurl proxy
- * (GET /api/unfurl?url=…, RELAY-ASKS #7). Wired ahead of the endpoint: when
- * the server answers, link cards light up; until then it fails once, quietly,
- * and stops asking for the rest of the session.
+ * or description (CORS), so this asks our own origin, which nginx proxies to
+ * the link-preview service.
+ *
+ * Same-origin is the part worth pinning: the service reads `Sec-Fetch-Site`
+ * to pick a rate-limit tier, so asking the API host instead would put our own
+ * SPA in the tight one.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const fetchMock = vi.fn<(input: string) => Promise<Response>>();
-vi.stubGlobal("fetch", (input: string) => fetchMock(input));
+const fetchMock = vi.fn<(input: string, init?: RequestInit) => Promise<Response>>();
+vi.stubGlobal("fetch", (input: string, init?: RequestInit) => fetchMock(input, init));
 
 import { fetchUnfurl, __resetUnfurl } from "./unfurl";
 
@@ -27,10 +29,25 @@ describe("fetchUnfurl", () => {
     const a = await fetchUnfurl("https://en.wikipedia.org/wiki/Liverpool_F.C.");
     expect(a).toEqual({ title: "Liverpool F.C.", description: "Professional football club", image: "https://img/lfc.jpg", siteName: "Wikipedia" });
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0][0]).toBe("http://test.local/api/unfurl?url=" + encodeURIComponent("https://en.wikipedia.org/wiki/Liverpool_F.C."));
     // Memoized: the same URL never asks twice.
     await fetchUnfurl("https://en.wikipedia.org/wiki/Liverpool_F.C.");
     expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("asks our own origin, not the API host, so the request counts as same-origin", async () => {
+    fetchMock.mockReturnValue(ok({ data: { title: "x" } }));
+    await fetchUnfurl("https://en.wikipedia.org/wiki/Liverpool_F.C.");
+    const asked = fetchMock.mock.calls[0][0];
+    expect(asked).toBe("/link-preview?url=" + encodeURIComponent("https://en.wikipedia.org/wiki/Liverpool_F.C."));
+    // A relative path is what keeps it same-origin; an absolute one to the API
+    // host would land the SPA in the untrusted rate-limit tier.
+    expect(asked.startsWith("http")).toBe(false);
+  });
+
+  it("gives up rather than hanging when the proxy never answers", async () => {
+    fetchMock.mockReturnValue(ok({ data: { title: "x" } }));
+    await fetchUnfurl("https://x.test/a");
+    expect(fetchMock.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
   });
 
   it("tolerates a bare (unwrapped) body and missing fields", async () => {
@@ -43,17 +60,31 @@ describe("fetchUnfurl", () => {
     expect(await fetchUnfurl("https://x.test/empty")).toBeNull();
   });
 
-  it("stops asking for the session once the endpoint says it isn't there", async () => {
-    fetchMock.mockReturnValue(status(404));
+  it("one failing page does not stop the next from being asked", async () => {
+    // The endpoint exists now, so a 404 is this page's answer, not evidence the
+    // proxy is missing. An earlier version opened a session-wide breaker here,
+    // which turned one bad link into no cards at all for the rest of the visit.
+    fetchMock.mockReturnValueOnce(status(404)).mockReturnValueOnce(ok({ title: "Fine" }));
     expect(await fetchUnfurl("https://x.test/one")).toBeNull();
-    expect(await fetchUnfurl("https://x.test/two")).toBeNull();
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(await fetchUnfurl("https://x.test/two")).toMatchObject({ title: "Fine" });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it("a single failing page does not trip the breaker", async () => {
-    fetchMock.mockReturnValueOnce(status(502)).mockReturnValueOnce(ok({ title: "Fine" }));
-    expect(await fetchUnfurl("https://x.test/broken")).toBeNull();
-    expect(await fetchUnfurl("https://x.test/fine")).toMatchObject({ title: "Fine" });
-    expect(fetchMock).toHaveBeenCalledTimes(2);
+  it("never opens more than four sockets at once", async () => {
+    let peak = 0;
+    let open = 0;
+    fetchMock.mockImplementation(() => {
+      open += 1;
+      peak = Math.max(peak, open);
+      return new Promise((resolve) =>
+        setTimeout(() => {
+          open -= 1;
+          resolve(new Response(JSON.stringify({ data: { title: "t" } }), { status: 200 }));
+        }, 5),
+      );
+    });
+    await Promise.all(Array.from({ length: 20 }, (_, i) => fetchUnfurl(`https://x.test/${i}`)));
+    expect(peak).toBeLessThanOrEqual(4);
+    expect(fetchMock).toHaveBeenCalledTimes(20);
   });
 });
