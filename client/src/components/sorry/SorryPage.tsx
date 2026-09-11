@@ -75,6 +75,12 @@ function SorryArt({ className = "" }: { className?: string }) {
   );
 }
 
+/** The house error page's two button shapes — the 404's too. */
+export const PRIMARY_ACTION =
+  "inline-flex items-center gap-2 rounded-full bg-brand-primary px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-primary/25 transition-colors hover:bg-brand-primary-hover disabled:opacity-70";
+export const SECONDARY_LINK =
+  "inline-flex items-center rounded-full border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:border-brand-primary hover:text-brand-primary dark:border-slate-700 dark:text-slate-200";
+
 function Actions({
   onRetry,
   checking,
@@ -93,7 +99,7 @@ function Actions({
           type="button"
           onClick={onRetry}
           disabled={checking}
-          className="inline-flex items-center gap-2 rounded-full bg-brand-primary px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-brand-primary/25 transition-colors hover:bg-brand-primary-hover disabled:opacity-70"
+          className={PRIMARY_ACTION}
           data-testid="sorry-retry"
         >
           {checking ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
@@ -109,8 +115,6 @@ function Actions({
     </>
   );
 }
-
-const SECONDARY_LINK = "inline-flex items-center rounded-full border border-slate-200 px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:border-brand-primary hover:text-brand-primary dark:border-slate-700 dark:text-slate-200";
 
 export function SorryPage({
   scope,
@@ -155,9 +159,35 @@ export function SorryPage({
   }
 
   return (
+    <SorryFrame testId={`sorry-${scope}`} headline={copy.headline} line={copy.line} body={copy.body}>
+      <Actions onRetry={onRetry} checking={checking} nextTryInSec={nextTryInSec} secondary={secondary} />
+    </SorryFrame>
+  );
+}
+
+/**
+ * The full-page frame every error page shares — the wordmark, the ostrich, an
+ * "Oops!"-sized headline, and the site's links so nobody is stranded. What's
+ * wrong, and what to do about it, come from the caller: the sorry page's Try
+ * again, the 404's way home.
+ */
+export function SorryFrame({
+  testId,
+  headline,
+  line,
+  body,
+  children,
+}: {
+  testId: string;
+  headline: string;
+  line: string;
+  body: string;
+  children: ReactNode;
+}) {
+  return (
     <div
       className="relative flex min-h-[100dvh] flex-col bg-white text-slate-900 dark:bg-slate-950 dark:text-slate-100 [overflow-x:clip]"
-      data-testid={`sorry-${scope}`}
+      data-testid={testId}
     >
       <GlossBackground />
       <header className="relative z-10 px-4 pt-5 sm:px-8">
@@ -169,11 +199,11 @@ export function SorryPage({
       <main className="relative z-10 flex flex-1 flex-col items-center justify-center px-4 py-10 text-center sm:px-6">
         <SorryArt className="mb-7 max-w-[260px]" />
         <h1 className="text-5xl font-medium tracking-tight text-brand-deep dark:text-brand-link sm:text-6xl" style={{ fontFamily: "var(--font-display)" }}>
-          {copy.headline}
+          {headline}
         </h1>
-        <h2 className="mt-3 text-xl font-medium text-slate-800 dark:text-slate-100 sm:text-2xl">{copy.line}</h2>
-        <p className="mt-2 max-w-md text-base text-slate-600 dark:text-slate-300 sm:text-lg">{copy.body}</p>
-        <Actions onRetry={onRetry} checking={checking} nextTryInSec={nextTryInSec} secondary={secondary} />
+        <h2 className="mt-3 text-xl font-medium text-slate-800 dark:text-slate-100 sm:text-2xl">{line}</h2>
+        <p className="mt-2 max-w-md text-base text-slate-600 dark:text-slate-300 sm:text-lg">{body}</p>
+        {children}
       </main>
       {/* The site's doors, on phones too — this page has nothing else to offer. */}
       <footer className="relative z-10 flex flex-wrap items-center justify-center gap-x-6 gap-y-2 px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom)+var(--bs-bottom-chrome,0px))] pt-4 text-xs">
