@@ -29,6 +29,12 @@ export function useSubscription(): {
   plan: Subscription["plan"];
   /** True when they hold something other than the default policy. */
   isPaid: boolean;
+  /**
+   * True only when we KNOW they hold the default policy, or are signed out —
+   * the gate for every upsell. False while loading and when the read failed,
+   * so a question nobody has answered never reads as "Free".
+   */
+  isFree: boolean;
   status: Subscription["status"];
   currentPeriodStart: string | null;
   currentPeriodEnd: string | null;
@@ -39,6 +45,12 @@ export function useSubscription(): {
   manageUrl: string | null;
   isActive: boolean;
   isLoading: boolean;
+  /**
+   * The read failed, retries included, and there's no earlier answer to fall
+   * back on: we don't know what they hold. A failed REFETCH keeps the answer
+   * it had, so someone already shown as Priority stays Priority through a blip.
+   */
+  isError: boolean;
   refetch: () => void;
 } {
   const signedIn = useHasSession();
@@ -48,16 +60,24 @@ export function useSubscription(): {
     enabled: signedIn,
     staleTime: 60_000,
     refetchOnWindowFocus: true,
+    // The app's default is one attempt, and it's final (lib/queryClient.ts).
+    // This read decides whether someone appears to be a customer, and pods
+    // restart during a rollout — so two retries, about three seconds of
+    // backoff, before it counts as "we couldn't find out".
+    retry: 2,
   });
 
   const subscription = query.data ?? DEFAULT_SUBSCRIPTION;
   const isPaid = subscription.policy !== null && !subscription.policy.isDefault;
+  const isLoading = signedIn && query.isPending;
+  const isError = signedIn && query.isError && query.data === undefined;
 
   return {
     subscription,
     policy: subscription.policy,
     plan: subscription.plan,
     isPaid,
+    isFree: !isPaid && !isLoading && !isError,
     status: subscription.status,
     currentPeriodStart: subscription.currentPeriodStart,
     currentPeriodEnd: subscription.currentPeriodEnd,
@@ -67,7 +87,8 @@ export function useSubscription(): {
     // Grace counts as active: a failed renewal inside Flash's 7-day grace window
     // must not read as "you've lost it" while retries are still running.
     isActive: subscription.status === "active" || subscription.status === "grace",
-    isLoading: signedIn && query.isPending,
+    isLoading,
+    isError,
     refetch: () => void query.refetch(),
   };
 }

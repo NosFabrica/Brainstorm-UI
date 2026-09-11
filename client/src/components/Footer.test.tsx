@@ -6,13 +6,14 @@ import { Footer } from "./Footer";
 const navigate = vi.fn();
 vi.mock("wouter", () => ({ useLocation: () => ["/pricing", (to: string) => navigate(to)] }));
 vi.mock("@/hooks/useBillingPlans", () => ({ useBillingPlans: () => ({ billingAvailable: true }) }));
-const sub = vi.hoisted(() => ({ isPaid: false }));
-vi.mock("@/hooks/useSubscription", () => ({ useSubscription: () => ({ isPaid: sub.isPaid }) }));
+const sub = vi.hoisted(() => ({ isPaid: false, isFree: true }));
+vi.mock("@/hooks/useSubscription", () => ({ useSubscription: () => ({ isPaid: sub.isPaid, isFree: sub.isFree }) }));
 
 describe("Footer", () => {
   beforeEach(() => {
     navigate.mockClear();
     sub.isPaid = false;
+    sub.isFree = true;
   });
 
   // With payments live, the documents a buyer agrees to belong where people
@@ -34,6 +35,16 @@ describe("Footer", () => {
   // menu's "Get Priority" row. The documents stay: a subscriber needs them most.
   it("drops Pricing and Roadmap for someone on a paid policy", () => {
     sub.isPaid = true;
+    sub.isFree = false;
+    render(<Footer />);
+    const labels = Array.from(screen.getByRole("navigation").querySelectorAll("button")).map((b) => b.textContent?.trim());
+    expect(labels).toEqual(["Built on Nostr", "What is Web of Trust?", "Privacy", "Terms"]);
+  });
+
+  // Reported in review (2026-09-11): a read that's still out or failed is not
+  // "no plan", so a subscriber mid-blip isn't pitched either.
+  it("holds Pricing and Roadmap back while it doesn't know what they hold", () => {
+    sub.isFree = false;
     render(<Footer />);
     const labels = Array.from(screen.getByRole("navigation").querySelectorAll("button")).map((b) => b.textContent?.trim());
     expect(labels).toEqual(["Built on Nostr", "What is Web of Trust?", "Privacy", "Terms"]);

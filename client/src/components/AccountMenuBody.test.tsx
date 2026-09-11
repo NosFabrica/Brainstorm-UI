@@ -30,6 +30,7 @@ vi.mock("@/components/ThemeToggle", () => ({ ThemeToggle: () => null }));
 vi.mock("@/services/api", () => ({ apiClient: { getHouseInfluence: async () => 0 } }));
 // The menu's "see plans" row reads the subscription; these tests are about
 // accounts, so pin it to "no policy" rather than standing up the session hook.
+const subState = vi.hoisted(() => ({ isFree: true, isError: false }));
 vi.mock("@/hooks/useSubscription", () => ({
   useSubscription: () => ({
     subscription: { policy: null, plan: null, status: "none", currentPeriodEnd: null },
@@ -39,7 +40,9 @@ vi.mock("@/hooks/useSubscription", () => ({
     status: "none",
     currentPeriodEnd: null,
     isActive: false,
+    isFree: subState.isFree,
     isLoading: false,
+    isError: subState.isError,
     refetch: () => {},
   }),
 }));
@@ -212,5 +215,25 @@ describe("removing an account", () => {
     fireEvent.click(screen.getByTestId("remove-anyway"));
 
     expect(removeAccountFromDevice).toHaveBeenCalledWith(account);
+  });
+});
+
+// Reported in review (2026-09-11): "Get Priority" is a pitch, and a read that's
+// still out or failed is not "no plan" — so the row waits for an answer.
+describe("the plan row", () => {
+  it("appears for someone we know is free, and not while we don't know", () => {
+    try {
+      const { unmount } = renderWithProviders(<Panel />);
+      expect(screen.getByTestId("dropdown-get-priority")).toBeInTheDocument();
+      unmount();
+
+      subState.isFree = false;
+      subState.isError = true;
+      renderWithProviders(<Panel />);
+      expect(screen.queryByTestId("dropdown-get-priority")).toBeNull();
+    } finally {
+      subState.isFree = true;
+      subState.isError = false;
+    }
   });
 });

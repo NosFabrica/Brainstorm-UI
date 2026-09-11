@@ -1,12 +1,15 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { screen } from "@testing-library/react";
 import { renderWithProviders, timeZoneSetter } from "@/test/utils";
 import { PlanCard } from "./PlanCard";
 import type { BillingPlan, Subscription } from "@/services/subscription";
+import { DEFAULT_SUBSCRIPTION } from "@/services/subscription";
 
 let sub: Subscription;
 let plans: BillingPlan[] | undefined;
+// The hook's two ways of not knowing yet: the read is still out, or it failed.
+let unknown: "loading" | "error" | null = null;
 
 vi.mock("@/hooks/useSubscription", () => ({
   useSubscription: () => ({
@@ -21,7 +24,9 @@ vi.mock("@/hooks/useSubscription", () => ({
     cancelEffectiveDate: sub.cancelEffectiveDate,
     manageUrl: sub.manageUrl,
     isActive: sub.status === "active" || sub.status === "grace",
-    isLoading: false,
+    isFree: (sub.policy === null || sub.policy.isDefault) && unknown === null,
+    isLoading: unknown === "loading",
+    isError: unknown === "error",
     refetch: () => {},
   }),
 }));
@@ -223,5 +228,23 @@ describe("PlanCard — the day Flash named, wherever the viewer is", () => {
     const name = screen.getByTestId("insights-plan-name");
     expect(name).toHaveTextContent("Priority");
     expect(name).not.toHaveTextContent("Free");
+  });
+});
+
+// Reported in review (2026-09-11): a failed read showed a paying subscriber the
+// Insights upsell. Until the server has answered, there's no pitch and no badge.
+describe("PlanCard while it doesn't know what they hold", () => {
+  afterEach(() => {
+    unknown = null;
+  });
+
+  it("offers no plan and shows no status when the read has failed", () => {
+    sub = { ...DEFAULT_SUBSCRIPTION };
+    plans = [PAID_ROW];
+    unknown = "error";
+    renderWithProviders(<PlanCard lastCalculatedMs={null} />);
+
+    expect(screen.queryByTestId("insights-plan-link")).toBeNull();
+    expect(screen.queryByTestId("insights-plan-status")).toBeNull();
   });
 });

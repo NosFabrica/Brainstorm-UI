@@ -39,7 +39,7 @@ import { useBillingPlans } from "@/hooks/useBillingPlans";
  * wrong into a page that sells at them.
  */
 export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null }) {
-  const { policy, plan, status, currentPeriodEnd, cancelEffectiveDate, isPaid: paid, isLoading } =
+  const { policy, plan, status, currentPeriodEnd, cancelEffectiveDate, isPaid: paid, isFree, isLoading, isError } =
     useSubscription();
   const { plans, billingAvailable, solePurchasableName, recalcDaysFor } = useBillingPlans();
 
@@ -74,7 +74,7 @@ export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null
         >
           Your plan
         </span>
-        {!isLoading && status !== "active" && (
+        {!isLoading && !isError && status !== "active" && (
           <Chip tone={statusTone(status)} size="sm" data-testid="insights-plan-status">
             {SUBSCRIPTION_STATUS_LABEL[status]}
           </Chip>
@@ -112,7 +112,8 @@ export function PlanCard({ lastCalculatedMs }: { lastCalculatedMs: number | null
         )}
       </dl>
 
-      {!paid && !isLoading && billingAvailable !== false && (
+      {/* Only to someone we KNOW is free — a read that's out or failed is not "no plan". */}
+      {isFree && billingAvailable !== false && (
         <p className="mt-3.5 text-[13px] text-slate-500 dark:text-slate-400">
           <Link href="/pricing" className="font-medium text-brand-link hover:underline" data-testid="insights-plan-link">
             {upsell && solePurchasableName

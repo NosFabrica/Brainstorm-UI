@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { productName } from "@/lib/plans";
 import { Link } from "wouter";
-import { AlertTriangle, ArrowRight, ExternalLink, Receipt } from "lucide-react";
+import { AlertTriangle, ArrowRight, ExternalLink, Loader2, Receipt } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
 import { Chip } from "@/components/ui/chip";
@@ -62,6 +62,8 @@ export function BillingCard() {
     manageUrl,
     isPaid: paid,
     isLoading,
+    isError,
+    refetch,
   } = useSubscription();
   const { plans, billingAvailable, solePurchasableName } = useBillingPlans();
   const [confirming, setConfirming] = useState(false);
@@ -107,7 +109,7 @@ export function BillingCard() {
           >
             Billing
           </h2>
-          {!isLoading && (
+          {!isLoading && !isError && (
             <Chip
               tone={ending ? "neutral" : status === "active" ? "success" : "warning"}
               size="sm"
@@ -126,185 +128,206 @@ export function BillingCard() {
         </Link>
       </div>
 
-      {/* Account summary — labelled rows, statement-style */}
-      <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-3 px-5 sm:px-6 py-5 text-sm">
-        <Row label="Plan">
-          <span className="font-semibold" data-testid="billing-plan">{planName}</span>
-        </Row>
-        <Row label="Amount">
-          <span className="tabular-nums" data-testid="billing-amount">
-            {amountLabel}
-            {period && <span className="text-slate-500 dark:text-slate-400"> {period}</span>}
-          </span>
-        </Row>
-        <Row label={ending ? "Access until" : "Next invoice"} testId="billing-next-label">
-          <span className="tabular-nums" data-testid="billing-next-invoice">
-            {!paid
-              ? "—"
-              : ending
-                ? formatBillingDate(accessEnds)
-                : nextBillingDate
-                  ? `${formatBillingDate(nextBillingDate)} · ${amountLabel}`
-                  : "—"}
-          </span>
-        </Row>
-      </dl>
-
-      {retired && (
-        <div className="px-5 sm:px-6 pb-5">
-          <Alert variant="warning" data-testid="billing-plan-retired">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>This plan is no longer offered</AlertTitle>
-            <AlertDescription>
-              You keep {planName} — and the price you signed up at — for as long as you stay on it.
-              To move to a plan that is currently on sale,{" "}
-              <Link href="/pricing" className="font-medium underline" data-testid="billing-retired-pricing">
-                see what's available
-              </Link>
-              {manageUrl ? (
-                <>
-                  . To stop this one,{" "}
-                  <a
-                    href={manageUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="font-medium underline"
-                    data-testid="billing-retired-manage"
-                  >
-                    cancel it on Flash's page
-                  </a>
-                  .
-                </>
-              ) : (
-                "."
-              )}
-            </AlertDescription>
-          </Alert>
+      {isLoading || isError ? (
+        // Nothing below may claim Free — or anything else — until the server has
+        // answered: a read that's still out, or failed, is not "no plan".
+        <div className="px-5 sm:px-6 py-5 text-sm text-slate-500 dark:text-slate-400" data-testid="billing-unknown">
+          {isLoading ? (
+            <span className="inline-flex items-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" /> Checking your subscription…
+            </span>
+          ) : (
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span>Couldn't check your subscription right now. Your plan hasn't changed — try again in a moment.</span>
+              <Button variant="outline" size="sm" onClick={() => refetch()} data-testid="billing-retry">
+                Try again
+              </Button>
+            </div>
+          )}
         </div>
-      )}
+      ) : (
+        <>
+        {/* Account summary — labelled rows, statement-style */}
+        <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-10 gap-y-3 px-5 sm:px-6 py-5 text-sm">
+          <Row label="Plan">
+            <span className="font-semibold" data-testid="billing-plan">{planName}</span>
+          </Row>
+          <Row label="Amount">
+            <span className="tabular-nums" data-testid="billing-amount">
+              {amountLabel}
+              {period && <span className="text-slate-500 dark:text-slate-400"> {period}</span>}
+            </span>
+          </Row>
+          <Row label={ending ? "Access until" : "Next invoice"} testId="billing-next-label">
+            <span className="tabular-nums" data-testid="billing-next-invoice">
+              {!paid
+                ? "—"
+                : ending
+                  ? formatBillingDate(accessEnds)
+                  : nextBillingDate
+                    ? `${formatBillingDate(nextBillingDate)} · ${amountLabel}`
+                    : "—"}
+            </span>
+          </Row>
+        </dl>
 
-      {/* Payments — the current period, with both of its dates as reported. */}
-      <div className="px-5 sm:px-6 pb-5">
-        <div className="flex items-center gap-1.5 mb-2">
-          <Receipt className="h-3.5 w-3.5 text-slate-400" />
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            Payments
-          </span>
-        </div>
-        <div className="rounded-xl border border-slate-100 dark:border-slate-800/60 overflow-hidden">
-          <table className="w-full text-[13px]">
-            <thead>
-              <tr className="bg-slate-50 dark:bg-slate-900/60 text-left text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                <th className="px-3 py-2 font-semibold">Date</th>
-                <th className="px-3 py-2 font-semibold">Description</th>
-                <th className="px-3 py-2 font-semibold text-right">Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {paid && currentPeriodStart ? (
-                <tr className="text-slate-700 dark:text-slate-200" data-testid="billing-payment-row">
-                  <td className="px-3 py-2.5 tabular-nums whitespace-nowrap">{formatBillingDate(currentPeriodStart)}</td>
-                  <td className="px-3 py-2.5">
-                    {planName} — {formatBillingDate(currentPeriodStart)} to {formatBillingDate(currentPeriodEnd)}
-                  </td>
-                  <td className="px-3 py-2.5 text-right tabular-nums font-medium">{amountLabel}</td>
-                </tr>
-              ) : (
-                <tr>
-                  <td colSpan={3} className="px-3 py-5 text-center text-slate-400 dark:text-slate-500" data-testid="billing-no-payments">
-                    {paid ? "No payments recorded for this period yet." : "No payments — you're on the free plan."}
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-        {/* Flash never sends us invoices — they live in its portal, which the
-            subscription links to. Say that, rather than promise a history. */}
-        {paid && (
-          <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
-            Payments are processed by Flash — we never hold your card details.{" "}
-            {manageUrl ? (
-              <a
-                href={manageUrl}
-                target="_blank"
-                rel="noopener"
-                className="font-medium text-brand-link hover:underline"
-                data-testid="billing-invoices-link"
-              >
-                Invoices and receipts are in Flash's portal
-              </a>
-            ) : (
-              "Invoices and receipts are in Flash's portal."
-            )}
-          </p>
-        )}
-      </div>
-
-      {/* Actions */}
-      <div className="flex flex-wrap items-center gap-2 px-5 sm:px-6 py-4 border-t border-slate-100 dark:border-slate-800/60 bg-slate-50/60 dark:bg-slate-900/40">
-        {billingAvailable !== false && (
-          <Button asChild variant={paid ? "outline" : "primary"} className="gap-1.5">
-            <Link href="/pricing" data-testid="billing-change-plan">
-              {paid ? "Change plan" : solePurchasableName ? `Get ${solePurchasableName}` : "See plans"}
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-          </Button>
-        )}
-
-        {/* The portal is also where an expiring card or a Lightning connection
-            gets updated — the most common billing event there is, so it can't
-            be reachable only by starting a cancel. New tab: the portal is
-            Flash's page, and the app stays alive behind it. */}
-        {paid && manageUrl && (
-          <Button
-            variant="outline"
-            className="gap-1.5"
-            onClick={() => window.open(manageUrl, "_blank", "noopener,noreferrer")}
-            data-testid="billing-manage"
-          >
-            <ExternalLink className="h-4 w-4" /> Manage payment method
-          </Button>
-        )}
-
-        {canCancel && !confirming && (
-          <Button
-            variant="ghost"
-            className="text-slate-600 dark:text-slate-300"
-            onClick={() => setConfirming(true)}
-            data-testid="billing-cancel"
-          >
-            Cancel subscription
-          </Button>
-        )}
-
-        {canCancel && confirming && (
-          <div className="flex flex-wrap items-center gap-2" data-testid="billing-cancel-confirm-row">
-            {/* Straight to the portal — more friction than subscribing is
-                already the wrong side of several jurisdictions' rules. */}
-            <Button
-              variant="destructive"
-              onClick={() => {
-                window.location.href = manageUrl;
-              }}
-              data-testid="billing-cancel-confirm"
-            >
-              Continue to cancel
-            </Button>
-            <Button variant="ghost" onClick={() => setConfirming(false)}>
-              Keep it
-            </Button>
+        {retired && (
+          <div className="px-5 sm:px-6 pb-5">
+            <Alert variant="warning" data-testid="billing-plan-retired">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>This plan is no longer offered</AlertTitle>
+              <AlertDescription>
+                You keep {planName} — and the price you signed up at — for as long as you stay on it.
+                To move to a plan that is currently on sale,{" "}
+                <Link href="/pricing" className="font-medium underline" data-testid="billing-retired-pricing">
+                  see what's available
+                </Link>
+                {manageUrl ? (
+                  <>
+                    . To stop this one,{" "}
+                    <a
+                      href={manageUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-medium underline"
+                      data-testid="billing-retired-manage"
+                    >
+                      cancel it on Flash's page
+                    </a>
+                    .
+                  </>
+                ) : (
+                  "."
+                )}
+              </AlertDescription>
+            </Alert>
           </div>
         )}
 
-        {confirming && (
-          <p className="w-full text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
-            You'll keep {planName} until {accessEnds ? formatBillingDate(accessEnds) : "the end of the period you've paid for"} —
-            nothing stops today. After that your scores go back to the free schedule.
-            Cancelling happens on Flash's page — they'll sign you in with a link sent to the email you subscribed with.
-          </p>
-        )}
-      </div>
+        {/* Payments — the current period, with both of its dates as reported. */}
+        <div className="px-5 sm:px-6 pb-5">
+          <div className="flex items-center gap-1.5 mb-2">
+            <Receipt className="h-3.5 w-3.5 text-slate-400" />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Payments
+            </span>
+          </div>
+          <div className="rounded-xl border border-slate-100 dark:border-slate-800/60 overflow-hidden">
+            <table className="w-full text-[13px]">
+              <thead>
+                <tr className="bg-slate-50 dark:bg-slate-900/60 text-left text-[11px] uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                  <th className="px-3 py-2 font-semibold">Date</th>
+                  <th className="px-3 py-2 font-semibold">Description</th>
+                  <th className="px-3 py-2 font-semibold text-right">Amount</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paid && currentPeriodStart ? (
+                  <tr className="text-slate-700 dark:text-slate-200" data-testid="billing-payment-row">
+                    <td className="px-3 py-2.5 tabular-nums whitespace-nowrap">{formatBillingDate(currentPeriodStart)}</td>
+                    <td className="px-3 py-2.5">
+                      {planName} — {formatBillingDate(currentPeriodStart)} to {formatBillingDate(currentPeriodEnd)}
+                    </td>
+                    <td className="px-3 py-2.5 text-right tabular-nums font-medium">{amountLabel}</td>
+                  </tr>
+                ) : (
+                  <tr>
+                    <td colSpan={3} className="px-3 py-5 text-center text-slate-400 dark:text-slate-500" data-testid="billing-no-payments">
+                      {paid ? "No payments recorded for this period yet." : "No payments — you're on the free plan."}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+          {/* Flash never sends us invoices — they live in its portal, which the
+              subscription links to. Say that, rather than promise a history. */}
+          {paid && (
+            <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
+              Payments are processed by Flash — we never hold your card details.{" "}
+              {manageUrl ? (
+                <a
+                  href={manageUrl}
+                  target="_blank"
+                  rel="noopener"
+                  className="font-medium text-brand-link hover:underline"
+                  data-testid="billing-invoices-link"
+                >
+                  Invoices and receipts are in Flash's portal
+                </a>
+              ) : (
+                "Invoices and receipts are in Flash's portal."
+              )}
+            </p>
+          )}
+        </div>
+
+        {/* Actions */}
+        <div className="flex flex-wrap items-center gap-2 px-5 sm:px-6 py-4 border-t border-slate-100 dark:border-slate-800/60 bg-slate-50/60 dark:bg-slate-900/40">
+          {billingAvailable !== false && (
+            <Button asChild variant={paid ? "outline" : "primary"} className="gap-1.5">
+              <Link href="/pricing" data-testid="billing-change-plan">
+                {paid ? "Change plan" : solePurchasableName ? `Get ${solePurchasableName}` : "See plans"}
+                <ArrowRight className="h-4 w-4" />
+              </Link>
+            </Button>
+          )}
+
+          {/* The portal is also where an expiring card or a Lightning connection
+              gets updated — the most common billing event there is, so it can't
+              be reachable only by starting a cancel. New tab: the portal is
+              Flash's page, and the app stays alive behind it. */}
+          {paid && manageUrl && (
+            <Button
+              variant="outline"
+              className="gap-1.5"
+              onClick={() => window.open(manageUrl, "_blank", "noopener,noreferrer")}
+              data-testid="billing-manage"
+            >
+              <ExternalLink className="h-4 w-4" /> Manage payment method
+            </Button>
+          )}
+
+          {canCancel && !confirming && (
+            <Button
+              variant="ghost"
+              className="text-slate-600 dark:text-slate-300"
+              onClick={() => setConfirming(true)}
+              data-testid="billing-cancel"
+            >
+              Cancel subscription
+            </Button>
+          )}
+
+          {canCancel && confirming && (
+            <div className="flex flex-wrap items-center gap-2" data-testid="billing-cancel-confirm-row">
+              {/* Straight to the portal — more friction than subscribing is
+                  already the wrong side of several jurisdictions' rules. */}
+              <Button
+                variant="destructive"
+                onClick={() => {
+                  window.location.href = manageUrl;
+                }}
+                data-testid="billing-cancel-confirm"
+              >
+                Continue to cancel
+              </Button>
+              <Button variant="ghost" onClick={() => setConfirming(false)}>
+                Keep it
+              </Button>
+            </div>
+          )}
+
+          {confirming && (
+            <p className="w-full text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
+              You'll keep {planName} until {accessEnds ? formatBillingDate(accessEnds) : "the end of the period you've paid for"} —
+              nothing stops today. After that your scores go back to the free schedule.
+              Cancelling happens on Flash's page — they'll sign you in with a link sent to the email you subscribed with.
+            </p>
+          )}
+        </div>
+        </>
+      )}
     </Card>
   );
 }
