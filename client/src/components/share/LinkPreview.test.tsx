@@ -4,8 +4,9 @@
  * then the places sites actually keep them, then the apex domain when the
  * link said www — and only after all of that, the globe.
  */
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { stubVisibleIntersectionObserver } from "@/test/visibleIntersectionObserver";
 import { Favicon, LinkPreviewCard } from "./LinkPreview";
 
 // Fountain's page, answered or not — the card is the player, not a fetch test.
@@ -160,5 +161,44 @@ describe("LinkPreviewCard — audio links play where they are", () => {
     expect(card).toHaveTextContent(/Listen on Fountain/);
     expect(card.getAttribute("href")).toBe("https://fountain.fm/episode/T0iRUdk8nBSfUEPLLcJ3");
     expect(card.getAttribute("target")).toBe("_blank");
+  });
+});
+
+// The plain-link card. Its height is fixed and it never collapses, because a
+// page with no Open Graph markup is the common case — measured at roughly a
+// third of real links — and a card that vanishes shoves the feed around under
+// whoever is reading it.
+const unfurlMock = vi.hoisted(() => vi.fn());
+vi.mock("@/services/unfurl", () => ({ fetchUnfurl: unfurlMock }));
+
+describe("the plain-link card", () => {
+  beforeEach(() => {
+    stubVisibleIntersectionObserver();
+  });
+  it("shows the page's own words when the proxy answers", async () => {
+    unfurlMock.mockResolvedValue({ title: "Liverpool F.C.", description: "Professional football club", image: "https://img/lfc.jpg", siteName: "Wikipedia" });
+    render(<LinkPreviewCard url="https://en.wikipedia.org/wiki/Liverpool_F.C." />);
+    expect(await screen.findByText("Liverpool F.C.")).toBeInTheDocument();
+    expect(screen.getByText("Professional football club")).toBeInTheDocument();
+  });
+
+  it("still draws a card when the page has nothing to say, rather than disappearing", async () => {
+    unfurlMock.mockResolvedValue(null);
+    render(<LinkPreviewCard url="https://eucup.com/news/final" />);
+    const card = await screen.findByTestId("link-card");
+    expect(card).toBeInTheDocument();
+    // Degraded in place, and it does not repeat the host the chip already
+    // shows — it carries the path, which the chip does not.
+    expect(screen.getByText("/news/final")).toBeInTheDocument();
+    expect(screen.queryByText("eucup.com")).toBeNull();
+  });
+
+  it("does not tell the image host which page the reader came from", async () => {
+    unfurlMock.mockResolvedValue({ title: "t", description: null, image: "https://img.test/a.jpg", siteName: null });
+    render(<LinkPreviewCard url="https://x.test/a" />);
+    const image = await screen.findByTestId("link-card-image");
+    // Whoever posted the link chose this host; it learns the reader's IP
+    // either way, but not what they were reading.
+    expect(image).toHaveAttribute("referrerpolicy", "no-referrer");
   });
 });

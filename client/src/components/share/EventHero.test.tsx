@@ -8,6 +8,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { stubVisibleIntersectionObserver } from "@/test/visibleIntersectionObserver";
 
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
 const unfurlMock = vi.fn<(url: string) => Promise<{ title: string | null; description: string | null; image: string | null; siteName: string | null } | null>>(() => Promise.resolve(null));
@@ -46,6 +47,7 @@ const v4v = {
 };
 
 beforeEach(() => {
+  stubVisibleIntersectionObserver();
   vi.clearAllMocks();
   unfurlMock.mockImplementation(() => Promise.resolve(null));
   profileMapMock.mockResolvedValue(new Map());

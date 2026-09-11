@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ExternalLink, Globe, Github } from "lucide-react";
 import { WavlakeTrackCard } from "@/components/share/WavlakeTrackCard";
 import { FountainCard } from "@/components/share/FountainCard";
@@ -187,39 +187,100 @@ export function LinkPreviewCard({ url }: { url: string }) {
 }
 
 /** Title + description + image for a plain link, from the unfurl proxy. */
+/** Start asking a little before the card is read, so it is usually filled. */
+const NEAR_VIEWPORT = "400px";
+
+/**
+ * The card for a plain link. Its height is fixed from first paint and it never
+ * collapses: with no metadata it degrades in place to favicon, host and path.
+ * Rendering nothing until the answer lands would shove the rest of the feed
+ * down under the reader's thumb — and a page with no Open Graph markup is the
+ * common case here, not the exception.
+ */
 function UnfurledCard({ url, host }: { url: string; host: string }) {
   const [meta, setMeta] = useState<Unfurled | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
+  // No IntersectionObserver (jsdom, older engines) means ask straight away
+  // rather than never.
+  const [near, setNear] = useState(() => typeof IntersectionObserver === "undefined");
+  const ref = useRef<HTMLAnchorElement | null>(null);
+
+  // Only ask for the links a reader actually scrolls to.
   useEffect(() => {
+    if (near) return;
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) setNear(true);
+      },
+      { rootMargin: NEAR_VIEWPORT },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }, [near]);
+
+  useEffect(() => {
+    if (!near) return;
     let alive = true;
     setMeta(null);
+    setImgFailed(false);
     void fetchUnfurl(url).then((m) => {
       if (alive) setMeta(m);
     });
     return () => {
       alive = false;
     };
-  }, [url]);
-  if (!meta || (!meta.title && !meta.description)) return null;
+  }, [url, near]);
+
+  const u = parse(url);
+  const path = u ? prettyPath(u) : "";
+  const image = meta?.image && !imgFailed ? meta.image : null;
+  const siteName = meta?.siteName ?? null;
+
   return (
     <a
+      ref={ref}
       href={url}
       target="_blank"
       rel="noopener"
       onClick={(e) => e.stopPropagation()}
-      className="mt-2 flex items-stretch gap-3 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 no-underline hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-sm transition-all"
+      className="mt-2 flex h-24 items-stretch gap-3 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 no-underline hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-sm transition-all"
       data-testid="link-card"
     >
-      {meta.image && !imgFailed && (
-        <img src={meta.image} alt="" loading="lazy" onError={() => setImgFailed(true)} className="h-24 w-32 shrink-0 object-cover bg-slate-100 dark:bg-slate-800" />
+      {image && (
+        // Whoever posted the link chose this host, so it learns the reader's
+        // IP either way — it does not also get to learn what they were reading.
+        <img
+          src={image}
+          alt=""
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setImgFailed(true)}
+          className="h-full w-32 shrink-0 object-cover bg-slate-100 dark:bg-slate-800"
+          data-testid="link-card-image"
+        />
       )}
-      <div className="flex min-w-0 flex-1 flex-col justify-center py-2 pr-3 pl-1">
+      <div className={`flex min-w-0 flex-1 flex-col justify-center py-2 pr-3 ${image ? "pl-1" : "pl-3"}`}>
         <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
           <Favicon host={host} className="h-3 w-3 shrink-0 rounded-sm object-contain" />
-          <span className="truncate">{meta.siteName ?? host}{meta.siteName && meta.siteName.toLowerCase() !== host.toLowerCase() ? ` · ${host}` : ""}</span>
+          {/* The inline chip already says the host, so with nothing to show we
+              carry the path instead of repeating it back. */}
+          <span className="truncate">
+            {meta ? (siteName ?? host) : path || host}
+            {meta && siteName && siteName.toLowerCase() !== host.toLowerCase() ? ` \u00b7 ${host}` : ""}
+          </span>
         </span>
-        {meta.title && <span className="mt-0.5 line-clamp-2 text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100">{meta.title}</span>}
-        {meta.description && <span className="mt-0.5 line-clamp-2 text-xs leading-snug text-slate-600 dark:text-slate-300">{meta.description}</span>}
+        {meta?.title && (
+          <span className="mt-0.5 line-clamp-2 text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100">
+            {meta.title}
+          </span>
+        )}
+        {meta?.description && (
+          <span className="mt-0.5 line-clamp-2 text-xs leading-snug text-slate-600 dark:text-slate-300">
+            {meta.description}
+          </span>
+        )}
       </div>
     </a>
   );

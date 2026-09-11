@@ -7,6 +7,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
+import { stubVisibleIntersectionObserver } from "@/test/visibleIntersectionObserver";
 import type { NostrEvent } from "nostr-tools";
 import { SerpRow } from "./SerpRow";
 
@@ -76,6 +77,7 @@ const NEWS =
   "The 1878s have issued a statement. https://cdn.example/photo.jpg";
 
 beforeEach(() => {
+  stubVisibleIntersectionObserver();
   window.history.replaceState({}, "", "/?q=liverpool");
 });
 
@@ -96,12 +98,18 @@ describe("SerpRow — link metadata", () => {
     expect(unfurlMock).toHaveBeenCalledWith("https://en.wikipedia.org/wiki/Liverpool_F.C.");
   });
 
-  it("no answer, no card — the domain chip stands alone", async () => {
+  it("no answer, still a card — it keeps its height and carries the path", async () => {
+    // The card never collapses. Roughly a third of real links publish no Open
+    // Graph markup at all, so a card that vanished on no answer would shove the
+    // results below it around for a third of every page. It holds its height
+    // and shows the path — which the chip does not already say.
     unfurlMock.mockResolvedValue(null);
     render(<SerpRow event={note("Great read https://example.org/post")} author={author} score={0.7} query="liverpool" />);
-    await screen.findByTestId("link-chip");
-    await Promise.resolve();
-    expect(screen.queryByTestId("link-card")).toBeNull();
+    const card = await screen.findByTestId("link-card");
+    expect(card).toHaveTextContent("/post");
+    // The chip owns the domain; the card does not repeat it back.
+    expect(screen.getByTestId("link-chip")).toHaveTextContent("example.org");
+    expect(card).not.toHaveTextContent("example.org");
   });
 });
 
