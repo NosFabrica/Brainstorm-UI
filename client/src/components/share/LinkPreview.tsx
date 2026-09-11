@@ -1,5 +1,10 @@
-import { useState } from "react";
-import { Globe, Github, Play } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ExternalLink, Globe, Github } from "lucide-react";
+import { WavlakeTrackCard } from "@/components/share/WavlakeTrackCard";
+import { FountainCard } from "@/components/share/FountainCard";
+import { wavlakeTrackId } from "@/lib/wavlake";
+import { VideoEmbed } from "@/components/share/VideoEmbed";
+import { fetchUnfurl, type Unfurled } from "@/services/unfurl";
 
 /**
  * Server-free "smart" link previews. We can't fetch a URL's OG tags from the
@@ -23,17 +28,29 @@ function prettyPath(u: URL): string {
   return p && p !== "" ? p : "";
 }
 
-/** Favicon loaded directly from the site; falls back to a globe icon if missing. */
-function Favicon({ host, className }: { host: string; className?: string }) {
-  const [failed, setFailed] = useState(false);
-  if (failed || !host) return <Globe className={className} />;
+/** Where sites actually keep their icon, in the order worth trying — the
+ *  apex domain too when the link said www. No third-party icon service. */
+function faviconCandidates(host: string): string[] {
+  const hosts = [host];
+  const apex = host.replace(/^www\./i, "");
+  if (apex !== host) hosts.push(apex);
+  return hosts.flatMap((h) => [`https://${h}/favicon.ico`, `https://${h}/favicon.png`]);
+}
+
+/** Favicon loaded directly from the site; the globe only once every candidate failed. */
+export function Favicon({ host, className }: { host: string; className?: string }) {
+  const [attempt, setAttempt] = useState(0);
+  const candidates = host ? faviconCandidates(host) : [];
+  if (attempt >= candidates.length) return <Globe className={className} data-testid="favicon-globe" />;
   return (
     <img
-      src={`https://${host}/favicon.ico`}
+      key={candidates[attempt]}
+      src={candidates[attempt]}
       alt=""
       loading="lazy"
-      onError={() => setFailed(true)}
+      onError={() => setAttempt((a) => a + 1)}
       className={className}
+      data-testid="favicon"
     />
   );
 }
@@ -46,7 +63,7 @@ export function LinkChip({ url }: { url: string }) {
     <a
       href={url}
       target="_blank"
-      rel="noopener noreferrer"
+      rel="noopener"
       className="inline-flex max-w-full items-center gap-1 rounded-md bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 align-middle text-[13px] font-medium text-brand-link no-underline hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
       data-testid="link-chip"
     >
@@ -89,7 +106,7 @@ function GithubCard({ url, owner, repo, host }: { url: string; owner: string; re
       <a
         href={url}
         target="_blank"
-        rel="noopener noreferrer"
+        rel="noopener"
         className="mt-2 block rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden no-underline hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
         data-testid="link-card-github"
       >
@@ -110,7 +127,7 @@ function GithubCard({ url, owner, repo, host }: { url: string; owner: string; re
     <a
       href={url}
       target="_blank"
-      rel="noopener noreferrer"
+      rel="noopener"
       className="mt-2 flex items-stretch gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 no-underline overflow-hidden hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-sm transition-all"
       data-testid="link-card-github"
     >
@@ -131,25 +148,31 @@ export function LinkPreviewCard({ url }: { url: string }) {
   const yt = youtubeId(u);
   const gh = githubRepo(u);
 
+  // Audio plays where it is too. Wavlake's catalogue gives the track back as
+  // an inline player; Fountain hides the mp3 behind a page the browser cannot
+  // read (RELAY-ASKS #11), so until the link proxy ships it is a Listen card.
+  if (wavlakeTrackId(url)) return <WavlakeTrackCard url={url} />;
+  // Fountain's page is CORS-readable and carries artwork, words and the mp3 in
+  // Open Graph, so an episode is a rich card that plays here (FountainCard),
+  // falling back to a plain link when the page cannot be read.
+  if (host === "fountain.fm") return <FountainCard url={url} />;
+
   if (yt) {
+    // A video plays where it is. The facade costs YouTube nothing until play;
+    // the caption keeps the site itself one click away for whoever wants it.
     return (
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="mt-2 block rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden no-underline hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
-        data-testid="link-card-youtube"
-      >
-        <div className="relative aspect-video bg-slate-900">
-          <img src={`https://img.youtube.com/vi/${yt}/hqdefault.jpg`} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="h-11 w-11 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
-              <Play className="h-4 w-4 text-brand-deep ml-0.5" />
-            </span>
-          </div>
-        </div>
-        <div className="px-3 py-2 text-xs font-semibold text-white bg-slate-900">YouTube · {host}</div>
-      </a>
+      <div className="mt-2" data-testid="link-card-youtube">
+        <VideoEmbed url={url} className="!my-0 rounded-b-none" />
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener"
+          className="flex items-center gap-1 rounded-b-xl border border-t-0 border-slate-200 dark:border-slate-800 bg-slate-900 px-3 py-1.5 text-[11px] font-semibold text-white/80 no-underline hover:text-white"
+          data-testid="link-card-youtube-source"
+        >
+          YouTube · {host} <ExternalLink className="h-3 w-3" />
+        </a>
+      </div>
     );
   }
 
@@ -157,7 +180,47 @@ export function LinkPreviewCard({ url }: { url: string }) {
     return <GithubCard url={url} owner={gh.owner} repo={gh.repo} host={host} />;
   }
 
-  // Plain links carry no real preview here (favicon + domain + path just repeats
-  // the inline chip), so we render nothing and let the chip speak for the link.
-  return null;
+  // Plain links: the server's unfurl proxy, when it answers, gives a real
+  // card — title, description, image. Until it does, nothing; the inline
+  // chip speaks for the link.
+  return <UnfurledCard url={url} host={host} />;
+}
+
+/** Title + description + image for a plain link, from the unfurl proxy. */
+function UnfurledCard({ url, host }: { url: string; host: string }) {
+  const [meta, setMeta] = useState<Unfurled | null>(null);
+  const [imgFailed, setImgFailed] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    setMeta(null);
+    void fetchUnfurl(url).then((m) => {
+      if (alive) setMeta(m);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [url]);
+  if (!meta || (!meta.title && !meta.description)) return null;
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener"
+      onClick={(e) => e.stopPropagation()}
+      className="mt-2 flex items-stretch gap-3 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 no-underline hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-sm transition-all"
+      data-testid="link-card"
+    >
+      {meta.image && !imgFailed && (
+        <img src={meta.image} alt="" loading="lazy" onError={() => setImgFailed(true)} className="h-24 w-32 shrink-0 object-cover bg-slate-100 dark:bg-slate-800" />
+      )}
+      <div className="flex min-w-0 flex-1 flex-col justify-center py-2 pr-3 pl-1">
+        <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+          <Favicon host={host} className="h-3 w-3 shrink-0 rounded-sm object-contain" />
+          <span className="truncate">{meta.siteName ?? host}{meta.siteName && meta.siteName.toLowerCase() !== host.toLowerCase() ? ` · ${host}` : ""}</span>
+        </span>
+        {meta.title && <span className="mt-0.5 line-clamp-2 text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100">{meta.title}</span>}
+        {meta.description && <span className="mt-0.5 line-clamp-2 text-xs leading-snug text-slate-600 dark:text-slate-300">{meta.description}</span>}
+      </div>
+    </a>
+  );
 }

@@ -175,11 +175,11 @@ export function ActivateBrainstormModal({ open, onOpenChange, serviceKey, onActi
             <div className="flex flex-wrap items-center gap-2 sm:gap-3 px-1">
               <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400 dark:text-slate-500">Supported by</span>
               <div className="flex items-center gap-2">
-                <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-brand-primary/[0.06] dark:bg-brand-primary/15 border border-brand-primary/15 dark:border-brand-primary/25 text-brand-link text-xs font-semibold hover:bg-brand-primary/[0.1] dark:hover:bg-brand-primary/25 transition-colors" data-testid="link-modal-amethyst">
+                <a href="https://amethyst.social/#" target="_blank" rel="noopener" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-brand-primary/[0.06] dark:bg-brand-primary/15 border border-brand-primary/15 dark:border-brand-primary/25 text-brand-link text-xs font-semibold hover:bg-brand-primary/[0.1] dark:hover:bg-brand-primary/25 transition-colors" data-testid="link-modal-amethyst">
                   Amethyst
                   <ExternalLink className="h-2.5 w-2.5" />
                 </a>
-                <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange-50 dark:bg-orange-500/10 border border-orange-100 dark:border-orange-500/25 text-orange-700 dark:text-orange-300 text-xs font-semibold hover:bg-orange-100 dark:hover:bg-orange-500/20 transition-colors" data-testid="link-modal-nostria">
+                <a href="https://www.nostria.app/" target="_blank" rel="noopener" className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-orange-50 dark:bg-orange-500/10 border border-orange-100 dark:border-orange-500/25 text-orange-700 dark:text-orange-300 text-xs font-semibold hover:bg-orange-100 dark:hover:bg-orange-500/20 transition-colors" data-testid="link-modal-nostria">
                   Nostria
                   <ExternalLink className="h-2.5 w-2.5" />
                 </a>

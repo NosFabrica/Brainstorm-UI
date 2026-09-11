@@ -1,7 +1,6 @@
 import { Link } from "wouter";
 import { Chip } from "@/components/ui/chip";
 import { useProfileTags } from "@/hooks/useTags";
-import { TagPersonButton } from "@/components/share/TagPersonButton";
 import { npubFromPubkey } from "@/lib/shareId";
 import { corroborations, onlySelfDeclared } from "@/lib/tagCounts";
 
@@ -11,9 +10,10 @@ import { corroborations, onlySelfDeclared } from "@/lib/tagCounts";
  * chips rendered just below: those are self-declared, these are what *other*
  * people say, counted from the trust perspective.
  *
- * Renders nothing until there's something to show — no skeleton. The hero is
- * already assembling ~25 queries and a placeholder here would just add another
- * shifting block above the bio.
+ * Renders nothing until there's something to show — no skeleton, and no
+ * "Add a tag" pill either: a form control between the key and the bio read as
+ * clutter (Benjamin, 2026-09-08). The way in — TagPersonButton — sits beside
+ * the "Posts about" chips instead; this row is display only.
  *
  * Each chip links to its tag page (`/tags/:author/:slug`) — the list of everyone
  * carrying it, which is what makes a tag legible as a list rather than a label.
@@ -22,22 +22,17 @@ export function ProfileTagChips({
   pubkey,
   canTag = false,
   isOwner = false,
-  legacyRoles = [],
 }: {
   pubkey: string | undefined;
-  /** The viewer is signed in AND holds a signer. Shows "Add a tag". */
+  /** The viewer is signed in AND holds a signer — gates the owner's Manage link. */
   canTag?: boolean;
-  /** Viewing their own profile — changes wording only, not permission. */
+  /** Viewing their own profile. */
   isOwner?: boolean;
-  /** Retired self-declared roles, offered back to the owner as tags. */
-  legacyRoles?: string[];
 }) {
   const { data } = useProfileTags(pubkey);
   const tags = data?.tags ?? [];
 
-  // Someone who can tag but sees no tags yet still needs the way in — otherwise
-  // the feature is invisible to exactly the people who'd start using it.
-  if (!tags.length && !canTag) return null;
+  if (!tags.length) return null;
 
   return (
     <div className="mt-2 flex flex-wrap items-center gap-1.5" data-testid="share-tags">
@@ -69,6 +64,7 @@ export function ProfileTagChips({
           tag.myStance === "dispute" ? "you disagreed" : "",
         ].filter(Boolean);
         const stanceNote = notes.length ? ` · ${notes.join(" · ")}` : "";
+        const pendingNote = tag.pending ? " · Publishing…" : "";
         // Floor B: after you take your own tag back it must stay visible and
         // honest rather than vanishing. Uncounted tags render faded.
         const faded = !tag.counted;
@@ -79,13 +75,16 @@ export function ProfileTagChips({
           <Chip
             key={tag.key}
             tone={onlySelfDeclared(tag) ? "slate" : tag.myStance === "apply" ? "accent" : "brand"}
-            title={(tag.description ? `${who} — ${tag.description}` : who) + stanceNote}
+            title={(tag.description ? `${who} — ${tag.description}` : who) + stanceNote + pendingNote}
             data-testid="share-tag-chip"
             data-self-declared={onlySelfDeclared(tag) ? "true" : undefined}
             data-counted={tag.counted ? "true" : "false"}
+            data-pending={tag.pending ? "true" : undefined}
             className={[
               authorNpub ? "transition-opacity hover:opacity-80" : "",
               faded ? "opacity-50" : "",
+              // Not yet on the relays: a little lighter, until they answer.
+              tag.pending ? "opacity-60" : "",
             ].filter(Boolean).join(" ") || undefined}
           >
             {tag.name}
@@ -105,9 +104,6 @@ export function ProfileTagChips({
           chip
         );
       })}
-      {canTag && pubkey && (
-        <TagPersonButton pubkey={pubkey} isOwner={isOwner} legacyRoles={legacyRoles} />
-      )}
       {/* Owner-only shortcut to the one place that lists every tag on them AND
           everything they've said about others. Not on someone else's profile —
           there's nothing of yours to manage there. */}

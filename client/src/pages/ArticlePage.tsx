@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useRoute, Link } from "wouter";
+import { useRoute, Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -7,22 +7,25 @@ import rehypeSanitize from "rehype-sanitize";
 import { VideoEmbed, videoEmbedFor } from "@/components/share/VideoEmbed";
 import { LinkChip } from "@/components/share/LinkPreview";
 import { nip19 } from "nostr-tools";
-import { ArrowLeft, ArrowRight, BadgeCheck, Smartphone, Loader2, FileText } from "lucide-react";
+import { ArrowRight, BadgeCheck, Loader2, FileText } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { fetchAddressableEvents, fetchProfile } from "@/services/nostr";
 import { apiClient } from "@/services/api";
-import { openArticleInApp } from "@/lib/articleLinks";
 import { npubFromPubkey } from "@/lib/shareId";
+import { wikiToMarkdown } from "@/lib/wiki";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { EventThread } from "@/components/share/EventThread";
-import { OpenInApp } from "@/components/share/OpenInApp";
+import { EntityMenu } from "@/components/share/EntityMenu";
+import { OpenElsewhere } from "@/components/share/OpenElsewhere";
+import { ShareButton } from "@/components/share/ShareButton";
 import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { BrainLogo } from "@/components/BrainLogo";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useHasSession } from "@/hooks/useHasSession";
+
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?.*)?$/i;
 const VID_RE = /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i;
@@ -35,9 +38,28 @@ const VID_RE = /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i;
  * (Full og-image/title/description previews for arbitrary links await the
  * /api/unfurl proxy — see LinkPreview.tsx.)
  */
+function InAppLink({ href, children }: { href: string; children?: React.ReactNode }) {
+  const [, navigate] = useLocation();
+  return (
+    <a
+      href={href}
+      onClick={(e) => {
+        e.preventDefault();
+        navigate(href);
+      }}
+      className="font-medium text-brand-link underline decoration-brand-link/40 underline-offset-2 hover:decoration-brand-link"
+      data-testid="article-wikilink"
+    >
+      {children}
+    </a>
+  );
+}
+
 const mdComponents: Components = {
   a({ href, children }) {
     const url = typeof href === "string" ? href : "";
+    // A link into Brainstorm itself (a wiki topic's articles search) stays here.
+    if (url.startsWith("/")) return <InAppLink href={url}>{children}</InAppLink>;
     const text = Array.isArray(children) ? children.map((c) => (typeof c === "string" ? c : "")).join("") : String(children ?? "");
     const bare = !!url && text.trim() === url.trim(); // an autolinked bare URL, not [label](url)
     if (url && videoEmbedFor(url)) return <VideoEmbed url={url} />;
@@ -48,7 +70,7 @@ const mdComponents: Components = {
       return <img src={url} alt="" loading="lazy" className="my-3 block max-h-[34rem] w-full rounded-xl border border-slate-200 dark:border-slate-800 object-contain" />;
     }
     if (url && bare) return <LinkChip url={url} />;
-    return <a href={url || undefined} target="_blank" rel="noopener noreferrer" className="font-medium text-brand-link underline decoration-brand-link/40 underline-offset-2 hover:decoration-brand-link">{children}</a>;
+    return <a href={url || undefined} target="_blank" rel="noopener" className="font-medium text-brand-link underline decoration-brand-link/40 underline-offset-2 hover:decoration-brand-link">{children}</a>;
   },
 };
 
@@ -120,6 +142,17 @@ export default function ArticlePage() {
   const tag = (k: string) => ev?.tags.find((t) => t[0] === k)?.[1];
   const title = tag("title") || "Untitled article";
   const summary = tag("summary") || "";
+  // A wiki page mirrored from elsewhere names its source in an "s" tag
+  // (GitCitadel: the Wikipedia URL). Attribution is owed, and one line does it.
+  const sourceUrl = ev?.kind === 30818 && /^https?:\/\//.test(tag("s") || "") ? tag("s")! : "";
+  const sourceName = (() => {
+    try {
+      const host = new URL(sourceUrl).hostname.replace(/^www\./, "");
+      return /(^|\.)wikipedia\.org$/.test(host) ? "Wikipedia" : host;
+    } catch {
+      return "";
+    }
+  })();
   const image = tag("image");
   const profile = (profileQuery.data ?? {}) as { display_name?: string; name?: string; picture?: string; nip05?: string };
   const authorName = profile.display_name || profile.name || (ptr ? nip19.npubEncode(ptr.pubkey).slice(0, 12) + "…" : "Unknown");
@@ -145,11 +178,7 @@ export default function ArticlePage() {
     <div className="min-h-screen bg-gradient-to-b from-slate-50 dark:from-slate-950 to-white dark:to-slate-900">
       <PublicPageHeader
         maxWidthClass="max-w-3xl"
-        actions={authorNpub ? (
-          <Link href={`/p/${authorNpub}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-link hover:underline">
-            <ArrowLeft className="h-4 w-4" /> Profile
-          </Link>
-        ) : undefined}
+        actions={<ShareButton url={typeof window !== "undefined" ? window.location.href : ""} title={`${title} — Brainstorm`} />}
       />
 
       <main className="mx-auto max-w-3xl px-4 sm:px-6 py-6 sm:py-10">
@@ -167,13 +196,8 @@ export default function ArticlePage() {
           <div className="text-center py-20">
             <FileText className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto" />
             <p className="mt-3 text-slate-600 dark:text-slate-300 font-medium">We couldn’t find this article on the relays.</p>
-            <button
-              type="button"
-              onClick={() => openArticleInApp(naddr)}
-              className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover px-4 py-2 text-sm font-semibold text-white"
-            >
-              <Smartphone className="h-4 w-4" /> Try opening in an app
-            </button>
+            {/* The naddr says which kind it is, so only clients that render it are offered. */}
+            <OpenElsewhere entity={{ kind: "article", eventKind: ptr.kind, bech32: naddr, uri: `nostr:${naddr}` }} className="mt-5" />
           </div>
         ) : (
           <ShareNavProvider>
@@ -185,9 +209,17 @@ export default function ArticlePage() {
               {title}
             </h1>
             {summary && <p className="mt-2 text-lg text-slate-500 dark:text-slate-400 leading-snug">{summary}</p>}
+            {sourceUrl && sourceName && (
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="article-source">
+                Mirrored from{" "}
+                <a href={sourceUrl} target="_blank" rel="noopener" className="font-medium text-brand-link hover:underline">
+                  {sourceName}
+                </a>
+              </p>
+            )}
 
-            {/* Author + trust + date */}
-            <div className="mt-4 flex items-center gap-3 border-b border-slate-100 dark:border-slate-800/60 pb-5">
+            {/* Author + trust + date — and the ⋯, on the object it acts on. */}
+            <div className="mt-4 flex items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/60 pb-5">
               <Link href={authorNpub ? `/p/${authorNpub}` : "#"} className="flex items-center gap-2.5 min-w-0 hover:opacity-80">
                 <span className="relative shrink-0">
                   <Avatar className={`h-11 w-11 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 ${tierRing(score01) ?? ""}`}>
@@ -207,12 +239,19 @@ export default function ArticlePage() {
                   <span className="text-xs text-slate-400 dark:text-slate-500">{publishedAgo(ev)}</span>
                 </div>
               </Link>
+              {ptr && (
+                <EntityMenu
+                  entity={{ kind: "article", eventKind: ev.kind, bech32: naddr, uri: `nostr:${naddr}` }}
+                  copies={[{ id: "naddr", label: "Copy naddr", value: naddr, hint: "The article's address, for Nostr apps" }]}
+                  triggerTestId="article-menu"
+                />
+              )}
             </div>
 
             {/* Full article body — Brainstorm is the reading destination. */}
             <div className="mt-6 prose prose-slate dark:prose-invert max-w-none prose-headings:font-bold prose-a:text-brand-link prose-img:rounded-xl" data-testid="article-body">
               <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={mdComponents}>
-                {ev.content || ""}
+                {ev.kind === 30818 ? wikiToMarkdown(ev.content || "") : ev.content || ""}
               </ReactMarkdown>
             </div>
 
@@ -248,9 +287,6 @@ export default function ArticlePage() {
               )}
             </div>
             )}
-
-            {/* Secondary escape hatch — open in a Nostr client to read/zap. */}
-            <OpenInApp entity={{ kind: "article", bech32: naddr, uri: `nostr:${naddr}` }} className="mt-6" />
           </article>
           </ShareNavProvider>
         )}

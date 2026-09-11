@@ -4,6 +4,7 @@ import { AccountsProvider, EventStoreProvider } from "applesauce-react/providers
 import { accountManager } from "@/accounts";
 import { eventStore } from "@/services/nostr";
 import { stopAllMedia } from "@/lib/audioPlayer";
+import { installSoloPlayback } from "@/lib/playback";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -28,6 +29,7 @@ import ProfilePage from "@/pages/ProfilePage";
 import SharePage from "@/pages/SharePage";
 import ConnectionListPage from "@/pages/ConnectionListPage";
 import HopsPathPage from "@/pages/HopsPathPage";
+import SellingPage from "@/pages/SellingPage";
 import ArticlePage from "@/pages/ArticlePage";
 import EventPage from "@/pages/EventPage";
 import WelcomePage from "@/pages/WelcomePage";
@@ -61,14 +63,16 @@ import LoginPage from "@/pages/LoginPage";
 import { FEATURES } from "@/config/featureFlags";
 import { PovAutoDefault } from "@/components/PovBadge";
 import { MobileTabBar } from "@/components/MobileTabBar";
+import { NowPlayingBar } from "@/components/search/NowPlayingBar";
 import { CommandPalette } from "@/components/CommandPalette";
 import { MobileSearchOverlay } from "@/components/MobileSearchOverlay";
 import { UnlockModal } from "@/components/UnlockModal";
 import { CrossTabIdentity } from "@/components/CrossTabIdentity";
 import { SignerApprovalModal } from "@/components/SignerApprovalModal";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { RequireAuth } from "@/components/RequireAuth";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { isAdminPubkey } from "@/config/adminAccess";
-import type { ComponentType } from "react";
 
 /**
  * Land every route change at the top of the page.
@@ -120,10 +124,10 @@ function ScrollToTop() {
   return null;
 }
 
-// Stop inline media when the route changes — the shared audio track and any
-// playing <video>. A Picture-in-Picture video is deliberately EXEMPT: it keeps
-// playing across the app like a YouTube mini-player until the user closes it.
-// Audio keeps its position so returning resumes. Skips the first render.
+// Stop inline VIDEO when the route changes. A Picture-in-Picture video is
+// deliberately EXEMPT: it keeps playing across the app like a YouTube
+// mini-player until the user closes it. Music is exempt too: it has the
+// app-wide NowPlayingBar, whose X is how a song stops. Skips the first render.
 function StopMediaOnNavigate() {
   const [location] = useLocation();
   const first = useRef(true);
@@ -131,6 +135,14 @@ function StopMediaOnNavigate() {
     if (first.current) { first.current = false; return; }
     stopAllMedia();
   }, [location]);
+  return null;
+}
+
+// One sound at a time: whatever starts sounding — the music bar, a stream,
+// a clip the reader unmutes, an embed — takes the floor and the rest pause.
+// One document listener covers every media element (lib/playback).
+function SoloPlayback() {
+  useEffect(() => installSoloPlayback(), []);
   return null;
 }
 
@@ -143,28 +155,6 @@ function SearchRedirect() {
   return <Redirect to={`/${search}`} replace />;
 }
 
-// Account-only pages are hidden from anonymous visitors: no preview, just a
-// clean redirect to the dedicated sign-in page (carrying ?next=<requested path>
-// so users return after signing in). Public pages (/, /p/:id,
-// /faq, /what-is-wot, /how-search-works, /personalization, /about, /nostr) render for everyone.
-function RequireAuth({ component: Component }: { component: ComponentType }) {
-  const [location] = useLocation();
-  // Identity is known synchronously on the first render — accounts bootstrap at
-  // module load precisely so this guard never bounces a signed-in user.
-  const signedIn = useActiveAccountDisplay();
-  if (!signedIn) {
-    const next =
-      location && location.startsWith("/") && location !== "/login"
-        ? `?next=${encodeURIComponent(location)}`
-        : "";
-    // `replace`, not push: pushing leaves the gated URL in history, so pressing
-    // Back returns to it, RequireAuth fires again and shoves you forward to
-    // /login — a trap you can't reverse out of. Replacing means Back skips
-    // straight past to wherever you actually came from.
-    return <Redirect to={`/login${next}`} replace />;
-  }
-  return <Component />;
-}
 
 /**
  * `/profile/:npub` — the old analytics view, now admin-only.
@@ -220,11 +210,14 @@ function AdminRoute() {
 }
 
 function Router() {
+  const [location] = useLocation();
   return (
     <>
       <TrackHistoryDepth />
       <ScrollToTop />
       <StopMediaOnNavigate />
+      <SoloPlayback />
+      <ErrorBoundary resetKey={location}>
       <Switch>
         <Route path="/" component={Landing} />
         <Route path="/login" component={LoginPage} />
@@ -237,6 +230,7 @@ function Router() {
         {/* Deprecated for users — see ProfileRoute. /p/:id is THE profile page. */}
         <Route path="/profile/:npub">{() => <RequireAuth component={ProfileRoute} />}</Route>
         <Route path="/p/:id/hops" component={HopsPathPage} />
+        <Route path="/p/:id/selling" component={SellingPage} />
         <Route path="/p/:id/:type" component={ConnectionListPage} />
         <Route path="/p/:id" component={SharePage} />
         <Route path="/a/:id" component={ArticlePage} />
@@ -280,6 +274,7 @@ function Router() {
         <Route path="/admin">{() => <RequireAuth component={AdminRoute} />}</Route>
         <Route component={NotFound} />
       </Switch>
+      </ErrorBoundary>
     </>
   );
 }
@@ -297,6 +292,7 @@ function App() {
             <CrossTabIdentity />
             <PovAutoDefault />
             <MobileTabBar />
+            <NowPlayingBar />
             <CommandPalette />
             <MobileSearchOverlay />
             <ScoringStatusBar />

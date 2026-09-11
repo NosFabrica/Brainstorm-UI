@@ -1,5 +1,5 @@
 import { HomeFooter } from "@/components/HomeFooter";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { hasHopped, markHopped, trackHistoryEntry } from "@/lib/historyState";
 import { copyToClipboard } from "@/lib/clipboard";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
@@ -13,13 +13,16 @@ import {
   Check,
   X,
   SlidersHorizontal,
-  Zap,
-  Globe,
-  Users,
-  UserRound,
-  Radar,
-  Copy,
   Clock,
+  Radio,
+  CalendarDays,
+  Newspaper,
+  Image as ImageIcon,
+  MessageSquare,
+  Users,
+  Package,
+  FolderGit2,
+  ListChecks,
 } from "lucide-react";
 import { GlossBackground } from "@/components/GlossBackground";
 import { Wordmark } from "@/components/Wordmark";
@@ -29,7 +32,6 @@ import { FinishSetupBanner } from "@/components/FinishSetupBanner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
-import { EmptyState } from "@/components/ui/empty-state";
 import { fetchProfile } from "@/services/nostr";
 import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
@@ -39,20 +41,26 @@ import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
 import { AccountCards } from "@/components/AccountCards";
-import { useToast } from "@/hooks/use-toast";
 import { setProfileSeed, setStoredSearchSeed, type ProfileSeed } from "@/lib/profileSeed";
 import {
-  searchByText,
   getDisplayLabel,
   isLikelyNpub,
   isHexPubkey,
   isNip05Handle,
   type SearchResult,
 } from "@/lib/profileSearch";
+import { suggestProfiles } from "@/services/search";
+import { BackToTop } from "@/components/search/BackToTop";
+import { SearchResults } from "@/components/search/SearchResults";
+import { PerspectiveToggle } from "@/components/search/PerspectiveToggle";
+import { personAssist, scopeOf, splitFilters, type PersonAssist, scopedPlaceholder, seeAllLabel } from "@/lib/searchSyntax";
+import { useProfileMap } from "@/hooks/useProfileMap";
+import { ScopeChip } from "@/components/search/ScopeChip";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
 import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
 import { useTagMatches } from "@/hooks/useTags";
+import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { npubFromPubkey } from "@/lib/shareId";
 import { resolveEntityToPath } from "@/lib/resolveNostrEntity";
 
@@ -66,6 +74,7 @@ const ANON_POV = "nosfabrica" as const;
 // for returning visitors who've already seen the rotating hints (see
 // SEEN_SEARCH_HINTS_KEY). Kept deliberately generic (mainstream names +
 // topics, no insider references) so it reads for a broad audience.
+const NO_PUBKEYS: string[] = [];
 const PLACEHOLDER_EXAMPLES = [
   "Search people and topics…",
   'Search "Maria"',
@@ -79,11 +88,6 @@ const PLACEHOLDER_EXAMPLES = [
 // marks a "returning" visitor, who gets the calm static placeholder instead
 // of the rotating hints. First-party + functional → no consent banner needed.
 const SEEN_SEARCH_HINTS_KEY = "brainstorm_seen_search_hints";
-
-function truncateAbout(text: string, maxLen = 120): string {
-  if (text.length <= maxLen) return text;
-  return text.slice(0, maxLen).trimEnd() + "...";
-}
 
 async function resolveNip05(handle: string): Promise<string> {
   const trimmed = handle.trim();
@@ -109,9 +113,14 @@ export default function Landing() {
   const tierRing = useTierRing();
   const coinReplaced = useCoinReplacedByRing();
   const [, setLocation] = useLocation();
-  const { toast } = useToast();
   const [query, setQuery] = useState(() => {
     try { return new URLSearchParams(window.location.search).get("q") || ""; } catch { return ""; }
+  });
+  // The active FILTERS, as their tokens ("sort:recent trust:verified") — kept
+  // out of the box (Benjamin: tokens in the box look bad) and carried in the
+  // URL's `f` so a filtered search still deep-links and survives back/forward.
+  const [filters, setFilters] = useState(() => {
+    try { return new URLSearchParams(window.location.search).get("f") || ""; } catch { return ""; }
   });
   const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -131,13 +140,31 @@ export default function Landing() {
   // visitors only — a first-timer has none). `focused` gates that panel.
   const [recent, setRecent] = useState<RecentItem[]>(() => getRecentItems());
   const [focused, setFocused] = useState(false);
+  // Benjamin: "when users refresh to the home screen, don't have the search
+  // history dropdown [showing]" — the box autofocuses on load, and focus
+  // alone used to open recents. Google waits for a gesture: recents appear
+  // once the person has clicked or typed in the box, not on page load.
+  const [engaged, setEngaged] = useState(false);
   const [suggestMaxH, setSuggestMaxH] = useState<number | null>(null);
 
-  // Full search results state (merged in from the retired /search page).
-  const [results, setResults] = useState<SearchResult[]>([]);
+  // The SUBMITTED query — what SearchResults streams for. Distinct from
+  // `query` (the live box text): results only change on submit/URL, never
+  // per keystroke. SearchResults owns the stream, skeleton and count line.
+  // null = pristine home; "" = BROWSE mode (a vertical, no keyword — the
+  // "just show me all the live events" ask); non-empty = a real query.
+  const [submitted, setSubmitted] = useState<string | null>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const q = params.get("q")?.trim();
+      if (q) return `${q} ${params.get("f") ?? ""}`.trim();
+      // ?t= without ?q= is a deep link into browsing that vertical — with
+      // whatever filters the link carries: in browse the filters ARE the query.
+      return params.get("t") ? (params.get("f") ?? "").trim() : null;
+    } catch { return null; }
+  });
+  const hasSearched = submitted !== null;
+  // Brief in-box spinner while a NIP-05 handle resolves to a profile.
   const [isSearching, setIsSearching] = useState(false);
-  const [hasSearched, setHasSearched] = useState(false);
-  const [searchTime, setSearchTime] = useState(0);
 
   const suggestAbortRef = useRef(0);
   const searchAbortRef = useRef(0);
@@ -148,6 +175,28 @@ export default function Landing() {
   // Mouse hover sets the highlight for visuals/prefetch but leaves this false so
   // pressing Enter still runs a full search instead of opening a hovered profile.
   const kbdNavRef = useRef(false);
+  // Non-null while the dropdown is completing a from:/to: name fragment —
+  // picking a person then WRITES THE KEY instead of navigating.
+  const personAssistRef = useRef<PersonAssist | null>(null);
+  // The animated hero container — the wordmark refresh replays its
+  // load-in through the Web Animations API (a remount would re-trigger
+  // the input's autoFocus and reopen the recents dropdown).
+  const heroRef = useRef<HTMLDivElement | null>(null);
+  // Whether the reader has scrolled under the pinned band. It is see-through
+  // over the top of the page and frosts only once there is content behind it
+  // — the same rule as PublicPageHeader, and the reason the band no longer
+  // reads as a slab laid over the aurora in dark mode.
+  const [bandFrosted, setBandFrosted] = useState(false);
+  useEffect(() => {
+    if (!hasSearched) {
+      setBandFrosted(false);
+      return;
+    }
+    const onScroll = () => setBandFrosted(window.scrollY > 6);
+    onScroll();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [hasSearched]);
   const searchContainerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const didInitFromUrlRef = useRef(false);
@@ -161,6 +210,9 @@ export default function Landing() {
   // Permission to search from one's own perspective, per GET /user/isSearchObserver.
   const { isSearchObserver } = useIsSearchObserver();
   const canUseMywot = hasMywot && isSearchObserver;
+  // Relay hits carry no rank numbers (order-only wire) — the dropdown's rings
+  // and coins feed from the shared author-score cache, like every card.
+  const suggestScoreOf = useAuthorScores(useMemo(() => suggestions.map((x) => x.pubkey), [suggestions]));
 
   // Logged-in users stay on this search-first home and search from their active
   // trust perspective; "My WoT" gracefully falls back to the house view unless
@@ -235,6 +287,34 @@ export default function Landing() {
     // Any edit to the query invalidates a prior keyboard selection so Enter
     // falls back to a full search until the user arrow-navigates again.
     kbdNavRef.current = false;
+    // Mid-typing `from:ja` / `to:ma` → offer people for the FRAGMENT; picking
+    // one writes the key into the query (nobody types an npub by hand).
+    const assist = personAssist(value);
+    personAssistRef.current = assist && assist.fragment.length >= 2 ? assist : null;
+    if (personAssistRef.current) {
+      typedSinceSearchRef.current = true;
+      setIsSuggesting(true);
+      setShowSuggestions(true);
+      suggestTimerRef.current = window.setTimeout(async () => {
+        try {
+          const people = await suggestProfiles(personAssistRef.current!.fragment, {
+            pov: effectivePov,
+            userPubkey: user?.pubkey,
+          });
+          if (suggestAbortRef.current !== reqId) return;
+          setSuggestions(people.slice(0, 7));
+          setActiveSuggestion(-1);
+          kbdNavRef.current = false;
+          setShowSuggestions(true);
+        } catch {
+          if (suggestAbortRef.current !== reqId) return;
+          setSuggestions([]);
+        } finally {
+          if (suggestAbortRef.current === reqId) setIsSuggesting(false);
+        }
+      }, 120);
+      return;
+    }
     // A `#topic` query → show the topic row (→ /t/tag), not profile suggestions.
     if (parseTopicQuery(value).isTopic) {
       typedSinceSearchRef.current = true;
@@ -255,7 +335,7 @@ export default function Landing() {
     setShowSuggestions(true);
     suggestTimerRef.current = window.setTimeout(async () => {
       try {
-        const { results: suggestResults } = await searchByText(q, effectivePov, user?.pubkey, 10);
+        const suggestResults = await suggestProfiles(q, { pov: effectivePov, userPubkey: user?.pubkey });
         if (suggestAbortRef.current !== reqId) return;
         setSuggestions(suggestResults.slice(0, 7));
         setActiveSuggestion(-1);
@@ -368,6 +448,23 @@ export default function Landing() {
     setLocation(`/p/${result.npub}${suffix ? `?${suffix.replace(/^&/, "")}` : ""}`);
   }, [seedAndPrefetchProfile, setLocation, effectivePov, user]);
 
+  // What picking a dropdown person means depends on mode: completing a
+  // from:/to: fragment writes the key and keeps the user typing; otherwise
+  // it opens the profile as always.
+  const pickSuggestion = useCallback((result: SearchResult) => {
+    const assist = personAssistRef.current;
+    if (assist) {
+      personAssistRef.current = null;
+      setQuery(assist.complete(result.npub));
+      setSuggestions([]);
+      setActiveSuggestion(-1);
+      setShowSuggestions(false);
+      inputRef.current?.focus();
+      return;
+    }
+    goToProfile(result);
+  }, [goToProfile]);
+
   const handlePrefetchEnter = useCallback((result: SearchResult) => {
     const key = result.pubkey;
     if (!key || prefetchTimersRef.current.has(key)) return;
@@ -397,16 +494,18 @@ export default function Landing() {
     window.clearTimeout(suggestTimerRef.current);
     suggestAbortRef.current++;
     typedSinceSearchRef.current = false;
+    personAssistRef.current = null;
     setShowSuggestions(false);
     setIsSuggesting(false);
   }, []);
 
-  // Abandon whatever the results list is showing (and any request still in
-  // flight for it) without touching the query box.
+  // Abandon whatever the results area is showing (and any stream still
+  // running for it) without touching the query box. A bare tab in the URL
+  // keeps browsing that tab; nothing at all returns to the pristine home.
   const resetResults = useCallback(() => {
     searchAbortRef.current++;
-    setResults([]);
-    setHasSearched(false);
+    const params = new URLSearchParams(window.location.search);
+    setSubmitted(params.get("t") ? (params.get("f") ?? "").trim() : null);
     setIsSearching(false);
   }, []);
 
@@ -419,8 +518,10 @@ export default function Landing() {
   // is the ENTRY that has to remember, not this component: Landing sits under a
   // <Switch>, so it unmounts on the way out and remounts on Back with every ref
   // reset and no popstate of its own to observe.
-  const handleSearch = useCallback(async (overrideQuery?: string, trigger?: "init" | "pop") => {
+  const handleSearch = useCallback(
+    async (overrideQuery?: string, overrideFilters?: string, trigger?: "init" | "pop") => {
     const q = (overrideQuery ?? query).trim();
+    const f = (overrideFilters ?? filters).trim();
     if (!q) return;
     // Only an automatic re-run stays put; typing the same identifier again is
     // the user asking for the hop.
@@ -429,7 +530,9 @@ export default function Landing() {
       return;
     }
     // Remember this query for the "Recent" list (de-duped, most-recent-first).
-    setRecent(pushRecentQuery(q));
+    // A search scoped to a person (from:npub…) is a step from their profile,
+    // not words anyone typed — and a key is nothing to show in a list.
+    if (!scopeOf(q)) setRecent(pushRecentQuery(q));
     // Running a full search cancels any pending/in-flight suggestion request and
     // closes the dropdown so it can't reopen on top of the results list.
     window.clearTimeout(suggestTimerRef.current);
@@ -443,8 +546,11 @@ export default function Landing() {
     if (!trigger) {
       try {
         const currentUrl = new URL(window.location.href);
-        if (currentUrl.searchParams.get("q") !== q) {
+        const prevF = currentUrl.searchParams.get("f") ?? "";
+        if (currentUrl.searchParams.get("q") !== q || prevF !== f) {
           currentUrl.searchParams.set("q", q);
+          if (f) currentUrl.searchParams.set("f", f);
+          else currentUrl.searchParams.delete("f");
           window.history.pushState({}, "", currentUrl.pathname + currentUrl.search);
           trackHistoryEntry();
         }
@@ -507,42 +613,51 @@ export default function Landing() {
         return;
       } catch {
         if (searchAbortRef.current !== searchId) return;
+        // Unresolvable handle falls through to a plain text search below.
+      } finally {
+        if (searchAbortRef.current === searchId) setIsSearching(false);
       }
     }
 
-    const searchId = ++searchAbortRef.current;
-    setIsSearching(true);
-    setHasSearched(true);
-    const start = performance.now();
+    // Everything else is a real search: hand it to SearchResults — the stream,
+    // skeleton, errors and count line live there. The URL was written above,
+    // for every kind of query, so Back lands here with the box filled in.
+    setSubmitted(`${q} ${f}`.trim());
+    },
+    [query, filters, setLocation, resetResults],
+  );
 
-    try {
-      const { results: searchResults, timeMs } = await searchByText(q, effectivePov, user?.pubkey, 100);
-      if (searchAbortRef.current !== searchId) return;
-      setResults(searchResults);
-      setSearchTime(timeMs || Math.round(performance.now() - start));
-    } catch (err) {
-      if (searchAbortRef.current !== searchId) return;
-      setResults([]);
-      const message = err instanceof Error ? err.message : String(err ?? "");
-      toast({
-        title: "Search failed",
-        description: message || "Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      if (searchAbortRef.current === searchId) {
-        setIsSearching(false);
-      }
-    }
-  }, [query, effectivePov, user?.pubkey, setLocation, toast, resetResults]);
+  // In-app links to /?q=… — the panel's related topics and "More events", the
+  // home's trending tags — change the URL through pushState, which fires no
+  // popstate. Benjamin, over #texas: "nothing happens when users click on
+  // these". The URL's words are the truth: when they differ from what is
+  // showing, run them, exactly as Back does.
+  const search = useSearch();
+  useEffect(() => {
+    const params = new URLSearchParams(search);
+    const q = (params.get("q") || "").trim();
+    const f = (params.get("f") || "").trim();
+    if (!q || `${q} ${f}`.trim() === submitted) return;
+    setQuery(q);
+    setFilters(f);
+    didInitFromUrlRef.current = true;
+    handleSearch(q, f, "pop");
+    // `submitted` is read, not a trigger: a change in it is the search this effect started.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search, handleSearch]);
 
   // Sync the back/forward buttons with the search results list.
   useEffect(() => {
     const onPopState = () => {
-      const q = new URLSearchParams(window.location.search).get("q") || "";
+      const params = new URLSearchParams(window.location.search);
+      const q = params.get("q") || "";
+      const f = params.get("f") || "";
       setQuery(q);
+      setFilters(f);
       didInitFromUrlRef.current = true;
-      if (q.trim()) handleSearch(q, "pop");
+      // Back/forward: the URL is the truth for the filters too.
+      setFilters(f);
+      if (q.trim()) handleSearch(q, f, "pop");
       else resetResults();
     };
     window.addEventListener("popstate", onPopState);
@@ -553,33 +668,26 @@ export default function Landing() {
   // (search is public). Carries over `/search?q=` deep links onto the home.
   useEffect(() => {
     if (didInitFromUrlRef.current) return;
-    const q = new URLSearchParams(window.location.search).get("q") || "";
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get("q") || "";
     if (q.trim()) {
       didInitFromUrlRef.current = true;
-      handleSearch(q, "init");
+      handleSearch(q, params.get("f") || "", "init");
     }
   }, [handleSearch]);
 
-  // Re-run the active search when the global trust perspective changes so the
-  // results reflect the currently selected POV.
+  // A POV flip re-ranks the open results automatically — SearchResults
+  // restarts its stream when its `pov` prop changes. Only the mid-type
+  // suggestion dropdown needs a nudge here.
   const prevPovRef = useRef(effectivePov);
   useEffect(() => {
     if (prevPovRef.current === effectivePov) return;
     prevPovRef.current = effectivePov;
     const q = query.trim();
-    if (!q) return;
-    // Re-run the full results list if a search has already been submitted.
-    if (hasSearched) {
-      handleSearch();
-    }
-    // Also refresh the live suggestion dropdown when the user is mid-type
-    // (typed but not yet submitted), so suggestions reflect the new
-    // perspective without requiring another keystroke. scheduleSuggest owns
-    // its own request-id race protection, so stale responses can't win.
     if (typedSinceSearchRef.current && q.length >= 2) {
       scheduleSuggest(query);
     }
-  }, [effectivePov, hasSearched, query, handleSearch, scheduleSuggest]);
+  }, [effectivePov, query, scheduleSuggest]);
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault();
@@ -587,31 +695,84 @@ export default function Landing() {
     handleSearch();
   };
 
-  const clearSearch = useCallback(() => {
+  // A query scoped to one person shows that person as a chip, never the raw
+  // from:npub… token (Benjamin: "we should never show the raw scope"). The
+  // box's text is the words beside the key; the key rides first in `query`
+  // so typing keeps its spaces (the words are typed, not re-derived).
+  const scope = scopeOf(query);
+  const words = scope ? (query.startsWith(scope.token) ? query.slice(scope.token.length).replace(/^\s+/, "") : scope.rest) : query;
+  const setWords = (v: string) => (scope ? `${scope.token} ${v}` : v);
+  // The person's name, for the placeholder — the chip's hook and cache, not a
+  // second fetch. A profile with no name stays "their": never a key.
+  const scopeProfiles = useProfileMap(scope ? [scope.pubkey] : NO_PUBKEYS);
+  const scopeProfile = scope ? scopeProfiles.get(scope.pubkey) : undefined;
+  const scopeName = scopeProfile && (scopeProfile.displayName || scopeProfile.name) ? getDisplayLabel(scopeProfile) : null;
+  // Which results tab is showing, so the box can say "Search means's notes";
+  // seeded from the URL, then told by the results as tabs change.
+  const [activeTab, setActiveTab] = useState<string>(() => new URLSearchParams(window.location.search).get("t") || "everything");
+  // Arriving scoped — the profile's magnifier, a "View all" — the cursor is
+  // already in the box (X's profile search). Once per person, so typing and
+  // re-renders never have their focus stolen.
+  const focusedScopeRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!scope) {
+      focusedScopeRef.current = null;
+      return;
+    }
+    if (focusedScopeRef.current === scope.pubkey) return;
+    focusedScopeRef.current = scope.pubkey;
+    inputRef.current?.focus();
+  }, [scope?.pubkey]);
+
+  const clearSearch = useCallback((opts?: { refocus?: boolean }) => {
     searchAbortRef.current++;
     cancelSuggest();
     setQuery("");
+    setFilters("");
     setSuggestions([]);
     setActiveSuggestion(-1);
-    setResults([]);
-    setHasSearched(false);
+    setSubmitted(null);
     setIsSearching(false);
-    inputRef.current?.focus();
+    // Refocusing reopens the recents dropdown — right for the ⓧ clear
+    // button, wrong for the wordmark (a "refresh", not an invitation).
+    // Clearing is a gesture: the box refocuses and recents may show (Google's X).
+    if (opts?.refocus !== false) {
+      setEngaged(true);
+      inputRef.current?.focus();
+    }
     try {
       const url = new URL(window.location.href);
-      if (url.searchParams.has("q")) {
+      if (url.searchParams.has("q") || url.searchParams.has("t") || url.searchParams.has("f")) {
         url.searchParams.delete("q");
+        url.searchParams.delete("t");
+        url.searchParams.delete("f");
         window.history.pushState({}, "", url.pathname + (url.search ? url.search : ""));
       }
     } catch {}
   }, [cancelSuggest]);
+
+  // Browse a whole vertical with no keyword — Benjamin's "just show me all
+  // the live events". Deep-linkable: ?t=<tab> with no ?q=.
+  const browseVertical = useCallback((tabKey: string) => {
+    cancelSuggest();
+    setQuery("");
+    try {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("q");
+      url.searchParams.set("t", tabKey);
+      window.history.pushState({}, "", url.pathname + url.search);
+    } catch {}
+    setSubmitted(filters.trim());
+  }, [cancelSuggest, filters]);
 
   // The suggestions dropdown is open whenever we have something to show.
   // We lift the search box toward the top when it opens (or once a search is
   // under way) so the list/results have room.
   // When the typed query is itself a nostr entity/link (npub/nevent/note/naddr/…),
   // the dropdown's action row resolves it straight to the right landing page.
-  const entityMatch = useMemo(() => resolveEntityToPath(query.trim()), [query]);
+  // Under a scope only the WORDS can be a pasted key — the scope's own npub
+  // is the person, not an entity to open.
+  const entityMatch = useMemo(() => resolveEntityToPath((scope ? words : query).trim()), [query, scope, words]);
   const topicMatch = useMemo(() => parseTopicQuery(query), [query]);
   // Tags the query matches. Skipped entirely for `#topic` queries — those are
   // already routed at the hashtag feed and shouldn't offer a second answer.
@@ -620,7 +781,7 @@ export default function Landing() {
     showSuggestions && (suggestions.length > 0 || isSuggesting || topicMatch.isTopic || tagMatches.length > 0);
   // "Recent" shows under an empty, focused box before any search this session —
   // never alongside the suggestions dropdown or a results list.
-  const showRecent = focused && query.trim() === "" && !hasSearched && !dropdownOpen && recent.length > 0;
+  const showRecent = engaged && focused && query.trim() === "" && !hasSearched && !dropdownOpen;
   const lifted = hasSearched || isSearching || query.trim().length > 0;
 
   // Measure the room left below the search box and cap whichever panel is open.
@@ -666,13 +827,12 @@ export default function Landing() {
     };
   }, [dropdownOpen, showRecent]);
 
-  const showNoResults = hasSearched && results.length === 0 && !isSearching;
 
   // 100dvh, not 100vh: on iOS the toolbar eats a big share of a LANDSCAPE
   // viewport, and 100vh measures the large (toolbar-hidden) viewport — so the
   // bottom of the page sits under the chrome exactly when room is scarcest.
   return (
-    <div className="min-h-[100dvh] bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col relative overflow-hidden" data-testid="page-home">
+    <div className="min-h-[100dvh] bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 flex flex-col relative [overflow-x:clip]" data-testid="page-home">
       <GlossBackground />
       {/* Aurora glow behind the hero — soft at rest, blooms when the search goes
           active, so the wordmark + search feel alive without any idle noise. */}
@@ -689,47 +849,12 @@ export default function Landing() {
       {/* No height floor needed for the hide/show below: the right-hand control
           (36px) is taller than the B (28px), so the header measures 76px either
           way and the hero never shifts. */}
+      {/* The pristine landing keeps this bar: empty centre, actions right. Once
+          a search has run the page becomes a tool — the hero folds into one
+          compact band (small mark · box · actions) and this bar steps aside so
+          results start high (Benjamin, 2026-09-04: "Apple-like clean"). */}
+      {!hasSearched && (
       <header className="relative z-20 flex items-center px-4 sm:px-8 py-5 short:py-2.5" data-testid="home-header">
-        {/* Left: the compact B symbol — the way back to a clean search page, and
-            ONLY shown once there's something to come back FROM.
-
-            This mirrors how search engines actually behave, which is not what
-            this was doing. On a results page (verified on DuckDuckGo and Bing)
-            the top-left mark is a plain `<a href="/">`: a real navigation that
-            lands you on a fresh homepage. On the pristine homepage there is no
-            such control at all — DuckDuckGo's homepage mark points at /about,
-            Google's homepage has no top-left logo, because the logo IS the
-            centred hero. Ours had one, wired to `setLocation("/")` from a page
-            that already IS "/", so clicking it did precisely nothing — and it
-            duplicated the wordmark sitting a couple of hundred pixels below it.
-
-            The reset can't be a bare anchor the way theirs is: their results
-            live at a DIFFERENT url from their homepage (/search?q= vs /), so
-            navigating genuinely changes the page. Our home is one route holding
-            both states — searching only pushState's `?q=` and re-renders in
-            place — so `href="/"` is a same-route link that wouldn't remount
-            anything and would leave the results on screen. `clearSearch` does by
-            hand what their navigation gets for free. The href stays real so
-            cmd/middle-click still opens a clean home in a new tab. */}
-        {hasSearched && (
-          <a
-            href="/"
-            onClick={(e) => {
-              // Modifier / non-primary clicks belong to the browser — that's the
-              // whole point of keeping this an anchor rather than a button.
-              if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
-              e.preventDefault();
-              clearSearch();
-              window.scrollTo({ top: 0, left: 0, behavior: "instant" as ScrollBehavior });
-            }}
-            aria-label="Brainstorm home"
-            className="shrink-0 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
-            data-testid="home-brand"
-          >
-            <img src="/brand/symbol-black.svg" alt="Brainstorm" draggable={false} className="h-7 w-auto select-none dark:hidden" />
-            <img src="/brand/symbol-white.svg" alt="Brainstorm" draggable={false} className="hidden h-7 w-auto select-none dark:block" />
-          </a>
-        )}
 
         {/* Center: the finish-setup nudge — this is the page a fresh sign-in
             lands on, so the one persistent reminder has to live here too.
@@ -748,17 +873,46 @@ export default function Landing() {
           )}
         </div>
       </header>
+      )}
 
       {/* `short:` = a phone in landscape. It lands on the desktop side of every
           width breakpoint, so the optical-centering offset and the generous
           desktop padding both have to be neutralised by height, not width. `!`
           because these override `sm:` utilities of equal specificity. */}
-      <main className={`relative z-10 flex-1 flex flex-col items-center px-4 ${dropdownOpen || lifted ? "justify-start pt-6 sm:pt-10 short:!pt-2" : "justify-center -mt-10 sm:-mt-16 short:justify-start short:!mt-0 short:pt-2"}`}>
-        <div className="w-full max-w-2xl mx-auto text-center motion-safe:animate-[homeFadeUp_0.5s_ease-out]">
+      <main className={`relative z-10 flex-1 flex flex-col items-center px-4 ${hasSearched ? "justify-start pt-3 sm:pt-4" : dropdownOpen || lifted ? "justify-start pt-6 sm:pt-10 short:!pt-2" : "justify-center -mt-10 sm:-mt-16 short:justify-start short:!mt-0 short:pt-2"}`}>
+        {/* Two shapes, one tree: the centred hero before a search; after it, a
+            compact band — mark left, box centre, actions right — that wraps
+            to two rows on a phone (mark and actions above, box below). */}
+        <div
+          ref={heroRef}
+          className={
+            hasSearched
+              ? "sticky top-0 z-30 -mt-3 sm:-mt-4 py-2 sm:py-2.5 w-full max-w-6xl mx-auto flex flex-wrap items-center gap-x-3 gap-y-2 sm:flex-nowrap sm:gap-x-5"
+              : "w-full max-w-2xl mx-auto text-center motion-safe:animate-[homeFadeUp_0.5s_ease-out]"
+          }
+          data-testid={hasSearched ? "search-band" : "search-hero"}
+        >
           <style>{`@keyframes homeFadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }`}</style>
 
-          <div className="flex flex-col items-center mb-8 short:mb-3.5">
-            <h1 className="mb-2.5 short:mb-1.5" data-testid="text-home-title">
+          {/* The band's paint, on its own layer: the content row is only as
+              wide as the results column, so painting the row itself drew a
+              rectangle with two hard edges down the middle of the page. This
+              spans the viewport instead, and stays clear until scrolled. */}
+          {hasSearched && (
+            <div
+              aria-hidden="true"
+              data-frosted={bandFrosted}
+              data-testid="search-band-backdrop"
+              className={`pointer-events-none absolute inset-y-0 left-1/2 -z-10 w-screen -translate-x-1/2 border-b transition-[background-color,box-shadow,border-color] duration-300 ${
+                bandFrosted
+                  ? "border-slate-200/70 dark:border-slate-800/70 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl shadow-sm dark:shadow-none"
+                  : "border-transparent bg-transparent"
+              }`}
+            />
+          )}
+
+          <div className={hasSearched ? "order-1 flex shrink-0 items-center" : "flex flex-col items-center mb-8 short:mb-3.5"}>
+            <h1 className={hasSearched ? "flex items-center" : "mb-2.5 short:mb-1.5"} data-testid="text-home-title">
               {/* Wordmark <img> carries the "Brainstorm" accessible name (its
                   alt), so no sr-only duplicate. */}
               {/* Website hero → wordmark. Stays the Aurora gradient (a reserved
@@ -767,35 +921,81 @@ export default function Landing() {
               {/* `short:!h-9` needs the bang twice over: to beat `sm:`-level
                   utilities AND because Wordmark sets its height as an inline
                   style, which only `!important` can override. */}
-              <Wordmark height={52} variant="gradient" className="mx-auto dark:hidden short:!h-9" />
-              <Wordmark height={52} variant="white" className="mx-auto hidden dark:block short:!h-9" />
+              {/* Google's logo move: the mark is the way back — one click
+                  clears the search and lands you on the pristine box. */}
+              <button
+                type="button"
+                onClick={() => {
+                  clearSearch({ refocus: false });
+                  // Same entrance as a fresh load — the refresh should FEEL
+                  // like arriving, not like something vanished.
+                  if (!prefersReducedMotion) {
+                    heroRef.current?.animate(
+                      [
+                        { opacity: 0, transform: "translateY(16px)" },
+                        { opacity: 1, transform: "translateY(0)" },
+                      ],
+                      { duration: 500, easing: "ease-out" },
+                    );
+                  }
+                }}
+                aria-label="Back to the search home"
+                className="cursor-pointer rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+                data-testid="wordmark-home"
+              >
+                <Wordmark height={hasSearched ? 26 : 52} variant="gradient" className={hasSearched ? "dark:hidden" : "mx-auto dark:hidden short:!h-9"} />
+                <Wordmark height={hasSearched ? 26 : 52} variant="white" className={hasSearched ? "hidden dark:block" : "mx-auto hidden dark:block short:!h-9"} />
+              </button>
             </h1>
-            <p className="text-slate-700 dark:text-slate-100 text-base sm:text-lg short:!text-sm font-medium" data-testid="text-home-subtitle">
-              Search through the people you trust.
-            </p>
+            {!hasSearched && (
+              <p className="text-slate-700 dark:text-slate-100 text-base sm:text-lg short:!text-sm font-medium" data-testid="text-home-subtitle">
+                Search through the people you trust.
+              </p>
+            )}
           </div>
 
-          <div ref={searchContainerRef} className="relative">
+          <div ref={searchContainerRef} className={hasSearched ? "relative order-3 basis-full sm:order-2 sm:basis-auto sm:flex-1 sm:min-w-0 sm:max-w-2xl sm:mx-auto" : "relative"}>
             <form onSubmit={onSubmit} className="relative group" data-testid="form-home-search">
               {/* (accent-discipline preview) focus "bloom" glow removed — the
                   crisp border + shadow below is the guideline focus treatment. */}
               <div className="relative flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-full pl-5 pr-2 py-2 shadow-[0_2px_12px_rgba(0,0,0,0.06)] hover:shadow-[0_4px_18px_rgba(0,0,0,0.08)] focus-within:border-brand-primary/[0.4] focus-within:shadow-[0_4px_18px_rgb(var(--brand-primary)/0.12)] transition-all duration-300">
-                <Search className="h-5 w-5 text-slate-400 dark:text-slate-500 shrink-0" />
+                {hasSearched && isSearching ? (
+                  <Loader2 className="h-5 w-5 shrink-0 animate-spin text-brand-primary" data-testid="band-searching" />
+                ) : (
+                  <Search className="h-5 w-5 text-slate-400 dark:text-slate-500 shrink-0" />
+                )}
+                {scope && (
+                  <ScopeChip
+                    pubkey={scope.pubkey}
+                    onRemove={() => {
+                      // Drop the scope: the words alone search, or the box empties.
+                      if (scope.rest) {
+                        setQuery(scope.rest);
+                        void handleSearch(scope.rest);
+                      } else {
+                        clearSearch();
+                      }
+                    }}
+                  />
+                )}
                 <div className="relative flex-1 min-w-0">
                 <input
                   ref={inputRef}
                   type="text"
-                  value={query}
+                  value={words}
                   onChange={(e) => {
-                    setQuery(e.target.value);
-                    scheduleSuggest(e.target.value);
+                    const next = setWords(e.target.value);
+                    setQuery(next);
+                    scheduleSuggest(next);
                   }}
                   onFocus={() => {
                     setFocused(true);
                     if (typedSinceSearchRef.current && suggestions.length > 0 && query.trim().length >= 2) setShowSuggestions(true);
                   }}
                   onBlur={() => setFocused(false)}
+                  onPointerDown={() => setEngaged(true)}
                   onKeyDown={(e) => {
+                    setEngaged(true);
                     if (e.key === "ArrowDown" && showSuggestions && suggestions.length > 0) {
                       e.preventDefault();
                       kbdNavRef.current = true;
@@ -808,11 +1008,22 @@ export default function Landing() {
                       // Only open a single profile when the user explicitly arrow-keyed
                       // to a suggestion. Plain typing + Enter (even with the mouse
                       // resting over the dropdown) always runs a full text search.
+                      if (showSuggestions && kbdNavRef.current && activeSuggestion >= 0 && suggestions[activeSuggestion] && personAssistRef.current) {
+                        e.preventDefault();
+                        pickSuggestion(suggestions[activeSuggestion]);
+                        return;
+                      }
                       if (showSuggestions && kbdNavRef.current && activeSuggestion >= 0 && suggestions[activeSuggestion]) {
                         e.preventDefault();
                         goToProfile(suggestions[activeSuggestion]);
+                        return;
                       }
-                      // otherwise let the form submit handler run (full search)
+                      // Otherwise Enter IS the search — run it here rather than
+                      // trusting the form's implicit submission (a synthetic key,
+                      // or a second field in the form, would silently swallow it).
+                      e.preventDefault();
+                      cancelSuggest();
+                      void handleSearch();
                     } else if (e.key === "Escape") {
                       setShowSuggestions(false);
                       setActiveSuggestion(-1);
@@ -829,6 +1040,11 @@ export default function Landing() {
                   aria-activedescendant={showSuggestions && activeSuggestion >= 0 ? `home-suggestion-opt-${activeSuggestion}` : undefined}
                   data-testid="input-home-search"
                 />
+                {scope && words.length === 0 && (
+                  <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center overflow-hidden">
+                    <span className="truncate text-slate-400 dark:text-slate-500 text-base" data-testid="text-scope-placeholder">{scopedPlaceholder(activeTab, scopeName)}</span>
+                  </span>
+                )}
                 {query.length === 0 && (
                   <span
                     aria-hidden="true"
@@ -846,7 +1062,7 @@ export default function Landing() {
                 {query.length > 0 && (
                   <button
                     type="button"
-                    onClick={clearSearch}
+                    onClick={() => clearSearch()}
                     aria-label="Clear search"
                     className="inline-flex items-center justify-center h-7 w-7 rounded-full text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors shrink-0"
                     data-testid="button-home-clear"
@@ -854,6 +1070,9 @@ export default function Landing() {
                     <X className="h-4 w-4" />
                   </button>
                 )}
+                {/* The band has no button: Enter searches, the magnifier spins
+                    while it runs. The pristine landing keeps the purple call. */}
+                {!hasSearched && (
                 <button
                   type="submit"
                   aria-label="Search"
@@ -875,6 +1094,7 @@ export default function Landing() {
                     </>
                   )}
                 </button>
+                )}
               </div>
             </form>
 
@@ -922,6 +1142,7 @@ export default function Landing() {
                     <div className="flex-1 overflow-y-auto overscroll-contain min-h-0" data-testid="list-home-suggestions">
                     {suggestions.map((s, i) => {
                       const handle = s.nip05 ? s.nip05.replace(/^_@/, "") : null;
+                      const rank = s.wotRank ?? suggestScoreOf(s.pubkey) ?? null;
                       return (
                         <button
                           key={s.pubkey}
@@ -932,10 +1153,10 @@ export default function Landing() {
                           className={`w-full flex items-center gap-3 px-3 sm:px-4 py-2.5 text-left transition-colors ${i === activeSuggestion ? "bg-brand-primary/10 dark:bg-brand-primary/15" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
                           onMouseEnter={() => { kbdNavRef.current = false; setActiveSuggestion(i); handlePrefetchEnter(s); }}
                           onMouseLeave={() => handlePrefetchLeave(s)}
-                          onClick={() => goToProfile(s)}
+                          onClick={() => pickSuggestion(s)}
                           data-testid={`home-suggestion-${i}`}
                         >
-                          <Avatar className={`h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 shrink-0 ${tierRing(s.wotRank) ?? ""}`}>
+                          <Avatar className={`h-8 w-8 border border-slate-200/80 dark:border-slate-800/80 shrink-0 ${tierRing(rank) ?? ""}`}>
                             {s.picture ? <AvatarImage src={s.picture} alt={getDisplayLabel(s)} className="object-cover" /> : null}
                             <AvatarFallback className="overflow-hidden">
                               <DefaultAvatarImg />
@@ -956,12 +1177,12 @@ export default function Landing() {
                               list — it follows the viewer's display mode where
                               this pill couldn't, and fixes the pill's scale bug:
                               it printed `wotRank` raw (0..1), so 81 read "0.81". */}
-                          {s.wotRank != null && (
+                          {rank != null && (
                             <VerificationCoin
-                              score01={s.wotRank}
+                              score01={rank}
                               pov={effectivePov === "mywot" ? "personalized" : "global"}
                               size={22}
-                              className={tierRing(s.wotRank) && coinReplaced ? "sr-only" : "shrink-0"}
+                              className={tierRing(rank) && coinReplaced ? "sr-only" : "shrink-0"}
                             />
                           )}
                         </button>
@@ -979,7 +1200,7 @@ export default function Landing() {
                       {entityMatch ? (
                         <><ArrowRight className="h-3.5 w-3.5 shrink-0" />Open this {entityMatch.kind} →</>
                       ) : (
-                        <><Search className="h-3.5 w-3.5 shrink-0" />See all results for "{query.trim()}"</>
+                        <><Search className="h-3.5 w-3.5 shrink-0" />{scope ? seeAllLabel(words, scopeName) : `See all results for "${query.trim()}"`}</>
                       )}
                     </button>
                   </>
@@ -995,7 +1216,40 @@ export default function Landing() {
                 style={{ maxHeight: suggestMaxH !== null ? `${suggestMaxH}px` : "min(28rem, calc(100dvh - 9rem))" }}
                 data-testid="container-home-recent"
               >
-                <div className="flex items-center justify-between px-4 pt-2.5 pb-1">
+                {/* Browse lives HERE now, not as standing page chrome — the
+                    empty focused box offers the verticals, Google-style. */}
+                {/* Phones wrap the chips into rows; from sm up they hold one line. */}
+                <div className="flex flex-wrap items-center gap-1 px-4 pt-3 pb-2 sm:flex-nowrap sm:overflow-x-auto" data-testid="browse-chips">
+                  <span className="w-full sm:w-auto sm:mr-0.5 mb-0.5 sm:mb-0 text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Browse</span>
+                  {/* One chip per vertical, in the tab bar's order — the
+                      dropdown IS the tab set for keyword-less browsing. */}
+                  {[
+                    { tab: "people", label: "People", icon: Users },
+                    { tab: "notes", label: "Notes", icon: MessageSquare },
+                    { tab: "articles", label: "Articles", icon: Newspaper },
+                    { tab: "media", label: "Media", icon: ImageIcon },
+                    { tab: "apps", label: "Apps", icon: Package },
+                    { tab: "repos", label: "Repos", icon: FolderGit2 },
+                    { tab: "events", label: "Events", icon: CalendarDays },
+                    { tab: "live", label: "Live", icon: Radio },
+                    { tab: "lists", label: "Lists", icon: ListChecks },
+                  ].map((c) => (
+                    <button
+                      key={c.tab}
+                      type="button"
+                      onMouseDown={(e) => { e.preventDefault(); setFocused(false); browseVertical(c.tab); }}
+                      // Quiet text links, not nine bordered pills (Benjamin:
+                      // "a lot of chips — shrink them or make it more subtle").
+                      // They wrap to a second line on phones instead of scrolling.
+                      className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11.5px] font-medium text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand-deep dark:hover:text-white transition-colors"
+                      data-testid={`browse-${c.tab}`}
+                    >
+                      <c.icon className="h-3 w-3 opacity-70" /> {c.label}
+                    </button>
+                  ))}
+                </div>
+                {recent.length > 0 && (
+                <div className="flex items-center justify-between px-4 pt-1 pb-1">
                   <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">Recent</span>
                   <button
                     type="button"
@@ -1008,6 +1262,7 @@ export default function Landing() {
                     Clear
                   </button>
                 </div>
+                )}
                 {/* Rows scroll inside the capped panel — the "Recent" header and
                     Clear stay pinned, matching the suggestions dropdown. */}
                 <div className="flex-1 overflow-y-auto overscroll-contain min-h-0 pb-1.5">
@@ -1076,109 +1331,45 @@ export default function Landing() {
             )}
           </div>
 
+          {/* Band, right: the same account actions the pristine bar carries. */}
+          {hasSearched && (
+            <div className="order-2 ml-auto flex shrink-0 items-center gap-1 sm:order-3 sm:ml-0 sm:gap-2" data-testid="band-actions">
+              {user ? (
+                <AccountMenu user={user} onLogout={handleLogout} active="home" />
+              ) : (
+                <SignInButton variant="primary" label="Sign in" className="!rounded-full sm:px-5" data-testid="button-home-sign-in" />
+              )}
+            </div>
+          )}
+
           {/* No browse link here on purpose. Tags reach this page through the
               search box itself — type two characters and matching tags appear
               in the dropdown above the people. A second, static CTA under the
               field competed with the one thing this screen asks you to do.
               The catalogue's home entry point is /tags/mine instead. */}
 
-          {!user ? (
-            <div className="mt-6 flex flex-col items-center gap-2.5 rounded-2xl backdrop-blur-[2px]" data-testid="text-home-hint">
-              {/* (accent-discipline preview) quiet neutral segmented control —
-                  no gradient chrome, no embedded wordmark (guidelines p16/p17). */}
-              <div role="group" aria-label="Trust perspective" className="inline-flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/50 p-0.5">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-white dark:bg-slate-900 px-3.5 py-1 text-xs font-semibold text-slate-800 dark:text-slate-100 shadow-sm" data-testid="text-home-pov-label">
-                  <Globe className="h-3 w-3 text-brand-primary" /> Brainstorm
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setLocation("/login")}
-                  className="inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 text-xs font-medium text-slate-500 dark:text-slate-400 transition-colors hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-                  data-testid="toggle-home-pov-signin"
-                >
-                  <UserRound className="h-3 w-3" /> My perspective
-                </button>
-              </div>
-              <button
-                type="button"
-                onClick={() => setLocation("/personalization")}
-                className="text-xs text-brand-link hover:underline transition-colors rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-                data-testid="link-home-learn-more"
-              >
-                What is this?
-              </button>
-            </div>
-          ) : (
-            <div className="mt-6 flex flex-wrap items-center justify-center gap-x-3 gap-y-2 text-xs rounded-2xl backdrop-blur-[2px]" data-testid="text-home-hint">
-              {/* Quiet neutral segmented control — active segment is a plain white
-                  chip, no gradient / no wordmark image (guidelines p16/p17). */}
-              <div role="group" aria-label="Trust perspective" className="inline-flex items-center rounded-full border border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-800/50 p-0.5" data-testid="toggle-home-pov">
-                <button
-                  type="button"
-                  onClick={() => setPov("nosfabrica")}
-                  aria-pressed={effectivePov === "nosfabrica"}
-                  className={
-                    "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
-                    (effectivePov === "nosfabrica"
-                      ? "bg-white dark:bg-slate-900 font-semibold text-slate-800 dark:text-slate-100 shadow-sm"
-                      : "font-medium text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white")
-                  }
-                  data-testid="toggle-home-pov-nosfabrica"
-                >
-                  <Globe className={`h-3 w-3 ${effectivePov === "nosfabrica" ? "text-brand-primary" : ""}`} /> Brainstorm
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (canUseMywot) setPov("mywot");
-                  }}
-                  disabled={!canUseMywot}
-                  aria-pressed={effectivePov === "mywot"}
-                  title={
-                    !hasMywot
-                      ? "Calculate your trust network in Settings to enable"
-                      : !isSearchObserver
-                        ? "Personalized search isn't available for your account yet"
-                        : undefined
-                  }
-                  className={
-                    "inline-flex items-center gap-1.5 rounded-full px-3.5 py-1 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
-                    (effectivePov === "mywot"
-                      ? "bg-white dark:bg-slate-900 font-semibold text-slate-800 dark:text-slate-100 shadow-sm"
-                      : "font-medium text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white") +
-                    (!canUseMywot ? " opacity-50 cursor-not-allowed" : "")
-                  }
-                  data-testid="toggle-home-pov-mywot"
-                >
-                  <Avatar className="h-4 w-4 shrink-0">
-                    {user.picture ? <AvatarImage src={user.picture} alt="" className="object-cover" /> : null}
-                    <AvatarFallback className="overflow-hidden"><DefaultAvatarImg /></AvatarFallback>
-                  </Avatar>{" "}
-                  My perspective
-                </button>
-              </div>
-              {!hasMywot && (
-                <button
-                  type="button"
-                  onClick={() => setLocation("/settings")}
-                  className="inline-flex items-center gap-1 font-medium text-emerald-700 dark:text-emerald-400 hover:underline transition-colors rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-                  data-testid="link-home-calculate-yours"
-                >
-                  Calculate yours <ArrowRight className="h-3 w-3" />
-                </button>
-              )}
-              <span className="text-slate-400 dark:text-slate-500" aria-hidden="true">·</span>
-              <button
-                type="button"
-                onClick={() => setLocation("/personalization")}
-                className="text-brand-link hover:underline transition-colors rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-                data-testid="link-home-learn-more"
-              >
-                What is this?
-              </button>
-            </div>
+          {/* The lens switch sits under the box only while the page is
+              pristine. Once results show it moves into the results' tab row
+              (compact) — one row of chrome between the box and the results,
+              not three. */}
+          {!hasSearched && (
+            <PerspectiveToggle
+              pov={effectivePov}
+              user={user}
+              hasMywot={hasMywot}
+              isSearchObserver={isSearchObserver}
+              onChange={setPov}
+            />
           )}
         </div>
+
+        {/* The finish-setup nudge lives in the pristine bar; once that bar has
+            stepped aside it sits under the band instead. Self-hides when done. */}
+        {hasSearched && (
+          <div className="mt-2 flex w-full justify-center">
+            <FinishSetupBanner />
+          </div>
+        )}
 
         {/* One account-level card at a time: unlock → backup. Setup nudging
             (follow list, activation) lives ONLY in the header's
@@ -1192,154 +1383,56 @@ export default function Landing() {
             follower, so it can't be re-enabled safely until a backend invite-record
             gates it to genuine, owner-issued invites. */}
 
-        {isSearching && (
-          <div className="w-full max-w-2xl mx-auto mt-6 sm:mt-8 text-left">
-            <div className="space-y-2 sm:space-y-3" data-testid="container-search-loading">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-white/70 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800/60 animate-pulse" style={{ animationDelay: `${i * 0.08}s` }}>
-                  <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-full bg-slate-200 dark:bg-slate-700 shrink-0" />
-                  <div className="flex-1 space-y-2 pt-1">
-                    <div className="h-3 sm:h-3.5 bg-slate-200 dark:bg-slate-700 rounded-full w-28 sm:w-36" />
-                    <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full w-full max-w-md" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {!isSearching && hasSearched && results.length > 0 && (
-          <div className="w-full max-w-2xl mx-auto mt-6 sm:mt-8 text-left">
-            <div className="mb-2 sm:mb-3 px-1">
-              <p className="text-xs text-slate-400 dark:text-slate-500" data-testid="text-search-stats">
-                About {results.length} result{results.length !== 1 ? "s" : ""} ({(searchTime / 1000).toFixed(2)} seconds)
-              </p>
-            </div>
-            <div className="space-y-2 sm:space-y-3" data-testid="container-search-results">
-              {results.map((result, idx) => {
-                const formatFollowers = (n: number) => n >= 10000 ? `${(n / 1000).toFixed(1).replace(/\.0$/, "")}K` : n >= 1000 ? `${(n / 1000).toFixed(1)}K` : String(n);
-                const websiteDisplay = result.website ? result.website.replace(/^https?:\/\//, "").replace(/\/$/, "") : null;
-                return (
-                  <div
-                    key={result.pubkey}
-                    role="button"
-                    tabIndex={0}
-                    className="w-full bg-white/70 dark:bg-slate-900/70 hover:bg-white dark:hover:bg-slate-900 border border-slate-100 dark:border-slate-800/60 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm active:bg-slate-50 dark:active:bg-slate-800 rounded-xl transition-all duration-150 text-left group cursor-pointer overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-                    onMouseEnter={() => handlePrefetchEnter(result)}
-                    onMouseLeave={() => handlePrefetchLeave(result)}
-                    onFocus={() => handlePrefetchEnter(result)}
-                    onBlur={() => handlePrefetchLeave(result)}
-                    onClick={() => goToProfile(result)}
-                    // Only the card itself (not a bubbled keypress from the inner
-                    // website link / copy button) navigates on Enter/Space.
-                    onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); goToProfile(result); } }}
-                    data-testid={`result-profile-${idx}`}
-                  >
-                    <div className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4">
-                      {/* Avatar + score coin, the same pairing as the profile
-                          hero and every people-list row. This used to be a
-                          bespoke pill further down the card, which meant the one
-                          number the product is about looked different here than
-                          anywhere else. Team feedback, and they were right. */}
-                      <div className="relative shrink-0">
-                        <Avatar className={`h-10 w-10 sm:h-12 sm:w-12 border-2 border-slate-200/80 dark:border-slate-800/80 ${tierRing(result.wotRank) ?? ""}`}>
-                          {result.picture ? <AvatarImage src={result.picture} alt={getDisplayLabel(result)} className="object-cover" /> : null}
-                          <AvatarFallback className="overflow-hidden">
-                            <DefaultAvatarImg />
-                          </AvatarFallback>
-                        </Avatar>
-                        {result.wotRank != null && (
-                          <VerificationCoin
-                            score01={result.wotRank}
-                            pov={effectivePov === "mywot" ? "personalized" : "global"}
-                            size={22}
-                            className={tierRing(result.wotRank) && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1"}
-                          />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors truncate" data-testid={`text-result-name-${idx}`}>
-                            {getDisplayLabel(result)}
-                          </span>
-                          <TierWordChip score01={result.wotRank} />
-                        </div>
-                        {result.nip05 && (
-                          <p className="text-xs text-brand-primary dark:text-brand-link truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-nip05-${idx}`}>
-                            <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />
-                            {result.nip05.replace(/^_@/, "")}
-                          </p>
-                        )}
-                        {result.lud16 && (
-                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-lightning-${idx}`}>
-                            <Zap className="h-2.5 w-2.5 shrink-0 text-slate-400 dark:text-slate-500" />
-                            {result.lud16}
-                          </p>
-                        )}
-                        {websiteDisplay && (
-                          <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-website-${idx}`}>
-                            <Globe className="h-2.5 w-2.5 shrink-0 text-slate-400 dark:text-slate-500" />
-                            <a
-                              href={result.website!.startsWith("http") ? result.website! : `https://${result.website}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="hover:underline truncate"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              {websiteDisplay}
-                            </a>
-                          </p>
-                        )}
-                        {result.about && (
-                          <p className="text-[11px] sm:text-xs text-slate-500 dark:text-slate-400 mt-1 leading-relaxed line-clamp-2" data-testid={`text-result-about-${idx}`}>
-                            {truncateAbout(result.about)}
-                          </p>
-                        )}
-                        <div className="flex items-center gap-1.5 sm:gap-2 mt-2 flex-wrap">
-                          {/* The rank pill that lived here is now the coin on the
-                              avatar above — one badge for the score, sitewide. */}
-                          {result.wotFollowers != null && (
-                            <span className="inline-flex items-center gap-0.5 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-50 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border border-slate-100 dark:border-slate-800/60" data-testid={`badge-followers-${idx}`}>
-                              <Users className="h-2.5 w-2.5" />
-                              {formatFollowers(result.wotFollowers)}
-                            </span>
-                          )}
-                          <span className="inline-flex items-center gap-1 text-[10px] text-slate-300 dark:text-slate-600 font-mono hidden sm:inline" data-testid={`text-result-npub-${idx}`}>
-                            {result.npub.slice(0, 12)}...
-                            <button
-                              type="button"
-                              aria-label="Copy npub"
-                              className="inline-flex items-center justify-center h-4 w-4 rounded hover:bg-slate-100 dark:hover:bg-slate-800 active:bg-slate-200 dark:active:bg-slate-700 transition-colors cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-                              data-testid={`button-copy-npub-${idx}`}
-                              onClick={(e) => { e.stopPropagation(); copyToClipboard(result.npub); }}
-                            >
-                              <Copy className="h-2.5 w-2.5 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300" />
-                            </button>
-                          </span>
-                        </div>
-                      </div>
-                      <span className="text-[11px] text-slate-300 dark:text-slate-600 group-hover:text-brand-primary transition-colors shrink-0 mt-1 hidden sm:inline font-medium">
-                        View →
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {showNoResults && (
-          <div className="w-full max-w-2xl mx-auto mt-8 sm:mt-12" data-testid="container-no-results">
-            <div className="p-2 rounded-xl sm:rounded-2xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60">
-              <EmptyState
-                icon={Radar}
+        {/* The home feed ("What's happening now") is unmounted for now
+            (Benjamin, 2026-09-09: "let's remove this for now"); the pristine
+            home is the centered hero and nothing below it. components/feed/
+            HomeFeed keeps the bands for when it comes back. */}
+        {hasSearched && (
+          <>
+          <BackToTop />
+          <SearchResults
+            onTabChange={setActiveTab}
+            query={submitted ?? ""}
+            pov={effectivePov}
+            userPubkey={user?.pubkey}
+            perspective={
+              <PerspectiveToggle
                 compact
-                title="No profiles found"
-                description="Try a different name, or paste an npub directly."
+                pov={effectivePov}
+                user={user}
+                hasMywot={hasMywot}
+                isSearchObserver={isSearchObserver}
+                onChange={setPov}
               />
-            </div>
-          </div>
+            }
+            onOpenProfile={goToProfile}
+            onPrefetchEnter={handlePrefetchEnter}
+            onPrefetchLeave={handlePrefetchLeave}
+            onQueryRewrite={(next) => {
+              // A filter change: the words stay in the box, the tokens go to
+              // filter state + the URL's `f`, and the search resubmits.
+              const { text, tokens } = splitFilters(next);
+              setFilters(tokens);
+              if (text !== query.trim()) setQuery(text);
+              if (text) {
+                void handleSearch(text, tokens);
+                return;
+              }
+              // Browse — a tab, no words. Google's tools work for everyone,
+              // signed in or not, and live in the URL: the filters are the
+              // whole query here, so re-run the browse with them and carry
+              // them in `f` for Back, reload and sharing.
+              try {
+                const url = new URL(window.location.href);
+                if (tokens) url.searchParams.set("f", tokens);
+                else url.searchParams.delete("f");
+                window.history.pushState({}, "", url.pathname + url.search);
+                trackHistoryEntry();
+              } catch {}
+              setSubmitted(tokens);
+            }}
+          />
+          </>
         )}
       </main>
 

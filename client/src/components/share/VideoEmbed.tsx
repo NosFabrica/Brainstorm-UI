@@ -1,5 +1,6 @@
-import { useState, type MouseEvent } from "react";
+import { useRef, useState, type MouseEvent } from "react";
 import { LinkChip } from "@/components/share/LinkPreview";
+import { useSoloEmbed } from "@/lib/playback";
 
 /**
  * Inline, click-to-play player for hosted video (YouTube, Vimeo). Renders a
@@ -45,10 +46,14 @@ export function videoEmbedFor(raw: string): VideoEmbedInfo | null {
 export function VideoEmbed({ url, className = "" }: { url: string; className?: string }) {
   const info = videoEmbedFor(url);
   const [playing, setPlaying] = useState(false);
+  const frame = useRef<HTMLIFrameElement | null>(null);
+  // From the tap on play this is what the reader chose to hear: the music yields.
+  useSoloEmbed(frame, playing);
   if (!info) return <LinkChip url={url} />;
 
+  // enablejsapi lets the page tell YouTube's player to pause when the music starts.
   const src = info.kind === "youtube"
-    ? `https://www.youtube-nocookie.com/embed/${info.id}?autoplay=1&rel=0&modestbranding=1`
+    ? `https://www.youtube-nocookie.com/embed/${info.id}?autoplay=1&rel=0&modestbranding=1&enablejsapi=1`
     : `https://player.vimeo.com/video/${info.id}?autoplay=1`;
   const thumb = info.kind === "youtube" ? `https://img.youtube.com/vi/${info.id}/hqdefault.jpg` : null;
   const label = info.kind === "youtube" ? "YouTube" : "Vimeo";
@@ -64,6 +69,7 @@ export function VideoEmbed({ url, className = "" }: { url: string; className?: s
       <span className="relative block aspect-video">
         {playing ? (
           <iframe
+            ref={frame}
             src={src}
             title={`${label} video player`}
             className="absolute inset-0 h-full w-full"

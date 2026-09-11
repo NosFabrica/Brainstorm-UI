@@ -1,0 +1,311 @@
+// @vitest-environment jsdom
+/**
+ * The compact SERP row, news-grade: a news-shaped note renders as a real
+ * news card (clickable headline out to the article, source line, summary,
+ * thumbnail); bare URLs in ordinary posts become clickable chips; the row
+ * itself still opens the in-app event page.
+ */
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen } from "@testing-library/react";
+import type { NostrEvent } from "nostr-tools";
+import { SerpRow } from "./SerpRow";
+
+vi.mock("@/hooks/useAuthorScores", () => ({
+  useAuthorScores: () => () => 0.7,
+}));
+// Events a row's note quotes — a test that wants one resolved seeds it here.
+const quotedEvents = new Map<string, NostrEvent>();
+vi.mock("@/services/nostr", () => ({
+  fetchProfileMap: vi.fn(() => Promise.resolve(new Map())),
+  fetchEventsByIds: vi.fn((ids: string[]) => Promise.resolve(ids.map((id) => quotedEvents.get(id)).filter(Boolean))),
+}));
+// The real store verifies signatures (and jsdom's TextEncoder trips @noble),
+// so known-profile lookups are faked per test.
+const knownProfiles = new Map<string, NostrEvent>();
+vi.mock("@/lib/eventStore", () => ({
+  eventStore: {
+    getReplaceable: (_kind: number, pubkey: string) => knownProfiles.get(pubkey),
+    getEvent: () => undefined,
+    add: (event: NostrEvent) => event,
+  },
+}));
+import { nip19 } from "nostr-tools";
+// Link metadata comes from the server's unfurl proxy — faked so the row can
+// prove it turns a plain link into a card when the answer exists.
+const unfurlMock = vi.fn<(url: string) => Promise<{ title: string | null; description: string | null; image: string | null; siteName: string | null } | null>>(() =>
+  Promise.resolve(null),
+);
+vi.mock("@/services/unfurl", () => ({ fetchUnfurl: (url: string) => unfurlMock(url) }));
+const openLightboxMock = vi.fn();
+vi.mock("@/components/share/Lightbox", () => ({ useLightbox: () => openLightboxMock }));
+// Wavlake's catalogue, answered: the row's player is the point, not the fetch.
+vi.mock("@/lib/wavlake", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/lib/wavlake")>();
+  return {
+    ...real,
+    useWavlakeTrack: (id: string | undefined) =>
+      id
+        ? { loading: false, error: false, track: { id, title: "Born To Die Young", artist: "Joe Martin", artworkUrl: "https://img/btdy.jpg", audioUrl: "https://cdn/btdy.mp3", duration: 236 } }
+        : { loading: false, error: false, track: null },
+  };
+});
+
+function note(content: string, tags: string[][] = []): NostrEvent {
+  return {
+    id: "e".repeat(64),
+    kind: 1,
+    pubkey: "a".repeat(64),
+    tags,
+    content,
+    created_at: Math.floor(Date.now() / 1000) - 3600,
+    sig: "s",
+  } as NostrEvent;
+}
+
+const author = {
+  pubkey: "a".repeat(64),
+  npub: "npub1echo",
+  name: "Liverpool Echo Sport",
+  wotRank: null,
+  wotFollowers: null,
+};
+
+const NEWS =
+  "Everton fan group 'standing down' after transfer window\n" +
+  "https://www.liverpoolecho.co.uk/sport/story-34554156\n" +
+  "The 1878s have issued a statement. https://cdn.example/photo.jpg";
+
+beforeEach(() => {
+  window.history.replaceState({}, "", "/?q=liverpool");
+});
+
+describe("SerpRow — link metadata", () => {
+  // Google shows a link's title and description, not its bare domain. Ours
+  // can too, once the server's unfurl proxy answers — the row renders the
+  // card for its first plain link, and stays a chip when there is no answer.
+  it("turns a plain link into a metadata card when the proxy knows it", async () => {
+    unfurlMock.mockResolvedValue({ title: "Liverpool F.C.", description: "Professional football club based in Liverpool.", image: "https://img/lfc.jpg", siteName: "Wikipedia" });
+    // A short lead — a long one plus a link IS the news shape, which has its own card.
+    render(<SerpRow event={note("Worth a read https://en.wikipedia.org/wiki/Liverpool_F.C.")} author={author} score={0.7} query="liverpool" />);
+    const card = await screen.findByTestId("link-card");
+    expect(card).toHaveTextContent("Liverpool F.C.");
+    expect(card).toHaveTextContent("Professional football club");
+    expect(card).toHaveTextContent("en.wikipedia.org");
+    expect(card.querySelector("img")?.getAttribute("src")).toBe("https://img/lfc.jpg");
+    expect(card.getAttribute("href")).toBe("https://en.wikipedia.org/wiki/Liverpool_F.C.");
+    expect(unfurlMock).toHaveBeenCalledWith("https://en.wikipedia.org/wiki/Liverpool_F.C.");
+  });
+
+  it("no answer, no card — the domain chip stands alone", async () => {
+    unfurlMock.mockResolvedValue(null);
+    render(<SerpRow event={note("Great read https://example.org/post")} author={author} score={0.7} query="liverpool" />);
+    await screen.findByTestId("link-chip");
+    await Promise.resolve();
+    expect(screen.queryByTestId("link-card")).toBeNull();
+  });
+});
+
+describe("SerpRow — media taps", () => {
+  // A row's thumbnail is the media, not a handle on the post: tapping it
+  // opens the picture (or plays the video) in full view; the rest of the row
+  // still opens the post.
+  it("tapping the thumbnail opens the media in the lightbox, not the post", () => {
+    const photo = { ...note("Anfield tonight", [["imeta", "url https://cdn.example/anfield.jpg", "m image/jpeg"]]), kind: 20 };
+    render(<SerpRow event={photo} author={author} score={0.7} query="anfield" />);
+    fireEvent.click(screen.getByTestId("serp-thumb"));
+    expect(openLightboxMock).toHaveBeenLastCalledWith(
+      [{ url: "https://cdn.example/anfield.jpg", kind: "image" }],
+      0,
+      expect.objectContaining({ author: expect.objectContaining({ name: "Liverpool Echo Sport", npub: "npub1echo", score01: 0.7 }), postHref: expect.stringMatching(/^\/e\//) }),
+    );
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("a video thumbnail plays the video in the lightbox", () => {
+    const clip = { ...note("Goal!", [["imeta", "url https://cdn.example/goal.mp4", "m video/mp4"]]), kind: 21 };
+    render(<SerpRow event={clip} author={author} score={0.7} query="goal" />);
+    fireEvent.click(screen.getByTestId("serp-video-thumb"));
+    expect(openLightboxMock).toHaveBeenLastCalledWith(
+      [{ url: "https://cdn.example/goal.mp4", kind: "video", poster: null }],
+      0,
+      expect.objectContaining({ postHref: expect.stringMatching(/^\/e\//) }),
+    );
+    expect(window.location.pathname).toBe("/");
+  });
+});
+
+describe("SerpRow", () => {
+  // Benjamin, over Reed's boost of a StableKraft song: "this should be able to
+  // play audio in brainstorm but we cant right now". A news-shaped note whose
+  // link is a song plays the song here, in the row.
+  it("a note linking a StableKraft or Wavlake song plays it in the row", () => {
+    const boost = note(
+      '⚡ 333 sats • "Born To Die Young" by Joe Martin\n\nBoost more music\n\nhttps://stablekraft.app/album/empty-passenger-seat-1768077672996?track=empty-passenger-seat-1768077672996-d2e8e9cc-6f5d-44e6-8144-b7500545fb2d',
+    );
+    render(<SerpRow event={boost} author={author} score={0.7} query="joe martin" />);
+    const track = screen.getByTestId("wavlake-track");
+    expect(track).toHaveTextContent("Born To Die Young");
+    expect(track).toHaveTextContent("Joe Martin");
+    expect(screen.getByTestId("track-play")).toHaveAttribute("aria-label", "Play");
+    expect(screen.queryByTestId("news-headline")).toBeNull();
+    expect(screen.queryByTestId("news-thumb")).toBeNull();
+    // The words that were not the song stay.
+    expect(screen.getByTestId(`serp-row-${boost.id}`)).toHaveTextContent(/Boost more music/);
+  });
+
+  it("renders a news-shaped note as a news card with a clickable headline", () => {
+    render(<SerpRow event={note(NEWS)} author={author} score={0.7} query="liverpool" />);
+
+    const headline = screen.getByTestId("news-headline");
+    expect(headline).toHaveTextContent("Everton fan group 'standing down'");
+    expect(headline.getAttribute("href")).toContain("liverpoolecho.co.uk/sport/story-34554156");
+    expect(headline.getAttribute("target")).toBe("_blank");
+
+    // Source line: the outlet's domain, Google-News style.
+    expect(screen.getByTestId("news-source")).toHaveTextContent("liverpoolecho.co.uk");
+    // Description without the raw URLs.
+    expect(screen.getByText(/The 1878s have issued a statement/)).toBeInTheDocument();
+    expect(screen.queryByText(/photo\.jpg/)).toBeNull();
+    // The embedded image is the thumbnail.
+    const thumb = screen.getByTestId("news-thumb") as HTMLImageElement;
+    expect(thumb.src).toContain("cdn.example/photo.jpg");
+  });
+
+  it("turns bare URLs in an ordinary post into clickable chips", () => {
+    render(
+      <SerpRow
+        event={note("check this out https://example.com/thing and also some words")}
+        author={author}
+        score={0.7}
+        query="liverpool"
+      />,
+    );
+    const chip = screen.getByTestId("link-chip");
+    expect(chip.getAttribute("href")).toBe("https://example.com/thing");
+    expect(chip).toHaveTextContent("example.com");
+    // The raw URL text is gone from the snippet.
+    expect(screen.queryByText(/https:\/\/example\.com\/thing/)).toBeNull();
+  });
+
+  it("labels each row with what kind of thing it is", () => {
+    render(<SerpRow event={note("plain words about liverpool")} author={author} score={0.7} query="liverpool" />);
+    expect(screen.getByTestId("serp-type")).toHaveTextContent("Note");
+  });
+
+  // Benjamin, over Shosho's "GTAing with nostr:npub1de6l09… is Live!
+  // https://i.nostr.build/….png": the person and the event should show
+  // professionally, never as a raw id. The headline names the person and
+  // drops the picture's address — the picture is already the thumbnail.
+  it("a news headline names a mentioned person and drops raw URLs", () => {
+    const carol = "c".repeat(64);
+    knownProfiles.set(carol, { id: "f".repeat(64), kind: 0, pubkey: carol, tags: [], content: JSON.stringify({ name: "TheGrinder" }), created_at: 1, sig: "s" } as NostrEvent);
+    const npub = nip19.npubEncode(carol);
+    const shosho = note(`GTAing 🔞 with nostr:${npub} is Live! https://i.nostr.build/Vb6byoSaEEJbqqbs.png\nhttps://shosho.live/thegrinder`);
+    render(<SerpRow event={shosho} author={author} score={0.7} query="thegrinder" />);
+    const headline = screen.getByTestId("news-headline");
+    expect(headline).toHaveTextContent("GTAing 🔞 with @TheGrinder is Live!");
+    expect(headline).not.toHaveTextContent(/nostr:|npub1|i\.nostr\.build/);
+    expect(headline.getAttribute("href")).toBe("https://shosho.live/thegrinder");
+    // One link, the story's: the name inside a headline is text, not a second anchor.
+    expect(headline.querySelector("a")).toBeNull();
+    expect((screen.getByTestId("news-thumb") as HTMLImageElement).src).toContain("i.nostr.build");
+  });
+
+  it("labels a news-shaped note as News", () => {
+    render(<SerpRow event={note(NEWS)} author={author} score={0.7} query="liverpool" />);
+    expect(screen.getByTestId("serp-type")).toHaveTextContent("News");
+  });
+
+  it("renders a nostr: mention as the person — name, not a raw URI", () => {
+    const carol = "c".repeat(64);
+    knownProfiles.set(carol, {
+      id: "f".repeat(64),
+      kind: 0,
+      pubkey: carol,
+      tags: [],
+      content: JSON.stringify({ name: "carol", picture: "https://img.example/carol.jpg" }),
+      created_at: 1,
+      sig: "s",
+    } as NostrEvent);
+    const npub = nip19.npubEncode(carol);
+
+    render(
+      <SerpRow event={note(`great point by nostr:${npub} tonight`)} author={author} score={0.7} query="liverpool" />,
+    );
+    const chip = screen.getByTestId("mention-chip");
+    expect(chip).toHaveTextContent("@carol");
+    expect(chip.getAttribute("href")).toBe(`/p/${npub}`);
+    expect(screen.queryByText(/nostr:npub/)).toBeNull();
+  });
+
+it("a video-only result gets a first-frame thumb, not a blank", () => {
+    const vid = {
+      ...note("match highlights", [["imeta", "url https://cdn.example/highlights.mp4", "m video/mp4"]]),
+      kind: 21,
+    } as NostrEvent;
+    render(<SerpRow event={vid} author={author} score={0.7} query="liverpool" />);
+    const video = screen.getByTestId("serp-video-thumb") as HTMLVideoElement;
+    expect(video.getAttribute("src")).toContain("highlights.mp4");
+    expect(video.getAttribute("preload")).toBe("metadata");
+  });
+
+  it("a thumbnail that fails to load disappears instead of showing broken", () => {
+    const withImage = note("stream tonight", [["image", "https://dvr.example/expired-thumb.jpg"]]);
+    render(<SerpRow event={withImage} author={author} score={0.7} query="liverpool" />);
+    const img = screen.getByTestId("serp-thumb") as HTMLImageElement;
+    fireEvent.error(img);
+    expect(screen.queryByTestId("serp-thumb")).toBeNull();
+  });
+
+  it("clicking the row body opens the in-app event page", () => {
+
+    render(<SerpRow event={note("plain words about liverpool")} author={author} score={0.7} query="liverpool" />);
+    fireEvent.click(screen.getByTestId(`serp-row-${"e".repeat(64)}`));
+    expect(window.location.pathname).toMatch(/^\/e\//);
+  });
+
+  // GitCitadel's wiki pages are AsciiDoc: opened in a row they read
+  // "[[comedian]]" and "== Comedians" (2026-09-07). A row shows the words.
+  it("a wiki page's row reads its words, not its markup", () => {
+    const wiki = {
+      ...note("A [[comedian]] is one who entertains through [[comedy]].\n\n== Comedians\n=== A\n* [[Celya AB]] (born 1995)", [["d", "list-of-comedians"], ["title", "List of comedians"]]),
+      kind: 30818,
+    } as NostrEvent;
+    render(<SerpRow event={wiki} author={author} score={0.7} query="comedians" />);
+    const row = screen.getByTestId(`serp-row-${wiki.id}`);
+    expect(row).toHaveTextContent("List of comedians");
+    expect(row).toHaveTextContent("A comedian is one who entertains through comedy. Celya AB (born 1995)");
+    expect(row.textContent).not.toMatch(/\[\[|==/);
+    expect(row).toHaveTextContent("Wiki");
+  });
+
+  // A quote arrived as its raw "nostr:nevent1…" token in the row (megistus,
+  // 2026-09-07). The token leaves the text and the quoted post shows beneath,
+  // the way the first web link earns its card.
+  it("a quoted note shows as the post beneath the row, its token gone from the text", async () => {
+    const quoter = "b".repeat(64);
+    knownProfiles.set(quoter, { id: "9".repeat(64), kind: 0, pubkey: quoter, tags: [], content: JSON.stringify({ name: "quoter" }), created_at: 1, sig: "s" } as NostrEvent);
+    const quotedId = "e".repeat(64);
+    quotedEvents.set(quotedId, { id: quotedId, kind: 1, pubkey: quoter, tags: [], content: "the quoted words, worth reading", created_at: 1, sig: "s" } as NostrEvent);
+    render(<SerpRow event={note(`Yo quiero nostr:${nip19.neventEncode({ id: quotedId })}`)} author={author} score={0.7} query="quiero" />);
+    const row = screen.getByTestId(`serp-row-${"e".repeat(64)}`);
+    expect(row).toHaveTextContent("Yo quiero");
+    expect(row).not.toHaveTextContent("nostr:nevent");
+    const quote = await screen.findByTestId("serp-quote");
+    expect(quote).toHaveTextContent("the quoted words, worth reading");
+    expect(quote).toHaveTextContent("quoter");
+  });
+
+  // The row shows a note's first 300 characters. A mention sitting on that
+  // boundary was sliced in half — "nostr:nprofile1qqsgqke57…" as text
+  // (megistus's rows, 2026-09-07). The clip stops before a token it would cut.
+  it("a mention on the clip boundary is kept whole or dropped, never sliced into raw text", () => {
+    const carol = "c".repeat(64);
+    knownProfiles.set(carol, { id: "f".repeat(64), kind: 0, pubkey: carol, tags: [], content: JSON.stringify({ name: "carol" }), created_at: 1, sig: "s" } as NostrEvent);
+    const words = Array.from({ length: 60 }, (_, i) => `word${i}`).join(" ").slice(0, 285);
+    render(<SerpRow event={note(`${words} cc nostr:${nip19.npubEncode(carol)} and more after`)} author={author} score={0.7} query="word1" />);
+    const row = screen.getByTestId(`serp-row-${"e".repeat(64)}`);
+    expect(row).not.toHaveTextContent(/nostr:n/);
+    expect(row).toHaveTextContent("word0");
+  });
+});

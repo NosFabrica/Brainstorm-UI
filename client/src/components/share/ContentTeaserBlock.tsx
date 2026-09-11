@@ -1,4 +1,5 @@
 import { type ReactNode } from "react";
+import { Link } from "wouter";
 
 /**
  * Card shell for one content "teaser" section on the share page (Notes, Photos,
@@ -10,6 +11,8 @@ export function ContentTeaserBlock({
   icon,
   title,
   onViewAll,
+  viewAllHref,
+  viewAllLabel = "View all →",
   children,
   testId,
   className = "",
@@ -17,6 +20,9 @@ export function ContentTeaserBlock({
   icon: ReactNode;
   title: string;
   onViewAll?: () => void;
+  /** An in-app page with everything — rendered instead of the button. */
+  viewAllHref?: string;
+  viewAllLabel?: string;
   children: ReactNode;
   testId?: string;
   className?: string;
@@ -33,7 +39,11 @@ export function ContentTeaserBlock({
         <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
           {title}
         </h2>
-        {onViewAll && (
+        {viewAllHref ? (
+          <Link href={viewAllHref} className="ml-auto text-xs font-semibold text-brand-link hover:underline shrink-0" data-testid="block-view-all">
+            {viewAllLabel}
+          </Link>
+        ) : onViewAll && (
           <button
             type="button"
             onClick={onViewAll}

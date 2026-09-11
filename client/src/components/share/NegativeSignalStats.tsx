@@ -15,8 +15,10 @@ const num = (v: unknown): number | null =>
  * Verified muters and verified reporters, beside verified followers under the
  * same Verified/All lens. Both counts come straight from `/stats`: muters clear
  * the preset's muter cutoff, reporters its reporter cutoff — two different bars,
- * neither knowable from one number here, so nothing recomputes them. A row is
- * omitted only when the endpoint had no number for it.
+ * neither knowable from one number here, so nothing recomputes them. A signal
+ * shows only when its count under the current lens is above zero — "0
+ * Verified Reporters" spent a line saying nothing on most profiles (Benjamin,
+ * 2026-09-08); the lens still reveals what the other hides.
  */
 export function NegativeSignalStats({
   stats,
@@ -35,8 +37,13 @@ export function NegativeSignalStats({
   const verifiedReporters = num(stats?.reported_by?.verified);
   const allReporters = num(stats?.reported_by?.total);
 
-  const hasMuters = verifiedMuters != null || allMuters != null;
-  const hasReporters = verifiedReporters != null || allReporters != null;
+  // The number the lens would show — Stat's own rule — and whether it says anything.
+  const shown = (verified: number | null, all: number | null) => {
+    const count = lens === "verified" ? verified : all;
+    return count ?? (lens === "verified" ? all : verified);
+  };
+  const hasMuters = (shown(verifiedMuters, allMuters) ?? 0) > 0;
+  const hasReporters = (shown(verifiedReporters, allReporters) ?? 0) > 0;
   if (!hasMuters && !hasReporters) return null;
 
   return (

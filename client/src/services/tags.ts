@@ -105,6 +105,8 @@ export interface ProfileTag extends TagIdentity {
   sharesName: number;
   /** The viewer's own stance, shown regardless of whether the POV counts them. */
   myStance?: "apply" | "dispute";
+  /** Shown before the relays have taken it — the viewer's own act, still publishing. */
+  pending?: boolean;
   /**
    * Unix seconds of the newest assertion APPLYING this tag. Powers "what's new
    * since I last looked" on the dashboard; 0 when nothing applies it (a tag

@@ -71,6 +71,17 @@ export function nostrUriFor(pubkey: string, relays: string[] = []): string {
   }
 }
 
+/** A bare nprofile carrying up to four of the person's relays — the form a
+ *  power user copies to hand another client both the key and where the
+ *  events live. "" when the key does not encode. */
+export function nprofileFor(pubkey: string, relays: string[] = []): string {
+  try {
+    return nip19.nprofileEncode({ pubkey, relays: relays.slice(0, 4) });
+  } catch {
+    return "";
+  }
+}
+
 /**
  * A `nostr:` URI (NIP-21) for an EVENT — used by the event page's "open in your
  * Nostr app". Encodes an `nevent` (id + relay hints + author) so the note is
@@ -93,7 +104,23 @@ export function neventFor(id: string, relays: string[] = [], author?: string): s
   }
 }
 
-/** On-site `/e/<nevent>` path for an event (falls back to the bare id). */
-export function eventPath(event: { id: string; pubkey?: string }, relays: string[] = []): string {
+/** Addressable kinds that read on the article reader: long-form (NIP-23)
+ *  and wiki pages (NIP-54). Opened as a bare event they rendered as a note,
+ *  markup and all. */
+const READER_KINDS = new Set([30023, 30818]);
+
+/** On-site path for an event: `/a/<naddr>` for an article or wiki page we
+ *  know by kind and name, else `/e/<nevent>` (falls back to the bare id). */
+export function eventPath(event: { id: string; pubkey?: string; kind?: number; tags?: string[][] }, relays: string[] = []): string {
+  if (event.kind !== undefined && READER_KINDS.has(event.kind) && event.pubkey && event.tags) {
+    const identifier = event.tags.find((t) => t[0] === "d")?.[1];
+    if (identifier !== undefined) {
+      try {
+        return `/a/${nip19.naddrEncode({ kind: event.kind, pubkey: event.pubkey, identifier, relays: relays.slice(0, 4) })}`;
+      } catch {
+        /* fall through to the event link */
+      }
+    }
+  }
   return `/e/${neventFor(event.id, relays, event.pubkey)}`;
 }

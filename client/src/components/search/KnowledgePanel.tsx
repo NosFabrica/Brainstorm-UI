@@ -1,0 +1,897 @@
+/**
+ * The Google-anatomy knowledge panel: when a query strongly matches one
+ * person, their card anchors the right rail (desktop) or tops the results
+ * (mobile) — avatar with tier ring, identity rows, and the deep-dive CTA.
+ * Probed via the same relay typeahead the box uses; silent unless confident.
+ */
+import { useEffect, useState } from "react";
+import { fetchLiveStreams, fetchRecentByKinds } from "@/services/nostr";
+import { pickStreams, verifyRecording, type PickedStreams } from "@/lib/liveStream";
+import { PanelLive } from "@/components/search/PanelLive";
+import { PanelLatestMedia, fountainLinksOf, latestVideos } from "@/components/search/PanelMedia";
+import { formatListingPrice, LISTING_KIND } from "@/lib/listing";
+import { productsFromEvents, type VariantGroup } from "@/lib/listingVariants";
+import { parseTrack, TRACK_KIND, type Track } from "@/lib/trackEvent";
+import { findWavlakeArtist, wavlakeArtistTracks, type WavlakeArtist, type WavlakeSong } from "@/lib/wavlake";
+import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
+import { Link, useLocation } from "wouter";
+import { ArrowRight, BookOpen, CalendarDays, Check, ChevronDown, Hash, Package, Search, ShoppingBag, Users, Zap } from "lucide-react";
+import type { NostrEvent } from "nostr-tools";
+import { readFilters, scopeOf, scopedSearchHref } from "@/lib/searchSyntax";
+import { DEFAULT_VERIFIED_LINE } from "@/services/trustThreshold";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { VerificationCoin, useTierRing, TierWordChip, useQuietTrustChrome, QuietTrustChrome } from "@/components/score/VerificationCoin";
+import { useAuthorScores } from "@/hooks/useAuthorScores";
+import { FlaggedChip, FollowedByLine, PanelIdentityChip, PanelVouches } from "@/components/search/EndorsementLine";
+import { ZapModal } from "@/components/ZapModal";
+import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
+import { eventPath } from "@/lib/shareId";
+import { parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
+import { EventDateTile } from "@/components/share/EventDateTile";
+import { filterEventsByWhen } from "@/lib/eventFilters";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { EventRow } from "@/components/search/EventRow";
+import { fetchNipPage, searchStream, suggestProfiles, type SearchHit, type SearchPov } from "@/services/search";
+
+/** One app in the rail: icon, name, summary. Reviews live on the app page —
+ *  no review copy on search surfaces (Benjamin). */
+function AppRailRow({ event }: { event: NostrEvent }) {
+  const name = event.tags.find((t) => t[0] === "name")?.[1] ?? "App";
+  const icon = event.tags.find((t) => t[0] === "icon")?.[1];
+  const summary = event.tags.find((t) => t[0] === "summary")?.[1];
+  return (
+    <li>
+      <Link
+        href={eventPath(event)}
+        className="flex items-center gap-2.5 rounded-lg px-1.5 py-1.5 -mx-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+        data-testid={`apps-panel-app-${event.id}`}
+      >
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
+          {icon ? <img src={icon} alt="" loading="lazy" className="h-full w-full object-cover" /> : <Package className="h-4 w-4 text-slate-400" />}
+        </span>
+        <span className="min-w-0">
+          <span className="block truncate text-xs font-semibold text-slate-800 dark:text-slate-100">{name}</span>
+          {summary && <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400">{summary}</span>}
+        </span>
+      </Link>
+    </li>
+  );
+}
+
+const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
+
+/** EXACT name match only. Prefix matching promoted "LiverpoolHODL" as THE
+ *  match for "liverpool" — a name-alike is not the entity. */
+export function isStrongMatch(query: string, person: SearchResult): boolean {
+  const q = norm(query);
+  if (q.length < 2) return false;
+  const names = [person.name, person.displayName].filter(Boolean).map((n) => norm(n as string));
+  return names.some((n) => n === q);
+}
+
+/** Plain words only — a query carrying syntax tokens or a #tag is a search,
+ *  not a person lookup, and gets no probe at all. */
+export function isPanelableQuery(query: string): boolean {
+  const q = query.trim();
+  return q.length >= 2 && !/(^|\s)#/.test(q) && !/\S+:\S+/.test(q);
+}
+
+/** "nip-46" / "nip 5" / "NIP05" — a spec lookup, with the wiki's spellings. */
+export function nipCandidates(query: string): string[] {
+  const m = query.trim().match(/^nip[-\s]?(\d{1,4})$/i);
+  if (!m) return [];
+  const n = m[1];
+  const ds = [`nip-${n}`];
+  if (n.length === 1) ds.push(`nip-0${n}`);
+  return ds;
+}
+
+/** The first real paragraph of a wiki page — markdown headings stripped. */
+function specExcerpt(content: string): string {
+  const para = content
+    .split(/\n{2,}/)
+    .map((b) => b.trim())
+    .find((b) => b && !/^#{1,6}\s/.test(b));
+  return (para ?? "").replace(/\s+/g, " ").slice(0, 300);
+}
+
+/** A query that could be a hashtag: one plain word, no syntax. */
+function tagCandidate(query: string): string | null {
+  const q = query.trim().toLowerCase();
+  return /^[a-z0-9_]{2,}$/.test(q) ? q : null;
+}
+
+const TOPIC_MIN_NOTES = 3;
+// Only a LIVING topic earns the slot — stale tags don't outrank people.
+const TOPIC_FRESH_SECONDS = 7 * 86400;
+
+/** The rail's panel — quiet trust chrome wherever it is mounted. */
+export function KnowledgePanel(props: KnowledgePanelProps) {
+  return (
+    <QuietTrustChrome>
+      <KnowledgePanelBody {...props} />
+    </QuietTrustChrome>
+  );
+}
+
+type KnowledgePanelProps = Parameters<typeof KnowledgePanelBody>[0];
+
+function KnowledgePanelBody({
+  query,
+  pov,
+  userPubkey,
+  onOpen,
+  onPerson,
+  className = "",
+}: {
+  query: string;
+  pov: SearchPov;
+  userPubkey?: string;
+  /** Who the panel settled on (null when it did not) — the results page leads with their own media. */
+  onPerson?: (person: SearchResult | null) => void;
+  onOpen?: (person: SearchResult) => void;
+  className?: string;
+}) {
+  const tierRing = useTierRing();
+  // Search's quiet chrome: the coin is for screen readers; the word speaks only as the exception.
+  const quietChrome = useQuietTrustChrome();
+  const [person, setPerson] = useState<SearchResult | null>(null);
+  const [topicHits, setTopicHits] = useState<SearchHit[] | null>(null);
+  const [nipPage, setNipPage] = useState<NostrEvent | null>(null);
+  const [appHits, setAppHits] = useState<SearchHit[] | null>(null);
+  // Upcoming calendar events that name the query — Google's panel lists a few.
+  const [topicEvents, setTopicEvents] = useState<SearchHit[] | null>(null);
+  // The person's own songs — kind 31337 by author, the three newest that
+  // actually are songs (the kind is abused; see lib/trackEvent).
+  const [personTracks, setPersonTracks] = useState<Track[]>([]);
+  useEffect(() => {
+    onPerson?.(person);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [person?.pubkey]);
+  // …and failing those, the Wavlake artist who is this person: by linked
+  // key first, exact name second, never a loose match.
+  const [personWavlake, setPersonWavlake] = useState<{ artist: WavlakeArtist; songs: WavlakeSong[] } | null>(null);
+  // Their stream: live now leads the panel; otherwise when they last streamed.
+  const [personStreams, setPersonStreams] = useState<PickedStreams>({ live: null, upcoming: null, replay: null });
+  // Their latest posts that carry media — videos attached, podcast links.
+  const [personRecent, setPersonRecent] = useState<NostrEvent[]>([]);
+  // What they have for sale — the three newest listings still for sale.
+  const [personListings, setPersonListings] = useState<VariantGroup[]>([]);
+  // Below the desktop breakpoint the rail has nowhere to go and the panel
+  // would fill the first screen; it folds to one row until tapped.
+  const belowLg = useIsMobile(1024);
+  const [expanded, setExpanded] = useState(false);
+  let strip: { icon: React.ReactNode; title: string; line: string } | null = null;
+  useEffect(() => {
+    if (!person) {
+      setPersonListings([]);
+      return;
+    }
+    let cancelled = false;
+    fetchRecentByKinds(person.pubkey, [LISTING_KIND], 12)
+      .then((events) => {
+        if (cancelled) return;
+        // Products, not listings: a shirt in five sizes is one row.
+        setPersonListings(productsFromEvents(events as NostrEvent[]).slice(0, 3).map((p) => p.group));
+      })
+      .catch(() => {
+        if (!cancelled) setPersonListings([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [person?.pubkey]);
+  useEffect(() => {
+    if (!person) {
+      setPersonRecent([]);
+      return;
+    }
+    let cancelled = false;
+    fetchRecentByKinds(person.pubkey, [1, 21, 22, 34235, 34236], 40)
+      .then((events) => {
+        if (!cancelled) setPersonRecent(events as NostrEvent[]);
+      })
+      .catch(() => {
+        if (!cancelled) setPersonRecent([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [person?.pubkey]);
+  useEffect(() => {
+    if (!person) {
+      setPersonStreams({ live: null, upcoming: null, replay: null });
+      return;
+    }
+    let cancelled = false;
+    fetchLiveStreams(person.pubkey)
+      .then(async (events) => {
+        const picked = pickStreams(events);
+        // A replay is advertised only after its recording answered.
+        if (picked.replay && !(await verifyRecording(picked.replay.recording as string))) picked.replay = null;
+        if (!cancelled) setPersonStreams(picked);
+      })
+      .catch(() => {
+        if (!cancelled) setPersonStreams({ live: null, upcoming: null, replay: null });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [person?.pubkey]);
+
+  useEffect(() => {
+    if (!person) {
+      setPersonTracks([]);
+      return;
+    }
+    let cancelled = false;
+    setPersonWavlake(null);
+    const wavlakeFallback = async () => {
+      const artist = await findWavlakeArtist({ name: person.displayName || person.name, pubkey: person.pubkey });
+      if (!artist || cancelled) return;
+      const songs = await wavlakeArtistTracks(artist.id, 3);
+      if (!cancelled && songs.length > 0) setPersonWavlake({ artist, songs });
+    };
+    fetchRecentByKinds(person.pubkey, [TRACK_KIND], 6)
+      .then((events) => {
+        if (cancelled) return;
+        const native = events.map(parseTrack).filter((tr): tr is Track => tr !== null).slice(0, 3);
+        setPersonTracks(native);
+        if (native.length === 0) return wavlakeFallback();
+      })
+      .catch(() => {
+        if (!cancelled) setPersonTracks([]);
+        return wavlakeFallback();
+      })
+      .catch(() => {
+        /* Wavlake down: no row */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [person?.pubkey]);
+
+  useEffect(() => {
+    setPerson(null);
+    setTopicHits(null);
+    setNipPage(null);
+    setAppHits(null);
+    setTopicEvents(null);
+    // A search scoped to one person (from:npub…, the public profile's "View
+    // all"), with or without words beside it, keeps that person in the panel
+    // beside their results — the relay's author filter answers the scope, so
+    // no name match is asked; the words are the results' business.
+    const scope = scopeOf(query);
+    const scoped = scope?.pubkey;
+    if (scope && scoped) {
+      let scopedAlive = true;
+      void suggestProfiles(scope.token, { pov, userPubkey }, { limit: 1 }).then((people) => {
+        if (!scopedAlive) return;
+        const who = people.find((p) => p.pubkey === scoped);
+        if (who) setPerson(who);
+      });
+      return () => {
+        scopedAlive = false;
+      };
+    }
+    if (!isPanelableQuery(query)) return;
+    let alive = true;
+    // A NIP-shaped query is a spec lookup, not a person or topic hunt —
+    // the wiki page (kind 30818) takes the slot and nothing else probes.
+    const nips = nipCandidates(query);
+    if (nips.length > 0) {
+      void fetchNipPage(nips).then((page) => {
+        if (alive) setNipPage(page);
+      });
+      return () => {
+        alive = false;
+      };
+    }
+    // Both probes in parallel; the render gives an ACTIVE topic priority —
+    // a Liverpool fan searching "liverpool" wants the topic, not whichever
+    // account happens to carry the name.
+    const tag = tagCandidate(query);
+    const cancelTopic = tag
+      ? searchStream(`#${tag}`, { tab: "notes", pov, userPubkey, limit: 24 }, (snapshot) => {
+          if (!alive || !snapshot.eose) return;
+          const fresh = snapshot.hits.some(
+            (h) => h.event.created_at >= Date.now() / 1000 - TOPIC_FRESH_SECONDS,
+          );
+          if (snapshot.hits.length >= TOPIC_MIN_NOTES && fresh) setTopicHits(snapshot.hits);
+        })
+      : null;
+    // Apps whose NAME matches the words ride the rail too (Google's app
+    // sidebar) — fuzzy strays with unrelated names are filtered out.
+    const q = norm(query);
+    const cancelApps = searchStream(query, { tab: "apps", pov, userPubkey, limit: 6 }, (snapshot) => {
+      if (!alive || !snapshot.eose) return;
+      const matched = snapshot.hits.filter((h) => {
+        const name = norm(h.event.tags.find((t) => t[0] === "name")?.[1] ?? "");
+        return !!name && (name.includes(q) || q.includes(name));
+      });
+      if (matched.length > 0) setAppHits(matched.slice(0, 3));
+    });
+    // Events probe (Benjamin: "like a Google events feel — real and
+    // relevant, not forced"): upcoming only, soonest first, and the query
+    // must actually appear in the event's title, place or summary — the
+    // relay's fuzzy text match alone would drag in strays.
+    const cancelEvents = searchStream(`${query} sort:recent`, { tab: "events", pov, userPubkey, limit: 60 }, (snapshot) => {
+      if (!alive || !snapshot.eose) return;
+      const named = snapshot.hits.filter((h) => {
+        const cal = parseCalendarEvent(h.event);
+        return norm(`${cal.title} ${cal.location ?? ""} ${cal.summary ?? ""}`).includes(q);
+      });
+      const upcoming = filterEventsByWhen(named, "upcoming");
+      if (upcoming.length > 0) setTopicEvents(upcoming.slice(0, 3));
+    });
+    void suggestProfiles(query, { pov, userPubkey }, { limit: 3 }).then((people) => {
+      if (!alive) return;
+      const top = people[0];
+      if (top && isStrongMatch(query, top)) setPerson(top);
+    });
+    return () => {
+      alive = false;
+      cancelTopic?.();
+      cancelApps();
+      cancelEvents();
+    };
+  }, [query, pov, userPubkey]);
+
+  // Relay hits carry no rank numbers (order-only wire) — the panel's ring,
+  // coin and tier word feed from the shared author-score cache like every card.
+  const scoreOf = useAuthorScores(person && person.wotRank == null ? [person.pubkey] : []);
+  // The floor the results hold, held here too: a name match whose house score
+  // is known and below the verified line does not take the panel (the aéPiot
+  // accounts name themselves after whatever they spam). A person the searcher
+  // scoped to is their choice; a searcher asking for everyone, or looking
+  // through their own perspective, keeps their view.
+  const floor = !readFilters(query).includeSpam && pov !== "mywot" && !scopeOf(query);
+  const personScore = person ? (person.wotRank ?? scoreOf(person.pubkey)) : undefined;
+  const personBelowLine = floor && typeof personScore === "number" && personScore < DEFAULT_VERIFIED_LINE;
+  // Benjamin, after keeping every block: "I think that is too much". The
+  // header and the followed-by line always; then the two freshest blocks —
+  // a live stream or replay first, then whichever of Latest, Music or Selling
+  // has the newest item — and the rest behind one quiet "More from" row.
+  const hasLive = !!(personStreams.live || personStreams.upcoming || personStreams.replay);
+  const mediaAt = Math.max(0, ...latestVideos(personRecent).map((v) => v.at), ...fountainLinksOf(personRecent).map((f) => f.event.created_at));
+  const sellingAt = Math.max(0, ...personListings.map((g) => g.primary.createdAt ?? 0));
+  const musicAt = Math.max(0, ...personTracks.map((t) => t.createdAt), personWavlake ? 1 : 0);
+  const blockCandidates = [
+    ...(hasLive ? [{ key: "live", at: Number.POSITIVE_INFINITY }] : []),
+    ...(mediaAt > 0 ? [{ key: "media", at: mediaAt }] : []),
+    ...(sellingAt > 0 ? [{ key: "selling", at: sellingAt }] : []),
+    ...(musicAt > 0 ? [{ key: "music", at: musicAt }] : []),
+  ].sort((a, b) => b.at - a.at);
+  const candidateKeys = blockCandidates.map((b) => b.key).join(",");
+  // Sticky: the first two to arrive stay put as later blocks load, so the
+  // panel never reshuffles under the reader — only a live stream cuts in.
+  const [chosen, setChosen] = useState<string[]>([]);
+  const [moreOpen, setMoreOpen] = useState(false);
+  useEffect(() => {
+    setChosen([]);
+    setMoreOpen(false);
+  }, [person?.pubkey]);
+  useEffect(() => {
+    const avail = candidateKeys ? candidateKeys.split(",") : [];
+    setChosen((prev) => {
+      let next = prev.filter((k) => avail.includes(k));
+      if (avail.includes("live") && !next.includes("live")) next = ["live", ...next].slice(0, 2);
+      for (const k of avail) if (next.length < 2 && !next.includes(k)) next.push(k);
+      return next.length === prev.length && next.every((k, i) => k === prev[i]) ? prev : next;
+    });
+  }, [candidateKeys]);
+  const foldedKeys = blockCandidates.map((b) => b.key).filter((k) => !chosen.includes(k));
+  const renderBlock = (key: string) => {
+    if (!person) return null;
+    if (key === "live")
+      return <PanelLive {...personStreams} author={{ name: getDisplayLabel(person), npub: person.npub, picture: person.picture ?? null, score01: person.wotRank ?? scoreOf(person.pubkey) ?? null }} />;
+    if (key === "media") return <PanelLatestMedia person={person} events={personRecent} />;
+    if (key === "selling")
+      return (
+        <>
+    {personListings.length > 0 && (
+      <div className="mt-3" data-testid="person-selling">
+        <div className="mb-1 flex items-center justify-between">
+          <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Selling</span>
+          <Link href={`/p/${person.npub}/selling`} onClick={() => onOpen?.(person)} className="text-[11px] font-medium text-brand-deep dark:text-brand-link hover:underline" data-testid="person-selling-more">
+            All →
+          </Link>
+        </div>
+        <div className="space-y-1">
+          {personListings.map((g) => {
+            const l = g.primary;
+            return (
+            <Link
+              key={l.id}
+              href={eventPath({ id: l.id, pubkey: l.pubkey })}
+              className="flex items-center gap-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-1.5 hover:border-brand-accent/40 transition-colors"
+              data-testid={`person-selling-item-${l.id}`}
+            >
+              <span className="relative h-11 w-14 shrink-0 overflow-hidden rounded-md bg-slate-100 dark:bg-slate-800">
+                {l.images[0] ? <img src={l.images[0]} alt="" loading="lazy" className="h-full w-full object-cover" /> : <ShoppingBag className="absolute inset-0 m-auto h-4 w-4 text-slate-400" />}
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-semibold text-slate-900 dark:text-slate-100">{g.title}</span>
+                <span className="block text-[11px] text-slate-500 dark:text-slate-400">
+                  {l.price ? formatListingPrice(l.price) : "Price on request"}
+                  {g.options.length > 1 ? ` · ${g.options.length} options` : l.location ? ` · ${l.location}` : ""}
+                </span>
+              </span>
+            </Link>
+            );
+          })}
+        </div>
+      </div>
+    )}
+        </>
+      );
+    if (key === "music")
+      return (
+        <>
+    {(personTracks.length > 0 || personWavlake) && (
+      <div className="mt-3" data-testid="person-music">
+        <div className="mb-1 flex items-center justify-between">
+          <span className="text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">Music</span>
+          {personTracks.length > 0 ? (
+            <Link
+              href={`/p/${person.npub}`}
+              onClick={() => onOpen?.(person)}
+              className="text-[11px] font-medium text-brand-deep dark:text-brand-link hover:underline"
+              data-testid="person-music-more"
+            >
+              All music →
+            </Link>
+          ) : (
+            <Link
+              href={scopedSearchHref(person.pubkey, "music")}
+              className="text-[11px] font-medium text-brand-deep dark:text-brand-link hover:underline"
+              data-testid="person-music-more"
+            >
+              All music →
+            </Link>
+          )}
+        </div>
+        <div className="space-y-1">
+          {personTracks.map((tr) => (
+            <EmbeddedTrackCard
+              key={tr.id}
+              id={tr.id}
+              title={tr.title}
+              artist={tr.artist ?? person.displayName ?? person.name}
+              cover={tr.cover}
+              audio={tr.audio}
+              genre={tr.genre}
+              durationSec={tr.durationSec}
+              href={eventPath({ id: tr.id, pubkey: tr.pubkey })}
+              artistHref={`/p/${person.npub}`}
+              artistPubkey={tr.pubkey}
+            />
+          ))}
+          {personTracks.length === 0 &&
+            personWavlake?.songs.map((song) => (
+              <EmbeddedTrackCard
+                key={song.id}
+                id={song.id}
+                title={song.title}
+                artist={song.artist}
+                cover={song.cover}
+                audio={song.audio}
+                durationSec={song.durationSec}
+                sourceLabel="Wavlake"
+                sourceHost="wavlake.com"
+                onOpen={() => navigate(`/p/${person.npub}`)}
+                pageUrl={`/p/${person.npub}`}
+                artistHref={`/p/${person.npub}`}
+              />
+            ))}
+        </div>
+      </div>
+    )}
+        </>
+      );
+    return null;
+  };
+  const [, navigate] = useLocation();
+  const [zapOpen, setZapOpen] = useState(false);
+  // Google's knowledge panel is one click-through to the entity; the links
+  // inside keep their own targets. Ours opens the public profile.
+  const openProfile = (ev: React.MouseEvent | React.KeyboardEvent) => {
+    if (!person) return;
+    const target = ev.target as HTMLElement | null;
+    if (target?.closest("a, button")) return;
+    onOpen?.(person);
+    navigate(`/p/${person.npub}`);
+  };
+  // Topic voices wear the same rings as every avatar in the app.
+  const voiceScoreOf = useAuthorScores(
+    topicHits ? [...new Set(topicHits.map((h) => h.event.pubkey))].slice(0, 8) : [],
+  );
+
+  let main: JSX.Element | null = null;
+  if (nipPage) {
+    const d = nipPage.tags.find((t) => t[0] === "d")?.[1] ?? query.trim();
+    const heading = d.toUpperCase();
+    const title = nipPage.tags.find((t) => t[0] === "title")?.[1];
+    const excerpt = specExcerpt(nipPage.content);
+    main = (
+      <aside
+        className={`w-full rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5`}
+        data-testid="search-nip-panel"
+      >
+        <div className="flex items-center gap-2.5">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-primary/10">
+            <BookOpen className="h-5 w-5 text-brand-primary" />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-base font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
+              {heading}
+            </p>
+            <p className="truncate text-[11px] text-slate-500 dark:text-slate-400">
+              {title && title.toLowerCase() !== d.toLowerCase() ? title : "Nostr protocol spec"}
+            </p>
+          </div>
+        </div>
+        {excerpt && (
+          <p className="mt-2.5 text-xs leading-relaxed text-slate-600 dark:text-slate-300 break-words line-clamp-5">
+            {excerpt}
+          </p>
+        )}
+        <Link
+          href={eventPath(nipPage)}
+          className="mt-3.5 inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
+          data-testid="nip-panel-read"
+        >
+          Read the spec <ArrowRight className="h-3 w-3" />
+        </Link>
+      </aside>
+    );
+  } else if (topicHits) {
+    const tag = tagCandidate(query)!;
+    // Unique by pubkey, then by display name — three RSS-bot accounts all
+    // named "Gazeta Esportiva" are one voice to a reader.
+    const voices = [
+      ...new Map(
+        [...new Map(topicHits.filter((h) => h.author).map((h) => [h.event.pubkey, h.author!])).values()].map(
+          (v) => [getDisplayLabel(v), v] as const,
+        ),
+      ).values(),
+    ].slice(0, 4);
+    const voiceCount = new Set(topicHits.map((h) => h.event.pubkey)).size;
+    const newest = Math.max(...topicHits.map((h) => h.event.created_at));
+    const daysAgo = Math.floor((Date.now() / 1000 - newest) / 86400);
+    // Tags that ride along on these notes — a topic's neighborhood. Needs
+    // to recur (≥2 notes) to count; the searched tag itself stays out.
+    const tagFreq = new Map<string, number>();
+    for (const h of topicHits) {
+      const seen = new Set<string>();
+      for (const t of h.event.tags) {
+        if (t[0] !== "t" || !t[1]) continue;
+        const v = t[1].toLowerCase();
+        if (v === tag || seen.has(v)) continue;
+        seen.add(v);
+        tagFreq.set(v, (tagFreq.get(v) ?? 0) + 1);
+      }
+    }
+    const related = [...tagFreq.entries()]
+      .filter(([, n]) => n >= 2)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 4)
+      .map(([v]) => v);
+    strip = {
+      icon: <Hash className="h-4 w-4 text-brand-primary" />,
+      title: `#${tag}`,
+      line: `${topicHits.length}${topicHits.length >= 24 ? "+" : ""} recent notes · ${voiceCount} ${voiceCount === 1 ? "voice" : "voices"}`,
+    };
+    // Icons in place of sub-headings: faces, date tiles and #chips explain
+    // themselves; a grey label over each only added a line. The title is
+    // the one action — it opens the feed.
+    const block = "mt-3 flex gap-2.5";
+    const gutter = "mt-1 h-3.5 w-3.5 shrink-0 text-slate-400 dark:text-slate-500";
+    main = (
+      <aside
+        className={`w-full rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5`}
+        data-testid="search-topic-panel"
+      >
+        <Link href={`/t/${encodeURIComponent(tag)}`} className="group flex items-center gap-2.5 rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40" data-testid="topic-panel-feed" title={`Open the #${tag} feed`}>
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-primary/10">
+            <Hash className="h-5 w-5 text-brand-primary" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="flex items-center gap-1 truncate text-base font-bold text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors" style={{ fontFamily: "var(--font-display)" }}>
+              #{tag} <ArrowRight className="h-3.5 w-3.5 shrink-0 text-slate-400 group-hover:text-brand-primary transition-colors" />
+            </span>
+            <span className="block text-[11px] text-slate-500 dark:text-slate-400">
+              {daysAgo <= 1 ? "Active today" : daysAgo <= 7 ? "Active this week" : "Topic on Nostr"}
+            </span>
+          </span>
+        </Link>
+        {/* What "active" means, in numbers the probe already paid for. */}
+        <p className="mt-3 text-xs text-slate-600 dark:text-slate-300" data-testid="topic-activity">
+          <span className="font-semibold text-slate-900 dark:text-slate-100">
+            {topicHits.length}{topicHits.length >= 24 ? "+" : ""}
+          </span>{" "}
+          recent notes ·{" "}
+          <span className="font-semibold text-slate-900 dark:text-slate-100">{voiceCount}</span>{" "}
+          {voiceCount === 1 ? "voice" : "voices"}
+        </p>
+        {voices.length > 0 && (
+          <div className={block}>
+            <Users className={gutter} aria-label="Voices on it" />
+            {/* Named, tappable rows — a face without a name fills nothing. */}
+            <ul className="min-w-0 flex-1 space-y-0.5">
+              {voices.map((v) => (
+                <li key={v.pubkey}>
+                  <Link
+                    href={`/p/${v.npub}`}
+                    className="flex items-center gap-2 rounded-lg px-1.5 py-1 -mx-1.5 hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors"
+                    data-testid={`topic-voice-${v.pubkey}`}
+                  >
+                    <Avatar
+                      className={`h-6 w-6 shrink-0 border border-slate-200/80 dark:border-slate-800/80 ${tierRing(v.wotRank ?? voiceScoreOf(v.pubkey) ?? null, false, "sm", true) ?? ""}`}
+                    >
+                      {v.picture ? <AvatarImage src={v.picture} alt="" className="object-cover" /> : null}
+                      <AvatarFallback className="overflow-hidden">
+                        <DefaultAvatarImg />
+                      </AvatarFallback>
+                    </Avatar>
+                    <span className="truncate text-xs font-medium text-slate-700 dark:text-slate-200">
+                      {getDisplayLabel(v)}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {topicEvents && topicEvents.length > 0 && (
+          <div className={block} data-testid="topic-events">
+            <CalendarDays className={gutter} aria-label="Upcoming events" />
+            <ul className="min-w-0 flex-1 space-y-0.5">
+              {topicEvents.map((h) => (
+                <li key={h.event.id}>
+                  <EventRow hit={h} showHost={false} testIdPrefix="topic-event" />
+                </li>
+              ))}
+              {/* The rest, as a quiet last row of the same list. */}
+              <li>
+                <Link
+                  href={`/?q=${encodeURIComponent(query)}&t=events`}
+                  className="flex items-center gap-1 rounded-lg px-1.5 py-1 -mx-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 hover:text-brand-link transition-colors"
+                  data-testid="topic-events-more"
+                >
+                  More events <ArrowRight className="h-3 w-3" />
+                </Link>
+              </li>
+            </ul>
+          </div>
+        )}
+        {related.length > 0 && (
+          <div className={block}>
+            <Hash className={gutter} aria-label="Related topics" />
+            <div className="flex min-w-0 flex-1 flex-wrap gap-1">
+              {related.map((r) => (
+                <Link
+                  key={r}
+                  href={`/?q=${encodeURIComponent(`#${r}`)}`}
+                  className="inline-flex items-center rounded-full border border-slate-200 dark:border-slate-700 px-2 py-0.5 text-[11px] font-medium text-slate-600 dark:text-slate-300 hover:border-brand-accent/40 hover:text-brand-deep dark:hover:text-white transition-colors"
+                  data-testid={`topic-related-${r}`}
+                >
+                  #{r}
+                </Link>
+              ))}
+            </div>
+          </div>
+        )}
+      </aside>
+    );
+  } else if (person && !personBelowLine) {
+    const effectiveRank = person.wotRank ?? scoreOf(person.pubkey) ?? null;
+    const followers = person.wotFollowers;
+    strip = {
+      icon: (
+        <Avatar className={`h-8 w-8 border-2 border-slate-200/80 dark:border-slate-800/80 ${tierRing(effectiveRank) ?? ""}`}>
+          {person.picture ? <AvatarImage src={person.picture} alt="" className="object-cover" /> : null}
+          <AvatarFallback className="overflow-hidden">
+            <DefaultAvatarImg />
+          </AvatarFallback>
+        </Avatar>
+      ),
+      title: getDisplayLabel(person),
+      line: [person.nip05?.replace(/^_@/, ""), followers != null ? `${followers.toLocaleString()} followers` : null].filter(Boolean).join(" · ") || "Profile",
+    };
+    main = (
+    <aside
+      role="link"
+      tabIndex={0}
+      aria-label={`Open ${getDisplayLabel(person)}'s profile`}
+      onClick={openProfile}
+      onKeyDown={(ev) => {
+        if (ev.target === ev.currentTarget && (ev.key === "Enter" || ev.key === " ")) {
+          ev.preventDefault();
+          openProfile(ev);
+        }
+      }}
+      className="w-full cursor-pointer rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5 transition-colors hover:border-slate-200 dark:hover:border-slate-700 hover:bg-white dark:hover:bg-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+      data-testid="search-knowledge-panel"
+    >
+      <div className="flex items-center gap-3">
+        <div className="relative shrink-0">
+          <Avatar className={`h-14 w-14 border-2 border-slate-200/80 dark:border-slate-800/80 ${tierRing(effectiveRank) ?? ""}`}>
+            {person.picture ? <AvatarImage src={person.picture} alt="" className="object-cover" /> : null}
+            <AvatarFallback className="overflow-hidden">
+              <DefaultAvatarImg />
+            </AvatarFallback>
+          </Avatar>
+          {effectiveRank != null && (
+            <VerificationCoin
+              score01={effectiveRank}
+              pov={pov === "mywot" ? "personalized" : "global"}
+              size={22}
+              className={quietChrome ? "sr-only" : "absolute -bottom-1 -right-1"}
+            />
+          )}
+        </div>
+        <div className="min-w-0">
+          <p className="truncate text-base font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
+            {getDisplayLabel(person)}
+          </p>
+          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+            <TierWordChip score01={effectiveRank} />
+            {followers != null && (
+              <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-500 dark:text-slate-400">
+                <Users className="h-2.5 w-2.5" /> {followers.toLocaleString()}
+              </span>
+            )}
+            <FlaggedChip pubkey={person.pubkey} testId="person-flagged" />
+            <PanelIdentityChip pubkey={person.pubkey} personal={pov === "mywot"} />
+          </div>
+        </div>
+      </div>
+      {/* Identity rows first, right under the name — who this is and how to
+          pay them — then the social proof. The person card's order. */}
+      {(person.nip05 || person.lud16) && (
+        <div className="mt-2.5 space-y-1">
+          {person.nip05 && (
+            <p className="flex items-center gap-1 truncate text-xs text-brand-primary dark:text-brand-link" data-testid="person-nip05">
+              <Check className="h-3 w-3 shrink-0" /> {person.nip05.replace(/^_@/, "")}
+            </p>
+          )}
+          {person.lud16 && (
+            // Tap to zap — the public profile's flow, from the panel.
+            <button
+              type="button"
+              onClick={() => setZapOpen(true)}
+              title={`Send a zap to ${person.lud16}`}
+              className="flex max-w-full items-center gap-1 truncate rounded-md text-left text-xs text-slate-500 dark:text-slate-400 hover:text-[#e07f12] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+              data-testid="person-lightning"
+            >
+              <Zap className="h-3 w-3 shrink-0 text-[#F7931A]" /> <span className="truncate">{person.lud16}</span>
+            </button>
+          )}
+        </div>
+      )}
+      {/* Nostr's oldest review: who follows them — the most trusted faces, and
+          how many verified accounts in all. Then the trust reviews proper. */}
+      <FollowedByLine pubkey={person.pubkey} npub={person.npub} personal={pov === "mywot"} testId="person-followed-by" className="mt-2.5" />
+      <PanelVouches pubkey={person.pubkey} npub={person.npub} personal={pov === "mywot"} />
+      {/* The two freshest blocks — a live stream or replay first — then one
+          quiet row for the rest. Benjamin, after keeping every block: "I think
+          that is too much"; the team: "all very busy now". */}
+      {chosen.map((key) => (
+        <div key={key}>{renderBlock(key)}</div>
+      ))}
+      {foldedKeys.length > 0 && (
+        <button
+          type="button"
+          onClick={() => setMoreOpen((v) => !v)}
+          aria-expanded={moreOpen}
+          className="mt-3 flex w-full items-center justify-between rounded-lg px-1 py-1.5 text-left text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-brand-link transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+          data-testid="panel-more-toggle"
+        >
+          <span>More from {getDisplayLabel(person)}</span>
+          <span className="flex items-center gap-1 text-[11px]">
+            {foldedKeys.length}
+            <ChevronDown className={`h-3.5 w-3.5 transition-transform ${moreOpen ? "rotate-180" : ""}`} />
+          </span>
+        </button>
+      )}
+      {moreOpen &&
+        foldedKeys.map((key) => (
+          <div key={key} data-testid="panel-more">
+            {renderBlock(key)}
+          </div>
+        ))}
+      {person.about && (
+        <p className="mt-2 text-xs leading-relaxed text-slate-600 dark:text-slate-300 break-words line-clamp-4">
+          {person.about}
+        </p>
+      )}
+      <Link
+        href={`/p/${person.npub}`}
+        onClick={() => onOpen?.(person)}
+        className="mt-3.5 inline-flex items-center gap-1.5 rounded-full bg-brand-primary px-4 py-1.5 text-xs font-semibold text-white hover:opacity-90 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/50"
+        data-testid="knowledge-panel-profile"
+      >
+        Full profile & trust deep-dive <ArrowRight className="h-3 w-3" />
+      </Link>
+      {/* Everything they published, searchable — the door X and YouTube put
+          on a profile, here where the search already is. Once the search IS
+          scoped to them, the box is that door. */}
+      {scopeOf(query)?.pubkey !== person.pubkey && (
+        <Link
+          href={scopedSearchHref(person.pubkey, "everything")}
+          className="mt-2.5 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-brand-link transition-colors"
+          data-testid="knowledge-panel-search"
+        >
+          <Search className="h-3.5 w-3.5" /> Search their posts
+        </Link>
+      )}
+    </aside>
+    );
+  }
+
+  const apps = appHits && (
+    <aside
+      className="w-full rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 p-4 sm:p-5"
+      data-testid="search-apps-panel"
+    >
+      <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Apps</p>
+      <ul className="mt-1.5 space-y-0.5">
+        {appHits.map((h) => (
+          <AppRailRow key={h.event.id} event={h.event as NostrEvent} />
+        ))}
+      </ul>
+      <Link
+        href={`/?q=${encodeURIComponent(query.trim())}&t=apps`}
+        className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand-primary hover:underline"
+        data-testid="apps-panel-more"
+      >
+        More apps <ArrowRight className="h-3 w-3" />
+      </Link>
+    </aside>
+  );
+
+  if (!main && !apps) return null;
+  // The rail stacks: the entity panel first, matching apps beneath. The zap
+  // dialog mounts OUTSIDE the panel so its clicks never bubble into the
+  // panel's own click-through (React events cross portals).
+  const folded = belowLg && !expanded && !!main && !!strip;
+  return (
+    <div className={`w-full space-y-3 ${className}`}>
+      {folded ? (
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          aria-expanded={false}
+          className="flex w-full items-center gap-3 rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/80 dark:bg-slate-900/80 px-3.5 py-2.5 text-left transition-colors hover:border-slate-200 dark:hover:border-slate-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+          data-testid="panel-strip"
+        >
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-primary/10">{strip!.icon}</span>
+          <span className="min-w-0 flex-1">
+            <span className="block truncate text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
+              {strip!.title}
+            </span>
+            <span className="block truncate text-[11px] text-slate-500 dark:text-slate-400">{strip!.line}</span>
+          </span>
+          <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
+        </button>
+      ) : (
+        <>
+          {main}
+          {apps}
+        </>
+      )}
+      {person?.lud16 && (
+        <ZapModal
+          open={zapOpen}
+          onOpenChange={setZapOpen}
+          recipientPubkey={person.pubkey}
+          lud16={person.lud16}
+          displayName={getDisplayLabel(person)}
+          picture={person.picture ?? undefined}
+        />
+      )}
+    </div>
+  );
+}

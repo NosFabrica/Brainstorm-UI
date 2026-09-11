@@ -12,9 +12,26 @@ export interface SectionHeaderProps extends React.HTMLAttributes<HTMLDivElement>
   icon?: React.ComponentType<{ className?: string }>;
   /** Hide the trailing hairline rule. */
   noRule?: boolean;
+  /**
+   * `kicker` (default): the uppercase mono label above.
+   * `title`: a sentence-case heading in the display face — for pages that
+   * stack many sections (search results), where seven coloured kickers read
+   * as decoration. Colour stays with the content.
+   */
+  variant?: "kicker" | "title";
 }
 
-export function SectionHeader({ kicker, icon: Icon, noRule = false, className, ...props }: SectionHeaderProps) {
+export function SectionHeader({ kicker, icon: Icon, noRule = false, variant = "kicker", className, ...props }: SectionHeaderProps) {
+  if (variant === "title") {
+    return (
+      <div className={cn("flex items-center gap-2", className)} {...props}>
+        {Icon && <Icon className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" />}
+        <h2 className="text-[15px] font-bold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
+          {kicker}
+        </h2>
+      </div>
+    );
+  }
   return (
     <div className={cn("flex items-center gap-2", className)} {...props}>
       {Icon && <Icon className="h-3.5 w-3.5 shrink-0 text-brand-accent" />}

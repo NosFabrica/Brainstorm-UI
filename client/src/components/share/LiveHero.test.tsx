@@ -1,0 +1,153 @@
+// @vitest-environment jsdom
+/**
+ * The kind-30311 watch hero. A live stream plays in place: HLS through the
+ * video player, a Twitch / Kick / YouTube page through that platform's own
+ * embedded player. Only when neither is possible does the hero hand the
+ * viewer to zap.stream.
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { __resetRecordingChecks } from "@/lib/liveStream";
+import { LiveHero } from "./LiveHero";
+import { installSoloPlayback, playSolo } from "@/lib/playback";
+
+// Stamped ten minutes before the test runs. A "live" event nobody has touched
+// for seven days reads as over (LIVE_STALE_AFTER_SEC), so a fixed date turns
+// every live test here into an ended one a week after it was written — it did,
+// on 2026-09-10. The stale and fresh cases below set their own dates.
+const stream = (tags: string[][]) => ({
+  id: "1".repeat(64),
+  kind: 30311,
+  pubkey: "6f33c652db1c27cee905bc7da4c2cfb65a9f201808e9fbe49d12035d3e674815",
+  created_at: Math.floor(Date.now() / 1000) - 600,
+  content: "",
+  sig: "",
+  tags: [["d", "abc"], ["title", "Dead By Daylight"], ...tags],
+});
+
+describe("LiveHero", () => {
+  beforeEach(() => {
+    __resetRecordingChecks();
+    // Recording hosts answer unless a test says otherwise.
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 200 })));
+    // The player starts on arrival: take the native-HLS path and let play() succeed.
+    vi.spyOn(HTMLMediaElement.prototype, "canPlayType").mockReturnValue("maybe");
+    vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it("a live Twitch stream plays in the page through Twitch's player", () => {
+    render(<LiveHero event={stream([["status", "live"], ["streaming", "https://www.twitch.tv/cowboisim"]])} />);
+    const frame = screen.getByTestId("live-embed") as HTMLIFrameElement;
+    expect(frame.src).toContain("player.twitch.tv/?channel=cowboisim");
+    expect(frame.src).toContain(`parent=${window.location.hostname}`);
+    expect(frame.getAttribute("allow")).toMatch(/fullscreen/);
+    expect(screen.queryByTestId("live-watch-external")).toBeNull();
+    // The way out is still one tap away, quietly.
+    expect(screen.getByText(/Open in zap.stream/)).toBeInTheDocument();
+  });
+
+  // Benjamin: a stream opened from the grid should arrive already playing,
+  // not behind a play button.
+  it("a live HLS stream uses the video player and starts playing on arrival", async () => {
+    const play = vi.mocked(HTMLMediaElement.prototype.play);
+    render(<LiveHero event={stream([["status", "live"], ["streaming", "https://api-uk.zap.stream/x/live.m3u8"]])} />);
+    expect(screen.getByTestId("live-player")).toBeInTheDocument();
+    expect(screen.queryByTestId("live-embed")).toBeNull();
+    await vi.waitFor(() => expect(play).toHaveBeenCalled());
+    expect(screen.queryByTestId("live-play")).toBeNull();
+  });
+
+  // Benjamin, over mar's replay whose description printed "https://mar101xy.com/live"
+  // as plain text: links in a stream's description are links — the site's
+  // favicon and name, one tap — and a mentioned person is their name.
+  it("a stream's description links its URLs and names its mentions", () => {
+    const npub = "npub1de6l09erjl9r990q7n9ql0rwh8x8n059ht7a267n0q3qe28wua8q20q0sd";
+    render(<LiveHero event={stream([["status", "ended"], ["summary", `Let's Fo Live 🔵 https://mar101xy.com/live with nostr:${npub}`]])} />);
+    const chip = screen.getByTestId("link-chip");
+    expect(chip.getAttribute("href")).toBe("https://mar101xy.com/live");
+    expect(chip).toHaveTextContent("mar101xy.com");
+    expect(screen.getByTestId("mention-chip")).toBeInTheDocument();
+    expect(screen.queryByText(/https:\/\/mar101xy/)).toBeNull();
+    expect(screen.queryByText(/nostr:npub/)).toBeNull();
+  });
+
+  it("a live stream with nothing playable hands off to zap.stream", () => {
+    render(<LiveHero event={stream([["status", "live"], ["streaming", "https://cornychat.com/room"]])} />);
+    expect(screen.getByText(/can.t play here/)).toBeInTheDocument();
+    expect(screen.getByTestId("live-watch-external").getAttribute("href")).toMatch(/^https:\/\/zap\.stream\/naddr1/);
+  });
+
+  // A third of ended streams on the relay left a `recording` (zap.stream on
+  // nearly all of its). "This stream has ended" was wrong for every one of them.
+  it("an ended stream with a YouTube recording replays through YouTube's player", async () => {
+    render(<LiveHero event={stream([["status", "ended"], ["recording", "https://www.youtube.com/watch?v=dQw4w9WgXcQ"]])} />);
+    const frame = (await screen.findByTestId("replay-embed")) as HTMLIFrameElement;
+    expect(frame.src).toContain("youtube-nocookie.com/embed/dQw4w9WgXcQ");
+    expect(screen.queryByText(/This stream has ended/)).toBeNull();
+    expect(screen.getByText(/Replay/)).toBeInTheDocument();
+  });
+
+  it("an ended stream with an HLS recording replays through the video player", async () => {
+    render(<LiveHero event={stream([["status", "ended"], ["recording", "https://customer-51tz.cloudflarestream.com/abc/manifest/video.m3u8"]])} />);
+    expect(await screen.findByTestId("live-player")).toBeInTheDocument();
+    expect(screen.queryByText(/This stream has ended/)).toBeNull();
+  });
+
+  it("an ended stream with a video-file recording plays it as a video", async () => {
+    render(<LiveHero event={stream([["status", "ended"], ["recording", "https://cdn.example/replay.mp4"]])} />);
+    const video = (await screen.findByTestId("replay-video")) as HTMLVideoElement;
+    expect(video.getAttribute("src")).toBe("https://cdn.example/replay.mp4");
+    expect(video.hasAttribute("controls")).toBe(true);
+  });
+
+  // Odell's replay: data.zap.stream is gone, and a black player is worse than
+  // the truth.
+  it("a recording that no longer answers reads as ended, with the loss named", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("Failed to fetch"); }));
+    render(<LiveHero event={stream([["status", "ended"], ["recording", "https://data.zap.stream/recording/2dbb68f0.m3u8"]])} />);
+    expect(await screen.findByTestId("replay-gone")).toHaveTextContent(/recording is no longer available/i);
+    expect(screen.queryByTestId("live-player")).toBeNull();
+    expect(screen.queryByText(/Replay/)).toBeNull();
+  });
+
+  it("an ended stream with no recording still says so", () => {
+    render(<LiveHero event={stream([["status", "ended"]])} />);
+    expect(screen.getByText(/This stream has ended/)).toBeInTheDocument();
+  });
+
+  // Benjamin, over a "LIVE · 3 watching · Started 4 months ago" hero with no
+  // replay: "deceiving". Platforms republish a live event while it runs; one
+  // untouched for months is over, whatever its status tag still says — the
+  // Live tab's rule (liveStateOf), now the hero's too.
+  it("a 'live' nobody updated for months is over: no LIVE pill, no viewers, and it says so", () => {
+    const now = Math.floor(Date.now() / 1000);
+    const stale = { ...stream([["status", "live"], ["streaming", "https://cdn/x/live.m3u8"], ["current_participants", "3"], ["starts", String(now - 120 * 86_400)]]), created_at: now - 120 * 86_400 };
+    render(<LiveHero event={stale} />);
+    expect(screen.queryByTestId("live-pill")).toBeNull();
+    expect(screen.queryByText(/watching/)).toBeNull();
+    expect(screen.queryByTestId("live-watch-external")).toBeNull();
+    expect(screen.getByText("This stream has ended")).toBeInTheDocument();
+    expect(screen.getByText(/Streamed 4 months ago/)).toBeInTheDocument();
+  });
+
+  it("a fresh live stream still wears the pill", () => {
+    const now = Math.floor(Date.now() / 1000);
+    const fresh = { ...stream([["status", "live"], ["streaming", "https://www.twitch.tv/somebody"], ["current_participants", "3"]]), created_at: now - 600 };
+    render(<LiveHero event={fresh} />);
+    expect(screen.getByTestId("live-pill")).toHaveTextContent(/live/i);
+  });
+
+  // The stream page plays on arrival, with sound — a listener who came in
+  // with the music bar playing heard both (Benjamin, 2026-09-09). The embed
+  // takes the floor as it mounts; the music yields.
+  it("a platform stream playing on arrival takes the floor from the music", () => {
+    const stop = installSoloPlayback(document);
+    const music = { pause: vi.fn() };
+    playSolo(music);
+    render(<LiveHero event={stream([["status", "live"], ["streaming", "https://www.twitch.tv/cowboisim"]])} />);
+    expect(screen.getByTestId("live-embed")).toBeInTheDocument();
+    expect(music.pause).toHaveBeenCalledTimes(1);
+    stop();
+  });
+});

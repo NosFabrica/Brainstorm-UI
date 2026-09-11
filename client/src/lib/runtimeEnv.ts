@@ -2,6 +2,7 @@ type EnvKey =
   | "VITE_API_URL"
   | "VITE_NIP85_RELAY_URL"
   | "VITE_WOT_SEARCH_RELAY"
+  | "VITE_SEARCH_RELAY_URL"
   | "VITE_TAG_RELAY_URLS"
   | "VITE_FEATURE_AGENT_SUITE"
   | "VITE_FEATURE_ASSISTANTS_ADMIN";
@@ -25,6 +26,8 @@ export const env = {
   VITE_API_URL: read("VITE_API_URL") ?? "",
   VITE_NIP85_RELAY_URL: read("VITE_NIP85_RELAY_URL") ?? "",
   VITE_WOT_SEARCH_RELAY: read("VITE_WOT_SEARCH_RELAY") ?? "",
+  // The SearchOverTrust relay (NIP-50 extended) behind the whole search page.
+  VITE_SEARCH_RELAY_URL: read("VITE_SEARCH_RELAY_URL") ?? "",
   // Comma-separated. Unset → the tag hub from config/tagging.config.json.
   VITE_TAG_RELAY_URLS: read("VITE_TAG_RELAY_URLS") ?? "",
   VITE_FEATURE_AGENT_SUITE: read("VITE_FEATURE_AGENT_SUITE") ?? "",

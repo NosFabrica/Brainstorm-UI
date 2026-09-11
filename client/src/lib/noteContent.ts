@@ -59,7 +59,7 @@ export function toPlayableStreamUrl(url: string): string {
 // bech32 entity glued to the end of a word (e.g. "footnote1…"); a decode guard
 // in parseNoteContent rejects anything that isn't a real entity.
 const TOKEN_REGEX =
-  /(https?:\/\/[^\s]+)|(?<![a-z0-9/])((?:nostr:)?(?:npub|nprofile|nevent|note|naddr)1[02-9ac-hj-np-z]+)|(#[\p{L}\p{N}_]+)/giu;
+  /(https?:\/\/[^\s]+|data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]+)|(?<![a-z0-9/])((?:nostr:)?(?:npub|nprofile|nevent|note|naddr)1[02-9ac-hj-np-z]+)|(#[\p{L}\p{N}_]+)/giu;
 
 // A nostr bech32 entity embedded anywhere inside a normal web URL's path, e.g.
 // `https://relayop.xyz/articles/naddr1…` or `https://njump.me/nevent1…`.
@@ -98,6 +98,8 @@ export function prettyUrlLabel(raw: string): string {
 }
 
 function classifyUrl(url: string): NoteToken {
+  // Inline base64 images render as images — never as a wall of base64 text.
+  if (url.startsWith("data:image/")) return { type: "image", value: url };
   if (IMAGE_EXT.test(url)) return { type: "image", value: url };
   if (VIDEO_EXT.test(url)) return { type: "video", value: url };
   if (AUDIO_EXT.test(url)) return { type: "audio", value: url };

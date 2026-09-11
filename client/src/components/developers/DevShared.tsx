@@ -89,7 +89,7 @@ export function OpenSourceSection() {
             key={repo.label}
             href={repo.href}
             target="_blank"
-            rel="noopener noreferrer"
+            rel="noopener"
             className="group inline-flex items-center gap-3 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 hover:border-brand-accent/40 hover:shadow-sm transition-all pl-3 pr-4 py-2.5"
             data-testid={`link-github-${repo.label.toLowerCase().replace(/\s+/g, "-")}`}
           >

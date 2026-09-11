@@ -1,4 +1,5 @@
 import { Check, Loader2, Plus, ThumbsDown } from "lucide-react";
+import { CommandItem } from "@/components/ui/command";
 
 /**
  * Agree / Disagree — the one place either stance is expressed.
@@ -127,35 +128,33 @@ export function StanceButtons({
 }
 
 /**
- * The same two choices inside a `<Command>` menu, where a row IS the control.
- *
- * A menu can't hold a button pair per row without becoming unreadable, so each
- * tag contributes two selectable entries instead — the same rule, expressed in
- * the shape the surface allows. The one matching your current stance renders as
- * state rather than an action, and selecting it does nothing.
- *
- * Returns the parts rather than rendering them, because `CommandItem` has to be
- * a direct child of `CommandGroup` for cmdk's filtering to work.
+ * One picker row for a tag already on the profile (or the post): the name,
+ * then the same Agree and thumbs-down the tag page uses. Selecting the row
+ * — Enter, or a tap beside the buttons — agrees; the buttons act on their
+ * own. It replaced two rows per tag, an "Agree" one and a "Disagree" one,
+ * which turned five tags into ten rows before anything new (2026-09-08).
  */
-export function stanceMenuRow(stance: Stance) {
+export function StanceRow({
+  name,
+  stance,
+  pending,
+  onVote,
+  testId,
+}: {
+  name: string;
+  stance: Stance;
+  pending: boolean;
+  onVote: (polarity: 1 | -1) => void;
+  testId: string;
+}) {
   const a = actions(stance);
-  return {
-    ...a,
-    /** Icon + trailing label for the agree entry. */
-    agree: {
-      icon: a.agreed ? Check : Plus,
-      iconClass: a.agreed ? "text-emerald-500" : "",
-      hint: a.agreed ? "Agreed" : "Agree",
-      disabled: a.agreed,
-      polarity: 1 as const,
-    },
-    /** Icon + trailing label for the disagree entry. */
-    disagree: {
-      icon: ThumbsDown,
-      iconClass: a.disagreed ? "text-amber-500" : "",
-      hint: a.disagreed ? "Disagreed" : "Disagree",
-      disabled: a.disagreed,
-      polarity: -1 as const,
-    },
-  };
+  return (
+    <CommandItem value={name} onSelect={() => !a.agreed && onVote(1)} data-testid={testId} data-stance={stance ?? "none"}>
+      <span className="flex-1 truncate">{name}</span>
+      {/* The buttons are their own targets; a click on them is not a row select. */}
+      <span className="shrink-0" onClick={(e) => e.stopPropagation()} onPointerDown={(e) => e.stopPropagation()}>
+        <StanceButtons stance={stance} pending={pending} onVote={onVote} testId={`${testId}-vote`} />
+      </span>
+    </CommandItem>
+  );
 }

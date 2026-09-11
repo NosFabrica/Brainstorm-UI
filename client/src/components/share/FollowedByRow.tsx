@@ -2,17 +2,9 @@ import { Link } from "wouter";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
+import { compactCount } from "@/lib/compactCount";
 
 export type FollowedByPerson = { pubkey: string; name?: string; picture?: string; score01?: number | null };
-
-// Compact count so the line stays a uniform width across users: 7,218 → 7.2k,
-// 1,234,567 → 1.2M; anything under 1,000 stays exact. Lowercase k, uppercase M.
-function compactCount(n: number): string {
-  if (n < 1000) return String(n);
-  return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 })
-    .format(n)
-    .replace("K", "k");
-}
 
 /**
  * "Followed by [avatars] Alice, Bob & 1,234 others" — social proof from the

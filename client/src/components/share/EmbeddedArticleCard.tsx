@@ -6,6 +6,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { naddrForEvent } from "@/lib/articleLinks";
+import { articleBrief } from "@/lib/wiki";
 import articleDefault from "@/assets/article-default.webp";
 import type { MinimalEvent } from "@/lib/noteRefs";
 
@@ -37,7 +38,9 @@ export function EmbeddedArticleCard({ event, author , trustScore01 }: { trustSco
   const fallbackScoreOf = useAuthorScores(trustScore01 == null ? [event.pubkey] : []);
   const effectiveScore01 = trustScore01 ?? fallbackScoreOf(event.pubkey);
   const title = tagVal(event, "title") || "Untitled article";
-  const summary = tagVal(event, "summary") || "";
+  // A wiki page (NIP-54) has no summary tag; its opening words stand in.
+  const isWiki = event.kind === 30818;
+  const summary = articleBrief(event);
   const image = tagVal(event, "image");
   // Fall back to the branded Brainstorm cover when an article has no image or
   // its image URL fails to load (dead host, hotlink block, etc.).
@@ -76,7 +79,7 @@ export function EmbeddedArticleCard({ event, author , trustScore01 }: { trustSco
 
         <div className="min-w-0 flex-1 p-3">
           <p className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-brand-primary">
-            <FileText className="h-3 w-3" /> Article
+            <FileText className="h-3 w-3" /> {isWiki ? "Wiki" : "Article"}
           </p>
           <p className="text-sm font-bold text-slate-900 dark:text-slate-100 line-clamp-2 mt-0.5">{title}</p>
           {summary && <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1">{summary}</p>}

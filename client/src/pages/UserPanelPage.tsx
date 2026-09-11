@@ -911,7 +911,7 @@ export default function UserPanelPage() {
                             </span>
                           )}
                           {agentState.website && /^https?:\/\//i.test(agentState.website) && (
-                            <a href={agentState.website} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 hover:text-brand-accent transition-colors" data-testid="link-agent-website">
+                            <a href={agentState.website} target="_blank" rel="noopener" className="flex items-center gap-1 hover:text-brand-accent transition-colors" data-testid="link-agent-website">
                               <Globe className="h-3 w-3 text-brand-accent" />
                               {agentState.website.replace(/^https?:\/\//, "")}
                             </a>

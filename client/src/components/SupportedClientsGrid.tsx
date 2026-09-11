@@ -25,7 +25,7 @@ export function SupportedClientsGrid({
           key={c.name}
           href={c.href}
           target="_blank"
-          rel="noopener noreferrer"
+          rel="noopener"
           className="group flex items-center gap-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-3 hover:border-brand-accent/40 hover:shadow-sm transition-all"
           data-testid={`${testIdPrefix}-${c.name.toLowerCase()}`}
         >

@@ -29,7 +29,7 @@ export const nip85ExplainerSections: Nip85ExplainerSection[] = [
         <a
           href={NIP85_URL}
           target="_blank"
-          rel="noopener noreferrer"
+          rel="noopener"
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-link hover:text-brand-primary transition-colors"
           data-testid="link-nip85-learn-more-what"
         >
@@ -70,7 +70,7 @@ export const nip85ExplainerSections: Nip85ExplainerSection[] = [
         <a
           href={NIP85_URL}
           target="_blank"
-          rel="noopener noreferrer"
+          rel="noopener"
           className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-link hover:text-brand-primary transition-colors"
           data-testid="link-nip85-learn-more-next"
         >

@@ -46,7 +46,7 @@ export default function DeveloperTrustedAssertionsPage() {
             <a
               href={NIP85_URL}
               target="_blank"
-              rel="noopener noreferrer"
+              rel="noopener"
               className="inline-flex items-center gap-1.5 text-[15px] font-medium text-brand-deep hover:underline"
               data-testid="link-nip85-spec"
             >

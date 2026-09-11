@@ -1,39 +1,29 @@
 import { useMemo, useState, useEffect, useRef } from "react";
-import { useRoute, useSearch, Link } from "wouter";
+import { useRoute, useSearch, useLocation, Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  MessageSquare,
-  Image as ImageIcon,
-  FileText,
-  BadgeCheck,
-  Globe,
-  ArrowRight,
-  Wifi,
-  Video as VideoIcon,
-  Headphones,
-  Radio,
-  Play,
-  AlertTriangle,
-  ShieldCheck,
-  CalendarDays,
-  Copy,
-  Check,
-  SlidersHorizontal,
-  UserPlus,
-  FileQuestion,
-} from "lucide-react";
+import { MessageSquare, Image as ImageIcon, FileText, BadgeCheck, ArrowRight, Wifi, Video as VideoIcon, Headphones, Radio, AlertTriangle, ShieldCheck, CalendarDays, Copy, Check, SlidersHorizontal, UserPlus, FileQuestion, PenLine, Search } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
-import { decodeShareId, npubFromPubkey, nostrUriFor, eventPath } from "@/lib/shareId";
+import { decodeShareId, npubFromPubkey, eventPath } from "@/lib/shareId";
 import { relativeTime } from "@/lib/relativeTime";
-import { copyToClipboard } from "@/lib/clipboard";
+import { scopedSearchHref } from "@/lib/searchSyntax";
+import { mergeArtistAudio } from "@/lib/wavlake";
+import { liveStateOf } from "@/lib/liveStream";
+import { useArtistCatalogue } from "@/hooks/useArtistCatalogue";
+import { wavlakeSongHref } from "@/lib/upNext";
+import { WavlakeSongCard } from "@/components/search/cards";
+import { useCopied } from "@/hooks/useCopied";
 import { useActiveAccount } from "applesauce-react/hooks";
-import { fetchProfileForShare, fetchRecentByKinds, fetchLiveStreams, fetchEventsByIds, fetchAddressableEvents, fetchProfileMap, fetchExternalIdentities, fetchOutboxRelayList, fetchProfilePrefs, publishProfilePrefs } from "@/services/nostr";
+import { fetchProfileForShare, fetchRecentByKinds, fetchLiveStreams, fetchEventsByIds, fetchProfileMap, fetchExternalIdentities, fetchOutboxRelayList, fetchProfilePrefs, publishProfilePrefs } from "@/services/nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { parseIdentities } from "@/lib/externalIdentity";
-import { ExternalIdentities } from "@/components/share/ExternalIdentities";
+import { ProfileDetails } from "@/components/share/ProfileDetails";
 import { FollowedByRow } from "@/components/share/FollowedByRow";
+import { TrustReviews } from "@/components/share/TrustReviews";
+import { PanelIdentityChip } from "@/components/search/EndorsementLine";
+import { usePersonEndorsements } from "@/hooks/usePersonEndorsements";
 import { nip19 } from "nostr-tools";
-import { collectRefs, mentionPubkeysFromContent, type MinimalEvent } from "@/lib/noteRefs";
+import { mentionPubkeysFromContent, type MinimalEvent } from "@/lib/noteRefs";
+import { useNoteRefs } from "@/hooks/useNoteRefs";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
 import { EmbeddedTrackCard } from "@/components/share/EmbeddedTrackCard";
@@ -43,12 +33,13 @@ import { TopicChips } from "@/components/share/TopicChips";
 import { ProfileTagChips } from "@/components/share/ProfileTagChips";
 import { useEventTagsBatch } from "@/hooks/useTags";
 import { LegacyRolePrompt } from "@/components/share/LegacyRolePrompt";
-import { ShareBio } from "@/components/share/ShareBio";
+import { ProfileBio } from "@/components/share/ProfileBio";
 import liveDefault from "@/assets/live-default.webp";
 import { PinIcon } from "@/components/PinIcon";
 import { parseCalendarEvent, relativeEventTime } from "@/lib/calendarEvent";
+import { useLightbox } from "@/components/share/Lightbox";
+import { VideoTile } from "@/components/share/VideoTile";
 import { EventRow } from "@/components/share/EventRow";
-import { OpenInApp } from "@/components/share/OpenInApp";
 import { apiClient } from "@/services/api";
 import { parseProfilePrefs, loadProfilePrefsDraft, saveProfilePrefsDraft, clearProfilePrefsDraft } from "@/lib/personalization";
 import { SECTION_KEYS, ROLE_LABELS, EMPTY_PROFILE_PREFS, type SectionKey, type ProfilePrefs } from "@/config/personalization";
@@ -56,7 +47,11 @@ import { ProfileCustomizer } from "@/components/share/ProfileCustomizer";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { DegreeChip } from "@/components/DegreeChip";
 import { useRelationshipBadges } from "@/hooks/useRelationshipBadges";
-import { ProfileActions, OwnerActions } from "@/components/share/ProfileActions";
+import { FollowButton } from "@/components/share/FollowButton";
+import { ProfileMenu } from "@/components/share/ProfileMenu";
+import { TagPersonButton } from "@/components/share/TagPersonButton";
+import { ShareButton } from "@/components/share/ShareButton";
+import { isAdminPubkey } from "@/config/adminAccess";
 import { Stat, StatLensToggle, type StatLens } from "@/components/share/StatToggle";
 import { NegativeSignalStats } from "@/components/share/NegativeSignalStats";
 import { useScorePov, TrustScoreModal } from "@/components/score/TrustScorePov";
@@ -64,8 +59,8 @@ import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } f
 import { extractImageUrls, extractVideoUrls, extractVideoPoster } from "@/lib/noteContent";
 import { tierForScore } from "@/components/share/TrustScoreBadge";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
-import { FlashIcon } from "@/components/FlashIcon";
 import { ZapModal } from "@/components/ZapModal";
+import { SellingBlock } from "@/components/share/SellingBlock";
 import { ContentTeaserBlock } from "@/components/share/ContentTeaserBlock";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
 import { useShareMeta } from "@/hooks/useShareMeta";
@@ -76,6 +71,8 @@ import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC } from "@/lib/profileDefaults"
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useHopsOrigin } from "@/hooks/useHopsOrigin";
+
+const NO_RELAYS: string[] = [];
 
 type ProfileContentLike = Record<string, string | undefined>;
 
@@ -97,11 +94,16 @@ export default function SharePage() {
   const decoded = useMemo(() => decodeShareId(rawId), [rawId]);
   const pubkey = decoded?.pubkey || "";
   const relayHints = decoded?.relays || [];
+  // How many things this person has for sale — the Selling block reports it
+  // (it fetches even when hidden) so the page and the customizer can tell.
+  const [sellingCount, setSellingCount] = useState(0);
   const npub = pubkey ? safeNpub(pubkey) : "";
+  const openLightbox = useLightbox();
   const loggedIn = useHasSession();
-  const [shareOpen, setShareOpen] = useState(false);
   const [zapOpen, setZapOpen] = useState(false);
-  const [npubCopied, setNpubCopied] = useState(false);
+  // The pen beside Zap: each press asks the Trust reviews line to open its composer.
+  const [composeRequest, setComposeRequest] = useState(0);
+  const npubCopy = useCopied();
   const [scoreModalOpen, setScoreModalOpen] = useState(false);
   // One shared lens for the whole stats block: verified (trust-filtered) vs all
   // (raw). Defaults to verified — Brainstorm's bot-free view is the headline.
@@ -372,7 +374,9 @@ export default function SharePage() {
 
   const videosQuery = useQuery({
     queryKey: ["share-videos", pubkey],
-    queryFn: () => fetchRecentByKinds(pubkey, [21, 22], 2, { relayHints }),
+    // NIP-71: normal (21) and short (22) videos, plus their addressable
+    // twins (34235 / 34236) — Divine publishes shorts as 34236.
+    queryFn: () => fetchRecentByKinds(pubkey, [21, 22, 34235, 34236], 4, { relayHints }),
     enabled: !!pubkey,
     staleTime: 5 * 60_000,
     retry: false,
@@ -433,18 +437,26 @@ export default function SharePage() {
   // NIP-65 (kind 10002) relay list → "Active on N relays" presence signal.
   const relaysQuery = useQuery({
     queryKey: ["share-relays", pubkey],
+    // The relay URLs themselves, write relays first: the count feeds the
+    // tenure line, the first four ride in the nprofile a power user copies.
     queryFn: async () => {
       const ev = await fetchOutboxRelayList(pubkey);
-      if (!ev) return 0;
-      const set = new Set<string>();
-      for (const t of ev.tags || []) if (t[0] === "r" && typeof t[1] === "string") set.add(t[1].replace(/\/$/, "").toLowerCase());
-      return set.size;
+      if (!ev) return [] as string[];
+      const write: string[] = [];
+      const readOnly: string[] = [];
+      for (const t of ev.tags || []) {
+        if (t[0] !== "r" || typeof t[1] !== "string") continue;
+        (t[2] === "read" ? readOnly : write).push(t[1].replace(/\/$/, "").toLowerCase());
+      }
+      return [...new Set([...write, ...readOnly])];
     },
     enabled: !!pubkey,
     staleTime: 10 * 60_000,
     retry: false,
   });
-  const relayCount = relaysQuery.data ?? 0;
+  const relays = relaysQuery.data ?? NO_RELAYS;
+  const relayCount = relays.length;
+  const profileRelays = relays.length ? relays : relayHints;
 
   const profile = (profileQuery.data ?? {}) as ProfileContentLike;
   const displayName = profile.display_name || profile.name || (npub ? npub.slice(0, 12) + "…" : "Nostr profile");
@@ -610,10 +622,19 @@ export default function SharePage() {
     [musicQuery.data],
   );
 
+  // The person's Wavlake catalogue beside their relay tracks: Joe Martin
+  // publishes one track to relays and six to Wavlake (2026-09-05). The artist
+  // is matched by their linked Nostr key, else their exact name — never loosely.
+  const catalogue = useArtistCatalogue(pubkey || null, { name: profile.display_name || profile.name || null, limit: 6 });
+  const audio = useMemo(() => mergeArtistAudio(tracks, catalogue.songs, 3), [tracks, catalogue.songs]);
+
   // Register the ordered, playable tracks so the shared player auto-advances.
   useEffect(() => {
-    setPlaylist(tracks.filter((t) => t.audio).map((t) => ({ id: t.id, src: t.audio as string })));
-  }, [tracks]);
+    setPlaylist([
+      ...audio.native.filter((t) => t.audio).map((t) => ({ id: t.id, src: t.audio as string, title: t.title, artist: t.artist, cover: t.cover })),
+      ...audio.songs.map((s) => ({ id: s.id, src: s.audio, title: s.title, artist: s.artist, cover: s.cover, href: wavlakeSongHref(s) })),
+    ]);
+  }, [audio]);
 
   // NIP-53 live streams (kind 30311) → live now + upcoming only (no replays).
   const liveStreams = useMemo(() => {
@@ -635,9 +656,14 @@ export default function SharePage() {
         // Forward-looking label only when the start is actually in the future.
         timing: starts && starts >= nowSec ? `Starts ${relativeEventTime(starts).toLowerCase()}` : "Planned",
       };
-    }).filter((s) => s.status !== "ended"); // recordings/replays aren't reliable — show live + upcoming
-    const liveNow = parsed.filter((s) => s.status === "live");
-    const upcoming = parsed.filter((s) => s.status !== "live").sort((a, b) => a.starts - b.starts).slice(0, 2);
+    });
+    // Which shelf each stream is on by the Live tab's rule (liveStateOf): a
+    // "live" nobody updated for a week is over — no badge on the avatar, no
+    // "Live now" block (Benjamin, over a months-old LIVE badge: "deceiving").
+    // Replays are not this page's business; the Live tab has them.
+    const stateById = new Map(evs.map((ev) => [ev.id, liveStateOf(ev, nowSec)]));
+    const liveNow = parsed.filter((s) => stateById.get(s.id) === "live");
+    const upcoming = parsed.filter((s) => stateById.get(s.id) === "upcoming").sort((a, b) => a.starts - b.starts).slice(0, 2);
     return { liveNow, upcoming, has: liveNow.length + upcoming.length > 0 };
   }, [liveQuery.data]);
 
@@ -698,8 +724,16 @@ export default function SharePage() {
   // Rich-note references: collect the pubkeys + event ids the notes mention /
   // reply to / quote / repost, then resolve them in two batched relay queries so
   // the cards can show names, avatars, and embedded notes (Primal-style).
+  // The featured post counts too: pinned months ago, it is rarely among the
+  // latest notes, and without it here its @mentions read as "@nprofile1q…"
+  // (Joe Martin's pinned music video, 2026-09-05).
   const noteEvents = (notesQuery.data ?? []) as MinimalEvent[];
-  const refs = useMemo(() => collectRefs(noteEvents), [noteEvents]);
+  // Everything these notes refer to — quoted events, articles, and a profile
+  // for everyone mentioned, answered or quoted, plus the bio's own mentions —
+  // through the hook the search page shares (one recipe, both pages).
+  const refNotes = useMemo(() => (featured ? [featured, ...noteEvents] : noteEvents), [featured, noteEvents]);
+  const bioMentions = useMemo(() => mentionPubkeysFromContent(profile.about || ""), [profile.about]);
+  const { profiles: noteProfiles, eventsById, addrByCoord } = useNoteRefs(refNotes, { relays: relayHints, extraPubkeys: bioMentions });
 
   /**
    * What the network says these notes are about (ACCEPTANCE Floor A's C2 clause:
@@ -715,62 +749,6 @@ export default function SharePage() {
   );
   const { data: noteTags } = useEventTagsBatch(taggableNoteIds);
 
-  const refEventsQuery = useQuery({
-    queryKey: ["share-ref-events", pubkey, refs.ids],
-    queryFn: () => fetchEventsByIds(refs.ids, Array.from(new Set([...relayHints, ...PROFILE_RELAYS]))),
-    enabled: !!pubkey && refs.ids.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-
-  const eventsById = useMemo(() => {
-    const m = new Map<string, MinimalEvent>();
-    for (const ev of (refEventsQuery.data ?? []) as MinimalEvent[]) m.set(ev.id, ev);
-    return m;
-  }, [refEventsQuery.data]);
-
-  // Addressable refs (NIP-23 articles etc.) referenced inside the notes.
-  const addrEventsQuery = useQuery({
-    queryKey: ["share-addr-events", pubkey, refs.addrs.map((a) => `${a.kind}:${a.pubkey}:${a.identifier}`).join(",")],
-    queryFn: () => fetchAddressableEvents(refs.addrs, Array.from(new Set([...relayHints, ...PROFILE_RELAYS]))),
-    enabled: !!pubkey && refs.addrs.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-
-  const addrByCoord = useMemo(() => {
-    const m = new Map<string, MinimalEvent>();
-    const src = addrEventsQuery.data as Map<string, MinimalEvent> | undefined;
-    if (src) for (const [k, v] of src) m.set(k, v as MinimalEvent);
-    return m;
-  }, [addrEventsQuery.data]);
-
-  // All pubkeys needing profiles = referenced pubkeys + authors of resolved events.
-  const allRefPubkeys = useMemo(() => {
-    const set = new Set<string>(refs.pubkeys);
-    for (const ev of eventsById.values()) {
-      set.add(ev.pubkey);
-      // Resolve @names for anyone tagged inside a quoted/referenced note too.
-      mentionPubkeysFromContent(ev.content).forEach((pk) => set.add(pk));
-    }
-    for (const ev of addrByCoord.values()) set.add(ev.pubkey);
-    // Resolve any real nostr: @mentions embedded in the bio so they render as names.
-    mentionPubkeysFromContent(profile.about || "").forEach((pk) => set.add(pk));
-    return Array.from(set);
-  }, [refs.pubkeys, eventsById, addrByCoord, profile.about]);
-
-  const profilesQuery = useQuery({
-    queryKey: ["share-ref-profiles", pubkey, allRefPubkeys],
-    queryFn: () => fetchProfileMap(allRefPubkeys),
-    enabled: !!pubkey && allRefPubkeys.length > 0,
-    staleTime: 5 * 60_000,
-    retry: false,
-  });
-
-  const noteProfiles = useMemo(
-    () => (profilesQuery.data ?? new Map()) as Map<string, { name?: string; display_name?: string; picture?: string; nip05?: string }>,
-    [profilesQuery.data],
-  );
 
   // Roles this person set under the retired "What you do" editor. No longer
   // rendered — offered back to them in the tag picker so the signal isn't just
@@ -809,11 +787,19 @@ export default function SharePage() {
       : null,
   );
 
-  const openInRef = useRef<HTMLElement>(null);
-  const scrollToOpenIn = () => openInRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  // "View all" on a block is a search scoped to this person on that vertical —
+  // every article, note, photo, video, song or stream of theirs, and nobody
+  // else's. It used to scroll to "Open in a Nostr client", which showed no
+  // more of anything (Benjamin, 2026-09-05).
+  const [, setLocation] = useLocation();
+  const viewAllIn = (tab: string) => setLocation(scopedSearchHref(pubkey, tab));
   // Whose distance the DegreeChip measures — follows the perspective toggle,
   // falls back to House, works logged out. See useHopsOrigin.
   const hopsOrigin = useHopsOrigin();
+  // Zap gives sats; the pen gives a vouch — signed-in viewers on someone else's
+  // page only. Read here, above the guards, because it is a hook.
+  const canReview = loggedIn && !isOwner && !!pubkey;
+  const myEndorsements = usePersonEndorsements(canReview ? pubkey : null, myPov);
 
   // Guards start here. `decoded` is fixed for the life of the mount, but adding
   // a hook below any of these returns changes the hook count between renders
@@ -825,8 +811,8 @@ export default function SharePage() {
 
   const profileLoading = profileQuery.isLoading;
   const hasContent =
-    (notesQuery.data?.length ?? 0) > 0 || photos.length > 0 || articles.length > 0 ||
-    videos.length > 0 || tracks.length > 0 || liveStreams.has || !!featured || calendarEvents.upcoming.length > 0 || calendarEvents.past.length > 0;
+    (notesQuery.data?.length ?? 0) > 0 || photos.length > 0 || articles.length > 0 || sellingCount > 0 ||
+    videos.length > 0 || audio.native.length + audio.songs.length > 0 || liveStreams.has || !!featured || calendarEvents.upcoming.length > 0 || calendarEvents.past.length > 0;
 
   // Keys (sections + hero details) the owner currently has NO content for — the
   // customizer greys these out so a toggle never misleadingly reads as "on".
@@ -835,7 +821,8 @@ export default function SharePage() {
   if (!liveStreams.has) emptyKeys.add("live");
   if (calendarEvents.upcoming.length === 0 && calendarEvents.past.length === 0) emptyKeys.add("events");
   if (articles.length === 0) emptyKeys.add("articles");
-  if (tracks.length === 0) emptyKeys.add("audio");
+  if (sellingCount === 0) emptyKeys.add("selling");
+  if (audio.native.length + audio.songs.length === 0) emptyKeys.add("audio");
   if (videos.length === 0) emptyKeys.add("videos");
   if (gridPhotos.length === 0) emptyKeys.add("photos");
   if (noteEvents.length === 0) emptyKeys.add("notes");
@@ -864,96 +851,106 @@ export default function SharePage() {
   // coin) instead of the dashed "—", which is a verdict.
   const coinLoading =
     scorePov === "personalized" ? overviewQuery.isLoading : houseRankQuery.isLoading && overviewQuery.isLoading;
-  // Contact as compact clickable icons — website, lightning address, external
-  // identities. Lives top-right with the actions (and has a mobile fallback row),
-  // never as verbose text at the bottom.
-  const hasContactIcons = !!(profile.website || profile.lud16 || (identities.length > 0 && !isHidden("identities")));
-  const contactIcons = hasContactIcons ? (
-    <>
-      {profile.website && (
-        <a
-          href={normalizeUrl(profile.website)}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand-primary"
-          title={profile.website.replace(/^https?:\/\//, "").replace(/\/$/, "")}
-          aria-label="Website"
-          data-testid="share-website"
-        >
-          <Globe className="h-4 w-4" />
-        </a>
-      )}
-      {profile.lud16 && (
-        <button
-          type="button"
-          onClick={() => setZapOpen(true)}
-          className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-[#F7931A] transition-colors hover:bg-[#F7931A]/10 hover:text-[#e07f12]"
-          title={`Lightning — ${profile.lud16}`}
-          aria-label="Lightning address"
-          data-testid="share-lightning"
-        >
-          <FlashIcon className="h-4 w-4" />
-        </button>
-      )}
-      {identities.length > 0 && !isHidden("identities") && (
-        <span className="inline-flex items-center gap-2.5" data-testid="share-identities">
-          <ExternalIdentities identities={identities} />
-        </span>
-      )}
-    </>
+  // The facts a profile states — website, lightning address, linked accounts —
+  // read as text rows under the bio (ProfileDetails). They used to be icon-only
+  // glyphs up here; a power user could not find the bolt, and tapping it
+  // opened a zap flow when they wanted the address (2026-09-05). Top-right
+  // now holds ACTIONS only: the magnifier and the review pen beside Follow/⋯.
+  // The pen gives a vouch. Signed-in viewers on someone else's page only.
+  const hasMyReview = !!currentUser?.pubkey && !!myEndorsements?.vouches?.some((v) => v.pubkey === currentUser.pubkey);
+  const reviewIcon = canReview ? (
+    <button
+      type="button"
+      onClick={() => setComposeRequest((n) => n + 1)}
+      className={`inline-flex h-9 w-9 items-center justify-center rounded-lg transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand-primary ${
+        hasMyReview ? "text-brand-primary" : "text-slate-500 dark:text-slate-400"
+      }`}
+      title={hasMyReview ? "Edit your review" : "Write a review"}
+      aria-label={hasMyReview ? "Edit your review" : "Write a review"}
+      data-testid="share-review"
+    >
+      <PenLine className="h-4 w-4" />
+    </button>
   ) : null;
-
+  // The magnifier: everything this person published, searchable — the door
+  // X, YouTube and Facebook put on a profile. Everyone gets it; search is public.
+  const searchLabel = profile.display_name || profile.name ? `Search ${displayName}'s posts` : "Search their posts";
+  const searchIcon = (
+    <button
+      type="button"
+      onClick={() => setLocation(scopedSearchHref(pubkey, "everything"))}
+      className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-slate-500 dark:text-slate-400 transition-colors hover:bg-slate-100 dark:hover:bg-slate-800 hover:text-brand-primary"
+      title={searchLabel}
+      aria-label={searchLabel}
+      data-testid="share-search-posts"
+    >
+      <Search className="h-4 w-4" />
+    </button>
+  );
   // The action pieces, kept separate so we can place them differently per
-  // breakpoint: a "Follows you" chip, the contact icons, and the Follow/⋯ (or
-  // the owner's ⋯). On desktop all three sit together top-right with the avatar.
-  // On mobile the contact icons move up to the top-right slot under the banner
-  // (filling the dead space across from the avatar) while the Follow/⋯ actions
-  // drop to their own full-width row so the primary button can stretch.
+  // breakpoint: the magnifier, the review pen, Follow (signed in, not the
+  // owner) and the ⋯ menu — everyone's, since it holds the copies and the
+  // open-in links (team, 2026-09-08). "Follows you" is not an action; it
+  // sits on the identity line.
   const followsYouChip = loggedIn && rel.enabled && !isOwner && !rel.loading && rel.followsYou ? (
     <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400" data-testid="share-follows-you">
       <UserPlus className="h-3 w-3" /> Follows you
     </span>
   ) : null;
-  const followButtons = loggedIn ? (isOwner ? (
-    <OwnerActions npub={npub} />
-  ) : (
-    <ProfileActions
-      key={`${rel.isFollowing}-${rel.isMuted}-${!!rel.report}`}
-      targetPubkey={pubkey}
+  // Keyed so a late-arriving relationship resyncs the optimistic state.
+  const followButton = loggedIn && !isOwner ? (
+    <FollowButton key={String(rel.isFollowing)} targetPubkey={pubkey} initialFollowing={rel.isFollowing} displayName={displayName} />
+  ) : null;
+  const profileMenu = (
+    <ProfileMenu
+      key={`${rel.isMuted}-${!!rel.report}`}
+      pubkey={pubkey}
       npub={npub}
-      initialFollowing={rel.isFollowing}
+      relays={profileRelays}
+      viewer={{ loggedIn, isOwner, isAdmin: isAdminPubkey(currentUser?.pubkey) }}
       initialMuted={rel.isMuted}
       alreadyReported={!!rel.report}
     />
-  )) : null;
-  const hasFollowActions = !!followButtons;
-  const hasActions = loggedIn || hasContactIcons;
-
-  // Desktop: chip + icons + Follow/⋯ together, top-right with the avatar.
-  const topRightActions = hasActions ? (
+  );
+  // Desktop: magnifier + pen + Follow + ⋯ together, top-right with the avatar.
+  const topRightActions = (
     <div className="hidden sm:flex items-center gap-2 shrink-0" data-testid="share-actions-topright">
-      {followsYouChip}
-      {contactIcons}
-      {followButtons}
+      {searchIcon}
+      {reviewIcon}
+      {followButton}
+      {profileMenu}
     </div>
-  ) : null;
-  // Mobile: just the contact icons, top-right across from the avatar.
-  const mobileTopIcons = hasContactIcons ? (
-    <div className="flex sm:hidden items-center gap-1 shrink-0" data-testid="share-icons-mobile">
-      {contactIcons}
+  );
+  // Phone: the icon actions sit across from the avatar, in the slot under
+  // the banner (X's placement) — a lone magnifier in its own row read as
+  // orphaned (Benjamin, 2026-09-07). Follow keeps its own full-width row
+  // below the identity, so the primary button can stretch; signed out
+  // there is no such row.
+  const mobileTopIcons = (
+    <div className="flex items-center gap-1 sm:hidden" data-testid="share-actions-mobile-top">
+      {searchIcon}
+      {reviewIcon}
+      {profileMenu}
     </div>
-  ) : null;
-  // Mobile: the Follow/⋯ actions (+ follows-you chip) in their own row so the
-  // primary button can fill the width.
-  const mobileFollowRow = hasFollowActions ? (
+  );
+  const mobileFollowRow = followButton ? (
     <div className="mt-3 flex items-center gap-2 sm:hidden" data-testid="share-actions-mobile">
-      {followsYouChip}
-      {followButtons}
+      {followButton}
     </div>
   ) : null;
 
   return (
-    <ShareShell onShare={() => setShareOpen(true)}>
+    <ShareShell
+      actions={
+        <ShareButton
+          url={canonicalUrl}
+          title={`${displayName} on Brainstorm`}
+          modal={(ctl) => (
+            <ShareProfileModal {...ctl} npub={npub} displayName={displayName} picture={profile.picture} nip05={profile.nip05} canonicalUrl={canonicalUrl} score01={houseScore01} onOwnPage />
+          )}
+        />
+      }
+    >
       <ShareNavProvider>
       {/* Identity hero */}
       <div className="rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden" data-testid="share-hero">
@@ -973,12 +970,29 @@ export default function SharePage() {
               profile to a pictureless one, hiding the fallback. */}
           <div className="flex items-end justify-between gap-3">
             <div className="relative inline-block">
+              {/* Live now: a quiet red ring and a LIVE pill on the avatar —
+                  Instagram / Twitch's convention — that opens the stream.
+                  Benjamin: "make this noticeable subtly and allow users to
+                  click to view the streams." */}
+              {liveStreams.liveNow[0] && (
+                <span className="pointer-events-none absolute -inset-1 rounded-full ring-2 ring-red-500/80 animate-pulse" aria-hidden="true" data-testid="share-live-ring" />
+              )}
               <Avatar key={pubkey} className={`h-20 w-20 sm:h-24 sm:w-24 rounded-full border-4 border-white bg-white dark:bg-slate-900 ${tierRing(coinScore01) ?? "shadow-lg"}`}>
                 {profile.picture ? <AvatarImage src={profile.picture} alt={displayName} className="object-cover" /> : null}
                 <AvatarFallback className="overflow-hidden rounded-full">
                   <DefaultAvatarImg flagged={isFlagged} />
                 </AvatarFallback>
               </Avatar>
+              {liveStreams.liveNow[0] && (
+                <Link
+                  href={eventPath({ id: liveStreams.liveNow[0].id, pubkey: liveStreams.liveNow[0].authorPubkey }, relayHints)}
+                  className="absolute -bottom-1 left-1/2 -translate-x-1/2 inline-flex items-center gap-1 rounded-full border-2 border-white dark:border-slate-900 bg-red-600 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white shadow-sm hover:bg-red-500 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400"
+                  title={`Watch live: ${liveStreams.liveNow[0].title}`}
+                  data-testid="share-live-badge"
+                >
+                  <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" aria-hidden="true" /> Live
+                </Link>
+              )}
               {/* Verification Score — the label-less coin, active-POV, bottom-right of
                   the avatar. Tap opens the shared explainer/compare modal. */}
               <VerificationCoin
@@ -991,8 +1005,8 @@ export default function SharePage() {
                 className={tierRing(coinScore01) && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1"}
               />
             </div>
-            {/* Desktop: chip + icons + Follow/⋯. Mobile: just the contact icons
-                here (top-right under the banner); Follow/⋯ render in a row below. */}
+            {/* Desktop: magnifier + chip + pen + Follow/⋯ top-right. Phones:
+                the icons here, Follow/⋯ in a row below the identity. */}
             {topRightActions}
             {mobileTopIcons}
           </div>
@@ -1004,27 +1018,32 @@ export default function SharePage() {
               {displayName}
             </h1>
             <TierWordChip score01={coinScore01} flagged={isFlagged} />
+            {/* "Identity confirmed" — trusted reviewers said this is really them.
+                Google's verified-badge spot: beside the name, not in a section. */}
+            {pubkey && <PanelIdentityChip pubkey={pubkey} personal={myPov} testId="share-identity" />}
             {profile.nip05 && (
               <span className="inline-flex items-center gap-1 text-sm text-brand-link font-medium">
                 <BadgeCheck className="h-4 w-4" /> {profile.nip05.replace(/^_@/, "")}
               </span>
             )}
+            {/* "Follows you" is a fact about the two of you, not an action — it
+                sits with the identity, beside the handle, where X, Bluesky and
+                Mastodon put it (Benjamin, 2026-09-08: in the button row it read
+                as a button that did nothing). */}
+            {followsYouChip}
           </div>
-          {/* NIP-38 status — a live "now" line under the name (general + now-playing). */}
-          {!isHidden("status") && status.general && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 leading-snug" data-testid="share-status">{status.general}</p>}
-          {!isHidden("status") && status.music && <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400" data-testid="share-status-music">♪ {status.music}</p>}
           {/* npub — subtle + copyable so logged-out visitors can verify identity. */}
           {npub && (
             <div className="flex items-center gap-1.5 mt-1" data-testid="share-npub">
               <code className="text-xs text-slate-400 dark:text-slate-500 font-mono truncate max-w-[170px] sm:max-w-[300px]">{npub}</code>
               <button
                 type="button"
-                onClick={async () => { if (await copyToClipboard(npub)) { setNpubCopied(true); setTimeout(() => setNpubCopied(false), 1500); } }}
+                onClick={() => void npubCopy.copy(npub)}
                 className="p-0.5 text-slate-400 dark:text-slate-500 hover:text-brand-primary transition-colors shrink-0"
                 title="Copy npub"
                 data-testid="share-copy-npub"
               >
-                {npubCopied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                {npubCopy.copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
               </button>
             </div>
           )}
@@ -1034,19 +1053,33 @@ export default function SharePage() {
               (above), not here. */}
           {mobileFollowRow}
 
-          {/* Tags — what the network says about this person, counted from the
-              configured trust perspective. Reads from relays only, so it renders
-              for logged-out visitors too.
+          {/* The bio: three lines at rest, all of it on a tap. Right under the
+              identity — where every network puts it (Benjamin, 2026-09-08: it
+              sat below a status, the key and an empty tag row). */}
+          {!isHidden("bio") && profile.about && <ProfileBio text={profile.about} profiles={noteProfiles} />}
+          {/* NIP-38 status — a live "now" line, quiet, under the bio (general + now-playing). */}
+          {!isHidden("status") && status.general && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 leading-snug" data-testid="share-status">{status.general}</p>}
+          {!isHidden("status") && status.music && <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400" data-testid="share-status-music">♪ {status.music}</p>}
+
+          {/* The facts under it — website, lightning (tap copies; Zap pays),
+              linked accounts — as readable rows, not glyphs. */}
+          <ProfileDetails
+            website={profile.website}
+            lud16={profile.lud16}
+            lud06={profile.lud06}
+            identities={isHidden("identities") ? [] : identities}
+            onZap={() => setZapOpen(true)}
+          />
+
+          {/* "Known for" — what the network says about this person, counted from
+              the configured trust perspective. Reads from relays only, so it
+              renders for logged-out visitors too; only when there is something
+              to say (the "+ Tag" way in sits on the Posts about row below).
               These replaced the self-declared "What you do" role chips that used
               to sit below (the placeholder this slot's old TODO referred to).
               The `roles` field stays in ProfilePrefs so nobody's stored data is
               erased — it just no longer renders. */}
-          <ProfileTagChips
-            pubkey={pubkey}
-            canTag={canTag}
-            isOwner={isOwner}
-            legacyRoles={legacyRoleLabels}
-          />
+          <ProfileTagChips pubkey={pubkey} canTag={canTag} isOwner={isOwner} />
 
           {/* The prompt half of Q2's "one-time, owner-prompted conversion".
               Only the owner sees it, only when they have roles that aren't
@@ -1055,14 +1088,13 @@ export default function SharePage() {
             <LegacyRolePrompt pubkey={pubkey} legacyRoles={legacyRoleLabels} />
           )}
 
-          {!isHidden("bio") && profile.about && (
-            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 leading-snug line-clamp-2" data-testid="share-bio">
-              <ShareBio text={profile.about} profiles={noteProfiles} />
-            </p>
-          )}
-
-          {/* "Posts about" — top hashtags as a skills-style chip row. */}
-          {!isHidden("topics") && <TopicChips topics={topics} />}
+          {/* "Posts about" — top hashtags as a skills-style chip row, with the
+              quiet "+ Tag" for a signed-in tagger at its end. Hiding topics
+              keeps the way in. */}
+          <TopicChips
+            topics={isHidden("topics") ? [] : topics}
+            trailing={canTag && pubkey ? <TagPersonButton pubkey={pubkey} isOwner={isOwner} legacyRoles={legacyRoleLabels} variant="link" /> : undefined}
+          />
 
           {/* Prominent, factual flag — when reported beyond the follower-scaled
               threshold (house POV → same verdict for every viewer). */}
@@ -1140,6 +1172,11 @@ export default function SharePage() {
             </div>
           )}
 
+          {/* Trust reviews — what people who know them said, as a one-line
+              summary under Followed-by that unfolds on tap. Silent for a
+              signed-out reader when nobody has vouched. */}
+          {pubkey && <TrustReviews pubkey={pubkey} personal={myPov} composeRequest={composeRequest} />}
+
           {/* Tenure / presence — Google-knowledge-panel "at a glance" line. */}
           {!isHidden("tenure") && (lastPostedAt > 0 || relayCount > 0) && (
             <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500" data-testid="share-tenure">
@@ -1215,7 +1252,7 @@ export default function SharePage() {
         )}
         {/* Events — upcoming leads; a small, muted "Past events" group below. */}
         {(calendarEvents.upcoming.length > 0 || calendarEvents.past.length > 0) && !isHidden("events") && (
-          <ContentTeaserBlock icon={<CalendarDays className="h-4 w-4" />} title={calendarEvents.upcoming.length > 0 ? "Upcoming events" : "Past events"} onViewAll={scrollToOpenIn} testId="share-block-events" className={orderClass("events")}>
+          <ContentTeaserBlock icon={<CalendarDays className="h-4 w-4" />} title={calendarEvents.upcoming.length > 0 ? "Upcoming events" : "Past events"} onViewAll={() => viewAllIn("events")} testId="share-block-events" className={orderClass("events")}>
             <div className="space-y-2">
               {calendarEvents.upcoming.map((ev) => (
                 <EventRow key={ev.id} event={ev} href={eventPath({ id: ev.id, pubkey }, relayHints)} />
@@ -1229,8 +1266,10 @@ export default function SharePage() {
             </div>
           </ContentTeaserBlock>
         )}
+        <SellingBlock pubkey={pubkey} relayHints={relayHints} hidden={isHidden("selling")} className={orderClass("selling")} onCount={setSellingCount} />
+
         {articles.length > 0 && !isHidden("articles") && (
-          <ContentTeaserBlock icon={<FileText className="h-4 w-4" />} title="Articles" onViewAll={scrollToOpenIn} testId="share-block-articles" className={orderClass("articles")}>
+          <ContentTeaserBlock icon={<FileText className="h-4 w-4" />} title="Articles" onViewAll={() => viewAllIn("articles")} testId="share-block-articles" className={orderClass("articles")}>
             <div className="space-y-3">
               {(articlesQuery.data ?? []).map((ev) => (
                 <EmbeddedArticleCard
@@ -1244,7 +1283,7 @@ export default function SharePage() {
         )}
 
         {noteEvents.length > 0 && !isHidden("notes") && (
-          <ContentTeaserBlock icon={<MessageSquare className="h-4 w-4" />} title="Latest notes" onViewAll={scrollToOpenIn} testId="share-block-notes" className={orderClass("notes")}>
+          <ContentTeaserBlock icon={<MessageSquare className="h-4 w-4" />} title="Latest notes" onViewAll={() => viewAllIn("notes")} testId="share-block-notes" className={orderClass("notes")}>
             <div className="space-y-4">
               {noteEvents.map((ev) => (
                 <div key={ev.id} className="pb-4 border-b border-slate-100 dark:border-slate-800/60 last:border-0 last:pb-0">
@@ -1256,7 +1295,7 @@ export default function SharePage() {
         )}
 
         {gridPhotos.length > 0 && !isHidden("photos") && (
-          <ContentTeaserBlock icon={<ImageIcon className="h-4 w-4" />} title="Photos" onViewAll={scrollToOpenIn} testId="share-block-photos" className={orderClass("photos")}>
+          <ContentTeaserBlock icon={<ImageIcon className="h-4 w-4" />} title="Photos" onViewAll={() => viewAllIn("media")} testId="share-block-photos" className={orderClass("photos")}>
             <div className="grid grid-cols-3 gap-2">
               {gridPhotos.map((photo) => (
                 <Link
@@ -1279,26 +1318,24 @@ export default function SharePage() {
         )}
 
         {videos.length > 0 && !isHidden("videos") && (
-          <ContentTeaserBlock icon={<VideoIcon className="h-4 w-4" />} title="Videos" onViewAll={scrollToOpenIn} testId="share-block-videos" className={orderClass("videos")}>
+          <ContentTeaserBlock icon={<VideoIcon className="h-4 w-4" />} title="Videos" onViewAll={() => viewAllIn("media")} testId="share-block-videos" className={orderClass("videos")}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {videos.map((v) => (
                 <div key={v.id} className="rounded-xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-black">
-                  <Link
-                    href={eventPath({ id: v.id, pubkey }, relayHints)}
-                    className="group relative block aspect-video bg-slate-900"
-                    data-testid="share-video-tile"
-                  >
-                    {v.poster ? (
-                      <img src={v.poster} alt="" loading="lazy" className="absolute inset-0 w-full h-full object-cover transition-transform duration-200 group-hover:scale-[1.03]" />
-                    ) : v.url ? (
-                      <video src={`${v.url}#t=0.1`} muted playsInline preload="metadata" className="absolute inset-0 w-full h-full object-cover" />
-                    ) : null}
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/10 group-hover:bg-black/20 transition-colors">
-                      <span className="h-12 w-12 rounded-full bg-white/90 group-hover:bg-white flex items-center justify-center shadow-lg transition-all group-hover:scale-105">
-                        <Play className="h-5 w-5 text-brand-deep ml-0.5" />
-                      </span>
-                    </div>
-                  </Link>
+                  {/* Tap plays the video here, full view, with who it's from
+                      and a way to the post — not a jump to the post page. */}
+                  <VideoTile
+                    poster={v.poster}
+                    url={v.url}
+                    title={v.title}
+                    onOpen={() =>
+                      openLightbox(
+                        videos.filter((x) => x.url).map((x) => ({ url: x.url!, kind: "video" as const, poster: x.poster ?? null })),
+                        Math.max(0, videos.filter((x) => x.url).findIndex((x) => x.id === v.id)),
+                        { author: { name: displayName, npub, picture: profile.picture ?? null }, postHref: eventPath({ id: v.id, pubkey }, relayHints) },
+                      )
+                    }
+                  />
                   {v.title && <p className="px-3 py-2 text-xs font-semibold text-slate-700 dark:text-slate-200 truncate bg-white dark:bg-slate-900">{v.title}</p>}
                 </div>
               ))}
@@ -1306,10 +1343,10 @@ export default function SharePage() {
           </ContentTeaserBlock>
         )}
 
-        {tracks.length > 0 && !isHidden("audio") && (
-          <ContentTeaserBlock icon={<Headphones className="h-4 w-4" />} title="Audio" onViewAll={scrollToOpenIn} testId="share-block-music" className={orderClass("audio")}>
+        {audio.native.length + audio.songs.length > 0 && !isHidden("audio") && (
+          <ContentTeaserBlock icon={<Headphones className="h-4 w-4" />} title="Audio" onViewAll={() => viewAllIn("music")} testId="share-block-music" className={orderClass("audio")}>
             <div className="space-y-2">
-              {tracks.map((t) => (
+              {audio.native.map((t) => (
                 <EmbeddedTrackCard
                   key={t.id}
                   id={t.id}
@@ -1322,13 +1359,16 @@ export default function SharePage() {
                   onZap={profile.lud16 ? () => setZapOpen(true) : undefined}
                 />
               ))}
+              {audio.songs.map((song) => (
+                <WavlakeSongCard key={song.id} song={song} />
+              ))}
             </div>
           </ContentTeaserBlock>
         )}
 
         {/* Live — live now + upcoming streams (NIP-53). Click opens the viewer. */}
         {liveStreams.has && !isHidden("live") && (
-          <ContentTeaserBlock icon={<Radio className="h-4 w-4" />} title={liveStreams.liveNow.length > 0 ? "Live now" : "Upcoming live"} onViewAll={scrollToOpenIn} testId="share-block-live" className={orderClass("live")}>
+          <ContentTeaserBlock icon={<Radio className="h-4 w-4" />} title={liveStreams.liveNow.length > 0 ? "Live now" : "Upcoming live"} onViewAll={() => viewAllIn("live")} testId="share-block-live" className={orderClass("live")}>
             <div className="space-y-2">
               {[...liveStreams.liveNow, ...liveStreams.upcoming].map((s) => {
                 const isLive = s.status === "live";
@@ -1371,26 +1411,6 @@ export default function SharePage() {
         )}
       </div>
 
-      {/* Open in a Nostr client (shared component, consistent with /e and /a) */}
-      <section ref={openInRef} className="mt-6">
-        <OpenInApp entity={{ kind: "profile", bech32: npub, uri: nostrUriFor(pubkey, relayHints) }} />
-      </section>
-
-      {/* Learn more (Brainstorm public resources) + funnel */}
-      <section className="mt-6 rounded-2xl bg-gradient-to-br from-brand-deep/[0.04] to-brand-accent/[0.06] border border-brand-accent/20 p-5 text-center" data-testid="share-learn-more">
-        <h3 className="text-base font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>New to Brainstorm?</h3>
-        <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 max-w-md mx-auto">Brainstorm scores reputation from real human connections — no algorithm. See how it works:</p>
-        <div className="mt-3 flex flex-wrap justify-center gap-2">
-          <a href="/what-is-wot" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-3.5 py-2 rounded-full bg-white dark:bg-slate-900 border border-brand-accent/30 text-xs font-semibold text-brand-deep hover:border-brand-accent/60 transition-colors" data-testid="link-what-is-wot">What is a Web of Trust?</a>
-          <a href="/about" target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-3.5 py-2 rounded-full bg-white dark:bg-slate-900 border border-brand-accent/30 text-xs font-semibold text-brand-deep hover:border-brand-accent/60 transition-colors" data-testid="link-about">About Brainstorm</a>
-        </div>
-        {!loggedIn && (
-          <Link href={`/login?invite=${npub}`} className="mt-4 inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold transition-colors" data-testid="share-get-started">
-            Create your free account <ArrowRight className="h-4 w-4" />
-          </Link>
-        )}
-      </section>
-
       {/* Footer */}
       <div className="mt-6 mb-2 text-center">
         <p className="text-xs text-slate-400 dark:text-slate-500">
@@ -1419,7 +1439,6 @@ export default function SharePage() {
         onOpenChange={setScoreModalOpen}
         scores={{ personalized: score01, global: houseScore01 }}
       />
-      <ShareProfileModal open={shareOpen} onOpenChange={setShareOpen} npub={npub} displayName={displayName} picture={profile.picture} nip05={profile.nip05} canonicalUrl={canonicalUrl} score01={houseScore01} onOwnPage />
       {profile.lud16 && (
         <ZapModal open={zapOpen} onOpenChange={setZapOpen} recipientPubkey={pubkey} lud16={profile.lud16} displayName={displayName} picture={profile.picture} />
       )}
@@ -1443,17 +1462,10 @@ export default function SharePage() {
   );
 }
 
-function ShareShell({ children, onShare }: { children: React.ReactNode; onShare?: () => void }) {
+function ShareShell({ children, actions }: { children: React.ReactNode; actions?: React.ReactNode }) {
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans flex flex-col">
-      <PublicPageHeader
-        maxWidthClass="max-w-4xl"
-        actions={onShare ? (
-          <button type="button" onClick={onShare} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold transition-colors" data-testid="share-open-modal">
-            Share
-          </button>
-        ) : undefined}
-      />
+      <PublicPageHeader maxWidthClass="max-w-4xl" actions={actions} />
       <main className="flex-1 w-full max-w-4xl mx-auto px-4 sm:px-6 py-6">{children}</main>
     </div>
   );
@@ -1473,8 +1485,4 @@ function NotFoundCard({ rawId }: { rawId: string }) {
 
 function safeNpub(pubkey: string): string {
   try { return npubFromPubkey(pubkey); } catch { return ""; }
-}
-
-function normalizeUrl(url: string): string {
-  return /^https?:\/\//i.test(url) ? url : `https://${url}`;
 }

@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { registerBottomChrome } from "@/lib/bottomChrome";
 import { useLocation } from "wouter";
 import { Search, Home, Users, LogIn } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -34,14 +35,8 @@ export function MobileTabBar() {
   // offset by, and it self-zeroes on desktop where this component renders nothing.
   useEffect(() => {
     if (!isMobile) return;
-    const prev = document.body.style.paddingBottom;
-    const inset = "calc(4rem + env(safe-area-inset-bottom))";
-    document.body.style.paddingBottom = inset;
-    document.documentElement.style.setProperty("--bs-bottom-chrome", inset);
-    return () => {
-      document.body.style.paddingBottom = prev;
-      document.documentElement.style.removeProperty("--bs-bottom-chrome");
-    };
+    // The ledger (lib/bottomChrome) sums this with the now-playing bar's height.
+    return registerBottomChrome("tabbar", "calc(4rem + env(safe-area-inset-bottom))");
   }, [isMobile]);
 
   if (!isMobile) return null;
