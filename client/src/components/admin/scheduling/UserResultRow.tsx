@@ -30,6 +30,7 @@ export function UserResultRow({
   trailing,
   onClick,
   active,
+  testId,
 }: {
   pubkey: string;
   npub?: string;
@@ -39,6 +40,8 @@ export function UserResultRow({
   trailing?: React.ReactNode;
   onClick?: () => void;
   active?: boolean;
+  /** Lets a caller address one row in tests without wrapping it. */
+  testId?: string;
 }) {
   const resolvedNpub = useMemo(() => npub || encodeNpub(pubkey), [npub, pubkey]);
   const [imgOk, setImgOk] = useState(true);
@@ -64,7 +67,7 @@ export function UserResultRow({
             }
           : undefined
       }
-      data-testid={`user-row-${pubkey.slice(0, 8)}`}
+      data-testid={testId ?? `user-row-${pubkey.slice(0, 8)}`}
     >
       {picture && imgOk ? (
         <img

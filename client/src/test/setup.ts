@@ -7,6 +7,11 @@ import { cleanup } from "@testing-library/react";
 // anything that hashes or encrypts runs there instead.
 const hasDom = typeof window !== "undefined";
 
+// Billing dates and money render in the reader's locale, so assertions here
+// spell out the en-US form and `npm test` pins LC_ALL to match. Node resolves
+// the default locale at process start, which is why the pin lives in the
+// script rather than in this file.
+
 // api.ts captures VITE_API_URL at module load — provide a stable test base URL.
 if (hasDom) {
   window.__ENV__ = {

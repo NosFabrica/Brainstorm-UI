@@ -1,0 +1,2065 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { timeZoneSetter } from "@/test/utils";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { nip19 } from "nostr-tools";
+import type {
+  AdminBillingDivergenceSection,
+  AdminBillingResolution,
+  AdminBillingSubscription,
+  AdminBillingSubscriptionAction,
+  AdminUserDetail,
+  FlashServiceItem,
+} from "@/services/api";
+import { AdminBillingCards } from "./AdminBillingCards";
+
+const getAdminBillingSubscriptions =
+  vi.fn<(page?: number, size?: number) => Promise<{ items: AdminBillingSubscription[]; total: number; pages: number; page?: number }>>();
+const getAdminBillingDivergence =
+  vi.fn<() => Promise<Record<string, AdminBillingDivergenceSection>>>();
+const setAdminBillingBlock =
+  vi.fn<(pubkey: string, blocked: boolean) => Promise<{ pubkey: string; blocked: boolean; revoked: boolean }>>();
+const resyncAdminBillingSubscription =
+  vi.fn<(pubkey: string) => Promise<{ applied: boolean; reason: string }>>();
+const clearUserSchedulingOverride = vi.fn<(pubkey: string) => Promise<AdminUserDetail>>();
+const assignUserScheduling = vi.fn<(pubkey: string, schedulingId: number) => Promise<unknown>>();
+const getAdminBillingFlashServices = vi.fn<() => Promise<FlashServiceItem[]>>();
+const getAdminBillingFlashRecordForSubscriber =
+  vi.fn<(pubkey: string) => Promise<unknown>>();
+const cancelAdminBillingSubscription =
+  vi.fn<(pubkey: string, reason?: string) => Promise<AdminBillingSubscriptionAction>>();
+const setAdminBillingSubscriptionStatus =
+  vi.fn<(pubkey: string, status: "paused" | "active") => Promise<AdminBillingSubscriptionAction>>();
+const getAdminBillingFlashRecordForUnresolved =
+  vi.fn<(subscriptionId: string) => Promise<unknown>>();
+const attributeAdminBillingUnresolved =
+  vi.fn<(subscriptionId: string, pubkey: string) => Promise<AdminBillingResolution>>();
+const dismissAdminBillingUnresolved =
+  vi.fn<(subscriptionId: string) => Promise<AdminBillingResolution>>();
+const getSchedulingPolicies = vi.fn<() => Promise<{ id: number; name: string; schedule_interval_seconds: number; is_default: boolean }[]>>(async () => [
+  { id: 1, name: "Free", schedule_interval_seconds: 5_184_000, is_default: true },
+  { id: 4, name: "Paid Staging Flash Test", schedule_interval_seconds: 604_800, is_default: false },
+]);
+const createAdminBillingPlan = vi.fn(async (body: Record<string, unknown>) => ({ id: 9, ...body }));
+// The users table: by default every 64-hex key is an account, so the paste
+// path keeps working; a test that wants "no such account" overrides it.
+const everyKeyIsAnAccount = async (params: { search?: string; size?: number }) => ({
+  items: params.search && /^[0-9a-f]{64}$/i.test(params.search) ? [{ pubkey: params.search.toLowerCase() }] : [],
+  total: 0,
+  pages: 0,
+});
+const getAdminUsers = vi.fn(everyKeyIsAnAccount);
+vi.mock("@/services/api", () => ({
+  apiClient: {
+    // Flash's live list is unavailable in these suites, so the mapping dialog
+    // falls back to its typed-id fields — the path these tests drive.
+    getAdminBillingFlashServices: () => getAdminBillingFlashServices(),
+    getAdminBillingFlashServicePlans: () => Promise.reject(new Error("Flash list unavailable in this test")),
+    getAdminUsers: (params: { search?: string; size?: number }) => getAdminUsers(params),
+    getSchedulingPolicies: () => getSchedulingPolicies(),
+    createAdminBillingPlan: (body: Record<string, unknown>) => createAdminBillingPlan(body),
+    getAdminBillingFlashRecordForUnresolved: (subscriptionId: string) =>
+      getAdminBillingFlashRecordForUnresolved(subscriptionId),
+    attributeAdminBillingUnresolved: (subscriptionId: string, pubkey: string) =>
+      attributeAdminBillingUnresolved(subscriptionId, pubkey),
+    dismissAdminBillingUnresolved: (subscriptionId: string) =>
+      dismissAdminBillingUnresolved(subscriptionId),
+    getAdminBillingSubscriptions: (page?: number, size?: number) => getAdminBillingSubscriptions(page, size),
+    getAdminBillingDivergence: () => getAdminBillingDivergence(),
+    setAdminBillingBlock: (pubkey: string, blocked: boolean) => setAdminBillingBlock(pubkey, blocked),
+    resyncAdminBillingSubscription: (pubkey: string) => resyncAdminBillingSubscription(pubkey),
+    clearUserSchedulingOverride: (pubkey: string) => clearUserSchedulingOverride(pubkey),
+    assignUserScheduling: (pubkey: string, schedulingId: number) => assignUserScheduling(pubkey, schedulingId),
+    getAdminBillingFlashRecordForSubscriber: (pubkey: string) =>
+      getAdminBillingFlashRecordForSubscriber(pubkey),
+    cancelAdminBillingSubscription: (pubkey: string, reason?: string) =>
+      cancelAdminBillingSubscription(pubkey, reason),
+    setAdminBillingSubscriptionStatus: (pubkey: string, status: "paused" | "active") =>
+      setAdminBillingSubscriptionStatus(pubkey, status),
+  },
+}));
+
+// Brainstorm's own profile search — names live on relays, not in the users table.
+const searchByText = vi.fn(async (_q: string) => ({ results: [] as Array<{ pubkey: string; npub: string; name?: string; displayName?: string; picture?: string }>, total: 0, timeMs: 1 }));
+vi.mock("@/lib/profileSearch", () => ({
+  searchByText: (q: string, pov: string, user?: string, max?: number) => searchByText(q),
+}));
+
+const toast = vi.fn();
+vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
+
+// Kind-0 enrichment, same seam the scheduling admin uses.
+const fetchProfileMap = vi.fn(async (_pubkeys: string[]) => new Map<string, { name?: string; display_name?: string; picture?: string }>());
+vi.mock("@/services/nostr", () => ({
+  fetchProfileMap: (pubkeys: string[]) => fetchProfileMap(pubkeys),
+}));
+
+const PUBKEY = "a".repeat(64);
+
+function renderCards() {
+  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  return render(
+    <QueryClientProvider client={qc}>
+      <AdminBillingCards active />
+    </QueryClientProvider>,
+  );
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  getAdminBillingDivergence.mockResolvedValue({});
+  // Flash's live list is unavailable by default, so the mapping dialog falls
+  // back to its typed-id fields; the roster's service tests resolve it.
+  getAdminBillingFlashServices.mockReset().mockRejectedValue(new Error("Flash list unavailable in this test"));
+  fetchProfileMap.mockResolvedValue(new Map());
+});
+
+describe("AdminBillingCards (server's Page[BillingSubscriptionItem] schema)", () => {
+  it("renders the roster: npub, open-set status, blocked flag, scheduler linkage", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 2,
+      pages: 1,
+      items: [
+        {
+          pubkey: PUBKEY,
+          flash_status: "active",
+          flash_subscription_id: "7d3b",
+          current_period_end: "2026-09-25T00:00:00Z",
+          last_synced_at: "2026-08-31T00:00:00Z",
+          last_sync_error: null,
+          granted_scheduling_name: "priority-weekly",
+          scheduling_source: "billing",
+          billing_blocked: false,
+        },
+        {
+          pubkey: "b".repeat(64),
+          flash_status: "some_future_status",
+          current_period_end: null,
+          granted_scheduling_name: null,
+          scheduling_name: "default",
+          scheduling_source: "manual",
+          billing_blocked: true,
+        },
+      ],
+    });
+
+    // The first subscriber has a kind-0; the second doesn't.
+    fetchProfileMap.mockResolvedValue(new Map([[PUBKEY, { display_name: "Lira Flint", picture: "https://x/p.jpg" }]]));
+
+    renderCards();
+
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    // Profile name replaces the bare npub once kind-0 resolves (npub stays as detail).
+    const row1 = screen.getByTestId(`billing-sub-${PUBKEY.slice(0, 8)}`);
+    await waitFor(() => expect(row1.textContent).toContain("Lira Flint"));
+    expect(row1.textContent).toContain("npub1");
+    expect(row1.textContent).toContain("priority-weekly");
+    // Source is its own column, not folded into the scheduling cell.
+    expect(screen.getByTestId(`billing-source-${PUBKEY.slice(0, 8)}`).textContent).toBe("Paid via Flash");
+    expect(screen.getByTestId(`billing-source-${"b".repeat(8)}`).textContent).toBe("Manual");
+    // Every row carries the admin actions menu.
+    expect(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`)).toBeInTheDocument();
+    expect(screen.getByTestId(`billing-actions-${"b".repeat(8)}`)).toBeInTheDocument();
+    // Unknown statuses render, blocked shows its flag — nothing crashes.
+    const row2 = screen.getByTestId(`billing-sub-${"b".repeat(8)}`);
+    expect(row2.textContent).toContain("Some future status") // an unknown status survives, as readable words;
+    expect(screen.getByTestId(`billing-blocked-${"b".repeat(8)}`)).toBeInTheDocument();
+  });
+
+  it("opens the actions menu: every verb live, each explaining itself", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 2,
+      pages: 1,
+      items: [
+        { pubkey: PUBKEY, flash_status: "active", flash_subscription_id: "7d3b", scheduling_source: "billing", billing_blocked: false },
+        { pubkey: "b".repeat(64), flash_status: "pending", scheduling_source: "manual", billing_blocked: false },
+      ],
+    });
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    const view = await screen.findByTestId("billing-action-view-flash");
+    expect(view.getAttribute("aria-disabled")).not.toBe("true");
+    const resync = screen.getByTestId("billing-action-resync");
+    expect(resync.getAttribute("aria-disabled")).not.toBe("true");
+    expect(resync.textContent).toContain("Re-reads this subscription from Flash");
+    const block = screen.getByTestId("billing-action-block");
+    expect(block.getAttribute("aria-disabled")).not.toBe("true");
+    // The surprise is spelled out where the decision is made.
+    expect(block.textContent).toContain("keeps charging");
+    await userEvent.keyboard("{Escape}");
+
+    // No subscription id → nothing in Flash to view; that item disables too.
+    await userEvent.click(screen.getByTestId(`billing-actions-${"b".repeat(8)}`));
+    const view2 = await screen.findByTestId("billing-action-view-flash");
+    expect(view2.getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("blocks only after confirmation, and says the charge continues", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [{ pubkey: PUBKEY, flash_status: "active", scheduling_source: "billing", billing_blocked: false }],
+    });
+    setAdminBillingBlock.mockResolvedValue({ pubkey: PUBKEY, blocked: true, revoked: true });
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-block"));
+
+    // Nothing has happened yet — the dialog is the gate.
+    const dialog = await screen.findByTestId("dialog-billing-block-confirm");
+    expect(dialog.textContent).toContain("keeps charging them");
+    expect(setAdminBillingBlock).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByTestId("button-billing-block-confirm"));
+    await waitFor(() => expect(setAdminBillingBlock).toHaveBeenCalledWith(PUBKEY, true));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ description: expect.stringContaining("still charging") }),
+      ),
+    );
+  });
+
+  it("unblocks straight away, and admits it doesn't re-grant by itself", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [{ pubkey: PUBKEY, flash_status: "active", scheduling_source: "default", billing_blocked: true }],
+    });
+    setAdminBillingBlock.mockResolvedValue({ pubkey: PUBKEY, blocked: false, revoked: false });
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-block"));
+
+    // No confirmation for lifting a bar.
+    expect(screen.queryByTestId("dialog-billing-block-confirm")).toBeNull();
+    await waitFor(() => expect(setAdminBillingBlock).toHaveBeenCalledWith(PUBKEY, false));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ description: expect.stringContaining("resync applies it") }),
+      ),
+    );
+  });
+
+  it("resyncs, and translates a no-op reason instead of looking broken", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [{ pubkey: PUBKEY, flash_status: "past_due", scheduling_source: "billing", billing_blocked: false }],
+    });
+    resyncAdminBillingSubscription.mockResolvedValue({ applied: false, reason: "held" });
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-resync"));
+
+    await waitFor(() => expect(resyncAdminBillingSubscription).toHaveBeenCalledWith(PUBKEY));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Nothing changed",
+          description: expect.stringContaining("Tier left as-is"),
+        }),
+      ),
+    );
+  });
+
+  it("surfaces a failed write instead of silently doing nothing", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [{ pubkey: PUBKEY, flash_status: "active", scheduling_source: "billing", billing_blocked: false }],
+    });
+    resyncAdminBillingSubscription.mockRejectedValue(new Error("Failed to resync subscription (502)"));
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-resync"));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: "destructive", description: "Failed to resync subscription (502)" }),
+      ),
+    );
+  });
+
+  it("shows Flash's own record, every row of it, without changing anything", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [{ pubkey: PUBKEY, flash_status: "active", flash_subscription_id: "7d3b", scheduling_source: "billing", billing_blocked: false }],
+    });
+    // The multi-row case a resync would disambiguate away — the reason to look.
+    getAdminBillingFlashRecordForSubscriber.mockResolvedValue({
+      livemode: true,
+      subscriptions: [
+        { id: "old", status: "expired", ref: PUBKEY },
+        { id: "7d3b", status: "active", ref: PUBKEY },
+      ],
+    });
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-flash-record"));
+
+    await waitFor(() => expect(getAdminBillingFlashRecordForSubscriber).toHaveBeenCalledWith(PUBKEY));
+    const json = await screen.findByTestId("billing-flash-record-json");
+    expect(json.textContent).toContain("\"old\"");
+    expect(json.textContent).toContain("\"7d3b\"");
+    expect(json.textContent).toContain("livemode");
+    // Both rows are called out, so the disagreement is visible at a glance.
+    expect(screen.getByTestId("dialog-billing-flash-record").textContent).toContain("2 rows");
+    // Looking is not acting.
+    expect(resyncAdminBillingSubscription).not.toHaveBeenCalled();
+    expect(setAdminBillingBlock).not.toHaveBeenCalled();
+  });
+
+  it("reads each Flash row as a sheet — tenure, cycles, price — and flags a test-mode key", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [{ pubkey: PUBKEY, flash_status: "active", flash_subscription_id: "7d3b", scheduling_source: "billing", billing_blocked: false }],
+    });
+    getAdminBillingFlashRecordForSubscriber.mockResolvedValue({
+      livemode: false,
+      subscriptions: [
+        { id: "old", status: "expired", ref: PUBKEY, currentPeriodNumber: 2, createdAt: "2026-01-10T12:00:00.000Z" },
+        {
+          id: "7d3b",
+          status: "active",
+          ref: PUBKEY,
+          currentPeriodNumber: 3,
+          createdAt: "2026-06-20T12:00:00.000Z",
+          pricingSnapshot: { planName: "Priority", amount: "200", currency: "USD", billingInterval: "monthly" },
+        },
+      ],
+    });
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-flash-record"));
+
+    // One sheet per row, so the old expired subscription reads beside the live one.
+    const sheets = await screen.findAllByTestId("flash-sheet");
+    expect(sheets).toHaveLength(2);
+    expect(sheets[0].textContent).toContain("2 periods");
+    expect(sheets[1].textContent).toContain("3 periods billed");
+    expect(sheets[1].textContent).toContain("$2.00 per month");
+    expect(sheets[1].textContent).toContain("Jun 20, 2026");
+    // A test key is a fact about the whole answer, so it sits in the title.
+    expect(screen.getByTestId("billing-flash-record-testmode")).toBeInTheDocument();
+    // The verbatim body is still one click away for anyone who wants it.
+    expect(screen.getByTestId("billing-flash-record-json").textContent).toContain("\"old\"");
+  });
+
+  it("keeps \"Flash has no such subscription\" apart from \"couldn't reach Flash\"", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [{ pubkey: PUBKEY, flash_status: "active", scheduling_source: "billing", billing_blocked: false }],
+    });
+    getAdminBillingFlashRecordForSubscriber.mockRejectedValue(
+      new Error("Could not reach Flash, so we do not know what it says. Nothing was changed."),
+    );
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-flash-record"));
+
+    // The server's wording survives to the admin — dismissing a real customer
+    // because an outage read as an absence is the failure this prevents.
+    const error = await screen.findByTestId("billing-flash-record-error");
+    expect(error.textContent).toContain("Could not reach Flash");
+    expect(error.textContent).not.toContain("no subscription");
+  });
+
+  it("searches by profile name or npub, and sorts by column", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 2,
+      pages: 1,
+      items: [
+        { pubkey: PUBKEY, flash_status: "active", current_period_end: "2026-09-25T00:00:00Z", scheduling_source: "billing", billing_blocked: false },
+        { pubkey: "b".repeat(64), flash_status: "expired", current_period_end: "2026-08-01T00:00:00Z", scheduling_source: "default", billing_blocked: false },
+      ],
+    });
+    fetchProfileMap.mockResolvedValue(new Map([[PUBKEY, { display_name: "Lira Flint" }]]));
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await waitFor(() => expect(screen.getByTestId(`billing-sub-${PUBKEY.slice(0, 8)}`).textContent).toContain("Lira Flint"));
+
+    // Search by name narrows to the matching row.
+    fireEvent.change(screen.getByTestId("input-billing-search"), { target: { value: "lira" } });
+    expect(screen.queryByTestId(`billing-sub-${"b".repeat(8)}`)).toBeNull();
+    expect(screen.getByTestId(`billing-sub-${PUBKEY.slice(0, 8)}`)).toBeInTheDocument();
+
+    // Clearing restores; sorting by status reorders (asc puts "active" first, desc flips).
+    fireEvent.change(screen.getByTestId("input-billing-search"), { target: { value: "" } });
+    fireEvent.click(screen.getByTestId("sort-billing-status"));
+    let rows = screen.getAllByTestId(/^billing-sub-/);
+    expect(rows[0].textContent).toContain("Active");
+    fireEvent.click(screen.getByTestId("sort-billing-status"));
+    rows = screen.getAllByTestId(/^billing-sub-/);
+    expect(rows[0].textContent).toContain("Expired");
+  });
+
+  it("surfaces the divergence report, honoring its truncation admission", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue({
+      unmatched_signups: {
+        count: 3,
+        truncated: true,
+        rows: [{ flash_subscription_id: "sub_pierre", status: "active" }],
+      },
+      settled_kind: { count: 0, truncated: false, rows: [] },
+    });
+
+    renderCards();
+
+    await waitFor(() => expect(screen.getByTestId("billing-divergence-unmatched_signups")).toBeInTheDocument());
+    const block = screen.getByTestId("billing-divergence-unmatched_signups");
+    expect(block.textContent).toContain("sub_pierre");
+    expect(block.textContent).toContain("list capped");
+    // Zero-count sections don't clutter the card.
+    expect(screen.queryByTestId("billing-divergence-settled_kind")).toBeNull();
+    expect(screen.getByTestId("billing-subscribers-empty")).toBeInTheDocument();
+  });
+
+  it("renders both halves of the split signup report without special-casing either", async () => {
+    // The server split one section into two; the panel is generic by design, so
+    // this asserts that generosity actually holds for the new pair of shapes.
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue({
+      unresolved_signups: {
+        count: 1,
+        truncated: false,
+        rows: [
+          {
+            id: 41,
+            event: "subscription.activated",
+            process_error: "no_reference",
+            flash_subscription_id: "sub_pierre",
+          },
+        ],
+      },
+      unmapped_plans: {
+        count: 1,
+        truncated: false,
+        rows: [
+          {
+            id: 42,
+            event: "subscription.renewed",
+            process_error: "unknown_plan",
+            flash_subscription_id: "sub_amara",
+            external_ref: PUBKEY,
+            flash_service_id: "9c1e",
+            flash_plan_id: "4f2a",
+          },
+        ],
+      },
+    });
+
+    renderCards();
+
+    const signups = await screen.findByTestId("billing-divergence-unresolved_signups");
+    const plans = screen.getByTestId("billing-divergence-unmapped_plans");
+    // Headers are the sections' titles, with their meanings.
+    expect(signups.textContent).toContain("Signups that named nobody");
+    expect(plans.textContent).toContain("Plans not mapped");
+    // Each section shows the fields its own fix needs: the service/plan pair an
+    // admin would map, and — for a signup that named nobody — nothing but the
+    // Flash id, because Flash's payload carries no contact details to show.
+    expect(plans.textContent).toContain("9c1e");
+    expect(plans.textContent).toContain("4f2a");
+    expect(signups.textContent).not.toContain("9c1e");
+    // Both still link out to the Flash subscription.
+    for (const [block, id] of [
+      [signups, "sub_pierre"],
+      [plans, "sub_amara"],
+    ] as const) {
+      const link = Array.from(block.querySelectorAll("a")).find((a) => (a.getAttribute("href") ?? "").includes(id));
+      expect(link).toBeTruthy();
+    }
+  });
+
+  // Enes: "more about knowing what's happening than acting." The report
+  // reads in two tiers — Faults (a paying subscriber is wrong, or a payment
+  // goes nowhere) first, For the record below — each section with its meaning
+  // in plain words, its count as a chip, and no key=value soup.
+  it("reads the report in two tiers, faults first, each section with its meaning", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue({
+      stale_syncs: { count: 1, truncated: false, rows: [{ pubkey: PUBKEY, flash_status: "active", last_synced_at: "2026-08-20T10:00:00Z" }] },
+      policy_mismatch: {
+        count: 1,
+        truncated: false,
+        rows: [{ pubkey: PUBKEY, flash_status: "active", granted_scheduling_id: 4, scheduling_id: 1, scheduling_source: "billing" }],
+      },
+      abandoned_checkouts: { count: 12, truncated: false, rows: [{ pubkey: PUBKEY, flash_subscription_id: "sub_x", sync_error_since: "2026-08-28T09:52:09Z" }] },
+    });
+    renderCards();
+    const faults = await screen.findByTestId("billing-divergence-faults");
+    const record = screen.getByTestId("billing-divergence-record");
+    expect(faults.compareDocumentPosition(record) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(faults.textContent).toContain("Paying and receiving disagree");
+    expect(faults.textContent).toContain("paid cadence");
+    expect(faults.textContent).not.toContain("Abandoned checkouts");
+    expect(record.textContent).toContain("Abandoned checkouts");
+    // The meaning's first sentence shows; the rest waits on hover of the line.
+    expect(screen.getByTestId("billing-divergence-meaning-abandoned_checkouts").getAttribute("title")).toContain("the count is the signal");
+    expect(record.textContent).toContain("Not re-read recently");
+    // Counts read as chips, not as `count=12`.
+    expect(record.textContent).not.toContain("count=");
+    expect(screen.getByTestId("billing-divergence-abandoned_checkouts").textContent).toContain("12");
+  });
+
+  // A fault row is a person, not a pubkey: who they are, what they pay for
+  // versus what they're on, and the one thing the server can do about it.
+  it("a paying/receiving mismatch names the person, both policies, and offers Resync", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    fetchProfileMap.mockResolvedValue(new Map([[PUBKEY, { name: "Vitor Pamplona", picture: "https://x/v.png" }]]));
+    getAdminBillingDivergence.mockResolvedValue({
+      policy_mismatch: {
+        count: 1,
+        truncated: false,
+        rows: [{ pubkey: PUBKEY, flash_status: "active", granted_scheduling_id: 4, scheduling_id: 1, scheduling_source: "billing" }],
+      },
+      stale_syncs: { count: 1, truncated: false, rows: [{ pubkey: PUBKEY, flash_status: "past_due", last_synced_at: "2026-08-20T10:00:00Z" }] },
+      failing_syncs: { count: 1, truncated: false, rows: [{ pubkey: PUBKEY, last_sync_error: "401 invalid api key", last_synced_at: null }] },
+    });
+    resyncAdminBillingSubscription.mockResolvedValue({ applied: true, reason: "granted" });
+    renderCards();
+    const row = await screen.findByTestId(`billing-mismatch-${PUBKEY.slice(0, 8)}`);
+    await waitFor(() => expect(row.textContent).toContain("Vitor Pamplona"));
+    expect(row.textContent).toContain("Paid Staging Flash Test"); // what they pay for
+    expect(row.textContent).toContain("Free"); // what they're actually on
+    expect(row.textContent).not.toContain("granted_scheduling_id=");
+    fireEvent.click(screen.getByTestId(`billing-divergence-resync-policy_mismatch-${PUBKEY.slice(0, 8)}`));
+    await waitFor(() => expect(resyncAdminBillingSubscription).toHaveBeenCalledWith(PUBKEY));
+    // Stale and failing rows read as dates and errors, with the same Resync.
+    const stale = screen.getByTestId(`billing-stale-${PUBKEY.slice(0, 8)}`);
+    expect(stale.textContent).toContain("Aug 20, 2026");
+    expect(stale.textContent).toContain("Past due");
+    const failing = screen.getByTestId(`billing-failing-${PUBKEY.slice(0, 8)}`);
+    expect(failing.textContent).toContain("401 invalid api key");
+    // On a phone (below sm) the message takes a line of its own under the
+    // person and Resync stays on the first line — at 390px it used to wrap
+    // one word, then one letter, per line beside the button.
+    const failingMeta = within(failing).getByTestId(`billing-failing-meta-${PUBKEY.slice(0, 8)}`);
+    expect(failingMeta).toHaveClass("basis-full");
+    expect(failingMeta).toHaveClass("sm:basis-auto");
+    expect(within(failing).getByRole("button", { name: /resync/i })).toHaveClass("order-2");
+    const staleMeta = within(stale).getByTestId(`billing-stale-meta-${PUBKEY.slice(0, 8)}`);
+    expect(staleMeta).toHaveClass("basis-full");
+    expect(screen.getByTestId(`billing-divergence-resync-failing_syncs-${PUBKEY.slice(0, 8)}`)).toBeInTheDocument();
+  });
+
+  // Staging, 2026-09-10: an admin comped someone to Priority, they paid
+  // anyway, and moving them to the free policy didn't stick — assigning any
+  // policy records the admin as its source, and billing will neither grant
+  // over nor revoke against that. The row that lists them lets go of the
+  // override instead, and says where they landed rather than assuming.
+  it("an admin override row resets to default by releasing the override, never by assigning a policy", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    fetchProfileMap.mockResolvedValue(new Map([[PUBKEY, { name: "Vitor Pamplona" }]]));
+    getAdminBillingDivergence.mockResolvedValue({
+      admin_overrides: {
+        count: 1,
+        truncated: false,
+        rows: [{ pubkey: PUBKEY, flash_status: "active", granted_scheduling_id: 4, scheduling_id: 1, scheduling_source: "admin" }],
+      },
+    });
+    // A paying subscriber comes back on what they pay for.
+    clearUserSchedulingOverride.mockResolvedValue({ pubkey: PUBKEY, scheduling_id: 4, scheduling_name: "Priority" });
+    renderCards();
+    const row = await screen.findByTestId(`billing-override-${PUBKEY.slice(0, 8)}`);
+    expect(row.textContent).toContain("Admin-set"); // the roster's word for it, not the raw enum
+    fireEvent.click(within(row).getByRole("button", { name: /reset to default/i }));
+
+    // Nothing changes until the admin confirms, on a dialog naming the person.
+    const dialog = await screen.findByTestId("dialog-billing-reset-confirm");
+    await waitFor(() => expect(dialog.textContent).toContain("Vitor Pamplona"));
+    expect(clearUserSchedulingOverride).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByTestId("button-billing-reset-confirm"));
+
+    await waitFor(() => expect(clearUserSchedulingOverride).toHaveBeenCalledWith(PUBKEY));
+    expect(assignUserScheduling).not.toHaveBeenCalled();
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Reset to default", description: expect.stringContaining("Priority") }),
+      ),
+    );
+    expect(JSON.stringify(toast.mock.calls)).not.toMatch(/free/i);
+  });
+
+  it("keeping the override calls nothing", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue({
+      admin_overrides: {
+        count: 1,
+        truncated: false,
+        rows: [{ pubkey: PUBKEY, flash_status: "active", granted_scheduling_id: 4, scheduling_id: 1, scheduling_source: "admin" }],
+      },
+    });
+    renderCards();
+    const row = await screen.findByTestId(`billing-override-${PUBKEY.slice(0, 8)}`);
+    fireEvent.click(within(row).getByRole("button", { name: /reset to default/i }));
+    const dialog = await screen.findByTestId("dialog-billing-reset-confirm");
+    fireEvent.click(within(dialog).getByTestId("button-billing-reset-dismiss"));
+    await waitFor(() => expect(screen.queryByTestId("dialog-billing-reset-confirm")).not.toBeInTheDocument());
+    expect(clearUserSchedulingOverride).not.toHaveBeenCalled();
+    expect(assignUserScheduling).not.toHaveBeenCalled();
+  });
+
+  // A mismatch billing holds has no override to let go of — Resync is its verb.
+  it("a billing-held mismatch offers Resync and no reset", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue({
+      policy_mismatch: {
+        count: 1,
+        truncated: false,
+        rows: [{ pubkey: PUBKEY, flash_status: "active", granted_scheduling_id: 4, scheduling_id: 1, scheduling_source: "billing" }],
+      },
+    });
+    renderCards();
+    const row = await screen.findByTestId(`billing-mismatch-${PUBKEY.slice(0, 8)}`);
+    expect(within(row).getByRole("button", { name: /resync/i })).toBeInTheDocument();
+    expect(within(row).queryByRole("button", { name: /reset/i })).toBeNull();
+  });
+
+  // Exhausted events overlap the signup sections by design: the signup row
+  // says what's wrong, the exhausted row says nothing will fix it alone. The
+  // exhausted row borrows the signup's Flash id so an admin can settle it
+  // from either place; with no signup to borrow from it is read-only.
+  it("an exhausted event a signup lists folds into it; one with no signup to borrow from reads only", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue({
+      unresolved_signups: {
+        count: 1,
+        truncated: false,
+        rows: [{ id: 14, event: "subscription.activated", created_at: "2026-08-28T14:58:09Z", process_error: "no_reference", flash_subscription_id: "sub_14" }],
+      },
+      exhausted_events: {
+        count: 2,
+        truncated: false,
+        rows: [
+          { id: 14, event: "subscription.activated", attempts: 5, process_error: "no_reference" },
+          { id: 77, event: "subscription.renewed", attempts: 5, process_error: "boom" },
+        ],
+      },
+    });
+    dismissAdminBillingUnresolved.mockResolvedValue({ subscription_id: "sub_14", applied: false, reason: "dismissed" } as AdminBillingResolution);
+    renderCards();
+    // The exhausted event a signup already lists folds into that signup: its
+    // attempts ride the delivery line, and the one menu sits on the signup.
+    const group = await screen.findByTestId("billing-unresolved-sub_14");
+    expect(within(group).getByTestId("billing-unresolved-delivery-14").textContent).toMatch(/gave up after 5 tries/i);
+    expect(screen.queryByTestId("billing-exhausted-14")).toBeNull();
+    const orphan = screen.getByTestId("billing-exhausted-77");
+    expect(screen.queryByTestId("billing-exhausted-actions-77")).toBeNull();
+    expect(orphan.textContent).toMatch(/no signup to settle/i);
+    // Dismissing from the signup goes through the one call, keyed by the Flash id.
+    await userEvent.click(screen.getByTestId("billing-unresolved-actions-sub_14"));
+    await userEvent.click(await screen.findByTestId("billing-unresolved-action-dismiss"));
+    await userEvent.click(await screen.findByTestId("button-billing-dismiss-confirm"));
+    await waitFor(() => expect(dismissAdminBillingUnresolved).toHaveBeenCalledWith("sub_14"));
+  });
+
+  // Enes: unmapped plans are "a call to action that can be tested and
+  // resolved" — creating the mapping is the fix, and the event replays.
+  it("an unmapped plan opens the mapping form prefilled with Flash's ids; submitting creates it", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue({
+      unmapped_plans: {
+        count: 1,
+        truncated: false,
+        rows: [{ id: 42, event: "subscription.renewed", created_at: "2026-09-01T10:00:00Z", process_error: "unknown_plan", flash_subscription_id: "sub_amara", external_ref: PUBKEY, flash_service_id: "9c1e-service", flash_plan_id: "4f2a-plan" }],
+      },
+    });
+    renderCards();
+    const row = await screen.findByTestId("billing-unmapped-42");
+    expect(row.textContent).toContain("9c1e-service");
+    expect(row.textContent).toContain("4f2a-plan");
+    await userEvent.click(screen.getByTestId("billing-unmapped-create-42"));
+    const dialog = await screen.findByTestId("dialog-plan-mapping-form");
+    expect((screen.getByTestId("input-plan-service-id") as HTMLInputElement).value).toBe("9c1e-service");
+    expect((screen.getByTestId("input-plan-plan-id") as HTMLInputElement).value).toBe("4f2a-plan");
+    await userEvent.click(screen.getByTestId("button-plan-mapping-submit"));
+    await waitFor(() => expect(createAdminBillingPlan).toHaveBeenCalledWith(expect.objectContaining({ flash_service_id: "9c1e-service", flash_plan_id: "4f2a-plan" })));
+    await waitFor(() => expect(dialog).not.toBeInTheDocument());
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Mapping created" }));
+  });
+
+  // Enes: the roster fetched 100 rows and said "Showing N of total" with no
+  // way to the rest. A pager, only when there is more than one page; filters
+  // and sort stay where they were when the page turns.
+  it("pages the roster when the server says there is more, keeping the filters", async () => {
+    const SUB = { pubkey: PUBKEY, flash_status: "active", scheduling_source: "billing", billing_blocked: false } as AdminBillingSubscription;
+    const pageOf = (n: number): AdminBillingSubscription[] =>
+      Array.from({ length: 3 }, (_, i) => ({ ...SUB, pubkey: `${n}${i}`.padEnd(64, "f"), scheduling_name: i === 0 ? "Paid Staging Flash Test" : "Free" }));
+    getAdminBillingSubscriptions.mockImplementation(async (page = 1) => ({ items: pageOf(page), total: 150, pages: 2, page }));
+    getAdminBillingDivergence.mockResolvedValue({});
+    renderCards();
+    await screen.findAllByTestId(/^billing-sub-/);
+    expect(screen.getByTestId("billing-pager")).toHaveTextContent("Page 1 of 2");
+    expect(screen.queryByText(/Showing \d+ of/)).toBeNull();
+    // Filter to the paid policy, then turn the page: the filter survives.
+    fireEvent.change(screen.getByTestId("input-billing-search"), { target: { value: "Paid Staging" } });
+    expect(screen.getAllByTestId(/^billing-sub-/)).toHaveLength(1);
+    await userEvent.click(screen.getByTestId("billing-pager-next"));
+    await waitFor(() => expect(getAdminBillingSubscriptions).toHaveBeenLastCalledWith(2, 100));
+    await waitFor(() => expect(screen.getByTestId("billing-pager")).toHaveTextContent("Page 2 of 2"));
+    expect(screen.getAllByTestId(/^billing-sub-/)).toHaveLength(1);
+    expect(screen.getByTestId("billing-pager-next")).toBeDisabled();
+  });
+
+  it("no pager on a single page", async () => {
+    const SUB = { pubkey: PUBKEY, flash_status: "active", scheduling_source: "billing", billing_blocked: false } as AdminBillingSubscription;
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 1, pages: 1, items: [SUB] });
+    getAdminBillingDivergence.mockResolvedValue({});
+    renderCards();
+    await screen.findAllByTestId(/^billing-sub-/);
+    expect(screen.queryByTestId("billing-pager")).toBeNull();
+  });
+
+  // Enes: Flash §6 says the cancellation policy is account-configurable, so
+  // the copy must not assert end-of-period as fact — the confirmation says when.
+  it("cancel copy reads the policy as configurable, not as fact", async () => {
+    const SUB = { pubkey: PUBKEY, flash_status: "active", scheduling_source: "billing", billing_blocked: false } as AdminBillingSubscription;
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 1, pages: 1, items: [{ ...SUB, flash_subscription_id: "sub_1" }] });
+    getAdminBillingDivergence.mockResolvedValue({});
+    renderCards();
+    await screen.findAllByTestId(/^billing-sub-/);
+    await userEvent.click(screen.getByTestId(`billing-actions-${SUB.pubkey.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-cancel"));
+    const dialog = await screen.findByTestId("dialog-billing-cancel-confirm");
+    expect(dialog.textContent).toMatch(/cancellation policy/i);
+    expect(dialog.textContent).not.toMatch(/at the end of the paid period, so/i);
+  });
+
+  // Benjamin: "this is just ugly code admins might not understand." A signup
+  // row reads as what happened and when, then why it's stuck — never the
+  // server's event names or failure codes. An exhausted event that is also
+  // listed above says so, so four stuck signups don't read as eight problems.
+  it("signup rows read in plain words, and an exhausted event already listed folds into its signup", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue({
+      unresolved_signups: {
+        count: 1,
+        truncated: false,
+        rows: [{ id: 29, event: "subscription.canceled", created_at: "2026-08-31T15:06:26Z", process_error: "no_reference", flash_subscription_id: "01a048e0-a087-767c-85df-d5fff34e9c50" }],
+      },
+      exhausted_events: {
+        count: 2,
+        truncated: false,
+        rows: [
+          { id: 29, event: "subscription.canceled", attempts: 5, process_error: "no_reference" },
+          { id: 88, event: "subscription.past_due", attempts: 5, process_error: "unknown_plan" },
+        ],
+      },
+    });
+    renderCards();
+    const signup = await screen.findByTestId("billing-unresolved-01a048e0-a087-767c-85df-d5fff34e9c50");
+    expect(signup.textContent).toContain("Subscription cancelled");
+    expect(signup.textContent).toContain("Aug 31, 2026");
+    expect(signup.textContent).toContain("Named no account");
+    expect(signup.textContent).not.toContain("subscription.canceled");
+    expect(signup.textContent).not.toContain("no_reference");
+    // The Flash id is an identifier, kept short and linked, not a paragraph.
+    expect(signup.textContent).toContain("01a048e0");
+    // The exhausted event that IS this signup folds into it: its attempts ride
+    // the delivery line, and the exhausted section says what it folded.
+    expect(signup.textContent).toMatch(/gave up after 5 tries/i);
+    expect(signup.textContent).not.toContain("#29");
+    expect(screen.queryByTestId("billing-exhausted-29")).toBeNull();
+    expect(screen.getByTestId("billing-divergence-exhausted_events").textContent).toMatch(/1 listed above/i);
+
+    const orphan = screen.getByTestId("billing-exhausted-88");
+    expect(orphan.textContent).toContain("Payment overdue");
+    expect(orphan.textContent).toContain("Plan not mapped");
+    expect(orphan.textContent).not.toMatch(/listed above/i);
+  });
+
+  // Enes: "One signup reads as one problem." Two deliveries of one nobody's
+  // payment — started, then cancelled — used to render as two rows with two
+  // menus, and again in the exhausted section: four rows, one payment. Now one
+  // entry per Flash subscription, its deliveries and their attempts beneath,
+  // one menu; the exhausted section keeps only what is not already shown, and
+  // every heading still reconciles with the server's count.
+  it("one signup reads as one problem: grouped by Flash subscription, deliveries beneath, one menu", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue({
+      unresolved_signups: {
+        count: 3,
+        truncated: false,
+        rows: [
+          { id: 14, event: "subscription.activated", created_at: "2026-09-02T10:00:00Z", process_error: "no_reference", flash_subscription_id: "sub_a" },
+          { id: 16, event: "subscription.activated", created_at: "2026-09-01T10:00:00Z", process_error: "no_reference", flash_subscription_id: "sub_b" },
+          { id: 15, event: "subscription.canceled", created_at: "2026-09-04T10:00:00Z", process_error: "no_reference", flash_subscription_id: "sub_a" },
+        ],
+      },
+      exhausted_events: {
+        count: 3,
+        truncated: false,
+        rows: [
+          { id: 14, event: "subscription.activated", attempts: 5, process_error: "no_reference" },
+          { id: 15, event: "subscription.canceled", attempts: 5, process_error: "no_reference" },
+          { id: 99, event: "subscription.renewed", attempts: 5, process_error: "boom" },
+        ],
+      },
+    });
+    renderCards();
+    const signups = await screen.findByTestId("billing-divergence-unresolved_signups");
+    // One entry per subscription, one menu each — and the chip says both numbers.
+    expect(screen.getAllByTestId("billing-unresolved-actions-sub_a")).toHaveLength(1);
+    expect(screen.getAllByTestId("billing-unresolved-actions-sub_b")).toHaveLength(1);
+    expect(signups.textContent).toContain("3 deliveries");
+    expect(signups.textContent).toContain("2 signups");
+    // The deliveries sit under their entry, with the attempts the replay gave up after.
+    const groupA = screen.getByTestId("billing-unresolved-sub_a");
+    const d14 = within(groupA).getByTestId("billing-unresolved-delivery-14");
+    const d15 = within(groupA).getByTestId("billing-unresolved-delivery-15");
+    expect(d14.textContent).toContain("Subscription started");
+    expect(d14.textContent).toMatch(/gave up after 5 tries/i);
+    expect(d15.textContent).toContain("Subscription cancelled");
+    expect(within(screen.getByTestId("billing-unresolved-sub_b")).getByTestId("billing-unresolved-delivery-16").textContent).not.toMatch(/gave up/i);
+    // The exhausted section keeps only the event nobody lists above, and says what it folded.
+    expect(screen.queryByTestId("billing-exhausted-14")).toBeNull();
+    expect(screen.queryByTestId("billing-exhausted-15")).toBeNull();
+    expect(screen.getByTestId("billing-exhausted-99")).toBeInTheDocument();
+    const exhausted = screen.getByTestId("billing-divergence-exhausted_events");
+    expect(exhausted.textContent).toMatch(/3/);
+    expect(exhausted.textContent).toMatch(/2 listed above/i);
+    // No two rendered rows share a test id.
+    const ids = [...document.querySelectorAll("[data-testid]")].map((e) => e.getAttribute("data-testid"));
+    const dupes = ids.filter((id, i) => ids.indexOf(id) !== i);
+    expect(dupes).toEqual([]);
+  });
+
+  // An exhausted event that borrows its Flash id from Plans not mapped is an
+  // identified, paying subscriber. Attribute and Flash's record mean something
+  // there; "Dismiss as nobody's" can only be refused by the server (404), so
+  // it is not offered — an action that cannot succeed reads as a failure.
+  it("an exhausted event borrowing from Plans not mapped offers Attribute and the record, never Dismiss", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue({
+      unmapped_plans: {
+        count: 1,
+        truncated: false,
+        rows: [{ id: 42, event: "subscription.renewed", created_at: "2026-09-01T10:00:00Z", process_error: "unknown_plan", flash_subscription_id: "sub_amara", external_ref: PUBKEY, flash_service_id: "9c1e", flash_plan_id: "4f2a" }],
+      },
+      exhausted_events: {
+        count: 1,
+        truncated: false,
+        rows: [{ id: 42, event: "subscription.renewed", attempts: 5, process_error: "unknown_plan" }],
+      },
+    });
+    renderCards();
+    const row = await screen.findByTestId("billing-exhausted-42");
+    expect(row.textContent).toMatch(/listed above/i);
+    await userEvent.click(screen.getByTestId("billing-exhausted-actions-42"));
+    expect(await screen.findByTestId("billing-exhausted-action-attribute")).toBeInTheDocument();
+    expect(screen.getByTestId("billing-exhausted-action-flash-record")).toBeInTheDocument();
+    expect(screen.queryByTestId("billing-exhausted-action-dismiss")).toBeNull();
+  });
+
+  // Benjamin: "make the billing tab more like the Users tab — don't overkill
+  // it." The roster wears the User Database's anatomy: a header with the count,
+  // the page and the source beside the search and filters, over a bordered
+  // grid with a shaded header row and column rules.
+  it("reads like the user database: count, page and source in the header beside the controls, over a bordered grid", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 2,
+      pages: 1,
+      items: [
+        { pubkey: PUBKEY, flash_status: "active", scheduling_source: "billing", billing_blocked: false },
+        { pubkey: "2".repeat(64), flash_status: "past_due", scheduling_source: "admin", billing_blocked: false },
+      ],
+    });
+    renderCards();
+    const header = await screen.findByTestId("billing-roster-header");
+    expect(header).toHaveTextContent("2 subscribers");
+    expect(header).toHaveTextContent("Page 1 of 1");
+    expect(header).toHaveTextContent("Source: /admin/billing/subscriptions");
+    expect(within(header).getByTestId("input-billing-search")).toBeInTheDocument();
+    expect(within(header).getByTestId("select-billing-status")).toBeInTheDocument();
+    const table = screen.getByTestId("table-billing-subscribers");
+    expect(table.className).toMatch(/border-collapse/);
+    const firstTh = table.querterySelector ? null : table.querySelector("thead th");
+    expect(firstTh?.className).toMatch(/border-r/);
+    expect(table.querySelector("thead tr")?.className).toMatch(/bg-slate-50/);
+  });
+
+  // Benjamin: "are we able to add in the cycle and interval after period?"
+  // The roster row carries neither; Flash's own record for the subscriber does
+  // (the row's "Flash's record" action already reads it). So each row asks
+  // once, cached, and says the cadence and which billing period they are on.
+  it("shows each subscriber's billing interval and cycle after the period, from Flash's record", async () => {
+    const OTHER = "2".repeat(64);
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 2,
+      pages: 1,
+      items: [
+        { pubkey: PUBKEY, flash_status: "active", flash_subscription_id: "7d3b", scheduling_source: "billing", billing_blocked: false },
+        { pubkey: OTHER, flash_status: "active", scheduling_source: "admin", billing_blocked: false },
+      ],
+    });
+    getAdminBillingFlashRecordForSubscriber.mockImplementation(async (pubkey: string) => {
+      if (pubkey !== PUBKEY) throw new Error("Flash has no such subscription");
+      return {
+        livemode: true,
+        subscriptions: [
+          { id: "old", status: "expired", ref: PUBKEY, currentPeriodNumber: 12, pricingSnapshot: { planName: "Priority", amount: "200", currency: "USD", billingInterval: "yearly" } },
+          { id: "7d3b", status: "active", ref: PUBKEY, currentPeriodNumber: 3, pricingSnapshot: { planName: "Priority", amount: "200", currency: "USD", billingInterval: "monthly" } },
+        ],
+      };
+    });
+    renderCards();
+    const table = await screen.findByTestId("table-billing-subscribers");
+    const headers = [...table.querySelectorAll("thead th")].map((th) => th.textContent?.trim());
+    expect(headers.indexOf("Interval")).toBe(headers.indexOf("Period") + 1);
+    expect(headers.indexOf("Cycle")).toBe(headers.indexOf("Period") + 2);
+    // The record that IS this roster row — not whichever Flash listed first.
+    const pk8 = PUBKEY.slice(0, 8);
+    await waitFor(() => expect(screen.getByTestId(`billing-interval-${pk8}`)).toHaveTextContent("Monthly"));
+    expect(screen.getByTestId(`billing-cycle-${pk8}`)).toHaveTextContent("3");
+    expect(screen.getByTestId(`billing-cycle-${pk8}`)).toHaveAttribute("title", "3 periods billed");
+    // Flash has no such subscription: the cells say nothing, not a guess.
+    const other8 = OTHER.slice(0, 8);
+    await waitFor(() => expect(screen.getByTestId(`billing-interval-${other8}`)).toHaveTextContent("—"));
+    expect(screen.getByTestId(`billing-cycle-${other8}`)).toHaveTextContent("—");
+  });
+
+  // Benjamin, reviewing Needs attention: the whole card wore the warning
+  // colour though most rows are for the record; the copy ran three sentences
+  // an admin re-reads daily; the retired-plan rows repeated their heading and
+  // wore bordered buttons where the abandoned row has a quiet link.
+  it("the report is a neutral card whose Faults kicker carries the warning, with one-sentence copy and the rest on hover", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue({
+      failing_syncs: { count: 1, truncated: false, rows: [{ pubkey: PUBKEY, last_sync_error: "401 invalid api key", last_synced_at: "2026-09-07T00:00:00Z" }] },
+      retired_plan_subscribers: { count: 1, truncated: false, rows: [{ pubkey: "2".repeat(64), flash_status: "active", flash_subscription_id: "sub_r", granted_scheduling_id: 7 }] },
+    });
+    renderCards();
+    const card = await screen.findByTestId("card-billing-divergence");
+    expect(card.className).not.toMatch(/amber/);
+    expect(card.textContent).toContain("What Flash and Brainstorm disagree on.");
+    expect(card.textContent).not.toContain("Most of this is for knowing");
+    const faults = screen.getByTestId("billing-divergence-faults");
+    expect(faults.querySelector("span")?.className).toMatch(/amber/);
+    // The section's meaning: first sentence shown, all of it on hover.
+    const failing = screen.getByTestId("billing-divergence-failing_syncs");
+    const meaning = within(failing).getByTestId("billing-divergence-meaning-failing_syncs");
+    expect(meaning.textContent).toBe("The read from Flash failed and it still matters — a bad API key, or a paying subscriber we've lost track of.");
+    expect(meaning.getAttribute("title")).toContain("Abandoned checkouts are kept out");
+    // A retired-plan row says what it grants, not what its heading already said, and links quietly.
+    const retired = screen.getByTestId(`billing-retired-${"2".repeat(8)}`);
+    expect(retired.textContent).not.toMatch(/Renewing on a retired plan/);
+    expect(retired.textContent).toMatch(/Grants/);
+    const link = within(retired).getByTestId(`billing-retired-flash-${"2".repeat(8)}`);
+    expect(link.textContent?.trim()).toBe("Flash");
+    expect(link.className).not.toMatch(/border/);
+  });
+
+  // On a phone the grid scrolls sideways; its date cells must not wrap, or
+  // every row grows to twice its desktop height before the table widens.
+  it("the roster's date cells keep to one line so the grid widens instead of the rows", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [{ pubkey: PUBKEY, flash_status: "active", scheduling_source: "billing", billing_blocked: false, current_period_start: "2026-09-07T00:00:00Z", current_period_end: "2026-09-08T00:00:00Z", next_billing_date: "2026-09-08T00:00:00Z", last_synced_at: "2026-09-07T00:00:00Z" }],
+    });
+    renderCards();
+    const pk8 = PUBKEY.slice(0, 8);
+    await screen.findByTestId(`billing-period-${pk8}`);
+    for (const cell of ["period", "nextbill", "synced"]) {
+      expect(screen.getByTestId(`billing-${cell}-${pk8}`)).toHaveClass("whitespace-nowrap");
+    }
+  });
+
+  // Numbers first: how many are paying, how many are in trouble, how many
+  // are on their way out, and how many faults wait below — all from what the
+  // tab already fetched. The Faults tile is the way down to the report.
+  it("sums the roster and the report into a stat strip", async () => {
+    const row = (pk: string, status: string, over: Partial<AdminBillingSubscription> = {}): AdminBillingSubscription =>
+      ({ pubkey: pk.repeat(64), flash_status: status, scheduling_source: "billing", billing_blocked: false, ...over }) as AdminBillingSubscription;
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 6,
+      pages: 1,
+      items: [
+        row("1", "active"),
+        row("2", "active", { cancel_effective_date: "2026-09-30T00:00:00Z" }),
+        row("3", "past_due"),
+        row("4", "pending"),
+        row("5", "expired"),
+        row("6", "trial"),
+      ],
+    });
+    getAdminBillingDivergence.mockResolvedValue({
+      policy_mismatch: { count: 2, truncated: false, rows: [] },
+      unresolved_signups: { count: 4, truncated: false, rows: [{ id: 14, event: "subscription.activated", created_at: null, process_error: "no_reference", flash_subscription_id: "sub_14" }] },
+      // Two gave up; one of them IS signup 14 above — the same problem, counted once.
+      exhausted_events: { count: 2, truncated: false, rows: [{ id: 14, event: "subscription.activated", attempts: 5, process_error: "no_reference" }, { id: 99, event: "subscription.renewed", attempts: 5, process_error: "boom" }] },
+      abandoned_checkouts: { count: 9, truncated: false, rows: [] }, // for the record — not a fault
+    });
+    renderCards();
+    const strip = await screen.findByTestId("billing-stats");
+    expect(screen.getByTestId("billing-stat-active")).toHaveTextContent("3"); // active + trial, still entitled
+    expect(screen.getByTestId("billing-stat-past_due")).toHaveTextContent("1");
+    expect(screen.getByTestId("billing-stat-pending")).toHaveTextContent("1");
+    expect(screen.getByTestId("billing-stat-ending")).toHaveTextContent("1"); // a cancellation scheduled
+    expect(screen.getByTestId("billing-stat-faults")).toHaveTextContent("7"); // 2 + 4 + the one exhausted event not already listed; abandoned excluded
+    expect(strip.textContent).toContain("Ending soon");
+  });
+
+  // Enes: without next_billing_date "an operator cannot tell a renewal that is
+  // due from one that has silently stopped." It's in every row; show it. The
+  // period reads as a span, the sync error as words, and the name is the way
+  // to the person's public profile.
+  it("shows next billing, the period as a span, the sync error in words, and links the name to the profile", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [
+        {
+          pubkey: PUBKEY,
+          flash_status: "active",
+          scheduling_source: "billing",
+          billing_blocked: false,
+          current_period_start: "2026-09-01T12:00:00Z",
+          current_period_end: "2026-09-30T12:00:00Z",
+          next_billing_date: "2026-10-01T12:00:00Z",
+          last_synced_at: "2026-09-04T09:00:00Z",
+          last_sync_error: "unknown_subscription",
+        } as AdminBillingSubscription,
+      ],
+    });
+    getAdminBillingDivergence.mockResolvedValue({});
+    renderCards();
+    const row = await screen.findByTestId(`billing-sub-${PUBKEY.slice(0, 8)}`);
+    expect(screen.getByTestId(`billing-nextbill-${PUBKEY.slice(0, 8)}`)).toHaveTextContent("Oct 1, 2026");
+    expect(screen.getByTestId("sort-billing-nextbill")).toBeInTheDocument();
+    expect(screen.getByTestId(`billing-period-${PUBKEY.slice(0, 8)}`).textContent).toMatch(/Sep 1, 2026.*Sep 30, 2026/);
+    // The server's code, in words — not `unknown_subscription`.
+    expect(screen.getByTestId(`billing-sync-error-${PUBKEY.slice(0, 8)}`)).toHaveTextContent("Flash has no such subscription");
+    const profile = row.querySelector(`a[href="/p/${nip19.npubEncode(PUBKEY)}"]`);
+    expect(profile).not.toBeNull();
+    expect(profile?.getAttribute("target")).toBe("_blank");
+  });
+
+  it("a row with no next billing date says so rather than guessing", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [{ pubkey: PUBKEY, flash_status: "expired", scheduling_source: "default", billing_blocked: false, next_billing_date: null } as AdminBillingSubscription],
+    });
+    getAdminBillingDivergence.mockResolvedValue({});
+    renderCards();
+    await screen.findByTestId(`billing-sub-${PUBKEY.slice(0, 8)}`);
+    expect(screen.getByTestId(`billing-nextbill-${PUBKEY.slice(0, 8)}`)).toHaveTextContent("—");
+  });
+
+  it("says so plainly when nothing is unsettled", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+
+    renderCards();
+
+    await waitFor(() => expect(screen.getByTestId("billing-divergence-empty")).toBeInTheDocument());
+  });
+
+  it("shows an honest error state when the endpoint isn't there yet", async () => {
+    getAdminBillingSubscriptions.mockRejectedValue(new Error("Failed to fetch billing subscriptions (404)"));
+
+    renderCards();
+
+    // The component retries once by design, so the error surfaces after a beat.
+    await waitFor(() => expect(screen.getByTestId("billing-subscribers-error")).toBeInTheDocument(), {
+      timeout: 4000,
+    });
+  });
+});
+
+describe("AdminBillingCards — the day Flash named, wherever the operator is", () => {
+  const setTimeZone = timeZoneSetter();
+
+  it("shows a date-only period end unshifted, and localises a real instant", async () => {
+    setTimeZone("America/Los_Angeles");
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 1,
+      pages: 1,
+      items: [
+        {
+          pubkey: PUBKEY,
+          flash_status: "active",
+          // The period end is the day Flash named; the sync is our own instant.
+          current_period_end: "2026-09-20",
+          last_synced_at: "2026-09-20T02:00:00Z",
+          scheduling_source: "billing",
+          billing_blocked: false,
+        },
+      ],
+    });
+
+    renderCards();
+
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    const row = screen.getByTestId("table-billing-subscribers");
+    expect(row).toHaveTextContent("Sep 20, 2026");
+    expect(row).toHaveTextContent("Sep 19, 2026");
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Acting on a subscription without leaving the tab
+//
+// Subscribers still cancel in Flash's portal; this is the support path, for an
+// admin already looking at the row.
+// ---------------------------------------------------------------------------
+function rosterOf(overrides: Partial<AdminBillingSubscription> = {}) {
+  return {
+    total: 1,
+    pages: 1,
+    items: [
+      {
+        pubkey: PUBKEY,
+        flash_status: "active",
+        flash_subscription_id: "7d3b",
+        scheduling_source: "billing",
+        billing_blocked: false,
+        ...overrides,
+      } as AdminBillingSubscription,
+    ],
+  };
+}
+
+const CANCEL_SCHEDULED: AdminBillingSubscriptionAction = {
+  pubkey: PUBKEY,
+  subscription_id: "7d3b",
+  // Flash accepted the cancellation and still calls them active — the account
+  // cancels at period end.
+  flash_status: "active",
+  cancel_effective_date: "2026-09-20",
+  cancellation_scheduled: true,
+  applied: false,
+  reason: "held",
+};
+
+describe("cancelling and pausing from the billing tab", () => {
+  it("cancels only after the admin agrees, and names who it affects", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(rosterOf());
+    fetchProfileMap.mockResolvedValue(new Map([[PUBKEY, { display_name: "Lira Flint" }]]));
+    cancelAdminBillingSubscription.mockResolvedValue(CANCEL_SCHEDULED);
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-cancel"));
+
+    const dialog = await screen.findByTestId("dialog-billing-cancel-confirm");
+    expect(cancelAdminBillingSubscription).not.toHaveBeenCalled();
+    const who = screen.getByTestId("billing-cancel-confirm-who");
+    expect(who.textContent).toContain("Lira Flint");
+    // Never the raw hex — the same rule the tier picker holds to.
+    expect(dialog.textContent).not.toContain(PUBKEY);
+
+    await userEvent.click(screen.getByTestId("button-billing-cancel-confirm"));
+    await waitFor(() => expect(cancelAdminBillingSubscription).toHaveBeenCalledWith(PUBKEY, ""));
+  });
+
+  it("reports a scheduled cancellation by its date, not as a failure", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(rosterOf());
+    cancelAdminBillingSubscription.mockResolvedValue(CANCEL_SCHEDULED);
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-cancel"));
+    await userEvent.click(await screen.findByTestId("button-billing-cancel-confirm"));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Cancellation scheduled",
+          description: expect.stringContaining("Sep 20, 2026"),
+        }),
+      ),
+    );
+    // Not a destructive toast: it worked.
+    expect(toast).not.toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" }));
+  });
+
+  it("says so plainly when Flash ended it there and then", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(rosterOf());
+    cancelAdminBillingSubscription.mockResolvedValue({
+      ...CANCEL_SCHEDULED,
+      flash_status: "canceled",
+      cancel_effective_date: null,
+    });
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-cancel"));
+    await userEvent.click(await screen.findByTestId("button-billing-cancel-confirm"));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Subscription cancelled" }),
+      ),
+    );
+  });
+
+  it("does not claim success when Flash scheduled nothing", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(rosterOf());
+    cancelAdminBillingSubscription.mockResolvedValue({
+      ...CANCEL_SCHEDULED,
+      cancel_effective_date: null,
+      cancellation_scheduled: false,
+    });
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-cancel"));
+    await userEvent.click(await screen.findByTestId("button-billing-cancel-confirm"));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: "destructive" }),
+      ),
+    );
+  });
+
+  it("passes the operator's reason to the server", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(rosterOf());
+    cancelAdminBillingSubscription.mockResolvedValue(CANCEL_SCHEDULED);
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-cancel"));
+    await userEvent.type(await screen.findByTestId("input-billing-cancel-reason"), "Refunded");
+    await userEvent.click(screen.getByTestId("button-billing-cancel-confirm"));
+
+    await waitFor(() =>
+      expect(cancelAdminBillingSubscription).toHaveBeenCalledWith(PUBKEY, "Refunded"),
+    );
+  });
+
+  it("leaves the subscription alone when the admin backs out", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(rosterOf());
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-cancel"));
+    await userEvent.click(await screen.findByTestId("button-billing-cancel-dismiss"));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("dialog-billing-cancel-confirm")).not.toBeInTheDocument(),
+    );
+    expect(cancelAdminBillingSubscription).not.toHaveBeenCalled();
+  });
+
+  it("pauses after confirmation, naming the person", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(rosterOf());
+    setAdminBillingSubscriptionStatus.mockResolvedValue({
+      ...CANCEL_SCHEDULED,
+      flash_status: "paused",
+      cancel_effective_date: null,
+      cancellation_scheduled: false,
+      applied: true,
+      reason: "revoked",
+    });
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-pause"));
+
+    const dialog = await screen.findByTestId("dialog-billing-pause-confirm");
+    expect(setAdminBillingSubscriptionStatus).not.toHaveBeenCalled();
+    expect(screen.getByTestId("billing-pause-confirm-who").textContent).toContain("npub1");
+    expect(dialog.textContent).not.toContain(PUBKEY);
+
+    await userEvent.click(screen.getByTestId("button-billing-pause-confirm"));
+    await waitFor(() =>
+      expect(setAdminBillingSubscriptionStatus).toHaveBeenCalledWith(PUBKEY, "paused"),
+    );
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Subscription paused" })),
+    );
+  });
+
+  it("confirms a resume too — it restarts a charge", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(rosterOf({ flash_status: "paused" }));
+    setAdminBillingSubscriptionStatus.mockResolvedValue({
+      ...CANCEL_SCHEDULED,
+      cancel_effective_date: null,
+      cancellation_scheduled: false,
+      applied: true,
+      reason: "granted",
+    });
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-pause"));
+
+    const dialog = await screen.findByTestId("dialog-billing-resume-confirm");
+    expect(setAdminBillingSubscriptionStatus).not.toHaveBeenCalled();
+    expect(screen.getByTestId("billing-resume-confirm-who").textContent).toContain("npub1");
+    expect(dialog.textContent).not.toContain(PUBKEY);
+
+    await userEvent.click(screen.getByTestId("button-billing-resume-confirm"));
+    await waitFor(() =>
+      expect(setAdminBillingSubscriptionStatus).toHaveBeenCalledWith(PUBKEY, "active"),
+    );
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Subscription resumed" })),
+    );
+  });
+
+  it("re-reads the roster after either action", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(rosterOf());
+    cancelAdminBillingSubscription.mockResolvedValue(CANCEL_SCHEDULED);
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    expect(getAdminBillingSubscriptions).toHaveBeenCalledTimes(1);
+
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-cancel"));
+    await userEvent.click(await screen.findByTestId("button-billing-cancel-confirm"));
+
+    await waitFor(() => expect(getAdminBillingSubscriptions).toHaveBeenCalledTimes(2));
+  });
+
+  it("hands a refused key on to the operator as its own sentence", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(rosterOf());
+    cancelAdminBillingSubscription.mockRejectedValue(
+      new Error(
+        "Flash refused our credentials, so nothing was changed. The API key may not carry the scope needed to manage subscriptions; retrying will not help.",
+      ),
+    );
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-cancel"));
+    await userEvent.click(await screen.findByTestId("button-billing-cancel-confirm"));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: "destructive",
+          description: expect.stringContaining("scope needed to manage subscriptions"),
+        }),
+      ),
+    );
+  });
+
+  it("admits when the write landed but the re-read did not", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(rosterOf());
+    cancelAdminBillingSubscription.mockResolvedValue({
+      ...CANCEL_SCHEDULED,
+      applied: false,
+      reason: "reread_failed",
+    });
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+    await userEvent.click(await screen.findByTestId("billing-action-cancel"));
+    await userEvent.click(await screen.findByTestId("button-billing-cancel-confirm"));
+
+    // Cancelled in Flash — so not a failure — but the roster is a step behind
+    // and the operator is told so rather than left to believe it is current.
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Cancellation scheduled",
+          description: expect.stringContaining("a step behind"),
+        }),
+      ),
+    );
+    expect(toast).not.toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" }));
+  });
+
+  it("offers nothing to act on where we hold no Flash subscription", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(
+      rosterOf({ flash_subscription_id: null }),
+    );
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+
+    expect((await screen.findByTestId("billing-action-cancel")).getAttribute("aria-disabled")).toBe("true");
+    expect(screen.getByTestId("billing-action-pause").getAttribute("aria-disabled")).toBe("true");
+  });
+
+  it("keeps the ways of looking at Flash beside the ways of acting on it", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(rosterOf());
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+    await userEvent.click(screen.getByTestId(`billing-actions-${PUBKEY.slice(0, 8)}`));
+
+    expect(await screen.findByTestId("billing-action-view-flash")).toBeInTheDocument();
+    expect(screen.getByTestId("billing-action-flash-record")).toBeInTheDocument();
+    expect(screen.getByTestId("link-flash-dashboard")).toBeInTheDocument();
+  });
+
+  it("shows a scheduled cancellation on the roster, where the status cannot", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue(
+      rosterOf({
+        current_period_end: "2026-09-20T00:00:00Z",
+        cancel_effective_date: "2026-09-20",
+      }),
+    );
+
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId("table-billing-subscribers")).toBeInTheDocument());
+
+    const row = screen.getByTestId(`billing-sub-${PUBKEY.slice(0, 8)}`);
+    expect(row.textContent).toContain("Active");
+    // The ending sits under the status, where the fact belongs — not in the period.
+    const ends = screen.getByTestId(`billing-ends-${PUBKEY.slice(0, 8)}`);
+    expect(ends.textContent).toContain("Ends Sep 20, 2026");
+    expect(ends.closest("td")).toBe(row.querySelector('[data-testid^="billing-status-"]'));
+  });
+
+  // Benjamin, over the roster: the words. Chips said `past_due`; the header
+  // said Scheduling where the Users tab says Tier; an expired row still wore
+  // an "Ends …" chip for a date that had already passed.
+  it("speaks in words: status chips, a Tier header, sources in plain English, and an ending only while it still matters", async () => {
+    getAdminBillingSubscriptions.mockResolvedValue({
+      total: 2,
+      pages: 1,
+      items: [
+        { pubkey: PUBKEY, flash_status: "past_due", scheduling_source: "billing", billing_blocked: false, current_period_end: "2026-09-05T00:00:00Z" },
+        { pubkey: "2".repeat(64), flash_status: "expired", scheduling_source: "default", billing_blocked: false, current_period_end: "2026-09-02T00:00:00Z", cancel_effective_date: "2026-09-01" },
+      ],
+    });
+    renderCards();
+    const table = await screen.findByTestId("table-billing-subscribers");
+    const headers = [...table.querySelectorAll("thead th")].map((th) => th.textContent?.trim());
+    expect(headers).toContain("Tier");
+    expect(headers).not.toContain("Scheduling");
+    expect(screen.getByTestId("input-billing-search")).toHaveAttribute("placeholder", expect.stringContaining("tier"));
+    const pk8 = PUBKEY.slice(0, 8);
+    expect(screen.getByTestId(`billing-status-${pk8}`)).toHaveTextContent("Past due");
+    expect(screen.getByTestId(`billing-status-${pk8}`)).not.toHaveTextContent("past_due");
+    expect(screen.getByTestId(`billing-source-${pk8}`)).toHaveTextContent("Paid via Flash");
+    const other8 = "2".repeat(8);
+    expect(screen.getByTestId(`billing-status-${other8}`)).toHaveTextContent("Expired");
+    expect(screen.getByTestId(`billing-source-${other8}`)).toHaveTextContent("Default");
+    // Already over: no "Ends" for a date that has passed.
+    expect(screen.queryByTestId(`billing-ends-${other8}`)).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Resolving a signup that named nobody
+//
+// These rows have no pubkey — that absence is what makes them unresolved — so
+// the Flash subscription id is the only handle they have, and the payer's
+// identity exists nowhere but Flash's own dashboard.
+// ---------------------------------------------------------------------------
+const UNRESOLVED_ID = "01a01f88-0d7f-734b-b724-13e32b482f57";
+
+function unresolvedReport(): Record<string, AdminBillingDivergenceSection> {
+  return {
+    unresolved_signups: {
+      count: 1,
+      truncated: false,
+      rows: [
+        {
+          id: 41,
+          event: "subscription.activated",
+          created_at: "2026-08-31T15:00:00Z",
+          process_error: "no_reference",
+          flash_subscription_id: UNRESOLVED_ID,
+        },
+      ],
+    },
+  };
+}
+
+const DISMISSED: AdminBillingResolution = {
+  subscription_id: UNRESOLVED_ID,
+  resolution: "dismissed",
+  pubkey: null,
+  applied: false,
+  entitlement_reason: null,
+  events_settled: 1,
+};
+
+const ATTRIBUTED: AdminBillingResolution = {
+  subscription_id: UNRESOLVED_ID,
+  resolution: "attributed",
+  pubkey: PUBKEY,
+  applied: true,
+  entitlement_reason: "granted",
+  events_settled: 1,
+};
+
+async function openUnresolvedAction(verb: "attribute" | "dismiss" | "flash-record") {
+  await userEvent.click(await screen.findByTestId(`billing-unresolved-actions-${UNRESOLVED_ID}`));
+  await userEvent.click(await screen.findByTestId(`billing-unresolved-action-${verb}`));
+}
+
+describe("a signup that named nobody shows Flash's facts on the row", () => {
+  beforeEach(() => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue(unresolvedReport());
+  });
+
+  it("puts plan, price, tenure, cycles and how it ends on the row, without a click", async () => {
+    getAdminBillingFlashRecordForUnresolved.mockResolvedValue({
+      livemode: true,
+      subscriptions: [
+        {
+          id: UNRESOLVED_ID,
+          ref: null,
+          status: "active",
+          createdAt: "2026-08-28T12:00:00.000Z",
+          currentPeriodNumber: 1,
+          currentPeriodStart: "2026-08-27",
+          currentPeriodEnd: "2026-09-27",
+          nextBillingDate: "2026-09-27",
+          canceledAt: "2026-08-31T15:06:09.067Z",
+          cancelReason: "Test",
+          cancelEffectiveDate: "2026-09-27",
+          pricingSnapshot: { planName: "CC - Test", amount: "200", currency: "USD", billingInterval: "monthly" },
+        },
+      ],
+    });
+
+    renderCards();
+
+    const strip = await screen.findByTestId(`billing-unresolved-flash-${UNRESOLVED_ID}`);
+    const text = strip.textContent ?? "";
+    expect(text).toContain("Active");
+    expect(text).toContain("CC - Test");
+    expect(text).toContain("$2.00 per month");
+    expect(text).toContain("Since Aug 28, 2026");
+    expect(text).toContain("1 period billed");
+    // Cancelled under end-of-period: the end is the fact, not the next bill.
+    expect(text).toContain("Ends Sep 27, 2026");
+    expect(text).not.toContain("Next bill");
+    // The row's own lead and handle are still there beside it.
+    const row = screen.getByTestId(`billing-unresolved-${UNRESOLVED_ID}`);
+    expect(row.textContent).toContain("Subscription started");
+    expect(row.textContent).toContain(UNRESOLVED_ID.slice(0, 8));
+    expect(getAdminBillingFlashRecordForUnresolved).toHaveBeenCalledWith(UNRESOLVED_ID);
+  });
+
+  it("keeps the row readable when Flash cannot be reached — the facts are extra, not the row", async () => {
+    getAdminBillingFlashRecordForUnresolved.mockRejectedValue(new Error("Could not reach Flash"));
+
+    renderCards();
+
+    const row = await screen.findByTestId(`billing-unresolved-${UNRESOLVED_ID}`);
+    await waitFor(() => expect(getAdminBillingFlashRecordForUnresolved).toHaveBeenCalled());
+    expect(row.textContent).toContain("Subscription started");
+    expect(screen.queryByTestId(`billing-unresolved-flash-${UNRESOLVED_ID}`)).toBeNull();
+    // The menu still offers the full record, which is where the error is explained.
+    expect(screen.getByTestId(`billing-unresolved-actions-${UNRESOLVED_ID}`)).toBeInTheDocument();
+  });
+});
+
+describe("resolving a signup that named nobody", () => {
+  beforeEach(() => {
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 0, pages: 0, items: [] });
+    getAdminBillingDivergence.mockResolvedValue(unresolvedReport());
+    // clearAllMocks keeps implementations, so a test's override would outlive it.
+    getAdminUsers.mockImplementation(everyKeyIsAnAccount);
+    searchByText.mockResolvedValue({ results: [], total: 0, timeMs: 1 });
+  });
+
+  it("finds a Brainstorm user by name, offers only account holders, and grants only on confirm", async () => {
+    const OTHER = "c".repeat(64);
+    searchByText.mockResolvedValue({
+      results: [
+        { pubkey: PUBKEY, npub: nip19.npubEncode(PUBKEY), name: "lira", displayName: "Lira Flint" },
+        { pubkey: OTHER, npub: nip19.npubEncode(OTHER), displayName: "Not On Brainstorm" },
+      ],
+      total: 2,
+      timeMs: 3,
+    });
+    // Only Lira has an account; the other is a Nostr profile and nothing more.
+    getAdminUsers.mockImplementation(async (params) => ({
+      items: params.search?.toLowerCase() === PUBKEY ? [{ pubkey: PUBKEY }] : [],
+      total: 0,
+      pages: 0,
+    }));
+    attributeAdminBillingUnresolved.mockResolvedValue(ATTRIBUTED);
+
+    renderCards();
+    await openUnresolvedAction("attribute");
+    expect(screen.getByTestId("button-billing-attribute-confirm")).toBeDisabled();
+
+    await userEvent.type(screen.getByTestId("input-billing-attribute-pubkey"), "Lira");
+
+    // Searched by name through Brainstorm's profile search, then checked
+    // against the users table: the one with an account is offered.
+    const row = await screen.findByTestId(`billing-attribute-result-${PUBKEY.slice(0, 8)}`);
+    expect(row.textContent).toContain("Lira Flint");
+    expect(screen.queryByTestId(`billing-attribute-result-${OTHER.slice(0, 8)}`)).toBeNull();
+    expect(screen.getByTestId("billing-attribute-dropped").textContent).toMatch(/1 more .*without a Brainstorm account/);
+    // A result is a candidate, not a decision: nothing is armed yet.
+    expect(screen.getByTestId("button-billing-attribute-confirm")).toBeDisabled();
+
+    await userEvent.click(row);
+
+    // Picking names them on the confirm line and arms the verb — still nothing sent.
+    await waitFor(() =>
+      expect(screen.getByTestId("billing-attribute-confirm-who").textContent).toContain("Lira Flint"),
+    );
+    expect(screen.getByTestId("button-billing-attribute-confirm")).toBeEnabled();
+    expect(attributeAdminBillingUnresolved).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByTestId("button-billing-attribute-confirm"));
+    await waitFor(() =>
+      expect(attributeAdminBillingUnresolved).toHaveBeenCalledWith(UNRESOLVED_ID, PUBKEY),
+    );
+  });
+
+  it("refuses a key nobody on Brainstorm holds — a stranger cannot be granted a plan", async () => {
+    getAdminUsers.mockResolvedValue({ items: [], total: 0, pages: 0 });
+
+    renderCards();
+    await openUnresolvedAction("attribute");
+    await userEvent.type(screen.getByTestId("input-billing-attribute-pubkey"), nip19.npubEncode(PUBKEY));
+
+    const note = await screen.findByTestId("billing-attribute-no-account");
+    expect(note.textContent).toContain("No Brainstorm account has that key");
+    expect(screen.getByTestId("button-billing-attribute-confirm")).toBeDisabled();
+    expect(attributeAdminBillingUnresolved).not.toHaveBeenCalled();
+  });
+
+  it("says when a name matches Nostr profiles but no Brainstorm account", async () => {
+    const OTHER = "c".repeat(64);
+    searchByText.mockResolvedValue({
+      results: [{ pubkey: OTHER, npub: nip19.npubEncode(OTHER), displayName: "Not On Brainstorm" }],
+      total: 1,
+      timeMs: 2,
+    });
+    getAdminUsers.mockResolvedValue({ items: [], total: 0, pages: 0 });
+
+    renderCards();
+    await openUnresolvedAction("attribute");
+    await userEvent.type(screen.getByTestId("input-billing-attribute-pubkey"), "Not On");
+
+    const note = await screen.findByTestId("billing-attribute-no-match");
+    expect(note.textContent).toContain('Nobody on Brainstorm matches "Not On"');
+    expect(note.textContent).toMatch(/1 profile on Nostr matched but has no Brainstorm account/);
+    expect(screen.queryByTestId(`billing-attribute-result-${OTHER.slice(0, 8)}`)).toBeNull();
+    expect(screen.getByTestId("button-billing-attribute-confirm")).toBeDisabled();
+  });
+
+  it("lets the admin change their pick before confirming, disarming the verb again", async () => {
+    searchByText.mockResolvedValue({
+      results: [{ pubkey: PUBKEY, npub: nip19.npubEncode(PUBKEY), displayName: "Lira Flint" }],
+      total: 1,
+      timeMs: 2,
+    });
+
+    renderCards();
+    await openUnresolvedAction("attribute");
+    await userEvent.type(screen.getByTestId("input-billing-attribute-pubkey"), "Lira");
+    await userEvent.click(await screen.findByTestId(`billing-attribute-result-${PUBKEY.slice(0, 8)}`));
+    await waitFor(() => expect(screen.getByTestId("button-billing-attribute-confirm")).toBeEnabled());
+    expect(screen.getByTestId("billing-attribute-picked").textContent).toContain("Lira Flint");
+
+    await userEvent.click(screen.getByTestId("billing-attribute-change"));
+
+    // Back to searching, nobody chosen, nothing armed, nothing sent.
+    expect(screen.getByTestId("input-billing-attribute-pubkey")).toHaveValue("");
+    expect(screen.getByTestId("button-billing-attribute-confirm")).toBeDisabled();
+    expect(attributeAdminBillingUnresolved).not.toHaveBeenCalled();
+  });
+
+  it("writes one off only after the admin agrees, naming the only handle it has", async () => {
+    dismissAdminBillingUnresolved.mockResolvedValue(DISMISSED);
+
+    renderCards();
+    await openUnresolvedAction("dismiss");
+
+    const dialog = await screen.findByTestId("dialog-billing-dismiss-confirm");
+    expect(dismissAdminBillingUnresolved).not.toHaveBeenCalled();
+    // There is no person on this row, so the subscription id stands in for one.
+    expect(dialog.textContent).toContain(UNRESOLVED_ID);
+
+    await userEvent.click(screen.getByTestId("button-billing-dismiss-confirm"));
+
+    await waitFor(() => expect(dismissAdminBillingUnresolved).toHaveBeenCalledWith(UNRESOLVED_ID));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Signup dismissed" })),
+    );
+  });
+
+  it("names the person before granting, and sends the hex form of an npub", async () => {
+    fetchProfileMap.mockResolvedValue(new Map([[PUBKEY, { display_name: "Lira Flint" }]]));
+    attributeAdminBillingUnresolved.mockResolvedValue(ATTRIBUTED);
+
+    renderCards();
+    await openUnresolvedAction("attribute");
+
+    // Nothing pasted yet: there is nobody to grant to, so the verb is not armed.
+    const dialog = await screen.findByTestId("dialog-billing-attribute-confirm");
+    expect(screen.getByTestId("button-billing-attribute-confirm")).toBeDisabled();
+
+    await userEvent.type(
+      screen.getByTestId("input-billing-attribute-pubkey"),
+      nip19.npubEncode(PUBKEY),
+    );
+
+    // Who they are, resolved from the key — not the key itself, and never hex.
+    await waitFor(() =>
+      expect(screen.getByTestId("billing-attribute-confirm-who").textContent).toContain(
+        "Lira Flint",
+      ),
+    );
+    expect(dialog.textContent).not.toContain(PUBKEY);
+    expect(attributeAdminBillingUnresolved).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByTestId("button-billing-attribute-confirm"));
+
+    // Flash's ref is our hex pubkey; the npub form never leaves the client.
+    await waitFor(() =>
+      expect(attributeAdminBillingUnresolved).toHaveBeenCalledWith(UNRESOLVED_ID, PUBKEY),
+    );
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Signup attributed" }),
+      ),
+    );
+  });
+
+  it("refuses a key it cannot read rather than sending it", async () => {
+    renderCards();
+    await openUnresolvedAction("attribute");
+    await userEvent.type(
+      await screen.findByTestId("input-billing-attribute-pubkey"),
+      "npub1definitelynotakey",
+    );
+
+    expect(await screen.findByTestId("billing-attribute-key-invalid")).toBeInTheDocument();
+    expect(screen.getByTestId("button-billing-attribute-confirm")).toBeDisabled();
+    expect(attributeAdminBillingUnresolved).not.toHaveBeenCalled();
+  });
+
+  it("reports an attribution that granted nothing as the answer it is", async () => {
+    attributeAdminBillingUnresolved.mockResolvedValue({
+      ...ATTRIBUTED,
+      applied: false,
+      entitlement_reason: "held",
+    });
+
+    renderCards();
+    await openUnresolvedAction("attribute");
+    await userEvent.type(await screen.findByTestId("input-billing-attribute-pubkey"), PUBKEY);
+    // A pasted key is checked against the users table before it arms the verb.
+    await waitFor(() => expect(screen.getByTestId("button-billing-attribute-confirm")).toBeEnabled());
+    await userEvent.click(screen.getByTestId("button-billing-attribute-confirm"));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Attributed, but nothing was granted",
+          description: expect.stringContaining("cancellation still inside its paid period"),
+        }),
+      ),
+    );
+    // Not an error: the signup is settled, and the report is re-read.
+    expect(toast).not.toHaveBeenCalledWith(expect.objectContaining({ variant: "destructive" }));
+  });
+
+  it("does not claim nothing was applied when it was already theirs", async () => {
+    // The server skips the grant entirely in this branch, so the old fallback
+    // ("No tier was applied.") was not merely vague — it was false.
+    attributeAdminBillingUnresolved.mockResolvedValue({
+      ...ATTRIBUTED,
+      applied: false,
+      entitlement_reason: "attributed",
+    });
+
+    renderCards();
+    await openUnresolvedAction("attribute");
+    await userEvent.type(await screen.findByTestId("input-billing-attribute-pubkey"), PUBKEY);
+    // A pasted key is checked against the users table before it arms the verb.
+    await waitFor(() => expect(screen.getByTestId("button-billing-attribute-confirm")).toBeEnabled());
+    await userEvent.click(screen.getByTestId("button-billing-attribute-confirm"));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          description: expect.stringContaining("already attributed to them"),
+        }),
+      ),
+    );
+  });
+
+  it("keeps the signup's id visible once a person resolves — it is the row's only handle", async () => {
+    fetchProfileMap.mockResolvedValue(new Map([[PUBKEY, { display_name: "Lira Flint" }]]));
+
+    renderCards();
+    await openUnresolvedAction("attribute");
+    await userEvent.type(await screen.findByTestId("input-billing-attribute-pubkey"), PUBKEY);
+
+    const dialog = await screen.findByTestId("dialog-billing-attribute-confirm");
+    await waitFor(() => expect(dialog.textContent).toContain("Lira Flint"));
+    // Which payment this grant lands on must not disappear behind who gets it.
+    expect(dialog.textContent).toContain(UNRESOLVED_ID);
+  });
+
+  // Enes: the client cannot promise an exact count — the report lists only
+  // deliveries that failed, while a dismiss also settles ones still inside
+  // their retry budget — so the dialog states a floor, and the toast reports
+  // what was actually settled, from the response the handlers used to discard.
+  it("a signup with several deliveries: the dialog states a floor, the toast says how many were settled", async () => {
+    getAdminBillingDivergence.mockResolvedValue({
+      unresolved_signups: {
+        count: 2,
+        truncated: false,
+        rows: [
+          { id: 41, event: "subscription.activated", created_at: "2026-08-31T15:00:00Z", process_error: "no_reference", flash_subscription_id: UNRESOLVED_ID },
+          { id: 43, event: "subscription.canceled", created_at: "2026-09-02T15:00:00Z", process_error: "no_reference", flash_subscription_id: UNRESOLVED_ID },
+        ],
+      },
+    });
+    dismissAdminBillingUnresolved.mockResolvedValue({ ...DISMISSED, events_settled: 2 });
+
+    renderCards();
+    await openUnresolvedAction("dismiss");
+    const dialog = await screen.findByTestId("dialog-billing-dismiss-confirm");
+    expect(dialog.textContent).toMatch(/at least 2 deliveries/i);
+    expect(dialog.textContent).not.toMatch(/exactly/i);
+    await userEvent.click(screen.getByTestId("button-billing-dismiss-confirm"));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Signup dismissed", description: expect.stringContaining("2 deliveries were settled") }),
+      ),
+    );
+  });
+
+  it("a single delivery keeps the plain words — no count to report", async () => {
+    dismissAdminBillingUnresolved.mockResolvedValue(DISMISSED);
+    renderCards();
+    await openUnresolvedAction("dismiss");
+    const dialog = await screen.findByTestId("dialog-billing-dismiss-confirm");
+    expect(dialog.textContent).not.toMatch(/at least/i);
+    await userEvent.click(screen.getByTestId("button-billing-dismiss-confirm"));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Signup dismissed" })));
+    expect((toast.mock.calls.at(-1)![0] as { description: string }).description).not.toMatch(/were settled/);
+  });
+
+  it("attributing reports the settled deliveries too", async () => {
+    attributeAdminBillingUnresolved.mockResolvedValue({ ...ATTRIBUTED, events_settled: 3 });
+    renderCards();
+    await openUnresolvedAction("attribute");
+    await userEvent.type(await screen.findByTestId("input-billing-attribute-pubkey"), PUBKEY);
+    await waitFor(() => expect(screen.getByTestId("button-billing-attribute-confirm")).toBeEnabled());
+    await userEvent.click(screen.getByTestId("button-billing-attribute-confirm"));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Signup attributed", description: expect.stringContaining("3 deliveries were settled") }),
+      ),
+    );
+  });
+
+  it("calls a refusal what it is — nothing changed, not a system failure", async () => {
+    dismissAdminBillingUnresolved.mockRejectedValue(
+      new Error("No unresolved signup with this subscription id."),
+    );
+
+    renderCards();
+    await openUnresolvedAction("dismiss");
+    await userEvent.click(await screen.findByTestId("button-billing-dismiss-confirm"));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({ title: "Nothing was changed" }),
+      ),
+    );
+  });
+
+  it("hands the server's refusal back as the sentence it wrote", async () => {
+    attributeAdminBillingUnresolved.mockRejectedValue(
+      new Error("Flash says this subscription already belongs to a different user."),
+    );
+
+    renderCards();
+    await openUnresolvedAction("attribute");
+    await userEvent.type(await screen.findByTestId("input-billing-attribute-pubkey"), PUBKEY);
+    // A pasted key is checked against the users table before it arms the verb.
+    await waitFor(() => expect(screen.getByTestId("button-billing-attribute-confirm")).toBeEnabled());
+    await userEvent.click(screen.getByTestId("button-billing-attribute-confirm"));
+
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(
+        expect.objectContaining({
+          variant: "destructive",
+          description: "Flash says this subscription already belongs to a different user.",
+        }),
+      ),
+    );
+  });
+
+  it("re-reads the report so a settled signup leaves it", async () => {
+    dismissAdminBillingUnresolved.mockResolvedValue(DISMISSED);
+
+    renderCards();
+    await openUnresolvedAction("dismiss");
+    expect(getAdminBillingDivergence).toHaveBeenCalledTimes(1);
+
+    await userEvent.click(await screen.findByTestId("button-billing-dismiss-confirm"));
+
+    await waitFor(() => expect(getAdminBillingDivergence).toHaveBeenCalledTimes(2));
+  });
+
+  it("reads Flash's own record for a row, which is the only place its state shows", async () => {
+    // The real staging case: unresolved *and* already cancelled. Nothing on the
+    // report row says so — only Flash does.
+    getAdminBillingFlashRecordForUnresolved.mockResolvedValue({
+      livemode: true,
+      subscriptions: [
+        {
+          id: UNRESOLVED_ID,
+          ref: null,
+          status: "active",
+          canceledAt: "2026-08-31T15:06:09.067Z",
+          cancelEffectiveDate: "2026-09-20",
+          pricingSnapshot: {
+            planName: "Brainstorm Supporter",
+            amount: "300",
+            currency: "USD",
+            billingInterval: "monthly",
+          },
+        },
+      ],
+    });
+
+    renderCards();
+    await openUnresolvedAction("flash-record");
+
+    const json = await screen.findByTestId("billing-flash-record-json");
+    expect(getAdminBillingFlashRecordForUnresolved).toHaveBeenCalledWith(UNRESOLVED_ID);
+    expect(json.textContent).toContain("cancelEffectiveDate");
+    expect(json.textContent).toContain("Brainstorm Supporter");
+    // The dialog names the row by its Flash id — it has no person to name.
+    expect(screen.getByTestId("dialog-billing-flash-record").textContent).toContain(UNRESOLVED_ID);
+  });
+
+  it("says a signup Flash no longer knows is absent, not that Flash is down", async () => {
+    getAdminBillingFlashRecordForUnresolved.mockRejectedValue(
+      new Error("Flash has no subscription for this record."),
+    );
+
+    renderCards();
+    await openUnresolvedAction("flash-record");
+
+    expect(await screen.findByTestId("billing-flash-record-error")).toHaveTextContent(
+      "Flash has no subscription for this record.",
+    );
+  });
+});
+
+// Benjamin (2026-09-09): "we need to see the service name so we can
+// distinguish whether it's on production or staging — right now we can't
+// tell where the users are coming from." Flash keeps one service per
+// environment. The roster row carries no service, but the Flash record each
+// row already reads does: `serviceId`, named through the account's services.
+describe("the Flash service each subscriber lives on", () => {
+  const A = "a".repeat(64);
+  const B = "b".repeat(64);
+  const SERVICES: FlashServiceItem[] = [
+    { id: "svc-live", name: "Brainstorm" },
+    { id: "svc-stg", name: "Brainstorm Staging" },
+  ];
+  const SUB = { flash_status: "active", scheduling_source: "billing", billing_blocked: false } as AdminBillingSubscription;
+  const recordOn = (serviceId: string, pubkey: string) => ({
+    livemode: true,
+    subscriptions: [{ id: `sub_${pubkey.slice(0, 4)}`, ref: pubkey, status: "active", serviceId, planId: "plan_1" }],
+  });
+
+  it("each row names the service its Flash record belongs to", async () => {
+    getAdminBillingFlashServices.mockResolvedValue(SERVICES);
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 2, pages: 1, items: [{ ...SUB, pubkey: A }, { ...SUB, pubkey: B }] });
+    getAdminBillingFlashRecordForSubscriber.mockImplementation(async (pubkey: string) => recordOn(pubkey === A ? "svc-live" : "svc-stg", pubkey));
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId(`billing-service-${A.slice(0, 8)}`)).toHaveTextContent("Brainstorm"));
+    expect(screen.getByTestId(`billing-service-${B.slice(0, 8)}`)).toHaveTextContent("Brainstorm Staging");
+  });
+
+  it("a service switch narrows the roster to one environment, counts it, and survives turning the page", async () => {
+    getAdminBillingFlashServices.mockResolvedValue(SERVICES);
+    const pageOf = (n: number): AdminBillingSubscription[] =>
+      Array.from({ length: 3 }, (_, i) => ({ ...SUB, pubkey: `${n}${i}`.padEnd(64, "f") }));
+    getAdminBillingSubscriptions.mockImplementation(async (page = 1) => ({ items: pageOf(page), total: 6, pages: 2, page }));
+    // On each page the first row is a staging signup, the rest are live.
+    getAdminBillingFlashRecordForSubscriber.mockImplementation(async (pubkey: string) => recordOn(pubkey[1] === "0" ? "svc-stg" : "svc-live", pubkey));
+    renderCards();
+    await screen.findAllByTestId(/^billing-sub-/);
+    await waitFor(() => expect(screen.getByTestId("billing-service-10ffffff")).toHaveTextContent("Brainstorm Staging"));
+    expect(screen.getAllByTestId(/^billing-sub-/)).toHaveLength(3);
+    await userEvent.click(screen.getByTestId("billing-service-filter-svc-stg"));
+    expect(screen.getByTestId("billing-service-filter-svc-stg")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getAllByTestId(/^billing-sub-/)).toHaveLength(1);
+    expect(screen.getByTestId("billing-filter-count")).toHaveTextContent("1 of 3");
+    await userEvent.click(screen.getByTestId("billing-pager-next"));
+    await waitFor(() => expect(getAdminBillingSubscriptions).toHaveBeenLastCalledWith(2, 100));
+    await waitFor(() => expect(screen.getByTestId("billing-service-20ffffff")).toHaveTextContent("Brainstorm Staging"));
+    expect(screen.getByTestId("billing-service-filter-svc-stg")).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getAllByTestId(/^billing-sub-/)).toHaveLength(1);
+    await userEvent.click(screen.getByTestId("billing-service-filter-all"));
+    expect(screen.getAllByTestId(/^billing-sub-/)).toHaveLength(3);
+  });
+
+  it("a subscriber Flash has no record for shows a dash, stays under All services, and leaves a chosen service", async () => {
+    getAdminBillingFlashServices.mockResolvedValue(SERVICES);
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 2, pages: 1, items: [{ ...SUB, pubkey: A }, { ...SUB, pubkey: B }] });
+    getAdminBillingFlashRecordForSubscriber.mockImplementation(async (pubkey: string) => {
+      if (pubkey === B) throw new Error("Flash has no subscription for this record.");
+      return recordOn("svc-live", pubkey);
+    });
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId(`billing-service-${A.slice(0, 8)}`)).toHaveTextContent("Brainstorm"));
+    await waitFor(() => expect(screen.getByTestId(`billing-service-${B.slice(0, 8)}`)).toHaveTextContent("—"));
+    expect(screen.getAllByTestId(/^billing-sub-/)).toHaveLength(2);
+    await userEvent.click(screen.getByTestId("billing-service-filter-svc-live"));
+    expect(screen.getAllByTestId(/^billing-sub-/)).toHaveLength(1);
+    expect(screen.getByTestId("billing-filter-count")).toHaveTextContent("1 of 2");
+  });
+
+  it("with one service on the account there is nothing to switch, so no switch", async () => {
+    getAdminBillingFlashServices.mockResolvedValue([SERVICES[0]]);
+    getAdminBillingSubscriptions.mockResolvedValue({ total: 1, pages: 1, items: [{ ...SUB, pubkey: A }] });
+    getAdminBillingFlashRecordForSubscriber.mockImplementation(async (pubkey: string) => recordOn("svc-live", pubkey));
+    renderCards();
+    await waitFor(() => expect(screen.getByTestId(`billing-service-${A.slice(0, 8)}`)).toHaveTextContent("Brainstorm"));
+    expect(screen.queryByTestId("billing-service-filter")).toBeNull();
+  });
+});

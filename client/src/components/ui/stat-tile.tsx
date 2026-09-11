@@ -16,10 +16,31 @@ export interface StatTileProps extends React.HTMLAttributes<HTMLDivElement> {
   tone?: Tone;
   /** Optional slot rendered top-right (e.g. a delta Chip or sparkline). */
   aside?: React.ReactNode;
+  /**
+   * One line — tone dot, value, label — for a strip of counts that sits above
+   * a list rather than being the page's subject. The icon and aside are not
+   * rendered; there is no room for them, and the numbers are what the strip is.
+   */
+  compact?: boolean;
 }
 
-export function StatTile({ icon: Icon, value, label, tone = "brand", aside, className, ...props }: StatTileProps) {
+export function StatTile({ icon: Icon, value, label, tone = "brand", aside, compact = false, className, ...props }: StatTileProps) {
   const c = resolveTone(tone);
+  if (compact) {
+    return (
+      <div
+        className={cn(
+          "inline-flex items-center gap-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3 py-1.5",
+          className,
+        )}
+        {...props}
+      >
+        <span className={cn("h-2 w-2 shrink-0 rounded-full", c.dot)} aria-hidden="true" />
+        <span className="text-base font-semibold tabular-nums leading-none text-slate-900 dark:text-slate-100">{value}</span>
+        <span className="text-xs text-slate-500 dark:text-slate-400">{label}</span>
+      </div>
+    );
+  }
   return (
     <div
       className={cn(

@@ -153,6 +153,40 @@ describe("apiClient.assignUserScheduling", () => {
   });
 });
 
+// Every PUT of a policy records the admin as its source, and billing will
+// neither grant over nor revoke against an admin source — so assigning even
+// the free policy pins a user for good (reported from staging, 2026-09-10).
+// The override is dropped by its own verb, and the server answers with the
+// policy in effect afterwards: a paying user comes back on what they pay for.
+describe("apiClient.clearUserSchedulingOverride", () => {
+  const PK = "a".repeat(64);
+  beforeEach(() => {
+    active.account = stubAccount("test-token");
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("DELETEs the user's override with no body and returns the policy in effect afterwards", async () => {
+    const detail = { pubkey: PK, scheduling_id: 4, scheduling_name: "Priority" };
+    const fetchMock = mockFetchOnce(detail);
+
+    const result = await apiClient.clearUserSchedulingOverride(PK);
+
+    const [url, options] = fetchMock.mock.calls[0];
+    expect(url).toBe(`http://test.local/admin/users/${PK}/scheduling/override`);
+    expect(options.method).toBe("DELETE");
+    expect(options.body).toBeUndefined();
+    expect(result).toEqual(detail);
+  });
+
+  it("surfaces the server's refusal in its own words", async () => {
+    mockFetchOnce({ detail: "No such user" }, { ok: false, status: 404 });
+
+    await expect(apiClient.clearUserSchedulingOverride(PK)).rejects.toThrow(/no such user/i);
+  });
+});
+
 describe("apiClient.getSchedulingStats", () => {
   beforeEach(() => {
     active.account = stubAccount("test-token");

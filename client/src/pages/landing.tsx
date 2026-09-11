@@ -1,3 +1,4 @@
+import { HomeFooter } from "@/components/HomeFooter";
 import { Link, useLocation, useSearch } from "wouter";
 import { hasHopped, markHopped, trackHistoryEntry } from "@/lib/historyState";
 import { copyToClipboard } from "@/lib/clipboard";
@@ -1440,27 +1441,7 @@ export default function Landing() {
           Hidden on mobile — on a phone the viewport belongs to the search box,
           and these wrap into a block that crowds it. The mobile tab bar already
           carries the primary navigation. */}
-      {/* Already hidden on narrow phones for lack of room; a landscape phone has
-          even less of it, and these links were what the Recent panel collided
-          with. Same rationale, height axis — they stay one rotation away. */}
-      <footer className="relative z-10 hidden sm:flex short:!hidden flex-wrap items-center justify-start gap-x-6 gap-y-2 px-4 sm:px-8 py-4 text-xs" data-testid="footer-home">
-        {[
-          { label: "About", path: "/about" },
-          { label: "How search works", path: "/how-search-works" },
-          { label: "Developers", path: "/developers" },
-          { label: "Q&A", path: "/faq" },
-        ].map((l) => (
-          <button
-            key={l.path}
-            type="button"
-            onClick={() => setLocation(l.path)}
-            className="font-medium text-slate-500 dark:text-slate-400 transition-colors hover:text-brand-deep dark:hover:text-white rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
-            data-testid={`footer-home-${l.path.slice(1)}`}
-          >
-            {l.label}
-          </button>
-        ))}
-      </footer>
+      <HomeFooter />
     </div>
   );
 }

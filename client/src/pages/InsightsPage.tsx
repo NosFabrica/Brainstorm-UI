@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useGoBack } from "@/hooks/useGoBack";
 import { ArrowLeft, Clock, Gauge, ShieldCheck, RefreshCw, CheckCircle2, Loader2, ArrowRight } from "lucide-react";
@@ -23,6 +23,7 @@ import { readPublishedAssistant, readAssistantProfile } from "@/lib/assistantSto
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { TIER_LABELS } from "@/services/trustThreshold";
+import { PlanCard } from "@/components/billing/PlanCard";
 
 // Ladder order for tier-movement arrows in non-number display modes.
 const TIER_ORDER_ASC: VerificationTier[] = ["unverified", "low", "neutral", "trusted", "high"];
@@ -94,6 +95,21 @@ export default function InsightsPage() {
     queryFn: () => apiClient.getGrapeRankResult(),
     enabled: !!pubkey,
     staleTime: 60_000,
+    // The app's query defaults never refetch (staleTime Infinity, no focus
+    // refetch), which is right almost everywhere — but THIS page is the one
+    // people open to watch a run they just triggered, and without a poll the
+    // card said "In progress" forever after the server had finished. Poll only
+    // while a run is actually in flight; go quiet the moment it settles.
+    refetchInterval: (query) => {
+      const raw = query.state.data as any;
+      const g = raw?.internal_publication_status !== undefined ? raw : raw?.data;
+      if (!g) return false;
+      const settled =
+        isDone(g.internal_publication_status) ||
+        isFail(g.status) ||
+        isFail(g.internal_publication_status);
+      return settled ? false : 15_000;
+    },
   });
   // Your OWN perspective always scores you 100 — meaningless here. Fetch the
   // GLOBAL (house) score instead: Brainstorm's own vantage point, which is the
@@ -167,6 +183,21 @@ export default function InsightsPage() {
   const calcFailed = isFail(grapeRank?.status) || isFail(grapeRank?.internal_publication_status);
   const queueAhead = typeof grapeRank?.how_many_others_with_priority === "number" ? grapeRank.how_many_others_with_priority : null;
 
+  // When the poll above watches a run FINISH, the neighbours go stale together:
+  // "Last calculated" (history) and the standing number (house influence) both
+  // describe the run that just completed. Transition-guarded so the initial
+  // page load — where the last run is usually already complete — doesn't
+  // trigger a redundant refetch of data we just fetched.
+  const qc = useQueryClient();
+  const wasComplete = useRef(calcComplete);
+  useEffect(() => {
+    if (calcComplete && !wasComplete.current) {
+      qc.invalidateQueries({ queryKey: ["/user/history"] });
+      qc.invalidateQueries({ queryKey: ["insights-house-influence"] });
+    }
+    wasComplete.current = calcComplete;
+  }, [calcComplete, qc]);
+
   // Self-scoped calculation history — renders only when /user/history exposes a
   // records array (admins get the full table via /admin/users/:pubkey/history;
   // the user endpoint currently returns a summary, so this needs a small backend
@@ -198,7 +229,12 @@ export default function InsightsPage() {
           </div>
           <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 tracking-tight" style={{ fontFamily: "var(--font-display)" }}>My Insights</h1>
         </div>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Your account standing, and exactly how and when your scores were computed.</p>
+        <p className="text-sm text-slate-500 dark:text-slate-400 mb-6">Your plan, your calculations, and how Brainstorm sees you.</p>
+
+        {/* Plan first: it sets the frame for everything under it. "Recalculated
+            every 60 days" is what makes the "last calculated" date below mean
+            something rather than just being a date. */}
+        <PlanCard lastCalculatedMs={lastCalcMs} />
 
         <DeferredSessionNotice className="mb-6" />
 
@@ -206,7 +242,7 @@ export default function InsightsPage() {
         <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 mb-4">
           <div className="flex items-center gap-2 mb-3">
             <Clock className="h-4 w-4 text-brand-deep dark:text-brand-accent" />
-            <span className="text-sm font-bold text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>Trust calculation</span>
+            <span className="text-sm font-bold text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>Calculation</span>
             {grapeRankQuery.isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />}
           </div>
           <dl className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 text-sm">
@@ -295,15 +331,15 @@ export default function InsightsPage() {
         <Card className="bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 shadow-sm rounded-xl p-4 mb-4" data-testid="insights-score-history">
           <div className="flex items-center gap-2 mb-3">
             <Clock className="h-4 w-4 text-brand-deep dark:text-brand-accent" />
-            <span className="text-sm font-bold text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>Score history</span>
+            <span className="text-sm font-bold text-slate-800 dark:text-slate-200" style={{ fontFamily: "var(--font-display)" }}>Calculation history</span>
             {scoreHistory.length > 0 && (
               <span className="ml-auto text-xs text-slate-400 dark:text-slate-500">{scoreHistory.length} calculation{scoreHistory.length !== 1 ? "s" : ""}</span>
             )}
           </div>
           {scoreHistory.length === 0 ? (
             <p className="text-xs leading-relaxed text-slate-500 dark:text-slate-400" data-testid="insights-score-history-empty">
-              Nothing recorded yet. We start tracking your score from now on — after your
-              next calculation completes, you'll see how it moved and why.
+              Nothing recorded yet. Tracking starts now — after your next calculation
+              completes, you'll see how your number moved and why.
             </p>
           ) : (
             <ul className="divide-y divide-slate-100 dark:divide-slate-800/60">
@@ -425,7 +461,7 @@ export default function InsightsPage() {
                   of trust computes a different number for you. Saying so is also
                   the product thesis, not a caveat. */}
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Brainstorm's own perspective. There's no universal score — everyone computes their own number for you from their own network.
+                Brainstorm's own perspective — everyone computes their own number for you from their own network.
               </p>
             </div>
           </div>
@@ -441,9 +477,9 @@ export default function InsightsPage() {
 
         {/* Explainer */}
         <Card className="border border-brand-accent/25 bg-brand-accent/[0.06] rounded-xl p-4">
-          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">How your trust is computed</p>
+          <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 mb-1">How your number is computed</p>
           <p className="text-[13px] leading-relaxed text-[#0A0E18] dark:text-slate-100">
-            Your score is built only from signals of already-verified accounts — their follows, mutes, and reports — so bots and brand-new accounts carry no weight. That's what makes it resistant to manipulation.{" "}
+            It's built only from what already-verified accounts do — their follows, mutes, and reports — so bots and brand-new accounts carry no weight. That's what makes it resistant to manipulation.{" "}
             <button type="button" onClick={() => navigate("/how-search-works")} className="inline-flex items-center gap-0.5 font-semibold text-brand-link hover:underline">Learn more <ArrowRight className="h-3 w-3" /></button>
           </p>
         </Card>
