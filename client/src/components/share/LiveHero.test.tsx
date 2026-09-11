@@ -11,11 +11,15 @@ import { __resetRecordingChecks } from "@/lib/liveStream";
 import { LiveHero } from "./LiveHero";
 import { installSoloPlayback, playSolo } from "@/lib/playback";
 
+// Stamped ten minutes before the test runs. A "live" event nobody has touched
+// for seven days reads as over (LIVE_STALE_AFTER_SEC), so a fixed date turns
+// every live test here into an ended one a week after it was written — it did,
+// on 2026-09-10. The stale and fresh cases below set their own dates.
 const stream = (tags: string[][]) => ({
   id: "1".repeat(64),
   kind: 30311,
   pubkey: "6f33c652db1c27cee905bc7da4c2cfb65a9f201808e9fbe49d12035d3e674815",
-  created_at: 1_788_484_721,
+  created_at: Math.floor(Date.now() / 1000) - 600,
   content: "",
   sig: "",
   tags: [["d", "abc"], ["title", "Dead By Daylight"], ...tags],
