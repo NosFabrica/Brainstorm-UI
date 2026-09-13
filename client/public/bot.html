@@ -88,7 +88,7 @@ be Googlebot, facebookexternalhit, Twitterbot, or Slackbot is hitting you, it is
 <h2>What we do</h2>
 <ul>
   <li><strong>Fetch only what a person is looking at.</strong> Every request is triggered by a
-      human opening a note that links to your page. We do not crawl, we do not follow links out
+      human opening a note that links to your page. We honour robots.txt. We do not crawl, we do not follow links out
       of the pages we fetch, and we hold no URL list to work through.</li>
   <li><strong>Fetch once, not once per reader.</strong> A successful result is cached for 24
       hours and a failure for 5 minutes, so a link in a widely-read note costs you roughly one
@@ -128,14 +128,23 @@ user-triggered, cached, capped, and identified.</p>
 </ul>
 
 <h2>robots.txt</h2>
-<p>We do not consult <code>robots.txt</code>, and we would rather say so here than have you
-discover it. Our position is the one Slack states publicly for its own unfurler: a fetch made
-because a person is looking at a link is not crawling, and robots exclusion governs crawlers.
-Reasonable people disagree with that, which is why the opt-out below exists and is honoured.</p>
+<p>We read your <code>robots.txt</code> and we honour it. A <code>Disallow</code> covering the
+page means we do not request that page at all — not that we fetch it and discard the result.
+We follow RFC&nbsp;9309: our product token is <code>BrainstormBot</code>, the most specific
+group naming us wins over <code>*</code>, and where no rule matches we treat the path as
+allowed. If the file is missing we take that as permission; if it cannot be read at all, we
+treat that as a refusal until it can.</p>
+<p>One deliberate exception: we ignore <code>Crawl-delay</code>. It is not part of RFC&nbsp;9309,
+and the delays sites publish are measured in tens of seconds — unworkable for a fetch a reader
+is waiting on. We would rather name that here than quietly disregard it. What we do instead is
+ask for one page, once, and remember the answer for a day.</p>
 
 <h2>How to block us</h2>
-<p>Because we do not read <code>robots.txt</code>, a <code>Disallow</code> rule will not stop us.
-Block by User-Agent instead — the token is stable and we will not change it to evade a block:</p>
+<p>The simplest way is <code>robots.txt</code>, which we obey:</p>
+<pre><code>User-agent: BrainstormBot
+Disallow: /</code></pre>
+<p>Blocking by User-Agent works too — the token is stable and we will not change it to evade a
+block:</p>
 <pre><code>if ($http_user_agent ~* "BrainstormBot") { return 403; }   # nginx</code></pre>
 <p>A 403, 429, or 451 is fine by us; we cache the failure and move on. If you would rather we
 stopped without you having to configure anything, email us and we will stop fetching your host.</p>
