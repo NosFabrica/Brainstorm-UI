@@ -247,6 +247,7 @@ function UnfurledCard({ url, host }: { url: string; host: string }) {
       onClick={(e) => e.stopPropagation()}
       className="mt-2 flex h-24 items-stretch gap-3 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 no-underline hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-sm transition-all"
       data-testid="link-card"
+      // h-24 = 96px holds py-2 16 + meta 16 + title 2x20 + desc 1x16 + gaps 4 = 92. Clamps and leadings are the budget.
     >
       {image && (
         // Whoever posted the link chose this host, so it learns the reader's
@@ -262,7 +263,7 @@ function UnfurledCard({ url, host }: { url: string; host: string }) {
         />
       )}
       <div className={`flex min-w-0 flex-1 flex-col justify-center py-2 pr-3 ${image ? "pl-1" : "pl-3"}`}>
-        <span className="flex items-center gap-1 text-[11px] text-slate-500 dark:text-slate-400">
+        <span className="flex items-center gap-1 text-[11px] leading-4 text-slate-500 dark:text-slate-400">
           <Favicon host={host} className="h-3 w-3 shrink-0 rounded-sm object-contain" />
           {/* The inline chip already says the host, so with nothing to show we
               carry the path instead of repeating it back. */}
@@ -272,12 +273,12 @@ function UnfurledCard({ url, host }: { url: string; host: string }) {
           </span>
         </span>
         {meta?.title && (
-          <span className="mt-0.5 line-clamp-2 text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100">
+          <span className="mt-0.5 line-clamp-2 text-sm font-semibold leading-5 text-slate-900 dark:text-slate-100">
             {meta.title}
           </span>
         )}
         {meta?.description && (
-          <span className="mt-0.5 line-clamp-2 text-xs leading-snug text-slate-600 dark:text-slate-300">
+          <span className="mt-0.5 line-clamp-1 text-xs leading-4 text-slate-600 dark:text-slate-300">
             {meta.description}
           </span>
         )}
