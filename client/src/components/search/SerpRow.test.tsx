@@ -113,18 +113,12 @@ describe("SerpRow — link metadata", () => {
     expect(unfurlMock).not.toHaveBeenCalledWith("https://a.example/first");
   });
 
-  it("no answer, still a card — it keeps its height and carries the path", async () => {
-    // The card never collapses. Roughly a third of real links publish no Open
-    // Graph markup at all, so a card that vanished on no answer would shove the
-    // results below it around for a third of every page. It holds its height
-    // and shows the path — which the chip does not already say.
+  it("no answer, no card — the domain chip stands alone", async () => {
     unfurlMock.mockResolvedValue(null);
     render(<SerpRow event={note("Great read https://example.org/post")} author={author} score={0.7} query="liverpool" />);
-    const card = await screen.findByTestId("link-card");
-    expect(card).toHaveTextContent("/post");
-    // The chip owns the domain; the card does not repeat it back.
-    expect(screen.getByTestId("link-chip")).toHaveTextContent("example.org");
-    expect(card).not.toHaveTextContent("example.org");
+    await screen.findByTestId("link-chip");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByTestId("link-card")).toBeNull();
   });
 });
 

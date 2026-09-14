@@ -24,11 +24,6 @@ function parse(raw: string): URL | null {
   }
 }
 
-function prettyPath(u: URL): string {
-  const p = (u.pathname + u.search).replace(/\/+$/, "");
-  return p && p !== "" ? p : "";
-}
-
 /** Where sites actually keep their icon, in the order worth trying — the
  *  apex domain too when the link said www. No third-party icon service. */
 function faviconCandidates(host: string): string[] {
@@ -142,7 +137,12 @@ function GithubCard({ url, owner, repo, host }: { url: string; owner: string; re
 }
 
 /** The rich preview card for a note's primary link. */
-export function LinkPreviewCard({ url }: { url: string }) {
+/**
+ * `showImage={false}` when the surrounding note or row already shows its own
+ * picture: news posts often attach the article's image, and the card's
+ * og:image would be the same picture twice.
+ */
+export function LinkPreviewCard({ url, showImage = true }: { url: string; showImage?: boolean }) {
   const u = parse(url);
   if (!u) return null;
   const host = u.hostname.replace(/^www\./, "");
@@ -184,28 +184,36 @@ export function LinkPreviewCard({ url }: { url: string }) {
   // Plain links: the server's unfurl proxy, when it answers, gives a real
   // card — title, description, image. Until it does, nothing; the inline
   // chip speaks for the link.
-  return <UnfurledCard url={url} host={host} />;
+  return <UnfurledCard url={url} host={host} showImage={showImage} />;
 }
 
 /** Title + description + image for a plain link, from the unfurl proxy. */
 /** Start asking a little before the card is read, so it is usually filled. */
 const NEAR_VIEWPORT = "400px";
 
+/** A title that is only the site's own name ("NostrMag" on nostrmag.com) says nothing. */
+function isJustTheSiteName(title: string, host: string): boolean {
+  const norm = (v: string) => v.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const t = norm(title);
+  return !t || norm(host.replace(/^www\./, "")).startsWith(t);
+}
+
 /**
- * The card for a plain link. Its height is fixed from first paint and it never
- * collapses: with no metadata it degrades in place to favicon, host and path.
- * Rendering nothing until the answer lands would shove the rest of the feed
- * down under the reader's thumb — and a page with no Open Graph markup is the
- * common case here, not the exception.
+ * The card for a plain link. It appears only once there is something worth
+ * showing — a description, an image, or a real title. Otherwise nothing: the
+ * inline chip already names the link, and an empty box repeating it is worse
+ * than the card popping in when a real answer lands.
  */
-function UnfurledCard({ url, host }: { url: string; host: string }) {
+function UnfurledCard({ url, host, showImage }: { url: string; host: string; showImage: boolean }) {
   const openLightbox = useLightbox();
   const [fetched, setMeta] = useState<Unfurled | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
   // No IntersectionObserver (jsdom, older engines) means ask straight away
   // rather than never.
   const [near, setNear] = useState(() => typeof IntersectionObserver === "undefined");
-  const ref = useRef<HTMLAnchorElement | null>(null);
+  // Nothing is drawn until there is an answer, so a zero-height marker is
+  // what gets observed.
+  const ref = useRef<HTMLSpanElement | null>(null);
 
   // Only ask for the links a reader actually scrolls to.
   useEffect(() => {
@@ -262,14 +270,15 @@ function UnfurledCard({ url, host }: { url: string; host: string }) {
   }
 
   const meta = fetched?.kind === "image" ? null : fetched;
-  const u = parse(url);
-  const path = u ? prettyPath(u) : "";
-  const image = meta?.image && !imgFailed ? meta.image : null;
-  const siteName = meta?.siteName ?? null;
+  const image = showImage && meta?.image && !imgFailed ? meta.image : null;
+  const title = meta?.title && !isJustTheSiteName(meta.title, host) ? meta.title : null;
+  if (!meta || !(title || meta.description || image)) {
+    return <span ref={ref} aria-hidden className="block h-0" data-testid="link-card-pending" />;
+  }
+  const siteName = meta.siteName ?? null;
 
   return (
     <a
-      ref={ref}
       href={url}
       target="_blank"
       rel="noopener"
@@ -294,19 +303,17 @@ function UnfurledCard({ url, host }: { url: string; host: string }) {
       <div className={`flex min-w-0 flex-1 flex-col justify-center py-2 pr-3 ${image ? "pl-1" : "pl-3"}`}>
         <span className="flex items-center gap-1 text-[11px] leading-4 text-slate-500 dark:text-slate-400">
           <Favicon host={host} className="h-3 w-3 shrink-0 rounded-sm object-contain" />
-          {/* The inline chip already says the host, so with nothing to show we
-              carry the path instead of repeating it back. */}
           <span className="truncate">
-            {meta ? (siteName ?? host) : path || host}
-            {meta && siteName && siteName.toLowerCase() !== host.toLowerCase() ? ` \u00b7 ${host}` : ""}
+            {siteName ?? host}
+            {siteName && siteName.toLowerCase() !== host.toLowerCase() ? ` \u00b7 ${host}` : ""}
           </span>
         </span>
-        {meta?.title && (
+        {title && (
           <span className="mt-0.5 line-clamp-2 text-sm font-semibold leading-5 text-slate-900 dark:text-slate-100">
-            {meta.title}
+            {title}
           </span>
         )}
-        {meta?.description && (
+        {meta.description && (
           <span className="mt-0.5 line-clamp-1 text-xs leading-4 text-slate-600 dark:text-slate-300">
             {meta.description}
           </span>

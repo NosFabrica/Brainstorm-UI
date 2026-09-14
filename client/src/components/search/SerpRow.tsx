@@ -482,7 +482,7 @@ export function SerpRow({
         )}
         {cardLink && (
           <div onClick={(e) => e.stopPropagation()}>
-            <LinkPreviewCard url={cardLink} />
+            <LinkPreviewCard url={cardLink} showImage={!mediaUrlOf(event)} />
           </div>
         )}
         {quotedIn(body).slice(0, 1).map((q) => (

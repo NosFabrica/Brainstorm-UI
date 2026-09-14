@@ -182,15 +182,28 @@ describe("the plain-link card", () => {
     expect(screen.getByText("Professional football club")).toBeInTheDocument();
   });
 
-  it("still draws a card when the page has nothing to say, rather than disappearing", async () => {
+  it("draws no box when the page has nothing to say — the chip already names the link", async () => {
     unfurlMock.mockResolvedValue(null);
     render(<LinkPreviewCard url="https://eucup.com/news/final" />);
+    await screen.findByTestId("link-card-pending");
+    expect(screen.queryByTestId("link-card")).toBeNull();
+  });
+
+  it("draws no box when the only title is the site's own name", async () => {
+    // nostrmag.com's article pages are a JS app: the HTML says only "NostrMag".
+    unfurlMock.mockResolvedValue({ kind: "page", title: "NostrMag", description: null, image: null, siteName: "nostrmag.com" });
+    render(<LinkPreviewCard url="https://nostrmag.com/article/w37bitcoin02" />);
+    await screen.findByTestId("link-card-pending");
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByTestId("link-card")).toBeNull();
+  });
+
+  it("drops the card's picture when the note already shows its own", async () => {
+    unfurlMock.mockResolvedValue({ kind: "page", title: "Story", description: "Words", image: "https://img.test/og.jpg", siteName: null });
+    render(<LinkPreviewCard url="https://news.test/story" showImage={false} />);
     const card = await screen.findByTestId("link-card");
-    expect(card).toBeInTheDocument();
-    // Degraded in place, and it does not repeat the host the chip already
-    // shows — it carries the path, which the chip does not.
-    expect(screen.getByText("/news/final")).toBeInTheDocument();
-    expect(screen.queryByText("eucup.com")).toBeNull();
+    expect(card).toHaveTextContent("Story");
+    expect(screen.queryByTestId("link-card-image")).toBeNull();
   });
 
   it("shows an extensionless image link as the picture, not a card", async () => {
