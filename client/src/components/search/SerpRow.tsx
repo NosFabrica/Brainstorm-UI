@@ -17,7 +17,7 @@ import { useTierRing } from "@/components/score/VerificationCoin";
 import { isFeedAccount } from "@/lib/feedAccount";
 import { nip19 } from "nostr-tools";
 import { Favicon, LinkChip, LinkPreviewCard } from "@/components/share/LinkPreview";
-import { parseNoteContent, primaryLink } from "@/lib/noteContent";
+import { parseNoteContent, primaryLink, unwrapMarkdownLinks } from "@/lib/noteContent";
 import { TranslateLine } from "@/components/share/TranslateLine";
 import { useLightbox } from "@/components/share/Lightbox";
 import { eventStore } from "@/lib/eventStore";
@@ -205,7 +205,7 @@ function RowThumb({ event, author, score }: { event: NostrEvent; author: SearchR
 
 /** Snippet where bare URLs become clickable domain chips. */
 export function Snippet({ text, query, lines = 3 }: { text: string; query: string; lines?: 2 | 3 }) {
-  const parts = text.split(TOKEN_SPLIT_RE);
+  const parts = unwrapMarkdownLinks(text).split(TOKEN_SPLIT_RE);
   return (
     <p className={`text-[13px] leading-snug text-slate-700 dark:text-slate-200 break-words ${lines === 2 ? "line-clamp-2" : "line-clamp-3"}`}>
       {parts.map((part, i) => {

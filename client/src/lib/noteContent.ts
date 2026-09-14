@@ -58,8 +58,24 @@ export function toPlayableStreamUrl(url: string): string {
 // #hashtags. Everything else is text. The lookbehind keeps us from matching a
 // bech32 entity glued to the end of a word (e.g. "footnote1…"); a decode guard
 // in parseNoteContent rejects anything that isn't a real entity.
-const TOKEN_REGEX =
-  /(https?:\/\/[^\s]+|data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]+)|(?<![a-z0-9/])((?:nostr:)?(?:npub|nprofile|nevent|note|naddr)1[02-9ac-hj-np-z]+)|(#[\p{L}\p{N}_]+)/giu;
+// Inline markdown some crossposters (Stacker News, blogs) put in kind-1 notes:
+// `![alt](url)` and `[text](url)`. One level of parens is allowed inside the
+// URL so Wikipedia addresses survive.
+const MD_LINK = String.raw`(!?)\[([^\]\n]{0,300})\]\((https?:\/\/(?:[^\s()]|\([^\s()]*\))+)\)`;
+const MD_LINK_RE = new RegExp(MD_LINK, "gi");
+
+const TOKEN_REGEX = new RegExp(
+  MD_LINK +
+    String.raw`|(https?:\/\/[^\s]+|data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]+)|(?<![a-z0-9/])((?:nostr:)?(?:npub|nprofile|nevent|note|naddr)1[02-9ac-hj-np-z]+)|(#[\p{L}\p{N}_]+)`,
+  "giu",
+);
+
+/** Markdown links and images reduced to their URLs, for plain-text surfaces. */
+export function unwrapMarkdownLinks(text: string): string {
+  return text.replace(MD_LINK_RE, (_whole, bang: string, label: string, url: string) =>
+    bang || !label || label === url ? url : `${label} ${url}`,
+  );
+}
 
 // A nostr bech32 entity embedded anywhere inside a normal web URL's path, e.g.
 // `https://relayop.xyz/articles/naddr1…` or `https://njump.me/nevent1…`.
@@ -142,8 +158,17 @@ export function parseNoteContent(content: string): NoteToken[] {
     if (idx > lastIndex) {
       tokens.push({ type: "text", value: text.slice(lastIndex, idx) });
     }
-    const [whole, url, mention, hashtag] = match;
-    if (url) {
+    const [whole, bang, label, mdUrl, url, mention, hashtag] = match;
+    if (mdUrl) {
+      const token = classifyUrl(mdUrl);
+      if (bang) {
+        // The author said image; trust that over a missing extension.
+        tokens.push(token.type === "url" ? { type: "image", value: mdUrl } : token);
+      } else {
+        if (label && label !== mdUrl) tokens.push({ type: "text", value: `${label} ` });
+        tokens.push(token);
+      }
+    } else if (url) {
       tokens.push(classifyUrl(url));
     } else if (mention) {
       const bech = mention.replace(/^nostr:/, "");
@@ -276,7 +301,7 @@ export function extractNoteTitle(content: string, tags: string[][] = []): string
 
 /** Strip media/mention noise to a short plain-text preview (for OG description). */
 export function plainTextPreview(content: string, maxLen = 140): string {
-  const text = (content || "")
+  const text = unwrapMarkdownLinks(content || "")
     .replace(/https?:\/\/\S+/g, "")
     .replace(/nostr:[a-z0-9]+/gi, "")
     .replace(/\s+/g, " ")

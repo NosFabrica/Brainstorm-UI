@@ -98,6 +98,13 @@ describe("SerpRow — link metadata", () => {
     expect(unfurlMock).toHaveBeenCalledWith("https://en.wikipedia.org/wiki/Liverpool_F.C.");
   });
 
+  it("a markdown image in the body leaves no brackets in the snippet", async () => {
+    unfurlMock.mockResolvedValue(null);
+    render(<SerpRow event={note("Stacker post ![](https://m.stacker.news/19886) end")} author={author} score={0.7} query="liverpool" />);
+    await screen.findAllByTestId("link-chip");
+    expect(screen.queryByText(/!\[\]\(/)).toBeNull();
+  });
+
   it("cards the same link a feed would — the last one", async () => {
     unfurlMock.mockResolvedValue({ title: "Second", description: null, image: null, siteName: null });
     render(<SerpRow event={note("One https://a.example/first two https://b.example/second")} author={author} score={0.7} query="liverpool" />);
