@@ -15,8 +15,8 @@
  */
 
 export interface Unfurled {
-  /** "image" when the link is itself a picture, served without an extension. */
-  kind: "page" | "image";
+  /** Set when the link is itself media served without a file extension. */
+  kind: "page" | "image" | "video";
   title: string | null;
   description: string | null;
   image: string | null;
@@ -60,13 +60,13 @@ async function ask(url: string): Promise<Unfurled | null> {
     // on our behalf doesn't silently blank every card.
     const body = (json && typeof json.data === "object" && json.data ? json.data : json) as Record<string, unknown>;
     const out: Unfurled = {
-      kind: body.kind === "image" ? "image" : "page",
+      kind: body.kind === "image" || body.kind === "video" ? body.kind : "page",
       title: str(body.title),
       description: str(body.description),
       image: str(body.image),
       siteName: str(body.siteName ?? body.site_name),
     };
-    return out.title || out.description || out.image ? out : null;
+    return out.kind === "video" || out.title || out.description || out.image ? out : null;
   } catch {
     return null;
   }

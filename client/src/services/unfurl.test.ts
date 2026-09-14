@@ -60,6 +60,11 @@ describe("fetchUnfurl", () => {
     expect(await fetchUnfurl("https://m.test/19886")).toMatchObject({ kind: "image", image: "https://m.test/19886" });
   });
 
+  it("a video answer is kept even with no title, since the clip is the content", async () => {
+    fetchMock.mockReturnValue(ok({ data: { kind: "video", url: "https://cdn.test/v/1" } }));
+    expect(await fetchUnfurl("https://cdn.test/v/1")).toMatchObject({ kind: "video" });
+  });
+
   it("a page with no usable metadata is null, not a card", async () => {
     fetchMock.mockReturnValue(ok({ data: {} }));
     expect(await fetchUnfurl("https://x.test/empty")).toBeNull();

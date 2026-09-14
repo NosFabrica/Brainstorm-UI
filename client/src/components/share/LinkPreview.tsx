@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { ExternalLink, Globe, Github } from "lucide-react";
+import { ExternalLink, Globe } from "lucide-react";
 import { WavlakeTrackCard } from "@/components/share/WavlakeTrackCard";
 import { FountainCard } from "@/components/share/FountainCard";
 import { wavlakeTrackId } from "@/lib/wavlake";
 import { VideoEmbed } from "@/components/share/VideoEmbed";
 import { fetchUnfurl, type Unfurled } from "@/services/unfurl";
 import { useLightbox } from "@/components/share/Lightbox";
+import { FeedVideo } from "@/components/share/FeedVideo";
 
 /**
  * Server-free "smart" link previews. We can't fetch a URL's OG tags from the
@@ -69,71 +70,11 @@ export function LinkChip({ url }: { url: string }) {
   );
 }
 
-function githubRepo(u: URL): { owner: string; repo: string } | null {
-  if (u.hostname.replace(/^www\./, "") !== "github.com") return null;
-  const parts = u.pathname.split("/").filter(Boolean);
-  const reserved = new Set([
-    "orgs", "sponsors", "topics", "collections", "marketplace", "features",
-    "about", "pricing", "login", "settings", "notifications", "explore", "search",
-  ]);
-  if (parts.length >= 2 && !reserved.has(parts[0].toLowerCase())) {
-    return { owner: parts[0], repo: parts[1] };
-  }
-  return null;
-}
-
 function youtubeId(u: URL): string | null {
   const host = u.hostname.replace(/^www\./, "");
   if (host === "youtu.be") return u.pathname.slice(1) || null;
   if (host.endsWith("youtube.com")) return u.searchParams.get("v");
   return null;
-}
-
-/**
- * GitHub repo card. GitHub renders a full social-preview image (repo name,
- * description, stars, contributors) at a predictable URL — any path segment
- * works as a cache-buster — so we can show the exact rich card with no server.
- * Falls back to an owner-avatar + name card if that image fails (e.g. private).
- */
-function GithubCard({ url, owner, repo, host }: { url: string; owner: string; repo: string; host: string }) {
-  const [imgFailed, setImgFailed] = useState(false);
-  if (!imgFailed) {
-    return (
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener"
-        className="mt-2 block rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden no-underline hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
-        data-testid="link-card-github"
-      >
-        <img
-          src={`https://opengraph.githubassets.com/1/${owner}/${repo}`}
-          alt=""
-          loading="lazy"
-          onError={() => setImgFailed(true)}
-          className="w-full aspect-[1200/600] object-cover bg-slate-100 dark:bg-slate-800"
-        />
-        <div className="px-3 py-2 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800/60 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
-          <Github className="h-3.5 w-3.5" /> {host}
-        </div>
-      </a>
-    );
-  }
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener"
-      className="mt-2 flex items-stretch gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 no-underline overflow-hidden hover:border-slate-300 dark:hover:border-slate-700 hover:shadow-sm transition-all"
-      data-testid="link-card-github"
-    >
-      <img src={`https://github.com/${owner}.png?size=120`} alt="" loading="lazy" className="h-16 w-16 shrink-0 object-cover bg-slate-100 dark:bg-slate-800" />
-      <div className="min-w-0 flex-1 py-2 pr-3 flex flex-col justify-center">
-        <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{owner}/{repo}</span>
-        <span className="mt-0.5 inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400"><Github className="h-3.5 w-3.5" /> GitHub</span>
-      </div>
-    </a>
-  );
 }
 
 /** The rich preview card for a note's primary link. */
@@ -147,7 +88,6 @@ export function LinkPreviewCard({ url, showImage = true }: { url: string; showIm
   if (!u) return null;
   const host = u.hostname.replace(/^www\./, "");
   const yt = youtubeId(u);
-  const gh = githubRepo(u);
 
   // Audio plays where it is too. Wavlake's catalogue gives the track back as
   // an inline player; Fountain hides the mp3 behind a page the browser cannot
@@ -175,10 +115,6 @@ export function LinkPreviewCard({ url, showImage = true }: { url: string; showIm
         </a>
       </div>
     );
-  }
-
-  if (gh) {
-    return <GithubCard url={url} owner={gh.owner} repo={gh.repo} host={host} />;
   }
 
   // Plain links: the server's unfurl proxy, when it answers, gives a real
@@ -243,6 +179,15 @@ function UnfurledCard({ url, host, showImage }: { url: string; host: string; sho
     };
   }, [url, near]);
 
+  // The link is itself a clip: play it like any video in a note.
+  if (fetched?.kind === "video") {
+    return (
+      <div className="mt-2" data-testid="link-video">
+        <FeedVideo src={url} />
+      </div>
+    );
+  }
+
   // The link is itself a picture: show it. If it fails to load, fall back to
   // the card as if nothing was known.
   if (fetched?.kind === "image" && fetched.image && !imgFailed) {
@@ -269,7 +214,7 @@ function UnfurledCard({ url, host, showImage }: { url: string; host: string; sho
     );
   }
 
-  const meta = fetched?.kind === "image" ? null : fetched;
+  const meta = fetched && fetched.kind !== "image" ? fetched : null;
   const image = showImage && meta?.image && !imgFailed ? meta.image : null;
   const title = meta?.title && !isJustTheSiteName(meta.title, host) ? meta.title : null;
   if (!meta || !(title || meta.description || image)) {

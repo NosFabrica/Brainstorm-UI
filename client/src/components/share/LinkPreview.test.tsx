@@ -206,6 +206,21 @@ describe("the plain-link card", () => {
     expect(screen.queryByTestId("link-card-image")).toBeNull();
   });
 
+  it("plays an extensionless video link inline", async () => {
+    unfurlMock.mockResolvedValue({ kind: "video", title: null, description: null, image: null, siteName: null });
+    render(<LinkPreviewCard url="https://cdn.test/v/abc" />);
+    const box = await screen.findByTestId("link-video");
+    expect(box.querySelector("video")).toHaveAttribute("src", expect.stringContaining("https://cdn.test/v/abc"));
+    expect(screen.queryByTestId("link-card")).toBeNull();
+  });
+
+  it("gives GitHub links the ordinary card, which holds no bespoke fallback to jump to", async () => {
+    unfurlMock.mockResolvedValue({ kind: "page", title: "GitHub - nostr-protocol/nips", description: "Nostr Implementation Possibilities", image: "https://opengraph.githubassets.com/x/nostr-protocol/nips", siteName: "GitHub" });
+    render(<LinkPreviewCard url="https://github.com/nostr-protocol/nips" />);
+    expect(await screen.findByTestId("link-card")).toHaveTextContent("nostr-protocol/nips");
+    expect(screen.queryByTestId("link-card-github")).toBeNull();
+  });
+
   it("shows an extensionless image link as the picture, not a card", async () => {
     unfurlMock.mockResolvedValue({ kind: "image", title: null, description: null, image: "https://m.stacker.news/19886", siteName: null });
     render(<LinkPreviewCard url="https://m.stacker.news/19886" />);
