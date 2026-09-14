@@ -7,7 +7,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { stubVisibleIntersectionObserver } from "@/test/visibleIntersectionObserver";
-import { Favicon, LinkPreviewCard } from "./LinkPreview";
+import { __resetFavicons, Favicon, LinkPreviewCard } from "./LinkPreview";
 
 // Fountain's page, answered or not — the card is the player, not a fetch test.
 const fountainItemMock = vi.fn<(url: string) => { loading: boolean; item: import("@/lib/fountain").FountainItem | null }>(() => ({ loading: false, item: null }));
@@ -33,15 +33,13 @@ function img() {
 }
 
 describe("Favicon", () => {
-  it("walks the candidates before settling on the globe", () => {
+  beforeEach(() => __resetFavicons());
+
+  it("tries the host, then its apex, before settling on the globe", () => {
     render(<Favicon host="www.relayop.xyz" className="h-3 w-3" />);
     expect(img()?.getAttribute("src")).toBe("https://www.relayop.xyz/favicon.ico");
     fireEvent.error(img()!);
-    expect(img()?.getAttribute("src")).toBe("https://www.relayop.xyz/favicon.png");
-    fireEvent.error(img()!);
     expect(img()?.getAttribute("src")).toBe("https://relayop.xyz/favicon.ico");
-    fireEvent.error(img()!);
-    expect(img()?.getAttribute("src")).toBe("https://relayop.xyz/favicon.png");
     fireEvent.error(img()!);
     expect(img()).toBeNull();
     expect(screen.getByTestId("favicon-globe")).toBeInTheDocument();
@@ -50,9 +48,25 @@ describe("Favicon", () => {
   it("does not repeat the apex when the host already is one", () => {
     render(<Favicon host="example.org" className="h-3 w-3" />);
     fireEvent.error(img()!);
-    expect(img()?.getAttribute("src")).toBe("https://example.org/favicon.png");
-    fireEvent.error(img()!);
     expect(img()).toBeNull();
+  });
+
+  it("a host whose icon failed once is not asked again this session", () => {
+    const { unmount } = render(<Favicon host="nostrmag.com" className="h-3 w-3" />);
+    fireEvent.error(img()!);
+    unmount();
+    render(<Favicon host="nostrmag.com" className="h-3 w-3" />);
+    expect(img()).toBeNull();
+    expect(screen.getByTestId("favicon-globe")).toBeInTheDocument();
+  });
+
+  it("a host whose icon loaded reuses it without walking again", () => {
+    const { unmount } = render(<Favicon host="www.example.com" className="h-3 w-3" />);
+    fireEvent.error(img()!);
+    fireEvent.load(img()!);
+    unmount();
+    render(<Favicon host="www.example.com" className="h-3 w-3" />);
+    expect(img()?.getAttribute("src")).toBe("https://example.com/favicon.ico");
   });
 });
 

@@ -25,27 +25,44 @@ function parse(raw: string): URL | null {
   }
 }
 
-/** Where sites actually keep their icon, in the order worth trying — the
- *  apex domain too when the link said www. No third-party icon service. */
+/** `/favicon.ico` on the host, then its apex when the link said www. No
+ *  third-party icon service. `/favicon.png` was dropped: across a sample of
+ *  real hosts it never rescued one whose `.ico` failed, and each miss is a
+ *  failed request in every reader's network log. */
 function faviconCandidates(host: string): string[] {
   const hosts = [host];
   const apex = host.replace(/^www\./i, "");
   if (apex !== host) hosts.push(apex);
-  return hosts.flatMap((h) => [`https://${h}/favicon.ico`, `https://${h}/favicon.png`]);
+  return hosts.map((h) => `https://${h}/favicon.ico`);
 }
 
-/** Favicon loaded directly from the site; the globe only once every candidate failed. */
+/** Per host for the session: the icon URL that loaded, or null when none did.
+ *  Without it every chip for the same site walks — and fails — the same URLs. */
+const faviconByHost = new Map<string, string | null>();
+
+/** Test seam. */
+export function __resetFavicons(): void {
+  faviconByHost.clear();
+}
+
+/** Favicon loaded directly from the site; the globe once every candidate failed. */
 export function Favicon({ host, className }: { host: string; className?: string }) {
+  const known = host ? faviconByHost.get(host) : null;
+  const candidates = known ? [known] : host && known === undefined ? faviconCandidates(host) : [];
   const [attempt, setAttempt] = useState(0);
-  const candidates = host ? faviconCandidates(host) : [];
   if (attempt >= candidates.length) return <Globe className={className} data-testid="favicon-globe" />;
+  const src = candidates[attempt];
   return (
     <img
-      key={candidates[attempt]}
-      src={candidates[attempt]}
+      key={src}
+      src={src}
       alt=""
       loading="lazy"
-      onError={() => setAttempt((a) => a + 1)}
+      onLoad={() => faviconByHost.set(host, src)}
+      onError={() => {
+        if (attempt + 1 >= candidates.length) faviconByHost.set(host, null);
+        setAttempt((a) => a + 1);
+      }}
       className={className}
       data-testid="favicon"
     />
