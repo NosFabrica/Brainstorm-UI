@@ -35,8 +35,8 @@ const VID_RE = /\.(mp4|webm|mov|m4v|ogv)(\?.*)?$/i;
  * not a wall of raw links: a hosted-video URL becomes an inline player, a bare
  * media URL becomes an inline image / <video>, any other bare URL becomes a
  * tidy favicon chip, and a genuinely-labelled link keeps its text but styled.
- * (Full og-image/title/description previews for arbitrary links await the
- * /api/unfurl proxy — see LinkPreview.tsx.)
+ * Articles keep chips; title/description/image cards are for notes
+ * (LinkPreviewCard).
  */
 function InAppLink({ href, children }: { href: string; children?: React.ReactNode }) {
   const [, navigate] = useLocation();

@@ -9,12 +9,12 @@ import { useLightbox } from "@/components/share/Lightbox";
 import { FeedVideo } from "@/components/share/FeedVideo";
 
 /**
- * Server-free "smart" link previews. We can't fetch a URL's OG tags from the
- * browser (CORS), so until the /api/unfurl proxy lands this renders the prettiest
- * thing possible WITHOUT a server: a favicon loaded straight from the site (globe
- * fallback), plus richer cards for hosts whose images are directly loadable —
- * GitHub (owner avatar + owner/repo) and YouTube (video thumbnail). No third-party
- * favicon/preview service, so it stays privacy-aligned.
+ * Link previews for a note's links. A browser can't read another site's Open
+ * Graph tags (CORS), so plain links ask our own origin's `/link-preview`, served
+ * by brainstorm_og — which identifies itself honestly, honours robots.txt and
+ * doesn't log the URLs it's asked about. YouTube, Wavlake and Fountain need no
+ * server: they play inline. Favicons and preview images load straight from the
+ * linked site, images without a referrer; no third-party icon service.
  */
 
 function parse(raw: string): URL | null {
@@ -94,9 +94,8 @@ function youtubeId(u: URL): string | null {
   return null;
 }
 
-/** The rich preview card for a note's primary link. */
 /**
- * `showImage={false}` when the surrounding note or row already shows its own
+ * The rich preview for a note's primary link. `showImage={false}` when the surrounding note or row already shows its own
  * picture: news posts often attach the article's image, and the card's
  * og:image would be the same picture twice.
  */
@@ -106,9 +105,8 @@ export function LinkPreviewCard({ url, showImage = true }: { url: string; showIm
   const host = u.hostname.replace(/^www\./, "");
   const yt = youtubeId(u);
 
-  // Audio plays where it is too. Wavlake's catalogue gives the track back as
-  // an inline player; Fountain hides the mp3 behind a page the browser cannot
-  // read (RELAY-ASKS #11), so until the link proxy ships it is a Listen card.
+  // Audio plays where it is too: Wavlake's catalogue gives the track back as an
+  // inline player.
   if (wavlakeTrackId(url)) return <WavlakeTrackCard url={url} />;
   // Fountain's page is CORS-readable and carries artwork, words and the mp3 in
   // Open Graph, so an episode is a rich card that plays here (FountainCard),
@@ -134,13 +132,11 @@ export function LinkPreviewCard({ url, showImage = true }: { url: string; showIm
     );
   }
 
-  // Plain links: the server's unfurl proxy, when it answers, gives a real
-  // card — title, description, image. Until it does, nothing; the inline
-  // chip speaks for the link.
+  // Plain links: a card when the preview service has something to show;
+  // otherwise nothing, and the inline chip speaks for the link.
   return <UnfurledCard url={url} host={host} showImage={showImage} />;
 }
 
-/** Title + description + image for a plain link, from the unfurl proxy. */
 /** Start asking a little before the card is read, so it is usually filled. */
 const NEAR_VIEWPORT = "400px";
 

@@ -178,10 +178,9 @@ describe("LinkPreviewCard — audio links play where they are", () => {
   });
 });
 
-// The plain-link card. Its height is fixed and it never collapses, because a
-// page with no Open Graph markup is the common case — measured at roughly a
-// third of real links — and a card that vanishes shoves the feed around under
-// whoever is reading it.
+// The plain-link card appears only when the page has something to show — a
+// description, an image, or a title that isn't just the site's name. Otherwise
+// the inline chip stands alone: no empty boxes.
 const unfurlMock = vi.hoisted(() => vi.fn());
 vi.mock("@/services/unfurl", () => ({ fetchUnfurl: unfurlMock }));
 

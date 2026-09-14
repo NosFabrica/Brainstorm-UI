@@ -31,7 +31,7 @@ vi.mock("@/lib/eventStore", () => ({
   },
 }));
 import { nip19 } from "nostr-tools";
-// Link metadata comes from the server's unfurl proxy — faked so the row can
+// Link metadata comes from the link-preview service — faked so the row can
 // prove it turns a plain link into a card when the answer exists.
 const unfurlMock = vi.fn<(url: string) => Promise<{ title: string | null; description: string | null; image: string | null; siteName: string | null } | null>>(() =>
   Promise.resolve(null),
@@ -83,8 +83,8 @@ beforeEach(() => {
 
 describe("SerpRow — link metadata", () => {
   // Google shows a link's title and description, not its bare domain. Ours
-  // can too, once the server's unfurl proxy answers — the row renders the
-  // card for its first plain link, and stays a chip when there is no answer.
+  // can too, once the link-preview service answers — the row renders the
+  // card for the same link a feed would, and stays a chip when there is no answer.
   it("turns a plain link into a metadata card when the proxy knows it", async () => {
     unfurlMock.mockResolvedValue({ title: "Liverpool F.C.", description: "Professional football club based in Liverpool.", image: "https://img/lfc.jpg", siteName: "Wikipedia" });
     // A short lead — a long one plus a link IS the news shape, which has its own card.

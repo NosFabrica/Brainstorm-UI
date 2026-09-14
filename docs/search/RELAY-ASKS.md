@@ -87,18 +87,12 @@ Endorsement findings (2026-09-03, read-only probe for the reviews work):
    flagged }` per pubkey would retire the per-author `/overview` fan-out
    the rings and the flagged chip share today (the standing batch-score
    ask, restated).
-7. **`GET /api/unfurl?url=` proxy (server, not relay).** The SERP's news
-   cards currently parse metadata the news bots embed in note content —
-   which works shockingly well but only for bot-shaped notes. A tiny
-   OG-tag proxy (CORS forbids fetching them browser-side) would light up
-   title/description/image cards for EVERY shared link, sitewide.
-   **The UI side is wired and waiting** (`services/unfurl.ts`, rendered by
-   `components/share/LinkPreview.tsx` on SERP rows and note pages): it
-   calls `${VITE_API_URL}/api/unfurl?url=<encoded>` and expects
-   `{ title, description, image, siteName }` — bare, or wrapped in
-   `data` like the other endpoints. A 404/410/501 opens a session-wide
-   breaker (one request, then silence), so shipping the endpoint is the
-   only step left; no UI release needed.
+7. **Link-preview proxy — shipped (2026-09-14), differently than asked.**
+   Asked for as `GET /api/unfurl` on the API; delivered as
+   `GET /link-preview?url=` on the UI's own origin, served by
+   `brainstorm_og` (why: `brainstorm_og/CONTEXT.md`). Same-origin matters —
+   the rate limit trusts our own SPA by `Sec-Fetch-Site`. The UI's
+   `services/unfurl.ts` calls it; the old session breaker is gone.
 9. **Calendar events by `start`, not `created_at`.** The Events tab
    (NIP-52 kinds 31922/31923) wants "upcoming, soonest first" and "past,
    newest first" — the `start` tag, not the publish time. Probed

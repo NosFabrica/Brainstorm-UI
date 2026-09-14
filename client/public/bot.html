@@ -99,9 +99,10 @@ be Googlebot, facebookexternalhit, Twitterbot, or Slackbot is hitting you, it is
       capped at 512,000 bytes.</li>
   <li><strong>Give up quickly.</strong> 3 seconds per hop, 5 seconds overall, and at most three
       redirects.</li>
-  <li><strong>Request HTML only.</strong> We send
-      <code>Accept: text/html,application/xhtml+xml</code>, and a response that is not one of
-      those two types is discarded unparsed.</li>
+  <li><strong>Request pages, not files.</strong> We send
+      <code>Accept: text/html,application/xhtml+xml</code>. An HTML response is read as above.
+      An image or video (JPEG, PNG, GIF, WebP, AVIF, MP4, WebM) is recognised from its headers
+      and never downloaded. Anything else is discarded unread.</li>
   <li><strong>Rate-limit ourselves.</strong> Requests are capped per calling IP address over a
       fixed window, using the address from our own proxy chain rather than anything the caller
       claims in a header.</li>
@@ -146,8 +147,10 @@ Disallow: /</code></pre>
 <p>Blocking by User-Agent works too — the token is stable and we will not change it to evade a
 block:</p>
 <pre><code>if ($http_user_agent ~* "BrainstormBot") { return 403; }   # nginx</code></pre>
-<p>A 403, 429, or 451 is fine by us; we cache the failure and move on. If you would rather we
-stopped without you having to configure anything, email us and we will stop fetching your host.</p>
+<p>A 403 or 451 is fine by us; we cache the failure and move on. A 429 or 503 pauses every
+request to your host, not just that page, for your <code>Retry-After</code> (held between one and
+ten minutes). If you would rather we stopped without you having to configure anything, email us
+and we will stop fetching your host.</p>
 
 <h2>Contact</h2>
 <table>
