@@ -393,7 +393,7 @@ export default function HowSearchWorksPage() {
                   <a
                     href="https://github.com/NosFabrica"
                     target="_blank"
-                    rel="noopener noreferrer"
+                    rel="noopener"
                     className="inline-flex items-center gap-0.5 font-semibold text-brand-primary hover:text-brand-primary hover:underline transition-colors"
                     data-testid="link-graperank"
                   >
@@ -413,7 +413,7 @@ export default function HowSearchWorksPage() {
                   <a
                     href="https://vespa.ai/"
                     target="_blank"
-                    rel="noopener noreferrer"
+                    rel="noopener"
                     className="inline-flex items-center gap-0.5 font-semibold text-brand-primary hover:text-brand-primary hover:underline transition-colors"
                     data-testid="link-vespa"
                   >
@@ -441,7 +441,7 @@ export default function HowSearchWorksPage() {
                   key={tech.name}
                   href={tech.href}
                   target="_blank"
-                  rel="noopener noreferrer"
+                  rel="noopener"
                   className="group flex items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3.5 hover:border-brand-accent/40 hover:shadow-sm transition-all"
                   data-testid={`powered-${tech.name.toLowerCase()}`}
                 >

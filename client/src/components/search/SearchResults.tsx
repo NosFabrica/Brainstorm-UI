@@ -1,0 +1,1544 @@
+/**
+ * The results half of the search page — Google anatomy: vertical tabs under
+ * the header, a left-aligned column of typed result cards, count line at
+ * EOSE. Owns the stream lifecycle: any change to query/tab/POV cancels the
+ * in-flight stream and starts a fresh one (a cancelled handle never calls
+ * back, so stale results structurally cannot flash).
+ */
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation } from "wouter";
+import { nip19 } from "nostr-tools";
+import type { NostrEvent } from "nostr-tools";
+import { ChevronDown, Radar, Radio, SlidersHorizontal } from "lucide-react";
+import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, readFilters, sinceForPreset, splitFilters, type DatePreset, type SearchFilterPatch, scopeOf } from "@/lib/searchSyntax";
+import { clientFilterHits, countBelowLine } from "@/lib/clientFilters";
+import { useNetworkReach } from "@/hooks/useNetworkReach";
+import { eventStore } from "@/lib/eventStore";
+import { EmptyState } from "@/components/ui/empty-state";
+import { PersonCard } from "@/components/search/PersonCard";
+import { QuietTrustChrome } from "@/components/score/VerificationCoin";
+import { ShareNoteCard } from "@/components/share/ShareNoteCard";
+import { EmbeddedArticleCard } from "@/components/share/EmbeddedArticleCard";
+import { useAuthorScores } from "@/hooks/useAuthorScores";
+import { eventPath } from "@/lib/shareId";
+import { useNoteRefs } from "@/hooks/useNoteRefs";
+import type { MinimalEvent } from "@/lib/noteRefs";
+import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
+import {
+  searchStream,
+  TAB_KINDS,
+  type SearchHit,
+  type SearchPov,
+  type SearchSnapshot,
+  type SearchTab,
+  type SearchHandle,
+} from "@/services/search";
+import { MoreResults } from "./MoreResults";
+import { SorryPage } from "@/components/sorry/SorryPage";
+import { retryNow, useServerStatus } from "@/lib/serverStatus";
+
+import { fetchEventRsvps, fetchGitCommentCounts, fetchGitStatuses, type EventRsvps } from "@/services/search";
+import { GIT_STATE_LABEL, foldForks, gitLabelsOf, gitStateOf, isGitItem, peopleBeforeAgents, type GitState } from "@/lib/gitStatus";
+import { isMediaFile, isSoundtrackFile } from "@/lib/fileMetadata";
+import { groupPeoplePacks } from "@/lib/listGroups";
+import { AppCard, EventCard, LiveTile, ListCard, MediaCard, RepoCard, TrackCard, platformWords, mediaUrlOf, ListingCard, type ListGroupView } from "@/components/search/cards";
+import { liveHostOf, liveNeedsCheck, liveStateOf, type LiveState } from "@/lib/liveStream";
+import { useVerifiedRecordings } from "@/hooks/useVerifiedRecordings";
+import { EVENT_WHEN_LABELS, EVENT_WHEN_ORDER, eventWhenCounts, filterEventsByWhen, type EventWhen } from "@/lib/eventFilters";
+import { EventDateTile } from "@/components/share/EventDateTile";
+import { isOver, parseCalendarEvent as parseCal, relativeEventTime as relativeDay } from "@/lib/calendarEvent";
+import { isTestTrack, parseTrack } from "@/lib/trackEvent";
+import { isSellable, parseListing } from "@/lib/listing";
+import { fetchRecentByKinds } from "@/services/nostr";
+import { useWavlakeSearch } from "@/hooks/useWavlakeSongs";
+import { useArtistCatalogue } from "@/hooks/useArtistCatalogue";
+import { MusicResults } from "@/components/search/MusicResults";
+import { FacetChip, FacetRow } from "@/components/search/sections";
+import { KnowledgePanel } from "@/components/search/KnowledgePanel";
+import { ComposedResults } from "@/components/search/ComposedResults";
+import { capPerAuthor, collapseHits } from "@/lib/searchCollapse";
+
+const NOTE_KINDS = new Set(TAB_KINDS.notes);
+const ARTICLE_KINDS = new Set(TAB_KINDS.articles);
+const MEDIA_KINDS = new Set(TAB_KINDS.media);
+const APP_KINDS = new Set(TAB_KINDS.apps);
+const REPO_KINDS = new Set(TAB_KINDS.repos);
+
+/** One row of the flat list: a hit, and — when it leads a fold — how many it
+ *  hides, the chip's words, and (for an opened fork) whose fork it is. */
+type DisplayRow = {
+  hit: SearchHit;
+  collapsedCount: number;
+  clusterId: string;
+  chipLabel?: string;
+  forkOf?: string;
+  /** A folded same-title follow pack: how many lists, their union, the faces most agree on. */
+  listGroup?: ListGroupView;
+};
+const LIVE_KINDS = new Set(TAB_KINDS.live);
+const EVENT_KINDS = new Set(TAB_KINDS.events);
+const MUSIC_KINDS = new Set(TAB_KINDS.music);
+const SHOP_KINDS = new Set(TAB_KINDS.shop);
+const LIST_KINDS = new Set(TAB_KINDS.lists);
+
+/** ShareNoteCard's profile map, built from the hits' hydrated authors. */
+const NO_NOTES: MinimalEvent[] = [];
+
+function profilesOf(hits: SearchHit[]) {
+  const map = new Map<string, { name?: string; display_name?: string; picture?: string; nip05?: string }>();
+  for (const hit of hits) {
+    if (hit.author && !map.has(hit.author.pubkey)) {
+      map.set(hit.author.pubkey, {
+        name: hit.author.name,
+        display_name: hit.author.displayName,
+        picture: hit.author.picture,
+        nip05: hit.author.nip05,
+      });
+    }
+  }
+  return map;
+}
+
+/** Google's row: five verticals in view, the long tail behind More ▾. */
+const PRIMARY_TABS: { key: SearchTab; label: string }[] = [
+  { key: "everything", label: "Everything" },
+  { key: "people", label: "People" },
+  { key: "notes", label: "Notes" },
+  { key: "articles", label: "Articles" },
+  { key: "media", label: "Media" },
+];
+const MORE_TABS: { key: SearchTab; label: string }[] = [
+  { key: "apps", label: "Apps" },
+  { key: "shop", label: "Shop" },
+  { key: "repos", label: "Repos" },
+  { key: "events", label: "Events" },
+  { key: "music", label: "Music" },
+  { key: "live", label: "Live" },
+  { key: "lists", label: "Lists" },
+];
+const TABS = [...PRIMARY_TABS, ...MORE_TABS];
+
+const TAB_KEYS = new Set(TABS.map((t) => t.key));
+
+const tabClass = (active: boolean) =>
+  "shrink-0 px-2.5 sm:px-3 py-1.5 text-xs sm:text-[13px] font-medium border-b-2 -mb-px transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded-t " +
+  (active
+    ? "border-brand-primary text-brand-deep dark:text-brand-link"
+    : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200");
+
+/** The More ▾ slot: names the folded vertical that is active (so the row
+ *  always says where you are), otherwise "More". A plain disclosure, not a
+ *  portal — it sits OUTSIDE the scrolling strip so nothing clips it. */
+function MoreTabs({ tab, onChange }: { tab: SearchTab; onChange: (next: SearchTab) => void }) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const active = MORE_TABS.find((t) => t.key === tab);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointer = (e: PointerEvent) => {
+      if (!rootRef.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
+    document.addEventListener("pointerdown", onPointer);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onPointer);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative shrink-0">
+      <button
+        type="button"
+        role="tab"
+        aria-selected={!!active}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        className={tabClass(!!active) + " inline-flex items-center gap-0.5"}
+        data-testid="search-tab-more"
+      >
+        {active ? active.label : "More"}
+        <ChevronDown className={`h-3 w-3 transition-transform ${open ? "rotate-180" : ""}`} aria-hidden="true" />
+      </button>
+      {open && (
+        <div
+          role="menu"
+          aria-label="More result types"
+          className="absolute right-0 top-full z-20 mt-1 min-w-[9rem] rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+        >
+          {MORE_TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="menuitem"
+              aria-current={tab === t.key ? "true" : undefined}
+              onClick={() => {
+                setOpen(false);
+                onChange(t.key);
+              }}
+              className={
+                "flex w-full items-center rounded-lg px-3 py-1.5 text-left text-[13px] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 " +
+                (tab === t.key
+                  ? "font-semibold text-brand-deep dark:text-brand-link"
+                  : "text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800")
+              }
+              data-testid={`search-tab-${t.key}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function tabFromUrl(): SearchTab {
+  try {
+    const t = new URLSearchParams(window.location.search).get("t");
+    // The old combined tab's deep links keep working.
+    if (t === "code") return "repos";
+    if (t && TAB_KEYS.has(t as SearchTab)) return t as SearchTab;
+  } catch {
+    /* default below */
+  }
+  return "everything";
+}
+
+function writeTabToUrl(tab: SearchTab) {
+  try {
+    const url = new URL(window.location.href);
+    if (tab === "everything") url.searchParams.delete("t");
+    else url.searchParams.set("t", tab);
+    window.history.replaceState({}, "", url.pathname + url.search);
+  } catch {
+    /* URL sync is a convenience, never a blocker */
+  }
+}
+
+/** Google's Tools menu for time. */
+const DATE_PRESETS: { value: DatePreset; label: string }[] = [
+  { value: "any", label: "Any time" },
+  { value: "day", label: "Past 24 hours" },
+  { value: "week", label: "Past week" },
+  { value: "month", label: "Past month" },
+  { value: "year", label: "Past year" },
+  { value: "custom", label: "Custom range" },
+];
+
+
+// Every option here changes the relay's order — probed 2026-09-03. "Text match
+// only" went: it ordered exactly like "Include unranked" and confused people.
+const SORT_OPTIONS = [
+  { value: "", label: "Best match" },
+  { value: "recent", label: "Newest first" },
+  { value: "rank", label: "Most trusted authors" },
+  { value: "followers", label: "Most followed authors" },
+];
+
+/** A one-line facet chip strip: horizontal scroll with the scrollbar hidden,
+ *  a soft right-edge fade to signal "more", and mouse-wheel → horizontal so a
+ *  desktop mouse scrolls it as easily as a phone swipes (trackpads/touch already
+ *  scroll it natively). */
+
+/** The filters that are real (probed 2026-09-03). Every control rewrites the
+ *  full query (words + tokens) through onQueryRewrite; the landing page keeps
+ *  the tokens OUT of the visible box and in the URL's `f` instead. */
+function FiltersPanel({
+  query,
+  pov,
+  userPubkey,
+  onQueryRewrite,
+}: {
+  query: string;
+  pov: SearchPov;
+  userPubkey?: string;
+  onQueryRewrite: (next: string) => void;
+}) {
+  // What the relay will actually run: a wordless browse cannot be rank- or
+  // follower-sorted, so the panel shows the fallback and greys those two.
+  const browsing = !splitFilters(query).text;
+  const state = readFilters(browsing ? browseSafeQuery(query) : query);
+  const preset = datePreset(state);
+  // "Custom range" stays open once chosen, even before a day is picked.
+  const [customDates, setCustomDates] = useState(preset === "custom");
+  const advancedActive = !!state.reach || state.includeSpam;
+  const [advancedOpen, setAdvancedOpen] = useState(advancedActive);
+  useEffect(() => {
+    if (advancedActive) setAdvancedOpen(true);
+  }, [advancedActive]);
+  const write = (patch: SearchFilterPatch) => onQueryRewrite(applyFilters(query, patch));
+
+
+  const showDates = customDates || preset === "custom";
+  const segment = (on: boolean) =>
+    `h-8 px-2.5 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/30 ${
+      on ? "bg-brand-primary text-white" : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+    }`;
+  const field =
+    "h-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-2 text-xs text-slate-700 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-accent/30";
+  // Every field is a caption over a control of ONE height and ONE width rule:
+  // half a phone row each (two up), a fixed column on desktop. Nothing under
+  // a control — a hint inside one column used to push its neighbour down.
+  const column =
+    "flex min-w-0 flex-1 basis-[8.5rem] flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400 sm:flex-none sm:basis-auto";
+  const control = `${field} w-full sm:w-44`;
+
+  return (
+    <div
+      className="mb-3 flex flex-wrap items-start gap-x-4 gap-y-2.5 rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 p-3"
+      data-testid="search-filters-panel"
+    >
+      {!userPubkey && (
+        <p className="basis-full text-xs text-slate-500 dark:text-slate-400" data-testid="filters-signin">
+          Sign in to rank through your own network.{" "}
+          <Link href="/login" className="font-medium text-brand-link hover:underline">
+            Sign in →
+          </Link>
+        </p>
+      )}
+      <label className={column}>
+        Sort
+        <select
+          className={control}
+          value={state.sort ?? ""}
+          onChange={(e) => write({ sort: e.target.value || null })}
+          data-testid="filter-sort"
+        >
+          {SORT_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value} disabled={browsing && BROWSE_UNAVAILABLE_SORTS.has(o.value)}>
+              {o.label}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className={column}>
+        Time
+        <select
+          className={control}
+          value={showDates ? "custom" : preset}
+          onChange={(e) => {
+            const next = e.target.value as DatePreset;
+            if (next === "custom") {
+              setCustomDates(true);
+              return;
+            }
+            setCustomDates(false);
+            write({ since: sinceForPreset(next), until: null });
+          }}
+          data-testid="filter-date"
+        >
+          {DATE_PRESETS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+      </label>
+      {showDates && (
+        <>
+          <label className={column}>
+            From day
+            <input
+              type="date"
+              className={control}
+              value={state.since ?? ""}
+              onChange={(e) => write({ since: e.target.value || null })}
+              data-testid="filter-since"
+            />
+          </label>
+          <label className={column}>
+            To day
+            <input
+              type="date"
+              className={control}
+              value={state.until ?? ""}
+              onChange={(e) => write({ until: e.target.value || null })}
+              data-testid="filter-until"
+            />
+          </label>
+        </>
+      )}
+      {browsing && (
+        <p className="basis-full -mt-1 text-[10px] text-slate-400 dark:text-slate-500" data-testid="filter-sort-hint">
+          Trust and follower sorts need a search term
+        </p>
+      )}
+      {/* Sort and date are the two anyone uses; the rest waits behind one
+          word (the team: less busy), and comes forward by itself when one of
+          its controls is set — by a shared link, say. */}
+      <button
+        type="button"
+        onClick={() => setAdvancedOpen((v) => !v)}
+        aria-expanded={advancedOpen}
+        className="basis-full flex items-center gap-1 text-left text-[11px] font-medium text-slate-500 dark:text-slate-400 hover:text-brand-link"
+        data-testid="filters-advanced-toggle"
+      >
+        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${advancedOpen ? "rotate-180" : ""}`} />
+        Advanced
+      </button>
+      {advancedOpen && (
+        <div className="basis-full flex flex-wrap items-end gap-x-4 gap-y-3" data-testid="filters-advanced">
+      {/* Trust distance — how far the search casts its net. The relay has no
+          hops, so this reads the viewer's own follow graph (Benjamin's
+          slider); with nobody signed in there is no "you", so it isn't there. */}
+      {userPubkey && (
+        <div className="flex flex-col gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+          Trust distance
+          <div
+            role="group"
+            aria-label="Trust distance"
+            className="inline-flex overflow-hidden rounded-lg border border-slate-200 dark:border-slate-800 divide-x divide-slate-200 dark:divide-slate-800"
+            data-testid="filter-reach"
+          >
+            {(
+              [
+                ["follows", "People you follow"],
+                ["friends", "Friends of friends"],
+                [null, "Everyone"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={label}
+                type="button"
+                aria-pressed={state.reach === value}
+                onClick={() => write({ reach: value })}
+                className={segment(state.reach === value)}
+                data-testid={`filter-reach-${value ?? "all"}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+      <label className="flex items-center gap-1.5 pb-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+        <input
+          type="checkbox"
+          className="h-3.5 w-3.5 accent-brand-primary"
+          checked={state.includeSpam}
+          onChange={(e) => write({ includeSpam: e.target.checked })}
+          data-testid="filter-spam"
+        />
+        Include unranked accounts
+      </label>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * What a search had loaded, for its next life. Opening a result and coming
+ * back used to restart at page one (2026-09-09): a reader ten pages deep
+ * landed at the top with nothing below. Module-level so it outlives the
+ * page; ten minutes and eight searches deep, which is a browsing session.
+ */
+const SEARCH_MEMORY = new Map<string, { hits: SearchHit[]; scrollY: number; at: number }>();
+const SEARCH_MEMORY_TTL_MS = 10 * 60_000;
+const SEARCH_MEMORY_SIZE = 8;
+function rememberKey(query: string, tab: string, pov: string, userPubkey?: string): string {
+  return [query, tab, pov, userPubkey ?? ""].join("\u0000");
+}
+function rememberSearch(key: string, hits: SearchHit[], scrollY: number): void {
+  SEARCH_MEMORY.delete(key);
+  SEARCH_MEMORY.set(key, { hits, scrollY, at: Date.now() });
+  while (SEARCH_MEMORY.size > SEARCH_MEMORY_SIZE) SEARCH_MEMORY.delete(SEARCH_MEMORY.keys().next().value as string);
+}
+/** Tests: forget every search. */
+export function __resetSearchMemory(): void {
+  SEARCH_MEMORY.clear();
+}
+function recallSearch(key: string): { hits: SearchHit[]; scrollY: number } | null {
+  const m = SEARCH_MEMORY.get(key);
+  if (!m) return null;
+  if (Date.now() - m.at > SEARCH_MEMORY_TTL_MS) {
+    SEARCH_MEMORY.delete(key);
+    return null;
+  }
+  return m;
+}
+
+export function SearchResults({
+  query,
+  pov,
+  userPubkey,
+  onOpenProfile,
+  onPrefetchEnter,
+  onPrefetchLeave,
+  onQueryRewrite,
+  onTabChange,
+  perspective,
+}: {
+  query: string;
+  pov: SearchPov;
+  userPubkey?: string;
+  /** The page's Brainstorm / My perspective control, seated in the tab row
+   *  beside Filters once results show (one row of chrome, not three). */
+  perspective?: React.ReactNode;
+  /** People-card click. Default: the public profile page. */
+  onOpenProfile?: (result: SearchResult) => void;
+  onPrefetchEnter?: (result: SearchResult) => void;
+  onPrefetchLeave?: (result: SearchResult) => void;
+  /** The Filters panel rewrites the query THROUGH the caller so the new
+   *  tokens land visibly in the search box and resubmit. */
+  onQueryRewrite?: (next: string) => void;
+  /** Which tab is showing — the box words its placeholder by it. */
+  onTabChange?: (tab: SearchTab) => void;
+}) {
+  const [, setLocation] = useLocation();
+  const [tab, setTab] = useState<SearchTab>(tabFromUrl);
+  useEffect(() => {
+    onTabChange?.(tab);
+  }, [tab, onTabChange]);
+  const [snapshot, setSnapshot] = useState<SearchSnapshot | null>(null);
+  // Whether the relay behind every search is answering (lib/serverStatus).
+  const serverStatus = useServerStatus();
+  // The tab's live stream, so the end of the page can ask it for more.
+  const streamRef = useRef<SearchHandle | null>(null);
+  const firstRun = useRef(true);
+  // Media on Nostr is mostly a NOTE with a file attached (Rabbit Hole Recap:
+  // 254 notes, no media-kind events, a video in most of them). The Media tab
+  // asks for notes too and keeps the ones that carry something to look at.
+  const [mediaNotes, setMediaNotes] = useState<SearchSnapshot | null>(null);
+  // When the query IS a person, the Media tab leads with what they published
+  // — their episode posts don't repeat their own name in the text.
+  const [panelPerson, setPanelPerson] = useState<SearchResult | null>(null);
+  const [personMedia, setPersonMedia] = useState<SearchHit[]>([]);
+  useEffect(() => {
+    setPersonMedia([]);
+    // The Media tab and the composed Everything page both lead with it.
+    const everything = tab === "everything" && !/(^|\s)sort:/i.test(query);
+    if ((tab !== "media" && !everything) || !panelPerson) return;
+    let cancelled = false;
+    const who = panelPerson;
+    fetchRecentByKinds(who.pubkey, [1, 20, 21, 22, 34235, 34236], 40)
+      .then((events) => {
+        if (cancelled) return;
+        setPersonMedia(
+          events
+            .filter((e) => mediaUrlOf(e as NostrEvent) !== null)
+            .map((e) => ({ event: e as NostrEvent, author: who, rank: null })),
+        );
+      })
+      .catch(() => {
+        if (!cancelled) setPersonMedia([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, query, panelPerson?.pubkey]);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+
+  // Everything composes its own purpose-ranked section streams — unless the
+  // user typed a sort:, which is them choosing ONE order for one list.
+  const userSorted = /(^|\s)sort:/i.test(query);
+  const composed = tab === "everything" && !userSorted;
+  // Content tabs land on what's fresh by default; People keeps trust rank,
+  // and a typed sort: is always honored verbatim.
+  // A browse (no words) asking for a sort the relay cannot run over the whole
+  // index falls back to newest — the relay never answers it, and a hung
+  // request stalls everything else on the connection (RELAY-ASKS #12).
+  const safeQuery = browseSafeQuery(query);
+  // Articles are evergreen: with words typed, relevance leads. Recent-first
+  // put the page named "List of comedians" 26th under a month of news; best
+  // match had it first, the other comedian lists behind it (relay probe,
+  // 2026-09-07). A wordless browse still asks newest — there is nothing to match.
+  const articlesByRelevance = tab === "articles" && !!splitFilters(query).text;
+  const effectiveQuery =
+    !userSorted && tab !== "everything" && tab !== "people" && !articlesByRelevance
+      ? `${safeQuery} sort:recent`.trim()
+      : safeQuery;
+
+  // Where the reader was when this search left the page. Read in a layout
+  // cleanup: on a navigation the app scrolls to the top in its own layout
+  // effect, and a passive cleanup would read zero.
+  const scrollAtLeave = useRef(0);
+  useLayoutEffect(() => {
+    return () => {
+      scrollAtLeave.current = typeof window !== "undefined" ? window.scrollY : 0;
+    };
+  }, [effectiveQuery, tab, pov, userPubkey, composed, serverStatus.recovery]);
+
+  useEffect(() => {
+    if (composed) {
+      setSnapshot(null);
+      return;
+    }
+    // Client-side filters (Verified only, reach) thin the page after the
+    // fact — ask the relay for a deeper one so there is something left.
+    const clientFiltered = readFilters(effectiveQuery);
+    // Events too: the relay only knows created_at, so the When facet works
+    // over a deep recent page (probed: no start-tag filter or sort).
+    const limit = clientFiltered.verifiedOnly || clientFiltered.reach || tab === "events" ? 300 : undefined;
+    // A search this tab ran before comes back with the pages it had, before
+    // the relay answers — and, when the page itself is coming back (a reader
+    // returning from a result), to where they were in it.
+    const key = rememberKey(effectiveQuery, tab, pov, userPubkey);
+    const remembered = recallSearch(key);
+    const restoreScroll = firstRun.current && remembered ? remembered.scrollY : null;
+    firstRun.current = false;
+    let latest: SearchSnapshot | null = remembered ? { hits: remembered.hits, eose: false, timeMs: null, error: null } : null;
+    setSnapshot(latest);
+    const handle = searchStream(effectiveQuery, { tab, pov, userPubkey, limit, seed: remembered?.hits }, (snap) => {
+      latest = snap;
+      setSnapshot(snap);
+    });
+    streamRef.current = handle;
+    let pending: number | ReturnType<typeof setTimeout> | null = null;
+    if (restoreScroll != null && restoreScroll > 0) {
+      // After paint — and after the app's own scroll-to-top on navigation.
+      pending =
+        typeof requestAnimationFrame === "function"
+          ? requestAnimationFrame(() => window.scrollTo({ top: restoreScroll, behavior: "instant" as ScrollBehavior }))
+          : setTimeout(() => window.scrollTo({ top: restoreScroll, behavior: "instant" as ScrollBehavior }), 0);
+    }
+    return () => {
+      if (latest && latest.hits.length) rememberSearch(key, latest.hits, scrollAtLeave.current);
+      if (typeof pending === "number" && typeof cancelAnimationFrame === "function") cancelAnimationFrame(pending);
+      if (streamRef.current === handle) streamRef.current = null;
+      handle();
+    };
+  }, [effectiveQuery, tab, pov, userPubkey, composed, serverStatus.recovery]);
+
+  useEffect(() => {
+    setMediaNotes(null);
+    if (composed || tab !== "media") return;
+    return searchStream(effectiveQuery, { tab: "notes", pov, userPubkey, limit: 60 }, setMediaNotes);
+  }, [effectiveQuery, tab, pov, userPubkey, composed]);
+
+  const changeTab = useCallback((next: SearchTab) => {
+    setTab(next);
+    writeTabToUrl(next);
+  }, []);
+
+  const openProfile = useCallback(
+    (result: SearchResult) => {
+      if (onOpenProfile) onOpenProfile(result);
+      else setLocation(`/p/${result.npub}`);
+    },
+    [onOpenProfile, setLocation],
+  );
+
+  // Keep a ref so the render below sees a stable list even mid-stream. On the
+  // Media tab the notes that carry media join the media-kind hits.
+  const rawHits = useMemo(() => {
+    const base = snapshot?.hits ?? [];
+    // A listing is for sale or it is not a result: sold, hidden and priceless
+    // never count, so the count line and the cards agree.
+    if (tab === "shop") return base.filter((h) => { const l = parseListing(h.event); return !!l && isSellable(l); });
+    if (tab !== "media" || !mediaNotes) return base;
+    const seen = new Set(base.map((h) => h.event.id));
+    const visual = mediaNotes.hits.filter((h) => !seen.has(h.event.id) && mediaUrlOf(h.event) !== null);
+    return [...base, ...visual];
+  }, [snapshot, mediaNotes, tab]);
+  // The person's own media is its own group above the list; the list drops its duplicates.
+  const personMediaIds = useMemo(() => new Set(personMedia.map((h) => h.event.id)), [personMedia]);
+  // The relay only ORDERS by rank — per-card scores come from the shared
+  // author-score cache (hashtag-page discipline) for EVERY hit, kind-0
+  // included: without this, people cards render bare and the user's
+  // verification-display settings have nothing to show.
+  // Streams are published by platforms for their streamers: the host's key
+  // joins the score request so the channel row can wear the streamer's ring.
+  const allAuthors = useMemo(
+    () => [...new Set(rawHits.flatMap((h) => (LIVE_KINDS.has(h.event.kind) ? [h.event.pubkey, liveHostOf(h.event) ?? h.event.pubkey] : [h.event.pubkey])))],
+    [rawHits],
+  );
+  const scoreOf = useAuthorScores(allAuthors);
+  // The filters the relay can't do, done here (probed: filter:rank ignored,
+  // no hops): Verified only via those scores, reach via the viewer's graph.
+  const reach = useNetworkReach(userPubkey);
+  const clientState = readFilters(safeQuery);
+  // The search floor: accounts below the verified line stay off the page
+  // unless the searcher asks for everyone (Include spam) or is looking through
+  // their own perspective — their lens, their view. Probed 2026-09-05: the
+  // relay's house lens let two aéPiot accounts (scores 0 and 0.0198) fill 38
+  // of the 40 newest "Ainsley Costello" notes.
+  const floor = !clientState.includeSpam && pov !== "mywot";
+  // The box no longer shows filter tokens — the Filters button says how many are on.
+  const activeFilters = activeFilterCount(clientState);
+  const hits = useMemo(
+    () => clientFilterHits(rawHits, { verifiedOnly: clientState.verifiedOnly, reach: clientState.reach, belowLine: floor }, { scoreOf, reach }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rawHits, clientState.verifiedOnly, clientState.reach, floor, reach, allAuthors.map((pk) => scoreOf(pk)).join(",")],
+  );
+  const hiddenBelowLine = floor ? countBelowLine(rawHits, scoreOf) : 0;
+  // What the floor held back, said once and quietly — Google's "some results
+  // were removed" — with the one tap that lifts it. Rendered under the list,
+  // and on an emptied page in place of a bare "Nothing found".
+  const floorNotice =
+    hiddenBelowLine > 0 ? (
+      <p className="mt-4 px-1 text-xs text-slate-400 dark:text-slate-500" data-testid="search-floor-notice">
+        {hiddenBelowLine} {hiddenBelowLine === 1 ? "result" : "results"} hidden from accounts below the verified line ·{" "}
+        <button
+          type="button"
+          onClick={() => onQueryRewrite?.(applyFilters(query, { includeSpam: true }))}
+          className="font-medium text-slate-500 hover:text-brand-link dark:text-slate-400 transition-colors"
+          data-testid="search-floor-show-all"
+        >
+          Show everyone
+        </button>
+      </p>
+    ) : null;
+  // Wavlake is the Music tab's second source: the same words, its catalogue —
+  // or, when the search is scoped to one person (from:npub…, the profile's
+  // "View all"), that person's own catalogue: the artist who is them and every
+  // song of theirs, with no text search for the key.
+  // Words typed beside the person chip narrow that catalogue by title.
+  const scope = scopeOf(query);
+  const scopedTo = scope?.pubkey ?? null;
+  const wavlakeWords = useWavlakeSearch(query, tab === "music" && !scope);
+  const catalogue = useArtistCatalogue(tab === "music" ? scopedTo : null);
+  const wavlake = useMemo(() => {
+    if (!scope) return wavlakeWords;
+    const words = scope.rest.toLowerCase().split(/\s+/).filter(Boolean);
+    const songs = words.length === 0 ? catalogue.songs : catalogue.songs.filter((s) => words.every((w) => s.title.toLowerCase().includes(w)));
+    return { artists: catalogue.artist ? [catalogue.artist] : [], albums: [], songs, loading: catalogue.loading };
+  }, [scope, wavlakeWords, catalogue]);
+  const mediaSettled = tab !== "media" || !!mediaNotes?.eose || !!mediaNotes?.error;
+  const searching =
+    personMedia.length === 0 &&
+    (!snapshot || (!snapshot.eose && !snapshot.error && hits.length === 0 && (tab !== "music" || wavlake.loading)) || (tab === "media" && !mediaSettled && hits.length === 0));
+  const noResults = !!snapshot?.eose && mediaSettled && hits.length === 0 && personMedia.length === 0 && (tab !== "music" || (!wavlake.loading && wavlake.songs.length === 0));
+  // What the count line counts, when it shows: every source the tab shows.
+  const extraCount = (tab === "music" ? wavlake.songs.length : 0) + (tab === "media" ? personMedia.filter((h) => !hits.some((x) => x.event.id === h.event.id)).length : 0);
+  const peopleIdx = useRef(0);
+  peopleIdx.current = 0;
+
+  // Recurring events (the "liverpool" monthly-meetup dump) collapse on the
+  // event-shaped tabs; a chip expands the rest of each cluster.
+  const [expandedClusters, setExpandedClusters] = useState<Set<string>>(new Set());
+  const clustered = tab === "events" || tab === "live" || tab === "lists";
+  // Events facet by WHEN — Upcoming by default (soonest first); with nothing
+  // upcoming the tab shows what just happened and says so.
+  const [eventWhen, setEventWhen] = useState<EventWhen>("upcoming");
+  useEffect(() => setEventWhen("upcoming"), [query]);
+  const eventCounts = useMemo(() => (tab === "events" ? eventWhenCounts(hits) : null), [tab, hits]);
+  const eventsFellBack = tab === "events" && eventWhen === "upcoming" && !!eventCounts && eventCounts.upcoming === 0 && eventCounts.past > 0;
+  const effectiveWhen: EventWhen = eventsFellBack ? "past" : eventWhen;
+  // Live tab: three shelves — Live · Upcoming · Replays. Live leads when
+  // anyone is on; a replay counts only once its recording answers.
+  const [liveShelf, setLiveShelf] = useState<LiveState | null>(null);
+  useEffect(() => setLiveShelf(null), [query]);
+  const liveStates = useMemo(() => {
+    const m = new Map<string, LiveState | null>();
+    if (tab === "live") for (const h of hits) m.set(h.event.id, liveStateOf(h.event));
+    return m;
+  }, [hits, tab]);
+  // What must answer before it shows: a replay's recording, and the stream of
+  // a "live" a day or more old with no viewers to vouch for it.
+  const proofUrls = useMemo(
+    () =>
+      tab === "live"
+        ? hits
+            .map((h) => (liveStates.get(h.event.id) === "replay" ? h.event.tags.find((t) => t[0] === "recording")?.[1] ?? "" : liveStates.get(h.event.id) === "live" ? liveNeedsCheck(h.event) ?? "" : ""))
+            .filter(Boolean)
+        : [],
+    [hits, tab, liveStates],
+  );
+  const proofs = useVerifiedRecordings(proofUrls);
+  const verifiedRecordings = proofs.ok;
+  const proven = useCallback(
+    (e: NostrEvent, st: LiveState | null | undefined) => {
+      if (st === "replay") return verifiedRecordings.has(e.tags.find((t) => t[0] === "recording")?.[1] ?? "");
+      if (st === "live") {
+        const url = liveNeedsCheck(e);
+        return !url || verifiedRecordings.has(url);
+      }
+      return st === "upcoming";
+    },
+    [verifiedRecordings],
+  );
+
+  const liveCounts = useMemo(() => {
+    const c = { live: 0, upcoming: 0, replay: 0 };
+    if (tab !== "live") return c;
+    for (const h of hits) {
+      const st = liveStates.get(h.event.id);
+      if (st && proven(h.event, st)) c[st] += 1;
+    }
+    return c;
+  }, [hits, tab, liveStates, proven]);
+  const effectiveShelf: LiveState = liveShelf ?? (liveCounts.live > 0 ? "live" : liveCounts.upcoming > 0 ? "upcoming" : liveCounts.replay > 0 ? "replay" : "live");
+  const liveShowable = liveCounts.live + liveCounts.upcoming + liveCounts.replay > 0;
+  // Apps facet by PLATFORM — a one-tap chip row (Benjamin's "categorize by
+  // the chips"), computed from what the results actually run on.
+  const [appPlatform, setAppPlatform] = useState<string | null>(null);
+  const [appCategory, setAppCategory] = useState<string | null>(null);
+  const [shopCategory, setShopCategory] = useState<string | null>(null);
+  // Repos tab: what became of each issue and patch — one request per page,
+  // keyed by item id (NIP-34 status events, newest wins; none means open).
+  const [repoState, setRepoState] = useState<GitState | null>(null);
+  const [gitStatuses, setGitStatuses] = useState<Map<string, { kind: number; at: number }>>(new Map());
+  const [gitComments, setGitComments] = useState<Map<string, number>>(new Map());
+  // Events tab: who is going — one request per page, keyed by event coordinate.
+  const [eventRsvps, setEventRsvps] = useState<Map<string, EventRsvps>>(new Map());
+  const eventAddresses = useMemo(
+    () =>
+      tab === "events"
+        ? hits.filter((h) => h.event.kind === 31922 || h.event.kind === 31923).map((h) => `${h.event.kind}:${h.event.pubkey}:${h.event.tags.find((t) => t[0] === "d")?.[1] ?? ""}`)
+        : [],
+    [hits, tab],
+  );
+  const eventAddrKey = eventAddresses.join(",");
+  useEffect(() => {
+    if (!eventAddrKey) {
+      setEventRsvps(new Map());
+      return;
+    }
+    let alive = true;
+    void fetchEventRsvps(eventAddrKey.split(",")).then((m) => {
+      if (alive) setEventRsvps(m);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [eventAddrKey]);
+  const rsvpsOf = (e: NostrEvent) => eventRsvps.get(`${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`);
+  const gitItemIds = useMemo(
+    () => (tab === "repos" ? hits.filter((h) => isGitItem(h.event.kind)).map((h) => h.event.id) : []),
+    [hits, tab],
+  );
+  const gitIdsKey = gitItemIds.join(",");
+  useEffect(() => {
+    if (!gitIdsKey) {
+      setGitStatuses(new Map());
+      return;
+    }
+    let alive = true;
+    const ids = gitIdsKey.split(",");
+    void fetchGitStatuses(ids).then((m) => {
+      if (alive) setGitStatuses(m);
+    });
+    void fetchGitCommentCounts(ids).then((m) => {
+      if (alive) setGitComments(m);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [gitIdsKey]);
+  const stateOf = (e: NostrEvent): GitState | null => (isGitItem(e.kind) ? gitStateOf(gitStatuses.get(e.id)?.kind, e.kind) : null);
+  const [repoLabel, setRepoLabel] = useState<string | null>(null);
+  // The labels maintainers share, most common first. A label is a triage
+  // convention when more than one author reaches for it; one author's private
+  // vocabulary — probed 2026-09-05, a test harness's "qa", "conflict-pair",
+  // "nonlinear" led the strip — stays on their cards. On a one-author page
+  // every label is theirs anyway, so all count.
+  const repoLabelFacets = useMemo(() => {
+    if (tab !== "repos") return [] as [string, number][];
+    const counts = new Map<string, number>();
+    const authorsOf = new Map<string, Set<string>>();
+    const authors = new Set<string>();
+    for (const h of hits) {
+      if (!isGitItem(h.event.kind)) continue;
+      authors.add(h.event.pubkey);
+      for (const l of gitLabelsOf(h.event)) {
+        counts.set(l, (counts.get(l) ?? 0) + 1);
+        (authorsOf.get(l) ?? authorsOf.set(l, new Set()).get(l)!).add(h.event.pubkey);
+      }
+    }
+    return [...counts.entries()]
+      .filter(([l]) => authors.size === 1 || (authorsOf.get(l)?.size ?? 0) > 1)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, 8);
+  }, [hits, tab]);
+  const repoStateFacets = useMemo(() => {
+    if (tab !== "repos") return [] as [GitState, number][];
+    const counts = new Map<GitState, number>();
+    for (const h of hits) {
+      const st = stateOf(h.event);
+      if (st) counts.set(st, (counts.get(st) ?? 0) + 1);
+    }
+    const order: GitState[] = ["open", "merged", "resolved", "closed", "draft"];
+    return order.filter((k) => counts.has(k)).map((k) => [k, counts.get(k)!] as [GitState, number]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hits, tab, gitStatuses]);
+  useEffect(() => {
+    setAppPlatform(null);
+    setAppCategory(null);
+    setShopCategory(null);
+  }, [tab, query]);
+  // The listings' own categories, counted — the Shop's facets.
+  const shopFacets = useMemo(() => {
+    if (tab !== "shop") return [];
+    const counts = new Map<string, number>();
+    for (const h of hits) for (const c of parseListing(h.event)?.categories ?? []) counts.set(c, (counts.get(c) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  }, [tab, hits]);
+  const appFacets = useMemo(() => {
+    if (tab !== "apps") return [];
+    const counts = new Map<string, number>();
+    for (const h of hits) {
+      for (const w of platformWords(h.event)) counts.set(w, (counts.get(w) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  }, [tab, hits]);
+  // Listing t-tags of the current hits — categories. A tag that merely
+  // restates a platform word ("android") never doubles as a category.
+  const appCategoryTags = useCallback((e: NostrEvent) => {
+    const platformSet = new Set(platformWords(e).map((w) => w.toLowerCase()));
+    return [...new Set(e.tags.filter((t) => t[0] === "t" && t[1]).map((t) => t[1].toLowerCase()))].filter(
+      (t) => !platformSet.has(t),
+    );
+  }, []);
+  const appCategoryFacets = useMemo(() => {
+    if (tab !== "apps") return [];
+    const counts = new Map<string, number>();
+    for (const h of hits) {
+      for (const t of appCategoryTags(h.event)) counts.set(t, (counts.get(t) ?? 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
+  }, [tab, hits, appCategoryTags]);
+  const displayHits = useMemo<DisplayRow[]>(() => {
+    let shown = hits;
+    if (tab === "events") shown = filterEventsByWhen(shown, effectiveWhen);
+    // A 31337 without a title and audio is not a song (the kind is abused).
+    if (tab === "music") shown = shown.filter((h) => parseTrack(h.event) !== null && !isTestTrack(h.event));
+    if (tab === "apps" && appPlatform) {
+      shown = shown.filter((h) => platformWords(h.event).includes(appPlatform));
+    }
+    if (tab === "apps" && appCategory) {
+      shown = shown.filter((h) => appCategoryTags(h.event).includes(appCategory));
+    }
+    if (tab === "shop" && shopCategory) {
+      shown = shown.filter((h) => (parseListing(h.event)?.categories ?? []).includes(shopCategory));
+    }
+    if (tab === "repos" && repoState) {
+      // A state names issues and patches; repo announcements have none.
+      shown = shown.filter((h) => stateOf(h.event) === repoState);
+    }
+    if (tab === "repos" && repoLabel) {
+      shown = shown.filter((h) => gitLabelsOf(h.event).includes(repoLabel));
+    }
+    if (tab === "repos") {
+      // People's issues before agents' — the partition Latest uses for feeds.
+      shown = peopleBeforeAgents(shown, (h) => ({ event: h.event, author: h.author }));
+    }
+    if (tab === "live") {
+      const starts = (e: NostrEvent) => Number(e.tags.find((t) => t[0] === "starts")?.[1]) || 0;
+      const viewers = (e: NostrEvent) => Number(e.tags.find((t) => t[0] === "current_participants")?.[1]) || 0;
+      shown = shown.filter((h) => {
+        const st = liveStates.get(h.event.id);
+        return st === effectiveShelf && proven(h.event, st);
+      });
+      // Live: most watched first, as Twitch orders; upcoming: soonest first; replays: newest.
+      shown = [...shown].sort((a, b) =>
+        effectiveShelf === "live"
+          ? viewers(b.event) - viewers(a.event) || b.event.created_at - a.event.created_at
+          : effectiveShelf === "upcoming"
+            ? starts(a.event) - starts(b.event)
+            : b.event.created_at - a.event.created_at,
+      );
+    }
+    if (tab === "media") {
+      // Kind 1063 is generic file metadata — Zap Store APKs and other blobs
+      // ride it. The Media tab means media: a 1063 stays only when its
+      // declared mime is image/video/audio, and not when it is a video's
+      // reusable soundtrack (lib/fileMetadata). Everything still shows the rest.
+      shown = hits.filter((h) => h.event.kind !== 1063 || (isMediaFile(h.event) && !isSoundtrackFile(h.event)));
+    }
+    if (tab === "lists") {
+      // Lists must earn their place: untitled or empty ones are app
+      // machine-state, not content (Benjamin's "forced and off" browse).
+      // People-packs — the lists a searcher actually wants — lead.
+      const titled = (e: NostrEvent) => !!e.tags.find((t) => (t[0] === "title" || t[0] === "name") && t[1]?.trim());
+      const itemCount = (e: NostrEvent) => e.tags.filter((t) => ["p", "e", "a", "r"].includes(t[0])).length;
+      const isPeoplePack = (e: NostrEvent) =>
+        e.tags.some((t) => t[0] === "p") && !e.tags.some((t) => ["e", "a", "r"].includes(t[0]));
+      shown = hits.filter((h) => titled(h.event) && itemCount(h.event) > 0);
+      shown = [...shown.filter((h) => isPeoplePack(h.event)), ...shown.filter((h) => !isPeoplePack(h.event))];
+    }
+    if (tab === "repos") {
+      // One codebase, one card: forks fold behind the most trusted
+      // maintainer's announcement and open on a tap, each naming its parent.
+      // And one maintainer, three cards: Google's host-diversity rule. Probed
+      // 2026-09-05, one company's 23 bare repos filled the first screens; the
+      // rest now ride their third card's "+20 more from …" chip. A page that
+      // is all one author's has no one to make room for, so it stays whole.
+      const repoName = (h: SearchHit) => h.event.tags.find((t) => t[0] === "name")?.[1] ?? h.event.tags.find((t) => t[0] === "d")?.[1] ?? "the original";
+      const groups = foldForks(shown, (h) => ({ event: h.event, score: h.author?.wotRank ?? scoreOf(h.event.pubkey) ?? null }));
+      const authors = new Set(shown.map((h) => h.event.pubkey));
+      const rows = authors.size > 1 ? capPerAuthor(groups, (g) => g.primary.event.pubkey, 3) : groups.map((g) => ({ item: g, overflow: [] as typeof groups }));
+      const folded: DisplayRow[] = [];
+      for (const { item: g, overflow } of rows) {
+        const id = g.primary.event.id;
+        const open = expandedClusters.has(id);
+        const forks = g.forks.length;
+        const more = overflow.reduce((n, o) => n + 1 + o.forks.length, 0);
+        const who = g.primary.author?.displayName || g.primary.author?.name || "this maintainer";
+        const parts = [
+          forks > 0 ? `${forks} ${forks === 1 ? "fork" : "forks"}` : null,
+          more > 0 ? `+${more} more from ${who}` : null,
+        ].filter(Boolean);
+        folded.push({ hit: g.primary, collapsedCount: open ? 0 : forks + more, clusterId: id, chipLabel: parts.join(" · ") });
+        if (open) {
+          for (const f of g.forks) folded.push({ hit: f, collapsedCount: 0, clusterId: "", forkOf: repoName(g.primary) });
+          for (const o of overflow) {
+            folded.push({ hit: o.primary, collapsedCount: 0, clusterId: "" });
+            for (const f of o.forks) folded.push({ hit: f, collapsedCount: 0, clusterId: "", forkOf: repoName(o.primary) });
+          }
+        }
+      }
+      return folded;
+    }
+    if (tab === "lists") {
+      // One row per title: same-tag follow packs fold behind the most trusted
+      // curator's, the union counted once. The row promises a group, so the
+      // card itself opens the group in place — every list with its own count
+      // and door, everyone across them — rather than one list of five
+      // (Benjamin, 2026-09-09). No chip, no extra rows.
+      const folded: DisplayRow[] = [];
+      for (const g of groupPeoplePacks(shown, (h) => ({ event: h.event, score: h.author?.wotRank ?? scoreOf(h.event.pubkey) ?? null }))) {
+        folded.push({
+          hit: g.primary,
+          collapsedCount: 0,
+          clusterId: "",
+          listGroup:
+            g.lists > 1
+              ? {
+                  lists: g.lists,
+                  members: g.members,
+                  consensus: g.consensus,
+                  agreement: g.agreement,
+                  items: [g.primary, ...g.others].map((h) => ({ event: h.event, author: h.author, score: h.author?.wotRank ?? scoreOf(h.event.pubkey) ?? null })),
+                }
+              : undefined,
+        });
+      }
+      return folded;
+    }
+    if (!clustered) return shown.map((h) => ({ hit: h, collapsedCount: 0, clusterId: "" }));
+    const out: DisplayRow[] = [];
+    for (const cluster of collapseHits(shown)) {
+      const id = cluster.primary.event.id;
+      const open = expandedClusters.has(id);
+      out.push({ hit: cluster.primary, collapsedCount: open ? 0 : cluster.others.length, clusterId: id });
+      if (open) for (const h of cluster.others) out.push({ hit: h, collapsedCount: 0, clusterId: "" });
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hits, tab, appPlatform, appCategory, shopCategory, repoState, repoLabel, gitStatuses, appCategoryTags, clustered, expandedClusters, effectiveWhen, scoreOf, liveStates, effectiveShelf, proven]);
+
+  // The Events tab is a timeline: the first card of each day carries a header
+  // that says the date once — "Today · Fri, Sep 4" — so cards can lead with
+  // their time. Undated events gather at the end.
+  const eventDayHeaders = useMemo(() => {
+    const out = new Map<string, { key: string; startSec: number; label: string }>();
+    if (tab !== "events") return out;
+    let last: string | null = null;
+    const nowSec = Math.floor(Date.now() / 1000);
+    for (const row of displayHits) {
+      const cal = parseCal(row.hit.event);
+      const d = cal.startSec ? new Date(cal.startSec * 1000) : null;
+      // Already running — a conference on its second day, a walk series that
+      // started last week — is not a date to lead Upcoming with; it is "Ongoing".
+      if (d && cal.startSec < nowSec && !isOver(cal) && effectiveWhen !== "past") {
+        if (last === "ongoing") continue;
+        last = "ongoing";
+        out.set(row.hit.event.id, { key: "ongoing", startSec: 0, label: "Ongoing" });
+        continue;
+      }
+      const key = d ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}` : "tba";
+      if (key === last) continue;
+      last = key;
+      const rel = d ? relativeDay(cal.startSec) : "";
+      const dayWord = rel === "Today" || rel === "Tomorrow" || rel === "Yesterday" ? rel : null;
+      const long = d ? d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "";
+      out.set(row.hit.event.id, { key, startSec: cal.startSec, label: d ? (dayWord ? `${dayWord} · ${long}` : long) : "Date to be announced" });
+    }
+    return out;
+  }, [displayHits, tab, effectiveWhen]);
+
+  // A chip or a Filters control has narrowed the page.
+  const narrowed =
+    activeFilters > 0 ||
+    !!shopCategory ||
+    !!appPlatform ||
+    !!appCategory ||
+    !!repoState ||
+    !!repoLabel ||
+    (tab === "events" && eventWhen !== "upcoming") ||
+    (tab === "live" && liveShelf !== null);
+  const totalCount = rawHits.length + extraCount;
+  const displayedCount = displayHits.length + extraCount;
+
+  // Everything the notes refer to — quoted events, mentioned and answered
+  // people — resolved once, store-first, so a note names who it mentions
+  // instead of "@nprofile1q…" (the profile page's recipe, shared).
+  // Asked once the stream has settled, so a snapshot every few hundred
+  // milliseconds does not re-key the fetch; the fetchers are store-first.
+  const noteEvents = useMemo(
+    () => (snapshot?.eose ? hits.filter((h) => NOTE_KINDS.has(h.event.kind)).map((h) => h.event as MinimalEvent) : NO_NOTES),
+    [hits, snapshot?.eose],
+  );
+  const noteRefs = useNoteRefs(noteEvents);
+  const profiles = useMemo(() => {
+    const map = profilesOf(hits);
+    for (const [pk, p] of noteRefs.profiles) if (!map.has(pk)) map.set(pk, p);
+    return map;
+  }, [hits, noteRefs.profiles]);
+
+  return (
+    <QuietTrustChrome>
+    <div className="w-full max-w-2xl lg:max-w-[62rem] mx-auto mt-4 sm:mt-5 text-left" data-testid="search-results">
+      {/* One quiet row, Google's anatomy: five tabs (scrolling on phones),
+          then pinned at the right edge — More ▾, the perspective control and
+          Filters — so nothing a person needs ever scrolls out of view. */}
+      <div
+        className="mb-2 sm:mb-3 -mx-1 flex items-stretch border-b border-slate-100 dark:border-slate-800/60 px-1"
+        data-testid="search-toolbar"
+      >
+        <div
+          role="tablist"
+          aria-label="Result types"
+          className="flex min-w-0 flex-1 items-center gap-0.5 sm:gap-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          data-testid="search-tabs"
+        >
+          {PRIMARY_TABS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              role="tab"
+              aria-selected={tab === t.key}
+              onClick={() => changeTab(t.key)}
+              className={tabClass(tab === t.key)}
+              data-testid={`search-tab-${t.key}`}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        <div className="ml-1 flex shrink-0 items-center gap-1 sm:gap-2">
+          <MoreTabs tab={tab} onChange={changeTab} />
+          {perspective}
+          {onQueryRewrite && (
+            <button
+              type="button"
+              aria-expanded={filtersOpen}
+              aria-label="Filters"
+              onClick={() => setFiltersOpen((v) => !v)}
+              className={tabClass(filtersOpen) + " inline-flex items-center gap-1 !px-2 sm:!px-2.5"}
+              data-testid="search-filters-toggle"
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
+              <span className="hidden sm:inline">Filters</span>
+              {activeFilters > 0 && (
+                <span
+                  className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-brand-primary px-1 text-[10px] font-semibold leading-none text-white"
+                  data-testid="filters-active-count"
+                >
+                  {activeFilters}
+                </span>
+              )}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {filtersOpen && onQueryRewrite && <FiltersPanel query={query} pov={pov} userPubkey={userPubkey} onQueryRewrite={onQueryRewrite} />}
+
+      {/* Google anatomy: the knowledge panel is FIRST in the DOM — the top
+          card on mobile, the right rail on desktop (flex order). When no
+          person clears the confidence bar it renders nothing and the column
+          takes the full width. */}
+      <div className="flex flex-col gap-4 lg:flex-row lg:justify-center lg:items-start lg:gap-6">
+      <KnowledgePanel
+        query={query}
+        pov={pov}
+        userPubkey={userPubkey}
+        onOpen={onOpenProfile}
+        onPerson={setPanelPerson}
+        // Not pinned: the panel is context for the query, read at the top, and
+        // it scrolls away with the page the way Google's does. Pinned, it
+        // followed the reader down every page and ducked under the search
+        // band (Benjamin, 2026-09-09: "I don't like how this gets covered and
+        // always stays in view"). The Top pill brings it back in one tap.
+        className="lg:order-2 lg:w-72 lg:shrink-0"
+      />
+      <div className="min-w-0 w-full lg:order-1 lg:w-[42rem] lg:flex-none">
+      {serverStatus.search === "down" ? (
+        // The relay is the thing that is down: the results area says so, and
+        // the box, the tabs and Filters above stay usable.
+        <SorryPage scope="search" variant="inline" onRetry={() => retryNow("search")} signedIn={!!userPubkey} />
+      ) : composed ? (
+        <ComposedResults
+          query={query}
+          personMedia={personMedia}
+          pov={pov}
+          userPubkey={userPubkey}
+          onTabChange={changeTab}
+          onOpenProfile={openProfile}
+          onQueryRewrite={onQueryRewrite}
+        />
+      ) : snapshot?.error ? (
+        <div
+          className="rounded-xl border border-red-100 dark:border-red-500/20 bg-red-50/60 dark:bg-red-500/5 p-4 text-sm text-red-700 dark:text-red-300"
+          data-testid="search-error"
+        >
+          {snapshot.error}
+        </div>
+      ) : searching ? (
+        <div className="space-y-2 sm:space-y-3" data-testid="container-search-loading">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex items-start gap-3 sm:gap-4 p-3 sm:p-4 rounded-xl bg-white/70 dark:bg-slate-900/70 border border-slate-100 dark:border-slate-800/60 animate-pulse"
+              style={{ animationDelay: `${i * 0.08}s` }}
+            >
+              <div className="h-9 w-9 sm:h-11 sm:w-11 rounded-full bg-slate-200 dark:bg-slate-700 shrink-0" />
+              <div className="flex-1 space-y-2 pt-1">
+                <div className="h-3 sm:h-3.5 bg-slate-200 dark:bg-slate-700 rounded-full w-28 sm:w-36" />
+                <div className="h-2.5 bg-slate-100 dark:bg-slate-800 rounded-full w-full max-w-md" />
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : noResults ? (
+        <div className="mt-4 sm:mt-6" data-testid="container-no-results">
+          <div className="p-2 rounded-xl sm:rounded-2xl bg-white/60 dark:bg-slate-900/60 border border-slate-100 dark:border-slate-800/60">
+            <EmptyState
+              icon={Radar}
+              compact
+              title="Nothing found"
+              description={hiddenBelowLine > 0 ? "Everything that matched came from accounts below the verified line." : "Try different words, another tab, or paste an npub directly."}
+            />
+          </div>
+          {floorNotice}
+        </div>
+      ) : (
+        <>
+          {tab === "events" && eventCounts && (
+            <div className="mb-2.5">
+              <FacetRow testId="event-facets">
+                {EVENT_WHEN_ORDER.filter((when) => !((when === "today" || when === "weekend") && eventCounts[when] === 0)).map((when) => (
+                  <button
+                    key={when}
+                    type="button"
+                    aria-pressed={effectiveWhen === when}
+                    onClick={() => setEventWhen(when)}
+                    className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                      effectiveWhen === when
+                        ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                        : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
+                    }`}
+                    data-testid={`event-facet-${when}`}
+                  >
+                    {EVENT_WHEN_LABELS[when]} <span className="opacity-60">{eventCounts[when]}</span>
+                  </button>
+                ))}
+              </FacetRow>
+              {eventsFellBack && (
+                <p className="mt-1 px-1 text-xs text-slate-400 dark:text-slate-500" data-testid="event-facets-note">
+                  No upcoming events for this search — showing past events.
+                </p>
+              )}
+              {displayHits.length === 0 && !eventsFellBack && (
+                <p className="mt-1 px-1 text-xs text-slate-400 dark:text-slate-500" data-testid="event-facets-empty">
+                  No {EVENT_WHEN_LABELS[effectiveWhen].toLowerCase()} events here — try another window.
+                </p>
+              )}
+            </div>
+          )}
+          {tab === "repos" && (repoStateFacets.length > 0 || repoLabelFacets.length > 0) && (
+            <FacetRow className="mb-2" testId="repo-state-facets">
+              <button
+                type="button"
+                onClick={() => setRepoState(null)}
+                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoState === null ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"}`}
+                data-testid="repo-state-all"
+              >
+                All
+              </button>
+              {repoStateFacets.map(([st, count]) => (
+                <button
+                  key={st}
+                  type="button"
+                  onClick={() => setRepoState(repoState === st ? null : st)}
+                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoState === st ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"}`}
+                  data-testid={`repo-state-${st}`}
+                >
+                  {GIT_STATE_LABEL[st]}
+                </button>
+              ))}
+              {repoStateFacets.length > 0 && repoLabelFacets.length > 0 && (
+                <span className="mx-0.5 h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />
+              )}
+              {repoLabelFacets.map(([label, count]) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => setRepoLabel(repoLabel === label ? null : label)}
+                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${repoLabel === label ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link" : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"}`}
+                  data-testid={`repo-label-${label}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </FacetRow>
+          )}
+          {tab === "live" && !liveShowable && hits.length > 0 && (
+            // Nothing on any shelf yet. While the relay or the proofs are still
+            // answering, hold the shape; once they have, say so — never a blank
+            // page under a count of eleven (Joe Martin's stale "live" pair).
+            !snapshot?.eose || proofs.pending > 0 ? (
+              <div className="grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3" data-testid="live-skeleton" aria-hidden="true">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="animate-pulse">
+                    <div className="aspect-video rounded-xl bg-slate-200 dark:bg-slate-800" />
+                    <div className="mt-2 h-3 w-3/4 rounded-full bg-slate-200 dark:bg-slate-800" />
+                    <div className="mt-1.5 h-2.5 w-1/2 rounded-full bg-slate-100 dark:bg-slate-800/70" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mt-2 rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white/60 dark:bg-slate-900/60 p-2" data-testid="live-empty">
+                <EmptyState
+                  icon={Radio}
+                  compact
+                  title={scopedTo ? "Nothing live from them right now" : query.trim() ? `Nothing live for “${query.trim()}” right now` : "Nothing live right now"}
+                  description={`${hits.length} past ${hits.length === 1 ? "stream" : "streams"} matched, but none is on air, scheduled, or left a recording.`}
+                />
+              </div>
+            )
+          )}
+          {tab === "live" && liveShowable && (
+            <FacetRow className="mb-3" testId="live-facets">
+              {(["live", "upcoming", "replay"] as LiveState[]).filter((st) => liveCounts[st] > 0).map((st) => (
+                <FacetChip key={st} pressed={effectiveShelf === st} onClick={() => setLiveShelf(st)} count={liveCounts[st]} testId={`live-facet-${st === "replay" ? "replays" : st}`}>
+                  {st === "live" ? "Live" : st === "upcoming" ? "Upcoming" : "Replays"}
+                </FacetChip>
+              ))}
+            </FacetRow>
+          )}
+          {tab === "shop" && shopFacets.length > 0 && (
+            <FacetRow className="mb-2" testId="shop-facets">
+              <button
+                type="button"
+                onClick={() => setShopCategory(null)}
+                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  shopCategory === null
+                    ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                    : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
+                }`}
+                data-testid="shop-facet-all"
+              >
+                All
+              </button>
+              {shopFacets.map(([cat, count]) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setShopCategory((cur) => (cur === cat ? null : cat))}
+                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                    shopCategory === cat
+                      ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                      : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
+                  }`}
+                  data-testid={`shop-facet-${cat}`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </FacetRow>
+          )}
+          {tab === "apps" && (appFacets.length > 0 || appCategoryFacets.length > 0) && (
+            <FacetRow className="mb-2" testId="app-facets">
+              <button
+                type="button"
+                onClick={() => setAppPlatform(null)}
+                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  appPlatform === null
+                    ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                    : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
+                }`}
+                data-testid="app-facet-all"
+              >
+                All
+              </button>
+              {appFacets.map(([platform, count]) => (
+                <button
+                  key={platform}
+                  type="button"
+                  onClick={() => setAppPlatform((cur) => (cur === platform ? null : platform))}
+                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                    appPlatform === platform
+                      ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                      : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
+                  }`}
+                  data-testid={`app-facet-${platform.toLowerCase()}`}
+                >
+                  {platform}
+                </button>
+              ))}
+              {/* One row, like Repos: platforms, a hairline, then the apps' own
+                  categories. Licences are a fact for the app page, not a way
+                  people browse. */}
+              {appCategoryFacets.length > 0 && <span className="mx-0.5 h-4 w-px shrink-0 bg-slate-200 dark:bg-slate-700" aria-hidden="true" />}
+              {appCategoryFacets.map(([cat]) => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setAppCategory((cur) => (cur === cat ? null : cat))}
+                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                    appCategory === cat
+                      ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                      : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
+                  }`}
+                  data-testid={`app-cat-facet-${cat}`}
+                >
+                  #{cat}
+                </button>
+              ))}
+            </FacetRow>
+          )}
+          {/* No count by default — Google dropped it from the default view too.
+              The number does work only when a chip or a filter narrows the
+              page: what matched, of how many. */}
+          {narrowed && totalCount > 0 && (
+            <div className="mb-2 sm:mb-3 px-1">
+              <p className="text-xs text-slate-400 dark:text-slate-500" data-testid="text-search-stats">
+                {displayedCount} of {totalCount} match
+              </p>
+            </div>
+          )}
+          {tab === "music" ? (
+            <MusicResults hits={displayHits.map((d) => d.hit)} query={query} wavlake={wavlake} scoreOf={scoreOf} onOpenProfile={openProfile} />
+          ) : (
+          <div
+            className={
+              tab === "shop"
+                ? "grid grid-cols-2 gap-2.5 sm:grid-cols-3"
+                : tab === "live"
+                  ? "grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3"
+                  : tab === "apps" || tab === "repos"
+                  ? "grid grid-cols-1 gap-2.5 lg:grid-cols-2"
+                  : "space-y-2 sm:space-y-3"
+            }
+            data-testid="container-search-results"
+          >
+            {tab === "media" && panelPerson && personMedia.length > 0 && (
+              <div className="col-span-full mb-1" data-testid="media-from-person">
+                <p className="mb-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                  From {getDisplayLabel(panelPerson)}
+                </p>
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {personMedia.map((h) => (
+                    <MediaCard key={h.event.id} event={h.event} author={h.author} score={scoreOf(h.event.pubkey)} />
+                  ))}
+                </div>
+              </div>
+            )}
+            {displayHits.filter((h) => !(tab === "media" && personMediaIds.has(h.hit.event.id))).map(({ hit, collapsedCount, clusterId, chipLabel, forkOf, listGroup }) => {
+              const { event } = hit;
+              const chip =
+                collapsedCount > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExpandedClusters((prev) => new Set(prev).add(clusterId))
+                    }
+                    className="ml-1 mt-1 rounded-full border border-slate-200 dark:border-slate-800 px-2.5 py-0.5 text-[11px] font-medium text-slate-500 dark:text-slate-400 hover:border-brand-accent/30"
+                    data-testid={`cluster-expand-${clusterId}`}
+                  >
+                    {chipLabel ?? `+${collapsedCount} more like this`}
+                  </button>
+                ) : null;
+              // Grid tabs (Apps, Repos) stretch every cell so a row of cards
+              // shares one height; list tabs are unaffected by h-full.
+              const day = eventDayHeaders.get(event.id);
+              const wrap = (card: React.ReactNode) => (
+                <div key={event.id} className="h-full">
+                  {day && (
+                    <div className={`flex items-center gap-2.5 ${eventDayHeaders.keys().next().value === event.id ? "" : "pt-3"} pb-1.5`} data-testid={`event-day-${day.key}`}>
+                      {day.startSec > 0 ? (
+                        <EventDateTile startSec={day.startSec} size="sm" testId="day-header-tile" />
+                      ) : (
+                        <span className="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600" aria-hidden="true" />
+                      )}
+                      <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{day.label}</span>
+                      <span className="h-px flex-1 bg-slate-200 dark:bg-slate-800" aria-hidden="true" />
+                    </div>
+                  )}
+                  {card}
+                  {chip}
+                </div>
+              );
+              if (event.kind === 0 && hit.author) {
+                const idx = peopleIdx.current++;
+                const scored =
+                  hit.author.wotRank == null
+                    ? { ...hit.author, wotRank: scoreOf(event.pubkey) ?? null }
+                    : hit.author;
+                return wrap(
+                  <PersonCard
+                    result={scored}
+                    idx={idx}
+                    pov={pov}
+                    onOpen={openProfile}
+                    onPrefetchEnter={onPrefetchEnter}
+                    onPrefetchLeave={onPrefetchLeave}
+                    showFollowedBy={idx < 3}
+                  />
+                );
+              }
+              if (ARTICLE_KINDS.has(event.kind)) {
+                return wrap(
+                  <EmbeddedArticleCard
+                    event={event as MinimalEvent}
+                    author={profiles.get(event.pubkey)}
+                    trustScore01={scoreOf(event.pubkey) ?? null}
+                  />
+                );
+              }
+              if (NOTE_KINDS.has(event.kind) && tab !== "media") {
+                return wrap(
+                  <ShareNoteCard
+                    event={event as MinimalEvent}
+                    profiles={profiles}
+                    eventsById={noteRefs.eventsById}
+                    addrByCoord={noteRefs.addrByCoord}
+                    href={eventPath(event)}
+                    showAuthor
+                    authorScore={scoreOf(event.pubkey)}
+                  />
+                );
+              }
+              const typed = { event, author: hit.author, score: scoreOf(event.pubkey) };
+              if (EVENT_KINDS.has(event.kind)) {
+                const r = rsvpsOf(event);
+                return wrap(<EventCard {...typed} going={r?.going ?? 0} faces={r?.faces ?? []} />);
+              }
+              if (MUSIC_KINDS.has(event.kind)) return wrap(<TrackCard {...typed} />);
+              if (SHOP_KINDS.has(event.kind)) return wrap(<ListingCard {...typed} />);
+              if (LIVE_KINDS.has(event.kind)) {
+                const hostPk = liveHostOf(event);
+                return wrap(<LiveTile {...typed} state={liveStates.get(event.id) ?? liveStateOf(event)} hostScore={hostPk ? scoreOf(hostPk) : undefined} />);
+              }
+              if (APP_KINDS.has(event.kind)) return wrap(<AppCard {...typed} />);
+              if (REPO_KINDS.has(event.kind)) return wrap(<RepoCard {...typed} state={stateOf(event) ?? undefined} comments={gitComments.get(event.id)} forkOf={forkOf} />);
+              if (LIST_KINDS.has(event.kind)) return wrap(<ListCard {...typed} group={listGroup} />);
+              if (MEDIA_KINDS.has(event.kind)) return wrap(<MediaCard {...typed} />);
+              // Open-set posture: an unmapped kind renders as media-style
+              // generic rather than vanishing — the relay may index new kinds
+              // before this UI learns them.
+              return wrap(<MediaCard {...typed} />);
+            })}
+          </div>
+          )}
+          <MoreResults
+            show={!!snapshot?.eose && !snapshot.error && !snapshot.exhausted}
+            loading={!!snapshot?.loadingMore}
+            onMore={() => streamRef.current?.more()}
+          />
+          {floorNotice}
+        </>
+      )}
+      </div>
+      </div>
+    </div>
+    </QuietTrustChrome>
+  );
+}

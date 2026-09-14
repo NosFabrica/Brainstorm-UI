@@ -660,3 +660,18 @@ input:-webkit-autofill {
   transform-origin: bottom;
   animation: eq-bar 0.9s ease-in-out infinite;
 }
+
+/* The now-playing bar rises into view when a track starts and drops on close. */
+@keyframes np-rise {
+  from { transform: translateY(100%); opacity: 0.6; }
+  to { transform: translateY(0); opacity: 1; }
+}
+@keyframes np-drop {
+  from { transform: translateY(0); opacity: 1; }
+  to { transform: translateY(100%); opacity: 0.6; }
+}
+.np-rise { animation: np-rise 200ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.np-drop { animation: np-drop 180ms ease-in both; }
+@media (prefers-reduced-motion: reduce) {
+  .np-rise, .np-drop { animation: none; }
+}

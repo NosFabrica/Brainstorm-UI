@@ -386,7 +386,7 @@ export default function AboutPage() {
             <a
               href="https://nosfabrica.com/"
               target="_blank"
-              rel="noopener noreferrer"
+              rel="noopener"
               className="inline-flex items-center gap-0.5 font-semibold text-slate-700 dark:text-slate-200 hover:text-brand-primary hover:underline transition-colors"
               data-testid="link-about-nosfabrica"
             >

@@ -3,6 +3,7 @@ import { env } from "@/lib/runtimeEnv";
 import { declaresTrustProvider } from "@/lib/nip85Declaration";
 import { pool } from "@/lib/relayPool";
 import { eventStore } from "@/lib/eventStore";
+import { searchRelay } from "@/lib/searchRelay";
 import { CONTENT_RELAYS, PROFILE_RELAYS } from "@/lib/relays";
 import { requestAll, requestNewest, requestOne } from "@/lib/relayRequest";
 import { addressLoader, loadReplaceable } from "@/lib/loaders";
@@ -615,8 +616,15 @@ export async function fetchRecentByKinds(
     ...(opts.relayHints ?? []).map((r) => r.trim()).filter((r) => r.length > 0),
   ]));
 
-  const events = await requestAll(relays, { kinds, authors: [pubkey], limit }, timeoutMs);
-  return events.sort((a, b) => (b.created_at || 0) - (a.created_at || 0)).slice(0, limit);
+  // The search relay's corpus is wider than the content relays' (probed:
+  // a Divine creator's kind-34236 videos lived only there) — ask it too.
+  const [fromRelays, fromSearch] = await Promise.all([
+    requestAll(relays, { kinds, authors: [pubkey], limit }, timeoutMs),
+    fetchFromSearchRelayByFilter({ kinds, authors: [pubkey], limit }, timeoutMs),
+  ]);
+  const byId = new Map<string, NostrEvent>();
+  for (const e of [...fromRelays, ...fromSearch]) byId.set(e.id, e);
+  return [...byId.values()].sort((a, b) => (b.created_at || 0) - (a.created_at || 0)).slice(0, limit);
 }
 
 /**
@@ -645,14 +653,19 @@ export async function fetchLiveStreams(
   // Two filters rather than one, because a platform-hosted stream names the
   // streamer in a `p` tag while a self-hosted one authors it. They share the
   // window: both start now, and neither waits on the other.
-  const [authored, hosted] = await Promise.all([
+  // The search relay's corpus is wider than the content relays' (probed:
+  // a bridged Owncast channel's live event lived only there) — ask it too,
+  // for both shapes.
+  const [authored, hosted, searchAuthored, searchHosted] = await Promise.all([
     requestAll(relays, { kinds: [30311], authors: [pubkey], limit: 8 }, timeoutMs),
     requestAll(relays, { kinds: [30311], "#p": [pubkey], limit: 8 }, timeoutMs),
+    fetchFromSearchRelayByFilter({ kinds: [30311], authors: [pubkey], limit: 8 }, timeoutMs),
+    fetchFromSearchRelayByFilter({ kinds: [30311], "#p": [pubkey], limit: 8 }, timeoutMs),
   ]);
 
   // Keep the latest version per addressable coordinate (kind:pubkey:d).
   const byCoord = new Map<string, NostrEvent>();
-  for (const event of [...authored, ...hosted]) {
+  for (const event of [...authored, ...hosted, ...searchAuthored, ...searchHosted]) {
     const d = event.tags.find((tag) => tag[0] === "d")?.[1] || "";
     const coord = `${event.kind}:${event.pubkey}:${d}`;
     const previous = byCoord.get(coord);
@@ -675,11 +688,96 @@ export async function fetchEventsByIds(
 ): Promise<NostrEvent[]> {
   const unique = Array.from(new Set(ids.filter((id) => /^[0-9a-f]{64}$/i.test(id))));
   if (!unique.length) return [];
-  const targetRelays = relays.length ? relays : PROFILE_RELAYS;
-  // Asking by id means the answer set is known up front: once every one has
-  // arrived there is nothing left to wait for.
-  return requestAll(targetRelays, { ids: unique }, timeoutMs, {
-    enough: (collected) => collected.size >= unique.length,
+
+  // The store first: search results are stored on arrival, so an event found
+  // through search opens instantly — no network, no relay-coverage roulette.
+  const found = new Map<string, NostrEvent>();
+  for (const id of unique) {
+    const known = eventStore.getEvent(id);
+    if (known) found.set(id, known);
+  }
+  let missing = unique.filter((id) => !found.has(id));
+
+  if (missing.length) {
+    const targetRelays = relays.length ? relays : PROFILE_RELAYS;
+    // Asking by id means the answer set is known up front: once every one has
+    // arrived there is nothing left to wait for.
+    const fetched = await requestAll(targetRelays, { ids: missing }, timeoutMs, {
+      enough: (collected) => collected.size >= missing.length,
+    });
+    for (const event of fetched) found.set(event.id, event);
+    missing = missing.filter((id) => !found.has(id));
+  }
+
+  if (missing.length) {
+    // Last resort: the SEARCH relay, whose corpus is wider than the content
+    // relays' — an id found by search may exist nowhere else we ask. Its
+    // reads need a lens; include:spam is the "any event, unranked" one.
+    for (const event of await fetchFromSearchRelay(missing, Math.min(timeoutMs, 5000))) {
+      eventStore.add(event);
+      found.set(event.id, event);
+    }
+  }
+
+  return [...found.values()];
+}
+
+/** Any filter against the search relay, with the lens it requires; EOSE or
+ *  timeout resolves, never rejects. */
+function fetchFromSearchRelayByFilter(filter: Record<string, unknown>, timeoutMs: number): Promise<NostrEvent[]> {
+  return new Promise((resolve) => {
+    let relay: ReturnType<typeof searchRelay>;
+    try {
+      relay = searchRelay();
+    } catch {
+      relay = null;
+    }
+    if (!relay) return resolve([]);
+    const events: NostrEvent[] = [];
+    let sub: { unsubscribe: () => void } | null = null;
+    const timer = setTimeout(finish, timeoutMs);
+    try {
+      sub = relay
+        .req({ ...filter, search: "include:spam" } as Parameters<typeof relay.req>[0])
+        .subscribe((msg: { type: string; event?: NostrEvent }) => {
+          if (msg.type === "EVENT" && msg.event) {
+            eventStore.add(msg.event);
+            events.push(msg.event);
+          } else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();
+        });
+    } catch {
+      finish();
+    }
+    function finish() {
+      clearTimeout(timer);
+      sub?.unsubscribe();
+      resolve(events);
+    }
+  });
+}
+
+function fetchFromSearchRelay(ids: string[], timeoutMs: number): Promise<NostrEvent[]> {
+  return new Promise((resolve) => {
+    let relay: ReturnType<typeof searchRelay>;
+    try {
+      relay = searchRelay();
+    } catch {
+      relay = null;
+    }
+    if (!relay) return resolve([]);
+    const events: NostrEvent[] = [];
+    const sub = relay
+      .req({ ids, search: "include:spam", limit: ids.length })
+      .subscribe((msg: { type: string; event?: NostrEvent }) => {
+        if (msg.type === "EVENT" && msg.event) events.push(msg.event);
+        else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();
+      });
+    const timer = setTimeout(finish, timeoutMs);
+    function finish() {
+      clearTimeout(timer);
+      sub.unsubscribe();
+      resolve(events);
+    }
   });
 }
 
@@ -749,12 +847,30 @@ export async function fetchAddressableEvents(
   );
   // The filter is a cross-product of the requested kinds, authors and d-tags, so
   // it matches coordinates nobody asked for; `wanted` is what narrows it back.
-  for (const event of events) {
+  const keep = (event: NostrEvent) => {
     const d = event.tags.find((tag) => tag[0] === "d")?.[1] ?? "";
     const key = `${event.kind}:${event.pubkey}:${d}`;
-    if (!wanted.has(key)) continue;
+    if (!wanted.has(key)) return;
     const existing = result.get(key);
     if (!existing || (event.created_at || 0) > (existing.created_at || 0)) result.set(key, event);
+  };
+  for (const event of events) keep(event);
+
+  // Last resort, as fetchEventsByIds does: the SEARCH relay, whose corpus is
+  // wider than the content relays'. GitCitadel's wiki articles (kind 30818)
+  // were listed by search and unopenable — their naddr names no relay, and
+  // the content relays never had them (Benjamin, 2026-09-05).
+  const missing = valid.filter((c) => !result.has(coordKey(c)));
+  if (missing.length) {
+    const found = await fetchFromSearchRelayByFilter(
+      {
+        kinds: Array.from(new Set(missing.map((c) => c.kind))),
+        authors: Array.from(new Set(missing.map((c) => c.pubkey))),
+        "#d": Array.from(new Set(missing.map((c) => c.identifier))),
+      },
+      Math.min(timeoutMs, 5000),
+    );
+    for (const event of found) keep(event);
   }
   return result;
 }

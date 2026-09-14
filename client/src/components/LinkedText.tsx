@@ -18,7 +18,7 @@ export function LinkedText({ text }: { text: string }) {
               key={i}
               href={part}
               target="_blank"
-              rel="noopener noreferrer"
+              rel="noopener"
               className="text-brand-link underline underline-offset-2 decoration-brand-link/[0.4] break-all"
             >
               {display}

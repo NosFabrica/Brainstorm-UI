@@ -23,6 +23,8 @@ export interface SearchResult {
   wotRankNosfabrica?: number | null;
   /** Logged-in user's ("mywot") perspective rank, 0..1, when present. */
   wotRankMywot?: number | null;
+  /** NIP-24: the profile declares itself automated. */
+  bot?: boolean;
 }
 
 export function meiliHitToSearchResult(hit: Record<string, unknown>): SearchResult | null {

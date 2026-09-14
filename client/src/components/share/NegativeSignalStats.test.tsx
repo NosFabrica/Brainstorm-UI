@@ -49,9 +49,25 @@ describe("NegativeSignalStats", () => {
     render(<NegativeSignalStats stats={strict} rawId={RAW_ID} lens="verified" />);
 
     expect(screen.getByTestId("share-stat-muters")).toHaveTextContent("1Verified Muters");
-    expect(screen.getByTestId("share-stat-reporters")).toHaveTextContent(
-      "0Verified Reporters",
-    );
+    // A zero is not a signal; the row says nothing about reporters (2026-09-08).
+    expect(screen.queryByTestId("share-stat-reporters")).toBeNull();
+  });
+
+  // "0 Verified Reporters" spent a line saying nothing on most profiles
+  // (Benjamin, 2026-09-08). A signal shows only when its count under the
+  // current lens is above zero; the lens still reveals what the other hides.
+  it("with both signals at zero under the lens, the line is not there at all", () => {
+    render(<NegativeSignalStats stats={{ muted_by: { verified: 0, total: 0 }, reported_by: { verified: 0, total: 0 } }} rawId={RAW_ID} lens="verified" />);
+    expect(screen.queryByTestId("share-stats-negative")).toBeNull();
+  });
+
+  it("muters nobody verified appear under the all lens and not under the verified one", () => {
+    const stats = { muted_by: { verified: 0, total: 3 }, reported_by: { verified: 0, total: 0 } };
+    const { rerender } = render(<NegativeSignalStats stats={stats} rawId={RAW_ID} lens="verified" />);
+    expect(screen.queryByTestId("share-stats-negative")).toBeNull();
+    rerender(<NegativeSignalStats stats={stats} rawId={RAW_ID} lens="all" />);
+    expect(screen.getByTestId("share-stat-muters")).toHaveTextContent("3All Muters");
+    expect(screen.queryByTestId("share-stat-reporters")).toBeNull();
   });
 
   it("links each count to its full list", () => {

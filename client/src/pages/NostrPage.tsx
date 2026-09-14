@@ -261,7 +261,7 @@ export default function NostrPage() {
                   key={r.name}
                   href={r.href}
                   target="_blank"
-                  rel="noopener noreferrer"
+                  rel="noopener"
                   className="group flex items-center justify-between gap-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3.5 hover:border-brand-accent/40 hover:shadow-sm transition-all"
                   data-testid={`resource-${r.name.toLowerCase().replace(/[^a-z]+/g, "-").replace(/(^-|-$)/g, "")}`}
                 >

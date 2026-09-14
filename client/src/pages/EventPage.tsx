@@ -2,7 +2,7 @@ import { useMemo, useEffect, useState } from "react";
 import { useRoute, useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
-import { ArrowLeft, BadgeCheck, Smartphone, Loader2, MessageSquare, ArrowRight, Share2, Check, X } from "lucide-react";
+import { BadgeCheck, Smartphone, Loader2, MessageSquare, ArrowRight, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { fetchEventsByIds, fetchAddressableEvents, fetchProfile, fetchProfileMap } from "@/services/nostr";
@@ -13,16 +13,27 @@ import { apiClient } from "@/services/api";
 import { collectRefs, addrCoord, replyRefs, type MinimalEvent } from "@/lib/noteRefs";
 import { ShareNoteCard } from "@/components/share/ShareNoteCard";
 import { NoteContent } from "@/components/share/NoteContent";
+import { AppHero } from "@/components/share/AppHero";
+import { FileHero } from "@/components/share/FileHero";
+import { isMediaFile } from "@/lib/fileMetadata";
+import { RepoHero } from "@/components/share/RepoHero";
+import { GitItemHero } from "@/components/share/GitItemHero";
+import { isGitItem } from "@/lib/gitStatus";
+import { FollowSetHero } from "@/components/share/FollowSetHero";
 import { AudioHero } from "@/components/share/AudioHero";
+import { ListingHero } from "@/components/share/ListingHero";
+import { ListingRelated } from "@/components/share/ListingRelated";
 import { EventHero } from "@/components/share/EventHero";
+import { VideoHero } from "@/components/share/VideoHero";
 import { LiveHero } from "@/components/share/LiveHero";
 import { EventThread } from "@/components/share/EventThread";
 import { ThreadAncestors } from "@/components/share/ThreadAncestors";
 import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { useLightbox } from "@/components/share/Lightbox";
-import { OpenInApp } from "@/components/share/OpenInApp";
+import { EntityMenu } from "@/components/share/EntityMenu";
+import { ShareButton } from "@/components/share/ShareButton";
 import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
-import { npubFromPubkey, nostrUriForEvent } from "@/lib/shareId";
+import { neventFor, npubFromPubkey, nostrUriForEvent } from "@/lib/shareId";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { BrainLogo } from "@/components/BrainLogo";
@@ -30,8 +41,17 @@ import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 
+
 type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string };
 type EventPointer = { id: string; relays?: string[]; author?: string };
+
+/** Addressable kinds (30000–39999) are commented on by coordinate, not id —
+ *  a listing's questions tag `30402:<seller>:<d>`, never the event id. */
+function addressCoordOf(ev: { kind: number; pubkey: string; tags: string[][] }): string | undefined {
+  if (ev.kind < 30000 || ev.kind >= 40000) return undefined;
+  const d = ev.tags.find((t) => t[0] === "d")?.[1];
+  return d === undefined ? undefined : `${ev.kind}:${ev.pubkey}:${d}`;
+}
 
 function decodeEventId(raw: string): EventPointer | null {
   const s = raw.replace(/^nostr:/, "");
@@ -59,6 +79,8 @@ function ago(ts?: number): string {
 }
 
 const NOTE_KINDS = new Set([1, 6, 16]);
+/** NIP-71 videos: normal / short, and their addressable twins (Divine ships 34236). */
+const VIDEO_EVENT_KINDS = new Set([21, 22, 34235, 34236]);
 const IMG_RE = /\.(jpe?g|png|gif|webp|avif|bmp|svg)(\?|#|$)/i;
 const VID_RE = /\.(mp4|webm|mov|m4v)(\?|#|$)/i;
 
@@ -129,7 +151,8 @@ export default function EventPage() {
     ? note.tags.find((t) => t[0] === "p" && (t[3] || "").toLowerCase() === "host")?.[1] || note.tags.find((t) => t[0] === "p")?.[1]
     : undefined;
   const authorPk = liveHost || note?.pubkey || ptr?.author || "";
-  const isArticle = note?.kind === 30023;
+  // Long-form (30023) and wiki pages (30818) both read on the article reader.
+  const isArticle = note?.kind === 30023 || note?.kind === 30818;
   const mediaUrls = useMemo(() => (note && !NOTE_KINDS.has(note.kind) ? eventMediaUrls(note) : []), [note]);
 
   // Long-form events belong on the article reader — hand off to /a.
@@ -228,18 +251,14 @@ export default function EventPage() {
   );
 
   const openInApp = nostrUriForEvent(ptr?.id || "", relayHints, authorPk || undefined);
+  // The ⋯ in the header: copies of the event's ids and "Open in" another
+  // client. The URL may have carried a bare id or a note1 — a real nevent
+  // is what to copy and what the web apps want.
+  const nevent = ptr ? neventFor(ptr.id, relayHints, authorPk || undefined) : "";
 
-  const [copied, setCopied] = useState(false);
   // When the thread's anon signup gate is showing, suppress the page's own
   // (now-duplicate) "Who can you trust online?" funnel.
   const [threadGated, setThreadGated] = useState(false);
-  const onShare = async () => {
-    const url = typeof window !== "undefined" ? window.location.href : "";
-    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
-      try { await navigator.share({ title: `${authorName} on Brainstorm`, url }); return; } catch { /* fall through to copy */ }
-    }
-    try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch { /* ignore */ }
-  };
 
   // Sign up from here → come back to this exact event afterward.
   const here = typeof window !== "undefined" ? window.location.pathname : "";
@@ -260,23 +279,7 @@ export default function EventPage() {
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950">
       <PublicPageHeader
         maxWidthClass="max-w-2xl"
-        actions={
-          <>
-            {authorNpub && (
-              <Link href={`/p/${authorNpub}`} className="hidden sm:inline-flex items-center gap-1.5 text-sm font-semibold text-slate-500 dark:text-slate-400 hover:text-brand-deep">
-                View profile <ArrowRight className="h-4 w-4" />
-              </Link>
-            )}
-            <button
-              type="button"
-              onClick={onShare}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-primary hover:bg-brand-primary-hover text-white text-sm font-semibold transition-colors"
-              data-testid="event-share"
-            >
-              {copied ? <><Check className="h-4 w-4" /> Copied</> : <><Share2 className="h-4 w-4" /> Share</>}
-            </button>
-          </>
-        }
+        actions={<ShareButton url={typeof window !== "undefined" ? window.location.href : ""} title={`${authorName} on Brainstorm`} />}
       />
 
       <main className="mx-auto max-w-2xl px-4 sm:px-6 py-6 sm:py-8">
@@ -320,8 +323,9 @@ export default function EventPage() {
                 permalinked reply reads in context instead of floating alone. */}
             <ThreadAncestors note={note} relayHints={relayHints} />
 
-            {/* Author header */}
-            <div className="flex items-center gap-3 mb-4">
+            {/* Author header — and the ⋯, on the object it acts on (X puts it
+                on the post, not the page). */}
+            <div className="flex items-center justify-between gap-3 mb-4">
               <Link href={authorNpub ? `/p/${authorNpub}` : "#"} className="flex items-center gap-2.5 min-w-0 hover:opacity-80">
                 <span className="relative shrink-0">
                   <Avatar className={`h-12 w-12 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 ${tierRing(score01) ?? ""}`}>
@@ -341,16 +345,40 @@ export default function EventPage() {
                   <span className="text-xs text-slate-400 dark:text-slate-500">{ago(note.created_at)}</span>
                 </div>
               </Link>
+              {ptr && nevent && (
+                <EntityMenu
+                  entity={{ kind: "event", eventKind: note.kind, bech32: nevent, uri: openInApp }}
+                  copies={[
+                    { id: "nevent", label: "Copy nevent", value: nevent, hint: "The note's id plus where to find it" },
+                    { id: "event-id", label: "Copy event ID", value: ptr.id, hint: "The raw 64-character id" },
+                  ]}
+                  triggerTestId="event-menu"
+                />
+              )}
             </div>
 
             {/* The event — notes via the rich card; media kinds render their media. */}
             <div className={`rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm ${replyRefs(note).parentId || replyRefs(note).rootId ? "ring-1 ring-brand-primary/15" : ""}`} data-testid="event-note">
-              {note.kind === 30311 ? (
+              {isGitItem(note.kind) ? (
+                <GitItemHero event={note} author={{ name: profile.name, displayName: profile.display_name, bot: (profile as { bot?: boolean }).bot === true }} />
+              ) : note.kind === 30311 ? (
                 <LiveHero event={note} />
+              ) : note.kind === 32267 ? (
+                <AppHero event={note} />
+              ) : note.kind === 1063 && !isMediaFile(note) ? (
+                <FileHero event={note} />
+              ) : note.kind === 30617 ? (
+                <RepoHero event={note} />
+              ) : note.kind === 30000 ? (
+                <FollowSetHero event={note} />
               ) : note.kind === 31337 ? (
                 <AudioHero event={note} />
+              ) : note.kind === 30402 ? (
+                <ListingHero event={note} />
               ) : note.kind === 31922 || note.kind === 31923 ? (
                 <EventHero event={note} />
+              ) : VIDEO_EVENT_KINDS.has(note.kind) ? (
+                <VideoHero event={note} />
               ) : NOTE_KINDS.has(note.kind) ? (
                 <ShareNoteCard event={note} profiles={profiles} eventsById={eventsById} addrByCoord={addrByCoord} forceExpanded />
               ) : (
@@ -378,6 +406,10 @@ export default function EventPage() {
               )}
             </div>
 
+            {/* Under a listing: the seller's other things, then similar things
+                from other sellers — a shop page that leads somewhere. */}
+            {note.kind === 30402 && <ListingRelated event={note} sellerName={authorName} />}
+
             {/* What the network says this post is ABOUT (rung C2). Sits under
                 the note itself, where a reader has just finished it and a
                 tagger has the content in view. Reads from relays only, so it
@@ -385,7 +417,7 @@ export default function EventPage() {
             <NoteTagChips eventId={note.id} relayHint={relayHints[0]} canTag={canTagNote} />
 
             {/* Reply thread — teaser-gated for anon, trust-filterable for members. */}
-            <EventThread eventId={note.id} authorNpub={authorNpub} relayHints={relayHints} onGateChange={setThreadGated} />
+            <EventThread eventId={note.id} addressCoord={addressCoordOf(note)} authorNpub={authorNpub} relayHints={relayHints} onGateChange={setThreadGated} />
 
             {/* More from this author — keep readers inside Brainstorm. */}
             {authorPk && <MoreFromAuthor pubkey={authorPk} authorName={authorName} author={profile} relayHints={relayHints} excludeId={note.id} excludeContent={note.content} />}
@@ -415,11 +447,6 @@ export default function EventPage() {
                 </p>
               )}
             </div>
-            )}
-
-            {/* Secondary escape hatch — open in a Nostr client to reply/zap. */}
-            {openInApp && (
-              <OpenInApp entity={{ kind: "event", bech32: raw, uri: openInApp }} className="mt-6" />
             )}
 
             <div className="mt-8 text-center">

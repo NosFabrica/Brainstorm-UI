@@ -6,6 +6,7 @@
 
 import { useSyncExternalStore, useState, useEffect, useRef, type RefObject } from "react";
 import type { MinimalEvent } from "@/lib/noteRefs";
+import { playSolo, type Sounding } from "@/lib/playback";
 
 export type TrackStatus = "idle" | "loading" | "playing" | "paused" | "error";
 
@@ -47,15 +48,92 @@ export function formatTime(sec: number): string {
 }
 
 // --- singleton state ---
+export interface PlaylistTrack {
+  id: string;
+  src: string;
+  title?: string;
+  artist?: string;
+  cover?: string;
+  /** Where the track's page is: an in-app path, or an absolute URL on the source's site. */
+  href?: string;
+  /** The artist's profile — in-app when they are on Nostr — for the bar's name to link. */
+  artistHref?: string;
+  /** The artist's Nostr key when the track is theirs on Nostr: "more from this artist" asks by it. */
+  artistPubkey?: string;
+}
+export type TrackMeta = Pick<PlaylistTrack, "title" | "artist" | "cover" | "href" | "artistHref" | "artistPubkey">;
+
 let audio: HTMLAudioElement | null = null;
 let currentId: string | null = null;
+/** The music as one voice in the app's one-sound-at-a-time rule (lib/playback). */
+const musicHolder: Sounding = { pause: () => pausePlayback() };
 let status: TrackStatus = "idle";
-let playlist: { id: string; src: string }[] = [];
+let playlist: PlaylistTrack[] = [];
+/** What each track is called, for the system's now-playing — from the queue or the row that started it. */
+const metaById = new Map<string, TrackMeta>();
 const listeners = new Set<() => void>();
 
 /** Register the ordered track list so playback auto-advances on `ended`. */
-export function setPlaylist(list: { id: string; src: string }[]) {
+export function setPlaylist(list: PlaylistTrack[]) {
   playlist = list;
+  for (const t of list) if (t.title) metaById.set(t.id, { title: t.title, artist: t.artist, cover: t.cover, href: t.href, artistHref: t.artistHref, artistPubkey: t.artistPubkey });
+}
+
+/**
+ * Line more tracks up right after the active one — "more from this artist"
+ * when a lone track had nothing behind it. Each id once; what was already
+ * queued after stays, after the new ones. A track that was never in a list
+ * becomes the head of one.
+ */
+export function extendPlaylist(tracks: PlaylistTrack[]) {
+  const idx = playlist.findIndex((t) => t.id === currentId);
+  const head = idx >= 0 ? playlist.slice(0, idx + 1) : currentId ? [{ id: currentId, src: audio?.src ?? "", ...(metaById.get(currentId) ?? {}) }] : [];
+  const tail = idx >= 0 ? playlist.slice(idx + 1) : [];
+  const seen = new Set(head.map((t) => t.id));
+  const fresh = tracks.filter((t) => !seen.has(t.id) && (seen.add(t.id), true));
+  const rest = tail.filter((t) => !seen.has(t.id) && (seen.add(t.id), true));
+  setPlaylist([...head, ...fresh, ...rest]);
+  emit();
+}
+
+/** What a track is called, when a row or the queue said. */
+export function trackMeta(id: string | null): TrackMeta | undefined {
+  return id ? metaById.get(id) : undefined;
+}
+
+/** The track after this one in the registered playlist, if any. */
+export function peekNext(id: string | null): PlaylistTrack | null {
+  const idx = playlist.findIndex((t) => t.id === id);
+  return idx >= 0 ? playlist[idx + 1] ?? null : null;
+}
+
+/**
+ * System now-playing (Media Session): the lock screen and the browser's media
+ * hub show the title, artist and artwork, and the hardware keys drive the
+ * shared player. Best-effort — absent in test DOMs and old engines.
+ */
+function applyMediaSession(id: string) {
+  if (typeof navigator === "undefined" || !("mediaSession" in navigator) || typeof MediaMetadata === "undefined") return;
+  const meta = metaById.get(id);
+  if (!meta?.title) return;
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: meta.title,
+      artist: meta.artist ?? "",
+      artwork: meta.cover ? [{ src: meta.cover }] : [],
+    });
+  } catch { /* ignore */ }
+}
+/** Idempotent, so it runs with every track start — cheap, and it survives a swapped session object. */
+function wireMediaSessionKeys() {
+  if (typeof navigator === "undefined" || !("mediaSession" in navigator)) return;
+  const set = (name: MediaSessionAction, handler: () => void) => {
+    try { navigator.mediaSession.setActionHandler(name, handler); } catch { /* unsupported action */ }
+  };
+  set("play", () => { if (audio && currentId) { playSolo(musicHolder); Promise.resolve(audio.play()).catch(() => {}); } });
+  set("pause", () => pausePlayback());
+  set("nexttrack", () => { playNext(); });
+  set("previoustrack", () => { playPrev(); });
 }
 
 // Cached snapshot — rebuilt only on change so useSyncExternalStore stays stable.
@@ -88,18 +166,22 @@ function ensureAudio(): HTMLAudioElement {
     const idx = playlist.findIndex((t) => t.id === currentId);
     const next = idx >= 0 ? playlist[idx + 1] : undefined;
     if (next) { toggleTrack(next.id, next.src); return; } // auto-advance
-    status = "idle"; currentId = null; emit();
+    // The end of the queue: the last track stays current, paused, ready to
+    // play again — Spotify's bar does not blink away when the music stops.
+    status = "paused"; emit();
   });
   audio.addEventListener("error", () => { status = "error"; emit(); });
   return audio;
 }
 
 /** Play this track, or toggle play/pause if it's already the active one. */
-export function toggleTrack(id: string, src: string) {
+export function toggleTrack(id: string, src: string, meta?: TrackMeta) {
   if (typeof window === "undefined") return;
   const a = ensureAudio();
+  if (meta?.title) metaById.set(id, meta);
+  wireMediaSessionKeys();
   if (currentId === id) {
-    if (a.paused) { status = "loading"; a.play().catch(() => { status = "error"; emit(); }); }
+    if (a.paused) { status = "loading"; playSolo(musicHolder); Promise.resolve(a.play()).catch(() => { status = "error"; emit(); }); }
     else { a.pause(); }
     emit();
     return;
@@ -108,30 +190,53 @@ export function toggleTrack(id: string, src: string) {
   status = "loading";
   a.src = src;
   a.currentTime = 0;
-  a.play().catch(() => { status = "error"; emit(); });
+  applyMediaSession(id);
+  playSolo(musicHolder);
+  // Wrapped: a media element that returns nothing from play() (older engines,
+  // test DOMs) must not throw before the store learns which track is active.
+  Promise.resolve(a.play()).catch(() => { status = "error"; emit(); });
   emit();
 }
 
-/** Pause the active track but keep its position, so it can resume. Used on
- *  route changes — inline media is tied to its page (X / Facebook / LinkedIn). */
+/** Play or pause whatever is active — the bar's button, the hardware key. */
+export function togglePlayback() {
+  if (!audio || !currentId) return;
+  if (audio.paused) { status = "loading"; playSolo(musicHolder); Promise.resolve(audio.play()).catch(() => { status = "error"; emit(); }); emit(); }
+  else audio.pause();
+}
+
+/** Pause the active track but keep its position, so it can resume. */
 export function pausePlayback() {
   if (audio && !audio.paused) audio.pause(); // the 'pause' listener sets status + emits
 }
 
 /**
- * Hard-stop every kind of inline media at once: the shared audio track, any
- * `<video>`/`<audio>` element still in the DOM, and an active Picture-in-Picture
- * window. PiP (and, in some browsers, a detached media element) keeps playing
- * across a client-side route change unless it's explicitly closed — so this is
- * called on every navigation to guarantee leaving a page stops the sound, the
- * way X and YouTube behave when there's no dedicated mini-player.
+ * Close the player: stop the sound, forget the track, tell the system nothing
+ * plays. The bar's X. The queue stays registered, so Play from any row starts again.
+ */
+export function closePlayer() {
+  if (audio) {
+    try { audio.pause(); } catch { /* ignore */ }
+    try { audio.removeAttribute("src"); audio.load(); } catch { /* ignore */ }
+  }
+  currentId = null;
+  status = "idle";
+  if (typeof navigator !== "undefined" && "mediaSession" in navigator) {
+    try { navigator.mediaSession.metadata = null; } catch { /* ignore */ }
+  }
+  emit();
+}
+
+/**
+ * Stop the page's inline VIDEO on a route change: any `<video>`/`<audio>`
+ * element still in the DOM, except an active Picture-in-Picture window — PiP
+ * is a deliberate mini-player that persists across the app until closed. The
+ * shared audio track is NOT here: music has its own bar that follows the
+ * listener across pages (Spotify, SoundCloud), so leaving a page never stops
+ * the song — the bar's X does.
  */
 export function stopAllMedia() {
-  pausePlayback();
   if (typeof document === "undefined") return;
-  // A Picture-in-Picture video is a deliberate mini-player: it persists across
-  // the app (YouTube / Google standard) until the user closes it. So we never
-  // exit PiP here — we just pause every OTHER playing media element.
   try {
     const pip = document.pictureInPictureElement;
     document.querySelectorAll<HTMLMediaElement>("video, audio").forEach((m) => {
@@ -186,6 +291,45 @@ function subscribe(l: () => void) {
   return () => { listeners.delete(l); };
 }
 const getSnapshot = () => snapshot;
+
+/**
+ * The player as a whole — which track is active and where it is — for a
+ * now-playing bar that outlives any one row.
+ */
+export function usePlayerState(): { currentId: string | null; status: TrackStatus; currentTime: number; duration: number } {
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+}
+
+/** Skip to the next track in the registered playlist, if there is one. */
+export function playNext(): boolean {
+  const idx = playlist.findIndex((t) => t.id === currentId);
+  const next = idx >= 0 ? playlist[idx + 1] : playlist[0];
+  if (!next) return false;
+  toggleTrack(next.id, next.src);
+  return true;
+}
+
+/** Back to the previous track in the registered playlist, if there is one. */
+export function playPrev(): boolean {
+  const idx = playlist.findIndex((t) => t.id === currentId);
+  const prev = idx > 0 ? playlist[idx - 1] : undefined;
+  if (!prev) return false;
+  toggleTrack(prev.id, prev.src);
+  return true;
+}
+
+/** Start the registered playlist from its first track (or a given one). */
+export function playFrom(id?: string) {
+  const start = id ? playlist.find((t) => t.id === id) : playlist[0];
+  if (start && start.id !== currentId) toggleTrack(start.id, start.src);
+  else if (start) toggleTrack(start.id, start.src);
+}
+
+/** The player's state right now — a read for tests and non-React callers. */
+export function playerSnapshot() {
+  rebuild();
+  return snapshot;
+}
 
 /** Per-row view of the shared player: is this id active, and its progress. */
 export function useTrackPlayer(id: string) {

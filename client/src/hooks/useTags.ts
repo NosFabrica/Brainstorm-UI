@@ -588,6 +588,8 @@ export function useApplyTag(targetPubkey: string | undefined) {
                 // own act, which the "someone tagged you" module filters out.
                 addedAt: Math.floor(Date.now() / 1000),
                 myStance: stance,
+                // Still on its way to the relays; the chip says so until they answer.
+                pending: true,
               },
             ];
 
@@ -615,8 +617,12 @@ export function useApplyTag(targetPubkey: string | undefined) {
 
     // Relays need a moment to serve back what we just published; refetching
     // instantly tends to return the pre-publish state and clobber the
-    // optimistic chip. Settle first, then reconcile.
+    // optimistic chip. Settle first, then reconcile — but the chip stops
+    // saying "publishing" the moment a relay has it.
     onSuccess: () => {
+      queryClient.setQueryData<ProfileTagsResult>(key, (old) =>
+        old ? { ...old, tags: old.tags.map((t) => (t.pending ? { ...t, pending: false } : t)) } : old,
+      );
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: key });
       }, 2500);

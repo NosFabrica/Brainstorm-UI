@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BrainstormBot — what it is and how to stop it</title>
+<meta name="description" content="BrainstormBot fetches a page's OpenGraph tags when a person opens a nostr note linking to it. What it does, what it does not do, and how to block it.">
+<meta name="robots" content="noindex">
+<style>
+  /* Palette mirrors the app's tokens (client/src/index.css, docs/design-system.md)
+     as literal values, since this page is served outside the SPA and gets no
+     Tailwind pass. Same hsl() triples and the same --brand-link hexes — keep
+     them in step rather than inventing neutrals here.
+
+     Unlike the SPA, this page follows the OS theme with no stored preference:
+     it has no JavaScript to read one, and its eight tokens are the whole
+     surface, so index.html's "fresh visitors stay light" hold does not apply. */
+  :root {
+    color-scheme: light dark;
+    --bg: hsl(80 8% 95%);
+    --fg: hsl(223 41% 7%);
+    --muted: hsl(216 11% 45%);
+    --rule: hsl(204 7% 85%);
+    --card: hsl(0 0% 100%);
+    --link: #7237ff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: hsl(223 41% 7%);
+      --fg: hsl(80 8% 95%);
+      --muted: hsl(240 5% 64.9%);
+      --rule: hsl(214 22% 21%);
+      --card: hsl(219 33% 12%);
+      --link: #a78bfa;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  main { max-width: 44rem; margin: 0 auto; padding: 3rem 1.25rem 5rem; }
+  h1 { font-size: 1.6rem; line-height: 1.25; margin: 0 0 .25rem; }
+  h2 { font-size: 1.1rem; margin: 2.5rem 0 .5rem; }
+  .lede { color: var(--muted); margin: 0 0 2rem; }
+  a { color: var(--link); }
+  code, pre {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: .9em;
+  }
+  pre {
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 6px;
+    padding: .75rem 1rem;
+    overflow-x: auto;
+  }
+  pre.ua { border-left: 3px solid var(--link); }
+  ul { padding-left: 1.2rem; }
+  li { margin: .35rem 0; }
+  table { border-collapse: collapse; width: 100%; margin-top: .5rem; }
+  th, td { text-align: left; padding: .4rem .6rem .4rem 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+  footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid var(--rule); color: var(--muted); font-size: .9rem; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>BrainstormBot</h1>
+<p class="lede">If you found this address in your access logs, this page explains who we are,
+why we requested your page, and how to make it stop.</p>
+
+<p><a href="https://brainstorm.world">Brainstorm</a> is an open-source Web-of-Trust client for
+<a href="https://github.com/nostr-protocol/nostr">nostr</a>, operated by
+<a href="https://nosfabrica.com">NosFabrica</a>. When someone reads a note that contains a link,
+we fetch that page's <a href="https://ogp.me">OpenGraph</a> tags so we can show them a preview
+card — a title, a description, a site name, and a thumbnail — instead of a bare URL.</p>
+
+<h2>The User-Agent</h2>
+<p>We send this User-Agent on every request, and never any other:</p>
+<pre class="ua"><code>BrainstormBot/1.0 (+https://brainstorm.world/bot)</code></pre>
+<p>We do not send a User-Agent belonging to another company's fetcher. If a request claiming to
+be Googlebot, facebookexternalhit, Twitterbot, or Slackbot is hitting you, it is not us.</p>
+
+<h2>What we do</h2>
+<ul>
+  <li><strong>Fetch only what a person is looking at.</strong> Every request is triggered by a
+      human opening a note that links to your page. We honour robots.txt. We do not crawl, we do not follow links out
+      of the pages we fetch, and we hold no URL list to work through.</li>
+  <li><strong>Fetch once, not once per reader.</strong> A successful result is cached for 24
+      hours and a failure for 5 minutes, so a link in a widely-read note costs you roughly one
+      request a day from each instance we run, rather than one per viewer.</li>
+  <li><strong>Read the head and stop.</strong> We stream the response and stop as soon as we
+      have the <code>&lt;head&gt;</code>, subject to a floor of 8&nbsp;KB — some sites put their
+      metadata after a large inline block, so we do not cut before that. The whole read is
+      capped at 512,000 bytes.</li>
+  <li><strong>Give up quickly.</strong> 3 seconds per hop, 5 seconds overall, and at most three
+      redirects.</li>
+  <li><strong>Request pages, not files.</strong> We send
+      <code>Accept: text/html,application/xhtml+xml</code>. An HTML response is read as above.
+      An image or video (JPEG, PNG, GIF, WebP, AVIF, MP4, WebM) is recognised from its headers
+      and never downloaded. Anything else is discarded unread.</li>
+  <li><strong>Rate-limit ourselves.</strong> Requests are capped per calling IP address over a
+      fixed window, using the address from our own proxy chain rather than anything the caller
+      claims in a header.</li>
+  <li><strong>Drop tracking parameters.</strong> <code>utm_*</code>, <code>fbclid</code>,
+      <code>gclid</code>, <code>msclkid</code> and <code>igshid</code> are stripped before we
+      request the page, so we do not forward a sharer's campaign identifiers to you.</li>
+</ul>
+<p>The numbers above are what we run today. The redirect limit is fixed in the code; the
+timeouts, the size cap, the cache lifetime and the rate limits are deployment settings, so
+treat them as current values rather than as a contract. What does not change is the shape:
+user-triggered, cached, capped, and identified.</p>
+
+<h2>What we do not do</h2>
+<ul>
+  <li>We do not log the URL that was fetched. It is not written by our request-logging layer at
+      any log level — we hold tests that fail if it ever is. One honest caveat: the HTTP library
+      underneath us names the host it connects to at <code>DEBUG</code>, which our production
+      log level does not enable. The host, never the path or query.</li>
+  <li>We do not execute JavaScript, submit forms, or authenticate.</li>
+  <li>We do not store your page. Five short fields survive — title, description, image URL, site
+      name, and the final URL after redirects — of which the title, description and site name
+      are length-capped. Nothing else is kept, and only for the cache lifetime above.</li>
+  <li>We do not index you or resell anything derived from you.</li>
+</ul>
+
+<h2>robots.txt</h2>
+<p>We read your <code>robots.txt</code> and we honour it. A <code>Disallow</code> covering the
+page means we do not request that page at all — not that we fetch it and discard the result.
+We follow RFC&nbsp;9309: our product token is <code>BrainstormBot</code>, the most specific
+group naming us wins over <code>*</code>, and where no rule matches we treat the path as
+allowed. If the file is missing we take that as permission; if it cannot be read at all, we
+treat that as a refusal until it can.</p>
+<p>One deliberate exception: we ignore <code>Crawl-delay</code>. It is not part of RFC&nbsp;9309,
+and the delays sites publish are measured in tens of seconds — unworkable for a fetch a reader
+is waiting on. We would rather name that here than quietly disregard it. What we do instead is
+ask for one page, once, and remember the answer for a day.</p>
+
+<h2>How to block us</h2>
+<p>The simplest way is <code>robots.txt</code>, which we obey:</p>
+<pre><code>User-agent: BrainstormBot
+Disallow: /</code></pre>
+<p>Blocking by User-Agent works too — the token is stable and we will not change it to evade a
+block:</p>
+<pre><code>if ($http_user_agent ~* "BrainstormBot") { return 403; }   # nginx</code></pre>
+<p>A 403 or 451 is fine by us; we cache the failure and move on. A 429 or 503 pauses every
+request to your host, not just that page, for your <code>Retry-After</code> (held between one and
+ten minutes). If you would rather we stopped without you having to configure anything, email us
+and we will stop fetching your host.</p>
+
+<h2>Contact</h2>
+<table>
+  <tr>
+    <th scope="row">Email</th>
+    <td><a href="mailto:support@nosfabrica.com?subject=BrainstormBot">support@nosfabrica.com</a></td>
+  </tr>
+  <tr>
+    <th scope="row">Security</th>
+    <td><a href="https://brainstorm.world/.well-known/security.txt">/.well-known/security.txt</a></td>
+  </tr>
+</table>
+<p>Say which hostnames you want left alone. We will confirm when it is in place, and a request to
+stop is not an invitation to a sales conversation.</p>
+
+<footer>
+The fetcher is open source:
+<a href="https://github.com/NosFabrica/brainstorm_og">NosFabrica/brainstorm_og</a>.
+Operated by NosFabrica.
+</footer>
+
+</main>
+</body>
+</html>
