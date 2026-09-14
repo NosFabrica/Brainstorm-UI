@@ -17,6 +17,7 @@ import { useTierRing } from "@/components/score/VerificationCoin";
 import { isFeedAccount } from "@/lib/feedAccount";
 import { nip19 } from "nostr-tools";
 import { Favicon, LinkChip, LinkPreviewCard } from "@/components/share/LinkPreview";
+import { parseNoteContent, primaryLink } from "@/lib/noteContent";
 import { TranslateLine } from "@/components/share/TranslateLine";
 import { useLightbox } from "@/components/share/Lightbox";
 import { eventStore } from "@/lib/eventStore";
@@ -461,12 +462,8 @@ export function SerpRow({
 
   // A wiki page is AsciiDoc; the row shows its words, not "[[comedian]]".
   const body = (event.kind === 30818 ? wikiPlainText(event.content) : event.content) || tagVal(event, "summary") || tagVal(event, "description") || "";
-  // The row's first plain web link earns a metadata card (title, description,
-  // image) when the unfurl proxy knows it — Google shows the page, not the
-  // domain. Media links are the thumbnail's business, not a card's.
-  // Same token the chip renders (no trailing-period trim: "Liverpool_F.C." is a real URL).
-  const firstLink = body.match(/https?:\/\/\S+/)?.[0]?.replace(/[),;!?]+$/, "") ?? null;
-  const cardLink = firstLink && !IMAGE_RE.test(firstLink) && !/\.(?:mp4|webm|mov|m3u8)(?:\?|#|$)/i.test(firstLink) ? firstLink : null;
+  // Same link a feed would card for this note, so the two never disagree.
+  const cardLink = primaryLink(parseNoteContent(body));
   return (
     <div {...rowProps}>
       <div className="min-w-0 flex-1">

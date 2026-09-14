@@ -111,6 +111,28 @@ function classifyUrl(url: string): NoteToken {
   return { type: "url", value: url };
 }
 
+/**
+ * The link a note's preview card is for: its last plain web link. Feeds and
+ * search rows both ask here, so one note never cards two different links.
+ */
+export function primaryLink(tokens: NoteToken[]): string | null {
+  for (let i = tokens.length - 1; i >= 0; i--) {
+    const t = tokens[i];
+    if (t.type === "url") return trimProse(t.value);
+  }
+  return null;
+}
+
+/** Sheds prose punctuation; keeps a closing paren the URL itself opened (Wikipedia). */
+function trimProse(url: string): string {
+  let out = url.replace(/[,;!?]+$/, "");
+  const count = (re: RegExp) => out.match(re)?.length ?? 0;
+  while (out.endsWith(")") && count(/\(/g) < count(/\)/g)) {
+    out = out.slice(0, -1).replace(/[,;!?]+$/, "");
+  }
+  return out;
+}
+
 export function parseNoteContent(content: string): NoteToken[] {
   const text = content || "";
   const tokens: NoteToken[] = [];

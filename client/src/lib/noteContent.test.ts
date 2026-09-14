@@ -4,7 +4,7 @@
  * rendered as a wall of base64 text on the event page's More-from strip.
  */
 import { describe, expect, it } from "vitest";
-import { parseNoteContent } from "./noteContent";
+import { parseNoteContent, primaryLink } from "./noteContent";
 
 describe("parseNoteContent", () => {
   it("renders an inline data:image URI as an image, never as base64 text", () => {
@@ -23,5 +23,30 @@ describe("parseNoteContent", () => {
       { type: "text", value: "gm " },
       { type: "image", value: "https://img.example/sunset.jpg" },
     ]);
+  });
+});
+
+describe("primaryLink", () => {
+  const link = (s: string) => primaryLink(parseNoteContent(s));
+
+  it("is the last plain web link, so feeds and search rows card the same one", () => {
+    expect(link("see https://a.test/one and https://b.test/two")).toBe("https://b.test/two");
+  });
+
+  it("skips media, which is the thumbnail's business", () => {
+    expect(link("https://a.test/page https://cdn.test/pic.jpg")).toBe("https://a.test/page");
+  });
+
+  it("is null without a web link", () => {
+    expect(link("no links #here")).toBeNull();
+  });
+
+  it("sheds prose punctuation", () => {
+    expect(link("read this (https://a.test/post)!")).toBe("https://a.test/post");
+    expect(link("https://a.test/post, then")).toBe("https://a.test/post");
+  });
+
+  it("keeps a closing paren the URL opened", () => {
+    expect(link("https://en.wikipedia.org/wiki/Mercury_(planet)")).toBe("https://en.wikipedia.org/wiki/Mercury_(planet)");
   });
 });

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { parseNoteContent, extractImageUrls, extractNoteTitle, toPlayableStreamUrl } from "@/lib/noteContent";
+import { parseNoteContent, primaryLink, extractImageUrls, extractNoteTitle, toPlayableStreamUrl } from "@/lib/noteContent";
 import { decodeNostrEntity } from "@/lib/noteRefs";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { LinkChip, LinkPreviewCard } from "@/components/share/LinkPreview";
@@ -10,6 +10,8 @@ import { FeedVideo } from "@/components/share/FeedVideo";
 import { LiveVideoPlayer } from "@/components/share/LiveVideoPlayer";
 import { WavlakeTrackCard } from "@/components/share/WavlakeTrackCard";
 import { wavlakeTrackId } from "@/lib/wavlake";
+import { FountainCard } from "@/components/share/FountainCard";
+import { fountainRef } from "@/lib/fountain";
 import { useLightbox } from "@/components/share/Lightbox";
 
 /** Human-readable track name from a raw audio URL. Falls back to "Audio" for
@@ -96,8 +98,7 @@ export function NoteContent({
   const [, navigate] = useLocation();
   // The note's primary link gets a rich preview card below the body (not in
   // compact/embedded contexts). Inline URLs stay as compact favicon chips.
-  const urlTokens = tokens.filter((t) => t.type === "url") as { value: string }[];
-  const primaryUrl = urlTokens.length ? urlTokens[urlTokens.length - 1].value : null;
+  const primaryUrl = primaryLink(tokens);
   // All image URLs in this note — the set the lightbox carousels through.
   const imageUrls = tokens.filter((t) => t.type === "image").map((t) => (t as { value: string }).value);
   return (
@@ -108,6 +109,7 @@ export function NoteContent({
             return <span key={i}>{token.value}</span>;
           case "url":
             if (wavlakeTrackId(token.value)) return <WavlakeTrackCard key={i} url={token.value} />;
+            if (fountainRef(token.value)) return <FountainCard key={i} url={token.value} />;
             if (videoEmbedFor(token.value)) return <VideoEmbed key={i} url={token.value} />;
             return <LinkChip key={i} url={token.value} />;
           case "audio":
@@ -201,7 +203,7 @@ export function NoteContent({
             return null;
         }
       })}
-      {primaryUrl && linkCard && !wavlakeTrackId(primaryUrl) && !videoEmbedFor(primaryUrl) && <LinkPreviewCard url={primaryUrl} />}
+      {primaryUrl && linkCard && !wavlakeTrackId(primaryUrl) && !videoEmbedFor(primaryUrl) && !fountainRef(primaryUrl) && <LinkPreviewCard url={primaryUrl} />}
     </div>
   );
 }

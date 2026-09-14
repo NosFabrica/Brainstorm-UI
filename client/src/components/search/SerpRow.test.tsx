@@ -98,6 +98,14 @@ describe("SerpRow — link metadata", () => {
     expect(unfurlMock).toHaveBeenCalledWith("https://en.wikipedia.org/wiki/Liverpool_F.C.");
   });
 
+  it("cards the same link a feed would — the last one", async () => {
+    unfurlMock.mockResolvedValue({ title: "Second", description: null, image: null, siteName: null });
+    render(<SerpRow event={note("One https://a.example/first two https://b.example/second")} author={author} score={0.7} query="liverpool" />);
+    await screen.findByTestId("link-card");
+    expect(unfurlMock).toHaveBeenCalledWith("https://b.example/second");
+    expect(unfurlMock).not.toHaveBeenCalledWith("https://a.example/first");
+  });
+
   it("no answer, still a card — it keeps its height and carries the path", async () => {
     // The card never collapses. Roughly a third of real links publish no Open
     // Graph markup at all, so a card that vanished on no answer would shove the
