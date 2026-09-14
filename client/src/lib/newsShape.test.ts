@@ -49,4 +49,26 @@ describe("parseNewsShape", () => {
     const tooLong = parseNewsShape(`${"word ".repeat(60)}\nhttps://example.com/x`);
     expect(tooLong).toBeNull(); // a wall of text before the link is a post, not a headline
   });
+
+  // Stacker News crossposts: markdown around an extensionless image CDN link.
+  it("a post whose only link is a markdown image is not news", () => {
+    expect(parseNewsShape("Bitcoin is doing things today and here is my picture [122.jpg](https://m.stacker.news/12345)")).toBeNull();
+    expect(parseNewsShape("Bitcoin is doing things today and here is my picture ![](https://m.stacker.news/12345)")).toBeNull();
+  });
+
+  it("markdown around the image never reaches the headline, and the image is the thumbnail", () => {
+    const shape = parseNewsShape("Some thoughts about the market this week, a proper lead\n\n![122.jpg](https://m.stacker.news/12345)\n\nhttps://stacker.news/items/99");
+    expect(shape).toMatchObject({
+      headline: "Some thoughts about the market this week, a proper lead",
+      url: "https://stacker.news/items/99",
+      domain: "stacker.news",
+      imageUrl: "https://m.stacker.news/12345",
+    });
+  });
+
+  it("a markdown article link keeps its words out of the brackets", () => {
+    const shape = parseNewsShape("Markets rally as the halving approaches, analysts say [read](https://news.test/a) more here");
+    expect(shape?.headline).toBe("Markets rally as the halving approaches, analysts say read");
+    expect(shape?.url).toBe("https://news.test/a");
+  });
 });

@@ -70,11 +70,26 @@ const TOKEN_REGEX = new RegExp(
   "giu",
 );
 
-/** Markdown links and images reduced to their URLs, for plain-text surfaces. */
-export function unwrapMarkdownLinks(text: string): string {
-  return text.replace(MD_LINK_RE, (_whole, bang: string, label: string, url: string) =>
-    bang || !label || label === url ? url : `${label} ${url}`,
-  );
+// `![](url)`, or a link labelled with an image filename (Stacker News uploads
+// write `[122.jpg](https://m.stacker.news/…)`).
+const IMAGE_LABEL = /\.(?:jpe?g|png|gif|webp|avif)$/i;
+function markdownIsImage(bang: string, label: string): boolean {
+  return !!bang || IMAGE_LABEL.test(label.trim());
+}
+
+/**
+ * Markdown links and images reduced to their URLs, for plain-text surfaces.
+ * URLs the markdown marked as images are added to `images`, since an
+ * extensionless CDN address can't be recognised any other way.
+ */
+export function unwrapMarkdownLinks(text: string, images?: Set<string>): string {
+  return text.replace(MD_LINK_RE, (_whole, bang: string, label: string, url: string) => {
+    if (markdownIsImage(bang, label)) {
+      images?.add(url);
+      return url;
+    }
+    return !label || label === url ? url : `${label} ${url}`;
+  });
 }
 
 // A nostr bech32 entity embedded anywhere inside a normal web URL's path, e.g.
@@ -161,7 +176,7 @@ export function parseNoteContent(content: string): NoteToken[] {
     const [whole, bang, label, mdUrl, url, mention, hashtag] = match;
     if (mdUrl) {
       const token = classifyUrl(mdUrl);
-      if (bang) {
+      if (markdownIsImage(bang, label)) {
         // The author said image; trust that over a missing extension.
         tokens.push(token.type === "url" ? { type: "image", value: mdUrl } : token);
       } else {

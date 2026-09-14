@@ -100,4 +100,10 @@ describe("inline markdown in notes", () => {
   it("a text preview carries no markdown debris", () => {
     expect(plainTextPreview("Big news ![](https://m.test/1) read [here](https://a.test/x)")).toBe("Big news read here");
   });
+
+  it("a link labelled with an image filename is an image (Stacker News uploads)", () => {
+    expect(parseNoteContent("[122.jpg](https://m.stacker.news/12345)")).toEqual([
+      { type: "image", value: "https://m.stacker.news/12345" },
+    ]);
+  });
 });
