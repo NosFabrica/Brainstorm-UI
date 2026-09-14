@@ -193,6 +193,15 @@ describe("the plain-link card", () => {
     expect(screen.queryByText("eucup.com")).toBeNull();
   });
 
+  it("shows an extensionless image link as the picture, not a card", async () => {
+    unfurlMock.mockResolvedValue({ kind: "image", title: null, description: null, image: "https://m.stacker.news/19886", siteName: null });
+    render(<LinkPreviewCard url="https://m.stacker.news/19886" />);
+    const box = await screen.findByTestId("link-image");
+    expect(box.querySelector("img")).toHaveAttribute("src", "https://m.stacker.news/19886");
+    expect(box.querySelector("img")).toHaveAttribute("referrerpolicy", "no-referrer");
+    expect(screen.queryByTestId("link-card")).toBeNull();
+  });
+
   it("does not tell the image host which page the reader came from", async () => {
     unfurlMock.mockResolvedValue({ title: "t", description: null, image: "https://img.test/a.jpg", siteName: null });
     render(<LinkPreviewCard url="https://x.test/a" />);

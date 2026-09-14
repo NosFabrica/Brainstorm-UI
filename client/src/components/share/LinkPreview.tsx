@@ -5,6 +5,7 @@ import { FountainCard } from "@/components/share/FountainCard";
 import { wavlakeTrackId } from "@/lib/wavlake";
 import { VideoEmbed } from "@/components/share/VideoEmbed";
 import { fetchUnfurl, type Unfurled } from "@/services/unfurl";
+import { useLightbox } from "@/components/share/Lightbox";
 
 /**
  * Server-free "smart" link previews. We can't fetch a URL's OG tags from the
@@ -198,7 +199,8 @@ const NEAR_VIEWPORT = "400px";
  * common case here, not the exception.
  */
 function UnfurledCard({ url, host }: { url: string; host: string }) {
-  const [meta, setMeta] = useState<Unfurled | null>(null);
+  const openLightbox = useLightbox();
+  const [fetched, setMeta] = useState<Unfurled | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
   // No IntersectionObserver (jsdom, older engines) means ask straight away
   // rather than never.
@@ -233,6 +235,33 @@ function UnfurledCard({ url, host }: { url: string; host: string }) {
     };
   }, [url, near]);
 
+  // The link is itself a picture: show it. If it fails to load, fall back to
+  // the card as if nothing was known.
+  if (fetched?.kind === "image" && fetched.image && !imgFailed) {
+    const src = fetched.image;
+    return (
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          openLightbox([src], 0);
+        }}
+        className="mt-2 block max-w-full overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800"
+        data-testid="link-image"
+      >
+        <img
+          src={src}
+          alt=""
+          loading="lazy"
+          referrerPolicy="no-referrer"
+          onError={() => setImgFailed(true)}
+          className="max-h-64 max-w-full object-contain bg-slate-100 dark:bg-slate-800"
+        />
+      </button>
+    );
+  }
+
+  const meta = fetched?.kind === "image" ? null : fetched;
   const u = parse(url);
   const path = u ? prettyPath(u) : "";
   const image = meta?.image && !imgFailed ? meta.image : null;

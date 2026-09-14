@@ -27,7 +27,7 @@ describe("fetchUnfurl", () => {
   it("asks the proxy once per URL and returns the page's card fields", async () => {
     fetchMock.mockReturnValue(ok({ data: { title: "Liverpool F.C.", description: "Professional football club", image: "https://img/lfc.jpg", siteName: "Wikipedia" } }));
     const a = await fetchUnfurl("https://en.wikipedia.org/wiki/Liverpool_F.C.");
-    expect(a).toEqual({ title: "Liverpool F.C.", description: "Professional football club", image: "https://img/lfc.jpg", siteName: "Wikipedia" });
+    expect(a).toEqual({ kind: "page", title: "Liverpool F.C.", description: "Professional football club", image: "https://img/lfc.jpg", siteName: "Wikipedia" });
     expect(fetchMock).toHaveBeenCalledTimes(1);
     // Memoized: the same URL never asks twice.
     await fetchUnfurl("https://en.wikipedia.org/wiki/Liverpool_F.C.");
@@ -52,7 +52,12 @@ describe("fetchUnfurl", () => {
 
   it("tolerates a bare (unwrapped) body and missing fields", async () => {
     fetchMock.mockReturnValue(ok({ title: "Only a title" }));
-    expect(await fetchUnfurl("https://x.test/a")).toEqual({ title: "Only a title", description: null, image: null, siteName: null });
+    expect(await fetchUnfurl("https://x.test/a")).toEqual({ kind: "page", title: "Only a title", description: null, image: null, siteName: null });
+  });
+
+  it("passes through an image link the proxy recognised", async () => {
+    fetchMock.mockReturnValue(ok({ data: { kind: "image", image: "https://m.test/19886", title: null } }));
+    expect(await fetchUnfurl("https://m.test/19886")).toMatchObject({ kind: "image", image: "https://m.test/19886" });
   });
 
   it("a page with no usable metadata is null, not a card", async () => {

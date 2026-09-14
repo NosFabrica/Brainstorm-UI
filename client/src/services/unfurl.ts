@@ -15,6 +15,8 @@
  */
 
 export interface Unfurled {
+  /** "image" when the link is itself a picture, served without an extension. */
+  kind: "page" | "image";
   title: string | null;
   description: string | null;
   image: string | null;
@@ -58,6 +60,7 @@ async function ask(url: string): Promise<Unfurled | null> {
     // on our behalf doesn't silently blank every card.
     const body = (json && typeof json.data === "object" && json.data ? json.data : json) as Record<string, unknown>;
     const out: Unfurled = {
+      kind: body.kind === "image" ? "image" : "page",
       title: str(body.title),
       description: str(body.description),
       image: str(body.image),
