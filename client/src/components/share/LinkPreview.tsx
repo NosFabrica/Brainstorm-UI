@@ -7,6 +7,7 @@ import { VideoEmbed } from "@/components/share/VideoEmbed";
 import { fetchUnfurl, type Unfurled } from "@/services/unfurl";
 import { useLightbox } from "@/components/share/Lightbox";
 import { FeedVideo } from "@/components/share/FeedVideo";
+import { useNearViewport } from "@/hooks/useNearViewport";
 
 /**
  * Link previews for a note's links. A browser can't read another site's Open
@@ -138,7 +139,7 @@ export function LinkPreviewCard({ url, showImage = true }: { url: string; showIm
 }
 
 /** Start asking a little before the card is read, so it is usually filled. */
-const NEAR_VIEWPORT = "400px";
+const PREVIEW_NEAR_VIEWPORT = "400px";
 
 /** A title that is only the site's own name ("NostrMag" on nostrmag.com) says nothing. */
 function isJustTheSiteName(title: string, host: string): boolean {
@@ -157,27 +158,10 @@ function UnfurledCard({ url, host, showImage }: { url: string; host: string; sho
   const openLightbox = useLightbox();
   const [fetched, setMeta] = useState<Unfurled | null>(null);
   const [imgFailed, setImgFailed] = useState(false);
-  // No IntersectionObserver (jsdom, older engines) means ask straight away
-  // rather than never.
-  const [near, setNear] = useState(() => typeof IntersectionObserver === "undefined");
   // Nothing is drawn until there is an answer, so a zero-height marker is
-  // what gets observed.
+  // what gets observed. Only ask for the links a reader actually scrolls to.
   const ref = useRef<HTMLSpanElement | null>(null);
-
-  // Only ask for the links a reader actually scrolls to.
-  useEffect(() => {
-    if (near) return;
-    const el = ref.current;
-    if (!el) return;
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) setNear(true);
-      },
-      { rootMargin: NEAR_VIEWPORT },
-    );
-    io.observe(el);
-    return () => io.disconnect();
-  }, [near]);
+  const near = useNearViewport(ref, PREVIEW_NEAR_VIEWPORT);
 
   useEffect(() => {
     if (!near) return;
