@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 /** The whole tag catalogue loads only for the suggestion dropdown, never for a query restored from the URL. */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { renderWithProviders } from "@/test/utils";
 import type { TagSummary } from "@/services/tags";
 
 const fetchTagIndexMock = vi.fn<(...args: unknown[]) => Promise<TagSummary[]>>();
@@ -43,15 +43,7 @@ vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
 
 import Landing from "./landing";
 
-function renderLanding() {
-  const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(
-    <QueryClientProvider client={qc}>
-      <Landing />
-    </QueryClientProvider>,
-  );
-  return qc;
-}
+const renderLanding = () => renderWithProviders(<Landing />).queryClient;
 
 describe("the tag catalogue on the home search", () => {
   beforeEach(() => {

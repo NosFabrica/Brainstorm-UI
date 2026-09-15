@@ -1,6 +1,6 @@
 import { fetchNotesByHashtag } from "@/services/nostr";
 import { type NostrEvent } from "applesauce-core/helpers";
-import { lookupHouseSignals } from "@/lib/houseSignals";
+import { lookupTrustSignals } from "@/services/trustSignals";
 
 export type SortMode = "top" | "latest";
 
@@ -39,7 +39,7 @@ export function rankHashtagEvents(
 
 /** House influence per author, from the shared batched memo. */
 function scoreAuthor(pubkey: string): Promise<number | null> {
-  return lookupHouseSignals(pubkey).then((s) => s.influence);
+  return lookupTrustSignals(pubkey).then((s) => s.influence);
 }
 
 export interface HashtagContent {

@@ -1,5 +1,4 @@
 import { env } from "@/lib/runtimeEnv";
-import type { HouseSignals } from "@/lib/houseSignals";
 import {
   clearSession,
   ensureSession,
@@ -649,6 +648,12 @@ export interface NetworkAlertsData {
 /** True when an account's verified reporters meet/exceed its flag threshold. */
 export function isFlaggedAlert(e: NetworkAlertEntry): boolean {
   return e.reporterThreshold > 0 && e.verifiedReporterCount >= e.reporterThreshold;
+}
+
+/** An author's Influence and Flagged verdict, as a ring and a flag chip draw them. */
+export interface TrustSignals {
+  influence: number | null;
+  flagged: boolean;
 }
 
 export const apiClient = {
@@ -1528,37 +1533,18 @@ export const apiClient = {
     pubkey: string,
     timeoutMs: number = 8000,
   ): Promise<number | null> {
-    return (await apiClient.getHouseSignals(pubkey, timeoutMs)).influence;
-  },
-
-  /**
-   * The house-perspective overview's two ambient signals in one unauthenticated
-   * call: `influence` (the score every ring reads) and `flagged_by_observer`
-   * (the network's verified reporters crossed the server's threshold). One
-   * request feeds both the ring and the "flagged" chip. Never throws.
-   */
-  async getHouseSignals(
-    pubkey: string,
-    timeoutMs: number = 8000,
-  ): Promise<HouseSignals> {
-    const none: HouseSignals = { influence: null, flagged: false };
-    if (!pubkey) return none;
+    if (!pubkey) return null;
     try {
       // Plain fetch (no session token) → NosFabrica/house perspective.
       const response = await fetch(`${getBrainstormApi()}/user/${pubkey}/overview`, {
         signal: AbortSignal.timeout(timeoutMs),
       });
-      if (!response.ok) return none;
-      const json = await response.json();
-      // Overview responses are wrapped: { code, message, data: { influence, flagged_by_observer } }.
-      const data = (json as { data?: { influence?: unknown; flagged_by_observer?: unknown } })?.data;
-      const influence = data?.influence;
-      return {
-        influence: typeof influence === "number" && Number.isFinite(influence) ? influence : null,
-        flagged: data?.flagged_by_observer === true,
-      };
+      if (!response.ok) return null;
+      const json = (await response.json()) as { data?: { influence?: unknown } };
+      const influence = json?.data?.influence;
+      return typeof influence === "number" && Number.isFinite(influence) ? influence : null;
     } catch {
-      return none;
+      return null;
     }
   },
 
@@ -1569,8 +1555,8 @@ export const apiClient = {
   async getTrustSignals(
     pubkeys: string[],
     timeoutMs: number = 8000,
-  ): Promise<Map<string, HouseSignals>> {
-    const out = new Map<string, HouseSignals>();
+  ): Promise<Map<string, TrustSignals>> {
+    const out = new Map<string, TrustSignals>();
     try {
       const response = await fetch(`${getBrainstormApi()}/user/trustSignals`, {
         method: "POST",

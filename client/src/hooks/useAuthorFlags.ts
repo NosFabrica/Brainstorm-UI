@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { hasSettledHouseSignals, lookupHouseSignals, settledHouseSignals } from "@/lib/houseSignals";
+import { hasSettledTrustSignals, lookupTrustSignals, settledTrustSignals } from "@/services/trustSignals";
 
 /**
  * Whether the network has FLAGGED each author — verified reporters past the
@@ -12,13 +12,13 @@ export function useAuthorFlags(pubkeys: string[]): (pk: string) => boolean | und
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
-    const todo = Array.from(new Set(pubkeys)).filter((pk) => pk && !hasSettledHouseSignals(pk));
+    const todo = Array.from(new Set(pubkeys)).filter((pk) => pk && !hasSettledTrustSignals(pk));
     if (todo.length) {
-      void Promise.allSettled(todo.map(lookupHouseSignals)).then(() => {
+      void Promise.allSettled(todo.map(lookupTrustSignals)).then(() => {
         if (alive.current) setVersion((v) => v + 1);
       });
     }
     return () => { alive.current = false; };
   }, [pubkeys.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
-  return (pk) => settledHouseSignals(pk)?.flagged;
+  return (pk) => settledTrustSignals(pk)?.flagged;
 }

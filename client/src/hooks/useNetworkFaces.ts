@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchEventsByFilter, fetchProfileMap } from "@/services/nostr";
 import { fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
 import { apiClient } from "@/services/api";
-import { lookupHouseSignals } from "@/lib/houseSignals";
+import { lookupTrustSignals } from "@/services/trustSignals";
 
 /** One recently-active person to show as an avatar in a Your Network tile. */
 export interface NetworkFace {
@@ -89,7 +89,7 @@ export function useNetworkFaces(observer: string, enabled: boolean) {
         need
           .filter((pk) => scoreByPk.get(pk) == null)
           .map(async (pk) => {
-            const { influence } = await lookupHouseSignals(pk);
+            const { influence } = await lookupTrustSignals(pk);
             if (influence !== null) scoreByPk.set(pk, influence);
           }),
       );

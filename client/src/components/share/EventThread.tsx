@@ -9,7 +9,7 @@ import { triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
 import { apiClient } from "@/services/api";
-import { lookupHouseSignals } from "@/lib/houseSignals";
+import { lookupTrustSignals } from "@/services/trustSignals";
 import { collectRefs, type MinimalEvent } from "@/lib/noteRefs";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { eventPath } from "@/lib/shareId";
@@ -155,7 +155,7 @@ export function EventThread({
     if (!todo.length) return;
     setScoring(true);
     if (!usePersonal) {
-      const res = await Promise.all(todo.map(async (pk) => ({ pk, s: (await lookupHouseSignals(pk)).influence })));
+      const res = await Promise.all(todo.map(async (pk) => ({ pk, s: (await lookupTrustSignals(pk)).influence })));
       res.forEach((r) => scoreCache.current.set(key(r.pk), r.s));
       setScoreVersion((v) => v + 1);
       setScoring(false);
