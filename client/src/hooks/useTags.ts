@@ -135,6 +135,7 @@ export function usePickerTags(enabled = true) {
  *
  * The catalogue only starts loading once there are 2 characters to match, so
  * merely opening a page with a search box doesn't pay for a full relay walk.
+ * Callers pass "" while their dropdown is closed, so leftover text doesn't keep it live.
  * After that first fetch it's cached for half an hour and every later keystroke
  * filters in memory — no relay traffic per character.
  */

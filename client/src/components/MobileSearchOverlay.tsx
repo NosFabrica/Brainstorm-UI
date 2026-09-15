@@ -47,7 +47,7 @@ export function MobileSearchOverlay() {
   const [recents, setRecents] = useState<RecentItem[]>([]);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
-  const tagMatches = useTagMatches(q);
+  const tagMatches = useTagMatches(open ? q : "");
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<number | undefined>(undefined);
   // Bumped on every keystroke so a slow earlier response can never overwrite a

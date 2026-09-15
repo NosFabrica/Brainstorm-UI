@@ -147,7 +147,8 @@ export function HeaderSearchBox({
 
   const topic = parseTopicQuery(q);
   // `#topic` queries already route to the hashtag feed — don't offer a second answer.
-  const tagMatches = useTagMatches(topic.isTopic ? "" : q);
+  // Only while the dropdown is open: text left after submit mustn't keep the catalogue live.
+  const tagMatches = useTagMatches(topic.isTopic || !open ? "" : q);
 
   return (
     <div ref={containerRef} className={`relative ${className}`} data-testid="header-search">

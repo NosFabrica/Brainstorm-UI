@@ -776,7 +776,8 @@ export default function Landing() {
   const topicMatch = useMemo(() => parseTopicQuery(query), [query]);
   // Tags the query matches. Skipped entirely for `#topic` queries — those are
   // already routed at the hashtag feed and shouldn't offer a second answer.
-  const tagMatches = useTagMatches(topicMatch.isTopic ? "" : query);
+  // Only while suggestions show — a query restored from the URL mustn't pull the whole catalogue.
+  const tagMatches = useTagMatches(topicMatch.isTopic || !showSuggestions ? "" : query);
   const dropdownOpen =
     showSuggestions && (suggestions.length > 0 || isSuggesting || topicMatch.isTopic || tagMatches.length > 0);
   // "Recent" shows under an empty, focused box before any search this session —
