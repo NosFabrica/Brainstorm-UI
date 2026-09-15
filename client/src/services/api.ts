@@ -1120,6 +1120,7 @@ export const apiClient = {
     ownPubkey: boolean = false,
     timeoutMs: number = 15000,
     maxHits?: number,
+    signal?: AbortSignal,
   ): Promise<{
     code: number;
     message: string | null;
@@ -1138,13 +1139,24 @@ export const apiClient = {
       params.set("maxHits", String(Math.trunc(maxHits)));
     }
     const url = `${getBrainstormApi()}/search/byText?${params.toString()}`;
-    const response = ownPubkey
-      ? await authenticatedFetch(url, { signal: AbortSignal.timeout(timeoutMs) })
-      : await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
-    if (!response.ok) {
-      throw new Error(`Search failed (${response.status})`);
+    // Combined by hand: AbortSignal.any is missing on older mobile Safari.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(new DOMException("Timed out", "TimeoutError")), timeoutMs);
+    const onAbort = () => controller.abort(signal?.reason);
+    if (signal?.aborted) onAbort();
+    else signal?.addEventListener("abort", onAbort, { once: true });
+    try {
+      const response = ownPubkey
+        ? await authenticatedFetch(url, { signal: controller.signal })
+        : await fetch(url, { signal: controller.signal });
+      if (!response.ok) {
+        throw new Error(`Search failed (${response.status})`);
+      }
+      return await response.json();
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
     }
-    return await response.json();
   },
 
   /**

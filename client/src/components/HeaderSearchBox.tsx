@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { Search, Loader2, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin, useTierRing , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
-import { searchByText, isLikelyNpub, isHexPubkey, isNip05Handle, type SearchResult } from "@/lib/profileSearch";
+import { searchByText, isLikelyNpub, isHexPubkey, isNip05Handle, TYPEAHEAD_PAUSE_MS, type SearchResult } from "@/lib/profileSearch";
 import { npubFromPubkey } from "@/lib/shareId";
 import { initialsFor } from "@/lib/profileDefaults";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
@@ -46,6 +46,7 @@ export function HeaderSearchBox({
   const [active, setActive] = useState(-1);
   const timer = useRef<number>();
   const reqId = useRef(0);
+  const request = useRef<AbortController | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -65,6 +66,7 @@ export function HeaderSearchBox({
   // (npub / hex / nip05) skip suggestions — they resolve on submit.
   const schedule = useCallback((value: string) => {
     window.clearTimeout(timer.current);
+    request.current?.abort();
     const id = ++reqId.current;
     const query = value.trim();
     // A `#topic` query resolves to the trust-ranked content feed, not profiles —
@@ -78,7 +80,8 @@ export function HeaderSearchBox({
     setLoading(true); setOpen(true);
     timer.current = window.setTimeout(async () => {
       try {
-        const { results } = await searchByText(query, effectivePov, observerPubkey, 10);
+        request.current = new AbortController();
+        const { results } = await searchByText(query, effectivePov, observerPubkey, 10, request.current.signal);
         if (reqId.current !== id) return;
         setSuggestions(results.slice(0, 7)); setActive(-1); setOpen(true);
       } catch {
@@ -87,10 +90,21 @@ export function HeaderSearchBox({
       } finally {
         if (reqId.current === id) setLoading(false);
       }
-    }, 120);
+    }, TYPEAHEAD_PAUSE_MS);
   }, [effectivePov, observerPubkey]);
 
-  useEffect(() => () => window.clearTimeout(timer.current), []);
+  useEffect(() => () => {
+    window.clearTimeout(timer.current);
+    request.current?.abort();
+  }, []);
+
+  // Closing the box drops the pending and in-flight suggestion alike.
+  useEffect(() => {
+    if (open) return;
+    window.clearTimeout(timer.current);
+    reqId.current++;
+    request.current?.abort();
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;

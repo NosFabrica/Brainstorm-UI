@@ -556,6 +556,25 @@ describe("suggestProfiles", () => {
     const results = await pending;
     expect(results.map((r) => r.name)).toEqual(["jack", "jane"]);
   });
+
+  it("closes its relay subscription as soon as the caller aborts", async () => {
+    const { torndown } = controllable();
+    const controller = new AbortController();
+    const pending = suggestProfiles("vito", { pov: "nosfabrica" }, { signal: controller.signal, timeoutMs: 60_000 });
+    await tick();
+    expect(torndown.count).toBe(0);
+    controller.abort();
+    expect(await pending).toEqual([]);
+    expect(torndown.count).toBe(1);
+  });
+
+  it("opens nothing when the caller already aborted", async () => {
+    controllable();
+    const controller = new AbortController();
+    controller.abort();
+    expect(await suggestProfiles("vito", { pov: "nosfabrica" }, { signal: controller.signal, timeoutMs: 60_000 })).toEqual([]);
+    expect(reqMock).not.toHaveBeenCalled();
+  });
 });
 
 /** Multi-REQ fake: every req() call gets its own subject; filters recorded. */

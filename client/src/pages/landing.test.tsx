@@ -4,8 +4,8 @@
  * search's — Google's tools work for everyone, signed in or not — and live
  * in the URL so Back, reload and a shared link keep them.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { SearchSnapshot } from "@/services/search";
 import { nip19 } from "nostr-tools";
 import { getRecentItems } from "@/lib/recentSearches";
@@ -269,3 +269,86 @@ describe("the search band as the page scrolls", () => {
   });
 });
 
+describe("typing in the home search", () => {
+  const typeSlowly = (input: HTMLElement, word: string) => {
+    for (let i = 1; i <= word.length; i++) {
+      fireEvent.change(input, { target: { value: word.slice(0, i) } });
+      act(() => { vi.advanceTimersByTime(200); });
+    }
+  };
+  const signalOf = (call: number) => (suggestMock.mock.calls[call][2] as { signal?: AbortSignal } | undefined)?.signal;
+
+  beforeEach(() => {
+    cleanup();
+    allStreams = [];
+    streamMock.mockClear();
+    suggestMock.mockReset();
+    suggestMock.mockImplementation(() => new Promise(() => {}));
+    window.history.replaceState({}, "", "/");
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it("asks for suggestions once, for the whole word, when typing pauses", () => {
+    render(<Landing />);
+    typeSlowly(screen.getByTestId("input-home-search"), "vitor");
+    act(() => { vi.advanceTimersByTime(400); });
+    expect(suggestMock).toHaveBeenCalledTimes(1);
+    expect(suggestMock.mock.calls[0][0]).toBe("vitor");
+  });
+
+  it("cancels a suggestion request that's under way when the next key lands", () => {
+    render(<Landing />);
+    const input = screen.getByTestId("input-home-search");
+    fireEvent.change(input, { target: { value: "vito" } });
+    act(() => { vi.advanceTimersByTime(400); });
+    expect(signalOf(0)?.aborted).toBe(false);
+    fireEvent.change(input, { target: { value: "vitor" } });
+    expect(signalOf(0)?.aborted).toBe(true);
+  });
+
+  it("cancels it when the page goes away", () => {
+    const { unmount } = render(<Landing />);
+    fireEvent.change(screen.getByTestId("input-home-search"), { target: { value: "vitor" } });
+    act(() => { vi.advanceTimersByTime(400); });
+    unmount();
+    expect(signalOf(0)?.aborted).toBe(true);
+  });
+
+  const dropdownShowing = () =>
+    !!(screen.queryByTestId("home-suggestions-loading") || screen.queryByTestId("home-suggestion-0"));
+
+  it("sends nothing when the dropdown is closed during the pause, and it stays closed", () => {
+    render(<Landing />);
+    const input = screen.getByTestId("input-home-search");
+    fireEvent.change(input, { target: { value: "vitor" } });
+    fireEvent.keyDown(input, { key: "Escape" });
+    act(() => { vi.advanceTimersByTime(400); });
+    expect(suggestMock).not.toHaveBeenCalled();
+    expect(dropdownShowing()).toBe(false);
+  });
+
+  it("cancels a request when the dropdown closes, and its partial answer doesn't reopen it", async () => {
+    suggestMock.mockImplementation((...args: unknown[]) => new Promise((resolve) => {
+      (args[2] as { signal: AbortSignal }).signal.addEventListener("abort", () =>
+        resolve([{ pubkey: "c".repeat(64), npub: "npub1partial", name: "partial" }]));
+    }));
+    render(<Landing />);
+    const input = screen.getByTestId("input-home-search");
+    fireEvent.change(input, { target: { value: "vitor" } });
+    act(() => { vi.advanceTimersByTime(400); });
+    fireEvent.keyDown(input, { key: "Escape" });
+    await act(async () => {});
+    expect(signalOf(0)?.aborted).toBe(true);
+    expect(dropdownShowing()).toBe(false);
+  });
+
+  it("searches right away on Enter, without waiting for the pause", () => {
+    render(<Landing />);
+    fireEvent.change(screen.getByTestId("input-home-search"), { target: { value: "vitor" } });
+    act(() => { fireEvent.submit(screen.getByTestId("form-home-search")); });
+    expect(mainStreamCalls().some(([q]) => q === "vitor")).toBe(true);
+  });
+});

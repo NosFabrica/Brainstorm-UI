@@ -200,13 +200,14 @@ export async function searchByText(
   pov: SearchPov,
   _userPubkey?: string,
   maxHits?: number,
+  signal?: AbortSignal,
 ): Promise<{ results: SearchResult[]; total: number; timeMs: number }> {
   const start = performance.now();
   // Map the app-wide POV vocabulary onto the `/search/byText` `ownPubkey` flag:
   // "mywot" runs from the logged-in user's own (authenticated) perspective,
   // anything else runs from NosFabrica's perspective without authentication.
   const ownPubkey = pov === "mywot";
-  const data = await apiClient.searchByText(query, true, ownPubkey, 15000, maxHits);
+  const data = await apiClient.searchByText(query, true, ownPubkey, 15000, maxHits, signal);
   const hits = data?.data?.results ?? [];
   const total = data?.data?.numResults ?? hits.length;
   const results: SearchResult[] = [];
@@ -228,6 +229,9 @@ export async function searchByText(
 export function getDisplayLabel(result: SearchResult): string {
   return result.displayName || result.name || result.npub.slice(0, 12) + "...";
 }
+
+/** How long typing must pause before a search box asks for suggestions. */
+export const TYPEAHEAD_PAUSE_MS = 350;
 
 export const isLikelyNpub = (value: string) =>
   /^npub1[02-9ac-hj-np-z]{20,}$/i.test(value.trim());

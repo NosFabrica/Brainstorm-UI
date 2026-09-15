@@ -47,6 +47,7 @@ import {
   isLikelyNpub,
   isHexPubkey,
   isNip05Handle,
+  TYPEAHEAD_PAUSE_MS,
   type SearchResult,
 } from "@/lib/profileSearch";
 import { suggestProfiles } from "@/services/search";
@@ -169,6 +170,7 @@ export default function Landing() {
   const suggestAbortRef = useRef(0);
   const searchAbortRef = useRef(0);
   const suggestTimerRef = useRef<number | undefined>(undefined);
+  const suggestRequestRef = useRef<AbortController | null>(null);
   const phFadeTimerRef = useRef<number | undefined>(undefined);
   const typedSinceSearchRef = useRef(false);
   // True only when the highlighted suggestion was reached via keyboard arrows.
@@ -282,6 +284,7 @@ export default function Landing() {
   // slow earlier request can never overwrite newer suggestions.
   const scheduleSuggest = useCallback((value: string) => {
     window.clearTimeout(suggestTimerRef.current);
+    suggestRequestRef.current?.abort();
     const reqId = ++suggestAbortRef.current;
     const q = value.trim();
     // Any edit to the query invalidates a prior keyboard selection so Enter
@@ -297,10 +300,12 @@ export default function Landing() {
       setShowSuggestions(true);
       suggestTimerRef.current = window.setTimeout(async () => {
         try {
-          const people = await suggestProfiles(personAssistRef.current!.fragment, {
-            pov: effectivePov,
-            userPubkey: user?.pubkey,
-          });
+          suggestRequestRef.current = new AbortController();
+          const people = await suggestProfiles(
+            personAssistRef.current!.fragment,
+            { pov: effectivePov, userPubkey: user?.pubkey },
+            { signal: suggestRequestRef.current.signal },
+          );
           if (suggestAbortRef.current !== reqId) return;
           setSuggestions(people.slice(0, 7));
           setActiveSuggestion(-1);
@@ -312,7 +317,7 @@ export default function Landing() {
         } finally {
           if (suggestAbortRef.current === reqId) setIsSuggesting(false);
         }
-      }, 120);
+      }, TYPEAHEAD_PAUSE_MS);
       return;
     }
     // A `#topic` query → show the topic row (→ /t/tag), not profile suggestions.
@@ -335,7 +340,8 @@ export default function Landing() {
     setShowSuggestions(true);
     suggestTimerRef.current = window.setTimeout(async () => {
       try {
-        const suggestResults = await suggestProfiles(q, { pov: effectivePov, userPubkey: user?.pubkey });
+        suggestRequestRef.current = new AbortController();
+        const suggestResults = await suggestProfiles(q, { pov: effectivePov, userPubkey: user?.pubkey }, { signal: suggestRequestRef.current.signal });
         if (suggestAbortRef.current !== reqId) return;
         setSuggestions(suggestResults.slice(0, 7));
         setActiveSuggestion(-1);
@@ -347,12 +353,23 @@ export default function Landing() {
       } finally {
         if (suggestAbortRef.current === reqId) setIsSuggesting(false);
       }
-    }, 120);
+    }, TYPEAHEAD_PAUSE_MS);
   }, [effectivePov, user?.pubkey]);
 
   useEffect(() => {
-    return () => window.clearTimeout(suggestTimerRef.current);
+    return () => {
+      window.clearTimeout(suggestTimerRef.current);
+      suggestRequestRef.current?.abort();
+    };
   }, []);
+
+  // Closing the dropdown drops the pending and in-flight suggestion alike.
+  useEffect(() => {
+    if (showSuggestions) return;
+    window.clearTimeout(suggestTimerRef.current);
+    suggestAbortRef.current++;
+    suggestRequestRef.current?.abort();
+  }, [showSuggestions]);
 
   // Close the dropdown on outside click.
   useEffect(() => {
@@ -492,6 +509,7 @@ export default function Landing() {
 
   const cancelSuggest = useCallback(() => {
     window.clearTimeout(suggestTimerRef.current);
+    suggestRequestRef.current?.abort();
     suggestAbortRef.current++;
     typedSinceSearchRef.current = false;
     personAssistRef.current = null;
@@ -536,6 +554,7 @@ export default function Landing() {
     // Running a full search cancels any pending/in-flight suggestion request and
     // closes the dropdown so it can't reopen on top of the results list.
     window.clearTimeout(suggestTimerRef.current);
+    suggestRequestRef.current?.abort();
     suggestAbortRef.current++;
     typedSinceSearchRef.current = false;
     setShowSuggestions(false);

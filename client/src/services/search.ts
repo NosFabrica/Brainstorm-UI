@@ -1390,10 +1390,12 @@ export function fetchEventRsvps(addresses: string[], timeoutMs = 5000): Promise<
 export function suggestProfiles(
   query: string,
   params: Pick<SearchParams, "pov" | "userPubkey">,
-  opts?: { limit?: number; timeoutMs?: number },
+  opts?: { limit?: number; timeoutMs?: number; signal?: AbortSignal },
 ): Promise<SearchResult[]> {
   const limit = opts?.limit ?? 10;
   const timeoutMs = opts?.timeoutMs ?? 4000;
+  const signal = opts?.signal;
+  if (signal?.aborted) return Promise.resolve([]);
   return new Promise((resolve) => {
     const seen = new Map<string, SearchResult>();
     const cancel = searchStream(
@@ -1407,8 +1409,10 @@ export function suggestProfiles(
       },
     );
     const timer = setTimeout(finish, timeoutMs);
+    signal?.addEventListener("abort", finish, { once: true });
     function finish() {
       clearTimeout(timer);
+      signal?.removeEventListener("abort", finish);
       cancel();
       resolve([...seen.values()].slice(0, limit));
     }

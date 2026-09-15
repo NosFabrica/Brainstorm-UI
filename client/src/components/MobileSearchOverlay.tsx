@@ -5,7 +5,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { getRecentItems, recentKey, pushRecentQuery, pushRecentProfile, removeRecentItem, clearRecentSearches, type RecentItem } from "@/lib/recentSearches";
-import { searchByText, isLikelyNpub, isHexPubkey, isNip05Handle, type SearchResult } from "@/lib/profileSearch";
+import { searchByText, isLikelyNpub, isHexPubkey, isNip05Handle, TYPEAHEAD_PAUSE_MS, type SearchResult } from "@/lib/profileSearch";
 import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
@@ -99,9 +99,10 @@ export function MobileSearchOverlay() {
       return;
     }
     setSearching(true);
+    const request = new AbortController();
     timerRef.current = window.setTimeout(async () => {
       try {
-        const { results: hits } = await searchByText(term, pov, observerPubkey, 10);
+        const { results: hits } = await searchByText(term, pov, observerPubkey, 10, request.signal);
         if (reqRef.current !== reqId) return;
         setResults(hits.slice(0, 8));
       } catch {
@@ -110,8 +111,11 @@ export function MobileSearchOverlay() {
       } finally {
         if (reqRef.current === reqId) setSearching(false);
       }
-    }, 140);
-    return () => window.clearTimeout(timerRef.current);
+    }, TYPEAHEAD_PAUSE_MS);
+    return () => {
+      window.clearTimeout(timerRef.current);
+      request.abort();
+    };
   }, [q, open, pov, observerPubkey]);
 
   const openResult = (r: SearchResult) => {
