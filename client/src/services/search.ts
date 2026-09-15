@@ -23,6 +23,7 @@ import { zapstoreRelay } from "@/lib/zapstoreRelay";
 import { eventStore } from "@/lib/eventStore";
 import { liftQuery } from "@/lib/searchSyntax";
 import { resolveHouseObserver } from "@/services/trustSource";
+import { wantProfile } from "@/services/authorProfileQueue";
 import type { SearchResult } from "@/lib/profileSearch";
 
 export type SearchTab =
@@ -255,47 +256,23 @@ export function searchStream(
       limit: params.limit ?? DEFAULT_LIMIT,
     };
 
-    // --- Author hydration: kind-0s for non-profile hits. The event store
-    // answers known authors synchronously; unknowns are debounced into one
-    // batched REQ on the same relay. `include:spam` is the lens — we want the
-    // requester's profile regardless of how the observer ranks them.
-    const pendingAuthors = new Set<string>();
-    let hydrateTimer: ReturnType<typeof setTimeout> | null = null;
-    let hydrateSub: { unsubscribe: () => void } | null = null;
+    // --- Author hydration: the store answers known authors; the rest go to the shared queue.
+    const wantedAuthors = new Map<string, () => void>();
 
     const applyProfile = (profile: NostrEvent) => {
+      if (cancelled) return;
       const author = kind0ToSearchResult(profile);
       for (const hit of hits) {
         if (hit.event.kind !== 0 && hit.event.pubkey === profile.pubkey) hit.author = author;
       }
-    };
-
-    const flushHydration = () => {
-      hydrateTimer = null;
-      if (cancelled || pendingAuthors.size === 0) return;
-      const authors = [...pendingAuthors];
-      pendingAuthors.clear();
-      // The previous flush's REQ stays open otherwise — each one counted
-      // against the relay's 50 concurrent subscriptions.
-      hydrateSub?.unsubscribe();
-      hydrateSub = relay
-        .req({ kinds: [0], authors, search: "include:spam", limit: authors.length })
-        .subscribe((msg: { type: string; event?: NostrEvent }) => {
-          if (cancelled) return;
-          if (msg.type === "EVENT" && msg.event?.kind === 0) {
-            eventStore.add(msg.event);
-            applyProfile(msg.event);
-            emit({});
-          }
-        });
+      emit({});
     };
 
     const noteAuthor = (event: NostrEvent): SearchResult | null => {
       if (event.kind === 0) return kind0ToSearchResult(event);
       const known = eventStore.getReplaceable(0, event.pubkey);
       if (known) return kind0ToSearchResult(known);
-      pendingAuthors.add(event.pubkey);
-      if (!hydrateTimer) hydrateTimer = setTimeout(flushHydration, 150);
+      if (!wantedAuthors.has(event.pubkey)) wantedAuthors.set(event.pubkey, wantProfile(event.pubkey, applyProfile));
       return null;
     };
 
@@ -396,8 +373,8 @@ export function searchStream(
     openPage(filter, false);
     unsubscribe = () => {
       for (const sub of pageSubs) sub.unsubscribe();
-      hydrateSub?.unsubscribe();
-      if (hydrateTimer) clearTimeout(hydrateTimer);
+      wantedAuthors.forEach((withdraw) => withdraw());
+      wantedAuthors.clear();
     };
     if (cancelled) unsubscribe();
   })();
