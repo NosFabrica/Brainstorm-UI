@@ -2173,6 +2173,13 @@ describe("SearchResults", () => {
       expect(reachMock).toHaveBeenCalledWith(ME);
     });
 
+    it("a plain signed-in search doesn't load the viewer's network", () => {
+      setUrlTab("people");
+      const ME = "e".repeat(64);
+      render(<SearchResults query="jack" pov="nosfabrica" userPubkey={ME} onQueryRewrite={vi.fn()} />);
+      expect(reachMock).not.toHaveBeenCalledWith(ME);
+    });
+
     // With the tokens gone from the box, the Filters button carries the count.
     it("the Filters button shows how many filters are on", () => {
       render(<SearchResults query="btc sort:rank trust:verified" pov="nosfabrica" onQueryRewrite={vi.fn()} />);

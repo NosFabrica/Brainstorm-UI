@@ -650,8 +650,9 @@ export function SearchResults({
   const scoreOf = useAuthorScores(allAuthors);
   // The filters the relay can't do, done here (probed: filter:rank ignored,
   // no hops): Verified only via those scores, reach via the viewer's graph.
-  const reach = useNetworkReach(userPubkey);
   const clientState = readFilters(safeQuery);
+  // Dozens of contact-list fetches — only when the reach filter asks for them.
+  const reach = useNetworkReach(clientState.reach ? userPubkey : null);
   // The search floor: accounts below the verified line stay off the page
   // unless the searcher asks for everyone (Include spam) or is looking through
   // their own perspective — their lens, their view. Probed 2026-09-05: the

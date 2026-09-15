@@ -195,8 +195,9 @@ function ComposedResultsBody({
   const scoreOf = useAuthorScores(useMemo(() => [...new Set(allHits)], [allHits]));
   // The client-side filters (Verified only, reach) apply here too, so the
   // composed page and the tabs agree on what the box says.
-  const reach = useNetworkReach(userPubkey);
   const clientState = readFilters(query);
+  // Dozens of contact-list fetches — only when the reach filter asks for them.
+  const reach = useNetworkReach(clientState.reach ? userPubkey : null);
   // The search floor, as the tabs hold it: accounts below the verified line
   // stay off every section unless the searcher asks for everyone or looks
   // through their own perspective.

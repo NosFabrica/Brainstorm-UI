@@ -43,6 +43,8 @@ const eventRsvpsMock = vi.fn<(addresses: string[]) => Promise<Map<string, { goin
 vi.mock("@/hooks/useAuthorScores", () => ({
   useAuthorScores: () => (pk: string) => scoreOfMock(pk),
 }));
+const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; friends: Set<string>; ready: boolean }>(() => ({ direct: new Set(), friends: new Set(), ready: true }));
+vi.mock("@/hooks/useNetworkReach", () => ({ useNetworkReach: (pk?: string | null) => reachMock(pk) }));
 // The media lightbox — faked so tiles can prove a tap opens the MEDIA, not the post.
 const openLightboxMock = vi.fn();
 vi.mock("@/components/share/Lightbox", () => ({ useLightbox: () => openLightboxMock }));
@@ -798,5 +800,19 @@ describe("ComposedResults", () => {
     render(<ComposedResults query="list of comedians" pov="nosfabrica" onTabChange={vi.fn()} />);
     expect(sectionCall("articles").query).toBe("list of comedians");
     expect(sectionCall("notes").query).toBe("list of comedians sort:recent");
+  });
+});
+
+describe("ComposedResults — network reach", () => {
+  const ME = "e".repeat(64);
+
+  it("a plain signed-in search doesn't load the viewer's network", () => {
+    render(<ComposedResults query="liverpool" pov="nosfabrica" userPubkey={ME} onTabChange={vi.fn()} />);
+    expect(reachMock).not.toHaveBeenCalledWith(ME);
+  });
+
+  it("a search filtered by reach loads it", () => {
+    render(<ComposedResults query="liverpool reach:follows" pov="nosfabrica" userPubkey={ME} onTabChange={vi.fn()} />);
+    expect(reachMock).toHaveBeenCalledWith(ME);
   });
 });
