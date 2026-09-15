@@ -57,9 +57,9 @@ import MyTagsPage from "@/pages/MyTagsPage";
 import HowTagsWorkPage from "@/pages/HowTagsWorkPage";
 import PrivacyPage from "@/pages/PrivacyPage";
 import TermsPage from "@/pages/TermsPage";
-import AdminPage from "@/pages/AdminPage";
 import UserPanelPage from "@/pages/UserPanelPage";
 import LoginPage from "@/pages/LoginPage";
+import { AdminRoute } from "@/pages/AdminRoute";
 import { FEATURES } from "@/config/featureFlags";
 import { PovAutoDefault } from "@/components/PovBadge";
 import { MobileTabBar } from "@/components/MobileTabBar";
@@ -187,26 +187,6 @@ function ProfileRoute() {
     return <Redirect to={`/p/${params.npub}`} replace />;
   }
   return <ProfilePage />;
-}
-
-/**
- * `/admin` — the operator console, for operators.
- *
- * `RequireAuth` asks only whether anyone is signed in, so any key that pasted its
- * way in could open this. The API refuses the data, but the page still discloses
- * what the console *tracks* — its panels, its metrics, which subsystems exist —
- * and that is not something to hand to every signed-in user.
- *
- * The claim is the Session's, minted with the token rather than looked up, so an
- * identity this browser doesn't hold can never satisfy it. It survives a deferred
- * session — the token stays on the Account until re-auth — so an admin whose
- * session lapsed still reaches their console and is told to sign in again there,
- * rather than being bounced out of it.
- */
-function AdminRoute() {
-  const user = useActiveAccountDisplay();
-  if (!user?.isAdmin) return <Redirect to="/dashboard" replace />;
-  return <AdminPage />;
 }
 
 function Router() {
