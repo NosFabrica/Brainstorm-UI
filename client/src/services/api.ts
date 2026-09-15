@@ -1,4 +1,5 @@
 import { env } from "@/lib/runtimeEnv";
+import type { HouseSignals } from "@/lib/houseSignals";
 import {
   clearSession,
   ensureSession,
@@ -1527,8 +1528,8 @@ export const apiClient = {
   async getHouseSignals(
     pubkey: string,
     timeoutMs: number = 8000,
-  ): Promise<{ influence: number | null; flagged: boolean }> {
-    const none = { influence: null, flagged: false };
+  ): Promise<HouseSignals> {
+    const none: HouseSignals = { influence: null, flagged: false };
     if (!pubkey) return none;
     try {
       // Plain fetch (no session token) → NosFabrica/house perspective.
@@ -1547,6 +1548,39 @@ export const apiClient = {
     } catch {
       return none;
     }
+  },
+
+  /**
+   * Trust signals for many authors in one unauthenticated call (house
+   * Perspective). Never throws: a failed batch answers an empty map.
+   */
+  async getTrustSignals(
+    pubkeys: string[],
+    timeoutMs: number = 8000,
+  ): Promise<Map<string, HouseSignals>> {
+    const out = new Map<string, HouseSignals>();
+    try {
+      const response = await fetch(`${getBrainstormApi()}/user/trustSignals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pubkeys }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!response.ok) return out;
+      const json = (await response.json()) as {
+        data?: { results?: { pubkey?: unknown; influence?: unknown; flagged?: unknown }[] };
+      };
+      for (const r of json.data?.results ?? []) {
+        if (typeof r.pubkey !== "string") continue;
+        out.set(r.pubkey, {
+          influence: typeof r.influence === "number" && Number.isFinite(r.influence) ? r.influence : null,
+          flagged: r.flagged === true,
+        });
+      }
+    } catch {
+      // unrated, like a failed overview
+    }
+    return out;
   },
 
   async getGrapeRankPreset(): Promise<{

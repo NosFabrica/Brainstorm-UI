@@ -9,6 +9,7 @@ import { triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
 import { apiClient } from "@/services/api";
+import { lookupHouseSignals } from "@/lib/houseSignals";
 import { collectRefs, type MinimalEvent } from "@/lib/noteRefs";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { eventPath } from "@/lib/shareId";
@@ -41,8 +42,8 @@ const SIMPLE_TRUST_FILTERS = [
  * The reply thread for an event. Anonymous viewers see a teaser (top few) then a
  * signup gate; logged-in viewers get the full thread plus a CLIENT-CONTROLLED
  * trust filter — hide comments from people below their Web-of-Trust bar (the
- * game-changer: a decentralized, user-owned discussion filter). Scoring is
- * per-pubkey today (cached + batched); a backend batch endpoint makes it instant.
+ * game-changer: a decentralized, user-owned discussion filter). House scores
+ * come from one batched lookup; personal scores are still per-pubkey.
  */
 export function EventThread({
   eventId,
@@ -153,17 +154,19 @@ export function EventThread({
     const todo = pubkeys.filter((pk) => !scoreCache.current.has(key(pk)));
     if (!todo.length) return;
     setScoring(true);
+    if (!usePersonal) {
+      const res = await Promise.all(todo.map(async (pk) => ({ pk, s: (await lookupHouseSignals(pk)).influence })));
+      res.forEach((r) => scoreCache.current.set(key(r.pk), r.s));
+      setScoreVersion((v) => v + 1);
+      setScoring(false);
+      return;
+    }
     for (let i = 0; i < todo.length; i += 8) {
       const batch = todo.slice(i, i + 8);
       const res = await Promise.allSettled(
         batch.map(async (pk) => {
-          let s: unknown = null;
-          if (usePersonal) {
-            const ov = (await apiClient.getUserOverview(pk)) as { data?: { influence?: unknown } };
-            s = ov?.data?.influence;
-          } else {
-            s = await apiClient.getHouseInfluence(pk);
-          }
+          const ov = (await apiClient.getUserOverview(pk)) as { data?: { influence?: unknown } };
+          const s = ov?.data?.influence;
           return { pk, s: typeof s === "number" && Number.isFinite(s) ? s : null };
         }),
       );
@@ -175,7 +178,7 @@ export function EventThread({
 
   // Score every commenter as soon as the thread loads — the per-comment trust
   // ring/pill is always-on, not gated behind the filter. Anonymous viewers get
-  // house scores (getHouseInfluence is unauthenticated), so their comment
+  // house scores (the batched lookup is unauthenticated), so their comment
   // avatars wear rings too.
   useEffect(() => {
     if (replies.length) {
