@@ -10,6 +10,7 @@ import type { NostrEvent } from "nostr-tools";
 import { pool } from "./relayPool";
 import { eventStore } from "./eventStore";
 import { PROFILE_RELAYS } from "./relays";
+import { readProfiles } from "./profileCache";
 
 /**
  * The library defaults to 1000ms, which would put a full second in front of a
@@ -18,8 +19,19 @@ import { PROFILE_RELAYS } from "./relays";
  */
 export const ADDRESS_LOADER_BUFFER_MS = 150;
 
+/**
+ * What this device already holds, asked before any relay is (the loaders'
+ * own local-first hook). Profiles only — see lib/profileCache.
+ */
+const cacheRequest = async (filters: { kinds?: number[]; authors?: string[] }[]): Promise<NostrEvent[]> => {
+  const authors = filters.flatMap((f) => (f.kinds?.includes(0) ? (f.authors ?? []) : []));
+  if (authors.length === 0) return [];
+  return [...(await readProfiles(authors)).values()];
+};
+
 export const addressLoader = createAddressLoader(pool, {
   eventStore,
+  cacheRequest,
   bufferTime: ADDRESS_LOADER_BUFFER_MS,
   // Where to look when a pointer carries no relays of its own — the case for
   // every fallback load the EventStore itself starts.

@@ -1,6 +1,7 @@
 import type { NostrEvent } from "nostr-tools";
 import { searchRelay } from "@/lib/searchRelay";
 import { eventStore } from "@/lib/eventStore";
+import { PROFILE_FRESH_MS, readProfileRows } from "@/lib/profileCache";
 
 /**
  * One queue of author kind-0 lookups on the search relay, shared by every
@@ -85,10 +86,8 @@ function send(authors: string[]): void {
       next: (msg: { type: string; event?: NostrEvent }) => {
         if (msg.type === "EVENT" && msg.event?.kind === 0) {
           const profile = msg.event;
-          eventStore.add(profile);
           answered.add(profile.pubkey);
-          listeners.get(profile.pubkey)?.forEach((l) => l(profile));
-          listeners.delete(profile.pubkey);
+          deliver(profile);
         } else if (msg.type === "EOSE") {
           settle(lookup, answered);
         }
@@ -98,12 +97,69 @@ function send(authors: string[]): void {
   if (!open.has(lookup)) sub.unsubscribe();
 }
 
+/** Hand a profile to whoever is waiting for it. */
+function deliver(profile: NostrEvent): void {
+  eventStore.add(profile);
+  const waiting = listeners.get(profile.pubkey);
+  listeners.delete(profile.pubkey);
+  waiting?.forEach((l) => {
+    try {
+      l(profile);
+    } catch {
+      /* one caller's failure is not the batch's */
+    }
+  });
+}
+
+/** Batches being looked up on the device, which are about to hold a slot. */
+let reading = 0;
+/** A blocked IndexedDB open never settles; it must not hold a slot for good. */
+const READ_DEADLINE_MS = 1500;
+
+/**
+ * People this device already knows are answered from its own copy
+ * (lib/profileCache) and only the rest cost a REQ — except a copy old enough
+ * to have changed, which is shown AND asked after, so the next visit is right.
+ */
+async function ask(authors: string[]): Promise<void> {
+  // Held here across the read, so a second caller joins this batch instead of
+  // starting another: between flush() and send() they are in neither queue.
+  const reservation: Lookup = { authors, close: () => {} };
+  for (const a of authors) inFlight.set(a, reservation);
+  let missing = authors;
+  let refresh: string[] = [];
+  try {
+    const held = await Promise.race([
+      readProfileRows(authors),
+      new Promise<Awaited<ReturnType<typeof readProfileRows>>>((resolve) =>
+        setTimeout(() => resolve(new Map()), READ_DEADLINE_MS),
+      ),
+    ]);
+    if (held.size > 0) {
+      const old = Date.now() - PROFILE_FRESH_MS;
+      missing = authors.filter((a) => !held.has(a));
+      refresh = [...held.values()].filter((row) => row.at < old).map((row) => row.event.pubkey);
+      for (const row of held.values()) deliver(row.event);
+    }
+  } catch {
+    /* no copy to read — ask the relay for all of them */
+  } finally {
+    reading -= 1;
+    for (const a of authors) if (inFlight.get(a) === reservation) inFlight.delete(a);
+  }
+  // Nobody is listening for a refresh — it is for the next visit, not this one.
+  const wanted = [...missing.filter((a) => listeners.has(a)), ...refresh];
+  if (wanted.length > 0) send(wanted);
+  else flush();
+}
+
 function flush(): void {
   flushTimer = undefined;
-  while (queued.size && open.size < MAX_OPEN) {
+  while (queued.size && open.size + reading < MAX_OPEN) {
     const authors = [...queued].slice(0, MAX_AUTHORS_PER_REQ);
     authors.forEach((a) => queued.delete(a));
-    send(authors);
+    reading += 1;
+    void ask(authors);
   }
 }
 
@@ -134,6 +190,7 @@ export function wantProfile(pubkey: string, onProfile: Listener): () => void {
 
 /** Test seam. */
 export function __resetAuthorProfileQueue(): void {
+  reading = 0;
   for (const lookup of open) lookup.close();
   open.clear();
   inFlight.clear();
