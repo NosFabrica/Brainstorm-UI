@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { Suspense, useEffect, useLayoutEffect, useRef } from "react";
 import { Switch, Route, Redirect, useLocation, useParams } from "wouter";
 import { AccountsProvider, EventStoreProvider } from "applesauce-react/providers";
 import { accountManager } from "@/accounts";
@@ -17,49 +17,11 @@ import { AutoActivateBrainstorm } from "@/components/AutoActivateBrainstorm";
 import { AutoPublishAssistant } from "@/components/AutoPublishAssistant";
 import NotFound from "@/pages/not-found";
 import Landing from "@/pages/landing";
-import DashboardPage from "@/pages/DashboardPage";
-import AlertsPage from "@/pages/AlertsPage";
-import ReadingPage from "@/pages/ReadingPage";
-import InsightsPage from "@/pages/InsightsPage";
-import { SettingsRoute } from "@/pages/SettingsPage";
-import WhatIsWotPage from "@/pages/WhatIsWotPage";
-import OnboardingPage from "@/pages/OnboardingPage";
-import NetworkPage from "@/pages/NetworkPage";
-import ProfilePage from "@/pages/ProfilePage";
 import SharePage from "@/pages/SharePage";
-import ConnectionListPage from "@/pages/ConnectionListPage";
-import HopsPathPage from "@/pages/HopsPathPage";
-import SellingPage from "@/pages/SellingPage";
-import ArticlePage from "@/pages/ArticlePage";
-import EventPage from "@/pages/EventPage";
-import WelcomePage from "@/pages/WelcomePage";
-import FinishSetupPage from "@/pages/FinishSetupPage";
-import ActivateBrainstormPage from "@/pages/ActivateBrainstormPage";
-import HeroLab from "@/pages/HeroLab";
-import ActivatePage from "@/pages/ActivatePage";
 import { ScoringStatusBar } from "@/components/ScoringStatusBar";
-import FaqPage from "@/pages/FaqPage";
-import HowSearchWorksPage from "@/pages/HowSearchWorksPage";
-import PersonalizationPage from "@/pages/PersonalizationPage";
-import AboutPage from "@/pages/AboutPage";
-import PricingPage from "@/pages/PricingPage";
-import BillingReturnPage from "@/pages/BillingReturnPage";
-import RoadmapPage from "@/pages/RoadmapPage";
-import DevelopersPage from "@/pages/DevelopersPage";
-import DeveloperNip50Page from "@/pages/DeveloperNip50Page";
-import DeveloperOpenRankingPage from "@/pages/DeveloperOpenRankingPage";
-import DeveloperTrustedAssertionsPage from "@/pages/DeveloperTrustedAssertionsPage";
-import NostrPage from "@/pages/NostrPage";
-import HashtagPage from "@/pages/HashtagPage";
-import TagPage from "@/pages/TagPage";
-import TagIndexPage from "@/pages/TagIndexPage";
-import MyTagsPage from "@/pages/MyTagsPage";
-import HowTagsWorkPage from "@/pages/HowTagsWorkPage";
-import PrivacyPage from "@/pages/PrivacyPage";
-import TermsPage from "@/pages/TermsPage";
-import UserPanelPage from "@/pages/UserPanelPage";
-import LoginPage from "@/pages/LoginPage";
 import { AdminRoute } from "@/pages/AdminRoute";
+import { lazyWithReload } from "@/lib/lazyWithReload";
+import { RouteFallback } from "@/components/RouteFallback";
 import { FEATURES } from "@/config/featureFlags";
 import { PovAutoDefault } from "@/components/PovBadge";
 import { MobileTabBar } from "@/components/MobileTabBar";
@@ -73,6 +35,49 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { RequireAuth } from "@/components/RequireAuth";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { isAdminPubkey } from "@/config/adminAccess";
+
+// Every route but the search home, a shared profile, the 404 and the admin
+// guard is its own download.
+const AboutPage = lazyWithReload(() => import("@/pages/AboutPage"));
+const ActivateBrainstormPage = lazyWithReload(() => import("@/pages/ActivateBrainstormPage"));
+const ActivatePage = lazyWithReload(() => import("@/pages/ActivatePage"));
+const AlertsPage = lazyWithReload(() => import("@/pages/AlertsPage"));
+const ArticlePage = lazyWithReload(() => import("@/pages/ArticlePage"));
+const BillingReturnPage = lazyWithReload(() => import("@/pages/BillingReturnPage"));
+const ConnectionListPage = lazyWithReload(() => import("@/pages/ConnectionListPage"));
+const DashboardPage = lazyWithReload(() => import("@/pages/DashboardPage"));
+const DeveloperNip50Page = lazyWithReload(() => import("@/pages/DeveloperNip50Page"));
+const DeveloperOpenRankingPage = lazyWithReload(() => import("@/pages/DeveloperOpenRankingPage"));
+const DeveloperTrustedAssertionsPage = lazyWithReload(() => import("@/pages/DeveloperTrustedAssertionsPage"));
+const DevelopersPage = lazyWithReload(() => import("@/pages/DevelopersPage"));
+const EventPage = lazyWithReload(() => import("@/pages/EventPage"));
+const FaqPage = lazyWithReload(() => import("@/pages/FaqPage"));
+const FinishSetupPage = lazyWithReload(() => import("@/pages/FinishSetupPage"));
+const HashtagPage = lazyWithReload(() => import("@/pages/HashtagPage"));
+const HeroLab = lazyWithReload(() => import("@/pages/HeroLab"));
+const HopsPathPage = lazyWithReload(() => import("@/pages/HopsPathPage"));
+const HowSearchWorksPage = lazyWithReload(() => import("@/pages/HowSearchWorksPage"));
+const HowTagsWorkPage = lazyWithReload(() => import("@/pages/HowTagsWorkPage"));
+const InsightsPage = lazyWithReload(() => import("@/pages/InsightsPage"));
+const LoginPage = lazyWithReload(() => import("@/pages/LoginPage"));
+const MyTagsPage = lazyWithReload(() => import("@/pages/MyTagsPage"));
+const NetworkPage = lazyWithReload(() => import("@/pages/NetworkPage"));
+const NostrPage = lazyWithReload(() => import("@/pages/NostrPage"));
+const OnboardingPage = lazyWithReload(() => import("@/pages/OnboardingPage"));
+const PersonalizationPage = lazyWithReload(() => import("@/pages/PersonalizationPage"));
+const PricingPage = lazyWithReload(() => import("@/pages/PricingPage"));
+const PrivacyPage = lazyWithReload(() => import("@/pages/PrivacyPage"));
+const ProfilePage = lazyWithReload(() => import("@/pages/ProfilePage"));
+const ReadingPage = lazyWithReload(() => import("@/pages/ReadingPage"));
+const RoadmapPage = lazyWithReload(() => import("@/pages/RoadmapPage"));
+const SellingPage = lazyWithReload(() => import("@/pages/SellingPage"));
+const SettingsRoute = lazyWithReload(() => import("@/pages/SettingsPage").then((m) => ({ default: m.SettingsRoute })));
+const TagIndexPage = lazyWithReload(() => import("@/pages/TagIndexPage"));
+const TagPage = lazyWithReload(() => import("@/pages/TagPage"));
+const TermsPage = lazyWithReload(() => import("@/pages/TermsPage"));
+const UserPanelPage = lazyWithReload(() => import("@/pages/UserPanelPage"));
+const WelcomePage = lazyWithReload(() => import("@/pages/WelcomePage"));
+const WhatIsWotPage = lazyWithReload(() => import("@/pages/WhatIsWotPage"));
 
 /**
  * Land every route change at the top of the page.
@@ -198,6 +203,7 @@ function Router() {
       <StopMediaOnNavigate />
       <SoloPlayback />
       <ErrorBoundary resetKey={location}>
+      <Suspense fallback={<RouteFallback />}>
       <Switch>
         <Route path="/" component={Landing} />
         <Route path="/login" component={LoginPage} />
@@ -254,6 +260,7 @@ function Router() {
         <Route path="/admin">{() => <RequireAuth component={AdminRoute} />}</Route>
         <Route component={NotFound} />
       </Switch>
+      </Suspense>
       </ErrorBoundary>
     </>
   );
