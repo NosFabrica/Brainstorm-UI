@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { nip19, type NostrEvent } from "nostr-tools";
 import type { SearchSnapshot, SearchParams } from "@/services/search";
+import { __resetConnectionSpeed } from "@/lib/connection";
 
 const suggestMock = vi.fn<() => Promise<unknown[]>>(() => Promise.resolve([]));
 const nipPageMock = vi.fn<() => Promise<NostrEvent | null>>(() => Promise.resolve(null));
@@ -280,6 +281,30 @@ describe("the topic panel", () => {
     expect(within(panel).queryByText("Voices on it")).toBeNull();
     expect(within(panel).queryByText("Related topics")).toBeNull();
     expect(within(panel).queryByText("Upcoming events")).toBeNull();
+  });
+
+  it("on a phone with a poor connection only the person is looked up — the rest waits for the tap", async () => {
+    const width = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 375 });
+    Object.defineProperty(window.navigator, "connection", { configurable: true, value: { effectiveType: "3g" } });
+    __resetConnectionSpeed();
+    try {
+      suggestMock.mockResolvedValueOnce([{ pubkey: "9".repeat(64), npub: "npub1barattolo", name: "Barattolo", wotRank: 0.8, wotFollowers: 300 }]);
+      render(<KnowledgePanel query="Barattolo" pov="nosfabrica" />);
+      // The strip still arrives — a panel nobody can open is a panel gone.
+      const strip = await screen.findByTestId("panel-strip");
+      expect(strip).toHaveTextContent("Barattolo");
+      expect(streamCalls).toHaveLength(0);
+      fireEvent.click(strip);
+      await screen.findByTestId("search-knowledge-panel");
+      await vi.waitFor(() => expect(streamCalls.some((c) => c.params.tab === "events")).toBe(true));
+      // …and opening them must not throw away the person that got us here.
+      expect(screen.getByTestId("search-knowledge-panel")).toHaveTextContent("Barattolo");
+    } finally {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+      Object.defineProperty(window.navigator, "connection", { configurable: true, value: undefined });
+      __resetConnectionSpeed();
+    }
   });
 
   it("on a phone the panel folds to one row — name and a line — until tapped", async () => {

@@ -7,8 +7,10 @@
  */
 import { useState } from "react";
 import { Play, Video } from "lucide-react";
+import { useConnectionSpeed, videoPreload } from "@/lib/connection";
 
 export function VideoTile({ poster, url, onOpen, title }: { poster?: string | null; url?: string | null; onOpen: () => void; title?: string }) {
+  const speed = useConnectionSpeed();
   const [posterFailed, setPosterFailed] = useState(false);
   const showPoster = !!poster && !posterFailed;
   return (
@@ -29,7 +31,7 @@ export function VideoTile({ poster, url, onOpen, title }: { poster?: string | nu
           data-testid="video-tile-poster"
         />
       ) : url ? (
-        <video src={`${url}#t=0.1`} muted playsInline preload="metadata" className="absolute inset-0 w-full h-full object-cover" data-testid="video-tile-frame" />
+        <video src={`${url}#t=0.1`} muted playsInline preload={videoPreload(speed)} className="absolute inset-0 w-full h-full object-cover" data-testid="video-tile-frame" />
       ) : (
         <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900" data-testid="video-tile-placeholder">
           <Video className="h-6 w-6 text-slate-500" aria-hidden="true" />

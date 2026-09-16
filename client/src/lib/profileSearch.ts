@@ -1,6 +1,7 @@
 import { nip19 } from "nostr-tools";
 import { apiClient } from "@/services/api";
 import type { ActivePerspective } from "@/hooks/useActivePerspective";
+import type { ConnectionSpeed } from "@/lib/connection";
 
 export type SearchPov = ActivePerspective;
 
@@ -231,7 +232,13 @@ export function getDisplayLabel(result: SearchResult): string {
 }
 
 /** How long typing must pause before a search box asks for suggestions. */
-export const TYPEAHEAD_PAUSE_MS = 350;
+const TYPEAHEAD_PAUSE_MS = 350;
+const TYPEAHEAD_PAUSE_SLOW_MS = 700;
+
+/** The pause this connection deserves — a poor one asks once the typing really stops. */
+export function typeaheadPause(speed: ConnectionSpeed): number {
+  return speed === "normal" ? TYPEAHEAD_PAUSE_MS : TYPEAHEAD_PAUSE_SLOW_MS;
+}
 
 export const isLikelyNpub = (value: string) =>
   /^npub1[02-9ac-hj-np-z]{20,}$/i.test(value.trim());

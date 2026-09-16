@@ -5,7 +5,8 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { getRecentItems, recentKey, pushRecentQuery, pushRecentProfile, removeRecentItem, clearRecentSearches, type RecentItem } from "@/lib/recentSearches";
-import { searchByText, isLikelyNpub, isHexPubkey, isNip05Handle, TYPEAHEAD_PAUSE_MS, type SearchResult } from "@/lib/profileSearch";
+import { searchByText, isLikelyNpub, isHexPubkey, isNip05Handle, typeaheadPause, type SearchResult } from "@/lib/profileSearch";
+import { useConnectionSpeed } from "@/lib/connection";
 import { useActivePerspective } from "@/hooks/useActivePerspective";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
@@ -47,6 +48,8 @@ export function MobileSearchOverlay() {
   const [recents, setRecents] = useState<RecentItem[]>([]);
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
+  const speed = useConnectionSpeed();
+  // Tag suggestions cost the whole catalogue; a poor connection does without.
   const tagMatches = useTagMatches(open ? q : "");
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<number | undefined>(undefined);
@@ -111,12 +114,12 @@ export function MobileSearchOverlay() {
       } finally {
         if (reqRef.current === reqId) setSearching(false);
       }
-    }, TYPEAHEAD_PAUSE_MS);
+    }, typeaheadPause(speed));
     return () => {
       window.clearTimeout(timerRef.current);
       request.abort();
     };
-  }, [q, open, pov, observerPubkey]);
+  }, [q, open, pov, observerPubkey, speed]);
 
   const openResult = (r: SearchResult) => {
     const label = r.displayName || r.name || r.npub.slice(0, 12) + "…";

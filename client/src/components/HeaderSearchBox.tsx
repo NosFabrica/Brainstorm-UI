@@ -3,7 +3,8 @@ import { useLocation } from "wouter";
 import { Search, Loader2, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin, useTierRing , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
-import { searchByText, isLikelyNpub, isHexPubkey, isNip05Handle, TYPEAHEAD_PAUSE_MS, type SearchResult } from "@/lib/profileSearch";
+import { searchByText, isLikelyNpub, isHexPubkey, isNip05Handle, typeaheadPause, type SearchResult } from "@/lib/profileSearch";
+import { useConnectionSpeed } from "@/lib/connection";
 import { npubFromPubkey } from "@/lib/shareId";
 import { initialsFor } from "@/lib/profileDefaults";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
@@ -55,6 +56,7 @@ export function HeaderSearchBox({
   // personalized Web of Trust only when the viewer turned "My perspective" on
   // AND is eligible (has a personalized graph + is permitted to be their own
   // search observer); otherwise fall back to the house ("nosfabrica") view.
+  const speed = useConnectionSpeed();
   const [pov] = useActivePerspective();
   const { hasMywot } = useHasMywot();
   const { isSearchObserver } = useIsSearchObserver();
@@ -90,8 +92,8 @@ export function HeaderSearchBox({
       } finally {
         if (reqId.current === id) setLoading(false);
       }
-    }, TYPEAHEAD_PAUSE_MS);
-  }, [effectivePov, observerPubkey]);
+    }, typeaheadPause(speed));
+  }, [effectivePov, observerPubkey, speed]);
 
   useEffect(() => () => {
     window.clearTimeout(timer.current);

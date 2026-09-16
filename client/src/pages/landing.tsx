@@ -47,7 +47,7 @@ import {
   isLikelyNpub,
   isHexPubkey,
   isNip05Handle,
-  TYPEAHEAD_PAUSE_MS,
+  typeaheadPause,
   type SearchResult,
 } from "@/lib/profileSearch";
 import { suggestProfiles } from "@/services/search";
@@ -64,6 +64,7 @@ import { useTagMatches } from "@/hooks/useTags";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { npubFromPubkey } from "@/lib/shareId";
 import { resolveEntityToPath } from "@/lib/resolveNostrEntity";
+import { useConnectionSpeed } from "@/lib/connection";
 
 // Anonymous visitors search from the NosFabrica ("house") POV. Logged-in users
 // stay on this search-first home and search from their active trust perspective.
@@ -207,6 +208,7 @@ export default function Landing() {
   // Live identity: the header avatar appears as soon as the profile metadata
   // lands after login, without a refresh.
   const user = useActiveAccountDisplay();
+  const speed = useConnectionSpeed();
   const [pov, setPov] = useActivePerspective();
   const { hasMywot } = useHasMywot();
   // Permission to search from one's own perspective, per GET /user/isSearchObserver.
@@ -317,7 +319,7 @@ export default function Landing() {
         } finally {
           if (suggestAbortRef.current === reqId) setIsSuggesting(false);
         }
-      }, TYPEAHEAD_PAUSE_MS);
+      }, typeaheadPause(speed));
       return;
     }
     // A `#topic` query → show the topic row (→ /t/tag), not profile suggestions.
@@ -353,8 +355,8 @@ export default function Landing() {
       } finally {
         if (suggestAbortRef.current === reqId) setIsSuggesting(false);
       }
-    }, TYPEAHEAD_PAUSE_MS);
-  }, [effectivePov, user?.pubkey]);
+    }, typeaheadPause(speed));
+  }, [effectivePov, user?.pubkey, speed]);
 
   useEffect(() => {
     return () => {

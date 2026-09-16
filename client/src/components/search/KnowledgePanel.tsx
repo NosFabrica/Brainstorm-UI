@@ -4,7 +4,7 @@
  * (mobile) — avatar with tier ring, identity rows, and the deep-dive CTA.
  * Probed via the same relay typeahead the box uses; silent unless confident.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { fetchLiveStreams, fetchRecentByKinds } from "@/services/nostr";
 import { pickStreams, verifyRecording, type PickedStreams } from "@/lib/liveStream";
 import { PanelLive } from "@/components/search/PanelLive";
@@ -33,6 +33,7 @@ import { filterEventsByWhen } from "@/lib/eventFilters";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { EventRow } from "@/components/search/EventRow";
 import { fetchNipPage, searchStream, suggestProfiles, type SearchHit, type SearchPov } from "@/services/search";
+import { useConnectionSpeed } from "@/lib/connection";
 
 /** One app in the rail: icon, name, summary. Reviews live on the app page —
  *  no review copy on search surfaces (Benjamin). */
@@ -162,6 +163,15 @@ function KnowledgePanelBody({
   // would fill the first screen; it folds to one row until tapped.
   const belowLg = useIsMobile(1024);
   const [expanded, setExpanded] = useState(false);
+  const speed = useConnectionSpeed();
+  // The topic, apps, events and NIP probes are three more searches across seven
+  // relays; where the panel folds to a strip anyway — phones, which is where a
+  // poor connection lives — they wait for the tap. Latched, so a width change
+  // can only turn them ON: turning them off would re-run the effect below and
+  // throw away what it found.
+  const probed = useRef(false);
+  probed.current ||= speed === "normal" || !belowLg || expanded;
+  const probe = probed.current;
   let strip: { icon: React.ReactNode; title: string; line: string } | null = null;
   useEffect(() => {
     if (!person) {
@@ -276,6 +286,27 @@ function KnowledgePanelBody({
       };
     }
     if (!isPanelableQuery(query)) return;
+    // A NIP-shaped query is a spec lookup: the wiki page takes the slot and
+    // nobody is hunted for.
+    if (nipCandidates(query).length > 0) return;
+    let alive = true;
+    // The person lookup always runs — it is one search, and it is what puts the
+    // strip on screen; without it a folded panel has nothing to tap open.
+    void suggestProfiles(query, { pov, userPubkey }, { limit: 3 }).then((people) => {
+      if (!alive) return;
+      const top = people[0];
+      if (top && isStrongMatch(query, top)) setPerson(top);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [query, pov, userPubkey]);
+
+  // The rest of the panel: topic, apps, upcoming events, or a NIP page. Its own
+  // effect, so turning the probes on never re-runs the person lookup above or
+  // clears what it found.
+  useEffect(() => {
+    if (!probe || scopeOf(query) || !isPanelableQuery(query)) return;
     let alive = true;
     // A NIP-shaped query is a spec lookup, not a person or topic hunt —
     // the wiki page (kind 30818) takes the slot and nothing else probes.
@@ -325,18 +356,13 @@ function KnowledgePanelBody({
       const upcoming = filterEventsByWhen(named, "upcoming");
       if (upcoming.length > 0) setTopicEvents(upcoming.slice(0, 3));
     });
-    void suggestProfiles(query, { pov, userPubkey }, { limit: 3 }).then((people) => {
-      if (!alive) return;
-      const top = people[0];
-      if (top && isStrongMatch(query, top)) setPerson(top);
-    });
     return () => {
       alive = false;
       cancelTopic?.();
       cancelApps();
       cancelEvents();
     };
-  }, [query, pov, userPubkey]);
+  }, [query, pov, userPubkey, probe]);
 
   // Relay hits carry no rank numbers (order-only wire) — the panel's ring,
   // coin and tier word feed from the shared author-score cache like every card.

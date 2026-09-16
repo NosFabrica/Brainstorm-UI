@@ -7,8 +7,10 @@
  */
 import { extractVideoPoster, extractVideoUrls } from "@/lib/noteContent";
 import type { MinimalEvent } from "@/lib/noteRefs";
+import { useConnectionSpeed, videoPreload } from "@/lib/connection";
 
 export function VideoHero({ event }: { event: MinimalEvent }) {
+  const speed = useConnectionSpeed();
   const tag = (k: string) => event.tags.find((t) => t[0] === k)?.[1];
   const url = extractVideoUrls(event.content ?? "", event.tags)[0] ?? tag("url");
   const poster = extractVideoPoster(event.content ?? "", event.tags);
@@ -26,7 +28,7 @@ export function VideoHero({ event }: { event: MinimalEvent }) {
         data-testid="video-hero-frame"
       >
         {url ? (
-          <video src={url} poster={poster} controls playsInline preload="metadata" className="h-full w-full object-contain" data-testid="video-hero-player" />
+          <video src={url} poster={poster} controls playsInline preload={videoPreload(speed)} className="h-full w-full object-contain" data-testid="video-hero-player" />
         ) : poster ? (
           <img src={poster} alt="" className="h-full w-full object-contain" />
         ) : null}

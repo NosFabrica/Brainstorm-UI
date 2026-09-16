@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import { Avatar, AvatarFallback, AvatarImage } from "./avatar";
 import { __resetNearViewport } from "@/hooks/useNearViewport";
+import { __resetConnectionSpeed } from "@/lib/connection";
 import { stubControllableIntersectionObserver } from "@/test/controllableIntersectionObserver";
 
 let io: ReturnType<typeof stubControllableIntersectionObserver>;
@@ -40,6 +41,7 @@ const srcs = () => requested.map((i) => i.src).filter(Boolean);
 beforeEach(() => {
   requested.length = 0;
   __resetNearViewport();
+  __resetConnectionSpeed();
   vi.stubGlobal("Image", FakeImage);
   io = stubControllableIntersectionObserver();
 });
@@ -71,5 +73,15 @@ describe("AvatarImage", () => {
     vi.stubGlobal("IntersectionObserver", undefined);
     render(<Face />);
     expect(srcs()).toEqual(["https://img.example/alice.jpg"]);
+  });
+
+  it("asks for no picture at all on a very slow connection", () => {
+    Object.defineProperty(window.navigator, "connection", { value: { effectiveType: "2g" }, configurable: true });
+    __resetConnectionSpeed();
+    render(<Face />);
+    io.bringAllIntoView();
+    expect(srcs()).toEqual([]);
+    expect(screen.getByText("AL")).toBeInTheDocument();
+    Object.defineProperty(window.navigator, "connection", { value: undefined, configurable: true });
   });
 });

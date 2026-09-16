@@ -8,6 +8,7 @@ import { fetchUnfurl, type Unfurled } from "@/services/unfurl";
 import { useLightbox } from "@/components/share/Lightbox";
 import { FeedVideo } from "@/components/share/FeedVideo";
 import { useNearViewport } from "@/hooks/useNearViewport";
+import { useConnectionSpeed } from "@/lib/connection";
 
 /**
  * Link previews for a note's links. A browser can't read another site's Open
@@ -161,7 +162,11 @@ function UnfurledCard({ url, host, showImage }: { url: string; host: string; sho
   // Nothing is drawn until there is an answer, so a zero-height marker is
   // what gets observed. Only ask for the links a reader actually scrolls to.
   const ref = useRef<HTMLSpanElement | null>(null);
-  const near = useNearViewport(ref, PREVIEW_NEAR_VIEWPORT);
+  // On a poor connection the inline chip speaks for the link; a preview is a
+  // second fetch and a picture for something already named.
+  const scrolledTo = useNearViewport(ref, PREVIEW_NEAR_VIEWPORT);
+  const speed = useConnectionSpeed();
+  const near = scrolledTo && speed === "normal";
 
   useEffect(() => {
     if (!near) return;
