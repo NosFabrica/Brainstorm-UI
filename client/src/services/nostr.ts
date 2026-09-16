@@ -4,6 +4,7 @@ import { declaresTrustProvider } from "@/lib/nip85Declaration";
 import { pool } from "@/lib/relayPool";
 import { eventStore } from "@/lib/eventStore";
 import { searchRelay } from "@/lib/searchRelay";
+import { wantProfile } from "@/services/authorProfileQueue";
 import { CONTENT_RELAYS, PROFILE_RELAYS } from "@/lib/relays";
 import { requestAll, requestNewest, requestOne } from "@/lib/relayRequest";
 import { addressLoader, loadReplaceable } from "@/lib/loaders";
@@ -875,7 +876,15 @@ export async function fetchAddressableEvents(
   return result;
 }
 
-/** Fetch kind-0 profiles for many pubkeys, returning a pubkey→content map. */
+/**
+ * Fetch kind-0 profiles for many pubkeys, returning a pubkey→content map.
+ *
+ * The shared author queue answers first: it asks the search relay, whose socket
+ * is already open and whose corpus holds kind-0s for everyone the results can
+ * name, and it answers from the device's own copy without asking at all. Anyone
+ * it cannot place falls back to the profile relays, which is where a person the
+ * search relay has never indexed still lives.
+ */
 export async function fetchProfileMap(
   pubkeys: string[],
   timeoutMs = 6000,
@@ -883,17 +892,47 @@ export async function fetchProfileMap(
   const unique = Array.from(new Set(pubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk))));
   const map = new Map<string, ProfileContent>();
   if (!unique.length) return map;
+
+  const keep = (event: NostrEvent | null | undefined) => {
+    try {
+      if (!event || !isValidProfile(event as any)) return false;
+      const content = getProfileContent(event as any);
+      if (!content) return false;
+      map.set(event.pubkey, content);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const asked = unique.map(
+    (pubkey) =>
+      new Promise<void>((done) => {
+        // Declared first: a profile the device already holds arrives during the
+        // call below, before there is a timer to clear.
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const withdraw = wantProfile(pubkey, (event) => {
+          keep(event);
+          if (timer) clearTimeout(timer);
+          done();
+        });
+        if (map.has(pubkey)) return done();
+        timer = setTimeout(() => {
+          withdraw();
+          done();
+        }, timeoutMs);
+      }),
+  );
+  await Promise.all(asked);
+
   // Per pubkey, so the ones already in the store cost nothing and the rest join
   // whatever batch is forming rather than opening a request of their own.
-  const events = await Promise.all(
-    unique.map((pubkey) => loadReplaceable(0, pubkey, { timeoutMs })),
-  );
-  for (const event of events) {
-    try {
-      if (!event || !isValidProfile(event as any)) continue;
-      const content = getProfileContent(event as any);
-      if (content) map.set(event.pubkey, content);
-    } catch {}
+  const missing = unique.filter((pubkey) => !map.has(pubkey));
+  if (missing.length > 0) {
+    const events = await Promise.all(
+      missing.map((pubkey) => loadReplaceable(0, pubkey, { timeoutMs })),
+    );
+    events.forEach(keep);
   }
   return map;
 }
