@@ -108,6 +108,15 @@ describe("ComposedResults — media-rich sections", () => {
   // Apple's surfaces hold their shape: the sections that nearly always
   // answer reserve their space and fade in, instead of popping the page
   // around under the reader. Sections further down appear as they arrive.
+  // The skeletons are the loading state. A second "Searching…" row above them
+  // only took 88px of space back when the first section landed, jumping the
+  // page up under the reader.
+  it("says it is loading once, through the skeletons", () => {
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    expect(screen.getByTestId("serp-skeleton-people")).toBeInTheDocument();
+    expect(screen.queryByTestId("composed-loading")).toBeNull();
+  });
+
   it("People, Latest and Articles hold their place while loading, then fill or collapse", async () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     expect(screen.getByTestId("serp-skeleton-people")).toBeInTheDocument();

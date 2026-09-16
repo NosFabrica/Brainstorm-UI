@@ -13,7 +13,7 @@ import { noteTitle } from "@/lib/noteTitle";
 import { useWavlakeSongs } from "@/hooks/useWavlakeSongs";
 import { parseTrack } from "@/lib/trackEvent";
 import { setPlaylist } from "@/lib/audioPlayer";
-import { Clock, Loader2, HelpCircle } from "lucide-react";
+import { Clock, HelpCircle } from "lucide-react";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -341,11 +341,6 @@ function ComposedResultsBody({
 
   return (
     <div data-testid="composed-results">
-      {!anyContent && !allSettled && (
-        <div className="flex items-center gap-2 py-6 text-sm text-slate-400 dark:text-slate-500" data-testid="composed-loading">
-          <Loader2 className="h-4 w-4 animate-spin" /> Searching…
-        </div>
-      )}
       {!anyContent && allSettled && (
         <p className="py-6 text-sm text-slate-500 dark:text-slate-400" data-testid="composed-empty">
           Nothing found — try different words, or a specific tab.
