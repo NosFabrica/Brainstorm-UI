@@ -45,6 +45,7 @@ import { UNKNOWN_EXPLAINER, bucketFor } from "@/lib/trustLadder";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import {
   searchStream,
+  type SearchGroup,
   type SearchHit,
   type SearchPov,
   type SearchSnapshot,
@@ -120,6 +121,8 @@ function stillLoading(snapshot: SearchSnapshot | null): boolean {
   return !snapshot || (!snapshot.eose && snapshot.hits.length === 0);
 }
 
+const EVERYTHING: SearchGroup = "search-everything";
+
 /** Content fades into the place its skeleton held (index.css's fadeIn keyframes). */
 const FADE = "motion-safe:animate-[fadeIn_0.3s_ease-out]";
 
@@ -153,19 +156,19 @@ function ComposedResultsBody({
   personMedia?: SearchHit[];
   onOpenProfile?: (person: SearchResult) => void;
 }) {
-  const people = useSectionStream(query, "people", pov, userPubkey, 8);
+  const people = useSectionStream(query, "people", pov, userPubkey, 8, { group: EVERYTHING });
   // Every CONTENT section leads with what's fresh (Benjamin's call:
   // scattered timestamps read as random) — the relay sorts, we ask for
   // recent. People stays trust-ranked; there are no timestamps to scatter.
   const fresh = `${query} sort:recent`.trim();
-  const latest = useSectionStream(fresh, "notes", pov, userPubkey, 10);
+  const latest = useSectionStream(fresh, "notes", pov, userPubkey, 10, { group: EVERYTHING });
   // Articles are evergreen: with words typed, relevance leads (recent-first
   // buried the page named "List of comedians" 26th; best match had it first).
-  const articles = useSectionStream(splitFilters(query).text ? query : fresh, "articles", pov, userPubkey, 5);
+  const articles = useSectionStream(splitFilters(query).text ? query : fresh, "articles", pov, userPubkey, 5, { group: EVERYTHING });
   // Happening = calendar events AND live streams, two verticals since the
   // Events split; events lead (a meetup you can still attend beats a replay).
-  const happeningEvents = useSectionStream(fresh, "events", pov, userPubkey, 12);
-  const happeningLive = useSectionStream(fresh, "live", pov, userPubkey, 8);
+  const happeningEvents = useSectionStream(fresh, "events", pov, userPubkey, 12, { group: EVERYTHING });
+  const happeningLive = useSectionStream(fresh, "live", pov, userPubkey, 8, { group: EVERYTHING });
   const happening = useMemo(
     () =>
       mergeSnapshots(
@@ -176,14 +179,14 @@ function ComposedResultsBody({
       ),
     [happeningEvents, happeningLive],
   );
-  const media = useSectionStream(fresh, "media", pov, userPubkey, 8);
+  const media = useSectionStream(fresh, "media", pov, userPubkey, 8, { group: EVERYTHING });
   // Listen: native tracks (kind 31337) that match the words — best match, not
   // recency, because "jazz" should find jazz. The kind is abused for game
   // state and ad-skip data, so only hits that parse as a song count.
-  const music = useSectionStream(query, "music", pov, userPubkey, 12);
+  const music = useSectionStream(query, "music", pov, userPubkey, 12, { group: EVERYTHING });
   // Shop: things for sale that match the words — best match, since "cashmere"
   // should find cashmere. Sold, hidden and priceless are gated (lib/listing).
-  const shop = useSectionStream(query, "shop", pov, userPubkey, 12);
+  const shop = useSectionStream(query, "shop", pov, userPubkey, 12, { group: EVERYTHING });
 
   const allHits = useMemo(
     () =>

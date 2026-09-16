@@ -10,7 +10,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SerpRow } from "@/components/search/SerpRow";
 import { getDisplayLabel } from "@/lib/profileSearch";
 import type { HitCluster } from "@/lib/searchCollapse";
-import { searchStream, type SearchHit, type SearchPov, type SearchSnapshot, type SearchTab } from "@/services/search";
+import { searchStream, type SearchGroup, type SearchHit, type SearchPov, type SearchSnapshot, type SearchTab } from "@/services/search";
 
 /** Two section streams as one: hits concatenated in order, settled when both are. */
 export function mergeSnapshots(a: SearchSnapshot | null, b: SearchSnapshot | null): SearchSnapshot | null {
@@ -27,15 +27,15 @@ export function useSectionStream(
   pov: SearchPov,
   userPubkey: string | undefined,
   limit: number,
-  since?: number,
+  { since, group }: { since?: number; group?: SearchGroup } = {},
 ): SearchSnapshot | null {
   const [snapshot, setSnapshot] = useState<SearchSnapshot | null>(null);
   // A section restarts when the relay comes back from an outage (lib/serverStatus).
   const { recovery } = useServerStatus();
   useEffect(() => {
     setSnapshot(null);
-    return searchStream(query, { tab, pov, userPubkey, limit, since }, setSnapshot);
-  }, [query, tab, pov, userPubkey, limit, since, recovery]);
+    return searchStream(query, { tab, pov, userPubkey, limit, since, group }, setSnapshot);
+  }, [query, tab, pov, userPubkey, limit, since, group, recovery]);
   return snapshot;
 }
 

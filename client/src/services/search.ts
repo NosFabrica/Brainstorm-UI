@@ -17,6 +17,7 @@
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
 import { RelayClosedError } from "applesauce-relay";
+import type { Relay, RelayReqMessage } from "applesauce-relay";
 import { reportSearchFailure } from "@/lib/serverStatus";
 import { searchRelay } from "@/lib/searchRelay";
 import { zapstoreRelay } from "@/lib/zapstoreRelay";
@@ -102,6 +103,13 @@ export type SearchHandle = (() => void) & { more: () => void };
 
 export type SearchPov = "nosfabrica" | "mywot";
 
+/**
+ * A page whose sections share one REQ. Not a tab — the Everything page is both
+ * a tab and a group. Members are routed to by kind, so a group's sections must
+ * ask for disjoint kinds; a section that names no kinds never joins.
+ */
+export type SearchGroup = "search-everything";
+
 export interface SearchParams {
   tab: SearchTab;
   pov: SearchPov;
@@ -117,6 +125,14 @@ export interface SearchParams {
    * and the next page turns from their end.
    */
   seed?: SearchHit[];
+  /**
+   * Streams naming the same group share ONE REQ — one filter each, events
+   * routed back by kind. The relay works a socket's REQs as a queue, so the
+   * Everything page's eight sections were eight turns in it (probed
+   * 2026-09-16: 5,145ms vs 2,514ms for the same 75 events). Only the first
+   * page joins; a "more" page opens its own REQ as before.
+   */
+  group?: SearchGroup;
 }
 
 const DEFAULT_LIMIT = 100;
@@ -177,6 +193,82 @@ function withObserver(query: string, observer: string | null): string {
 async function resolveObserver(params: SearchParams): Promise<string | null> {
   if (params.pov === "mywot" && params.userPubkey) return params.userPubkey;
   return resolveHouseObserver();
+}
+
+interface GroupMember {
+  kinds: Set<number> | null;
+  filter: import("nostr-tools").Filter;
+  next: (msg: RelayReqMessage) => void;
+  error: (err: unknown) => void;
+  live: boolean;
+}
+
+interface PendingGroup {
+  members: GroupMember[];
+  timer: ReturnType<typeof setTimeout>;
+  /** The shared REQ, once the group has opened it. */
+  sub: { unsubscribe: () => void } | null;
+}
+
+/** Groups still collecting members. An opened group is no longer joinable. */
+const pendingGroups = new Map<SearchGroup, PendingGroup>();
+
+/**
+ * Join `filter` to the group's single REQ, opened once the tick the first
+ * member arrived in has run out. A member only sees events its own kinds asked
+ * for; EOSE, CLOSED and errors reach every member.
+ */
+function joinGroupReq(
+  relay: Pick<Relay, "req">,
+  key: SearchGroup,
+  filter: import("nostr-tools").Filter,
+  handlers: { next: GroupMember["next"]; error: GroupMember["error"] },
+): { unsubscribe: () => void } {
+  const member: GroupMember = { kinds: filter.kinds ? new Set(filter.kinds) : null, filter, ...handlers, live: true };
+  let group = pendingGroups.get(key);
+  if (!group) {
+    group = {
+      members: [],
+      sub: null,
+      timer: setTimeout(() => {
+        pendingGroups.delete(key);
+        const members = group!.members.filter((m) => m.live);
+        if (members.length === 0) return;
+        const deliver = (fn: (m: GroupMember) => void) => members.forEach((m) => m.live && fn(m));
+        group!.sub = relay.req(members.map((m) => m.filter)).subscribe({
+          next: (msg) => {
+            const kind = msg.type === "EVENT" ? msg.event.kind : undefined;
+            deliver((m) => {
+              if (kind !== undefined && m.kinds && !m.kinds.has(kind)) return;
+              m.next(msg);
+            });
+          },
+          error: (err: unknown) => deliver((m) => m.error(err)),
+        });
+      }, 0),
+    };
+    pendingGroups.set(key, group);
+  }
+  group.members.push(member);
+  const self = group;
+  return {
+    unsubscribe: () => {
+      member.live = false;
+      // The REQ closes with its last member; while any remain it stays open —
+      // the relay cannot be told to drop one filter from a live subscription.
+      if (self.members.every((m) => !m.live)) {
+        clearTimeout(self.timer);
+        if (pendingGroups.get(key) === self) pendingGroups.delete(key);
+        self.sub?.unsubscribe();
+      }
+    },
+  };
+}
+
+/** Test seam. */
+export function __resetSearchGroups(): void {
+  for (const group of pendingGroups.values()) clearTimeout(group.timer);
+  pendingGroups.clear();
 }
 
 /**
@@ -305,7 +397,15 @@ export function searchStream(
         }
       }, REQ_DEADLINE_MS);
       let answered = false;
-      const sub = relay.req(pageFilter).subscribe({
+      // Routing back from a shared REQ is by kind, so a member must name kinds
+      // (Everything names none — it would be handed every other section's hits)
+      // and the group's members must not ask for the same kind twice.
+      const canGroup = !!params.group && !closeAtEose && !!pageFilter.kinds?.length;
+      const open = (o: { error: (err: unknown) => void; next: (msg: { type: string; event?: NostrEvent; reason?: string }) => void }) =>
+        canGroup
+          ? joinGroupReq(relay, params.group!, pageFilter, o)
+          : relay.req(pageFilter).subscribe(o);
+      const sub = open({
         error: (err: unknown) => {
           clearTimeout(deadline);
           if (cancelled) return;

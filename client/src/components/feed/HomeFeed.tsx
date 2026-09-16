@@ -48,13 +48,13 @@ function FeedBlock({
   onSettled?: (count: number) => void;
 }) {
   // Every band asks through the block's lens, for the same 24 hours.
-  const liveStream = useSectionStream("sort:recent", "live", pov, userPubkey, 12, since);
-  const latestStream = useSectionStream("sort:recent", "notes", pov, userPubkey, 30, since);
+  const liveStream = useSectionStream("sort:recent", "live", pov, userPubkey, 12, { since });
+  const latestStream = useSectionStream("sort:recent", "notes", pov, userPubkey, 30, { since });
   // Events are announced weeks ahead — look back a month for what's coming up this week.
-  const eventsStream = useSectionStream("sort:recent", "events", pov, userPubkey, 60, since - 29 * DAY);
-  const mediaStream = useSectionStream("sort:recent", "media", pov, userPubkey, 12, since);
+  const eventsStream = useSectionStream("sort:recent", "events", pov, userPubkey, 60, { since: since - 29 * DAY });
+  const mediaStream = useSectionStream("sort:recent", "media", pov, userPubkey, 12, { since });
   // Releases ship less often than people post — a week, not a day.
-  const releasesStream = useSectionStream("sort:recent", "releases", pov, userPubkey, 30, since - 6 * DAY);
+  const releasesStream = useSectionStream("sort:recent", "releases", pov, userPubkey, 30, { since: since - 6 * DAY });
   const latest = useSettledSnapshot(latestStream);
 
   // New releases: one per app, newest first, wearing the listing's icon.

@@ -146,6 +146,110 @@ describe("searchStream", () => {
   });
 });
 
+// One submit on the Everything tab opened eight REQs — and the relay works a
+// socket's REQs as a queue, so the slowest section held up the rest (probed
+// 2026-09-16: 8 REQs 5,145ms vs one REQ carrying all eight filters 2,514ms,
+// same 75 events). Streams that name the same group share one REQ.
+describe("searchStream — grouped", () => {
+  const note = (id: string, created_at = 1): NostrEvent =>
+    ({ id, kind: 1, pubkey: "a".repeat(64), tags: [], content: id, created_at, sig: "s" }) as NostrEvent;
+  /** Microtasks plus the batching window the group waits out. */
+  const settle = async () => {
+    await tick();
+    await new Promise((r) => setTimeout(r, 1));
+    await tick();
+  };
+
+  it("opens one REQ carrying a filter per member", async () => {
+    controllable();
+    searchStream("bitcoin sort:recent", { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" }, () => {});
+    searchStream("bitcoin", { tab: "people", pov: "nosfabrica", limit: 8, group: "search-everything" }, () => {});
+    await settle();
+
+    expect(reqMock).toHaveBeenCalledTimes(1);
+    const filters = reqMock.mock.calls[0][0] as { kinds?: number[]; search: string; limit: number }[];
+    expect(filters).toHaveLength(2);
+    expect(filters[0].kinds).toEqual(TAB_KINDS.notes);
+    expect(filters[0].search).toBe(`bitcoin sort:recent observer:${HOUSE}`);
+    expect(filters[0].limit).toBe(10);
+    expect(filters[1].kinds).toEqual([0]);
+    expect(filters[1].search).toBe(`bitcoin observer:${HOUSE}`);
+    expect(filters[1].limit).toBe(8);
+  });
+
+  it("gives each member only the events its filter asked for, and settles them together", async () => {
+    const { subject } = controllable();
+    const notes: SearchSnapshot[] = [];
+    const people: SearchSnapshot[] = [];
+    searchStream("bitcoin sort:recent", { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" }, (s) => notes.push(s));
+    searchStream("bitcoin", { tab: "people", pov: "nosfabrica", limit: 8, group: "search-everything" }, (s) => people.push(s));
+    await settle();
+
+    subject.next(frame(ev("p1", 0, "b".repeat(64), JSON.stringify({ name: "jack" }))));
+    subject.next(frame(note("n1")));
+    await settle();
+    expect(notes.at(-1)!.hits.map((h) => h.event.id)).toEqual(["n1"]);
+    expect(people.at(-1)!.hits.map((h) => h.event.id)).toEqual(["p1"]);
+
+    subject.next(EOSE);
+    await settle();
+    expect(notes.at(-1)!.eose).toBe(true);
+    expect(people.at(-1)!.eose).toBe(true);
+  });
+
+  it("keeps the others streaming when one member goes, and tears the REQ down with the last", async () => {
+    const { subject, torndown } = controllable();
+    const notes: SearchSnapshot[] = [];
+    const people: SearchSnapshot[] = [];
+    const stopNotes = searchStream("bitcoin sort:recent", { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" }, (s) => notes.push(s));
+    const stopPeople = searchStream("bitcoin", { tab: "people", pov: "nosfabrica", limit: 8, group: "search-everything" }, (s) => people.push(s));
+    await settle();
+
+    stopNotes();
+    const seenByNotes = notes.length;
+    subject.next(frame(note("n2")));
+    subject.next(frame(ev("p2", 0, "c".repeat(64))));
+    await settle();
+    expect(notes).toHaveLength(seenByNotes);
+    expect(people.at(-1)!.hits.map((h) => h.event.id)).toEqual(["p2"]);
+    expect(torndown.count).toBe(0);
+
+    stopPeople();
+    expect(torndown.count).toBe(1);
+  });
+
+  it("tells every member when the shared REQ fails", async () => {
+    const { subject } = controllable();
+    const notes: SearchSnapshot[] = [];
+    const people: SearchSnapshot[] = [];
+    searchStream("bitcoin sort:recent", { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" }, (s) => notes.push(s));
+    searchStream("bitcoin", { tab: "people", pov: "nosfabrica", limit: 8, group: "search-everything" }, (s) => people.push(s));
+    await settle();
+
+    subject.error(new Error("socket gone"));
+    await settle();
+    expect(notes.at(-1)!.error).toBeTruthy();
+    expect(people.at(-1)!.error).toBeTruthy();
+  });
+
+  it("leaves a kindless stream out of the group — it would swallow every event", async () => {
+    controllable();
+    searchStream("bitcoin", { tab: "notes", pov: "nosfabrica", group: "search-everything" }, () => {});
+    searchStream("bitcoin", { tab: "everything", pov: "nosfabrica", group: "search-everything" }, () => {});
+    await settle();
+    expect(reqMock).toHaveBeenCalledTimes(2);
+    expect((reqMock.mock.calls[0][0] as unknown[]).length ?? 1).toBe(1);
+  });
+
+  it("leaves an ungrouped stream on its own REQ", async () => {
+    controllable();
+    searchStream("bitcoin", { tab: "notes", pov: "nosfabrica", group: "search-everything" }, () => {});
+    searchStream("bitcoin", { tab: "people", pov: "nosfabrica" }, () => {});
+    await settle();
+    expect(reqMock).toHaveBeenCalledTimes(2);
+  });
+});
+
 // Benjamin (2026-09-09): "right now search pages are getting capped" — one
 // page of a hundred and a wall. Probed the relay the same day: with
 // sort:recent a second REQ with `until` at the oldest seen returns the next

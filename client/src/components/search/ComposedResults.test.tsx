@@ -111,6 +111,12 @@ describe("ComposedResults — media-rich sections", () => {
   // The skeletons are the loading state. A second "Searching…" row above them
   // only took 88px of space back when the first section landed, jumping the
   // page up under the reader.
+  it("asks for every section on one shared subscription", () => {
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    expect(calls.length).toBeGreaterThan(1);
+    expect(calls.every((c) => c.params.group === "search-everything")).toBe(true);
+  });
+
   it("says it is loading once, through the skeletons", () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     expect(screen.getByTestId("serp-skeleton-people")).toBeInTheDocument();
