@@ -384,6 +384,14 @@ export function searchStream(
       return null;
     };
 
+    // A seed from the head start (lib/headStart) carries events, not authors:
+    // page one repeats those events and is deduped away, so nothing else would
+    // ever fill their names in.
+    if (seed.length) {
+      for (const hit of hits) if (!hit.author) hit.author = noteAuthor(hit.event);
+      emit({});
+    }
+
     // --- Pages. The first REQ stays open so the relay can keep streaming
     // what arrives; every further page closes at its EOSE (the relay caps
     // concurrent subscriptions). Hits are deduped by id across pages: a

@@ -8,6 +8,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 import type { SearchSnapshot, SearchParams } from "@/services/search";
+import { __resetHeadStart } from "@/lib/headStart";
+
+// The store verifies signatures; these events are fixtures, not signed ones.
+vi.mock("@/lib/eventStore", () => ({ eventStore: { add: (e: unknown) => e, getReplaceable: () => undefined } }));
 
 interface StreamCall {
   query: string;
@@ -111,6 +115,31 @@ describe("ComposedResults — media-rich sections", () => {
   // The skeletons are the loading state. A second "Searching…" row above them
   // only took 88px of space back when the first section landed, jumping the
   // page up under the reader.
+  it("seeds its sections from the head start, but only through the house Perspective", () => {
+    const note = { id: "h1", kind: 1, pubkey: "e".repeat(64), tags: [], content: "from the head start", created_at: Math.floor(Date.now() / 1000), sig: "s" } as NostrEvent;
+    const park = () => {
+      (window as unknown as { __headStart?: unknown }).__headStart = { query: "liverpool", events: [note], eose: true, socket: { close: () => {} } };
+      __resetHeadStart();
+    };
+
+    park();
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    expect(calls.find((c) => c.params.tab === "notes")?.params.seed?.map((h) => h.event.id)).toEqual(["h1"]);
+    calls = [];
+
+    // Their own Perspective ranks differently — the house's answer is not theirs.
+    park();
+    render(<ComposedResults query="liverpool" pov="mywot" userPubkey={"9".repeat(64)} onTabChange={vi.fn()} />);
+    expect(calls.find((c) => c.params.tab === "notes")?.params.seed ?? []).toEqual([]);
+    calls = [];
+
+    // And a signed-in reader on the house Perspective is not seeded either:
+    // theirs settles a beat after the first render, so it is not yet certain.
+    park();
+    render(<ComposedResults query="liverpool" pov="nosfabrica" userPubkey={"9".repeat(64)} onTabChange={vi.fn()} />);
+    expect(calls.find((c) => c.params.tab === "notes")?.params.seed ?? []).toEqual([]);
+  });
+
   it("asks for every section on one shared subscription", () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     expect(calls.length).toBeGreaterThan(1);

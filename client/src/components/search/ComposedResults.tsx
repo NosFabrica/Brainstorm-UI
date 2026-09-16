@@ -24,6 +24,7 @@ import { ArticlesBento, MediaTiles, TopStories, hasCover, hasVisual, pickTopStor
 import { collapseHits } from "@/lib/searchCollapse";
 import { ClusterRows, Section, SectionSkeleton, mergeSnapshots, useSectionStream } from "@/components/search/sections";
 import type { PanelSections } from "@/components/search/KnowledgePanel";
+import { takeHeadStart } from "@/lib/headStart";
 import { EventRow } from "@/components/search/EventRow";
 import { fetchEventRsvps, type EventRsvps } from "@/services/search";
 import { isMediaFile, isSoundtrackFile } from "@/lib/fileMetadata";
@@ -45,7 +46,9 @@ import { useWheelScrollX } from "@/hooks/useWheelScrollX";
 import { UNKNOWN_EXPLAINER, bucketFor } from "@/lib/trustLadder";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import {
+  kind0ToSearchResult,
   searchStream,
+  TAB_KINDS,
   type SearchGroup,
   type SearchHit,
   type SearchPov,
@@ -124,6 +127,26 @@ function stillLoading(snapshot: SearchSnapshot | null): boolean {
 
 const EVERYTHING: SearchGroup = "search-everything";
 
+/**
+ * What the Everything page asks each section for. index.html's head start asks
+ * the same thing before the bundle lands, so the two must agree — headStart.test
+ * holds them to it.
+ */
+export const EVERYTHING_SECTIONS = {
+  people: { limit: 8, recent: false },
+  notes: { limit: 10, recent: true },
+  // Articles lead with relevance where words were typed, which is the only
+  // shape the head start runs for.
+  articles: { limit: 5, recent: false },
+  events: { limit: 12, recent: true },
+  live: { limit: 8, recent: true },
+  media: { limit: 8, recent: true },
+  music: { limit: 12, recent: false },
+  shop: { limit: 12, recent: false },
+} as const;
+
+const EMPTY_SEEDS = { people: [], notes: [], articles: [], events: [], live: [], media: [], music: [], shop: [] } as Record<string, SearchHit[]>;
+
 /** Content fades into the place its skeleton held (index.css's fadeIn keyframes). */
 const FADE = "motion-safe:animate-[fadeIn_0.3s_ease-out]";
 
@@ -160,19 +183,38 @@ function ComposedResultsBody({
   onSections?: (sections: PanelSections) => void;
   onOpenProfile?: (person: SearchResult) => void;
 }) {
-  const people = useSectionStream(query, "people", pov, userPubkey, 8, { group: EVERYTHING });
+  // What the head start collected before the bundle arrived (lib/headStart),
+  // dealt out to the sections by kind — the same routing the shared REQ uses.
+  const seeds = useMemo(() => {
+    // Taken either way, so the head start's socket goes; kept only for a reader
+    // whose Perspective is certainly the house's — the one it asked through.
+    // A signed-in reader's settles a beat after the first render (landing's
+    // effectivePov waits on two lookups), and house-ranked cards must not
+    // paint for someone reading through their own.
+    const events = takeHeadStart(query);
+    if (userPubkey || pov !== "nosfabrica") return EMPTY_SEEDS;
+    const forTab = (tab: Exclude<SearchTab, "everything">): SearchHit[] => {
+      const kinds = new Set(TAB_KINDS[tab]);
+      return events
+        .filter((event) => kinds.has(event.kind))
+        .map((event) => ({ event, author: event.kind === 0 ? kind0ToSearchResult(event) : null, rank: null }));
+    };
+    return { people: forTab("people"), notes: forTab("notes"), articles: forTab("articles"), events: forTab("events"), live: forTab("live"), media: forTab("media"), music: forTab("music"), shop: forTab("shop") };
+  }, [query, pov, userPubkey]);
+
+  const people = useSectionStream(query, "people", pov, userPubkey, EVERYTHING_SECTIONS.people.limit, { group: EVERYTHING, seed: seeds.people });
   // Every CONTENT section leads with what's fresh (Benjamin's call:
   // scattered timestamps read as random) — the relay sorts, we ask for
   // recent. People stays trust-ranked; there are no timestamps to scatter.
   const fresh = `${query} sort:recent`.trim();
-  const latest = useSectionStream(fresh, "notes", pov, userPubkey, 10, { group: EVERYTHING });
+  const latest = useSectionStream(fresh, "notes", pov, userPubkey, EVERYTHING_SECTIONS.notes.limit, { group: EVERYTHING, seed: seeds.notes });
   // Articles are evergreen: with words typed, relevance leads (recent-first
   // buried the page named "List of comedians" 26th; best match had it first).
-  const articles = useSectionStream(splitFilters(query).text ? query : fresh, "articles", pov, userPubkey, 5, { group: EVERYTHING });
+  const articles = useSectionStream(splitFilters(query).text ? query : fresh, "articles", pov, userPubkey, EVERYTHING_SECTIONS.articles.limit, { group: EVERYTHING, seed: seeds.articles });
   // Happening = calendar events AND live streams, two verticals since the
   // Events split; events lead (a meetup you can still attend beats a replay).
-  const happeningEvents = useSectionStream(fresh, "events", pov, userPubkey, 12, { group: EVERYTHING });
-  const happeningLive = useSectionStream(fresh, "live", pov, userPubkey, 8, { group: EVERYTHING });
+  const happeningEvents = useSectionStream(fresh, "events", pov, userPubkey, EVERYTHING_SECTIONS.events.limit, { group: EVERYTHING, seed: seeds.events });
+  const happeningLive = useSectionStream(fresh, "live", pov, userPubkey, EVERYTHING_SECTIONS.live.limit, { group: EVERYTHING, seed: seeds.live });
   const happening = useMemo(
     () =>
       mergeSnapshots(
@@ -183,14 +225,14 @@ function ComposedResultsBody({
       ),
     [happeningEvents, happeningLive],
   );
-  const media = useSectionStream(fresh, "media", pov, userPubkey, 8, { group: EVERYTHING });
+  const media = useSectionStream(fresh, "media", pov, userPubkey, EVERYTHING_SECTIONS.media.limit, { group: EVERYTHING, seed: seeds.media });
   // Listen: native tracks (kind 31337) that match the words — best match, not
   // recency, because "jazz" should find jazz. The kind is abused for game
   // state and ad-skip data, so only hits that parse as a song count.
-  const music = useSectionStream(query, "music", pov, userPubkey, 12, { group: EVERYTHING });
+  const music = useSectionStream(query, "music", pov, userPubkey, EVERYTHING_SECTIONS.music.limit, { group: EVERYTHING, seed: seeds.music });
   // Shop: things for sale that match the words — best match, since "cashmere"
   // should find cashmere. Sold, hidden and priceless are gated (lib/listing).
-  const shop = useSectionStream(query, "shop", pov, userPubkey, 12, { group: EVERYTHING });
+  const shop = useSectionStream(query, "shop", pov, userPubkey, EVERYTHING_SECTIONS.shop.limit, { group: EVERYTHING, seed: seeds.shop });
 
   useEffect(() => {
     if (!onSections) return;
