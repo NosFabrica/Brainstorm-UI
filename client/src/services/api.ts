@@ -581,6 +581,8 @@ export interface CreateSchedulingBody {
   priority?: number;
   enabled?: boolean;
   is_default?: boolean;
+  /** Whether a plan mapped to this policy may be sold on the pricing page. */
+  is_public?: boolean;
   manual_quota_limit?: number;
   manual_quota_window_seconds?: number;
 }
