@@ -55,6 +55,10 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <link rel="manifest" href="/site.webmanifest" />
     <script src="/config.js"></script>
+    <!-- Filled in at container start from the same env config.js gets: the API
+         and relay origins, so their DNS + TCP + TLS happen while the app boots
+         instead of in front of the first search. Empty in dev. -->
+    <!--PRECONNECT-->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <!-- Brand fonts only (Design System v1.0): Figtree (interface) + IBM Plex Mono (technical/metadata). -->
