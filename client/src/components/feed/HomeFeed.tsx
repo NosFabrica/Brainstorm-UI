@@ -11,7 +11,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import type { NostrEvent } from "nostr-tools";
-import { fetchAppsByAddress, type SearchHit, type SearchPov, type SearchTab } from "@/services/search";
+import { fetchAppsByAddress, type SearchGroup, type SearchHit, type SearchPov, type SearchTab } from "@/services/search";
 import { eventPath } from "@/lib/shareId";
 import { Package } from "lucide-react";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
@@ -33,6 +33,7 @@ function FeedBlock({
   id,
   kicker,
   pov,
+  group,
   userPubkey,
   since,
   onBrowse,
@@ -41,20 +42,22 @@ function FeedBlock({
   id: "personal" | "house";
   kicker: string;
   pov: SearchPov;
+  /** One REQ per block — never one for both, whose bands ask for the same kinds. */
+  group: SearchGroup;
   userPubkey?: string;
   since: number;
   onBrowse: (tab: SearchTab) => void;
   /** How many items the block has once its first page lands. */
   onSettled?: (count: number) => void;
 }) {
-  // Every band asks through the block's lens, for the same 24 hours.
-  const liveStream = useSectionStream("sort:recent", "live", pov, userPubkey, 12, { since });
-  const latestStream = useSectionStream("sort:recent", "notes", pov, userPubkey, 30, { since });
+  // Every band asks through the block's Perspective, for the same 24 hours.
+  const liveStream = useSectionStream("sort:recent", "live", pov, userPubkey, 12, { since, group });
+  const latestStream = useSectionStream("sort:recent", "notes", pov, userPubkey, 30, { since, group });
   // Events are announced weeks ahead — look back a month for what's coming up this week.
-  const eventsStream = useSectionStream("sort:recent", "events", pov, userPubkey, 60, { since: since - 29 * DAY });
-  const mediaStream = useSectionStream("sort:recent", "media", pov, userPubkey, 12, { since });
+  const eventsStream = useSectionStream("sort:recent", "events", pov, userPubkey, 60, { since: since - 29 * DAY, group });
+  const mediaStream = useSectionStream("sort:recent", "media", pov, userPubkey, 12, { since, group });
   // Releases ship less often than people post — a week, not a day.
-  const releasesStream = useSectionStream("sort:recent", "releases", pov, userPubkey, 30, { since: since - 6 * DAY });
+  const releasesStream = useSectionStream("sort:recent", "releases", pov, userPubkey, 30, { since: since - 6 * DAY, group });
   const latest = useSettledSnapshot(latestStream);
 
   // New releases: one per app, newest first, wearing the listing's icon.
@@ -251,9 +254,9 @@ export function HomeFeed({
   const quiet = showPersonal && personalCount !== null && personalCount < QUIET_BELOW;
   const personalBlock = showPersonal ? (
     // Keyed so a reorder (quiet network) moves the block instead of remounting it — its streams stay open.
-    <FeedBlock key="personal" id="personal" kicker="From people you trust" pov="mywot" userPubkey={userPubkey} since={since} onBrowse={onBrowse} onSettled={setPersonalCount} />
+    <FeedBlock key="personal" id="personal" kicker="From people you trust" pov="mywot" group="home-feed-personal" userPubkey={userPubkey} since={since} onBrowse={onBrowse} onSettled={setPersonalCount} />
   ) : null;
-  const houseBlock = <FeedBlock key="house" id="house" kicker="Across Nostr" pov="nosfabrica" userPubkey={userPubkey} since={since} onBrowse={onBrowse} />;
+  const houseBlock = <FeedBlock key="house" id="house" kicker="Across Nostr" pov="nosfabrica" group="home-feed-house" userPubkey={userPubkey} since={since} onBrowse={onBrowse} />;
   return (
     <div className="w-full max-w-2xl mx-auto mt-4 sm:mt-5 text-left" data-testid="home-feed">
       <div className="mb-3 flex items-center justify-between gap-2" data-testid="home-feed-header">

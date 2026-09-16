@@ -232,6 +232,23 @@ describe("searchStream — grouped", () => {
     expect(people.at(-1)!.error).toBeTruthy();
   });
 
+  it("does not let two members of a group ask for the same kind — the second gets its own REQ", async () => {
+    controllable();
+    searchStream("bitcoin", { tab: "notes", pov: "nosfabrica", group: "search-everything" }, () => {});
+    searchStream("bitcoin", { tab: "people", pov: "nosfabrica", group: "search-everything" }, () => {});
+    // A second notes stream would be handed the first one's events by the
+    // kind routing, so it is put on a REQ of its own instead.
+    searchStream("nostr", { tab: "notes", pov: "nosfabrica", group: "search-everything" }, () => {});
+    await settle();
+
+    expect(reqMock).toHaveBeenCalledTimes(2);
+    const shared = reqMock.mock.calls[0][0] as { kinds?: number[] }[];
+    expect(shared.map((f) => f.kinds)).toEqual([TAB_KINDS.notes, [0]]);
+    const alone = reqMock.mock.calls[1][0] as { kinds?: number[] }[];
+    expect(alone).toHaveLength(1);
+    expect(alone[0].kinds).toEqual(TAB_KINDS.notes);
+  });
+
   it("leaves a kindless stream out of the group — it would swallow every event", async () => {
     controllable();
     searchStream("bitcoin", { tab: "notes", pov: "nosfabrica", group: "search-everything" }, () => {});

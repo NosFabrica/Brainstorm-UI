@@ -54,7 +54,7 @@ import { useWavlakeSearch } from "@/hooks/useWavlakeSongs";
 import { useArtistCatalogue } from "@/hooks/useArtistCatalogue";
 import { MusicResults } from "@/components/search/MusicResults";
 import { FacetChip, FacetRow } from "@/components/search/sections";
-import { KnowledgePanel } from "@/components/search/KnowledgePanel";
+import { KnowledgePanel, type PanelSections } from "@/components/search/KnowledgePanel";
 import { ComposedResults } from "@/components/search/ComposedResults";
 import { capPerAuthor, collapseHits } from "@/lib/searchCollapse";
 
@@ -507,6 +507,9 @@ export function SearchResults({
   // When the query IS a person, the Media tab leads with what they published
   // — their episode posts don't repeat their own name in the text.
   const [panelPerson, setPanelPerson] = useState<SearchResult | null>(null);
+  // Set from the first render, never undefined: given undefined the panel would
+  // ask the relay itself once, before the sections had a chance to answer.
+  const [sections, setSections] = useState<PanelSections>({ people: null, events: null });
   const [personMedia, setPersonMedia] = useState<SearchHit[]>([]);
   useEffect(() => {
     setPersonMedia([]);
@@ -1150,6 +1153,7 @@ export function SearchResults({
         query={query}
         pov={pov}
         userPubkey={userPubkey}
+        sections={composed ? sections : undefined}
         onOpen={onOpenProfile}
         onPerson={setPanelPerson}
         // Not pinned: the panel is context for the query, read at the top, and
@@ -1168,6 +1172,7 @@ export function SearchResults({
         <ComposedResults
           query={query}
           personMedia={personMedia}
+          onSections={setSections}
           pov={pov}
           userPubkey={userPubkey}
           onTabChange={changeTab}

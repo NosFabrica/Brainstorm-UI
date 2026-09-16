@@ -23,6 +23,7 @@ import { SerpRow } from "@/components/search/SerpRow";
 import { ArticlesBento, MediaTiles, TopStories, hasCover, hasVisual, pickTopStories } from "@/components/search/RichSections";
 import { collapseHits } from "@/lib/searchCollapse";
 import { ClusterRows, Section, SectionSkeleton, mergeSnapshots, useSectionStream } from "@/components/search/sections";
+import type { PanelSections } from "@/components/search/KnowledgePanel";
 import { EventRow } from "@/components/search/EventRow";
 import { fetchEventRsvps, type EventRsvps } from "@/services/search";
 import { isMediaFile, isSoundtrackFile } from "@/lib/fileMetadata";
@@ -145,6 +146,7 @@ function ComposedResultsBody({
   onOpenProfile,
   onQueryRewrite,
   personMedia = [],
+  onSections,
 }: {
   query: string;
   pov: SearchPov;
@@ -154,6 +156,8 @@ function ComposedResultsBody({
   onQueryRewrite?: (next: string) => void;
   /** When the query IS a person: their own media, which leads the Media section. */
   personMedia?: SearchHit[];
+  /** The sections the knowledge panel would otherwise ask the relay for itself. */
+  onSections?: (sections: PanelSections) => void;
   onOpenProfile?: (person: SearchResult) => void;
 }) {
   const people = useSectionStream(query, "people", pov, userPubkey, 8, { group: EVERYTHING });
@@ -187,6 +191,11 @@ function ComposedResultsBody({
   // Shop: things for sale that match the words — best match, since "cashmere"
   // should find cashmere. Sold, hidden and priceless are gated (lib/listing).
   const shop = useSectionStream(query, "shop", pov, userPubkey, 12, { group: EVERYTHING });
+
+  useEffect(() => {
+    if (!onSections) return;
+    onSections({ people, events: happeningEvents });
+  }, [onSections, people, happeningEvents]);
 
   const allHits = useMemo(
     () =>

@@ -2225,19 +2225,26 @@ describe("SearchResults", () => {
     });
   });
 
+  // On the composed page the panel reads the People section rather than asking
+  // the relay the same question again (the section asks it deeper).
   it("raises a knowledge panel when a person matches the query strongly", async () => {
-    suggestMock.mockResolvedValueOnce([
-      {
-        pubkey: "b".repeat(64),
-        npub: "npub1panel",
-        name: "alice",
-        about: "chief bitcoiner",
-        nip05: "alice@example.com",
-        wotRank: 0.9,
-        wotFollowers: 1234,
-      },
-    ]);
+    const alice = {
+      pubkey: "b".repeat(64),
+      npub: "npub1panel",
+      name: "alice",
+      about: "chief bitcoiner",
+      nip05: "alice@example.com",
+      wotRank: 0.9,
+      wotFollowers: 1234,
+    };
     render(<SearchResults query="alice" pov="nosfabrica" />);
+    const people = allStreams.find((s) => s.params.tab === "people")!;
+    people.cb({
+      hits: [{ event: { id: "k0", kind: 0, pubkey: alice.pubkey, tags: [], content: "{}", created_at: 1, sig: "s" } as NostrEvent, author: alice, rank: null }],
+      eose: true,
+      timeMs: 10,
+      error: null,
+    });
     const panel = await screen.findByTestId("search-knowledge-panel");
     expect(panel).toHaveTextContent("alice");
     expect(panel).toHaveTextContent("chief bitcoiner");

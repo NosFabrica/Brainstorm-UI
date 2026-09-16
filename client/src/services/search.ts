@@ -108,7 +108,7 @@ export type SearchPov = "nosfabrica" | "mywot";
  * a tab and a group. Members are routed to by kind, so a group's sections must
  * ask for disjoint kinds; a section that names no kinds never joins.
  */
-export type SearchGroup = "search-everything";
+export type SearchGroup = "search-everything" | "home-feed-personal" | "home-feed-house";
 
 export interface SearchParams {
   tab: SearchTab;
@@ -196,11 +196,13 @@ async function resolveObserver(params: SearchParams): Promise<string | null> {
 }
 
 interface GroupMember {
-  kinds: Set<number> | null;
+  kinds: Set<number>;
   filter: import("nostr-tools").Filter;
   next: (msg: RelayReqMessage) => void;
   error: (err: unknown) => void;
   live: boolean;
+  /** Set when the member could not share, and got a REQ of its own. */
+  sub: { unsubscribe: () => void } | null;
 }
 
 interface PendingGroup {
@@ -216,7 +218,7 @@ const pendingGroups = new Map<SearchGroup, PendingGroup>();
 /**
  * Join `filter` to the group's single REQ, opened once the tick the first
  * member arrived in has run out. A member only sees events its own kinds asked
- * for; EOSE, CLOSED and errors reach every member.
+ * for; EOSE, CLOSED and errors reach every member of its REQ.
  */
 function joinGroupReq(
   relay: Pick<Relay, "req">,
@@ -224,7 +226,7 @@ function joinGroupReq(
   filter: import("nostr-tools").Filter,
   handlers: { next: GroupMember["next"]; error: GroupMember["error"] },
 ): { unsubscribe: () => void } {
-  const member: GroupMember = { kinds: filter.kinds ? new Set(filter.kinds) : null, filter, ...handlers, live: true };
+  const member: GroupMember = { kinds: new Set(filter.kinds), filter, ...handlers, live: true, sub: null };
   let group = pendingGroups.get(key);
   if (!group) {
     group = {
@@ -232,19 +234,32 @@ function joinGroupReq(
       sub: null,
       timer: setTimeout(() => {
         pendingGroups.delete(key);
-        const members = group!.members.filter((m) => m.live);
-        if (members.length === 0) return;
-        const deliver = (fn: (m: GroupMember) => void) => members.forEach((m) => m.live && fn(m));
-        group!.sub = relay.req(members.map((m) => m.filter)).subscribe({
-          next: (msg) => {
+        const watch = (members: GroupMember[]) => ({
+          next: (msg: RelayReqMessage) => {
             const kind = msg.type === "EVENT" ? msg.event.kind : undefined;
-            deliver((m) => {
-              if (kind !== undefined && m.kinds && !m.kinds.has(kind)) return;
+            for (const m of members) {
+              if (!m.live || (kind !== undefined && !m.kinds.has(kind))) continue;
               m.next(msg);
-            });
+            }
           },
-          error: (err: unknown) => deliver((m) => m.error(err)),
+          error: (err: unknown) => members.forEach((m) => m.live && m.error(err)),
         });
+        // Events come back attributed to nothing but their kind, so two members
+        // asking for one kind cannot share: the second takes a REQ of its own.
+        const taken = new Set<number>();
+        const shared: GroupMember[] = [];
+        const alone: GroupMember[] = [];
+        for (const m of group!.members) {
+          if (!m.live) continue;
+          if ([...m.kinds].some((kind) => taken.has(kind))) {
+            alone.push(m);
+            continue;
+          }
+          m.kinds.forEach((kind) => taken.add(kind));
+          shared.push(m);
+        }
+        if (shared.length > 0) group!.sub = relay.req(shared.map((m) => m.filter)).subscribe(watch(shared));
+        for (const m of alone) m.sub = relay.req([m.filter]).subscribe(watch([m]));
       }, 0),
     };
     pendingGroups.set(key, group);
@@ -254,8 +269,9 @@ function joinGroupReq(
   return {
     unsubscribe: () => {
       member.live = false;
-      // The REQ closes with its last member; while any remain it stays open —
-      // the relay cannot be told to drop one filter from a live subscription.
+      member.sub?.unsubscribe();
+      // The shared REQ closes with its last member; while any remain it stays
+      // open — the relay cannot be told to drop one filter from a live one.
       if (self.members.every((m) => !m.live)) {
         clearTimeout(self.timer);
         if (pendingGroups.get(key) === self) pendingGroups.delete(key);
