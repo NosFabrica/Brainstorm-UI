@@ -47,20 +47,21 @@ beforeEach(() => {
 });
 
 describe("fetchLiveStreams", () => {
+  // Both shapes ride one REQ: a platform-hosted stream names the streamer in a
+  // `p` tag, a self-hosted one authors it, and the relay answers both at once.
   it("asks the search relay for hosted and authored streams and merges them in", async () => {
     requestAllMock.mockResolvedValue([]);
     const p = fetchLiveStreams(CHANNEL, { timeoutMs: 500 });
-    await vi.waitFor(() => expect(searchReqMock).toHaveBeenCalledTimes(2));
-    const filters = searchReqMock.mock.calls.map((c) => c[0] as Record<string, unknown>);
+    await vi.waitFor(() => expect(searchReqMock).toHaveBeenCalledTimes(1));
+    const filters = searchReqMock.mock.calls[0][0] as Record<string, unknown>[];
     expect(filters).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ kinds: [30311], "#p": [CHANNEL], search: "include:spam" }),
         expect.objectContaining({ kinds: [30311], authors: [CHANNEL], search: "include:spam" }),
       ]),
     );
-    const hostedIdx = filters.findIndex((f) => "#p" in f);
-    subjects[hostedIdx].next({ type: "EVENT", event: stream("old", "ch59", "live", 100) });
-    subjects[hostedIdx].next({ type: "EVENT", event: stream("new", "ch59", "live", 200) }); // same coordinate, newer
+    subjects[0].next({ type: "EVENT", event: stream("old", "ch59", "live", 100) });
+    subjects[0].next({ type: "EVENT", event: stream("new", "ch59", "live", 200) }); // same coordinate, newer
     subjects.forEach((s) => s.next({ type: "EOSE" }));
     const out = await p;
     expect(out.map((e) => e.id)).toEqual(["new"]);

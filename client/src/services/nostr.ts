@@ -616,16 +616,86 @@ export async function fetchRecentByKinds(
     ...loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS),
     ...(opts.relayHints ?? []).map((r) => r.trim()).filter((r) => r.length > 0),
   ]));
+  return new Promise<NostrEvent[]>((resolve) => {
+    joinPersonBatch(pubkey, relays, timeoutMs, { kinds, limit, resolve });
+  });
+}
 
-  // The search relay's corpus is wider than the content relays' (probed:
-  // a Divine creator's kind-34236 videos lived only there) — ask it too.
-  const [fromRelays, fromSearch] = await Promise.all([
-    requestAll(relays, { kinds, authors: [pubkey], limit }, timeoutMs),
-    fetchFromSearchRelayByFilter({ kinds, authors: [pubkey], limit }, timeoutMs),
-  ]);
-  const byId = new Map<string, NostrEvent>();
-  for (const e of [...fromRelays, ...fromSearch]) byId.set(e.id, e);
-  return [...byId.values()].sort((a, b) => (b.created_at || 0) - (a.created_at || 0)).slice(0, limit);
+interface PersonAsk {
+  kinds: number[];
+  limit: number;
+  resolve: (events: NostrEvent[]) => void;
+}
+
+interface PersonBatch {
+  relays: string[];
+  timeoutMs: number;
+  asks: PersonAsk[];
+  timer: ReturnType<typeof setTimeout>;
+}
+
+/**
+ * Long enough to catch the asks a sibling component makes a beat later: the
+ * panel asks its four the moment it settles on someone, and the results page
+ * asks for their media once that person reaches it (measured 46ms behind).
+ */
+const PERSON_BATCH_MS = 80;
+
+/** Batches still gathering. Keyed by who they are about and where they will ask. */
+const personBatches = new Map<string, PersonBatch>();
+
+/**
+ * One question per person, not one per block.
+ *
+ * The knowledge panel asks about the same person four times the moment it
+ * settles on them — listings, media, streams, tracks — and the results page
+ * asks a fifth for their media. The relay works a socket's REQs as a queue, so
+ * asks gathered in one tick leave as a single request carrying a filter each,
+ * and the answers are dealt back out by kind.
+ */
+function joinPersonBatch(pubkey: string, relays: string[], timeoutMs: number, ask: PersonAsk): void {
+  // Sorted and lowercased: two callers naming the same relays in a different
+  // order are asking the same question, and should share the request.
+  const key = `${pubkey}|${timeoutMs}|${[...relays].map((r) => r.toLowerCase()).sort().join(",")}`;
+  let batch = personBatches.get(key);
+  if (!batch) {
+    batch = {
+      relays,
+      timeoutMs,
+      asks: [],
+      timer: setTimeout(() => {
+        personBatches.delete(key);
+        void runPersonBatch(pubkey, batch!);
+      }, PERSON_BATCH_MS),
+    };
+    personBatches.set(key, batch);
+  }
+  batch.asks.push(ask);
+}
+
+async function runPersonBatch(pubkey: string, batch: PersonBatch): Promise<void> {
+  const filters = batch.asks.map((ask) => ({ kinds: ask.kinds, authors: [pubkey], limit: ask.limit }));
+  let all: NostrEvent[] = [];
+  try {
+    // The search relay's corpus is wider than the content relays' (probed:
+    // a Divine creator's kind-34236 videos lived only there) — ask it too.
+    const [fromRelays, fromSearch] = await Promise.all([
+      requestAll(batch.relays, filters, batch.timeoutMs),
+      fetchFromSearchRelayByFilters(filters, batch.timeoutMs),
+    ]);
+    all = [...fromRelays, ...fromSearch];
+  } catch {
+    // Everyone in the batch is waiting on this one request: a failure answers
+    // them all with nothing, the way a failed request of their own would have.
+  }
+  for (const ask of batch.asks) {
+    const wanted = new Set(ask.kinds);
+    const byId = new Map<string, NostrEvent>();
+    for (const event of all) if (wanted.has(event.kind)) byId.set(event.id, event);
+    ask.resolve(
+      [...byId.values()].sort((a, b) => (b.created_at || 0) - (a.created_at || 0)).slice(0, ask.limit),
+    );
+  }
 }
 
 /**
@@ -657,16 +727,18 @@ export async function fetchLiveStreams(
   // The search relay's corpus is wider than the content relays' (probed:
   // a bridged Owncast channel's live event lived only there) — ask it too,
   // for both shapes.
-  const [authored, hosted, searchAuthored, searchHosted] = await Promise.all([
-    requestAll(relays, { kinds: [30311], authors: [pubkey], limit: 8 }, timeoutMs),
-    requestAll(relays, { kinds: [30311], "#p": [pubkey], limit: 8 }, timeoutMs),
-    fetchFromSearchRelayByFilter({ kinds: [30311], authors: [pubkey], limit: 8 }, timeoutMs),
-    fetchFromSearchRelayByFilter({ kinds: [30311], "#p": [pubkey], limit: 8 }, timeoutMs),
+  const shapes = [
+    { kinds: [30311], authors: [pubkey], limit: 8 },
+    { kinds: [30311], "#p": [pubkey], limit: 8 },
+  ];
+  const [fromRelays, fromSearch] = await Promise.all([
+    requestAll(relays, shapes, timeoutMs),
+    fetchFromSearchRelayByFilters(shapes, timeoutMs),
   ]);
 
   // Keep the latest version per addressable coordinate (kind:pubkey:d).
   const byCoord = new Map<string, NostrEvent>();
-  for (const event of [...authored, ...hosted, ...searchAuthored, ...searchHosted]) {
+  for (const event of [...fromRelays, ...fromSearch]) {
     const d = event.tags.find((tag) => tag[0] === "d")?.[1] || "";
     const coord = `${event.kind}:${event.pubkey}:${d}`;
     const previous = byCoord.get(coord);
@@ -725,7 +797,7 @@ export async function fetchEventsByIds(
 
 /** Any filter against the search relay, with the lens it requires; EOSE or
  *  timeout resolves, never rejects. */
-function fetchFromSearchRelayByFilter(filter: Record<string, unknown>, timeoutMs: number): Promise<NostrEvent[]> {
+function fetchFromSearchRelayByFilters(filters: Record<string, unknown>[], timeoutMs: number): Promise<NostrEvent[]> {
   return new Promise((resolve) => {
     let relay: ReturnType<typeof searchRelay>;
     try {
@@ -738,11 +810,20 @@ function fetchFromSearchRelayByFilter(filter: Record<string, unknown>, timeoutMs
     let sub: { unsubscribe: () => void } | null = null;
     const timer = setTimeout(finish, timeoutMs);
     try {
+      // One filter goes on the wire as one filter: only a batch needs the array.
+      const asked = filters.map((f) => ({ ...f, search: "include:spam" }));
       sub = relay
-        .req({ ...filter, search: "include:spam" } as Parameters<typeof relay.req>[0])
+        .req((asked.length === 1 ? asked[0] : asked) as Parameters<typeof relay.req>[0])
         .subscribe((msg: { type: string; event?: NostrEvent }) => {
           if (msg.type === "EVENT" && msg.event) {
-            eventStore.add(msg.event);
+            // The store verifies signatures and throws on a bad one; letting
+            // that escape kills the subscription and leaves everyone sharing
+            // this request waiting out the timeout.
+            try {
+              eventStore.add(msg.event);
+            } catch {
+              return;
+            }
             events.push(msg.event);
           } else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();
         });
@@ -863,12 +944,14 @@ export async function fetchAddressableEvents(
   // the content relays never had them (Benjamin, 2026-09-05).
   const missing = valid.filter((c) => !result.has(coordKey(c)));
   if (missing.length) {
-    const found = await fetchFromSearchRelayByFilter(
-      {
-        kinds: Array.from(new Set(missing.map((c) => c.kind))),
-        authors: Array.from(new Set(missing.map((c) => c.pubkey))),
-        "#d": Array.from(new Set(missing.map((c) => c.identifier))),
-      },
+    const found = await fetchFromSearchRelayByFilters(
+      [
+        {
+          kinds: Array.from(new Set(missing.map((c) => c.kind))),
+          authors: Array.from(new Set(missing.map((c) => c.pubkey))),
+          "#d": Array.from(new Set(missing.map((c) => c.identifier))),
+        },
+      ],
       Math.min(timeoutMs, 5000),
     );
     for (const event of found) keep(event);
