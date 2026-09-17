@@ -367,8 +367,9 @@ export function searchStream(
     // --- Author hydration: the store answers known authors; the rest go to the shared queue.
     const wantedAuthors = new Map<string, () => void>();
 
-    const applyProfile = (profile: NostrEvent) => {
-      if (cancelled) return;
+    const applyProfile = (profile: NostrEvent | null) => {
+      // null means the relay has nobody by that key — nothing to apply.
+      if (cancelled || !profile) return;
       const author = kind0ToSearchResult(profile);
       for (const hit of hits) {
         if (hit.event.kind !== 0 && hit.event.pubkey === profile.pubkey) hit.author = author;

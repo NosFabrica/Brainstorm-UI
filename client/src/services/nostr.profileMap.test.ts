@@ -54,6 +54,21 @@ describe("fetchProfileMap", () => {
     expect(loadReplaceableMock).toHaveBeenCalled();
   });
 
+  it("moves on the moment the queue says it has nobody, rather than waiting out the clock", async () => {
+    // The queue answers null for a key the search relay has never seen. Waiting
+    // for the timeout instead put six seconds in front of every unknown author.
+    wantProfileMock.mockImplementation((_pubkey, onProfile) => {
+      onProfile(null);
+      return () => {};
+    });
+    loadReplaceableMock.mockResolvedValue(profile(B, "elsewhere"));
+
+    const started = Date.now();
+    const map = await fetchProfileMap([B], 60_000);
+    expect(map.get(B)?.name).toBe("elsewhere");
+    expect(Date.now() - started).toBeLessThan(1_000);
+  });
+
   it("asks the queue once per person, however many cards want them", async () => {
     wantProfileMock.mockImplementation((pubkey, onProfile) => {
       onProfile(profile(pubkey, "once"));

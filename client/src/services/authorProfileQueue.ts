@@ -16,7 +16,8 @@ const MAX_AUTHORS_PER_REQ = 200;
 const LOOKUP_DEADLINE_MS = 10_000;
 const NO_PROFILE_TTL_MS = 5 * 60_000;
 
-type Listener = (profile: NostrEvent) => void;
+/** Called with the profile, or with null once it is known there isn't one. */
+type Listener = (profile: NostrEvent | null) => void;
 interface Lookup {
   authors: string[];
   close: () => void;
@@ -45,7 +46,7 @@ function settle(lookup: Lookup, answered: Set<string>): void {
   for (const a of lookup.authors) {
     if (answered.has(a)) continue;
     noProfileUntil.set(a, Date.now() + NO_PROFILE_TTL_MS);
-    listeners.delete(a);
+    tell(a, null);
   }
   flush();
 }
@@ -56,7 +57,7 @@ function abort(lookup: Lookup): void {
   for (const a of lookup.authors) {
     if (!listeners.has(a)) continue;
     if (retried.has(a)) {
-      listeners.delete(a);
+      tell(a, null);
     } else {
       retried.add(a);
       queued.add(a);
@@ -67,7 +68,10 @@ function abort(lookup: Lookup): void {
 
 function send(authors: string[]): void {
   const relay = searchRelay();
-  if (!relay) return;
+  if (!relay) {
+    for (const a of authors) tell(a, null);
+    return;
+  }
   const answered = new Set<string>();
   let sub: { unsubscribe: () => void } | undefined;
   const deadline = setTimeout(() => abort(lookup), LOOKUP_DEADLINE_MS);
@@ -97,11 +101,10 @@ function send(authors: string[]): void {
   if (!open.has(lookup)) sub.unsubscribe();
 }
 
-/** Hand a profile to whoever is waiting for it. */
-function deliver(profile: NostrEvent): void {
-  eventStore.add(profile);
-  const waiting = listeners.get(profile.pubkey);
-  listeners.delete(profile.pubkey);
+/** Tell whoever is waiting: the profile, or null for "there isn't one". */
+function tell(pubkey: string, profile: NostrEvent | null): void {
+  const waiting = listeners.get(pubkey);
+  listeners.delete(pubkey);
   waiting?.forEach((l) => {
     try {
       l(profile);
@@ -109,6 +112,15 @@ function deliver(profile: NostrEvent): void {
       /* one caller's failure is not the batch's */
     }
   });
+}
+
+function deliver(profile: NostrEvent): void {
+  try {
+    eventStore.add(profile);
+  } catch {
+    return; // not a real event
+  }
+  tell(profile.pubkey, profile);
 }
 
 /** Batches being looked up on the device, which are about to hold a slot. */
@@ -168,7 +180,11 @@ function flush(): void {
  * The returned function withdraws the ask, closing a lookup nobody waits on.
  */
 export function wantProfile(pubkey: string, onProfile: Listener): () => void {
-  if ((noProfileUntil.get(pubkey) ?? 0) > Date.now()) return () => {};
+  // Asked recently and the relay had nobody: say so now rather than wait again.
+  if ((noProfileUntil.get(pubkey) ?? 0) > Date.now()) {
+    onProfile(null);
+    return () => {};
+  }
   noProfileUntil.delete(pubkey);
   let set = listeners.get(pubkey);
   if (!set) listeners.set(pubkey, (set = new Set()));

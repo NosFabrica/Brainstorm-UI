@@ -912,7 +912,9 @@ export async function fetchProfileMap(
         // call below, before there is a timer to clear.
         let timer: ReturnType<typeof setTimeout> | undefined;
         const withdraw = wantProfile(pubkey, (event) => {
-          keep(event);
+          // null is the queue saying the search relay has nobody by that key;
+          // the profile relays are asked for those below.
+          if (event) keep(event);
           if (timer) clearTimeout(timer);
           done();
         });
