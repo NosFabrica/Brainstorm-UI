@@ -591,6 +591,27 @@ describe("ComposedResults", () => {
     expect(screen.queryByTestId("serp-section-media")).toBeNull();
   });
 
+  // Staging showed five kind-31925 requests within 150ms for one page: the
+  // events arrive in bursts and each burst re-asked who was going.
+  it("asks who is going once, however many bursts the events arrive in", async () => {
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    const nowSec = Math.floor(Date.now() / 1000);
+    const cal = (id: string, pk: string, start: number) =>
+      hitOf(ev(id, 31923, pk, "", [["d", id], ["title", `Meetup ${id}`], ["start", String(start)]]), "club");
+    const events = sectionCall("events");
+
+    events.emit({ hits: [cal("a", "1".repeat(64), nowSec + 86_400)] });
+    events.emit({ hits: [cal("a", "1".repeat(64), nowSec + 86_400), cal("b", "2".repeat(64), nowSec + 172_800)] });
+    events.emit({
+      hits: [cal("a", "1".repeat(64), nowSec + 86_400), cal("b", "2".repeat(64), nowSec + 172_800), cal("c", "3".repeat(64), nowSec + 259_200)],
+      eose: true,
+    });
+
+    await vi.waitFor(() => expect(eventRsvpsMock).toHaveBeenCalledTimes(1), { timeout: 2000 });
+    // …and it asks about every event the page ended up with, not just the first.
+    expect(eventRsvpsMock.mock.calls[0][0]).toHaveLength(3);
+  });
+
   // Review catch: Happening merged the events stream by publish order, so a
   // recently POSTED past meetup could lead the page. Happening means now or
   // next: upcoming calendar events soonest-first, then the live streams.

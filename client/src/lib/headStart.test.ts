@@ -77,6 +77,18 @@ describe("the inline script in index.html", () => {
     );
   });
 
+  it("keeps the house observer where services/trustSource looks for it", () => {
+    // The key is spelled in two places — here and in trustSource — because an
+    // inline script cannot import. If they drift, each pays its own round trip.
+    expect(html).toContain('"brainstorm_house_observer"');
+  });
+
+  it("stays out of the way of a reader who is signed in", () => {
+    // Their Perspective is their own; the house's answer is not theirs, so the
+    // app would discard it (ComposedResults) — better not to ask at all.
+    expect(html).toMatch(/localStorage\.getItem\("brainstorm_active_account"\)/);
+  });
+
   it("stays out of the way of a query carrying search grammar", () => {
     // A #tag or from: query changes what some sections ask for; the head start
     // asks the plain-words question only.

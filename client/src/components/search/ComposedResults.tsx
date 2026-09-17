@@ -127,6 +127,9 @@ function stillLoading(snapshot: SearchSnapshot | null): boolean {
 
 const EVERYTHING: SearchGroup = "search-everything";
 
+/** How long the Happening list must stop changing before its RSVPs are asked for. */
+const RSVP_SETTLE_MS = 400;
+
 /**
  * What the Everything page asks each section for. index.html's head start asks
  * the same thing before the bundle lands, so the two must agree — headStart.test
@@ -341,11 +344,17 @@ function ComposedResultsBody({
       return;
     }
     let alive = true;
-    void fetchEventRsvps(happeningAddrKey.split(",")).then((m) => {
-      if (alive) setHappeningRsvps(m);
-    });
+    // The list fills in bursts as events arrive, and each burst changes this
+    // key: asking on every one sent five requests for the same page (measured
+    // on staging 2026-09-17), each for up to 500 RSVPs. Ask once it settles.
+    const timer = setTimeout(() => {
+      void fetchEventRsvps(happeningAddrKey.split(",")).then((m) => {
+        if (alive) setHappeningRsvps(m);
+      });
+    }, RSVP_SETTLE_MS);
     return () => {
       alive = false;
+      clearTimeout(timer);
     };
   }, [happeningAddrKey]);
   const happeningClusters = useMemo(
