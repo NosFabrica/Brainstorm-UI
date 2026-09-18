@@ -143,7 +143,7 @@ export async function readProfileRows(pubkeys: string[]): Promise<Map<string, Pr
   try {
     const alive = Date.now() - PROFILE_TTL_MS;
     for (const row of await s.get(pubkeys)) {
-      if (row.at >= alive && row.event?.kind === 0) held.set(row.event.pubkey, row.event ? row : row);
+      if (row.at >= alive && row.event?.kind === 0) held.set(row.event.pubkey, row);
     }
   } catch {
     /* the device has nothing to say — ask the relay */

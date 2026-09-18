@@ -117,6 +117,29 @@ describe("ComposedResults — media-rich sections", () => {
   // page up under the reader.
   // The head start asked the relay the same eight questions; asking them again
   // in full made the relay answer the page twice (measured on staging).
+  // Taking the head start closes its socket and empties the global, so it must
+  // happen once — not inside a memo React may re-run or discard.
+  it("keeps the head start across a re-render", async () => {
+    const NOW = Math.floor(Date.now() / 1000);
+    (window as unknown as { __headStart?: unknown }).__headStart = {
+      query: "liverpool",
+      events: [{ id: "kept", kind: 1, pubkey: "e".repeat(64), tags: [], content: "kept", created_at: NOW, sig: "s" } as NostrEvent],
+      eose: true,
+      complete: true,
+      socket: { close: () => {} },
+    };
+    __resetHeadStart();
+
+    const view = render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    expect(calls.find((c) => c.params.tab === "notes")?.params.seed?.map((h) => h.event.id)).toEqual(["kept"]);
+
+    // A re-render for an unrelated reason must not lose it.
+    calls = [];
+    view.rerender(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} personMedia={[]} />);
+    const after = calls.find((c) => c.params.tab === "notes");
+    if (after) expect(after.params.seed?.map((h) => h.event.id)).toEqual(["kept"]);
+  });
+
   it("asks only for what came since, when the head start finished", () => {
     const NOW = Math.floor(Date.now() / 1000);
     const note = (id: string, at: number) => ({ id, kind: 1, pubkey: "e".repeat(64), tags: [], content: id, created_at: at, sig: "s" }) as NostrEvent;

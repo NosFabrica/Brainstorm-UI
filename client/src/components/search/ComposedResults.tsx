@@ -24,7 +24,7 @@ import { ArticlesBento, MediaTiles, TopStories, hasCover, hasVisual, pickTopStor
 import { collapseHits } from "@/lib/searchCollapse";
 import { ClusterRows, Section, SectionSkeleton, mergeSnapshots, useSectionStream } from "@/components/search/sections";
 import type { PanelSections } from "@/components/search/KnowledgePanel";
-import { takeHeadStart } from "@/lib/headStart";
+import { takeHeadStart, type HeadStartResult } from "@/lib/headStart";
 import { EventRow } from "@/components/search/EventRow";
 import { fetchEventRsvps, type EventRsvps } from "@/services/search";
 import { isMediaFile, isSoundtrackFile } from "@/lib/fileMetadata";
@@ -211,15 +211,20 @@ function ComposedResultsBody({
   peopleSeedIsGuess?: boolean;
   onOpenProfile?: (person: SearchResult) => void;
 }) {
+  // Taking the head start is a one-shot with a side effect — it hands the
+  // events over and closes the socket — so it happens once per query in a ref,
+  // never inside a memo React is free to re-run or throw away.
+  const headRef = useRef<{ query: string; head: HeadStartResult } | null>(null);
+  if (headRef.current?.query !== query) headRef.current = { query, head: takeHeadStart(query) };
+  const head = headRef.current.head;
+
   // What the head start collected before the bundle arrived (lib/headStart),
   // dealt out to the sections by kind — the same routing the shared REQ uses.
   const seeds = useMemo(() => {
-    // Taken either way, so the head start's socket goes; kept only for a reader
-    // whose Perspective is certainly the house's — the one it asked through.
-    // A signed-in reader's settles a beat after the first render (landing's
-    // effectivePov waits on two lookups), and house-ranked cards must not
-    // paint for someone reading through their own.
-    const head = takeHeadStart(query);
+    // Kept only for a reader whose Perspective is certainly the house's — the
+    // one it asked through. A signed-in reader's settles a beat after the first
+    // render (landing's effectivePov waits on two lookups), and house-ranked
+    // cards must not paint for someone reading through their own.
     if (remembered) return { ...EMPTY_SEEDS, ...remembered };
     if (userPubkey || pov !== "nosfabrica") return EMPTY_SEEDS;
     const forTab = (tab: Exclude<SearchTab, "everything">): SearchHit[] => {
@@ -233,7 +238,8 @@ function ComposedResultsBody({
       people: forTab("people"), notes: forTab("notes"), articles: forTab("articles"), events: forTab("events"),
       live: forTab("live"), media: forTab("media"), music: forTab("music"), shop: forTab("shop"),
     };
-  }, [query, pov, userPubkey, remembered]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, pov, userPubkey, remembered, head]);
 
   /**
    * What a section still has to ask for. Where the head start finished, the

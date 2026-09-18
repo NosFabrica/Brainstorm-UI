@@ -513,7 +513,12 @@ export function searchStream(
       }
       loadingMore = true;
       pagesTurned++;
-      const next: import("nostr-tools").Filter = recent ? { ...filter, until: oldest } : { ...filter, limit: nextLimit };
+      // `since` belongs to page one only: it says "we already hold everything
+      // older" (SearchParams.seed). Carried onto a page asked `until` the
+      // oldest hit, it describes an empty window and the section reads as
+      // exhausted.
+      const { since: _pageOneOnly, ...rest } = filter;
+      const next: import("nostr-tools").Filter = recent ? { ...rest, until: oldest } : { ...rest, limit: nextLimit };
       emit({});
       openPage(next, true);
     };
