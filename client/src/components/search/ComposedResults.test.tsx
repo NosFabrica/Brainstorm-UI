@@ -140,6 +140,27 @@ describe("ComposedResults — media-rich sections", () => {
     expect(calls.find((c) => c.params.tab === "notes")?.params.seed ?? []).toEqual([]);
   });
 
+  // Coming back from a result restarted every section from empty; the
+  // single-list tabs have restored from memory for a while.
+  it("comes back showing what it was showing, without asking again", async () => {
+    const note = hitOf(ev("kept", 1, "9".repeat(64), "still here"), "sam");
+    let handed: Record<string, SearchHit[]> = {};
+    const first = render(
+      <ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} onSectionHits={(h) => { handed = h; }} />,
+    );
+    sectionCall("notes").emit({ hits: [note], eose: true, timeMs: 40 });
+    await screen.findByTestId("serp-row-kept");
+    first.unmount();
+    expect(handed.notes?.map((h) => h.event.id)).toEqual(["kept"]);
+
+    calls = [];
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} seeds={handed} />);
+    // Handed straight back to the section as its seed, so searchStream shows it
+    // before the relay answers (the seed's own behaviour is covered in
+    // services/search.test.ts).
+    expect(calls.find((c) => c.params.tab === "notes")?.params.seed?.map((h) => h.event.id)).toEqual(["kept"]);
+  });
+
   it("asks for every section on one shared subscription", () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     expect(calls.length).toBeGreaterThan(1);

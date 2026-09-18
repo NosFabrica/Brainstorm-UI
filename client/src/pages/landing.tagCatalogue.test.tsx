@@ -14,6 +14,7 @@ vi.mock("@/services/search", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/services/search")>()),
   searchStream: () => () => {},
   suggestProfiles: async () => [],
+  suggestProfileHits: async () => [],
   fetchRepoCounts: async () => ({ issues: 0, patches: 0 }),
 }));
 vi.mock("@/services/nostr", () => ({

@@ -6,7 +6,7 @@
  * lives); Articles keep best-match; Happening collapses recurring events;
  * Media rides a compact row. Sections with nothing to show don't render.
  */
-import { useEffect, useMemo, useState  } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ListingCard, TrackCard, WavlakeSongCard } from "@/components/search/cards";
 import { isSellable, parseListing } from "@/lib/listing";
 import { noteTitle } from "@/lib/noteTitle";
@@ -173,6 +173,8 @@ function ComposedResultsBody({
   onQueryRewrite,
   personMedia = [],
   onSections,
+  onSectionHits,
+  seeds: remembered,
 }: {
   query: string;
   pov: SearchPov;
@@ -184,6 +186,10 @@ function ComposedResultsBody({
   personMedia?: SearchHit[];
   /** The sections the knowledge panel would otherwise ask the relay for itself. */
   onSections?: (sections: PanelSections) => void;
+  /** What every section is showing, so a reader coming back sees it at once. */
+  onSectionHits?: (hits: Record<string, SearchHit[]>) => void;
+  /** What they were showing when the reader left. */
+  seeds?: Record<string, SearchHit[]>;
   onOpenProfile?: (person: SearchResult) => void;
 }) {
   // What the head start collected before the bundle arrived (lib/headStart),
@@ -195,6 +201,7 @@ function ComposedResultsBody({
     // effectivePov waits on two lookups), and house-ranked cards must not
     // paint for someone reading through their own.
     const events = takeHeadStart(query);
+    if (remembered) return remembered;
     if (userPubkey || pov !== "nosfabrica") return EMPTY_SEEDS;
     const forTab = (tab: Exclude<SearchTab, "everything">): SearchHit[] => {
       const kinds = new Set(TAB_KINDS[tab]);
@@ -203,7 +210,7 @@ function ComposedResultsBody({
         .map((event) => ({ event, author: event.kind === 0 ? kind0ToSearchResult(event) : null, rank: null }));
     };
     return { people: forTab("people"), notes: forTab("notes"), articles: forTab("articles"), events: forTab("events"), live: forTab("live"), media: forTab("media"), music: forTab("music"), shop: forTab("shop") };
-  }, [query, pov, userPubkey]);
+  }, [query, pov, userPubkey, remembered]);
 
   const people = useSectionStream(query, "people", pov, userPubkey, EVERYTHING_SECTIONS.people.limit, { group: EVERYTHING, seed: seeds.people });
   // Every CONTENT section leads with what's fresh (Benjamin's call:
@@ -241,6 +248,23 @@ function ComposedResultsBody({
     if (!onSections) return;
     onSections({ people, events: happeningEvents });
   }, [onSections, people, happeningEvents]);
+
+  const showing = useMemo(
+    () => ({
+      people: people?.hits ?? [],
+      notes: latest?.hits ?? [],
+      articles: articles?.hits ?? [],
+      events: happeningEvents?.hits ?? [],
+      live: happeningLive?.hits ?? [],
+      media: media?.hits ?? [],
+      music: music?.hits ?? [],
+      shop: shop?.hits ?? [],
+    }),
+    [people, latest, articles, happeningEvents, happeningLive, media, music, shop],
+  );
+  const showingRef = useRef(showing);
+  showingRef.current = showing;
+  useEffect(() => () => onSectionHits?.(showingRef.current), [onSectionHits]);
 
   const allHits = useMemo(
     () =>

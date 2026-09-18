@@ -50,7 +50,7 @@ import {
   typeaheadPause,
   type SearchResult,
 } from "@/lib/profileSearch";
-import { suggestProfiles } from "@/services/search";
+import { suggestProfileHits, suggestProfiles, type SearchHit } from "@/services/search";
 import { BackToTop } from "@/components/search/BackToTop";
 import { SearchResults } from "@/components/search/SearchResults";
 import { PerspectiveToggle } from "@/components/search/PerspectiveToggle";
@@ -125,6 +125,8 @@ export default function Landing() {
     try { return new URLSearchParams(window.location.search).get("f") || ""; } catch { return ""; }
   });
   const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
+  /** The typeahead's last answer, as hits, for the People section to start from. */
+  const suggestedPeople = useRef<{ query: string; hits: SearchHit[] } | null>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [activeSuggestion, setActiveSuggestion] = useState(-1);
@@ -343,9 +345,11 @@ export default function Landing() {
     suggestTimerRef.current = window.setTimeout(async () => {
       try {
         suggestRequestRef.current = new AbortController();
-        const suggestResults = await suggestProfiles(q, { pov: effectivePov, userPubkey: user?.pubkey }, { signal: suggestRequestRef.current.signal });
+        const suggestHits = await suggestProfileHits(q, { pov: effectivePov, userPubkey: user?.pubkey }, { signal: suggestRequestRef.current.signal });
         if (suggestAbortRef.current !== reqId) return;
-        setSuggestions(suggestResults.slice(0, 7));
+        // Kept for the People section: submitting asks this very question again.
+        suggestedPeople.current = { query: q, hits: suggestHits };
+        setSuggestions(suggestHits.map((h) => h.author).filter((a): a is SearchResult => !!a).slice(0, 7));
         setActiveSuggestion(-1);
         kbdNavRef.current = false;
         setShowSuggestions(true);
@@ -1414,6 +1418,7 @@ export default function Landing() {
           <BackToTop />
           <SearchResults
             onTabChange={setActiveTab}
+            peopleSeed={suggestedPeople.current?.query === (submitted ?? "") ? suggestedPeople.current.hits : undefined}
             query={submitted ?? ""}
             pov={effectivePov}
             userPubkey={user?.pubkey}

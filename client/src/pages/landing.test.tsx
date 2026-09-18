@@ -27,6 +27,16 @@ vi.mock("@/services/search", async (importOriginal) => {
       return () => {};
     },
     suggestProfiles: (...args: unknown[]) => suggestMock(...args),
+    // The page asks for hits now (it seeds the People section with them); the
+    // fixtures are still people, so wrap each in the kind-0 it arrived as.
+    suggestProfileHits: async (...args: unknown[]) => {
+      const people = (await suggestMock(...args)) as { pubkey: string }[];
+      return (people ?? []).map((author) => ({
+        event: { id: `k0-${author.pubkey}`, kind: 0, pubkey: author.pubkey, tags: [], content: "{}", created_at: 1, sig: "s" },
+        author,
+        rank: null,
+      }));
+    },
     fetchRepoCounts: async () => ({ issues: 0, patches: 0 }),
   };
 });

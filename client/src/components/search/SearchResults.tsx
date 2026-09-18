@@ -438,6 +438,8 @@ function FiltersPanel({
  * page; ten minutes and eight searches deep, which is a browsing session.
  */
 const SEARCH_MEMORY = new Map<string, { hits: SearchHit[]; scrollY: number; at: number }>();
+/** The composed page remembers a list per section, not one list. */
+const COMPOSED_MEMORY = new Map<string, { sections: Record<string, SearchHit[]>; scrollY: number; at: number }>();
 const SEARCH_MEMORY_TTL_MS = 10 * 60_000;
 const SEARCH_MEMORY_SIZE = 8;
 function rememberKey(query: string, tab: string, pov: string, userPubkey?: string): string {
@@ -448,9 +450,27 @@ function rememberSearch(key: string, hits: SearchHit[], scrollY: number): void {
   SEARCH_MEMORY.set(key, { hits, scrollY, at: Date.now() });
   while (SEARCH_MEMORY.size > SEARCH_MEMORY_SIZE) SEARCH_MEMORY.delete(SEARCH_MEMORY.keys().next().value as string);
 }
+function rememberComposed(key: string, sections: Record<string, SearchHit[]>, scrollY: number): void {
+  if (!Object.values(sections).some((hits) => hits.length)) return;
+  COMPOSED_MEMORY.delete(key);
+  COMPOSED_MEMORY.set(key, { sections, scrollY, at: Date.now() });
+  while (COMPOSED_MEMORY.size > SEARCH_MEMORY_SIZE) COMPOSED_MEMORY.delete(COMPOSED_MEMORY.keys().next().value as string);
+}
+
+function recallComposed(key: string): { sections: Record<string, SearchHit[]>; scrollY: number } | null {
+  const m = COMPOSED_MEMORY.get(key);
+  if (!m) return null;
+  if (Date.now() - m.at > SEARCH_MEMORY_TTL_MS) {
+    COMPOSED_MEMORY.delete(key);
+    return null;
+  }
+  return { sections: m.sections, scrollY: m.scrollY };
+}
+
 /** Tests: forget every search. */
 export function __resetSearchMemory(): void {
   SEARCH_MEMORY.clear();
+  COMPOSED_MEMORY.clear();
 }
 function recallSearch(key: string): { hits: SearchHit[]; scrollY: number } | null {
   const m = SEARCH_MEMORY.get(key);
@@ -471,6 +491,7 @@ export function SearchResults({
   onPrefetchLeave,
   onQueryRewrite,
   onTabChange,
+  peopleSeed,
   perspective,
 }: {
   query: string;
@@ -488,6 +509,9 @@ export function SearchResults({
   onQueryRewrite?: (next: string) => void;
   /** Which tab is showing — the box words its placeholder by it. */
   onTabChange?: (tab: SearchTab) => void;
+  /** The people the typeahead already found for this query, for the People
+   *  section to start from rather than ask for again. */
+  peopleSeed?: SearchHit[];
 }) {
   const [, setLocation] = useLocation();
   const [tab, setTab] = useState<SearchTab>(tabFromUrl);
@@ -565,6 +589,35 @@ export function SearchResults({
       scrollAtLeave.current = typeof window !== "undefined" ? window.scrollY : 0;
     };
   }, [effectiveQuery, tab, pov, userPubkey, composed, serverStatus.recovery]);
+
+  // What the composed page was showing when the reader last left it, so coming
+  // back from a result paints at once instead of restarting every section.
+  const composedKey = rememberKey(query, "everything", pov, userPubkey);
+  const composedMemory = useRef(composed ? recallComposed(composedKey) : null);
+  // Coming back beats the typeahead: memory holds every section, the typeahead
+  // only the people it had already found.
+  const composedSeeds =
+    composedMemory.current?.sections ?? (peopleSeed?.length ? { people: peopleSeed } : undefined);
+  const rememberSections = useCallback(
+    (hits: Record<string, SearchHit[]>) => rememberComposed(composedKey, hits, scrollAtLeave.current),
+    [composedKey],
+  );
+
+  useEffect(() => {
+    if (!composed) return;
+    const where = composedMemory.current?.scrollY ?? 0;
+    if (where <= 0) return;
+    // After paint, and after the app's own scroll-to-top on navigation.
+    const at =
+      typeof requestAnimationFrame === "function"
+        ? requestAnimationFrame(() => window.scrollTo({ top: where, behavior: "instant" as ScrollBehavior }))
+        : setTimeout(() => window.scrollTo({ top: where, behavior: "instant" as ScrollBehavior }), 0);
+    return () => {
+      if (typeof at === "number" && typeof cancelAnimationFrame === "function") cancelAnimationFrame(at);
+    };
+    // Once per mount of a composed page: the recall is read from a ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [composed, composedKey]);
 
   useEffect(() => {
     if (composed) {
@@ -1173,6 +1226,8 @@ export function SearchResults({
           query={query}
           personMedia={personMedia}
           onSections={setSections}
+          onSectionHits={rememberSections}
+          seeds={composedSeeds}
           pov={pov}
           userPubkey={userPubkey}
           onTabChange={changeTab}

@@ -1494,18 +1494,35 @@ export function suggestProfiles(
   params: Pick<SearchParams, "pov" | "userPubkey">,
   opts?: { limit?: number; timeoutMs?: number; signal?: AbortSignal },
 ): Promise<SearchResult[]> {
+  return suggestProfileHits(query, params, opts).then((hits) =>
+    hits.map((hit) => hit.author).filter((author): author is SearchResult => !!author),
+  );
+}
+
+/**
+ * The same suggestions, as the hits they arrived as.
+ *
+ * The typeahead shows people; the People section then shows the same people,
+ * asked the same way. Keeping the events means a submit can seed that section
+ * with what is already on screen instead of asking for it again.
+ */
+export function suggestProfileHits(
+  query: string,
+  params: Pick<SearchParams, "pov" | "userPubkey">,
+  opts?: { limit?: number; timeoutMs?: number; signal?: AbortSignal },
+): Promise<SearchHit[]> {
   const limit = opts?.limit ?? 10;
   const timeoutMs = opts?.timeoutMs ?? 4000;
   const signal = opts?.signal;
   if (signal?.aborted) return Promise.resolve([]);
   return new Promise((resolve) => {
-    const seen = new Map<string, SearchResult>();
+    const seen = new Map<string, SearchHit>();
     const cancel = searchStream(
       query,
       { tab: "people", pov: params.pov, userPubkey: params.userPubkey, limit },
       (snapshot) => {
         for (const hit of snapshot.hits) {
-          if (hit.author && !seen.has(hit.event.pubkey)) seen.set(hit.event.pubkey, hit.author);
+          if (hit.author && !seen.has(hit.event.pubkey)) seen.set(hit.event.pubkey, hit);
         }
         if (snapshot.eose || snapshot.error) finish();
       },
