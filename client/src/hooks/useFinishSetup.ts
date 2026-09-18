@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useSelfHistory } from "@/hooks/useSelf";
 import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
+import { useTrustListsStatus } from "@/hooks/useTrustListsStatus";
 import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
 import { knownFollowCount } from "@/lib/followStore";
 import { isNip85Activated } from "@/lib/nip85Activation";
@@ -33,6 +34,11 @@ export interface FinishSetupState {
   activateDone: boolean;
   /** Relay-verified "no kind-10040 names Brainstorm" (or another provider does). */
   activatePending: boolean;
+  /**
+   * Activated, but they have Trusted Lists their 10040 doesn't name yet — the
+   * Activate step is to do again (publish the Treasure Map with the lists).
+   */
+  listsPending?: boolean;
   /** Confident steps left — what the banner counts. 0 → no nagging. */
   remaining: number;
   /** Steps verifiably complete, of 3 — what the checklist page renders. */
@@ -50,6 +56,7 @@ export function useFinishSetup(): FinishSetupState {
     ?.ta_pubkey;
   const providerStatus = useTrustProviderStatus(pubkey, taPubkey).data;
   const locallyActivated = isNip85Activated(pubkey);
+  const listsStatus = useTrustListsStatus(pubkey, taPubkey).data?.status;
 
   return useMemo(() => {
     const signedIn = !!pubkey;
@@ -57,12 +64,16 @@ export function useFinishSetup(): FinishSetupState {
     const followDone = followCount >= 1 || followVerdict === "has-follows";
     const followPending = signedIn && !followDone && followVerdict === "none";
 
-    const activateDone = locallyActivated || providerStatus === "brainstorm";
+    const activated = locallyActivated || providerStatus === "brainstorm";
+    // Their Trusted Lists exist but the 10040 doesn't name them: the Treasure
+    // Map needs publishing again, so the step isn't done.
+    const listsPending = signedIn && activated && listsStatus === "missing";
+    const activateDone = activated && !listsPending;
     // "other" counts as pending even when the local flag says activated: they
     // declared a different provider from another app, and re-selecting
     // Brainstorm is exactly the remedy (mirrors needsActivationPrompt).
     const activatePending =
-      signedIn && !activateDone && (providerStatus === "none" || providerStatus === "other");
+      signedIn && ((!activated && (providerStatus === "none" || providerStatus === "other")) || listsPending);
 
     const remaining = (followPending ? 1 : 0) + (activatePending ? 1 : 0);
     const doneCount = 1 + (followDone ? 1 : 0) + (activateDone ? 1 : 0);
@@ -74,9 +85,10 @@ export function useFinishSetup(): FinishSetupState {
       followCount,
       activateDone,
       activatePending,
+      listsPending,
       remaining,
       doneCount,
       allDone: followDone && activateDone,
     };
-  }, [pubkey, followVerdict, providerStatus, locallyActivated]);
+  }, [pubkey, followVerdict, providerStatus, locallyActivated, listsStatus]);
 }

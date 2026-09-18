@@ -65,10 +65,12 @@ no account.
 Runs are synchronous for up to about a minute. `202` plus a poll would survive proxy
 timeouts. The UI allows 120 seconds today.
 
-## Our follow-up: the kind-10040 row
+## Our follow-up: the kind-10040 row — shipped 2026-09-18
 
-Our "Activate Brainstorm" step writes only `30382:rank` and `30382:followers`
-(`client/src/services/nostr.ts`, the 10040 builder) and never reads `/setup`. So the new
-`["30392", <assistant>, <relay>]` row is never published, and other apps can't discover a
-customer's lists from their 10040. It needs consent copy and re-activation for existing
-users, so it's planned as its own change.
+"Activate Brainstorm" now looks for a user's Trusted Lists where `/setup`'s `"30392"` row
+says: their assistant key, on the NIP-85 relay. When lists exist and their 10040 doesn't name
+them, onboarding asks them to publish it again.
+
+- The new 10040 has rows for 30392, 30393 and 30394, merged into what the user had rather
+  than replacing it.
+- A first activation names the lists in the same signature.

@@ -24,6 +24,8 @@ import { accountKey } from "@/lib/accountStorage";
 import { queryClient } from "@/lib/queryClient";
 import { clearNip85Activated, isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
 import { hasDeclinedNip85, hasNip85Consent, recordNip85Consent } from "@/lib/nip85Consent";
+import type { ListDesignation } from "@/lib/nip85Declaration";
+import { checkUserLists, recordTrustListsDeclared } from "./trustLists";
 
 /**
  * Whether the automatic (non-user-initiated) NIP-85 publish paths may run for
@@ -131,6 +133,7 @@ export async function publishBrainstormTrustAnchor(
   pubkey: string,
   taPubkey: string,
   onPhase?: (phase: "signing" | "publishing") => void,
+  opts: { lists?: ListDesignation | null } = {},
 ): Promise<TrustAnchorPublishResult> {
   let nip85Relay: string;
   try {
@@ -139,10 +142,19 @@ export async function publishBrainstormTrustAnchor(
     return { status: "error", message: err?.message || "NIP-85 relay URL is not configured." };
   }
 
+  // Merge into what's there: naming Brainstorm (and the user's Trusted Lists)
+  // must never cost them another provider's rows.
+  let existing: string[][] = [];
+  try {
+    existing = (await fetchTrustProviderList(pubkey))?.tags ?? [];
+  } catch {
+    // Unreadable relays: publish ours alone, as before.
+  }
+
   onPhase?.("signing");
   let signed;
   try {
-    signed = await signNip85(taPubkey, nip85Relay);
+    signed = await signNip85(taPubkey, nip85Relay, { lists: opts.lists ?? null, existing });
   } catch (err) {
     return { status: "cancelled", unlockDeclined: isUnlockCancelled(err) };
   }
@@ -152,6 +164,7 @@ export async function publishBrainstormTrustAnchor(
   if (result.success) {
     markNip85Activated(pubkey);
     recordTrustProviderStatus(pubkey, "brainstorm");
+    if (opts.lists) recordTrustListsDeclared(pubkey, opts.lists);
     return { status: "success" };
   }
   return { status: "error", message: result.error || "Failed to publish to relays. Please try again." };
@@ -195,12 +208,20 @@ export async function ensureBrainstormTrustAnchor(pubkey: string, taPubkey: stri
     const existing = await checkExistingTrustProvider(pubkey, taPubkey);
     if (existing === "brainstorm" || existing === "other") return;
   } catch {}
+  // A first declaration names their Trusted Lists too, when they have some —
+  // one signature rather than a second prompt later.
+  let lists: ListDesignation | null = null;
   try {
-    const signed = await signNip85(taPubkey, getNip85RelayUrl());
+    const found = await checkUserLists(pubkey, taPubkey);
+    if (found.status === "missing") lists = found.designation;
+  } catch {}
+  try {
+    const signed = await signNip85(taPubkey, getNip85RelayUrl(), { lists, existing: [] });
     const res = await publishToRelays(signed);
     if (res.success) {
       markNip85Activated(pubkey);
       recordTrustProviderStatus(pubkey, "brainstorm");
+      if (lists) recordTrustListsDeclared(pubkey, lists);
     }
   } catch {}
 }

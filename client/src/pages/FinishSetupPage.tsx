@@ -85,7 +85,7 @@ function PendingRow({
 export default function FinishSetupPage() {
   const [, navigate] = useLocation();
   const user = useActiveAccountDisplay();
-  const { followDone, followCount, activateDone, doneCount, allDone } = useFinishSetup();
+  const { followDone, followCount, activateDone, listsPending, doneCount, allDone } = useFinishSetup();
   const { isCalculating } = useScoringStatus();
 
   if (!user) return null;
@@ -174,9 +174,13 @@ export default function FinishSetupPage() {
             />
           ) : (
             <PendingRow
-              label="Activate your Brainstorm account"
+              label={listsPending ? "Publish your Treasure Map again" : "Activate your Brainstorm account"}
               badge="Required for other apps"
-              detail="One signature publishes your Treasure Map so other apps know where to find your scores. Takes a few seconds."
+              detail={
+                listsPending
+                  ? "Your Trusted Lists are ready. One signature adds them to your Treasure Map so other apps can find them."
+                  : "One signature publishes your Treasure Map so other apps know where to find your scores. Takes a few seconds."
+              }
               icon={PenLine}
               onClick={() => navigate("/setup/activate")}
               testid="setup-row-activate"

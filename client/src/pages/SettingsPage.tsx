@@ -72,7 +72,8 @@ import { copyToClipboard } from "@/lib/clipboard";
 import { FEATURES } from "@/config/featureFlags";
 import { SiGithub } from "react-icons/si";
 import type { NostrEvent } from "applesauce-core/helpers";
-import { signNip85, signNip85Deactivation, publishToRelays, getNip85RelayUrl } from "@/services/nostr";
+import { signNip85, signNip85Deactivation, publishToRelays, getNip85RelayUrl, fetchTrustProviderList } from "@/services/nostr";
+import { checkUserLists } from "@/services/trustLists";
 import { logout } from "@/accounts/login-flow";
 import { isNip85Activated, markNip85Activated, clearNip85Activated } from "@/lib/nip85Activation";
 import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
@@ -413,7 +414,18 @@ export default function SettingsPage() {
 
     let signedEvent: NostrEvent;
     try {
-      signedEvent = await signNip85(taPubkey, nip85Relay);
+      // Republish merged: keep every row already in their 10040, and name their
+      // Trusted Lists when they have some it doesn't.
+      let existing: string[][] = [];
+      try {
+        existing = (await fetchTrustProviderList(user.pubkey))?.tags ?? [];
+      } catch {}
+      let lists = null;
+      try {
+        const found = await checkUserLists(user.pubkey, taPubkey);
+        if (found.status === "missing") lists = found.designation;
+      } catch {}
+      signedEvent = await signNip85(taPubkey, nip85Relay, { lists, existing });
     } catch (err) {
       setRepublishState("idle");
       // Declining is silent, as everywhere else — `keyAccessMessage` returns null

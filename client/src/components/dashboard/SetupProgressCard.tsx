@@ -30,7 +30,7 @@ export function SetupProgressCard({
   showStatus?: boolean;
 }) {
   const [, navigate] = useLocation();
-  const { signedIn, followDone, followPending, activateDone, activatePending, doneCount } =
+  const { signedIn, followDone, followPending, activateDone, activatePending, listsPending, doneCount } =
     useFinishSetup();
 
   const pending: { key: string; label: string; detail: string; href: string }[] = [];
@@ -44,8 +44,10 @@ export function SetupProgressCard({
   if (activatePending)
     pending.push({
       key: "activate",
-      label: "Activate your Brainstorm account",
-      detail: "One signature makes your scores visible to other apps.",
+      label: listsPending ? "Publish your Treasure Map again" : "Activate your Brainstorm account",
+      detail: listsPending
+        ? "Your Trusted Lists are ready — one signature lets other apps find them."
+        : "One signature makes your scores visible to other apps.",
       href: "/setup/activate",
     });
 

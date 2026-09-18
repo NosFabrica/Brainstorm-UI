@@ -94,4 +94,18 @@ describe("FinishSetupPage", () => {
     fireEvent.click(screen.getByTestId("button-setup-done"));
     expect(navigate).toHaveBeenCalledWith("/dashboard");
   });
+
+  // Activated, but their Trusted Lists aren't in the Treasure Map yet.
+  it("asks an activated account with Trusted Lists to publish its Treasure Map again", () => {
+    setupState.mockReturnValue(
+      state({ followDone: true, followPending: false, activateDone: false, activatePending: true, listsPending: true, remaining: 1, doneCount: 2 }),
+    );
+    renderWithProviders(<FinishSetupPage />);
+
+    const row = screen.getByTestId("setup-row-activate");
+    expect(row).toHaveTextContent("Publish your Treasure Map again");
+    expect(row).toHaveTextContent(/Trusted Lists/);
+    fireEvent.click(row);
+    expect(navigate).toHaveBeenCalledWith("/setup/activate");
+  });
 });

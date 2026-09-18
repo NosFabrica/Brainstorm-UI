@@ -1,6 +1,6 @@
 import { nip19, finalizeEvent, generateSecretKey, verifyEvent } from "nostr-tools";
 import { env } from "@/lib/runtimeEnv";
-import { declaresTrustProvider } from "@/lib/nip85Declaration";
+import { declaresTrustProvider, listRows, mergeDesignation, type ListDesignation } from "@/lib/nip85Declaration";
 import { pool } from "@/lib/relayPool";
 import { eventStore } from "@/lib/eventStore";
 import { searchRelay } from "@/lib/searchRelay";
@@ -1051,16 +1051,25 @@ async function publishRelayListAs(
 }
 
 
+/**
+ * The user's kind-10040 naming Brainstorm: rank and followers, plus every
+ * Trusted List kind when they have lists — merged into the tags they already
+ * have (`existing`), so another provider's rows survive. It used to be rebuilt
+ * from our two rows alone, dropping everything else.
+ */
 export async function signNip85(
   serviceKey: string,
-  relayHint: string
+  relayHint: string,
+  opts: { lists?: ListDesignation | null; existing?: string[][] } = {},
 ): Promise<NostrEvent> {
+  const ours = [
+    ["30382:rank", serviceKey, relayHint],
+    ["30382:followers", serviceKey, relayHint],
+    ...(opts.lists ? listRows(opts.lists) : []),
+  ];
   return signAs(requireActiveAccount(), {
     kind: 10040,
-    tags: [
-      ["30382:rank", serviceKey, relayHint],
-      ["30382:followers", serviceKey, relayHint],
-    ],
+    tags: mergeDesignation(opts.existing ?? [], ours),
     content: "",
   });
 }
