@@ -249,6 +249,24 @@ describe("what running it in a browser caught", () => {
     }
   });
 
+  // The left padding is cut back only for a pill that LEADS with a face — a round face fills a
+  // rounded corner by itself, where square text needs the room. `from:`, `to:` and `observer:`
+  // all draw their prefix first, and cutting theirs put the prefix 3px from the edge where
+  // every other pill's text sits at 9px.
+  it("only a pill that leads with a face cuts its left padding", () => {
+    mount({ value: `from:${npub} to:${npub} observer:${JOE} ${npub}` });
+    const pills = [...box().querySelectorAll("[data-token]")] as HTMLElement[];
+    const [from, to, observer, bare] = pills;
+    expect(from.dataset.token).toContain("from:");
+    for (const textFirst of [from, to, observer]) {
+      expect(textFirst.firstElementChild?.tagName).toBe("SPAN");
+      expect(textFirst.className).not.toContain("!pl-0.5");
+    }
+    // A bare key has no prefix, so its face is first and the cut is right.
+    expect(bare.firstElementChild?.tagName).toBe("IMG");
+    expect(bare.className).toContain("!pl-0.5");
+  });
+
   it("the neutral pill is outlined like the tinted ones", () => {
     // `tone("slate")` fills with slate-100 and outlines with slate-200 — one step apart, which
     // reads as no outline at all beside the other tones' pale -50 tint under a -200 border.

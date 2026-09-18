@@ -122,7 +122,14 @@ const pillClass = (t: Parameters<typeof tone>[0]): string => {
   const border = t === "slate" ? "border-slate-300 dark:border-slate-600" : c.border;
   return `${PILL} ${c.bg} ${c.text} ${border}`;
 };
-/** A person, as ScopeChip had it: a round face fills a rounded corner by itself. */
+/**
+ * The left padding cut back for a pill that LEADS with the face, as ScopeChip did: a round
+ * face fills a rounded corner by itself, where square text needs the room.
+ *
+ * Only a bare `npub1…` leads with one. `from:`, `to:` and `observer:` all put their prefix
+ * first and are ordinary text pills as far as their left edge is concerned — cutting their
+ * padding too left the prefix 3px from the edge where every other pill's text sits at 9px.
+ */
 const FACE_PILL = "!pl-0.5";
 /**
  * The face fills the pill's inner height exactly (20px inside 2px of padding and a 1px border),
@@ -422,7 +429,8 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
       case "observer":
         // A person, like `from:` and `to:` — the difference is only what is being asked about
         // them. Painted by [paintObserverChip] so it re-labels in place when the profile lands.
-        span.className = `${pillClass("slate")} ${FACE_PILL}`;
+        // "ranked as" comes before the face, so this one keeps a text pill's left padding.
+        span.className = pillClass("slate");
         span.dataset.pk = seg.pubkey;
         paintObserverChip(span);
         return span;
@@ -450,7 +458,8 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
         span.title = `${seg.raw} — shown by this page, not asked of the relay`;
         return span;
       default: {
-        span.className = `${pillClass("slate")} ${FACE_PILL}`;
+        // A bare key draws its face first; `from:`/`to:` draw their prefix first.
+        span.className = seg.field ? pillClass("slate") : `${pillClass("slate")} ${FACE_PILL}`;
         span.dataset.pk = seg.pubkey;
         if (seg.field) span.dataset.field = seg.field;
         paintPersonChip(span);
