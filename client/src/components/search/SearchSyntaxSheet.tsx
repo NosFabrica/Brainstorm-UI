@@ -123,7 +123,7 @@ export function SearchSyntaxSheet({ open, onOpenChange }: { open: boolean; onOpe
 
           <Section
             title="Ranking and order"
-            intro={<>These reach the relay as typed. The <b>Filters</b> button writes every one of them.</>}
+            intro={<>These reach the relay as typed. The <b>Filters</b> button writes all but <code className="font-mono text-[12px]">observer:</code>.</>}
             rows={[
               { token: "sort:recent", what: "Newest first, ignoring how well anything matched." },
               {
@@ -135,9 +135,9 @@ export function SearchSyntaxSheet({ open, onOpenChange }: { open: boolean; onOpe
               {
                 token: "observer:", em: "npub1…",
                 what: (
-                  <>Rank through <b>that</b> pubkey's web of trust instead of your own. Signing in does this for you, and
-                    “Ranking as” under Filters writes it. Trust scores are public, so it needs no signature: signed out,
-                    this is the one way to a ranked answer.</>
+                  <>Rank through <b>that</b> pubkey's web of trust instead of your own. Signing in does this for
+                    you; typing this is how you look through somebody else's eyes, which is a debugging tool more
+                    than a daily one. Trust scores are public, so it needs no signature.</>
                 ),
               },
               {

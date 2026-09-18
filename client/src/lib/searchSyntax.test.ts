@@ -52,7 +52,19 @@ describe("splitFilters / activeFilterCount", () => {
   it("counts the filters a person has switched on", () => {
     expect(activeFilterCount(readFilters("btc"))).toBe(0);
     expect(activeFilterCount(readFilters("btc sort:rank trust:verified"))).toBe(2);
-    expect(activeFilterCount(readFilters(`btc since:2026-01-01 until:2026-02-01 reach:follows include:spam observer:${"a".repeat(64)}`))).toBe(4);
+    // The date range counts once, however many ends it has.
+    expect(activeFilterCount(readFilters("btc since:2026-01-01 until:2026-02-01 reach:follows include:spam"))).toBe(3);
+    // `observer:` has no control in the panel — it is typed, and it draws in the box — so the
+    // badge does not count it, or it would send somebody looking for a control that isn't there.
+    expect(activeFilterCount(readFilters(`btc observer:${"a".repeat(64)}`))).toBe(0);
+  });
+
+  it("a typed observer: stays in the box rather than hoisting into the URL", () => {
+    const hex = "a".repeat(64);
+    expect(splitFilters(`jack observer:${hex} sort:recent`)).toEqual({
+      text: `jack observer:${hex}`,
+      tokens: "sort:recent",
+    });
   });
 });
 
@@ -99,7 +111,9 @@ describe("applyFilters", () => {
     expect(applyFilters("btc include:spam", { includeSpam: false })).toBe("btc");
   });
 
-  it("writes an observer for Rank-as and removes it when reset", () => {
+  // Nothing in the UI calls this for `observer:` any more, but the rewrite still has to work:
+  // it is how a caller drops a typed one, and how readFilters round-trips.
+  it("rewrites an observer in place, and removes it", () => {
     const hex = "a".repeat(64);
     expect(applyFilters("jack", { rankAs: hex })).toBe(`jack observer:${hex}`);
     expect(applyFilters(`jack observer:${hex}`, { rankAs: null })).toBe("jack");

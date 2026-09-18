@@ -12,10 +12,13 @@
  *  - **box tokens** — `from:` `to:` `#tag` `since:` `until:` `group:` `label:`
  *    and the NIP-73 scopes. These stay in the search box, drawn as pills by
  *    `SearchField`: they are what the search IS, and a person edits them.
- *  - **panel tokens** — `sort:` `observer:` `include:spam` `filter:rank:gte:`
- *    and the client-only `trust:verified` / `reach:`. The panel owns these, and
+ *  - **panel tokens** — `sort:` `include:spam` `filter:rank:gte:` and the
+ *    client-only `trust:verified` / `reach:`. The panel owns these, and
  *    [splitFilters] hoists them out of the box into the URL's `f` — chrome
  *    nobody should have to read past (Benjamin, over the raw scope).
+ *
+ * `observer:` is in neither camp and belongs to the box: it is a debug token with no control
+ * of its own, so it stays where it was typed rather than disappearing into the URL.
  *
  * Typing a panel token by hand still works, and still pills while it is being
  * typed: the panel picks it up on the next submit and the box comes back clean.
@@ -37,6 +40,10 @@ export interface SearchFilterState {
   /** Client-side (the relay has no hops). Token reach:follows | reach:friends. */
   reach: "follows" | "friends" | null;
   includeSpam: boolean;
+  /**
+   * NIP-50 `observer:` — whose web of trust ranks the page. No control writes this: it is a
+   * debug token, typed by hand, and it draws as a pill in the box like the rest of the grammar.
+   */
   rankAs: string | null; // 64-hex observer pubkey
 }
 
@@ -55,11 +62,14 @@ const MATCHERS: Record<keyof SearchFilterState, (token: string) => boolean> = {
 };
 
 /**
- * The tokens the PANEL owns, which [splitFilters] keeps out of the box. `since:`/`until:` are
- * deliberately not here: they draw as pills with a calendar under them, so they belong to the
- * box even though the panel's Time control also writes them.
+ * The tokens the PANEL owns, which [splitFilters] keeps out of the box.
+ *
+ * Two are deliberately not here. `since:`/`until:` draw as pills with a calendar under them, so
+ * they belong to the box even though the panel's Time control also writes them. `observer:` has
+ * no control at all — it is a debug token somebody types, so it has to stay where they typed it
+ * or it would vanish into the URL with nothing on the page to show it.
  */
-const PANEL_KEYS = ["sort", "rankFloor", "verifiedOnly", "reach", "includeSpam", "rankAs"] as const;
+const PANEL_KEYS = ["sort", "rankFloor", "verifiedOnly", "reach", "includeSpam"] as const;
 
 function tokenFor(key: keyof SearchFilterState, value: unknown): string | null {
   switch (key) {
@@ -104,8 +114,11 @@ export function splitFilters(query: string): { text: string; tokens: string } {
  */
 export const queryWords = (query: string): string => parseQuery(query).words;
 
-/** How many filters a person has switched on — the badge on the Filters button. A date
- *  range counts once, however many ends it has. */
+/**
+ * How many filters a person has switched on — the badge on the Filters button. A date range
+ * counts once, however many ends it has. `rankAs` is not counted: the panel has no control for
+ * it, so a badge that included it would send somebody looking for something that is not there.
+ */
 export function activeFilterCount(state: SearchFilterState): number {
   let n = 0;
   if (state.sort) n++;
@@ -114,7 +127,6 @@ export function activeFilterCount(state: SearchFilterState): number {
   if (state.verifiedOnly) n++;
   if (state.reach) n++;
   if (state.includeSpam) n++;
-  if (state.rankAs) n++;
   return n;
 }
 

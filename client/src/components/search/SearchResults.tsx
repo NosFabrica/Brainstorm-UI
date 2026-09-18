@@ -9,11 +9,10 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Link, useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
-import { ChevronDown, HelpCircle, Radar, Radio, SlidersHorizontal, X } from "lucide-react";
+import { ChevronDown, HelpCircle, Radar, Radio, SlidersHorizontal } from "lucide-react";
 import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, queryWords, readFilters, sinceForPreset, type DatePreset, type SearchFilterPatch, scopeOf } from "@/lib/searchSyntax";
 import { clientFilterHits, countBelowLine } from "@/lib/clientFilters";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
-import { useProfileMap } from "@/hooks/useProfileMap";
 import { eventStore } from "@/lib/eventStore";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PersonCard } from "@/components/search/PersonCard";
@@ -27,7 +26,6 @@ import type { MinimalEvent } from "@/lib/noteRefs";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import {
   searchStream,
-  suggestProfiles,
   TAB_KINDS,
   type SearchHit,
   type SearchPov,
@@ -224,9 +222,6 @@ function writeTabToUrl(tab: SearchTab) {
   }
 }
 
-/** A stable empty array, so useProfileMap is not asked a fresh question every render. */
-const NO_KEYS: string[] = [];
-
 /** Google's Tools menu for time. */
 const DATE_PRESETS: { value: DatePreset; label: string }[] = [
   { value: "any", label: "Any time" },
@@ -266,103 +261,6 @@ const RANK_FLOORS: { value: number | null; label: string }[] = [
  *  desktop mouse scrolls it as easily as a phone swipes (trackpads/touch already
  *  scroll it natively). */
 
-/**
- * "Ranking as" — whose web of trust orders the page. Signing in does this for you; picking
- * somebody else reads the index through their eyes, which needs no signature because trust
- * scores are public. Signed out, it is the one way to a ranked answer at all.
- *
- * A name, never a key: nobody types an npub, and the token the box carries is hex.
- */
-function ObserverPicker({
-  value,
-  pov,
-  userPubkey,
-  onPick,
-}: {
-  value: string | null;
-  pov: SearchPov;
-  userPubkey?: string;
-  onPick: (pubkey: string | null) => void;
-}) {
-  const [typed, setTyped] = useState("");
-  const [rows, setRows] = useState<SearchResult[] | null>(null);
-  const [busy, setBusy] = useState(false);
-  const req = useRef(0);
-  const chosen = useProfileMap(value ? [value] : NO_KEYS).get(value ?? "");
-
-  useEffect(() => {
-    const q = typed.trim();
-    if (q.length < 2) { setRows(null); setBusy(false); return; }
-    const id = ++req.current;
-    setBusy(true);
-    const timer = window.setTimeout(() => {
-      void suggestProfiles(q, { pov, userPubkey }, { limit: 6 })
-        .then((people) => { if (req.current === id) { setRows(people.slice(0, 5)); setBusy(false); } })
-        .catch(() => { if (req.current === id) { setRows([]); setBusy(false); } });
-    }, 160);
-    return () => window.clearTimeout(timer);
-  }, [typed, pov, userPubkey]);
-
-  if (value) {
-    return (
-      <span
-        className="inline-flex h-8 max-w-full items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
-        data-testid="filter-observer-current"
-      >
-        <span className="truncate">{chosen ? getDisplayLabel(chosen) : "…"}</span>
-        <button
-          type="button"
-          aria-label="Back to your own web of trust"
-          onClick={() => { setTyped(""); onPick(null); }}
-          className="shrink-0 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-          data-testid="filter-observer-reset"
-        >
-          <X className="h-3 w-3" />
-        </button>
-      </span>
-    );
-  }
-
-  return (
-    <span className="relative inline-block w-full sm:w-44">
-      <input
-        type="text"
-        value={typed}
-        onChange={(e) => setTyped(e.target.value)}
-        placeholder="view as…"
-        aria-label="Rank through somebody else's web of trust"
-        autoComplete="off"
-        className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
-        data-testid="filter-observer"
-      />
-      {typed.trim().length >= 2 && (
-        <span className="absolute left-0 right-0 top-full z-20 mt-1 block overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-800 dark:bg-slate-900">
-          {busy && !rows ? (
-            <span className="block px-2 py-1.5 text-[11px] text-slate-400">Searching people…</span>
-          ) : !rows?.length ? (
-            <span className="block px-2 py-1.5 text-[11px] text-slate-400">Nobody matches</span>
-          ) : (
-            rows.map((r) => (
-              <button
-                key={r.pubkey}
-                type="button"
-                onClick={() => { setTyped(""); onPick(r.pubkey); }}
-                className="block w-full truncate px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
-                data-testid="filter-observer-option"
-              >
-                {getDisplayLabel(r)}
-              </button>
-            ))
-          )}
-        </span>
-      )}
-      <span className="sr-only">
-        Only an account whose trust scores are published can rank anything; anybody else returns nothing.
-      </span>
-    </span>
-  );
-}
-
 /** The filters that are real (probed 2026-09-03). Every control rewrites the
  *  full query (words + tokens) through onQueryRewrite; the landing page keeps
  *  the tokens OUT of the visible box and in the URL's `f` instead. */
@@ -384,7 +282,7 @@ function FiltersPanel({
   const preset = datePreset(state);
   // "Custom range" stays open once chosen, even before a day is picked.
   const [customDates, setCustomDates] = useState(preset === "custom");
-  const advancedActive = !!state.reach || state.includeSpam || state.rankFloor != null || !!state.rankAs;
+  const advancedActive = !!state.reach || state.includeSpam || state.rankFloor != null;
   const [advancedOpen, setAdvancedOpen] = useState(advancedActive);
   useEffect(() => {
     if (advancedActive) setAdvancedOpen(true);
@@ -551,15 +449,6 @@ function FiltersPanel({
           ))}
         </select>
       </label>
-      <div className={column}>
-        Ranking as
-        <ObserverPicker
-          value={state.rankAs}
-          pov={pov}
-          userPubkey={userPubkey}
-          onPick={(pubkey) => write({ rankAs: pubkey })}
-        />
-      </div>
       <label className="flex items-center gap-1.5 pb-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
         <input
           type="checkbox"

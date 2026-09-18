@@ -2145,28 +2145,17 @@ describe("SearchResults", () => {
       expect(rewrite).toHaveBeenLastCalledWith("bitcoin include:spam");
     });
 
-    // "Ranking as" is a NAME, never a key: nobody types an npub, and the token is hex.
-    it("Ranking as picks a person and writes observer:<hex>", async () => {
-      const rewrite = vi.fn();
-      const GAL = "f".repeat(64);
-      suggestMock.mockResolvedValue([{ pubkey: GAL, npub: nip19.npubEncode(GAL), displayName: "Guitar Gal", wotRank: null, wotFollowers: null }]);
-      render(<SearchResults query="bitcoin" pov="nosfabrica" onQueryRewrite={rewrite} />);
-      fireEvent.click(screen.getByTestId("search-filters-toggle"));
-      fireEvent.click(screen.getByTestId("filters-advanced-toggle"));
-      fireEvent.change(screen.getByTestId("filter-observer"), { target: { value: "gui" } });
-      fireEvent.click(await screen.findByTestId("filter-observer-option"));
-      expect(rewrite).toHaveBeenLastCalledWith(`bitcoin observer:${GAL}`);
-    });
-
-    it("a chosen observer shows as a person with a way back to your own eyes", async () => {
+    // `observer:` is a debug token: typed by hand, drawn as a pill in the box, and given no
+    // control here on purpose. The panel must neither show it nor count it.
+    it("offers no Ranking-as control, and does not count a typed observer", () => {
       const rewrite = vi.fn();
       const GAL = "f".repeat(64);
       render(<SearchResults query={`bitcoin observer:${GAL}`} pov="nosfabrica" onQueryRewrite={rewrite} />);
       fireEvent.click(screen.getByTestId("search-filters-toggle"));
-      await screen.findByTestId("filter-observer-current");
-      expect(screen.getByTestId("filter-observer-current")).not.toHaveTextContent("npub1");
-      fireEvent.click(screen.getByTestId("filter-observer-reset"));
-      expect(rewrite).toHaveBeenLastCalledWith("bitcoin");
+      expect(screen.queryByTestId("filter-observer")).toBeNull();
+      expect(screen.queryByTestId("filters-active-count")).toBeNull();
+      // Advanced stays shut: a typed observer is not something it can show.
+      expect(screen.queryByTestId("filters-advanced")).toBeNull();
     });
 
     it("dates are presets — one tap for the past week — with Custom revealing the pickers", () => {
