@@ -14,6 +14,7 @@
 import { drawable, groupAt, dateAt, scopeIds, SCOPE_NOUNS, type Segment } from "@/lib/searchQuery";
 import { dayLabel } from "@/lib/searchCalendar";
 import { tone } from "@/lib/tones";
+import { DEFAULT_AVATAR_SRC } from "@/lib/profileDefaults";
 import { nip19 } from "nostr-tools";
 
 const NEWLINE = /[\r\n]/;
@@ -90,27 +91,56 @@ const shortAddr = (coord: string): string => {
 };
 
 /**
- * One pill's classes. Built from `lib/tones` rather than written out, so a pill and a <Chip>
- * that mean the same thing cannot drift apart; the shape matches Chip's `size="sm"`.
+ * One pill's classes, from this app's own parts rather than invented here.
+ *
+ *  - the SHAPE is `<Chip>` (`components/ui/chip.tsx`): a rounded-full, tinted, bordered pill
+ *    whose light and dark treatment comes from `lib/tones`, never from a hand-written
+ *    `bg-x-50 dark:bg-x-500/10` pair.
+ *  - the SIZE is `ScopeChip`'s, the pill this box used to carry for `from:` — `text-sm` on a
+ *    20px line with `py-0.5` and `gap-1.5`. That was already this app's answer to "how big is
+ *    a pill sitting inside the search field", and the pills that joined it should not each
+ *    invent their own.
+ *
+ * The right padding is cut because every pill carries an ×, whose own 20px box fills it —
+ * the mirror of the person pill cutting its LEFT padding for a face.
  */
-const PILL = "inline-flex max-w-full select-none items-center gap-1 whitespace-nowrap rounded-full border px-1.5 py-[1px] align-baseline text-[13px] font-medium leading-[1.35]";
+const PILL =
+  "inline-flex max-w-full select-none items-center gap-1.5 whitespace-nowrap rounded-full border" +
+  " py-0.5 pl-2 pr-1 align-middle text-sm font-medium leading-5";
 const pillClass = (t: Parameters<typeof tone>[0]): string => {
   const c = tone(t);
   return `${PILL} ${c.bg} ${c.text} ${c.border}`;
 };
+/** A person, as ScopeChip had it: a round face fills a rounded corner by itself. */
+const FACE_PILL = "!pl-0.5";
+/**
+ * The face fills the pill's inner height exactly (20px inside 2px of padding and a 1px border),
+ * so a person pill stands the same 26px tall as every other one. ScopeChip's face was larger
+ * because it stood alone beside the text; these sit in a row with the rest of the grammar, and
+ * one of them being taller is what reads as "off".
+ */
+const FACE_SIZE = "h-5 w-5 shrink-0 rounded-full object-cover";
 /** The prefix inside a pill — `since`, `group:`, `site:` — a shade quieter than its value. */
 const KEY_CLASS = "opacity-70";
-const VALUE_CLASS = "max-w-[16rem] truncate";
+const VALUE_CLASS = "max-w-[14rem] truncate";
+
+/** lucide's X, inlined: this module builds HTML rather than JSX, and the app's icons are lucide. */
+const X_ICON =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"' +
+  ' stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="h-3 w-3" aria-hidden="true">' +
+  '<path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
 
 /**
- * Every pill carries its own ×. Backspace deletes one too — it is contenteditable=false, so the
- * browser takes the whole token in one press — but a filter somebody did not mean to add needs
- * a way out that does not involve first finding the caret.
+ * Every pill carries its own ×, in ScopeChip's button. Backspace deletes one too — a pill is
+ * contenteditable=false, so the browser takes the whole token in one press — but a filter
+ * somebody did not mean to add needs a way out that does not involve first finding the caret.
  */
 const removeHtml = (what: string, testId: string) =>
   `<button type="button" tabindex="-1" data-remove="1" data-testid="${testId}"` +
   ` aria-label="Remove ${esc(what)}"` +
-  ` class="-mr-0.5 ml-0.5 inline-flex h-3.5 w-3.5 shrink-0 items-center justify-center rounded-full opacity-50 hover:opacity-100">&times;</button>`;
+  ' class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-slate-400' +
+  ' transition-colors hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700' +
+  ` dark:hover:text-slate-200">${X_ICON}</button>`;
 
 export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers): SearchFieldHandle {
   let token: ActiveToken | null = null;
@@ -236,8 +266,8 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
   /** The avatar a person-shaped pill leads with: their picture, or a quiet disc until it lands. */
   const avatarHtml = (picture: string | null | undefined): string =>
     picture
-      ? `<img src="${esc(picture)}" alt="" class="h-4 w-4 shrink-0 rounded-full object-cover" />`
-      : `<span class="h-4 w-4 shrink-0 rounded-full bg-slate-300 dark:bg-slate-600" aria-hidden="true"></span>`;
+      ? `<img src="${esc(picture)}" alt="" class="${FACE_SIZE}" />`
+      : `<img src="${esc(DEFAULT_AVATAR_SRC)}" alt="" class="${FACE_SIZE}" />`;
 
   function paintPersonChip(span: HTMLElement): void {
     const pk = span.dataset.pk as string;
@@ -249,7 +279,7 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
     // `npub1eee…` while it waited would be the raw scope this box exists not to show.
     const label = name
       ? `<span class="${VALUE_CLASS}">${esc(clip(name, 32))}</span>`
-      : `<span class="inline-block h-3 w-14 animate-pulse rounded bg-slate-200 dark:bg-slate-700" aria-label="Loading who this is"></span>`;
+      : `<span class="inline-block h-3 w-16 animate-pulse rounded bg-slate-200 dark:bg-slate-700" aria-label="Loading who this is"></span>`;
     span.dataset.testid = "search-scope-chip";
     span.innerHTML =
       (field ? `<span class="${KEY_CLASS}">${esc(field)}:</span>` : "") +
@@ -381,7 +411,7 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
       case "observer":
         // A person, like `from:` and `to:` — the difference is only what is being asked about
         // them. Painted by [paintObserverChip] so it re-labels in place when the profile lands.
-        span.className = pillClass("slate");
+        span.className = `${pillClass("slate")} ${FACE_PILL}`;
         span.dataset.pk = seg.pubkey;
         paintObserverChip(span);
         return span;
@@ -409,7 +439,7 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
         span.title = `${seg.raw} — shown by this page, not asked of the relay`;
         return span;
       default: {
-        span.className = pillClass("slate");
+        span.className = `${pillClass("slate")} ${FACE_PILL}`;
         span.dataset.pk = seg.pubkey;
         if (seg.field) span.dataset.field = seg.field;
         paintPersonChip(span);
