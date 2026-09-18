@@ -126,6 +126,13 @@ export interface SearchParams {
    */
   seed?: SearchHit[];
   /**
+   * The seed is a placeholder, not an answer: anything in it that the relay's
+   * own first page does not return is dropped at EOSE. The typeahead's people
+   * are shown this way — they are what the box guessed, and the section's
+   * answer is what the search actually says.
+   */
+  provisionalSeed?: boolean;
+  /**
    * Streams naming the same group share ONE REQ — one filter each, events
    * routed back by kind. The relay works a socket's REQs as a queue, so the
    * Everything page's eight sections were eight turns in it (probed
@@ -313,6 +320,9 @@ export function searchStream(
   let oldest = Infinity;
   let pagesTurned = 0;
   const seed = params.seed ?? [];
+  /** Seeded ids, and the ones the relay's own page confirmed. */
+  const seeded = new Set(seed.map((h) => h.event.id));
+  const confirmed = new Set<string>();
   for (const h of seed) {
     if (seen.has(h.event.id)) continue;
     seen.add(h.event.id);
@@ -450,7 +460,9 @@ export function searchStream(
         if (msg.type === "EVENT" && msg.event) {
           const event = msg.event;
           received++;
-          if (seen.has(event.id) || !hostedByThem(event)) return;
+          if (!hostedByThem(event)) return;
+          confirmed.add(event.id);
+          if (seen.has(event.id)) return;
           seen.add(event.id);
           fresh++;
           oldest = Math.min(oldest, event.created_at);
@@ -465,6 +477,17 @@ export function searchStream(
         } else if (msg.type === "EOSE") {
           eose = true;
           loadingMore = false;
+          // A guess the search did not stand behind does not stay on screen.
+          if (params.provisionalSeed && !closeAtEose && seeded.size > 0) {
+            for (let i = hits.length - 1; i >= 0; i--) {
+              const id = hits[i].event.id;
+              if (seeded.has(id) && !confirmed.has(id)) {
+                hits.splice(i, 1);
+                seen.delete(id);
+              }
+            }
+            seeded.clear();
+          }
           // A page the relay returned short is the last one — counted as the
           // relay sent it, before dedupe: an `until` page always carries the
           // boundary second again. A full page with nothing new is the end too.

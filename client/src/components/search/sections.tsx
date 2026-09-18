@@ -27,18 +27,23 @@ export function useSectionStream(
   pov: SearchPov,
   userPubkey: string | undefined,
   limit: number,
-  { since, group, seed }: { since?: number; group?: SearchGroup; seed?: SearchHit[] } = {},
+  {
+    since,
+    group,
+    seed,
+    provisionalSeed,
+  }: { since?: number; group?: SearchGroup; seed?: SearchHit[]; provisionalSeed?: boolean } = {},
 ): SearchSnapshot | null {
   const [snapshot, setSnapshot] = useState<SearchSnapshot | null>(null);
   // A section restarts when the relay comes back from an outage (lib/serverStatus).
   const { recovery } = useServerStatus();
   useEffect(() => {
     setSnapshot(null);
-    return searchStream(query, { tab, pov, userPubkey, limit, since, group, seed }, setSnapshot);
+    return searchStream(query, { tab, pov, userPubkey, limit, since, group, seed, provisionalSeed }, setSnapshot);
     // `seed` is taken once per query (lib/headStart) — re-running on its
     // identity would restart the section with nothing.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, tab, pov, userPubkey, limit, since, group, recovery]);
+  }, [query, tab, pov, userPubkey, limit, since, group, provisionalSeed, recovery]);
   return snapshot;
 }
 

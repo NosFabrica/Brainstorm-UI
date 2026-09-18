@@ -150,6 +150,46 @@ describe("searchStream", () => {
 // socket's REQs as a queue, so the slowest section held up the rest (probed
 // 2026-09-16: 8 REQs 5,145ms vs one REQ carrying all eight filters 2,514ms,
 // same 75 events). Streams that name the same group share one REQ.
+// The typeahead guesses who you mean; the People section then asks the search
+// the same question. What the search does not return is not a result.
+describe("searchStream — a provisional seed", () => {
+  const person = (id: string): SearchHit => ({
+    event: { id, kind: 0, pubkey: id.padEnd(64, "0"), tags: [], content: "{}", created_at: 5, sig: "s" } as NostrEvent,
+    author: null,
+    rank: null,
+  });
+
+  it("keeps the ones the search returns and drops the ones it does not", async () => {
+    const { subject } = controllable();
+    const snaps: SearchSnapshot[] = [];
+    searchStream(
+      "vitor",
+      { tab: "people", pov: "nosfabrica", seed: [person("guessed"), person("alsoGuessed")], provisionalSeed: true },
+      (s) => snaps.push(s),
+    );
+    await tick();
+    // Both show while the relay is still answering — that is the point of them.
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["guessed", "alsoGuessed"]);
+
+    subject.next(frame(person("guessed").event));
+    subject.next(frame(person("fromRelay").event));
+    subject.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id).sort()).toEqual(["fromRelay", "guessed"]);
+  });
+
+  it("leaves an ordinary seed alone — a remembered page is an answer, not a guess", async () => {
+    const { subject } = controllable();
+    const snaps: SearchSnapshot[] = [];
+    searchStream("vitor", { tab: "people", pov: "nosfabrica", seed: [person("remembered")] }, (s) => snaps.push(s));
+    await tick();
+    subject.next(frame(person("fresh").event));
+    subject.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id).sort()).toEqual(["fresh", "remembered"]);
+  });
+});
+
 describe("searchStream — grouped", () => {
   const note = (id: string, created_at = 1): NostrEvent =>
     ({ id, kind: 1, pubkey: "a".repeat(64), tags: [], content: id, created_at, sig: "s" }) as NostrEvent;

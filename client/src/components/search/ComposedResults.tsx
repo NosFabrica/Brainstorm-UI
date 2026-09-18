@@ -191,6 +191,7 @@ function ComposedResultsBody({
   onSections,
   onSectionHits,
   seeds: remembered,
+  peopleSeedIsGuess,
 }: {
   query: string;
   pov: SearchPov;
@@ -206,6 +207,8 @@ function ComposedResultsBody({
   onSectionHits?: (hits: Record<string, SearchHit[]>) => void;
   /** What they were showing when the reader left. */
   seeds?: Record<string, SearchHit[]>;
+  /** The People seed is the typeahead's guess, to be replaced by the answer. */
+  peopleSeedIsGuess?: boolean;
   onOpenProfile?: (person: SearchResult) => void;
 }) {
   // What the head start collected before the bundle arrived (lib/headStart),
@@ -246,7 +249,7 @@ function ComposedResultsBody({
     return hits.reduce((newest, h) => Math.max(newest, h.event.created_at), 0) || undefined;
   };
 
-  const people = useSectionStream(query, "people", pov, userPubkey, EVERYTHING_SECTIONS.people.limit, { group: EVERYTHING, seed: seeds.people, since: sinceFor("people") });
+  const people = useSectionStream(query, "people", pov, userPubkey, EVERYTHING_SECTIONS.people.limit, { group: EVERYTHING, seed: seeds.people, since: sinceFor("people"), provisionalSeed: peopleSeedIsGuess });
   // Every CONTENT section leads with what's fresh (Benjamin's call:
   // scattered timestamps read as random) — the relay sorts, we ask for
   // recent. People stays trust-ranked; there are no timestamps to scatter.

@@ -598,6 +598,8 @@ export function SearchResults({
   // only the people it had already found.
   const composedSeeds =
     composedMemory.current?.sections ?? (peopleSeed?.length ? { people: peopleSeed } : undefined);
+  // Memory is an answer this page already had; the typeahead is a guess.
+  const peopleSeedIsGuess = !composedMemory.current && !!peopleSeed?.length;
   const rememberSections = useCallback(
     (hits: Record<string, SearchHit[]>) => rememberComposed(composedKey, hits, scrollAtLeave.current),
     [composedKey],
@@ -1228,6 +1230,7 @@ export function SearchResults({
           onSections={setSections}
           onSectionHits={rememberSections}
           seeds={composedSeeds}
+          peopleSeedIsGuess={peopleSeedIsGuess}
           pov={pov}
           userPubkey={userPubkey}
           onTabChange={changeTab}
