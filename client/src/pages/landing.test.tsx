@@ -40,6 +40,19 @@ vi.mock("@/services/nostr", () => ({
   fetchEventsByIds: async () => [],
   fetchAddressableEvents: async () => new Map(),
 }));
+// The faces the box's pills draw. The real one asks the search relay under `include:spam` and
+// the person's own write relays at once; here it answers from the same map as everything else.
+vi.mock("@/services/searchFaces", () => ({
+  fetchPillProfiles: async (pks: string[]) =>
+    new Map(
+      pks
+        .filter((pk) => knownProfiles.has(pk))
+        .map((pk) => {
+          const p = knownProfiles.get(pk)!;
+          return [pk, { pubkey: pk, npub: "", displayName: p.display_name, name: p.name, picture: p.picture, wotRank: null, wotFollowers: null }];
+        }),
+    ),
+}));
 vi.mock("@/services/api", () => ({ apiClient: new Proxy({}, { get: () => async () => null }) }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.85 }));

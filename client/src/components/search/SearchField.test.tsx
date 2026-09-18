@@ -17,9 +17,14 @@ vi.mock("@/services/groups", () => ({
   nameGroups: (...a: unknown[]) => nameGroupsMock(...a),
 }));
 
+// The faces behind `from:`, `to:` and `observer:`. The real one asks the search relay under
+// `include:spam` and the person's own write relays at once; here it answers from this map.
 const profiles = new Map<string, { displayName?: string; picture?: string }>();
-vi.mock("@/hooks/useProfileMap", () => ({
-  useProfileMap: (keys: string[]) => new Map(keys.filter((k) => profiles.has(k)).map((k) => [k, profiles.get(k)])),
+const pillProfilesMock = vi.fn((keys: string[]) =>
+  Promise.resolve(new Map(keys.filter((k) => profiles.has(k)).map((k) => [k, profiles.get(k)]))),
+);
+vi.mock("@/services/searchFaces", () => ({
+  fetchPillProfiles: (keys: string[]) => pillProfilesMock(keys),
 }));
 vi.mock("@/lib/profileSearch", () => ({
   getDisplayLabel: (p: { displayName?: string }) => p.displayName ?? "",
@@ -49,6 +54,7 @@ beforeEach(() => {
   forgetGroupNames();
   suggestGroupsMock.mockReset().mockResolvedValue([]);
   nameGroupsMock.mockReset().mockResolvedValue(0);
+  pillProfilesMock.mockClear();
 });
 
 describe("pills over the value", () => {
@@ -66,12 +72,47 @@ describe("pills over the value", () => {
     expect(pill.title).toContain("written up to 23:59");
   });
 
-  it("a person pill draws the name, never the key — and a skeleton until the name lands", () => {
-    const { view } = mount({ value: `from:${npub}` });
+  it("a person pill draws a skeleton until the name lands — never the key", async () => {
+    mount({ value: `from:${npub}` });
     expect(box().textContent).not.toContain("npub1");
+    expect(box().querySelector('[aria-label="Loading who this is"]')).not.toBeNull();
+    await waitFor(() => expect(pillProfilesMock).toHaveBeenCalledWith([JOE]));
+    // Nobody had a kind-0 for them, so the skeleton stays — and the key still never shows.
+    expect(box().textContent).not.toContain("npub1");
+  });
+
+  it("the name and face replace it in place once they arrive", async () => {
     profiles.set(JOE, { displayName: "Joe Martin", picture: "https://img/joe.jpg" });
-    view.rerender(<SearchField value={`from:${npub}`} onChange={() => {}} onEnter={() => {}} />);
-    return waitFor(() => expect(box().textContent).toContain("Joe Martin"));
+    mount({ value: `from:${npub}` });
+    await waitFor(() => expect(box().textContent).toContain("Joe Martin"));
+    expect(box().querySelector("img")?.getAttribute("src")).toBe("https://img/joe.jpg");
+  });
+
+  // `observer:` is a person too — the difference is only what is being asked about them.
+  it("the observer pill resolves to a name and a face, and says whose eyes these are", async () => {
+    profiles.set(JOE, { displayName: "Joe Martin", picture: "https://img/joe.jpg" });
+    mount({ value: `observer:${JOE}` });
+    await waitFor(() => expect(pillProfilesMock).toHaveBeenCalledWith([JOE]));
+    const pill = box().querySelector('[data-type="observer"]') as HTMLElement;
+    await waitFor(() => expect(pill.textContent).toContain("Joe Martin"));
+    expect(pill.textContent).toContain("ranked as");
+    expect(pill.querySelector("img")?.getAttribute("src")).toBe("https://img/joe.jpg");
+    expect(pill.title).toContain("Joe Martin's");
+  });
+
+  it("an observer nobody has a profile for keeps the short key — better than a pill that says nothing", async () => {
+    mount({ value: `observer:${JOE}` });
+    await waitFor(() => expect(pillProfilesMock).toHaveBeenCalledWith([JOE]));
+    const pill = box().querySelector('[data-type="observer"]') as HTMLElement;
+    expect(pill.textContent).toContain("npub1");
+  });
+
+  it("asks for a key once, however often the box re-renders", async () => {
+    const { view } = mount({ value: `from:${npub}` });
+    await waitFor(() => expect(pillProfilesMock).toHaveBeenCalledTimes(1));
+    view.rerender(<SearchField value={`from:${npub} gm`} onChange={() => {}} onEnter={() => {}} />);
+    view.rerender(<SearchField value={`from:${npub} gm bye`} onChange={() => {}} onEnter={() => {}} />);
+    expect(pillProfilesMock).toHaveBeenCalledTimes(1);
   });
 
   it("a scope pill says what is actually asked, not only what was typed", () => {
@@ -197,6 +238,14 @@ describe("the group picker under group:", () => {
 });
 
 describe("what running it in a browser caught", () => {
+  it("stays left-aligned inside a centered column", () => {
+    // An <input> ignores an inherited `text-align` (the UA stylesheet pins it to `start`); a
+    // contenteditable does not, so the hero's `text-center` centered the query when the box
+    // became one. jsdom applies no stylesheet, so the class is what there is to assert.
+    const { view } = mount({ value: "bitcoin" });
+    expect(view.container.querySelector(".text-left")).not.toBeNull();
+  });
+
   it("keeps the space after a pill — the next word must not glue itself on", () => {
     const { onChange } = mount({ value: "" });
     type("#nostr ");

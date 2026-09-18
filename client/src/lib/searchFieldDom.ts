@@ -233,14 +233,18 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
     return `${p?.name || ""}\u0000${p?.picture || ""}`;
   };
 
+  /** The avatar a person-shaped pill leads with: their picture, or a quiet disc until it lands. */
+  const avatarHtml = (picture: string | null | undefined): string =>
+    picture
+      ? `<img src="${esc(picture)}" alt="" class="h-4 w-4 shrink-0 rounded-full object-cover" />`
+      : `<span class="h-4 w-4 shrink-0 rounded-full bg-slate-300 dark:bg-slate-600" aria-hidden="true"></span>`;
+
   function paintPersonChip(span: HTMLElement): void {
     const pk = span.dataset.pk as string;
     const field = span.dataset.field;
     const p = handlers.personFace(pk);
     const name = p?.name || "";
-    const avatar = p?.picture
-      ? `<img src="${esc(p.picture)}" alt="" class="h-4 w-4 shrink-0 rounded-full object-cover" />`
-      : `<span class="h-4 w-4 shrink-0 rounded-full bg-slate-300 dark:bg-slate-600" aria-hidden="true"></span>`;
+    const avatar = avatarHtml(p?.picture);
     // Until the profile answers, a quiet placeholder — never the key. A pill that printed
     // `npub1eee…` while it waited would be the raw scope this box exists not to show.
     const label = name
@@ -259,6 +263,29 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
       : field === "to"
         ? `${span.dataset.token} — only events that mention ${who}`
         : (span.dataset.token as string);
+  }
+
+  /**
+   * The `observer:` pill: whose eyes the page is read through, as a person.
+   *
+   * Unlike a `from:` pill this one falls back to the short npub rather than a skeleton. A scope
+   * is somebody picked from a list, so a name is coming; an observer is a key somebody typed,
+   * and it may belong to an account with no kind-0 anywhere — a pill that waited forever would
+   * say less than the key does.
+   */
+  function paintObserverChip(span: HTMLElement): void {
+    const pk = span.dataset.pk as string;
+    const p = handlers.personFace(pk);
+    const name = p?.name || "";
+    span.innerHTML =
+      `<span class="${KEY_CLASS}">ranked as</span>` +
+      avatarHtml(p?.picture) +
+      `<span class="${VALUE_CLASS}">${esc(name ? clip(name, 32) : shortKey(pk))}</span>` +
+      removeHtml(`the ${name || "observer"} ranking`, "search-pill-remove");
+    span.dataset.face = faceOf(pk);
+    span.title =
+      `${span.dataset.token} — rank these results through ${name ? `${name}'s` : "that pubkey's"} ` +
+      "web of trust rather than your own";
   }
 
   /**
@@ -352,11 +379,11 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
         span.title = `${seg.raw} — a NIP-50 sort: extension, applied by the relay`;
         return span;
       case "observer":
+        // A person, like `from:` and `to:` — the difference is only what is being asked about
+        // them. Painted by [paintObserverChip] so it re-labels in place when the profile lands.
         span.className = pillClass("slate");
-        span.innerHTML =
-          `<span class="${KEY_CLASS}">ranked as</span>` +
-          `<span class="${VALUE_CLASS}">${esc(shortKey(seg.pubkey))}</span>` + x;
-        span.title = `${seg.raw} — rank these results through that pubkey's web of trust`;
+        span.dataset.pk = seg.pubkey;
+        paintObserverChip(span);
         return span;
       case "lens":
         span.className = pillClass("amber");
@@ -396,6 +423,9 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
     for (const c of Array.from(el.querySelectorAll<HTMLElement>('[data-type="key"]'))) {
       if (c.dataset.face !== faceOf(c.dataset.pk as string)) paintPersonChip(c);
     }
+    for (const c of Array.from(el.querySelectorAll<HTMLElement>('[data-type="observer"]'))) {
+      if (c.dataset.face !== faceOf(c.dataset.pk as string)) paintObserverChip(c);
+    }
     for (const c of Array.from(el.querySelectorAll<HTMLElement>('[data-type="group"]'))) {
       if (c.dataset.face !== handlers.groupFace(c.dataset.gid as string)) paintGroupChip(c);
     }
@@ -429,7 +459,10 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
       }
       el.appendChild(chipEl(seg));
       if (seg.type === "group" && !handlers.groupFace(seg.id)) strangeGroups.push(seg.id);
-      if (seg.type === "key" && !handlers.personFace(seg.pubkey)) unknown.push(seg.pubkey);
+      // Both person-shaped pills ask the same question of the same place.
+      if ((seg.type === "key" || seg.type === "observer") && !handlers.personFace(seg.pubkey)) {
+        unknown.push(seg.pubkey);
+      }
     }
     drawHint();
     if (caret != null) setCaret(caret);

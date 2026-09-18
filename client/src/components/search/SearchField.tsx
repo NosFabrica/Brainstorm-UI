@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { cn } from "@/lib/utils";
-import { useProfileMap } from "@/hooks/useProfileMap";
-import { getDisplayLabel } from "@/lib/profileSearch";
+import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
+import { fetchPillProfiles } from "@/services/searchFaces";
 import { mountSearchField, type ActiveToken, type SearchFieldHandle } from "@/lib/searchFieldDom";
 import { ymd } from "@/lib/searchQuery";
 import {
@@ -82,10 +82,21 @@ export function SearchField({
   const handleRef = useRef<SearchFieldHandle | null>(null);
   const [token, setToken] = useState<ActiveToken | null>(null);
 
-  // Which people the pills are drawing. The map is the hook's; the field asks it for a face
-  // and re-labels in place when one arrives, so a chip never waits on the network to exist.
-  const [wanted, setWanted] = useState<string[]>([]);
-  const profiles = useProfileMap(wanted);
+  // Which people the pills are drawing — `from:`, `to:` and `observer:` alike. The field asks
+  // this map for a face and re-labels in place when one arrives, so a pill never waits on the
+  // network to exist. Keys are asked once: a person nobody has a kind-0 for must not become a
+  // request per render.
+  const [profiles, setProfiles] = useState<Map<string, SearchResult>>(new Map());
+  const askedFor = useRef<Set<string>>(new Set());
+  const wantFace = useCallback((pubkeys: string[]) => {
+    const fresh = pubkeys.filter((pk) => !askedFor.current.has(pk));
+    if (!fresh.length) return;
+    for (const pk of fresh) askedFor.current.add(pk);
+    void fetchPillProfiles(fresh).then((found) => {
+      if (!found.size) return;
+      setProfiles((was) => new Map([...was, ...found]));
+    });
+  }, []);
 
   // ---- the group picker ----------------------------------------------------
   const [groupRows, setGroupRows] = useState<GroupCandidate[] | null>(null);
@@ -108,8 +119,8 @@ export function SearchField({
 
   // --- the handlers the DOM half calls. Held in a ref so the field is mounted once: a
   //     remount would drop the caret and the undo stack on every keystroke.
-  const latest = useRef({ onChange, onEnter, onKeyDown, onRemoveToken, profiles });
-  latest.current = { onChange, onEnter, onKeyDown, onRemoveToken, profiles };
+  const latest = useRef({ onChange, onEnter, onKeyDown, onRemoveToken, profiles, wantFace });
+  latest.current = { onChange, onEnter, onKeyDown, onRemoveToken, profiles, wantFace };
 
   useEffect(() => {
     const el = boxRef.current;
@@ -127,11 +138,7 @@ export function SearchField({
         const p = latest.current.profiles.get(pk);
         return p ? { name: getDisplayLabel(p), picture: p.picture ?? null } : null;
       },
-      needPeople: (pks) =>
-        setWanted((was) => {
-          const next = pks.filter((pk) => !was.includes(pk));
-          return next.length ? [...was, ...next] : was;
-        }),
+      needPeople: (pks) => latest.current.wantFace(pks),
       groupFace: groupName,
       needGroups: (ids) => {
         const fresh = ids.filter((id) => !knowsGroup(id) && !asking.current.has(id));
@@ -286,7 +293,10 @@ export function SearchField({
   const HEAD = { since: "Written on or after", until: "Written on or before" } as const;
 
   return (
-    <div className={cn("relative min-w-0", className)}>
+    // `text-left` is not decoration: the pristine hero centers its column, and where an
+    // <input> ignored that (the UA stylesheet pins it to `start`), a contenteditable inherits
+    // it — so swapping the element quietly centered the query.
+    <div className={cn("relative min-w-0 text-left", className)}>
       <div
         ref={boxRef}
         role="combobox"
