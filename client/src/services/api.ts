@@ -844,6 +844,21 @@ export const apiClient = {
   },
 
   /**
+   * The kind-10040 rows the server hands a user to publish (`GET /setup/{pubkey}`):
+   * which assistant key signs each kind, on which relay. Since PR #86 a bare
+   * "30392" row names where that observer's Trusted Lists are published.
+   */
+  async getSetupRows(pubkey: string): Promise<string[][]> {
+    const response = await authenticatedFetch(`${getBrainstormApi()}/setup/${pubkey}`, {
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!response.ok) throw new Error((await extractApiError(response)) || `Failed to read setup (${response.status})`);
+    const json = await response.json();
+    const rows = json?.data ?? json;
+    return Array.isArray(rows) ? rows : [];
+  },
+
+  /**
    * Computes and publishes one observer's Trusted Lists now (server PR #86):
    * kind-30392 events built from that observer's web of trust, signed by their
    * assistant key, with lists whose tags no longer qualify retracted. The

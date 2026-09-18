@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Home, Loader2 } from "lucide-react";
+import { Chip } from "@/components/ui/chip";
+import { useToast } from "@/hooks/use-toast";
+import { relativeTime } from "@/lib/relativeTime";
+import { readinessOf, type ReadinessRow } from "./readiness";
+import { lastRunFor, rememberRun } from "./lastRuns";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Card } from "@/components/ui/card";
@@ -37,6 +43,40 @@ export function TrustedListsCard({ initialObserver }: { initialObserver?: string
   const [error, setError] = useState<string | null>(null);
   // A server without the endpoint isn't worth retrying; a failed run is.
   const [retryable, setRetryable] = useState(false);
+  const [calculating, setCalculating] = useState(false);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  // Is their trust network in place? Under the admin-users key, so the Users
+  // tab's refreshes (and a calculation started here) update it too.
+  const readinessQuery = useQuery({
+    queryKey: ["/api/admin/users", "trusted-lists-readiness", observer?.pubkey],
+    queryFn: async (): Promise<ReadinessRow | null> => {
+      const pubkey = observer!.pubkey;
+      const page = await apiClient.getAdminUsers({ search: pubkey, size: 5 });
+      const items = ((page as { items?: Array<ReadinessRow & { pubkey: string }> })?.items ?? []);
+      return items.find((u) => u.pubkey === pubkey) ?? null;
+    },
+    enabled: !!observer,
+  });
+
+  async function calculateFirst() {
+    if (!observer || calculating) return;
+    setCalculating(true);
+    try {
+      await apiClient.triggerUserGraperank(observer.pubkey);
+      toast({ title: "Calculation queued", description: "Publish once it finishes — usually a few minutes." });
+      await queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+    } catch (e) {
+      toast({
+        title: "Couldn't start the calculation",
+        description: e instanceof Error ? e.message : "Unknown error",
+        variant: "destructive",
+      });
+    } finally {
+      setCalculating(false);
+    }
+  }
 
   // Sent from the Users tab with only a key: fill in who it is, best-effort.
   useEffect(() => {
@@ -55,6 +95,9 @@ export function TrustedListsCard({ initialObserver }: { initialObserver?: string
       cancelled = true;
     };
   }, [initialObserver]);
+
+  // Until a new run replaces it, the last one this browser saw for them.
+  const remembered = observer && !result && !publishing ? lastRunFor(observer.pubkey) : null;
 
   const name = observer ? observer.name || `${npubFromPubkey(observer.pubkey).slice(0, 12)}…` : "";
 
@@ -76,7 +119,9 @@ export function TrustedListsCard({ initialObserver }: { initialObserver?: string
     setError(null);
     setResult(null);
     try {
-      setResult(await apiClient.publishTrustedLists(observer.pubkey));
+      const run = await apiClient.publishTrustedLists(observer.pubkey);
+      rememberRun(run);
+      setResult(run);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Publishing failed");
       setRetryable(!(e instanceof TrustedListsUnavailableError));
@@ -134,6 +179,14 @@ export function TrustedListsCard({ initialObserver }: { initialObserver?: string
         </div>
       )}
 
+      {observer && readinessQuery.isSuccess && (
+        <Readiness
+          row={readinessQuery.data}
+          calculating={calculating}
+          onCalculate={() => void calculateFirst()}
+        />
+      )}
+
       {observer && (
         <Button
           type="button"
@@ -165,7 +218,19 @@ export function TrustedListsCard({ initialObserver }: { initialObserver?: string
           </AlertDescription>
         </Alert>
       )}
-      {result && <TrustedListRunResult run={result} observerName={name} />}
+      {result ? (
+        <TrustedListRunResult run={result} observerName={name} />
+      ) : (
+        remembered && (
+          <div className="space-y-2">
+            <p className="text-xs text-slate-500 dark:text-slate-400" data-testid="trusted-lists-remembered">
+              Last run on this device · {relativeTime(Math.floor(Date.parse(remembered.at) / 1000))}. The server doesn't keep
+              runs yet, so this is only what this browser saw.
+            </p>
+            <TrustedListRunResult run={remembered.run} observerName={name} />
+          </div>
+        )
+      )}
 
       <Dialog open={confirming} onOpenChange={setConfirming}>
         <DialogContent className="sm:max-w-md" data-testid="trusted-lists-confirm">
@@ -185,5 +250,63 @@ export function TrustedListsCard({ initialObserver }: { initialObserver?: string
         </DialogContent>
       </Dialog>
     </Card>
+  );
+}
+
+/**
+ * Whether the chosen observer's trust network is in place — the most common
+ * reason a publish comes back empty — and, when it isn't, a way to start it.
+ */
+function Readiness({
+  row,
+  calculating,
+  onCalculate,
+}: {
+  row: ReadinessRow | null;
+  calculating: boolean;
+  onCalculate: () => void;
+}) {
+  const r = readinessOf(row);
+  const start = (label: string) => (
+    <Button type="button" variant="outline" size="sm" className="h-7 gap-1.5 text-xs" disabled={calculating} onClick={onCalculate}>
+      {calculating && <Loader2 className="h-3.5 w-3.5 animate-spin" />} {label}
+    </Button>
+  );
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs text-slate-600 dark:text-slate-300" data-testid="trusted-lists-readiness">
+      {r.kind === "ready" && (
+        <>
+          <Chip tone="success" size="sm" dot>Ready</Chip>
+          <span>
+            Trust network calculated
+            {r.calculatedAt ? ` ${relativeTime(Math.floor(Date.parse(r.calculatedAt) / 1000))}` : ""}.
+          </span>
+        </>
+      )}
+      {r.kind === "never" && (
+        <>
+          <Chip tone="warning" size="sm" dot>Not calculated</Chip>
+          <span className="basis-full sm:basis-auto sm:flex-1">
+            Their trust network hasn't been calculated yet, so nobody would qualify and their lists would come back empty.
+          </span>
+          {start("Calculate first")}
+        </>
+      )}
+      {r.kind === "failed" && (
+        <>
+          <Chip tone="danger" size="sm" dot>Failed</Chip>
+          <span className="basis-full sm:basis-auto sm:flex-1">
+            Their last trust calculation failed — their lists may come back empty.
+          </span>
+          {start("Calculate again")}
+        </>
+      )}
+      {r.kind === "pending" && (
+        <>
+          <Chip tone="info" size="sm" dot>Calculating</Chip>
+          <span>Their trust network is being calculated — publish once it finishes.</span>
+        </>
+      )}
+    </div>
   );
 }

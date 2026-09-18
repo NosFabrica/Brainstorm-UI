@@ -1,4 +1,7 @@
+import { useState } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
+import { TrustedListMembers } from "./TrustedListMembers";
 import { Chip } from "@/components/ui/chip";
 import { StatTile } from "@/components/ui/stat-tile";
 import type { Tone } from "@/lib/tones";
@@ -30,6 +33,7 @@ const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one :
 
 /** What one run did for one observer: the counts, then every list it touched. */
 export function TrustedListRunResult({ run, observerName }: { run: TrustedListRunData; observerName: string }) {
+  const [open, setOpen] = useState<string | null>(null);
   return (
     <div className="space-y-4" data-testid="trusted-lists-result">
       <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
@@ -76,6 +80,27 @@ export function TrustedListRunResult({ run, observerName }: { run: TrustedListRu
               </span>
               {t.status === "failed" && t.error && (
                 <span className="basis-full text-xs text-red-600 dark:text-red-400">{t.error}</span>
+              )}
+              {/* Only a published list has anything on the relay to read back. */}
+              {t.status === "published" && run.signing_pubkey && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="ml-auto h-7 text-xs"
+                  onClick={() => setOpen((o) => (o === t.d_tag ? null : t.d_tag))}
+                  data-testid={`trusted-list-view-${t.slug}`}
+                >
+                  {open === t.d_tag ? "Hide list" : "View list"}
+                </Button>
+              )}
+              {open === t.d_tag && run.signing_pubkey && (
+                <TrustedListMembers
+                  observer={run.observer}
+                  signingPubkey={run.signing_pubkey}
+                  dTag={t.d_tag}
+                  testId={`trusted-list-members-${t.slug}`}
+                />
               )}
             </li>
           ))}

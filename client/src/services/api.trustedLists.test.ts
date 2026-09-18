@@ -80,3 +80,23 @@ describe("apiClient.publishTrustedLists", () => {
     await expect(apiClient.publishTrustedLists(OBSERVER)).rejects.toBeInstanceOf(TrustedListsUnavailableError);
   });
 });
+
+describe("apiClient.getSetupRows", () => {
+  beforeEach(() => {
+    active.account = stubAccount("test-token");
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  // Which key signs what, on which relay — where an observer's lists live.
+  it("GETs /setup/{pubkey} and returns its rows", async () => {
+    const rows = [["30382:rank", "c".repeat(64), "wss://ta.example"], ["30392", "c".repeat(64), "wss://tl.example"]];
+    const fetchMock = mockFetchOnce({ code: 200, message: null, data: rows });
+
+    const result = await apiClient.getSetupRows(OBSERVER);
+
+    expect(fetchMock.mock.calls[0][0]).toBe(`http://test.local/setup/${OBSERVER}`);
+    expect(result).toEqual(rows);
+  });
+});

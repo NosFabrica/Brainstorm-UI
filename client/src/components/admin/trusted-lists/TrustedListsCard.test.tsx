@@ -12,7 +12,9 @@ import { nip19 } from "nostr-tools";
 import { TrustedListsUnavailableError, type TrustedListRunData } from "@/services/api";
 
 const publishTrustedLists = vi.fn<(observer: string) => Promise<TrustedListRunData>>();
-const getAdminUsers = vi.fn(async (_p: { search?: string; size?: number }) => ({ items: [] as Array<{ pubkey: string }>, total: 0, pages: 0 }));
+type UserRow = { pubkey: string } & Record<string, unknown>;
+const getAdminUsers = vi.fn(async (_p: { search?: string; size?: number }) => ({ items: [] as UserRow[], total: 0, pages: 0 }));
+const triggerUserGraperank = vi.fn(async (_pubkey: string) => undefined as unknown);
 vi.mock("@/services/api", async (importOriginal) => {
   const actual = await importOriginal<typeof import("@/services/api")>();
   return {
@@ -21,6 +23,7 @@ vi.mock("@/services/api", async (importOriginal) => {
       ...actual.apiClient,
       publishTrustedLists: (observer: string) => publishTrustedLists(observer),
       getAdminUsers: (p: { search?: string; size?: number }) => getAdminUsers(p),
+      triggerUserGraperank: (pubkey: string) => triggerUserGraperank(pubkey),
     },
   };
 });
@@ -56,6 +59,7 @@ const RUN: TrustedListRunData = {
 describe("TrustedListsCard", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.clear();
   });
 
   it("publishes the house's lists after a confirm that names it, and shows what the run did", async () => {
@@ -162,5 +166,45 @@ describe("TrustedListsCard", () => {
 
     expect(await screen.findByTestId("trusted-lists-observer")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /publish trusted lists/i })).toBeInTheDocument();
+  });
+
+  // Lists come from the observer's own web of trust: until it's calculated,
+  // nobody qualifies and the run comes back empty. Say so before publishing.
+  it("warns when the observer's trust network was never calculated, and can start it", async () => {
+    getAdminUsers.mockResolvedValue({ items: [{ pubkey: HOUSE, times_calculated: 0, latest_status: null, last_updated: null }], total: 1, pages: 1 });
+    renderWithProviders(<TrustedListsCard />);
+    fireEvent.click(screen.getByRole("button", { name: /brainstorm \(house\)/i }));
+
+    const readiness = await screen.findByTestId("trusted-lists-readiness");
+    await waitFor(() => expect(readiness).toHaveTextContent(/hasn't been calculated yet/i));
+    fireEvent.click(within(readiness).getByRole("button", { name: /calculate first/i }));
+
+    await waitFor(() => expect(triggerUserGraperank).toHaveBeenCalledWith(HOUSE));
+  });
+
+  it("says when the observer's trust network is ready, with nothing to start", async () => {
+    getAdminUsers.mockResolvedValue({ items: [{ pubkey: HOUSE, times_calculated: 4, latest_status: "success", last_updated: "2026-09-15T10:00:00Z" }], total: 1, pages: 1 });
+    renderWithProviders(<TrustedListsCard />);
+    fireEvent.click(screen.getByRole("button", { name: /brainstorm \(house\)/i }));
+
+    const readiness = await screen.findByTestId("trusted-lists-readiness");
+    await waitFor(() => expect(readiness).toHaveTextContent(/trust network calculated/i));
+    expect(within(readiness).queryByRole("button", { name: /calculate/i })).toBeNull();
+  });
+
+  // The server keeps no record of runs yet: a reload shouldn't lose the last one.
+  it("shows the last run for this observer after a reload, marked as this device's", async () => {
+    publishTrustedLists.mockResolvedValue(RUN);
+    const first = renderWithProviders(<TrustedListsCard />);
+    await publishHouse();
+    await screen.findByTestId("trusted-lists-result");
+    first.unmount();
+
+    renderWithProviders(<TrustedListsCard />);
+    fireEvent.click(screen.getByRole("button", { name: /brainstorm \(house\)/i }));
+
+    expect(await screen.findByTestId("trusted-lists-remembered")).toHaveTextContent(/last run on this device/i);
+    expect(screen.getByTestId("trusted-lists-result")).toHaveTextContent("Published 2 lists");
+    expect(publishTrustedLists).toHaveBeenCalledTimes(1);
   });
 });
