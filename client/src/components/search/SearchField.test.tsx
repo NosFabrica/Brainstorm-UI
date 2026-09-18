@@ -238,6 +238,24 @@ describe("the group picker under group:", () => {
 });
 
 describe("what running it in a browser caught", () => {
+  it("pills carry vertical margin, so a wrapped query's rows do not sit flush", () => {
+    // A pill is 26px tall in a 24.8px line: the line box grows to exactly the pill and no
+    // further, so without this the rows of a wrapped query touch. An inline-flex box
+    // contributes its MARGIN box to the line's height, which is what opens the 6px gap.
+    // (jsdom has no layout, so the class is what there is to assert.)
+    mount({ value: "#nostr since:2026-01-02" });
+    for (const pill of box().querySelectorAll("[data-token]")) {
+      expect((pill as HTMLElement).className).toContain("my-[3px]");
+    }
+  });
+
+  it("the neutral pill is outlined like the tinted ones", () => {
+    // `tone("slate")` fills with slate-100 and outlines with slate-200 — one step apart, which
+    // reads as no outline at all beside the other tones' pale -50 tint under a -200 border.
+    mount({ value: `from:${npub}` });
+    expect((box().querySelector('[data-type="key"]') as HTMLElement).className).toContain("border-slate-300");
+  });
+
   it("stays left-aligned inside a centered column", () => {
     // An <input> ignores an inherited `text-align` (the UA stylesheet pins it to `start`); a
     // contenteditable does not, so the hero's `text-center` centered the query when the box

@@ -106,10 +106,21 @@ const shortAddr = (coord: string): string => {
  */
 const PILL =
   "inline-flex max-w-full select-none items-center gap-1.5 whitespace-nowrap rounded-full border" +
-  " py-0.5 pl-2 pr-1 align-middle text-sm font-medium leading-5";
+  " my-[3px] py-0.5 pl-2 pr-1 align-middle text-sm font-medium leading-5";
+
+/**
+ * A pill is 26px tall in a 24.8px line, so a query that wraps puts its rows flush against each
+ * other — the line box grows to exactly the pill and no further. The 3px of vertical margin is
+ * what separates them: an inline-flex box contributes its MARGIN box to the line's height, so
+ * rows of pills sit 6px apart while a row of plain words keeps the field's own line-height.
+ */
 const pillClass = (t: Parameters<typeof tone>[0]): string => {
   const c = tone(t);
-  return `${PILL} ${c.bg} ${c.text} ${c.border}`;
+  // The neutral tone fills with slate-100 and outlines with slate-200 — a step apart, which
+  // reads as no outline at all while every other tone's pale -50 tint shows its border plainly.
+  // One step further out, so a person pill is outlined like the rest of them.
+  const border = t === "slate" ? "border-slate-300 dark:border-slate-600" : c.border;
+  return `${PILL} ${c.bg} ${c.text} ${border}`;
 };
 /** A person, as ScopeChip had it: a round face fills a rounded corner by itself. */
 const FACE_PILL = "!pl-0.5";
