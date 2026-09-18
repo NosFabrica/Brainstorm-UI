@@ -10,7 +10,7 @@ import { Link, useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
 import { ChevronDown, Radar, Radio, SlidersHorizontal } from "lucide-react";
-import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, readFilters, sinceForPreset, splitFilters, type DatePreset, type SearchFilterPatch, scopeOf } from "@/lib/searchSyntax";
+import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, queryWords, readFilters, sinceForPreset, type DatePreset, type SearchFilterPatch, scopeOf } from "@/lib/searchSyntax";
 import { clientFilterHits, countBelowLine } from "@/lib/clientFilters";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
 import { eventStore } from "@/lib/eventStore";
@@ -262,7 +262,7 @@ function FiltersPanel({
 }) {
   // What the relay will actually run: a wordless browse cannot be rank- or
   // follower-sorted, so the panel shows the fallback and greys those two.
-  const browsing = !splitFilters(query).text;
+  const browsing = !queryWords(query);
   const state = readFilters(browsing ? browseSafeQuery(query) : query);
   const preset = datePreset(state);
   // "Custom range" stays open once chosen, even before a day is picked.
@@ -547,7 +547,7 @@ export function SearchResults({
   // put the page named "List of comedians" 26th under a month of news; best
   // match had it first, the other comedian lists behind it (relay probe,
   // 2026-09-07). A wordless browse still asks newest — there is nothing to match.
-  const articlesByRelevance = tab === "articles" && !!splitFilters(query).text;
+  const articlesByRelevance = tab === "articles" && !!queryWords(query);
   const effectiveQuery =
     !userSorted && tab !== "everything" && tab !== "people" && !articlesByRelevance
       ? `${safeQuery} sort:recent`.trim()

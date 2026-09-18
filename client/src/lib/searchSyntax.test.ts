@@ -9,11 +9,13 @@ import { describe, expect, it } from "vitest";
 import { nip19 } from "nostr-tools";
 import { activeFilterCount, applyFilters, browseSafeQuery, datePreset, liftQuery, personAssist, personScope, readFilters, scopeOf, scopedPlaceholder, scopedSearchHref, seeAllLabel, sinceForPreset, splitFilters } from "./searchSyntax";
 
-// Probed 2026-09-03: the relay ignores filter:rank and knows no hops. The
-// controls that need those are done on the CLIENT, but still speak grammar —
+// The relay knows no hops and has no verification of its own, so those two
+// controls are done on the CLIENT — but they still speak grammar:
 // trust:verified and reach:follows|friends ride the box like every other
 // token, and liftQuery keeps them off the wire (sent as text they'd match
-// nothing).
+// nothing). `filter:rank:gte:N` is NOT one of these: the relay's own store
+// deletes rows below the floor (vespa-relay store e1ecd7f23e), so it rides
+// the search string like sort: and observer:.
 describe("client-side filter tokens", () => {
   it("writes and reads trust:verified and reach:", () => {
     expect(applyFilters("bitcoin", { verifiedOnly: true })).toBe("bitcoin trust:verified");
@@ -175,6 +177,7 @@ describe("readFilters", () => {
       sort: "rank",
       since: "2026-01-01",
       until: null,
+      rankFloor: 30,
       verifiedOnly: false,
       reach: null,
       includeSpam: true,
@@ -184,6 +187,7 @@ describe("readFilters", () => {
       sort: null,
       since: null,
       until: null,
+      rankFloor: null,
       verifiedOnly: false,
       reach: null,
       includeSpam: false,

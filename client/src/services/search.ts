@@ -21,7 +21,7 @@ import { reportSearchFailure } from "@/lib/serverStatus";
 import { searchRelay } from "@/lib/searchRelay";
 import { zapstoreRelay } from "@/lib/zapstoreRelay";
 import { eventStore } from "@/lib/eventStore";
-import { liftQuery } from "@/lib/searchSyntax";
+import { liftQuery, searchFilters } from "@/lib/searchSyntax";
 import { resolveHouseObserver } from "@/services/trustSource";
 import type { SearchResult } from "@/lib/profileSearch";
 
@@ -228,9 +228,11 @@ export function searchStream(
     if (cancelled) return;
 
     const kinds = kindsForTab(params.tab);
-    // from:/to:/#tag/since:/until: become NIP-01 filter fields (the relay
-    // never sees those prefixes — verified by probing); the relay's own
-    // extensions (sort:/include:spam/filter:rank:/observer:) stay in `search`.
+    // from:/to:/#tag/since:/until:/group:/label:/the NIP-73 scopes become NIP-01
+    // filter FIELDS (the relay never sees those prefixes — verified by probing);
+    // the relay's own extensions (sort:/include:spam/filter:rank:/observer:) stay
+    // in `search`. A #tag, a group:, a label: or a scope asks several questions
+    // at once, so what comes back is a UNION of filters ORed in one REQ.
     const lifted = liftQuery(query);
     // A NIP-53 stream is published by the streaming platform's key with the
     // streamer as its `p` host, so a person's live streams are the ones they
@@ -238,22 +240,25 @@ export function searchStream(
     // holds 161 ended streams with no recording; the platform's holds her 300
     // recent ones, 67 with replays). On the Live tab a person scope asks by host.
     const byHost = params.tab === "live" && !!lifted.authors;
-    const p = byHost ? [...new Set([...(lifted["#p"] ?? []), ...(lifted.authors ?? [])])] : lifted["#p"];
     // `#p` matches any role; a stream is theirs when they host it (a missing
     // role reads as host — self-published streams often carry none).
     const hosts = byHost ? new Set(lifted.authors) : null;
     const hostedByThem = (event: NostrEvent) =>
       !hosts || event.tags.some((t) => t[0] === "p" && hosts.has(t[1]) && (!t[3] || t[3].toLowerCase() === "host"));
-    const filter: import("nostr-tools").Filter = {
-      ...(kinds ? { kinds } : {}),
-      ...(lifted.authors && !byHost ? { authors: lifted.authors } : {}),
-      ...(p && p.length ? { "#p": p } : {}),
-      ...(lifted["#t"] ? { "#t": lifted["#t"] } : {}),
-      ...(params.since !== undefined ? { since: params.since } : lifted.since !== undefined ? { since: lifted.since } : {}),
-      ...(lifted.until !== undefined ? { until: lifted.until } : {}),
-      search: withObserver(lifted.search, observer),
-      limit: params.limit ?? DEFAULT_LIMIT,
-    };
+    const limit = params.limit ?? DEFAULT_LIMIT;
+    // On the Live tab the author question moves to `#p`, so the grammar's own
+    // `authors` is dropped and the keys ride the base every filter carries.
+    const askedBy = byHost ? query.replace(/(^|\s)from:\S+/gi, " ") : query;
+    const filters = searchFilters(askedBy, {
+      kinds,
+      limit,
+      searchString: (terms) => withObserver(terms, observer),
+      base: byHost && lifted.authors ? { "#p": lifted.authors } : undefined,
+      since: params.since,
+    });
+    // What the deadline, the sort probe and the paging cursor read: every
+    // filter of a union carries the same words, window and lens.
+    const filter = filters[0];
 
     // --- Author hydration: kind-0s for non-profile hits. The event store
     // answers known authors synchronously; unknowns are debounced into one
@@ -309,7 +314,10 @@ export function searchStream(
     const recent = /(^|\s)sort:recent(\s|$)/.test(filter.search ?? "");
     const pageSubs: { unsubscribe: () => void }[] = [];
 
-    const openPage = (pageFilter: import("nostr-tools").Filter, closeAtEose: boolean) => {
+    const openPage = (page: import("nostr-tools").Filter[], closeAtEose: boolean) => {
+      // The page's own size, for the short-page test below: the union's first
+      // filter is the one carrying the full limit (the rest are side questions).
+      const pageLimit_ = page[0]?.limit ?? pageLimit;
       let received = 0;
       let fresh = 0;
       // The first page of a seeded stream is a refresh: what it brings is
@@ -328,7 +336,7 @@ export function searchStream(
         }
       }, REQ_DEADLINE_MS);
       let answered = false;
-      const sub = relay.req(pageFilter).subscribe({
+      const sub = relay.req(page).subscribe({
         error: (err: unknown) => {
           clearTimeout(deadline);
           if (cancelled) return;
@@ -366,7 +374,7 @@ export function searchStream(
           // A page the relay returned short is the last one — counted as the
           // relay sent it, before dedupe: an `until` page always carries the
           // boundary second again. A full page with nothing new is the end too.
-          if (received < (pageFilter.limit ?? pageLimit) || fresh === 0) exhausted = true;
+          if (received < pageLimit_ || fresh === 0) exhausted = true;
           if (closeAtEose) sub.unsubscribe();
           emit({ timeMs: Date.now() - startedAt });
         } else if (msg.type === "CLOSED") {
@@ -388,12 +396,16 @@ export function searchStream(
       }
       loadingMore = true;
       pagesTurned++;
-      const next: import("nostr-tools").Filter = recent ? { ...filter, until: oldest } : { ...filter, limit: nextLimit };
+      // Every filter of the union turns together: a `recent` page walks back
+      // from the oldest second any of them returned, a ranked one grows.
+      const next = filters.map((f) =>
+        recent ? { ...f, until: oldest } : { ...f, limit: f.limit === limit ? nextLimit : f.limit },
+      );
       emit({});
       openPage(next, true);
     };
 
-    openPage(filter, false);
+    openPage(filters, false);
     unsubscribe = () => {
       for (const sub of pageSubs) sub.unsubscribe();
       hydrateSub?.unsubscribe();
