@@ -9,10 +9,11 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Link, useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
-import { ChevronDown, Radar, Radio, SlidersHorizontal } from "lucide-react";
+import { ChevronDown, HelpCircle, Radar, Radio, SlidersHorizontal, X } from "lucide-react";
 import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, queryWords, readFilters, sinceForPreset, type DatePreset, type SearchFilterPatch, scopeOf } from "@/lib/searchSyntax";
 import { clientFilterHits, countBelowLine } from "@/lib/clientFilters";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
+import { useProfileMap } from "@/hooks/useProfileMap";
 import { eventStore } from "@/lib/eventStore";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PersonCard } from "@/components/search/PersonCard";
@@ -26,6 +27,7 @@ import type { MinimalEvent } from "@/lib/noteRefs";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import {
   searchStream,
+  suggestProfiles,
   TAB_KINDS,
   type SearchHit,
   type SearchPov,
@@ -56,6 +58,7 @@ import { MusicResults } from "@/components/search/MusicResults";
 import { FacetChip, FacetRow } from "@/components/search/sections";
 import { KnowledgePanel } from "@/components/search/KnowledgePanel";
 import { ComposedResults } from "@/components/search/ComposedResults";
+import { SearchSyntaxSheet, useSyntaxSheetShortcut } from "@/components/search/SearchSyntaxSheet";
 import { capPerAuthor, collapseHits } from "@/lib/searchCollapse";
 
 const NOTE_KINDS = new Set(TAB_KINDS.notes);
@@ -221,6 +224,9 @@ function writeTabToUrl(tab: SearchTab) {
   }
 }
 
+/** A stable empty array, so useProfileMap is not asked a fresh question every render. */
+const NO_KEYS: string[] = [];
+
 /** Google's Tools menu for time. */
 const DATE_PRESETS: { value: DatePreset; label: string }[] = [
   { value: "any", label: "Any time" },
@@ -241,10 +247,121 @@ const SORT_OPTIONS = [
   { value: "followers", label: "Most followed authors" },
 ];
 
+/**
+ * The relay's `filter:rank:gte:N`, on the 0..100 trust scale. A floor DELETES rows below it
+ * rather than sinking them (vespa-relay store e1ecd7f23e), which is why it is a coarse menu
+ * and not a slider: the difference between 50 and 52 is not a decision anybody makes, and
+ * each step is a page of results gone.
+ */
+const RANK_FLOORS: { value: number | null; label: string }[] = [
+  { value: null, label: "No floor" },
+  { value: 25, label: "Rank 25+" },
+  { value: 50, label: "Rank 50+" },
+  { value: 75, label: "Rank 75+" },
+  { value: 90, label: "Rank 90+" },
+];
+
 /** A one-line facet chip strip: horizontal scroll with the scrollbar hidden,
  *  a soft right-edge fade to signal "more", and mouse-wheel → horizontal so a
  *  desktop mouse scrolls it as easily as a phone swipes (trackpads/touch already
  *  scroll it natively). */
+
+/**
+ * "Ranking as" — whose web of trust orders the page. Signing in does this for you; picking
+ * somebody else reads the index through their eyes, which needs no signature because trust
+ * scores are public. Signed out, it is the one way to a ranked answer at all.
+ *
+ * A name, never a key: nobody types an npub, and the token the box carries is hex.
+ */
+function ObserverPicker({
+  value,
+  pov,
+  userPubkey,
+  onPick,
+}: {
+  value: string | null;
+  pov: SearchPov;
+  userPubkey?: string;
+  onPick: (pubkey: string | null) => void;
+}) {
+  const [typed, setTyped] = useState("");
+  const [rows, setRows] = useState<SearchResult[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const req = useRef(0);
+  const chosen = useProfileMap(value ? [value] : NO_KEYS).get(value ?? "");
+
+  useEffect(() => {
+    const q = typed.trim();
+    if (q.length < 2) { setRows(null); setBusy(false); return; }
+    const id = ++req.current;
+    setBusy(true);
+    const timer = window.setTimeout(() => {
+      void suggestProfiles(q, { pov, userPubkey }, { limit: 6 })
+        .then((people) => { if (req.current === id) { setRows(people.slice(0, 5)); setBusy(false); } })
+        .catch(() => { if (req.current === id) { setRows([]); setBusy(false); } });
+    }, 160);
+    return () => window.clearTimeout(timer);
+  }, [typed, pov, userPubkey]);
+
+  if (value) {
+    return (
+      <span
+        className="inline-flex h-8 max-w-full items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+        data-testid="filter-observer-current"
+      >
+        <span className="truncate">{chosen ? getDisplayLabel(chosen) : "…"}</span>
+        <button
+          type="button"
+          aria-label="Back to your own web of trust"
+          onClick={() => { setTyped(""); onPick(null); }}
+          className="shrink-0 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+          data-testid="filter-observer-reset"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <span className="relative inline-block w-full sm:w-44">
+      <input
+        type="text"
+        value={typed}
+        onChange={(e) => setTyped(e.target.value)}
+        placeholder="view as…"
+        aria-label="Rank through somebody else's web of trust"
+        autoComplete="off"
+        className="h-8 w-full rounded-lg border border-slate-200 bg-white px-2 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-accent/30 dark:border-slate-800 dark:bg-slate-900 dark:text-slate-200"
+        data-testid="filter-observer"
+      />
+      {typed.trim().length >= 2 && (
+        <span className="absolute left-0 right-0 top-full z-20 mt-1 block overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg dark:border-slate-800 dark:bg-slate-900">
+          {busy && !rows ? (
+            <span className="block px-2 py-1.5 text-[11px] text-slate-400">Searching people…</span>
+          ) : !rows?.length ? (
+            <span className="block px-2 py-1.5 text-[11px] text-slate-400">Nobody matches</span>
+          ) : (
+            rows.map((r) => (
+              <button
+                key={r.pubkey}
+                type="button"
+                onClick={() => { setTyped(""); onPick(r.pubkey); }}
+                className="block w-full truncate px-2 py-1.5 text-left text-xs text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800"
+                data-testid="filter-observer-option"
+              >
+                {getDisplayLabel(r)}
+              </button>
+            ))
+          )}
+        </span>
+      )}
+      <span className="sr-only">
+        Only an account whose trust scores are published can rank anything; anybody else returns nothing.
+      </span>
+    </span>
+  );
+}
 
 /** The filters that are real (probed 2026-09-03). Every control rewrites the
  *  full query (words + tokens) through onQueryRewrite; the landing page keeps
@@ -267,7 +384,7 @@ function FiltersPanel({
   const preset = datePreset(state);
   // "Custom range" stays open once chosen, even before a day is picked.
   const [customDates, setCustomDates] = useState(preset === "custom");
-  const advancedActive = !!state.reach || state.includeSpam;
+  const advancedActive = !!state.reach || state.includeSpam || state.rankFloor != null || !!state.rankAs;
   const [advancedOpen, setAdvancedOpen] = useState(advancedActive);
   useEffect(() => {
     if (advancedActive) setAdvancedOpen(true);
@@ -415,12 +532,40 @@ function FiltersPanel({
           </div>
         </div>
       )}
+      {/* The relay's own floor, the opposite end of the same dial as "Include unranked":
+          one lifts the floor to nothing, the other raises it. Both cannot be on, so
+          choosing a floor turns the waiver off. */}
+      <label className={column}>
+        Trust floor
+        <select
+          className={control}
+          value={state.rankFloor ?? ""}
+          onChange={(e) => {
+            const next = e.target.value === "" ? null : Number(e.target.value);
+            write(next == null ? { rankFloor: null } : { rankFloor: next, includeSpam: false });
+          }}
+          data-testid="filter-rank-floor"
+        >
+          {RANK_FLOORS.map((o) => (
+            <option key={o.label} value={o.value ?? ""}>{o.label}</option>
+          ))}
+        </select>
+      </label>
+      <div className={column}>
+        Ranking as
+        <ObserverPicker
+          value={state.rankAs}
+          pov={pov}
+          userPubkey={userPubkey}
+          onPick={(pubkey) => write({ rankAs: pubkey })}
+        />
+      </div>
       <label className="flex items-center gap-1.5 pb-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
         <input
           type="checkbox"
           className="h-3.5 w-3.5 accent-brand-primary"
           checked={state.includeSpam}
-          onChange={(e) => write({ includeSpam: e.target.checked })}
+          onChange={(e) => write(e.target.checked ? { includeSpam: true, rankFloor: null } : { includeSpam: false })}
           data-testid="filter-spam"
         />
         Include unranked accounts
@@ -532,6 +677,8 @@ export function SearchResults({
     };
   }, [tab, query, panelPerson?.pubkey]);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [syntaxOpen, setSyntaxOpen] = useState(false);
+  useSyntaxSheetShortcut(useCallback(() => setSyntaxOpen(true), []));
 
   // Everything composes its own purpose-ranked section streams — unless the
   // user typed a sort:, which is them choosing ONE order for one list.
@@ -1114,6 +1261,20 @@ export function SearchResults({
         <div className="ml-1 flex shrink-0 items-center gap-1 sm:gap-2">
           <MoreTabs tab={tab} onChange={changeTab} />
           {perspective}
+          {/* The syntax sheet, before the sorting: what can be typed into the box is the
+              question people have first. The mark alone — a labelled button wraps this row
+              on a phone — and `aria-label` says what it is. */}
+          <button
+            type="button"
+            aria-haspopup="dialog"
+            aria-label="Search syntax"
+            title="Search syntax — people, days, topics, and the tokens that rank the answer. Shortcut: ?"
+            onClick={() => setSyntaxOpen(true)}
+            className={tabClass(false) + " inline-flex items-center !px-2"}
+            data-testid="search-syntax-toggle"
+          >
+            <HelpCircle className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
+          </button>
           {onQueryRewrite && (
             <button
               type="button"
@@ -1139,6 +1300,7 @@ export function SearchResults({
       </div>
 
       {filtersOpen && onQueryRewrite && <FiltersPanel query={query} pov={pov} userPubkey={userPubkey} onQueryRewrite={onQueryRewrite} />}
+      <SearchSyntaxSheet open={syntaxOpen} onOpenChange={setSyntaxOpen} />
 
       {/* Google anatomy: the knowledge panel is FIRST in the DOM — the top
           card on mobile, the right rail on desktop (flex order). When no
