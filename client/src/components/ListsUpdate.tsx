@@ -72,7 +72,8 @@ function UpdateButton({ busy, onClick }: { busy: boolean; onClick: () => void })
       type="button"
       onClick={onClick}
       disabled={busy}
-      className="inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-brand-primary px-3 py-1 text-xs font-bold text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-70"
+      // Thumb-sized on phones (about 40px tall); the slim chip from sm up.
+      className="inline-flex min-h-[40px] items-center justify-center gap-1 whitespace-nowrap rounded-full bg-brand-primary px-4 py-1 text-[13px] font-bold text-white transition-colors hover:bg-brand-primary-hover disabled:opacity-70 sm:min-h-0 sm:px-3 sm:text-xs"
       data-testid="button-lists-update"
     >
       {busy ? (

@@ -105,4 +105,12 @@ describe("ListsUpdatePill", () => {
     expect(within(line).getByRole("img", { name: "Brainstorm" })).toBeInTheDocument();
     expect(line.querySelector(".lucide-sparkles")).toBeNull();
   });
+
+  // A thumb, not a cursor: about 40px tall on phones; desktop keeps the slim chip.
+  it("is thumb-sized on phones and slim on desktop", () => {
+    render(<ListsUpdatePill />);
+    const button = screen.getByRole("button", { name: /^update$/i });
+    expect(button).toHaveClass("min-h-[40px]");
+    expect(button).toHaveClass("sm:min-h-0");
+  });
 });
