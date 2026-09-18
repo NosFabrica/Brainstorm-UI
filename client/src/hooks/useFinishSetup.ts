@@ -35,8 +35,9 @@ export interface FinishSetupState {
   /** Relay-verified "no kind-10040 names Brainstorm" (or another provider does). */
   activatePending: boolean;
   /**
-   * Activated, but they have Trusted Lists their 10040 doesn't name yet — the
-   * Activate step is to do again (publish the Treasure Map with the lists).
+   * Activated, but they have Trusted Lists their 10040 doesn't name yet: an
+   * update to publish (ListsUpdate), NOT a setup step — never counted in
+   * `remaining` or `doneCount`, so nothing reads as unfinished or broken.
    */
   listsPending?: boolean;
   /** Confident steps left — what the banner counts. 0 → no nagging. */
@@ -64,16 +65,15 @@ export function useFinishSetup(): FinishSetupState {
     const followDone = followCount >= 1 || followVerdict === "has-follows";
     const followPending = signedIn && !followDone && followVerdict === "none";
 
-    const activated = locallyActivated || providerStatus === "brainstorm";
-    // Their Trusted Lists exist but the 10040 doesn't name them: the Treasure
-    // Map needs publishing again, so the step isn't done.
-    const listsPending = signedIn && activated && listsStatus === "missing";
-    const activateDone = activated && !listsPending;
+    const activateDone = locallyActivated || providerStatus === "brainstorm";
     // "other" counts as pending even when the local flag says activated: they
     // declared a different provider from another app, and re-selecting
     // Brainstorm is exactly the remedy (mirrors needsActivationPrompt).
     const activatePending =
-      signedIn && ((!activated && (providerStatus === "none" || providerStatus === "other")) || listsPending);
+      signedIn && !activateDone && (providerStatus === "none" || providerStatus === "other");
+    // Their Trusted Lists exist but the 10040 doesn't name them: an update,
+    // flagged apart from the steps.
+    const listsPending = signedIn && activateDone && listsStatus === "missing";
 
     const remaining = (followPending ? 1 : 0) + (activatePending ? 1 : 0);
     const doneCount = 1 + (followDone ? 1 : 0) + (activateDone ? 1 : 0);

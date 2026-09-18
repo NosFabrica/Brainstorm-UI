@@ -9,6 +9,7 @@ import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useFinishSetup } from "@/hooks/useFinishSetup";
 import { useScoringStatus } from "@/hooks/useScoringStatus";
+import { ListsUpdateLine } from "@/components/ListsUpdate";
 
 /**
  * /setup — the "Finish setting up your account" checklist hub. Replaces the
@@ -174,18 +175,16 @@ export default function FinishSetupPage() {
             />
           ) : (
             <PendingRow
-              label={listsPending ? "Publish your Treasure Map again" : "Activate your Brainstorm account"}
+              label="Activate your Brainstorm account"
               badge="Required for other apps"
-              detail={
-                listsPending
-                  ? "Your Trusted Lists are ready. One signature adds them to your Treasure Map so other apps can find them."
-                  : "One signature publishes your Treasure Map so other apps know where to find your scores. Takes a few seconds."
-              }
+              detail="One signature publishes your Treasure Map so other apps know where to find your scores. Takes a few seconds."
               icon={PenLine}
               onClick={() => navigate("/setup/activate")}
               testid="setup-row-activate"
             />
           )}
+          {/* Activated already: new lists are an update under the ✓, never a step to redo. */}
+          {activateDone && listsPending && <ListsUpdateLine />}
         </div>
 
         {allDone && (

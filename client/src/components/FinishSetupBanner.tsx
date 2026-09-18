@@ -2,6 +2,7 @@ import { useLocation } from "wouter";
 import { AlertTriangle, ArrowRight } from "lucide-react";
 import { tone } from "@/lib/tones";
 import { useFinishSetup } from "@/hooks/useFinishSetup";
+import { ListsUpdatePill } from "./ListsUpdate";
 
 /**
  * The header's "Finish setting up your account" pill — the one persistent,
@@ -16,10 +17,13 @@ import { useFinishSetup } from "@/hooks/useFinishSetup";
  */
 export function FinishSetupBanner() {
   const [location, navigate] = useLocation();
-  const { signedIn, remaining } = useFinishSetup();
+  const { signedIn, remaining, listsPending } = useFinishSetup();
   const amber = tone("amber");
 
-  if (!signedIn || remaining === 0 || location.startsWith("/setup")) return null;
+  if (!signedIn || location.startsWith("/setup")) return null;
+  // Setup done, but their Trusted Lists need an update: say that, in purple —
+  // repeating "finish setting up" to someone who has reads as "it broke".
+  if (remaining === 0) return listsPending ? <ListsUpdatePill /> : null;
 
   return (
     <button

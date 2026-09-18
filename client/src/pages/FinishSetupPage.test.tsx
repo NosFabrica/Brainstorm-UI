@@ -20,6 +20,7 @@ vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
 // The header drags in the account menu / apps launcher stack; the checklist is
 // what's under test.
 vi.mock("@/components/AppHeader", () => ({ AppHeader: () => null }));
+vi.mock("@/components/ListsUpdate", () => ({ ListsUpdateLine: () => <div data-testid="line-lists-update" /> }));
 
 const setupState = vi.fn<() => FinishSetupState>();
 vi.mock("@/hooks/useFinishSetup", () => ({
@@ -95,17 +96,15 @@ describe("FinishSetupPage", () => {
     expect(navigate).toHaveBeenCalledWith("/dashboard");
   });
 
-  // Activated, but their Trusted Lists aren't in the Treasure Map yet.
-  it("asks an activated account with Trusted Lists to publish its Treasure Map again", () => {
+  // Activated, lists waiting: the step stays done, the update sits under it.
+  it("keeps Activate done and offers the lists update beneath it", () => {
     setupState.mockReturnValue(
-      state({ followDone: true, followPending: false, activateDone: false, activatePending: true, listsPending: true, remaining: 1, doneCount: 2 }),
+      state({ followDone: true, followPending: false, activateDone: true, activatePending: false, listsPending: true, remaining: 0, doneCount: 3, allDone: true }),
     );
     renderWithProviders(<FinishSetupPage />);
 
-    const row = screen.getByTestId("setup-row-activate");
-    expect(row).toHaveTextContent("Publish your Treasure Map again");
-    expect(row).toHaveTextContent(/Trusted Lists/);
-    fireEvent.click(row);
-    expect(navigate).toHaveBeenCalledWith("/setup/activate");
+    expect(screen.getByTestId("setup-row-activate-done")).toBeInTheDocument();
+    expect(screen.queryByTestId("setup-row-activate")).toBeNull();
+    expect(screen.getByTestId("line-lists-update")).toBeInTheDocument();
   });
 });

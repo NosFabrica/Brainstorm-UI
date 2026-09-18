@@ -12,6 +12,7 @@ import { useFinishSetup } from "@/hooks/useFinishSetup";
 import { useSelfHistory } from "@/hooks/useSelf";
 import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
 import { useTrustListsStatus } from "@/hooks/useTrustListsStatus";
+import { ListsUpdateLine } from "@/components/ListsUpdate";
 
 /**
  * /setup/activate — the checklist's "Activate your Brainstorm account" step as
@@ -38,15 +39,14 @@ export default function ActivateBrainstormPage() {
   // Warn before a silent overwrite: a kind-10040 naming a different provider
   // already exists, and continuing replaces it (same bar as the modal).
   const hasOtherProvider = useTrustProviderStatus(user?.pubkey, taPubkey).data === "other";
-  // Trusted Lists their Treasure Map doesn't name yet: this publish names them,
-  // whether it's their first activation or an update to one.
+  // A first activation names their Trusted Lists too, when they have some —
+  // one signature rather than an update later.
   const lists = useTrustListsStatus(user?.pubkey, taPubkey).data;
   const listsToName = lists?.status === "missing" ? lists.designation : null;
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState("");
   const [justActivated, setJustActivated] = useState(false);
-  const [updatedLists, setUpdatedLists] = useState(false);
   const done = justActivated || activateDone;
 
   if (!user) return null;
@@ -57,7 +57,6 @@ export default function ActivateBrainstormPage() {
     const result = await publishBrainstormTrustAnchor(user.pubkey, taPubkey, setPhase, { lists: listsToName });
     setPhase("idle");
     if (result.status === "success") {
-      setUpdatedLists(!!listsPending);
       setJustActivated(true);
     } else if (result.status === "cancelled") {
       // A declined unlock is a change of mind, not a failure.
@@ -83,13 +82,18 @@ export default function ActivateBrainstormPage() {
                 style={{ fontFamily: "var(--font-display)" }}
                 data-testid="text-activate-page-success"
               >
-                {updatedLists ? "Your Treasure Map is updated" : "Your Brainstorm account is active"}
+                Your Brainstorm account is active
               </h1>
               <p className="mt-2 text-sm leading-relaxed text-slate-500 dark:text-slate-400">
-                {updatedLists
-                  ? "Other apps can now find your Trusted Lists alongside your trust scores."
-                  : "Your Treasure Map is published — apps like Nostria and Ditto can now find your trust scores."}
+                Your Treasure Map is published — apps like Nostria and Ditto can now find your trust
+                scores.
               </p>
+              {/* Already activated, new lists waiting: an update, never a redo. */}
+              {listsPending && (
+                <div className="mx-auto mt-4 max-w-md text-left">
+                  <ListsUpdateLine />
+                </div>
+              )}
               <div className="mt-6 flex flex-wrap justify-center gap-2.5">
                 <button
                   type="button"
@@ -113,7 +117,7 @@ export default function ActivateBrainstormPage() {
             <div className="p-6 sm:p-8">
               <div className="mb-3 flex items-center gap-2.5">
                 <span className="text-[11px] font-mono font-bold uppercase tracking-[0.25em] text-brand-link">
-                  {listsPending ? "One more signature" : followDone ? "One step left" : "Almost there"}
+                  {followDone ? "One step left" : "Almost there"}
                 </span>
                 <div className="h-px w-10 bg-brand-link/30" />
               </div>
@@ -122,20 +126,10 @@ export default function ActivateBrainstormPage() {
                 style={{ fontFamily: "var(--font-display)" }}
                 data-testid="text-activate-page-title"
               >
-                {listsPending ? (
-                  <>
-                    Publish your <span className="text-brand-link">Treasure Map</span> again
-                  </>
-                ) : (
-                  <>
-                    Activate your <span className="text-brand-link">Brainstorm</span> account
-                  </>
-                )}
+                Activate your <span className="text-brand-link">Brainstorm</span> account
               </h1>
               <p className="mt-2.5 text-[15px] leading-relaxed text-slate-600 dark:text-slate-300">
-                {listsPending
-                  ? "Your Trusted Lists are ready. One signature adds them to your Treasure Map so other apps can find them — your scores stay exactly as they are."
-                  : "Sign a note that tells other apps where to find your Brainstorm scores."}
+                Sign a note that tells other apps where to find your Brainstorm scores.
               </p>
 
               <div className="mt-6 flex items-center gap-4 rounded-xl border border-slate-200/80 bg-slate-50/80 px-4 py-3 dark:border-slate-800 dark:bg-slate-900/60">
@@ -155,7 +149,7 @@ export default function ActivateBrainstormPage() {
                   ))}
                 </div>
                 <p className="text-[13px] leading-relaxed text-slate-500 dark:text-slate-400">
-                  {listsPending ? "Nostria and Ditto can't see your Trusted Lists yet." : "Nostria and Ditto can't see your scores yet."}
+                  Nostria and Ditto can't see your scores yet.
                 </p>
               </div>
 
@@ -196,7 +190,7 @@ export default function ActivateBrainstormPage() {
                 ) : (
                   <>
                     <BrainLogo mono size={16} className="text-white" />
-                    {listsPending ? "Publish again" : "Activate Brainstorm"}
+                    Activate Brainstorm
                   </>
                 )}
               </button>
@@ -212,9 +206,7 @@ export default function ActivateBrainstormPage() {
                   className="text-xs text-slate-400 transition-colors hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300"
                   data-testid="button-activate-page-later"
                 >
-                  {listsPending
-                    ? "Maybe later — my Trusted Lists stay invisible in other apps for now"
-                    : "Maybe later — my scores stay invisible in other apps for now"}
+                  Maybe later — my scores stay invisible in other apps for now
                 </button>
               </div>
             </div>

@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 /**
- * /setup/activate with Trusted Lists. The Treasure Map (kind 10040) has to
- * name the user's lists for other apps to find them: an activated account whose
- * lists aren't in it is asked to publish again, and a first activation names
- * them in the same signature.
+ * /setup/activate with Trusted Lists. A first activation names the user's lists
+ * in the same signature; someone already activated isn't walked through setup
+ * again — they see their success card, with the one-tap update beneath it.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
@@ -22,6 +21,7 @@ const publish = vi.fn();
 
 vi.mock("wouter", () => ({ useLocation: () => ["/setup/activate", () => {}] }));
 vi.mock("@/components/AppHeader", () => ({ AppHeader: () => null }));
+vi.mock("@/components/ListsUpdate", () => ({ ListsUpdateLine: () => <div data-testid="line-lists-update" /> }));
 vi.mock("@/accounts/login-flow", () => ({ logout: () => {} }));
 vi.mock("@/services/trustAnchor", () => ({ publishBrainstormTrustAnchor: (...a: unknown[]) => publish(...a) }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => ({ pubkey: "a".repeat(64), displayName: "Lira" }) }));
@@ -43,18 +43,16 @@ describe("ActivateBrainstormPage — Trusted Lists", () => {
     page.lists = undefined;
   });
 
-  it("asks an activated account with Trusted Lists to publish again, naming the lists", async () => {
+  it("an activated account with lists waiting sees its success card, with the update beneath — not a redo", () => {
+    page.activateDone = true;
     page.listsPending = true;
     page.provider = "brainstorm";
     page.lists = { status: "missing", designation: LISTS };
-    publish.mockResolvedValue({ status: "success" });
     renderWithProviders(<ActivateBrainstormPage />);
 
-    expect(screen.getByTestId("text-activate-page-title")).toHaveTextContent(/publish your treasure map again/i);
-    fireEvent.click(screen.getByTestId("button-activate-page-confirm"));
-
-    await waitFor(() => expect(publish).toHaveBeenCalledWith(ME, TA, expect.any(Function), { lists: LISTS }));
-    expect(await screen.findByTestId("text-activate-page-success")).toHaveTextContent(/updated/i);
+    expect(screen.getByTestId("text-activate-page-success")).toHaveTextContent(/is active/i);
+    expect(screen.getByTestId("line-lists-update")).toBeInTheDocument();
+    expect(screen.queryByTestId("button-activate-page-confirm")).toBeNull();
   });
 
   it("a first activation names the lists too, in the same signature", async () => {
@@ -62,7 +60,6 @@ describe("ActivateBrainstormPage — Trusted Lists", () => {
     publish.mockResolvedValue({ status: "success" });
     renderWithProviders(<ActivateBrainstormPage />);
 
-    expect(screen.getByTestId("text-activate-page-title")).toHaveTextContent(/activate your/i);
     fireEvent.click(screen.getByTestId("button-activate-page-confirm"));
 
     await waitFor(() => expect(publish).toHaveBeenCalledWith(ME, TA, expect.any(Function), { lists: LISTS }));
