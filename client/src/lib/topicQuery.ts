@@ -6,7 +6,10 @@
 
 export function parseTopicQuery(query: string): { isTopic: boolean; tag: string } {
   const q = query.trim();
-  if (!q.startsWith("#")) return { isTopic: false, tag: "" };
+  // ONE hashtag and nothing else. `#nostr from:npub…` or `#nostr bitcoin` is a search that
+  // happens to carry a tag filter, and the box's grammar handles it — routing it here used to
+  // squash the whole query into one tag ("#nostr bitcoin" → /t/nostrbitcoin).
+  if (!/^#\S+$/.test(q)) return { isTopic: false, tag: "" };
   const tag = q.slice(1).toLowerCase().replace(/[^a-z0-9_]/g, "");
   return { isTopic: true, tag };
 }

@@ -54,8 +54,9 @@ import { BackToTop } from "@/components/search/BackToTop";
 import { SearchResults } from "@/components/search/SearchResults";
 import { PerspectiveToggle } from "@/components/search/PerspectiveToggle";
 import { personAssist, scopeOf, splitFilters, type PersonAssist, scopedPlaceholder, seeAllLabel } from "@/lib/searchSyntax";
+import { SearchField } from "@/components/search/SearchField";
+import type { SearchFieldHandle } from "@/lib/searchFieldDom";
 import { useProfileMap } from "@/hooks/useProfileMap";
-import { ScopeChip } from "@/components/search/ScopeChip";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
 import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
@@ -198,7 +199,12 @@ export default function Landing() {
     return () => window.removeEventListener("scroll", onScroll);
   }, [hasSearched]);
   const searchContainerRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  // The box is a contenteditable now, so what the page holds is the field's own handle
+  // (focus, select, caret) rather than an <input> element.
+  const inputRef = useRef<SearchFieldHandle | null>(null);
+  // True while the field's own calendar or group picker owns the space under the box; the
+  // page's suggestion dropdown stands down rather than stacking two lists on one square.
+  const [fieldPicking, setFieldPicking] = useState(false);
   const didInitFromUrlRef = useRef(false);
   const prefetchTimersRef = useRef<Map<string, number>>(new Map());
 
@@ -695,13 +701,12 @@ export default function Landing() {
     handleSearch();
   };
 
-  // A query scoped to one person shows that person as a chip, never the raw
-  // from:npub… token (Benjamin: "we should never show the raw scope"). The
-  // box's text is the words beside the key; the key rides first in `query`
-  // so typing keeps its spaces (the words are typed, not re-derived).
+  // A query scoped to one person shows that person as a PILL inside the box — their face and
+  // name where the grammar has `from:npub…`, never the raw key (Benjamin: "we should never
+  // show the raw scope"). The box holds the whole query now, the pill included, so the words
+  // beside it are whatever the grammar did not lift.
   const scope = scopeOf(query);
-  const words = scope ? (query.startsWith(scope.token) ? query.slice(scope.token.length).replace(/^\s+/, "") : scope.rest) : query;
-  const setWords = (v: string) => (scope ? `${scope.token} ${v}` : v);
+  const words = scope ? scope.rest : query;
   // The person's name, for the placeholder — the chip's hook and cache, not a
   // second fetch. A profile with no name stays "their": never a key.
   const scopeProfiles = useProfileMap(scope ? [scope.pubkey] : NO_PUBKEYS);
@@ -778,6 +783,7 @@ export default function Landing() {
   // already routed at the hashtag feed and shouldn't offer a second answer.
   const tagMatches = useTagMatches(topicMatch.isTopic ? "" : query);
   const dropdownOpen =
+    !fieldPicking &&
     showSuggestions && (suggestions.length > 0 || isSuggesting || topicMatch.isTopic || tagMatches.length > 0);
   // "Recent" shows under an empty, focused box before any search this session —
   // never alongside the suggestions dropdown or a results list.
@@ -964,29 +970,21 @@ export default function Landing() {
                 ) : (
                   <Search className="h-5 w-5 text-slate-400 dark:text-slate-500 shrink-0" />
                 )}
-                {scope && (
-                  <ScopeChip
-                    pubkey={scope.pubkey}
-                    onRemove={() => {
-                      // Drop the scope: the words alone search, or the box empties.
-                      if (scope.rest) {
-                        setQuery(scope.rest);
-                        void handleSearch(scope.rest);
-                      } else {
-                        clearSearch();
-                      }
-                    }}
-                  />
-                )}
-                <div className="relative flex-1 min-w-0">
-                <input
-                  ref={inputRef}
-                  type="text"
-                  value={words}
-                  onChange={(e) => {
-                    const next = setWords(e.target.value);
+                <SearchField
+                  className="flex-1"
+                  fieldRef={(h) => { inputRef.current = h; }}
+                  value={query}
+                  onChange={(next) => {
+                    setEngaged(true);
                     setQuery(next);
                     scheduleSuggest(next);
+                  }}
+                  onPickerChange={setFieldPicking}
+                  // Dropping a filter is a decision: the page acts on it at once rather than
+                  // waiting for Enter. Emptying the box is the ⓧ gesture — back to the home.
+                  onRemoveToken={(next) => {
+                    if (!next.trim()) { clearSearch(); return; }
+                    if (hasSearched) void handleSearch(next);
                   }}
                   onFocus={() => {
                     setFocused(true);
@@ -994,71 +992,63 @@ export default function Landing() {
                   }}
                   onBlur={() => setFocused(false)}
                   onPointerDown={() => setEngaged(true)}
+                  onEnter={() => {
+                    // Only open a single profile when the user explicitly arrow-keyed
+                    // to a suggestion. Plain typing + Enter (even with the mouse
+                    // resting over the dropdown) always runs a full text search.
+                    if (showSuggestions && kbdNavRef.current && activeSuggestion >= 0 && suggestions[activeSuggestion] && personAssistRef.current) {
+                      pickSuggestion(suggestions[activeSuggestion]);
+                      return;
+                    }
+                    if (showSuggestions && kbdNavRef.current && activeSuggestion >= 0 && suggestions[activeSuggestion]) {
+                      goToProfile(suggestions[activeSuggestion]);
+                      return;
+                    }
+                    cancelSuggest();
+                    void handleSearch();
+                  }}
                   onKeyDown={(e) => {
                     setEngaged(true);
                     if (e.key === "ArrowDown" && showSuggestions && suggestions.length > 0) {
                       e.preventDefault();
                       kbdNavRef.current = true;
                       setActiveSuggestion((i) => Math.min(i + 1, suggestions.length - 1));
-                    } else if (e.key === "ArrowUp" && showSuggestions && suggestions.length > 0) {
+                      return true;
+                    }
+                    if (e.key === "ArrowUp" && showSuggestions && suggestions.length > 0) {
                       e.preventDefault();
                       kbdNavRef.current = true;
                       setActiveSuggestion((i) => Math.max(i - 1, -1));
-                    } else if (e.key === "Enter") {
-                      // Only open a single profile when the user explicitly arrow-keyed
-                      // to a suggestion. Plain typing + Enter (even with the mouse
-                      // resting over the dropdown) always runs a full text search.
-                      if (showSuggestions && kbdNavRef.current && activeSuggestion >= 0 && suggestions[activeSuggestion] && personAssistRef.current) {
-                        e.preventDefault();
-                        pickSuggestion(suggestions[activeSuggestion]);
-                        return;
-                      }
-                      if (showSuggestions && kbdNavRef.current && activeSuggestion >= 0 && suggestions[activeSuggestion]) {
-                        e.preventDefault();
-                        goToProfile(suggestions[activeSuggestion]);
-                        return;
-                      }
-                      // Otherwise Enter IS the search — run it here rather than
-                      // trusting the form's implicit submission (a synthetic key,
-                      // or a second field in the form, would silently swallow it).
-                      e.preventDefault();
-                      cancelSuggest();
-                      void handleSearch();
-                    } else if (e.key === "Escape") {
+                      return true;
+                    }
+                    if (e.key === "Escape") {
                       setShowSuggestions(false);
                       setActiveSuggestion(-1);
+                      return true;
                     }
+                    return false;
                   }}
-                  placeholder=""
-                  aria-label="Search people, topics, or handles"
-                  className="w-full bg-transparent text-slate-900 dark:text-slate-100 text-base outline-none py-1.5 min-w-0"
-                  autoFocus={!hasSearched}
-                  role="combobox"
-                  aria-expanded={showSuggestions}
-                  aria-controls="home-search-suggestions"
-                  aria-autocomplete="list"
-                  aria-activedescendant={showSuggestions && activeSuggestion >= 0 ? `home-suggestion-opt-${activeSuggestion}` : undefined}
-                  data-testid="input-home-search"
-                />
-                {scope && words.length === 0 && (
-                  <span aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center overflow-hidden">
-                    <span className="truncate text-slate-400 dark:text-slate-500 text-base" data-testid="text-scope-placeholder">{scopedPlaceholder(activeTab, scopeName)}</span>
-                  </span>
-                )}
-                {query.length === 0 && (
-                  <span
-                    aria-hidden="true"
-                    className="pointer-events-none absolute inset-y-0 left-0 right-0 flex items-center overflow-hidden"
-                  >
+                  // The scoped box says what typing will do ON THIS TAB, with the person's
+                  // name — drawn after their pill, where an overlay would cover it.
+                  hint={scope && !words ? scopedPlaceholder(activeTab, scopeName) : ""}
+                  hintTestId="text-scope-placeholder"
+                  placeholder={
                     <span
                       className={`truncate text-slate-400 dark:text-slate-500 text-base transition-opacity duration-300 ${phVisible ? "opacity-100" : "opacity-0"}`}
                       data-testid="text-home-placeholder"
                     >
                       {isFirstVisit && !prefersReducedMotion ? PLACEHOLDER_EXAMPLES[phIndex] : PLACEHOLDER_EXAMPLES[0]}
                     </span>
-                  </span>
-                )}
-                </div>
+                  }
+                  ariaLabel="Search people, topics, or handles"
+                  autoFocus={!hasSearched}
+                  combobox={{
+                    expanded: showSuggestions,
+                    controls: "home-search-suggestions",
+                    activeDescendant: showSuggestions && activeSuggestion >= 0 ? `home-suggestion-opt-${activeSuggestion}` : undefined,
+                  }}
+                  testId="input-home-search"
+                />
                 {query.length > 0 && (
                   <button
                     type="button"
