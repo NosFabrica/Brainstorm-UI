@@ -20,6 +20,8 @@ const markNip85Activated = vi.fn();
 const clearNip85Activated = vi.fn();
 const activeAccount = vi.fn((): { pubkey: string } | null => null);
 const canSignSilently = vi.fn(async () => false);
+const checkUserLists = vi.fn(async (..._a: unknown[]) => ({ status: "none", designation: null as null | { key: string; relay: string } }));
+const recordTrustListsDeclared = vi.fn();
 
 vi.mock("./api", () => ({
   apiClient: {
@@ -34,6 +36,10 @@ vi.mock("./nostr", () => ({
   isUsingBrainstorm: (...a: unknown[]) => isUsingBrainstorm(...(a as [])),
   publishToRelays: (...a: unknown[]) => publishToRelays(...(a as [])),
   signNip85: (...a: unknown[]) => signNip85(...(a as [])),
+}));
+vi.mock("./trustLists", () => ({
+  checkUserLists: (...a: unknown[]) => checkUserLists(...a),
+  recordTrustListsDeclared: (...a: unknown[]) => recordTrustListsDeclared(...a),
 }));
 vi.mock("@/accounts/signing", () => ({
   activeAccount: () => activeAccount(),
@@ -119,9 +125,22 @@ describe("publishBrainstormTrustAnchor — the user-initiated publish", () => {
     const phases: string[] = [];
     const res = await publishBrainstormTrustAnchor(ME, TA, (p) => phases.push(p));
     expect(res).toEqual({ status: "success" });
-    expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example");
+    expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: null, existing: [] });
     expect(markNip85Activated).toHaveBeenCalledWith(ME);
     expect(phases).toEqual(["signing", "publishing"]);
+  });
+
+  // Adding the list rows must not cost the user anything already in their 10040.
+  it("with lists, signs our rows merged into the 10040 they have, and records the lists declared", async () => {
+    const LISTS = { key: "c".repeat(64), relay: "wss://nip85-staging.example" };
+    const theirs = [["30383:rank", "f".repeat(64), "wss://elsewhere.example"]];
+    fetchTrustProviderList.mockResolvedValueOnce({ tags: theirs });
+
+    const res = await publishBrainstormTrustAnchor(ME, TA, undefined, { lists: LISTS });
+
+    expect(res).toEqual({ status: "success" });
+    expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: LISTS, existing: theirs });
+    expect(recordTrustListsDeclared).toHaveBeenCalledWith(ME, LISTS);
   });
 
   it("a refused signature is cancelled, not an error", async () => {
@@ -141,8 +160,31 @@ describe("publishBrainstormTrustAnchor — the user-initiated publish", () => {
   it("relay rejection surfaces the message and does not mark activated", async () => {
     publishToRelays.mockResolvedValueOnce({ success: false, error: "all relays refused" } as never);
     const res = await publishBrainstormTrustAnchor(ME, TA);
-    expect(res).toEqual({ status: "error", message: "all relays refused" });
+    expect(res).toMatchObject({ status: "error", message: "all relays refused" });
     expect(markNip85Activated).not.toHaveBeenCalled();
+  });
+
+  // One silent relay held the button for 30 seconds (2026-09-18): the update
+  // goes out asking for two confirmations and eight seconds a relay.
+  it("publishes without waiting on the slowest relay", async () => {
+    await publishBrainstormTrustAnchor(ME, TA);
+    expect(publishToRelays).toHaveBeenCalledWith(expect.anything(), undefined, { need: 2, timeoutMs: 8000 });
+  });
+
+  it("a failed publish offers a retry that re-sends the same signed update — no second signature", async () => {
+    publishToRelays
+      .mockResolvedValueOnce({ success: false, error: "all relays refused" } as never)
+      .mockResolvedValueOnce({ success: true } as never);
+
+    const res = await publishBrainstormTrustAnchor(ME, TA);
+    expect(res.status).toBe("error");
+    const again = await (res as { retry: () => Promise<unknown> }).retry();
+
+    expect(again).toEqual({ status: "success" });
+    expect(signNip85).toHaveBeenCalledTimes(1);
+    expect(publishToRelays).toHaveBeenCalledTimes(2);
+    expect(publishToRelays.mock.calls[1][0]).toBe(publishToRelays.mock.calls[0][0]);
+    expect(markNip85Activated).toHaveBeenCalledWith(ME);
   });
 });
 
@@ -229,7 +271,7 @@ describe("ensureBrainstormTrustAnchor — the on-relay 10040 wins", () => {
   it("publishes when relays hold no declaration at all", async () => {
     await ensureBrainstormTrustAnchor(ME, TA);
 
-    expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example");
+    expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: null, existing: [] });
     expect(markNip85Activated).toHaveBeenCalledWith(ME);
   });
 });

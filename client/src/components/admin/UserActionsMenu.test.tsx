@@ -47,4 +47,24 @@ describe("UserActionsMenu", () => {
     expect(item.getAttribute("aria-disabled")).toBe("true");
     expect(item.textContent).toContain("Triggering…");
   });
+
+  // Trusted Lists are published for one observer at a time; from a user's row,
+  // that observer is them.
+  it("sends this user to Trusted Lists", async () => {
+    const onPublishTrustedLists = vi.fn();
+    renderWithProviders(
+      <UserActionsMenu
+        pubkey={PK}
+        onTrigger={() => {}}
+        onView={() => {}}
+        onPublishTrustedLists={onPublishTrustedLists}
+        testIdSuffix="0"
+      />,
+    );
+
+    await userEvent.click(screen.getByTestId("user-actions-0"));
+    await userEvent.click(await screen.findByTestId("user-action-trusted-lists"));
+
+    expect(onPublishTrustedLists).toHaveBeenCalledTimes(1);
+  });
 });

@@ -21,11 +21,14 @@ export function BrainstormUserPicker({
   onChange,
   inputTestId = "input-billing-attribute-pubkey",
   resultTestIdPrefix = "billing-attribute-result-",
+  noAccountHint = "Only someone with an account can be granted a plan.",
 }: {
   value: BrainstormUser | null;
   onChange: (user: BrainstormUser | null) => void;
   inputTestId?: string;
   resultTestIdPrefix?: string;
+  /** Why an account is needed here — said after "No Brainstorm account has that key." */
+  noAccountHint?: string;
 }) {
   const [query, setQuery] = useState("");
   const [outcome, setOutcome] = useState<UserSearchOutcome>({ kind: "idle" });
@@ -131,7 +134,7 @@ export function BrainstormUserPicker({
       )}
       {outcome.kind === "no-account" && (
         <p className={`text-[11px] ${tone("warning").text}`} data-testid="billing-attribute-no-account">
-          No Brainstorm account has that key. Only someone with an account can be granted a plan.
+          No Brainstorm account has that key. {noAccountHint}
         </p>
       )}
       {noMatch && (

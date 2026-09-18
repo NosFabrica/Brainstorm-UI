@@ -423,6 +423,44 @@ export type DivergenceKind =
  * One user's scheduling as the server has it after an admin action — for a
  * released override, the policy billing settled on in the same request.
  */
+/** This server has no trusted-lists endpoint yet (server PR #86 not deployed). */
+export class TrustedListsUnavailableError extends Error {
+  constructor() {
+    super("Trusted lists aren't available on this server yet.");
+    this.name = "TrustedListsUnavailableError";
+  }
+}
+
+/** One Trusted List a run touched (server PR #86, `TrustedListTagResult`). */
+export interface TrustedListTagResult {
+  slug: string;
+  d_tag: string;
+  /** Empty for a retracted row. */
+  tag_event_id: string;
+  status: "published" | "failed" | "retracted";
+  taggings_considered: number;
+  member_count: number;
+  /** Set when the list failed to publish. */
+  error?: string | null;
+}
+
+/** What one run did for one observer (server PR #86, `TrustedListRunData`). */
+export interface TrustedListRunData {
+  observer: string;
+  /** The observer's assistant key — the one that signed the lists. */
+  signing_pubkey?: string | null;
+  /** Every tagging the server holds — global, not this observer's. */
+  taggings_in_store: number;
+  qualifying_asserters: number;
+  dictionary_size: number;
+  published: number;
+  failed: number;
+  retracted: number;
+  empty_reason?: "no_taggings_ingested" | "no_qualifying_asserters" | "no_tags_met_use_threshold" | null;
+  /** Published and failed lists first (most-used tag first), retracted ones after. */
+  tags: TrustedListTagResult[];
+}
+
 export interface AdminUserDetail {
   pubkey: string;
   scheduling_id: number | null;
@@ -808,6 +846,40 @@ export const apiClient = {
       throw new Error(
         (await extractApiError(response)) || `Failed to reset the scheduling override (${response.status})`,
       );
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  /**
+   * The kind-10040 rows the server hands a user to publish (`GET /setup/{pubkey}`):
+   * which assistant key signs each kind, on which relay. Since PR #86 a bare
+   * "30392" row names where that observer's Trusted Lists are published.
+   */
+  async getSetupRows(pubkey: string): Promise<string[][]> {
+    const response = await authenticatedFetch(`${getBrainstormApi()}/setup/${pubkey}`, {
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!response.ok) throw new Error((await extractApiError(response)) || `Failed to read setup (${response.status})`);
+    const json = await response.json();
+    const rows = json?.data ?? json;
+    return Array.isArray(rows) ? rows : [];
+  },
+
+  /**
+   * Computes and publishes one observer's Trusted Lists now (server PR #86):
+   * kind-30392 events built from that observer's web of trust, signed by their
+   * assistant key, with lists whose tags no longer qualify retracted. The
+   * server does it all before answering — up to about a minute.
+   */
+  async publishTrustedLists(observer: string): Promise<TrustedListRunData> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/trustedLists/${observer}`,
+      { method: "POST", signal: AbortSignal.timeout(120_000) },
+    );
+    if (response.status === 404 || response.status === 405) throw new TrustedListsUnavailableError();
+    if (!response.ok) {
+      throw new Error((await extractApiError(response)) || `Failed to publish trusted lists (${response.status})`);
     }
     const json = await response.json();
     return json?.data ?? json;

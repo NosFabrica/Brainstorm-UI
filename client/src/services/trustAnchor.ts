@@ -24,6 +24,8 @@ import { accountKey } from "@/lib/accountStorage";
 import { queryClient } from "@/lib/queryClient";
 import { clearNip85Activated, isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
 import { hasDeclinedNip85, hasNip85Consent, recordNip85Consent } from "@/lib/nip85Consent";
+import type { ListDesignation } from "@/lib/nip85Declaration";
+import { checkUserLists, recordTrustListsDeclared } from "./trustLists";
 
 /**
  * Whether the automatic (non-user-initiated) NIP-85 publish paths may run for
@@ -118,7 +120,38 @@ export async function checkExistingTrustProvider(
 export type TrustAnchorPublishResult =
   | { status: "success" }
   | { status: "cancelled"; unlockDeclined: boolean }
-  | { status: "error"; message: string };
+  | {
+      status: "error";
+      message: string;
+      /** Re-send the SAME signed update — no second signature. */
+      retry?: () => Promise<TrustAnchorPublishResult>;
+    };
+
+/**
+ * The 10040 goes out without waiting on the slowest relay: two confirmations,
+ * eight seconds a relay (lib/publishQuorum). One silent relay used to hold the
+ * button for the relay library's full 30 seconds.
+ */
+const ANCHOR_PUBLISH = { need: 2, timeoutMs: 8000 } as const;
+
+async function publishSignedAnchor(
+  pubkey: string,
+  signed: Awaited<ReturnType<typeof signNip85>>,
+  lists: ListDesignation | null,
+): Promise<TrustAnchorPublishResult> {
+  const result = await publishToRelays(signed, undefined, ANCHOR_PUBLISH);
+  if (result.success) {
+    markNip85Activated(pubkey);
+    recordTrustProviderStatus(pubkey, "brainstorm");
+    if (lists) recordTrustListsDeclared(pubkey, lists);
+    return { status: "success" };
+  }
+  return {
+    status: "error",
+    message: result.error || "Failed to publish to relays. Please try again.",
+    retry: () => publishSignedAnchor(pubkey, signed, lists),
+  };
+}
 
 /**
  * The user-initiated NIP-85 publish: sign the kind-10040 selecting Brainstorm
@@ -131,6 +164,7 @@ export async function publishBrainstormTrustAnchor(
   pubkey: string,
   taPubkey: string,
   onPhase?: (phase: "signing" | "publishing") => void,
+  opts: { lists?: ListDesignation | null } = {},
 ): Promise<TrustAnchorPublishResult> {
   let nip85Relay: string;
   try {
@@ -139,22 +173,25 @@ export async function publishBrainstormTrustAnchor(
     return { status: "error", message: err?.message || "NIP-85 relay URL is not configured." };
   }
 
+  // Merge into what's there: naming Brainstorm (and the user's Trusted Lists)
+  // must never cost them another provider's rows.
+  let existing: string[][] = [];
+  try {
+    existing = (await fetchTrustProviderList(pubkey))?.tags ?? [];
+  } catch {
+    // Unreadable relays: publish ours alone, as before.
+  }
+
   onPhase?.("signing");
   let signed;
   try {
-    signed = await signNip85(taPubkey, nip85Relay);
+    signed = await signNip85(taPubkey, nip85Relay, { lists: opts.lists ?? null, existing });
   } catch (err) {
     return { status: "cancelled", unlockDeclined: isUnlockCancelled(err) };
   }
 
   onPhase?.("publishing");
-  const result = await publishToRelays(signed);
-  if (result.success) {
-    markNip85Activated(pubkey);
-    recordTrustProviderStatus(pubkey, "brainstorm");
-    return { status: "success" };
-  }
-  return { status: "error", message: result.error || "Failed to publish to relays. Please try again." };
+  return publishSignedAnchor(pubkey, signed, opts.lists ?? null);
 }
 
 /**
@@ -195,12 +232,20 @@ export async function ensureBrainstormTrustAnchor(pubkey: string, taPubkey: stri
     const existing = await checkExistingTrustProvider(pubkey, taPubkey);
     if (existing === "brainstorm" || existing === "other") return;
   } catch {}
+  // A first declaration names their Trusted Lists too, when they have some —
+  // one signature rather than a second prompt later.
+  let lists: ListDesignation | null = null;
   try {
-    const signed = await signNip85(taPubkey, getNip85RelayUrl());
+    const found = await checkUserLists(pubkey, taPubkey);
+    if (found.status === "missing") lists = found.designation;
+  } catch {}
+  try {
+    const signed = await signNip85(taPubkey, getNip85RelayUrl(), { lists, existing: [] });
     const res = await publishToRelays(signed);
     if (res.success) {
       markNip85Activated(pubkey);
       recordTrustProviderStatus(pubkey, "brainstorm");
+      if (lists) recordTrustListsDeclared(pubkey, lists);
     }
   } catch {}
 }
