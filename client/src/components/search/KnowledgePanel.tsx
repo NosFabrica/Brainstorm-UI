@@ -4,7 +4,7 @@
  * (mobile) — avatar with tier ring, identity rows, and the deep-dive CTA.
  * Probed via the same relay typeahead the box uses; silent unless confident.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { fetchLiveStreams, fetchRecentByKinds } from "@/services/nostr";
 import { pickStreams, verifyRecording, type PickedStreams } from "@/lib/liveStream";
 import { PanelLive } from "@/components/search/PanelLive";
@@ -32,7 +32,8 @@ import { EventDateTile } from "@/components/share/EventDateTile";
 import { filterEventsByWhen } from "@/lib/eventFilters";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { EventRow } from "@/components/search/EventRow";
-import { fetchNipPage, searchStream, suggestProfiles, type SearchHit, type SearchPov } from "@/services/search";
+import { fetchNipPage, searchStream, suggestProfiles, type SearchHit, type SearchPov, type SearchSnapshot } from "@/services/search";
+import { useConnectionSpeed } from "@/lib/connection";
 
 /** One app in the rail: icon, name, summary. Reviews live on the app page —
  *  no review copy on search surfaces (Benjamin). */
@@ -105,8 +106,30 @@ function tagCandidate(query: string): string | null {
 const TOPIC_MIN_NOTES = 3;
 // Only a LIVING topic earns the slot — stale tags don't outrank people.
 const TOPIC_FRESH_SECONDS = 7 * 86400;
+const EVENTS_SHOWN = 3;
+
+/** What the composed page's sections have found so far — the panel reads these
+ *  instead of asking the relay the same questions again. */
+export interface PanelSections {
+  people: SearchSnapshot | null;
+  events: SearchSnapshot | null;
+}
 
 /** The rail's panel — quiet trust chrome wherever it is mounted. */
+/**
+ * The events row: upcoming only, soonest first, three at most, and the words
+ * must appear in the event's title, place or summary — the relay's fuzzy text
+ * match alone drags in strays.
+ */
+function eventsRow(hits: SearchHit[], query: string): SearchHit[] {
+  const q = norm(query);
+  const named = hits.filter((h) => {
+    const cal = parseCalendarEvent(h.event);
+    return norm(`${cal.title} ${cal.location ?? ""} ${cal.summary ?? ""}`).includes(q);
+  });
+  return filterEventsByWhen(named, "upcoming").slice(0, EVENTS_SHOWN);
+}
+
 export function KnowledgePanel(props: KnowledgePanelProps) {
   return (
     <QuietTrustChrome>
@@ -121,6 +144,7 @@ function KnowledgePanelBody({
   query,
   pov,
   userPubkey,
+  sections,
   onOpen,
   onPerson,
   className = "",
@@ -128,6 +152,11 @@ function KnowledgePanelBody({
   query: string;
   pov: SearchPov;
   userPubkey?: string;
+  /**
+   * What the composed page's sections already found. Given these, the panel
+   * reads them instead of asking the relay the same questions again.
+   */
+  sections?: PanelSections;
   /** Who the panel settled on (null when it did not) — the results page leads with their own media. */
   onPerson?: (person: SearchResult | null) => void;
   onOpen?: (person: SearchResult) => void;
@@ -162,6 +191,26 @@ function KnowledgePanelBody({
   // would fill the first screen; it folds to one row until tapped.
   const belowLg = useIsMobile(1024);
   const [expanded, setExpanded] = useState(false);
+  const speed = useConnectionSpeed();
+  // The sections object changes identity on every emit; the probes below key off
+  // what it actually says, so they are not cancelled and reopened each time.
+  const sectionPerson = sections?.people?.hits[0]?.author ?? null;
+  const sectionPersonKey = sectionPerson?.pubkey ?? "";
+  const sectionRow = useMemo(() => eventsRow(sections?.events?.hits ?? [], query), [sections, query]);
+  const sectionRowKey = sectionRow.map((h: SearchHit) => h.event.id).join(",");
+  // Settled the way a section counts it: answered, or failed (sections.tsx).
+  const eventsSettled = !!sections?.events && (sections.events.eose || !!sections.events.error);
+  const hasSections = !!sections;
+  // The topic, apps, events and NIP probes are three more searches across seven
+  // relays; where the panel folds to a strip anyway — phones, which is where a
+  // poor connection lives — they wait for the tap. Latched, so a width change
+  // can only turn them ON: turning them off would re-run the effect below and
+  // throw away what it found.
+  const probed = useRef(false);
+  probed.current ||= speed === "normal" || !belowLg || expanded;
+  const probe = probed.current;
+  // What every probe below needs before it asks anything.
+  const probeReady = probe && !scopeOf(query) && isPanelableQuery(query);
   let strip: { icon: React.ReactNode; title: string; line: string } | null = null;
   useEffect(() => {
     if (!person) {
@@ -252,12 +301,18 @@ function KnowledgePanelBody({
     };
   }, [person?.pubkey]);
 
+  // Everything the panel knows is about THIS query: a new one starts blank.
+  // Nothing else belongs in these deps — a dep that changes while the results
+  // stream would wipe what the probes below have found.
   useEffect(() => {
     setPerson(null);
     setTopicHits(null);
     setNipPage(null);
     setAppHits(null);
     setTopicEvents(null);
+  }, [query, pov, userPubkey]);
+
+  useEffect(() => {
     // A search scoped to one person (from:npub…, the public profile's "View
     // all"), with or without words beside it, keeps that person in the panel
     // beside their results — the relay's author filter answers the scope, so
@@ -276,6 +331,37 @@ function KnowledgePanelBody({
       };
     }
     if (!isPanelableQuery(query)) return;
+    // A NIP-shaped query is a spec lookup: the wiki page takes the slot and
+    // nobody is hunted for.
+    if (nipCandidates(query).length > 0) return;
+    // Already answered for this query (the reset above is what clears it), so a
+    // tab switch does not ask again.
+    if (person) return;
+    // The People section asks this very question, deeper — where it has, the
+    // panel reads its answer instead of asking again.
+    if (hasSections) {
+      if (sectionPerson && isStrongMatch(query, sectionPerson)) setPerson(sectionPerson);
+      return;
+    }
+    let alive = true;
+    // Otherwise the person lookup always runs — it is one search, and it is what
+    // puts the strip on screen; without it a folded panel has nothing to tap open.
+    void suggestProfiles(query, { pov, userPubkey }, { limit: 3 }).then((people) => {
+      if (!alive) return;
+      const top = people[0];
+      if (top && isStrongMatch(query, top)) setPerson(top);
+    });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, pov, userPubkey, hasSections, sectionPersonKey]);
+
+  // The rest of the panel: topic, apps, upcoming events, or a NIP page. Its own
+  // effect, so turning the probes on never re-runs the person lookup above or
+  // clears what it found.
+  useEffect(() => {
+    if (!probeReady) return;
     let alive = true;
     // A NIP-shaped query is a spec lookup, not a person or topic hunt —
     // the wiki page (kind 30818) takes the slot and nothing else probes.
@@ -312,31 +398,34 @@ function KnowledgePanelBody({
       });
       if (matched.length > 0) setAppHits(matched.slice(0, 3));
     });
-    // Events probe (Benjamin: "like a Google events feel — real and
-    // relevant, not forced"): upcoming only, soonest first, and the query
-    // must actually appear in the event's title, place or summary — the
-    // relay's fuzzy text match alone would drag in strays.
-    const cancelEvents = searchStream(`${query} sort:recent`, { tab: "events", pov, userPubkey, limit: 60 }, (snapshot) => {
-      if (!alive || !snapshot.eose) return;
-      const named = snapshot.hits.filter((h) => {
-        const cal = parseCalendarEvent(h.event);
-        return norm(`${cal.title} ${cal.location ?? ""} ${cal.summary ?? ""}`).includes(q);
-      });
-      const upcoming = filterEventsByWhen(named, "upcoming");
-      if (upcoming.length > 0) setTopicEvents(upcoming.slice(0, 3));
-    });
-    void suggestProfiles(query, { pov, userPubkey }, { limit: 3 }).then((people) => {
-      if (!alive) return;
-      const top = people[0];
-      if (top && isStrongMatch(query, top)) setPerson(top);
-    });
     return () => {
       alive = false;
       cancelTopic?.();
       cancelApps();
-      cancelEvents();
     };
-  }, [query, pov, userPubkey]);
+  }, [query, pov, userPubkey, probeReady]);
+
+  // Events (Benjamin: "like a Google events feel — real and relevant, not
+  // forced"). The Happening section asks this question less deeply than the
+  // probe did, so the probe still runs where the section cannot fill the row.
+  useEffect(() => {
+    if (!probeReady || nipCandidates(query).length > 0) return;
+    if (sectionRow.length > 0) setTopicEvents(sectionRow);
+    // A full row is a full row, whichever tab the reader moves to next.
+    if ((topicEvents?.length ?? 0) >= EVENTS_SHOWN) return;
+    if (hasSections && (sectionRow.length >= EVENTS_SHOWN || !eventsSettled)) return;
+    let alive = true;
+    const cancel = searchStream(`${query} sort:recent`, { tab: "events", pov, userPubkey, limit: 60 }, (snapshot) => {
+      if (!alive || !snapshot.eose) return;
+      const upcoming = eventsRow(snapshot.hits, query);
+      if (upcoming.length > 0) setTopicEvents(upcoming);
+    });
+    return () => {
+      alive = false;
+      cancel();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, pov, userPubkey, probeReady, hasSections, sectionRowKey, eventsSettled]);
 
   // Relay hits carry no rank numbers (order-only wire) — the panel's ring,
   // coin and tier word feed from the shared author-score cache like every card.

@@ -581,6 +581,8 @@ export interface CreateSchedulingBody {
   priority?: number;
   enabled?: boolean;
   is_default?: boolean;
+  /** Whether a plan mapped to this policy may be sold on the pricing page. */
+  is_public?: boolean;
   manual_quota_limit?: number;
   manual_quota_window_seconds?: number;
 }
@@ -648,6 +650,12 @@ export interface NetworkAlertsData {
 /** True when an account's verified reporters meet/exceed its flag threshold. */
 export function isFlaggedAlert(e: NetworkAlertEntry): boolean {
   return e.reporterThreshold > 0 && e.verifiedReporterCount >= e.reporterThreshold;
+}
+
+/** An author's Influence and Flagged verdict, as a ring and a flag chip draw them. */
+export interface TrustSignals {
+  influence: number | null;
+  flagged: boolean;
 }
 
 export const apiClient = {
@@ -1119,6 +1127,7 @@ export const apiClient = {
     ownPubkey: boolean = false,
     timeoutMs: number = 15000,
     maxHits?: number,
+    signal?: AbortSignal,
   ): Promise<{
     code: number;
     message: string | null;
@@ -1137,13 +1146,24 @@ export const apiClient = {
       params.set("maxHits", String(Math.trunc(maxHits)));
     }
     const url = `${getBrainstormApi()}/search/byText?${params.toString()}`;
-    const response = ownPubkey
-      ? await authenticatedFetch(url, { signal: AbortSignal.timeout(timeoutMs) })
-      : await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
-    if (!response.ok) {
-      throw new Error(`Search failed (${response.status})`);
+    // Combined by hand: AbortSignal.any is missing on older mobile Safari.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(new DOMException("Timed out", "TimeoutError")), timeoutMs);
+    const onAbort = () => controller.abort(signal?.reason);
+    if (signal?.aborted) onAbort();
+    else signal?.addEventListener("abort", onAbort, { once: true });
+    try {
+      const response = ownPubkey
+        ? await authenticatedFetch(url, { signal: controller.signal })
+        : await fetch(url, { signal: controller.signal });
+      if (!response.ok) {
+        throw new Error(`Search failed (${response.status})`);
+      }
+      return await response.json();
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
     }
-    return await response.json();
   },
 
   /**
@@ -1515,38 +1535,52 @@ export const apiClient = {
     pubkey: string,
     timeoutMs: number = 8000,
   ): Promise<number | null> {
-    return (await apiClient.getHouseSignals(pubkey, timeoutMs)).influence;
-  },
-
-  /**
-   * The house-perspective overview's two ambient signals in one unauthenticated
-   * call: `influence` (the score every ring reads) and `flagged_by_observer`
-   * (the network's verified reporters crossed the server's threshold). One
-   * request feeds both the ring and the "flagged" chip. Never throws.
-   */
-  async getHouseSignals(
-    pubkey: string,
-    timeoutMs: number = 8000,
-  ): Promise<{ influence: number | null; flagged: boolean }> {
-    const none = { influence: null, flagged: false };
-    if (!pubkey) return none;
+    if (!pubkey) return null;
     try {
       // Plain fetch (no session token) → NosFabrica/house perspective.
       const response = await fetch(`${getBrainstormApi()}/user/${pubkey}/overview`, {
         signal: AbortSignal.timeout(timeoutMs),
       });
-      if (!response.ok) return none;
-      const json = await response.json();
-      // Overview responses are wrapped: { code, message, data: { influence, flagged_by_observer } }.
-      const data = (json as { data?: { influence?: unknown; flagged_by_observer?: unknown } })?.data;
-      const influence = data?.influence;
-      return {
-        influence: typeof influence === "number" && Number.isFinite(influence) ? influence : null,
-        flagged: data?.flagged_by_observer === true,
-      };
+      if (!response.ok) return null;
+      const json = (await response.json()) as { data?: { influence?: unknown } };
+      const influence = json?.data?.influence;
+      return typeof influence === "number" && Number.isFinite(influence) ? influence : null;
     } catch {
-      return none;
+      return null;
     }
+  },
+
+  /**
+   * Trust signals for many authors in one unauthenticated call (house
+   * Perspective). Never throws: a failed batch answers an empty map.
+   */
+  async getTrustSignals(
+    pubkeys: string[],
+    timeoutMs: number = 8000,
+  ): Promise<Map<string, TrustSignals>> {
+    const out = new Map<string, TrustSignals>();
+    try {
+      const response = await fetch(`${getBrainstormApi()}/user/trustSignals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pubkeys }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!response.ok) return out;
+      const json = (await response.json()) as {
+        data?: { results?: { pubkey?: unknown; influence?: unknown; flagged?: unknown }[] };
+      };
+      for (const r of json.data?.results ?? []) {
+        if (typeof r.pubkey !== "string") continue;
+        out.set(r.pubkey, {
+          influence: typeof r.influence === "number" && Number.isFinite(r.influence) ? r.influence : null,
+          flagged: r.flagged === true,
+        });
+      }
+    } catch {
+      // unrated, like a failed overview
+    }
+    return out;
   },
 
   async getGrapeRankPreset(): Promise<{

@@ -25,6 +25,8 @@
  * caller falls back to today's plaintext-persist behavior.
  */
 
+import { openDb, transact } from "./idb";
+
 const DB_NAME = "brainstorm-vault";
 const STORE = "keys";
 const DEVICE_KEY_ID = "device";
@@ -58,45 +60,35 @@ function b64decode(s: string): Uint8Array {
   return out;
 }
 
-// ---- IndexedDB (tiny promise wrapper, no external dep) -----------------------
-function openDb(): Promise<IDBDatabase> {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, 1);
-    req.onupgradeneeded = () => {
-      const db = req.result;
-      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
-    };
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
+// ---- IndexedDB --------------------------------------------------------------
+// The shared wrapper (lib/idb.ts). This store keeps its keys out of line — the
+// device key is a CryptoKey, not a record with an id in it.
+const vaultDb = () =>
+  openDb(DB_NAME, 1, (db) => {
+    if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE);
   });
+
+async function idbGet(key: string): Promise<unknown> {
+  const db = await vaultDb();
+  try {
+    return await transact<unknown>(db, STORE, "readonly", (store, keep) => {
+      const req = store.get(key);
+      req.onsuccess = () => keep(req.result);
+    });
+  } finally {
+    db.close();
+  }
 }
 
-function idbGet(key: string): Promise<unknown> {
-  return openDb().then(
-    (db) =>
-      new Promise((resolve, reject) => {
-        const tx = db.transaction(STORE, "readonly");
-        const req = tx.objectStore(STORE).get(key);
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error);
-        tx.oncomplete = () => db.close();
-      }),
-  );
-}
-
-function idbPut(key: string, val: unknown): Promise<void> {
-  return openDb().then(
-    (db) =>
-      new Promise<void>((resolve, reject) => {
-        const tx = db.transaction(STORE, "readwrite");
-        tx.objectStore(STORE).put(val, key);
-        tx.oncomplete = () => {
-          db.close();
-          resolve();
-        };
-        tx.onerror = () => reject(tx.error);
-      }),
-  );
+async function idbPut(key: string, val: unknown): Promise<void> {
+  const db = await vaultDb();
+  try {
+    await transact(db, STORE, "readwrite", (store) => {
+      store.put(val, key);
+    });
+  } finally {
+    db.close();
+  }
 }
 
 // ---- device key --------------------------------------------------------------

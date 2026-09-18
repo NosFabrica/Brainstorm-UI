@@ -17,12 +17,14 @@
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
 import { RelayClosedError } from "applesauce-relay";
+import type { Relay, RelayReqMessage } from "applesauce-relay";
 import { reportSearchFailure } from "@/lib/serverStatus";
 import { searchRelay } from "@/lib/searchRelay";
 import { zapstoreRelay } from "@/lib/zapstoreRelay";
 import { eventStore } from "@/lib/eventStore";
 import { liftQuery } from "@/lib/searchSyntax";
 import { resolveHouseObserver } from "@/services/trustSource";
+import { wantProfile } from "@/services/authorProfileQueue";
 import type { SearchResult } from "@/lib/profileSearch";
 
 export type SearchTab =
@@ -101,6 +103,13 @@ export type SearchHandle = (() => void) & { more: () => void };
 
 export type SearchPov = "nosfabrica" | "mywot";
 
+/**
+ * A page whose sections share one REQ. Not a tab — the Everything page is both
+ * a tab and a group. Members are routed to by kind, so a group's sections must
+ * ask for disjoint kinds; a section that names no kinds never joins.
+ */
+export type SearchGroup = "search-everything" | "home-feed-personal" | "home-feed-house";
+
 export interface SearchParams {
   tab: SearchTab;
   pov: SearchPov;
@@ -116,6 +125,21 @@ export interface SearchParams {
    * and the next page turns from their end.
    */
   seed?: SearchHit[];
+  /**
+   * The seed is a placeholder, not an answer: anything in it that the relay's
+   * own first page does not return is dropped at EOSE. The typeahead's people
+   * are shown this way — they are what the box guessed, and the section's
+   * answer is what the search actually says.
+   */
+  provisionalSeed?: boolean;
+  /**
+   * Streams naming the same group share ONE REQ — one filter each, events
+   * routed back by kind. The relay works a socket's REQs as a queue, so the
+   * Everything page's eight sections were eight turns in it (probed
+   * 2026-09-16: 5,145ms vs 2,514ms for the same 75 events). Only the first
+   * page joins; a "more" page opens its own REQ as before.
+   */
+  group?: SearchGroup;
 }
 
 const DEFAULT_LIMIT = 100;
@@ -178,6 +202,98 @@ async function resolveObserver(params: SearchParams): Promise<string | null> {
   return resolveHouseObserver();
 }
 
+interface GroupMember {
+  kinds: Set<number>;
+  filter: import("nostr-tools").Filter;
+  next: (msg: RelayReqMessage) => void;
+  error: (err: unknown) => void;
+  live: boolean;
+  /** Set when the member could not share, and got a REQ of its own. */
+  sub: { unsubscribe: () => void } | null;
+}
+
+interface PendingGroup {
+  members: GroupMember[];
+  timer: ReturnType<typeof setTimeout>;
+  /** The shared REQ, once the group has opened it. */
+  sub: { unsubscribe: () => void } | null;
+}
+
+/** Groups still collecting members. An opened group is no longer joinable. */
+const pendingGroups = new Map<SearchGroup, PendingGroup>();
+
+/**
+ * Join `filter` to the group's single REQ, opened once the tick the first
+ * member arrived in has run out. A member only sees events its own kinds asked
+ * for; EOSE, CLOSED and errors reach every member of its REQ.
+ */
+function joinGroupReq(
+  relay: Pick<Relay, "req">,
+  key: SearchGroup,
+  filter: import("nostr-tools").Filter,
+  handlers: { next: GroupMember["next"]; error: GroupMember["error"] },
+): { unsubscribe: () => void } {
+  const member: GroupMember = { kinds: new Set(filter.kinds), filter, ...handlers, live: true, sub: null };
+  let group = pendingGroups.get(key);
+  if (!group) {
+    group = {
+      members: [],
+      sub: null,
+      timer: setTimeout(() => {
+        pendingGroups.delete(key);
+        const watch = (members: GroupMember[]) => ({
+          next: (msg: RelayReqMessage) => {
+            const kind = msg.type === "EVENT" ? msg.event.kind : undefined;
+            for (const m of members) {
+              if (!m.live || (kind !== undefined && !m.kinds.has(kind))) continue;
+              m.next(msg);
+            }
+          },
+          error: (err: unknown) => members.forEach((m) => m.live && m.error(err)),
+        });
+        // Events come back attributed to nothing but their kind, so two members
+        // asking for one kind cannot share: the second takes a REQ of its own.
+        const taken = new Set<number>();
+        const shared: GroupMember[] = [];
+        const alone: GroupMember[] = [];
+        for (const m of group!.members) {
+          if (!m.live) continue;
+          if ([...m.kinds].some((kind) => taken.has(kind))) {
+            alone.push(m);
+            continue;
+          }
+          m.kinds.forEach((kind) => taken.add(kind));
+          shared.push(m);
+        }
+        if (shared.length > 0) group!.sub = relay.req(shared.map((m) => m.filter)).subscribe(watch(shared));
+        for (const m of alone) m.sub = relay.req([m.filter]).subscribe(watch([m]));
+      }, 0),
+    };
+    pendingGroups.set(key, group);
+  }
+  group.members.push(member);
+  const self = group;
+  return {
+    unsubscribe: () => {
+      member.live = false;
+      member.sub?.unsubscribe();
+      // The shared REQ closes with its last member; while any remain it stays
+      // open — the relay cannot be told to drop one filter from a live one.
+      if (self.members.every((m) => !m.live)) {
+        clearTimeout(self.timer);
+        if (pendingGroups.get(key) === self) pendingGroups.delete(key);
+        self.sub?.unsubscribe();
+      }
+    },
+  };
+}
+
+/** Test seam. */
+export function __resetSearchGroups(): void {
+  for (const group of pendingGroups.values()) clearTimeout(group.timer);
+  pendingGroups.clear();
+}
+
 /**
  * Streaming full search. Each callback delivers the WHOLE current list —
  * one setState per emit, and a cancelled handle never calls back again,
@@ -204,6 +320,9 @@ export function searchStream(
   let oldest = Infinity;
   let pagesTurned = 0;
   const seed = params.seed ?? [];
+  /** Seeded ids, and the ones the relay's own page confirmed. */
+  const seeded = new Set(seed.map((h) => h.event.id));
+  const confirmed = new Set<string>();
   for (const h of seed) {
     if (seen.has(h.event.id)) continue;
     seen.add(h.event.id);
@@ -255,49 +374,34 @@ export function searchStream(
       limit: params.limit ?? DEFAULT_LIMIT,
     };
 
-    // --- Author hydration: kind-0s for non-profile hits. The event store
-    // answers known authors synchronously; unknowns are debounced into one
-    // batched REQ on the same relay. `include:spam` is the lens — we want the
-    // requester's profile regardless of how the observer ranks them.
-    const pendingAuthors = new Set<string>();
-    let hydrateTimer: ReturnType<typeof setTimeout> | null = null;
-    let hydrateSub: { unsubscribe: () => void } | null = null;
+    // --- Author hydration: the store answers known authors; the rest go to the shared queue.
+    const wantedAuthors = new Map<string, () => void>();
 
-    const applyProfile = (profile: NostrEvent) => {
+    const applyProfile = (profile: NostrEvent | null) => {
+      // null means the relay has nobody by that key — nothing to apply.
+      if (cancelled || !profile) return;
       const author = kind0ToSearchResult(profile);
       for (const hit of hits) {
         if (hit.event.kind !== 0 && hit.event.pubkey === profile.pubkey) hit.author = author;
       }
-    };
-
-    const flushHydration = () => {
-      hydrateTimer = null;
-      if (cancelled || pendingAuthors.size === 0) return;
-      const authors = [...pendingAuthors];
-      pendingAuthors.clear();
-      // The previous flush's REQ stays open otherwise — each one counted
-      // against the relay's 50 concurrent subscriptions.
-      hydrateSub?.unsubscribe();
-      hydrateSub = relay
-        .req({ kinds: [0], authors, search: "include:spam", limit: authors.length })
-        .subscribe((msg: { type: string; event?: NostrEvent }) => {
-          if (cancelled) return;
-          if (msg.type === "EVENT" && msg.event?.kind === 0) {
-            eventStore.add(msg.event);
-            applyProfile(msg.event);
-            emit({});
-          }
-        });
+      emit({});
     };
 
     const noteAuthor = (event: NostrEvent): SearchResult | null => {
       if (event.kind === 0) return kind0ToSearchResult(event);
       const known = eventStore.getReplaceable(0, event.pubkey);
       if (known) return kind0ToSearchResult(known);
-      pendingAuthors.add(event.pubkey);
-      if (!hydrateTimer) hydrateTimer = setTimeout(flushHydration, 150);
+      if (!wantedAuthors.has(event.pubkey)) wantedAuthors.set(event.pubkey, wantProfile(event.pubkey, applyProfile));
       return null;
     };
+
+    // A seed from the head start (lib/headStart) carries events, not authors:
+    // page one repeats those events and is deduped away, so nothing else would
+    // ever fill their names in.
+    if (seed.length) {
+      for (const hit of hits) if (!hit.author) hit.author = noteAuthor(hit.event);
+      emit({});
+    }
 
     // --- Pages. The first REQ stays open so the relay can keep streaming
     // what arrives; every further page closes at its EOSE (the relay caps
@@ -328,7 +432,15 @@ export function searchStream(
         }
       }, REQ_DEADLINE_MS);
       let answered = false;
-      const sub = relay.req(pageFilter).subscribe({
+      // Routing back from a shared REQ is by kind, so a member must name kinds
+      // (Everything names none — it would be handed every other section's hits)
+      // and the group's members must not ask for the same kind twice.
+      const canGroup = !!params.group && !closeAtEose && !!pageFilter.kinds?.length;
+      const open = (o: { error: (err: unknown) => void; next: (msg: { type: string; event?: NostrEvent; reason?: string }) => void }) =>
+        canGroup
+          ? joinGroupReq(relay, params.group!, pageFilter, o)
+          : relay.req(pageFilter).subscribe(o);
+      const sub = open({
         error: (err: unknown) => {
           clearTimeout(deadline);
           if (cancelled) return;
@@ -348,7 +460,9 @@ export function searchStream(
         if (msg.type === "EVENT" && msg.event) {
           const event = msg.event;
           received++;
-          if (seen.has(event.id) || !hostedByThem(event)) return;
+          if (!hostedByThem(event)) return;
+          confirmed.add(event.id);
+          if (seen.has(event.id)) return;
           seen.add(event.id);
           fresh++;
           oldest = Math.min(oldest, event.created_at);
@@ -363,6 +477,17 @@ export function searchStream(
         } else if (msg.type === "EOSE") {
           eose = true;
           loadingMore = false;
+          // A guess the search did not stand behind does not stay on screen.
+          if (params.provisionalSeed && !closeAtEose && seeded.size > 0) {
+            for (let i = hits.length - 1; i >= 0; i--) {
+              const id = hits[i].event.id;
+              if (seeded.has(id) && !confirmed.has(id)) {
+                hits.splice(i, 1);
+                seen.delete(id);
+              }
+            }
+            seeded.clear();
+          }
           // A page the relay returned short is the last one — counted as the
           // relay sent it, before dedupe: an `until` page always carries the
           // boundary second again. A full page with nothing new is the end too.
@@ -388,7 +513,12 @@ export function searchStream(
       }
       loadingMore = true;
       pagesTurned++;
-      const next: import("nostr-tools").Filter = recent ? { ...filter, until: oldest } : { ...filter, limit: nextLimit };
+      // `since` belongs to page one only: it says "we already hold everything
+      // older" (SearchParams.seed). Carried onto a page asked `until` the
+      // oldest hit, it describes an empty window and the section reads as
+      // exhausted.
+      const { since: _pageOneOnly, ...rest } = filter;
+      const next: import("nostr-tools").Filter = recent ? { ...rest, until: oldest } : { ...rest, limit: nextLimit };
       emit({});
       openPage(next, true);
     };
@@ -396,8 +526,8 @@ export function searchStream(
     openPage(filter, false);
     unsubscribe = () => {
       for (const sub of pageSubs) sub.unsubscribe();
-      hydrateSub?.unsubscribe();
-      if (hydrateTimer) clearTimeout(hydrateTimer);
+      wantedAuthors.forEach((withdraw) => withdraw());
+      wantedAuthors.clear();
     };
     if (cancelled) unsubscribe();
   })();
@@ -1390,25 +1520,46 @@ export function fetchEventRsvps(addresses: string[], timeoutMs = 5000): Promise<
 export function suggestProfiles(
   query: string,
   params: Pick<SearchParams, "pov" | "userPubkey">,
-  opts?: { limit?: number; timeoutMs?: number },
+  opts?: { limit?: number; timeoutMs?: number; signal?: AbortSignal },
 ): Promise<SearchResult[]> {
+  return suggestProfileHits(query, params, opts).then((hits) =>
+    hits.map((hit) => hit.author).filter((author): author is SearchResult => !!author),
+  );
+}
+
+/**
+ * The same suggestions, as the hits they arrived as.
+ *
+ * The typeahead shows people; the People section then shows the same people,
+ * asked the same way. Keeping the events means a submit can seed that section
+ * with what is already on screen instead of asking for it again.
+ */
+export function suggestProfileHits(
+  query: string,
+  params: Pick<SearchParams, "pov" | "userPubkey">,
+  opts?: { limit?: number; timeoutMs?: number; signal?: AbortSignal },
+): Promise<SearchHit[]> {
   const limit = opts?.limit ?? 10;
   const timeoutMs = opts?.timeoutMs ?? 4000;
+  const signal = opts?.signal;
+  if (signal?.aborted) return Promise.resolve([]);
   return new Promise((resolve) => {
-    const seen = new Map<string, SearchResult>();
+    const seen = new Map<string, SearchHit>();
     const cancel = searchStream(
       query,
       { tab: "people", pov: params.pov, userPubkey: params.userPubkey, limit },
       (snapshot) => {
         for (const hit of snapshot.hits) {
-          if (hit.author && !seen.has(hit.event.pubkey)) seen.set(hit.event.pubkey, hit.author);
+          if (hit.author && !seen.has(hit.event.pubkey)) seen.set(hit.event.pubkey, hit);
         }
         if (snapshot.eose || snapshot.error) finish();
       },
     );
     const timer = setTimeout(finish, timeoutMs);
+    signal?.addEventListener("abort", finish, { once: true });
     function finish() {
       clearTimeout(timer);
+      signal?.removeEventListener("abort", finish);
       cancel();
       resolve([...seen.values()].slice(0, limit));
     }

@@ -40,6 +40,7 @@ import { BrainLogo } from "@/components/BrainLogo";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { useConnectionSpeed, videoPreload } from "@/lib/connection";
 
 
 type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string };
@@ -116,6 +117,7 @@ function eventMediaUrls(ev: MinimalEvent): string[] {
  * tier (our differentiator), and funnels anonymous readers into signup.
  */
 export default function EventPage() {
+  const speed = useConnectionSpeed();
   const tierRing = useTierRing();
   const coinReplaced = useCoinReplacedByRing();
   const [, params] = useRoute("/e/:id");
@@ -385,7 +387,7 @@ export default function EventPage() {
                 <div data-testid="event-media">
                   {mediaUrls.map((u, i) =>
                     VID_RE.test(u) ? (
-                      <video key={i} src={u} controls preload="metadata" className="mb-2 w-full rounded-xl border border-slate-200 dark:border-slate-800 max-h-[36rem]" />
+                      <video key={i} src={u} controls preload={videoPreload(speed)} className="mb-2 w-full rounded-xl border border-slate-200 dark:border-slate-800 max-h-[36rem]" />
                     ) : (
                       <img
                         key={i}

@@ -7,6 +7,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { stubVisibleIntersectionObserver } from "@/test/visibleIntersectionObserver";
+import { __resetConnectionSpeed } from "@/lib/connection";
 import { __resetFavicons, Favicon, LinkPreviewCard } from "./LinkPreview";
 
 // Fountain's page, answered or not — the card is the player, not a fetch test.
@@ -187,6 +188,19 @@ vi.mock("@/services/unfurl", () => ({ fetchUnfurl: unfurlMock }));
 describe("the plain-link card", () => {
   beforeEach(() => {
     stubVisibleIntersectionObserver();
+  });
+
+  // A preview is a second fetch for something the chip already names.
+  it("asks for nothing on a slow connection", async () => {
+    Object.defineProperty(window.navigator, "connection", { value: { effectiveType: "3g" }, configurable: true });
+    __resetConnectionSpeed();
+    unfurlMock.mockResolvedValue({ title: "Liverpool F.C.", description: "club", image: null, siteName: "Wikipedia" });
+    render(<LinkPreviewCard url="https://en.wikipedia.org/wiki/Liverpool_F.C." />);
+    await new Promise((r) => setTimeout(r, 30));
+    expect(unfurlMock).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("link-card")).toBeNull();
+    Object.defineProperty(window.navigator, "connection", { value: undefined, configurable: true });
+    __resetConnectionSpeed();
   });
   it("shows the page's own words when the proxy answers", async () => {
     unfurlMock.mockResolvedValue({ title: "Liverpool F.C.", description: "Professional football club", image: "https://img/lfc.jpg", siteName: "Wikipedia" });

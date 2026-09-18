@@ -13,7 +13,6 @@
  * from a clock.
  */
 import { useCallback, useEffect, useRef, useState } from "react";
-import { QRCodeSVG } from "qrcode.react";
 import { use$ } from "applesauce-react/hooks";
 import {
   AlertTriangle,
@@ -50,6 +49,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Textarea } from "@/components/ui/textarea";
+import { LazyQRCode } from "@/components/LazyQRCode";
 
 /** After this long with no answer, the likeliest cause is an unread notification. */
 const NUDGE_AFTER_MS = 15_000;
@@ -270,13 +270,13 @@ function ConnectPane({
         modules on damage recovery only makes them smaller.
       */}
       <div className="rounded-xl bg-white p-3 w-full max-w-[320px]">
-        <QRCodeSVG
-          value={pairing.uri}
-          bgColor="#ffffff"
-          fgColor="#0A0E18"
-          level="L"
-          className="h-auto w-full"
-        />
+        <LazyQRCode
+            value={pairing.uri}
+            bgColor="#ffffff"
+            fgColor="#0A0E18"
+            level="L"
+            className="h-auto w-full"
+          />
       </div>
       <p className="text-xs text-muted-foreground">Scan this with your signer app</p>
     </div>

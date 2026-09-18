@@ -95,6 +95,19 @@ describe("HomeFeed", () => {
     expect(house.params.since).toBe(mine.params.since);
   });
 
+  it("asks each block's bands on one shared subscription, and the two blocks do not share", () => {
+    render(<HomeFeed personal userPubkey={"9".repeat(64)} onHide={vi.fn()} onBrowse={vi.fn()} />);
+    const groupsFor = (pov: string) => new Set(calls.filter((c) => c.params.pov === pov).map((c) => c.params.group));
+    const mine = groupsFor("mywot");
+    const house = groupsFor("nosfabrica");
+    // One group each, and never the same one: both blocks ask for the same
+    // kinds, so sharing a REQ would hand each block the other's events.
+    expect(mine.size).toBe(1);
+    expect(house.size).toBe(1);
+    expect([...mine][0]).toBeTruthy();
+    expect([...mine][0]).not.toBe([...house][0]);
+  });
+
   it("renders Latest rows from your network's notes, newest first as the relay sends them", async () => {
     render(<HomeFeed personal userPubkey={"9".repeat(64)} onHide={vi.fn()} onBrowse={vi.fn()} />);
     streamsOf("mywot", "notes")[0].emit({

@@ -49,6 +49,7 @@ describe("fetchRecentByKinds", () => {
     requestAllMock.mockResolvedValue([video("a".repeat(64), 100), video("b".repeat(64), 300)]);
     const p = fetchRecentByKinds(PK, [21, 22, 34235, 34236], 3);
     await vi.waitFor(() => expect(searchReqMock).toHaveBeenCalledTimes(1));
+    // One ask, so one filter on the wire — a batch is what makes it an array.
     expect(searchReqMock.mock.calls[0][0]).toMatchObject({ kinds: [21, 22, 34235, 34236], authors: [PK], search: "include:spam" });
     searchSubject!.next({ type: "EVENT", event: video("b".repeat(64), 300) }); // duplicate
     searchSubject!.next({ type: "EVENT", event: video("c".repeat(64), 200) });
@@ -58,9 +59,53 @@ describe("fetchRecentByKinds", () => {
     expect(out.map((e) => e.id[0])).toEqual(["b", "c", "a"]);
   });
 
+  // The knowledge panel asks the same person four separate questions the moment
+  // it settles on them — listings, media, streams, tracks — and the results page
+  // asks a fifth. The relay works a socket's REQs as a queue, so they go as one.
+  it("asks one question when several are asked about the same person at once", async () => {
+    requestAllMock.mockResolvedValue([]);
+    const listings = fetchRecentByKinds(PK, [30402], 12);
+    const media = fetchRecentByKinds(PK, [1, 21, 22, 34236], 40);
+    await vi.waitFor(() => expect(searchReqMock).toHaveBeenCalledTimes(1));
+
+    const filters = searchReqMock.mock.calls[0][0] as Array<{ kinds: number[]; limit: number; authors: string[] }>;
+    expect(filters).toHaveLength(2);
+    expect(filters.map((f) => f.kinds)).toEqual([[30402], [1, 21, 22, 34236]]);
+    expect(filters.map((f) => f.limit)).toEqual([12, 40]);
+    expect(filters.every((f) => f.authors[0] === PK)).toBe(true);
+    // The content relays are asked once too, with the same pair.
+    expect(requestAllMock).toHaveBeenCalledTimes(1);
+
+    const listing = { id: "l1", kind: 30402, pubkey: PK, tags: [], content: "", created_at: 500, sig: "s" } as NostrEvent;
+    searchSubject!.next({ type: "EVENT", event: listing });
+    searchSubject!.next({ type: "EVENT", event: video("v1".padEnd(64, "0"), 400) });
+    searchSubject!.next({ type: "EOSE" });
+
+    // Each caller gets its own kinds back, and nobody else's.
+    expect((await listings).map((e) => e.id)).toEqual(["l1"]);
+    expect((await media).map((e) => e.kind)).toEqual([34236]);
+  });
+
+  it("keeps different people apart", async () => {
+    requestAllMock.mockResolvedValue([]);
+    const OTHER = "c".repeat(64);
+    void fetchRecentByKinds(PK, [1], 5);
+    void fetchRecentByKinds(OTHER, [1], 5);
+    await vi.waitFor(() => expect(searchReqMock).toHaveBeenCalledTimes(2));
+  });
+
+
+  it("answers everyone sharing a request when it fails, rather than leaving them waiting", async () => {
+    requestAllMock.mockRejectedValue(new Error("relays gone"));
+    const listings = fetchRecentByKinds(PK, [30402], 12, { timeoutMs: 50 });
+    const media = fetchRecentByKinds(PK, [1, 21], 40, { timeoutMs: 50 });
+    expect(await listings).toEqual([]);
+    expect(await media).toEqual([]);
+  });
+
   it("a search relay that never answers doesn't hold the page hostage", async () => {
     requestAllMock.mockResolvedValue([video("a".repeat(64), 100)]);
-    const out = await fetchRecentByKinds(PK, [1], 5, { timeoutMs: 30 });
+    const out = await fetchRecentByKinds(PK, [34236], 5, { timeoutMs: 30 });
     expect(out.map((e) => e.id[0])).toEqual(["a"]);
   });
 });

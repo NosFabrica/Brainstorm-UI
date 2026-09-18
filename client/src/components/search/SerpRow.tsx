@@ -31,6 +31,7 @@ import { eventPath } from "@/lib/shareId";
 import { wikiPlainText } from "@/lib/wiki";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
+import { useConnectionSpeed, videoPreload } from "@/lib/connection";
 
 function ago(created_at: number): string {
   const s = Math.max(0, Math.floor(Date.now() / 1000) - created_at);
@@ -152,6 +153,7 @@ function Marked({ text, query }: { text: string; query: string }) {
  *  dead (expired signed thumbs must not render as broken glass), or a
  *  metadata-only <video> first frame when only the video itself exists. */
 function RowThumb({ event, author, score }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
+  const speed = useConnectionSpeed();
   const [failed, setFailed] = useState(false);
   const openLightbox = useLightbox();
   // The full view is told whose media it is and where the post lives.
@@ -189,7 +191,7 @@ function RowThumb({ event, author, score }: { event: NostrEvent; author: SearchR
     return (
       <video
         src={`${url}#t=0.1`}
-        preload="metadata"
+        preload={videoPreload(speed)}
         muted
         playsInline
         tabIndex={-1}
