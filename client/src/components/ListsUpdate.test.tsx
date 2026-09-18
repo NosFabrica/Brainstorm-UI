@@ -6,7 +6,7 @@
  * they sign. Nothing here ever asks for a signature on its own.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 
 const ME = "a".repeat(64);
 const TA = "b".repeat(64);
@@ -21,7 +21,7 @@ vi.mock("@/hooks/useTrustListsStatus", () => ({ useTrustListsStatus: () => ({ da
 vi.mock("@/services/trustAnchor", () => ({ publishBrainstormTrustAnchor: (...a: unknown[]) => publish(...a) }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
 
-import { ListsUpdatePill } from "./ListsUpdate";
+import { ListsUpdateLine, ListsUpdatePill } from "./ListsUpdate";
 
 const tap = () => fireEvent.click(screen.getByRole("button", { name: /^update$/i }));
 
@@ -72,5 +72,19 @@ describe("ListsUpdatePill", () => {
     s.lists = { status: "declared", designation: LISTS };
     render(<ListsUpdatePill />);
     expect(screen.queryByTestId("pill-lists-update")).toBeNull();
+  });
+
+  // Benjamin: the Brainstorm "B", not an emoji — it's Brainstorm asking.
+  it("carries the Brainstorm mark, not a sparkle", () => {
+    const { unmount } = render(<ListsUpdatePill />);
+    const pill = screen.getByTestId("pill-lists-update");
+    expect(within(pill).getByRole("img", { name: "Brainstorm" })).toBeInTheDocument();
+    expect(pill.querySelector(".lucide-sparkles")).toBeNull();
+    unmount();
+
+    render(<ListsUpdateLine />);
+    const line = screen.getByTestId("line-lists-update");
+    expect(within(line).getByRole("img", { name: "Brainstorm" })).toBeInTheDocument();
+    expect(line.querySelector(".lucide-sparkles")).toBeNull();
   });
 });

@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Loader2, Sparkles } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { BrainLogo } from "@/components/BrainLogo";
 import { useToast } from "@/hooks/use-toast";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useSelfHistory } from "@/hooks/useSelf";
@@ -70,7 +71,7 @@ export function ListsUpdatePill() {
       className="inline-flex max-w-full items-center gap-2 rounded-full border border-brand-primary/25 bg-brand-primary/[0.06] py-1 pl-3 pr-1 dark:bg-brand-primary/15"
       data-testid="pill-lists-update"
     >
-      <Sparkles className="h-3.5 w-3.5 shrink-0 text-brand-primary dark:text-brand-link" />
+      <BrainLogo size={14} className="shrink-0" />
       <span className="hidden whitespace-nowrap text-[13px] font-bold text-slate-800 dark:text-slate-100 sm:block">
         New lists from your network
       </span>
@@ -89,7 +90,7 @@ export function ListsUpdateLine() {
       data-testid="line-lists-update"
     >
       <span className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-200">
-        <Sparkles className="h-4 w-4 shrink-0 text-brand-primary dark:text-brand-link" />
+        <BrainLogo size={16} className="shrink-0" />
         Update available — new lists from your network
       </span>
       <UpdateButton busy={busy} onClick={() => void update()} />
