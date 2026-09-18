@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Eye, Loader2, MoreHorizontal, Play, RefreshCw } from "lucide-react";
+import { Eye, ListChecks, Loader2, MoreHorizontal, Play, RefreshCw } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +23,7 @@ export function UserActionsMenu({
   triggerDisabled,
   onTrigger,
   onView,
+  onPublishTrustedLists,
   testIdSuffix,
 }: {
   pubkey: string;
@@ -32,6 +33,8 @@ export function UserActionsMenu({
   triggerDisabled?: boolean;
   onTrigger: () => void;
   onView: () => void;
+  /** Opens the Trusted Lists tab with this user as the observer (still confirm-first there). */
+  onPublishTrustedLists?: () => void;
   /** Row index or similar, to keep per-row testids unique. */
   testIdSuffix: string | number;
 }) {
@@ -63,6 +66,11 @@ export function UserActionsMenu({
           <DropdownMenuItem onSelect={onView} data-testid="user-action-view">
             <Eye className="mr-2 h-3.5 w-3.5" /> View profile
           </DropdownMenuItem>
+          {onPublishTrustedLists && (
+            <DropdownMenuItem onSelect={onPublishTrustedLists} data-testid="user-action-trusted-lists">
+              <ListChecks className="mr-2 h-3.5 w-3.5" /> Publish trusted lists…
+            </DropdownMenuItem>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => setResyncOpen(true)} data-testid="user-action-resync">
             <RefreshCw className="mr-2 h-3.5 w-3.5" /> Resync published state…
