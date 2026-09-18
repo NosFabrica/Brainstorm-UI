@@ -17,9 +17,9 @@ vi.mock("@/lib/eventStore", () => ({ eventStore: { add: (e: NostrEvent) => added
 const ev = (id: string, kind: number): NostrEvent =>
   ({ id, kind, pubkey: "a".repeat(64), tags: [], content: "", created_at: 1, sig: "s" }) as NostrEvent;
 
-function park(query: string, events: NostrEvent[]) {
+function park(query: string, events: NostrEvent[], complete = true) {
   const socket = { close: vi.fn() };
-  (window as unknown as { __headStart?: unknown }).__headStart = { query, events, eose: true, socket };
+  (window as unknown as { __headStart?: unknown }).__headStart = { query, events, eose: true, complete, socket };
   return socket;
 }
 
@@ -34,7 +34,7 @@ afterEach(() => {
 describe("takeHeadStart", () => {
   it("hands over what it collected, puts it in the store, and lets the socket go", () => {
     const socket = park("bitcoin", [ev("a", 1), ev("b", 0)]);
-    const events = takeHeadStart("bitcoin");
+    const { events } = takeHeadStart("bitcoin");
     expect(events.map((e) => e.id)).toEqual(["a", "b"]);
     expect(added.map((e) => e.id)).toEqual(["a", "b"]);
     expect(socket.close).toHaveBeenCalled();
@@ -42,19 +42,27 @@ describe("takeHeadStart", () => {
 
   it("gives them up only once — a later mount searches for itself", () => {
     park("bitcoin", [ev("a", 1)]);
-    expect(takeHeadStart("bitcoin")).toHaveLength(1);
-    expect(takeHeadStart("bitcoin")).toHaveLength(0);
+    expect(takeHeadStart("bitcoin").events).toHaveLength(1);
+    expect(takeHeadStart("bitcoin").events).toHaveLength(0);
   });
 
   it("keeps nothing for a different question", () => {
     const socket = park("bitcoin", [ev("a", 1)]);
-    expect(takeHeadStart("nostr")).toHaveLength(0);
+    expect(takeHeadStart("nostr").events).toHaveLength(0);
     // …and the socket still goes: nobody is coming for that answer now.
     expect(socket.close).toHaveBeenCalled();
   });
 
+  it("says whether the relay finished — only then can a section ask for what came since", () => {
+    park("bitcoin", [ev("a", 1)], true);
+    expect(takeHeadStart("bitcoin").complete).toBe(true);
+    __resetHeadStart();
+    park("bitcoin", [ev("a", 1)], false);
+    expect(takeHeadStart("bitcoin").complete).toBe(false);
+  });
+
   it("is quiet when there was no head start at all", () => {
-    expect(takeHeadStart("bitcoin")).toEqual([]);
+    expect(takeHeadStart("bitcoin")).toEqual({ events: [], complete: false });
   });
 });
 

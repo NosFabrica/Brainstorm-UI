@@ -148,7 +148,23 @@ export const EVERYTHING_SECTIONS = {
   shop: { limit: 12, recent: false },
 } as const;
 
-const EMPTY_SEEDS = { people: [], notes: [], articles: [], events: [], live: [], media: [], music: [], shop: [] } as Record<string, SearchHit[]>;
+/** A section's head start, plus whether the relay finished giving it. */
+interface Seeds {
+  people: SearchHit[];
+  notes: SearchHit[];
+  articles: SearchHit[];
+  events: SearchHit[];
+  live: SearchHit[];
+  media: SearchHit[];
+  music: SearchHit[];
+  shop: SearchHit[];
+  /** The relay answered the head start in full, so a section may ask for what came since. */
+  complete?: boolean;
+}
+
+type SeedTab = Exclude<keyof Seeds, "complete">;
+
+const EMPTY_SEEDS: Seeds = { people: [], notes: [], articles: [], events: [], live: [], media: [], music: [], shop: [] };
 
 /** Content fades into the place its skeleton held (index.css's fadeIn keyframes). */
 const FADE = "motion-safe:animate-[fadeIn_0.3s_ease-out]";
@@ -200,31 +216,49 @@ function ComposedResultsBody({
     // A signed-in reader's settles a beat after the first render (landing's
     // effectivePov waits on two lookups), and house-ranked cards must not
     // paint for someone reading through their own.
-    const events = takeHeadStart(query);
-    if (remembered) return remembered;
+    const head = takeHeadStart(query);
+    if (remembered) return { ...EMPTY_SEEDS, ...remembered };
     if (userPubkey || pov !== "nosfabrica") return EMPTY_SEEDS;
     const forTab = (tab: Exclude<SearchTab, "everything">): SearchHit[] => {
       const kinds = new Set(TAB_KINDS[tab]);
-      return events
+      return head.events
         .filter((event) => kinds.has(event.kind))
         .map((event) => ({ event, author: event.kind === 0 ? kind0ToSearchResult(event) : null, rank: null }));
     };
-    return { people: forTab("people"), notes: forTab("notes"), articles: forTab("articles"), events: forTab("events"), live: forTab("live"), media: forTab("media"), music: forTab("music"), shop: forTab("shop") };
+    return {
+      complete: head.complete,
+      people: forTab("people"), notes: forTab("notes"), articles: forTab("articles"), events: forTab("events"),
+      live: forTab("live"), media: forTab("media"), music: forTab("music"), shop: forTab("shop"),
+    };
   }, [query, pov, userPubkey, remembered]);
 
-  const people = useSectionStream(query, "people", pov, userPubkey, EVERYTHING_SECTIONS.people.limit, { group: EVERYTHING, seed: seeds.people });
+  /**
+   * What a section still has to ask for. Where the head start finished, the
+   * relay has already answered that filter in full, so the section's own
+   * subscription asks only for what has happened since — it stays open for
+   * live events without replaying the page. A head start that was cut short,
+   * or seeds recalled from memory (which may be ten minutes old), ask in full.
+   */
+  const sinceFor = (tab: SeedTab): number | undefined => {
+    if (!seeds.complete) return undefined;
+    const hits = seeds[tab];
+    if (!hits?.length) return undefined;
+    return hits.reduce((newest, h) => Math.max(newest, h.event.created_at), 0) || undefined;
+  };
+
+  const people = useSectionStream(query, "people", pov, userPubkey, EVERYTHING_SECTIONS.people.limit, { group: EVERYTHING, seed: seeds.people, since: sinceFor("people") });
   // Every CONTENT section leads with what's fresh (Benjamin's call:
   // scattered timestamps read as random) — the relay sorts, we ask for
   // recent. People stays trust-ranked; there are no timestamps to scatter.
   const fresh = `${query} sort:recent`.trim();
-  const latest = useSectionStream(fresh, "notes", pov, userPubkey, EVERYTHING_SECTIONS.notes.limit, { group: EVERYTHING, seed: seeds.notes });
+  const latest = useSectionStream(fresh, "notes", pov, userPubkey, EVERYTHING_SECTIONS.notes.limit, { group: EVERYTHING, seed: seeds.notes, since: sinceFor("notes") });
   // Articles are evergreen: with words typed, relevance leads (recent-first
   // buried the page named "List of comedians" 26th; best match had it first).
-  const articles = useSectionStream(splitFilters(query).text ? query : fresh, "articles", pov, userPubkey, EVERYTHING_SECTIONS.articles.limit, { group: EVERYTHING, seed: seeds.articles });
+  const articles = useSectionStream(splitFilters(query).text ? query : fresh, "articles", pov, userPubkey, EVERYTHING_SECTIONS.articles.limit, { group: EVERYTHING, seed: seeds.articles, since: sinceFor("articles") });
   // Happening = calendar events AND live streams, two verticals since the
   // Events split; events lead (a meetup you can still attend beats a replay).
-  const happeningEvents = useSectionStream(fresh, "events", pov, userPubkey, EVERYTHING_SECTIONS.events.limit, { group: EVERYTHING, seed: seeds.events });
-  const happeningLive = useSectionStream(fresh, "live", pov, userPubkey, EVERYTHING_SECTIONS.live.limit, { group: EVERYTHING, seed: seeds.live });
+  const happeningEvents = useSectionStream(fresh, "events", pov, userPubkey, EVERYTHING_SECTIONS.events.limit, { group: EVERYTHING, seed: seeds.events, since: sinceFor("events") });
+  const happeningLive = useSectionStream(fresh, "live", pov, userPubkey, EVERYTHING_SECTIONS.live.limit, { group: EVERYTHING, seed: seeds.live, since: sinceFor("live") });
   const happening = useMemo(
     () =>
       mergeSnapshots(
@@ -235,14 +269,14 @@ function ComposedResultsBody({
       ),
     [happeningEvents, happeningLive],
   );
-  const media = useSectionStream(fresh, "media", pov, userPubkey, EVERYTHING_SECTIONS.media.limit, { group: EVERYTHING, seed: seeds.media });
+  const media = useSectionStream(fresh, "media", pov, userPubkey, EVERYTHING_SECTIONS.media.limit, { group: EVERYTHING, seed: seeds.media, since: sinceFor("media") });
   // Listen: native tracks (kind 31337) that match the words — best match, not
   // recency, because "jazz" should find jazz. The kind is abused for game
   // state and ad-skip data, so only hits that parse as a song count.
-  const music = useSectionStream(query, "music", pov, userPubkey, EVERYTHING_SECTIONS.music.limit, { group: EVERYTHING, seed: seeds.music });
+  const music = useSectionStream(query, "music", pov, userPubkey, EVERYTHING_SECTIONS.music.limit, { group: EVERYTHING, seed: seeds.music, since: sinceFor("music") });
   // Shop: things for sale that match the words — best match, since "cashmere"
   // should find cashmere. Sold, hidden and priceless are gated (lib/listing).
-  const shop = useSectionStream(query, "shop", pov, userPubkey, EVERYTHING_SECTIONS.shop.limit, { group: EVERYTHING, seed: seeds.shop });
+  const shop = useSectionStream(query, "shop", pov, userPubkey, EVERYTHING_SECTIONS.shop.limit, { group: EVERYTHING, seed: seeds.shop, since: sinceFor("shop") });
 
   useEffect(() => {
     if (!onSections) return;

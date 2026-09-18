@@ -83,7 +83,9 @@
           // (accounts/persist.ts clears this key on sign-out).
           if (localStorage.getItem("brainstorm_active_account")) return;
           var fresh = q + " sort:recent";
-          var head = { query: q, events: [], eose: false, socket: null };
+          // `complete` means the relay said EOSE: one REQ, one EOSE, so every
+          // filter finished. A CLOSED is an ending, not a completion.
+          var head = { query: q, events: [], eose: false, complete: false, socket: null };
           window.__headStart = head;
           var socket = new WebSocket(url);
           head.socket = socket;
@@ -110,7 +112,8 @@
             try {
               var m = JSON.parse(e.data);
               if (m[0] === "EVENT") head.events.push(m[2]);
-              else if (m[0] === "EOSE" || m[0] === "CLOSED") head.eose = true;
+              else if (m[0] === "EOSE") { head.eose = true; head.complete = true; }
+              else if (m[0] === "CLOSED") head.eose = true;
             } catch (err) {
               /* not a frame we know */
             }

@@ -115,6 +115,38 @@ describe("ComposedResults — media-rich sections", () => {
   // The skeletons are the loading state. A second "Searching…" row above them
   // only took 88px of space back when the first section landed, jumping the
   // page up under the reader.
+  // The head start asked the relay the same eight questions; asking them again
+  // in full made the relay answer the page twice (measured on staging).
+  it("asks only for what came since, when the head start finished", () => {
+    const NOW = Math.floor(Date.now() / 1000);
+    const note = (id: string, at: number) => ({ id, kind: 1, pubkey: "e".repeat(64), tags: [], content: id, created_at: at, sig: "s" }) as NostrEvent;
+    const park = (complete: boolean) => {
+      (window as unknown as { __headStart?: unknown }).__headStart = {
+        query: "liverpool",
+        events: [note("older", NOW - 600), note("newest", NOW - 60)],
+        eose: true,
+        complete,
+        socket: { close: () => {} },
+      };
+      __resetHeadStart();
+    };
+
+    park(true);
+    const done = render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    const asked = calls.find((c) => c.params.tab === "notes");
+    expect(asked?.params.seed?.map((h) => h.event.id)).toEqual(["older", "newest"]);
+    expect(asked?.params.since).toBe(NOW - 60);
+    // A section the head start found nothing for has nothing to count from.
+    expect(calls.find((c) => c.params.tab === "shop")?.params.since).toBeUndefined();
+    done.unmount();
+    calls = [];
+
+    // Cut short — the page may be missing events, so it asks in full.
+    park(false);
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    expect(calls.find((c) => c.params.tab === "notes")?.params.since).toBeUndefined();
+  });
+
   it("seeds its sections from the head start, but only through the house Perspective", () => {
     const note = { id: "h1", kind: 1, pubkey: "e".repeat(64), tags: [], content: "from the head start", created_at: Math.floor(Date.now() / 1000), sig: "s" } as NostrEvent;
     const park = () => {
