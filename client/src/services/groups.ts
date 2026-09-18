@@ -26,16 +26,20 @@ export function suggestGroups(partial: string, timeoutMs = TIMEOUT_MS): Promise<
   return new Promise((resolve) => {
     const found: GroupCandidate[] = [];
     let done = false;
+    // Declared before the subscribe: a relay that answers (or fails) synchronously calls
+    // `finish` while these are still being assigned, and a `const` would be in its dead zone.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let sub: { unsubscribe: () => void } | undefined;
     const finish = () => {
       if (done) return;
       done = true;
       clearTimeout(timer);
-      sub.unsubscribe();
+      sub?.unsubscribe();
       // Everything the picker drew is a name the pills can use.
       seedGroupNames(found);
       resolve(rank(typed, found));
     };
-    const sub = relay
+    sub = relay
       // `include:spam`: a group's metadata is signed by its host relay's key, which no
       // reader's web of trust has an opinion about. Ranking it away would empty the list.
       .req({ kinds: [GROUP_META_KIND], search: `${typed} include:spam`, limit: LIMIT })
@@ -48,7 +52,9 @@ export function suggestGroups(partial: string, timeoutMs = TIMEOUT_MS): Promise<
           } else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();
         },
       });
-    const timer = setTimeout(finish, timeoutMs);
+    timer = setTimeout(finish, timeoutMs);
+    // A relay that already answered leaves nothing for the timer to do.
+    if (done) clearTimeout(timer);
   });
 }
 
@@ -64,14 +70,16 @@ export function nameGroups(ids: string[], timeoutMs = TIMEOUT_MS): Promise<numbe
   return new Promise((resolve) => {
     const found: GroupCandidate[] = [];
     let done = false;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let sub: { unsubscribe: () => void } | undefined;
     const finish = () => {
       if (done) return;
       done = true;
       clearTimeout(timer);
-      sub.unsubscribe();
+      sub?.unsubscribe();
       resolve(seedGroupNames(found));
     };
-    const sub = relay
+    sub = relay
       .req({ kinds: [GROUP_META_KIND], "#d": want, search: "include:spam", limit: want.length * 4 })
       .subscribe({
         error: finish,
@@ -82,6 +90,8 @@ export function nameGroups(ids: string[], timeoutMs = TIMEOUT_MS): Promise<numbe
           } else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();
         },
       });
-    const timer = setTimeout(finish, timeoutMs);
+    timer = setTimeout(finish, timeoutMs);
+    // A relay that already answered leaves nothing for the timer to do.
+    if (done) clearTimeout(timer);
   });
 }

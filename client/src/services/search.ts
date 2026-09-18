@@ -1408,7 +1408,20 @@ export function suggestProfiles(
   const timeoutMs = opts?.timeoutMs ?? 4000;
   return new Promise((resolve) => {
     const seen = new Map<string, SearchResult>();
-    const cancel = searchStream(
+    // Both declared before the stream opens. A stream that answers synchronously — an
+    // unconfigured relay emits its error on the spot — calls `finish` while these are still
+    // being assigned, and a `const` would be in its dead zone (a ReferenceError, not a result).
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let cancel: SearchHandle | undefined;
+    let done = false;
+    function finish() {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      cancel?.();
+      resolve([...seen.values()].slice(0, limit));
+    }
+    cancel = searchStream(
       query,
       { tab: "people", pov: params.pov, userPubkey: params.userPubkey, limit },
       (snapshot) => {
@@ -1418,11 +1431,7 @@ export function suggestProfiles(
         if (snapshot.eose || snapshot.error) finish();
       },
     );
-    const timer = setTimeout(finish, timeoutMs);
-    function finish() {
-      clearTimeout(timer);
-      cancel();
-      resolve([...seen.values()].slice(0, limit));
-    }
+    if (done) { cancel(); return; }
+    timer = setTimeout(finish, timeoutMs);
   });
 }

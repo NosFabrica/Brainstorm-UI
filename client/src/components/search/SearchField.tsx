@@ -309,8 +309,11 @@ export function SearchField({
             : combobox?.activeDescendant
         }
         className={cn(
-          // `break-words` so a pasted npub wraps instead of widening the box past the page.
-          "w-full min-w-0 break-words bg-transparent py-1.5 text-base leading-[1.55] text-slate-900 outline-none dark:text-slate-100",
+          // `whitespace-pre-wrap` is load-bearing, not cosmetic: under the default collapsing
+          // the browser drops the trailing space this field renders after a pill, and the
+          // next word lands glued to it (`#nostrlabel:`). `break-words` so a pasted npub
+          // wraps instead of widening the box past the page.
+          "w-full min-w-0 whitespace-pre-wrap break-words bg-transparent py-1.5 text-base leading-[1.55] text-slate-900 outline-none dark:text-slate-100",
           "[&>span]:mx-[1px]",
           inputClassName,
         )}

@@ -195,3 +195,16 @@ describe("the group picker under group:", () => {
     await waitFor(() => expect(nameGroupsMock).toHaveBeenCalledWith(["abc"]));
   });
 });
+
+describe("what running it in a browser caught", () => {
+  it("keeps the space after a pill — the next word must not glue itself on", () => {
+    const { onChange } = mount({ value: "" });
+    type("#nostr ");
+    type("#nostr label:review/app");
+    expect(onChange).toHaveBeenLastCalledWith("#nostr label:review/app");
+    // Under the default whitespace collapsing the browser drops that trailing space and the
+    // value comes back `#nostrlabel:review/app`, so the box declares `white-space: pre-wrap`.
+    // (jsdom applies no stylesheet, so the class is what there is to assert.)
+    expect(box().className).toContain("whitespace-pre-wrap");
+  });
+});
