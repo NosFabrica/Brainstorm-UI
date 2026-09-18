@@ -28,6 +28,10 @@ const toastVariants = cva(
     variants: {
       variant: {
         default: "border-brand-accent/20 bg-card/90 text-card-foreground",
+        // Brainstorm speaking (announcements, updates): the Aurora border and a
+        // soft purple→cyan wash; the Toaster adds the "B" mark beside the words.
+        brand:
+          "border-brand-primary/30 bg-gradient-to-r from-brand-primary/[0.10] via-card/95 to-brand-accent/[0.08] text-card-foreground shadow-brand-primary/10",
         destructive:
           "destructive group border-red-200/60 bg-card/90 text-card-foreground",
       },

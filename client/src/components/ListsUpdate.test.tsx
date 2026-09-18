@@ -40,7 +40,9 @@ describe("ListsUpdatePill", () => {
     tap();
 
     await waitFor(() => expect(publish).toHaveBeenCalledWith(ME, TA, undefined, { lists: LISTS }));
-    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: expect.stringMatching(/updated/i) })));
+    // On brand, and about their lists — no protocol names in a thank-you.
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Updated — your lists are live.", variant: "brand" })));
+    expect(JSON.stringify(toast.mock.calls)).not.toMatch(/nostr/i);
   });
 
   it("a declined signature gets a gentle toast, and the Update stays until they sign", async () => {
@@ -49,7 +51,7 @@ describe("ListsUpdatePill", () => {
 
     tap();
 
-    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Update skipped" })));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Update skipped", variant: "brand" })));
     expect(screen.getByRole("button", { name: /^update$/i })).toBeEnabled();
   });
 

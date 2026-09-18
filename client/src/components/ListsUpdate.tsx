@@ -31,9 +31,13 @@ export function useListsUpdate() {
     const res = await publishBrainstormTrustAnchor(pubkey, taPubkey, undefined, { lists: lists!.designation });
     setBusy(false);
     if (res.status === "success") {
-      toast({ title: "Updated — your lists are live across Nostr." });
+      toast({ title: "Updated — your lists are live.", variant: "brand" });
     } else if (res.status === "cancelled") {
-      toast({ title: "Update skipped", description: "Other apps can't find your new lists yet. Tap Update whenever you're ready." });
+      toast({
+        title: "Update skipped",
+        description: "Other apps can't find your new lists yet. Tap Update whenever you're ready.",
+        variant: "brand",
+      });
     } else {
       toast({ title: "Couldn't update", description: res.message, variant: "destructive" });
     }
