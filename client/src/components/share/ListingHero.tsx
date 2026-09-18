@@ -4,22 +4,34 @@ import { Chip } from "@/components/ui/chip";
 import { NotesInline } from "@/components/share/NotesInline";
 import { Favicon } from "@/components/share/LinkPreview";
 import { formatListingPrice, isSellable, parseListing, plainMarkdown } from "@/lib/listing";
+import { conduitCanSell, conduitProductUrl } from "@/lib/conduit";
 import { nostrUriFor } from "@/lib/shareId";
 import type { MinimalEvent } from "@/lib/noteRefs";
+import { useSignerKind } from "@/hooks/useSignerKind";
+import { SellerTrust } from "./SellerTrust";
+import type { SignerKind } from "@/accounts/picker";
+
+const PRIMARY =
+  "inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90";
+const SECONDARY =
+  "inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 transition-colors hover:border-brand-accent/40";
 
 /**
  * A kind-30402 listing on its event page: the photos, the price as the seller
  * wrote it, where it is, how it ships, the description with its links live —
- * and two ways to act. "Message seller" opens the seller in the reader's own
- * Nostr app, where their keys and conversations already live; "Visit shop"
- * goes to the seller's page for this listing when the app published one.
- * There is no checkout of ours: payment happens where the seller sells.
+ * and the ways to act. "Buy on Conduit" opens the listing's own page on
+ * Conduit Market, where checkout happens (Lightning, signed in or as a guest);
+ * "Visit shop" goes to the seller's page for it when the app published one;
+ * "Message seller" opens the seller in the reader's own Nostr app. There is no
+ * cart of ours. A listing Conduit can't sell keeps messaging as its main way.
  */
-export function ListingHero({ event }: { event: MinimalEvent }) {
+export function ListingHero({ event, relays = [] }: { event: MinimalEvent; relays?: string[] }) {
   const l = parseListing({ ...event, id: event.id, pubkey: event.pubkey, kind: event.kind, created_at: event.created_at, tags: event.tags, content: event.content ?? "" });
   const [photo, setPhoto] = useState(0);
+  const signer = useSignerKind();
   if (!l) return null;
   const sellable = isSellable(l);
+  const conduitUrl = conduitCanSell(l) ? conduitProductUrl(l, relays) : null;
   // Sold, hidden, inactive: a status worth a chip. Merely priceless is not.
   const gone = !sellable && (l.status !== "active" || l.hidden);
   const shopHost = (() => {
@@ -90,30 +102,48 @@ export function ListingHero({ event }: { event: MinimalEvent }) {
         ))}
       </div>
 
-      {/* Actions — the seller's app and the seller's shop. */}
+      <SellerTrust pubkey={event.pubkey} />
+
+      {/* Actions — Conduit's checkout first when it can sell this, then the
+          seller's own shop, then the seller in the reader's Nostr app. */}
       <div className="mt-4 flex flex-wrap items-center gap-2" data-testid="listing-hero-actions">
-        <a
-          href={nostrUriFor(event.pubkey)}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-brand-primary px-4 py-2 text-sm font-semibold text-white transition-opacity hover:opacity-90"
-          data-testid="listing-hero-message"
-        >
-          <MessageCircle className="h-4 w-4" /> Message seller
-        </a>
+        {conduitUrl && (
+          <a
+            href={conduitUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={PRIMARY}
+            data-testid="listing-hero-buy-conduit"
+            title="Opens this listing on Conduit Market in a new tab"
+          >
+            <ShoppingBag className="h-4 w-4" /> Buy on Conduit <ExternalLink className="h-3.5 w-3.5 opacity-80" />
+          </a>
+        )}
+        {!conduitUrl && (
+          <a href={nostrUriFor(event.pubkey)} className={PRIMARY} data-testid="listing-hero-message">
+            <MessageCircle className="h-4 w-4" /> Message seller
+          </a>
+        )}
         {l.shopUrl && shopHost && (
           <a
             href={l.shopUrl}
             target="_blank"
             rel="noopener"
-            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 transition-colors hover:border-brand-accent/40"
+            className={SECONDARY}
             data-testid="listing-hero-shop"
             title={`Opens ${shopHost} in a new tab`}
           >
             <Favicon host={shopHost} className="h-3.5 w-3.5" /> Visit shop <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
           </a>
         )}
+        {conduitUrl && (
+          <a href={nostrUriFor(event.pubkey)} className={SECONDARY} data-testid="listing-hero-message">
+            <MessageCircle className="h-4 w-4" /> Message seller
+          </a>
+        )}
       </div>
-      <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
-        Messaging opens your Nostr app. Payment happens with the seller, in their app.
+      <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500" data-testid="listing-hero-checkout-note">
+        {conduitUrl ? checkoutNote(signer) : "Messaging opens your Nostr app. Payment happens with the seller, in their app."}
       </p>
 
       {l.shipping.length > 0 && (
@@ -139,4 +169,16 @@ export function ListingHero({ event }: { event: MinimalEvent }) {
       )}
     </div>
   );
+}
+
+/**
+ * What checkout on Conduit will ask of this buyer. Nothing about them travels
+ * in the link — browsers keep each site's sign-in apart and Conduit has no
+ * handoff — so say it plainly for the way they sign in here.
+ */
+function checkoutNote(signer: SignerKind | null): string {
+  if (signer === "extension") return "Checkout happens on Conduit Market — your Nostr extension signs you in there. Pay with Lightning.";
+  if (signer === "remote" || signer === "amber")
+    return "Checkout happens on Conduit Market — connect the same signer app there, or check out as a guest. Pay with Lightning.";
+  return "Checkout happens on Conduit Market — check out as a guest with any Lightning wallet, no account needed.";
 }

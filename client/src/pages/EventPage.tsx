@@ -374,7 +374,7 @@ export default function EventPage() {
               ) : note.kind === 31337 ? (
                 <AudioHero event={note} />
               ) : note.kind === 30402 ? (
-                <ListingHero event={note} />
+                <ListingHero event={note} relays={relayHints} />
               ) : note.kind === 31922 || note.kind === 31923 ? (
                 <EventHero event={note} />
               ) : VIDEO_EVENT_KINDS.has(note.kind) ? (

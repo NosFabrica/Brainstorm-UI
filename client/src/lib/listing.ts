@@ -36,6 +36,8 @@ export interface Listing {
   shopUrl: string | null;
   shipping: { name: string; amount: number; currency: string }[];
   createdAt: number;
+  /** The Gamma/NIP-99 `type` ("simple", "variable", "variation"…), lower-cased; absent means simple. */
+  type?: string | null;
 }
 
 type EventLike = { id: string; pubkey: string; kind: number; created_at: number; tags: string[][]; content: string };
@@ -80,6 +82,7 @@ export function parseListing(ev: EventLike): Listing | null {
       .map((t) => ({ name: t[1] ?? "", amount: Number(t[2]), currency: (t[3] ?? "").toUpperCase() }))
       .filter((s) => s.name && Number.isFinite(s.amount)),
     createdAt: ev.created_at,
+    type: tag("type")?.toLowerCase() ?? null,
   };
 }
 

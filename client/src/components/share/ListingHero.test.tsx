@@ -1,11 +1,24 @@
 // @vitest-environment jsdom
 /**
- * The kind-30402 listing page: what a buyer needs to decide, and the two ways
- * to act — message the seller in their own Nostr app, or open the seller's
- * shop page. No checkout of ours: payment happens where the seller sells.
+ * The kind-30402 listing page: what a buyer needs to decide, and how to act —
+ * buy it on Conduit Market (the listing's own page there), open the seller's
+ * shop, or message the seller in their own Nostr app. No cart of ours:
+ * checkout is Conduit's.
  */
-import { describe, expect, it } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { screen, fireEvent } from "@testing-library/react";
+import { renderWithProviders as render } from "@/test/utils";
+import type { SignerKind } from "@/accounts/picker";
+
+const signer = vi.hoisted(() => ({ kind: null as SignerKind | null }));
+vi.mock("@/hooks/useSignerKind", () => ({ useSignerKind: () => signer.kind }));
+// The seller's side of the page: who they are and how Brainstorm rates them.
+const seller = vi.hoisted(() => ({ score: 0.62 as number | null | undefined }));
+vi.mock("@/hooks/useProfile", () => ({ useProfile: () => ({ name: "Crete Honey Co" }) }));
+vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => seller.score }));
+vi.mock("@/hooks/useHopsOrigin", () => ({ useHopsOrigin: () => ({ origin: null, originPov: "global", isFallback: false, loading: false }) }));
+vi.mock("@/components/DegreeChip", () => ({ DegreeChip: () => null }));
+
 import { ListingHero } from "./ListingHero";
 
 const SELLER = "9".repeat(64);
@@ -20,6 +33,11 @@ const listing = (tags: string[][], content = "Maglia in kashmir, taglia M. Spedi
 });
 
 describe("ListingHero", () => {
+  beforeEach(() => {
+    signer.kind = null;
+    seller.score = 0.62;
+  });
+
   it("shows the photos, the price as priced, where it is, shipping, and the description with its links live", () => {
     render(
       <ListingHero
@@ -51,8 +69,15 @@ describe("ListingHero", () => {
     expect(hero).toHaveTextContent("abbigliamento");
   });
 
-  it("acts through the seller's own app and shop — never a checkout of ours", () => {
+  // Checkout is Conduit's — the listing's own page there, found by its address.
+  it("puts Buy on Conduit first, keeps the seller's shop and a message — never a cart of ours", () => {
     render(<ListingHero event={listing([["image", "https://img/1.jpg"], ["r", "https://barattolo.app/l/maglia-1"]])} />);
+    const buy = screen.getByTestId("listing-hero-buy-conduit");
+    expect(buy).toHaveTextContent(/Buy on Conduit/);
+    expect(buy.getAttribute("href")).toMatch(/^https:\/\/shop\.conduit\.market\/products\/naddr1/);
+    expect(buy.getAttribute("target")).toBe("_blank");
+    expect(buy.getAttribute("rel")).toContain("noopener");
+    expect(screen.getByTestId("listing-hero-actions").firstElementChild).toBe(buy);
     const message = screen.getByTestId("listing-hero-message");
     expect(message.getAttribute("href")).toMatch(/^nostr:(npub1|nprofile1)/);
     expect(message).toHaveTextContent(/Message seller/);
@@ -62,7 +87,17 @@ describe("ListingHero", () => {
     expect(shop).toHaveAttribute("title", expect.stringContaining("barattolo.app"));
     expect(shop.getAttribute("href")).toBe("https://barattolo.app/l/maglia-1");
     expect(shop.getAttribute("target")).toBe("_blank");
-    expect(screen.queryByText(/Buy now|Add to cart|Checkout/i)).toBeNull();
+    expect(screen.queryByText(/Add to cart/i)).toBeNull();
+  });
+
+  // Conduit shows these as unavailable; a link would be a dead end.
+  it("keeps messaging as the way to act when Conduit can't sell it — no photo, or sold", () => {
+    const { unmount } = render(<ListingHero event={listing([])} />);
+    expect(screen.queryByTestId("listing-hero-buy-conduit")).toBeNull();
+    expect(screen.getByTestId("listing-hero-actions").firstElementChild).toBe(screen.getByTestId("listing-hero-message"));
+    unmount();
+    render(<ListingHero event={listing([["image", "https://img/1.jpg"], ["status", "sold"]])} />);
+    expect(screen.queryByTestId("listing-hero-buy-conduit")).toBeNull();
   });
 
   it("a listing with no shop link offers only the message, and a sold one says so", () => {
@@ -91,5 +126,35 @@ describe("ListingHero", () => {
     expect(screen.getByTestId("listing-hero-price-unknown")).toHaveTextContent("Price on request");
     // No price is not a status — nothing here is sold or gone.
     expect(screen.queryByTestId("listing-hero-status")).toBeNull();
+  });
+
+  // Nothing about the buyer can travel to Conduit, so say what will happen
+  // there for the way they sign in.
+  it.each([
+    ["extension", /your nostr extension signs you in there/i],
+    ["remote", /connect the same signer app there/i],
+    ["amber", /connect the same signer app there/i],
+    ["key", /check out as a guest/i],
+    [null, /check out as a guest/i],
+  ] as const)("tells a %s signer how checkout on Conduit will go", (kind, words) => {
+    signer.kind = kind;
+    render(<ListingHero event={listing([["image", "https://img/1.jpg"]])} />);
+    expect(screen.getByTestId("listing-hero-checkout-note")).toHaveTextContent(words);
+  });
+
+  // Brainstorm's part of a purchase: who this seller is to you, before you
+  // leave to pay somewhere else.
+  it("shows who the seller is and how Brainstorm rates them, linked to their profile", () => {
+    render(<ListingHero event={listing([["image", "https://img/1.jpg"]])} />);
+    const who = screen.getByTestId("listing-hero-seller");
+    expect(who).toHaveTextContent("Crete Honey Co");
+    expect(who.querySelector('a[href*="npub1"]')).not.toBeNull();
+    expect(screen.queryByTestId("listing-hero-seller-unrated")).toBeNull();
+  });
+
+  it("says plainly when Brainstorm hasn't rated the seller", () => {
+    seller.score = null;
+    render(<ListingHero event={listing([["image", "https://img/1.jpg"]])} />);
+    expect(screen.getByTestId("listing-hero-seller-unrated")).toHaveTextContent(/hasn't rated this seller yet/i);
   });
 });
