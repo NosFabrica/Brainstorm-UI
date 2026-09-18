@@ -120,7 +120,38 @@ export async function checkExistingTrustProvider(
 export type TrustAnchorPublishResult =
   | { status: "success" }
   | { status: "cancelled"; unlockDeclined: boolean }
-  | { status: "error"; message: string };
+  | {
+      status: "error";
+      message: string;
+      /** Re-send the SAME signed update — no second signature. */
+      retry?: () => Promise<TrustAnchorPublishResult>;
+    };
+
+/**
+ * The 10040 goes out without waiting on the slowest relay: two confirmations,
+ * eight seconds a relay (lib/publishQuorum). One silent relay used to hold the
+ * button for the relay library's full 30 seconds.
+ */
+const ANCHOR_PUBLISH = { need: 2, timeoutMs: 8000 } as const;
+
+async function publishSignedAnchor(
+  pubkey: string,
+  signed: Awaited<ReturnType<typeof signNip85>>,
+  lists: ListDesignation | null,
+): Promise<TrustAnchorPublishResult> {
+  const result = await publishToRelays(signed, undefined, ANCHOR_PUBLISH);
+  if (result.success) {
+    markNip85Activated(pubkey);
+    recordTrustProviderStatus(pubkey, "brainstorm");
+    if (lists) recordTrustListsDeclared(pubkey, lists);
+    return { status: "success" };
+  }
+  return {
+    status: "error",
+    message: result.error || "Failed to publish to relays. Please try again.",
+    retry: () => publishSignedAnchor(pubkey, signed, lists),
+  };
+}
 
 /**
  * The user-initiated NIP-85 publish: sign the kind-10040 selecting Brainstorm
@@ -160,14 +191,7 @@ export async function publishBrainstormTrustAnchor(
   }
 
   onPhase?.("publishing");
-  const result = await publishToRelays(signed);
-  if (result.success) {
-    markNip85Activated(pubkey);
-    recordTrustProviderStatus(pubkey, "brainstorm");
-    if (opts.lists) recordTrustListsDeclared(pubkey, opts.lists);
-    return { status: "success" };
-  }
-  return { status: "error", message: result.error || "Failed to publish to relays. Please try again." };
+  return publishSignedAnchor(pubkey, signed, opts.lists ?? null);
 }
 
 /**

@@ -22,6 +22,7 @@ vi.mock("@/services/trustAnchor", () => ({ publishBrainstormTrustAnchor: (...a: 
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast }) }));
 
 import { ListsUpdateLine, ListsUpdatePill } from "./ListsUpdate";
+import { Toast, ToastProvider, ToastViewport } from "@/components/ui/toast";
 
 const tap = () => fireEvent.click(screen.getByRole("button", { name: /^update$/i }));
 
@@ -55,16 +56,31 @@ describe("ListsUpdatePill", () => {
     expect(screen.getByRole("button", { name: /^update$/i })).toBeEnabled();
   });
 
-  it("a failed publish says so, and the Update stays", async () => {
-    publish.mockResolvedValue({ status: "error", message: "all relays refused" });
+  // The update is already signed; a relay failure shouldn't cost a signature.
+  it("a failed publish says so and offers Retry, which re-sends the signed update", async () => {
+    const retry = vi.fn(async () => ({ status: "success" }));
+    publish.mockResolvedValue({ status: "error", message: "all relays refused", retry });
     render(<ListsUpdatePill />);
 
     tap();
 
     await waitFor(() =>
-      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ description: "all relays refused", variant: "destructive" })),
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Couldn't reach your relays", variant: "destructive" })),
     );
     expect(screen.getByRole("button", { name: /^update$/i })).toBeInTheDocument();
+    const action = (toast.mock.calls[0][0] as { action?: React.ReactElement }).action;
+    expect(action).toBeTruthy();
+    render(
+      <ToastProvider>
+        <Toast open>{action}</Toast>
+        <ToastViewport />
+      </ToastProvider>,
+    );
+    fireEvent.click(screen.getByRole("button", { name: /retry/i }));
+
+    await waitFor(() => expect(retry).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(toast).toHaveBeenCalledWith(expect.objectContaining({ title: "Updated — your lists are live." })));
+    expect(publish).toHaveBeenCalledTimes(1);
   });
 
   it("shows nothing when there's nothing to update, and never asks on its own", () => {

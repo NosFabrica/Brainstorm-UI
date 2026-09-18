@@ -160,8 +160,31 @@ describe("publishBrainstormTrustAnchor — the user-initiated publish", () => {
   it("relay rejection surfaces the message and does not mark activated", async () => {
     publishToRelays.mockResolvedValueOnce({ success: false, error: "all relays refused" } as never);
     const res = await publishBrainstormTrustAnchor(ME, TA);
-    expect(res).toEqual({ status: "error", message: "all relays refused" });
+    expect(res).toMatchObject({ status: "error", message: "all relays refused" });
     expect(markNip85Activated).not.toHaveBeenCalled();
+  });
+
+  // One silent relay held the button for 30 seconds (2026-09-18): the update
+  // goes out asking for two confirmations and eight seconds a relay.
+  it("publishes without waiting on the slowest relay", async () => {
+    await publishBrainstormTrustAnchor(ME, TA);
+    expect(publishToRelays).toHaveBeenCalledWith(expect.anything(), undefined, { need: 2, timeoutMs: 8000 });
+  });
+
+  it("a failed publish offers a retry that re-sends the same signed update — no second signature", async () => {
+    publishToRelays
+      .mockResolvedValueOnce({ success: false, error: "all relays refused" } as never)
+      .mockResolvedValueOnce({ success: true } as never);
+
+    const res = await publishBrainstormTrustAnchor(ME, TA);
+    expect(res.status).toBe("error");
+    const again = await (res as { retry: () => Promise<unknown> }).retry();
+
+    expect(again).toEqual({ status: "success" });
+    expect(signNip85).toHaveBeenCalledTimes(1);
+    expect(publishToRelays).toHaveBeenCalledTimes(2);
+    expect(publishToRelays.mock.calls[1][0]).toBe(publishToRelays.mock.calls[0][0]);
+    expect(markNip85Activated).toHaveBeenCalledWith(ME);
   });
 });
 

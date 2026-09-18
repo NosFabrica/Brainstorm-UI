@@ -5,7 +5,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useSelfHistory } from "@/hooks/useSelf";
 import { useTrustListsStatus } from "@/hooks/useTrustListsStatus";
-import { publishBrainstormTrustAnchor } from "@/services/trustAnchor";
+import { publishBrainstormTrustAnchor, type TrustAnchorPublishResult } from "@/services/trustAnchor";
+import { ToastAction } from "@/components/ui/toast";
 
 /**
  * The update Brainstorm asks for once a user's network has produced Trusted
@@ -25,11 +26,7 @@ export function useListsUpdate() {
   const [busy, setBusy] = useState(false);
   const pending = !!pubkey && !!taPubkey && lists?.status === "missing" && !!lists.designation;
 
-  async function update() {
-    if (!pending || busy || !pubkey || !taPubkey) return;
-    setBusy(true);
-    const res = await publishBrainstormTrustAnchor(pubkey, taPubkey, undefined, { lists: lists!.designation });
-    setBusy(false);
+  function announce(res: TrustAnchorPublishResult) {
     if (res.status === "success") {
       toast({ title: "Updated — your lists are live.", variant: "brand" });
     } else if (res.status === "cancelled") {
@@ -39,8 +36,31 @@ export function useListsUpdate() {
         variant: "brand",
       });
     } else {
-      toast({ title: "Couldn't update", description: res.message, variant: "destructive" });
+      // The update is already signed: Retry sends it again without a second signature.
+      const retry = res.retry;
+      toast({
+        title: "Couldn't reach your relays",
+        description: retry ? "Your update is signed — Retry sends it again, no new signature." : res.message,
+        variant: "destructive",
+        action: retry ? (
+          <ToastAction altText="Retry the update" onClick={() => void run(retry)}>
+            Retry
+          </ToastAction>
+        ) : undefined,
+      });
     }
+  }
+
+  async function run(send: () => Promise<TrustAnchorPublishResult>) {
+    setBusy(true);
+    const res = await send();
+    setBusy(false);
+    announce(res);
+  }
+
+  async function update() {
+    if (!pending || busy || !pubkey || !taPubkey) return;
+    await run(() => publishBrainstormTrustAnchor(pubkey, taPubkey, undefined, { lists: lists!.designation }));
   }
 
   return { pending, busy, update };
