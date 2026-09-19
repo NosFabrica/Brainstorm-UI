@@ -7,6 +7,13 @@ import { searchRelay } from "@/lib/searchRelay";
 import { CONTENT_RELAYS, PROFILE_RELAYS } from "@/lib/relays";
 import { requestAll, requestNewest, requestOne } from "@/lib/relayRequest";
 import { addressLoader, loadReplaceable } from "@/lib/loaders";
+import {
+  dedupeRelays,
+  inboxRelays,
+  outboxRelays,
+  outboxRelaysFromDb,
+  parseRelayList,
+} from "@/lib/relayRouting";
 
 const RAW_NIP85_RELAY_URL = env.VITE_NIP85_RELAY_URL;
 const NIP85_RELAY_URL = RAW_NIP85_RELAY_URL.trim().replace(/\/+$/, "");
@@ -148,19 +155,32 @@ export function fetchProfiles(
   ).then(() => undefined);
 }
 
+/**
+ * A user's NIP-65 relay list (kind 10002) — the routing table everything else
+ * reads from.
+ *
+ * Asked for on the BOOTSTRAP set rather than on "their outbox relays": their
+ * outbox is what this event defines, so routing the lookup by it is circular
+ * and, on a cold store, just restates the defaults. `PROFILE_RELAYS` carries
+ * purplepag.es, which exists to index exactly this kind.
+ */
 export async function fetchOutboxRelayList(pubkey: string, timeoutMs = 10000): Promise<NostrEvent | undefined> {
   try {
-    const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
-
-    return await loadReplaceable(10002, pubkey, { relays: writeRelays, timeoutMs });
+    return await loadReplaceable(10002, pubkey, { relays: PROFILE_RELAYS, timeoutMs });
   } catch {}
 
   return undefined;
 }
 
+/**
+ * A user's NIP-85 trust-provider declaration (kind 10040), from the relays they
+ * write to. The relay list is loaded first — without that the read falls back to
+ * the hardcoded set and an activation published only to the user's own relays
+ * reads as "never activated".
+ */
 export async function fetchTrustProviderList(pubkey: string, timeoutMs = 10000): Promise<NostrEvent | undefined> {
   try {
-    const writeRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS)
+    const writeRelays = await outboxRelays(pubkey, PROFILE_RELAYS);
 
     return await loadReplaceable(10040, pubkey, { relays: writeRelays, timeoutMs });
   } catch {}
@@ -310,21 +330,6 @@ export async function isUsingBrainstorm(pubkey: string, innerPubkey: string, tim
   return !!event && declaresTrustProvider(event, innerPubkey, NIP85_RELAY_URL)
 }
 
-export function loadOutboxRelayListFromDb(pubkey: string, currentRelays: string[]): string[] {
-  const outboxEvent = eventStore.getReplaceable(10002, pubkey)
-  const writeRelays = new Set<string>(currentRelays);
-  
-  if (outboxEvent) {
-    for (const tag of outboxEvent.tags) {
-      if (tag[0] === "r" && tag[1] && (tag.length <= 2 || tag[2] === "write")) {
-        writeRelays.add(tag[1]);
-      }
-    }
-  }
-
-  return Array.from(writeRelays)
-}
-
 // NIP-78 application-specific data: stores the user's Brainstorm Assistant
 // pointer (assistant pubkey + kind 0 event id) under their own pubkey so any
 // device they sign in from can rediscover their existing assistant.
@@ -341,7 +346,10 @@ export async function fetchAssistantPointer(
   timeoutMs = 10000,
 ): Promise<AssistantPointer | null> {
   try {
-    const writeRelays = loadOutboxRelayListFromDb(userPubkey, PROFILE_RELAYS);
+    // Awaited, not read from the store: app data lives wherever its author
+    // publishes and the default set carries almost none of it, so guessing here
+    // reads back as "this user has no assistant" and mints a second one.
+    const writeRelays = await outboxRelays(userPubkey, PROFILE_RELAYS);
 
     // NIP-78 events are addressable/replaceable — different relays may hold
     // different versions, so this waits out the window for the newest rather
@@ -406,7 +414,7 @@ export async function fetchProfilePrefs(
   timeoutMs = 8000,
 ): Promise<Record<string, unknown> | null> {
   try {
-    const relays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS);
+    const relays = await outboxRelays(pubkey, PROFILE_RELAYS);
     const newest = await loadReplaceable(30078, pubkey, {
       identifier: PROFILE_PREFS_D_TAG,
       relays,
@@ -456,7 +464,7 @@ export async function fetchAlertPrefs(timeoutMs = 6000, dTag: string = ALERT_PRE
   // later load, exactly as background publishing defers.
   if (!(await canSignSilently(account))) return null;
   try {
-    const relays = loadOutboxRelayListFromDb(account.pubkey, PROFILE_RELAYS);
+    const relays = await outboxRelays(account.pubkey, PROFILE_RELAYS);
     const newest = await loadReplaceable(30078, account.pubkey, {
       identifier: dTag,
       relays,
@@ -502,14 +510,28 @@ export async function fetchProfileEvent(
   timeoutMs = 10000,
   extraRelays: string[] = [],
 ): Promise<NostrEvent | undefined> {
+  const extras = extraRelays.map((r) => r.trim()).filter((r) => r.length > 0);
   try {
-    const baseRelays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS);
-    const extras = extraRelays.map((r) => r.trim()).filter((r) => r.length > 0);
-    const writeRelays = Array.from(new Set([...baseRelays, ...extras]));
+    // Kind-0 is the one kind the default set genuinely covers — purplepag.es
+    // exists to index it — so the first pass does NOT pay for a relay-list
+    // lookup it usually doesn't need. Time-to-avatar is on this path.
+    const known = dedupeRelays([...outboxRelaysFromDb(pubkey, PROFILE_RELAYS), ...extras]);
     // Explicit relays mean somebody is asking about those relays — the admin
     // health card passes operator-entered ones to find out whether they carry
     // this kind-0. A cached answer is not an answer to that.
-    return await loadReplaceable(0, pubkey, { relays: writeRelays, timeoutMs, fromRelays: extras.length > 0 });
+    const first = await loadReplaceable(0, pubkey, { relays: known, timeoutMs, fromRelays: extras.length > 0 });
+    if (first) return first;
+    // Somebody asking about NAMED relays gets an answer about those relays.
+    // Widening the search on a miss would answer a different question — and
+    // "yes, this relay has their kind-0" is the admin card's whole output.
+    if (extras.length) return undefined;
+
+    // Nothing came back. NOW learn where this author actually writes, and ask
+    // there before concluding they have no profile — a user who publishes only
+    // to their own relays is invisible to the default set.
+    const routed = await outboxRelays(pubkey, PROFILE_RELAYS);
+    if (routed.length === known.length && routed.every((r) => known.includes(r))) return undefined;
+    return await loadReplaceable(0, pubkey, { relays: routed, timeoutMs, fromRelays: true });
   } catch {}
   return undefined;
 }
@@ -611,15 +633,18 @@ export async function fetchRecentByKinds(
   opts: { relayHints?: string[]; timeoutMs?: number } = {},
 ): Promise<NostrEvent[]> {
   const timeoutMs = opts.timeoutMs ?? 8000;
-  const relays = Array.from(new Set([
-    ...loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS),
-    ...(opts.relayHints ?? []).map((r) => r.trim()).filter((r) => r.length > 0),
-  ]));
+  const hints = (opts.relayHints ?? []).map((r) => r.trim()).filter((r) => r.length > 0);
 
   // The search relay's corpus is wider than the content relays' (probed:
   // a Divine creator's kind-34236 videos lived only there) — ask it too.
+  //
+  // It does NOT wait on the NIP-65 lookup: finding out where this author writes
+  // tells the relay fan-out where to go and tells the search relay nothing, so
+  // putting it in front of both would just add its latency to the whole read.
   const [fromRelays, fromSearch] = await Promise.all([
-    requestAll(relays, { kinds, authors: [pubkey], limit }, timeoutMs),
+    outboxRelays(pubkey, PROFILE_RELAYS).then((routed) =>
+      requestAll(dedupeRelays([...routed, ...hints]), { kinds, authors: [pubkey], limit }, timeoutMs),
+    ),
     fetchFromSearchRelayByFilter({ kinds, authors: [pubkey], limit }, timeoutMs),
   ]);
   const byId = new Map<string, NostrEvent>();
@@ -641,14 +666,18 @@ export async function fetchLiveStreams(
   const timeoutMs = opts.timeoutMs ?? 8000;
   // Live events are authored by the streaming PLATFORM, so they live on common
   // relays + the streaming relay — NOT (only) the streamer's own outbox. Always
-  // include the big shared relays so a platform-hosted stream is found.
-  const relays = Array.from(new Set([
-    ...PROFILE_RELAYS,
-    ...loadOutboxRelayListFromDb(pubkey, []),
-    ...(opts.relayHints ?? []).map((r) => r.trim()).filter((r) => r.length > 0),
-    "wss://relay.zap.stream/",
-    "wss://relay.nostr.band/",
-  ]));
+  // include the big shared relays so a platform-hosted stream is found. The
+  // streamer's own relays join that set (a self-hosted stream IS their event),
+  // but nothing here waits on the lookup to find out.
+  const relays = outboxRelays(pubkey, []).then((routed) =>
+    dedupeRelays([
+      ...PROFILE_RELAYS,
+      ...routed,
+      ...(opts.relayHints ?? []).map((r) => r.trim()).filter((r) => r.length > 0),
+      "wss://relay.zap.stream/",
+      "wss://relay.nostr.band/",
+    ]),
+  );
 
   // Two filters rather than one, because a platform-hosted stream names the
   // streamer in a `p` tag while a self-hosted one authors it. They share the
@@ -657,8 +686,8 @@ export async function fetchLiveStreams(
   // a bridged Owncast channel's live event lived only there) — ask it too,
   // for both shapes.
   const [authored, hosted, searchAuthored, searchHosted] = await Promise.all([
-    requestAll(relays, { kinds: [30311], authors: [pubkey], limit: 8 }, timeoutMs),
-    requestAll(relays, { kinds: [30311], "#p": [pubkey], limit: 8 }, timeoutMs),
+    relays.then((r) => requestAll(r, { kinds: [30311], authors: [pubkey], limit: 8 }, timeoutMs)),
+    relays.then((r) => requestAll(r, { kinds: [30311], "#p": [pubkey], limit: 8 }, timeoutMs)),
     fetchFromSearchRelayByFilter({ kinds: [30311], authors: [pubkey], limit: 8 }, timeoutMs),
     fetchFromSearchRelayByFilter({ kinds: [30311], "#p": [pubkey], limit: 8 }, timeoutMs),
   ]);
@@ -834,9 +863,16 @@ export async function fetchAddressableEvents(
   const coordKey = (c: { kind: number; pubkey: string; identifier: string }) =>
     `${c.kind}:${c.pubkey}:${c.identifier}`;
   const wanted = new Set(valid.map(coordKey));
-  const targetRelays = Array.from(new Set(
-    [...relays, ...valid.flatMap((c) => c.relays ?? [])].map((r) => r.trim()).filter(Boolean),
-  ));
+  // Addressable events live where their AUTHOR writes — an `naddr` that names no
+  // relay is otherwise a coin flip against the default set. Their outbox relays
+  // join whatever the caller and the pointer already named.
+  const authorRelays = await outboxRelays(
+    Array.from(new Set(valid.map((c) => c.pubkey))),
+    [],
+  ).catch(() => [] as string[]);
+  const targetRelays = dedupeRelays(
+    [...relays, ...authorRelays, ...valid.flatMap((c) => c.relays ?? [])],
+  );
   const kinds = Array.from(new Set(valid.map((c) => c.kind)));
   const authors = Array.from(new Set(valid.map((c) => c.pubkey)));
   const identifiers = Array.from(new Set(valid.map((c) => c.identifier)));
@@ -915,11 +951,83 @@ export function cacheProfile(content: ProfileContent, pubkey?: string): void {
 }
 
 
+/**
+ * Kinds we do NOT deliver to the inboxes of the people they name.
+ *
+ * Two reasons, and they are different. Some of these `p`-tag a membership list
+ * rather than an address book: a kind-3 names everyone you follow and is
+ * addressed to none of them, so routing it to their inboxes would be a
+ * broadcast nobody asked for.
+ *
+ * The rest are CLAIMS ABOUT a person rather than messages TO them. A report or
+ * a disputed tag is a signal for the reader's own network to weigh; pushing it
+ * into its subject's inbox is not a notification they asked for, and an inbox
+ * you can write to with an accusation is a harassment vector. Those stay on the
+ * author's own relays (and, for tags, the hub), where a reader looking for them
+ * will find them.
+ */
+const NOT_ADDRESSED_TO_P_TAGS = new Set([
+  0,     // profile metadata
+  3,     // follows
+  1984,  // NIP-56 report — a claim about them, not a message to them
+  9998,  // tagging: dispute
+  9999,  // tagging: assertion
+  10000, // mute list — its `p` tags are people you are muting
+  10002, // relay list
+  10040, // NIP-85 provider declaration
+  30078, // app data
+  39998, // tagging: addressable dispute
+  39999, // tagging: tag element
+]);
+
+/** Who an event is addressed to: its `p` tags, minus the author themself. */
+function addressees(signedEvent: NostrEvent): string[] {
+  if (NOT_ADDRESSED_TO_P_TAGS.has(signedEvent.kind)) return [];
+  const out = new Set<string>();
+  for (const tag of signedEvent.tags || []) {
+    if (tag[0] !== "p" && tag[0] !== "P") continue;
+    const pubkey = typeof tag[1] === "string" ? tag[1].toLowerCase() : "";
+    if (/^[0-9a-f]{64}$/.test(pubkey) && pubkey !== signedEvent.pubkey.toLowerCase()) out.add(pubkey);
+  }
+  return Array.from(out);
+}
+
+/**
+ * Where a signed event goes: the author's own write relays, the READ relays of
+ * everyone it names, anything the caller adds, and our defaults as a floor.
+ *
+ * The inbox half is the part that was missing. A reply, a report, an RSVP or a
+ * vouch that only lands on the author's relays never reaches the person it is
+ * about — they are reading somewhere else, which is the whole point of them
+ * having published a relay list.
+ *
+ * The recipient lookups are best-effort on a short deadline: a publish must not
+ * hang because a stranger's kind-10002 is slow, and losing the inbox half is a
+ * missed notification, not a lost event.
+ */
+export async function publishRelaysFor(
+  signedEvent: NostrEvent,
+  extraRelays: string[] = [],
+): Promise<string[]> {
+  const [own, inboxes] = await Promise.all([
+    outboxRelays(signedEvent.pubkey, PROFILE_RELAYS).catch(() => PROFILE_RELAYS),
+    inboxRelays(addressees(signedEvent), []).catch(() => [] as string[]),
+  ]);
+  return dedupeRelays([...own, ...inboxes, ...extraRelays]);
+}
+
+/**
+ * Publish a signed event to everywhere it belongs.
+ *
+ * `extraRelays` is genuinely extra — it is UNIONED with the routed set, never a
+ * replacement for it. (This argument used to be named `relays` and was silently
+ * ignored, which is why `services/tags.ts` had to hand-roll `pool.publish`.)
+ */
 export async function publishToRelays(
   signedEvent: NostrEvent,
-  relays: string[] = PROFILE_RELAYS
+  extraRelays: string[] = []
 ): Promise<{ success: boolean; relay?: string; error?: string; accepted?: number; total?: number }> {
-  const writeRelays = loadOutboxRelayListFromDb(signedEvent.pubkey, PROFILE_RELAYS)
+  const writeRelays = await publishRelaysFor(signedEvent, extraRelays);
 
   try {
     const responses = await pool.publish(writeRelays, signedEvent as any);
@@ -1015,16 +1123,22 @@ export async function publishProfile(
     eventStore.add(signed);
     try { cacheProfile(content as unknown as ProfileContent, account.pubkey); } catch {}
     // Pinned to the same Account, for the reason the profile publish above is:
-    // this fires after the backoff, and `publishRelayList` would otherwise
+    // this fires after the backoff, and `announceRelayListAs` would otherwise
     // re-read the Active one and stamp A's outbox list with B's key.
-    void publishRelayListAs(account, PROFILE_RELAYS).catch(() => {});
+    void announceRelayListAs(account).catch(() => {});
   }
   // No `cancelled` here: signing already succeeded, so what's left is the relays'
   // answer. A declined unlock leaves above, through `signingFailure`.
   return { success: res.success, error: res.error };
 }
 
-/** Publish a NIP-65 relay list (kind 10002) as the Active Account. */
+/**
+ * Publish a NIP-65 relay list (kind 10002) as the Active Account.
+ *
+ * This REPLACES whatever list the user has — kind 10002 is replaceable — so it
+ * is only for a caller that means to set the list. Anything that merely wants
+ * the user to be discoverable wants `announceRelayList`.
+ */
 export async function publishRelayList(relays: string[]): Promise<PublishOutcome> {
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
@@ -1048,6 +1162,53 @@ async function publishRelayListAs(
   } catch (e) {
     return signingFailure(e);
   }
+}
+
+/**
+ * Make sure this Account HAS a discoverable NIP-65 list — without overwriting
+ * the one it already has.
+ *
+ * This used to sign a fresh kind-10002 carrying our five defaults every time a
+ * profile was saved. Kind 10002 is replaceable, so a user who had curated their
+ * relays in another client lost that list the first time they edited their bio
+ * here, and every outbox-model client then routed them to our defaults instead
+ * of to their own relays.
+ *
+ * So: if a list exists, re-broadcast that exact event (idempotent — same id,
+ * same signature, no signer prompt) so it is present on the relays we read
+ * from. Only a user who has never published one gets ours, and only as a
+ * starting point they are free to change.
+ */
+async function announceRelayListAs(account: BrainstormAccount): Promise<PublishOutcome> {
+  // Asked for before deciding, not just read from the store: "we have not
+  // loaded it" and "it does not exist" are the same shape locally, and acting
+  // on the first as if it were the second is exactly how the list got clobbered.
+  const existing =
+    (eventStore.getReplaceable(10002, account.pubkey) as NostrEvent | undefined) ??
+    (await fetchOutboxRelayList(account.pubkey, 6000));
+
+  if (existing) {
+    const theirs = parseRelayList(existing);
+    const relays = dedupeRelays([...theirs.write, ...PROFILE_RELAYS]);
+    try {
+      const responses = await pool.publish(relays, existing as any);
+      const accepted = responses.filter((r) => r.ok).length;
+      return accepted
+        ? { success: true, relay: responses.find((r) => r.ok)?.from }
+        : { success: false, error: "All relays failed" };
+    } catch {
+      return { success: false, error: "All relays failed" };
+    }
+  }
+
+  return publishRelayListAs(account, PROFILE_RELAYS);
+}
+
+/** `announceRelayListAs` for the Active Account. */
+export async function announceRelayList(): Promise<PublishOutcome> {
+  const account = activeAccount();
+  if (!account) return { success: false, error: "Not logged in" };
+  return announceRelayListAs(account);
 }
 
 
@@ -1101,7 +1262,8 @@ export async function fetchReportsByPubkey(
   reporterPubkey: string,
   timeoutMs = 12000
 ): Promise<ReportMetadata[]> {
-  const events = await requestAll(PROFILE_RELAYS, { kinds: [1984], authors: [reporterPubkey] }, timeoutMs);
+  const relays = await outboxRelays(reporterPubkey, PROFILE_RELAYS);
+  const events = await requestAll(relays, { kinds: [1984], authors: [reporterPubkey] }, timeoutMs);
   return events.flatMap((event) =>
     event.tags
       .filter((tag) => tag[0] === "p" && tag[1])
@@ -1120,7 +1282,8 @@ export async function fetchMuteListTimestamp(
   timeoutMs = 10000
 ): Promise<MuteMetadata | undefined> {
   try {
-    const event = await requestOne(PROFILE_RELAYS, { kinds: [10000], authors: [muterPubkey] }, timeoutMs);
+    const relays = await outboxRelays(muterPubkey, PROFILE_RELAYS);
+    const event = await requestOne(relays, { kinds: [10000], authors: [muterPubkey] }, timeoutMs);
 
     if (!event) return undefined;
 

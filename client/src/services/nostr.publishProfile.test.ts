@@ -125,6 +125,61 @@ describe("saving a profile that the relays barely accept", () => {
 });
 
 /**
+ * A profile save also makes sure the account has a discoverable NIP-65 list. It
+ * used to do that by signing a fresh kind-10002 carrying this app's five
+ * defaults — and kind 10002 is REPLACEABLE, so a user who had curated their
+ * relays in another client lost that list the first time they edited their bio
+ * here, and every outbox-model client then routed them to our defaults.
+ */
+describe("the relay list a profile save touches", () => {
+  const existingList = () =>
+    finalizeEvent(
+      {
+        kind: 10002,
+        created_at: 1,
+        tags: [["r", "wss://theirs.example", "write"], ["r", "wss://theirs-in.example", "read"]],
+        content: "",
+      } as never,
+      SECRET,
+    );
+
+  it("re-broadcasts the list the user already has, rather than replacing it", async () => {
+    publish.mockResolvedValue(accepted(2));
+    const theirs = existingList();
+    nostr.eventStore.add(theirs as never);
+
+    await settle(nostr.publishProfile({ name: "ana" }));
+
+    // Not signed again: same event, same id, no signer prompt, nothing lost.
+    expect(ofKind(signAs.mock.calls, 10002)).toHaveLength(0);
+    const sent = ofKind(publish.mock.calls, 10002).map((call) => (call[1] as { id: string }).id);
+    expect(sent).toEqual([theirs.id]);
+    expect(nostr.eventStore.getReplaceable(10002, PUBKEY)?.tags).toContainEqual([
+      "r",
+      "wss://theirs.example",
+      "write",
+    ]);
+  });
+
+  it("re-broadcasts it to their own write relays as well as ours", async () => {
+    publish.mockResolvedValue(accepted(2));
+    nostr.eventStore.add(existingList() as never);
+
+    await settle(nostr.publishProfile({ name: "ana" }));
+
+    expect(ofKind(publish.mock.calls, 10002)[0]?.[0]).toContain("wss://theirs.example");
+  });
+
+  it("publishes a starting list only for a user who has none", async () => {
+    publish.mockResolvedValue(accepted(2));
+
+    await settle(nostr.publishProfile({ name: "ana" }));
+
+    expect(ofKind(signAs.mock.calls, 10002)).toHaveLength(1);
+  });
+});
+
+/**
  * The backoff runs for seconds, which is long enough to switch accounts. Both the
  * signature and the cache write have to belong to whoever asked, not to whoever
  * happens to be Active when the relays finally answer.

@@ -2,9 +2,10 @@ import { ContactsFactory } from "applesauce-common/factories";
 import { MuteListFactory } from "applesauce-common/factories";
 import { verifyEvent } from "nostr-tools";
 
-import { publishToRelays, loadOutboxRelayListFromDb, fetchOutboxRelayList } from "./nostr";
+import { publishToRelays, fetchOutboxRelayList } from "./nostr";
 import { requestAll, requestNewest, requestNewestRaw } from "@/lib/relayRequest";
 import { PROFILE_RELAYS } from "@/lib/relays";
+import { outboxRelays } from "@/lib/relayRouting";
 import { eventStore } from "@/lib/eventStore";
 import { isRelayUrl } from "@/config/tagging";
 import { identityHas } from "@/accounts/display";
@@ -74,9 +75,16 @@ function pickAuthoritativeBase(candidates: (NostrEvent | null | undefined)[]): N
   return best;
 }
 
-/** The newest kind-3 or kind-10000 across the user's write relays. */
+/**
+ * The newest kind-3 or kind-10000 across the user's write relays.
+ *
+ * The relay list is LOADED, not read from whatever happens to be in the store.
+ * This read is the wipe guard's evidence — "we found no follow list" is what
+ * lets a from-scratch kind-3 replace a real one — so asking the wrong relays
+ * here is the most expensive miss in the app.
+ */
 async function fetchReplaceableEvent(pubkey: string, kind: number, timeoutMs = 10000): Promise<NostrEvent | null> {
-  const relays = loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS);
+  const relays = await outboxRelays(pubkey, PROFILE_RELAYS);
   const newest = await requestNewest(relays, { kinds: [kind], authors: [pubkey], limit: 5 }, timeoutMs);
   return (newest as NostrEvent) ?? null;
 }
@@ -464,7 +472,7 @@ export async function fetchMyReport(targetPubkey: string, timeoutMs = 8000): Pro
   const account = activeAccount();
   if (!account) return null;
   const collected = await requestAll(
-    PROFILE_RELAYS,
+    await outboxRelays(account.pubkey, PROFILE_RELAYS),
     { kinds: [1984], authors: [account.pubkey], "#p": [targetPubkey] },
     timeoutMs,
   );

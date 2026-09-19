@@ -13,7 +13,8 @@
  * `services/api.ts`: `/p/:id` is anon-viewable and `authenticatedFetch` wipes
  * auth storage and hard-redirects on 401 (.agents/memory/anon-public-data-fetch.md).
  */
-import { pool, fetchEventsByFilter, loadOutboxRelayListFromDb, publishToRelays } from "./nostr";
+import { pool, fetchEventsByFilter, publishRelaysFor, publishToRelays } from "./nostr";
+import { loadRelayHint, tagWithHint } from "@/lib/relayRouting";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { resolveHouseObserver, resolveTrustSource } from "./trustSource";
 import {
@@ -224,16 +225,20 @@ function makeTrustFetcher(relay: string) {
 }
 
 /**
- * Publish to (tag hub ∪ the author's own write relays), per the kit's routing
- * rule. We can't use `publishToRelays()` from nostr.ts here: it ignores its
- * `relays` argument and always resolves the author's outbox seeded with
- * PROFILE_RELAYS, so a tag event would never reach the hub. Seeding
- * `loadOutboxRelayListFromDb` with the tag relays gives exactly the union we want.
+ * Publish to (tag hub ∪ the author's own write relays ∪ the subject's inbox),
+ * per the kit's routing rule.
+ *
+ * `publishRelaysFor` is the app's one routing answer — author outbox, plus the
+ * read relays of anyone the event names, plus whatever the caller adds. What
+ * this call site adds is the hub, which is the part no relay list would ever
+ * name. (It used to hand-roll the union because `publishToRelays` silently
+ * ignored its relays argument; it no longer does, but tag publishing still
+ * needs its own error shape — "no relay accepted" has to throw here.)
  */
 async function publishTagEvent(
   signed: Record<string, unknown>,
 ): Promise<{ accepted: number; total: number }> {
-  const relays = loadOutboxRelayListFromDb(signed.pubkey as string, tagRelays());
+  const relays = await publishRelaysFor(signed as never, tagRelays());
   const responses = await pool.publish(relays, signed as never);
   const accepted = responses.filter((r) => r.ok).length;
   const total = responses.length || relays.length;
@@ -1549,6 +1554,9 @@ export async function publishTagComment(
   if (!text) throw new Error("Write something first.");
 
   const coord = tagCoordinate({ authorPubkey, slug });
+  // Where the tag's author writes — the `A`/`a` coordinate is resolvable from
+  // the hint alone, without the reader guessing at a relay set.
+  const hint = await loadRelayHint(authorPubkey);
   const unsigned = {
     kind: COMMENT_KIND,
     pubkey: user.pubkey,
@@ -1558,18 +1566,19 @@ export async function publishTagComment(
     // top-level comment. `K`/`k` carry the kind being commented on, `P`/`p` its
     // author — both required by NIP-22 for clients that filter by them.
     tags: [
-      ["A", coord],
+      tagWithHint("A", coord, hint),
       ["K", String(TAG_ELEMENT_KIND)],
-      ["P", authorPubkey],
-      ["a", coord],
+      tagWithHint("P", authorPubkey, hint),
+      tagWithHint("a", coord, hint),
       ["k", String(TAG_ELEMENT_KIND)],
-      ["p", authorPubkey],
+      tagWithHint("p", authorPubkey, hint),
     ],
   };
 
   const signed = await signAs(requireActiveAccount(), unsigned as never);
-  // The app's normal publish path (author's outbox ∪ PROFILE_RELAYS), NOT the
-  // tag-hub one — see fetchCommentEvents above for why.
+  // The app's normal publish path — the author's outbox, the tag author's inbox
+  // (they are `p`-tagged, so the comment reaches them), and our defaults. NOT
+  // the tag-hub one: see fetchCommentEvents above for why.
   const result = await publishToRelays(signed);
   if (!result.success) throw new Error(result.error || "No relay accepted the comment");
 }

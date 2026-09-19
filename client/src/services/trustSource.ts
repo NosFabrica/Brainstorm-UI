@@ -111,11 +111,15 @@ export function resolveTrustSource(observerPubkey: string): Promise<TrustSourceR
 }
 
 async function fetchTrustSource(observerPubkey: string): Promise<TrustSourceRef | null> {
-  // `fetchTrustProviderList` reads from the observer's OUTBOX relays
-  // (loadOutboxRelayListFromDb ∪ PROFILE_RELAYS). That matters: kind-10040s live
+  // `fetchTrustProviderList` reads from the observer's OUTBOX relays — their
+  // NIP-65 write relays, LOADED if we don't hold them, ∪ PROFILE_RELAYS. That
+  // matters twice over. First, because kind-10040s live
   // on general-purpose relays — nos.lol and purplepag.es carry hundreds — and
   // none at all sit on the tag hub or the nip85 relays. Querying the trust
   // relays for them finds nothing and looks like "this user never published one".
+  // Second, because an observer who publishes only to their own relays used to
+  // read the same way: the lookup never loaded their relay list, so it asked
+  // the defaults and concluded they had no scorer.
   const event = await fetchTrustProviderList(observerPubkey).catch(() => undefined);
   if (!event) return null;
 

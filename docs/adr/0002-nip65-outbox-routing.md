@@ -1,0 +1,92 @@
+# NIP-65 routing is a loaded table, not a peek at the event store
+
+The app already looked like it implemented the outbox model. `services/nostr.ts`
+had `loadOutboxRelayListFromDb(pubkey, fallback)`, and the read and publish
+paths called it. What it did was read a kind-10002 **out of the local event
+store** and union its `write` relays with a hardcoded fallback.
+
+Nothing filled that store. The signed-in user's relay list was fetched only on
+the *failure* path of the login-time contact-list read, or on the dashboard when
+the account had no cached name or picture. A stranger's was never fetched at all
+before reading their notes. So `loadOutboxRelayListFromDb` returned the fallback
+in almost every session, and in practice every read and every publish this app
+made went to the same five relays in `lib/relays.ts`. The outbox model was
+present in shape and inert in effect.
+
+Three further gaps sat behind that one:
+
+- **`publishToRelays` ignored its `relays` argument.** The signature took one
+  and the body never read it. `services/tags.ts` had to hand-roll `pool.publish`
+  to reach the tag hub, with a comment explaining why.
+- **There was no inbox half.** Nothing anywhere parsed `["r", url, "read"]`.
+  Replies, reports, RSVPs, vouches and NIP-22 comments all name a `p` recipient
+  and none of them reached that recipient's read relays — the half of NIP-65
+  that makes a mention arrive. NIP-57 zap requests had the same bug in a form
+  that loses money's worth of signal: the `relays` tag told the wallet to publish
+  the receipt to *our* relays, not to where the person being zapped reads.
+- **A profile save overwrote the user's relay list.** `publishProfile` finished
+  by signing a fresh kind-10002 whose tags were literally `PROFILE_RELAYS`.
+  Kind 10002 is replaceable, so a user who had curated their relays in another
+  client lost that list the first time they edited their bio here — and every
+  outbox-model client then routed them to our defaults.
+
+## The model
+
+`lib/relayRouting.ts` is the one place that answers "which relays". It holds the
+whole rule:
+
+- **To read an author**, ask the relays *they write to* — `outboxRelays()`,
+  which **loads** the kind-10002 if the store hasn't got it.
+- **To send an event that names someone**, add the relays *they read from* —
+  `inboxRelays()`. `publishRelaysFor()` composes the two: author outbox, every
+  addressee's inbox, the caller's extras, our defaults as a floor.
+- **Emit relay hints.** `tagWithHint()` puts the target's write relay in the
+  third slot of an `e`/`a`/`p` tag, so the next client resolves it without a
+  lookup. We consumed hints and contributed none.
+
+Our own `PROFILE_RELAYS` stay a floor under both. Dropping them would be the
+purer reading of NIP-65 and a worse app: most of nostr has no kind-10002, and a
+user whose list we have not loaded yet still has to see something.
+
+## The costs we accepted
+
+**Routing is bounded, and loses to the fallback.** A relay-list lookup gets
+2.5 seconds — deliberately shorter than the content reads it precedes — and a
+miss is cached for five minutes. Routing is an optimisation over a fallback
+that already works; blocking a page render on it is the worse answer. Where a
+read has an independent leg (the search relay, in `fetchRecentByKinds` and
+`fetchLiveStreams`), the lookup runs beside it rather than in front of it.
+
+**Each author contributes at most four relays** (`MAX_RELAYS_PER_AUTHOR`), and
+a publish resolves at most eight addressees' inboxes (`MAX_INBOX_RECIPIENTS`).
+Without the second cap, publishing a kind-3 would mean resolving the relay list
+of everyone you follow — and a kind-3's `p` tags are a membership list, not an
+address book, so those kinds are excluded from inbox routing outright.
+
+**Not everything a `p` tag names is an addressee.** Alongside the membership
+lists, we exclude the kinds that are a claim *about* a person rather than a
+message *to* them — NIP-56 reports and tag assertions/disputes. A vouch or an
+RSVP is something its subject wants; an accusation delivered into the inbox they
+publish for replies is not a notification they asked for, and an inbox anyone
+can write an accusation to is a harassment vector. Those stay on the author's
+own relays (and, for tags, the hub), where a reader looking for them finds them.
+
+**kind-0 keeps the fast path.** Time-to-avatar sits on `fetchProfileEvent`, and
+the default set genuinely covers kind-0 (purplepag.es exists to index it). So it
+asks what it already knows first and only routes on a miss, rather than paying
+for a lookup it usually does not need.
+
+**`publishRelayList` still replaces.** It is for a caller that means to set the
+list. Everything that merely wants the user discoverable now calls
+`announceRelayList`, which re-broadcasts the list they already have — same id,
+same signature, no signer prompt — and publishes ours only for a key that has
+never had one.
+
+## What is still default-routed
+
+Queries with no single author to route by, which is not a gap but a limit of the
+model: `fetchNotesByHashtag` and the `useNetworkArticles` / `useNetworkReach`
+two-hop sampling read from `CONTENT_RELAYS`. The sampling case *could* union its
+sampled authors' relays; at fifty-plus authors that is fifty lookups to shave a
+tail, and we chose not to. `fetchEventsByIds` has only ids to go on, so it can
+route by relay hints and nothing else.

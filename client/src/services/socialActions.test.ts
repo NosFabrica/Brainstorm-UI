@@ -65,7 +65,18 @@ vi.mock("@/lib/relayPool", () => ({
   pool: { request: (...args: unknown[]) => poolRequest(...(args as [string[], { kinds: number[] }])) },
 }));
 const storeAdd = vi.fn((e: unknown) => e);
-vi.mock("@/lib/eventStore", () => ({ eventStore: { add: (e: unknown) => storeAdd(e) } }));
+// `getReplaceable` is what NIP-65 routing reads to find the author's write
+// relays; these cases never seed one, so routing falls back to the defaults.
+vi.mock("@/lib/eventStore", () => ({
+  eventStore: { add: (e: unknown) => storeAdd(e), getReplaceable: () => undefined },
+}));
+// Routing may go to the relays for a kind-10002. These cases are about the
+// follow/mute logic, not about discovery, so the lookup answers "nothing".
+vi.mock("@/lib/loaders", () => ({
+  addressLoader: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }),
+  idLoader: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }),
+  loadReplaceable: async () => undefined,
+}));
 // The real module drags in deployment config; the recovery path only needs the shape check.
 vi.mock("@/config/tagging", () => ({
   isRelayUrl: (url: string) => /^wss?:\/\/[^\s/$.?#][^\s]*$/i.test(url.trim()),

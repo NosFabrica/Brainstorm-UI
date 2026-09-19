@@ -19,6 +19,7 @@ import { signAs } from "@/accounts/signing";
 import { isUnlockCancelled } from "@/accounts/local-signer";
 import { signEventWithEphemeralKey, getVerifiedProfileLud16 } from "@/services/nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";
+import { inboxRelays } from "@/lib/relayRouting";
 import {
   acceptsZaps,
   canAttributeZap,
@@ -121,7 +122,12 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
     setErrorMsg(null);
     try {
       const amountMsat = satsToMsat(amountNum);
-      const relays = Array.from(new Set(PROFILE_RELAYS));
+      // NIP-57: this list is where the WALLET publishes the zap receipt, so it
+      // has to be where the RECIPIENT reads — their kind-10002 read relays over
+      // our defaults. Sending our five back meant the receipt landed somewhere
+      // the person being zapped may never look, and the zap never showed up on
+      // their profile in their own client.
+      const relays = await inboxRelays([recipientPubkey], PROFILE_RELAYS);
       const commentText = comment.trim() || undefined;
       const anonZap = () =>
         signEventWithEphemeralKey(
