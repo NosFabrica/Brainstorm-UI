@@ -2114,6 +2114,50 @@ describe("SearchResults", () => {
       expect((main[1] as { limit?: number }).limit).toBeGreaterThanOrEqual(200);
     });
 
+    // The relay's own floor, at the far end of the same dial as "Include unranked". A floor
+    // DELETES the rows below it (vespa-relay store e1ecd7f23e), so the two cannot both be on.
+    it("a trust floor writes filter:rank:gte:N, and turns the spam waiver off", () => {
+      const rewrite = vi.fn();
+      render(<SearchResults query="bitcoin include:spam" pov="nosfabrica" onQueryRewrite={rewrite} />);
+      fireEvent.click(screen.getByTestId("search-filters-toggle"));
+      // Advanced opens itself when a shared link set one of its controls.
+      const floor = screen.getByTestId("filter-rank-floor") as HTMLSelectElement;
+      expect([...floor.options].map((o) => o.value)).toEqual(["", "25", "50", "75", "90"]);
+      fireEvent.change(floor, { target: { value: "50" } });
+      expect(rewrite).toHaveBeenLastCalledWith("bitcoin filter:rank:gte:50");
+    });
+
+    it("the floor reads back out of a hand-typed query, and clears", () => {
+      const rewrite = vi.fn();
+      render(<SearchResults query="bitcoin filter:rank:gte:75" pov="nosfabrica" onQueryRewrite={rewrite} />);
+      fireEvent.click(screen.getByTestId("search-filters-toggle"));
+      expect((screen.getByTestId("filter-rank-floor") as HTMLSelectElement).value).toBe("75");
+      expect(screen.getByTestId("filters-active-count")).toHaveTextContent("1");
+      fireEvent.change(screen.getByTestId("filter-rank-floor"), { target: { value: "" } });
+      expect(rewrite).toHaveBeenLastCalledWith("bitcoin");
+    });
+
+    it("switching the spam waiver back on drops the floor", () => {
+      const rewrite = vi.fn();
+      render(<SearchResults query="bitcoin filter:rank:gte:50" pov="nosfabrica" onQueryRewrite={rewrite} />);
+      fireEvent.click(screen.getByTestId("search-filters-toggle"));
+      fireEvent.click(screen.getByTestId("filter-spam"));
+      expect(rewrite).toHaveBeenLastCalledWith("bitcoin include:spam");
+    });
+
+    // `observer:` is a debug token: typed by hand, drawn as a pill in the box, and given no
+    // control here on purpose. The panel must neither show it nor count it.
+    it("offers no Ranking-as control, and does not count a typed observer", () => {
+      const rewrite = vi.fn();
+      const GAL = "f".repeat(64);
+      render(<SearchResults query={`bitcoin observer:${GAL}`} pov="nosfabrica" onQueryRewrite={rewrite} />);
+      fireEvent.click(screen.getByTestId("search-filters-toggle"));
+      expect(screen.queryByTestId("filter-observer")).toBeNull();
+      expect(screen.queryByTestId("filters-active-count")).toBeNull();
+      // Advanced stays shut: a typed observer is not something it can show.
+      expect(screen.queryByTestId("filters-advanced")).toBeNull();
+    });
+
     it("dates are presets — one tap for the past week — with Custom revealing the pickers", () => {
       const rewrite = vi.fn();
       render(<SearchResults query="bitcoin" pov="nosfabrica" onQueryRewrite={rewrite} />);

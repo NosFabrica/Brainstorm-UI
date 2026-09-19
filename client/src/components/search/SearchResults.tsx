@@ -9,8 +9,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } fr
 import { Link, useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
-import { ChevronDown, Radar, Radio, SlidersHorizontal } from "lucide-react";
-import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, readFilters, sinceForPreset, splitFilters, type DatePreset, type SearchFilterPatch, scopeOf } from "@/lib/searchSyntax";
+import { ChevronDown, HelpCircle, Radar, Radio, SlidersHorizontal } from "lucide-react";
+import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, queryWords, readFilters, sinceForPreset, type DatePreset, type SearchFilterPatch, scopeOf } from "@/lib/searchSyntax";
 import { clientFilterHits, countBelowLine } from "@/lib/clientFilters";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
 import { eventStore } from "@/lib/eventStore";
@@ -56,6 +56,7 @@ import { MusicResults } from "@/components/search/MusicResults";
 import { FacetChip, FacetRow } from "@/components/search/sections";
 import { KnowledgePanel } from "@/components/search/KnowledgePanel";
 import { ComposedResults } from "@/components/search/ComposedResults";
+import { SearchSyntaxSheet, useSyntaxSheetShortcut } from "@/components/search/SearchSyntaxSheet";
 import { capPerAuthor, collapseHits } from "@/lib/searchCollapse";
 
 const NOTE_KINDS = new Set(TAB_KINDS.notes);
@@ -241,6 +242,20 @@ const SORT_OPTIONS = [
   { value: "followers", label: "Most followed authors" },
 ];
 
+/**
+ * The relay's `filter:rank:gte:N`, on the 0..100 trust scale. A floor DELETES rows below it
+ * rather than sinking them (vespa-relay store e1ecd7f23e), which is why it is a coarse menu
+ * and not a slider: the difference between 50 and 52 is not a decision anybody makes, and
+ * each step is a page of results gone.
+ */
+const RANK_FLOORS: { value: number | null; label: string }[] = [
+  { value: null, label: "No floor" },
+  { value: 25, label: "Rank 25+" },
+  { value: 50, label: "Rank 50+" },
+  { value: 75, label: "Rank 75+" },
+  { value: 90, label: "Rank 90+" },
+];
+
 /** A one-line facet chip strip: horizontal scroll with the scrollbar hidden,
  *  a soft right-edge fade to signal "more", and mouse-wheel → horizontal so a
  *  desktop mouse scrolls it as easily as a phone swipes (trackpads/touch already
@@ -262,12 +277,12 @@ function FiltersPanel({
 }) {
   // What the relay will actually run: a wordless browse cannot be rank- or
   // follower-sorted, so the panel shows the fallback and greys those two.
-  const browsing = !splitFilters(query).text;
+  const browsing = !queryWords(query);
   const state = readFilters(browsing ? browseSafeQuery(query) : query);
   const preset = datePreset(state);
   // "Custom range" stays open once chosen, even before a day is picked.
   const [customDates, setCustomDates] = useState(preset === "custom");
-  const advancedActive = !!state.reach || state.includeSpam;
+  const advancedActive = !!state.reach || state.includeSpam || state.rankFloor != null;
   const [advancedOpen, setAdvancedOpen] = useState(advancedActive);
   useEffect(() => {
     if (advancedActive) setAdvancedOpen(true);
@@ -415,12 +430,31 @@ function FiltersPanel({
           </div>
         </div>
       )}
+      {/* The relay's own floor, the opposite end of the same dial as "Include unranked":
+          one lifts the floor to nothing, the other raises it. Both cannot be on, so
+          choosing a floor turns the waiver off. */}
+      <label className={column}>
+        Trust floor
+        <select
+          className={control}
+          value={state.rankFloor ?? ""}
+          onChange={(e) => {
+            const next = e.target.value === "" ? null : Number(e.target.value);
+            write(next == null ? { rankFloor: null } : { rankFloor: next, includeSpam: false });
+          }}
+          data-testid="filter-rank-floor"
+        >
+          {RANK_FLOORS.map((o) => (
+            <option key={o.label} value={o.value ?? ""}>{o.label}</option>
+          ))}
+        </select>
+      </label>
       <label className="flex items-center gap-1.5 pb-1.5 text-[11px] font-medium text-slate-500 dark:text-slate-400">
         <input
           type="checkbox"
           className="h-3.5 w-3.5 accent-brand-primary"
           checked={state.includeSpam}
-          onChange={(e) => write({ includeSpam: e.target.checked })}
+          onChange={(e) => write(e.target.checked ? { includeSpam: true, rankFloor: null } : { includeSpam: false })}
           data-testid="filter-spam"
         />
         Include unranked accounts
@@ -532,6 +566,8 @@ export function SearchResults({
     };
   }, [tab, query, panelPerson?.pubkey]);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [syntaxOpen, setSyntaxOpen] = useState(false);
+  useSyntaxSheetShortcut(useCallback(() => setSyntaxOpen(true), []));
 
   // Everything composes its own purpose-ranked section streams — unless the
   // user typed a sort:, which is them choosing ONE order for one list.
@@ -547,7 +583,7 @@ export function SearchResults({
   // put the page named "List of comedians" 26th under a month of news; best
   // match had it first, the other comedian lists behind it (relay probe,
   // 2026-09-07). A wordless browse still asks newest — there is nothing to match.
-  const articlesByRelevance = tab === "articles" && !!splitFilters(query).text;
+  const articlesByRelevance = tab === "articles" && !!queryWords(query);
   const effectiveQuery =
     !userSorted && tab !== "everything" && tab !== "people" && !articlesByRelevance
       ? `${safeQuery} sort:recent`.trim()
@@ -1114,6 +1150,20 @@ export function SearchResults({
         <div className="ml-1 flex shrink-0 items-center gap-1 sm:gap-2">
           <MoreTabs tab={tab} onChange={changeTab} />
           {perspective}
+          {/* The syntax sheet, before the sorting: what can be typed into the box is the
+              question people have first. The mark alone — a labelled button wraps this row
+              on a phone — and `aria-label` says what it is. */}
+          <button
+            type="button"
+            aria-haspopup="dialog"
+            aria-label="Search syntax"
+            title="Search syntax — people, days, topics, and the tokens that rank the answer. Shortcut: ?"
+            onClick={() => setSyntaxOpen(true)}
+            className={tabClass(false) + " inline-flex items-center !px-2"}
+            data-testid="search-syntax-toggle"
+          >
+            <HelpCircle className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
+          </button>
           {onQueryRewrite && (
             <button
               type="button"
@@ -1139,6 +1189,7 @@ export function SearchResults({
       </div>
 
       {filtersOpen && onQueryRewrite && <FiltersPanel query={query} pov={pov} userPubkey={userPubkey} onQueryRewrite={onQueryRewrite} />}
+      <SearchSyntaxSheet open={syntaxOpen} onOpenChange={setSyntaxOpen} />
 
       {/* Google anatomy: the knowledge panel is FIRST in the DOM — the top
           card on mobile, the right rail on desktop (flex order). When no
