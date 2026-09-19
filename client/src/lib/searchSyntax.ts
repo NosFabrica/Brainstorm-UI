@@ -247,12 +247,17 @@ export function readFilters(query: string): SearchFilterState {
   const q = parseQuery(query);
   // The days come from the TOKENS, not the parsed seconds: the panel's date inputs speak
   // `YYYY-MM-DD`, and a round trip through an epoch would move a day across a timezone.
+  //
+  // Which token, though, is [parseQuery]'s rule and not "the last one wins": two of one
+  // prefix keep the NARROWER bound, so `since:2026-03-01 since:2026-01-01` is asked as March
+  // and the panel has to say March. Reading the last would have shown a day the search was
+  // not using — and then rewritten the query from it.
   let since: string | null = null;
   let until: string | null = null;
   for (const seg of tokenize(query)) {
     if (seg.type !== "date") continue;
-    if (seg.field === "since") since = seg.day;
-    else until = seg.day;
+    if (seg.field === "since") { if (since == null || seg.day > since) since = seg.day; }
+    else if (until == null || seg.day < until) until = seg.day;
   }
   return {
     sort: q.sort,

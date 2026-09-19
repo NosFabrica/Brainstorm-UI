@@ -98,10 +98,6 @@ export function seedGroupNames(cands: (GroupCandidate | null)[]): number {
   return changed;
 }
 
-/** The same, from the kind 39000s among raw events. */
-export const seedGroupEvents = (events: NostrEvent[]): number =>
-  seedGroupNames(events.map(metaGroup));
-
 /** What to draw for this id, or "" when nothing can be said with one name. */
 export function groupName(id: string): string {
   const by = learned.get(id);

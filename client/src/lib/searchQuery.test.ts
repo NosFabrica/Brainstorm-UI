@@ -171,10 +171,15 @@ describe("buildFilters — one REQ, filters ORed", () => {
     expect(filters[2]["#I"]).toEqual(["#nostr", "nostr"]);
   });
 
-  it("a group asks #h plus its own kind-39000 metadata", () => {
+  // Just the posts. The relay's operator page asks for the group's kind-39000 metadata beside
+  // them because its pill is named from that REQ; here `services/groups` names the pill under
+  // `include:spam`, which is the only lens that read works on — a group's metadata is signed
+  // by its host relay's key, which no reader's web of trust ranks.
+  it("a group asks #h, and nothing else", () => {
     const filters = buildFilters("group:abc", { limit });
+    expect(filters).toHaveLength(1);
     expect(filters[0]["#h"]).toEqual(["abc"]);
-    expect(filters[1]).toMatchObject({ kinds: [39000], "#d": ["abc"] });
+    expect(filters.some((f) => (f.kinds as number[] | undefined)?.includes(39000))).toBe(false);
   });
 
   it("a label asks kind 1985 over the tab's own kinds — the mark is on the label", () => {

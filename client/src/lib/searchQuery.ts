@@ -512,8 +512,6 @@ const COMMENT_SCOPE_TAGS = ["#I", "#i"] as const;
 // 1985 is on no tab, and the mark is on the label, not on what it names.
 const LABEL_KIND = 1985;
 
-// A NIP-29 group's own metadata, signed by the host relay's key.
-const GROUP_META_KIND = 39000;
 // Single letter, so the store indexes it in `tag_index` exactly as it does `t`.
 const GROUP_TAG = "#h";
 
@@ -577,10 +575,13 @@ export function buildFilters(text: string, opts: BuildOptions): Filter[] {
   const side = sideLimit(limit);
   const filters: Filter[] = [];
   if (q.labels.length) filters.push({ ...base, kinds: [LABEL_KIND], "#l": tagAsks(q.labels), limit });
-  if (q.groups.length) {
-    filters.push({ ...base, [GROUP_TAG]: q.groups, limit });
-    filters.push({ ...base, kinds: [GROUP_META_KIND], "#d": q.groups, limit: side });
-  }
+  // Just the posts. The relay's own operator page asks for the group's kind-39000 metadata
+  // beside them, because its pill is named from whatever that REQ brings back; here the pill
+  // is named by `services/groups`, under `include:spam` — which is the ONLY way that read
+  // works, since a group's metadata is signed by its host relay's key and no reader's web of
+  // trust has an opinion about that. Asking for it on this lens would rank it away, and on
+  // any other lens it would land in the results as a metadata card nobody searched for.
+  if (q.groups.length) filters.push({ ...base, [GROUP_TAG]: q.groups, limit });
   if (q.hashtags.length) {
     filters.push({ ...base, "#t": tagAsks(q.hashtags), limit });
     filters.push({ ...base, "#l": tagAsks(q.hashtags), limit: side });

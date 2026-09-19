@@ -482,13 +482,13 @@ describe("token lifting", () => {
     for (const f of union) expect(f.search).toBe(`gm observer:${HOUSE}`);
   });
 
-  it("a group: asks #h plus the group's own kind-39000 metadata", async () => {
+  it("a group: asks #h, and does not drag the group's metadata into the results", async () => {
     controllable();
     searchStream("group:abc", { tab: "notes", pov: "nosfabrica" }, () => {});
     await tick();
     const union = askedFilters();
+    expect(union).toHaveLength(1);
     expect(union[0]["#h"]).toEqual(["abc"]);
-    expect(union[1]).toMatchObject({ kinds: [39000], "#d": ["abc"] });
   });
 
   it("a NIP-73 scope asks the comments written on that thing, in every spelling", async () => {
@@ -506,6 +506,75 @@ describe("token lifting", () => {
     searchStream(`to:${note}`, { tab: "notes", pov: "nosfabrica" }, () => {});
     await tick();
     expect(asked()["#e"]).toEqual(["b".repeat(64)]);
+  });
+});
+
+// A union cannot be paged by walking `until` back. `oldest` is the oldest second ANY filter
+// returned, so rewinding them all to it skips whatever a filter held between its own oldest
+// and that one — silently, and for good.
+describe("paging a union", () => {
+  function pages(n: number) {
+    const subjects = Array.from({ length: n }, () => new Subject<ReqFrame>());
+    reqMock.mockImplementation(() => {
+      const idx = reqMock.mock.calls.length - 1;
+      return new Observable<ReqFrame>((subscriber) => {
+        const inner = subjects[idx].subscribe(subscriber);
+        return () => inner.unsubscribe();
+      });
+    });
+    return subjects;
+  }
+  const note = (id: string, created_at: number, tags: string[][] = []): NostrEvent =>
+    ({ id, kind: 1, pubkey: "a".repeat(64), tags, content: id, created_at, sig: "s" }) as NostrEvent;
+
+  it("grows its limits instead of rewinding every filter to the oldest second any of them saw", async () => {
+    const [first] = pages(2);
+    const handle = searchStream("#nostr sort:recent", { tab: "notes", pov: "nosfabrica", limit: 4 }, () => {});
+    await tick();
+    const page1 = askedFilters();
+    expect(page1.length).toBeGreaterThan(1);
+    // `#t` reaches far back; a side filter stops early. The old cursor would have rewound
+    // `#t` to 900 and lost everything it had between 900 and its own oldest.
+    first.next(frame(note("a", 5000)));
+    first.next(frame(note("b", 900)));
+    first.next(EOSE);
+    await tick();
+
+    handle.more();
+    await tick();
+    const page2 = askedFilters(1);
+    for (const f of page2) expect(f.until).toBeUndefined();
+    // Every filter grew in proportion, side questions included.
+    expect(page2.map((f) => f.limit)).toEqual(page1.map((f) => (f.limit as number) * 2));
+  });
+
+  it("a single filter still walks back — that is what `until` is for", async () => {
+    const [first] = pages(2);
+    const handle = searchStream("gm sort:recent", { tab: "notes", pov: "nosfabrica", limit: 2 }, () => {});
+    await tick();
+    expect(askedFilters()).toHaveLength(1);
+    first.next(frame(note("a", 5000)));
+    first.next(frame(note("b", 900)));
+    first.next(EOSE);
+    await tick();
+    handle.more();
+    await tick();
+    expect(asked(1).until).toBe(900);
+  });
+
+  it("a union is exhausted when a page brings nothing new, not when its total runs short", async () => {
+    const [first] = pages(3);
+    const snaps: SearchSnapshot[] = [];
+    const handle = searchStream("#nostr sort:recent", { tab: "notes", pov: "nosfabrica", limit: 4 }, (s) => snaps.push(s));
+    await tick();
+    // Fewer events than the union's limits add up to — one filter simply had nothing. That
+    // must not read as "the whole search is done".
+    first.next(frame(note("a", 5000)));
+    first.next(EOSE);
+    await tick();
+    handle.more();
+    await tick();
+    expect(reqMock).toHaveBeenCalledTimes(2);
   });
 });
 

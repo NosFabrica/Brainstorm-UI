@@ -86,6 +86,28 @@ describe("fetchPillProfiles", () => {
     expect(storeAdd).toHaveBeenCalled();
   });
 
+  // A pill whose profile is already in hand must not sit on its skeleton while two network
+  // reads run out. `loadReplaceable` only settles at its own timeout for somebody with no
+  // kind-0 on their relays, which is exactly the common case for an `observer:` key.
+  it("answers from the store without asking anything at all", async () => {
+    storeGet.mockReturnValue(profile("Held Already", 300));
+    const found = await fetchPillProfiles([JOE]);
+    expect(found.get(JOE)?.displayName).toBe("Held Already");
+    expect(reqMock).not.toHaveBeenCalled();
+    expect(loadReplaceableMock).not.toHaveBeenCalled();
+  });
+
+  it("does not wait on the slower source once it has a face for everybody", async () => {
+    reqMock.mockImplementation(() => answers([profile("Joe Martin", 100)]));
+    // Their own relays never answer — the read that would otherwise hold the pill.
+    loadReplaceableMock.mockImplementation(() => new Promise(() => {}));
+    const found = await Promise.race([
+      fetchPillProfiles([JOE]),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("waited on the hung source")), 1000)),
+    ]);
+    expect((found as Map<string, { displayName?: string }>).get(JOE)?.displayName).toBe("Joe Martin");
+  });
+
   it("a key nobody has a kind-0 for is simply absent — no throw, no empty face", async () => {
     const found = await fetchPillProfiles([JOE]);
     expect(found.size).toBe(0);

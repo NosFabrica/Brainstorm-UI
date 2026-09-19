@@ -197,6 +197,10 @@ describe("readFilters", () => {
       includeSpam: true,
       rankAs: null,
     });
+    // Two of one prefix keep the NARROWER bound, as the parser does — the panel has to show
+    // the day the search is actually using, not the last one somebody typed.
+    expect(readFilters("btc since:2026-03-01 since:2026-01-01").since).toBe("2026-03-01");
+    expect(readFilters("btc until:2026-01-01 until:2026-03-01").until).toBe("2026-01-01");
     expect(readFilters("plain words")).toEqual({
       sort: null,
       since: null,

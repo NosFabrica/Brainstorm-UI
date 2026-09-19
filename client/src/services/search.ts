@@ -315,8 +315,10 @@ export function searchStream(
     const pageSubs: { unsubscribe: () => void }[] = [];
 
     const openPage = (page: import("nostr-tools").Filter[], closeAtEose: boolean) => {
-      // The page's own size, for the short-page test below: the union's first
-      // filter is the one carrying the full limit (the rest are side questions).
+      // The page's own size, for the short-page test below. Only meaningful when ONE filter
+      // was asked: a union's filters run short independently, and `#l` finding nothing says
+      // nothing about whether `#t` has more.
+      const single = page.length === 1;
       const pageLimit_ = page[0]?.limit ?? pageLimit;
       let received = 0;
       let fresh = 0;
@@ -371,10 +373,11 @@ export function searchStream(
         } else if (msg.type === "EOSE") {
           eose = true;
           loadingMore = false;
-          // A page the relay returned short is the last one — counted as the
-          // relay sent it, before dedupe: an `until` page always carries the
-          // boundary second again. A full page with nothing new is the end too.
-          if (received < pageLimit_ || fresh === 0) exhausted = true;
+          // A page the relay returned short is the last one — counted as the relay sent it,
+          // before dedupe: an `until` page always carries the boundary second again. A full
+          // page with nothing new is the end too, and for a union it is the ONLY end: the
+          // filters are short independently, so their total says nothing.
+          if (fresh === 0 || (single && received < pageLimit_)) exhausted = true;
           if (closeAtEose) sub.unsubscribe();
           emit({ timeMs: Date.now() - startedAt });
         } else if (msg.type === "CLOSED") {
@@ -386,20 +389,28 @@ export function searchStream(
       pageSubs.push({ unsubscribe: () => { clearTimeout(deadline); sub.unsubscribe(); } });
     };
 
+    // How the next page is asked for. Walking back with `until` is only correct when ONE
+    // filter was asked: `oldest` is the oldest second ANY filter of a union returned, so
+    // rewinding them all to it skips whatever a filter had between its own oldest and that
+    // one — silently, and for good. A union grows its limits instead and leans on the dedupe,
+    // which is what the ranked path has always done.
+    const walksBack = recent && filters.length === 1;
+
     turnPage = () => {
       if (cancelled || !eose || loadingMore || exhausted) return;
-      const nextLimit = pageLimit * (pagesTurned + 2);
-      if (!recent && nextLimit > RANKED_PAGE_CEILING) {
+      const factor = pagesTurned + 2;
+      const nextLimit = pageLimit * factor;
+      if (!walksBack && nextLimit > RANKED_PAGE_CEILING) {
         exhausted = true;
         emit({});
         return;
       }
       loadingMore = true;
       pagesTurned++;
-      // Every filter of the union turns together: a `recent` page walks back
-      // from the oldest second any of them returned, a ranked one grows.
+      // Every filter of the union turns together, and the side questions grow in proportion
+      // so a wider page does not keep re-reading the same quarter of them.
       const next = filters.map((f) =>
-        recent ? { ...f, until: oldest } : { ...f, limit: f.limit === limit ? nextLimit : f.limit },
+        walksBack ? { ...f, until: oldest } : { ...f, limit: (f.limit ?? pageLimit) * factor },
       );
       emit({});
       openPage(next, true);

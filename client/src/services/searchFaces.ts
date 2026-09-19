@@ -101,12 +101,24 @@ export async function fetchPillProfiles(
   // makes a pill that has been drawn before draw instantly the next time.
   for (const pk of want) take(eventStore.getReplaceable(0, pk) as NostrEvent | undefined);
 
-  const [indexed, published] = await Promise.all([
-    fromSearchRelay(want, timeoutMs),
-    Promise.all(want.map((pk) => fromTheirRelays(pk, timeoutMs))),
-  ]);
-  for (const e of indexed) take(e);
-  for (const e of published) take(e);
+  // A face for everybody already: nothing to ask, and nothing to wait for. Without this a
+  // pill whose profile is already in hand still sat on its skeleton until the slower of two
+  // network reads gave up, which for somebody with no kind-0 on their own relays is the whole
+  // timeout.
+  if (newest.size < want.length) {
+    const asked = [
+      fromSearchRelay(want, timeoutMs).then((events) => events.forEach(take)),
+      ...want.map((pk) => fromTheirRelays(pk, timeoutMs).then(take)),
+    ];
+    // Whichever source answers first wins the race when it completes the set; the rest are
+    // left running, and what they bring lands in the store for the next pill to find.
+    await Promise.race([
+      Promise.all(asked),
+      new Promise<void>((resolve) => {
+        for (const one of asked) void one.then(() => { if (newest.size >= want.length) resolve(); });
+      }),
+    ]);
+  }
 
   for (const [pubkey, event] of newest) {
     // Into the store, so the next pill drawing this person needs no round trip at all.
