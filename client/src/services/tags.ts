@@ -14,7 +14,7 @@
  * auth storage and hard-redirects on 401 (.agents/memory/anon-public-data-fetch.md).
  */
 import { pool, fetchEventsByFilter, publishRelaysFor, publishToRelays } from "./nostr";
-import { loadRelayHint, tagWithHint } from "@/lib/relayRouting";
+import { loadRelayHint, readRelaysFor, tagWithHint } from "@/lib/relayRouting";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { resolveHouseObserver, resolveTrustSource } from "./trustSource";
 import {
@@ -146,11 +146,27 @@ const TAG_ELEMENT_KIND = 39999;
 // ─── Relay I/O ───────────────────────────────────────────────────────────────
 
 /**
- * Tag reads: the hub ∪ the user's read relays. Kept separate from the trust
+ * Tag reads: the hub ∪ the viewer's read relays. Kept separate from the trust
  * reader below — the house's TA-signed artifacts are not on the hub.
+ *
+ * The viewer's half used to be documentation only: this asked `tagRelays()` and
+ * nothing else, so the kit's routing rule ("reads query these ∪ the user's read
+ * relays") was true of the publish path and false of the read path. A tagging
+ * that reached the hub was found; one that only reached the relays the viewer
+ * actually reads was not.
+ *
+ * It is the READ half of their list, per that rule. For the ordinary relay list
+ * — unmarked `r` tags, which are both — that also covers everything they write,
+ * so their own taggings come back. A list that marks its relays write-only is
+ * the one case where it doesn't, and following the rule beats guessing at it.
+ *
+ * Every tag read in this module funnels through here, so this is the one place
+ * the union has to happen.
  */
-function fetchTagEvents(filter: Record<string, unknown>): Promise<NostrEvent[]> {
-  return fetchEventsByFilter(filter, tagRelays()) as Promise<NostrEvent[]>;
+async function fetchTagEvents(filter: Record<string, unknown>): Promise<NostrEvent[]> {
+  const viewer = activeAccount()?.pubkey;
+  const relays = viewer ? await readRelaysFor(viewer, tagRelays()) : tagRelays();
+  return fetchEventsByFilter(filter, relays) as Promise<NostrEvent[]>;
 }
 
 /**

@@ -241,6 +241,22 @@ export async function inboxRelays(
 }
 
 /**
+ * The relays one person READS from.
+ *
+ * The same set `inboxRelays` collects, named for the case where the person is
+ * the VIEWER rather than a recipient — "also look where I read" is a different
+ * sentence from "deliver this to them", even though NIP-65 answers both with
+ * the same tags.
+ */
+export function readRelaysFor(
+  pubkey: string,
+  fallback: string[] = [],
+  opts: { timeoutMs?: number } = {},
+): Promise<string[]> {
+  return inboxRelays([pubkey], fallback, opts);
+}
+
+/**
  * One relay to name in an `e`/`p`/`a` tag so the next client can find what we
  * point at without a full lookup. Store-only and best-effort: a hint we cannot
  * produce is simply left off, never guessed.

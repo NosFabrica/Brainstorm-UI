@@ -44,6 +44,14 @@ whole rule:
   third slot of an `e`/`a`/`p` tag, so the next client resolves it without a
   lookup. We consumed hints and contributed none.
 
+The tag surface has its own floor — the hub in `tagging.config.json` — and the
+same rule on top of it. The kit states it as "reads query these ∪ the user's
+read relays; publishes go to these ∪ the user's write relays", and only the
+publish half was ever true: `fetchTagEvents` asked the hub and nothing else, so
+a tagging that reached the hub was found and one that only reached the relays
+the viewer actually reads was not. Both halves hold now, through the one
+choke point every tag read in that module funnels through.
+
 Our own `PROFILE_RELAYS` stay a floor under both. Dropping them would be the
 purer reading of NIP-65 and a worse app: most of nostr has no kind-10002, and a
 user whose list we have not loaded yet still has to see something.
