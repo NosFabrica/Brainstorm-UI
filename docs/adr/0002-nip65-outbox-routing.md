@@ -65,6 +65,28 @@ that already works; blocking a page render on it is the worse answer. Where a
 read has an independent leg (the search relay, in `fetchRecentByKinds` and
 `fetchLiveStreams`), the lookup runs beside it rather than in front of it.
 
+**A multi-author read is planned, not flattened.** `outboxRelays` answers the
+single-author question by unioning everything into one list, which is right for
+one author and degenerates at scale: asking six relays about four hundred
+authors sends six copies of the same enormous filter, nearly all of it naming
+people that relay has never carried. `planOutboxReads` instead uses
+applesauce's `selectOptimalRelays` — a set cover that repeatedly takes the relay
+serving the most still-uncovered authors — and `groupPubkeysByRelay`, so each
+connection gets a filter naming only its own authors (`requestAllByRelay`).
+Eight connections (`MAX_CONNECTIONS`) reach far more of the set than eight
+arbitrary ones.
+
+Two traps that make this fail silently, both covered by tests:
+
+- **Key the map the way the pool keys connections.** `RelayPool` normalizes with
+  `normalizeURL`, which *keeps* a trailing slash; our `dedupeRelays` drops it. A
+  plan keyed our way matches nothing — every relay gets an empty author list and
+  the read returns empty with no error.
+- **Never drop an uncovered author.** A tight budget can leave someone with none
+  of their relays selected, and `groupPubkeysByRelay` skips anyone whose list
+  came back empty. Those authors go on the floor; otherwise they read as having
+  posted nothing.
+
 **Each author contributes at most four relays** (`MAX_RELAYS_PER_AUTHOR`), and
 a publish resolves at most eight addressees' inboxes (`MAX_INBOX_RECIPIENTS`).
 Without the second cap, publishing a kind-3 would mean resolving the relay list
@@ -90,11 +112,16 @@ list. Everything that merely wants the user discoverable now calls
 same signature, no signer prompt — and publishes ours only for a key that has
 never had one.
 
+**A relay hint never waits on the network.** `relayHintFor` is store-only. It is
+read while *building* an event, so an awaited lookup there is dead time between
+the user's click and the signer prompt — up to the routing deadline, for a field
+that is optional by design. Anything that reads a profile warms the list first,
+and the publish that follows loads it anyway.
+
 ## What is still default-routed
 
-Queries with no single author to route by, which is not a gap but a limit of the
-model: `fetchNotesByHashtag` and the `useNetworkArticles` / `useNetworkReach`
-two-hop sampling read from `CONTENT_RELAYS`. The sampling case *could* union its
-sampled authors' relays; at fifty-plus authors that is fifty lookups to shave a
-tail, and we chose not to. `fetchEventsByIds` has only ids to go on, so it can
-route by relay hints and nothing else.
+Queries with no author to route by, which is not a gap but a limit of the model:
+`fetchNotesByHashtag` (`#t`), thread replies (`#e`), tag comments (`#A`) and
+`fetchReportsForPubkey` (`#p`) are all "who said this about X" — the authors are
+strangers by definition. `fetchEventsByIds` has only ids, so it routes by relay
+hints and nothing else.

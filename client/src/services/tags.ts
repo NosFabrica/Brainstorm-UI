@@ -14,7 +14,7 @@
  * auth storage and hard-redirects on 401 (.agents/memory/anon-public-data-fetch.md).
  */
 import { pool, fetchEventsByFilter, publishRelaysFor, publishToRelays } from "./nostr";
-import { loadRelayHint, readRelaysFor, tagWithHint } from "@/lib/relayRouting";
+import { readRelaysFor, relayHintFor, tagWithHint } from "@/lib/relayRouting";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { resolveHouseObserver, resolveTrustSource } from "./trustSource";
 import {
@@ -1572,7 +1572,7 @@ export async function publishTagComment(
   const coord = tagCoordinate({ authorPubkey, slug });
   // Where the tag's author writes — the `A`/`a` coordinate is resolvable from
   // the hint alone, without the reader guessing at a relay set.
-  const hint = await loadRelayHint(authorPubkey);
+  const hint = relayHintFor(authorPubkey);
   const unsigned = {
     kind: COMMENT_KIND,
     pubkey: user.pubkey,

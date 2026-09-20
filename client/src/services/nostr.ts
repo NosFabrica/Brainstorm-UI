@@ -5,7 +5,7 @@ import { pool } from "@/lib/relayPool";
 import { eventStore } from "@/lib/eventStore";
 import { searchRelay } from "@/lib/searchRelay";
 import { CONTENT_RELAYS, PROFILE_RELAYS } from "@/lib/relays";
-import { requestAll, requestNewest, requestOne } from "@/lib/relayRequest";
+import { requestAll, requestAllByRelay, requestNewest, requestOne } from "@/lib/relayRequest";
 import { addressLoader, loadReplaceable } from "@/lib/loaders";
 import {
   dedupeRelays,
@@ -13,6 +13,7 @@ import {
   outboxRelays,
   outboxRelaysFromDb,
   parseRelayList,
+  planOutboxReads,
 } from "@/lib/relayRouting";
 
 const RAW_NIP85_RELAY_URL = env.VITE_NIP85_RELAY_URL;
@@ -822,6 +823,33 @@ export async function fetchEventsByFilter(
 ): Promise<NostrEvent[]> {
   const targetRelays = relays.length ? relays : PROFILE_RELAYS;
   return requestAll(targetRelays, filter as Parameters<typeof pool.request>[1], timeoutMs);
+}
+
+/**
+ * Events from MANY known authors, each relay asked only about the authors it
+ * actually serves.
+ *
+ * The plain `fetchEventsByFilter(…, CONTENT_RELAYS)` shape this replaces sent
+ * one filter naming every author to a fixed handful of relays — the pre-outbox
+ * answer, and the one place the model had no effect at all. Here the authors'
+ * own relays are loaded, a bounded set is chosen to cover as many of them as
+ * possible, and each connection gets a filter naming only its own.
+ *
+ * `fallback` is where an author with no relay list is looked for, and the floor
+ * for anyone the connection budget could not otherwise cover.
+ */
+export async function fetchEventsByAuthors(
+  pubkeys: string[],
+  filter: Omit<Record<string, unknown>, "authors">,
+  {
+    fallback = CONTENT_RELAYS,
+    timeoutMs = 8000,
+    maxConnections,
+  }: { fallback?: string[]; timeoutMs?: number; maxConnections?: number } = {},
+): Promise<NostrEvent[]> {
+  if (!pubkeys.length) return [];
+  const plan = await planOutboxReads(pubkeys, fallback, { maxConnections });
+  return requestAllByRelay(plan, filter as Parameters<typeof requestAllByRelay>[1], timeoutMs);
 }
 
 /**

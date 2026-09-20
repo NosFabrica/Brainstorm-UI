@@ -27,7 +27,6 @@ vi.mock("@/lib/relays", () => ({
 import {
   dedupeRelays,
   inboxRelays,
-  loadRelayHint,
   loadRelayList,
   normalizeRelayUrl,
   outboxRelays,
@@ -181,17 +180,26 @@ describe("where to send an event that names someone", () => {
 });
 
 describe("relay hints", () => {
-  it("names the author's first write relay", async () => {
+  it("names the author's first write relay", () => {
     seed(relayList(ALICE, [["r", "wss://alice.example"]]));
 
     expect(relayHintFor(ALICE)).toBe("wss://alice.example");
-    expect(await loadRelayHint(ALICE)).toBe("wss://alice.example");
   });
 
   /** A wrong hint sends readers somewhere the event definitely is not. */
-  it("is left off rather than guessed", async () => {
+  it("is left off rather than guessed", () => {
     expect(relayHintFor(ALICE)).toBeUndefined();
-    expect(await loadRelayHint(ALICE)).toBeUndefined();
+  });
+
+  /**
+   * A hint is read while BUILDING an event, so it must never reach the relays:
+   * that would be dead time between the user's click and the signer prompt, for
+   * a field that is optional by design.
+   */
+  it("never waits on the network", () => {
+    relayHintFor(ALICE);
+
+    expect(loadReplaceableMock).not.toHaveBeenCalled();
   });
 });
 

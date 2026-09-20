@@ -9,7 +9,7 @@
 import type { NostrEvent } from "nostr-tools";
 import { activeAccount, signAs, signingFailure, type PublishOutcome } from "@/accounts/signing";
 import { publishToRelays } from "@/services/nostr";
-import { loadRelayHint, tagWithHint } from "@/lib/relayRouting";
+import { relayHintFor, tagWithHint } from "@/lib/relayRouting";
 
 export const VOUCH_KIND = 31871;
 export type VouchType = "vouch" | "identity";
@@ -24,7 +24,7 @@ export async function publishVouch(subjectPubkey: string, opts: { type: VouchTyp
   if (!account) return { success: false, error: "Not logged in" };
   // A vouch for yourself says nothing; readers skip it too.
   if (account.pubkey === subjectPubkey) return { success: false, error: "You can't review yourself" };
-  const hint = await loadRelayHint(subjectPubkey);
+  const hint = relayHintFor(subjectPubkey);
   try {
     const signed = await signAs(account, {
       kind: VOUCH_KIND,

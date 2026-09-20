@@ -9,8 +9,12 @@
 import { EMPTY, catchError, lastValueFrom, map, reduce, scan, take, takeUntil, takeWhile, timer } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
 
+import { createFilterMap } from "applesauce-core/helpers/relay-selection";
+import type { Filter as NostrFilter } from "applesauce-core/helpers/filter";
+
 import { pool } from "./relayPool";
 import { eventStore } from "./eventStore";
+import type { OutboxPlan } from "./relayRouting";
 
 type Filter = Parameters<typeof pool.request>[1];
 
@@ -101,6 +105,39 @@ export function requestNewestRaw(
       takeUntil(timer(timeoutMs * 2)),
       reduce<NostrEvent, NostrEvent | undefined>((best, event) => (beats(event, best) ? event : best), undefined),
     ),
+  );
+}
+
+/**
+ * The same collection, but each relay is asked only about the authors IT serves.
+ *
+ * `requestAll` takes one filter and sends it to every relay. For one author that
+ * is right; for the hundreds in a two-hop network it means every relay receives
+ * the same enormous `authors` array, nearly all of it people that relay has
+ * never carried. The pool's `FilterInput` accepts a per-relay function, so the
+ * outbox map becomes exactly that: one filter per connection, naming only its
+ * own authors.
+ *
+ * A relay missing from the map is asked for nothing rather than for everything —
+ * a lookup miss must not silently widen the query back out.
+ */
+export function requestAllByRelay(
+  plan: OutboxPlan,
+  filter: Omit<NostrFilter, "authors">,
+  timeoutMs: number,
+): Promise<NostrEvent[]> {
+  if (!plan.relays.length) return Promise.resolve([]);
+  const filters = createFilterMap(plan.outboxes, filter);
+  return lastValueFrom(
+    pool
+      .request(plan.relays, (relay) => filters[relay.url] ?? { ...filter, authors: [] }, options(timeoutMs))
+      .pipe(
+        catchError(() => EMPTY),
+        takeUntil(timer(timeoutMs)),
+        scan((collected, event) => collected.set(event.id, event), new Map<string, NostrEvent>()),
+        map((collected) => Array.from(collected.values())),
+      ),
+    { defaultValue: [] as NostrEvent[] },
   );
 }
 

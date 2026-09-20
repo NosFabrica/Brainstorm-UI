@@ -10,7 +10,7 @@
 import type { NostrEvent } from "nostr-tools";
 import { activeAccount, signAs, signingFailure, type PublishOutcome } from "@/accounts/signing";
 import { publishToRelays } from "@/services/nostr";
-import { loadRelayHint, tagWithHint } from "@/lib/relayRouting";
+import { relayHintFor, tagWithHint } from "@/lib/relayRouting";
 import { searchRelay } from "@/lib/searchRelay";
 
 export const RSVP_KIND = 31925;
@@ -48,7 +48,7 @@ export async function publishRsvp(event: CalendarLike, status: RsvpStatus = "acc
   // Where the host writes, so a reader of this RSVP can find the event it
   // answers. The publish itself also reaches the host's INBOX — see
   // `publishRelaysFor` — which is what actually delivers the RSVP to them.
-  const hint = await loadRelayHint(event.pubkey);
+  const hint = relayHintFor(event.pubkey);
   try {
     const signed = await signAs(account, {
       kind: RSVP_KIND,

@@ -37,6 +37,10 @@ the relays they **read** from; stamp `e`/`a`/`p` tags with a relay hint.
 answer. `publishRelaysFor()` composes a publish's destination set, and
 `publishToRelays(event, extraRelays)` unions anything a call site adds.
 
+A read with many authors goes through `planOutboxReads()` + `requestAllByRelay()`
+instead, so each relay is asked only about the authors it serves, under a
+connection budget chosen by set cover.
+
 The routing table has to be **loaded** — a kind-10002 the event store never saw
 is not a routing decision, it is the fallback wearing one. `loadRelayList()`
 does that, bounded to 2.5s with a five-minute miss cache. Rationale, caps, and

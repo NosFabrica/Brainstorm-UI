@@ -15,6 +15,13 @@
  * here and nothing in `lib/` may import up into `services/`.
  */
 import type { NostrEvent } from "nostr-tools";
+import { normalizeRelayUrl as poolRelayUrl } from "applesauce-core/helpers/relays";
+import {
+  groupPubkeysByRelay,
+  selectOptimalRelays,
+  setFallbackRelays,
+  type OutboxMap,
+} from "applesauce-core/helpers/relay-selection";
 
 import { eventStore } from "./eventStore";
 import { loadReplaceable } from "./loaders";
@@ -39,6 +46,18 @@ const EMPTY_LIST: RelayList = { write: [], read: [] };
  * to honour only the top of it.
  */
 export const MAX_RELAYS_PER_AUTHOR = 4;
+
+/**
+ * Sockets one multi-author read may open.
+ *
+ * The cap is the whole point of `selectOptimalRelays`: a two-hop network is
+ * hundreds of authors across hundreds of relays, and the outbox model without a
+ * budget is a denial-of-service against your own browser. The selection is a
+ * set cover — it repeatedly takes the relay serving the most authors still
+ * uncovered — so eight connections reach far more of the set than eight
+ * arbitrary ones would.
+ */
+export const MAX_CONNECTIONS = 8;
 
 /**
  * How many `p`-tagged recipients a single publish will look up inboxes for. A
@@ -241,6 +260,85 @@ export async function inboxRelays(
 }
 
 /**
+ * Which relays to open for a MULTI-AUTHOR read, and which authors each one is
+ * responsible for.
+ *
+ * `outboxRelays` answers the single-author question by flattening everything
+ * into one list. Correct, and it degenerates badly at scale: asking six relays
+ * for four hundred authors sends six copies of the same enormous filter, and
+ * most of each one names authors that relay has never heard of. This returns
+ * the shape the query actually wants — a relay, and the authors it serves.
+ *
+ * Keys are normalized the way `RelayPool` normalizes them, NOT the way
+ * `dedupeRelays` preserves them. The pool keys connections by `normalizeURL`
+ * (which keeps a trailing slash where `dedupeRelays` drops it), and a filter
+ * map whose keys don't match is one that never hits: every relay would be
+ * asked for an empty author list and the read would come back silently empty.
+ */
+export interface OutboxPlan {
+  /** Relays to open, best coverage first. */
+  relays: string[];
+  /** Authors per relay, keyed as `RelayPool` keys its connections. */
+  outboxes: OutboxMap;
+}
+
+export async function planOutboxReads(
+  pubkeys: string[],
+  fallback: string[] = PROFILE_RELAYS,
+  {
+    maxConnections = MAX_CONNECTIONS,
+    maxRelaysPerUser = MAX_RELAYS_PER_AUTHOR,
+    timeoutMs,
+  }: { maxConnections?: number; maxRelaysPerUser?: number; timeoutMs?: number } = {},
+): Promise<OutboxPlan> {
+  const authors = Array.from(new Set(pubkeys.filter(Boolean)));
+  if (!authors.length) return { relays: [], outboxes: {} };
+  const floor = canonicalRelays(fallback);
+
+  const lists = await loadRelayLists(authors, { timeoutMs });
+  const pointers = authors.map((pubkey) => ({
+    pubkey,
+    relays: canonicalRelays(lists.get(pubkey)?.write ?? []),
+  }));
+
+  // Fallback BEFORE selection, so an author with no relay list still competes
+  // for coverage rather than being dropped from the pool entirely.
+  const selected = selectOptimalRelays(setFallbackRelays(pointers, floor), {
+    maxConnections,
+    maxRelaysPerUser,
+  });
+
+  const outboxes = groupPubkeysByRelay(selected);
+
+  // A tight budget can leave an author with none of their own relays selected,
+  // and `groupPubkeysByRelay` drops anyone whose list came back empty — which
+  // would be an author we silently never asked about. Put them on the floor.
+  const uncovered = selected.filter((user) => !user.relays?.length);
+  for (const relay of floor) {
+    if (!uncovered.length) break;
+    const bucket = outboxes[relay] ?? (outboxes[relay] = []);
+    for (const user of uncovered) {
+      if (!bucket.some((u) => u.pubkey === user.pubkey)) bucket.push({ ...user, relays: [relay] });
+    }
+  }
+
+  return { relays: Object.keys(outboxes), outboxes };
+}
+
+/** Relay URLs in the form `RelayPool` keys its connections by. */
+function canonicalRelays(urls: Iterable<string>): string[] {
+  const out = new Set<string>();
+  for (const url of urls) {
+    try {
+      out.add(poolRelayUrl(url));
+    } catch {
+      /* not a relay URL */
+    }
+  }
+  return Array.from(out);
+}
+
+/**
  * The relays one person READS from.
  *
  * The same set `inboxRelays` collects, named for the case where the person is
@@ -260,15 +358,15 @@ export function readRelaysFor(
  * One relay to name in an `e`/`p`/`a` tag so the next client can find what we
  * point at without a full lookup. Store-only and best-effort: a hint we cannot
  * produce is simply left off, never guessed.
+ *
+ * Deliberately NOT a loading variant. This is read while BUILDING an event, so
+ * an awaited lookup here is dead time between the user's click and the signer
+ * prompt — up to the routing deadline, for a field that is optional by design.
+ * Anything that reads a profile warms the list first, and the publish that
+ * follows loads it anyway, so the hint is there whenever it has mattered once.
  */
 export function relayHintFor(pubkey: string): string | undefined {
   return relayListFromDb(pubkey)?.write[0];
-}
-
-/** The same, loading the relay list first — for a publish that is about to sign. */
-export async function loadRelayHint(pubkey: string): Promise<string | undefined> {
-  const list = await loadRelayList(pubkey, { timeoutMs: 3000 }).catch(() => null);
-  return list?.write[0];
 }
 
 /**
