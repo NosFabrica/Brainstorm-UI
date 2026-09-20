@@ -15,6 +15,7 @@ import { useCopied } from "@/hooks/useCopied";
 import { useActiveAccount } from "applesauce-react/hooks";
 import { fetchProfileForShare, fetchRecentByKinds, fetchLiveStreams, fetchEventsByIds, fetchProfileMap, fetchExternalIdentities, fetchOutboxRelayList, fetchProfilePrefs, publishProfilePrefs } from "@/services/nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";
+import { dedupeRelays, parseRelayList } from "@/lib/relayRouting";
 import { parseIdentities } from "@/lib/externalIdentity";
 import { ProfileDetails } from "@/components/share/ProfileDetails";
 import { FollowedByRow } from "@/components/share/FollowedByRow";
@@ -440,15 +441,12 @@ export default function SharePage() {
     // The relay URLs themselves, write relays first: the count feeds the
     // tenure line, the first four ride in the nprofile a power user copies.
     queryFn: async () => {
+      // The shared NIP-65 reader, not a third hand-rolled one — this page had
+      // its own tag loop with its own idea of what a relay URL looks like.
       const ev = await fetchOutboxRelayList(pubkey);
       if (!ev) return [] as string[];
-      const write: string[] = [];
-      const readOnly: string[] = [];
-      for (const t of ev.tags || []) {
-        if (t[0] !== "r" || typeof t[1] !== "string") continue;
-        (t[2] === "read" ? readOnly : write).push(t[1].replace(/\/$/, "").toLowerCase());
-      }
-      return [...new Set([...write, ...readOnly])];
+      const list = parseRelayList(ev);
+      return dedupeRelays([...list.write, ...list.read]);
     },
     enabled: !!pubkey,
     staleTime: 10 * 60_000,

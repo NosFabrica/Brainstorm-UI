@@ -112,6 +112,32 @@ list. Everything that merely wants the user discoverable now calls
 same signature, no signer prompt — and publishes ours only for a key that has
 never had one.
 
+## What we take from applesauce, and what we don't
+
+The library ships an outbox toolkit and we use the parts that fit:
+`mergeRelaySets` for URL identity, `selectOptimalRelays` +
+`groupPubkeysByRelay` + `createFilterMap` for multi-author planning,
+`setFallbackRelays` for the floor. Relay URLs here are all `normalizeURL` form
+as a result, which is what `RelayPool` keys connections by — the property the
+filter map depends on.
+
+We do NOT use `getInboxes` / `getOutboxes` for parsing a kind-10002, and the
+reason is worth recording because the helpers otherwise look like a drop-in.
+They gate every relay on `isSafeRelayURL`, whose host pattern requires the
+last label to be at most six characters. Measured against the real list:
+
+    wss://relay.damus.io      ✓      wss://relay.community     ✗
+    wss://nos.lol             ✓      wss://nostr.technology    ✗
+    wss://purplepag.es        ✓      wss://relay.foundation    ✗
+
+Those are real relays on real TLDs. Adopting the helpers would silently delete
+them from their owners' relay lists — the exact failure this ADR exists to fix,
+reintroduced one layer down. So `parseRelayList` stays ours (memoized on the
+event, as theirs is), and `dedupeRelays` puts its own scheme check in front of
+`mergeRelaySets`, which would otherwise rewrite any scheme to `wss:` and accept
+an `https://` string as a relay. Our marker reading stays the forgiving one for
+the same instinct: `["r", url, "wrtie"]` keeps the relay rather than dropping it.
+
 **A relay hint never waits on the network.** `relayHintFor` is store-only. It is
 read while *building* an event, so an awaited lookup there is dead time between
 the user's click and the signer prompt — up to the routing deadline, for a field

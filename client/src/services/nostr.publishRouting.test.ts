@@ -56,7 +56,7 @@ describe("routing a publish", () => {
   it("sends to the author's own write relays, not only to ours", async () => {
     seed(relayList(ME, [["r", "wss://mine.example", "write"]]));
 
-    expect(await publishRelaysFor(event(1))).toEqual(["wss://mine.example", "wss://default.one/"]);
+    expect(await publishRelaysFor(event(1))).toEqual(["wss://mine.example/", "wss://default.one/"]);
   });
 
   /**
@@ -69,15 +69,15 @@ describe("routing a publish", () => {
 
     const relays = await publishRelaysFor(event(1, [["p", THEM]]));
 
-    expect(relays).toContain("wss://their-in.example");
-    expect(relays).not.toContain("wss://their-out.example");
+    expect(relays).toContain("wss://their-in.example/");
+    expect(relays).not.toContain("wss://their-out.example/");
   });
 
   /** A kind-3 names everyone you follow and is addressed to none of them. */
   it("does not broadcast a follow list to every inbox it lists", async () => {
     seed(relayList(THEM, [["r", "wss://their-in.example", "read"]]));
 
-    expect(await publishRelaysFor(event(3, [["p", THEM]]))).not.toContain("wss://their-in.example");
+    expect(await publishRelaysFor(event(3, [["p", THEM]]))).not.toContain("wss://their-in.example/");
   });
 
   /**
@@ -89,7 +89,7 @@ describe("routing a publish", () => {
     seed(relayList(THEM, [["r", "wss://their-in.example", "read"]]));
 
     for (const kind of [1984, 9999, 39999]) {
-      expect(await publishRelaysFor(event(kind, [["p", THEM]]))).not.toContain("wss://their-in.example");
+      expect(await publishRelaysFor(event(kind, [["p", THEM]]))).not.toContain("wss://their-in.example/");
     }
   });
 
@@ -97,13 +97,13 @@ describe("routing a publish", () => {
   it("does deliver a vouch to the person vouched for", async () => {
     seed(relayList(THEM, [["r", "wss://their-in.example", "read"]]));
 
-    expect(await publishRelaysFor(event(31871, [["p", THEM]]))).toContain("wss://their-in.example");
+    expect(await publishRelaysFor(event(31871, [["p", THEM]]))).toContain("wss://their-in.example/");
   });
 
   it("never routes back to the author's own inbox for naming themself", async () => {
     seed(relayList(ME, [["r", "wss://my-in.example", "read"], ["r", "wss://my-out.example", "write"]]));
 
-    expect(await publishRelaysFor(event(1, [["p", ME]]))).not.toContain("wss://my-in.example");
+    expect(await publishRelaysFor(event(1, [["p", ME]]))).not.toContain("wss://my-in.example/");
   });
 
   /** This argument used to be silently discarded, which is why `services/tags`
@@ -111,7 +111,7 @@ describe("routing a publish", () => {
   it("unions the caller's extra relays instead of ignoring them", async () => {
     await publishToRelays(event(1), ["wss://hub.example"]);
 
-    expect(publish.mock.calls[0][0]).toContain("wss://hub.example");
+    expect(publish.mock.calls[0][0]).toContain("wss://hub.example/");
   });
 
   it("does not open two sockets for two spellings of one relay", async () => {
@@ -129,7 +129,7 @@ describe("routing a publish", () => {
   it("reports how broadly it landed, not just that one relay said ok", async () => {
     seed(relayList(ME, [["r", "wss://mine.example"]]));
     publish.mockResolvedValueOnce([
-      { ok: true, from: "wss://mine.example", message: "" },
+      { ok: true, from: "wss://mine.example/", message: "" },
       { ok: false, from: "wss://default.one/", message: "rate-limited" },
     ]);
 

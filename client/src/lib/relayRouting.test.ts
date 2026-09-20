@@ -28,7 +28,6 @@ import {
   dedupeRelays,
   inboxRelays,
   loadRelayList,
-  normalizeRelayUrl,
   outboxRelays,
   outboxRelaysFromDb,
   parseRelayList,
@@ -62,16 +61,16 @@ describe("reading a relay list", () => {
       ]),
     );
 
-    expect(list.write).toEqual(["wss://both.example", "wss://out.example"]);
-    expect(list.read).toEqual(["wss://both.example", "wss://in.example"]);
+    expect(list.write).toEqual(["wss://both.example/", "wss://out.example/"]);
+    expect(list.read).toEqual(["wss://both.example/", "wss://in.example/"]);
   });
 
   /** A marker we don't recognise is a typo, and a typo must not drop a relay. */
   it("treats an unknown marker as no marker", () => {
     const list = parseRelayList(relayList(ALICE, [["r", "wss://a.example", "wrtie"]]));
 
-    expect(list.write).toEqual(["wss://a.example"]);
-    expect(list.read).toEqual(["wss://a.example"]);
+    expect(list.write).toEqual(["wss://a.example/"]);
+    expect(list.read).toEqual(["wss://a.example/"]);
   });
 
   it("ignores anything that isn't a relay URL", () => {
@@ -92,22 +91,36 @@ describe("reading a relay list", () => {
 
 describe("one relay, spelled two ways", () => {
   it("collapses a trailing slash and a capitalised host", () => {
-    expect(dedupeRelays(["wss://Nos.lol/", "wss://nos.lol", "wss://other.example"])).toEqual([
-      "wss://Nos.lol/",
-      "wss://other.example",
+    expect(dedupeRelays(["wss://Nos.lol/", "wss://nos.lol", "wss://other.example/"])).toEqual([
+      "wss://nos.lol/",
+      "wss://other.example/",
     ]);
   });
 
-  /** The pool normalizes before it dials, so rewriting the caller's strings
-   *  would be churn. Only the DUPLICATE has to go. */
-  it("keeps the form it was given", () => {
-    expect(dedupeRelays(["wss://default.one/"])).toEqual(["wss://default.one/"]);
+  /**
+   * Output is `normalizeURL` form — the form `RelayPool` keys its connections
+   * by. Load-bearing, not cosmetic: `planOutboxReads` builds a filter map the
+   * pool looks up by relay URL, and keys in any other form match nothing.
+   */
+  it("emits the form the pool keys connections by", () => {
+    expect(dedupeRelays(["wss://nos.lol"])).toEqual(["wss://nos.lol/"]);
   });
 
   it("refuses anything that isn't a websocket URL", () => {
-    expect(normalizeRelayUrl("https://relay.example")).toBeNull();
-    expect(normalizeRelayUrl("relay.example")).toBeNull();
-    expect(normalizeRelayUrl("")).toBeNull();
+    expect(dedupeRelays(["https://relay.example", "relay.example", ""])).toEqual([]);
+  });
+
+  /**
+   * applesauce's own `isSafeRelayURL` rejects any host whose last label runs
+   * past six characters, which is why this module does not use it. These are
+   * real relays on real TLDs, and dropping one a user listed is the failure
+   * the whole module exists to prevent.
+   */
+  it("keeps relays on long TLDs", () => {
+    expect(dedupeRelays(["wss://relay.community", "wss://nostr.technology"])).toEqual([
+      "wss://relay.community/",
+      "wss://nostr.technology/",
+    ]);
   });
 });
 
@@ -117,16 +130,16 @@ describe("where to read an author's events", () => {
 
     const relays = await outboxRelays(ALICE);
 
-    expect(relays[0]).toBe("wss://alice.example");
+    expect(relays[0]).toBe("wss://alice.example/");
     expect(relays).toContain("wss://default.one/");
     // Her INBOX is not where she publishes.
-    expect(relays).not.toContain("wss://alice-in.example");
+    expect(relays).not.toContain("wss://alice-in.example/");
   });
 
   it("loads the list when the store hasn't got it — the whole point", async () => {
     loadReplaceableMock.mockResolvedValue(relayList(ALICE, [["r", "wss://alice.example"]]));
 
-    expect(await outboxRelays(ALICE)).toContain("wss://alice.example");
+    expect(await outboxRelays(ALICE)).toContain("wss://alice.example/");
     expect(loadReplaceableMock).toHaveBeenCalledWith(10002, ALICE, expect.anything());
   });
 
@@ -152,7 +165,7 @@ describe("where to read an author's events", () => {
     seed(relayList(ALICE, [["r", "wss://alice.example"]]));
     seed(relayList(BOB, [["r", "wss://bob.example"]]));
 
-    expect(await outboxRelays([ALICE, BOB], [])).toEqual(["wss://alice.example", "wss://bob.example"]);
+    expect(await outboxRelays([ALICE, BOB], [])).toEqual(["wss://alice.example/", "wss://bob.example/"]);
   });
 
   it("asks once for an author it has already missed on", async () => {
@@ -169,7 +182,7 @@ describe("where to send an event that names someone", () => {
 
     const relays = await inboxRelays([BOB]);
 
-    expect(relays).toEqual(["wss://bob-in.example"]);
+    expect(relays).toEqual(["wss://bob-in.example/"]);
   });
 
   /** An inbox set is something a publish ADDS to the author's own relays, so
@@ -183,7 +196,7 @@ describe("relay hints", () => {
   it("names the author's first write relay", () => {
     seed(relayList(ALICE, [["r", "wss://alice.example"]]));
 
-    expect(relayHintFor(ALICE)).toBe("wss://alice.example");
+    expect(relayHintFor(ALICE)).toBe("wss://alice.example/");
   });
 
   /** A wrong hint sends readers somewhere the event definitely is not. */

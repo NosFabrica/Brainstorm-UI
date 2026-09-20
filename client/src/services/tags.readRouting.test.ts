@@ -12,7 +12,7 @@ import type { NostrEvent } from "nostr-tools";
  */
 
 const VIEWER = "a".repeat(64);
-const HUB = "wss://hub.example";
+const HUB = "wss://hub.example/";
 
 const relay = vi.hoisted(() => ({ reads: [] as string[][] }));
 const account = vi.hoisted(() => ({ current: null as { pubkey: string } | null }));
@@ -79,7 +79,7 @@ describe("which relays a tag read asks", () => {
 
     expect(reads.length).toBeGreaterThan(0);
     for (const relays of reads) {
-      expect(relays).toContain("wss://mine-in.example");
+      expect(relays).toContain("wss://mine-in.example/");
       expect(relays).toContain(HUB);
     }
   });
@@ -93,7 +93,7 @@ describe("which relays a tag read asks", () => {
     );
 
     for (const relays of await readSomeTags()) {
-      expect(relays).not.toContain("wss://mine-out.example");
+      expect(relays).not.toContain("wss://mine-out.example/");
     }
   });
 
@@ -103,7 +103,7 @@ describe("which relays a tag read asks", () => {
     store.held.set(`10002:${VIEWER}`, relayList([["r", "wss://mine.example"]]));
 
     for (const relays of await readSomeTags()) {
-      expect(relays).toContain("wss://mine.example");
+      expect(relays).toContain("wss://mine.example/");
     }
   });
 

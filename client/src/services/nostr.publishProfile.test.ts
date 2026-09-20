@@ -167,7 +167,7 @@ describe("the relay list a profile save touches", () => {
 
     await settle(nostr.publishProfile({ name: "ana" }));
 
-    expect(ofKind(publish.mock.calls, 10002)[0]?.[0]).toContain("wss://theirs.example");
+    expect(ofKind(publish.mock.calls, 10002)[0]?.[0]).toContain("wss://theirs.example/");
   });
 
   it("publishes a starting list only for a user who has none", async () => {

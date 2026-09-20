@@ -15,7 +15,7 @@
  * here and nothing in `lib/` may import up into `services/`.
  */
 import type { NostrEvent } from "nostr-tools";
-import { normalizeRelayUrl as poolRelayUrl } from "applesauce-core/helpers/relays";
+import { mergeRelaySets } from "applesauce-core/helpers/relays";
 import {
   groupPubkeysByRelay,
   selectOptimalRelays,
@@ -78,64 +78,76 @@ const MISS_TTL_MS = 5 * 60_000;
 const ROUTING_TIMEOUT_MS = 2500;
 
 /**
- * `wss://Nos.lol/` and `wss://nos.lol` address one relay. Our own constants
- * carry a trailing slash and kind-10002 tags usually do not, so a raw set union
- * of the two keeps both forms and opens two sockets to one host.
+ * `ws://` or `wss://` and parseable as a URL. Nothing else is a relay address.
  *
- * Only the host is lower-cased: a path can be case-significant.
+ * Deliberately NOT applesauce's `isSafeRelayURL`, which additionally requires
+ * the host's last label to be at most six characters. That rejects
+ * `wss://relay.community`, `wss://nostr.technology` and `wss://relay.foundation`
+ * — real relays on real TLDs. Dropping a relay a user actually listed is the
+ * exact failure this module exists to prevent, so the length rule stays out.
  */
-export function normalizeRelayUrl(url: string): string | null {
-  const raw = (url || "").trim();
-  if (!raw) return null;
+function looksLikeRelayUrl(url: string): boolean {
   try {
-    const parsed = new URL(raw);
-    if (parsed.protocol !== "wss:" && parsed.protocol !== "ws:") return null;
-    const path = parsed.pathname.replace(/\/+$/, "");
-    return `${parsed.protocol}//${parsed.host.toLowerCase()}${path}${parsed.search}`;
+    const protocol = new URL(url).protocol;
+    return protocol === "wss:" || protocol === "ws:";
   } catch {
-    return null;
+    return false;
   }
 }
 
 /**
- * Drop what isn't a relay and de-dupe by normalized identity — but emit the
- * FIRST form seen, not the normalized one.
+ * De-dupe a set of relays by identity, in the form the pool keys connections by.
  *
- * Rewriting every URL would churn the strings a caller passed in (our own
- * constants carry a trailing slash) for no gain: the pool normalizes before it
- * opens a socket anyway. What actually matters is that two spellings of one
- * host collapse to one entry, and that is what this does.
+ * `mergeRelaySets` normalizes as it merges, so `wss://Nos.lol` and
+ * `wss://nos.lol/` collapse to one entry instead of opening two sockets to one
+ * host — and its output is `normalizeURL` form, exactly how `RelayPool` keys
+ * its connections. That single URL identity is what lets `planOutboxReads`
+ * build a filter map the pool can actually match.
+ *
+ * The scheme check in front of it is not redundant: `mergeRelaySets` runs
+ * `ensureWebSocketURL`, which rewrites ANY scheme to `wss:`, so an `https://`
+ * string would be accepted as a relay. Some of what reaches here is relay hints
+ * off untrusted events, and a hint that is not a relay address should be
+ * dropped rather than coerced into one.
  */
 export function dedupeRelays(urls: Iterable<string>): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
+  const relays: string[] = [];
   for (const url of urls) {
-    const key = normalizeRelayUrl(url);
-    if (!key || seen.has(key)) continue;
-    seen.add(key);
-    out.push(url.trim());
+    const trimmed = (url || "").trim();
+    if (looksLikeRelayUrl(trimmed)) relays.push(trimmed);
   }
-  return out;
+  return mergeRelaySets(relays);
 }
+
+/** Parsed lists, keyed by the event they came from — `relayListFromDb` is hot. */
+const parsed = new WeakMap<NostrEvent, RelayList>();
 
 /**
  * NIP-65: `["r", <url>]` is both, `["r", <url>, "read"|"write"]` is one. An
  * unrecognised marker is treated as no marker — a typo should not silently
  * remove a relay the user meant to list.
+ *
+ * Hand-rolled rather than applesauce's `getInboxes`/`getOutboxes` for one
+ * reason, in `looksLikeRelayUrl` above: those gate on `isSafeRelayURL`, whose
+ * host rule silently drops relays on TLDs longer than six characters. The
+ * marker reading here is also the forgiving one, for the same instinct.
  */
 export function parseRelayList(event: NostrEvent | undefined | null): RelayList {
   if (!event || event.kind !== RELAY_LIST_KIND) return EMPTY_LIST;
+  const memo = parsed.get(event);
+  if (memo) return memo;
+
   const write: string[] = [];
   const read: string[] = [];
   for (const tag of event.tags || []) {
     if (tag[0] !== "r" || typeof tag[1] !== "string") continue;
-    const url = normalizeRelayUrl(tag[1]);
-    if (!url) continue;
     const marker = typeof tag[2] === "string" ? tag[2].trim().toLowerCase() : "";
-    if (marker !== "read") write.push(url);
-    if (marker !== "write") read.push(url);
+    if (marker !== "read") write.push(tag[1]);
+    if (marker !== "write") read.push(tag[1]);
   }
-  return { write: dedupeRelays(write), read: dedupeRelays(read) };
+  const list = { write: dedupeRelays(write), read: dedupeRelays(read) };
+  parsed.set(event, list);
+  return list;
 }
 
 /** What the store already holds, or null if nobody has loaded it yet. */
@@ -269,11 +281,11 @@ export async function inboxRelays(
  * most of each one names authors that relay has never heard of. This returns
  * the shape the query actually wants — a relay, and the authors it serves.
  *
- * Keys are normalized the way `RelayPool` normalizes them, NOT the way
- * `dedupeRelays` preserves them. The pool keys connections by `normalizeURL`
- * (which keeps a trailing slash where `dedupeRelays` drops it), and a filter
- * map whose keys don't match is one that never hits: every relay would be
- * asked for an empty author list and the read would come back silently empty.
+ * Keys are in `normalizeURL` form, which is how `RelayPool` keys its
+ * connections — every relay URL in this module already is, because
+ * `dedupeRelays` puts them there. A filter map whose keys don't match the
+ * pool's is one that never hits: every relay would be asked for an empty author
+ * list and the read would come back silently empty, with no error anywhere.
  */
 export interface OutboxPlan {
   /** Relays to open, best coverage first. */
@@ -293,12 +305,12 @@ export async function planOutboxReads(
 ): Promise<OutboxPlan> {
   const authors = Array.from(new Set(pubkeys.filter(Boolean)));
   if (!authors.length) return { relays: [], outboxes: {} };
-  const floor = canonicalRelays(fallback);
+  const floor = dedupeRelays(fallback);
 
   const lists = await loadRelayLists(authors, { timeoutMs });
   const pointers = authors.map((pubkey) => ({
     pubkey,
-    relays: canonicalRelays(lists.get(pubkey)?.write ?? []),
+    relays: lists.get(pubkey)?.write ?? [],
   }));
 
   // Fallback BEFORE selection, so an author with no relay list still competes
@@ -323,19 +335,6 @@ export async function planOutboxReads(
   }
 
   return { relays: Object.keys(outboxes), outboxes };
-}
-
-/** Relay URLs in the form `RelayPool` keys its connections by. */
-function canonicalRelays(urls: Iterable<string>): string[] {
-  const out = new Set<string>();
-  for (const url of urls) {
-    try {
-      out.add(poolRelayUrl(url));
-    } catch {
-      /* not a relay URL */
-    }
-  }
-  return Array.from(out);
 }
 
 /**

@@ -1216,8 +1216,7 @@ async function announceRelayListAs(account: BrainstormAccount): Promise<PublishO
     (await fetchOutboxRelayList(account.pubkey, 6000));
 
   if (existing) {
-    const theirs = parseRelayList(existing);
-    const relays = dedupeRelays([...theirs.write, ...PROFILE_RELAYS]);
+    const relays = dedupeRelays([...parseRelayList(existing).write, ...PROFILE_RELAYS]);
     try {
       const responses = await pool.publish(relays, existing as any);
       const accepted = responses.filter((r) => r.ok).length;
