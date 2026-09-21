@@ -52,7 +52,7 @@ beforeEach(async () => {
 });
 
 afterEach(async () => {
-  cache.__resetEventCache();
+  await cache.__resetEventCache();
   await dropDb();
 });
 
@@ -170,7 +170,7 @@ describe("what goes to disk", () => {
   /** Closes its connection — a leaked one blocks the next `deleteDatabase`. */
   const readAll = () =>
     new Promise<unknown[]>((resolve) => {
-      const open = indexedDB.open("brainstorm-events", 1);
+      const open = indexedDB.open("brainstorm-events");
       open.onsuccess = () => {
         const db = open.result;
         const done = (rows: unknown[]) => {
@@ -192,7 +192,7 @@ describe("what goes to disk", () => {
     const relayList = signed(10002, [["r", "wss://mine.example"]]);
     await cache.__writeForTest([relayList]);
 
-    cache.__resetEventCache(); // as a page unload would
+    await cache.__resetEventCache(); // as a page unload would
     vi.resetModules();
     const fresh = await import("./eventCache");
     const added = await fresh.hydrateEventStore(ME);
@@ -239,6 +239,25 @@ describe("what goes to disk", () => {
     await cache.clearEventCache();
 
     expect(cache.__isWriting()).toBe(false);
+  });
+
+  /**
+   * Anything that opens `brainstorm-events` without naming a version creates it
+   * at version 1 with no object store — and `onupgradeneeded` never fires again
+   * at that version, so every transaction would throw, be swallowed, and the
+   * cache would be silently dead for the life of the browser profile.
+   */
+  it("repairs a database that exists without its object store", async () => {
+    await cache.__resetEventCache();
+    await new Promise<void>((resolve) => {
+      const request = indexedDB.open("brainstorm-events"); // versionless, no store
+      request.onsuccess = () => { request.result.close(); resolve(); };
+      request.onerror = () => resolve();
+    });
+
+    await cache.__writeForTest([signed(10002)]);
+
+    expect(await readAll()).toHaveLength(1);
   });
 
   it("forgets everything on sign-out", async () => {

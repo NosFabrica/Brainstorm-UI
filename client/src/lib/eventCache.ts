@@ -70,12 +70,13 @@ const coordinate = (event: NostrEvent): string => {
  */
 let dbPromise: Promise<IDBDatabase | null> | null = null;
 
-function openDb(): Promise<IDBDatabase | null> {
-  if (dbPromise) return dbPromise;
-  dbPromise = new Promise((resolve) => {
+function open(version?: number): Promise<IDBDatabase | null> {
+  return new Promise((resolve) => {
     try {
       if (typeof indexedDB === "undefined") return resolve(null);
-      const request = indexedDB.open(DB_NAME, DB_VERSION);
+      const request = version === undefined
+        ? indexedDB.open(DB_NAME, DB_VERSION)
+        : indexedDB.open(DB_NAME, version);
       request.onupgradeneeded = () => {
         const db = request.result;
         if (!db.objectStoreNames.contains(STORE)) {
@@ -90,6 +91,21 @@ function openDb(): Promise<IDBDatabase | null> {
     } catch {
       resolve(null);
     }
+  });
+}
+
+function openDb(): Promise<IDBDatabase | null> {
+  if (dbPromise) return dbPromise;
+  dbPromise = open().then(async (db) => {
+    if (!db || db.objectStoreNames.contains(STORE)) return db;
+    // The database exists at our version but has no object store — which any
+    // other code that opened `brainstorm-events` WITHOUT a version would have
+    // created. `onupgradeneeded` will never fire again at that version, so every
+    // transaction would throw, be swallowed, and the cache would be silently and
+    // permanently dead. Stepping the version forces the upgrade that builds it.
+    const version = db.version + 1;
+    db.close();
+    return open(version);
   });
   return dbPromise;
 }
@@ -422,7 +438,7 @@ export function __writeForTest(events: NostrEvent[]): Promise<void> {
 }
 
 /** Test seam. Closes the connection, which a `deleteDatabase` would block on. */
-export function __resetEventCache(): void {
+export async function __resetEventCache(): Promise<void> {
   hydration = null;
   hydratingFor = null;
   knownGood.clear();
@@ -430,5 +446,7 @@ export function __resetEventCache(): void {
   stopWriting = null;
   const closing = dbPromise;
   dbPromise = null;
-  void closing?.then((db) => db?.close()).catch(() => undefined);
+  // Awaited: a connection still open when `deleteDatabase` runs blocks it
+  // forever, and the next test then opens a database that was never dropped.
+  await closing?.then((db) => db?.close()).catch(() => undefined);
 }

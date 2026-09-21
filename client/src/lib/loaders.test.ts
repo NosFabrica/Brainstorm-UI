@@ -64,7 +64,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   await eventCache.clearEventCache();
-  eventCache.__resetEventCache();
+  await eventCache.__resetEventCache();
 });
 
 describe("a profile the store already holds", () => {
