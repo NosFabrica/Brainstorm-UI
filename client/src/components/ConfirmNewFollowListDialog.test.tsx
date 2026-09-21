@@ -30,6 +30,19 @@ const typeRelay = (value = "wss://my.relay") =>
 describe("ConfirmNewFollowListDialog", () => {
   beforeEach(() => vi.clearAllMocks());
 
+  /**
+   * Since #72 this only opens when no relay answered. "We couldn't find your
+   * list" was a guess dressed as a finding; what we know is that we couldn't
+   * ask, and the advice to wait is only honest in those words.
+   */
+  it("blames the unreachable relays, not a missing list", () => {
+    render(dialog());
+
+    const box = screen.getByTestId("dialog-confirm-new-follow-list");
+    expect(box).toHaveTextContent(/couldn't reach your relays/i);
+    expect(box).not.toHaveTextContent(/couldn't find an existing follow list/i);
+  });
+
   it("keeps the original cancel and confirm paths", () => {
     render(dialog());
 

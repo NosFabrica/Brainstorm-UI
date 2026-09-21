@@ -3,9 +3,9 @@ import { MuteListFactory } from "applesauce-common/factories";
 import { verifyEvent } from "nostr-tools";
 
 import { publishToRelays, fetchOutboxRelayList } from "./nostr";
-import { requestAll, requestNewest, requestNewestRaw } from "@/lib/relayRequest";
+import { requestAll, requestNewest, requestNewestRaw, requestNewestWithReach } from "@/lib/relayRequest";
 import { PROFILE_RELAYS } from "@/lib/relays";
-import { outboxRelays, relayHintFor, tagWithHint } from "@/lib/relayRouting";
+import { outboxRelays, outboxRelaysFromDb, relayHintFor, tagWithHint } from "@/lib/relayRouting";
 import { eventStore } from "@/lib/eventStore";
 import { isRelayUrl } from "@/config/tagging";
 import { identityHas } from "@/accounts/display";
@@ -93,6 +93,36 @@ export async function fetchContactList(pubkey: string): Promise<NostrEvent | nul
   return fetchReplaceableEvent(pubkey, 3);
 }
 
+/**
+ * Did the relays actually answer, and does any of them hold a follow list for
+ * this key? The ordinary reads can't say: `requestNewest` swallows a dead relay
+ * and a timeout into the same empty answer as "asked, nothing there" — which is
+ * why a brand-new key used to be indistinguishable from someone whose relays
+ * were down, and got the confirmation dialog instead of a follow list (#72).
+ *
+ * `requestNewestWithReach` listens to the relays' own EOSE/ERROR frames, so
+ * "five of five said no" arrives as a fact rather than as silence.
+ *
+ * The bar is a majority of the relays asked, not all of them: one relay that
+ * habitually refuses (auth-required, rate-limited) would otherwise hand every
+ * new user the dialog again, while one lone answer is too thin a basis for
+ * writing a replaceable event. Measured against real relays, the healthy case
+ * answers 5/5 in about 170ms and the offline case 0/2 in about 80ms.
+ */
+async function probeContactList(
+  pubkey: string,
+  relays: string[],
+  timeoutMs = 6000,
+): Promise<{ event: NostrEvent | null; provenAbsent: boolean }> {
+  const { newest, reach } = await requestNewestWithReach(
+    relays,
+    { kinds: [3], authors: [pubkey], limit: 5 },
+    timeoutMs,
+  );
+  const event = (newest as NostrEvent) ?? null;
+  return { event, provenAbsent: !event && reach.answered.length * 2 > reach.asked.length };
+}
+
 export async function fetchMuteList(pubkey: string): Promise<NostrEvent | null> {
   return fetchReplaceableEvent(pubkey, 10000);
 }
@@ -143,15 +173,26 @@ async function resolveContactBase(
   const stored = loadKnownFollowList(pubkey)?.event as NostrEvent | undefined;
   let base = pickAuthoritativeBase([cached, fresh, stored]);
   const mintedHere = identityHas(pubkey, "createdInApp");
+  // Nothing found and no proof of what this key is: ask the relays in a way
+  // that can tell "there is no list" from "nobody answered" (#72).
+  let provablyNew = false;
   if (!base && !mintedHere) {
     try { await fetchOutboxRelayList(pubkey); } catch { /* best-effort warm */ }
     base = pickAuthoritativeBase([await fetchContactList(pubkey), stored]);
+    if (!base) {
+      // Store-only on purpose: the `fetchOutboxRelayList` above just put the
+      // kind-10002 in the store, which is what makes this the user's REAL
+      // write relays rather than the bootstrap set.
+      const probe = await probeContactList(pubkey, outboxRelaysFromDb(pubkey, PROFILE_RELAYS));
+      base = probe.event;
+      provablyNew = probe.provenAbsent;
+    }
   }
   // Unsafe = we have no usable base, or the best base is shorter than what we
   // know the user follows (a stale/short relay read). Either way, don't publish.
   const baseCount = base ? countFollows(base.tags) : 0;
   const unsafe = (!base && known > 0) || (known > 0 && baseCount < known);
-  const unverifiedNew = !base && known === 0 && !mintedHere;
+  const unverifiedNew = !base && known === 0 && !mintedHere && !provablyNew;
   return { base, known, unsafe, unverifiedNew };
 }
 
