@@ -45,6 +45,23 @@ describe("useFinishSetup — the Activate step and Trusted Lists", () => {
     expect(result.current.doneCount).toBe(3);
   });
 
+  /**
+   * The two circumstances, told apart: no declaration at all is the Activate
+   * step, not an update. Someone who never activated must never be shown the
+   * update pill, however many lists are waiting for them.
+   */
+  it("someone with no declaration yet is asked to activate, not to update", () => {
+    state.provider = "none";
+    state.activated = false;
+    state.lists = { status: "missing", designation: LISTS };
+
+    const { result } = renderHook(() => useFinishSetup());
+
+    expect(result.current.activatePending).toBe(true);
+    expect(result.current.listsPending).toBe(false);
+    expect(result.current.remaining).toBe(1);
+  });
+
   it.each(["declared", "none"])("lists %s leave activation done", (status) => {
     state.lists = { status, designation: LISTS };
     const { result } = renderHook(() => useFinishSetup());
