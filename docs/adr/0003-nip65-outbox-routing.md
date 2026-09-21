@@ -170,8 +170,8 @@ in-memory, so it was never there: `completeLogin` warmed the relay list, but a
 RELOAD does not run `completeLogin` — `bootstrapAccounts` restores the account
 and nothing warmed anything. Every page load paid the cold path.
 
-`lib/eventCache.ts` persists the small replaceable kinds (0, 3, 10002, 10040,
-30078) to IndexedDB and hydrates the active account's own back into the store
+`lib/eventCache.ts` persists the routing kinds (3, 10002, 10040) to IndexedDB
+and hydrates the active account's own back into the store
 from `main.tsx`, before the first render. `loadReplaceable` checks the store
 synchronously and returns on a hit, so a hydrated event costs no network and
 skips the loader's buffer as well. The existing `followStore` snapshot — which

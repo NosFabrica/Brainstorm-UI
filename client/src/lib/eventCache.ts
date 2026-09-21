@@ -1,6 +1,10 @@
 /**
- * A durable cache for the handful of events the app's identity and ROUTING are
- * made of, so a reload does not rebuild them from relays.
+ * A durable cache for the events the app's ROUTING is made of, so a reload does
+ * not rebuild the routing table from relays.
+ *
+ * Sibling to `lib/profileCache`, which does the same for kind 0 under its own
+ * freshness rules (docs/adr/0002). This one holds what decides where reads and
+ * publishes GO; that one holds what they are displayed as.
  *
  * Without this, every page load starts from an empty `eventStore`: the NIP-65
  * relay list has to be fetched before anything can be routed, the contact list
@@ -30,10 +34,17 @@ import { eventStore } from "./eventStore";
 import { loadKnownFollowList } from "./followStore";
 
 /**
- * Kind 0 (profile), 3 (contacts), 10002 (relay list), 10040 (trust provider),
- * 30078 (app data). Anything else is either unbounded or not worth a disk read.
+ * Kind 3 (contacts), 10002 (relay list), 10040 (trust provider) — the events
+ * that decide WHERE everything else is read from and published to.
+ *
+ * Two deliberate absences. Kind 0 belongs to `lib/profileCache`, which holds
+ * names and avatars under a two-age policy of its own; a second copy here would
+ * be the same data under a worse rule. Kind 30078 is per-account data encrypted
+ * to self and scoped by an `authors` filter alone, so persisting it would carry
+ * one account's ciphertext across a switch into shared browser storage — the
+ * line docs/adr/0002 draws, and the same line applies here.
  */
-export const CACHED_KINDS = [0, 3, 10002, 10040, 30078];
+export const CACHED_KINDS = [3, 10002, 10040];
 const CACHED = new Set(CACHED_KINDS);
 
 const DB_NAME = "brainstorm-events";

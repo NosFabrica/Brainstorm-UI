@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { NostrEvent } from "applesauce-core/helpers";
 
-import { declaresTrustProvider } from "./nip85Declaration";
+import { declaresLists, declaresTrustProvider, listRows, mergeDesignation } from "./nip85Declaration";
 
 const TA = "a".repeat(64);
 const OTHER_TA = "b".repeat(64);
@@ -74,5 +74,52 @@ describe("declaresTrustProvider", () => {
       ["30382:hops", TA, RELAY],
     ]);
     expect(declaresTrustProvider(event, TA, RELAY)).toBe(true);
+  });
+});
+
+// Trusted Lists are published by the same Brainstorm assistant; other apps find
+// them through the 10040. Adding them must not cost the user anything already
+// in their 10040 — another provider's rows included.
+describe("listRows / mergeDesignation", () => {
+  const LISTS = { key: "e".repeat(64), relay: "wss://nip85-staging.example" };
+
+  it("names the assistant for every Trusted List kind", () => {
+    expect(listRows(LISTS)).toEqual([
+      ["30392", LISTS.key, LISTS.relay],
+      ["30393", LISTS.key, LISTS.relay],
+      ["30394", LISTS.key, LISTS.relay],
+    ]);
+  });
+
+  it("replaces only the rows it sets and keeps every other tag", () => {
+    const existing = [
+      ["30382:rank", OTHER_TA, RELAY],
+      ["30382:hops", OTHER_TA, RELAY],
+      ["30383:rank", "f".repeat(64), "wss://someone-else.example"],
+    ];
+    const merged = mergeDesignation(existing, [["30382:rank", TA, RELAY], ["30382:followers", TA, RELAY], ...listRows(LISTS)]);
+
+    expect(merged).toContainEqual(["30382:hops", OTHER_TA, RELAY]);
+    expect(merged).toContainEqual(["30383:rank", "f".repeat(64), "wss://someone-else.example"]);
+    expect(merged).toContainEqual(["30382:rank", TA, RELAY]);
+    expect(merged).not.toContainEqual(["30382:rank", OTHER_TA, RELAY]);
+    expect(merged.filter((t) => t[0] === "30382:rank")).toHaveLength(1);
+    expect(merged).toContainEqual(["30394", LISTS.key, LISTS.relay]);
+  });
+});
+
+describe("declaresLists", () => {
+  const LISTS = { key: "e".repeat(64), relay: "wss://nip85-staging.example" };
+
+  it("is true only when every list kind names the assistant on its relay", () => {
+    expect(declaresLists(event10040([["30382:rank", TA, RELAY], ...listRows(LISTS)]), LISTS)).toBe(true);
+    // A trailing slash is the same relay.
+    expect(declaresLists(event10040(listRows({ ...LISTS, relay: `${LISTS.relay}/` })), LISTS)).toBe(true);
+  });
+
+  it("is false with a kind missing, another key, or no 10040 at all", () => {
+    expect(declaresLists(event10040(listRows(LISTS).slice(0, 2)), LISTS)).toBe(false);
+    expect(declaresLists(event10040(listRows({ ...LISTS, key: OTHER_TA })), LISTS)).toBe(false);
+    expect(declaresLists(undefined, LISTS)).toBe(false);
   });
 });

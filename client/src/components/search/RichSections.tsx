@@ -25,6 +25,7 @@ import type { HitCluster } from "@/lib/searchCollapse";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
+import { useConnectionSpeed, videoPreload } from "@/lib/connection";
 
 const IMAGE_RE = /\.(?:png|jpe?g|gif|webp|avif)(?:\?|#|$)/i;
 const VIDEO_KINDS = new Set([21, 22, 34235, 34236]);
@@ -104,6 +105,7 @@ export function pickTopStories(hits: SearchHit[]): TopStory[] {
 }
 
 function TopStoryCard({ story }: { story: TopStory }) {
+  const speed = useConnectionSpeed();
   const [, navigate] = useLocation();
   const [imgFailed, setImgFailed] = useState(false);
   const { hit, news } = story;
@@ -151,7 +153,7 @@ function TopStoryCard({ story }: { story: TopStory }) {
         />
       ) : videoUrl ? (
         // The link is the video: its first frame is the thumbnail.
-        <video src={`${videoUrl}#t=0.1`} muted playsInline preload="metadata" className="aspect-[16/10] w-full object-cover bg-black" data-testid="story-video" />
+        <video src={`${videoUrl}#t=0.1`} muted playsInline preload={videoPreload(speed)} className="aspect-[16/10] w-full object-cover bg-black" data-testid="story-video" />
       ) : null}
       {/* Without a picture the card is words — Google's text-only top story:
           the source, then the headline given the room the picture would have
@@ -207,6 +209,7 @@ export function TopStories({ stories, stripRef }: { stories: TopStory[]; stripRe
 }
 
 function MediaTile({ hit, score, onGone }: { hit: SearchHit; score?: number | null; /** The media no longer answers — the tile should leave the grid. */ onGone?: () => void }) {
+  const speed = useConnectionSpeed();
   const [, navigate] = useLocation();
   const openLightbox = useLightbox();
   const [imgFailed, setImgFailed] = useState(false);
@@ -264,7 +267,7 @@ function MediaTile({ hit, score, onGone }: { hit: SearchHit; score?: number | nu
             className="absolute inset-0 h-full w-full object-cover"
           />
         ) : url && isVideo ? (
-          <video src={`${url}#t=0.1`} preload="metadata" muted playsInline tabIndex={-1} aria-hidden onError={() => onGone?.()} className="pointer-events-none absolute inset-0 h-full w-full object-cover" />
+          <video src={`${url}#t=0.1`} preload={videoPreload(speed)} muted playsInline tabIndex={-1} aria-hidden onError={() => onGone?.()} className="pointer-events-none absolute inset-0 h-full w-full object-cover" />
         ) : null}
         {isVideo && (
           <span

@@ -54,7 +54,7 @@ import { useWavlakeSearch } from "@/hooks/useWavlakeSongs";
 import { useArtistCatalogue } from "@/hooks/useArtistCatalogue";
 import { MusicResults } from "@/components/search/MusicResults";
 import { FacetChip, FacetRow } from "@/components/search/sections";
-import { KnowledgePanel } from "@/components/search/KnowledgePanel";
+import { KnowledgePanel, type PanelSections } from "@/components/search/KnowledgePanel";
 import { ComposedResults } from "@/components/search/ComposedResults";
 import { capPerAuthor, collapseHits } from "@/lib/searchCollapse";
 
@@ -438,6 +438,8 @@ function FiltersPanel({
  * page; ten minutes and eight searches deep, which is a browsing session.
  */
 const SEARCH_MEMORY = new Map<string, { hits: SearchHit[]; scrollY: number; at: number }>();
+/** The composed page remembers a list per section, not one list. */
+const COMPOSED_MEMORY = new Map<string, { sections: Record<string, SearchHit[]>; scrollY: number; at: number }>();
 const SEARCH_MEMORY_TTL_MS = 10 * 60_000;
 const SEARCH_MEMORY_SIZE = 8;
 function rememberKey(query: string, tab: string, pov: string, userPubkey?: string): string {
@@ -448,9 +450,27 @@ function rememberSearch(key: string, hits: SearchHit[], scrollY: number): void {
   SEARCH_MEMORY.set(key, { hits, scrollY, at: Date.now() });
   while (SEARCH_MEMORY.size > SEARCH_MEMORY_SIZE) SEARCH_MEMORY.delete(SEARCH_MEMORY.keys().next().value as string);
 }
+function rememberComposed(key: string, sections: Record<string, SearchHit[]>, scrollY: number): void {
+  if (!Object.values(sections).some((hits) => hits.length)) return;
+  COMPOSED_MEMORY.delete(key);
+  COMPOSED_MEMORY.set(key, { sections, scrollY, at: Date.now() });
+  while (COMPOSED_MEMORY.size > SEARCH_MEMORY_SIZE) COMPOSED_MEMORY.delete(COMPOSED_MEMORY.keys().next().value as string);
+}
+
+function recallComposed(key: string): { sections: Record<string, SearchHit[]>; scrollY: number } | null {
+  const m = COMPOSED_MEMORY.get(key);
+  if (!m) return null;
+  if (Date.now() - m.at > SEARCH_MEMORY_TTL_MS) {
+    COMPOSED_MEMORY.delete(key);
+    return null;
+  }
+  return { sections: m.sections, scrollY: m.scrollY };
+}
+
 /** Tests: forget every search. */
 export function __resetSearchMemory(): void {
   SEARCH_MEMORY.clear();
+  COMPOSED_MEMORY.clear();
 }
 function recallSearch(key: string): { hits: SearchHit[]; scrollY: number } | null {
   const m = SEARCH_MEMORY.get(key);
@@ -471,6 +491,7 @@ export function SearchResults({
   onPrefetchLeave,
   onQueryRewrite,
   onTabChange,
+  peopleSeed,
   perspective,
 }: {
   query: string;
@@ -488,6 +509,9 @@ export function SearchResults({
   onQueryRewrite?: (next: string) => void;
   /** Which tab is showing — the box words its placeholder by it. */
   onTabChange?: (tab: SearchTab) => void;
+  /** The people the typeahead already found for this query, for the People
+   *  section to start from rather than ask for again. */
+  peopleSeed?: SearchHit[];
 }) {
   const [, setLocation] = useLocation();
   const [tab, setTab] = useState<SearchTab>(tabFromUrl);
@@ -507,6 +531,9 @@ export function SearchResults({
   // When the query IS a person, the Media tab leads with what they published
   // — their episode posts don't repeat their own name in the text.
   const [panelPerson, setPanelPerson] = useState<SearchResult | null>(null);
+  // Set from the first render, never undefined: given undefined the panel would
+  // ask the relay itself once, before the sections had a chance to answer.
+  const [sections, setSections] = useState<PanelSections>({ people: null, events: null });
   const [personMedia, setPersonMedia] = useState<SearchHit[]>([]);
   useEffect(() => {
     setPersonMedia([]);
@@ -562,6 +589,37 @@ export function SearchResults({
       scrollAtLeave.current = typeof window !== "undefined" ? window.scrollY : 0;
     };
   }, [effectiveQuery, tab, pov, userPubkey, composed, serverStatus.recovery]);
+
+  // What the composed page was showing when the reader last left it, so coming
+  // back from a result paints at once instead of restarting every section.
+  const composedKey = rememberKey(query, "everything", pov, userPubkey);
+  const composedMemory = useRef(composed ? recallComposed(composedKey) : null);
+  // Coming back beats the typeahead: memory holds every section, the typeahead
+  // only the people it had already found.
+  const composedSeeds =
+    composedMemory.current?.sections ?? (peopleSeed?.length ? { people: peopleSeed } : undefined);
+  // Memory is an answer this page already had; the typeahead is a guess.
+  const peopleSeedIsGuess = !composedMemory.current && !!peopleSeed?.length;
+  const rememberSections = useCallback(
+    (hits: Record<string, SearchHit[]>) => rememberComposed(composedKey, hits, scrollAtLeave.current),
+    [composedKey],
+  );
+
+  useEffect(() => {
+    if (!composed) return;
+    const where = composedMemory.current?.scrollY ?? 0;
+    if (where <= 0) return;
+    // After paint, and after the app's own scroll-to-top on navigation.
+    const at =
+      typeof requestAnimationFrame === "function"
+        ? requestAnimationFrame(() => window.scrollTo({ top: where, behavior: "instant" as ScrollBehavior }))
+        : setTimeout(() => window.scrollTo({ top: where, behavior: "instant" as ScrollBehavior }), 0);
+    return () => {
+      if (typeof at === "number" && typeof cancelAnimationFrame === "function") cancelAnimationFrame(at);
+    };
+    // Once per mount of a composed page: the recall is read from a ref.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [composed, composedKey]);
 
   useEffect(() => {
     if (composed) {
@@ -650,8 +708,9 @@ export function SearchResults({
   const scoreOf = useAuthorScores(allAuthors);
   // The filters the relay can't do, done here (probed: filter:rank ignored,
   // no hops): Verified only via those scores, reach via the viewer's graph.
-  const reach = useNetworkReach(userPubkey);
   const clientState = readFilters(safeQuery);
+  // Dozens of contact-list fetches — only when the reach filter asks for them.
+  const reach = useNetworkReach(clientState.reach ? userPubkey : null);
   // The search floor: accounts below the verified line stay off the page
   // unless the searcher asks for everyone (Include spam) or is looking through
   // their own perspective — their lens, their view. Probed 2026-09-05: the
@@ -1149,6 +1208,7 @@ export function SearchResults({
         query={query}
         pov={pov}
         userPubkey={userPubkey}
+        sections={composed ? sections : undefined}
         onOpen={onOpenProfile}
         onPerson={setPanelPerson}
         // Not pinned: the panel is context for the query, read at the top, and
@@ -1167,6 +1227,10 @@ export function SearchResults({
         <ComposedResults
           query={query}
           personMedia={personMedia}
+          onSections={setSections}
+          onSectionHits={rememberSections}
+          seeds={composedSeeds}
+          peopleSeedIsGuess={peopleSeedIsGuess}
           pov={pov}
           userPubkey={userPubkey}
           onTabChange={changeTab}

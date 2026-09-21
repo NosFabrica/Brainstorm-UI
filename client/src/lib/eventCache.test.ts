@@ -119,7 +119,7 @@ describe("hydrating the store at boot", () => {
   it("refreshes on the relays the cached list names, not the default set", async () => {
     await cache.__writeForTest([
       signed(10002, [["r", "wss://mine.example", "write"]]),
-      signed(30078, [["d", "prefs"]]),
+      signed(10040, [["30382:rank", "a".repeat(64), "wss://ta.example"]]),
     ]);
 
     await cache.hydrateEventStore(ME);
@@ -203,21 +203,22 @@ describe("what goes to disk", () => {
   });
 
   it("keeps only the kinds worth a disk read", async () => {
-    await cache.__writeForTest([signed(10002), signed(1, [["t", "note"]])]);
+    // Kind 0 belongs to `profileCache`; kind 1 belongs nowhere on disk.
+    await cache.__writeForTest([signed(10002), signed(0), signed(1, [["t", "note"]])]);
 
     const rows = (await readAll()) as { event: NostrEvent }[];
     expect(rows.map((r) => r.event.kind)).toEqual([10002]);
   });
 
   it("one row per coordinate, not one per version", async () => {
-    await cache.__writeForTest([signed(0), { ...signed(0), created_at: 99 } as NostrEvent]);
+    await cache.__writeForTest([signed(10040), { ...signed(10040), created_at: 99 } as NostrEvent]);
 
     expect(await readAll()).toHaveLength(1);
   });
 
   /** Unbounded growth is the failure mode a cache nobody prunes always has. */
   it("stays under its cap", async () => {
-    const one = signed(0);
+    const one = signed(10040);
     const many = Array.from({ length: 520 }, (_, i) => ({
       ...one,
       pubkey: i.toString(16).padStart(64, "0"),
@@ -292,11 +293,16 @@ describe("answering the loader from disk", () => {
     expect(await ask({ kinds: [0], authors: [ME] })).toEqual([]);
   });
 
-  it("matches the d tag for addressable kinds", async () => {
-    await cache.__writeForTest([signed(30078, [["d", "prefs"]])]);
+  /**
+   * No kind cached here is addressable today, so the loader will not send a
+   * `#d`. The matching stays, and stays covered, because the day one is added
+   * a filter that ignored `#d` would hand back the wrong row.
+   */
+  it("matches the d tag when a filter carries one", async () => {
+    await cache.__writeForTest([signed(10040, [["d", "prefs"]])]);
 
-    expect(await ask({ kinds: [30078], authors: [ME], "#d": ["other"] })).toEqual([]);
-    expect(await ask({ kinds: [30078], authors: [ME], "#d": ["prefs"] })).toHaveLength(1);
+    expect(await ask({ kinds: [10040], authors: [ME], "#d": ["other"] })).toEqual([]);
+    expect(await ask({ kinds: [10040], authors: [ME], "#d": ["prefs"] })).toHaveLength(1);
   });
 
   it("does not answer for an author nobody asked about", async () => {

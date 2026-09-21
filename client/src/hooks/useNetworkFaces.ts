@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchEventsByFilter, fetchProfileMap } from "@/services/nostr";
 import { fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
 import { apiClient } from "@/services/api";
+import { lookupTrustSignals } from "@/services/trustSignals";
 
 /** One recently-active person to show as an avatar in a Your Network tile. */
 export interface NetworkFace {
@@ -27,7 +28,7 @@ const FACES = 5;
 
 /** `followed_by` items are bare pubkey strings or `{ pubkey }` objects. */
 // Keep the influence the connections endpoint already returns per item — the
-// face-pile tier rings ride on it for free (there is no batch score endpoint).
+// face-pile tier rings ride on it for free.
 function parseFollowerEntries(res: unknown): { pubkey: string; influence: number | null }[] {
   const items = (res as { data?: { items?: Array<string | { pubkey?: string; influence?: number | null }> } })?.data?.items ?? [];
   return items
@@ -82,14 +83,14 @@ export function useNetworkFaces(observer: string, enabled: boolean) {
       const profiles = need.length ? await fetchProfileMap(need).catch(() => new Map()) : new Map();
       // The following-side faces come from the contact list with no score. At
       // most FACES×2 of them made the cut, so fetching house influence for the
-      // gaps is bounded (≤10 unauthenticated calls, cached with this query) —
+      // gaps is bounded (one batched call for ≤10 pubkeys) —
       // without it, half the pile would sit unringed next to a ringed half.
       await Promise.allSettled(
         need
           .filter((pk) => scoreByPk.get(pk) == null)
           .map(async (pk) => {
-            const s = await apiClient.getHouseInfluence(pk).catch(() => null);
-            if (typeof s === "number" && Number.isFinite(s)) scoreByPk.set(pk, s);
+            const { influence } = await lookupTrustSignals(pk);
+            if (influence !== null) scoreByPk.set(pk, influence);
           }),
       );
       const toFace = (pk: string): NetworkFace => ({

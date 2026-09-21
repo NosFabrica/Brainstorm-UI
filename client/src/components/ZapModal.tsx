@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { QRCodeSVG } from "qrcode.react";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +34,7 @@ import {
   LnurlError,
   type LnurlPayParams,
 } from "@/lib/zap";
+import { LazyQRCode } from "@/components/LazyQRCode";
 
 interface ZapModalProps {
   open: boolean;
@@ -305,7 +305,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
                 <>
                   <div className="flex justify-center">
                     <div className="rounded-xl border border-slate-200 bg-white p-3" data-testid="zap-qr">
-                      <QRCodeSVG value={invoice} size={188} bgColor="#ffffff" fgColor="#0A0E18" level="M" />
+                      <LazyQRCode value={invoice} size={188} bgColor="#ffffff" fgColor="#0A0E18" level="M" />
                     </div>
                   </div>
                   <p className="text-center text-xs text-slate-500 dark:text-slate-400">Scan with a Lightning wallet to pay.</p>
@@ -354,7 +354,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
             <div className="space-y-3" data-testid="zap-fallback">
               <div className="flex justify-center">
                 <div className="rounded-xl border border-slate-200 bg-white p-3">
-                  <QRCodeSVG value={lightningUriForAddress(displayAddr)} size={188} bgColor="#ffffff" fgColor="#0A0E18" level="M" />
+                  <LazyQRCode value={lightningUriForAddress(displayAddr)} size={188} bgColor="#ffffff" fgColor="#0A0E18" level="M" />
                 </div>
               </div>
               <p className="text-center text-xs text-slate-500 dark:text-slate-400 leading-relaxed">

@@ -9,6 +9,7 @@ import { logout } from "@/accounts/login-flow";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useFinishSetup } from "@/hooks/useFinishSetup";
 import { useScoringStatus } from "@/hooks/useScoringStatus";
+import { ListsUpdateLine } from "@/components/ListsUpdate";
 
 /**
  * /setup — the "Finish setting up your account" checklist hub. Replaces the
@@ -85,7 +86,7 @@ function PendingRow({
 export default function FinishSetupPage() {
   const [, navigate] = useLocation();
   const user = useActiveAccountDisplay();
-  const { followDone, followCount, activateDone, doneCount, allDone } = useFinishSetup();
+  const { followDone, followCount, activateDone, listsPending, doneCount, allDone } = useFinishSetup();
   const { isCalculating } = useScoringStatus();
 
   if (!user) return null;
@@ -182,6 +183,8 @@ export default function FinishSetupPage() {
               testid="setup-row-activate"
             />
           )}
+          {/* Activated already: new lists are an update under the ✓, never a step to redo. */}
+          {activateDone && listsPending && <ListsUpdateLine />}
         </div>
 
         {allDone && (

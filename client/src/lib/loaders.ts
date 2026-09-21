@@ -11,6 +11,7 @@ import { pool } from "./relayPool";
 import { eventStore } from "./eventStore";
 import { cachedEventsForFilters } from "./eventCache";
 import { PROFILE_RELAYS } from "./relays";
+import { readProfiles } from "./profileCache";
 
 /**
  * The library defaults to 1000ms, which would put a full second in front of a
@@ -19,14 +20,34 @@ import { PROFILE_RELAYS } from "./relays";
  */
 export const ADDRESS_LOADER_BUFFER_MS = 150;
 
+/**
+ * What this device already holds, asked before any relay is (the loaders' own
+ * local-first hook). A hit removes the pointer, so the relays are never asked
+ * for it.
+ *
+ * TWO stores answer, because they hold different things under different rules.
+ * `profileCache` owns kind 0 — names and avatars, with its own freshness policy
+ * and its own deliberate exclusion of per-account data. `eventCache` owns the
+ * ROUTING kinds (3, 10002, 10040), which decide where everything else is read
+ * from and published to, and which are worth verifying on the way out.
+ */
+const cacheRequest = async (
+  filters: { kinds?: number[]; authors?: string[]; "#d"?: string[] }[],
+): Promise<NostrEvent[]> => {
+  const profileAuthors = filters.flatMap((f) => (f.kinds?.includes(0) ? (f.authors ?? []) : []));
+  const [profiles, routing] = await Promise.all([
+    profileAuthors.length
+      ? readProfiles(profileAuthors).then((held) => [...held.values()])
+      : Promise.resolve([] as NostrEvent[]),
+    cachedEventsForFilters(filters),
+  ]);
+  return [...profiles, ...routing];
+};
+
 export const addressLoader = createAddressLoader(pool, {
   eventStore,
+  cacheRequest,
   bufferTime: ADDRESS_LOADER_BUFFER_MS,
-  // Step one of the loading sequence: disk, before any relay. A hit removes the
-  // pointer and the relays are never asked — which is the win for a profile or
-  // relay list seen recently, and the reason `cachedEventsForFilters` enforces
-  // a TTL and verifies signatures rather than trusting what it reads.
-  cacheRequest: cachedEventsForFilters,
   // Where to look when a pointer carries no relays of its own — the case for
   // every fallback load the EventStore itself starts.
   lookupRelays: PROFILE_RELAYS,

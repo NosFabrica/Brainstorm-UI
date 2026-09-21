@@ -3,6 +3,7 @@ import { Play, Volume2, VolumeX } from "lucide-react";
 import { usePipAwareAutoStop } from "@/lib/audioPlayer";
 import { useAutoplayInView } from "@/lib/feedVideo";
 import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
+import { useConnectionSpeed, videoPreload } from "@/lib/connection";
 
 /**
  * An inline note video that behaves like X: it autoplays **muted** when it
@@ -26,7 +27,9 @@ export function FeedVideo({ src, poster, className }: { src: string; poster?: st
     if (ref.current) ref.current.muted = true;
   }, []);
 
-  useAutoplayInView(ref, !reduce);
+  const speed = useConnectionSpeed();
+  // A poor connection gets a poster and a play button, never an autoplaying clip.
+  useAutoplayInView(ref, !reduce && speed === "normal");
 
   const unmute = () => {
     const v = ref.current;
@@ -63,7 +66,7 @@ export function FeedVideo({ src, poster, className }: { src: string; poster?: st
   if (reduce && !started) {
     return (
       <div className={shell}>
-        <video ref={ref} src={src} poster={poster} playsInline preload="metadata" className="w-full max-h-[34rem] object-contain" />
+        <video ref={ref} src={src} poster={poster} playsInline preload={videoPreload(speed)} className="w-full max-h-[34rem] object-contain" />
         <button
           type="button"
           onClick={startReduced}
@@ -86,7 +89,7 @@ export function FeedVideo({ src, poster, className }: { src: string; poster?: st
         src={src}
         poster={poster}
         playsInline
-        preload="metadata"
+        preload={videoPreload(speed)}
         controls={controls}
         onClick={() => { if (muted) unmute(); }}
         className="w-full max-h-[34rem] cursor-pointer object-contain"

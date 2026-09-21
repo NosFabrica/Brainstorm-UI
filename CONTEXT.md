@@ -109,3 +109,14 @@ _Avoid_: POV, view, observer, lens
   yields to it; it yields to the music only where its provider listens
   (YouTube, Vimeo).
 
+
+## Connection speed
+
+How constrained the device says its network is — read from the browser
+(`lib/connection.ts`), never chosen by the User, and always one of three:
+**Normal**, **Slow**, **Very slow**. Slow trims what loads on its own — the
+tag catalogue, the next page of results, link previews, video metadata. Very
+slow also drops remote avatars for initials. A browser that says nothing
+(every iOS browser) is Normal, so it behaves as it always has.
+_Not to be confused with_ the Network page and network reach, which are about
+a person's graph, not their radio.

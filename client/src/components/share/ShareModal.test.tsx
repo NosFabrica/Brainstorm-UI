@@ -30,6 +30,12 @@ describe("ShareModal", () => {
     expect(screen.queryByTestId("share-open-page-link")).toBeNull();
   });
 
+  // The code itself is its own download — the box is there first, the QR follows.
+  it("draws the QR once its code has loaded", async () => {
+    render(<ShareModal {...base} />);
+    await waitFor(() => expect(screen.getByTestId("share-qr").querySelector("svg")).toBeInTheDocument());
+  });
+
   it("Copy copies the link and says so", async () => {
     render(<ShareModal {...base} />);
     fireEvent.click(screen.getByTestId("share-copy-link"));

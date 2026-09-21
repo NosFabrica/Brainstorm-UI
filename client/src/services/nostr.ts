@@ -1,11 +1,13 @@
 import { nip19, finalizeEvent, generateSecretKey, verifyEvent } from "nostr-tools";
 import { env } from "@/lib/runtimeEnv";
-import { declaresTrustProvider } from "@/lib/nip85Declaration";
+import { declaresTrustProvider, listRows, mergeDesignation, type ListDesignation } from "@/lib/nip85Declaration";
 import { pool } from "@/lib/relayPool";
 import { eventStore } from "@/lib/eventStore";
 import { searchRelay } from "@/lib/searchRelay";
+import { wantProfile } from "@/services/authorProfileQueue";
 import { CONTENT_RELAYS, PROFILE_RELAYS } from "@/lib/relays";
 import { requestAll, requestAllByRelay, requestNewest, requestOne } from "@/lib/relayRequest";
+import { publishUntilEnough } from "@/lib/publishQuorum";
 import { addressLoader, loadReplaceable } from "@/lib/loaders";
 import {
   dedupeRelays,
@@ -634,23 +636,93 @@ export async function fetchRecentByKinds(
   opts: { relayHints?: string[]; timeoutMs?: number } = {},
 ): Promise<NostrEvent[]> {
   const timeoutMs = opts.timeoutMs ?? 8000;
-  const hints = (opts.relayHints ?? []).map((r) => r.trim()).filter((r) => r.length > 0);
-
-  // The search relay's corpus is wider than the content relays' (probed:
-  // a Divine creator's kind-34236 videos lived only there) — ask it too.
-  //
-  // It does NOT wait on the NIP-65 lookup: finding out where this author writes
-  // tells the relay fan-out where to go and tells the search relay nothing, so
-  // putting it in front of both would just add its latency to the whole read.
-  const [fromRelays, fromSearch] = await Promise.all([
-    outboxRelays(pubkey, PROFILE_RELAYS).then((routed) =>
-      requestAll(dedupeRelays([...routed, ...hints]), { kinds, authors: [pubkey], limit }, timeoutMs),
-    ),
-    fetchFromSearchRelayByFilter({ kinds, authors: [pubkey], limit }, timeoutMs),
+  // Routed, then batched. The relay-list lookup de-dupes in flight, so the four
+  // asks one panel makes about the same person still resolve together and still
+  // land in one batch — they just all wait on the same single lookup first.
+  const relays = dedupeRelays([
+    ...(await outboxRelays(pubkey, PROFILE_RELAYS)),
+    ...(opts.relayHints ?? []).map((r) => r.trim()).filter((r) => r.length > 0),
   ]);
-  const byId = new Map<string, NostrEvent>();
-  for (const e of [...fromRelays, ...fromSearch]) byId.set(e.id, e);
-  return [...byId.values()].sort((a, b) => (b.created_at || 0) - (a.created_at || 0)).slice(0, limit);
+  return new Promise<NostrEvent[]>((resolve) => {
+    joinPersonBatch(pubkey, relays, timeoutMs, { kinds, limit, resolve });
+  });
+}
+
+interface PersonAsk {
+  kinds: number[];
+  limit: number;
+  resolve: (events: NostrEvent[]) => void;
+}
+
+interface PersonBatch {
+  relays: string[];
+  timeoutMs: number;
+  asks: PersonAsk[];
+  timer: ReturnType<typeof setTimeout>;
+}
+
+/**
+ * Long enough to catch the asks a sibling component makes a beat later: the
+ * panel asks its four the moment it settles on someone, and the results page
+ * asks for their media once that person reaches it (measured 46ms behind).
+ */
+const PERSON_BATCH_MS = 80;
+
+/** Batches still gathering. Keyed by who they are about and where they will ask. */
+const personBatches = new Map<string, PersonBatch>();
+
+/**
+ * One question per person, not one per block.
+ *
+ * The knowledge panel asks about the same person four times the moment it
+ * settles on them — listings, media, streams, tracks — and the results page
+ * asks a fifth for their media. The relay works a socket's REQs as a queue, so
+ * asks gathered in one tick leave as a single request carrying a filter each,
+ * and the answers are dealt back out by kind.
+ */
+function joinPersonBatch(pubkey: string, relays: string[], timeoutMs: number, ask: PersonAsk): void {
+  // Sorted and lowercased: two callers naming the same relays in a different
+  // order are asking the same question, and should share the request.
+  const key = `${pubkey}|${timeoutMs}|${[...relays].map((r) => r.toLowerCase()).sort().join(",")}`;
+  let batch = personBatches.get(key);
+  if (!batch) {
+    batch = {
+      relays,
+      timeoutMs,
+      asks: [],
+      timer: setTimeout(() => {
+        personBatches.delete(key);
+        void runPersonBatch(pubkey, batch!);
+      }, PERSON_BATCH_MS),
+    };
+    personBatches.set(key, batch);
+  }
+  batch.asks.push(ask);
+}
+
+async function runPersonBatch(pubkey: string, batch: PersonBatch): Promise<void> {
+  const filters = batch.asks.map((ask) => ({ kinds: ask.kinds, authors: [pubkey], limit: ask.limit }));
+  let all: NostrEvent[] = [];
+  try {
+    // The search relay's corpus is wider than the content relays' (probed:
+    // a Divine creator's kind-34236 videos lived only there) — ask it too.
+    const [fromRelays, fromSearch] = await Promise.all([
+      requestAll(batch.relays, filters, batch.timeoutMs),
+      fetchFromSearchRelayByFilters(filters, batch.timeoutMs),
+    ]);
+    all = [...fromRelays, ...fromSearch];
+  } catch {
+    // Everyone in the batch is waiting on this one request: a failure answers
+    // them all with nothing, the way a failed request of their own would have.
+  }
+  for (const ask of batch.asks) {
+    const wanted = new Set(ask.kinds);
+    const byId = new Map<string, NostrEvent>();
+    for (const event of all) if (wanted.has(event.kind)) byId.set(event.id, event);
+    ask.resolve(
+      [...byId.values()].sort((a, b) => (b.created_at || 0) - (a.created_at || 0)).slice(0, ask.limit),
+    );
+  }
 }
 
 /**
@@ -686,16 +758,20 @@ export async function fetchLiveStreams(
   // The search relay's corpus is wider than the content relays' (probed:
   // a bridged Owncast channel's live event lived only there) — ask it too,
   // for both shapes.
-  const [authored, hosted, searchAuthored, searchHosted] = await Promise.all([
-    relays.then((r) => requestAll(r, { kinds: [30311], authors: [pubkey], limit: 8 }, timeoutMs)),
-    relays.then((r) => requestAll(r, { kinds: [30311], "#p": [pubkey], limit: 8 }, timeoutMs)),
-    fetchFromSearchRelayByFilter({ kinds: [30311], authors: [pubkey], limit: 8 }, timeoutMs),
-    fetchFromSearchRelayByFilter({ kinds: [30311], "#p": [pubkey], limit: 8 }, timeoutMs),
+  const shapes = [
+    { kinds: [30311], authors: [pubkey], limit: 8 },
+    { kinds: [30311], "#p": [pubkey], limit: 8 },
+  ];
+  const [fromRelays, fromSearch] = await Promise.all([
+    // `relays` is still a promise: the NIP-65 lookup tells the relay leg where
+    // to go and tells the search relay nothing, so only this leg waits on it.
+    relays.then((routed) => requestAll(routed, shapes, timeoutMs)),
+    fetchFromSearchRelayByFilters(shapes, timeoutMs),
   ]);
 
   // Keep the latest version per addressable coordinate (kind:pubkey:d).
   const byCoord = new Map<string, NostrEvent>();
-  for (const event of [...authored, ...hosted, ...searchAuthored, ...searchHosted]) {
+  for (const event of [...fromRelays, ...fromSearch]) {
     const d = event.tags.find((tag) => tag[0] === "d")?.[1] || "";
     const coord = `${event.kind}:${event.pubkey}:${d}`;
     const previous = byCoord.get(coord);
@@ -754,7 +830,7 @@ export async function fetchEventsByIds(
 
 /** Any filter against the search relay, with the lens it requires; EOSE or
  *  timeout resolves, never rejects. */
-function fetchFromSearchRelayByFilter(filter: Record<string, unknown>, timeoutMs: number): Promise<NostrEvent[]> {
+function fetchFromSearchRelayByFilters(filters: Record<string, unknown>[], timeoutMs: number): Promise<NostrEvent[]> {
   return new Promise((resolve) => {
     let relay: ReturnType<typeof searchRelay>;
     try {
@@ -767,11 +843,20 @@ function fetchFromSearchRelayByFilter(filter: Record<string, unknown>, timeoutMs
     let sub: { unsubscribe: () => void } | null = null;
     const timer = setTimeout(finish, timeoutMs);
     try {
+      // One filter goes on the wire as one filter: only a batch needs the array.
+      const asked = filters.map((f) => ({ ...f, search: "include:spam" }));
       sub = relay
-        .req({ ...filter, search: "include:spam" } as Parameters<typeof relay.req>[0])
+        .req((asked.length === 1 ? asked[0] : asked) as Parameters<typeof relay.req>[0])
         .subscribe((msg: { type: string; event?: NostrEvent }) => {
           if (msg.type === "EVENT" && msg.event) {
-            eventStore.add(msg.event);
+            // The store verifies signatures and throws on a bad one; letting
+            // that escape kills the subscription and leaves everyone sharing
+            // this request waiting out the timeout.
+            try {
+              eventStore.add(msg.event);
+            } catch {
+              return;
+            }
             events.push(msg.event);
           } else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();
         });
@@ -932,12 +1017,14 @@ export async function fetchAddressableEvents(
   // the content relays never had them (Benjamin, 2026-09-05).
   const missing = valid.filter((c) => !result.has(coordKey(c)));
   if (missing.length) {
-    const found = await fetchFromSearchRelayByFilter(
-      {
-        kinds: Array.from(new Set(missing.map((c) => c.kind))),
-        authors: Array.from(new Set(missing.map((c) => c.pubkey))),
-        "#d": Array.from(new Set(missing.map((c) => c.identifier))),
-      },
+    const found = await fetchFromSearchRelayByFilters(
+      [
+        {
+          kinds: Array.from(new Set(missing.map((c) => c.kind))),
+          authors: Array.from(new Set(missing.map((c) => c.pubkey))),
+          "#d": Array.from(new Set(missing.map((c) => c.identifier))),
+        },
+      ],
       Math.min(timeoutMs, 5000),
     );
     for (const event of found) keep(event);
@@ -945,7 +1032,15 @@ export async function fetchAddressableEvents(
   return result;
 }
 
-/** Fetch kind-0 profiles for many pubkeys, returning a pubkey→content map. */
+/**
+ * Fetch kind-0 profiles for many pubkeys, returning a pubkey→content map.
+ *
+ * The shared author queue answers first: it asks the search relay, whose socket
+ * is already open and whose corpus holds kind-0s for everyone the results can
+ * name, and it answers from the device's own copy without asking at all. Anyone
+ * it cannot place falls back to the profile relays, which is where a person the
+ * search relay has never indexed still lives.
+ */
 export async function fetchProfileMap(
   pubkeys: string[],
   timeoutMs = 6000,
@@ -953,17 +1048,49 @@ export async function fetchProfileMap(
   const unique = Array.from(new Set(pubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk))));
   const map = new Map<string, ProfileContent>();
   if (!unique.length) return map;
+
+  const keep = (event: NostrEvent | null | undefined) => {
+    try {
+      if (!event || !isValidProfile(event as any)) return false;
+      const content = getProfileContent(event as any);
+      if (!content) return false;
+      map.set(event.pubkey, content);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const asked = unique.map(
+    (pubkey) =>
+      new Promise<void>((done) => {
+        // Declared first: a profile the device already holds arrives during the
+        // call below, before there is a timer to clear.
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        const withdraw = wantProfile(pubkey, (event) => {
+          // null is the queue saying the search relay has nobody by that key;
+          // the profile relays are asked for those below.
+          if (event) keep(event);
+          if (timer) clearTimeout(timer);
+          done();
+        });
+        if (map.has(pubkey)) return done();
+        timer = setTimeout(() => {
+          withdraw();
+          done();
+        }, timeoutMs);
+      }),
+  );
+  await Promise.all(asked);
+
   // Per pubkey, so the ones already in the store cost nothing and the rest join
   // whatever batch is forming rather than opening a request of their own.
-  const events = await Promise.all(
-    unique.map((pubkey) => loadReplaceable(0, pubkey, { timeoutMs })),
-  );
-  for (const event of events) {
-    try {
-      if (!event || !isValidProfile(event as any)) continue;
-      const content = getProfileContent(event as any);
-      if (content) map.set(event.pubkey, content);
-    } catch {}
+  const missing = unique.filter((pubkey) => !map.has(pubkey));
+  if (missing.length > 0) {
+    const events = await Promise.all(
+      missing.map((pubkey) => loadReplaceable(0, pubkey, { timeoutMs })),
+    );
+    events.forEach(keep);
   }
   return map;
 }
@@ -1077,6 +1204,32 @@ function addressees(signedEvent: NostrEvent): string[] {
  * hang because a stranger's kind-10002 is slow, and losing the inbox half is a
  * missed notification, not a lost event.
  */
+/**
+ * The NIP-85 relay when the build has one — a publish must never fail for its
+ * absence. A kind-10040 points other apps AT this relay, so it has to hold the
+ * declaration too; the author's outboxes alone are not enough.
+ */
+function nip85RelaySeed(): string[] {
+  try {
+    return [getNip85RelayUrl()];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Where a signed event goes: the author's own write relays, the READ relays of
+ * everyone it names, anything the caller adds, and our defaults as a floor.
+ *
+ * The inbox half is the part that was missing. A reply, a report, an RSVP or a
+ * vouch that only lands on the author's relays never reaches the person it is
+ * about — they are reading somewhere else, which is the whole point of them
+ * having published a relay list.
+ *
+ * The recipient lookups are best-effort on a short deadline: a publish must not
+ * hang because a stranger's kind-10002 is slow, and losing the inbox half is a
+ * missed notification, not a lost event.
+ */
 export async function publishRelaysFor(
   signedEvent: NostrEvent,
   extraRelays: string[] = [],
@@ -1085,7 +1238,10 @@ export async function publishRelaysFor(
     outboxRelays(signedEvent.pubkey, PROFILE_RELAYS).catch(() => PROFILE_RELAYS),
     inboxRelays(addressees(signedEvent), []).catch(() => [] as string[]),
   ]);
-  return dedupeRelays([...own, ...inboxes, ...extraRelays]);
+  // Seeded here rather than at the call sites: activate, update, republish and
+  // deactivate all publish through this one function.
+  const seed = signedEvent.kind === 10040 ? nip85RelaySeed() : [];
+  return dedupeRelays([...own, ...inboxes, ...seed, ...extraRelays]);
 }
 
 /**
@@ -1097,9 +1253,30 @@ export async function publishRelaysFor(
  */
 export async function publishToRelays(
   signedEvent: NostrEvent,
-  extraRelays: string[] = []
+  extraRelays: string[] = [],
+  /**
+   * Opt-in: answer once `need` relays accept, giving each at most `timeoutMs`
+   * (lib/publishQuorum) instead of waiting on every relay for the library's
+   * 30 seconds. The slow ones keep going in the background.
+   */
+  opts?: { need?: number; timeoutMs?: number },
 ): Promise<{ success: boolean; relay?: string; error?: string; accepted?: number; total?: number }> {
   const writeRelays = await publishRelaysFor(signedEvent, extraRelays);
+
+  if (opts?.need) {
+    const timeoutMs = opts.timeoutMs ?? 8000;
+    const { accepted, failed, total } = await publishUntilEnough(
+      writeRelays,
+      (url) =>
+        pool
+          .relay(url)
+          .publish(signedEvent as any, { timeout: timeoutMs })
+          .then((r) => ({ ok: r.ok, from: url, message: r.message })),
+      { need: opts.need, timeoutMs },
+    );
+    if (accepted.length) return { success: true, relay: accepted[0], accepted: accepted.length, total };
+    return { success: false, error: failed[0]?.message || "All relays failed", accepted: 0, total };
+  }
 
   try {
     const responses = await pool.publish(writeRelays, signedEvent as any);
@@ -1283,16 +1460,25 @@ export async function announceRelayList(): Promise<PublishOutcome> {
 }
 
 
+/**
+ * The user's kind-10040 naming Brainstorm: rank and followers, plus every
+ * Trusted List kind when they have lists — merged into the tags they already
+ * have (`existing`), so another provider's rows survive. It used to be rebuilt
+ * from our two rows alone, dropping everything else.
+ */
 export async function signNip85(
   serviceKey: string,
-  relayHint: string
+  relayHint: string,
+  opts: { lists?: ListDesignation | null; existing?: string[][] } = {},
 ): Promise<NostrEvent> {
+  const ours = [
+    ["30382:rank", serviceKey, relayHint],
+    ["30382:followers", serviceKey, relayHint],
+    ...(opts.lists ? listRows(opts.lists) : []),
+  ];
   return signAs(requireActiveAccount(), {
     kind: 10040,
-    tags: [
-      ["30382:rank", serviceKey, relayHint],
-      ["30382:followers", serviceKey, relayHint],
-    ],
+    tags: mergeDesignation(opts.existing ?? [], ours),
     content: "",
   });
 }

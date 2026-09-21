@@ -49,6 +49,15 @@ const { eventStore } = await import("./eventStore");
 const { addressLoader, loadReplaceable } = await import("./loaders");
 const eventCache = await import("./eventCache");
 
+/** A kind-10002, which is what `eventCache` holds — kind 0 is profileCache's. */
+function relayList(): NostrEvent {
+  const secret = generateSecretKey();
+  return finalizeEvent(
+    { kind: 10002, created_at: Math.floor(Date.now() / 1000), tags: [["r", "wss://theirs.example"]], content: "" },
+    secret,
+  ) as NostrEvent;
+}
+
 function profile(name: string): NostrEvent {
   const secret = generateSecretKey();
   return finalizeEvent(
@@ -173,12 +182,12 @@ describe("the loader observable", () => {
  * earlier session is not in the store — the store is memory and the page
  * reloaded — so without this it costs a relay round trip every single time.
  */
-describe("a profile only the disk cache holds", () => {
+describe("a routing event only the disk cache holds", () => {
   it("costs no relay request", async () => {
-    const seen = profile("cached");
+    const seen = relayList();
     await eventCache.__writeForTest([seen]);
 
-    const found = await loadReplaceable(0, seen.pubkey);
+    const found = await loadReplaceable(10002, seen.pubkey);
 
     expect(found?.id).toBe(seen.id);
     expect(requests).toHaveLength(0);
@@ -190,17 +199,17 @@ describe("a profile only the disk cache holds", () => {
    * stale forever — must not be answered by the very cache it exists to refresh.
    */
   it("is skipped when the caller asked for the relays", async () => {
-    const seen = profile("cached");
+    const seen = relayList();
     await eventCache.__writeForTest([seen]);
     relayHas.set(seen.pubkey, seen);
 
-    await loadReplaceable(0, seen.pubkey, { fromRelays: true });
+    await loadReplaceable(10002, seen.pubkey, { fromRelays: true });
 
     expect(requests).toHaveLength(1);
   });
 
   it("goes to the relays for an author the cache does not have", async () => {
-    const cached = profile("cached");
+    const cached = relayList();
     const wanted = profile("wanted");
     await eventCache.__writeForTest([cached]);
     relayHas.set(wanted.pubkey, wanted);
@@ -213,10 +222,10 @@ describe("a profile only the disk cache holds", () => {
 
   /** Tampering with IndexedDB must not put a forged event in the store. */
   it("refuses a cached event whose signature does not check out", async () => {
-    const forged = { ...profile("forged"), sig: "0".repeat(128) } as NostrEvent;
+    const forged = { ...relayList(), sig: "0".repeat(128) } as NostrEvent;
     await eventCache.__writeForTest([forged]);
 
-    const found = await loadReplaceable(0, forged.pubkey, { timeoutMs: 200 });
+    const found = await loadReplaceable(10002, forged.pubkey, { timeoutMs: 200 });
 
     expect(found).toBeUndefined();
     expect(requests).toHaveLength(1); // fell through to the relays, which had nothing

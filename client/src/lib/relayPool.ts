@@ -9,4 +9,11 @@
  */
 import { RelayPool } from "applesauce-relay";
 
-export const pool = new RelayPool();
+/**
+ * How long an idle socket stays open. The library's 30s means a pause between
+ * two searches costs a fresh DNS + TCP + TLS + upgrade (~0.5s desktop, more on
+ * mobile); a few minutes covers a reader thinking between searches.
+ */
+const KEEP_ALIVE_MS = 5 * 60_000;
+
+export const pool = new RelayPool({ keepAlive: KEEP_ALIVE_MS });

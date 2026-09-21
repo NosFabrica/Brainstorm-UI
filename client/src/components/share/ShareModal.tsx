@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
-import { QRCodeSVG } from "qrcode.react";
 import { Check, Copy, ExternalLink, Share2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useCopied } from "@/hooks/useCopied";
+import { LazyQRCode } from "@/components/LazyQRCode";
 
 /** Whether this browser has a share sheet of its own (phones; some desktops). */
 export function canNativeShare(): boolean {
@@ -97,7 +97,7 @@ export function ShareModal({
 
           <div className="flex items-center gap-4">
             <div className="shrink-0 rounded-xl border border-slate-200 bg-white p-2.5" data-testid="share-qr">
-              <QRCodeSVG value={url || "https://brainstorm.world"} size={96} bgColor="#ffffff" fgColor="#0A0E18" level="M" />
+              <LazyQRCode value={url || "https://brainstorm.world"} size={96} bgColor="#ffffff" fgColor="#0A0E18" level="M" />
             </div>
             <div className="min-w-0 flex-1 space-y-2">
               <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">{native ? "Scan to open on a phone, or share directly:" : "Scan to open on a phone."}</p>

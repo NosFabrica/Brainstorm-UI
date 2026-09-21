@@ -24,3 +24,4 @@ export const CONTENT_RELAYS = [
   "wss://relay.primal.net/",
   "wss://nostr.wine/",
 ];
+

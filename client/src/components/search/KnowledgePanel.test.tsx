@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import { nip19, type NostrEvent } from "nostr-tools";
 import type { SearchSnapshot, SearchParams } from "@/services/search";
+import { __resetConnectionSpeed } from "@/lib/connection";
 
 const suggestMock = vi.fn<() => Promise<unknown[]>>(() => Promise.resolve([]));
 const nipPageMock = vi.fn<() => Promise<NostrEvent | null>>(() => Promise.resolve(null));
@@ -93,6 +94,9 @@ function noteHit(id: string, pubkey: string, name: string, created_at: number, t
 }
 
 const NOW = Math.floor(Date.now() / 1000);
+
+/** A settled section, the shape the composed page hands the panel. */
+const snap = (hits: SearchHit[]): SearchSnapshot => ({ hits, eose: true, timeMs: 10, error: null });
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -280,6 +284,75 @@ describe("the topic panel", () => {
     expect(within(panel).queryByText("Voices on it")).toBeNull();
     expect(within(panel).queryByText("Related topics")).toBeNull();
     expect(within(panel).queryByText("Upcoming events")).toBeNull();
+  });
+
+  it("does not ask again when the reader moves to another tab", async () => {
+    const person = { pubkey: "9".repeat(64), npub: "npub1barattolo", name: "Barattolo", wotRank: 0.8, wotFollowers: 300 };
+    const peopleSnap = snap([{ event: { id: "k0", kind: 0, pubkey: person.pubkey, tags: [], content: "{}", created_at: NOW, sig: "s" } as NostrEvent, author: person, rank: null }]);
+    const view = render(<KnowledgePanel query="Barattolo" pov="nosfabrica" sections={{ people: peopleSnap, events: snap([]) }} />);
+    await screen.findByTestId("search-knowledge-panel");
+    // Leaving Everything takes the sections away — the panel keeps its answer
+    // rather than asking the relay for it a second time.
+    view.rerender(<KnowledgePanel query="Barattolo" pov="nosfabrica" />);
+    expect(await screen.findByTestId("search-knowledge-panel")).toHaveTextContent("Barattolo");
+    expect(suggestMock).not.toHaveBeenCalled();
+  });
+
+  it("on the composed page it reads the sections instead of asking again", async () => {
+    const person = { pubkey: "9".repeat(64), npub: "npub1barattolo", name: "Barattolo", wotRank: 0.8, wotFollowers: 300 };
+    render(
+      <KnowledgePanel
+        query="Barattolo"
+        pov="nosfabrica"
+        sections={{
+          people: snap([{ event: { id: "k0", kind: 0, pubkey: person.pubkey, tags: [], content: JSON.stringify({ name: "Barattolo" }), created_at: NOW, sig: "s" } as NostrEvent, author: person, rank: null }]),
+          events: snap([]),
+        }}
+      />,
+    );
+    expect(await screen.findByTestId("search-knowledge-panel")).toHaveTextContent("Barattolo");
+    // The People section already asked — the panel does not ask again.
+    expect(suggestMock).not.toHaveBeenCalled();
+  });
+
+  it("uses the sections' events when they fill the row, and digs deeper when they cannot", async () => {
+    const DAY = 86_400;
+    const soon = (id: string, title: string, days: number) =>
+      ({ event: { id, kind: 31923, pubkey: "c".repeat(64), created_at: NOW - 10, content: "", sig: "", tags: [["d", id], ["title", title], ["start", String(NOW + days * DAY)]] } as NostrEvent, author: null, rank: null });
+    const three = [soon("a", "Chicago Meetup", 2), soon("b", "Chicago Social", 5), soon("c", "Chicago Hack Night", 9)];
+
+    const full = render(<KnowledgePanel query="chicago" pov="nosfabrica" sections={{ people: snap([]), events: snap(three) }} />);
+    await vi.waitFor(() => expect(streamCalls.some((c) => c.params.tab === "topic" || c.params.tab === "apps")).toBe(true));
+    expect(streamCalls.some((c) => c.params.tab === "events")).toBe(false);
+    full.unmount();
+    streamCalls = [];
+
+    render(<KnowledgePanel query="chicago" pov="nosfabrica" sections={{ people: snap([]), events: snap([soon("a", "Chicago Meetup", 2)]) }} />);
+    await vi.waitFor(() => expect(streamCalls.some((c) => c.params.tab === "events")).toBe(true));
+  });
+
+  it("on a phone with a poor connection only the person is looked up — the rest waits for the tap", async () => {
+    const width = window.innerWidth;
+    Object.defineProperty(window, "innerWidth", { configurable: true, value: 375 });
+    Object.defineProperty(window.navigator, "connection", { configurable: true, value: { effectiveType: "3g" } });
+    __resetConnectionSpeed();
+    try {
+      suggestMock.mockResolvedValueOnce([{ pubkey: "9".repeat(64), npub: "npub1barattolo", name: "Barattolo", wotRank: 0.8, wotFollowers: 300 }]);
+      render(<KnowledgePanel query="Barattolo" pov="nosfabrica" />);
+      // The strip still arrives — a panel nobody can open is a panel gone.
+      const strip = await screen.findByTestId("panel-strip");
+      expect(strip).toHaveTextContent("Barattolo");
+      expect(streamCalls).toHaveLength(0);
+      fireEvent.click(strip);
+      await screen.findByTestId("search-knowledge-panel");
+      await vi.waitFor(() => expect(streamCalls.some((c) => c.params.tab === "events")).toBe(true));
+      // …and opening them must not throw away the person that got us here.
+      expect(screen.getByTestId("search-knowledge-panel")).toHaveTextContent("Barattolo");
+    } finally {
+      Object.defineProperty(window, "innerWidth", { configurable: true, value: width });
+      Object.defineProperty(window.navigator, "connection", { configurable: true, value: undefined });
+      __resetConnectionSpeed();
+    }
   });
 
   it("on a phone the panel folds to one row — name and a line — until tapped", async () => {

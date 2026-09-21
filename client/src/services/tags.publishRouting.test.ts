@@ -42,7 +42,13 @@ vi.mock("@/config/tagging", async (original) => ({
 }));
 
 vi.mock("@/lib/eventStore", () => ({
-  eventStore: { getReplaceable: (kind: number, pubkey: string) => store.held.get(`${kind}:${pubkey}`) },
+  eventStore: {
+    getReplaceable: (kind: number, pubkey: string) => store.held.get(`${kind}:${pubkey}`),
+    getEvent: () => undefined,
+    add: (event: unknown) => event,
+    getByFilters: () => [],
+    getTimeline: () => [],
+  },
 }));
 vi.mock("@/lib/loaders", () => ({
   addressLoader: () => ({ subscribe: () => ({ unsubscribe() {} }) }),
