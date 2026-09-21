@@ -917,6 +917,15 @@ export function cacheProfile(content: ProfileContent, pubkey?: string): void {
 }
 
 
+/** The NIP-85 relay when the build has one — a publish must never fail for its absence. */
+function nip85RelaySeed(): string[] {
+  try {
+    return [getNip85RelayUrl()];
+  } catch {
+    return [];
+  }
+}
+
 export async function publishToRelays(
   signedEvent: NostrEvent,
   relays: string[] = PROFILE_RELAYS,
@@ -927,7 +936,12 @@ export async function publishToRelays(
    */
   opts?: { need?: number; timeoutMs?: number },
 ): Promise<{ success: boolean; relay?: string; error?: string; accepted?: number; total?: number }> {
-  const writeRelays = loadOutboxRelayListFromDb(signedEvent.pubkey, PROFILE_RELAYS)
+  // A kind-10040 points other apps at our NIP-85 relay, so that relay has to
+  // hold it too — it used to reach only the author's outboxes. Seeded here
+  // rather than at the call sites: activate, update, republish and deactivate
+  // all publish through this one function.
+  const seed = signedEvent.kind === 10040 ? [...PROFILE_RELAYS, ...nip85RelaySeed()] : PROFILE_RELAYS;
+  const writeRelays = loadOutboxRelayListFromDb(signedEvent.pubkey, seed)
 
   if (opts?.need) {
     const timeoutMs = opts.timeoutMs ?? 8000;
