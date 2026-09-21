@@ -498,6 +498,43 @@ export interface ApplyTagVariables extends Omit<ApplyTagArgs, "targetPubkey"> {
 }
 
 /**
+ * Offer a tag the viewer just applied in the picker and search right away.
+ *
+ * Inserts only when the catalogue lacks it — counts on tags already listed wait
+ * for the next refetch. No refetch here: the catalogue walks the whole hub, and
+ * our own events already reach the next one via the event store.
+ */
+function addToCatalogues(
+  queryClient: ReturnType<typeof useQueryClient>,
+  viewerPubkey: string,
+  args: ApplyTagVariables,
+): void {
+  const minted = "name" in args.tag ? args.tag : null;
+  const ref = minted ? null : (args.tag as { authorPubkey: string; slug: string });
+  const authorPubkey = minted ? viewerPubkey : ref!.authorPubkey;
+  const tagKey = minted ? predictedTagKey(minted.name, viewerPubkey) : `${ref!.authorPubkey}|${ref!.slug}`;
+  const entry: TagSummary = {
+    key: tagKey,
+    authorPubkey,
+    slug: tagKey.slice(tagKey.indexOf("|") + 1),
+    name: args.displayName || (minted ? minted.name : ref!.slug),
+    description: minted?.description,
+    people: 1,
+    vouches: 1,
+    sharesName: 1,
+    // Unknown for someone else's tag until the refetch checks its creator.
+    unverified: authorPubkey !== viewerPubkey,
+  };
+
+  queryClient.setQueriesData<TagSummary[]>({ queryKey: [...tagIndexKey, viewerPubkey] }, (old) =>
+    old && !old.some((t) => t.key === tagKey) ? [...old, entry] : old,
+  );
+  queryClient.setQueriesData<PickerTag[]>({ queryKey: ["tag-picker-options", viewerPubkey] }, (old) =>
+    old && !old.some((t) => t.key === tagKey) ? [...old, { ...entry, band: "profile" }] : old,
+  );
+}
+
+/**
  * Apply a tag, showing it immediately.
  *
  * The optimistic chip is keyed exactly as the refetched one will be
@@ -623,10 +660,13 @@ export function useApplyTag(targetPubkey: string | undefined) {
     // instantly tends to return the pre-publish state and clobber the
     // optimistic chip. Settle first, then reconcile — but the chip stops
     // saying "publishing" the moment a relay has it.
-    onSuccess: () => {
+    onSuccess: (_result, args) => {
       queryClient.setQueryData<ProfileTagsResult>(key, (old) =>
         old ? { ...old, tags: old.tags.map((t) => (t.pending ? { ...t, pending: false } : t)) } : old,
       );
+      if (viewerPubkey && (args.polarity ?? 1) === 1) {
+        addToCatalogues(queryClient, viewerPubkey, args);
+      }
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: key });
       }, 2500);
