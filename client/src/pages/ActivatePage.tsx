@@ -3,7 +3,6 @@ import { useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, Search as SearchIcon, Network as NetworkIcon, Gauge, BadgeCheck } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { BrainLogo } from "@/components/BrainLogo";
 import { fetchProfile } from "@/services/nostr";
 import { triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
@@ -13,6 +12,7 @@ import { useHasMywot } from "@/hooks/useHasMywot";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useToast } from "@/hooks/use-toast";
 import { accountKey } from "@/lib/accountStorage";
+import { OnboardingHeader } from "@/components/OnboardingHeader";
 
 /**
  * First-run for EXISTING Nostr users (logged in via extension/nsec) who already
@@ -79,22 +79,11 @@ export default function ActivatePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 dark:from-slate-950 to-white dark:to-slate-900">
-      <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
-        <div className="mx-auto max-w-xl flex items-center justify-between px-4 sm:px-6 h-14">
-          <div className="flex items-center gap-2">
-            <BrainLogo size={26} className="text-brand-primary" />
-            <span className="text-lg font-bold text-brand-primary font-brand">Brainstorm</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => { markSeen(); navigate("/", { replace: true }); }}
-            className="text-sm font-semibold text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
-            data-testid="activate-skip"
-          >
-            Skip — just let me search
-          </button>
-        </div>
-      </header>
+      <OnboardingHeader
+        onSkip={() => { markSeen(); navigate("/", { replace: true }); }}
+        skipLabel="Skip — just let me search"
+        skipTestId="activate-skip"
+      />
 
       <main className="mx-auto max-w-xl px-4 sm:px-6 py-8 sm:py-12">
         {/* Editorial header */}

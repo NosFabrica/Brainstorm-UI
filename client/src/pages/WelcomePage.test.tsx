@@ -61,6 +61,14 @@ describe("finishing the welcome screen", () => {
     followPubkeys.mockResolvedValue({ success: true });
   });
 
+  it("wears the B mark, not the brand name in a typeface", () => {
+    renderWithProviders(<WelcomePage />);
+
+    const header = screen.getByTestId("onboarding-header");
+    expect(screen.getAllByRole("img", { name: /brainstorm/i }).length).toBeGreaterThan(0);
+    expect(header.textContent).not.toMatch(/Brainstorm/);
+  });
+
   it("publishes and moves on, asking a new account nothing", async () => {
     await pressFollow();
 
