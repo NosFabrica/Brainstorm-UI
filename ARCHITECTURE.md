@@ -55,6 +55,12 @@ round trips before the app knew who you followed.
 10040, 30078) in IndexedDB and hydrates the ACTIVE account's own back into the
 store at boot, from `main.tsx`, before the first render.
 
+It is also the address loader's `cacheRequest` — step one of the loading
+sequence, ahead of any relay — so other people's profiles and relay lists come
+off disk too. Entries answer for 30 minutes before being treated as a miss,
+because a hit ends the sequence and unbounded staleness would pin every author
+to a relay list we saw once.
+
 Three rules it lives by: hydrated events are **signature-verified** (IndexedDB
 is writable by anything with script on the origin, and a forged kind-10002
 steers where we publish); everything hydrated is **revalidated** against the

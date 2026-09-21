@@ -9,6 +9,7 @@ import type { NostrEvent } from "nostr-tools";
 
 import { pool } from "./relayPool";
 import { eventStore } from "./eventStore";
+import { cachedEventsForFilters } from "./eventCache";
 import { PROFILE_RELAYS } from "./relays";
 
 /**
@@ -21,13 +22,24 @@ export const ADDRESS_LOADER_BUFFER_MS = 150;
 export const addressLoader = createAddressLoader(pool, {
   eventStore,
   bufferTime: ADDRESS_LOADER_BUFFER_MS,
+  // Step one of the loading sequence: disk, before any relay. A hit removes the
+  // pointer and the relays are never asked — which is the win for a profile or
+  // relay list seen recently, and the reason `cachedEventsForFilters` enforces
+  // a TTL and verifies signatures rather than trusting what it reads.
+  cacheRequest: cachedEventsForFilters,
   // Where to look when a pointer carries no relays of its own — the case for
   // every fallback load the EventStore itself starts.
   lookupRelays: PROFILE_RELAYS,
   followRelayHints: true,
 });
 
-/** The same, for pointers that name an event by id rather than by coordinate. */
+/**
+ * The same, for pointers that name an event by id rather than by coordinate.
+ *
+ * Deliberately no `cacheRequest`: the cache is keyed by replaceable coordinate
+ * (`kind:pubkey:d`) and indexed by author, so it cannot answer "the event with
+ * this id" without a scan. Nothing it holds is normally looked up that way.
+ */
 export const idLoader = createEventLoader(pool, {
   eventStore,
   bufferTime: ADDRESS_LOADER_BUFFER_MS,
@@ -73,7 +85,11 @@ export async function loadReplaceable(
   if (held) return held;
   try {
     return await firstValueFrom(
-      addressLoader({ kind, pubkey, identifier, relays }).pipe(
+      // `cache: false` when the caller asked for relays. The loader consults the
+      // disk cache first and stops on a hit, so without this a "go to the
+      // relays" read would be answered from the very cache it exists to refresh
+      // — and the hydrated copy would never be revalidated at all.
+      addressLoader({ kind, pubkey, identifier, relays, cache: !fromRelays }).pipe(
         takeUntil(timer(timeoutMs)),
         catchError(() => EMPTY),
       ),

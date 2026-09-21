@@ -10,10 +10,11 @@
  * Both are counted against a fake pool, because "how many REQs left the browser"
  * is the whole point and nothing else can answer it.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Observable } from "rxjs";
 import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import type { NostrEvent } from "nostr-tools";
+import "fake-indexeddb/auto";
 
 /** Every REQ the loader issues, with the filters it carried. */
 const requests: unknown[][] = [];
@@ -46,6 +47,7 @@ vi.mock("./relayPool", () => ({
 
 const { eventStore } = await import("./eventStore");
 const { addressLoader, loadReplaceable } = await import("./loaders");
+const eventCache = await import("./eventCache");
 
 function profile(name: string): NostrEvent {
   const secret = generateSecretKey();
@@ -58,6 +60,11 @@ function profile(name: string): NostrEvent {
 beforeEach(() => {
   requests.length = 0;
   relayHas.clear();
+});
+
+afterEach(async () => {
+  await eventCache.clearEventCache();
+  eventCache.__resetEventCache();
 });
 
 describe("a profile the store already holds", () => {
@@ -158,5 +165,60 @@ describe("the loader observable", () => {
     await new Promise((resolve) => setTimeout(resolve, 300));
 
     expect(requests).toHaveLength(0);
+  });
+});
+
+/**
+ * The disk cache, wired in as the loader's first step. A profile seen in an
+ * earlier session is not in the store — the store is memory and the page
+ * reloaded — so without this it costs a relay round trip every single time.
+ */
+describe("a profile only the disk cache holds", () => {
+  it("costs no relay request", async () => {
+    const seen = profile("cached");
+    await eventCache.__writeForTest([seen]);
+
+    const found = await loadReplaceable(0, seen.pubkey);
+
+    expect(found?.id).toBe(seen.id);
+    expect(requests).toHaveLength(0);
+  });
+
+  /**
+   * The loading sequence STOPS at its first hit, so a caller asking for the
+   * relays on purpose — the revalidation that keeps a hydrated copy from going
+   * stale forever — must not be answered by the very cache it exists to refresh.
+   */
+  it("is skipped when the caller asked for the relays", async () => {
+    const seen = profile("cached");
+    await eventCache.__writeForTest([seen]);
+    relayHas.set(seen.pubkey, seen);
+
+    await loadReplaceable(0, seen.pubkey, { fromRelays: true });
+
+    expect(requests).toHaveLength(1);
+  });
+
+  it("goes to the relays for an author the cache does not have", async () => {
+    const cached = profile("cached");
+    const wanted = profile("wanted");
+    await eventCache.__writeForTest([cached]);
+    relayHas.set(wanted.pubkey, wanted);
+
+    const found = await loadReplaceable(0, wanted.pubkey);
+
+    expect(found?.id).toBe(wanted.id);
+    expect(requests).toHaveLength(1);
+  });
+
+  /** Tampering with IndexedDB must not put a forged event in the store. */
+  it("refuses a cached event whose signature does not check out", async () => {
+    const forged = { ...profile("forged"), sig: "0".repeat(128) } as NostrEvent;
+    await eventCache.__writeForTest([forged]);
+
+    const found = await loadReplaceable(0, forged.pubkey, { timeoutMs: 200 });
+
+    expect(found).toBeUndefined();
+    expect(requests).toHaveLength(1); // fell through to the relays, which had nothing
   });
 });

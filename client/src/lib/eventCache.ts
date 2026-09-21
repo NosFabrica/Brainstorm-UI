@@ -27,7 +27,6 @@ import type { NostrEvent } from "nostr-tools";
 import { persistEventsToCache } from "applesauce-core/helpers/event-cache";
 
 import { eventStore } from "./eventStore";
-import { loadReplaceable } from "./loaders";
 import { loadKnownFollowList } from "./followStore";
 
 /**
@@ -247,6 +246,10 @@ async function hydrate(pubkey: string): Promise<number> {
  * through the loader, which inserts them, so a newer copy simply wins.
  */
 async function revalidate(events: NostrEvent[]): Promise<void> {
+  // Imported here, not at the top: `lib/loaders` imports THIS module for its
+  // `cacheRequest`, and a static import back would close the cycle at the one
+  // moment it matters — module init, where `loaders` builds the loader.
+  const { loadReplaceable } = await import("./loaders");
   await Promise.all(
     events.map((event) => {
       const identifier = event.tags.find((tag) => tag[0] === "d")?.[1];
@@ -257,6 +260,59 @@ async function revalidate(events: NostrEvent[]): Promise<void> {
       }).catch(() => undefined);
     }),
   );
+}
+
+/**
+ * How long a cached event may answer for somebody else before we ask the relays
+ * again.
+ *
+ * The loading sequence STOPS at its first hit, so a cache with no expiry is a
+ * cache that pins every author's relay list and profile to whatever they were
+ * when we last saw them. The active account gets an explicit refresh instead
+ * (`revalidate` above); everyone else gets this.
+ */
+const SERVE_TTL_MS = 30 * 60_000;
+
+/** Ids already checked this session — an event is served once, then it is in the store. */
+const knownGood = new Set<string>();
+
+/**
+ * Answer the address loader from disk, for authors other than the active one.
+ *
+ * Wired as `cacheRequest`, which the loader consults BEFORE any relay and which
+ * short-circuits the rest of the sequence on a hit. That is the whole point —
+ * a profile or relay list seen recently costs no round trip — and it is also
+ * why the TTL above exists and why nothing unverified is returned.
+ */
+export async function cachedEventsForFilters(
+  filters: { kinds?: number[]; authors?: string[]; "#d"?: string[] }[],
+): Promise<NostrEvent[]> {
+  const fresh = Date.now() - SERVE_TTL_MS;
+  const out = new Map<string, NostrEvent>();
+
+  for (const filter of filters) {
+    const authors = filter.authors ?? [];
+    const kinds = filter.kinds;
+    const identifiers = filter["#d"];
+    for (const pubkey of authors) {
+      for (const row of await rowsFor(pubkey)) {
+        if (!row || row.cachedAt < fresh) continue;
+        const event = row.event;
+        if (kinds && !kinds.includes(event.kind)) continue;
+        if (identifiers) {
+          const d = event.tags.find((tag) => tag[0] === "d")?.[1] ?? "";
+          if (!identifiers.includes(d)) continue;
+        }
+        if (!knownGood.has(event.id)) {
+          if (!verified(event, pubkey)) continue;
+          knownGood.add(event.id);
+        }
+        out.set(event.id, event);
+      }
+    }
+  }
+
+  return Array.from(out.values());
 }
 
 let stopWriting: (() => void) | null = null;
@@ -301,6 +357,7 @@ export function __writeForTest(events: NostrEvent[]): Promise<void> {
 export function __resetEventCache(): void {
   hydration = null;
   hydratingFor = null;
+  knownGood.clear();
   stopWriting?.();
   stopWriting = null;
   const closing = dbPromise;

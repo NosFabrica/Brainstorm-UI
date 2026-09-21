@@ -10,6 +10,7 @@
  * and jsdom's foreign-realm Uint8Array fails @noble's checks (see `test/setup.ts`).
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { EMPTY } from "rxjs";
 import { finalizeEvent, getPublicKey } from "nostr-tools/pure";
 
 const publish = vi.fn();
@@ -18,7 +19,10 @@ const activeAccount = vi.fn();
 const cachedFor: { pubkey?: string } = {};
 
 vi.mock("@/lib/relayPool", () => ({
-  pool: { publish: (...args: unknown[]) => publish(...args) },
+  // `request` answers nothing rather than being absent: the relay-list lookup
+  // this file's flows make goes through the address loader, and a pool without
+  // it throws from inside the loading sequence rather than returning empty.
+  pool: { publish: (...args: unknown[]) => publish(...args), request: () => EMPTY },
 }));
 
 vi.mock("@/accounts/signing", async (original) => ({

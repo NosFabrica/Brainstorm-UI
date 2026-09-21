@@ -176,9 +176,26 @@ Dropped on sign-out: which profiles someone looked at is a browsing trail, and
 it should not outlive the session on a shared device. Capped at 500 rows, LRU
 by write time.
 
-Not done here: a `cacheRequest` on the loaders, which would serve OTHER
-people's cached profiles and relay lists without a relay round trip. The data
-is already being written for it.
+The same store is wired into the address loader as its `cacheRequest`, which is
+step one of the loading sequence — consulted before any relay, and a hit removes
+the pointer so the relays are never asked. That is what makes a profile or a
+relay list seen earlier in the day cost nothing at all, and for
+`planOutboxReads` it means a two-hop author set can be routed largely from disk.
+
+Two things that has to get right:
+
+- **Bounded staleness.** Because a hit ends the sequence, a cache with no
+  expiry would pin every author's relay list to whatever it was when we last
+  saw them. Entries answer for 30 minutes and are then treated as a miss. The
+  active account is not subject to this — it is refreshed explicitly.
+- **`cache: false` on a deliberate relay read.** `loadReplaceable`'s
+  `fromRelays` now sets it. Without that, the revalidation that keeps a
+  hydrated copy fresh would be answered from the very cache it exists to
+  refresh, and nothing would ever be refreshed again.
+
+The id loader gets no `cacheRequest`: the store is keyed by replaceable
+coordinate and indexed by author, so it cannot answer "the event with this id"
+without a scan, and nothing it holds is normally looked up that way.
 
 ## What is still default-routed
 

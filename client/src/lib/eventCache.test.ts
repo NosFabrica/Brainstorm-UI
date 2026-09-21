@@ -216,3 +216,65 @@ describe("what goes to disk", () => {
     expect(await readAll()).toHaveLength(0);
   });
 });
+
+/**
+ * What the address loader is answered with. The sequence stops at its first
+ * hit, so anything served here is something the relays are NOT asked about —
+ * which is the win, and the reason for both the expiry and the signature check.
+ */
+describe("answering the loader from disk", () => {
+  const ask = (filter: Record<string, unknown>) => cache.cachedEventsForFilters([filter as never]);
+
+  it("serves an event it holds for the asked author and kind", async () => {
+    const relayList = signed(10002, [["r", "wss://mine.example"]]);
+    await cache.__writeForTest([relayList]);
+
+    const found = await ask({ kinds: [10002], authors: [ME] });
+
+    expect(found.map((e) => e.id)).toEqual([relayList.id]);
+  });
+
+  it("does not answer for a kind that was not asked for", async () => {
+    await cache.__writeForTest([signed(10002)]);
+
+    expect(await ask({ kinds: [0], authors: [ME] })).toEqual([]);
+  });
+
+  it("matches the d tag for addressable kinds", async () => {
+    await cache.__writeForTest([signed(30078, [["d", "prefs"]])]);
+
+    expect(await ask({ kinds: [30078], authors: [ME], "#d": ["other"] })).toEqual([]);
+    expect(await ask({ kinds: [30078], authors: [ME], "#d": ["prefs"] })).toHaveLength(1);
+  });
+
+  it("does not answer for an author nobody asked about", async () => {
+    await cache.__writeForTest([signed(10002)]);
+
+    expect(await ask({ kinds: [10002], authors: [OTHER] })).toEqual([]);
+  });
+
+  /**
+   * Staleness has to be bounded: a hit means the relays are never consulted.
+   *
+   * Only the clock is moved, not the timers — fake-indexeddb schedules its own
+   * work on real ones, and faking those deadlocks every read.
+   */
+  it("stops answering once the entry is stale", async () => {
+    await cache.__writeForTest([signed(10002)]);
+    expect(await ask({ kinds: [10002], authors: [ME] })).toHaveLength(1);
+
+    const later = Date.now() + 31 * 60_000;
+    const clock = vi.spyOn(Date, "now").mockReturnValue(later);
+    try {
+      expect(await ask({ kinds: [10002], authors: [ME] })).toEqual([]);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it("refuses a tampered row rather than handing it to the loader", async () => {
+    await cache.__writeForTest([{ ...signed(10002), sig: "0".repeat(128) } as NostrEvent]);
+
+    expect(await ask({ kinds: [10002], authors: [ME] })).toEqual([]);
+  });
+});
