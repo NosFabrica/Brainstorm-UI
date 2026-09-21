@@ -14,8 +14,8 @@ vi.mock("@/lib/searchRelay", () => ({
 }));
 vi.mock("@/lib/eventStore", () => ({ eventStore: { add: (e: unknown) => e } }));
 const held = new Map<string, { event: NostrEvent; at: number }>();
-vi.mock("@/lib/profileCache", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/profileCache")>();
+vi.mock("@/lib/eventCache", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/eventCache")>();
   return {
     ...actual,
     readProfileRows: (pubkeys: string[]) => Promise.resolve(new Map([...held].filter(([pk]) => pubkeys.includes(pk)))),
@@ -23,7 +23,7 @@ vi.mock("@/lib/profileCache", async (importOriginal) => {
 });
 
 import { wantProfile, __resetAuthorProfileQueue } from "./authorProfileQueue";
-import { PROFILE_FRESH_MS } from "@/lib/profileCache";
+import { PROFILE_FRESH_MS } from "@/lib/eventCache";
 
 const profile = (pubkey: string): NostrEvent =>
   ({ id: `id-${pubkey}`, kind: 0, pubkey, tags: [], content: "{}", created_at: 1, sig: "s" }) as NostrEvent;

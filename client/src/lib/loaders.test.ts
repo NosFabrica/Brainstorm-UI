@@ -49,7 +49,7 @@ const { eventStore } = await import("./eventStore");
 const { addressLoader, loadReplaceable } = await import("./loaders");
 const eventCache = await import("./eventCache");
 
-/** A kind-10002, which is what `eventCache` holds — kind 0 is profileCache's. */
+/** A routing event: the cache holds these under a short age, profiles under a long one. */
 function relayList(): NostrEvent {
   const secret = generateSecretKey();
   return finalizeEvent(
@@ -73,7 +73,7 @@ beforeEach(() => {
 
 afterEach(async () => {
   await eventCache.clearEventCache();
-  await eventCache.__resetEventCache();
+  eventCache.__resetEventCache();
 });
 
 describe("a profile the store already holds", () => {
@@ -185,7 +185,7 @@ describe("the loader observable", () => {
 describe("a routing event only the disk cache holds", () => {
   it("costs no relay request", async () => {
     const seen = relayList();
-    await eventCache.__writeForTest([seen]);
+    await eventCache.writeEvents([seen]);
 
     const found = await loadReplaceable(10002, seen.pubkey);
 
@@ -200,7 +200,7 @@ describe("a routing event only the disk cache holds", () => {
    */
   it("is skipped when the caller asked for the relays", async () => {
     const seen = relayList();
-    await eventCache.__writeForTest([seen]);
+    await eventCache.writeEvents([seen]);
     relayHas.set(seen.pubkey, seen);
 
     await loadReplaceable(10002, seen.pubkey, { fromRelays: true });
@@ -211,7 +211,7 @@ describe("a routing event only the disk cache holds", () => {
   it("goes to the relays for an author the cache does not have", async () => {
     const cached = relayList();
     const wanted = profile("wanted");
-    await eventCache.__writeForTest([cached]);
+    await eventCache.writeEvents([cached]);
     relayHas.set(wanted.pubkey, wanted);
 
     const found = await loadReplaceable(0, wanted.pubkey);
@@ -223,7 +223,7 @@ describe("a routing event only the disk cache holds", () => {
   /** Tampering with IndexedDB must not put a forged event in the store. */
   it("refuses a cached event whose signature does not check out", async () => {
     const forged = { ...relayList(), sig: "0".repeat(128) } as NostrEvent;
-    await eventCache.__writeForTest([forged]);
+    await eventCache.writeEvents([forged]);
 
     const found = await loadReplaceable(10002, forged.pubkey, { timeoutMs: 200 });
 

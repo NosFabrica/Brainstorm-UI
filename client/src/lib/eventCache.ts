@@ -1,230 +1,225 @@
 /**
- * A durable cache for the events the app's ROUTING is made of, so a reload does
- * not rebuild the routing table from relays.
+ * The events this device keeps between visits, in one place.
  *
- * Sibling to `lib/profileCache`, which does the same for kind 0 under its own
- * freshness rules (docs/adr/0002). This one holds what decides where reads and
- * publishes GO; that one holds what they are displayed as.
+ * Two things live here because they are the same mechanism with different
+ * settings, not two ideas:
  *
- * Without this, every page load starts from an empty `eventStore`: the NIP-65
- * relay list has to be fetched before anything can be routed, the contact list
- * after that, and the profile after that — two dependent relay round trips
- * before the app knows who you follow, each behind the loader's buffer.
+ * - **Profiles (kind 0).** Names and avatars, so a reload does not ask the
+ *   relay for sixty kind-0s it already had. Two ages: a young copy answers on
+ *   its own, an older one is still shown while the relay is asked as well, and
+ *   past a week it is not shown at all.
+ * - **Routing (kinds 3, 10002, 10040).** Where reads and publishes GO. Without
+ *   these the app rebuilds its routing table from relays on every load — the
+ *   NIP-65 list, then the contact list, then everything routed by them.
  *
- * Only replaceable kinds, and only a short list of them. This is not a general
- * event cache: notes and articles are large, unbounded, and nothing blocks on
- * them. These five are small, exactly one per coordinate, and every one of them
- * sits on the critical path.
+ * What may NOT be kept: kind 30078. It is per-account data encrypted to self
+ * and scoped by an `authors` filter alone, so persisting it would carry one
+ * account's ciphertext across a switch into shared browser storage. Anything
+ * else new is unbounded, or nothing waits on it.
  *
- * Two layers, because they answer different questions:
- *
- * - **Hydration** puts the ACTIVE account's own events into the store before
- *   the first query. `loadReplaceable` checks the store synchronously and
- *   returns on a hit, so a hydrated event costs no network AND skips the
- *   loader's buffer entirely. This is what removes the round trips.
- * - **The IndexedDB store** holds everyone else's too, written in batches as
- *   they arrive. Nothing reads those back yet — that is the `cacheRequest` step
- *   — but the data is there and bounded.
+ * The copy is advisory, never authoritative: these are replaceable kinds, so a
+ * newer `created_at` always wins, and everything the app learns is written back
+ * (`startEventCacheSync`) so a held copy cannot sit here uncorrected.
  */
 import { verifyEvent } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
-import { persistEventsToCache } from "applesauce-core/helpers/event-cache";
 
+import { openDb as openIdb, transact } from "./idb";
 import { eventStore } from "./eventStore";
 import { loadKnownFollowList } from "./followStore";
 
-/**
- * Kind 3 (contacts), 10002 (relay list), 10040 (trust provider) — the events
- * that decide WHERE everything else is read from and published to.
- *
- * Two deliberate absences. Kind 0 belongs to `lib/profileCache`, which holds
- * names and avatars under a two-age policy of its own; a second copy here would
- * be the same data under a worse rule. Kind 30078 is per-account data encrypted
- * to self and scoped by an `authors` filter alone, so persisting it would carry
- * one account's ciphertext across a switch into shared browser storage — the
- * line docs/adr/0002 draws, and the same line applies here.
- */
-export const CACHED_KINDS = [3, 10002, 10040];
-const CACHED = new Set(CACHED_KINDS);
-
 const DB_NAME = "brainstorm-events";
-const DB_VERSION = 1;
 const STORE = "events";
 
+/** Kind 0's own database, before profiles and routing shared one. */
+const LEGACY_PROFILE_DB = "brainstorm-profiles";
+
+/** How long a held profile answers without the relay being asked as well. */
+export const PROFILE_FRESH_MS = 60 * 60 * 1000;
+/** How long it answers at all. */
+export const PROFILE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
 /**
- * Roughly a few hundred KB of JSON. Big enough for a heavy browsing session's
- * profiles, small enough that eviction never has real work to do.
+ * Routing gets one age, not two. A stale name is worth showing while the relay
+ * is asked; a stale relay list is not worth routing by, so it simply expires.
  */
-const MAX_CACHED_EVENTS = 500;
+const ROUTING_TTL_MS = 30 * 60 * 1000;
 
-/** How often a write batch is flushed. The library default; restated for clarity. */
-const WRITE_BATCH_MS = 5_000;
+/** How long writes are gathered before they go to the device. */
+const WRITE_BATCH_MS = 2000;
 
-interface CachedRow {
+/** Bounded, so it cannot grow until the browser evicts the lot. */
+export const MAX_CACHED = 2000;
+
+/** Kinds worth a disk read. Everything else is unbounded or nobody waits on it. */
+export const CACHED_KINDS = [0, 3, 10002, 10040];
+const CACHED = new Set(CACHED_KINDS);
+
+/** NIP-65, restated so this module needs no import from the routing one. */
+const RELAY_LIST_KIND = 10002;
+
+const ageLimit = (kind: number) => (kind === 0 ? PROFILE_TTL_MS : ROUTING_TTL_MS);
+const freshLimit = (kind: number) => (kind === 0 ? PROFILE_FRESH_MS : ROUTING_TTL_MS);
+
+export interface CachedRow {
   /** `kind:pubkey:d` — one row per replaceable coordinate. */
   addr: string;
   pubkey: string;
+  kind: number;
   event: NostrEvent;
-  /** For LRU eviction. Not the event's own timestamp. */
-  cachedAt: number;
+  /** When this copy was last learned — the eviction order and the age. */
+  at: number;
 }
 
-const coordinate = (event: NostrEvent): string => {
+export function coordinate(event: NostrEvent): string {
   const d = event.tags.find((tag) => tag[0] === "d")?.[1] ?? "";
   return `${event.kind}:${event.pubkey}:${d}`;
-};
-
-/**
- * `null` whenever IndexedDB cannot be used — private browsing, a blocked
- * origin, a test environment. Every caller treats that as "no cache", never as
- * an error: the app worked without this and must keep working without it.
- */
-let dbPromise: Promise<IDBDatabase | null> | null = null;
-
-function open(version?: number): Promise<IDBDatabase | null> {
-  return new Promise((resolve) => {
-    try {
-      if (typeof indexedDB === "undefined") return resolve(null);
-      const request = version === undefined
-        ? indexedDB.open(DB_NAME, DB_VERSION)
-        : indexedDB.open(DB_NAME, version);
-      request.onupgradeneeded = () => {
-        const db = request.result;
-        if (!db.objectStoreNames.contains(STORE)) {
-          const store = db.createObjectStore(STORE, { keyPath: "addr" });
-          store.createIndex("pubkey", "pubkey");
-          store.createIndex("cachedAt", "cachedAt");
-        }
-      };
-      request.onsuccess = () => resolve(request.result);
-      request.onerror = () => resolve(null);
-      request.onblocked = () => resolve(null);
-    } catch {
-      resolve(null);
-    }
-  });
 }
 
-function openDb(): Promise<IDBDatabase | null> {
-  if (dbPromise) return dbPromise;
-  dbPromise = open().then(async (db) => {
-    if (!db || db.objectStoreNames.contains(STORE)) return db;
-    // The database exists at our version but has no object store — which any
-    // other code that opened `brainstorm-events` WITHOUT a version would have
-    // created. `onupgradeneeded` will never fire again at that version, so every
-    // transaction would throw, be swallowed, and the cache would be silently and
-    // permanently dead. Stepping the version forces the upgrade that builds it.
-    const version = db.version + 1;
-    db.close();
-    return open(version);
-  });
-  return dbPromise;
+/** What this module needs of the device's storage. */
+export interface CacheStore {
+  get: (addrs: string[]) => Promise<CachedRow[]>;
+  byAuthors: (pubkeys: string[]) => Promise<CachedRow[]>;
+  put: (rows: CachedRow[]) => Promise<void>;
+  count: () => Promise<number>;
+  oldest: (n: number) => Promise<string[]>;
+  remove: (addrs: string[]) => Promise<void>;
+  clear: () => Promise<void>;
 }
 
-function promisify<T>(request: IDBRequest<T>): Promise<T | null> {
-  return new Promise((resolve) => {
-    request.onsuccess = () => resolve(request.result);
-    request.onerror = () => resolve(null);
-  });
-}
+let store: CacheStore | null | undefined;
 
-/** Everything cached for one author. */
-async function rowsFor(pubkey: string): Promise<CachedRow[]> {
-  const db = await openDb();
-  if (!db) return [];
-  try {
-    const index = db.transaction(STORE, "readonly").objectStore(STORE).index("pubkey");
-    const rows = await promisify<CachedRow[]>(index.getAll(pubkey) as IDBRequest<CachedRow[]>);
-    return rows ?? [];
-  } catch {
-    return [];
-  }
+function build(db: IDBDatabase): void {
+  if (db.objectStoreNames.contains(STORE)) return;
+  const created = db.createObjectStore(STORE, { keyPath: "addr" });
+  created.createIndex("at", "at");
+  created.createIndex("pubkey", "pubkey");
 }
 
 /**
- * Everything cached for a set of authors, in ONE transaction.
+ * The database, with its store guaranteed.
  *
- * A read per author would be up to `bufferSize` (200) serialized IndexedDB
- * round trips in front of the step that exists to avoid a network round trip.
- * The whole store is `MAX_CACHED_EVENTS` rows, so reading it once and grouping
- * in memory is cheaper than querying the index repeatedly.
+ * Opened WITHOUT a version on purpose. Two things can leave the store missing:
+ * a first run (nothing exists yet) and anything that opened
+ * `brainstorm-events` versionless before we did, which creates it at version 1
+ * with no object store — and `onupgradeneeded` never fires again at that
+ * version, so every transaction would throw, be swallowed by the guards that
+ * make a missing cache survivable, and the cache would be silently dead.
+ *
+ * A versionless open adopts whatever is there, so the repair below can step
+ * PAST it. Naming a fixed version here instead would work exactly once: the
+ * repair moves the database to 2, and every later open at 1 then fails with a
+ * VersionError — the cache dead for good rather than for a session.
  */
-async function rowsForAuthors(pubkeys: Set<string>): Promise<Map<string, CachedRow[]>> {
-  const grouped = new Map<string, CachedRow[]>();
-  if (!pubkeys.size) return grouped;
-  const db = await openDb();
-  if (!db) return grouped;
-  try {
-    const store = db.transaction(STORE, "readonly").objectStore(STORE);
-    const rows = await promisify<CachedRow[]>(store.getAll() as IDBRequest<CachedRow[]>);
-    for (const row of rows ?? []) {
-      if (!row || !pubkeys.has(row.pubkey)) continue;
-      const bucket = grouped.get(row.pubkey);
-      if (bucket) bucket.push(row);
-      else grouped.set(row.pubkey, [row]);
-    }
-  } catch {
-    /* an unreadable cache is a miss, never an error */
-  }
-  return grouped;
+async function open(): Promise<IDBDatabase> {
+  const db = await openIdb(DB_NAME, undefined, build);
+  if (db.objectStoreNames.contains(STORE)) return db;
+  const version = db.version + 1;
+  db.close();
+  return openIdb(DB_NAME, version, build);
 }
 
-async function writeEvents(events: NostrEvent[]): Promise<void> {
-  const worth = events.filter((event) => CACHED.has(event.kind));
-  if (!worth.length) return;
-  const db = await openDb();
-  if (!db) return;
-  try {
-    const tx = db.transaction(STORE, "readwrite");
-    const store = tx.objectStore(STORE);
-    const cachedAt = Date.now();
-    for (const event of worth) {
-      store.put({ addr: coordinate(event), pubkey: event.pubkey, event, cachedAt } satisfies CachedRow);
+function indexedDbStore(): CacheStore | null {
+  if (typeof indexedDB === "undefined") return null;
+  const run = async <T>(
+    mode: IDBTransactionMode,
+    work: (s: IDBObjectStore, keep: (value: T) => void) => void,
+  ): Promise<T | undefined> => {
+    const db = await open();
+    try {
+      return await transact<T>(db, STORE, mode, work);
+    } finally {
+      db.close();
     }
-    await new Promise<void>((resolve) => {
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => resolve();
-      tx.onabort = () => resolve();
-    });
-  } catch {
-    /* a cache write is never worth failing a read over */
-  }
-  await evict();
+  };
+
+  return {
+    get: async (addrs) =>
+      (await run<CachedRow[]>("readonly", (s, keep) => {
+        const found: CachedRow[] = [];
+        keep(found);
+        for (const addr of addrs) {
+          const req = s.get(addr);
+          req.onsuccess = () => req.result && found.push(req.result as CachedRow);
+        }
+      })) ?? [],
+
+    // One transaction for the whole set: a read per author would be up to the
+    // loader's buffer size (200) of them, serialized, in front of the step that
+    // exists to avoid a network round trip.
+    byAuthors: async (pubkeys) => {
+      const wanted = new Set(pubkeys);
+      return (
+        (await run<CachedRow[]>("readonly", (s, keep) => {
+          const found: CachedRow[] = [];
+          keep(found);
+          const req = s.getAll();
+          req.onsuccess = () => {
+            for (const row of (req.result ?? []) as CachedRow[]) {
+              if (row && wanted.has(row.pubkey)) found.push(row);
+            }
+          };
+        })) ?? []
+      );
+    },
+
+    put: async (rows) => {
+      await run("readwrite", (s) => rows.forEach((row) => s.put(row)));
+    },
+
+    count: async () => (await run<number>("readonly", (s, keep) => {
+      const req = s.count();
+      req.onsuccess = () => keep(req.result);
+    })) ?? 0,
+
+    oldest: async (n) =>
+      (await run<string[]>("readonly", (s, keep) => {
+        const keys: string[] = [];
+        keep(keys);
+        const cursor = s.index("at").openKeyCursor();
+        cursor.onsuccess = () => {
+          const c = cursor.result;
+          if (!c || keys.length >= n) return;
+          keys.push(String(c.primaryKey));
+          c.continue();
+        };
+      })) ?? [],
+
+    remove: async (addrs) => {
+      await run("readwrite", (s) => addrs.forEach((addr) => s.delete(addr)));
+    },
+
+    clear: async () => {
+      await run("readwrite", (s) => s.clear());
+    },
+  };
 }
 
-/** Oldest-written rows go first, once the cache is over its cap. */
-async function evict(): Promise<void> {
-  const db = await openDb();
-  if (!db) return;
-  try {
-    const tx = db.transaction(STORE, "readwrite");
-    const store = tx.objectStore(STORE);
-    const count = await promisify(store.count());
-    if (count === null || count <= MAX_CACHED_EVENTS) return;
-    let over = count - MAX_CACHED_EVENTS;
-    const cursorRequest = store.index("cachedAt").openCursor();
-    await new Promise<void>((resolve) => {
-      cursorRequest.onsuccess = () => {
-        const cursor = cursorRequest.result;
-        if (!cursor || over <= 0) return resolve();
-        cursor.delete();
-        over -= 1;
-        cursor.continue();
-      };
-      cursorRequest.onerror = () => resolve();
-    });
-  } catch {
-    /* over the cap is survivable; a thrown eviction is not */
+function device(): CacheStore | null {
+  if (store === undefined) {
+    try {
+      store = indexedDbStore();
+    } catch {
+      store = null;
+    }
   }
+  return store;
 }
 
 /**
- * A cached event is only as trustworthy as the disk it came from, and IndexedDB
- * is writable by anything that can run script on this origin. A forged kind-10002
- * would steer where we PUBLISH, so nothing is hydrated unsigned.
+ * A cached event is only as trustworthy as the disk it came from, and
+ * IndexedDB is writable by anything that can run script on this origin.
+ *
+ * The ROUTING kinds are verified, because a forged kind-10002 steers where we
+ * PUBLISH. Kind 0 is not: it is display only, thousands of them would be
+ * thousands of signature checks on the read path, and the one place a profile
+ * field is acted on — `getVerifiedProfileLud16`, before paying — verifies the
+ * event itself.
  */
-function verified(event: NostrEvent | undefined | null, pubkey: string): event is NostrEvent {
-  if (!event || event.pubkey !== pubkey || !CACHED.has(event.kind)) return false;
+function trustworthy(row: CachedRow | undefined): row is CachedRow {
+  const event = row?.event;
+  if (!event || !CACHED.has(event.kind) || event.pubkey !== row.pubkey) return false;
+  if (event.kind === 0) return true;
   try {
     return verifyEvent(event);
   } catch {
@@ -232,43 +227,129 @@ function verified(event: NostrEvent | undefined | null, pubkey: string): event i
   }
 }
 
+/** The rows held for these coordinates, with their age — expired ones left out. */
+async function liveRows(addrs: string[]): Promise<CachedRow[]> {
+  const s = device();
+  if (!s || addrs.length === 0) return [];
+  try {
+    const now = Date.now();
+    return (await s.get(addrs)).filter((row) => trustworthy(row) && row.at >= now - ageLimit(row.kind));
+  } catch {
+    return []; // the device has nothing to say — ask the relay
+  }
+}
+
+/** The profiles held for these pubkeys, with their age — expired ones left out. */
+export async function readProfileRows(pubkeys: string[]): Promise<Map<string, CachedRow>> {
+  const held = new Map<string, CachedRow>();
+  for (const row of await liveRows(pubkeys.map((pk) => `0:${pk}:`))) held.set(row.pubkey, row);
+  return held;
+}
+
+/**
+ * Held events young enough to answer ON THEIR OWN, for applesauce's
+ * `cacheRequest`: that hook REMOVES the pointers it answers from the loading
+ * sequence, so an older copy must fall through to the relays instead.
+ */
+export async function cachedEventsForFilters(
+  filters: { kinds?: number[]; authors?: string[]; "#d"?: string[] }[],
+): Promise<NostrEvent[]> {
+  const s = device();
+  const wanted = new Set(filters.flatMap((f) => f.authors ?? []));
+  if (!s || wanted.size === 0) return [];
+
+  let rows: CachedRow[];
+  try {
+    rows = await s.byAuthors([...wanted]);
+  } catch {
+    return [];
+  }
+
+  const now = Date.now();
+  const byAuthor = new Map<string, CachedRow[]>();
+  for (const row of rows) {
+    const bucket = byAuthor.get(row.pubkey);
+    if (bucket) bucket.push(row);
+    else byAuthor.set(row.pubkey, [row]);
+  }
+
+  const out = new Map<string, NostrEvent>();
+  for (const filter of filters) {
+    for (const pubkey of filter.authors ?? []) {
+      for (const row of byAuthor.get(pubkey) ?? []) {
+        if (row.at < now - freshLimit(row.kind)) continue;
+        if (filter.kinds && !filter.kinds.includes(row.kind)) continue;
+        if (filter["#d"]) {
+          const d = row.event.tags.find((tag) => tag[0] === "d")?.[1] ?? "";
+          if (!filter["#d"].includes(d)) continue;
+        }
+        if (!trustworthy(row)) continue;
+        out.set(row.event.id, row.event);
+      }
+    }
+  }
+  return [...out.values()];
+}
+
+/** Hold these events for next time, newest copy winning, oldest evicted. */
+export async function writeEvents(events: NostrEvent[]): Promise<void> {
+  const s = device();
+  const worth = events.filter((e) => CACHED.has(e.kind));
+  if (!s || worth.length === 0) return;
+  try {
+    const addrs = worth.map(coordinate);
+    const held = await s.get(addrs);
+    const newest = new Map(held.map((row) => [row.addr, row.event.created_at]));
+    const at = Date.now();
+    const rows = worth
+      .filter((event) => event.created_at >= (newest.get(coordinate(event)) ?? 0))
+      .map((event) => ({ addr: coordinate(event), pubkey: event.pubkey, kind: event.kind, event, at }));
+    if (rows.length === 0) return;
+    await s.put(rows);
+    const over = (await s.count()) - MAX_CACHED;
+    if (over > 0) await s.remove(await s.oldest(over));
+  } catch {
+    /* no room, no storage, no matter */
+  }
+}
+
 let hydration: Promise<number> | null = null;
 let hydratingFor: string | null = null;
+
+/** Long enough for a disk read, short enough that nobody stares at a spinner. */
+const HYDRATION_DEADLINE_MS = 1500;
 
 /**
  * Resolves once hydration has finished, or immediately when none was started.
  *
- * The read paths await this before consulting the store, because hydration is
- * asynchronous (IndexedDB is) and a query that fires first would miss a cache
- * that is about to be there and go to the relays for nothing.
+ * The routed reads await this, because hydration is asynchronous and a query
+ * that fires first would miss a relay list that is about to be in the store and
+ * go to the relays for nothing. Bounded: a storage layer that never answers
+ * must not hang the app instead of falling back to the relays.
  */
 export function whenHydrated(): Promise<void> {
   if (!hydration) return Promise.resolve();
-  // Bounded. Every routed read waits on this, and a storage layer that never
-  // answers — a blocked `indexedDB.open`, a wedged private-mode shim — would
-  // otherwise hang the app rather than fall back to the relays.
   return Promise.race([
     hydration.then(() => undefined),
     new Promise<void>((resolve) => setTimeout(resolve, HYDRATION_DEADLINE_MS)),
   ]);
 }
 
-/** Long enough for a disk read, short enough that nobody stares at a spinner. */
-const HYDRATION_DEADLINE_MS = 1500;
-
 /**
- * Put the active account's own events into the store, then refresh them.
+ * Put the active account's own ROUTING events into the store, then refresh them.
  *
- * Stale-while-revalidate, and the revalidate half is not optional: the address
- * loader's sequence STOPS at its first hit, and `loadReplaceable` returns a
- * held event without asking anyone. Hydrating without refreshing would pin a
- * user to whatever relay list they had when the cache was written, forever.
+ * `loadReplaceable` checks the store synchronously and returns on a hit, so a
+ * hydrated event costs no network AND skips the loader's buffer — which is what
+ * removes the round trips a cold start otherwise pays before it can route.
+ *
+ * Profiles are not hydrated: they reach the store through `cacheRequest` on
+ * demand, and hydrating every one of them would be a signature check and a
+ * store insert for people this visit may never mention.
  */
 export function hydrateEventStore(pubkey: string | null | undefined): Promise<number> {
   if (!pubkey) return Promise.resolve(0);
-  // Keyed by WHO, not just "has run". Switching accounts has to hydrate the
-  // account switched to; a bare guard would hand back the previous one's
-  // promise and leave the new account cold.
+  // Keyed by WHO, not just "has run": switching accounts has to hydrate the
+  // account switched to, and a bare guard would hand back the previous one's.
   if (hydration && hydratingFor === pubkey) return hydration;
   hydratingFor = pubkey;
   hydration = hydrate(pubkey);
@@ -281,11 +362,12 @@ async function hydrate(pubkey: string): Promise<number> {
   // The contact-list snapshot predates this cache and every existing user
   // already has one — a kind-3 in the store on the first render, for free.
   const snapshot = loadKnownFollowList(pubkey)?.event as NostrEvent | undefined;
-  if (verified(snapshot, pubkey)) held.push(snapshot);
-
-  for (const row of await rowsFor(pubkey)) {
-    if (verified(row?.event, pubkey)) held.push(row.event);
+  if (snapshot && trustworthy({ addr: "", pubkey, kind: snapshot.kind, event: snapshot, at: 0 })) {
+    held.push(snapshot);
   }
+
+  const routing = CACHED_KINDS.filter((kind) => kind !== 0).map((kind) => `${kind}:${pubkey}:`);
+  for (const row of await liveRows(routing)) held.push(row.event);
 
   let added = 0;
   for (const event of held) {
@@ -306,9 +388,10 @@ async function hydrate(pubkey: string): Promise<number> {
 /**
  * Re-ask the relays for everything we hydrated, and let the store settle it.
  *
- * `fromRelays` is what makes this a refresh rather than a second cache read —
- * it skips the store check that hydration just guaranteed would hit. Results go
- * through the loader, which inserts them, so a newer copy simply wins.
+ * Not optional: the address loader's sequence STOPS at its first hit and
+ * `loadReplaceable` returns a held event without asking anyone, so hydrating
+ * without refreshing would pin a user to the relay list they had when the cache
+ * was written, forever.
  */
 async function revalidate(events: NostrEvent[]): Promise<void> {
   // Imported here, not at the top: `lib/loaders` and `lib/relayRouting` both
@@ -317,11 +400,9 @@ async function revalidate(events: NostrEvent[]): Promise<void> {
   const { loadReplaceable } = await import("./loaders");
   const { parseRelayList } = await import("./relayRouting");
 
-  // ROUTED, not left to the lookup relays. A pointer with no relays of its own
-  // reaches `lookupRelays` and nothing else, so a kind-30078 or kind-10040 that
-  // lives only on the user's own relays would be "refreshed" against a set that
-  // never had it — and `loadReplaceable`'s store-first hit would then serve the
-  // stale disk copy for the rest of the session.
+  // ROUTED, not left to the lookup relays: a kind-10040 that lives only on the
+  // user's own relays would otherwise be "refreshed" against a set that never
+  // had it, and the stale disk copy would serve for the rest of the session.
   const cachedList = events.find((event) => event.kind === RELAY_LIST_KIND);
   const write = cachedList ? parseRelayList(cachedList).write : [];
   const relays = write.length ? write : undefined;
@@ -339,102 +420,67 @@ async function revalidate(events: NostrEvent[]): Promise<void> {
   );
 }
 
-/** NIP-65, restated here so this module needs no import from the routing one. */
-const RELAY_LIST_KIND = 10002;
-
-/**
- * How long a cached event may answer for somebody else before we ask the relays
- * again.
- *
- * The loading sequence STOPS at its first hit, so a cache with no expiry is a
- * cache that pins every author's relay list and profile to whatever they were
- * when we last saw them. The active account gets an explicit refresh instead
- * (`revalidate` above); everyone else gets this.
- */
-const SERVE_TTL_MS = 30 * 60_000;
-
-/** Ids already checked this session — an event is served once, then it is in the store. */
-const knownGood = new Set<string>();
-
-/**
- * Answer the address loader from disk, for authors other than the active one.
- *
- * Wired as `cacheRequest`, which the loader consults BEFORE any relay and which
- * short-circuits the rest of the sequence on a hit. That is the whole point —
- * a profile or relay list seen recently costs no round trip — and it is also
- * why the TTL above exists and why nothing unverified is returned.
- */
-export async function cachedEventsForFilters(
-  filters: { kinds?: number[]; authors?: string[]; "#d"?: string[] }[],
-): Promise<NostrEvent[]> {
-  const fresh = Date.now() - SERVE_TTL_MS;
-  const out = new Map<string, NostrEvent>();
-
-  const wanted = new Set<string>();
-  for (const filter of filters) for (const pubkey of filter.authors ?? []) wanted.add(pubkey);
-  const byAuthor = await rowsForAuthors(wanted);
-
-  for (const filter of filters) {
-    const authors = filter.authors ?? [];
-    const kinds = filter.kinds;
-    const identifiers = filter["#d"];
-    for (const pubkey of authors) {
-      for (const row of byAuthor.get(pubkey) ?? []) {
-        if (!row || row.cachedAt < fresh) continue;
-        const event = row.event;
-        if (kinds && !kinds.includes(event.kind)) continue;
-        if (identifiers) {
-          const d = event.tags.find((tag) => tag[0] === "d")?.[1] ?? "";
-          if (!identifiers.includes(d)) continue;
-        }
-        if (!knownGood.has(event.id)) {
-          if (!verified(event, pubkey)) continue;
-          knownGood.add(event.id);
-        }
-        out.set(event.id, event);
-      }
-    }
-  }
-
-  return Array.from(out.values());
-}
-
 let stopWriting: (() => void) | null = null;
 
-/** Start batching new events out to disk. Idempotent. */
-export function startEventCache(): void {
-  if (stopWriting) return;
-  stopWriting = persistEventsToCache(eventStore, async (events) => writeEvents(events), {
-    batchTime: WRITE_BATCH_MS,
+/**
+ * Keep the device's copy level with whatever the app learns: a profile from a
+ * search, a relay list from a loader, the User's own edit — all arrive in the
+ * store, so that is where this listens. Without it a held copy would answer for
+ * its whole life while a newer one sat in memory beside it.
+ */
+export function startEventCacheSync(): () => void {
+  if (stopWriting) return stopWriting;
+  const pending = new Map<string, NostrEvent>();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const flush = () => {
+    timer = undefined;
+    const batch = [...pending.values()];
+    pending.clear();
+    void writeEvents(batch);
+  };
+  const sub = eventStore.insert$.subscribe((event: NostrEvent) => {
+    if (!CACHED.has(event.kind)) return;
+    const addr = coordinate(event);
+    const waiting = pending.get(addr);
+    if (waiting && waiting.created_at >= event.created_at) return;
+    pending.set(addr, event);
+    // Batched: a page of results inserts a hundred of these in a burst.
+    timer ??= setTimeout(flush, WRITE_BATCH_MS);
   });
+  stopWriting = () => {
+    sub.unsubscribe();
+    if (timer) clearTimeout(timer);
+    pending.clear();
+    stopWriting = null;
+  };
+  return stopWriting;
 }
 
 /**
  * Drop everything. Called on sign-out: which profiles a person looked at is a
- * browsing trail, and leaving it on a shared device outlives the session it
- * belonged to.
+ * browsing trail, and it should not outlive the session on a shared device.
  */
 export async function clearEventCache(): Promise<void> {
-  // The writer first. `persistEventsToCache` batches for five seconds, so
-  // clearing without stopping it lets the in-flight batch write the browsing
-  // trail straight back after sign-out wiped it.
+  // The writer first: it batches, so clearing without stopping it lets the
+  // in-flight batch write the trail straight back after sign-out wiped it.
   stopWriting?.();
-  stopWriting = null;
-  knownGood.clear();
   hydration = null;
   hydratingFor = null;
-  const db = await openDb();
-  if (!db) return;
+  const s = device();
+  if (!s) return;
   try {
-    const tx = db.transaction(STORE, "readwrite");
-    tx.objectStore(STORE).clear();
-    await new Promise<void>((resolve) => {
-      tx.oncomplete = () => resolve();
-      tx.onerror = () => resolve();
-      tx.onabort = () => resolve();
-    });
+    await s.clear();
   } catch {
     /* nothing to do */
+  }
+}
+
+/** Profiles and routing shared a database from here on; the old one is dead. */
+export function dropLegacyProfileDb(): void {
+  try {
+    if (typeof indexedDB !== "undefined") indexedDB.deleteDatabase(LEGACY_PROFILE_DB);
+  } catch {
+    /* it will simply sit there */
   }
 }
 
@@ -443,21 +489,15 @@ export function __isWriting(): boolean {
   return stopWriting !== null;
 }
 
-/** Test seam — exercises the write path without waiting on a 5s batch. */
-export function __writeForTest(events: NostrEvent[]): Promise<void> {
-  return writeEvents(events);
+/** Test seam: the device's store, or null for a device without one. */
+export function __useCacheStore(fake: CacheStore | null | undefined): void {
+  store = fake;
 }
 
-/** Test seam. Closes the connection, which a `deleteDatabase` would block on. */
-export async function __resetEventCache(): Promise<void> {
+/** Test seam. */
+export function __resetEventCache(): void {
   hydration = null;
   hydratingFor = null;
-  knownGood.clear();
   stopWriting?.();
   stopWriting = null;
-  const closing = dbPromise;
-  dbPromise = null;
-  // Awaited: a connection still open when `deleteDatabase` runs blocks it
-  // forever, and the next test then opens a database that was never dropped.
-  await closing?.then((db) => db?.close()).catch(() => undefined);
 }

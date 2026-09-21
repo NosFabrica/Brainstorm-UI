@@ -10,13 +10,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
 import type { NostrEvent } from "nostr-tools";
 import "fake-indexeddb/auto";
+import { IDBFactory } from "fake-indexeddb";
 
 const storeAdd = vi.fn((event: NostrEvent) => event);
 const loadReplaceableMock = vi.fn(async (..._a: unknown[]) => undefined);
 const snapshot: { event?: unknown } = {};
 
 vi.mock("./eventStore", () => ({
-  eventStore: { add: (e: NostrEvent) => storeAdd(e), insert$: { pipe: () => ({ subscribe: () => ({ unsubscribe() {} }) }) } },
+  eventStore: {
+    add: (e: NostrEvent) => storeAdd(e),
+    insert$: { subscribe: () => ({ unsubscribe() {} }) },
+  },
 }));
 vi.mock("./loaders", () => ({
   loadReplaceable: (...a: unknown[]) => loadReplaceableMock(...(a as [])),
@@ -30,30 +34,23 @@ const ME = getPublicKey(SECRET);
 const OTHER_SECRET = generateSecretKey();
 const OTHER = getPublicKey(OTHER_SECRET);
 
-const signed = (kind: number, tags: string[][] = [], secret = SECRET): NostrEvent =>
-  finalizeEvent({ kind, created_at: 1, tags, content: "" } as never, secret) as NostrEvent;
+const signed = (kind: number, tags: string[][] = [], secret = SECRET, created_at = 1): NostrEvent =>
+  finalizeEvent({ kind, created_at, tags, content: "" } as never, secret) as NostrEvent;
 
 let cache: typeof import("./eventCache");
-
-/** An open connection blocks `deleteDatabase` forever, so close it first. */
-const dropDb = () =>
-  new Promise<void>((resolve) => {
-    const request = indexedDB.deleteDatabase("brainstorm-events");
-    request.onsuccess = () => resolve();
-    request.onerror = () => resolve();
-    request.onblocked = () => resolve();
-  });
 
 beforeEach(async () => {
   vi.clearAllMocks();
   vi.resetModules();
   delete snapshot.event;
+  // A fresh device each time — no connection to close, no delete to be blocked.
+  indexedDB = new IDBFactory();
   cache = await import("./eventCache");
+  cache.__useCacheStore(undefined);
 });
 
-afterEach(async () => {
-  await cache.__resetEventCache();
-  await dropDb();
+afterEach(() => {
+  cache.__resetEventCache();
 });
 
 describe("hydrating the store at boot", () => {
@@ -117,16 +114,22 @@ describe("hydrating the store at boot", () => {
    * never had them, and the stale disk copy would serve for the whole session.
    */
   it("refreshes on the relays the cached list names, not the default set", async () => {
-    await cache.__writeForTest([
+    await cache.writeEvents([
       signed(10002, [["r", "wss://mine.example", "write"]]),
       signed(10040, [["30382:rank", "a".repeat(64), "wss://ta.example"]]),
     ]);
 
     await cache.hydrateEventStore(ME);
-    await vi.waitFor(() => expect(loadReplaceableMock).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() =>
+      expect(loadReplaceableMock.mock.calls.filter((c) => c[0] === 10040)).toHaveLength(1),
+    );
 
-    for (const call of loadReplaceableMock.mock.calls) {
-      expect(call[2]).toMatchObject({ relays: ["wss://mine.example/"] });
+    // Every refresh this hydration started names the cached list's write
+    // relays. Counted by kind rather than in total: a previous case's
+    // fire-and-forget revalidation can still be landing.
+    for (const kind of [10002, 10040]) {
+      const call = loadReplaceableMock.mock.calls.find((c) => c[0] === kind);
+      expect(call?.[2]).toMatchObject({ relays: ["wss://mine.example/"] });
     }
   });
 
@@ -167,32 +170,19 @@ describe("waiting on the cache", () => {
 });
 
 describe("what goes to disk", () => {
-  /** Closes its connection — a leaked one blocks the next `deleteDatabase`. */
-  const readAll = () =>
-    new Promise<unknown[]>((resolve) => {
-      const open = indexedDB.open("brainstorm-events");
-      open.onsuccess = () => {
-        const db = open.result;
-        const done = (rows: unknown[]) => {
-          db.close();
-          resolve(rows);
-        };
-        try {
-          const req = db.transaction("events", "readonly").objectStore("events").getAll();
-          req.onsuccess = () => done(req.result);
-          req.onerror = () => done([]);
-        } catch {
-          done([]);
-        }
-      };
-      open.onerror = () => resolve([]);
-    });
+  /** Every row on the device, whatever its kind. */
+  const readAll = async () => {
+    const events = await cache.cachedEventsForFilters([
+      { authors: [ME, ...Array.from({ length: 520 }, (_, i) => i.toString(16).padStart(64, "0"))] },
+    ]);
+    return events;
+  };
 
   it("survives a reload — a cached relay list hydrates on the next boot", async () => {
     const relayList = signed(10002, [["r", "wss://mine.example"]]);
-    await cache.__writeForTest([relayList]);
+    await cache.writeEvents([relayList]);
 
-    await cache.__resetEventCache(); // as a page unload would
+    cache.__resetEventCache(); // as a page unload would
     vi.resetModules();
     const fresh = await import("./eventCache");
     const added = await fresh.hydrateEventStore(ME);
@@ -203,30 +193,33 @@ describe("what goes to disk", () => {
   });
 
   it("keeps only the kinds worth a disk read", async () => {
-    // Kind 0 belongs to `profileCache`; kind 1 belongs nowhere on disk.
-    await cache.__writeForTest([signed(10002), signed(0), signed(1, [["t", "note"]])]);
+    // A profile and a relay list are both worth one; a note is not.
+    await cache.writeEvents([signed(10002), signed(0), signed(1, [["t", "note"]])]);
 
-    const rows = (await readAll()) as { event: NostrEvent }[];
-    expect(rows.map((r) => r.event.kind)).toEqual([10002]);
+    expect(new Set((await readAll()).map((e) => e.kind))).toEqual(new Set([0, 10002]));
   });
 
   it("one row per coordinate, not one per version", async () => {
-    await cache.__writeForTest([signed(10040), { ...signed(10040), created_at: 99 } as NostrEvent]);
+    // Both really signed: a mutated copy would be rejected as tampered, which
+    // would prove nothing about the keying.
+    await cache.writeEvents([signed(10040), signed(10040, [], SECRET, 99)]);
 
-    expect(await readAll()).toHaveLength(1);
+    const held = await readAll();
+    expect(held).toHaveLength(1);
+    expect(held[0].created_at).toBe(99);
   });
 
   /** Unbounded growth is the failure mode a cache nobody prunes always has. */
   it("stays under its cap", async () => {
     const one = signed(10040);
-    const many = Array.from({ length: 520 }, (_, i) => ({
+    const many = Array.from({ length: cache.MAX_CACHED + 20 }, (_, i) => ({
       ...one,
       pubkey: i.toString(16).padStart(64, "0"),
     })) as NostrEvent[];
 
-    await cache.__writeForTest(many);
+    await cache.writeEvents(many);
 
-    expect((await readAll()).length).toBeLessThanOrEqual(500);
+    expect((await readAll()).length).toBeLessThanOrEqual(cache.MAX_CACHED);
   });
 
   /**
@@ -235,7 +228,7 @@ describe("what goes to disk", () => {
    * sign-out has wiped it.
    */
   it("stops writing when the cache is cleared", async () => {
-    cache.startEventCache();
+    cache.startEventCacheSync();
 
     await cache.clearEventCache();
 
@@ -249,20 +242,20 @@ describe("what goes to disk", () => {
    * cache would be silently dead for the life of the browser profile.
    */
   it("repairs a database that exists without its object store", async () => {
-    await cache.__resetEventCache();
+    cache.__resetEventCache();
     await new Promise<void>((resolve) => {
       const request = indexedDB.open("brainstorm-events"); // versionless, no store
       request.onsuccess = () => { request.result.close(); resolve(); };
       request.onerror = () => resolve();
     });
 
-    await cache.__writeForTest([signed(10002)]);
+    await cache.writeEvents([signed(10002)]);
 
     expect(await readAll()).toHaveLength(1);
   });
 
   it("forgets everything on sign-out", async () => {
-    await cache.__writeForTest([signed(10002)]);
+    await cache.writeEvents([signed(10002)]);
 
     await cache.clearEventCache();
 
@@ -280,7 +273,7 @@ describe("answering the loader from disk", () => {
 
   it("serves an event it holds for the asked author and kind", async () => {
     const relayList = signed(10002, [["r", "wss://mine.example"]]);
-    await cache.__writeForTest([relayList]);
+    await cache.writeEvents([relayList]);
 
     const found = await ask({ kinds: [10002], authors: [ME] });
 
@@ -288,7 +281,7 @@ describe("answering the loader from disk", () => {
   });
 
   it("does not answer for a kind that was not asked for", async () => {
-    await cache.__writeForTest([signed(10002)]);
+    await cache.writeEvents([signed(10002)]);
 
     expect(await ask({ kinds: [0], authors: [ME] })).toEqual([]);
   });
@@ -299,14 +292,14 @@ describe("answering the loader from disk", () => {
    * a filter that ignored `#d` would hand back the wrong row.
    */
   it("matches the d tag when a filter carries one", async () => {
-    await cache.__writeForTest([signed(10040, [["d", "prefs"]])]);
+    await cache.writeEvents([signed(10040, [["d", "prefs"]])]);
 
     expect(await ask({ kinds: [10040], authors: [ME], "#d": ["other"] })).toEqual([]);
     expect(await ask({ kinds: [10040], authors: [ME], "#d": ["prefs"] })).toHaveLength(1);
   });
 
   it("does not answer for an author nobody asked about", async () => {
-    await cache.__writeForTest([signed(10002)]);
+    await cache.writeEvents([signed(10002)]);
 
     expect(await ask({ kinds: [10002], authors: [OTHER] })).toEqual([]);
   });
@@ -318,7 +311,7 @@ describe("answering the loader from disk", () => {
    * work on real ones, and faking those deadlocks every read.
    */
   it("stops answering once the entry is stale", async () => {
-    await cache.__writeForTest([signed(10002)]);
+    await cache.writeEvents([signed(10002)]);
     expect(await ask({ kinds: [10002], authors: [ME] })).toHaveLength(1);
 
     const later = Date.now() + 31 * 60_000;
@@ -331,7 +324,7 @@ describe("answering the loader from disk", () => {
   });
 
   it("refuses a tampered row rather than handing it to the loader", async () => {
-    await cache.__writeForTest([{ ...signed(10002), sig: "0".repeat(128) } as NostrEvent]);
+    await cache.writeEvents([{ ...signed(10002), sig: "0".repeat(128) } as NostrEvent]);
 
     expect(await ask({ kinds: [10002], authors: [ME] })).toEqual([]);
   });

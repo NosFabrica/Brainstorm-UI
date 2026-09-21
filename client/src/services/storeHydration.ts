@@ -11,13 +11,20 @@
  * runs and nothing else would warm the store at all.
  */
 import { accountManager } from "@/accounts";
-import { clearEventCache, hydrateEventStore, startEventCache } from "@/lib/eventCache";
+import {
+  clearEventCache,
+  dropLegacyProfileDb,
+  hydrateEventStore,
+  startEventCacheSync,
+} from "@/lib/eventCache";
 
 let hydratedFor: string | null = null;
 
 /** Hydrate for whoever is active now, and again whenever that changes. */
 export function startStoreHydration(): void {
-  startEventCache();
+  startEventCacheSync();
+  // Profiles and routing share one database now; the profile-only one is dead.
+  dropLegacyProfileDb();
   hydrateFor(accountManager.active?.pubkey ?? null);
 
   accountManager.active$.subscribe((account) => {
@@ -31,7 +38,7 @@ function hydrateFor(pubkey: string | null): void {
   if (!pubkey) return;
   // `clearEventCache` stops the writer on sign-out, so signing back in has to
   // start it again. Idempotent, so the boot call above costs nothing.
-  startEventCache();
+  startEventCacheSync();
   void hydrateEventStore(pubkey).catch(() => 0);
 }
 
