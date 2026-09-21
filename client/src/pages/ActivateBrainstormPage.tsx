@@ -11,6 +11,8 @@ import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useFinishSetup } from "@/hooks/useFinishSetup";
 import { useSelfHistory } from "@/hooks/useSelf";
 import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
+import { useTrustListsStatus } from "@/hooks/useTrustListsStatus";
+import { ListsUpdateLine } from "@/components/ListsUpdate";
 
 /**
  * /setup/activate — the checklist's "Activate your Brainstorm account" step as
@@ -29,7 +31,7 @@ const SHOWCASE_CLIENTS = SUPPORTED_CLIENTS.filter((c) => c.name === "Nostria" ||
 export default function ActivateBrainstormPage() {
   const [, navigate] = useLocation();
   const user = useActiveAccountDisplay();
-  const { followDone, activateDone } = useFinishSetup();
+  const { followDone, activateDone, listsPending } = useFinishSetup();
 
   const historyQuery = useSelfHistory(user?.pubkey);
   const taPubkey = (historyQuery.data as { data?: { ta_pubkey?: string | null } } | undefined)?.data
@@ -37,6 +39,10 @@ export default function ActivateBrainstormPage() {
   // Warn before a silent overwrite: a kind-10040 naming a different provider
   // already exists, and continuing replaces it (same bar as the modal).
   const hasOtherProvider = useTrustProviderStatus(user?.pubkey, taPubkey).data === "other";
+  // A first activation names their Trusted Lists too, when they have some —
+  // one signature rather than an update later.
+  const lists = useTrustListsStatus(user?.pubkey, taPubkey).data;
+  const listsToName = lists?.status === "missing" ? lists.designation : null;
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState("");
@@ -48,7 +54,7 @@ export default function ActivateBrainstormPage() {
   const handleActivate = async () => {
     if (phase !== "idle" || !user.pubkey || !taPubkey) return;
     setError("");
-    const result = await publishBrainstormTrustAnchor(user.pubkey, taPubkey, setPhase);
+    const result = await publishBrainstormTrustAnchor(user.pubkey, taPubkey, setPhase, { lists: listsToName });
     setPhase("idle");
     if (result.status === "success") {
       setJustActivated(true);
@@ -82,6 +88,12 @@ export default function ActivateBrainstormPage() {
                 Your Treasure Map is published — apps like Nostria and Ditto can now find your trust
                 scores.
               </p>
+              {/* Already activated, new lists waiting: an update, never a redo. */}
+              {listsPending && (
+                <div className="mx-auto mt-4 max-w-md text-left">
+                  <ListsUpdateLine />
+                </div>
+              )}
               <div className="mt-6 flex flex-wrap justify-center gap-2.5">
                 <button
                   type="button"

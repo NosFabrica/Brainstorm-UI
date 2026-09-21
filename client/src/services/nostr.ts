@@ -1,11 +1,12 @@
 import { nip19, finalizeEvent, generateSecretKey, verifyEvent } from "nostr-tools";
 import { env } from "@/lib/runtimeEnv";
-import { declaresTrustProvider } from "@/lib/nip85Declaration";
+import { declaresTrustProvider, listRows, mergeDesignation, type ListDesignation } from "@/lib/nip85Declaration";
 import { pool } from "@/lib/relayPool";
 import { eventStore } from "@/lib/eventStore";
 import { searchRelay } from "@/lib/searchRelay";
-import { CONTENT_RELAYS, PROFILE_RELAYS } from "@/lib/relays";
+import { CONTENT_RELAYS, PROFILE_RELAYS, uniqueRelays } from "@/lib/relays";
 import { requestAll, requestNewest, requestOne } from "@/lib/relayRequest";
+import { publishUntilEnough } from "@/lib/publishQuorum";
 import { addressLoader, loadReplaceable } from "@/lib/loaders";
 
 const RAW_NIP85_RELAY_URL = env.VITE_NIP85_RELAY_URL;
@@ -322,7 +323,8 @@ export function loadOutboxRelayListFromDb(pubkey: string, currentRelays: string[
     }
   }
 
-  return Array.from(writeRelays)
+  // Each relay once: "wss://x/" and "wss://x" doubled every publish before.
+  return uniqueRelays(Array.from(writeRelays))
 }
 
 // NIP-78 application-specific data: stores the user's Brainstorm Assistant
@@ -915,11 +917,46 @@ export function cacheProfile(content: ProfileContent, pubkey?: string): void {
 }
 
 
+/** The NIP-85 relay when the build has one — a publish must never fail for its absence. */
+function nip85RelaySeed(): string[] {
+  try {
+    return [getNip85RelayUrl()];
+  } catch {
+    return [];
+  }
+}
+
 export async function publishToRelays(
   signedEvent: NostrEvent,
-  relays: string[] = PROFILE_RELAYS
+  relays: string[] = PROFILE_RELAYS,
+  /**
+   * Opt-in: answer once `need` relays accept, giving each at most `timeoutMs`
+   * (lib/publishQuorum) instead of waiting on every relay for the library's
+   * 30 seconds. The slow ones keep going in the background.
+   */
+  opts?: { need?: number; timeoutMs?: number },
 ): Promise<{ success: boolean; relay?: string; error?: string; accepted?: number; total?: number }> {
-  const writeRelays = loadOutboxRelayListFromDb(signedEvent.pubkey, PROFILE_RELAYS)
+  // A kind-10040 points other apps at our NIP-85 relay, so that relay has to
+  // hold it too — it used to reach only the author's outboxes. Seeded here
+  // rather than at the call sites: activate, update, republish and deactivate
+  // all publish through this one function.
+  const seed = signedEvent.kind === 10040 ? [...PROFILE_RELAYS, ...nip85RelaySeed()] : PROFILE_RELAYS;
+  const writeRelays = loadOutboxRelayListFromDb(signedEvent.pubkey, seed)
+
+  if (opts?.need) {
+    const timeoutMs = opts.timeoutMs ?? 8000;
+    const { accepted, failed, total } = await publishUntilEnough(
+      writeRelays,
+      (url) =>
+        pool
+          .relay(url)
+          .publish(signedEvent as any, { timeout: timeoutMs })
+          .then((r) => ({ ok: r.ok, from: url, message: r.message })),
+      { need: opts.need, timeoutMs },
+    );
+    if (accepted.length) return { success: true, relay: accepted[0], accepted: accepted.length, total };
+    return { success: false, error: failed[0]?.message || "All relays failed", accepted: 0, total };
+  }
 
   try {
     const responses = await pool.publish(writeRelays, signedEvent as any);
@@ -1051,16 +1088,25 @@ async function publishRelayListAs(
 }
 
 
+/**
+ * The user's kind-10040 naming Brainstorm: rank and followers, plus every
+ * Trusted List kind when they have lists — merged into the tags they already
+ * have (`existing`), so another provider's rows survive. It used to be rebuilt
+ * from our two rows alone, dropping everything else.
+ */
 export async function signNip85(
   serviceKey: string,
-  relayHint: string
+  relayHint: string,
+  opts: { lists?: ListDesignation | null; existing?: string[][] } = {},
 ): Promise<NostrEvent> {
+  const ours = [
+    ["30382:rank", serviceKey, relayHint],
+    ["30382:followers", serviceKey, relayHint],
+    ...(opts.lists ? listRows(opts.lists) : []),
+  ];
   return signAs(requireActiveAccount(), {
     kind: 10040,
-    tags: [
-      ["30382:rank", serviceKey, relayHint],
-      ["30382:followers", serviceKey, relayHint],
-    ],
+    tags: mergeDesignation(opts.existing ?? [], ours),
     content: "",
   });
 }

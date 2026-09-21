@@ -8,6 +8,8 @@ const navigate = vi.fn();
 let location = "/dashboard";
 
 vi.mock("wouter", () => ({ useLocation: () => [location, navigate] }));
+// The update pill has its own tests (ListsUpdate.test); here only who shows it.
+vi.mock("./ListsUpdate", () => ({ ListsUpdatePill: () => <div data-testid="pill-lists-update" /> }));
 
 const setupState = vi.fn<() => Partial<FinishSetupState>>();
 vi.mock("@/hooks/useFinishSetup", () => ({
@@ -46,5 +48,26 @@ describe("FinishSetupBanner", () => {
     setupState.mockReturnValue({ remaining: 1 });
     render(<FinishSetupBanner />);
     expect(screen.queryByTestId("banner-finish-setup")).not.toBeInTheDocument();
+  });
+
+  // Setup done, lists waiting: a friendly update, not the setup warning.
+  it("offers the lists update once setup is done — never as a setup step", () => {
+    setupState.mockReturnValue({ remaining: 0, listsPending: true });
+    render(<FinishSetupBanner />);
+    expect(screen.getByTestId("pill-lists-update")).toBeInTheDocument();
+    expect(screen.queryByTestId("banner-finish-setup")).not.toBeInTheDocument();
+  });
+
+  it("real setup steps come first, and the setup pages carry the update themselves", () => {
+    setupState.mockReturnValue({ remaining: 1, listsPending: true });
+    const { unmount } = render(<FinishSetupBanner />);
+    expect(screen.getByTestId("banner-finish-setup")).toBeInTheDocument();
+    expect(screen.queryByTestId("pill-lists-update")).not.toBeInTheDocument();
+    unmount();
+
+    location = "/setup";
+    setupState.mockReturnValue({ remaining: 0, listsPending: true });
+    render(<FinishSetupBanner />);
+    expect(screen.queryByTestId("pill-lists-update")).not.toBeInTheDocument();
   });
 });

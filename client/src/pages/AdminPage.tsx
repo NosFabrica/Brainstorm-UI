@@ -95,7 +95,10 @@ import {
   Sparkles,
   CalendarClock,
   Receipt,
+  ListChecks,
 } from "lucide-react";
+import { parseAdminTab, type AdminTab } from "./adminTabs";
+import { TrustedListsCard } from "@/components/admin/trusted-lists/TrustedListsCard";
 import { Area, AreaChart, Bar, BarChart, Line, LineChart, ResponsiveContainer, Tooltip as RcTooltip, XAxis, YAxis } from "recharts";
 import { AgentIcon } from "@/components/AgentIcon";
 import { FEATURES } from "@/config/featureFlags";
@@ -111,7 +114,6 @@ import { searchByText } from "@/lib/profileSearch";
 import { apiClient, isAuthRedirecting } from "@/services/api";
 import { useToast } from "@/hooks/use-toast";
 
-type AdminTab = "overview" | "users" | "health" | "activity" | "assistants" | "scheduling" | "billing";
 type SortDir = "asc" | "desc";
 type PageSizeOption = 25 | 50 | 100;
 type ActivityTimeRange = "1h" | "24h" | "7d" | "all";
@@ -1760,13 +1762,10 @@ export default function AdminPage() {
     return () => document.documentElement.classList.remove("admin-scrollbars");
   }, []);
   const [activeTab, setActiveTab] = useState<AdminTab>(() => {
-    const params = new URLSearchParams(window.location.search);
-    const tab = params.get("tab");
-    if (tab === "users" || tab === "activity" || tab === "health" || tab === "scheduling") return tab;
-    if (tab === "assistants" && FEATURES.assistantsAdmin) return tab;
-    if (tab === "billing") return tab;
-    return "overview";
+    return parseAdminTab(new URLSearchParams(window.location.search).get("tab"), { assistants: FEATURES.assistantsAdmin });
   });
+  // Who the Users tab's "Publish trusted lists" sent to the Trusted Lists tab.
+  const [trustedListsObserver, setTrustedListsObserver] = useState<string | null>(null);
   const [userSearch, setUserSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [daysFilter, setDaysFilter] = useState(30);
@@ -2643,6 +2642,7 @@ export default function AdminPage() {
     // configured the endpoints 404 and the cards say so.
     { key: "billing" as AdminTab, label: "Billing", icon: Receipt },
     { key: "users", label: "Users", icon: Users },
+    { key: "trusted-lists", label: "Trusted Lists", icon: ListChecks },
     ...(FEATURES.assistantsAdmin ? [{ key: "assistants" as AdminTab, label: "Assistants", icon: Sparkles }] : []),
     { key: "health", label: "System Health", icon: Server },
   ];
@@ -4041,6 +4041,11 @@ export default function AdminPage() {
                                     window.history.replaceState({}, "", `/admin?tab=users&highlight=${u.pubkey}`);
                                     navigate(`/profile/${npub}?from=admin&pubkey=${u.pubkey}`);
                                   }}
+                                  onPublishTrustedLists={() => {
+                                    setTrustedListsObserver(u.pubkey);
+                                    setActiveTab("trusted-lists");
+                                    window.scrollTo({ top: 0 });
+                                  }}
                                   testIdSuffix={i}
                                 />
                               </td>
@@ -4163,6 +4168,11 @@ export default function AdminPage() {
                             onView={() => {
                               window.history.replaceState({}, "", `/admin?tab=users&highlight=${u.pubkey}`);
                               navigate(`/profile/${npub}?from=admin&pubkey=${u.pubkey}`);
+                            }}
+                            onPublishTrustedLists={() => {
+                              setTrustedListsObserver(u.pubkey);
+                              setActiveTab("trusted-lists");
+                              window.scrollTo({ top: 0 });
                             }}
                             testIdSuffix={`card-${i}`}
                           />
@@ -4314,6 +4324,13 @@ export default function AdminPage() {
                 {/* The header is the card's own — its sentence once, New mapping beside it. */}
                 <PlanMappingsCard active={activeTab === "billing"} />
               </div>
+            </div>
+          )}
+
+          {activeTab === "trusted-lists" && (
+            <div className="grid grid-cols-1 gap-6" data-testid="panel-trusted-lists">
+              {/* Keyed on the person sent, so a new shortcut starts fresh. */}
+              <TrustedListsCard key={trustedListsObserver ?? "picker"} initialObserver={trustedListsObserver ?? undefined} />
             </div>
           )}
 

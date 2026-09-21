@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useSelfHistory } from "@/hooks/useSelf";
 import { useTrustProviderStatus } from "@/hooks/useTrustProviderStatus";
+import { useTrustListsStatus } from "@/hooks/useTrustListsStatus";
 import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
 import { knownFollowCount } from "@/lib/followStore";
 import { isNip85Activated } from "@/lib/nip85Activation";
@@ -33,6 +34,12 @@ export interface FinishSetupState {
   activateDone: boolean;
   /** Relay-verified "no kind-10040 names Brainstorm" (or another provider does). */
   activatePending: boolean;
+  /**
+   * Activated, but they have Trusted Lists their 10040 doesn't name yet: an
+   * update to publish (ListsUpdate), NOT a setup step — never counted in
+   * `remaining` or `doneCount`, so nothing reads as unfinished or broken.
+   */
+  listsPending?: boolean;
   /** Confident steps left — what the banner counts. 0 → no nagging. */
   remaining: number;
   /** Steps verifiably complete, of 3 — what the checklist page renders. */
@@ -50,6 +57,7 @@ export function useFinishSetup(): FinishSetupState {
     ?.ta_pubkey;
   const providerStatus = useTrustProviderStatus(pubkey, taPubkey).data;
   const locallyActivated = isNip85Activated(pubkey);
+  const listsStatus = useTrustListsStatus(pubkey, taPubkey).data?.status;
 
   return useMemo(() => {
     const signedIn = !!pubkey;
@@ -63,6 +71,9 @@ export function useFinishSetup(): FinishSetupState {
     // Brainstorm is exactly the remedy (mirrors needsActivationPrompt).
     const activatePending =
       signedIn && !activateDone && (providerStatus === "none" || providerStatus === "other");
+    // Their Trusted Lists exist but the 10040 doesn't name them: an update,
+    // flagged apart from the steps.
+    const listsPending = signedIn && activateDone && listsStatus === "missing";
 
     const remaining = (followPending ? 1 : 0) + (activatePending ? 1 : 0);
     const doneCount = 1 + (followDone ? 1 : 0) + (activateDone ? 1 : 0);
@@ -74,9 +85,10 @@ export function useFinishSetup(): FinishSetupState {
       followCount,
       activateDone,
       activatePending,
+      listsPending,
       remaining,
       doneCount,
       allDone: followDone && activateDone,
     };
-  }, [pubkey, followVerdict, providerStatus, locallyActivated]);
+  }, [pubkey, followVerdict, providerStatus, locallyActivated, listsStatus]);
 }
