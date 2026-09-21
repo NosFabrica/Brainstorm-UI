@@ -11,6 +11,7 @@ import { pool } from "./relayPool";
 import { eventStore } from "./eventStore";
 import { cachedEventsForFilters } from "./eventCache";
 import { PROFILE_RELAYS } from "./relays";
+import { dedupeRelays } from "./relayList";
 
 /**
  * The library defaults to 1000ms, which would put a full second in front of a
@@ -63,6 +64,31 @@ eventStore.eventLoader = (pointer) =>
     : idLoader(pointer as Parameters<typeof idLoader>[0]);
 
 
+/** `lookupRelays`, as a membership test. */
+const LOOKUP = new Set(PROFILE_RELAYS);
+
+/**
+ * A pointer's relay hints, unless they ARE the lookup set.
+ *
+ * The loading sequence asks a pointer's own hints (step 2) and only then the
+ * lookup relays (step 4), so a caller that names `PROFILE_RELAYS` as the hint
+ * makes us send the identical REQ to the identical relays twice — the second
+ * one can never answer anything the first did not. `loadRelayList` and
+ * `fetchOutboxRelayList` both do exactly that, on purpose: the bootstrap set is
+ * genuinely where a kind-10002 is looked up. Dropping the hint leaves step 4 to
+ * ask the same relays once.
+ *
+ * Only on an exact match. A hint that is a SUBSET of the lookup set stays: with
+ * no hint the first REQ would go to all five relays instead of the one the
+ * caller named, and `fromRelays` callers ask about a specific relay.
+ */
+function hintsWorthAsking(relays: string[] | undefined): string[] | undefined {
+  if (!relays?.length) return relays;
+  const asked = dedupeRelays(relays);
+  const isLookupSet = asked.length === LOOKUP.size && asked.every((url) => LOOKUP.has(url));
+  return isLookupSet ? undefined : relays;
+}
+
 /**
  * One replaceable or addressable event: from the store if it is there, else
  * loaded — batched with everything else asked for in the same window.
@@ -91,7 +117,13 @@ export async function loadReplaceable(
       // disk cache first and stops on a hit, so without this a "go to the
       // relays" read would be answered from the very cache it exists to refresh
       // — and the hydrated copy would never be revalidated at all.
-      addressLoader({ kind, pubkey, identifier, relays, cache: !fromRelays }).pipe(
+      addressLoader({
+        kind,
+        pubkey,
+        identifier,
+        relays: hintsWorthAsking(relays),
+        cache: !fromRelays,
+      }).pipe(
         takeUntil(timer(timeoutMs)),
         catchError(() => EMPTY),
       ),
