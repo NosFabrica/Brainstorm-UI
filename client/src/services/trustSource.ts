@@ -57,6 +57,32 @@ const HEX64 = /^[0-9a-f]{64}$/i;
  * serves `default_observer_pubkey()` under the reserved NIP-05 name `_`. So we
  * ask for it the same way any Nostr client would, and nothing is baked in.
  */
+/**
+ * The same copy index.html's head start keeps (see the comment there): it looks
+ * the house observer up before the bundle lands, so reading what it wrote saves
+ * asking again. Still discovered, never configured — only remembered.
+ */
+const HOUSE_KEY = "brainstorm_house_observer";
+const HOUSE_TTL_MS = 24 * 60 * 60 * 1000;
+
+function heldHouseObserver(): string | null {
+  try {
+    const held = JSON.parse(localStorage.getItem(HOUSE_KEY) || "null") as { pk?: string; at?: number } | null;
+    if (!held || !HEX64.test(held.pk ?? "")) return null;
+    return Date.now() - (held.at ?? 0) < HOUSE_TTL_MS ? held.pk! : null;
+  } catch {
+    return null;
+  }
+}
+
+function holdHouseObserver(pk: string): void {
+  try {
+    localStorage.setItem(HOUSE_KEY, JSON.stringify({ pk, at: Date.now() }));
+  } catch {
+    /* private window, full quota — it is a convenience */
+  }
+}
+
 let housePubkeyPromise: Promise<string | null> | null = null;
 
 export function resolveHouseObserver(): Promise<string | null> {
@@ -65,6 +91,8 @@ export function resolveHouseObserver(): Promise<string | null> {
 }
 
 async function fetchHouseObserver(): Promise<string | null> {
+  const held = heldHouseObserver();
+  if (held) return held;
   // Plain `fetch`, never `authenticatedFetch`: tag reads are anon-viewable and a
   // 401 on that path wipes local auth storage and hard-redirects to the home
   // page (.agents/memory/anon-public-data-fetch.md).
@@ -81,7 +109,10 @@ async function fetchHouseObserver(): Promise<string | null> {
       if (!res.ok) continue;
       const doc = (await res.json()) as { names?: Record<string, string> };
       const pk = doc?.names?.["_"];
-      if (pk && HEX64.test(pk)) return pk;
+      if (pk && HEX64.test(pk)) {
+        holdHouseObserver(pk);
+        return pk;
+      }
     } catch {
       /* try the next base */
     }

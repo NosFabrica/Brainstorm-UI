@@ -6,10 +6,10 @@
 // dashboard's client shelf + its collapsed "Works with …" one-liner. Adding a
 // fifth client here updates all of them, which is the whole point of the file —
 // the same four names used to be hardcoded in two places and could drift.
-import amethystLogoImg from "@/assets/amethyst-logo.png";
+import amethystLogoImg from "@/assets/amethyst-logo.webp";
 import nostriaIconImg from "@/assets/nostria-icon.png";
 import dittoLogoImg from "@/assets/ditto-logo.png";
-import primalLogoImg from "@/assets/primal-logo.png";
+import primalLogoImg from "@/assets/primal-logo.webp";
 
 export interface SupportedClient {
   name: string;

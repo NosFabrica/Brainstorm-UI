@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Loader2 } from "lucide-react";
+import { useConnectionSpeed } from "@/lib/connection";
 
 /**
  * The end of a page. A sentinel turns the next page as the reader reaches
@@ -13,15 +14,17 @@ export function MoreResults({ show, loading, onMore }: { show: boolean; loading:
   const sentinel = useRef<HTMLDivElement | null>(null);
   const onMoreRef = useRef(onMore);
   onMoreRef.current = onMore;
+  // A poor connection turns pages on request only — the button below says so.
+  const byRequest = useConnectionSpeed() !== "normal";
   useEffect(() => {
     const el = sentinel.current;
-    if (!el || !show || loading || typeof IntersectionObserver === "undefined") return;
+    if (!el || !show || loading || byRequest || typeof IntersectionObserver === "undefined") return;
     const io = new IntersectionObserver((entries) => {
       if (entries.some((e) => e.isIntersecting)) onMoreRef.current();
     }, { rootMargin: "0px 0px 600px 0px" });
     io.observe(el);
     return () => io.disconnect();
-  }, [show, loading]);
+  }, [show, loading, byRequest]);
   if (!show) return null;
   return (
     <div ref={sentinel} className="flex justify-center py-6" data-testid="search-more-sentinel">

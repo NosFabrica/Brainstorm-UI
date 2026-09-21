@@ -15,6 +15,7 @@
  */
 import { pool, fetchEventsByFilter, loadOutboxRelayListFromDb, publishToRelays } from "./nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";
+import { eventStore } from "@/lib/eventStore";
 import { resolveHouseObserver, resolveTrustSource } from "./trustSource";
 import {
   applyProfileTagging,
@@ -148,8 +149,28 @@ const TAG_ELEMENT_KIND = 39999;
  * Tag reads: the hub ∪ the user's read relays. Kept separate from the trust
  * reader below — the house's TA-signed artifacts are not on the hub.
  */
-function fetchTagEvents(filter: Record<string, unknown>): Promise<NostrEvent[]> {
+function fetchRelayTagEvents(filter: Record<string, unknown>): Promise<NostrEvent[]> {
   return fetchEventsByFilter(filter, tagRelays()) as Promise<NostrEvent[]>;
+}
+
+/**
+ * What the store already holds — notably our own publishes, so a read never
+ * trails our own write while the relays catch up. `limit` is dropped — it caps
+ * the relay page, not what we already hold.
+ */
+function localTagEvents(filter: Record<string, unknown>): NostrEvent[] {
+  const { limit: _limit, ...rest } = filter;
+  return eventStore.getByFilters(rest as never) as NostrEvent[];
+}
+
+function withLocal(relay: NostrEvent[], filter: Record<string, unknown>): NostrEvent[] {
+  const byId = new Map(relay.map((ev) => [ev.id, ev]));
+  for (const ev of localTagEvents(filter)) byId.set(ev.id, ev);
+  return Array.from(byId.values());
+}
+
+async function fetchTagEvents(filter: Record<string, unknown>): Promise<NostrEvent[]> {
+  return withLocal(await fetchRelayTagEvents(filter), filter);
 }
 
 /**
@@ -177,7 +198,8 @@ async function fetchAllTagEvents(
   for (let round = 0; round < maxRounds; round++) {
     let batch: NostrEvent[];
     try {
-      batch = await fetchTagEvents({ ...filter, limit: pageSize, ...(until ? { until } : {}) });
+      // Relay-only: local events would skew `oldest` and the stop conditions.
+      batch = await fetchRelayTagEvents({ ...filter, limit: pageSize, ...(until ? { until } : {}) });
     } catch {
       break; // keep whatever we already have rather than losing the page
     }
@@ -193,7 +215,7 @@ async function fetchAllTagEvents(
     if (next === until) break; // relay isn't advancing; stop rather than loop
     until = next;
   }
-  return Array.from(seen.values());
+  return withLocal(Array.from(seen.values()), filter);
 }
 
 /**
@@ -240,6 +262,7 @@ async function publishTagEvent(
   if (!accepted) {
     throw new Error(responses.find((r) => !r.ok)?.message || "No relay accepted the event");
   }
+  eventStore.add(signed as never);
   return { accepted, total };
 }
 
@@ -1223,7 +1246,8 @@ export async function fetchTagIndex(
   >();
 
   for (const a of assertions) {
-    if (!trust.predicate(a.asserter)) continue;
+    // The viewer's own taggings count for the viewer, as `mine` does on profiles.
+    if (!trust.predicate(a.asserter) && a.asserter !== viewerPubkey) continue;
     if (!counted.has(a.tagKey)) {
       counted.set(a.tagKey, {
         authorPubkey: a.tagAuthor,

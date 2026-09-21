@@ -1,6 +1,6 @@
 import { fetchNotesByHashtag } from "@/services/nostr";
 import { type NostrEvent } from "applesauce-core/helpers";
-import { apiClient } from "@/services/api";
+import { lookupTrustSignals } from "@/services/trustSignals";
 
 export type SortMode = "top" | "latest";
 
@@ -37,17 +37,9 @@ export function rankHashtagEvents(
  * (a trust-ranked, spam-filtered list of events) stays identical.
  */
 
-/** Session-memoized house-influence lookups, so overlapping tags/authors don't
- *  re-hit the API. Value is a promise (dedupes concurrent lookups too). */
-const scoreCache = new Map<string, Promise<number | null>>();
-
+/** House influence per author, from the shared batched memo. */
 function scoreAuthor(pubkey: string): Promise<number | null> {
-  let p = scoreCache.get(pubkey);
-  if (!p) {
-    p = apiClient.getHouseInfluence(pubkey).catch(() => null);
-    scoreCache.set(pubkey, p);
-  }
-  return p;
+  return lookupTrustSignals(pubkey).then((s) => s.influence);
 }
 
 export interface HashtagContent {

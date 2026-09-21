@@ -25,6 +25,7 @@ import { ShareNavProvider } from "@/components/share/ShareNavContext";
 import { BrainLogo } from "@/components/BrainLogo";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useHasSession } from "@/hooks/useHasSession";
+import { useConnectionSpeed, videoPreload } from "@/lib/connection";
 
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?.*)?$/i;
@@ -55,6 +56,11 @@ function InAppLink({ href, children }: { href: string; children?: React.ReactNod
   );
 }
 
+function ArticleVideo({ url }: { url: string }) {
+  const speed = useConnectionSpeed();
+  return <video src={url} controls playsInline preload={videoPreload(speed)} className="my-3 block w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-900" />;
+}
+
 const mdComponents: Components = {
   a({ href, children }) {
     const url = typeof href === "string" ? href : "";
@@ -64,7 +70,7 @@ const mdComponents: Components = {
     const bare = !!url && text.trim() === url.trim(); // an autolinked bare URL, not [label](url)
     if (url && videoEmbedFor(url)) return <VideoEmbed url={url} />;
     if (url && bare && VID_RE.test(url)) {
-      return <video src={url} controls playsInline preload="metadata" className="my-3 block w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-900" />;
+      return <ArticleVideo url={url} />;
     }
     if (url && bare && IMG_RE.test(url)) {
       return <img src={url} alt="" loading="lazy" className="my-3 block max-h-[34rem] w-full rounded-xl border border-slate-200 dark:border-slate-800 object-contain" />;

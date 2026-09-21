@@ -5,7 +5,7 @@
  * teardown — what these tests assert is behavior the UI depends on:
  * what goes on the wire, how snapshots arrive, and that cancellation is real.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Observable, Subject, of, throwError } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
 import { nip19 } from "nostr-tools";
@@ -82,7 +82,8 @@ import {
   suggestProfiles,
   kindsForTab,
   TAB_KINDS,
-  type SearchSnapshot, type SearchHit } from "./search";
+  type SearchSnapshot, type SearchHit, type SearchTab } from "./search";
+import { __resetAuthorProfileQueue } from "./authorProfileQueue";
 
 const HOUSE = "f".repeat(64);
 
@@ -142,6 +143,167 @@ describe("searchStream", () => {
     expect(last.hits.map((h) => h.event.id)).toEqual(["e1", "e2"]);
     expect(last.eose).toBe(true);
     expect(last.error).toBeNull();
+  });
+});
+
+// One submit on the Everything tab opened eight REQs — and the relay works a
+// socket's REQs as a queue, so the slowest section held up the rest (probed
+// 2026-09-16: 8 REQs 5,145ms vs one REQ carrying all eight filters 2,514ms,
+// same 75 events). Streams that name the same group share one REQ.
+// The typeahead guesses who you mean; the People section then asks the search
+// the same question. What the search does not return is not a result.
+describe("searchStream — a provisional seed", () => {
+  const person = (id: string): SearchHit => ({
+    event: { id, kind: 0, pubkey: id.padEnd(64, "0"), tags: [], content: "{}", created_at: 5, sig: "s" } as NostrEvent,
+    author: null,
+    rank: null,
+  });
+
+  it("keeps the ones the search returns and drops the ones it does not", async () => {
+    const { subject } = controllable();
+    const snaps: SearchSnapshot[] = [];
+    searchStream(
+      "vitor",
+      { tab: "people", pov: "nosfabrica", seed: [person("guessed"), person("alsoGuessed")], provisionalSeed: true },
+      (s) => snaps.push(s),
+    );
+    await tick();
+    // Both show while the relay is still answering — that is the point of them.
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id)).toEqual(["guessed", "alsoGuessed"]);
+
+    subject.next(frame(person("guessed").event));
+    subject.next(frame(person("fromRelay").event));
+    subject.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id).sort()).toEqual(["fromRelay", "guessed"]);
+  });
+
+  it("leaves an ordinary seed alone — a remembered page is an answer, not a guess", async () => {
+    const { subject } = controllable();
+    const snaps: SearchSnapshot[] = [];
+    searchStream("vitor", { tab: "people", pov: "nosfabrica", seed: [person("remembered")] }, (s) => snaps.push(s));
+    await tick();
+    subject.next(frame(person("fresh").event));
+    subject.next(EOSE);
+    await tick();
+    expect(snaps.at(-1)!.hits.map((h) => h.event.id).sort()).toEqual(["fresh", "remembered"]);
+  });
+});
+
+describe("searchStream — grouped", () => {
+  const note = (id: string, created_at = 1): NostrEvent =>
+    ({ id, kind: 1, pubkey: "a".repeat(64), tags: [], content: id, created_at, sig: "s" }) as NostrEvent;
+  /** Microtasks plus the batching window the group waits out. */
+  const settle = async () => {
+    await tick();
+    await new Promise((r) => setTimeout(r, 1));
+    await tick();
+  };
+
+  it("opens one REQ carrying a filter per member", async () => {
+    controllable();
+    searchStream("bitcoin sort:recent", { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" }, () => {});
+    searchStream("bitcoin", { tab: "people", pov: "nosfabrica", limit: 8, group: "search-everything" }, () => {});
+    await settle();
+
+    expect(reqMock).toHaveBeenCalledTimes(1);
+    const filters = reqMock.mock.calls[0][0] as { kinds?: number[]; search: string; limit: number }[];
+    expect(filters).toHaveLength(2);
+    expect(filters[0].kinds).toEqual(TAB_KINDS.notes);
+    expect(filters[0].search).toBe(`bitcoin sort:recent observer:${HOUSE}`);
+    expect(filters[0].limit).toBe(10);
+    expect(filters[1].kinds).toEqual([0]);
+    expect(filters[1].search).toBe(`bitcoin observer:${HOUSE}`);
+    expect(filters[1].limit).toBe(8);
+  });
+
+  it("gives each member only the events its filter asked for, and settles them together", async () => {
+    const { subject } = controllable();
+    const notes: SearchSnapshot[] = [];
+    const people: SearchSnapshot[] = [];
+    searchStream("bitcoin sort:recent", { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" }, (s) => notes.push(s));
+    searchStream("bitcoin", { tab: "people", pov: "nosfabrica", limit: 8, group: "search-everything" }, (s) => people.push(s));
+    await settle();
+
+    subject.next(frame(ev("p1", 0, "b".repeat(64), JSON.stringify({ name: "jack" }))));
+    subject.next(frame(note("n1")));
+    await settle();
+    expect(notes.at(-1)!.hits.map((h) => h.event.id)).toEqual(["n1"]);
+    expect(people.at(-1)!.hits.map((h) => h.event.id)).toEqual(["p1"]);
+
+    subject.next(EOSE);
+    await settle();
+    expect(notes.at(-1)!.eose).toBe(true);
+    expect(people.at(-1)!.eose).toBe(true);
+  });
+
+  it("keeps the others streaming when one member goes, and tears the REQ down with the last", async () => {
+    const { subject, torndown } = controllable();
+    const notes: SearchSnapshot[] = [];
+    const people: SearchSnapshot[] = [];
+    const stopNotes = searchStream("bitcoin sort:recent", { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" }, (s) => notes.push(s));
+    const stopPeople = searchStream("bitcoin", { tab: "people", pov: "nosfabrica", limit: 8, group: "search-everything" }, (s) => people.push(s));
+    await settle();
+
+    stopNotes();
+    const seenByNotes = notes.length;
+    subject.next(frame(note("n2")));
+    subject.next(frame(ev("p2", 0, "c".repeat(64))));
+    await settle();
+    expect(notes).toHaveLength(seenByNotes);
+    expect(people.at(-1)!.hits.map((h) => h.event.id)).toEqual(["p2"]);
+    expect(torndown.count).toBe(0);
+
+    stopPeople();
+    expect(torndown.count).toBe(1);
+  });
+
+  it("tells every member when the shared REQ fails", async () => {
+    const { subject } = controllable();
+    const notes: SearchSnapshot[] = [];
+    const people: SearchSnapshot[] = [];
+    searchStream("bitcoin sort:recent", { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" }, (s) => notes.push(s));
+    searchStream("bitcoin", { tab: "people", pov: "nosfabrica", limit: 8, group: "search-everything" }, (s) => people.push(s));
+    await settle();
+
+    subject.error(new Error("socket gone"));
+    await settle();
+    expect(notes.at(-1)!.error).toBeTruthy();
+    expect(people.at(-1)!.error).toBeTruthy();
+  });
+
+  it("does not let two members of a group ask for the same kind — the second gets its own REQ", async () => {
+    controllable();
+    searchStream("bitcoin", { tab: "notes", pov: "nosfabrica", group: "search-everything" }, () => {});
+    searchStream("bitcoin", { tab: "people", pov: "nosfabrica", group: "search-everything" }, () => {});
+    // A second notes stream would be handed the first one's events by the
+    // kind routing, so it is put on a REQ of its own instead.
+    searchStream("nostr", { tab: "notes", pov: "nosfabrica", group: "search-everything" }, () => {});
+    await settle();
+
+    expect(reqMock).toHaveBeenCalledTimes(2);
+    const shared = reqMock.mock.calls[0][0] as { kinds?: number[] }[];
+    expect(shared.map((f) => f.kinds)).toEqual([TAB_KINDS.notes, [0]]);
+    const alone = reqMock.mock.calls[1][0] as { kinds?: number[] }[];
+    expect(alone).toHaveLength(1);
+    expect(alone[0].kinds).toEqual(TAB_KINDS.notes);
+  });
+
+  it("leaves a kindless stream out of the group — it would swallow every event", async () => {
+    controllable();
+    searchStream("bitcoin", { tab: "notes", pov: "nosfabrica", group: "search-everything" }, () => {});
+    searchStream("bitcoin", { tab: "everything", pov: "nosfabrica", group: "search-everything" }, () => {});
+    await settle();
+    expect(reqMock).toHaveBeenCalledTimes(2);
+    expect((reqMock.mock.calls[0][0] as unknown[]).length ?? 1).toBe(1);
+  });
+
+  it("leaves an ungrouped stream on its own REQ", async () => {
+    controllable();
+    searchStream("bitcoin", { tab: "notes", pov: "nosfabrica", group: "search-everything" }, () => {});
+    searchStream("bitcoin", { tab: "people", pov: "nosfabrica" }, () => {});
+    await settle();
+    expect(reqMock).toHaveBeenCalledTimes(2);
   });
 });
 
@@ -556,17 +718,39 @@ describe("suggestProfiles", () => {
     const results = await pending;
     expect(results.map((r) => r.name)).toEqual(["jack", "jane"]);
   });
+
+  it("closes its relay subscription as soon as the caller aborts", async () => {
+    const { torndown } = controllable();
+    const controller = new AbortController();
+    const pending = suggestProfiles("vito", { pov: "nosfabrica" }, { signal: controller.signal, timeoutMs: 60_000 });
+    await tick();
+    expect(torndown.count).toBe(0);
+    controller.abort();
+    expect(await pending).toEqual([]);
+    expect(torndown.count).toBe(1);
+  });
+
+  it("opens nothing when the caller already aborted", async () => {
+    controllable();
+    const controller = new AbortController();
+    controller.abort();
+    expect(await suggestProfiles("vito", { pov: "nosfabrica" }, { signal: controller.signal, timeoutMs: 60_000 })).toEqual([]);
+    expect(reqMock).not.toHaveBeenCalled();
+  });
 });
 
 /** Multi-REQ fake: every req() call gets its own subject; filters recorded. */
 function multiReq() {
-  const calls: { filter: Record<string, unknown>; subject: Subject<ReqFrame> }[] = [];
+  const calls: { filter: Record<string, unknown>; subject: Subject<ReqFrame>; closed: boolean }[] = [];
   reqMock.mockImplementation((filter: Record<string, unknown>) => {
-    const subject = new Subject<ReqFrame>();
-    calls.push({ filter, subject });
+    const call = { filter, subject: new Subject<ReqFrame>(), closed: false };
+    calls.push(call);
     return new Observable<ReqFrame>((subscriber) => {
-      const inner = subject.subscribe(subscriber);
-      return () => inner.unsubscribe();
+      const inner = call.subject.subscribe(subscriber);
+      return () => {
+        call.closed = true;
+        inner.unsubscribe();
+      };
     });
   });
   return calls;
@@ -575,6 +759,7 @@ function multiReq() {
 describe("author hydration", () => {
   it("batches unknown authors into one kind-0 REQ and re-emits with profiles", async () => {
     vi.useFakeTimers();
+    __resetAuthorProfileQueue();
     try {
       const calls = multiReq();
       const snaps: SearchSnapshot[] = [];
@@ -610,6 +795,220 @@ describe("author hydration", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("author hydration on a slow relay", () => {
+  const EOSE_FRAME: ReqFrame = { type: "EOSE", from: "wss://x", id: "h" };
+  const author = (i: number) => i.toString(16).padStart(64, "0");
+  const profile = (pk: string, name: string) => frame(ev(`p-${name}`, 0, pk, JSON.stringify({ name })));
+  const hydrations = (calls: ReturnType<typeof multiReq>) => calls.filter((c) => (c.filter.kinds as number[] | undefined)?.[0] === 0);
+  const openLookups = (calls: ReturnType<typeof multiReq>) => hydrations(calls).filter((c) => !c.closed);
+  const authorName = (snaps: SearchSnapshot[], id: string) => snaps.at(-1)!.hits.find((h) => h.event.id === id)!.author?.name;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    __resetAuthorProfileQueue();
+    getReplaceableMock.mockImplementation(() => undefined);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function streamNotes(calls: ReturnType<typeof multiReq>, snaps: SearchSnapshot[]) {
+    const handle = searchStream("bitcoin", { tab: "notes", pov: "nosfabrica" }, (s) => snaps.push(s));
+    await vi.advanceTimersByTimeAsync(0);
+    return { handle, page: calls[0] };
+  }
+
+  it("gives every author their profile when answers arrive after the next lookup started", async () => {
+    const calls = multiReq();
+    const snaps: SearchSnapshot[] = [];
+    const { page } = await streamNotes(calls, snaps);
+    const [alice, bob] = [author(1), author(2)];
+
+    page.subject.next(frame(ev("n1", 1, alice)));
+    await vi.advanceTimersByTimeAsync(200);
+    page.subject.next(frame(ev("n2", 1, bob)));
+    await vi.advanceTimersByTimeAsync(200);
+    const [first, second] = hydrations(calls);
+    expect(first.closed).toBe(false);
+
+    first.subject.next(profile(alice, "alice"));
+    first.subject.next(EOSE_FRAME);
+    second.subject.next(profile(bob, "bob"));
+    second.subject.next(EOSE_FRAME);
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(authorName(snaps, "n1")).toBe("alice");
+    expect(authorName(snaps, "n2")).toBe("bob");
+  });
+
+  it("closes each profile lookup once the relay has answered it", async () => {
+    const calls = multiReq();
+    const { page } = await streamNotes(calls, []);
+    page.subject.next(frame(ev("n1", 1, author(1))));
+    await vi.advanceTimersByTimeAsync(200);
+    const [lookup] = hydrations(calls);
+    lookup.subject.next(EOSE_FRAME);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(lookup.closed).toBe(true);
+  });
+
+  it("closes every open profile lookup when the search is cancelled", async () => {
+    const calls = multiReq();
+    const { handle, page } = await streamNotes(calls, []);
+    for (let i = 1; i <= 3; i++) {
+      page.subject.next(frame(ev(`n${i}`, 1, author(i))));
+      await vi.advanceTimersByTimeAsync(200);
+    }
+    expect(hydrations(calls)).toHaveLength(3);
+    handle();
+    expect(hydrations(calls).every((c) => c.closed)).toBe(true);
+  });
+
+  it("looks an author up once for every section that shows them", async () => {
+    const calls = multiReq();
+    const notes: SearchSnapshot[] = [];
+    const media: SearchSnapshot[] = [];
+    searchStream("bitcoin", { tab: "notes", pov: "nosfabrica" }, (s) => notes.push(s));
+    searchStream("bitcoin", { tab: "media", pov: "nosfabrica" }, (s) => media.push(s));
+    await vi.advanceTimersByTimeAsync(0);
+    const alice = author(1);
+    calls[0].subject.next(frame(ev("n1", 1, alice)));
+    calls[1].subject.next(frame(ev("m1", 20, alice)));
+    await vi.advanceTimersByTimeAsync(200);
+
+    const lookups = hydrations(calls);
+    expect(lookups).toHaveLength(1);
+    lookups[0].subject.next(profile(alice, "alice"));
+    lookups[0].subject.next(EOSE_FRAME);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(authorName(notes, "n1")).toBe("alice");
+    expect(authorName(media, "m1")).toBe("alice");
+  });
+
+  it("keeps the limit of 4 open lookups across every section", async () => {
+    const calls = multiReq();
+    const sections: [SearchTab, number][] = [["notes", 1], ["media", 20], ["articles", 30023]];
+    for (const [tab] of sections) searchStream("bitcoin", { tab, pov: "nosfabrica" }, () => {});
+    await vi.advanceTimersByTimeAsync(0);
+    // One new author per flush window, rotating through the sections.
+    for (let n = 1; n <= 6; n++) {
+      const i = (n - 1) % sections.length;
+      calls[i].subject.next(frame(ev(`e${n}`, sections[i][1], author(n))));
+      await vi.advanceTimersByTimeAsync(200);
+    }
+    expect(openLookups(calls)).toHaveLength(4);
+
+    hydrations(calls)[0].subject.next(EOSE_FRAME);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(openLookups(calls)).toHaveLength(4);
+    expect(openLookups(calls).at(-1)!.filter.authors).toEqual([author(5), author(6)]);
+  });
+
+  it("doesn't ask again for an author whose lookup is already out", async () => {
+    const calls = multiReq();
+    const first: SearchSnapshot[] = [];
+    const second: SearchSnapshot[] = [];
+    searchStream("bitcoin", { tab: "notes", pov: "nosfabrica" }, (s) => first.push(s));
+    searchStream("bitcoin", { tab: "media", pov: "nosfabrica" }, (s) => second.push(s));
+    await vi.advanceTimersByTimeAsync(0);
+    const alice = author(1);
+    calls[0].subject.next(frame(ev("n1", 1, alice)));
+    await vi.advanceTimersByTimeAsync(200);
+    calls[1].subject.next(frame(ev("m1", 20, alice)));
+    await vi.advanceTimersByTimeAsync(200);
+
+    const lookups = hydrations(calls);
+    expect(lookups).toHaveLength(1);
+    lookups[0].subject.next(profile(alice, "alice"));
+    lookups[0].subject.next(EOSE_FRAME);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(authorName(second, "m1")).toBe("alice");
+  });
+
+  it("still gives the profile to a section that's waiting when another one stops", async () => {
+    const calls = multiReq();
+    const staying: SearchSnapshot[] = [];
+    const leaving = searchStream("bitcoin", { tab: "notes", pov: "nosfabrica" }, () => {});
+    searchStream("bitcoin", { tab: "media", pov: "nosfabrica" }, (s) => staying.push(s));
+    await vi.advanceTimersByTimeAsync(0);
+    const alice = author(1);
+    calls[0].subject.next(frame(ev("n1", 1, alice)));
+    calls[1].subject.next(frame(ev("m1", 20, alice)));
+    await vi.advanceTimersByTimeAsync(200);
+
+    leaving();
+    const [lookup] = hydrations(calls);
+    expect(lookup.closed).toBe(false);
+    lookup.subject.next(profile(alice, "alice"));
+    lookup.subject.next(EOSE_FRAME);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(authorName(staying, "m1")).toBe("alice");
+  });
+
+  it("doesn't retry an author the relay has no profile for — until a few minutes later", async () => {
+    const calls = multiReq();
+    const alice = author(1);
+    const showAlice = async (id: string, tab: SearchTab, kind: number) => {
+      searchStream("bitcoin", { tab, pov: "nosfabrica" }, () => {});
+      await vi.advanceTimersByTimeAsync(0);
+      calls.filter((c) => (c.filter.kinds as number[] | undefined)?.[0] !== 0).at(-1)!.subject.next(frame(ev(id, kind, alice)));
+      await vi.advanceTimersByTimeAsync(200);
+    };
+
+    await showAlice("n1", "notes", 1);
+    hydrations(calls)[0].subject.next(EOSE_FRAME);
+    await vi.advanceTimersByTimeAsync(0);
+
+    await showAlice("m1", "media", 20);
+    expect(hydrations(calls)).toHaveLength(1);
+
+    await vi.advanceTimersByTimeAsync(5 * 60_000);
+    await showAlice("a1", "articles", 30023);
+    expect(hydrations(calls)).toHaveLength(2);
+  });
+
+  it("asks once more for authors whose lookup the relay never finished", async () => {
+    const calls = multiReq();
+    const { page } = await streamNotes(calls, []);
+    page.subject.next(frame(ev("n1", 1, author(1))));
+    await vi.advanceTimersByTimeAsync(200);
+    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(hydrations(calls)).toHaveLength(2);
+    expect(hydrations(calls)[1].filter.authors).toEqual([author(1)]);
+
+    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(200);
+    expect(hydrations(calls)).toHaveLength(2);
+  });
+
+  it("gives up on a lookup the relay never finishes, freeing its slot", async () => {
+    const calls = multiReq();
+    const { page } = await streamNotes(calls, []);
+    page.subject.next(frame(ev("n1", 1, author(1))));
+    await vi.advanceTimersByTimeAsync(200);
+    const [lookup] = hydrations(calls);
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(lookup.closed).toBe(true);
+  });
+
+  it("keeps at most 4 profile lookups open and sends waiting authors when one finishes", async () => {
+    const calls = multiReq();
+    const { page } = await streamNotes(calls, []);
+    for (let i = 1; i <= 6; i++) {
+      page.subject.next(frame(ev(`n${i}`, 1, author(i))));
+      await vi.advanceTimersByTimeAsync(200);
+    }
+    expect(openLookups(calls)).toHaveLength(4);
+
+    hydrations(calls)[0].subject.next(EOSE_FRAME);
+    await vi.advanceTimersByTimeAsync(200);
+    const open = openLookups(calls);
+    expect(open).toHaveLength(4);
+    expect(open.at(-1)!.filter.authors).toEqual([author(5), author(6)]);
   });
 });
 

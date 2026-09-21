@@ -1,6 +1,7 @@
 import { useRef, useState } from "react";
 import { Play } from "lucide-react";
 import { usePipAwareAutoStop } from "@/lib/audioPlayer";
+import { useConnectionSpeed, videoPreload } from "@/lib/connection";
 
 /**
  * A teaser video tile: shows the poster/first frame with a clean play overlay
@@ -8,6 +9,7 @@ import { usePipAwareAutoStop } from "@/lib/audioPlayer";
  * native controls appear so they can scrub/pause/fullscreen.
  */
 export function ShareVideo({ url, poster, title }: { url: string; poster?: string; title?: string }) {
+  const speed = useConnectionSpeed();
   const ref = useRef<HTMLVideoElement>(null);
   const [playing, setPlaying] = useState(false);
   usePipAwareAutoStop(ref);
@@ -25,7 +27,7 @@ export function ShareVideo({ url, poster, title }: { url: string; poster?: strin
           src={url}
           poster={poster}
           playsInline
-          preload="metadata"
+          preload={videoPreload(speed)}
           controls={playing}
           onPlay={() => setPlaying(true)}
           className="w-full h-full object-cover"

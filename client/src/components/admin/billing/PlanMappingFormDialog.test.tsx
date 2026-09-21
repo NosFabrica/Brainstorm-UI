@@ -45,7 +45,7 @@ const PLAN: AdminBillingPlanMapping = {
 function renderForm(props: Partial<React.ComponentProps<typeof PlanMappingFormDialog>> = {}) {
   const onSubmit = vi.fn();
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  render(
+  const view = render(
     <QueryClientProvider client={qc}>
       <PlanMappingFormDialog
         open
@@ -58,7 +58,7 @@ function renderForm(props: Partial<React.ComponentProps<typeof PlanMappingFormDi
       />
     </QueryClientProvider>,
   );
-  return onSubmit;
+  return Object.assign(onSubmit, { unmount: view.unmount });
 }
 
 beforeEach(() => {
@@ -132,6 +132,18 @@ describe("PlanMappingFormDialog — the two decisions, with the plan picked from
     expect(screen.getByTestId("plan-mapping-reidentify-warning")).toHaveTextContent(/only while nobody has bought it/);
     await user.click(screen.getByTestId("button-plan-mapping-submit"));
     expect(onSubmit).toHaveBeenCalledWith({ flash_plan_id: "beef" });
+  });
+
+  // The warning is the whole point of the policy's Public flag: an admin who
+  // turns it on should see the plan stop being unsellable.
+  it("stops warning once the policy it points at is public", async () => {
+    const shut = renderForm({ policies: [{ ...POLICIES[0], is_public: false }] });
+    expect(await screen.findByTestId("plan-mapping-nonpublic-warning")).toBeInTheDocument();
+    shut.unmount();
+
+    renderForm({ policies: [{ ...POLICIES[0], is_public: true }] });
+    await screen.findByTestId("select-plan-scheduling");
+    expect(screen.queryByTestId("plan-mapping-nonpublic-warning")).toBeNull();
   });
 
   it("marks a plan another mapping already claims, and one Flash no longer offers", async () => {

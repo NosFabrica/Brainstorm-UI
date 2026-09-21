@@ -42,6 +42,7 @@ beforeEach(() => {
   vi.resetModules();
   nostr.fetchTrustProviderList.mockReset();
   vi.unstubAllGlobals();
+  localStorage.removeItem("brainstorm_house_observer");
 });
 
 describe("resolveTrustSource", () => {
@@ -125,6 +126,29 @@ describe("resolveHouseObserver", () => {
     const { resolveHouseObserver } = await load();
     expect(await resolveHouseObserver()).toBe(HOUSE);
     expect(fetchMock.mock.calls[0][0]).toContain("/.well-known/nostr.json?name=_");
+  });
+
+  it("reads what the head start already discovered, instead of asking again", async () => {
+    // index.html looks the house up before the bundle lands and keeps the
+    // answer; asking a second time is a round trip for something we hold.
+    localStorage.setItem("brainstorm_house_observer", JSON.stringify({ pk: HOUSE, at: Date.now() }));
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    const { resolveHouseObserver } = await load();
+    expect(await resolveHouseObserver()).toBe(HOUSE);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("asks again once the copy is old enough to have changed", async () => {
+    localStorage.setItem(
+      "brainstorm_house_observer",
+      JSON.stringify({ pk: HOUSE, at: Date.now() - 25 * 60 * 60 * 1000 }),
+    );
+    const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ names: { _: HOUSE } }) });
+    vi.stubGlobal("fetch", fetchMock);
+    const { resolveHouseObserver } = await load();
+    expect(await resolveHouseObserver()).toBe(HOUSE);
+    expect(fetchMock).toHaveBeenCalled();
   });
 
   it("returns null instead of guessing when discovery fails", async () => {

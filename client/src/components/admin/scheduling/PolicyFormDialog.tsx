@@ -42,6 +42,7 @@ const schema = z.object({
     .max(10, "Priority must be between 0 and 10"),
   enabled: z.boolean(),
   is_default: z.boolean(),
+  is_public: z.boolean(),
   manual_quota_limit: z.number().int().min(0, "Quota must be zero or more"),
   manual_quota_window_seconds: z.number().int().positive("Window must be at least 1 second"),
 });
@@ -65,15 +66,18 @@ export function PolicyFormDialog({
   onOpenChange,
   onSubmit,
 }: PolicyFormDialogProps) {
-  const seed = initial ?? {
+  const DEFAULTS = {
     name: "",
     schedule_interval_seconds: 604800,
     priority: 0,
     enabled: true,
     is_default: false,
+    is_public: false,
     manual_quota_limit: 20,
     manual_quota_window_seconds: 604800,
   };
+  // A server too old to report a field leaves it unset; the defaults decide.
+  const seed: Body = { ...DEFAULTS, ...initial, is_public: initial?.is_public ?? false };
   const interval = decompose(seed.schedule_interval_seconds);
   const window = decompose(seed.manual_quota_window_seconds);
 
@@ -86,6 +90,7 @@ export function PolicyFormDialog({
   const [windowUnit, setWindowUnit] = useState(String(window.unit));
   const [enabled, setEnabled] = useState(seed.enabled);
   const [isDefault, setIsDefault] = useState(seed.is_default);
+  const [isPublic, setIsPublic] = useState(seed.is_public);
   const [errors, setErrors] = useState<Partial<Record<keyof Body, string>>>({});
 
   function buildBody(): Body {
@@ -95,6 +100,7 @@ export function PolicyFormDialog({
       priority: Number(priority),
       enabled,
       is_default: isDefault,
+      is_public: isPublic,
       manual_quota_limit: Number(quotaLimit),
       manual_quota_window_seconds: Math.round(Number(windowValue) * Number(windowUnit)),
     };
@@ -117,7 +123,7 @@ export function PolicyFormDialog({
     if (mode === "edit" && initial) {
       const diff: UpdateSchedulingBody = {};
       (Object.keys(body) as Array<keyof Body>).forEach((k) => {
-        if (body[k] !== (initial as unknown as Body)[k]) {
+        if (body[k] !== seed[k]) {
           (diff as Record<string, unknown>)[k] = body[k];
         }
       });
@@ -236,6 +242,21 @@ export function PolicyFormDialog({
               onChange={(e) => setIsDefault(e.target.checked)}
             />
             <Label htmlFor="policy-default">Default policy</Label>
+          </div>
+
+          <div>
+            <div className="flex items-center gap-2">
+              <input
+                id="policy-public"
+                type="checkbox"
+                checked={isPublic}
+                onChange={(e) => setIsPublic(e.target.checked)}
+              />
+              <Label htmlFor="policy-public">Public</Label>
+            </div>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              A plan mapped to this policy can be sold on the pricing page.
+            </p>
           </div>
           {showDefaultWarning && (
             <p className="text-xs text-amber-500">
