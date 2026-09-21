@@ -46,6 +46,23 @@ is not a routing decision, it is the fallback wearing one. `loadRelayList()`
 does that, bounded to 2.5s with a five-minute miss cache. Rationale, caps, and
 what stays default-routed: [docs/adr/0002-nip65-outbox-routing.md](docs/adr/0002-nip65-outbox-routing.md).
 
+## Durable event cache
+
+The `eventStore` is in-memory, so every reload used to rebuild the routing
+table from relays: NIP-65 list, then contact list, then profile — two dependent
+round trips before the app knew who you followed.
+`client/src/lib/eventCache.ts` keeps the small replaceable kinds (0, 3, 10002,
+10040, 30078) in IndexedDB and hydrates the ACTIVE account's own back into the
+store at boot, from `main.tsx`, before the first render.
+
+Three rules it lives by: hydrated events are **signature-verified** (IndexedDB
+is writable by anything with script on the origin, and a forged kind-10002
+steers where we publish); everything hydrated is **revalidated** against the
+relays straight after (the address loader stops at its first hit, so a cache
+without a refresh would pin a user to a stale relay list forever); and the
+cache is **dropped on sign-out**. Rationale:
+[docs/adr/0002-nip65-outbox-routing.md](docs/adr/0002-nip65-outbox-routing.md).
+
 ## External Dependencies
 - **Nostr Protocol:** Interacts with various Nostr relays (e.g., damus, nostr.band, nos.lol) for metadata fetching and event publishing.
 - **Brainstorm Backend API:** Switchable between Staging (`brainstormserver-staging.nosfabrica.com`) and Production (`brainstormserver.nosfabrica.com`) via admin environment selector. Selection persisted in `localStorage` key `brainstorm_api_env`. Dynamic URL resolution in `client/src/services/api.ts` via `getApiEnvironment()`/`setApiEnvironment()`/`getApiBaseUrl()`. Admin dashboard shows environment badge and requires confirmation dialog before switching (with extra warning for Production).

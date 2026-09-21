@@ -144,6 +144,42 @@ the user's click and the signer prompt — up to the routing deadline, for a fie
 that is optional by design. Anything that reads a profile warms the list first,
 and the publish that follows loads it anyway.
 
+## Making the routing table survive a reload
+
+Routing is only cheap if the table is already there. The `eventStore` is
+in-memory, so it was never there: `completeLogin` warmed the relay list, but a
+RELOAD does not run `completeLogin` — `bootstrapAccounts` restores the account
+and nothing warmed anything. Every page load paid the cold path.
+
+`lib/eventCache.ts` persists the small replaceable kinds (0, 3, 10002, 10040,
+30078) to IndexedDB and hydrates the active account's own back into the store
+from `main.tsx`, before the first render. `loadReplaceable` checks the store
+synchronously and returns on a hit, so a hydrated event costs no network and
+skips the loader's buffer as well. The existing `followStore` snapshot — which
+every current user already has on disk — is hydrated the same way, so the
+contact list is present on the first render with no new storage at all.
+
+Three properties this cannot be built without:
+
+- **Verified on hydrate.** IndexedDB is writable by anything that can run
+  script on this origin, and a forged kind-10002 steers where we *publish*.
+- **Revalidated after hydrate.** `addressPointerLoadingSequence` stops at its
+  first hit and `loadReplaceable` returns a held event without asking anyone,
+  so a cache without a refresh pins the user to whatever relay list they had
+  when it was written. Hydration kicks a `fromRelays` reload of everything it
+  restored; the store keeps whichever copy is newer.
+- **Routing waits for it.** Hydration is asynchronous, so `loadRelayList`
+  awaits `whenHydrated()` before concluding the store has nothing. Without that
+  the one read the session's routing is built from races the cache and loses.
+
+Dropped on sign-out: which profiles someone looked at is a browsing trail, and
+it should not outlive the session on a shared device. Capped at 500 rows, LRU
+by write time.
+
+Not done here: a `cacheRequest` on the loaders, which would serve OTHER
+people's cached profiles and relay lists without a relay round trip. The data
+is already being written for it.
+
 ## What is still default-routed
 
 Queries with no author to route by, which is not a gap but a limit of the model:

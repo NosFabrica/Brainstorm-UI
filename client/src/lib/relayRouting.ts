@@ -24,6 +24,7 @@ import {
 } from "applesauce-core/helpers/relay-selection";
 
 import { eventStore } from "./eventStore";
+import { whenHydrated } from "./eventCache";
 import { loadReplaceable } from "./loaders";
 import { PROFILE_RELAYS } from "./relays";
 
@@ -170,16 +171,23 @@ const missedAt = new Map<string, number>();
  * who has never published a kind-10002 — most of nostr — would re-ask the relays
  * for it on every render.
  */
-export function loadRelayList(
+export async function loadRelayList(
   pubkey: string,
   { timeoutMs = ROUTING_TIMEOUT_MS }: { timeoutMs?: number } = {},
 ): Promise<RelayList | null> {
-  if (!/^[0-9a-f]{64}$/i.test(pubkey || "")) return Promise.resolve(null);
+  if (!/^[0-9a-f]{64}$/i.test(pubkey || "")) return null;
+
+  // The cache is read asynchronously, so a lookup that fires first would miss a
+  // relay list that is about to be in the store and go to the relays for
+  // nothing — on the one read the whole session's routing depends on. Resolves
+  // immediately when nothing is hydrating.
+  await whenHydrated();
+
   const held = relayListFromDb(pubkey);
-  if (held) return Promise.resolve(held);
+  if (held) return held;
 
   const missed = missedAt.get(pubkey);
-  if (missed !== undefined && Date.now() - missed < MISS_TTL_MS) return Promise.resolve(null);
+  if (missed !== undefined && Date.now() - missed < MISS_TTL_MS) return null;
 
   const pending = inFlight.get(pubkey);
   if (pending) return pending;

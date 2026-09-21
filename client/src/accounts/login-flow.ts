@@ -15,6 +15,7 @@ import { ExtensionMissingError } from "applesauce-signers";
 
 import { announceRelayList, cacheProfile, fetchProfile, publishProfile } from "@/services/nostr";
 import { loadRelayList } from "@/lib/relayRouting";
+import { clearHydratedStore } from "@/services/storeHydration";
 import { sessions, SessionTransportError } from "@/accounts/session";
 import { LocalAccount } from "@/accounts/local-account";
 import { activeAccount } from "@/accounts/signing";
@@ -309,6 +310,9 @@ export function logout() {
   // rather than a list kept here. What it keeps on this device stays: it is still
   // listed, and signing back in should find its follows and prefs where it left them.
   if (prevPubkey) clearSessionScopedStorage(prevPubkey);
+  // The cached events go too: which profiles someone looked at is a browsing
+  // trail, and it should not outlive the session on a shared device.
+  clearHydratedStore();
   // Not per-Account: this one says "somebody has scored on this browser", which is
   // what the public pages render, so it must not survive into an anonymous visit.
   try { localStorage.removeItem("brainstorm_calc_completed"); } catch { /* ignore */ }

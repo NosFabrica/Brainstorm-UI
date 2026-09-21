@@ -19,6 +19,9 @@ vi.mock("@/lib/eventStore", () => ({
 vi.mock("@/lib/loaders", () => ({
   loadReplaceable: (...args: unknown[]) => loadReplaceableMock(...(args as [number, string])),
 }));
+/** Hydration is async; routing must not race it. Held open per test. */
+const hydrated = { resolve: () => {}, promise: Promise.resolve() };
+vi.mock("./eventCache", () => ({ whenHydrated: () => hydrated.promise }));
 vi.mock("@/lib/relays", () => ({
   PROFILE_RELAYS: ["wss://default.one/", "wss://default.two/"],
   CONTENT_RELAYS: ["wss://default.one/"],
@@ -49,6 +52,7 @@ beforeEach(() => {
   held.clear();
   resetRelayRoutingCache();
   loadReplaceableMock.mockResolvedValue(undefined);
+  hydrated.promise = Promise.resolve();
 });
 
 describe("reading a relay list", () => {
@@ -212,6 +216,27 @@ describe("relay hints", () => {
   it("never waits on the network", () => {
     relayHintFor(ALICE);
 
+    expect(loadReplaceableMock).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * The cache is read asynchronously. A routing lookup that checks the store
+ * before hydration lands would miss a relay list that is about to be there and
+ * go to the relays for nothing — on the one read the session's routing is
+ * built from.
+ */
+describe("routing while the cache is still loading", () => {
+  it("waits for hydration before deciding the store has nothing", async () => {
+    let release = () => {};
+    hydrated.promise = new Promise<void>((r) => { release = r; });
+
+    const pending = outboxRelays(ALICE, []);
+    // Arrives late, exactly as a hydrated event would.
+    seed(relayList(ALICE, [["r", "wss://alice.example"]]));
+    release();
+
+    expect(await pending).toEqual(["wss://alice.example/"]);
     expect(loadReplaceableMock).not.toHaveBeenCalled();
   });
 });
