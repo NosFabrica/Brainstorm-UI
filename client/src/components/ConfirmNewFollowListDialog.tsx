@@ -36,12 +36,13 @@ interface ConfirmNewFollowListDialogProps {
 }
 
 /**
- * Shown when `followPubkeys` returns `needsBaseConfirmation` — we found no
- * follow list on the user's relays, which for an imported key is
- * indistinguishable from a fetch that failed. Publishing anyway would replace
- * whatever list actually exists (kind 3 is replaceable), so the destructive
- * path requires explicit consent to the one question only the user can answer:
- * "have you ever followed anyone with this key?"
+ * Shown when `followPubkeys` returns `needsBaseConfirmation` — which since #72
+ * means one thing only: no relay answered, so whether this key has a follow
+ * list is genuinely unknown. (A majority answering "nothing here" is proof of a
+ * new key now, and creates the list without asking.) Publishing on a guess
+ * would replace whatever list actually exists, kind 3 being replaceable, so the
+ * destructive path still requires explicit consent to the one question only the
+ * user can answer: "have you ever followed anyone with this key?"
  *
  * The relay search is the machine-answerable way out: a user who knows where
  * their list lives can point us at the relay, and a verified find removes the
@@ -90,13 +91,14 @@ export function ConfirmNewFollowListDialog({
     <AlertDialog open={open} onOpenChange={(next) => { if (!next && !busy) onCancel(); }}>
       <AlertDialogContent data-testid="dialog-confirm-new-follow-list">
         <AlertDialogHeader>
-          <AlertDialogTitle>We couldn't find an existing follow list</AlertDialogTitle>
+          <AlertDialogTitle>We couldn't reach your relays</AlertDialogTitle>
           <AlertDialogDescription>
-            We checked your relays and couldn't find a follow list for this key. If you've
-            followed people before — here or in another app — publishing now could replace
-            that list. Cancel and try again in a moment, continue only if you've never
-            followed anyone with this key — or, if you know a relay that has your list,
-            search it below.
+            None of your relays answered, so we can't tell whether this key already has a
+            follow list. If you've followed people before — here or in another app —
+            publishing now could replace a list we simply couldn't see. Check your
+            connection and try again in a moment, continue only if you've never followed
+            anyone with this key — or, if you know a relay that has your list, search it
+            below.
           </AlertDialogDescription>
         </AlertDialogHeader>
 
