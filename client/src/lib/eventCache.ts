@@ -30,6 +30,7 @@ import type { NostrEvent } from "nostr-tools";
 import { openDb as openIdb, transact } from "./idb";
 import { eventStore } from "./eventStore";
 import { loadKnownFollowList } from "./followStore";
+import { parseRelayList } from "./relayList";
 
 const DB_NAME = "brainstorm-events";
 const STORE = "events";
@@ -397,11 +398,11 @@ async function hydrate(pubkey: string): Promise<number> {
  * was written, forever.
  */
 async function revalidate(events: NostrEvent[]): Promise<void> {
-  // Imported here, not at the top: `lib/loaders` and `lib/relayRouting` both
-  // import THIS module, and a static import back would close the cycle at the
-  // one moment it matters — module init, where the loader is built.
+  // `loadReplaceable` imported here, not at the top: `lib/loaders` imports THIS
+  // module, and a static import back would close the cycle at the one moment it
+  // matters — module init, where the loader is built. `parseRelayList` needs no
+  // such dance: it lives in `lib/relayList`, a leaf, imported statically above.
   const { loadReplaceable } = await import("./loaders");
-  const { parseRelayList } = await import("./relayRouting");
 
   // ROUTED, not left to the lookup relays: a kind-10040 that lives only on the
   // user's own relays would otherwise be "refreshed" against a set that never

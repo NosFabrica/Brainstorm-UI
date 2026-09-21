@@ -21,6 +21,19 @@ vi.mock("@/lib/relayPool", () => ({
   },
 }));
 
+/**
+ * The routing lookup is not what this file is about, and the fake pool above is
+ * not a real `RelayPool` — handing it to applesauce's address loader throws
+ * "Invalid upstream pool" from inside an rxjs `complete`, where no `catchError`
+ * can reach it. An author with no kind-10002 in the store is simply an author
+ * with no relay list, which is what test 3 means to exercise.
+ */
+vi.mock("@/lib/loaders", () => ({
+  addressLoader: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }),
+  idLoader: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }),
+  loadReplaceable: async () => undefined,
+}));
+
 vi.mock("@/lib/eventStore", () => ({
   eventStore: {
     getReplaceable: (kind: number) => (kind === 10002 ? outbox.event : undefined),
