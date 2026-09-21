@@ -7,7 +7,7 @@ import { ladderFor, type Bucket } from "@/lib/trustLadder";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
 import { PresetBadge } from "@/components/PresetBadge";
-import amethystLogoImg from "../assets/amethyst-logo.png";
+import amethystLogoImg from "@/assets/amethyst-logo.webp";
 import nostriaHeroImg from "../assets/nostria-hero.png";
 import nostriaManifestoImg from "../assets/nostria-manifesto-overlay.png";
 import nostriaTeaserImg from "../assets/nostria-teaser.png";

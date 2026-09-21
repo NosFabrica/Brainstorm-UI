@@ -6,14 +6,14 @@
  * lives); Articles keep best-match; Happening collapses recurring events;
  * Media rides a compact row. Sections with nothing to show don't render.
  */
-import { useEffect, useMemo, useState  } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ListingCard, TrackCard, WavlakeSongCard } from "@/components/search/cards";
 import { isSellable, parseListing } from "@/lib/listing";
 import { noteTitle } from "@/lib/noteTitle";
 import { useWavlakeSongs } from "@/hooks/useWavlakeSongs";
 import { parseTrack } from "@/lib/trackEvent";
 import { setPlaylist } from "@/lib/audioPlayer";
-import { Clock, Loader2, HelpCircle } from "lucide-react";
+import { Clock, HelpCircle } from "lucide-react";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -23,6 +23,8 @@ import { SerpRow } from "@/components/search/SerpRow";
 import { ArticlesBento, MediaTiles, TopStories, hasCover, hasVisual, pickTopStories } from "@/components/search/RichSections";
 import { collapseHits } from "@/lib/searchCollapse";
 import { ClusterRows, Section, SectionSkeleton, mergeSnapshots, useSectionStream } from "@/components/search/sections";
+import type { PanelSections } from "@/components/search/KnowledgePanel";
+import { takeHeadStart, type HeadStartResult } from "@/lib/headStart";
 import { EventRow } from "@/components/search/EventRow";
 import { fetchEventRsvps, type EventRsvps } from "@/services/search";
 import { isMediaFile, isSoundtrackFile } from "@/lib/fileMetadata";
@@ -44,7 +46,10 @@ import { useWheelScrollX } from "@/hooks/useWheelScrollX";
 import { UNKNOWN_EXPLAINER, bucketFor } from "@/lib/trustLadder";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import {
+  kind0ToSearchResult,
   searchStream,
+  TAB_KINDS,
+  type SearchGroup,
   type SearchHit,
   type SearchPov,
   type SearchSnapshot,
@@ -120,6 +125,47 @@ function stillLoading(snapshot: SearchSnapshot | null): boolean {
   return !snapshot || (!snapshot.eose && snapshot.hits.length === 0);
 }
 
+const EVERYTHING: SearchGroup = "search-everything";
+
+/** How long the Happening list must stop changing before its RSVPs are asked for. */
+const RSVP_SETTLE_MS = 400;
+
+/**
+ * What the Everything page asks each section for. index.html's head start asks
+ * the same thing before the bundle lands, so the two must agree — headStart.test
+ * holds them to it.
+ */
+export const EVERYTHING_SECTIONS = {
+  people: { limit: 8, recent: false },
+  notes: { limit: 10, recent: true },
+  // Articles lead with relevance where words were typed, which is the only
+  // shape the head start runs for.
+  articles: { limit: 5, recent: false },
+  events: { limit: 12, recent: true },
+  live: { limit: 8, recent: true },
+  media: { limit: 8, recent: true },
+  music: { limit: 12, recent: false },
+  shop: { limit: 12, recent: false },
+} as const;
+
+/** A section's head start, plus whether the relay finished giving it. */
+interface Seeds {
+  people: SearchHit[];
+  notes: SearchHit[];
+  articles: SearchHit[];
+  events: SearchHit[];
+  live: SearchHit[];
+  media: SearchHit[];
+  music: SearchHit[];
+  shop: SearchHit[];
+  /** The relay answered the head start in full, so a section may ask for what came since. */
+  complete?: boolean;
+}
+
+type SeedTab = Exclude<keyof Seeds, "complete">;
+
+const EMPTY_SEEDS: Seeds = { people: [], notes: [], articles: [], events: [], live: [], media: [], music: [], shop: [] };
+
 /** Content fades into the place its skeleton held (index.css's fadeIn keyframes). */
 const FADE = "motion-safe:animate-[fadeIn_0.3s_ease-out]";
 
@@ -142,6 +188,10 @@ function ComposedResultsBody({
   onOpenProfile,
   onQueryRewrite,
   personMedia = [],
+  onSections,
+  onSectionHits,
+  seeds: remembered,
+  peopleSeedIsGuess,
 }: {
   query: string;
   pov: SearchPov;
@@ -151,21 +201,73 @@ function ComposedResultsBody({
   onQueryRewrite?: (next: string) => void;
   /** When the query IS a person: their own media, which leads the Media section. */
   personMedia?: SearchHit[];
+  /** The sections the knowledge panel would otherwise ask the relay for itself. */
+  onSections?: (sections: PanelSections) => void;
+  /** What every section is showing, so a reader coming back sees it at once. */
+  onSectionHits?: (hits: Record<string, SearchHit[]>) => void;
+  /** What they were showing when the reader left. */
+  seeds?: Record<string, SearchHit[]>;
+  /** The People seed is the typeahead's guess, to be replaced by the answer. */
+  peopleSeedIsGuess?: boolean;
   onOpenProfile?: (person: SearchResult) => void;
 }) {
-  const people = useSectionStream(query, "people", pov, userPubkey, 8);
+  // Taking the head start is a one-shot with a side effect — it hands the
+  // events over and closes the socket — so it happens once per query in a ref,
+  // never inside a memo React is free to re-run or throw away.
+  const headRef = useRef<{ query: string; head: HeadStartResult } | null>(null);
+  if (headRef.current?.query !== query) headRef.current = { query, head: takeHeadStart(query) };
+  const head = headRef.current.head;
+
+  // What the head start collected before the bundle arrived (lib/headStart),
+  // dealt out to the sections by kind — the same routing the shared REQ uses.
+  const seeds = useMemo(() => {
+    // Kept only for a reader whose Perspective is certainly the house's — the
+    // one it asked through. A signed-in reader's settles a beat after the first
+    // render (landing's effectivePov waits on two lookups), and house-ranked
+    // cards must not paint for someone reading through their own.
+    if (remembered) return { ...EMPTY_SEEDS, ...remembered };
+    if (userPubkey || pov !== "nosfabrica") return EMPTY_SEEDS;
+    const forTab = (tab: Exclude<SearchTab, "everything">): SearchHit[] => {
+      const kinds = new Set(TAB_KINDS[tab]);
+      return head.events
+        .filter((event) => kinds.has(event.kind))
+        .map((event) => ({ event, author: event.kind === 0 ? kind0ToSearchResult(event) : null, rank: null }));
+    };
+    return {
+      complete: head.complete,
+      people: forTab("people"), notes: forTab("notes"), articles: forTab("articles"), events: forTab("events"),
+      live: forTab("live"), media: forTab("media"), music: forTab("music"), shop: forTab("shop"),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [query, pov, userPubkey, remembered, head]);
+
+  /**
+   * What a section still has to ask for. Where the head start finished, the
+   * relay has already answered that filter in full, so the section's own
+   * subscription asks only for what has happened since — it stays open for
+   * live events without replaying the page. A head start that was cut short,
+   * or seeds recalled from memory (which may be ten minutes old), ask in full.
+   */
+  const sinceFor = (tab: SeedTab): number | undefined => {
+    if (!seeds.complete) return undefined;
+    const hits = seeds[tab];
+    if (!hits?.length) return undefined;
+    return hits.reduce((newest, h) => Math.max(newest, h.event.created_at), 0) || undefined;
+  };
+
+  const people = useSectionStream(query, "people", pov, userPubkey, EVERYTHING_SECTIONS.people.limit, { group: EVERYTHING, seed: seeds.people, since: sinceFor("people"), provisionalSeed: peopleSeedIsGuess });
   // Every CONTENT section leads with what's fresh (Benjamin's call:
   // scattered timestamps read as random) — the relay sorts, we ask for
   // recent. People stays trust-ranked; there are no timestamps to scatter.
   const fresh = `${query} sort:recent`.trim();
-  const latest = useSectionStream(fresh, "notes", pov, userPubkey, 10);
+  const latest = useSectionStream(fresh, "notes", pov, userPubkey, EVERYTHING_SECTIONS.notes.limit, { group: EVERYTHING, seed: seeds.notes, since: sinceFor("notes") });
   // Articles are evergreen: with words typed, relevance leads (recent-first
   // buried the page named "List of comedians" 26th; best match had it first).
-  const articles = useSectionStream(queryWords(query) ? query : fresh, "articles", pov, userPubkey, 5);
+  const articles = useSectionStream(queryWords(query) ? query : fresh, "articles", pov, userPubkey, EVERYTHING_SECTIONS.articles.limit, { group: EVERYTHING, seed: seeds.articles, since: sinceFor("articles") });
   // Happening = calendar events AND live streams, two verticals since the
   // Events split; events lead (a meetup you can still attend beats a replay).
-  const happeningEvents = useSectionStream(fresh, "events", pov, userPubkey, 12);
-  const happeningLive = useSectionStream(fresh, "live", pov, userPubkey, 8);
+  const happeningEvents = useSectionStream(fresh, "events", pov, userPubkey, EVERYTHING_SECTIONS.events.limit, { group: EVERYTHING, seed: seeds.events, since: sinceFor("events") });
+  const happeningLive = useSectionStream(fresh, "live", pov, userPubkey, EVERYTHING_SECTIONS.live.limit, { group: EVERYTHING, seed: seeds.live, since: sinceFor("live") });
   const happening = useMemo(
     () =>
       mergeSnapshots(
@@ -176,14 +278,36 @@ function ComposedResultsBody({
       ),
     [happeningEvents, happeningLive],
   );
-  const media = useSectionStream(fresh, "media", pov, userPubkey, 8);
+  const media = useSectionStream(fresh, "media", pov, userPubkey, EVERYTHING_SECTIONS.media.limit, { group: EVERYTHING, seed: seeds.media, since: sinceFor("media") });
   // Listen: native tracks (kind 31337) that match the words — best match, not
   // recency, because "jazz" should find jazz. The kind is abused for game
   // state and ad-skip data, so only hits that parse as a song count.
-  const music = useSectionStream(query, "music", pov, userPubkey, 12);
+  const music = useSectionStream(query, "music", pov, userPubkey, EVERYTHING_SECTIONS.music.limit, { group: EVERYTHING, seed: seeds.music, since: sinceFor("music") });
   // Shop: things for sale that match the words — best match, since "cashmere"
   // should find cashmere. Sold, hidden and priceless are gated (lib/listing).
-  const shop = useSectionStream(query, "shop", pov, userPubkey, 12);
+  const shop = useSectionStream(query, "shop", pov, userPubkey, EVERYTHING_SECTIONS.shop.limit, { group: EVERYTHING, seed: seeds.shop, since: sinceFor("shop") });
+
+  useEffect(() => {
+    if (!onSections) return;
+    onSections({ people, events: happeningEvents });
+  }, [onSections, people, happeningEvents]);
+
+  const showing = useMemo(
+    () => ({
+      people: people?.hits ?? [],
+      notes: latest?.hits ?? [],
+      articles: articles?.hits ?? [],
+      events: happeningEvents?.hits ?? [],
+      live: happeningLive?.hits ?? [],
+      media: media?.hits ?? [],
+      music: music?.hits ?? [],
+      shop: shop?.hits ?? [],
+    }),
+    [people, latest, articles, happeningEvents, happeningLive, media, music, shop],
+  );
+  const showingRef = useRef(showing);
+  showingRef.current = showing;
+  useEffect(() => () => onSectionHits?.(showingRef.current), [onSectionHits]);
 
   const allHits = useMemo(
     () =>
@@ -195,8 +319,9 @@ function ComposedResultsBody({
   const scoreOf = useAuthorScores(useMemo(() => [...new Set(allHits)], [allHits]));
   // The client-side filters (Verified only, reach) apply here too, so the
   // composed page and the tabs agree on what the box says.
-  const reach = useNetworkReach(userPubkey);
   const clientState = readFilters(query);
+  // Dozens of contact-list fetches — only when the reach filter asks for them.
+  const reach = useNetworkReach(clientState.reach ? userPubkey : null);
   // The search floor, as the tabs hold it: accounts below the verified line
   // stay off every section unless the searcher asks for everyone or looks
   // through their own perspective.
@@ -286,11 +411,17 @@ function ComposedResultsBody({
       return;
     }
     let alive = true;
-    void fetchEventRsvps(happeningAddrKey.split(",")).then((m) => {
-      if (alive) setHappeningRsvps(m);
-    });
+    // The list fills in bursts as events arrive, and each burst changes this
+    // key: asking on every one sent five requests for the same page (measured
+    // on staging 2026-09-17), each for up to 500 RSVPs. Ask once it settles.
+    const timer = setTimeout(() => {
+      void fetchEventRsvps(happeningAddrKey.split(",")).then((m) => {
+        if (alive) setHappeningRsvps(m);
+      });
+    }, RSVP_SETTLE_MS);
     return () => {
       alive = false;
+      clearTimeout(timer);
     };
   }, [happeningAddrKey]);
   const happeningClusters = useMemo(
@@ -340,11 +471,6 @@ function ComposedResultsBody({
 
   return (
     <div data-testid="composed-results">
-      {!anyContent && !allSettled && (
-        <div className="flex items-center gap-2 py-6 text-sm text-slate-400 dark:text-slate-500" data-testid="composed-loading">
-          <Loader2 className="h-4 w-4 animate-spin" /> Searching…
-        </div>
-      )}
       {!anyContent && allSettled && (
         <p className="py-6 text-sm text-slate-500 dark:text-slate-400" data-testid="composed-empty">
           Nothing found — try different words, or a specific tab.

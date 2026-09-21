@@ -12,6 +12,26 @@ if [ -f "$CONFIG_FILE" ]; then
   done
 fi
 
+# --- Preconnect hints --------------------------------------------------------
+# The app talks to the API and the relays on origins only known at deploy time,
+# so index.html carries a marker the build cannot fill. Same env as config.js;
+# wss:// origins preconnect over https:// — same host, same TCP + TLS.
+PRECONNECT=""
+for url in "$VITE_API_URL" "$VITE_SEARCH_RELAY_URL" "$VITE_NIP85_RELAY_URL" "$VITE_WOT_SEARCH_RELAY"; do
+  [ -n "$url" ] || continue
+  origin=$(printf '%s' "$url" | sed -e 's|^ws|http|' -e 's|\(https\{0,1\}://[^/]*\).*|\1|')
+  case "$PRECONNECT" in *"\"$origin\""*) continue ;; esac
+  PRECONNECT="${PRECONNECT}<link rel=\"preconnect\" href=\"$origin\" crossorigin>"
+done
+
+if [ -n "$PRECONNECT" ]; then
+  escaped=$(printf '%s' "$PRECONNECT" | sed -e 's/[\/&|]/\\&/g')
+  for page in index 200 404; do
+    file="/usr/share/nginx/html/${page}.html"
+    [ -f "$file" ] && sed -i "s|<!--PRECONNECT-->|${escaped}|" "$file"
+  done
+fi
+
 # --- Site trust signals ------------------------------------------------------
 # robots.txt and the Canonical line of security.txt are per-deployment, but the
 # image is shared across production, the production alias, and staging. Both are

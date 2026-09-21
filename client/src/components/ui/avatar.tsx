@@ -4,6 +4,8 @@ import * as React from "react"
 import * as AvatarPrimitive from "@radix-ui/react-avatar"
 
 import { cn } from "@/lib/utils"
+import { useNearViewport } from "@/hooks/useNearViewport"
+import { useConnectionSpeed } from "@/lib/connection"
 
 const Avatar = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Root>,
@@ -20,16 +22,36 @@ const Avatar = React.forwardRef<
 ))
 Avatar.displayName = AvatarPrimitive.Root.displayName
 
+// The fallback shows until the avatar is this close; only then is the picture fetched.
+const AVATAR_NEAR_VIEWPORT = "200px"
+
 const AvatarImage = React.forwardRef<
   React.ElementRef<typeof AvatarPrimitive.Image>,
   React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>
->(({ className, ...props }, ref) => (
-  <AvatarPrimitive.Image
-    ref={ref}
-    className={cn("aspect-square h-full w-full", className)}
-    {...props}
-  />
-))
+>(({ className, ...props }, ref) => {
+  const marker = React.useRef<HTMLSpanElement>(null)
+  const near = useNearViewport(marker, AVATAR_NEAR_VIEWPORT)
+  // On a very slow connection a face costs more than it tells you: the
+  // fallback stands in, and the ring and flag chip still say who this is.
+  const speed = useConnectionSpeed()
+  if (speed === "very-slow") return null
+  if (!near) {
+    return (
+      <span
+        ref={marker}
+        aria-hidden
+        className="pointer-events-none absolute inset-0"
+      />
+    )
+  }
+  return (
+    <AvatarPrimitive.Image
+      ref={ref}
+      className={cn("aspect-square h-full w-full", className)}
+      {...props}
+    />
+  )
+})
 AvatarImage.displayName = AvatarPrimitive.Image.displayName
 
 const AvatarFallback = React.forwardRef<

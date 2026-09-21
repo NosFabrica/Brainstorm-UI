@@ -423,6 +423,44 @@ export type DivergenceKind =
  * One user's scheduling as the server has it after an admin action — for a
  * released override, the policy billing settled on in the same request.
  */
+/** This server has no trusted-lists endpoint yet (server PR #86 not deployed). */
+export class TrustedListsUnavailableError extends Error {
+  constructor() {
+    super("Trusted lists aren't available on this server yet.");
+    this.name = "TrustedListsUnavailableError";
+  }
+}
+
+/** One Trusted List a run touched (server PR #86, `TrustedListTagResult`). */
+export interface TrustedListTagResult {
+  slug: string;
+  d_tag: string;
+  /** Empty for a retracted row. */
+  tag_event_id: string;
+  status: "published" | "failed" | "retracted";
+  taggings_considered: number;
+  member_count: number;
+  /** Set when the list failed to publish. */
+  error?: string | null;
+}
+
+/** What one run did for one observer (server PR #86, `TrustedListRunData`). */
+export interface TrustedListRunData {
+  observer: string;
+  /** The observer's assistant key — the one that signed the lists. */
+  signing_pubkey?: string | null;
+  /** Every tagging the server holds — global, not this observer's. */
+  taggings_in_store: number;
+  qualifying_asserters: number;
+  dictionary_size: number;
+  published: number;
+  failed: number;
+  retracted: number;
+  empty_reason?: "no_taggings_ingested" | "no_qualifying_asserters" | "no_tags_met_use_threshold" | null;
+  /** Published and failed lists first (most-used tag first), retracted ones after. */
+  tags: TrustedListTagResult[];
+}
+
 export interface AdminUserDetail {
   pubkey: string;
   scheduling_id: number | null;
@@ -581,6 +619,8 @@ export interface CreateSchedulingBody {
   priority?: number;
   enabled?: boolean;
   is_default?: boolean;
+  /** Whether a plan mapped to this policy may be sold on the pricing page. */
+  is_public?: boolean;
   manual_quota_limit?: number;
   manual_quota_window_seconds?: number;
 }
@@ -648,6 +688,12 @@ export interface NetworkAlertsData {
 /** True when an account's verified reporters meet/exceed its flag threshold. */
 export function isFlaggedAlert(e: NetworkAlertEntry): boolean {
   return e.reporterThreshold > 0 && e.verifiedReporterCount >= e.reporterThreshold;
+}
+
+/** An author's Influence and Flagged verdict, as a ring and a flag chip draw them. */
+export interface TrustSignals {
+  influence: number | null;
+  flagged: boolean;
 }
 
 export const apiClient = {
@@ -800,6 +846,40 @@ export const apiClient = {
       throw new Error(
         (await extractApiError(response)) || `Failed to reset the scheduling override (${response.status})`,
       );
+    }
+    const json = await response.json();
+    return json?.data ?? json;
+  },
+
+  /**
+   * The kind-10040 rows the server hands a user to publish (`GET /setup/{pubkey}`):
+   * which assistant key signs each kind, on which relay. Since PR #86 a bare
+   * "30392" row names where that observer's Trusted Lists are published.
+   */
+  async getSetupRows(pubkey: string): Promise<string[][]> {
+    const response = await authenticatedFetch(`${getBrainstormApi()}/setup/${pubkey}`, {
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!response.ok) throw new Error((await extractApiError(response)) || `Failed to read setup (${response.status})`);
+    const json = await response.json();
+    const rows = json?.data ?? json;
+    return Array.isArray(rows) ? rows : [];
+  },
+
+  /**
+   * Computes and publishes one observer's Trusted Lists now (server PR #86):
+   * kind-30392 events built from that observer's web of trust, signed by their
+   * assistant key, with lists whose tags no longer qualify retracted. The
+   * server does it all before answering — up to about a minute.
+   */
+  async publishTrustedLists(observer: string): Promise<TrustedListRunData> {
+    const response = await authenticatedFetch(
+      `${getBrainstormApi()}/admin/trustedLists/${observer}`,
+      { method: "POST", signal: AbortSignal.timeout(120_000) },
+    );
+    if (response.status === 404 || response.status === 405) throw new TrustedListsUnavailableError();
+    if (!response.ok) {
+      throw new Error((await extractApiError(response)) || `Failed to publish trusted lists (${response.status})`);
     }
     const json = await response.json();
     return json?.data ?? json;
@@ -1119,6 +1199,7 @@ export const apiClient = {
     ownPubkey: boolean = false,
     timeoutMs: number = 15000,
     maxHits?: number,
+    signal?: AbortSignal,
   ): Promise<{
     code: number;
     message: string | null;
@@ -1137,13 +1218,24 @@ export const apiClient = {
       params.set("maxHits", String(Math.trunc(maxHits)));
     }
     const url = `${getBrainstormApi()}/search/byText?${params.toString()}`;
-    const response = ownPubkey
-      ? await authenticatedFetch(url, { signal: AbortSignal.timeout(timeoutMs) })
-      : await fetch(url, { signal: AbortSignal.timeout(timeoutMs) });
-    if (!response.ok) {
-      throw new Error(`Search failed (${response.status})`);
+    // Combined by hand: AbortSignal.any is missing on older mobile Safari.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(new DOMException("Timed out", "TimeoutError")), timeoutMs);
+    const onAbort = () => controller.abort(signal?.reason);
+    if (signal?.aborted) onAbort();
+    else signal?.addEventListener("abort", onAbort, { once: true });
+    try {
+      const response = ownPubkey
+        ? await authenticatedFetch(url, { signal: controller.signal })
+        : await fetch(url, { signal: controller.signal });
+      if (!response.ok) {
+        throw new Error(`Search failed (${response.status})`);
+      }
+      return await response.json();
+    } finally {
+      clearTimeout(timer);
+      signal?.removeEventListener("abort", onAbort);
     }
-    return await response.json();
   },
 
   /**
@@ -1515,38 +1607,52 @@ export const apiClient = {
     pubkey: string,
     timeoutMs: number = 8000,
   ): Promise<number | null> {
-    return (await apiClient.getHouseSignals(pubkey, timeoutMs)).influence;
-  },
-
-  /**
-   * The house-perspective overview's two ambient signals in one unauthenticated
-   * call: `influence` (the score every ring reads) and `flagged_by_observer`
-   * (the network's verified reporters crossed the server's threshold). One
-   * request feeds both the ring and the "flagged" chip. Never throws.
-   */
-  async getHouseSignals(
-    pubkey: string,
-    timeoutMs: number = 8000,
-  ): Promise<{ influence: number | null; flagged: boolean }> {
-    const none = { influence: null, flagged: false };
-    if (!pubkey) return none;
+    if (!pubkey) return null;
     try {
       // Plain fetch (no session token) → NosFabrica/house perspective.
       const response = await fetch(`${getBrainstormApi()}/user/${pubkey}/overview`, {
         signal: AbortSignal.timeout(timeoutMs),
       });
-      if (!response.ok) return none;
-      const json = await response.json();
-      // Overview responses are wrapped: { code, message, data: { influence, flagged_by_observer } }.
-      const data = (json as { data?: { influence?: unknown; flagged_by_observer?: unknown } })?.data;
-      const influence = data?.influence;
-      return {
-        influence: typeof influence === "number" && Number.isFinite(influence) ? influence : null,
-        flagged: data?.flagged_by_observer === true,
-      };
+      if (!response.ok) return null;
+      const json = (await response.json()) as { data?: { influence?: unknown } };
+      const influence = json?.data?.influence;
+      return typeof influence === "number" && Number.isFinite(influence) ? influence : null;
     } catch {
-      return none;
+      return null;
     }
+  },
+
+  /**
+   * Trust signals for many authors in one unauthenticated call (house
+   * Perspective). Never throws: a failed batch answers an empty map.
+   */
+  async getTrustSignals(
+    pubkeys: string[],
+    timeoutMs: number = 8000,
+  ): Promise<Map<string, TrustSignals>> {
+    const out = new Map<string, TrustSignals>();
+    try {
+      const response = await fetch(`${getBrainstormApi()}/user/trustSignals`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pubkeys }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!response.ok) return out;
+      const json = (await response.json()) as {
+        data?: { results?: { pubkey?: unknown; influence?: unknown; flagged?: unknown }[] };
+      };
+      for (const r of json.data?.results ?? []) {
+        if (typeof r.pubkey !== "string") continue;
+        out.set(r.pubkey, {
+          influence: typeof r.influence === "number" && Number.isFinite(r.influence) ? r.influence : null,
+          flagged: r.flagged === true,
+        });
+      }
+    } catch {
+      // unrated, like a failed overview
+    }
+    return out;
   },
 
   async getGrapeRankPreset(): Promise<{

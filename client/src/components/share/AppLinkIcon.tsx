@@ -1,8 +1,8 @@
 import { Globe, Smartphone } from "lucide-react";
-import amethystLogoImg from "@/assets/amethyst-logo.png";
+import amethystLogoImg from "@/assets/amethyst-logo.webp";
 import nostriaIconImg from "@/assets/nostria-icon.png";
 import dittoLogoImg from "@/assets/ditto-logo.png";
-import primalLogoImg from "@/assets/primal-logo.png";
+import primalLogoImg from "@/assets/primal-logo.webp";
 import type { AppLinkId } from "@/lib/openInApp";
 
 // No asset for nostr.band — it falls back to a globe; the default app is a phone.

@@ -129,13 +129,14 @@ export function NoteContent({
             return imageOpensThread ? (
               // Clickable feed card: a tidy cropped thumbnail; the click bubbles
               // up to the card and opens the thread (full image + zoom live there).
-              <img
+              // A fixed box, so the card is its final height before the
+              // image lands and the rows below it never move.
+              <div
                 key={i}
-                src={token.value}
-                alt=""
-                loading="lazy"
-                className="mt-2 w-full max-h-72 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 object-cover"
-              />
+                className="mt-2 aspect-[16/10] w-full max-h-72 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900"
+              >
+                <img src={token.value} alt="" loading="lazy" className="h-full w-full object-cover" />
+              </div>
             ) : (
               <img
                 key={i}

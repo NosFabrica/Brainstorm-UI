@@ -8,6 +8,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 import type { SearchSnapshot, SearchParams } from "@/services/search";
+import { __resetHeadStart } from "@/lib/headStart";
+
+// The store verifies signatures; these events are fixtures, not signed ones.
+vi.mock("@/lib/eventStore", () => ({ eventStore: { add: (e: unknown) => e, getReplaceable: () => undefined } }));
 
 interface StreamCall {
   query: string;
@@ -43,6 +47,8 @@ const eventRsvpsMock = vi.fn<(addresses: string[]) => Promise<Map<string, { goin
 vi.mock("@/hooks/useAuthorScores", () => ({
   useAuthorScores: () => (pk: string) => scoreOfMock(pk),
 }));
+const reachMock = vi.fn<(pk?: string | null) => { direct: Set<string>; friends: Set<string>; ready: boolean }>(() => ({ direct: new Set(), friends: new Set(), ready: true }));
+vi.mock("@/hooks/useNetworkReach", () => ({ useNetworkReach: (pk?: string | null) => reachMock(pk) }));
 // The media lightbox — faked so tiles can prove a tap opens the MEDIA, not the post.
 const openLightboxMock = vi.fn();
 vi.mock("@/components/share/Lightbox", () => ({ useLightbox: () => openLightboxMock }));
@@ -106,6 +112,122 @@ describe("ComposedResults — media-rich sections", () => {
   // Apple's surfaces hold their shape: the sections that nearly always
   // answer reserve their space and fade in, instead of popping the page
   // around under the reader. Sections further down appear as they arrive.
+  // The skeletons are the loading state. A second "Searching…" row above them
+  // only took 88px of space back when the first section landed, jumping the
+  // page up under the reader.
+  // The head start asked the relay the same eight questions; asking them again
+  // in full made the relay answer the page twice (measured on staging).
+  // Taking the head start closes its socket and empties the global, so it must
+  // happen once — not inside a memo React may re-run or discard.
+  it("keeps the head start across a re-render", async () => {
+    const NOW = Math.floor(Date.now() / 1000);
+    (window as unknown as { __headStart?: unknown }).__headStart = {
+      query: "liverpool",
+      events: [{ id: "kept", kind: 1, pubkey: "e".repeat(64), tags: [], content: "kept", created_at: NOW, sig: "s" } as NostrEvent],
+      eose: true,
+      complete: true,
+      socket: { close: () => {} },
+    };
+    __resetHeadStart();
+
+    const view = render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    expect(calls.find((c) => c.params.tab === "notes")?.params.seed?.map((h) => h.event.id)).toEqual(["kept"]);
+
+    // A re-render for an unrelated reason must not lose it.
+    calls = [];
+    view.rerender(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} personMedia={[]} />);
+    const after = calls.find((c) => c.params.tab === "notes");
+    if (after) expect(after.params.seed?.map((h) => h.event.id)).toEqual(["kept"]);
+  });
+
+  it("asks only for what came since, when the head start finished", () => {
+    const NOW = Math.floor(Date.now() / 1000);
+    const note = (id: string, at: number) => ({ id, kind: 1, pubkey: "e".repeat(64), tags: [], content: id, created_at: at, sig: "s" }) as NostrEvent;
+    const park = (complete: boolean) => {
+      (window as unknown as { __headStart?: unknown }).__headStart = {
+        query: "liverpool",
+        events: [note("older", NOW - 600), note("newest", NOW - 60)],
+        eose: true,
+        complete,
+        socket: { close: () => {} },
+      };
+      __resetHeadStart();
+    };
+
+    park(true);
+    const done = render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    const asked = calls.find((c) => c.params.tab === "notes");
+    expect(asked?.params.seed?.map((h) => h.event.id)).toEqual(["older", "newest"]);
+    expect(asked?.params.since).toBe(NOW - 60);
+    // A section the head start found nothing for has nothing to count from.
+    expect(calls.find((c) => c.params.tab === "shop")?.params.since).toBeUndefined();
+    done.unmount();
+    calls = [];
+
+    // Cut short — the page may be missing events, so it asks in full.
+    park(false);
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    expect(calls.find((c) => c.params.tab === "notes")?.params.since).toBeUndefined();
+  });
+
+  it("seeds its sections from the head start, but only through the house Perspective", () => {
+    const note = { id: "h1", kind: 1, pubkey: "e".repeat(64), tags: [], content: "from the head start", created_at: Math.floor(Date.now() / 1000), sig: "s" } as NostrEvent;
+    const park = () => {
+      (window as unknown as { __headStart?: unknown }).__headStart = { query: "liverpool", events: [note], eose: true, socket: { close: () => {} } };
+      __resetHeadStart();
+    };
+
+    park();
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    expect(calls.find((c) => c.params.tab === "notes")?.params.seed?.map((h) => h.event.id)).toEqual(["h1"]);
+    calls = [];
+
+    // Their own Perspective ranks differently — the house's answer is not theirs.
+    park();
+    render(<ComposedResults query="liverpool" pov="mywot" userPubkey={"9".repeat(64)} onTabChange={vi.fn()} />);
+    expect(calls.find((c) => c.params.tab === "notes")?.params.seed ?? []).toEqual([]);
+    calls = [];
+
+    // And a signed-in reader on the house Perspective is not seeded either:
+    // theirs settles a beat after the first render, so it is not yet certain.
+    park();
+    render(<ComposedResults query="liverpool" pov="nosfabrica" userPubkey={"9".repeat(64)} onTabChange={vi.fn()} />);
+    expect(calls.find((c) => c.params.tab === "notes")?.params.seed ?? []).toEqual([]);
+  });
+
+  // Coming back from a result restarted every section from empty; the
+  // single-list tabs have restored from memory for a while.
+  it("comes back showing what it was showing, without asking again", async () => {
+    const note = hitOf(ev("kept", 1, "9".repeat(64), "still here"), "sam");
+    let handed: Record<string, SearchHit[]> = {};
+    const first = render(
+      <ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} onSectionHits={(h) => { handed = h; }} />,
+    );
+    sectionCall("notes").emit({ hits: [note], eose: true, timeMs: 40 });
+    await screen.findByTestId("serp-row-kept");
+    first.unmount();
+    expect(handed.notes?.map((h) => h.event.id)).toEqual(["kept"]);
+
+    calls = [];
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} seeds={handed} />);
+    // Handed straight back to the section as its seed, so searchStream shows it
+    // before the relay answers (the seed's own behaviour is covered in
+    // services/search.test.ts).
+    expect(calls.find((c) => c.params.tab === "notes")?.params.seed?.map((h) => h.event.id)).toEqual(["kept"]);
+  });
+
+  it("asks for every section on one shared subscription", () => {
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    expect(calls.length).toBeGreaterThan(1);
+    expect(calls.every((c) => c.params.group === "search-everything")).toBe(true);
+  });
+
+  it("says it is loading once, through the skeletons", () => {
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    expect(screen.getByTestId("serp-skeleton-people")).toBeInTheDocument();
+    expect(screen.queryByTestId("composed-loading")).toBeNull();
+  });
+
   it("People, Latest and Articles hold their place while loading, then fill or collapse", async () => {
     render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
     expect(screen.getByTestId("serp-skeleton-people")).toBeInTheDocument();
@@ -545,6 +667,27 @@ describe("ComposedResults", () => {
     expect(screen.queryByTestId("serp-section-media")).toBeNull();
   });
 
+  // Staging showed five kind-31925 requests within 150ms for one page: the
+  // events arrive in bursts and each burst re-asked who was going.
+  it("asks who is going once, however many bursts the events arrive in", async () => {
+    render(<ComposedResults query="liverpool" pov="nosfabrica" onTabChange={vi.fn()} />);
+    const nowSec = Math.floor(Date.now() / 1000);
+    const cal = (id: string, pk: string, start: number) =>
+      hitOf(ev(id, 31923, pk, "", [["d", id], ["title", `Meetup ${id}`], ["start", String(start)]]), "club");
+    const events = sectionCall("events");
+
+    events.emit({ hits: [cal("a", "1".repeat(64), nowSec + 86_400)] });
+    events.emit({ hits: [cal("a", "1".repeat(64), nowSec + 86_400), cal("b", "2".repeat(64), nowSec + 172_800)] });
+    events.emit({
+      hits: [cal("a", "1".repeat(64), nowSec + 86_400), cal("b", "2".repeat(64), nowSec + 172_800), cal("c", "3".repeat(64), nowSec + 259_200)],
+      eose: true,
+    });
+
+    await vi.waitFor(() => expect(eventRsvpsMock).toHaveBeenCalledTimes(1), { timeout: 2000 });
+    // …and it asks about every event the page ended up with, not just the first.
+    expect(eventRsvpsMock.mock.calls[0][0]).toHaveLength(3);
+  });
+
   // Review catch: Happening merged the events stream by publish order, so a
   // recently POSTED past meetup could lead the page. Happening means now or
   // next: upcoming calendar events soonest-first, then the live streams.
@@ -798,5 +941,19 @@ describe("ComposedResults", () => {
     render(<ComposedResults query="list of comedians" pov="nosfabrica" onTabChange={vi.fn()} />);
     expect(sectionCall("articles").query).toBe("list of comedians");
     expect(sectionCall("notes").query).toBe("list of comedians sort:recent");
+  });
+});
+
+describe("ComposedResults — network reach", () => {
+  const ME = "e".repeat(64);
+
+  it("a plain signed-in search doesn't load the viewer's network", () => {
+    render(<ComposedResults query="liverpool" pov="nosfabrica" userPubkey={ME} onTabChange={vi.fn()} />);
+    expect(reachMock).not.toHaveBeenCalledWith(ME);
+  });
+
+  it("a search filtered by reach loads it", () => {
+    render(<ComposedResults query="liverpool reach:follows" pov="nosfabrica" userPubkey={ME} onTabChange={vi.fn()} />);
+    expect(reachMock).toHaveBeenCalledWith(ME);
   });
 });

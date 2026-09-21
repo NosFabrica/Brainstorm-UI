@@ -55,6 +55,96 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <link rel="manifest" href="/site.webmanifest" />
     <script src="/config.js"></script>
+    <!-- Filled in at container start from the same env config.js gets: the API
+         and relay origins, so their DNS + TCP + TLS happen while the app boots
+         instead of in front of the first search. Empty in dev. -->
+    <!--PRECONNECT-->
+    <!-- Head start. Nothing reaches the relay until the bundle has loaded and
+         React has mounted — measured on a throttled 3G link, the first REQ left
+         at 12s, 2s of it after the bundle was already there. This asks the
+         question while the bundle is still downloading and parks the answer on
+         window.__headStart for the app to adopt (lib/headStart.ts). It never
+         renders anything and never retries: if any of it fails the app behaves
+         exactly as it did before. The section filters mirror ComposedResults —
+         headStart.test.ts holds them to it. -->
+    <script>
+      (function () {
+        try {
+          var q = new URLSearchParams(location.search).get("q");
+          var tab = new URLSearchParams(location.search).get("t");
+          var url = (window.__ENV__ || {}).VITE_SEARCH_RELAY_URL;
+          // Plain words only. A query carrying the search grammar (#tag, from:,
+          // sort: …) changes what some sections ask for, and a head start that
+          // asked a different question is worse than none.
+          // An unsubstituted "__VITE_…__" placeholder is not a relay (runtimeEnv.ts).
+          if (!q || !/^wss?:\/\//.test(url || "") || (tab && tab !== "everything") || /[:#]/.test(q)) return;
+          // Signed in: the app reads through that reader's own Perspective, which
+          // this cannot ask for, so it would collect an answer nobody adopts
+          // (accounts/persist.ts clears this key on sign-out).
+          if (localStorage.getItem("brainstorm_active_account")) return;
+          var fresh = q + " sort:recent";
+          // `complete` means the relay said EOSE: one REQ, one EOSE, so every
+          // filter finished. A CLOSED is an ending, not a completion.
+          var head = { query: q, events: [], eose: false, complete: false, socket: null };
+          window.__headStart = head;
+          var socket = new WebSocket(url);
+          head.socket = socket;
+          // The relay refuses a Perspective-less read and the house identity is
+          // discovered, never configured (services/trustSource.ts), so it is
+          // looked up — from the last visit's copy where there is one.
+          var KEY = "brainstorm_house_observer";
+          var cached = null;
+          try {
+            var held = JSON.parse(localStorage.getItem(KEY) || "null");
+            // A day old at most: the house identity can change, and a copy with
+            // no way to go stale would rank against it forever.
+            if (held && Date.now() - held.at < 86400000) cached = held.pk;
+          } catch (e) {}
+          var observer = /^[0-9a-f]{64}$/.test(cached || "") ? Promise.resolve(cached)
+            : fetch("/.well-known/nostr.json?name=_").then(function (r) { return r.json(); }).then(function (d) {
+                var pk = d && d.names && d.names._;
+                if (!/^[0-9a-f]{64}$/.test(pk || "")) return null;
+                try { localStorage.setItem(KEY, JSON.stringify({ pk: pk, at: Date.now() })); } catch (e) {}
+                return pk;
+              }).catch(function () { return null; });
+          var open = new Promise(function (done) { socket.onopen = done; });
+          socket.onmessage = function (e) {
+            try {
+              var m = JSON.parse(e.data);
+              if (m[0] === "EVENT") head.events.push(m[2]);
+              else if (m[0] === "EOSE") { head.eose = true; head.complete = true; }
+              else if (m[0] === "CLOSED") head.eose = true;
+            } catch (err) {
+              /* not a frame we know */
+            }
+          };
+          socket.onerror = function () { head.eose = true; };
+          Promise.all([open, observer]).then(function (both) {
+            // No Perspective, no head start: an unranked read would answer a
+            // different question from the one the app is about to ask.
+            if (!both[1]) { head.eose = true; try { socket.close(); } catch (e) {} return; }
+            // The app may already have taken the head start and closed this —
+            // on a fast connection it arrives before the lookup finishes, and
+            // it is about to ask the same question itself.
+            if (socket.readyState !== 1) { head.eose = true; return; }
+            var perspective = " observer:" + both[1];
+            try { socket.send(JSON.stringify(["REQ", "head", 
+              { kinds: [0], search: q + perspective, limit: 8 },
+              { kinds: [1, 11, 1111], search: fresh + perspective, limit: 10 },
+              { kinds: [30023, 30024, 30818, 30040, 30041], search: q + perspective, limit: 5 },
+              { kinds: [31922, 31923], search: fresh + perspective, limit: 12 },
+              { kinds: [30311, 30312, 30313], search: fresh + perspective, limit: 8 },
+              { kinds: [20, 21, 22, 1063, 1986, 1222, 34235, 34236], search: fresh + perspective, limit: 8 },
+              { kinds: [31337], search: q + perspective, limit: 12 },
+              { kinds: [30402], search: q + perspective, limit: 12 }])); } catch (e) { head.eose = true; }
+          });
+          // Nobody came for it: let the socket go rather than hold it open.
+          setTimeout(function () { try { socket.close(); } catch (e) {} }, 30000);
+        } catch (e) {
+          /* a head start is an optimisation — never a reason to fail the page */
+        }
+      })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <!-- Brand fonts only (Design System v1.0): Figtree (interface) + IBM Plex Mono (technical/metadata). -->
