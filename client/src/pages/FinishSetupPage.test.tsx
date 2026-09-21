@@ -20,6 +20,7 @@ vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
 // The header drags in the account menu / apps launcher stack; the checklist is
 // what's under test.
 vi.mock("@/components/AppHeader", () => ({ AppHeader: () => null }));
+vi.mock("@/components/ListsUpdate", () => ({ ListsUpdateLine: () => <div data-testid="line-lists-update" /> }));
 
 const setupState = vi.fn<() => FinishSetupState>();
 vi.mock("@/hooks/useFinishSetup", () => ({
@@ -93,5 +94,17 @@ describe("FinishSetupPage", () => {
 
     fireEvent.click(screen.getByTestId("button-setup-done"));
     expect(navigate).toHaveBeenCalledWith("/dashboard");
+  });
+
+  // Activated, lists waiting: the step stays done, the update sits under it.
+  it("keeps Activate done and offers the lists update beneath it", () => {
+    setupState.mockReturnValue(
+      state({ followDone: true, followPending: false, activateDone: true, activatePending: false, listsPending: true, remaining: 0, doneCount: 3, allDone: true }),
+    );
+    renderWithProviders(<FinishSetupPage />);
+
+    expect(screen.getByTestId("setup-row-activate-done")).toBeInTheDocument();
+    expect(screen.queryByTestId("setup-row-activate")).toBeNull();
+    expect(screen.getByTestId("line-lists-update")).toBeInTheDocument();
   });
 });
