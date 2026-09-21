@@ -53,6 +53,27 @@ export async function checkUserLists(pubkey: string, taPubkey: string): Promise<
 }
 
 /**
+ * What a 10040 about to be signed should say about Trusted Lists: the
+ * designation when the user has lists their declaration doesn't name yet,
+ * else nothing. Every activation surface needs this answer, so it lives here
+ * rather than being re-derived at each one — the dashboard's Activate modal
+ * skipped it and cost those users a second signature later.
+ *
+ * Prefers the answer the app already has (the same react-query key
+ * `useTrustListsStatus` fills), so the signer prompt isn't held up by a
+ * relay read the surface already did. Never throws: a publish must not fail
+ * because we couldn't work out whether to mention lists.
+ */
+export async function listsToName(
+  pubkey: string,
+  taPubkey: string,
+): Promise<ListDesignation | null> {
+  const known = queryClient.getQueryData<UserLists>(["trust-lists-status", pubkey, taPubkey]);
+  const lists = known ?? (await checkUserLists(pubkey, taPubkey).catch(() => null));
+  return lists?.status === "missing" ? lists.designation : null;
+}
+
+/**
  * After our own publish, say what we KNOW instead of refetching — a lagging
  * relay answering "missing" would re-raise the prompt the publish satisfied.
  */

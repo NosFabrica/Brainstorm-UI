@@ -16,8 +16,9 @@ vi.mock("./nostr", () => ({
 const requestAll = vi.fn(async (..._a: unknown[]): Promise<Array<{ kind: number; tags: string[][] }>> => []);
 vi.mock("@/lib/relayRequest", () => ({ requestAll: (...a: unknown[]) => requestAll(...a) }));
 
-import { checkUserLists } from "./trustLists";
+import { checkUserLists, listsToName } from "./trustLists";
 import { listRows } from "@/lib/nip85Declaration";
+import { queryClient } from "@/lib/queryClient";
 
 const ME = "a".repeat(64);
 const TA = "b".repeat(64);
@@ -68,5 +69,50 @@ describe("checkUserLists", () => {
 
     expect(res.designation).toEqual({ key: TA, relay: "wss://nip85.example" });
     expect(requestAll.mock.calls[0][0]).toEqual(["wss://nip85.example"]);
+  });
+});
+
+/**
+ * What a 10040 about to be signed should say about lists. Every activation
+ * surface asks this — the dashboard modal used to skip it and cost people a
+ * second signature.
+ */
+describe("listsToName", () => {
+  const DESIGNATION = { key: LIST_KEY, relay: LIST_RELAY };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    queryClient.clear();
+    getSetupRows.mockResolvedValue([["30382:rank", TA, "wss://nip85.example"], ["30392", LIST_KEY, LIST_RELAY]]);
+    fetchTrustProviderList.mockResolvedValue({ tags: [["30382:rank", TA, "wss://nip85.example"]] });
+    requestAll.mockResolvedValue([list()]);
+  });
+
+  it("names the lists the user has", async () => {
+    expect(await listsToName(ME, TA)).toEqual(DESIGNATION);
+  });
+
+  it("answers from what the app already knows, without asking the relays again", async () => {
+    queryClient.setQueryData(["trust-lists-status", ME, TA], { status: "missing", designation: DESIGNATION });
+
+    expect(await listsToName(ME, TA)).toEqual(DESIGNATION);
+    expect(getSetupRows).not.toHaveBeenCalled();
+    expect(requestAll).not.toHaveBeenCalled();
+  });
+
+  it("names nothing when the 10040 already says it, or there are no lists", async () => {
+    queryClient.setQueryData(["trust-lists-status", ME, TA], { status: "declared", designation: DESIGNATION });
+    expect(await listsToName(ME, TA)).toBeNull();
+
+    queryClient.setQueryData(["trust-lists-status", ME, TA], { status: "none", designation: null });
+    expect(await listsToName(ME, TA)).toBeNull();
+  });
+
+  it("never fails the publish it's preparing", async () => {
+    queryClient.clear();
+    getSetupRows.mockRejectedValue(new Error("server down"));
+    fetchTrustProviderList.mockRejectedValue(new Error("relays down"));
+
+    expect(await listsToName(ME, TA)).toBeNull();
   });
 });

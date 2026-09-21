@@ -25,7 +25,7 @@ import { queryClient } from "@/lib/queryClient";
 import { clearNip85Activated, isNip85Activated, markNip85Activated } from "@/lib/nip85Activation";
 import { hasDeclinedNip85, hasNip85Consent, recordNip85Consent } from "@/lib/nip85Consent";
 import type { ListDesignation } from "@/lib/nip85Declaration";
-import { checkUserLists, recordTrustListsDeclared } from "./trustLists";
+import { checkUserLists, listsToName, recordTrustListsDeclared } from "./trustLists";
 
 /**
  * Whether the automatic (non-user-initiated) NIP-85 publish paths may run for
@@ -159,6 +159,11 @@ async function publishSignedAnchor(
  * `ensureBrainstormTrustAnchor` this MAY raise the unlock modal or the
  * extension/bunker prompt — the user just asked for it (consent card or the
  * dashboard modal). `onPhase` lets callers narrate signing vs publishing.
+ *
+ * Saying nothing about `lists` means "name whatever they have" (`listsToName`);
+ * an explicit `null` means don't. The dashboard modal said nothing and so
+ * published a declaration without list rows, which cost those users a second
+ * signature minutes later — the default is what makes every surface equal.
  */
 export async function publishBrainstormTrustAnchor(
   pubkey: string,
@@ -173,6 +178,8 @@ export async function publishBrainstormTrustAnchor(
     return { status: "error", message: err?.message || "NIP-85 relay URL is not configured." };
   }
 
+  const lists = opts.lists === undefined ? await listsToName(pubkey, taPubkey) : opts.lists;
+
   // Merge into what's there: naming Brainstorm (and the user's Trusted Lists)
   // must never cost them another provider's rows.
   let existing: string[][] = [];
@@ -185,13 +192,13 @@ export async function publishBrainstormTrustAnchor(
   onPhase?.("signing");
   let signed;
   try {
-    signed = await signNip85(taPubkey, nip85Relay, { lists: opts.lists ?? null, existing });
+    signed = await signNip85(taPubkey, nip85Relay, { lists, existing });
   } catch (err) {
     return { status: "cancelled", unlockDeclined: isUnlockCancelled(err) };
   }
 
   onPhase?.("publishing");
-  return publishSignedAnchor(pubkey, signed, opts.lists ?? null);
+  return publishSignedAnchor(pubkey, signed, lists);
 }
 
 /**

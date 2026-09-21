@@ -21,6 +21,7 @@ const clearNip85Activated = vi.fn();
 const activeAccount = vi.fn((): { pubkey: string } | null => null);
 const canSignSilently = vi.fn(async () => false);
 const checkUserLists = vi.fn(async (..._a: unknown[]) => ({ status: "none", designation: null as null | { key: string; relay: string } }));
+const listsToName = vi.fn(async (..._a: unknown[]) => null as null | { key: string; relay: string });
 const recordTrustListsDeclared = vi.fn();
 
 vi.mock("./api", () => ({
@@ -39,6 +40,7 @@ vi.mock("./nostr", () => ({
 }));
 vi.mock("./trustLists", () => ({
   checkUserLists: (...a: unknown[]) => checkUserLists(...a),
+  listsToName: (...a: unknown[]) => listsToName(...a),
   recordTrustListsDeclared: (...a: unknown[]) => recordTrustListsDeclared(...a),
 }));
 vi.mock("@/accounts/signing", () => ({
@@ -141,6 +143,30 @@ describe("publishBrainstormTrustAnchor — the user-initiated publish", () => {
     expect(res).toEqual({ status: "success" });
     expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: LISTS, existing: theirs });
     expect(recordTrustListsDeclared).toHaveBeenCalledWith(ME, LISTS);
+  });
+
+  /**
+   * The dashboard's Activate modal passes no `opts` at all. It used to publish
+   * a declaration with no list rows, and the user was asked to update minutes
+   * later — so saying nothing now means "name whatever lists they have".
+   */
+  it("a caller that says nothing about lists still names the ones the user has", async () => {
+    const LISTS = { key: "c".repeat(64), relay: "wss://nip85-staging.example" };
+    listsToName.mockResolvedValueOnce(LISTS);
+
+    const res = await publishBrainstormTrustAnchor(ME, TA);
+
+    expect(res).toEqual({ status: "success" });
+    expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: LISTS, existing: [] });
+    expect(recordTrustListsDeclared).toHaveBeenCalledWith(ME, LISTS);
+  });
+
+  it("a caller that says null means it — no lists, no lookup", async () => {
+    const res = await publishBrainstormTrustAnchor(ME, TA, undefined, { lists: null });
+
+    expect(res).toEqual({ status: "success" });
+    expect(listsToName).not.toHaveBeenCalled();
+    expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: null, existing: [] });
   });
 
   it("a refused signature is cancelled, not an error", async () => {
