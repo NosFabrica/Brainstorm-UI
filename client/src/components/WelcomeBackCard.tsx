@@ -50,7 +50,18 @@ export function WelcomeBackCard() {
 
   const doWelcome = async (people: NewJoiner[]) => {
     setWelcomed((prev) => [...prev, ...people.filter((p) => !prev.some((w) => w.pubkey === p.pubkey))]);
-    await welcomeBack(people.map((p) => p.pubkey));
+    const sent = await welcomeBack(people.map((p) => p.pubkey));
+    if (!sent) {
+      // The follow never went out — take the optimistic tick back rather than
+      // congratulate the user on something that didn't happen.
+      setWelcomed((prev) => prev.filter((w) => !people.some((p) => p.pubkey === w.pubkey)));
+      toast({
+        variant: "destructive",
+        title: "That follow didn't go out",
+        description: "We couldn't reach your relays. Try again in a moment.",
+      });
+      return;
+    }
     toast({
       title: people.length > 1 ? `Welcomed ${people.length} people back` : `Welcomed ${people[0].name || "them"} back`,
       description: "Refreshing your scores…",

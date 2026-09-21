@@ -31,9 +31,12 @@ const fetchOutboxRelayList = vi.fn(async () => undefined as unknown);
 /** Whether the active key was minted in this app (createdInApp). */
 const createdInApp = vi.fn(() => false);
 
+/** The user's write relays, as the app resolves them. Tests can widen it. */
+const relayList: string[] = ["wss://one"];
+
 vi.mock("./nostr", () => ({
   publishToRelays: (...args: unknown[]) => publishToRelays(...(args as [])),
-  loadOutboxRelayListFromDb: () => ["wss://one"],
+  loadOutboxRelayListFromDb: () => [...relayList],
   fetchOutboxRelayList: (...args: unknown[]) => fetchOutboxRelayList(...(args as [])),
 }));
 
@@ -61,8 +64,36 @@ const poolRequest = vi.fn((relays: string[], filter: { kinds: number[] }) =>
     return () => clearTimeout(timer);
   }),
 );
+/**
+ * `pool.req` is the message stream: OPEN, then the events, then EOSE — or ERROR
+ * for a relay that can't be reached. That per-relay frame is the only place the
+ * difference between "answered with nothing" and "never answered" exists, and
+ * `requestNewestWithReach` reads it (#72).
+ */
+const poolReq = vi.fn((relays: string[], filter: { kinds: number[] }) =>
+  new Observable((subscriber) => {
+    const timer = setTimeout(() => {
+      const kind = filter.kinds[0];
+      for (const relay of relays) {
+        subscriber.next({ type: "OPEN", from: relay });
+        if (deadRelays.has(relay)) {
+          subscriber.next({ type: "ERROR", from: relay, error: new Error("connection refused") });
+          continue;
+        }
+        const events = [...(relayHas.get(kind) ?? []), ...(relayOnlyHas.get(`${relay}|${kind}`) ?? [])];
+        for (const event of events) subscriber.next({ type: "EVENT", from: relay, id: "sub", event });
+        subscriber.next({ type: "EOSE", from: relay });
+      }
+      subscriber.complete();
+    }, 0);
+    return () => clearTimeout(timer);
+  }),
+);
 vi.mock("@/lib/relayPool", () => ({
-  pool: { request: (...args: unknown[]) => poolRequest(...(args as [string[], { kinds: number[] }])) },
+  pool: {
+    request: (...args: unknown[]) => poolRequest(...(args as [string[], { kinds: number[] }])),
+    req: (...args: unknown[]) => poolReq(...(args as [string[], { kinds: number[] }])),
+  },
 }));
 const storeAdd = vi.fn((e: unknown) => e);
 vi.mock("@/lib/eventStore", () => ({ eventStore: { add: (e: unknown) => storeAdd(e) } }));
@@ -109,6 +140,8 @@ beforeEach(async () => {
   relayHas.clear();
   relayOnlyHas.clear();
   deadRelays.clear();
+  relayList.length = 0;
+  relayList.push("wss://one");
   activeAccount.mockReturnValue({ pubkey: ME });
   publishToRelays.mockResolvedValue({ success: true });
   createdInApp.mockReturnValue(false);
@@ -239,12 +272,52 @@ describe("unfollowing", () => {
  * in this app, or an explicit user confirmation, may create a first list.
  */
 describe("creating a first follow list", () => {
-  it("refuses for an imported key when nothing was found anywhere", async () => {
+  it("refuses for an imported key when no relay answered at all", async () => {
+    deadRelays.add("wss://one");
+
     const res = await social.followPubkeys([THEM]);
 
     expect(res.success).toBe(false);
     expect(res.needsBaseConfirmation).toBe(true);
     expect(signAs).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Issue #72: the refusal above is right only while "no list exists" and "no
+   * relay answered" look alike. When the relays DO answer and none of them has
+   * a list for this key, that is proof, not silence — the first list is safe to
+   * create, and asking would strand a new user on a dialog they can't answer.
+   */
+  it("creates the first list when the relays answered and none has one", async () => {
+    const res = await social.followPubkeys([THEM]);
+
+    expect(res.needsBaseConfirmation).toBeUndefined();
+    expect(res.success).toBe(true);
+    expect(signedPubkeys()).toEqual([THEM]);
+  });
+
+  it("still asks when more relays stayed silent than answered", async () => {
+    // Two of three unreachable: what the one answer didn't see is exactly what
+    // a from-scratch publish would wipe.
+    relayList.push("wss://two", "wss://three");
+    deadRelays.add("wss://two");
+    deadRelays.add("wss://three");
+
+    const res = await social.followPubkeys([THEM]);
+
+    expect(res.needsBaseConfirmation).toBe(true);
+    expect(signAs).not.toHaveBeenCalled();
+  });
+
+  it("merges onto a list only the answering relay holds, rather than replacing it", async () => {
+    relayList.push("wss://two");
+    deadRelays.add("wss://two");
+    relayOnlyHas.set("wss://one|3", [listEvent(3, [OTHER])]);
+
+    const res = await social.followPubkeys([THEM]);
+
+    expect(res.success).toBe(true);
+    expect(signedPubkeys()).toEqual([OTHER, THEM]);
   });
 
   it("warms the outbox list and retries before giving up", async () => {
@@ -281,7 +354,9 @@ describe("creating a first follow list", () => {
   });
 
   it("applies the same guard to a single follow", async () => {
+    deadRelays.add("wss://one");
     const refused = await social.followUser(THEM, null);
+    deadRelays.clear();
     expect(refused.success).toBe(false);
     expect(refused.needsBaseConfirmation).toBe(true);
     expect(signAs).not.toHaveBeenCalled();
