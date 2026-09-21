@@ -163,6 +163,34 @@ the user's click and the signer prompt — up to the routing deadline, for a fie
 that is optional by design. Anything that reads a profile warms the list first,
 and the publish that follows loads it anyway.
 
+## Whose relay a hint names
+
+A hint says "the thing this tag points at can be found here", so which relay is
+correct depends on the TAG, not on the event:
+
+| Tag | Points at | Hint is |
+| --- | --- | --- |
+| `p` | a person | where THEY write |
+| `a` | `kind:pubkey:d` | where that pubkey writes |
+| `e` / `q` | somebody's event | where ITS AUTHOR writes |
+
+The mistake this invites is computing one hint per event and stamping it on
+every tag. That is right for an RSVP, where the `a`, the `e` and the `p` all
+point at the host — and wrong for the retraction of one, where the `e` and `a`
+name the VIEWER's own event and only the `p` names anyone else. Both shapes are
+pinned in `services/relayHints.test.ts`.
+
+`relayHintFor(pubkey)` is store-only and returns their first write relay, or
+nothing. A hint we cannot produce is left off rather than guessed: a wrong hint
+sends readers somewhere the event definitely is not.
+
+Follow lists carry them too. NIP-02 is `["p", <pubkey>, <relay>, <petname>]`,
+and those hints are how other clients bootstrap routing for the people you
+follow — a reader holding your list and no kind-10002 for someone in it has
+nowhere else to look. `ContactsFactory.addContact` takes the hint from a
+pointer's first relay, so passing a bare pubkey string silently produced a bare
+tag, which is what this did until the audit.
+
 ## The routing table has to be there BEFORE the signature
 
 This is what the cache is for, and the rule that follows from it.

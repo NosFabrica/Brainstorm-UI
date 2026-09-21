@@ -52,8 +52,10 @@ export async function revokeVouch(subjectPubkey: string, eventId: string): Promi
       // coordinate names the SUBJECT in its `d`, not its pubkey slot — that one
       // is the author — so routing cannot infer them from it.
       tags: [
-        ["e", eventId],
-        ["a", `${VOUCH_KIND}:${account.pubkey}:${subjectPubkey}`],
+        // `e` and `a` name the viewer's OWN vouch, so they hint where the
+        // viewer writes. Only the `p` below names the subject.
+        tagWithHint("e", eventId, relayHintFor(account.pubkey)),
+        tagWithHint("a", `${VOUCH_KIND}:${account.pubkey}:${subjectPubkey}`, relayHintFor(account.pubkey)),
         ["k", String(VOUCH_KIND)],
         tagWithHint("p", subjectPubkey, relayHintFor(subjectPubkey)),
         CLIENT_TAG,

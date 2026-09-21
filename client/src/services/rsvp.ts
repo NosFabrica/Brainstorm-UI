@@ -81,8 +81,10 @@ export async function withdrawRsvp(
     const signed = await signAs(account, {
       kind: 5,
       tags: [
-        ["e", rsvp.id],
-        ["a", `${RSVP_KIND}:${account.pubkey}:${rsvp.d}`],
+        // `e` and `a` name the viewer's OWN RSVP, so they hint where the viewer
+        // writes. Only the `p` below names the host.
+        tagWithHint("e", rsvp.id, relayHintFor(account.pubkey)),
+        tagWithHint("a", `${RSVP_KIND}:${account.pubkey}:${rsvp.d}`, relayHintFor(account.pubkey)),
         ["k", String(RSVP_KIND)],
         // The host, so the withdrawal reaches the inbox the RSVP itself reached.
         // Both `e` and `a` here point at the VIEWER's own events, so nothing in

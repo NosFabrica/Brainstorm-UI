@@ -18,7 +18,7 @@ import { signAs } from "@/accounts/signing";
 import { isUnlockCancelled } from "@/accounts/local-signer";
 import { signEventWithEphemeralKey, getVerifiedProfileLud16 } from "@/services/nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";
-import { inboxRelays } from "@/lib/relayRouting";
+import { inboxRelays, relayHintFor } from "@/lib/relayRouting";
 import {
   acceptsZaps,
   canAttributeZap,
@@ -128,10 +128,14 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
       // the person being zapped may never look, and the zap never showed up on
       // their profile in their own client.
       const relays = await inboxRelays([recipientPubkey], PROFILE_RELAYS);
+      // The `p` hint is where the recipient WRITES — where a reader of the
+      // receipt goes to find them — which is not the same as the `relays` tag
+      // above, where the wallet should publish the receipt TO.
+      const recipientHint = relayHintFor(recipientPubkey);
       const commentText = comment.trim() || undefined;
       const anonZap = () =>
         signEventWithEphemeralKey(
-          buildZapRequest({ recipientPubkey, amountMsat, lnurl: params.lnurlUrl, relays, comment: commentText, anon: true }),
+          buildZapRequest({ recipientPubkey, amountMsat, lnurl: params.lnurlUrl, relays, comment: commentText, anon: true, relayHint: recipientHint }),
         );
       let signedZapRequest: Record<string, unknown> | undefined;
       if (recipientSupportsZaps) {
@@ -139,7 +143,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
           try {
             signedZapRequest = await signAs(
               account,
-              buildZapRequest({ recipientPubkey, amountMsat, lnurl: params.lnurlUrl, relays, comment: commentText }),
+              buildZapRequest({ recipientPubkey, amountMsat, lnurl: params.lnurlUrl, relays, comment: commentText, relayHint: recipientHint }),
             );
           } catch (e) {
             // They declined to unlock: abandon the zap rather than quietly sending

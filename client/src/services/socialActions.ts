@@ -5,7 +5,7 @@ import { verifyEvent } from "nostr-tools";
 import { publishToRelays, fetchOutboxRelayList } from "./nostr";
 import { requestAll, requestNewest, requestNewestRaw } from "@/lib/relayRequest";
 import { PROFILE_RELAYS } from "@/lib/relays";
-import { outboxRelays } from "@/lib/relayRouting";
+import { outboxRelays, relayHintFor, tagWithHint } from "@/lib/relayRouting";
 import { eventStore } from "@/lib/eventStore";
 import { isRelayUrl } from "@/config/tagging";
 import { identityHas } from "@/accounts/display";
@@ -183,6 +183,22 @@ const UNCONFIRMED_BASE: FollowOutcome = {
   error: "We couldn't confirm an existing follow list for this key — try again in a moment.",
 };
 
+/**
+ * A follow, with a relay hint when we have one.
+ *
+ * NIP-02 is `["p", <pubkey>, <relay>, <petname>]`, and those hints are how
+ * OTHER clients bootstrap routing for the people you follow — a reader with
+ * your list and no kind-10002 for someone in it has nowhere else to look. We
+ * consume hints everywhere and, until now, contributed none.
+ *
+ * `addContact` takes the hint from a pointer's first relay, so a bare pubkey
+ * string (what this passed before) silently produced a bare tag.
+ */
+function contact(pubkey: string): string | { pubkey: string; relays: string[] } {
+  const hint = relayHintFor(pubkey);
+  return hint ? { pubkey, relays: [hint] } : pubkey;
+}
+
 /** A `p` tag naming this pubkey — how every follow and mute list is indexed. */
 const isPTagFor = (pubkey: string) => (tag: string[]) => tag[0] === "p" && tag[1] === pubkey;
 
@@ -269,7 +285,7 @@ export async function followUser(
 
   if (baseTags.some(isPTagFor(targetPubkey))) return { success: true };
 
-  return publishContactList(account, base, (f) => f.addContact(targetPubkey));
+  return publishContactList(account, base, (f) => f.addContact(contact(targetPubkey)));
 }
 
 export async function unfollowUser(targetPubkey: string, cachedContactList?: NostrEvent | null): Promise<PublishOutcome> {
@@ -314,7 +330,7 @@ export async function followPubkeys(
   if (!additions.length) return { success: true };
 
   return publishContactList(account, base, (f) =>
-    additions.reduce((acc, pk) => acc.addContact(pk), f),
+    additions.reduce((acc, pk) => acc.addContact(contact(pk)), f),
   );
 }
 
@@ -505,7 +521,12 @@ export async function unreportUser(targetPubkey: string): Promise<PublishOutcome
   try {
     const signed = await signAs(account, {
       kind: 5,
-      tags: [...mine.eventIds.map((id) => ["e", id]), ["k", "1984"]],
+      // These `e`s name the viewer's OWN reports, so the hint is where THEY
+      // write — not where the person reported does.
+      tags: [
+        ...mine.eventIds.map((id) => tagWithHint("e", id, relayHintFor(account.pubkey))),
+        ["k", "1984"],
+      ],
       content: "",
     });
     return await publishToRelays(signed);

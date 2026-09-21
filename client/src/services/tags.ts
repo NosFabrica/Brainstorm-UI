@@ -1872,6 +1872,8 @@ export async function pinTag({
       tagEventId,
       viewerPubkey: user.pubkey,
       taPubkeys: Z_HANDLE_PUBKEYS,
+      // The pin's `e` and `a` both name the tag author's event.
+      relayHint: relayHintFor(authorPubkey),
     }),
     pubkey: user.pubkey,
     created_at: Math.floor(Date.now() / 1000),
@@ -1907,7 +1909,8 @@ export async function unpinTag(pinEventId: string): Promise<void> {
     kind: DELETION_KIND,
     pubkey: user.pubkey,
     created_at: Math.floor(Date.now() / 1000),
-    tags: [["e", pinEventId]],
+    // The pin is the viewer's own event, so the hint is where they write.
+    tags: [tagWithHint("e", pinEventId, relayHintFor(user.pubkey))],
     content: "",
   };
   const signed = await signAs(requireActiveAccount(), unsigned as never);
