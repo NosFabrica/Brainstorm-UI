@@ -93,6 +93,25 @@ Without the second cap, publishing a kind-3 would mean resolving the relay list
 of everyone you follow — and a kind-3's `p` tags are a membership list, not an
 address book, so those kinds are excluded from inbox routing outright.
 
+**Not everything an addressee is, is a `p` tag.** Two other tags name a person
+indirectly, and both were being missed. An `a` tag is `kind:pubkey:d`, so the
+author sits inside the value. An `e` or `q` tag names an event rather than a
+person, but NIP-10 and NIP-18 both allow the referenced author's pubkey in a
+later slot, and failing that the event store may already know who wrote it.
+`addressees()` now reads all three. It never goes to the relays to resolve a
+reference — a publish must not block on that — so an `e` tag we cannot resolve
+simply contributes no addressee.
+
+This changed little for today's events, because ours mostly `p`-tag the same
+person the `a`/`e` points at. It matters for the next kind that does not: a
+reply or reaction carrying only an `e` would have reached nobody's inbox, and
+nothing would have reported it.
+
+Two retractions did have the gap for real. A kind-5 withdrawing an RSVP, and
+one revoking a vouch, carry an `e` and an `a` that both name the VIEWER's own
+events — so nothing in the tags named the host or the subject, and the
+retraction never reached the inbox the original had. Both now carry a `p`.
+
 **Not everything a `p` tag names is an addressee.** Alongside the membership
 lists, we exclude the kinds that are a claim *about* a person rather than a
 message *to* them — NIP-56 reports and tag assertions/disputes. A vouch or an

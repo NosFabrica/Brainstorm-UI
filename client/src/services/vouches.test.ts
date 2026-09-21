@@ -69,10 +69,14 @@ describe("revokeVouch", () => {
     expect(res.success).toBe(true);
     const template = signAsMock.mock.calls[0][1];
     expect(template).toMatchObject({ kind: 5, content: "Vouch removed" });
+    // The `p` is not decoration: both the `e` and the `a` here name the
+    // VIEWER's own events, so without it nothing in the retraction names the
+    // person it concerns, and it would never reach their inbox.
     expect(template.tags).toEqual([
       ["e", "vouch-id"],
       ["a", `31871:${ME}:${THEM}`],
       ["k", "31871"],
+      ["p", THEM],
       ["client", "Brainstorm"],
     ]);
   });

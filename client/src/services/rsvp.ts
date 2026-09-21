@@ -71,13 +71,25 @@ export async function publishRsvp(event: CalendarLike, status: RsvpStatus = "acc
 }
 
 /** Withdraw an RSVP: a NIP-09 delete naming the event AND its coordinate. */
-export async function withdrawRsvp(rsvp: { id: string; d: string }): Promise<PublishOutcome> {
+export async function withdrawRsvp(
+  rsvp: { id: string; d: string },
+  hostPubkey?: string,
+): Promise<PublishOutcome> {
   const account = activeAccount();
   if (!account) return { success: false, error: "Not logged in" };
   try {
     const signed = await signAs(account, {
       kind: 5,
-      tags: [["e", rsvp.id], ["a", `${RSVP_KIND}:${account.pubkey}:${rsvp.d}`], ["k", String(RSVP_KIND)], CLIENT_TAG],
+      tags: [
+        ["e", rsvp.id],
+        ["a", `${RSVP_KIND}:${account.pubkey}:${rsvp.d}`],
+        ["k", String(RSVP_KIND)],
+        // The host, so the withdrawal reaches the inbox the RSVP itself reached.
+        // Both `e` and `a` here point at the VIEWER's own events, so nothing in
+        // the tags would otherwise name the person this actually concerns.
+        ...(hostPubkey ? [tagWithHint("p", hostPubkey, relayHintFor(hostPubkey))] : []),
+        CLIENT_TAG,
+      ],
       content: "RSVP withdrawn",
     });
     return await publishToRelays(signed);

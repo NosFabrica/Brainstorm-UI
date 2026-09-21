@@ -11,13 +11,14 @@ import type { NostrEvent } from "nostr-tools";
 
 const publish = vi.fn(async (relays: string[]) => relays.map((from) => ({ ok: true, from, message: "" })));
 const held = new Map<string, NostrEvent>();
+const events = new Map<string, NostrEvent>();
 const loadReplaceableMock = vi.fn(async () => undefined as NostrEvent | undefined);
 
 vi.mock("@/lib/relayPool", () => ({ pool: { publish: (...a: unknown[]) => publish(...(a as [string[]])) } }));
 vi.mock("@/lib/eventStore", () => ({
   eventStore: {
     getReplaceable: (kind: number, pubkey: string) => held.get(`${kind}:${pubkey}`),
-    getEvent: () => undefined,
+    getEvent: (id: string) => events.get(id),
     add: (e: unknown) => e,
   },
 }));
@@ -48,6 +49,7 @@ const seed = (e: NostrEvent) => held.set(`${e.kind}:${e.pubkey}`, e);
 beforeEach(() => {
   vi.clearAllMocks();
   held.clear();
+  events.clear();
   resetRelayRoutingCache();
   loadReplaceableMock.mockResolvedValue(undefined);
 });
@@ -104,6 +106,72 @@ describe("routing a publish", () => {
     seed(relayList(ME, [["r", "wss://my-in.example", "read"], ["r", "wss://my-out.example", "write"]]));
 
     expect(await publishRelaysFor(event(1, [["p", ME]]))).not.toContain("wss://my-in.example/");
+  });
+
+  /**
+   * An `a` tag is `kind:pubkey:d` — the author sits inside the value. RSVPing
+   * to or commenting on somebody's addressable event has to reach them whether
+   * or not the client also `p`-tagged them.
+   */
+  it("reads the author out of an `a` tag", async () => {
+    seed(relayList(THEM, [["r", "wss://their-in.example", "read"]]));
+
+    const relays = await publishRelaysFor(event(1, [["a", `30023:${THEM}:my-article`]]));
+
+    expect(relays).toContain("wss://their-in.example/");
+  });
+
+  /** NIP-10 puts the referenced author in the fifth slot of an `e` tag. */
+  it("reads the author hint out of an `e` tag", async () => {
+    seed(relayList(THEM, [["r", "wss://their-in.example", "read"]]));
+
+    const relays = await publishRelaysFor(
+      event(1, [["e", "f".repeat(64), "wss://hint.example", "reply", THEM]]),
+    );
+
+    expect(relays).toContain("wss://their-in.example/");
+  });
+
+  /** NIP-18 puts it in the fourth slot of a `q` tag. */
+  it("reads the author hint out of a `q` tag", async () => {
+    seed(relayList(THEM, [["r", "wss://their-in.example", "read"]]));
+
+    const relays = await publishRelaysFor(event(1, [["q", "f".repeat(64), "wss://hint.example", THEM]]));
+
+    expect(relays).toContain("wss://their-in.example/");
+  });
+
+  /** No hint in the tag, but the store already knows who wrote it. */
+  it("falls back to the store for a bare `e` tag", async () => {
+    seed(relayList(THEM, [["r", "wss://their-in.example", "read"]]));
+    const referenced = { id: "f".repeat(64), kind: 1, pubkey: THEM, created_at: 1, tags: [], content: "", sig: "s" } as NostrEvent;
+    events.set(referenced.id, referenced);
+
+    const relays = await publishRelaysFor(event(1, [["e", referenced.id]]));
+
+    expect(relays).toContain("wss://their-in.example/");
+  });
+
+  /**
+   * A reference we cannot resolve is simply not an addressee. A publish must
+   * never go to the relays to find out who somebody is.
+   */
+  it("adds nothing for an `e` tag it cannot resolve", async () => {
+    const withoutReference = await publishRelaysFor(event(1));
+    const withReference = await publishRelaysFor(event(1, [["e", "f".repeat(64)]]));
+
+    expect(withReference).toEqual(withoutReference);
+  });
+
+  /** A deletion of the author's own event names only them, tags notwithstanding. */
+  it("never treats the author's own coordinate as an addressee", async () => {
+    seed(relayList(ME, [["r", "wss://my-in.example", "read"]]));
+
+    const relays = await publishRelaysFor(
+      event(5, [["e", "f".repeat(64)], ["a", `31925:${ME}:xyz`], ["k", "31925"]]),
+    );
+
+    expect(relays).not.toContain("wss://my-in.example/");
   });
 
   /** This argument used to be silently discarded, which is why `services/tags`

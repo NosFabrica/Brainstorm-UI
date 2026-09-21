@@ -48,7 +48,16 @@ export async function revokeVouch(subjectPubkey: string, eventId: string): Promi
   try {
     const signed = await signAs(account, {
       kind: 5,
-      tags: [["e", eventId], ["a", `${VOUCH_KIND}:${account.pubkey}:${subjectPubkey}`], ["k", String(VOUCH_KIND)], CLIENT_TAG],
+      // `p` so the retraction reaches the same inbox the vouch did. The `a`
+      // coordinate names the SUBJECT in its `d`, not its pubkey slot — that one
+      // is the author — so routing cannot infer them from it.
+      tags: [
+        ["e", eventId],
+        ["a", `${VOUCH_KIND}:${account.pubkey}:${subjectPubkey}`],
+        ["k", String(VOUCH_KIND)],
+        tagWithHint("p", subjectPubkey, relayHintFor(subjectPubkey)),
+        CLIENT_TAG,
+      ],
       content: "Vouch removed",
     });
     return await publishToRelays(signed);

@@ -1014,14 +1014,52 @@ const NOT_ADDRESSED_TO_P_TAGS = new Set([
   39999, // tagging: tag element
 ]);
 
-/** Who an event is addressed to: its `p` tags, minus the author themself. */
+const HEX64 = /^[0-9a-f]{64}$/;
+
+/**
+ * Everyone an event is addressed to — not just its `p` tags.
+ *
+ * A `p` tag names a person directly, but two other tags name one indirectly,
+ * and both were being missed:
+ *
+ * - **`a`** is `kind:pubkey:d`, so the author is sitting in the middle of the
+ *   value. Reacting to, commenting on or RSVPing to somebody's addressable
+ *   event should reach them whether or not the client also `p`-tagged them.
+ * - **`e`** and **`q`** name an event, not a person. NIP-10 and NIP-18 both
+ *   allow the referenced author's pubkey in a later position of the tag, so
+ *   that is read first; failing that, the store may already hold the event and
+ *   know who wrote it. A hint we have neither way is simply not an addressee —
+ *   this never goes to the relays to find out, because a publish must not
+ *   block on resolving a reference.
+ *
+ * Today most of our own events happen to `p`-tag the same person the `a`/`e`
+ * points at, so this changes little in practice. It matters for the next kind
+ * that doesn't: a reply or reaction carrying only an `e` would have reached
+ * nobody's inbox, silently.
+ */
 function addressees(signedEvent: NostrEvent): string[] {
   if (NOT_ADDRESSED_TO_P_TAGS.has(signedEvent.kind)) return [];
+  const self = signedEvent.pubkey.toLowerCase();
   const out = new Set<string>();
+  const add = (candidate: string | undefined) => {
+    const pubkey = (candidate ?? "").toLowerCase();
+    if (HEX64.test(pubkey) && pubkey !== self) out.add(pubkey);
+  };
+
   for (const tag of signedEvent.tags || []) {
-    if (tag[0] !== "p" && tag[0] !== "P") continue;
-    const pubkey = typeof tag[1] === "string" ? tag[1].toLowerCase() : "";
-    if (/^[0-9a-f]{64}$/.test(pubkey) && pubkey !== signedEvent.pubkey.toLowerCase()) out.add(pubkey);
+    const name = tag[0];
+    const value = typeof tag[1] === "string" ? tag[1] : "";
+
+    if (name === "p" || name === "P") add(value);
+    else if (name === "a" || name === "A") add(value.split(":")[1]);
+    else if (name === "e" || name === "E" || name === "q") {
+      // A relay URL or a marker like "reply" can never look like a pubkey, so
+      // scanning the rest of the tag is safe for both the NIP-10 shape
+      // (`e, id, relay, marker, pubkey`) and the NIP-18 one (`q, id, relay, pubkey`).
+      const hinted = tag.slice(2).find((entry) => typeof entry === "string" && HEX64.test(entry.toLowerCase()));
+      if (hinted) add(hinted);
+      else if (HEX64.test(value.toLowerCase())) add(eventStore.getEvent(value)?.pubkey);
+    }
   }
   return Array.from(out);
 }

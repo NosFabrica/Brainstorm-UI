@@ -46,7 +46,7 @@ export function RsvpButton({ event, size = "sm", className = "" }: { event: Cale
     setBusy(true);
     try {
       if (going && mine) {
-        const res = await withdrawRsvp(mine);
+        const res = await withdrawRsvp(mine, event.pubkey);
         if (res.success) {
           forgetMyRsvp(event, me);
           setMine(null);
