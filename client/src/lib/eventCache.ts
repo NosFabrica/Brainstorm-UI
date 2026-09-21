@@ -114,6 +114,34 @@ async function rowsFor(pubkey: string): Promise<CachedRow[]> {
   }
 }
 
+/**
+ * Everything cached for a set of authors, in ONE transaction.
+ *
+ * A read per author would be up to `bufferSize` (200) serialized IndexedDB
+ * round trips in front of the step that exists to avoid a network round trip.
+ * The whole store is `MAX_CACHED_EVENTS` rows, so reading it once and grouping
+ * in memory is cheaper than querying the index repeatedly.
+ */
+async function rowsForAuthors(pubkeys: Set<string>): Promise<Map<string, CachedRow[]>> {
+  const grouped = new Map<string, CachedRow[]>();
+  if (!pubkeys.size) return grouped;
+  const db = await openDb();
+  if (!db) return grouped;
+  try {
+    const store = db.transaction(STORE, "readonly").objectStore(STORE);
+    const rows = await promisify<CachedRow[]>(store.getAll() as IDBRequest<CachedRow[]>);
+    for (const row of rows ?? []) {
+      if (!row || !pubkeys.has(row.pubkey)) continue;
+      const bucket = grouped.get(row.pubkey);
+      if (bucket) bucket.push(row);
+      else grouped.set(row.pubkey, [row]);
+    }
+  } catch {
+    /* an unreadable cache is a miss, never an error */
+  }
+  return grouped;
+}
+
 async function writeEvents(events: NostrEvent[]): Promise<void> {
   const worth = events.filter((event) => CACHED.has(event.kind));
   if (!worth.length) return;
@@ -188,8 +216,18 @@ let hydratingFor: string | null = null;
  * that is about to be there and go to the relays for nothing.
  */
 export function whenHydrated(): Promise<void> {
-  return hydration ? hydration.then(() => undefined) : Promise.resolve();
+  if (!hydration) return Promise.resolve();
+  // Bounded. Every routed read waits on this, and a storage layer that never
+  // answers — a blocked `indexedDB.open`, a wedged private-mode shim — would
+  // otherwise hang the app rather than fall back to the relays.
+  return Promise.race([
+    hydration.then(() => undefined),
+    new Promise<void>((resolve) => setTimeout(resolve, HYDRATION_DEADLINE_MS)),
+  ]);
 }
+
+/** Long enough for a disk read, short enough that nobody stares at a spinner. */
+const HYDRATION_DEADLINE_MS = 1500;
 
 /**
  * Put the active account's own events into the store, then refresh them.
@@ -246,21 +284,36 @@ async function hydrate(pubkey: string): Promise<number> {
  * through the loader, which inserts them, so a newer copy simply wins.
  */
 async function revalidate(events: NostrEvent[]): Promise<void> {
-  // Imported here, not at the top: `lib/loaders` imports THIS module for its
-  // `cacheRequest`, and a static import back would close the cycle at the one
-  // moment it matters — module init, where `loaders` builds the loader.
+  // Imported here, not at the top: `lib/loaders` and `lib/relayRouting` both
+  // import THIS module, and a static import back would close the cycle at the
+  // one moment it matters — module init, where the loader is built.
   const { loadReplaceable } = await import("./loaders");
+  const { parseRelayList } = await import("./relayRouting");
+
+  // ROUTED, not left to the lookup relays. A pointer with no relays of its own
+  // reaches `lookupRelays` and nothing else, so a kind-30078 or kind-10040 that
+  // lives only on the user's own relays would be "refreshed" against a set that
+  // never had it — and `loadReplaceable`'s store-first hit would then serve the
+  // stale disk copy for the rest of the session.
+  const cachedList = events.find((event) => event.kind === RELAY_LIST_KIND);
+  const write = cachedList ? parseRelayList(cachedList).write : [];
+  const relays = write.length ? write : undefined;
+
   await Promise.all(
     events.map((event) => {
       const identifier = event.tags.find((tag) => tag[0] === "d")?.[1];
       return loadReplaceable(event.kind, event.pubkey, {
         identifier,
+        relays,
         fromRelays: true,
         timeoutMs: 8000,
       }).catch(() => undefined);
     }),
   );
 }
+
+/** NIP-65, restated here so this module needs no import from the routing one. */
+const RELAY_LIST_KIND = 10002;
 
 /**
  * How long a cached event may answer for somebody else before we ask the relays
@@ -290,12 +343,16 @@ export async function cachedEventsForFilters(
   const fresh = Date.now() - SERVE_TTL_MS;
   const out = new Map<string, NostrEvent>();
 
+  const wanted = new Set<string>();
+  for (const filter of filters) for (const pubkey of filter.authors ?? []) wanted.add(pubkey);
+  const byAuthor = await rowsForAuthors(wanted);
+
   for (const filter of filters) {
     const authors = filter.authors ?? [];
     const kinds = filter.kinds;
     const identifiers = filter["#d"];
     for (const pubkey of authors) {
-      for (const row of await rowsFor(pubkey)) {
+      for (const row of byAuthor.get(pubkey) ?? []) {
         if (!row || row.cachedAt < fresh) continue;
         const event = row.event;
         if (kinds && !kinds.includes(event.kind)) continue;
@@ -331,6 +388,12 @@ export function startEventCache(): void {
  * belonged to.
  */
 export async function clearEventCache(): Promise<void> {
+  // The writer first. `persistEventsToCache` batches for five seconds, so
+  // clearing without stopping it lets the in-flight batch write the browsing
+  // trail straight back after sign-out wiped it.
+  stopWriting?.();
+  stopWriting = null;
+  knownGood.clear();
   hydration = null;
   hydratingFor = null;
   const db = await openDb();
@@ -346,6 +409,11 @@ export async function clearEventCache(): Promise<void> {
   } catch {
     /* nothing to do */
   }
+}
+
+/** Test seam — whether the batching writer is running. */
+export function __isWriting(): boolean {
+  return stopWriting !== null;
 }
 
 /** Test seam — exercises the write path without waiting on a 5s batch. */

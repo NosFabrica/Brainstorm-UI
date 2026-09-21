@@ -67,8 +67,21 @@ export const MAX_CONNECTIONS = 8;
  */
 export const MAX_INBOX_RECIPIENTS = 8;
 
-/** How long a MISS is remembered. A hit lives in the event store instead. */
+/**
+ * How long a MISS is remembered. A hit lives in the event store instead.
+ *
+ * Two of them, because the two kinds of miss are not the same claim. A lookup
+ * that came back empty well inside its deadline is evidence: this author has no
+ * kind-10002, and re-asking every render is waste. A lookup that ran out of
+ * time is not evidence of anything — the relays were slow, or down — and
+ * remembering it for minutes would pin the whole session to the fallback set
+ * on one bad moment, including the follow-list wipe guard's evidence read.
+ */
 const MISS_TTL_MS = 5 * 60_000;
+const INCONCLUSIVE_TTL_MS = 20_000;
+
+/** Test seam: the windows above are wall-clock, so a test must be able to shrink them. */
+export const __ttls = { miss: MISS_TTL_MS, inconclusive: INCONCLUSIVE_TTL_MS };
 
 /**
  * The deadline for a routing lookup, deliberately shorter than the content
@@ -187,20 +200,27 @@ export async function loadRelayList(
   if (held) return held;
 
   const missed = missedAt.get(pubkey);
-  if (missed !== undefined && Date.now() - missed < MISS_TTL_MS) return null;
+  if (missed !== undefined && Date.now() < missed) return null;
 
   const pending = inFlight.get(pubkey);
   if (pending) return pending;
+
+  const startedAt = Date.now();
+  /** A lookup that used its whole deadline told us nothing; forget it sooner. */
+  const rememberMiss = () => {
+    const ranOut = Date.now() - startedAt >= timeoutMs;
+    missedAt.set(pubkey, Date.now() + (ranOut ? __ttls.inconclusive : __ttls.miss));
+  };
 
   const request = loadReplaceable(RELAY_LIST_KIND, pubkey, { relays: PROFILE_RELAYS, timeoutMs })
     .then((event) => {
       const list = event ? parseRelayList(event as NostrEvent) : null;
       if (list && (list.write.length || list.read.length)) return list;
-      missedAt.set(pubkey, Date.now());
+      rememberMiss();
       return null;
     })
     .catch(() => {
-      missedAt.set(pubkey, Date.now());
+      rememberMiss();
       return null;
     })
     .finally(() => {
@@ -333,12 +353,19 @@ export async function planOutboxReads(
   // A tight budget can leave an author with none of their own relays selected,
   // and `groupPubkeysByRelay` drops anyone whose list came back empty — which
   // would be an author we silently never asked about. Put them on the floor.
+  //
+  // ONE floor relay, not all of them: adding every uncovered author to every
+  // fallback is the undirected fan-out this function exists to replace, and it
+  // would push `relays` past `maxConnections` besides. A floor relay already in
+  // the plan is free; otherwise the first one opens a single extra connection.
   const uncovered = selected.filter((user) => !user.relays?.length);
-  for (const relay of floor) {
-    if (!uncovered.length) break;
-    const bucket = outboxes[relay] ?? (outboxes[relay] = []);
+  if (uncovered.length && floor.length) {
+    const fallback = floor.find((relay) => outboxes[relay]) ?? floor[0];
+    const bucket = outboxes[fallback] ?? (outboxes[fallback] = []);
     for (const user of uncovered) {
-      if (!bucket.some((u) => u.pubkey === user.pubkey)) bucket.push({ ...user, relays: [relay] });
+      if (!bucket.some((u) => u.pubkey === user.pubkey)) {
+        bucket.push({ ...user, relays: [fallback] });
+      }
     }
   }
 

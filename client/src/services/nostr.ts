@@ -894,10 +894,16 @@ export async function fetchAddressableEvents(
   // Addressable events live where their AUTHOR writes — an `naddr` that names no
   // relay is otherwise a coin flip against the default set. Their outbox relays
   // join whatever the caller and the pointer already named.
-  const authorRelays = await outboxRelays(
+  //
+  // Planned rather than unioned, for the connection budget alone: a page like
+  // `useNoteRefs` resolves every coordinate a note references, and twenty
+  // authors at four relays each is eighty sockets opened at once for one render.
+  const authorRelays = await planOutboxReads(
     Array.from(new Set(valid.map((c) => c.pubkey))),
     [],
-  ).catch(() => [] as string[]);
+  )
+    .then((plan) => plan.relays)
+    .catch(() => [] as string[]);
   const targetRelays = dedupeRelays(
     [...relays, ...authorRelays, ...valid.flatMap((c) => c.relays ?? [])],
   );

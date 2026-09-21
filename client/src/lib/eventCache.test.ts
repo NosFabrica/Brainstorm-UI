@@ -12,7 +12,7 @@ import type { NostrEvent } from "nostr-tools";
 import "fake-indexeddb/auto";
 
 const storeAdd = vi.fn((event: NostrEvent) => event);
-const loadReplaceableMock = vi.fn(async () => undefined);
+const loadReplaceableMock = vi.fn(async (..._a: unknown[]) => undefined);
 const snapshot: { event?: unknown } = {};
 
 vi.mock("./eventStore", () => ({
@@ -108,6 +108,26 @@ describe("hydrating the store at boot", () => {
       ME,
       expect.objectContaining({ fromRelays: true }),
     );
+  });
+
+  /**
+   * And it has to re-ask the right relays. A pointer with no relays reaches the
+   * lookup set and nothing else, so app-data and the trust declaration — which
+   * live on the user's OWN relays — would be "refreshed" against relays that
+   * never had them, and the stale disk copy would serve for the whole session.
+   */
+  it("refreshes on the relays the cached list names, not the default set", async () => {
+    await cache.__writeForTest([
+      signed(10002, [["r", "wss://mine.example", "write"]]),
+      signed(30078, [["d", "prefs"]]),
+    ]);
+
+    await cache.hydrateEventStore(ME);
+    await vi.waitFor(() => expect(loadReplaceableMock).toHaveBeenCalledTimes(2));
+
+    for (const call of loadReplaceableMock.mock.calls) {
+      expect(call[2]).toMatchObject({ relays: ["wss://mine.example/"] });
+    }
   });
 
   it("hydrates once per account, however often it is asked", async () => {
@@ -206,6 +226,19 @@ describe("what goes to disk", () => {
     await cache.__writeForTest(many);
 
     expect((await readAll()).length).toBeLessThanOrEqual(500);
+  });
+
+  /**
+   * `persistEventsToCache` batches for five seconds. Clearing without stopping
+   * it lets the in-flight batch write the browsing trail straight back after
+   * sign-out has wiped it.
+   */
+  it("stops writing when the cache is cleared", async () => {
+    cache.startEventCache();
+
+    await cache.clearEventCache();
+
+    expect(cache.__isWriting()).toBe(false);
   });
 
   it("forgets everything on sign-out", async () => {

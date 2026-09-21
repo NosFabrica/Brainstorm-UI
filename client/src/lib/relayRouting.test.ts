@@ -37,6 +37,7 @@ import {
   relayHintFor,
   resetRelayRoutingCache,
   MAX_RELAYS_PER_AUTHOR,
+  __ttls,
 } from "./relayRouting";
 
 const ALICE = "a".repeat(64);
@@ -177,6 +178,29 @@ describe("where to read an author's events", () => {
     await outboxRelays(ALICE);
 
     expect(loadReplaceableMock).toHaveBeenCalledTimes(1);
+  });
+
+  /**
+   * "The relays were slow" is not "this author has no relay list". Treating a
+   * timeout as a conclusive miss would pin the session to the fallback set on
+   * one bad moment — including the follow-list wipe guard's evidence read.
+   */
+  it("retries sooner after a lookup that ran out of time", async () => {
+    loadReplaceableMock.mockImplementation(
+      () => new Promise((resolve) => setTimeout(() => resolve(undefined), 60)),
+    );
+
+    __ttls.inconclusive = 40;
+    await loadRelayList(ALICE, { timeoutMs: 50 });
+    await new Promise((r) => setTimeout(r, 10));
+    await loadRelayList(ALICE, { timeoutMs: 50 });
+
+    expect(loadReplaceableMock).toHaveBeenCalledTimes(1); // still inside the short window
+
+    await new Promise((r) => setTimeout(r, 45));
+    await loadRelayList(ALICE, { timeoutMs: 50 });
+
+    expect(loadReplaceableMock.mock.calls.length).toBeGreaterThan(1);
   });
 });
 

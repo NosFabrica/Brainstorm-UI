@@ -13,8 +13,8 @@
  * `services/api.ts`: `/p/:id` is anon-viewable and `authenticatedFetch` wipes
  * auth storage and hard-redirects on 401 (.agents/memory/anon-public-data-fetch.md).
  */
-import { pool, fetchEventsByFilter, publishRelaysFor, publishToRelays } from "./nostr";
-import { readRelaysFor, relayHintFor, tagWithHint } from "@/lib/relayRouting";
+import { pool, fetchEventsByFilter, publishToRelays } from "./nostr";
+import { dedupeRelays, outboxRelays, readRelaysFor, relayHintFor, tagWithHint } from "@/lib/relayRouting";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { resolveHouseObserver, resolveTrustSource } from "./trustSource";
 import {
@@ -241,20 +241,23 @@ function makeTrustFetcher(relay: string) {
 }
 
 /**
- * Publish to (tag hub ∪ the author's own write relays ∪ the subject's inbox),
- * per the kit's routing rule.
+ * Publish to (tag hub ∪ the author's own write relays), per the kit's routing
+ * rule — and to NOTHING else.
  *
- * `publishRelaysFor` is the app's one routing answer — author outbox, plus the
- * read relays of anyone the event names, plus whatever the caller adds. What
- * this call site adds is the hub, which is the part no relay list would ever
- * name. (It used to hand-roll the union because `publishToRelays` silently
- * ignored its relays argument; it no longer does, but tag publishing still
- * needs its own error shape — "no relay accepted" has to throw here.)
+ * Deliberately not `publishRelaysFor`, which floors every publish with
+ * `PROFILE_RELAYS`. That floor is right for an ordinary note and wrong here: it
+ * would scatter tag assertions across five general relays that no tag reader
+ * queries, and it would override a user who narrowed their set through
+ * `setTagRelays`. The hub is the fallback this surface has; it needs no other.
+ *
+ * (The subject's inbox is not in the union either, and that is also on purpose:
+ * a tag assertion is a claim ABOUT someone — see `NOT_ADDRESSED_TO_P_TAGS`.)
  */
 async function publishTagEvent(
   signed: Record<string, unknown>,
 ): Promise<{ accepted: number; total: number }> {
-  const relays = await publishRelaysFor(signed as never, tagRelays());
+  const author = signed.pubkey as string;
+  const relays = dedupeRelays([...(await outboxRelays(author, [])), ...tagRelays()]);
   const responses = await pool.publish(relays, signed as never);
   const accepted = responses.filter((r) => r.ok).length;
   const total = responses.length || relays.length;

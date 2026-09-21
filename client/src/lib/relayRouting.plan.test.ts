@@ -115,6 +115,36 @@ describe("planning a multi-author read", () => {
     expect(covered).toEqual(new Set([ALICE, BOB, CAROL]));
   });
 
+  /**
+   * The floor is a fallback, not a fan-out. Adding every squeezed-out author to
+   * every fallback relay is the undirected broadcast this function replaces,
+   * and it pushes the plan past its own budget besides.
+   */
+  it("puts the authors it could not cover on ONE floor relay", async () => {
+    seed(relayList(ALICE, ["wss://one.example"]));
+    seed(relayList(BOB, ["wss://two.example"]));
+    seed(relayList(CAROL, ["wss://three.example"]));
+    const floor = ["wss://f1.example/", "wss://f2.example/", "wss://f3.example/"];
+
+    const plan = await planOutboxReads([ALICE, BOB, CAROL], floor, { maxConnections: 1 });
+
+    const used = floor.filter((relay) => plan.outboxes[relay]?.length);
+    expect(used).toHaveLength(1);
+  });
+
+  it("holds the budget even when the floor has to catch someone", async () => {
+    seed(relayList(ALICE, ["wss://one.example"]));
+    seed(relayList(BOB, ["wss://two.example"]));
+    seed(relayList(CAROL, ["wss://three.example"]));
+
+    const plan = await planOutboxReads([ALICE, BOB, CAROL], ["wss://f1.example/", "wss://f2.example/"], {
+      maxConnections: 1,
+    });
+
+    // the selected one, plus at most a single fallback
+    expect(plan.relays.length).toBeLessThanOrEqual(2);
+  });
+
   it("holds the connection budget", async () => {
     for (const [i, author] of [ALICE, BOB, CAROL].entries()) {
       seed(relayList(author, [`wss://r${i}.example`]));

@@ -29,6 +29,9 @@ function hydrateFor(pubkey: string | null): void {
   if (pubkey === hydratedFor) return;
   hydratedFor = pubkey;
   if (!pubkey) return;
+  // `clearEventCache` stops the writer on sign-out, so signing back in has to
+  // start it again. Idempotent, so the boot call above costs nothing.
+  startEventCache();
   void hydrateEventStore(pubkey).catch(() => 0);
 }
 
