@@ -16,6 +16,7 @@ import {
   outboxRelaysFromDb,
   parseRelayList,
   planOutboxReads,
+  warmRelayLists,
 } from "@/lib/relayRouting";
 
 const RAW_NIP85_RELAY_URL = env.VITE_NIP85_RELAY_URL;
@@ -146,6 +147,10 @@ export function fetchProfiles(
   onProfile?: (pubkey: string, profile: ProfileContent) => void
 ): Promise<void> {
   const unique = Array.from(new Set(pubkeys));
+  // Resolving someone's profile is the app saying "this person is on screen",
+  // which is exactly when their relay list should start loading — long before
+  // the reader does anything that has to be routed to them.
+  warmRelayLists(unique);
   return Promise.all(
     unique.map(async (pubkey) => {
       const event = await loadReplaceable(0, pubkey);
@@ -514,6 +519,11 @@ export async function fetchProfileEvent(
   extraRelays: string[] = [],
 ): Promise<NostrEvent | undefined> {
   const extras = extraRelays.map((r) => r.trim()).filter((r) => r.length > 0);
+  // The subject of a profile or share page. Their routing is wanted the moment
+  // the page opens — a reader who vouches, RSVPs or replies from here must not
+  // wait on a lookup, and a cached kind-0 would otherwise mean the relay list
+  // is never asked for at all.
+  warmRelayLists([pubkey]);
   try {
     // Kind-0 is the one kind the default set genuinely covers — purplepag.es
     // exists to index it — so the first pass does NOT pay for a relay-list
@@ -1048,6 +1058,9 @@ export async function fetchProfileMap(
   const unique = Array.from(new Set(pubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk))));
   const map = new Map<string, ProfileContent>();
   if (!unique.length) return map;
+  // A page of people, or the authors of a page of notes — either way these are
+  // on screen now, so their routing starts loading now.
+  warmRelayLists(unique);
 
   const keep = (event: NostrEvent | null | undefined) => {
     try {

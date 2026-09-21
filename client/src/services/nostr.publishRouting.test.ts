@@ -174,6 +174,26 @@ describe("routing a publish", () => {
     expect(relays).not.toContain("wss://my-in.example/");
   });
 
+  /**
+   * The point of the whole cache, stated as a test.
+   *
+   * Routing is needed at the moment of signing, and a lookup then is dead air
+   * before the signer prompt — or, worse, a race the publish loses quietly,
+   * landing on the default relays and missing the inbox it was meant for. A
+   * reader who had the person on screen has already paid for it.
+   */
+  it("needs no lookup at publish time for someone already on screen", async () => {
+    // What rendering them did: their relay list is on the device.
+    held.set(`10002:${THEM}`, relayList(THEM, [["r", "wss://their-in.example", "read"]]));
+    held.set(`10002:${ME}`, relayList(ME, [["r", "wss://mine.example", "write"]]));
+
+    const relays = await publishRelaysFor(event(1, [["p", THEM]]));
+
+    expect(relays).toContain("wss://their-in.example/");
+    expect(relays).toContain("wss://mine.example/");
+    expect(loadReplaceableMock).not.toHaveBeenCalled();
+  });
+
   /** This argument used to be silently discarded, which is why `services/tags`
    *  had to hand-roll `pool.publish` to reach the tag hub at all. */
   it("unions the caller's extra relays instead of ignoring them", async () => {

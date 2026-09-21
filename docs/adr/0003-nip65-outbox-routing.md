@@ -163,6 +163,41 @@ the user's click and the signer prompt — up to the routing deadline, for a fie
 that is optional by design. Anything that reads a profile warms the list first,
 and the publish that follows loads it anyway.
 
+## The routing table has to be there BEFORE the signature
+
+This is what the cache is for, and the rule that follows from it.
+
+Routing is needed at the moment an event is signed and published. That is the
+worst possible moment to go and find it. A lookup there is dead air between the
+reader's click and the signer prompt; a lookup that loses its race is worse than
+that, because the publish still succeeds — on the default relays, missing the
+inbox of the person it was for, reporting nothing.
+
+So the routing table is loaded while the reader is still reading:
+
+> **Anything that puts a person or a note on the screen warms the relay lists
+> of the people it names.** Call `warmRelayLists(pubkeys)` (`lib/relayRouting`).
+
+It is fire-and-forget: nothing waits on it, nothing fails because of it, and
+what it learns is deduped in flight, written to disk, and negatively cached for
+someone who has no list at all. It is bounded at 100 people per call, because a
+feed can name hundreds of authors and an `authors` filter that long is one some
+relays quietly truncate.
+
+The wiring sits at the points where the app resolves a profile, because that is
+what every surface showing a person OR a note already does — a feed resolves its
+authors, a thread resolves its repliers, a profile page resolves its subject:
+
+| Where | Covers |
+| --- | --- |
+| `fetchProfileMap` | a page of people, and the authors of a page of notes |
+| `fetchProfiles` | streamed avatar lists |
+| `fetchProfileEvent` | the subject of a profile or share page |
+
+A new surface that renders people some other way needs the call adding. The test
+that states the whole point is in `nostr.publishRouting.test.ts`: "needs no
+lookup at publish time for someone already on screen".
+
 ## Making the routing table survive a reload
 
 Routing is only cheap if the table is already there. The `eventStore` is

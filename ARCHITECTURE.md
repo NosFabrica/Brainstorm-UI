@@ -46,6 +46,19 @@ is not a routing decision, it is the fallback wearing one. `loadRelayList()`
 does that, bounded to 2.5s with a five-minute miss cache. Rationale, caps, and
 what stays default-routed: [docs/adr/0003-nip65-outbox-routing.md](docs/adr/0003-nip65-outbox-routing.md).
 
+## Warming the routing table
+
+Routing is needed when an event is SIGNED, which is the worst moment to look it
+up: a lookup then is dead air before the signer prompt, and one that loses its
+race publishes to the default relays and misses the recipient's inbox silently.
+
+So: **anything that puts a person or a note on screen warms the relay lists of
+the people it names** — `warmRelayLists(pubkeys)` in `lib/relayRouting.ts`,
+fire-and-forget and bounded. It is already wired into `fetchProfileMap`,
+`fetchProfiles` and `fetchProfileEvent`, which is how every surface showing a
+person or a note resolves its authors; a surface that renders people some other
+way needs the call adding.
+
 ## Durable event cache
 
 The `eventStore` is in-memory, so every reload used to rebuild the routing

@@ -8,9 +8,12 @@
  *   relay for sixty kind-0s it already had. Two ages: a young copy answers on
  *   its own, an older one is still shown while the relay is asked as well, and
  *   past a week it is not shown at all.
- * - **Routing (kinds 3, 10002, 10040).** Where reads and publishes GO. Without
- *   these the app rebuilds its routing table from relays on every load — the
- *   NIP-65 list, then the contact list, then everything routed by them.
+ * - **Routing (kinds 3, 10002, 10040).** Where reads and publishes GO. This is
+ *   the half that has to be here BEFORE a signature: routing is needed the
+ *   moment an event is published, and a lookup at that moment is dead air
+ *   before the signer prompt — or a race the publish loses quietly, landing on
+ *   the default relays and missing the inbox it was for. `warmRelayLists`
+ *   fills this while the reader is still reading (docs/adr/0003).
  *
  * What may NOT be kept: kind 30078. It is per-account data encrypted to self
  * and scoped by an `authors` filter alone, so persisting it would carry one

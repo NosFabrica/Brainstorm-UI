@@ -373,6 +373,46 @@ export async function planOutboxReads(
 }
 
 /**
+ * How many people one warm may ask about. A feed can name hundreds of authors;
+ * the loader batches them into one REQ, but an `authors` array of four hundred
+ * is a filter some relays quietly truncate.
+ */
+const MAX_WARM_AT_ONCE = 100;
+
+/**
+ * Pre-load these people's relay lists, in the background.
+ *
+ * This is what the durable cache is FOR. Routing is needed at the moment an
+ * event is signed and published, and at that moment there is no time to go and
+ * ask: a lookup then is dead air between the user's click and the signer
+ * prompt, and a lookup that loses its race silently falls back to the default
+ * relays — the publish still succeeds, and still misses the inbox of the person
+ * it was for.
+ *
+ * So the rule this serves is: **anything that puts a person or a note on the
+ * screen warms the people it names.** By the time a reader RSVPs to the event
+ * they are looking at, vouches for the person whose profile they opened, or
+ * replies to a note in a feed, the routing table for everyone involved is
+ * already on the device.
+ *
+ * Fire-and-forget by design. Nothing waits on it, nothing fails because of it,
+ * and everything it learns is deduped in flight, cached on disk, and negatively
+ * cached when a person has no list at all.
+ */
+export function warmRelayLists(pubkeys: Iterable<string>): void {
+  const wanted: string[] = [];
+  for (const pubkey of pubkeys) {
+    if (wanted.length >= MAX_WARM_AT_ONCE) break;
+    // Already known, or known to be absent — `loadRelayList` would answer
+    // from memory anyway, but skipping here keeps the batch small.
+    if (!/^[0-9a-f]{64}$/i.test(pubkey || "") || relayListFromDb(pubkey)) continue;
+    wanted.push(pubkey);
+  }
+  if (!wanted.length) return;
+  void loadRelayLists(wanted).catch(() => undefined);
+}
+
+/**
  * The relays one person READS from.
  *
  * The same set `inboxRelays` collects, named for the case where the person is
