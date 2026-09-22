@@ -10,11 +10,16 @@ import { useConnectionSpeed } from "@/lib/connection"
 export function ProfileImg({
   src: original,
   onError: onErrorProp,
+  fallback = null,
   ...props
-}: React.ImgHTMLAttributes<HTMLImageElement> & { src: string }) {
+}: React.ImgHTMLAttributes<HTMLImageElement> & {
+  src: string
+  /** Shown once the picture is out of tries, in place of a broken image. */
+  fallback?: React.ReactNode
+}) {
   const speed = useConnectionSpeed()
-  const { src, onError } = useAvatarSrc(original, "sm", speed)
-  if (speed === "very-slow") return null
+  const { src, onError, spent } = useAvatarSrc(original, "sm", speed)
+  if (speed === "very-slow" || spent) return <>{fallback}</>
   return (
     <img
       {...props}

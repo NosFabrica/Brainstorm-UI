@@ -28,12 +28,15 @@ function initials(j: NewJoiner): string {
 function label(j: NewJoiner): string {
   return j.name || `${j.npub.slice(0, 10)}…${j.npub.slice(-4)}`;
 }
+function Initials({ j, size }: { j: NewJoiner; size: string }) {
+  return <div className={`${size} rounded-full bg-brand-primary/10 dark:bg-brand-primary/20 text-brand-link dark:text-brand-link text-xs font-bold flex items-center justify-center shrink-0`}>{initials(j)}</div>;
+}
 function Avatar({ j, size = "h-9 w-9" }: { j: NewJoiner; size?: string }) {
   const speed = useConnectionSpeed();
   return j.picture && speed !== "very-slow" ? (
-    <ProfileImg src={j.picture} alt="" width={40} height={40} loading="lazy" className={`${size} rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-800 shrink-0`} />
+    <ProfileImg src={j.picture} alt="" width={40} height={40} loading="lazy" className={`${size} rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-800 shrink-0`} fallback={<Initials j={j} size={size} />} />
   ) : (
-    <div className={`${size} rounded-full bg-brand-primary/10 dark:bg-brand-primary/20 text-brand-link dark:text-brand-link text-xs font-bold flex items-center justify-center shrink-0`}>{initials(j)}</div>
+    <Initials j={j} size={size} />
   );
 }
 

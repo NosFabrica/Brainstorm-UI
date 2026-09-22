@@ -46,17 +46,35 @@ describe("ProfileImg", () => {
     expect(screen.getByAltText("alice")).toHaveAttribute("src", ALICE);
   });
 
-  it("keeps the thumbnail on a slow connection, failure or not", () => {
+  it("never asks for the original on a slow connection", () => {
     stubConnection("3g");
     render(<ProfileImg src={ALICE} alt="alice" />);
-    fireEvent.error(screen.getByAltText("alice"));
     expect(screen.getByAltText("alice")).toHaveAttribute("src", thumb);
+    fireEvent.error(screen.getByAltText("alice"));
+    expect(screen.queryByAltText("alice")).toBeNull();
   });
 
   it("draws nothing on a very slow connection", () => {
     stubConnection("2g");
     render(<ProfileImg src={ALICE} alt="alice" />);
     expect(screen.queryByAltText("alice")).toBeNull();
+  });
+
+  it("shows the fallback instead of a broken image once out of tries", () => {
+    render(<ProfileImg src={ALICE} alt="alice" fallback={<span>AL</span>} />);
+    fireEvent.error(screen.getByAltText("alice"));
+    expect(screen.getByAltText("alice")).toHaveAttribute("src", ALICE);
+    fireEvent.error(screen.getByAltText("alice"));
+    expect(screen.queryByAltText("alice")).toBeNull();
+    expect(screen.getByText("AL")).toBeInTheDocument();
+  });
+
+  it("gives up without retrying on a slow connection", () => {
+    stubConnection("3g");
+    render(<ProfileImg src={ALICE} alt="alice" fallback={<span>AL</span>} />);
+    fireEvent.error(screen.getByAltText("alice"));
+    expect(screen.queryByAltText("alice")).toBeNull();
+    expect(screen.getByText("AL")).toBeInTheDocument();
   });
 
   it("still calls a caller's own onError", () => {

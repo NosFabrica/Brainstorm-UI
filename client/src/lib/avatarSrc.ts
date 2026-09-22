@@ -13,12 +13,20 @@ export function avatarSrc(url: string, size: AvatarSize): string {
 }
 
 /** A failed thumbnail is retried once as the original on a Normal connection; otherwise the fallback stands. */
-export function useAvatarSrc(url: string | undefined, size: AvatarSize, speed: ConnectionSpeed): { src: string | undefined; onError: () => void } {
+export function useAvatarSrc(
+  url: string | undefined,
+  size: AvatarSize,
+  speed: ConnectionSpeed,
+): { src: string | undefined; onError: () => void; spent: boolean } {
   const [fellBack, setFellBack] = useState<ReadonlySet<string>>(() => new Set());
-  if (!url) return { src: url, onError: () => {} };
+  const [failed, setFailed] = useState<ReadonlySet<string>>(() => new Set());
+  if (!url) return { src: url, onError: () => {}, spent: false };
   const src = fellBack.has(url) ? url : avatarSrc(url, size);
   const onError = () => {
+    // A thumbnail that fails is worth one try at the original, but only where
+    // the bytes are affordable; anything else means this picture is spent.
     if (src !== url && speed === "normal") setFellBack((prev) => new Set(prev).add(url));
+    else setFailed((prev) => new Set(prev).add(url));
   };
-  return { src, onError };
+  return { src, onError, spent: failed.has(url) };
 }

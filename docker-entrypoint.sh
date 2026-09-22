@@ -109,7 +109,7 @@ if [ -n "${IMG_TRUSTED_CIDR}" ]; then
     echo "real_ip_recursive on;"
   } >> "$REALIP_FILE"
 fi
-export OG_RESOLVER OG_UPSTREAM IMG_UPSTREAM
+export OG_RESOLVER OG_UPSTREAM IMG_UPSTREAM IMG_REFERER_HOSTS
 
 TEMPLATE="/etc/nginx/templates/default.conf.template"
 if [ -f "$TEMPLATE" ]; then
