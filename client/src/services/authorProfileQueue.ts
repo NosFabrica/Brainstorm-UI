@@ -1,7 +1,7 @@
 import type { NostrEvent } from "nostr-tools";
 import { searchRelay } from "@/lib/searchRelay";
 import { eventStore } from "@/lib/eventStore";
-import { PROFILE_FRESH_MS, readProfileRows } from "@/lib/profileCache";
+import { PROFILE_FRESH_MS, readProfileRows } from "@/lib/eventCache";
 
 /**
  * One queue of author kind-0 lookups on the search relay, shared by every
@@ -130,7 +130,7 @@ const READ_DEADLINE_MS = 1500;
 
 /**
  * People this device already knows are answered from its own copy
- * (lib/profileCache) and only the rest cost a REQ — except a copy old enough
+ * (lib/eventCache) and only the rest cost a REQ — except a copy old enough
  * to have changed, which is shown AND asked after, so the next visit is right.
  */
 async function ask(authors: string[]): Promise<void> {

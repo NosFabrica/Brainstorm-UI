@@ -25,27 +25,3 @@ export const CONTENT_RELAYS = [
   "wss://nostr.wine/",
 ];
 
-/**
- * Relay URLs, each relay once: a trailing slash or a capital letter in the
- * host is the same relay. Publishing to both doubled every publish's
- * connections — and a slow relay's wait with them.
- */
-export function uniqueRelays(urls: string[]): string[] {
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const raw of urls) {
-    const trimmed = (raw ?? "").trim();
-    if (!trimmed) continue;
-    let key: string;
-    try {
-      const u = new URL(trimmed);
-      key = `${u.protocol}//${u.host.toLowerCase()}${u.pathname.replace(/\/+$/, "")}${u.search}`;
-    } catch {
-      key = trimmed.replace(/\/+$/, "");
-    }
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(key);
-  }
-  return out;
-}

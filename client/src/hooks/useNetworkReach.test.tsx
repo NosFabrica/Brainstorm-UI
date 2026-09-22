@@ -18,7 +18,7 @@ vi.mock("@/services/socialActions", () => ({
   fetchContactList: (pk: string) => contactsMock(pk),
   getFollowedPubkeys: (list: { tags: string[][] } | null) => new Set(list?.tags.filter((t) => t[0] === "p").map((t) => t[1]) ?? []),
 }));
-vi.mock("@/services/nostr", () => ({ fetchEventsByFilter: (...a: unknown[]) => eventsMock(...a) }));
+vi.mock("@/services/nostr", () => ({ fetchEventsByAuthors: (...a: unknown[]) => eventsMock(...a) }));
 vi.mock("@/lib/relays", () => ({ CONTENT_RELAYS: ["wss://x"] }));
 
 import { useNetworkReach, __resetNetworkReach } from "./useNetworkReach";
@@ -49,6 +49,13 @@ describe("useNetworkReach", () => {
     expect(screen.getByTestId("probe")).toHaveTextContent("loading||");
     await waitFor(() => expect(screen.getByTestId("probe")).toHaveTextContent("ready|12|123"));
     // Friends of friends never include me; direct follows are in friends too.
-    expect(eventsMock).toHaveBeenCalledWith(expect.objectContaining({ kinds: [3], authors: [F1, F2] }), ["wss://x"], expect.any(Number));
+    // The sampled follows go in as AUTHORS, not baked into one filter aimed at a
+    // fixed relay set — that is what lets each of them be asked for on their own
+    // relays, with the content relays only as a floor.
+    expect(eventsMock).toHaveBeenCalledWith(
+      [F1, F2],
+      expect.objectContaining({ kinds: [3] }),
+      expect.objectContaining({ fallback: ["wss://x"] }),
+    );
   });
 });

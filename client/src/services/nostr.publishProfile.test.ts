@@ -10,6 +10,7 @@
  * and jsdom's foreign-realm Uint8Array fails @noble's checks (see `test/setup.ts`).
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { EMPTY } from "rxjs";
 import { finalizeEvent, getPublicKey } from "nostr-tools/pure";
 
 const publish = vi.fn();
@@ -18,7 +19,10 @@ const activeAccount = vi.fn();
 const cachedFor: { pubkey?: string } = {};
 
 vi.mock("@/lib/relayPool", () => ({
-  pool: { publish: (...args: unknown[]) => publish(...args) },
+  // `request` answers nothing rather than being absent: the relay-list lookup
+  // this file's flows make goes through the address loader, and a pool without
+  // it throws from inside the loading sequence rather than returning empty.
+  pool: { publish: (...args: unknown[]) => publish(...args), request: () => EMPTY },
 }));
 
 vi.mock("@/accounts/signing", async (original) => ({
@@ -121,6 +125,61 @@ describe("saving a profile that the relays barely accept", () => {
 
     expect(publish).not.toHaveBeenCalled();
     expect(res.success).toBe(false);
+  });
+});
+
+/**
+ * A profile save also makes sure the account has a discoverable NIP-65 list. It
+ * used to do that by signing a fresh kind-10002 carrying this app's five
+ * defaults — and kind 10002 is REPLACEABLE, so a user who had curated their
+ * relays in another client lost that list the first time they edited their bio
+ * here, and every outbox-model client then routed them to our defaults.
+ */
+describe("the relay list a profile save touches", () => {
+  const existingList = () =>
+    finalizeEvent(
+      {
+        kind: 10002,
+        created_at: 1,
+        tags: [["r", "wss://theirs.example", "write"], ["r", "wss://theirs-in.example", "read"]],
+        content: "",
+      } as never,
+      SECRET,
+    );
+
+  it("re-broadcasts the list the user already has, rather than replacing it", async () => {
+    publish.mockResolvedValue(accepted(2));
+    const theirs = existingList();
+    nostr.eventStore.add(theirs as never);
+
+    await settle(nostr.publishProfile({ name: "ana" }));
+
+    // Not signed again: same event, same id, no signer prompt, nothing lost.
+    expect(ofKind(signAs.mock.calls, 10002)).toHaveLength(0);
+    const sent = ofKind(publish.mock.calls, 10002).map((call) => (call[1] as { id: string }).id);
+    expect(sent).toEqual([theirs.id]);
+    expect(nostr.eventStore.getReplaceable(10002, PUBKEY)?.tags).toContainEqual([
+      "r",
+      "wss://theirs.example",
+      "write",
+    ]);
+  });
+
+  it("re-broadcasts it to their own write relays as well as ours", async () => {
+    publish.mockResolvedValue(accepted(2));
+    nostr.eventStore.add(existingList() as never);
+
+    await settle(nostr.publishProfile({ name: "ana" }));
+
+    expect(ofKind(publish.mock.calls, 10002)[0]?.[0]).toContain("wss://theirs.example/");
+  });
+
+  it("publishes a starting list only for a user who has none", async () => {
+    publish.mockResolvedValue(accepted(2));
+
+    await settle(nostr.publishProfile({ name: "ana" }));
+
+    expect(ofKind(signAs.mock.calls, 10002)).toHaveLength(1);
   });
 });
 

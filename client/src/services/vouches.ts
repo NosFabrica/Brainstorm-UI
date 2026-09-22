@@ -9,6 +9,7 @@
 import type { NostrEvent } from "nostr-tools";
 import { activeAccount, signAs, signingFailure, type PublishOutcome } from "@/accounts/signing";
 import { publishToRelays } from "@/services/nostr";
+import { relayHintFor, tagWithHint } from "@/lib/relayRouting";
 
 export const VOUCH_KIND = 31871;
 export type VouchType = "vouch" | "identity";
@@ -23,10 +24,11 @@ export async function publishVouch(subjectPubkey: string, opts: { type: VouchTyp
   if (!account) return { success: false, error: "Not logged in" };
   // A vouch for yourself says nothing; readers skip it too.
   if (account.pubkey === subjectPubkey) return { success: false, error: "You can't review yourself" };
+  const hint = relayHintFor(subjectPubkey);
   try {
     const signed = await signAs(account, {
       kind: VOUCH_KIND,
-      tags: [["d", subjectPubkey], ["p", subjectPubkey], ["t", opts.type], ["s", "vouched"], ["alt", "Trust vouch"], CLIENT_TAG],
+      tags: [["d", subjectPubkey], tagWithHint("p", subjectPubkey, hint), ["t", opts.type], ["s", "vouched"], ["alt", "Trust vouch"], CLIENT_TAG],
       content: opts.content.trim(),
     });
     const res = await publishToRelays(signed);
@@ -46,7 +48,18 @@ export async function revokeVouch(subjectPubkey: string, eventId: string): Promi
   try {
     const signed = await signAs(account, {
       kind: 5,
-      tags: [["e", eventId], ["a", `${VOUCH_KIND}:${account.pubkey}:${subjectPubkey}`], ["k", String(VOUCH_KIND)], CLIENT_TAG],
+      // `p` so the retraction reaches the same inbox the vouch did. The `a`
+      // coordinate names the SUBJECT in its `d`, not its pubkey slot — that one
+      // is the author — so routing cannot infer them from it.
+      tags: [
+        // `e` and `a` name the viewer's OWN vouch, so they hint where the
+        // viewer writes. Only the `p` below names the subject.
+        tagWithHint("e", eventId, relayHintFor(account.pubkey)),
+        tagWithHint("a", `${VOUCH_KIND}:${account.pubkey}:${subjectPubkey}`, relayHintFor(account.pubkey)),
+        ["k", String(VOUCH_KIND)],
+        tagWithHint("p", subjectPubkey, relayHintFor(subjectPubkey)),
+        CLIENT_TAG,
+      ],
       content: "Vouch removed",
     });
     return await publishToRelays(signed);

@@ -12,6 +12,14 @@ const ME = "e".repeat(64);
 const THEM = "f".repeat(64);
 let account: { pubkey: string } | undefined = { pubkey: ME };
 const signAsMock = vi.fn(async (_acct: unknown, template: Record<string, unknown>) => ({ ...template, id: "signed-id", pubkey: ME, sig: "sig" }));
+// The relay HINT this publish stamps on its tags comes from a NIP-65 lookup.
+// These cases are about the event's shape, so the lookup answers "nothing"
+// rather than opening a real socket.
+vi.mock("@/lib/loaders", () => ({
+  addressLoader: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }),
+  idLoader: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }),
+  loadReplaceable: async () => undefined,
+}));
 vi.mock("@/accounts/signing", () => ({
   activeAccount: () => account,
   signAs: (acct: unknown, template: Record<string, unknown>) => signAsMock(acct, template),
@@ -61,10 +69,14 @@ describe("revokeVouch", () => {
     expect(res.success).toBe(true);
     const template = signAsMock.mock.calls[0][1];
     expect(template).toMatchObject({ kind: 5, content: "Vouch removed" });
+    // The `p` is not decoration: both the `e` and the `a` here name the
+    // VIEWER's own events, so without it nothing in the retraction names the
+    // person it concerns, and it would never reach their inbox.
     expect(template.tags).toEqual([
       ["e", "vouch-id"],
       ["a", `31871:${ME}:${THEM}`],
       ["k", "31871"],
+      ["p", THEM],
       ["client", "Brainstorm"],
     ]);
   });

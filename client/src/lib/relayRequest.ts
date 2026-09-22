@@ -6,11 +6,25 @@
  * newest across relays, or all of them, and those differ in how the deadline is
  * spent.
  */
-import { EMPTY, catchError, lastValueFrom, map, reduce, scan, take, takeUntil, takeWhile, timer } from "rxjs";
+import { EMPTY, catchError, lastValueFrom, map, reduce, scan, take, takeUntil, takeWhile, tap, timer } from "rxjs";
+import type { Observable } from "rxjs";
 import type { NostrEvent } from "nostr-tools";
+
+import { createFilterMap } from "applesauce-core/helpers/relay-selection";
+import type { Filter as NostrFilter } from "applesauce-core/helpers/filter";
 
 import { pool } from "./relayPool";
 import { eventStore } from "./eventStore";
+import type { OutboxPlan } from "./relayRouting";
+// `dedupeRelays` stands in for the `uniqueRelays` main used here, which this
+// branch removed. It normalizes through `mergeRelaySets`, so its output is the
+// `normalizeURL` form `RelayPool` keys connections by — which is exactly the
+// form `requestNewestWithReach` needs to match a frame's `from` against what
+// it asked for.
+import { dedupeRelays } from "./relayList";
+
+/** What `pool.req` emits, per relay: the frames `pool.request` hides. */
+type RelayMessage = { type?: string; from?: string; event?: unknown };
 
 type Filter = Parameters<typeof pool.request>[1];
 
@@ -101,6 +115,102 @@ export function requestNewestRaw(
       takeUntil(timer(timeoutMs * 2)),
       reduce<NostrEvent, NostrEvent | undefined>((best, event) => (beats(event, best) ? event : best), undefined),
     ),
+  );
+}
+
+/** Which relays a read asked, and which of them proved they answered. */
+export interface RelayReach {
+  asked: string[];
+  /** Relays that reached EOSE. A relay that errored, or never spoke, is absent. */
+  answered: string[];
+}
+
+/**
+ * The newest event, plus who actually answered.
+ *
+ * The other shapes here cannot tell "no relay answered" from "the relays
+ * answered and nobody has it", because `pool.request` turns a failed relay into
+ * an ERROR message and then filters it away — even `requestNewestRaw`, whose
+ * doc claims otherwise, resolves undefined against a dead host (verified
+ * against a real relay, 2026-09-21). For most reads that is the right shrug.
+ * For "does this key have a follow list yet?" the difference is the whole
+ * answer: absence of evidence is not evidence of absence (issue #72).
+ *
+ * `pool.req` is the only API that surfaces the per-relay EOSE/ERROR frames, so
+ * this shape listens to them directly. It therefore also has to feed the store
+ * itself — `req` has no `eventStore` option to do it on the way past.
+ */
+export function requestNewestWithReach(
+  relays: string[],
+  filter: Filter,
+  timeoutMs: number,
+): Promise<{ newest: NostrEvent | undefined; reach: RelayReach }> {
+  const asked = dedupeRelays(relays);
+  const answered = new Set<string>();
+  const settled = new Set<string>();
+  let newest: NostrEvent | undefined;
+  // The pool spells a relay its own way (a trailing slash it added, the host
+  // lower-cased), so match on the same normalized form we asked with.
+  const normalize = (url: unknown) => dedupeRelays([String(url ?? "")])[0] ?? "";
+
+  return lastValueFrom(
+    // `req` takes no deadline of its own — the `takeUntil` below is the only
+    // thing that ends a relay that opens and then never speaks.
+    (pool.req(relays, filter) as unknown as Observable<RelayMessage>).pipe(
+      tap((message) => {
+        const from = normalize(message?.from);
+        if (message?.type === "EVENT" && message.event) {
+          const stored = (eventStore.add(message.event as NostrEvent) ?? message.event) as NostrEvent;
+          if (beats(stored, newest)) newest = stored;
+        } else if (message?.type === "EOSE") {
+          answered.add(from);
+          settled.add(from);
+        } else if (message?.type === "ERROR" || message?.type === "CLOSED") {
+          settled.add(from);
+        }
+      }),
+      // Every relay accounted for ends the read early; the deadline is the
+      // backstop for the ones that simply never speak.
+      takeWhile(() => asked.some((url) => !settled.has(url)), true),
+      takeUntil(timer(timeoutMs)),
+      catchError(() => EMPTY),
+      reduce(() => undefined, undefined),
+      map(() => undefined),
+    ),
+    { defaultValue: undefined },
+  ).then(() => ({ newest, reach: { asked, answered: asked.filter((url) => answered.has(url)) } }));
+}
+
+/**
+ * The same collection, but each relay is asked only about the authors IT serves.
+ *
+ * `requestAll` takes one filter and sends it to every relay. For one author that
+ * is right; for the hundreds in a two-hop network it means every relay receives
+ * the same enormous `authors` array, nearly all of it people that relay has
+ * never carried. The pool's `FilterInput` accepts a per-relay function, so the
+ * outbox map becomes exactly that: one filter per connection, naming only its
+ * own authors.
+ *
+ * A relay missing from the map is asked for nothing rather than for everything —
+ * a lookup miss must not silently widen the query back out.
+ */
+export function requestAllByRelay(
+  plan: OutboxPlan,
+  filter: Omit<NostrFilter, "authors">,
+  timeoutMs: number,
+): Promise<NostrEvent[]> {
+  if (!plan.relays.length) return Promise.resolve([]);
+  const filters = createFilterMap(plan.outboxes, filter);
+  return lastValueFrom(
+    pool
+      .request(plan.relays, (relay) => filters[relay.url] ?? { ...filter, authors: [] }, options(timeoutMs))
+      .pipe(
+        catchError(() => EMPTY),
+        takeUntil(timer(timeoutMs)),
+        scan((collected, event) => collected.set(event.id, event), new Map<string, NostrEvent>()),
+        map((collected) => Array.from(collected.values())),
+      ),
+    { defaultValue: [] as NostrEvent[] },
   );
 }
 

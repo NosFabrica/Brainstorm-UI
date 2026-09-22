@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { fetchContactList, getFollowedPubkeys } from "@/services/socialActions";
-import { fetchEventsByFilter } from "@/services/nostr";
+import { fetchEventsByAuthors } from "@/services/nostr";
 import { CONTENT_RELAYS } from "@/lib/relays";
 import type { NetworkReach } from "@/lib/clientFilters";
 
@@ -21,7 +21,13 @@ async function build(pubkey: string): Promise<NetworkReach> {
   const friends = new Set(direct);
   if (direct.size > 0) {
     const sample = Array.from(direct).slice(0, SAMPLE_FOLLOWS);
-    const lists = await fetchEventsByFilter({ kinds: [3], authors: sample }, CONTENT_RELAYS, 8000).catch(() => []);
+    // Routed: each of the sampled follows is asked for on the relays THEY write
+    // to. A fixed content-relay set finds only the follows who happen to publish
+    // there, which silently shrinks the two-hop set it is meant to build.
+    const lists = await fetchEventsByAuthors(sample, { kinds: [3] }, {
+      fallback: CONTENT_RELAYS,
+      timeoutMs: 8000,
+    }).catch(() => []);
     for (const list of lists) {
       for (const pk of getFollowedPubkeys(list)) {
         if (pk !== pubkey) friends.add(pk);

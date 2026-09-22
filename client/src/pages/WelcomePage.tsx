@@ -1,9 +1,9 @@
 import { useEffect, useRef, useState } from "react";
 import { useLocation } from "wouter";
 import { Check, Info } from "lucide-react";
-import { BrainLogo } from "@/components/BrainLogo";
 import { ConfirmNewFollowListDialog } from "@/components/ConfirmNewFollowListDialog";
 import { FollowPicker } from "@/components/FollowPicker";
+import { OnboardingHeader } from "@/components/OnboardingHeader";
 import { triggerScoringAndAnchor } from "@/services/trustAnchor";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useVerifiedNoFollows } from "@/hooks/useVerifiedNoFollows";
@@ -132,22 +132,11 @@ export default function WelcomePage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 dark:from-slate-950 to-white dark:to-slate-900">
-      <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/80 backdrop-blur">
-        <div className="mx-auto max-w-xl flex items-center justify-between px-4 sm:px-6 h-14">
-          <div className="flex items-center gap-2">
-            <BrainLogo size={26} className="text-brand-primary" />
-            <span className="text-lg font-bold text-brand-primary font-brand">Brainstorm</span>
-          </div>
-          <button
-            type="button"
-            onClick={() => navigate("/", { replace: true })}
-            className="text-sm font-semibold text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300"
-            data-testid="welcome-skip"
-          >
-            Skip for now
-          </button>
-        </div>
-      </header>
+      <OnboardingHeader
+        onSkip={() => navigate("/", { replace: true })}
+        skipLabel="Skip for now"
+        skipTestId="welcome-skip"
+      />
 
       <main className="mx-auto max-w-xl px-4 sm:px-6 py-8">
         <div className="flex items-center gap-2.5 mb-5">

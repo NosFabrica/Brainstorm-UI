@@ -86,12 +86,16 @@ export function buildZapRequest(opts: {
   relays: string[];
   comment?: string;
   anon?: boolean;
+  /** Where the RECIPIENT writes, so a reader of the receipt can find them. */
+  relayHint?: string;
 }): EventTemplate {
   const tags: string[][] = [
     ["relays", ...opts.relays], // one tag, URLs spread inline (NIP-57)
     ["amount", String(opts.amountMsat)], // millisats, string
     ["lnurl", opts.lnurl],
-    ["p", opts.recipientPubkey], // hex
+    opts.relayHint
+      ? ["p", opts.recipientPubkey, opts.relayHint]
+      : ["p", opts.recipientPubkey], // hex
   ];
   if (opts.anon) tags.push(["anon", ""]); // anonymous-zap convention (Damus/Amethyst)
   // No `pubkey` — whoever signs stamps their own.
