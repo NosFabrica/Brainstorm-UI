@@ -4,7 +4,7 @@ set -e
 CONFIG_FILE="/usr/share/nginx/html/config.js"
 
 if [ -f "$CONFIG_FILE" ]; then
-  for var in VITE_API_URL VITE_NIP85_RELAY_URL VITE_WOT_SEARCH_RELAY VITE_SEARCH_RELAY_URL VITE_TAG_RELAY_URLS VITE_FEATURE_AGENT_SUITE VITE_FEATURE_ASSISTANTS_ADMIN; do
+  for var in VITE_API_URL VITE_NIP85_RELAY_URL VITE_WOT_SEARCH_RELAY VITE_SEARCH_RELAY_URL VITE_TAG_RELAY_URLS VITE_FEATURE_AGENT_SUITE VITE_FEATURE_ASSISTANTS_ADMIN VITE_IMG_PROXY; do
     eval value=\"\$$var\"
     # Escape sed delimiters in value
     escaped=$(printf '%s' "$value" | sed -e 's/[\/&|]/\\&/g')
@@ -93,11 +93,13 @@ fi
 # there — and because an unresolvable upstream falls back to the SPA, getting
 # this wrong fails silently as "unfurls don't work".
 : "${OG_UPSTREAM:=brainstorm-og:8080}"
-export OG_RESOLVER OG_UPSTREAM
+# Same rules as OG_UPSTREAM: FQDN under Kubernetes. Unreachable → /img/ redirects to the original.
+: "${IMG_UPSTREAM:=imgproxy:8080}"
+export OG_RESOLVER OG_UPSTREAM IMG_UPSTREAM
 
 TEMPLATE="/etc/nginx/templates/default.conf.template"
 if [ -f "$TEMPLATE" ]; then
-  envsubst '${OG_RESOLVER} ${OG_UPSTREAM}' < "$TEMPLATE" > /etc/nginx/conf.d/default.conf
+  envsubst '${OG_RESOLVER} ${OG_UPSTREAM} ${IMG_UPSTREAM}' < "$TEMPLATE" > /etc/nginx/conf.d/default.conf
 fi
 
 exec "$@"

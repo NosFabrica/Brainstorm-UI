@@ -807,7 +807,7 @@ function KnowledgePanelBody({
       <div className="flex items-center gap-3">
         <div className="relative shrink-0">
           <Avatar className={`h-14 w-14 border-2 border-slate-200/80 dark:border-slate-800/80 ${tierRing(effectiveRank) ?? ""}`}>
-            {person.picture ? <AvatarImage src={person.picture} alt="" className="object-cover" /> : null}
+            {person.picture ? <AvatarImage size="lg" src={person.picture} alt="" className="object-cover" /> : null}
             <AvatarFallback className="overflow-hidden">
               <DefaultAvatarImg />
             </AvatarFallback>
