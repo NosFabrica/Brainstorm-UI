@@ -51,12 +51,19 @@ prefers the runtime value and falls back to the build-time one.
 
 ## Deploying to staging
 
-Staging runs images built by CI from branches of this repo
-(`ghcr.io/nosfabrica/brainstorm-ui`), pinned and rolled out via the
-[brainstorm-k8s](https://github.com/NosFabrica/brainstorm-k8s) charts
-(`ui.image.tag` + `./deploy_staging.sh --ui`). The full branch/PR/pin
-workflow — including how to decide whether to join the current staging branch
-or start a new cycle — is documented in
+This repo uses a long-lived `staging` branch (the default branch) for the
+staging environment; `main` is production. Branch off `staging` and open PRs
+into it. Merging to `staging` means the change is on its way to prod, so keep
+unfinished work unmerged or behind a `VITE_FEATURE_*` flag.
+
+The core team promotes `staging` to `main` with a merge commit (never a
+squash). Hotfixes branch off `main`, merge there, and are then merged back
+into `staging`.
+
+CI builds `ghcr.io/nosfabrica/brainstorm-ui:staging` from the branch; the
+[brainstorm-k8s](https://github.com/NosFabrica/brainstorm-k8s) charts pin
+`ui.image.tag: staging` and roll it out with `./deploy_staging.sh --ui`.
+Details in
 [brainstorm-k8s `docs/staging-workflow.md`](https://github.com/NosFabrica/brainstorm-k8s/blob/master/docs/staging-workflow.md).
 
 ## Documentation
