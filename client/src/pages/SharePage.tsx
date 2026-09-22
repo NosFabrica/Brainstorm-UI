@@ -64,6 +64,7 @@ import { ZapModal } from "@/components/ZapModal";
 import { SellingBlock } from "@/components/share/SellingBlock";
 import { ContentTeaserBlock } from "@/components/share/ContentTeaserBlock";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
+import { useShareUrl } from "@/hooks/useShareUrl";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { BrainLogo } from "@/components/BrainLogo";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
@@ -944,7 +945,7 @@ export default function SharePage() {
           url={canonicalUrl}
           title={`${displayName} on Brainstorm`}
           modal={(ctl) => (
-            <ShareProfileModal {...ctl} npub={npub} displayName={displayName} picture={profile.picture} nip05={profile.nip05} canonicalUrl={canonicalUrl} score01={houseScore01} onOwnPage />
+            <ProfileShareSheet {...ctl} relays={relayHints} npub={npub} displayName={displayName} picture={profile.picture} nip05={profile.nip05} score01={houseScore01} onOwnPage />
           )}
         />
       }
@@ -1458,6 +1459,12 @@ export default function SharePage() {
       </ShareNavProvider>
     </ShareShell>
   );
+}
+
+/** The profile's share sheet, minting a short link only once it is open. */
+function ProfileShareSheet({ relays, ...props }: Omit<React.ComponentProps<typeof ShareProfileModal>, "shareUrl"> & { relays: string[] }) {
+  const shareUrl = useShareUrl({ npub: props.npub, relays, enabled: props.open });
+  return <ShareProfileModal {...props} shareUrl={shareUrl} />;
 }
 
 function ShareShell({ children, actions }: { children: React.ReactNode; actions?: React.ReactNode }) {

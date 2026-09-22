@@ -22,6 +22,7 @@ import {
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PovToggle } from "@/components/score/TrustScorePov";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
+import { useShareUrl } from "@/hooks/useShareUrl";
 import { useSubscription } from "@/hooks/useSubscription";
 import { useBillingPlans } from "@/hooks/useBillingPlans";
 import { AccountSwitcher } from "@/components/AccountSwitcherPane";
@@ -85,7 +86,7 @@ export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close
     retry: false,
   });
 
-  const inviteUrl = typeof window !== "undefined" && user?.npub ? `${window.location.origin}/p/${user.npub}` : "";
+  const inviteUrl = useShareUrl({ npub: user?.npub ?? "", enabled: inviteOpen });
 
   const onNavigate = (path: string) => { close(); navigate(path); };
   const onInvite = () => { close(); setInviteOpen(true); };
@@ -110,7 +111,7 @@ export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close
         displayName={user.displayName || "You"}
         picture={user.picture}
         nip05={user.nip05}
-        canonicalUrl={inviteUrl}
+        shareUrl={inviteUrl}
         score01={typeof houseScoreQuery.data === "number" ? houseScoreQuery.data : null}
       />
 
