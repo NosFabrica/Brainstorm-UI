@@ -65,15 +65,21 @@ export function useNewJoiners() {
     [pk, qc],
   );
 
+  /** True only when the follow really went out — the card says so either way. */
   const welcomeBack = useCallback(
-    async (pks: string[]) => {
-      if (!pk || !pks.length) return;
+    async (pks: string[]): Promise<boolean> => {
+      if (!pk || !pks.length) return false;
       setBusy(true);
       try {
         const res = await followPubkeys(pks);
-        if (res.cancelled) return;
+        // Only a published follow is a welcome. A refusal (relays unreachable,
+        // so the list couldn't be confirmed) or a failed publish used to settle
+        // anyway, dropping the joiner from the card with nothing sent and no
+        // way back to them.
+        if (!res.success) return false;
         settle(pks);
         if (!demo) void triggerScoringAndAnchor(pk); // refresh the sender's Web of Trust
+        return true;
       } finally {
         setBusy(false);
       }
