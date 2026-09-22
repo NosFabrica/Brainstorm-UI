@@ -9,6 +9,8 @@ import { useShareUrl } from "@/hooks/useShareUrl";
 import { nip19 } from "nostr-tools";
 import type { NewJoiner } from "@/services/inviteAcceptance";
 import { accountKey } from "@/lib/accountStorage";
+import { ProfileImg } from "@/components/ui/profile-img";
+import { useConnectionSpeed } from "@/lib/connection";
 
 const DEMO_PK = "d0a1b2c3d4e5f60718293a4b5c6d7e8f90112233445566778899aabbccddeeff";
 function isDemo(): boolean {
@@ -27,8 +29,9 @@ function label(j: NewJoiner): string {
   return j.name || `${j.npub.slice(0, 10)}…${j.npub.slice(-4)}`;
 }
 function Avatar({ j, size = "h-9 w-9" }: { j: NewJoiner; size?: string }) {
-  return j.picture ? (
-    <img src={j.picture} alt="" width={40} height={40} loading="lazy" className={`${size} rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-800 shrink-0`} />
+  const speed = useConnectionSpeed();
+  return j.picture && speed !== "very-slow" ? (
+    <ProfileImg src={j.picture} alt="" width={40} height={40} loading="lazy" className={`${size} rounded-full object-cover ring-1 ring-slate-200 dark:ring-slate-800 shrink-0`} />
   ) : (
     <div className={`${size} rounded-full bg-brand-primary/10 dark:bg-brand-primary/20 text-brand-link dark:text-brand-link text-xs font-bold flex items-center justify-center shrink-0`}>{initials(j)}</div>
   );
