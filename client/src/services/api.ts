@@ -213,6 +213,42 @@ async function extractApiError(response: Response): Promise<string> {
 }
 
 /**
+ * One admin call: authenticate, surface the server's own `detail` on failure,
+ * and unwrap the `{ code, data, message }` envelope the older handlers still
+ * answer with. `fallback` is the message when the server sent no text; the
+ * status is appended to it. An empty body (a 204 on delete) answers undefined.
+ */
+async function adminJson<T>(
+  path: string,
+  fallback: string,
+  init: RequestInit = {},
+  timeoutMs: number = 15000,
+): Promise<T> {
+  const response = await authenticatedFetch(`${getBrainstormApi()}${path}`, {
+    ...init,
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!response.ok) {
+    throw new Error(
+      (await extractApiError(response)) || `${fallback} (${response.status})`,
+    );
+  }
+  const text = await response.text();
+  if (!text) return undefined as T;
+  const json = JSON.parse(text);
+  return (json?.data ?? json) as T;
+}
+
+/** A JSON request body, with the header that makes the server read it. */
+function jsonBody(method: string, body: unknown): RequestInit {
+  return {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  };
+}
+
+/**
  * Flash's own record for one subscription. The body is returned verbatim (no
  * `data` unwrap — it's Flash's, not ours).
  *
@@ -252,20 +288,7 @@ async function writeBillingSubscription(
   body: Record<string, unknown>,
   what: string,
 ): Promise<AdminBillingSubscriptionAction> {
-  const response = await authenticatedFetch(`${getBrainstormApi()}${path}`, {
-    method,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(30000),
-  });
-  if (!response.ok) {
-    throw new Error(
-      (await extractApiError(response)) ||
-        `Couldn't ${what} (${response.status}).`,
-    );
-  }
-  const json = await response.json();
-  return (json?.data ?? json) as AdminBillingSubscriptionAction;
+  return adminJson(path, `Couldn't ${what}`, jsonBody(method, body), 30000);
 }
 
 /**
@@ -284,22 +307,12 @@ async function writeUnresolved(
   body: Record<string, unknown>,
   what: string,
 ): Promise<AdminBillingResolution> {
-  const response = await authenticatedFetch(
-    `${getBrainstormApi()}/admin/billing/unresolved/${encodeURIComponent(subscriptionId)}/${verb}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(30000),
-    },
+  return adminJson(
+    `/admin/billing/unresolved/${encodeURIComponent(subscriptionId)}/${verb}`,
+    `Couldn't ${what}`,
+    jsonBody("POST", body),
+    30000,
   );
-  if (!response.ok) {
-    throw new Error(
-      (await extractApiError(response)) || `Couldn't ${what} (${response.status}).`,
-    );
-  }
-  const json = await response.json();
-  return (json?.data ?? json) as AdminBillingResolution;
 }
 
 /**
@@ -742,91 +755,44 @@ export const apiClient = {
   },
 
   async getSchedulingPolicies(): Promise<SchedulingItem[]> {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/scheduling`,
-      { signal: AbortSignal.timeout(15000) },
-    );
-    if (!response.ok) {
-      throw new Error(
-        (await extractApiError(response)) ||
-          `Failed to fetch scheduling policies (${response.status})`,
-      );
-    }
-    const json = await response.json();
-    return json?.data ?? json;
+    return adminJson("/admin/scheduling", "Failed to fetch scheduling policies");
   },
 
   async createSchedulingPolicy(
     body: CreateSchedulingBody,
   ): Promise<SchedulingItem> {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/scheduling`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(15000),
-      },
+    return adminJson(
+      "/admin/scheduling",
+      "Failed to create scheduling policy",
+      jsonBody("POST", body),
     );
-    if (!response.ok) {
-      throw new Error(
-        (await extractApiError(response)) ||
-          `Failed to create scheduling policy (${response.status})`,
-      );
-    }
-    const json = await response.json();
-    return json?.data ?? json;
   },
 
   async updateSchedulingPolicy(
     id: number,
     body: UpdateSchedulingBody,
   ): Promise<SchedulingItem> {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/scheduling/${id}`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(15000),
-      },
+    return adminJson(
+      `/admin/scheduling/${id}`,
+      "Failed to update scheduling policy",
+      jsonBody("PATCH", body),
     );
-    if (!response.ok) {
-      throw new Error(
-        (await extractApiError(response)) ||
-          `Failed to update scheduling policy (${response.status})`,
-      );
-    }
-    const json = await response.json();
-    return json?.data ?? json;
   },
 
   async deleteSchedulingPolicy(id: number): Promise<void> {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/scheduling/${id}`,
-      { method: "DELETE", signal: AbortSignal.timeout(15000) },
+    await adminJson(
+      `/admin/scheduling/${id}`,
+      "Failed to delete scheduling policy",
+      { method: "DELETE" },
     );
-    if (!response.ok) {
-      throw new Error(
-        (await extractApiError(response)) ||
-          `Failed to delete scheduling policy (${response.status})`,
-      );
-    }
   },
 
   async resyncObserver(pubkey: string, target: string) {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/users/${pubkey}/resync?target=${encodeURIComponent(target)}`,
-      { method: "POST", signal: AbortSignal.timeout(15000) },
+    return adminJson(
+      `/admin/users/${pubkey}/resync?target=${encodeURIComponent(target)}`,
+      "Failed to resync observer",
+      { method: "POST" },
     );
-    if (!response.ok) {
-      throw new Error(
-        (await extractApiError(response)) ||
-          `Failed to resync observer (${response.status})`,
-      );
-    }
-    const json = await response.json();
-    return json?.data ?? json;
   },
 
   /**
@@ -837,18 +803,13 @@ export const apiClient = {
    * effect now: a paying subscriber comes back on what they pay for.
    */
   async clearUserSchedulingOverride(pubkey: string): Promise<AdminUserDetail> {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/users/${pubkey}/scheduling/override`,
+    return adminJson(
+      `/admin/users/${pubkey}/scheduling/override`,
+      "Failed to reset the scheduling override",
+      { method: "DELETE" },
       // Waits on a Flash read before it answers.
-      { method: "DELETE", signal: AbortSignal.timeout(30000) },
+      30000,
     );
-    if (!response.ok) {
-      throw new Error(
-        (await extractApiError(response)) || `Failed to reset the scheduling override (${response.status})`,
-      );
-    }
-    const json = await response.json();
-    return json?.data ?? json;
   },
 
   /**
@@ -857,12 +818,10 @@ export const apiClient = {
    * "30392" row names where that observer's Trusted Lists are published.
    */
   async getSetupRows(pubkey: string): Promise<string[][]> {
-    const response = await authenticatedFetch(`${getBrainstormApi()}/setup/${pubkey}`, {
-      signal: AbortSignal.timeout(15000),
-    });
-    if (!response.ok) throw new Error((await extractApiError(response)) || `Failed to read setup (${response.status})`);
-    const json = await response.json();
-    const rows = json?.data ?? json;
+    const rows = await adminJson<unknown>(
+      `/setup/${pubkey}`,
+      "Failed to read setup",
+    );
     return Array.isArray(rows) ? rows : [];
   },
 
@@ -886,38 +845,15 @@ export const apiClient = {
   },
 
   async assignUserScheduling(pubkey: string, schedulingId: number) {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/users/${pubkey}/scheduling`,
-      {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ scheduling_id: schedulingId }),
-        signal: AbortSignal.timeout(15000),
-      },
+    return adminJson(
+      `/admin/users/${pubkey}/scheduling`,
+      "Failed to assign scheduling policy",
+      jsonBody("PUT", { scheduling_id: schedulingId }),
     );
-    if (!response.ok) {
-      throw new Error(
-        (await extractApiError(response)) ||
-          `Failed to assign scheduling policy (${response.status})`,
-      );
-    }
-    const json = await response.json();
-    return json?.data ?? json;
   },
 
   async getSchedulingStats(): Promise<SchedulerStats> {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/scheduling/stats`,
-      { signal: AbortSignal.timeout(15000) },
-    );
-    if (!response.ok) {
-      throw new Error(
-        (await extractApiError(response)) ||
-          `Failed to fetch scheduler stats (${response.status})`,
-      );
-    }
-    const json = await response.json();
-    return json?.data ?? json;
+    return adminJson("/admin/scheduling/stats", "Failed to fetch scheduler stats");
   },
 
   async getSchedulingPolicyUsers(
@@ -928,41 +864,22 @@ export const apiClient = {
     if (params.page != null) qs.set("page", String(params.page));
     if (params.size != null) qs.set("size", String(params.size));
     const suffix = qs.toString() ? `?${qs}` : "";
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/scheduling/${id}/users${suffix}`,
-      { signal: AbortSignal.timeout(15000) },
+    return adminJson(
+      `/admin/scheduling/${id}/users${suffix}`,
+      "Failed to fetch policy users",
     );
-    if (!response.ok) {
-      throw new Error(
-        (await extractApiError(response)) ||
-          `Failed to fetch policy users (${response.status})`,
-      );
-    }
-    const json = await response.json();
-    return json?.data ?? json;
   },
 
   async assignPolicyUsers(
     id: number,
     pubkeys: string[],
   ): Promise<{ assigned: number }> {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/scheduling/${id}/users`,
-      {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pubkeys }),
-        signal: AbortSignal.timeout(30000),
-      },
+    return adminJson(
+      `/admin/scheduling/${id}/users`,
+      "Failed to assign users",
+      jsonBody("PUT", { pubkeys }),
+      30000,
     );
-    if (!response.ok) {
-      throw new Error(
-        (await extractApiError(response)) ||
-          `Failed to assign users (${response.status})`,
-      );
-    }
-    const json = await response.json();
-    return json?.data ?? json;
   },
 
   async getUserByPubkey(pubkey: string) {
@@ -1357,18 +1274,14 @@ export const apiClient = {
     page: number = 1,
     size: number = 100,
   ): Promise<{ items: AdminBillingSubscription[]; total: number; pages: number }> {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/billing/subscriptions?page=${page}&size=${size}`,
-      { signal: AbortSignal.timeout(15000) },
+    const body = await adminJson<{
+      items?: AdminBillingSubscription[];
+      total?: number;
+      pages?: number;
+    }>(
+      `/admin/billing/subscriptions?page=${page}&size=${size}`,
+      "Failed to fetch billing subscriptions",
     );
-    if (!response.ok) {
-      throw new Error(
-        (await extractApiError(response)) ||
-          `Failed to fetch billing subscriptions (${response.status})`,
-      );
-    }
-    const json = await response.json();
-    const body = json?.data ?? json;
     return {
       items: (body?.items ?? []) as AdminBillingSubscription[],
       total: typeof body?.total === "number" ? body.total : 0,
@@ -1381,17 +1294,10 @@ export const apiClient = {
    * service picker lists, so nobody types a UUID.
    */
   async getAdminBillingFlashServices(): Promise<FlashServiceItem[]> {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/billing/flash/services`,
-      { signal: AbortSignal.timeout(15000) },
+    const body = await adminJson<{ services?: FlashServiceItem[] } | FlashServiceItem[]>(
+      "/admin/billing/flash/services",
+      "Failed to read Flash's services",
     );
-    if (!response.ok) {
-      throw new Error(
-        (await extractApiError(response)) || `Failed to read Flash's services (${response.status})`,
-      );
-    }
-    const json = await response.json();
-    const body = json?.data ?? json;
     return (Array.isArray(body) ? body : (body?.services ?? [])) as FlashServiceItem[];
   },
 
@@ -1400,17 +1306,10 @@ export const apiClient = {
    * mapping that already claims it — so the picker can show a plan as taken.
    */
   async getAdminBillingFlashServicePlans(serviceId: string): Promise<FlashPlanItem[]> {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/billing/flash/services/${encodeURIComponent(serviceId)}/plans`,
-      { signal: AbortSignal.timeout(15000) },
+    const body = await adminJson<{ plans?: FlashPlanItem[] } | FlashPlanItem[]>(
+      `/admin/billing/flash/services/${encodeURIComponent(serviceId)}/plans`,
+      "Failed to read Flash's plans",
     );
-    if (!response.ok) {
-      throw new Error(
-        (await extractApiError(response)) || `Failed to read Flash's plans (${response.status})`,
-      );
-    }
-    const json = await response.json();
-    const body = json?.data ?? json;
     return (Array.isArray(body) ? body : (body?.plans ?? [])) as FlashPlanItem[];
   },
 
@@ -1419,18 +1318,13 @@ export const apiClient = {
    * list, and what lets the Scheduling tab badge the policies paid plans grant.
    */
   async getAdminBillingPlanMappings(): Promise<AdminBillingPlanMapping[]> {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/billing/plans`,
-      { signal: AbortSignal.timeout(15000) },
+    const body = await adminJson<{
+      plans?: AdminBillingPlanMapping[];
+      items?: AdminBillingPlanMapping[];
+    } | AdminBillingPlanMapping[]>(
+      "/admin/billing/plans",
+      "Failed to fetch billing plan mappings",
     );
-    if (!response.ok) {
-      throw new Error(
-        (await extractApiError(response)) ||
-          `Failed to fetch billing plan mappings (${response.status})`,
-      );
-    }
-    const json = await response.json();
-    const body = json?.data ?? json;
     const list = Array.isArray(body) ? body : (body?.plans ?? body?.items ?? []);
     return list as AdminBillingPlanMapping[];
   },
@@ -1439,23 +1333,11 @@ export const apiClient = {
   async createAdminBillingPlan(
     body: CreateAdminBillingPlanBody,
   ): Promise<AdminBillingPlanMapping> {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/billing/plans`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(15000),
-      },
+    return adminJson(
+      "/admin/billing/plans",
+      "Failed to create billing plan mapping",
+      jsonBody("POST", body),
     );
-    if (!response.ok) {
-      throw new Error(
-        (await extractApiError(response)) ||
-          `Failed to create billing plan mapping (${response.status})`,
-      );
-    }
-    const json = await response.json();
-    return (json?.data ?? json) as AdminBillingPlanMapping;
   },
 
   /**
@@ -1470,23 +1352,11 @@ export const apiClient = {
     id: number,
     body: UpdateAdminBillingPlanBody,
   ): Promise<AdminBillingPlanMapping> {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/billing/plans/${id}`,
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(15000),
-      },
+    return adminJson(
+      `/admin/billing/plans/${id}`,
+      "Failed to update billing plan mapping",
+      jsonBody("PATCH", body),
     );
-    if (!response.ok) {
-      throw new Error(
-        (await extractApiError(response)) ||
-          `Failed to update billing plan mapping (${response.status})`,
-      );
-    }
-    const json = await response.json();
-    return (json?.data ?? json) as AdminBillingPlanMapping;
   },
 
   /**
@@ -1499,18 +1369,12 @@ export const apiClient = {
   async resyncAdminBillingSubscription(
     pubkey: string,
   ): Promise<{ applied: boolean; reason: string }> {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/billing/subscriptions/${pubkey}/resync`,
-      { method: "POST", signal: AbortSignal.timeout(30000) },
+    return adminJson(
+      `/admin/billing/subscriptions/${pubkey}/resync`,
+      "Failed to resync subscription",
+      { method: "POST" },
+      30000,
     );
-    if (!response.ok) {
-      throw new Error(
-        (await extractApiError(response)) ||
-          `Failed to resync subscription (${response.status})`,
-      );
-    }
-    const json = await response.json();
-    return json?.data ?? json;
   },
 
   /**
@@ -1526,18 +1390,11 @@ export const apiClient = {
     pubkey: string,
     blocked: boolean,
   ): Promise<{ pubkey: string; blocked: boolean; revoked: boolean }> {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/billing/subscriptions/${pubkey}/block`,
-      { method: blocked ? "POST" : "DELETE", signal: AbortSignal.timeout(15000) },
+    return adminJson(
+      `/admin/billing/subscriptions/${pubkey}/block`,
+      `Failed to ${blocked ? "block" : "unblock"} billing`,
+      { method: blocked ? "POST" : "DELETE" },
     );
-    if (!response.ok) {
-      throw new Error(
-        (await extractApiError(response)) ||
-          `Failed to ${blocked ? "block" : "unblock"} billing (${response.status})`,
-      );
-    }
-    const json = await response.json();
-    return json?.data ?? json;
   },
 
   /**
@@ -1616,18 +1473,11 @@ export const apiClient = {
    * unattributed/unmatched signups surface, since the roster is pubkey-keyed.
    */
   async getAdminBillingDivergence(): Promise<AdminBillingDivergenceReport> {
-    const response = await authenticatedFetch(
-      `${getBrainstormApi()}/admin/billing/divergence`,
-      { signal: AbortSignal.timeout(15000) },
+    const body = await adminJson<AdminBillingDivergenceReport>(
+      "/admin/billing/divergence",
+      "Failed to fetch billing divergence",
     );
-    if (!response.ok) {
-      throw new Error(
-        (await extractApiError(response)) ||
-          `Failed to fetch billing divergence (${response.status})`,
-      );
-    }
-    const json = await response.json();
-    return (json?.data ?? json ?? {}) as AdminBillingDivergenceReport;
+    return body ?? ({} as AdminBillingDivergenceReport);
   },
 
 
