@@ -8,6 +8,7 @@ import { fetchUnfurl, type Unfurled } from "@/services/unfurl";
 import { useLightbox } from "@/components/share/Lightbox";
 import { FeedVideo } from "@/components/share/FeedVideo";
 import { useNearViewport } from "@/hooks/useNearViewport";
+import { MediaImg } from "@/components/ui/media-img";
 import { useConnectionSpeed } from "@/lib/connection";
 
 /**
@@ -237,8 +238,9 @@ function UnfurledCard({ url, host, showImage }: { url: string; host: string; sho
       {image && (
         // Whoever posted the link chose this host, so it learns the reader's
         // IP either way — it does not also get to learn what they were reading.
-        <img
+        <MediaImg
           src={image}
+          preset="media_320"
           alt=""
           loading="lazy"
           referrerPolicy="no-referrer"

@@ -3,6 +3,7 @@ import { formatListingPrice, parseListing } from "@/lib/listing";
 import type { WavlakeSong } from "@/lib/wavlake";
 import { useEffect, useState } from "react";
 import { useConnectionSpeed } from "@/lib/connection";
+import { MediaImg } from "@/components/ui/media-img";
 import { useAvatarSrc } from "@/lib/avatarSrc";
 /**
  * Typed result cards for the verticals with no existing precedent —
@@ -337,8 +338,9 @@ export function MediaCard({ event, author, score }: { event: NostrEvent; author:
           />
         </div>
       ) : (isImage || poster) && url ? (
-        <img
+        <MediaImg
           src={isImage ? url : (poster as string)}
+          preset="media_1280"
           alt=""
           loading="lazy"
           className="mt-2 w-full max-h-96 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 object-cover"
@@ -1312,7 +1314,7 @@ export function ListingCard({
     >
       <div className="-mx-1 -mt-1 relative aspect-[4/3] overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800">
         {l.images[0] ? (
-          <img src={l.images[0]} alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
+          <MediaImg src={l.images[0]} preset="media_640" alt="" loading="lazy" className="absolute inset-0 h-full w-full object-cover" />
         ) : (
           <span className="absolute inset-0 flex items-center justify-center text-slate-400 dark:text-slate-500">
             <ShoppingBag className="h-7 w-7" />
