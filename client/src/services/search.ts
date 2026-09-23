@@ -435,6 +435,11 @@ export function searchStream(
       },
       since: params.since,
     });
+    // A scope asked of a tab that holds no comments has nothing to ask.
+    if (filters.length === 0) {
+      emit({ hits: [], eose: true, timeMs: 0, exhausted: true });
+      return;
+    }
     // What the deadline, the sort probe and the paging cursor read: every filter of a union
     // carries the same words, window and lens.
     const filter = filters[0];
