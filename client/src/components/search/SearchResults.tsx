@@ -10,7 +10,7 @@ import { Link, useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
 import { ChevronDown, Radar, Radio, SlidersHorizontal } from "lucide-react";
-import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, readFilters, sinceForPreset, splitFilters, type DatePreset, type SearchFilterPatch, scopeOf } from "@/lib/searchSyntax";
+import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, liftQuery, readFilters, sinceForPreset, splitFilters, type DatePreset, type SearchFilterPatch, scopeOf } from "@/lib/searchSyntax";
 import { clientFilterHits, countBelowLine } from "@/lib/clientFilters";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
 import { eventStore } from "@/lib/eventStore";
@@ -586,6 +586,8 @@ export function SearchResults({
   // 2026-09-07). A wordless browse still asks newest — there is nothing to match.
   // Specs are evergreen too.
   const articlesByRelevance = (tab === "articles" || tab === "nips") && !!splitFilters(query).text;
+  // The kinds the box asked for (`kind:30078`) — a spec card leads with them.
+  const searchedKinds = useMemo(() => (liftQuery(query).kinds ?? []).map(String), [query]);
   const effectiveQuery =
     !userSorted && tab !== "everything" && tab !== "people" && !articlesByRelevance
       ? `${safeQuery} sort:recent`.trim()
@@ -1608,6 +1610,7 @@ export function SearchResults({
               if (ARTICLE_KINDS.has(event.kind)) {
                 return wrap(
                   <EmbeddedArticleCard
+                    leadKinds={searchedKinds}
                     event={event as MinimalEvent}
                     author={profiles.get(event.pubkey)}
                     trustScore01={scoreOf(event.pubkey) ?? null}

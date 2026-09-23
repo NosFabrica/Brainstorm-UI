@@ -48,8 +48,32 @@ describe("EmbeddedArticleCard", () => {
     const spec = page(30817, "# Trusted Assertions", [["d", "trusted-assertions"], ["title", "Trusted Assertions"], ["k", "10040"]]);
     render(<EmbeddedArticleCard event={spec} author={{ name: "Russell" }} />);
     const img = screen.getByTestId("embedded-article").querySelector("img")!;
-    expect(img.getAttribute("src")).toMatch(/nostr-implementation-possibilities-spec-cover/);
-    expect(img.getAttribute("alt")).toBe("Nostr Implementation Possibilities — formal specifications for the decentralized network");
+    expect(img.getAttribute("src")).toMatch(/nostr-implementation-decentralized-network-specs-cover/);
+    expect(img.getAttribute("alt")).toBe("Nostr Implementation — decentralized network specs");
+  });
+
+  // NoorNote's capability profile lists forty kinds; its card ran to nine
+  // rows of chips beside cards with one (Benjamin, 2026-09-23: "a limit on
+  // how many show, so they all look aligned"). Six, then how many more —
+  // the spec page has them all — and the kind the search asked for leads,
+  // so a reader sees why the card matched.
+  it("shows six kinds and counts the rest, with the searched kind first", () => {
+    const kinds = [0, 1, 3, 4, 5, 6, 7, 8, 13, 14, 30078, 30311, 32267].map((k) => ["k", String(k)]);
+    const spec = page(30817, "# NoorNote", [["d", "noornote"], ["title", "NoorNote"], ...kinds]);
+    render(<EmbeddedArticleCard event={spec} author={{ name: "alp" }} leadKinds={["30078"]} />);
+    const row = screen.getByTestId("article-kinds");
+    expect([...row.querySelectorAll("a")].map((a) => a.textContent)).toEqual(["kind 30078", "kind 0", "kind 1", "kind 3", "kind 4", "kind 5"]);
+    expect(screen.getByTestId("article-kinds-more")).toHaveTextContent("+7 more");
+  });
+
+  // "Read article" under a SPEC label contradicts itself (Benjamin, 2026-09-23).
+  it("the button says what it opens: spec, wiki, article", () => {
+    render(<EmbeddedArticleCard event={page(30817, "# TA", [["d", "ta"], ["title", "TA"]])} author={{ name: "Russell" }} />);
+    expect(screen.getByTestId("article-read")).toHaveTextContent(/^Read spec$/);
+  });
+  it("a wiki page reads as a wiki", () => {
+    render(<EmbeddedArticleCard event={page(30818, "A page.", [["d", "x"], ["title", "X"]])} author={{ name: "GitCitadel" }} />);
+    expect(screen.getByTestId("article-read")).toHaveTextContent(/^Read wiki$/);
   });
 
   // Thumbnails stretched to the card's text height and cropped a different

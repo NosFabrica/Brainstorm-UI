@@ -8,10 +8,10 @@ import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { naddrForEvent } from "@/lib/articleLinks";
 import { articleBrief } from "@/lib/wiki";
 import articleDefault from "@/assets/article-default.webp";
-import specCover from "@/assets/nostr-implementation-possibilities-spec-cover.webp";
+import specCover from "@/assets/nostr-implementation-decentralized-network-specs-cover.webp";
 
 /** What the NIP cover shows — for search engines and screen readers alike. */
-export const SPEC_COVER_ALT = "Nostr Implementation Possibilities — formal specifications for the decentralized network";
+export const SPEC_COVER_ALT = "Nostr Implementation — decentralized network specs";
 import type { MinimalEvent } from "@/lib/noteRefs";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
@@ -35,7 +35,16 @@ function ago(ts?: number): string {
  * "Open in app" handoff. Responsive: image stacks on top on mobile, sits to the
  * left on desktop. Replaces an ugly raw `naddr`/article URL.
  */
-export function EmbeddedArticleCard({ event, author , trustScore01 }: { trustScore01?: number | null; event: MinimalEvent; author?: ProfileLite }) {
+/** How many of a spec's kinds a card shows; the spec page has them all. */
+const KIND_CHIPS_SHOWN = 6;
+
+export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [] }: {
+  trustScore01?: number | null;
+  event: MinimalEvent;
+  author?: ProfileLite;
+  /** The kinds the search asked for — shown first, so a reader sees why the card matched. */
+  leadKinds?: string[];
+}) {
   const tierRing = useTierRing();
   // Callers that fetched a score pass it (dashboard/reading cards); the
   // profile's article list doesn't — self-serve from the shared house cache.
@@ -47,7 +56,12 @@ export function EmbeddedArticleCard({ event, author , trustScore01 }: { trustSco
   // A spec (kind 30817) says which event kinds it covers in `k` tags.
   const isSpec = event.kind === 30817;
   // Each is the NIPs tab's filter: the specs that cover that kind. In order.
-  const coveredKinds = isSpec ? [...new Set(event.tags.filter((t) => t[0] === "k" && /^\d+$/.test(t[1] ?? "")).map((t) => t[1]))].sort((a, b) => Number(a) - Number(b)) : [];
+  const allKinds = isSpec ? [...new Set(event.tags.filter((t) => t[0] === "k" && /^\d+$/.test(t[1] ?? "")).map((t) => t[1]))].sort((a, b) => Number(a) - Number(b)) : [];
+  // A capability profile lists forty kinds; six keep every card the same
+  // height, the searched kind leading, the rest counted.
+  const lead = leadKinds.filter((k) => allKinds.includes(k));
+  const coveredKinds = [...lead, ...allKinds.filter((k) => !lead.includes(k))].slice(0, KIND_CHIPS_SHOWN);
+  const moreKinds = allKinds.length - coveredKinds.length;
   const summary = articleBrief(event);
   const image = tagVal(event, "image");
   // Fall back to the branded Brainstorm cover when an article has no image or
@@ -112,6 +126,11 @@ export function EmbeddedArticleCard({ event, author , trustScore01 }: { trustSco
                   kind {k}
                 </Link>
               ))}
+              {moreKinds > 0 && (
+                <span className="px-1 py-0.5 text-slate-400 dark:text-slate-500" data-testid="article-kinds-more">
+                  +{moreKinds} more
+                </span>
+              )}
             </p>
           )}
 
@@ -133,7 +152,7 @@ export function EmbeddedArticleCard({ event, author , trustScore01 }: { trustSco
                 className="inline-flex items-center gap-1 rounded-lg bg-brand-primary hover:bg-brand-primary-hover px-3 py-1.5 text-xs font-semibold text-white transition-colors"
                 data-testid="article-read"
               >
-                Read article <ArrowRight className="h-3.5 w-3.5" />
+                Read {isSpec ? "spec" : isWiki ? "wiki" : "article"} <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>
           )}
