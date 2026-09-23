@@ -4,12 +4,15 @@
  * one on the search relay is a Brainstorm activation, so the page is also
  * where a reader who has not activated finds the way.
  */
+import { useEffect, useState } from "react";
 import { Link } from "wouter";
 import { ArrowRight } from "lucide-react";
 import { BrainLogo } from "@/components/BrainLogo";
 import { Chip } from "@/components/ui/chip";
 import { nip19 } from "nostr-tools";
 import { CANONICAL_SPECS, describeDesignation } from "@/lib/nip85Declaration";
+import { fetchAssertionFootprint, type AssertionFootprint } from "@/services/assertionFootprint";
+import { relativeTime } from "@/lib/relativeTime";
 
 type DesignationEvent = { kind: number; pubkey: string; tags: string[][]; content: string; created_at: number };
 
@@ -22,6 +25,20 @@ export function DesignationHero({ event }: { event: DesignationEvent }) {
   const relays = [...new Set(d.providers.map((p) => host(p.relay)).filter(Boolean))];
   // The mark only where it is true: every designated provider is ours.
   const ours = d.providers.length > 0 && d.providers.every((p) => p.brainstorm);
+  // What the first provider is doing on its relay — the designation's payoff.
+  const lead = d.providers[0];
+  const [footprint, setFootprint] = useState<AssertionFootprint | null>(null);
+  useEffect(() => {
+    setFootprint(null);
+    if (!lead?.relay) return;
+    let alive = true;
+    void fetchAssertionFootprint(lead.pubkey, lead.relay).then((f) => {
+      if (alive) setFootprint(f);
+    }).catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [lead?.pubkey, lead?.relay]);
 
   return (
     <div data-testid="designation-hero">
@@ -30,7 +47,20 @@ export function DesignationHero({ event }: { event: DesignationEvent }) {
           <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
             Trust designation
           </h1>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{d.summary}</p>
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
+            {/* The relay address is not a page; what the signals ARE is. */}
+            {ours ? (
+              <>
+                Activated{" "}
+                <Link href="/how-search-works" className="font-medium text-brand-primary hover:underline dark:text-brand-link" data-testid="designation-signals-link">
+                  Brainstorm trust signals
+                </Link>
+                {d.summary.slice("Activated Brainstorm trust signals".length)}
+              </>
+            ) : (
+              d.summary
+            )}
+          </p>
         </div>
         {ours && (
           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-slate-800" data-testid="designation-mark">
@@ -51,6 +81,11 @@ export function DesignationHero({ event }: { event: DesignationEvent }) {
       {relays.length > 0 && (
         <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
           Served from <span className="font-mono">{relays.join(", ")}</span>
+          {footprint && (
+            <span data-testid="designation-footprint">
+              {" · "}Scoring {footprint.people}{footprint.capped ? "+" : ""} {footprint.people === 1 && !footprint.capped ? "person" : "people"} · updated {relativeTime(footprint.updatedAt)}
+            </span>
+          )}
         </p>
       )}
 

@@ -12,6 +12,9 @@ import { nip19 } from "nostr-tools";
 
 const specsMock = vi.fn(() => Promise.resolve([] as { id: string; kind: number; pubkey: string; tags: string[][]; content: string; created_at: number }[]));
 vi.mock("@/services/search", () => ({ fetchSpecsForKind: (kind: number) => specsMock(kind) }));
+// What the designated provider is doing on its relay — answered per test.
+const footprintMock = vi.fn<(provider: string, relay: string) => Promise<{ people: number; capped: boolean; updatedAt: number } | null>>(() => Promise.resolve(null));
+vi.mock("@/services/assertionFootprint", () => ({ fetchAssertionFootprint: (p: string, r: string) => footprintMock(p, r), FOOTPRINT_CAP: 200 }));
 
 import { DesignationHero } from "./DesignationHero";
 
@@ -56,6 +59,33 @@ describe("DesignationHero", () => {
     const lists = screen.getByTestId("designation-lists-spec");
     expect(lists).toHaveTextContent("Trusted Lists");
     expect(lists.getAttribute("href")).toBe(`/a/${nip19.naddrEncode({ kind: 30817, pubkey: DAVID, identifier: "trusted-lists" })}`);
+  });
+
+  // scores.brainstorm.world is a wss:// relay — nothing to open there. What
+  // links is the meaning: what Brainstorm trust signals are.
+  it("links what the signals mean, and leaves the relay address as text", () => {
+    render(<DesignationHero event={event([["30382:rank", TA, "wss://scores.brainstorm.world"]])} />);
+    const link = screen.getByTestId("designation-signals-link");
+    expect(link).toHaveTextContent("Brainstorm trust signals");
+    expect(link.getAttribute("href")).toBe("/how-search-works");
+    expect(screen.getByTestId("designation-hero").querySelector('a[href*="scores.brainstorm.world"]')).toBeNull();
+  });
+
+  // The payoff of a designation is a provider that is live: the page reads
+  // the provider's relay and says how many people it scores and how fresh.
+  it("says what the provider is doing on its relay: how many people, how fresh", async () => {
+    footprintMock.mockResolvedValueOnce({ people: 200, capped: true, updatedAt: Math.floor(Date.now() / 1000) - 7200 });
+    render(<DesignationHero event={event([["30382:rank", TA, "wss://scores.brainstorm.world"]])} />);
+    const line = await screen.findByTestId("designation-footprint");
+    expect(line).toHaveTextContent("Scoring 200+ people · updated 2h ago");
+    expect(footprintMock).toHaveBeenCalledWith(TA, "wss://scores.brainstorm.world");
+  });
+
+  it("says nothing about the relay when it holds nothing for the provider", async () => {
+    footprintMock.mockResolvedValueOnce(null);
+    render(<DesignationHero event={event([["30382:rank", TA, "wss://scores.brainstorm.world"]])} />);
+    await screen.findByTestId("designation-spec");
+    expect(screen.queryByTestId("designation-footprint")).toBeNull();
   });
 
   // The card's glyph was a generic shield that meant nothing (Benjamin,
