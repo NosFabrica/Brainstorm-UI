@@ -1313,10 +1313,12 @@ export function SearchResults({
             aria-label="Search syntax"
             title="Search syntax — people, days, topics, and the tokens that rank the answer. Shortcut: ?"
             onClick={() => setSyntaxOpen(true)}
-            className={tabClass(false) + " inline-flex items-center !px-2"}
+            // Same bare 24px round mark as the perspective control's ⓘ beside it (not a tab: a
+            // tab's underline border pushes the glyph off-centre), pulled in so the pair reads as one.
+            className={"inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-slate-400 transition-colors hover:text-brand-deep dark:text-slate-500 dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40" + (perspective ? " sm:-ml-1.5" : "")}
             data-testid="search-syntax-toggle"
           >
-            <HelpCircle className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
+            <HelpCircle className="h-3.5 w-3.5" />
           </button>
           {onQueryRewrite && (
             <button
@@ -1324,7 +1326,7 @@ export function SearchResults({
               aria-expanded={filtersOpen}
               aria-label="Filters"
               onClick={() => setFiltersOpen((v) => !v)}
-              className={tabClass(filtersOpen) + " inline-flex items-center gap-1 !px-2 sm:!px-2.5"}
+              className={tabClass(filtersOpen) + " inline-flex items-center gap-1 !px-2 sm:-ml-1.5 sm:!pl-1.5 sm:!pr-2.5"}
               data-testid="search-filters-toggle"
             >
               <SlidersHorizontal className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
