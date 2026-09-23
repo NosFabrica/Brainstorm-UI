@@ -343,7 +343,7 @@ const TAB_THINGS: Record<string, string> = {
   apps: "apps",
   repos: "repos",
   issues: "issues",
-  prs: "pull requests",
+  prs: "patches and PRs",
   lists: "lists",
   shop: "shop",
 };

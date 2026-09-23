@@ -1620,6 +1620,34 @@ describe("SearchResults", () => {
     expect(screen.queryByTestId("cluster-expand-s3")).toBeNull();
   });
 
+  it("one maintainer gets three cards on the Issues tab too; the rest fold behind '+N more from them'", async () => {
+    setUrlTab("issues");
+    const harness = "5".repeat(64);
+    const issue = (id: string, pk: string) => ev(id, 1621, pk, id, [["a", "30617:" + "9".repeat(64) + ":ngit"], ["subject", id]]);
+    const hits = [issue("h1", harness), issue("o1", "6".repeat(64)), issue("h2", harness), issue("h3", harness), issue("h4", harness)];
+    render(<SearchResults query="ngit" pov="nosfabrica" />);
+    emit({ hits: hits.map((e) => ({ event: e, author: author(e.pubkey, e.pubkey === harness ? "Harness" : "Dan"), rank: null })), eose: true, timeMs: 200 });
+    await screen.findByTestId("repo-card-h1");
+    expect(screen.getByTestId("repo-card-o1")).toBeInTheDocument();
+    expect(screen.queryByTestId("repo-card-h4")).toBeNull();
+    expect(screen.getByTestId("cluster-expand-h3")).toHaveTextContent("+1 more from Harness");
+  });
+
+  it("each streamed page asks for the statuses and comments of its new items only, and keeps the earlier answers", async () => {
+    setUrlTab("prs");
+    const pr = (id: string) => ev(id, 1618, "1".repeat(64), id, [["a", "30617:" + "9".repeat(64) + ":ngit"], ["subject", id]]);
+    const [a, b] = [pr("pa"), pr("pb")];
+    gitStatusesMock.mockImplementation((ids) => Promise.resolve(new Map(ids.map((id) => [id, { kind: 1631, at: 9 }]))));
+    render(<SearchResults query="ngit" pov="nosfabrica" />);
+    emit({ hits: [{ event: a, author: author(a.pubkey, "dev"), rank: null }], eose: false, timeMs: 100 });
+    expect(await screen.findByTestId("git-state-pa")).toHaveTextContent("Merged");
+    emit({ hits: [a, b].map((e) => ({ event: e, author: author(e.pubkey, "dev"), rank: null })), eose: true, timeMs: 200 });
+    expect(await screen.findByTestId("git-state-pb")).toHaveTextContent("Merged");
+    expect(screen.getByTestId("git-state-pa")).toHaveTextContent("Merged");
+    expect(gitStatusesMock.mock.calls.map((c) => c[0])).toEqual([[a.id], [b.id]]);
+    expect(gitCommentsMock.mock.calls.map((c) => c[0])).toEqual([[a.id], [b.id]]);
+  });
+
   it("a page that is all one maintainer's does not fold — there is no one else to make room for", async () => {
     setUrlTab("repos");
     const sirius = "5".repeat(64);

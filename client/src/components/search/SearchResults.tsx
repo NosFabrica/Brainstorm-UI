@@ -67,6 +67,7 @@ const APP_KINDS = new Set(TAB_KINDS.apps);
 // Repos, Issues and PRs all draw a RepoCard; the latter two carry a state.
 const REPO_KINDS = new Set([...TAB_KINDS.repos, ...TAB_KINDS.issues, ...TAB_KINDS.prs]);
 const isGitItemTab = (tab: SearchTab) => tab === "issues" || tab === "prs";
+const isGitTab = (tab: SearchTab) => tab === "repos" || isGitItemTab(tab);
 
 /** One row of the flat list: a hit, and — when it leads a fold — how many it
  *  hides, the chip's words, and (for an opened fork) whose fork it is. */
@@ -954,22 +955,29 @@ export function SearchResults({
     [hits, tab],
   );
   const gitIdsKey = gitItemIds.join(",");
+  // Each streamed snapshot or "more" page asks only after the ids it adds —
+  // not the whole growing list again. A generation drops answers that land
+  // after the page emptied (a new tab), so they can't refill it.
+  const gitFetched = useRef({ gen: 0, ids: new Set<string>() });
   useEffect(() => {
+    const seen = gitFetched.current;
     if (!gitIdsKey) {
+      seen.gen += 1;
+      seen.ids = new Set();
       setGitStatuses(new Map());
+      setGitComments(new Map());
       return;
     }
-    let alive = true;
-    const ids = gitIdsKey.split(",");
+    const ids = gitIdsKey.split(",").filter((id) => !seen.ids.has(id));
+    if (ids.length === 0) return;
+    for (const id of ids) seen.ids.add(id);
+    const gen = seen.gen;
     void fetchGitStatuses(ids).then((m) => {
-      if (alive) setGitStatuses(m);
+      if (gitFetched.current.gen === gen && m.size) setGitStatuses((prev) => new Map([...prev, ...m]));
     });
     void fetchGitCommentCounts(ids).then((m) => {
-      if (alive) setGitComments(m);
+      if (gitFetched.current.gen === gen && m.size) setGitComments((prev) => new Map([...prev, ...m]));
     });
-    return () => {
-      alive = false;
-    };
   }, [gitIdsKey]);
   const stateOf = (e: NostrEvent): GitState | null => (isGitItem(e.kind) ? gitStateOf(gitStatuses.get(e.id)?.kind, e.kind) : null);
   const [repoLabel, setRepoLabel] = useState<string | null>(null);
@@ -1013,13 +1021,11 @@ export function SearchResults({
     setShopCategory(null);
     setArticleType(null);
     setRecipeTopic(null);
-  }, [tab, query]);
-  // Issues' states aren't PRs' (resolved vs merged): a state or label picked
-  // on one tab would empty the other.
-  useEffect(() => {
+    // Issues' states aren't PRs' (resolved vs merged), and a new query may
+    // carry none of the picked label: either would strand an empty page.
     setRepoState(null);
     setRepoLabel(null);
-  }, [tab]);
+  }, [tab, query]);
   // The listings' own categories, counted — the Shop's facets.
   const shopFacets = useMemo(() => {
     if (tab !== "shop") return [];
@@ -1133,8 +1139,8 @@ export function SearchResults({
       shown = hits.filter((h) => titled(h.event) && itemCount(h.event) > 0);
       shown = [...shown.filter((h) => isPeoplePack(h.event)), ...shown.filter((h) => !isPeoplePack(h.event))];
     }
-    if (tab === "repos") {
-      // One codebase, one card: forks fold behind the most trusted
+    if (isGitTab(tab)) {
+      // Repos, Issues and PRs. One codebase, one card: forks fold behind the most trusted
       // maintainer's announcement and open on a tap, each naming its parent.
       // And one maintainer, three cards: Google's host-diversity rule. Probed
       // 2026-09-05, one company's 23 bare repos filled the first screens; the
@@ -1679,7 +1685,7 @@ export function SearchResults({
                 ? "grid grid-cols-2 gap-2.5 sm:grid-cols-3"
                 : tab === "live"
                   ? "grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3"
-                  : tab === "apps" || tab === "repos" || isGitItemTab(tab)
+                  : tab === "apps" || isGitTab(tab)
                   ? "grid grid-cols-1 gap-2.5 lg:grid-cols-2"
                   : "space-y-2 sm:space-y-3"
             }
