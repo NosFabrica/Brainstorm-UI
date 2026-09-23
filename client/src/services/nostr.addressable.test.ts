@@ -33,6 +33,13 @@ const searchReqMock = vi.fn((_filter: unknown) => {
 vi.mock("@/lib/searchRelay", () => ({
   searchRelay: () => ({ req: (filter: unknown) => searchReqMock(filter) }),
 }));
+// NIP-65 routing asks for the author's kind-10002 before a content read;
+// these cases are about relay FAN-OUT, so the lookup answers "nothing".
+vi.mock("@/lib/loaders", () => ({
+  addressLoader: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }),
+  idLoader: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }),
+  loadReplaceable: async () => undefined,
+}));
 
 import { fetchAddressableEvents } from "./nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";

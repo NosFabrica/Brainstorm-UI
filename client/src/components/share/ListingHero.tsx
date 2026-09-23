@@ -4,6 +4,7 @@ import { Chip } from "@/components/ui/chip";
 import { NotesInline } from "@/components/share/NotesInline";
 import { Favicon } from "@/components/share/LinkPreview";
 import { formatListingPrice, isSellable, parseListing, plainMarkdown } from "@/lib/listing";
+import { sourceAppFor } from "@/lib/sourceApp";
 import { nostrUriFor } from "@/lib/shareId";
 import type { MinimalEvent } from "@/lib/noteRefs";
 
@@ -11,13 +12,18 @@ import type { MinimalEvent } from "@/lib/noteRefs";
  * A kind-30402 listing on its event page: the photos, the price as the seller
  * wrote it, where it is, how it ships, the description with its links live —
  * and two ways to act. "Message seller" opens the seller in the reader's own
- * Nostr app, where their keys and conversations already live; "Visit shop"
- * goes to the seller's page for this listing when the app published one.
- * There is no checkout of ours: payment happens where the seller sells.
+ * Nostr app, where their keys and conversations already live; the second
+ * button goes to the listing's own page — by the app's name ("Open in
+ * Conduit") when we know which app sold it, or "Visit shop" on whatever link
+ * the seller published. There is no checkout of ours: payment happens where
+ * the seller sells.
  */
 export function ListingHero({ event }: { event: MinimalEvent }) {
   const l = parseListing({ ...event, id: event.id, pubkey: event.pubkey, kind: event.kind, created_at: event.created_at, tags: event.tags, content: event.content ?? "" });
   const [photo, setPhoto] = useState(0);
+  // The app that sold it wins over a stray shop link: that is where the
+  // product actually lives and checks out.
+  const app = sourceAppFor(event);
   if (!l) return null;
   const sellable = isSellable(l);
   // Sold, hidden, inactive: a status worth a chip. Merely priceless is not.
@@ -99,7 +105,18 @@ export function ListingHero({ event }: { event: MinimalEvent }) {
         >
           <MessageCircle className="h-4 w-4" /> Message seller
         </a>
-        {l.shopUrl && shopHost && (
+        {app ? (
+          <a
+            href={app.url}
+            target="_blank"
+            rel="noopener"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-800 dark:text-slate-100 transition-colors hover:border-brand-accent/40"
+            data-testid="listing-hero-shop"
+            title={`Opens ${app.host} in a new tab`}
+          >
+            <img src={app.icon} alt="" className="h-3.5 w-3.5 rounded-sm" /> Open in {app.name} <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+          </a>
+        ) : l.shopUrl && shopHost ? (
           <a
             href={l.shopUrl}
             target="_blank"
@@ -110,7 +127,7 @@ export function ListingHero({ event }: { event: MinimalEvent }) {
           >
             <Favicon host={shopHost} className="h-3.5 w-3.5" /> Visit shop <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
           </a>
-        )}
+        ) : null}
       </div>
       <p className="mt-2 text-[11px] text-slate-400 dark:text-slate-500">
         Messaging opens your Nostr app. Payment happens with the seller, in their app.

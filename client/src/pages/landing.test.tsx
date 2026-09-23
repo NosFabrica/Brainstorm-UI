@@ -391,3 +391,19 @@ describe("typing in the home search", () => {
     expect(mainStreamCalls().some(([q]) => q === "vitor")).toBe(true);
   });
 });
+
+// Benjamin (2026-09-23): Shop replaces Articles in the Browse row too — the
+// row is the tab set for keyword-less browsing, and Shop earned the tab strip.
+describe("the Browse row under the box", () => {
+  it("offers Shop where Articles was, after Media", async () => {
+    window.history.replaceState({}, "", "/");
+    render(<Landing />);
+    const input = screen.getByTestId("input-home-search");
+    // The panel opens for an engaged, focused, empty box — a tap, then focus.
+    fireEvent.pointerDown(input);
+    fireEvent.focus(input);
+    const chips = await screen.findByTestId("browse-chips");
+    const order = [...chips.querySelectorAll('[data-testid^="browse-"]')].map((el) => el.getAttribute("data-testid"));
+    expect(order).toEqual(["browse-people", "browse-notes", "browse-media", "browse-shop", "browse-apps", "browse-repos", "browse-events", "browse-live", "browse-lists"]);
+  });
+});

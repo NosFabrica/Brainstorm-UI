@@ -64,6 +64,7 @@ import {
   fetchPersonVouches,
   fetchVouchReplies,
   fetchNipPage,
+  fetchSpecsForKind,
   fetchPersonSets,
   fetchReleases,
   fetchRepoActivity,
@@ -128,6 +129,55 @@ const asked = (call = 0) => askedFilters(call)[0];
 beforeEach(() => vi.clearAllMocks());
 
 describe("searchStream", () => {
+  it("a typed kind narrows the tab it is on — spec: on Articles asks for specs alone", async () => {
+    controllable();
+
+    searchStream("dvm spec:", { tab: "articles", pov: "nosfabrica" }, () => {});
+    await tick();
+
+    const filter = asked() as { kinds?: number[]; search: string };
+    expect(filter.kinds).toEqual([30817]);
+    expect(filter.search).toMatch(/^dvm observer:/);
+  });
+
+  /**
+   * Recipes are ordinary long-form articles with zap.cooking's tag on them, so
+   * a Recipes vertical is not a kind of its own — it is the article kind narrowed
+   * by tag on the relay (probed on the search relay, 2026-09-22: the tag alone
+   * returns the newest recipes; tag plus words returns "chili, but only recipes").
+   */
+  it("the Recipes tab asks the relay for articles tagged as recipes, words and all", async () => {
+    controllable();
+
+    searchStream("chili", { tab: "recipes", pov: "nosfabrica" }, () => {});
+    await tick();
+
+    const filter = asked() as { kinds?: number[]; "#t"?: string[]; search: string };
+    expect(filter.kinds).toEqual([30023]);
+    expect(filter["#t"]).toEqual(expect.arrayContaining(["zapcooking", "nostrcooking"]));
+    expect(filter.search).toMatch(/^chili observer:/);
+  });
+
+  /**
+   * On the NIPs tab a kind is what a spec COVERS, not what it is: `kind:5905`
+   * asks for the specs that define kind 5905, through the `k` tag they carry
+   * (probed on the search relay, 2026-09-23: `#k` narrows specs server-side;
+   * the relay holds no kind-5905 events at all, so the events meaning would
+   * always be empty there). Intersecting the tab's kinds with the typed one
+   * left the tab asking nothing.
+   */
+  it("on NIPs, a typed kind asks for the specs that cover it", async () => {
+    controllable();
+
+    searchStream("kind:5905", { tab: "nips", pov: "nosfabrica" }, () => {});
+    await tick();
+
+    const filter = asked() as { kinds?: number[]; "#k"?: string[]; search: string };
+    expect(filter.kinds).toEqual([30817]);
+    expect(filter["#k"]).toEqual(["5905"]);
+    expect(filter.search).toMatch(/^observer:/);
+  });
+
   it("streams people hits incrementally, with the house observer on the wire", async () => {
     const { subject } = controllable();
     const snaps: SearchSnapshot[] = [];
@@ -228,6 +278,27 @@ describe("searchStream — grouped", () => {
     expect(filters[1].search).toBe(`bitcoin observer:${HOUSE}`);
     expect(filters[1].limit).toBe(8);
   });
+
+  /**
+   * Everything is one request with a filter per section, each routed by kind.
+   * A typed kind must narrow each section, not replace its kinds — or Latest,
+   * Happening and Media all ask for specs and every section fills with them
+   * (seen live, 2026-09-22). A section left with no kinds asks nothing and
+   * finishes empty.
+   */
+  it("on Everything, a typed kind narrows each section, and empties the ones it doesn't fit", async () => {
+    controllable();
+    const notes: SearchSnapshot[] = [];
+
+    searchStream("dvm spec:", { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" }, (s) => notes.push(s));
+    searchStream("dvm spec:", { tab: "articles", pov: "nosfabrica", limit: 5, group: "search-everything" }, () => {});
+    await settle();
+
+    const filters = reqMock.mock.calls[0][0] as { kinds?: number[] }[];
+    expect(filters.map((f) => f.kinds)).toEqual([[30817]]); // Articles alone asked
+    expect(notes.at(-1)).toMatchObject({ hits: [], eose: true });
+  });
+
 
   it("gives each member only the events its filter asked for, and settles them together", async () => {
     const { subject } = controllable();
@@ -1133,6 +1204,32 @@ describe("author hydration on a slow relay", () => {
   });
 });
 
+describe("fetchSpecsForKind", () => {
+  // A structural event's page names the spec that defines its kind — the
+  // relay narrows specs by the `k` tags they carry (probed 2026-09-23).
+  it("asks for the specs whose k tags name the kind, and resolves them", async () => {
+    const { subject } = controllable();
+    const pending = fetchSpecsForKind(10040);
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter.kinds).toEqual([30817]);
+    expect(filter["#k"]).toEqual(["10040"]);
+    expect(filter.search).toBe("include:spam");
+
+    subject.next(frame({ id: "s1", kind: 30817, pubkey: "b".repeat(64), tags: [["d", "trusted-assertions"], ["title", "Trusted Assertions"], ["k", "10040"]], content: "# TA", created_at: 1, sig: "s" } as NostrEvent));
+    subject.next(EOSE);
+    expect((await pending).map((e) => e.id)).toEqual(["s1"]);
+  });
+
+  it("resolves empty when no spec covers the kind", async () => {
+    const { subject } = controllable();
+    const pending = fetchSpecsForKind(99999);
+    await tick();
+    subject.next(EOSE);
+    expect(await pending).toEqual([]);
+  });
+});
+
 describe("fetchNipPage", () => {
   // Wiki NIP pages are kind 30818 with d = "nip-46". Several authors publish
   // competing versions (probed live: fiatjaf's real 10KB page next to a
@@ -1808,6 +1905,18 @@ describe("kindsForTab", () => {
     expect(kindsForTab("people")).toEqual([0]);
     expect(kindsForTab("notes")).toEqual(TAB_KINDS.notes);
     expect(kindsForTab("everything")).toBeUndefined();
+  });
+
+  // Option A for NIPs in search: a spec (kind 30817, Markdown, addressable —
+  // what the search relay already indexes) is read like an article.
+  it("Articles asks for specs too", () => {
+    expect(kindsForTab("articles")).toContain(30817);
+  });
+
+  // Benjamin (2026-09-23): for adoption, NIPs get their own entry under More
+  // — the word people actually search — while staying labelled inside Articles.
+  it("NIPs is a vertical of its own: specs alone", () => {
+    expect(kindsForTab("nips")).toEqual([30817]);
   });
 
   // Vitor's split: "Code & git" mixed content types (and probing showed its

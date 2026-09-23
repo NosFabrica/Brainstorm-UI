@@ -7,13 +7,16 @@ import rehypeSanitize from "rehype-sanitize";
 import { VideoEmbed, videoEmbedFor } from "@/components/share/VideoEmbed";
 import { LinkChip } from "@/components/share/LinkPreview";
 import { nip19 } from "nostr-tools";
-import { ArrowRight, BadgeCheck, Loader2, FileText } from "lucide-react";
+import { ArrowRight, ExternalLink, Loader2, FileText } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { fetchAddressableEvents, fetchProfile } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 import { npubFromPubkey } from "@/lib/shareId";
+import { sourceAppFor } from "@/lib/sourceApp";
 import { wikiToMarkdown } from "@/lib/wiki";
+import { prepareArticleBody } from "@/lib/articleBody";
+import { Chip } from "@/components/ui/chip";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { EventThread } from "@/components/share/EventThread";
@@ -26,6 +29,7 @@ import { BrainLogo } from "@/components/BrainLogo";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useConnectionSpeed, videoPreload } from "@/lib/connection";
+import { Nip05Check } from "@/components/Nip05Check";
 
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?.*)?$/i;
@@ -145,8 +149,26 @@ export default function ArticlePage() {
   });
 
   const ev = articleQuery.data;
+  // Where this piece lives, when an app we know published it (a zap.cooking recipe).
+  const sourceApp = ev ? sourceAppFor(ev) : null;
   const tag = (k: string) => ev?.tags.find((t) => t[0] === k)?.[1];
   const title = tag("title") || "Untitled article";
+  // The page shows the title above the byline; a spec's `# Title` and its
+  // `draft` `optional` status line leave the body and read as themselves.
+  const prepared = useMemo(
+    () => prepareArticleBody(ev ? (ev.kind === 30818 ? wikiToMarkdown(ev.content || "") : ev.content || "") : "", title, { identifier: tag("d") }),
+    [ev, title], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+  // The kinds a spec covers: the `k` tags and the front matter, one list, each
+  // wearing the name its author gave it — a number alone tells a reader nothing.
+  const coveredKinds = useMemo(() => {
+    if (ev?.kind !== 30817) return [] as { kind: string; label?: string }[];
+    const byKind = new Map<string, string | undefined>();
+    for (const t of ev.tags) if (t[0] === "k" && /^\d+$/.test(t[1] ?? "")) byKind.set(t[1], t[2] || undefined); // "nip" is not a kind
+    for (const k of prepared.kinds) byKind.set(k.kind, k.label ?? byKind.get(k.kind));
+    // In order, however the author tagged them.
+    return [...byKind.entries()].map(([kind, label]) => ({ kind, label })).sort((a, b) => Number(a.kind) - Number(b.kind));
+  }, [ev, prepared.kinds]);
   const summary = tag("summary") || "";
   // A wiki page mirrored from elsewhere names its source in an "s" tag
   // (GitCitadel: the Wikipedia URL). Attribution is owed, and one line does it.
@@ -215,6 +237,49 @@ export default function ArticlePage() {
               {title}
             </h1>
             {summary && <p className="mt-2 text-lg text-slate-500 dark:text-slate-400 leading-snug">{summary}</p>}
+            {/* A spec's details, read out of its front matter and tags: its
+                standing, the kinds it defines (each a search for that kind),
+                and the tags it defines. */}
+            {(prepared.status.length > 0 || coveredKinds.length > 0 || prepared.tags.length > 0) && (
+              <div className="mt-4 space-y-2 text-sm" data-testid="article-details">
+                {prepared.status.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5" data-testid="article-status">
+                    <span className="mr-1 font-mono text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Status</span>
+                    {prepared.status.map((s) => (
+                      <Chip key={s} tone="slate" size="sm">{s}</Chip>
+                    ))}
+                  </div>
+                )}
+                {coveredKinds.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5" data-testid="article-kinds">
+                    <span className="mr-1 font-mono text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Kinds</span>
+                    {coveredKinds.map(({ kind, label }) => (
+                      <Link
+                        key={kind}
+                        href={`/?t=nips&q=${encodeURIComponent(`kind:${kind}`)}`}
+                        title={`Specs that cover kind ${kind}`}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-700 transition-colors hover:border-brand-accent/40 hover:text-brand-deep dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:text-brand-link"
+                        data-testid={`article-kind-${kind}`}
+                      >
+                        <span className="font-mono">{kind}</span>
+                        {label && <span className="text-slate-500 dark:text-slate-400">{label}</span>}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+                {prepared.tags.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5" data-testid="article-tags">
+                    <span className="mr-1 font-mono text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Tags</span>
+                    {prepared.tags.map((t) => (
+                      <span key={t.name} className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                        <span className="font-mono">{t.name}</span>
+                        {t.label && <span className="text-slate-500 dark:text-slate-400">{t.label}</span>}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
             {sourceUrl && sourceName && (
               <p className="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="article-source">
                 Mirrored from{" "}
@@ -240,24 +305,43 @@ export default function ArticlePage() {
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{authorName}</span>
                     <TierWordChip score01={score01} />
-                    {profile.nip05 && <BadgeCheck className="h-4 w-4 text-sky-500 shrink-0" />}
+                    <Nip05Check nip05={profile.nip05} pubkey={ev.pubkey} className="h-4 w-4 text-sky-500 shrink-0" />
                   </div>
                   <span className="text-xs text-slate-400 dark:text-slate-500">{publishedAgo(ev)}</span>
                 </div>
               </Link>
-              {ptr && (
-                <EntityMenu
-                  entity={{ kind: "article", eventKind: ev.kind, bech32: naddr, uri: `nostr:${naddr}` }}
-                  copies={[{ id: "naddr", label: "Copy naddr", value: naddr, hint: "The article's address, for Nostr apps" }]}
-                  triggerTestId="article-menu"
-                />
-              )}
+              <div className="flex shrink-0 items-center gap-2">
+                {/* The app that published this piece — a recipe's home on
+                    zap.cooking — is the primary way out, named. Other clients
+                    stay behind the ⋯: Brainstorm is the destination. */}
+                {sourceApp && (
+                  <a
+                    href={sourceApp.url}
+                    target="_blank"
+                    rel="noopener"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-100 transition-colors hover:border-brand-accent/40"
+                    title={`Opens ${sourceApp.host} in a new tab`}
+                    data-testid="article-source-app"
+                  >
+                    <img src={sourceApp.icon} alt="" className="h-3.5 w-3.5 rounded-sm" /> Open in {sourceApp.name} <ExternalLink className="h-3 w-3 text-slate-400" />
+                  </a>
+                )}
+                {ptr && (
+                  <EntityMenu
+                    entity={{ kind: "article", eventKind: ev.kind, bech32: naddr, uri: `nostr:${naddr}` }}
+                    copies={[{ id: "naddr", label: "Copy naddr", value: naddr, hint: "The article's address, for Nostr apps" }]}
+                    triggerTestId="article-menu"
+                  />
+                )}
+              </div>
             </div>
 
             {/* Full article body — Brainstorm is the reading destination. */}
-            <div className="mt-6 prose prose-slate dark:prose-invert max-w-none prose-headings:font-bold prose-a:text-brand-link prose-img:rounded-xl" data-testid="article-body">
+            {/* Inline code wears no decorative backticks (the typography plugin's
+                default) and wraps — a spec's example URIs used to push the page sideways. */}
+            <div className="article-prose mt-6 prose prose-slate dark:prose-invert max-w-none prose-headings:font-bold prose-a:text-brand-link prose-img:rounded-xl prose-code:before:content-none prose-code:after:content-none prose-pre:overflow-x-auto" data-testid="article-body">
               <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={mdComponents}>
-                {ev.kind === 30818 ? wikiToMarkdown(ev.content || "") : ev.content || ""}
+                {prepared.body}
               </ReactMarkdown>
             </div>
 

@@ -315,12 +315,13 @@ describe("SearchResults", () => {
   // Benjamin: the nine-tab strip was "distracting and takes up a lot of
   // space". Google's shape: five tabs in view, the rest behind More ▾, and
   // the chosen overflow tab takes the More slot so you can see where you are.
-  it("shows five verticals and folds Apps, Repos, Live and Lists behind More", () => {
+  // Benjamin (2026-09-23): Shop earns the row — Media, then Shop — and
+  // Articles is the first thing behind More.
+  it("shows five verticals — Media then Shop — and folds Articles first behind More", () => {
     render(<SearchResults query="jack" pov="nosfabrica" />);
-    for (const t of ["everything", "people", "notes", "articles", "media"]) {
-      expect(screen.getByTestId(`search-tab-${t}`)).toBeInTheDocument();
-    }
-    for (const t of ["apps", "repos", "events", "live", "lists"]) expect(screen.queryByTestId(`search-tab-${t}`)).toBeNull();
+    const row = ["everything", "people", "notes", "media", "shop"].map((t) => screen.getByTestId(`search-tab-${t}`));
+    expect(row.map((el) => el.textContent)).toEqual(["Everything", "People", "Notes", "Media", "Shop"]);
+    for (const t of ["articles", "apps", "repos", "events", "live", "lists"]) expect(screen.queryByTestId(`search-tab-${t}`)).toBeNull();
     expect(screen.queryByTestId("search-tab-code")).toBeNull();
 
     const more = screen.getByTestId("search-tab-more");
@@ -329,6 +330,8 @@ describe("SearchResults", () => {
     fireEvent.click(more);
     expect(more.getAttribute("aria-expanded")).toBe("true");
     const menu = screen.getByRole("menu");
+    const items = [...menu.querySelectorAll('[data-testid^="search-tab-"]')].map((el) => el.getAttribute("data-testid"));
+    expect(items[0]).toBe("search-tab-articles");
     for (const t of ["apps", "repos", "events", "live", "lists"]) expect(within(menu).getByTestId(`search-tab-${t}`)).toBeInTheDocument();
 
     fireEvent.click(within(menu).getByTestId("search-tab-apps"));
@@ -338,6 +341,76 @@ describe("SearchResults", () => {
     expect(screen.getByTestId("search-tab-more")).toHaveTextContent("Apps");
     expect(screen.getByTestId("search-tab-more").getAttribute("aria-selected")).toBe("true");
     expect(new URLSearchParams(window.location.search).get("t")).toBe("apps");
+  });
+
+  /**
+   * Benjamin, on seeing "Brisket Burnt Ends Hatch Chili" under Articles: recipes
+   * deserve their own place. Under More ▾, by the five-tab rule — and choosing
+   * it asks the relay for recipes, not articles that happen to mention food.
+   */
+  it("Recipes lives under More, and choosing it searches recipes", () => {
+    render(<SearchResults query="chili" pov="nosfabrica" />);
+    expect(screen.queryByTestId("search-tab-recipes")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    const menu = screen.getByRole("menu");
+    fireEvent.click(within(menu).getByTestId("search-tab-recipes"));
+
+    expect(mainStreamCalls().at(-1)![1]).toMatchObject({ tab: "recipes" });
+    expect(screen.getByTestId("search-tab-more")).toHaveTextContent("Recipes");
+    expect(new URLSearchParams(window.location.search).get("t")).toBe("recipes");
+  });
+
+  /**
+   * The Recipes tab's topics are the recipes' own tags — chicken, soup — as the
+   * same quiet chips the Shop tab has, with zap.cooking's housekeeping tags
+   * (the recipe marker and its `zapcooking-<slug>` copies) kept out: they name
+   * the app and the dish, not a topic. One tap narrows; only then a count.
+   */
+  it("the Recipes tab offers the recipes' own topics as chips, housekeeping tags left out", async () => {
+    setUrlTab("recipes");
+    render(<SearchResults query="" pov="nosfabrica" />);
+    const cook = "9".repeat(64);
+    const recipe = (id: string, title: string, topics: string[]) => ({
+      event: ev(id, 30023, cook, `# ${title}`, [["d", id], ["title", title], ["t", "zapcooking"], ["t", `zapcooking-${id}`], ...topics.map((t) => ["t", t])]),
+      author: author(cook, "SkyLords"),
+      rank: null,
+    });
+    // The relay can narrow by tag but not exclude by one: zap.cooking's own
+    // newsletter wears the recipe tag, marked zapreads. The tab leaves it out.
+    // zap.cooking writes each chosen category as `zapcooking-<word>` beside a
+    // `zapcooking-<slug>` copy of the dish itself: the words are topics, the slug is not.
+    emit({ hits: [recipe("r1", "Chicken soup", ["chicken", "zapcooking-soup"]), recipe("r2", "Vanilla cake", ["zapcooking-dessert", "#fakeaway", "3"]), recipe("n1", "Zap Cooking Newsletter", ["zapreads", "newsletter"])], eose: true, timeMs: 120 });
+
+    await screen.findByText("Chicken soup");
+    expect(screen.queryByText("Zap Cooking Newsletter")).toBeNull();
+    expect(within(screen.getByTestId("recipe-facets")).queryByTestId("recipe-facet-newsletter")).toBeNull();
+    const facets = screen.getByTestId("recipe-facets");
+    expect(within(facets).getByTestId("recipe-facet-chicken")).toHaveTextContent("chicken");
+    expect(within(facets).getByTestId("recipe-facet-chicken")).not.toHaveTextContent(/\d/);
+    expect(within(facets).queryByTestId("recipe-facet-zapcooking")).toBeNull();
+    expect(within(facets).queryByTestId("recipe-facet-zapcooking-r1")).toBeNull();
+    expect(within(facets).queryByTestId("recipe-facet-r1")).toBeNull(); // the dish's own slug is not a topic
+    expect(within(facets).getByTestId("recipe-facet-soup")).toHaveTextContent("soup"); // zapcooking-soup, promoted
+    expect(within(facets).queryByTestId("recipe-facet-zapcooking-soup")).toBeNull();
+    expect(within(facets).getByTestId("recipe-facet-fakeaway")).toHaveTextContent("fakeaway"); // a typed # is not part of the word
+    expect(within(facets).queryByTestId("recipe-facet-3")).toBeNull(); // a serving count is not a topic
+
+    fireEvent.click(within(facets).getByTestId("recipe-facet-dessert"));
+    expect(screen.getByText("Vanilla cake")).toBeInTheDocument();
+    expect(screen.queryByText("Chicken soup")).toBeNull();
+    expect(screen.getByTestId("text-search-stats")).toHaveTextContent("1 of 2 match");
+  });
+
+  it("NIPs lives under More, and choosing it searches specs alone", () => {
+    render(<SearchResults query="nip-21" pov="nosfabrica" />);
+    expect(screen.queryByTestId("search-tab-nips")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    fireEvent.click(within(screen.getByRole("menu")).getByTestId("search-tab-nips"));
+
+    expect(mainStreamCalls().at(-1)![1]).toMatchObject({ tab: "nips" });
+    expect(screen.getByTestId("search-tab-more")).toHaveTextContent("NIPs");
   });
 
   it("a deep link to a folded vertical opens with that vertical named in the More slot", () => {
@@ -666,6 +739,41 @@ describe("SearchResults", () => {
     ]);
     emit({ hits: [{ event: article, author: author(article.pubkey, "dave"), rank: null }], eose: true, timeMs: 300 });
     expect(await screen.findByText("The State of Mining")).toBeInTheDocument();
+  });
+
+  /**
+   * The team, on NIPs in search: show a way to narrow to specs only when a
+   * search actually matched some ("not for honey"), and no new kind filter in
+   * the tab row. So: the Shop tab's chips, inside Articles, only when the
+   * results mix more than one kind of article.
+   */
+  it("Articles offers type chips only when the results mix types, and Specs narrows to the specs", async () => {
+    setUrlTab("articles");
+    render(<SearchResults query="dvm" pov="nosfabrica" />);
+    const pk = "d".repeat(64);
+    const hit = (id: string, kind: number, title: string) => ({ event: ev(id, kind, pk, "body", [["d", id], ["title", title]]), author: author(pk, "russell"), rank: null });
+    emit({ hits: [hit("a1", 30023, "Building a DVM"), hit("s1", 30817, "Scheduler DVM"), hit("a2", 30023, "DVMs explained")], eose: true, timeMs: 200 });
+    await screen.findByText("Scheduler DVM");
+
+    const facets = screen.getByTestId("article-facets");
+    expect(within(facets).getByTestId("article-facet-spec")).toHaveTextContent("Specs");
+    expect(within(facets).getByTestId("article-facet-article")).toHaveTextContent("Articles");
+    expect(within(facets).queryByTestId("article-facet-wiki")).toBeNull(); // no wiki page in these results
+    expect(within(facets).getByTestId("article-facet-spec")).not.toHaveTextContent(/\d/);
+
+    fireEvent.click(within(facets).getByTestId("article-facet-spec"));
+    expect(screen.getByText("Scheduler DVM")).toBeInTheDocument();
+    expect(screen.queryByText("Building a DVM")).toBeNull();
+    expect(screen.getByTestId("text-search-stats")).toHaveTextContent("1 of 3 match");
+  });
+
+  it("a query that finds only articles shows no type chips", async () => {
+    setUrlTab("articles");
+    render(<SearchResults query="honey" pov="nosfabrica" />);
+    const pk = "d".repeat(64);
+    emit({ hits: [{ event: ev("h1", 30023, pk, "body", [["d", "h1"], ["title", "Raw honey"]]), author: author(pk, "bee"), rank: null }], eose: true, timeMs: 200 });
+    await screen.findByText("Raw honey");
+    expect(screen.queryByTestId("article-facets")).toBeNull();
   });
 
   it("renders a live event with its status pill and title", async () => {
@@ -1185,6 +1293,34 @@ describe("SearchResults", () => {
     expect(screen.getByTestId("listing-card-l1")).toBeInTheDocument();
     expect(screen.queryByTestId("listing-card-l2")).toBeNull();
     expect(screen.getByTestId("text-search-stats")).toHaveTextContent("1 of 2 match");
+  });
+
+  /**
+   * Conduit's sellers publish no shop link at all — the Merchant Portal stamps
+   * a client tag and nothing else — so their cards had no corner at all. When
+   * the app is known by name, the corner opens the product there, referral
+   * included; still the icon alone over the photo, the words on hover.
+   */
+  it("a Conduit listing's corner opens it on Conduit, by name", async () => {
+    setUrlTab("shop");
+    render(<SearchResults query="beanie" pov="nosfabrica" />);
+    const seller = "6".repeat(64);
+    emit({
+      hits: [{
+        event: ev("c1", 30402, seller, "Spartan Beanie", [["d", "c1"], ["title", "Spartan Beanie"], ["price", "21000", "sats"], ["image", "https://img/4.jpg"], ["t", "hat"], ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"]]),
+        author: author(seller, "Black Sheep"),
+        rank: null,
+      }],
+      eose: true,
+      timeMs: 130,
+    });
+
+    const open = within(await screen.findByTestId("listing-card-c1")).getByTestId("listing-open-c1");
+    expect(open.getAttribute("href")).toMatch(/^https:\/\/shop\.conduit\.market\/products\/naddr1[a-z0-9]+\?ref=brainstorm$/);
+    expect(open.getAttribute("title")).toBe("Open in Conduit");
+    expect(open.getAttribute("aria-label")).toBe("Open in Conduit");
+    expect(open.textContent?.trim()).toBe("");
+    expect(within(open).getByTestId("favicon")).toHaveAttribute("src", "https://shop.conduit.market/favicon.svg");
   });
 
   it("collapses recurring events on the Events tab behind a +N chip", async () => {
@@ -2362,8 +2498,8 @@ describe("notes on the search page name who they mention", () => {
     const onTabChange = vi.fn();
     render(<SearchResults query="bitcoin" pov="nosfabrica" onTabChange={onTabChange} />);
     expect(onTabChange).toHaveBeenCalledWith("notes");
-    fireEvent.click(screen.getByTestId("search-tab-articles"));
-    expect(onTabChange).toHaveBeenLastCalledWith("articles");
+    fireEvent.click(screen.getByTestId("search-tab-media"));
+    expect(onTabChange).toHaveBeenLastCalledWith("media");
   });
 
 });
@@ -2378,6 +2514,17 @@ describe("the Articles tab orders worded searches by best match", () => {
       render(<SearchResults query="list of comedians" pov="nosfabrica" />);
       await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(0));
       expect(String(mainStreamCalls().at(-1)![0])).toBe("list of comedians");
+      cleanup();
+      render(<SearchResults query="" pov="nosfabrica" />);
+      await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(1));
+      expect(String(mainStreamCalls().at(-1)![0])).toBe("sort:recent");
+    });
+
+    it("Recipes sort like Articles — best match with words, newest on a browse", async () => {
+      setUrlTab("recipes");
+      render(<SearchResults query="chili" pov="nosfabrica" />);
+      await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(0));
+      expect(String(mainStreamCalls().at(-1)![0])).toBe("chili");
       cleanup();
       render(<SearchResults query="" pov="nosfabrica" />);
       await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(1));

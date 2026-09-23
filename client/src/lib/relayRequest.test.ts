@@ -26,6 +26,14 @@ vi.mock("./eventStore", () => ({ eventStore: { add: (event: unknown) => storeAdd
 import { requestAll, requestNewest, requestNewestRaw, requestNewestWithReach, requestOne } from "./relayRequest";
 
 const RELAYS = ["wss://one", "wss://two"];
+/**
+ * The same two, as `reach` reports them back. `requestNewestWithReach` puts
+ * what it asked through `dedupeRelays`, so both halves of the answer come back
+ * in the `normalizeURL` form the pool keys connections by — the point being
+ * that a frame's `from` and the relay we asked compare equal however either was
+ * spelled. Only the counts are load-bearing downstream.
+ */
+const REACHED = ["wss://one/", "wss://two/"];
 const FILTER = { kinds: [0], authors: ["a".repeat(64)] };
 
 function event(id: string, created_at = 0): NostrEvent {
@@ -284,7 +292,7 @@ describe("asking the newest, and who answered", () => {
     await vi.advanceTimersByTimeAsync(0);
 
     await expect(pending).resolves.toMatchObject({
-      reach: { answered: ["wss://one"], asked: RELAYS },
+      reach: { answered: [REACHED[0]], asked: REACHED },
     });
   });
 
@@ -332,7 +340,7 @@ describe("asking the newest, and who answered", () => {
     subject.next(eose("wss://two"));
     await vi.advanceTimersByTimeAsync(0);
 
-    await expect(pending).resolves.toMatchObject({ reach: { answered: RELAYS } });
+    await expect(pending).resolves.toMatchObject({ reach: { answered: REACHED } });
     expect(torndown.count).toBe(1);
   });
 

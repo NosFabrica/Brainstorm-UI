@@ -110,6 +110,17 @@ describe("tokenize — what the box draws", () => {
     expect(parseQuery("filter:rank:gte:50").rankFloor).toBe(50);
   });
 
+  // Typed by agents and power users to narrow whatever tab they are on. `services/search`
+  // decides what narrowing means there — on the NIPs tab a kind is what a spec COVERS.
+  it("kind: and its alias spec: come out of the terms as kinds", () => {
+    const q = parseQuery("dvm kind:30023 spec: kind:30023");
+    expect(q.kinds).toEqual([30023, 30817]);
+    expect(q.terms).toBe("dvm");
+    // A kind is at most six digits, and the prefix has to start a word.
+    expect(types("kind:1234567")).toEqual(["text"]);
+    expect(types("https://x.com/kind:1")).toEqual(["text"]);
+  });
+
   it("the two client-only tokens come OUT of the terms — the relay knows neither", () => {
     const q = parseQuery("bitcoin trust:verified reach:friends");
     expect(q.verifiedOnly).toBe(true);

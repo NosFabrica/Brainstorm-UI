@@ -19,7 +19,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing, QuietTrustChrome } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { SerpRow } from "@/components/search/SerpRow";
+import { SerpRow, kindTypeLabel } from "@/components/search/SerpRow";
 import { ArticlesBento, MediaTiles, TopStories, hasCover, hasVisual, pickTopStories } from "@/components/search/RichSections";
 import { collapseHits } from "@/lib/searchCollapse";
 import { ClusterRows, Section, SectionSkeleton, mergeSnapshots, useSectionStream } from "@/components/search/sections";
@@ -39,8 +39,10 @@ import { isFeedAccount } from "@/lib/feedAccount";
 import type { HitCluster } from "@/lib/searchCollapse";
 import { filterEventsByWhen } from "@/lib/eventFilters";
 import { clientFilterHits, countBelowLine } from "@/lib/clientFilters";
-import { applyFilters, queryWords, readFilters } from "@/lib/searchSyntax";
+import { applyFilters, liftQuery, queryWords, readFilters } from "@/lib/searchSyntax";
+import { Link } from "wouter";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
+import { useSpecsForKind } from "@/hooks/useSpecsForKind";
 import { visitedPubkeys } from "@/lib/recentSearches";
 import { useWheelScrollX } from "@/hooks/useWheelScrollX";
 import { UNKNOWN_EXPLAINER, bucketFor } from "@/lib/trustLadder";
@@ -286,6 +288,24 @@ function ComposedResultsBody({
   // Shop: things for sale that match the words — best match, since "cashmere"
   // should find cashmere. Sold, hidden and priceless are gated (lib/listing).
   const shop = useSectionStream(query, "shop", pov, userPubkey, EVERYTHING_SECTIONS.shop.limit, { group: EVERYTHING, seed: seeds.shop, since: sinceFor("shop") });
+  // A typed kind (an agent's `kind:32267`, a spec page's chip) that none of
+  // the sections carry would be dealt to all of them and answered by none.
+  // It gets a section of its own, asking for exactly that; the eight
+  // sections ask nothing for it, so this is the page's only REQ then.
+  const unplacedKinds = useMemo(() => {
+    const typed = liftQuery(query).kinds ?? [];
+    const placed = new Set((Object.keys(EVERYTHING_SECTIONS) as SeedTab[]).flatMap((tab) => TAB_KINDS[tab]));
+    return typed.filter((k) => !placed.has(k));
+  }, [query]);
+  const byKind = useSectionStream(query, "everything", pov, userPubkey, 20, { kinds: unplacedKinds, enabled: unplacedKinds.length > 0 });
+  // The section says what the kind IS, once: its name in words with its
+  // number, and the specs that cover it. Several specs cover most kinds (a
+  // capability profile lists forty), so none is "the" definition — the
+  // NIPs tab has them all.
+  const kindSpecs = useSpecsForKind(unplacedKinds.length === 1 ? unplacedKinds[0] : null);
+  const kindKicker = unplacedKinds
+    .map((k) => { const label = kindTypeLabel(k); return label.startsWith("Kind ") ? label : `${label} · kind ${k}`; })
+    .join(", ");
 
   useEffect(() => {
     if (!onSections) return;
@@ -345,6 +365,7 @@ function ComposedResultsBody({
   const mediaF = dropNonMediaFiles(filtered(media));
   const musicF = filtered(music);
   const shopF = filtered(shop);
+  const byKindF = unplacedKinds.length > 0 ? filtered(byKind) : null;
   // Two per seller at most, four in all — one shop's forty mugs are not the row.
   const shopRow = useMemo(() => {
     const perSeller = new Map<string, number>();
@@ -429,7 +450,7 @@ function ComposedResultsBody({
     [happeningF],
   );
 
-  const sections = [peopleF, latestF, articlesF, happeningF, mediaF, musicF, shopF];
+  const sections = [peopleF, latestF, articlesF, happeningF, mediaF, musicF, shopF, ...(byKindF ? [byKindF] : [])];
   const anyContent = sections.some((s) => (s?.hits.length ?? 0) > 0) || listenWavlake.length > 0 || personMedia.length > 0;
   const allSettled = sections.every((s) => s?.eose || s?.error);
   // EVERY section collapses near-duplicates — live verification found the
@@ -473,7 +494,10 @@ function ComposedResultsBody({
     <div data-testid="composed-results">
       {!anyContent && allSettled && (
         <p className="py-6 text-sm text-slate-500 dark:text-slate-400" data-testid="composed-empty">
-          Nothing found — try different words, or a specific tab.
+          {unplacedKinds.length > 0
+            ? // The relay indexes the kinds it is configured for; an empty here is the corpus, not the words.
+              `Nothing indexed for kind ${unplacedKinds.join(", ")} yet.`
+            : "Nothing found — try different words, or a specific tab."}
         </p>
       )}
 
@@ -519,8 +543,10 @@ function ComposedResultsBody({
           <ArticlesBento clusters={coveredArticles} scoreOf={scoreOf} />
           {articleRows.length > 0 && (
             <div className={`${coveredArticles.length > 0 ? "mt-2 " : ""}divide-y divide-slate-100 dark:divide-slate-800/60`}>
+              {/* The section says "Articles" for the rows, so an essay needs no
+                  label — a spec (30817) rides here too and must not pass for one. */}
               {articleRows.map((c) => (
-                <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} showType={false} />
+                <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} showType={c.primary.event.kind === 30817} />
               ))}
             </div>
           )}
@@ -534,6 +560,21 @@ function ComposedResultsBody({
               <ListingCard key={h.event.id} event={h.event} author={h.author} score={scoreOf(h.event.pubkey)} />
             ))}
           </div>
+        </Section>
+      )}
+
+      {(byKindF?.hits.length ?? 0) > 0 && (
+        <Section id="kind" kicker={kindKicker} onTabChange={onTabChange} className={FADE}>
+          {kindSpecs.length > 0 && (
+            <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
+              Specs covering it:{" "}
+              <Link href={`/?t=nips&q=${encodeURIComponent(`kind:${unplacedKinds[0]}`)}`} className="font-medium text-brand-primary hover:underline dark:text-brand-link" data-testid="serp-kind-spec">
+                {kindSpecs.slice(0, 2).map((sp) => sp.tags.find((t) => t[0] === "title")?.[1] ?? "a spec").join(", ")}
+                {kindSpecs.length > 2 ? ` +${kindSpecs.length - 2}` : ""}
+              </Link>
+            </p>
+          )}
+          <div className="divide-y divide-slate-100 dark:divide-slate-800/60">{clustersOf(byKindF)}</div>
         </Section>
       )}
 

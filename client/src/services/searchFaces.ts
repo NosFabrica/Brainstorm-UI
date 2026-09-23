@@ -9,9 +9,9 @@
  *    them, so it holds their kind-0 — and the waiver is not optional: a read that names no lens
  *    is refused outright, and an `observer:` is by definition somebody the reader's own web of
  *    trust may rank at nothing.
- *  - **their own write relays**, when the store already holds their kind-10002. That is the
- *    outbox rule, and it is the one that gets a CURRENT profile: the search relay's copy is
- *    whatever it indexed, their own relays' copy is whatever they last published.
+ *  - **their own write relays**, from their kind-10002. That is the outbox rule, and it is the
+ *    one that gets a CURRENT profile: the search relay's copy is whatever it indexed, their own
+ *    relays' copy is whatever they last published.
  *
  * Whichever is newer wins, by `created_at`. The store answers for anybody already in it before
  * either question is asked.
@@ -21,7 +21,7 @@ import { eventStore } from "@/lib/eventStore";
 import { searchRelay } from "@/lib/searchRelay";
 import { loadReplaceable } from "@/lib/loaders";
 import { PROFILE_RELAYS } from "@/lib/relays";
-import { loadOutboxRelayListFromDb } from "@/services/nostr";
+import { outboxRelays } from "@/lib/relayRouting";
 import { kind0ToSearchResult } from "@/services/search";
 import type { SearchResult } from "@/lib/profileSearch";
 
@@ -60,14 +60,14 @@ function fromSearchRelay(pubkeys: string[], timeoutMs: number): Promise<NostrEve
 }
 
 /**
- * Their kind-0 from their own write relays. `loadOutboxRelayListFromDb` unions the `r` tags of a
- * kind-10002 the store already holds with the default profile relays, so this is the outbox read
- * where we know where they publish and the ordinary one where we do not.
+ * Their kind-0 from their own write relays. `outboxRelays` loads their kind-10002 if the store
+ * has not got it and unions its write relays with the defaults, so this is the outbox read
+ * where they say where they publish and the ordinary one where they do not.
  */
 async function fromTheirRelays(pubkey: string, timeoutMs: number): Promise<NostrEvent | undefined> {
   try {
     return await loadReplaceable(0, pubkey, {
-      relays: loadOutboxRelayListFromDb(pubkey, PROFILE_RELAYS),
+      relays: await outboxRelays(pubkey, PROFILE_RELAYS, { timeoutMs }),
       timeoutMs,
       // Past the store: the store is consulted by the caller before either question is asked,
       // and answering from it here would make this the same question twice.

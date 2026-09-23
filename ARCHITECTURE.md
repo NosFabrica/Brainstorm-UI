@@ -28,6 +28,60 @@ The application uses a React 18 frontend with TypeScript, Vite, Tailwind CSS, an
     - **Dashboard Empty State:** When users have no follows (`hasNoFollowing`), the dashboard hides the Network Health section and recalculation panel, showing only the welcome header with "Set up your trust network" subtitle and the "No follows yet" banner. Trust Signals badge shows step-specific status during calculations: "Calculating…" → "Publishing…" → "Complete".
 - **Performance Optimizations:** Includes 60-second timeouts for server proxy routes, fetches the logged-in user's profile metadata (kind 0) immediately at login (fire-and-forget in `completeLogin` in `client/src/services/nostr.ts`) so the avatar/name appear sooner instead of waiting for the dashboard to mount — `setCurrentUser` dispatches the `brainstorm-user-changed` event on profile-field changes (not just pubkey changes) so the header/menu re-render reactively, and the dashboard's `profileQuery` stays gated on missing name/picture so it skips the duplicate fetch once login populates them. **Profile fetch HTTP fast-path:** `fetchProfile()` in `client/src/services/nostr.ts` no longer waits on the websocket relay query alone — it races a CORS-enabled HTTP fast-path (`fetchProfileHttp()`, querying `https://nostrhttp.com/<npub>` and `https://api.nostr.band/v0/stats/profile/<npub>` in parallel) against the existing relay query (`fetchProfileFromRelays()`) via `firstTruthy()` (first source to yield a valid kind 0 wins; falls back to `undefined` only after all settle, so there is no regression if the HTTP gateways are unavailable). `extractKind0Content()` is a recursive JSON scanner that pulls the kind 0 event out of either gateway's envelope (nostrhttp.com returns a bare event array; api.nostr.band wraps it under `profiles[].event`). Requests use only the safelisted `Accept: application/json` header to avoid CORS preflight. Note: there is no Express backend in this project — `npm run dev` runs Vite only and production is a static file server, so all Nostr fetching happens directly from the browser (CORS matters). Uses branded loading animations. Network page search uses on-demand debounced profile fetching (500ms delay, batches of 50, max 500 uncached profiles) instead of eager bulk loading — keeps initial page load fast while enabling name-based search across the full group.
 
+## Relay routing (NIP-65 / outbox model)
+
+`client/src/lib/relayRouting.ts` is the single answer to "which relays". Read an
+author from the relays they **write** to; send an event that names someone to
+the relays they **read** from; stamp `e`/`a`/`p` tags with a relay hint.
+`PROFILE_RELAYS` in `lib/relays.ts` is a floor under both, never the whole
+answer. `publishRelaysFor()` composes a publish's destination set, and
+`publishToRelays(event, extraRelays)` unions anything a call site adds.
+
+A read with many authors goes through `planOutboxReads()` + `requestAllByRelay()`
+instead, so each relay is asked only about the authors it serves, under a
+connection budget chosen by set cover.
+
+The routing table has to be **loaded** — a kind-10002 the event store never saw
+is not a routing decision, it is the fallback wearing one. `loadRelayList()`
+does that, bounded to 2.5s with a five-minute miss cache. Rationale, caps, and
+what stays default-routed: [docs/adr/0003-nip65-outbox-routing.md](docs/adr/0003-nip65-outbox-routing.md).
+
+## Warming the routing table
+
+Routing is needed when an event is SIGNED, which is the worst moment to look it
+up: a lookup then is dead air before the signer prompt, and one that loses its
+race publishes to the default relays and misses the recipient's inbox silently.
+
+So: **anything that puts a person or a note on screen warms the relay lists of
+the people it names** — `warmRelayLists(pubkeys)` in `lib/relayRouting.ts`,
+fire-and-forget and bounded. It is already wired into `fetchProfileMap`,
+`fetchProfiles` and `fetchProfileEvent`, which is how every surface showing a
+person or a note resolves its authors; a surface that renders people some other
+way needs the call adding.
+
+## Durable event cache
+
+The `eventStore` is in-memory, so every reload used to rebuild the routing
+table from relays: NIP-65 list, then contact list, then profile — two dependent
+round trips before the app knew who you followed.
+`client/src/lib/eventCache.ts` keeps the small replaceable kinds (0, 3, 10002,
+10040, 30078) in IndexedDB and hydrates the ACTIVE account's own back into the
+store at boot, from `main.tsx`, before the first render.
+
+It is also the address loader's `cacheRequest` — step one of the loading
+sequence, ahead of any relay — so other people's profiles and relay lists come
+off disk too. Entries answer for 30 minutes before being treated as a miss,
+because a hit ends the sequence and unbounded staleness would pin every author
+to a relay list we saw once.
+
+Three rules it lives by: hydrated events are **signature-verified** (IndexedDB
+is writable by anything with script on the origin, and a forged kind-10002
+steers where we publish); everything hydrated is **revalidated** against the
+relays straight after (the address loader stops at its first hit, so a cache
+without a refresh would pin a user to a stale relay list forever); and the
+cache is **dropped on sign-out**. Rationale:
+[docs/adr/0003-nip65-outbox-routing.md](docs/adr/0003-nip65-outbox-routing.md).
+
 ## External Dependencies
 - **Nostr Protocol:** Interacts with various Nostr relays (e.g., damus, nostr.band, nos.lol) for metadata fetching and event publishing.
 - **Brainstorm Backend API:** Switchable between Staging (`brainstormserver-staging.nosfabrica.com`) and Production (`brainstormserver.nosfabrica.com`) via admin environment selector. Selection persisted in `localStorage` key `brainstorm_api_env`. Dynamic URL resolution in `client/src/services/api.ts` via `getApiEnvironment()`/`setApiEnvironment()`/`getApiBaseUrl()`. Admin dashboard shows environment badge and requires confirmation dialog before switching (with extra warning for Production).

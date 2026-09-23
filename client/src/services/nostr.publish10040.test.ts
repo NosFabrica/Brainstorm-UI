@@ -21,6 +21,19 @@ vi.mock("@/lib/relayPool", () => ({
   },
 }));
 
+/**
+ * The routing lookup is not what this file is about, and the fake pool above is
+ * not a real `RelayPool` — handing it to applesauce's address loader throws
+ * "Invalid upstream pool" from inside an rxjs `complete`, where no `catchError`
+ * can reach it. An author with no kind-10002 in the store is simply an author
+ * with no relay list, which is what test 3 means to exercise.
+ */
+vi.mock("@/lib/loaders", () => ({
+  addressLoader: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }),
+  idLoader: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }),
+  loadReplaceable: async () => undefined,
+}));
+
 vi.mock("@/lib/eventStore", () => ({
   eventStore: {
     getReplaceable: (kind: number) => (kind === 10002 ? outbox.event : undefined),
@@ -74,10 +87,12 @@ describe("publishing a NIP-85 declaration", () => {
 
     await nostr.publishToRelays(signed(10040));
 
-    // `uniqueRelays` hands back its normalized form — no trailing slash.
-    expect(targeted()).toContain(NIP85);
-    expect(targeted()).toContain("wss://my.relay");
-    expect(targeted()).toContain("wss://relay.damus.io");
+    // Relay URLs are normalized the way `RelayPool` keys its connections
+    // (`lib/relayRouting` dedupeRelays), which keeps the trailing slash — the
+    // form the outbox filter map has to match. Was `uniqueRelays`' form before.
+    expect(targeted()).toContain(`${NIP85}/`);
+    expect(targeted()).toContain("wss://my.relay/");
+    expect(targeted()).toContain("wss://relay.damus.io/");
   });
 
   it("names the NIP-85 relay once when the author already publishes there", async () => {
@@ -91,7 +106,7 @@ describe("publishing a NIP-85 declaration", () => {
   it("reaches it on the quorum path too — the one the Activate and Update buttons use", async () => {
     await nostr.publishToRelays(signed(10040), undefined, { need: 2, timeoutMs: 8000 });
 
-    expect(targeted()).toContain(NIP85);
+    expect(targeted()).toContain(`${NIP85}/`);
   });
 
   it("leaves every other kind publishing exactly where it did", async () => {

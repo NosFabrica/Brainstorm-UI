@@ -75,6 +75,8 @@ const TOKEN = new RegExp(
     `|observer:(?<obs>[0-9a-fA-F]{64}|${NPUB})(?![a-z0-9])` +
     `|sort:(?<order>[a-z]+(?::[a-z]+)?)(?![\\w-])` +
     `|(?<trust>trust:verified)(?![\\w:-])` +
+    `|(?<spec>spec:)(?![\\w:-])` +
+    `|kind:(?<kind>\\d{1,6})(?![\\w-])` +
     `|reach:(?<hops>follows|friends)(?![\\w:-])` +
     `|(?<ext>(?:${SCOPES}):)(?<sid>${SCOPE_VALUE})` +
     `|(?<lbl>label:)(?<lid>${LABEL_VALUE})` +
@@ -170,11 +172,12 @@ export interface ObserverSeg { type: "observer"; raw: string; pubkey: string }
 export interface LensSeg { type: "lens"; raw: string }
 export interface FloorSeg { type: "floor"; raw: string; value: number }
 export interface VerifiedSeg { type: "verified"; raw: string }
+export interface KindSeg { type: "kind"; raw: string; value: number }
 export interface ReachSeg { type: "reach"; raw: string; value: "follows" | "friends" }
 
 export type TokenSeg =
   | KeySeg | PointerSeg | DateSeg | TagSeg | LabelSeg | ScopeSeg | GroupSeg
-  | SortSeg | ObserverSeg | LensSeg | FloorSeg | VerifiedSeg | ReachSeg;
+  | SortSeg | ObserverSeg | LensSeg | FloorSeg | VerifiedSeg | ReachSeg | KindSeg;
 export type Segment = TextSeg | TokenSeg;
 
 /** The hashtags inside one stretch of plain text, as segments in place. */
@@ -255,6 +258,11 @@ export function tokenize(text: string): Segment[] {
       // Case-exact, as the store lexes it; an unknown order still pills, since only the
       // store knows the whole list and a pill that refuses one would lie about a working query.
       seg = { type: "sort", raw, value: g.order };
+    } else if (g.spec) {
+      // `spec:` is the word for the kind NIP definitions are published as.
+      seg = { type: "kind", raw, value: SPEC_KIND };
+    } else if (g.kind !== undefined) {
+      seg = { type: "kind", raw, value: Number(g.kind) };
     } else if (g.trust) {
       seg = { type: "verified", raw };
     } else if (g.hops) {
@@ -286,6 +294,7 @@ export function tokenize(text: string): Segment[] {
 /** The token types that pill only once the caret has left them. */
 const SETTLES = new Set([
   "tag", "date", "scope", "group", "label", "sort", "observer", "lens", "floor", "verified", "reach",
+  "kind",
 ]);
 
 /**
@@ -333,6 +342,13 @@ export interface ParsedQuery {
   observer: string | null;
   includeSpam: boolean;
   rankFloor: number | null;
+  /**
+   * `kind:N`, and `spec:` as the word for the kind a NIP definition is published as. Typed by
+   * agents and power users to narrow whatever tab they are on; `services/search` decides what
+   * narrowing means there, since on the NIPs tab a kind is what a spec COVERS rather than what
+   * it is.
+   */
+  kinds: number[];
   /** Honoured by this client alone; the relay has no hops and no verification. */
   verifiedOnly: boolean;
   reach: "follows" | "friends" | null;
@@ -346,7 +362,7 @@ export interface ParsedQuery {
 export function parseQuery(text: string): ParsedQuery {
   const out: ParsedQuery = {
     terms: "", authors: [], mentions: [], cites: [], addrs: [], hashtags: [], labels: [],
-    scopes: [], groups: [], since: null, until: null, words: "",
+    scopes: [], groups: [], since: null, until: null, words: "", kinds: [],
     sort: null, observer: null, includeSpam: false, rankFloor: null,
     verifiedOnly: false, reach: null,
   };
@@ -382,6 +398,7 @@ export function parseQuery(text: string): ParsedQuery {
       case "floor": out.rankFloor = seg.value; terms += seg.raw; break;
       // These two the relay knows nothing about (it has no hops and no verification), so
       // they come out of `terms`: sent as text they would match nothing.
+      case "kind": if (!out.kinds.includes(seg.value)) out.kinds.push(seg.value); break;
       case "verified": out.verifiedOnly = true; break;
       case "reach": out.reach = seg.value; break;
       case "key": {
@@ -440,6 +457,9 @@ export function scopeIds(field: string, value: string): string[] {
   }
   return [...new Set([`${field}:${v}`, `${field}:${v.toLowerCase()}`])];
 }
+
+/** The kind a NIP definition is published as — what `spec:` is the word for. */
+export const SPEC_KIND = 30817;
 
 /** What a scope pill says it is, in words rather than a prefix. */
 export const SCOPE_NOUNS: Record<string, string> = {

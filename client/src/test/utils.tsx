@@ -37,3 +37,17 @@ export function renderWithProviders(ui: ReactElement) {
   );
   return { ...render(ui, { wrapper: Wrapper }), queryClient };
 }
+
+/**
+ * The same provider, for `renderHook`. The client is created once per call —
+ * building it inside the wrapper would make a new one on every render and loop
+ * the provider.
+ */
+export function queryWrapper() {
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false, gcTime: 0 } },
+  });
+  return ({ children }: { children: ReactNode }) => (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  );
+}

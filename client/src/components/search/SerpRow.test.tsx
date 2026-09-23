@@ -85,6 +85,59 @@ describe("SerpRow — link metadata", () => {
   // Google shows a link's title and description, not its bare domain. Ours
   // can too, once the link-preview service answers — the row renders the
   // card for the same link a feed would, and stays a chip when there is no answer.
+  // `kind:10040` on Everything listed people who activated Brainstorm as blank
+  // "Post" rows (Benjamin, 2026-09-23). A designation has no content — it is
+  // its rows — and the row says what they designate.
+  it("a trust designation says what it designates, not 'Post'", () => {
+    const ev = { ...note(""), kind: 10040, tags: [["30382:rank", "b".repeat(64), "wss://scores.brainstorm.world"], ["30382:followers", "b".repeat(64), "wss://scores.brainstorm.world"]] };
+    render(<SerpRow event={ev} author={author} score={0.7} query="" />);
+    const row = screen.getByTestId(`serp-row-${ev.id}`);
+    expect(row).toHaveTextContent("Trust designation");
+    expect(row).not.toHaveTextContent("Post");
+    expect(row).toHaveTextContent("Activated Brainstorm trust signals · Rank, Followers");
+  });
+
+  // Kind-30078 app data is NIP-44 ciphertext; the row printed 300 characters
+  // of base64 as its snippet (Benjamin, 2026-09-23). A row says what the
+  // content is — encrypted, structured — instead of printing it, and names
+  // the common NIP kinds in words, the number kept beside them.
+  it("says encrypted content is encrypted instead of printing it, and names the kind in words", () => {
+    const blob = "AgkXT1NChTXAHiDpLZZwu5PO5rAVpAxTeRwbCyrcWYDpXson5eEnf/JjsvZqC+V/P5uTF4sbspmfOlVeCi8aJb/oceACXS4VBRcA6s3FxVx0AUbFFqpQGtWjw7a4fu51pNS";
+    const ev = { ...note(blob), kind: 30078, tags: [["d", "ditto/metadata"], ["name", "Ditto Metadata"]] };
+    render(<SerpRow event={ev} author={author} score={0.7} query="" />);
+    const row = screen.getByTestId(`serp-row-${ev.id}`);
+    expect(row).toHaveTextContent("App data");
+    expect(row).toHaveTextContent("Ditto Metadata");
+    expect(screen.getByTestId("serp-content-shape")).toHaveTextContent("Encrypted — only its owner can read it");
+    expect(row.textContent).not.toContain("AgkXT1NCh");
+  });
+
+  it("says structured content is structured, with its size", () => {
+    const ev = { ...note('{"theme":"dark","lang":"en"}'), kind: 30078, tags: [["d", "armada/settings"]] };
+    render(<SerpRow event={ev} author={author} score={0.7} query="" />);
+    expect(screen.getByTestId("serp-content-shape")).toHaveTextContent("Structured data · 2 fields");
+    expect(screen.getByTestId(`serp-row-${ev.id}`).textContent).not.toContain('"theme"');
+  });
+
+  it("names the common NIP kinds", () => {
+    for (const [kind, label] of [[3, "Follow list"], [10002, "Relay list"], [7, "Reaction"], [9735, "Zap receipt"], [1984, "Report"], [31990, "App handler"]] as const) {
+      const ev = { ...note(""), id: `${kind}`.padStart(64, "0"), kind };
+      render(<SerpRow event={ev} author={author} score={0.7} query="" />);
+      expect(screen.getByTestId(`serp-row-${ev.id}`)).toHaveTextContent(label);
+    }
+  });
+
+  // A kind the row has no treatment for is named by number, never "Post";
+  // NIP-31's `alt` tag is the author's own line for exactly this reader.
+  it("an unknown kind is named by its number, with the author's alt line when there is one", () => {
+    const ev = { ...note(""), kind: 30079, tags: [["d", "settings"], ["alt", "Nostr Mail settings"]] };
+    render(<SerpRow event={ev} author={author} score={0.7} query="" />);
+    const row = screen.getByTestId(`serp-row-${ev.id}`);
+    expect(row).toHaveTextContent("Kind 30079");
+    expect(row).not.toHaveTextContent("Post");
+    expect(row).toHaveTextContent("Nostr Mail settings");
+  });
+
   it("turns a plain link into a metadata card when the proxy knows it", async () => {
     unfurlMock.mockResolvedValue({ title: "Liverpool F.C.", description: "Professional football club based in Liverpool.", image: "https://img/lfc.jpg", siteName: "Wikipedia" });
     // A short lead — a long one plus a link IS the news shape, which has its own card.
@@ -204,9 +257,23 @@ describe("SerpRow", () => {
     expect(screen.queryByText(/https:\/\/example\.com\/thing/)).toBeNull();
   });
 
+  it("a spec's row says Spec", () => {
+    const spec = { ...note("# Scheduler DVM\n\nSchedule signed events…", [["d", "scheduler-dvm"], ["title", "Scheduler DVM"], ["k", "5905"]]), kind: 30817 } as NostrEvent;
+    render(<SerpRow event={spec} author={author} score={0.7} query="dvm" />);
+    expect(screen.getByTestId("serp-type")).toHaveTextContent("Spec");
+  });
+
   it("labels each row with what kind of thing it is", () => {
     render(<SerpRow event={note("plain words about liverpool")} author={author} score={0.7} query="liverpool" />);
     expect(screen.getByTestId("serp-type")).toHaveTextContent("Note");
+  });
+
+  // A recipe on zap.cooking is a kind-30023 with a tag; the row says Recipe, not Article.
+  it("a recipe's row says Recipe, not Article", () => {
+    const recipe = { ...note("# Gırık\n\nHandmade dough, chicken and rice.", [["d", "girik"], ["title", "Gırık"], ["t", "zapcooking"]]), kind: 30023 } as NostrEvent;
+    render(<SerpRow event={recipe} author={author} score={0.7} query="girik" />);
+    expect(screen.getByTestId("serp-type")).toHaveTextContent("Recipe");
+    expect(screen.getByTestId("serp-type")).not.toHaveTextContent("Article");
   });
 
   // Benjamin, over Shosho's "GTAing with nostr:npub1de6l09… is Live!

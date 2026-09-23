@@ -195,6 +195,9 @@ export interface LiftedQuery {
   "#t"?: string[];
   since?: number;
   until?: number;
+  /** `kind:N` tokens, and `spec:` as the word for kind 30817 — typed by agents
+   *  and power users; no chip exposes them. */
+  kinds?: number[];
 }
 
 export function liftQuery(query: string): LiftedQuery {
@@ -204,6 +207,7 @@ export function liftQuery(query: string): LiftedQuery {
     ...(q.authors.length ? { authors: q.authors } : {}),
     ...(q.mentions.length ? { "#p": q.mentions } : {}),
     ...(q.hashtags.length ? { "#t": q.hashtags } : {}),
+    ...(q.kinds.length ? { kinds: q.kinds } : {}),
     ...(q.since != null ? { since: q.since } : {}),
     ...(q.until != null ? { until: q.until } : {}),
   };

@@ -33,6 +33,14 @@ const searchReqMock = vi.fn((_filter: unknown) => {
 vi.mock("@/lib/searchRelay", () => ({
   searchRelay: () => ({ req: (filter: unknown) => searchReqMock(filter) }),
 }));
+// NIP-65 routing asks for the streamer's kind-10002; these cases are about the
+// relay fan-out, not about discovery, so the lookup answers "nothing" rather
+// than opening a real socket.
+vi.mock("@/lib/loaders", () => ({
+  addressLoader: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }),
+  idLoader: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }),
+  loadReplaceable: async () => undefined,
+}));
 
 import { fetchLiveStreams } from "./nostr";
 

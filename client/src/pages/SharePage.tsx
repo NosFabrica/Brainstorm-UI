@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect, useRef } from "react";
 import { useRoute, useSearch, useLocation, Link } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { MessageSquare, Image as ImageIcon, FileText, BadgeCheck, ArrowRight, Wifi, Video as VideoIcon, Headphones, Radio, AlertTriangle, ShieldCheck, CalendarDays, Copy, Check, SlidersHorizontal, UserPlus, FileQuestion, PenLine, Search } from "lucide-react";
+import { MessageSquare, Image as ImageIcon, FileText, ArrowRight, Wifi, Video as VideoIcon, Headphones, Radio, AlertTriangle, ShieldCheck, CalendarDays, Copy, Check, SlidersHorizontal, UserPlus, FileQuestion, PenLine, Search } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { decodeShareId, npubFromPubkey, eventPath } from "@/lib/shareId";
 import { relativeTime } from "@/lib/relativeTime";
@@ -15,6 +15,7 @@ import { useCopied } from "@/hooks/useCopied";
 import { useActiveAccount } from "applesauce-react/hooks";
 import { fetchProfileForShare, fetchRecentByKinds, fetchLiveStreams, fetchEventsByIds, fetchProfileMap, fetchExternalIdentities, fetchOutboxRelayList, fetchProfilePrefs, publishProfilePrefs } from "@/services/nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";
+import { dedupeRelays, parseRelayList } from "@/lib/relayRouting";
 import { parseIdentities } from "@/lib/externalIdentity";
 import { ProfileDetails } from "@/components/share/ProfileDetails";
 import { FollowedByRow } from "@/components/share/FollowedByRow";
@@ -63,6 +64,7 @@ import { ZapModal } from "@/components/ZapModal";
 import { SellingBlock } from "@/components/share/SellingBlock";
 import { ContentTeaserBlock } from "@/components/share/ContentTeaserBlock";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
+import { useShareUrl } from "@/hooks/useShareUrl";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { BrainLogo } from "@/components/BrainLogo";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
@@ -71,6 +73,7 @@ import { DEFAULT_BANNER_CLASS, DEFAULT_BANNER_SRC } from "@/lib/profileDefaults"
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useHopsOrigin } from "@/hooks/useHopsOrigin";
+import { Nip05Handle } from "@/components/Nip05Check";
 
 const NO_RELAYS: string[] = [];
 
@@ -440,15 +443,12 @@ export default function SharePage() {
     // The relay URLs themselves, write relays first: the count feeds the
     // tenure line, the first four ride in the nprofile a power user copies.
     queryFn: async () => {
+      // The shared NIP-65 reader, not a third hand-rolled one — this page had
+      // its own tag loop with its own idea of what a relay URL looks like.
       const ev = await fetchOutboxRelayList(pubkey);
       if (!ev) return [] as string[];
-      const write: string[] = [];
-      const readOnly: string[] = [];
-      for (const t of ev.tags || []) {
-        if (t[0] !== "r" || typeof t[1] !== "string") continue;
-        (t[2] === "read" ? readOnly : write).push(t[1].replace(/\/$/, "").toLowerCase());
-      }
-      return [...new Set([...write, ...readOnly])];
+      const list = parseRelayList(ev);
+      return dedupeRelays([...list.write, ...list.read]);
     },
     enabled: !!pubkey,
     staleTime: 10 * 60_000,
@@ -946,7 +946,7 @@ export default function SharePage() {
           url={canonicalUrl}
           title={`${displayName} on Brainstorm`}
           modal={(ctl) => (
-            <ShareProfileModal {...ctl} npub={npub} displayName={displayName} picture={profile.picture} nip05={profile.nip05} canonicalUrl={canonicalUrl} score01={houseScore01} onOwnPage />
+            <ProfileShareSheet {...ctl} relays={relayHints} npub={npub} displayName={displayName} picture={profile.picture} nip05={profile.nip05} score01={houseScore01} onOwnPage />
           )}
         />
       }
@@ -1021,11 +1021,7 @@ export default function SharePage() {
             {/* "Identity confirmed" — trusted reviewers said this is really them.
                 Google's verified-badge spot: beside the name, not in a section. */}
             {pubkey && <PanelIdentityChip pubkey={pubkey} personal={myPov} testId="share-identity" />}
-            {profile.nip05 && (
-              <span className="inline-flex items-center gap-1 text-sm text-brand-link font-medium">
-                <BadgeCheck className="h-4 w-4" /> {profile.nip05.replace(/^_@/, "")}
-              </span>
-            )}
+            <Nip05Handle nip05={profile.nip05} pubkey={pubkey} className="inline-flex items-center gap-1 text-sm text-brand-link font-medium" iconClassName="h-4 w-4" />
             {/* "Follows you" is a fact about the two of you, not an action — it
                 sits with the identity, beside the handle, where X, Bluesky and
                 Mastodon put it (Benjamin, 2026-09-08: in the button row it read
@@ -1460,6 +1456,12 @@ export default function SharePage() {
       </ShareNavProvider>
     </ShareShell>
   );
+}
+
+/** The profile's share sheet, minting a short link only once it is open. */
+function ProfileShareSheet({ relays, ...props }: Omit<React.ComponentProps<typeof ShareProfileModal>, "shareUrl"> & { relays: string[] }) {
+  const shareUrl = useShareUrl({ npub: props.npub, relays, enabled: props.open });
+  return <ShareProfileModal {...props} shareUrl={shareUrl} />;
 }
 
 function ShareShell({ children, actions }: { children: React.ReactNode; actions?: React.ReactNode }) {

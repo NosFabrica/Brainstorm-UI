@@ -6,6 +6,7 @@ import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import type { ScorePov } from "@/components/score/TrustScorePov";
 import { npubFromPubkey } from "@/lib/shareId";
+import { useNip05 } from "@/hooks/useNip05";
 
 /**
  * One person in a list — avatar with its trust ring, name, handle, chevron.
@@ -90,7 +91,9 @@ export function PersonListRow({
   try { npub = npubFromPubkey(pubkey); } catch { /* skip bad key */ }
 
   const name = displayName || (npub ? npub.slice(0, 12) + "…" : pubkey.slice(0, 12) + "…");
-  const handle = cleanNip05(nip05);
+  const nip05Status = useNip05(cleanNip05(nip05) && nip05, pubkey);
+  // A handle whose domain names someone else isn't theirs — show the npub instead.
+  const handle = nip05Status === "invalid" ? undefined : cleanNip05(nip05);
 
   return (
     // Only the identity block is a link. `actions` and `meta` sit outside it —
@@ -110,7 +113,7 @@ export function PersonListRow({
             <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{name}</p>
             {handle ? (
               <p className="mt-0.5 flex items-center gap-1 truncate text-xs text-slate-500 dark:text-slate-400">
-                <BadgeCheck className="h-3 w-3 shrink-0 text-sky-500" /><span className="truncate">{handle}</span>
+                {nip05Status === "verified" && <BadgeCheck className="h-3 w-3 shrink-0 text-sky-500" />}<span className="truncate">{handle}</span>
               </p>
             ) : (
               npub && <p className="mt-0.5 truncate font-mono text-xs text-slate-400 dark:text-slate-500">{npub.slice(0, 16)}…</p>

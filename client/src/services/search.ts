@@ -26,6 +26,7 @@ import { liftQuery, searchFilters } from "@/lib/searchSyntax";
 import { resolveHouseObserver } from "@/services/trustSource";
 import { wantProfile } from "@/services/authorProfileQueue";
 import type { SearchResult } from "@/lib/profileSearch";
+import { RECIPE_TAGS } from "@/lib/sourceApp";
 
 export type SearchTab =
   | "everything"
@@ -40,13 +41,20 @@ export type SearchTab =
   | "live"
   | "music"
   | "releases"
-  | "lists";
+  | "lists"
+  | "recipes"
+  | "nips";
 
 /** One truth for tab → kinds, extracted from the SearchOverTrust app. */
 export const TAB_KINDS: Record<Exclude<SearchTab, "everything">, number[]> = {
   people: [0],
   notes: [1, 11, 1111],
-  articles: [30023, 30024, 30818, 30040, 30041],
+  // 30817 = specs (NIPs on Nostr): Markdown, addressable, indexed by the
+  // search relay — read like an article, labelled "Spec".
+  articles: [30023, 30024, 30818, 30040, 30041, 30817],
+  // Specs alone, as their own vertical under More — "NIPs" is the word people
+  // search (Benjamin, 2026-09-23). They stay in Articles too, labelled.
+  nips: [30817],
   media: [20, 21, 22, 1063, 1986, 1222, 34235, 34236],
   // Vitor's split: Zap Store app listings and git-shaped kinds were one
   // confusing tab. Kind 1337 "snippets" is deliberately in NEITHER — live
@@ -69,11 +77,29 @@ export const TAB_KINDS: Record<Exclude<SearchTab, "everything">, number[]> = {
   releases: [30063],
   // 30000 = NIP-51 follow sets — Brainstorm's own pinned-tag exports live here.
   lists: [30000, 10003, 10015, 30001, 30003, 30015, 30267, 39701],
+  // Recipes are long-form articles wearing zap.cooking's tag — the same kind as
+  // Articles, narrowed by tag (TAB_TAGS). They stay in Articles too, labelled.
+  recipes: [30023],
+};
+
+/**
+ * The verticals that are a kind narrowed by tag. The relay filters `#t`
+ * alongside `search` and `kinds` (probed 2026-09-22), so this is a real
+ * vertical, not a client-side sieve.
+ */
+const TAB_TAGS: Partial<Record<SearchTab, readonly string[]>> = {
+  recipes: RECIPE_TAGS,
 };
 
 /** Everything is deliberately unconstrained — the relay blends and ranks. */
 export function kindsForTab(tab: SearchTab): number[] | undefined {
   return tab === "everything" ? undefined : TAB_KINDS[tab];
+}
+
+/** The `#t` a vertical is defined by, if any — a typed `#tag` in the query wins over it. */
+export function tagsForTab(tab: SearchTab): string[] | undefined {
+  const tags = TAB_TAGS[tab];
+  return tags ? [...tags] : undefined;
 }
 
 export interface SearchHit {
@@ -140,6 +166,12 @@ export interface SearchParams {
    * page joins; a "more" page opens its own REQ as before.
    */
   group?: SearchGroup;
+  /**
+   * Exactly these kinds, in place of the tab's — Everything's section for a
+   * typed kind that none of its sections carry. Not intersected with the
+   * query's own `kind:` tokens; it IS them.
+   */
+  kinds?: number[];
 }
 
 const DEFAULT_LIMIT = 100;
@@ -346,13 +378,28 @@ export function searchStream(
     const observer = await resolveObserver(params);
     if (cancelled) return;
 
-    const kinds = kindsForTab(params.tab);
-    // from:/to:/#tag/since:/until:/group:/label:/the NIP-73 scopes become NIP-01
-    // filter FIELDS (the relay never sees those prefixes — verified by probing);
-    // the relay's own extensions (sort:/include:spam/filter:rank:/observer:) stay
-    // in `search`. A #tag, a group:, a label: or a scope asks several questions
-    // at once, so what comes back is a UNION of filters ORed in one REQ.
+    // from:/to:/#tag/since:/until:/group:/label:/kind:/the NIP-73 scopes become NIP-01
+    // filter FIELDS (the relay never sees those prefixes — verified by probing); the relay's
+    // own extensions (sort:/include:spam/filter:rank:/observer:) stay in `search`. A #tag, a
+    // group:, a label: or a scope asks several questions at once, so what comes back is a
+    // UNION of filters ORed in one REQ.
     const lifted = liftQuery(query);
+    // A typed kind: (or spec:) narrows whatever tab it is on. Everything is
+    // one request with a filter per section, each routed by kind, so the typed
+    // kind narrows each section rather than replacing its kinds — otherwise
+    // Latest, Happening and Media would all ask for specs and fill with them.
+    // Agents filter by kind this way; no chip needed.
+    // On the NIPs tab a kind is what a spec COVERS (its `k` tags), not what
+    // it is — `kind:5905` is the specs that define kind 5905. The relay
+    // narrows by `#k` (probed 2026-09-23).
+    const tabKinds = params.kinds ?? kindsForTab(params.tab);
+    const coveredKinds = params.tab === "nips" ? lifted.kinds : undefined;
+    const kinds = lifted.kinds && !coveredKinds && !params.kinds ? (tabKinds ? tabKinds.filter((k) => lifted.kinds!.includes(k)) : lifted.kinds) : tabKinds;
+    // A section the typed kind doesn't fit asks nothing and is simply done.
+    if (kinds && kinds.length === 0) {
+      emit({ hits: [], eose: true, timeMs: 0, exhausted: true });
+      return;
+    }
     // A NIP-53 stream is published by the streaming platform's key with the
     // streamer as its `p` host, so a person's live streams are the ones they
     // HOST, not the ones their key authored (probed 2026-09-09: mar's own key
@@ -365,18 +412,25 @@ export function searchStream(
     const hostedByThem = (event: NostrEvent) =>
       !hosts || event.tags.some((t) => t[0] === "p" && hosts.has(t[1]) && (!t[3] || t[3].toLowerCase() === "host"));
     const limit = params.limit ?? DEFAULT_LIMIT;
-    // On the Live tab the author question moves to `#p`, so the grammar's own
-    // `authors` is dropped and the keys ride the base every filter carries.
+    // On the Live tab the author question moves to `#p`, so the grammar's own `authors` is
+    // dropped and the keys ride the base every filter carries.
     const askedBy = byHost ? query.replace(/(^|\s)from:\S+/gi, " ") : query;
     const filters = searchFilters(askedBy, {
       kinds,
       limit,
       searchString: (terms) => withObserver(terms, observer),
-      base: byHost && lifted.authors ? { "#p": lifted.authors } : undefined,
+      base: {
+        // What a spec COVERS rather than what it is, on the NIPs tab.
+        ...(coveredKinds ? { "#k": coveredKinds.map(String) } : {}),
+        // A tab with a tag of its own asks it — unless the query named tags, which the
+        // grammar then asks for in a filter of their own.
+        ...(!lifted["#t"] && tagsForTab(params.tab) ? { "#t": tagsForTab(params.tab)! } : {}),
+        ...(byHost && lifted.authors ? { "#p": lifted.authors } : {}),
+      },
       since: params.since,
     });
-    // What the deadline, the sort probe and the paging cursor read: every
-    // filter of a union carries the same words, window and lens.
+    // What the deadline, the sort probe and the paging cursor read: every filter of a union
+    // carries the same words, window and lens.
     const filter = filters[0];
 
     // --- Author hydration: the store answers known authors; the rest go to the shared queue.
@@ -1190,6 +1244,31 @@ export function fetchRepoCounts(address: string, timeoutMs = 5000): Promise<Repo
           }
         }),
     );
+  });
+}
+
+/**
+ * The specs (kind 30817) that define a kind — the `k` tags they carry name
+ * it, and the relay narrows by them (probed 2026-09-23). A structural
+ * event's page says what its kind is by pointing here.
+ */
+export function fetchSpecsForKind(kind: number, timeoutMs = 5000): Promise<NostrEvent[]> {
+  return new Promise((resolve) => {
+    const relay = searchRelay();
+    if (!relay) return resolve([]);
+    const found: NostrEvent[] = [];
+    const sub = relay
+      .req({ kinds: [30817], "#k": [String(kind)], search: "include:spam", limit: 5 })
+      .subscribe((msg: { type: string; event?: NostrEvent }) => {
+        if (msg.type === "EVENT" && msg.event) found.push(msg.event);
+        else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();
+      });
+    const timer = setTimeout(finish, timeoutMs);
+    function finish() {
+      clearTimeout(timer);
+      sub.unsubscribe();
+      resolve(found);
+    }
   });
 }
 

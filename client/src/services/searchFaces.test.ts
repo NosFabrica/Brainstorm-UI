@@ -20,8 +20,8 @@ const loadReplaceableMock = vi.fn<() => Promise<NostrEvent | undefined>>(() => P
 vi.mock("@/lib/loaders", () => ({ loadReplaceable: (...a: unknown[]) => loadReplaceableMock(...(a as [])) }));
 
 const outboxMock = vi.fn<(pk: string, fallback: string[]) => string[]>((_pk, fallback) => fallback);
-vi.mock("@/services/nostr", () => ({
-  loadOutboxRelayListFromDb: (pk: string, fallback: string[]) => outboxMock(pk, fallback),
+vi.mock("@/lib/relayRouting", () => ({
+  outboxRelays: async (pk: string, fallback: string[]) => outboxMock(pk, fallback),
 }));
 vi.mock("@/lib/relays", () => ({ PROFILE_RELAYS: ["wss://default.example/"] }));
 
@@ -57,7 +57,7 @@ describe("fetchPillProfiles", () => {
     expect(found.get(JOE)?.displayName).toBe("Joe Martin");
   });
 
-  it("asks their own write relays too, from the kind-10002 the store holds", async () => {
+  it("asks their own write relays too, from their kind-10002", async () => {
     outboxMock.mockReturnValue(["wss://joes-own-relay.example/"]);
     loadReplaceableMock.mockResolvedValue(profile("Joe Martin", 100));
     await fetchPillProfiles([JOE]);
