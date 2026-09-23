@@ -185,6 +185,11 @@ describe("personAssist — the from:/to: people picker trigger", () => {
     expect(assist!.complete("npub1jack")).toBe("bugs from:npub1jack");
 
     expect(personAssist("to:mar")!.complete("npub1maria")).toBe("to:npub1maria");
+
+    // observer: is a person too — whose web of trust ranks the results.
+    const observer = personAssist("bitcoin observer:vi");
+    expect(observer).toMatchObject({ prefix: "observer", fragment: "vi" });
+    expect(observer!.complete("npub1vitor")).toBe("bitcoin observer:npub1vitor");
   });
 
   it("stays quiet when there's nothing to help with", () => {
@@ -194,6 +199,9 @@ describe("personAssist — the from:/to: people picker trigger", () => {
     // Already a key — the page wrote it; no second offer.
     expect(personAssist("from:npub1abcdef")).toBeNull();
     expect(personAssist(`from:${"a".repeat(64)}`)).toBeNull();
+    expect(personAssist("observer:")).toBeNull();
+    expect(personAssist("observer:npub1abcdef")).toBeNull();
+    expect(personAssist(`observer:${"a".repeat(64)}`)).toBeNull();
   });
 });
 

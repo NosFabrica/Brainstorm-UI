@@ -220,7 +220,7 @@ export const parseSearch = (query: string): ParsedQuery => parseQuery(query);
 export { buildFilters as searchFilters } from "@/lib/searchQuery";
 
 export interface PersonAssist {
-  prefix: "from" | "to";
+  prefix: "from" | "to" | "observer";
   /** The name fragment being typed after the colon. */
   fragment: string;
   /** The query with the fragment completed to a picked key. */
@@ -228,14 +228,15 @@ export interface PersonAssist {
 }
 
 /**
- * The from:/to: people-picker trigger: when the LAST token is a name fragment mid-type
- * ("from:ja"), the box offers profiles and writes the key — nobody types an npub by hand.
- * Quiet once a key is already in place.
+ * The from:/to:/observer: people-picker trigger: when the LAST token is a name fragment
+ * mid-type ("from:ja"), the box offers profiles and writes the key — nobody types an npub by
+ * hand. `observer:` is a person too: whose web of trust ranks the results. Quiet once a key
+ * is already in place.
  */
 export function personAssist(query: string): PersonAssist | null {
-  const match = query.match(/(^|\s)(from|to):(\S+)$/i);
+  const match = query.match(/(^|\s)(from|to|observer):(\S+)$/i);
   if (!match) return null;
-  const prefix = match[2].toLowerCase() as "from" | "to";
+  const prefix = match[2].toLowerCase() as PersonAssist["prefix"];
   const fragment = match[3];
   if (/^npub1/i.test(fragment) || /^[0-9a-f]{64}$/i.test(fragment)) return null;
   const head = query.slice(0, query.length - fragment.length);
@@ -254,7 +255,8 @@ const OPERATOR_WORD =
  * What the people typeahead may look up: the box's words, or null when it holds anything but
  * words. A prefix being typed (`doi:`, `sort:rec`, `from:` before a name) is not a name, and a
  * finished filter turns the lookup into another question — `doi:10.1000` asks for comments on
- * that DOI, and their authors are not people called "doi". `from:ja` is [personAssist]'s.
+ * that DOI, and their authors are not people called "doi". `from:ja` and `observer:ja` are
+ * [personAssist]'s.
  */
 export function typeaheadWords(query: string): string | null {
   if (tokenize(query).some((seg) => seg.type !== "text")) return null;
