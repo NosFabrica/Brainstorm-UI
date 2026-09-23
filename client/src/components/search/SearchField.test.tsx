@@ -41,6 +41,20 @@ function type(text: string) {
   fireEvent.input(el);
 }
 
+/** Typing, with the caret left at the end of what was typed — on the word, as a keyboard leaves it. */
+function typeAtEnd(text: string) {
+  const el = box();
+  el.value = text;
+  const last = el.lastChild as Node;
+  const range = document.createRange();
+  range.setStart(last, last.nodeType === 3 ? (last.textContent ?? "").length : last.childNodes.length);
+  range.collapse(true);
+  const sel = document.getSelection()!;
+  sel.removeAllRanges();
+  sel.addRange(range);
+  fireEvent.input(el);
+}
+
 function mount(props: Partial<Parameters<typeof SearchField>[0]> = {}) {
   const onChange = vi.fn();
   const onEnter = vi.fn();
@@ -176,6 +190,49 @@ describe("pills over the value", () => {
     fireEvent(box(), new InputEvent("beforeinput", { inputType: "insertText", data: "gm\n", bubbles: true, cancelable: true }));
     expect(box().value).toBe("gm");
     expect(onEnter).toHaveBeenCalledWith("gm");
+  });
+
+  // Space finished a token and Enter did not: the search ran on `kind:20` while the box still
+  // drew it as a half-typed word. Every prefix the box pills, typed with the caret still on it.
+  const note = nip19.noteEncode("a".repeat(64));
+  it.each([
+    ["#nostr", "tag"],
+    [`from:${npub}`, "key"],
+    [`to:${npub}`, "key"],
+    [`from:${JOE}`, "key"],
+    [`to:${note}`, "pointer"],
+    ["since:2026-01-02", "date"],
+    ["until:2026-01-02", "date"],
+    ["kind:20", "kind"],
+    ["spec:", "kind"],
+    ["sort:recent", "sort"],
+    ["include:spam", "lens"],
+    ["filter:rank:gte:50", "floor"],
+    [`observer:${npub}`, "observer"],
+    ["trust:verified", "verified"],
+    ["reach:follows", "reach"],
+    ["reach:friends", "reach"],
+    ["site:example.com", "scope"],
+    ["isbn:978-0593330005", "scope"],
+    ["geo:u4pruyd", "scope"],
+    ["isan:0000-0000-3A8D-0000-Z-0000-0000-6", "scope"],
+    ["doi:10.1000/182", "scope"],
+    ["podcast:guid:abc", "scope"],
+    ["podcast:item:guid:abc", "scope"],
+    ["podcast:publisher:abc", "scope"],
+    ["label:en", "label"],
+    ["group:chachi-general", "group"],
+  ])("Enter pills %s the way a space would", (tok, type_) => {
+    const { onEnter } = mount({ value: "" });
+    const el = box();
+    el.focus();
+    typeAtEnd(`gm ${tok}`);
+    // Still being typed: no pill for it yet. A key or a pointer pills on sight — nobody types one.
+    if (type_ !== "key" && type_ !== "pointer") expect(el.querySelector(`[data-type="${type_}"]`)).toBeNull();
+    fireEvent(el, new InputEvent("beforeinput", { inputType: "insertParagraph", bubbles: true, cancelable: true }));
+    expect(onEnter).toHaveBeenCalledWith(`gm ${tok}`);
+    expect([...el.querySelectorAll("[data-token]")].map((p) => (p as HTMLElement).dataset.token)).toEqual([tok]);
+    expect(el.value).toBe(`gm ${tok}`);
   });
 
   it("a paste lands as plain text, not as markup", () => {

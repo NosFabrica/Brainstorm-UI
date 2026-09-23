@@ -663,6 +663,10 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
     // A bare newline leaves nothing to insert and is only the submit.
     if (rest) insertPlain(e, rest);
     else e.preventDefault();
+    // Enter finishes the word the caret is on, the way a space would: `kind:20` pills before
+    // the search runs, not only once the caret moves off it. The caret stays where it was.
+    const text = readValue();
+    if (text && structureChanged(text, null)) render(text, caretIndex(), null);
     handlers.onEnter(readValue());
   };
 
