@@ -77,6 +77,12 @@ describe("a recipe published on zap.cooking", () => {
     expect(sourceAppFor(article([["t", "zapcooking-girik"]]))).toBeNull();
   });
 
+  // zap.cooking's own long-form pieces — its newsletter, food stories — wear
+  // the recipe tag too, marked `zapreads` (probed 2026-09-22: 5 of 100).
+  it("a zap.cooking article, marked zapreads, is not a recipe", () => {
+    expect(sourceAppFor(article([["t", "zapreads"], ["t", "zapcooking"], ["t", "newsletter"]]))).toBeNull();
+  });
+
   it("an ordinary article is nobody's", () => {
     expect(sourceAppFor(article([["t", "bitcoin"]]))).toBeNull();
   });

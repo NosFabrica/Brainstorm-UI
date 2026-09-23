@@ -65,8 +65,11 @@ function publishedInConduit(event: MinimalEvent): boolean {
  */
 export const RECIPE_TAGS: readonly string[] = ["zapcooking", "nostrcooking"];
 const recipeTagSet = new Set(RECIPE_TAGS);
+/** zap.cooking's mark for its long-form pieces (newsletter, food stories), which wear the recipe tag too. */
+const ARTICLE_TAG = "zapreads";
 function publishedOnZapCooking(event: MinimalEvent): boolean {
-  return event.tags.some((t) => t[0] === "t" && recipeTagSet.has((t[1] ?? "").trim().replace(/^#/, "").toLowerCase()));
+  const tags = event.tags.filter((t) => t[0] === "t").map((t) => (t[1] ?? "").trim().replace(/^#/, "").toLowerCase());
+  return tags.some((t) => recipeTagSet.has(t)) && !tags.includes(ARTICLE_TAG);
 }
 
 /** An address with no identifier is not a page on anyone's site. */

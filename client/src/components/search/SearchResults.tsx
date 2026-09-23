@@ -6,7 +6,7 @@
  * back, so stale results structurally cannot flash).
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { RECIPE_TAGS } from "@/lib/sourceApp";
+import { RECIPE_TAGS, sourceAppFor } from "@/lib/sourceApp";
 import { Link, useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
@@ -83,7 +83,8 @@ const SHOP_KINDS = new Set(TAB_KINDS.shop);
 /** A recipe's topics: its `t` tags minus zap.cooking's own markers and their `<marker>-<slug>` copies. */
 function recipeTopics(e: NostrEvent): string[] {
   const housekeeping = new RegExp(`^(${RECIPE_TAGS.join("|")})(-|$)`, "i");
-  return [...new Set(e.tags.filter((t) => t[0] === "t" && t[1]).map((t) => t[1].trim().toLowerCase()))].filter((t) => t && !housekeeping.test(t));
+  // A bare number is a serving count or a step, not a topic.
+  return [...new Set(e.tags.filter((t) => t[0] === "t" && t[1]).map((t) => t[1].trim().toLowerCase()))].filter((t) => t && !housekeeping.test(t) && !/^\d+$/.test(t));
 }
 const LIST_KINDS = new Set(TAB_KINDS.lists);
 
@@ -698,6 +699,10 @@ export function SearchResults({
     // A listing is for sale or it is not a result: sold, hidden and priceless
     // never count, so the count line and the cards agree.
     if (tab === "shop") return base.filter((h) => { const l = parseListing(h.event); return !!l && isSellable(l); });
+    // The relay narrows by tag but cannot exclude by one: zap.cooking's own
+    // articles wear the recipe tag too. One source of truth says which is
+    // which, here, so the count line, the chips and the cards agree.
+    if (tab === "recipes") return base.filter((h) => sourceAppFor(h.event)?.noun === "Recipe");
     if (tab !== "media" || !mediaNotes) return base;
     const seen = new Set(base.map((h) => h.event.id));
     const visual = mediaNotes.hits.filter((h) => !seen.has(h.event.id) && mediaUrlOf(h.event) !== null);

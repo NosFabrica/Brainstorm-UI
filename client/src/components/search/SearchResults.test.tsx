@@ -373,14 +373,19 @@ describe("SearchResults", () => {
       author: author(cook, "SkyLords"),
       rank: null,
     });
-    emit({ hits: [recipe("r1", "Chicken soup", ["chicken", "soup"]), recipe("r2", "Vanilla cake", ["dessert"])], eose: true, timeMs: 120 });
+    // The relay can narrow by tag but not exclude by one: zap.cooking's own
+    // newsletter wears the recipe tag, marked zapreads. The tab leaves it out.
+    emit({ hits: [recipe("r1", "Chicken soup", ["chicken", "soup"]), recipe("r2", "Vanilla cake", ["dessert", "3"]), recipe("n1", "Zap Cooking Newsletter", ["zapreads", "newsletter"])], eose: true, timeMs: 120 });
 
     await screen.findByText("Chicken soup");
+    expect(screen.queryByText("Zap Cooking Newsletter")).toBeNull();
+    expect(within(screen.getByTestId("recipe-facets")).queryByTestId("recipe-facet-newsletter")).toBeNull();
     const facets = screen.getByTestId("recipe-facets");
     expect(within(facets).getByTestId("recipe-facet-chicken")).toHaveTextContent("chicken");
     expect(within(facets).getByTestId("recipe-facet-chicken")).not.toHaveTextContent(/\d/);
     expect(within(facets).queryByTestId("recipe-facet-zapcooking")).toBeNull();
     expect(within(facets).queryByTestId("recipe-facet-zapcooking-r1")).toBeNull();
+    expect(within(facets).queryByTestId("recipe-facet-3")).toBeNull(); // a serving count is not a topic
 
     fireEvent.click(within(facets).getByTestId("recipe-facet-dessert"));
     expect(screen.getByText("Vanilla cake")).toBeInTheDocument();
