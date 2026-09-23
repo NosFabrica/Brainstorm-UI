@@ -22,6 +22,7 @@ import { isGitItem } from "@/lib/gitStatus";
 import { FollowSetHero } from "@/components/share/FollowSetHero";
 import { DesignationHero } from "@/components/share/DesignationHero";
 import { StructuralHero } from "@/components/share/StructuralHero";
+import { contentShape } from "@/lib/contentShape";
 import { AudioHero } from "@/components/share/AudioHero";
 import { ListingHero } from "@/components/share/ListingHero";
 import { ListingRelated } from "@/components/share/ListingRelated";
@@ -387,8 +388,8 @@ export default function EventPage() {
                 <VideoHero event={note} />
               ) : NOTE_KINDS.has(note.kind) ? (
                 <ShareNoteCard event={note} profiles={profiles} eventsById={eventsById} addrByCoord={addrByCoord} forceExpanded />
-              ) : mediaUrls.length === 0 && !note.content?.trim() ? (
-                // Nothing to show as content: a structural event, its meaning in its tags.
+              ) : mediaUrls.length === 0 && (!note.content?.trim() || contentShape(note.content).kind !== "text") ? (
+                // No content to read — none, or ciphertext, or JSON: a structural event, its meaning in its tags.
                 <StructuralHero event={note} />
               ) : (
                 <div data-testid="event-media">

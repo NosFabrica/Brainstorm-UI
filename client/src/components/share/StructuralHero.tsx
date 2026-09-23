@@ -7,15 +7,19 @@
  */
 import { useState } from "react";
 import { Link } from "wouter";
-import { Braces, ChevronDown, ChevronRight } from "lucide-react";
-import { naddrForEvent } from "@/lib/articleLinks";
+import { Braces, ChevronDown, ChevronRight, Lock } from "lucide-react";
 import { useSpecsForKind } from "@/hooks/useSpecsForKind";
+import { contentShape } from "@/lib/contentShape";
+import { kindTypeLabel } from "@/components/search/SerpRow";
 
 type StructuralEvent = { id: string; kind: number; pubkey: string; tags: string[][]; content: string; created_at: number };
 
 export function StructuralHero({ event }: { event: StructuralEvent }) {
-  const spec = useSpecsForKind(event.kind)[0];
-  const specNaddr = spec ? naddrForEvent(spec) : null;
+  const specs = useSpecsForKind(event.kind);
+  const specNames = specs.slice(0, 2).map((sp) => sp.tags.find((t) => t[0] === "title")?.[1] ?? "a spec").join(", ") + (specs.length > 2 ? ` +${specs.length - 2}` : "");
+  const label = kindTypeLabel(event.kind);
+  const named = !label.startsWith("Kind ");
+  const shape = contentShape(event.content);
   const alt = event.tags.find((t) => t[0] === "alt" && t[1]?.trim())?.[1];
   const tags = event.tags.filter((t) => t[0] !== "alt");
   const [rawOpen, setRawOpen] = useState(false);
@@ -25,13 +29,14 @@ export function StructuralHero({ event }: { event: StructuralEvent }) {
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0 flex-1">
           <h1 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
-            Kind {event.kind}
+            {label}
+            {named && <span className="ml-2 font-mono text-sm font-normal text-slate-400 dark:text-slate-500">kind {event.kind}</span>}
           </h1>
-          {spec && specNaddr ? (
+          {specs.length > 0 ? (
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-              Defined in{" "}
-              <Link href={`/a/${specNaddr}`} className="font-medium text-brand-primary hover:underline dark:text-brand-link" data-testid="structural-spec">
-                {spec.tags.find((t) => t[0] === "title")?.[1] ?? "a spec"}
+              Specs covering it:{" "}
+              <Link href={`/?t=nips&q=${encodeURIComponent(`kind:${event.kind}`)}`} className="font-medium text-brand-primary hover:underline dark:text-brand-link" data-testid="structural-spec">
+                {specNames}
               </Link>
             </p>
           ) : (
@@ -47,6 +52,21 @@ export function StructuralHero({ event }: { event: StructuralEvent }) {
         <p className="mt-3 text-sm text-slate-700 dark:text-slate-200" data-testid="structural-alt">
           {alt}
         </p>
+      )}
+
+      {/* Ciphertext is said, not shown; JSON is shown readably. */}
+      {(shape.kind === "encrypted" || shape.kind === "json") && (
+        <p className="mt-3 inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400" data-testid="structural-content-shape">
+          {shape.kind === "encrypted" ? <><Lock className="h-3 w-3" /> Encrypted — only its owner can read it</> : <><Braces className="h-3 w-3" /> Structured data · {shape.fields} {shape.fields === 1 ? "field" : "fields"}</>}
+        </p>
+      )}
+      {shape.kind === "json" && (
+        <pre className="mt-2 max-h-72 overflow-auto rounded-xl bg-slate-50 p-3 text-[11px] text-slate-700 dark:bg-slate-950 dark:text-slate-300" data-testid="structural-json">
+          {JSON.stringify(JSON.parse(event.content), null, 2)}
+        </pre>
+      )}
+      {shape.kind === "text" && (
+        <p className="mt-3 whitespace-pre-wrap break-words text-sm text-slate-700 dark:text-slate-200">{event.content}</p>
       )}
 
       {tags.length > 0 && (

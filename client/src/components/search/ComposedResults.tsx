@@ -19,7 +19,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing, QuietTrustChrome } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { SerpRow } from "@/components/search/SerpRow";
+import { SerpRow, kindTypeLabel } from "@/components/search/SerpRow";
 import { ArticlesBento, MediaTiles, TopStories, hasCover, hasVisual, pickTopStories } from "@/components/search/RichSections";
 import { collapseHits } from "@/lib/searchCollapse";
 import { ClusterRows, Section, SectionSkeleton, mergeSnapshots, useSectionStream } from "@/components/search/sections";
@@ -43,7 +43,6 @@ import { applyFilters, liftQuery, readFilters, splitFilters } from "@/lib/search
 import { Link } from "wouter";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
 import { useSpecsForKind } from "@/hooks/useSpecsForKind";
-import { naddrForEvent } from "@/lib/articleLinks";
 import { visitedPubkeys } from "@/lib/recentSearches";
 import { useWheelScrollX } from "@/hooks/useWheelScrollX";
 import { UNKNOWN_EXPLAINER, bucketFor } from "@/lib/trustLadder";
@@ -299,9 +298,14 @@ function ComposedResultsBody({
     return typed.filter((k) => !placed.has(k));
   }, [query]);
   const byKind = useSectionStream(query, "everything", pov, userPubkey, 20, { kinds: unplacedKinds, enabled: unplacedKinds.length > 0 });
-  // The section says what the kind IS, once, by the spec that defines it.
-  const kindSpec = useSpecsForKind(unplacedKinds.length === 1 ? unplacedKinds[0] : null)[0];
-  const kindSpecNaddr = kindSpec ? naddrForEvent(kindSpec) : null;
+  // The section says what the kind IS, once: its name in words with its
+  // number, and the specs that cover it. Several specs cover most kinds (a
+  // capability profile lists forty), so none is "the" definition — the
+  // NIPs tab has them all.
+  const kindSpecs = useSpecsForKind(unplacedKinds.length === 1 ? unplacedKinds[0] : null);
+  const kindKicker = unplacedKinds
+    .map((k) => { const label = kindTypeLabel(k); return label.startsWith("Kind ") ? label : `${label} · kind ${k}`; })
+    .join(", ");
 
   useEffect(() => {
     if (!onSections) return;
@@ -560,12 +564,13 @@ function ComposedResultsBody({
       )}
 
       {(byKindF?.hits.length ?? 0) > 0 && (
-        <Section id="kind" kicker={`Kind ${unplacedKinds.join(", ")}`} onTabChange={onTabChange} className={FADE}>
-          {kindSpec && kindSpecNaddr && (
+        <Section id="kind" kicker={kindKicker} onTabChange={onTabChange} className={FADE}>
+          {kindSpecs.length > 0 && (
             <p className="mb-2 text-xs text-slate-500 dark:text-slate-400">
-              Defined in{" "}
-              <Link href={`/a/${kindSpecNaddr}`} className="font-medium text-brand-primary hover:underline dark:text-brand-link" data-testid="serp-kind-spec">
-                {kindSpec.tags.find((t) => t[0] === "title")?.[1] ?? "a spec"}
+              Specs covering it:{" "}
+              <Link href={`/?t=nips&q=${encodeURIComponent(`kind:${unplacedKinds[0]}`)}`} className="font-medium text-brand-primary hover:underline dark:text-brand-link" data-testid="serp-kind-spec">
+                {kindSpecs.slice(0, 2).map((sp) => sp.tags.find((t) => t[0] === "title")?.[1] ?? "a spec").join(", ")}
+                {kindSpecs.length > 2 ? ` +${kindSpecs.length - 2}` : ""}
               </Link>
             </p>
           )}
