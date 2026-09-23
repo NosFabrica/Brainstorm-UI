@@ -37,7 +37,7 @@ export function PerspectiveToggle({
   // pristine landing keeps the full pill as the invitation.
   if (compact && !user) return null;
 
-  const pad = compact ? "px-2 sm:px-2.5 py-1" : "px-3.5 py-1";
+  const pad = compact ? "px-2 sm:px-2.5 py-0.5" : "px-3.5 py-1";
   const segment = (active: boolean, disabled = false) =>
     `inline-flex items-center gap-1.5 rounded-full ${pad} text-xs transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 ` +
     (active
