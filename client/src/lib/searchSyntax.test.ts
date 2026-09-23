@@ -28,6 +28,18 @@ describe("client-side filter tokens", () => {
     expect(readFilters("btc reach:nonsense").reach).toBeNull();
   });
 
+  /**
+   * Agents and power users filter by kind without a chip for it: `kind:N`
+   * lifts to the relay filter like from:/#tag, and `spec:` is the human word
+   * for kind 30817 (the team: hide kind filters from the UI, keep them typeable).
+   */
+  it("lifts kind: and spec: to a kinds filter, and leaves the words", () => {
+    expect(liftQuery("dvm spec:")).toMatchObject({ search: "dvm", kinds: [30817] });
+    expect(liftQuery("kind:30817 kind:30023 dvm")).toMatchObject({ search: "dvm", kinds: [30817, 30023] });
+    expect(liftQuery("plain words").kinds).toBeUndefined();
+    expect(liftQuery("kind:abc words")).toMatchObject({ search: "kind:abc words" }); // not a kind — left alone
+  });
+
   it("keeps client-only tokens off the wire", () => {
     const lifted = liftQuery("liverpool trust:verified reach:follows sort:recent");
     expect(lifted.search).toBe("liverpool sort:recent");

@@ -8,9 +8,11 @@ import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { naddrForEvent } from "@/lib/articleLinks";
 import { articleBrief } from "@/lib/wiki";
 import articleDefault from "@/assets/article-default.webp";
+import specCover from "@/assets/nostr-implementation-decentralized-network-specs-cover.webp";
 import recipeCover from "@/assets/cooking-recipe-easy-recipe-steps-cover.webp";
 
-/** What the recipe cover shows — for search engines and screen readers alike. */
+/** What the default covers show — for search engines and screen readers alike. */
+export const SPEC_COVER_ALT = "Nostr Implementation — decentralized network specs";
 export const RECIPE_COVER_ALT = "Cooking Recipe — easy recipe steps";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { sourceAppFor } from "@/lib/sourceApp";
@@ -36,7 +38,16 @@ function ago(ts?: number): string {
  * "Open in app" handoff. Responsive: image stacks on top on mobile, sits to the
  * left on desktop. Replaces an ugly raw `naddr`/article URL.
  */
-export function EmbeddedArticleCard({ event, author , trustScore01 }: { trustScore01?: number | null; event: MinimalEvent; author?: ProfileLite }) {
+/** How many of a spec's kinds a card shows; the spec page has them all. */
+const KIND_CHIPS_SHOWN = 6;
+
+export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [] }: {
+  trustScore01?: number | null;
+  event: MinimalEvent;
+  author?: ProfileLite;
+  /** The kinds the search asked for — shown first, so a reader sees why the card matched. */
+  leadKinds?: string[];
+}) {
   const tierRing = useTierRing();
   // Callers that fetched a score pass it (dashboard/reading cards); the
   // profile's article list doesn't — self-serve from the shared house cache.
@@ -45,15 +56,24 @@ export function EmbeddedArticleCard({ event, author , trustScore01 }: { trustSco
   const title = tagVal(event, "title") || "Untitled article";
   // A wiki page (NIP-54) has no summary tag; its opening words stand in.
   const isWiki = event.kind === 30818;
+  // A spec (kind 30817) says which event kinds it covers in `k` tags.
+  const isSpec = event.kind === 30817;
+  // Each is the NIPs tab's filter: the specs that cover that kind. In order.
+  const allKinds = isSpec ? [...new Set(event.tags.filter((t) => t[0] === "k" && /^\d+$/.test(t[1] ?? "")).map((t) => t[1]))].sort((a, b) => Number(a) - Number(b)) : [];
+  // A capability profile lists forty kinds; six keep every card the same
+  // height, the searched kind leading, the rest counted.
+  const lead = leadKinds.filter((k) => allKinds.includes(k));
+  const coveredKinds = [...lead, ...allKinds.filter((k) => !lead.includes(k))].slice(0, KIND_CHIPS_SHOWN);
+  const moreKinds = allKinds.length - coveredKinds.length;
   const summary = articleBrief(event);
   const image = tagVal(event, "image");
   // Fall back to the branded Brainstorm cover when an article has no image or
   // its image URL fails to load (dead host, hotlink block, etc.).
   const [imgBroken, setImgBroken] = useState(false);
-  // A recipe wears the recipe cover, not the article one.
-  const fallbackCover = sourceAppFor(event)?.noun === "Recipe" ? recipeCover : articleDefault;
+  // A spec wears the NIP cover, a recipe the recipe cover, the rest the article one.
+  const fallbackCover = isSpec ? specCover : sourceAppFor(event)?.noun === "Recipe" ? recipeCover : articleDefault;
   const coverSrc = !image || imgBroken ? fallbackCover : image;
-  const coverAlt = coverSrc === recipeCover ? RECIPE_COVER_ALT : "";
+  const coverAlt = coverSrc === specCover ? SPEC_COVER_ALT : coverSrc === recipeCover ? RECIPE_COVER_ALT : "";
   const name = author?.display_name || author?.name || "Unknown";
   const naddr = naddrForEvent(event);
   const href = naddr ? `/a/${naddr}` : undefined;
@@ -77,20 +97,45 @@ export function EmbeddedArticleCard({ event, author , trustScore01 }: { trustSco
       onClick={onCardClick}
     >
       <div className="flex flex-col sm:flex-row">
+        {/* One shape for every card — 16:9, the shape covers are — so the
+            same cover never crops differently from card to card, and a
+            banner shows edge to edge. Dimensions declared: no jump on load. */}
         <img
           src={coverSrc}
           alt={coverAlt}
+          width={1280}
+          height={720}
           loading="lazy"
+          decoding="async"
           onError={() => setImgBroken(true)}
-          className="h-40 w-full object-cover sm:h-auto sm:w-32 sm:self-stretch shrink-0 bg-slate-100 dark:bg-slate-800"
+          className="aspect-video w-full object-cover shrink-0 bg-slate-100 dark:bg-slate-800 sm:m-3 sm:w-44 sm:self-start sm:rounded-lg"
         />
 
         <div className="min-w-0 flex-1 p-3">
           <p className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-brand-primary">
-            <FileText className="h-3 w-3" /> {isWiki ? "Wiki" : sourceAppFor(event)?.noun ?? "Article"}
+            <FileText className="h-3 w-3" /> {isWiki ? "Wiki" : isSpec ? "Spec" : sourceAppFor(event)?.noun ?? "Article"}
           </p>
           <p className="text-sm font-bold text-slate-900 dark:text-slate-100 line-clamp-2 mt-0.5">{title}</p>
           {summary && <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1">{summary}</p>}
+          {coveredKinds.length > 0 && (
+            <p className="mt-1 flex flex-wrap gap-1 font-mono text-[10px] text-slate-400 dark:text-slate-500" data-testid="article-kinds">
+              {coveredKinds.map((k) => (
+                <Link
+                  key={k}
+                  href={`/?t=nips&q=${encodeURIComponent(`kind:${k}`)}`}
+                  title={`Specs that cover kind ${k}`}
+                  className="rounded bg-slate-100 px-1 py-0.5 transition-colors hover:text-brand-deep dark:bg-slate-800 dark:hover:text-brand-link"
+                >
+                  kind {k}
+                </Link>
+              ))}
+              {moreKinds > 0 && (
+                <span className="px-1 py-0.5 text-slate-400 dark:text-slate-500" data-testid="article-kinds-more">
+                  +{moreKinds} more
+                </span>
+              )}
+            </p>
+          )}
 
           <div className="mt-2 flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
             <Avatar className={`h-4 w-4 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 ${tierRing(effectiveScore01, false, "sm", true) ?? ""}`}>
@@ -110,7 +155,7 @@ export function EmbeddedArticleCard({ event, author , trustScore01 }: { trustSco
                 className="inline-flex items-center gap-1 rounded-lg bg-brand-primary hover:bg-brand-primary-hover px-3 py-1.5 text-xs font-semibold text-white transition-colors"
                 data-testid="article-read"
               >
-                Read {(sourceAppFor(event)?.noun ?? "article").toLowerCase()} <ArrowRight className="h-3.5 w-3.5" />
+                Read {isSpec ? "spec" : isWiki ? "wiki" : (sourceAppFor(event)?.noun ?? "article").toLowerCase()} <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>
           )}
