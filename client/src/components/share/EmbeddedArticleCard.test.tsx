@@ -52,6 +52,22 @@ describe("EmbeddedArticleCard", () => {
     expect(img.getAttribute("alt")).toBe("Nostr Implementation Possibilities — formal specifications for the decentralized network");
   });
 
+  // Thumbnails stretched to the card's text height and cropped a different
+  // slice of the same cover on every card (Benjamin, 2026-09-23: "why are
+  // the Brainstorm article images different sizes?"; the NIP banner's edges
+  // cut off). One shape for every card — 16:9, the shape covers are — with
+  // its dimensions declared so the page does not jump as they load.
+  it("every card's thumbnail is the same 16:9 shape, declared up front", () => {
+    const spec = page(30817, "# TA", [["d", "ta"], ["title", "TA"]]);
+    render(<EmbeddedArticleCard event={spec} author={{ name: "ManiMe" }} />);
+    const img = screen.getByTestId("embedded-article").querySelector("img")!;
+    expect(img.className).toMatch(/\baspect-video\b/);
+    expect(img.className).not.toMatch(/self-stretch|object-top/);
+    expect(img.getAttribute("width")).toBe("1280");
+    expect(img.getAttribute("height")).toBe("720");
+    expect(img.getAttribute("decoding")).toBe("async");
+  });
+
   // A `k` tag that is not a number ("nip", seen on Trusted Assertions
   // (Sovereign Version)) is not a kind — no chip, no broken search.
   it("only numeric k tags are kinds", () => {
