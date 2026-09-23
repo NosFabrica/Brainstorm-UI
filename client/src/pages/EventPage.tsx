@@ -357,6 +357,8 @@ export default function EventPage() {
                   copies={[
                     { id: "nevent", label: "Copy nevent", value: nevent, hint: "The note's id plus where to find it" },
                     { id: "event-id", label: "Copy event ID", value: ptr.id, hint: "The raw 64-character id" },
+                    // The event as fetched from the relay (sig included) — the cast to MinimalEvent is type-only.
+                    { id: "event-json", label: "Copy raw JSON", value: JSON.stringify(note, null, 2), hint: "The full signed event, as relays serve it" },
                   ]}
                   triggerTestId="event-menu"
                 />
