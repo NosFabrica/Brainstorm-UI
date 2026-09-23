@@ -42,7 +42,8 @@ export type SearchTab =
   | "music"
   | "releases"
   | "lists"
-  | "recipes";
+  | "recipes"
+  | "nips";
 
 /** One truth for tab → kinds, extracted from the SearchOverTrust app. */
 export const TAB_KINDS: Record<Exclude<SearchTab, "everything">, number[]> = {
@@ -51,6 +52,9 @@ export const TAB_KINDS: Record<Exclude<SearchTab, "everything">, number[]> = {
   // 30817 = specs (NIPs on Nostr): Markdown, addressable, indexed by the
   // search relay — read like an article, labelled "Spec".
   articles: [30023, 30024, 30818, 30040, 30041, 30817],
+  // Specs alone, as their own vertical under More — "NIPs" is the word people
+  // search (Benjamin, 2026-09-23). They stay in Articles too, labelled.
+  nips: [30817],
   media: [20, 21, 22, 1063, 1986, 1222, 34235, 34236],
   // Vitor's split: Zap Store app listings and git-shaped kinds were one
   // confusing tab. Kind 1337 "snippets" is deliberately in NEITHER — live

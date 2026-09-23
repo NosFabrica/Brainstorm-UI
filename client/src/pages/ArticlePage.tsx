@@ -155,10 +155,18 @@ export default function ArticlePage() {
   // The page shows the title above the byline; a spec's `# Title` and its
   // `draft` `optional` status line leave the body and read as themselves.
   const prepared = useMemo(
-    () => prepareArticleBody(ev ? (ev.kind === 30818 ? wikiToMarkdown(ev.content || "") : ev.content || "") : "", title),
-    [ev, title],
+    () => prepareArticleBody(ev ? (ev.kind === 30818 ? wikiToMarkdown(ev.content || "") : ev.content || "") : "", title, { identifier: tag("d") }),
+    [ev, title], // eslint-disable-line react-hooks/exhaustive-deps
   );
-  const coveredKinds = ev?.kind === 30817 ? [...new Set(ev.tags.filter((t) => t[0] === "k" && t[1]).map((t) => t[1]))] : [];
+  // The kinds a spec covers: the `k` tags and the front matter, one list, each
+  // wearing the name its author gave it — a number alone tells a reader nothing.
+  const coveredKinds = useMemo(() => {
+    if (ev?.kind !== 30817) return [] as { kind: string; label?: string }[];
+    const byKind = new Map<string, string | undefined>();
+    for (const t of ev.tags) if (t[0] === "k" && t[1]) byKind.set(t[1], t[2] || undefined);
+    for (const k of prepared.kinds) byKind.set(k.kind, k.label ?? byKind.get(k.kind));
+    return [...byKind.entries()].map(([kind, label]) => ({ kind, label }));
+  }, [ev, prepared.kinds]);
   const summary = tag("summary") || "";
   // A wiki page mirrored from elsewhere names its source in an "s" tag
   // (GitCitadel: the Wikipedia URL). Attribution is owed, and one line does it.
@@ -227,21 +235,46 @@ export default function ArticlePage() {
               {title}
             </h1>
             {summary && <p className="mt-2 text-lg text-slate-500 dark:text-slate-400 leading-snug">{summary}</p>}
-            {(prepared.status.length > 0 || coveredKinds.length > 0) && (
-              <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            {/* A spec's details, read out of its front matter and tags: its
+                standing, the kinds it defines (each a search for that kind),
+                and the tags it defines. */}
+            {(prepared.status.length > 0 || coveredKinds.length > 0 || prepared.tags.length > 0) && (
+              <div className="mt-4 space-y-2 text-sm" data-testid="article-details">
                 {prepared.status.length > 0 && (
-                  <span className="flex flex-wrap gap-1.5" data-testid="article-status">
+                  <div className="flex flex-wrap items-center gap-1.5" data-testid="article-status">
+                    <span className="mr-1 font-mono text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Status</span>
                     {prepared.status.map((s) => (
                       <Chip key={s} tone="slate" size="sm">{s}</Chip>
                     ))}
-                  </span>
+                  </div>
                 )}
                 {coveredKinds.length > 0 && (
-                  <span className="flex flex-wrap gap-1.5 font-mono text-[11px]" data-testid="article-kinds">
-                    {coveredKinds.map((k) => (
-                      <Chip key={k} tone="slate" size="sm">kind {k}</Chip>
+                  <div className="flex flex-wrap items-center gap-1.5" data-testid="article-kinds">
+                    <span className="mr-1 font-mono text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Kinds</span>
+                    {coveredKinds.map(({ kind, label }) => (
+                      <Link
+                        key={kind}
+                        href={`/?q=${encodeURIComponent(`kind:${kind}`)}`}
+                        title={`Search for kind ${kind} events`}
+                        className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-700 transition-colors hover:border-brand-accent/40 hover:text-brand-deep dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:text-brand-link"
+                        data-testid={`article-kind-${kind}`}
+                      >
+                        <span className="font-mono">{kind}</span>
+                        {label && <span className="text-slate-500 dark:text-slate-400">{label}</span>}
+                      </Link>
                     ))}
-                  </span>
+                  </div>
+                )}
+                {prepared.tags.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5" data-testid="article-tags">
+                    <span className="mr-1 font-mono text-[11px] uppercase tracking-wider text-slate-400 dark:text-slate-500">Tags</span>
+                    {prepared.tags.map((t) => (
+                      <span key={t.name} className="inline-flex items-center gap-1.5 rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                        <span className="font-mono">{t.name}</span>
+                        {t.label && <span className="text-slate-500 dark:text-slate-400">{t.label}</span>}
+                      </span>
+                    ))}
+                  </div>
                 )}
               </div>
             )}
@@ -304,7 +337,7 @@ export default function ArticlePage() {
             {/* Full article body — Brainstorm is the reading destination. */}
             {/* Inline code wears no decorative backticks (the typography plugin's
                 default) and wraps — a spec's example URIs used to push the page sideways. */}
-            <div className="mt-6 prose prose-slate dark:prose-invert max-w-none prose-headings:font-bold prose-a:text-brand-link prose-img:rounded-xl prose-code:before:content-none prose-code:after:content-none prose-code:break-all prose-code:rounded prose-code:bg-slate-100 prose-code:px-1 prose-code:py-0.5 prose-code:font-normal dark:prose-code:bg-slate-800 prose-pre:overflow-x-auto" data-testid="article-body">
+            <div className="article-prose mt-6 prose prose-slate dark:prose-invert max-w-none prose-headings:font-bold prose-a:text-brand-link prose-img:rounded-xl prose-code:before:content-none prose-code:after:content-none prose-pre:overflow-x-auto" data-testid="article-body">
               <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={mdComponents}>
                 {prepared.body}
               </ReactMarkdown>

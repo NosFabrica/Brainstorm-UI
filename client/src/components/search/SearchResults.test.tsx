@@ -402,6 +402,17 @@ describe("SearchResults", () => {
     expect(screen.getByTestId("text-search-stats")).toHaveTextContent("1 of 2 match");
   });
 
+  it("NIPs lives under More, and choosing it searches specs alone", () => {
+    render(<SearchResults query="nip-21" pov="nosfabrica" />);
+    expect(screen.queryByTestId("search-tab-nips")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    fireEvent.click(within(screen.getByRole("menu")).getByTestId("search-tab-nips"));
+
+    expect(mainStreamCalls().at(-1)![1]).toMatchObject({ tab: "nips" });
+    expect(screen.getByTestId("search-tab-more")).toHaveTextContent("NIPs");
+  });
+
   it("a deep link to a folded vertical opens with that vertical named in the More slot", () => {
     setUrlTab("lists");
     render(<SearchResults query="jack" pov="nosfabrica" />);
