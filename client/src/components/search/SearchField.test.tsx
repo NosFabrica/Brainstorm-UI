@@ -318,6 +318,31 @@ describe("the group picker under group:", () => {
     await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("group:chachi-general "));
   });
 
+  // Enter pills the word it lands on — but not a partial the picker is about to replace: that
+  // drew `group:gen` for a moment and asked the network to name a group called "gen".
+  it("Enter on a row writes the pick, without first pilling the partial", async () => {
+    suggestGroupsMock.mockResolvedValue([
+      { id: "chachi-general", host: "a".repeat(64), name: "General", about: "the main room", picture: "" },
+    ]);
+    const { onChange, onEnter } = mount({ value: "" });
+    box().focus();
+    // Keystrokes, not a restore: a restore draws every pill and names them, which is not typing.
+    const el = box();
+    el.textContent = "group:gen";
+    const range = document.createRange();
+    range.setStart(el.firstChild as Text, 9);
+    range.collapse(true);
+    document.getSelection()!.removeAllRanges();
+    document.getSelection()!.addRange(range);
+    fireEvent.input(el);
+    await screen.findByTestId("search-field-group");
+    expect(nameGroupsMock).not.toHaveBeenCalled();
+    fireEvent(box(), new InputEvent("beforeinput", { inputType: "insertParagraph", bubbles: true, cancelable: true }));
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith("group:chachi-general "));
+    expect(nameGroupsMock.mock.calls.flat(2)).not.toContain("gen");
+    expect(onEnter).not.toHaveBeenCalled();
+  });
+
   it("`group:` alone is not a match-all over every room on the network", async () => {
     mount({ value: "" });
     type("group:");

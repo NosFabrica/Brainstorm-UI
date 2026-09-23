@@ -223,7 +223,10 @@ export interface PersonAssist {
   prefix: "from" | "to" | "observer";
   /** The name fragment being typed after the colon. */
   fragment: string;
-  /** The query with the fragment completed to a picked key. */
+  /**
+   * The query with the fragment completed to a picked key, and a space after it: the next word
+   * typed must not glue onto the key (`from:npub1…gm`), which unmakes the pill.
+   */
   complete: (key: string) => string;
 }
 
@@ -243,7 +246,7 @@ export function personAssist(query: string): PersonAssist | null {
   return {
     prefix,
     fragment,
-    complete: (key: string) => `${head}${key}`,
+    complete: (key: string) => `${head}${key} `,
   };
 }
 

@@ -182,14 +182,14 @@ describe("personAssist — the from:/to: people picker trigger", () => {
   it("offers to complete a name fragment being typed after from: or to:", () => {
     const assist = personAssist("bugs from:ja");
     expect(assist).toMatchObject({ prefix: "from", fragment: "ja" });
-    expect(assist!.complete("npub1jack")).toBe("bugs from:npub1jack");
+    expect(assist!.complete("npub1jack")).toBe("bugs from:npub1jack ");
 
-    expect(personAssist("to:mar")!.complete("npub1maria")).toBe("to:npub1maria");
+    expect(personAssist("to:mar")!.complete("npub1maria")).toBe("to:npub1maria ");
 
     // observer: is a person too — whose web of trust ranks the results.
     const observer = personAssist("bitcoin observer:vi");
     expect(observer).toMatchObject({ prefix: "observer", fragment: "vi" });
-    expect(observer!.complete("npub1vitor")).toBe("bitcoin observer:npub1vitor");
+    expect(observer!.complete("npub1vitor")).toBe("bitcoin observer:npub1vitor ");
   });
 
   it("stays quiet when there's nothing to help with", () => {

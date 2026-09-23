@@ -68,6 +68,8 @@ export interface SearchFieldHandle {
   repaint: () => void;
   /** Splice a finished token over the partial the caret is in. */
   replaceToken: (ctx: { start: number; end: number }, token: string) => void;
+  /** Pill the token the caret is on, as leaving it would — what Enter does once no popup took it. */
+  settle: () => void;
   focus: () => void;
   select: () => void;
   caret: () => number;
@@ -663,10 +665,6 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
     // A bare newline leaves nothing to insert and is only the submit.
     if (rest) insertPlain(e, rest);
     else e.preventDefault();
-    // Enter finishes the word the caret is on, the way a space would: `kind:20` pills before
-    // the search runs, not only once the caret moves off it. The caret stays where it was.
-    const text = readValue();
-    if (text && structureChanged(text, null)) render(text, caretIndex(), null);
     handlers.onEnter(readValue());
   };
 
@@ -674,6 +672,17 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
   function syncPills(typingAt: number | null = caretIndex()): void {
     const text = readValue();
     if (text && structureChanged(text, typingAt)) render(text, typingAt, typingAt);
+  }
+
+  /**
+   * Finish the word the caret is on, the way a space would: `kind:20` pills when Enter searches,
+   * not only once the caret moves off it. The caret stays where it was. The host calls this
+   * once no popup of its own took the Enter — a group row being picked must not first draw its
+   * partial as a pill, and ask the network to name it.
+   */
+  function settle(): void {
+    const text = readValue();
+    if (text && structureChanged(text, null)) render(text, caretIndex(), null);
   }
 
   const onClick = () => { updateToken(); syncPills(); };
@@ -764,6 +773,7 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
     },
     repaint,
     replaceToken,
+    settle,
     focus: () => el.focus(),
     select() {
       const sel = document.getSelection();
