@@ -2,7 +2,7 @@ import { useMemo, useEffect, useState } from "react";
 import { useRoute, useLocation, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
-import { BadgeCheck, Smartphone, Loader2, MessageSquare, ArrowRight, X } from "lucide-react";
+import { Smartphone, Loader2, MessageSquare, ArrowRight, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { fetchEventsByIds, fetchAddressableEvents, fetchProfile, fetchProfileMap } from "@/services/nostr";
@@ -44,6 +44,7 @@ import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useConnectionSpeed, videoPreload } from "@/lib/connection";
+import { Nip05Check } from "@/components/Nip05Check";
 
 
 type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string };
@@ -345,7 +346,7 @@ export default function EventPage() {
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{authorName}</span>
                     <TierWordChip score01={score01} />
-                    {profile.nip05 && <BadgeCheck className="h-4 w-4 text-sky-500 shrink-0" />}
+                    <Nip05Check nip05={profile.nip05} pubkey={note.pubkey} className="h-4 w-4 text-sky-500 shrink-0" />
                   </div>
                   <span className="text-xs text-slate-400 dark:text-slate-500">{ago(note.created_at)}</span>
                 </div>

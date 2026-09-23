@@ -19,6 +19,7 @@ import { ArrowRight, BookOpen, CalendarDays, Check, ChevronDown, Hash, Package, 
 import type { NostrEvent } from "nostr-tools";
 import { readFilters, scopeOf, scopedSearchHref } from "@/lib/searchSyntax";
 import { DEFAULT_VERIFIED_LINE } from "@/services/trustThreshold";
+import { useNip05 } from "@/hooks/useNip05";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { VerificationCoin, useTierRing, TierWordChip, useQuietTrustChrome, QuietTrustChrome } from "@/components/score/VerificationCoin";
@@ -166,6 +167,8 @@ function KnowledgePanelBody({
   // Search's quiet chrome: the coin is for screen readers; the word speaks only as the exception.
   const quietChrome = useQuietTrustChrome();
   const [person, setPerson] = useState<SearchResult | null>(null);
+  // Only a handle its domain vouches for gets the check (lib/nip05).
+  const nip05Status = useNip05(person?.nip05, person?.pubkey);
   const [topicHits, setTopicHits] = useState<SearchHit[] | null>(null);
   const [nipPage, setNipPage] = useState<NostrEvent | null>(null);
   const [appHits, setAppHits] = useState<SearchHit[] | null>(null);
@@ -787,7 +790,7 @@ function KnowledgePanelBody({
         </Avatar>
       ),
       title: getDisplayLabel(person),
-      line: [person.nip05?.replace(/^_@/, ""), followers != null ? `${followers.toLocaleString()} followers` : null].filter(Boolean).join(" · ") || "Profile",
+      line: [nip05Status === "invalid" ? undefined : person.nip05?.replace(/^_@/, ""), followers != null ? `${followers.toLocaleString()} followers` : null].filter(Boolean).join(" · ") || "Profile",
     };
     main = (
     <aside
@@ -839,11 +842,15 @@ function KnowledgePanelBody({
       </div>
       {/* Identity rows first, right under the name — who this is and how to
           pay them — then the social proof. The person card's order. */}
-      {(person.nip05 || person.lud16) && (
+      {((person.nip05 && nip05Status !== "invalid") || person.lud16) && (
         <div className="mt-2.5 space-y-1">
-          {person.nip05 && (
-            <p className="flex items-center gap-1 truncate text-xs text-brand-primary dark:text-brand-link" data-testid="person-nip05">
-              <Check className="h-3 w-3 shrink-0" /> {person.nip05.replace(/^_@/, "")}
+          {person.nip05 && nip05Status !== "invalid" && (
+            <p
+              className={`flex items-center gap-1 truncate text-xs ${nip05Status === "verified" ? "text-brand-primary dark:text-brand-link" : "text-slate-500 dark:text-slate-400"}`}
+              data-testid="person-nip05"
+              data-nip05-status={nip05Status}
+            >
+              {nip05Status === "verified" && <Check className="h-3 w-3 shrink-0" />} {person.nip05.replace(/^_@/, "")}
             </p>
           )}
           {person.lud16 && (

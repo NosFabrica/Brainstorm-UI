@@ -11,6 +11,7 @@ import { VerificationCoin, useTierRing, TierWordChip, useCoinReplacedByRing, use
 import { FlaggedChip, PersonCardSlot } from "@/components/search/EndorsementLine";
 import { copyToClipboard } from "@/lib/clipboard";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
+import { useNip05 } from "@/hooks/useNip05";
 
 function truncateAbout(text: string, maxLen = 120): string {
   if (text.length <= maxLen) return text;
@@ -46,6 +47,8 @@ export function PersonCard({
   const tierRing = useTierRing();
   const quiet = useQuietTrustChrome();
   const coinReplaced = useCoinReplacedByRing();
+  // The kind-0 nip05 is only a claim: check it, and drop it if the domain names someone else.
+  const nip05Status = useNip05(result.nip05, result.pubkey);
   const websiteDisplay = result.website
     ? result.website.replace(/^https?:\/\//, "").replace(/\/$/, "")
     : null;
@@ -92,9 +95,13 @@ export function PersonCard({
             <TierWordChip score01={result.wotRank} />
             <FlaggedChip pubkey={result.pubkey} testId={`person-flagged-${idx}`} />
           </div>
-          {result.nip05 && (
-            <p className="text-xs text-brand-primary dark:text-brand-link truncate mt-0.5 flex items-center gap-0.5" data-testid={`text-nip05-${idx}`}>
-              <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />
+          {result.nip05 && nip05Status !== "invalid" && (
+            <p
+              className={`text-xs truncate mt-0.5 flex items-center gap-0.5 ${nip05Status === "verified" ? "text-brand-primary dark:text-brand-link" : "text-slate-500 dark:text-slate-400"}`}
+              data-testid={`text-nip05-${idx}`}
+              data-nip05-status={nip05Status}
+            >
+              {nip05Status === "verified" && <Check className="h-2.5 w-2.5 shrink-0 text-brand-primary" />}
               {result.nip05.replace(/^_@/, "")}
             </p>
           )}

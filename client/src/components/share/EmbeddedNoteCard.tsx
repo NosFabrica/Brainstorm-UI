@@ -5,6 +5,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { NoteContent } from "@/components/share/NoteContent";
 import { VerificationCoin, useTierRing , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
+import { useNip05 } from "@/hooks/useNip05";
 import { npubFromPubkey } from "@/lib/shareId";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { analyzeNote, type MinimalEvent } from "@/lib/noteRefs";
@@ -56,6 +57,7 @@ export function EmbeddedNoteCard({
   const ring = tierRing(effectiveScore01);
   const [, navigate] = useLocation();
   const name = author?.display_name || author?.name || "Unknown";
+  const nip05Verified = useNip05(author?.nip05, event.pubkey) === "verified";
   let npub = "";
   try { npub = npubFromPubkey(event.pubkey); } catch { /* ignore */ }
 
@@ -87,7 +89,7 @@ export function EmbeddedNoteCard({
             <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
           </Avatar>
           <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{name}</span>
-          {author?.nip05 && <BadgeCheck className="h-3.5 w-3.5 text-sky-500 shrink-0" />}
+          {nip05Verified && <BadgeCheck className="h-3.5 w-3.5 text-sky-500 shrink-0" />}
         </a>
         <div className="ml-auto flex items-center gap-2 shrink-0">
           {typeof effectiveScore01 === "number" && Number.isFinite(effectiveScore01) && (

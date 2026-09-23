@@ -7,7 +7,7 @@ import rehypeSanitize from "rehype-sanitize";
 import { VideoEmbed, videoEmbedFor } from "@/components/share/VideoEmbed";
 import { LinkChip } from "@/components/share/LinkPreview";
 import { nip19 } from "nostr-tools";
-import { ArrowRight, BadgeCheck, ExternalLink, Loader2, FileText } from "lucide-react";
+import { ArrowRight, ExternalLink, Loader2, FileText } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { fetchAddressableEvents, fetchProfile } from "@/services/nostr";
@@ -29,6 +29,7 @@ import { BrainLogo } from "@/components/BrainLogo";
 import { PublicPageHeader } from "@/components/PublicPageHeader";
 import { useHasSession } from "@/hooks/useHasSession";
 import { useConnectionSpeed, videoPreload } from "@/lib/connection";
+import { Nip05Check } from "@/components/Nip05Check";
 
 
 const IMG_RE = /\.(png|jpe?g|gif|webp|avif|bmp|svg)(\?.*)?$/i;
@@ -304,7 +305,7 @@ export default function ArticlePage() {
                   <div className="flex items-center gap-1.5">
                     <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{authorName}</span>
                     <TierWordChip score01={score01} />
-                    {profile.nip05 && <BadgeCheck className="h-4 w-4 text-sky-500 shrink-0" />}
+                    <Nip05Check nip05={profile.nip05} pubkey={ev.pubkey} className="h-4 w-4 text-sky-500 shrink-0" />
                   </div>
                   <span className="text-xs text-slate-400 dark:text-slate-500">{publishedAgo(ev)}</span>
                 </div>
