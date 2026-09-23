@@ -85,7 +85,9 @@ export function EmbeddedArticleCard({ event, author , trustScore01 }: { trustSco
           alt={coverAlt}
           loading="lazy"
           onError={() => setImgBroken(true)}
-          className="h-40 w-full object-cover sm:h-auto sm:w-32 sm:self-stretch shrink-0 bg-slate-100 dark:bg-slate-800"
+          // The NIP cover's title sits at its foot; in the narrow desktop
+          // column the crop keeps the device, not half a word.
+          className={`h-40 w-full object-cover sm:h-auto sm:w-32 sm:self-stretch shrink-0 bg-slate-100 dark:bg-slate-800 ${coverSrc === specCover ? "sm:object-top" : ""}`}
         />
 
         <div className="min-w-0 flex-1 p-3">
