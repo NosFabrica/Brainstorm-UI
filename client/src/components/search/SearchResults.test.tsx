@@ -1187,6 +1187,34 @@ describe("SearchResults", () => {
     expect(screen.getByTestId("text-search-stats")).toHaveTextContent("1 of 2 match");
   });
 
+  /**
+   * Conduit's sellers publish no shop link at all — the Merchant Portal stamps
+   * a client tag and nothing else — so their cards had no corner at all. When
+   * the app is known by name, the corner opens the product there, referral
+   * included; still the icon alone over the photo, the words on hover.
+   */
+  it("a Conduit listing's corner opens it on Conduit, by name", async () => {
+    setUrlTab("shop");
+    render(<SearchResults query="beanie" pov="nosfabrica" />);
+    const seller = "6".repeat(64);
+    emit({
+      hits: [{
+        event: ev("c1", 30402, seller, "Spartan Beanie", [["d", "c1"], ["title", "Spartan Beanie"], ["price", "21000", "sats"], ["image", "https://img/4.jpg"], ["t", "hat"], ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"]]),
+        author: author(seller, "Black Sheep"),
+        rank: null,
+      }],
+      eose: true,
+      timeMs: 130,
+    });
+
+    const open = within(await screen.findByTestId("listing-card-c1")).getByTestId("listing-open-c1");
+    expect(open.getAttribute("href")).toMatch(/^https:\/\/shop\.conduit\.market\/products\/naddr1[a-z0-9]+\?ref=brainstorm$/);
+    expect(open.getAttribute("title")).toBe("Open in Conduit");
+    expect(open.getAttribute("aria-label")).toBe("Open in Conduit");
+    expect(open.textContent?.trim()).toBe("");
+    expect(within(open).getByTestId("favicon")).toHaveAttribute("src", "https://shop.conduit.market/favicon.svg");
+  });
+
   it("collapses recurring events on the Events tab behind a +N chip", async () => {
     setUrlTab("events");
     render(<SearchResults query="liverpool" pov="nosfabrica" />);
