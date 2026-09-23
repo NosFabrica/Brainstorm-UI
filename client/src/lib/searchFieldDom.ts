@@ -106,19 +106,18 @@ const shortAddr = (coord: string): string => {
  *    a pill sitting inside the search field", and the pills that joined it should not each
  *    invent their own.
  *
- * The right padding is cut because every pill carries an ×, whose own 20px box fills it —
- * the mirror of the person pill cutting its LEFT padding for a face.
+ * The right padding is cut because every pill carries an ×, whose own box fills it — the
+ * mirror of the person pill cutting its LEFT padding for a face.
+ *
+ * It carries no vertical padding or margin, and that is the whole reason the bar keeps its
+ * height: 14px text on a 20px line inside a 1px border is 22px, which FITS the field's 24.8px
+ * line box. Anything taller stretches the line, and the bar grows the moment a token forms.
+ * The 2.8px left over is also what separates wrapped rows.
  */
 const PILL =
   "inline-flex max-w-full select-none items-center gap-1.5 whitespace-nowrap rounded-full border" +
-  " my-[3px] py-0.5 pl-2 pr-1 align-middle text-sm font-medium leading-5";
+  " pl-2 pr-1 align-middle text-sm font-medium leading-5";
 
-/**
- * A pill is 26px tall in a 24.8px line, so a query that wraps puts its rows flush against each
- * other — the line box grows to exactly the pill and no further. The 3px of vertical margin is
- * what separates them: an inline-flex box contributes its MARGIN box to the line's height, so
- * rows of pills sit 6px apart while a row of plain words keeps the field's own line-height.
- */
 const pillClass = (t: Parameters<typeof tone>[0]): string => {
   const c = tone(t);
   // The neutral tone fills with slate-100 and outlines with slate-200 — a step apart, which
@@ -137,12 +136,12 @@ const pillClass = (t: Parameters<typeof tone>[0]): string => {
  */
 const FACE_PILL = "!pl-0.5";
 /**
- * The face fills the pill's inner height exactly (20px inside 2px of padding and a 1px border),
- * so a person pill stands the same 26px tall as every other one. ScopeChip's face was larger
- * because it stood alone beside the text; these sit in a row with the rest of the grammar, and
- * one of them being taller is what reads as "off".
+ * The face sits inside the pill's 20px content box with a pixel to spare, so a person pill
+ * stands the same 22px as every other one. ScopeChip's face was 24px because it stood alone
+ * beside the text; these sit in a row with the rest of the grammar, in a bar whose height they
+ * are not allowed to change.
  */
-const FACE_SIZE = "h-5 w-5 shrink-0 rounded-full object-cover";
+const FACE_SIZE = "h-[18px] w-[18px] shrink-0 rounded-full object-cover";
 /** The prefix inside a pill — `since`, `group:`, `site:` — a shade quieter than its value. */
 const KEY_CLASS = "opacity-70";
 const VALUE_CLASS = "max-w-[14rem] truncate";
@@ -161,7 +160,7 @@ const X_ICON =
 const removeHtml = (what: string, testId: string) =>
   `<button type="button" tabindex="-1" data-remove="1" data-testid="${testId}"` +
   ` aria-label="Remove ${esc(what)}"` +
-  ' class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-slate-400' +
+  ' class="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full text-slate-400' +
   ' transition-colors hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700' +
   ` dark:hover:text-slate-200">${X_ICON}</button>`;
 

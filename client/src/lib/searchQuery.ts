@@ -300,16 +300,26 @@ const SETTLES = new Set([
 /**
  * The segments to draw: [tokenize]'s, minus the settling token the caret is inside, which stays
  * text until the caret leaves. `typingAt` null draws everything.
+ *
+ * "Inside" is the whole WORD, not the token's own span. A token can end before its word does —
+ * a scope's value may not end in sentence punctuation, so `site:example.` tokenizes as
+ * `site:example` with a stranded `.`. Measured against the token alone, the caret has left it
+ * the moment the period is typed, and the pill snaps shut around half a url with the period
+ * outside it; the next keystroke then lands beyond the sealed pill. So the window runs to the
+ * end of the run of non-space text that follows the token, and the pill waits for the space.
  */
 export function drawable(text: string, typingAt: number | null): Segment[] {
   const segs = tokenize(text);
   if (typingAt == null) return segs;
   let at = 0;
-  return segs.map((seg) => {
+  return segs.map((seg, i) => {
     const start = at;
     if (seg.type === "text") { at += seg.text.length; return seg; }
     at += seg.raw.length;
-    if (!SETTLES.has(seg.type) || typingAt <= start || typingAt > at) return seg;
+    // Only a text segment can trail a token inside one word; two adjacent tokens are two words.
+    const next = segs[i + 1];
+    const tail = next?.type === "text" ? (/^\S*/.exec(next.text) as RegExpExecArray)[0].length : 0;
+    if (!SETTLES.has(seg.type) || typingAt <= start || typingAt > at + tail) return seg;
     return { type: "text", text: seg.raw };
   });
 }

@@ -322,6 +322,11 @@ export function SearchField({
             : combobox?.activeDescendant
         }
         className={cn(
+          // `leading-[1.55]` is the height this bar has always been, and the pill is built to
+          // fit INSIDE it (22px in a 24.8px line box) so the bar never grows by a pixel when a
+          // token forms. The line box is what separates wrapped rows, too — a pill with a
+          // margin would stretch the line and take the bar with it.
+          //
           // `whitespace-pre-wrap` is load-bearing, not cosmetic: under the default collapsing
           // the browser drops the trailing space this field renders after a pill, and the
           // next word lands glued to it (`#nostrlabel:`). `break-words` so a pasted npub

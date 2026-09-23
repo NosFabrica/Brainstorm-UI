@@ -287,14 +287,18 @@ describe("the group picker under group:", () => {
 });
 
 describe("what running it in a browser caught", () => {
-  it("pills carry vertical margin, so a wrapped query's rows do not sit flush", () => {
-    // A pill is 26px tall in a 24.8px line: the line box grows to exactly the pill and no
-    // further, so without this the rows of a wrapped query touch. An inline-flex box
-    // contributes its MARGIN box to the line's height, which is what opens the 6px gap.
-    // (jsdom has no layout, so the class is what there is to assert.)
+  it("a pill fits inside the line box, so the bar cannot grow when a token forms", () => {
+    // 14px text on a 20px line inside a 1px border is a 22px pill, which fits the field's
+    // 24.8px line box with room to spare. Vertical padding or margin would put it OVER that
+    // line box — an inline-flex box contributes its margin box to the line's height — and the
+    // bar would get taller the moment a pill appeared. Measured in a browser: the bar is 54.8px
+    // empty, with plain words, and with pills. (jsdom has no layout, so the class is the assert.)
     mount({ value: "#nostr since:2026-01-02" });
-    for (const pill of box().querySelectorAll("[data-token]")) {
-      expect((pill as HTMLElement).className).toContain("my-[3px]");
+    const pills = [...box().querySelectorAll("[data-token]")] as HTMLElement[];
+    expect(pills.length).toBeGreaterThan(0);
+    for (const pill of pills) {
+      expect(pill.className).toContain("leading-5");
+      expect(pill.className).not.toMatch(/(^|\s)!?-?(my|mt|mb|py|pt|pb)-/);
     }
   });
 
