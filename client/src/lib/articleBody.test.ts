@@ -77,6 +77,16 @@ describe("prepareArticleBody — a spec's details", () => {
     expect(body).not.toMatch(/^---/m); // the rule that closed the front matter goes with it
   });
 
+  // An unnumbered NIP (klabo's AI Agent Communication, seen 2026-09-23)
+  // opens `# NIP-XX`, then its name as a subtitle, then the status line. The
+  // placeholder heading is the author's and stays; the status is still the
+  // spec's details.
+  it("lifts the status from under an author's own opening heading", () => {
+    const { status, body } = prepareArticleBody("# NIP-XX\n\n## AI Agent Messages\n\n`draft` `optional`\n\nThis NIP defines a protocol.", "AI Agent Communication");
+    expect(status).toEqual(["draft", "optional"]);
+    expect(body).toBe("# NIP-XX\n\n## AI Agent Messages\n\nThis NIP defines a protocol.");
+  });
+
   it("only a known status word is a status — an unknown backticked token stays in the prose", () => {
     const { status, body } = prepareArticleBody("# T\n\n`hello-world`\n\nProse.", "T");
     expect(status).toEqual([]);
