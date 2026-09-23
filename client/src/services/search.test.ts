@@ -1727,6 +1727,12 @@ describe("kindsForTab", () => {
     expect(kindsForTab("articles")).toContain(30817);
   });
 
+  // Benjamin (2026-09-23): for adoption, NIPs get their own entry under More
+  // — the word people actually search — while staying labelled inside Articles.
+  it("NIPs is a vertical of its own: specs alone", () => {
+    expect(kindsForTab("nips")).toEqual([30817]);
+  });
+
   // Vitor's split: "Code & git" mixed content types (and probing showed its
   // snippet kind was ~90% JSON junk). Apps = Zap Store listings; Repos = the
   // genuinely git-shaped kinds. Kind 1337 leaves the tabs entirely.

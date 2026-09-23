@@ -85,12 +85,33 @@ describe("reading a spec", () => {
     expect(body.textContent).not.toMatch(/`nostr:`/); // inline code without backtick decoration
   });
 
-  it("names the kinds a spec covers", async () => {
+  // A kind number alone tells a reader nothing (Benjamin: "kind 37570 — how
+  // can we enhance this?"). Each kind wears the name its author gave it and
+  // is a search for events of that kind.
+  it("names the kinds a spec covers, and each one is a search for that kind", async () => {
     await open(spec(30817, [["k", "5905", "DVM Job Request"], ["k", "7000"]]));
 
     const kinds = screen.getByTestId("article-kinds");
-    expect(within(kinds).getByText(/5905/)).toBeInTheDocument();
-    expect(within(kinds).getByText(/7000/)).toBeInTheDocument();
+    const job = within(kinds).getByTestId("article-kind-5905");
+    expect(job).toHaveTextContent("5905");
+    expect(job).toHaveTextContent("DVM Job Request");
+    expect(job.getAttribute("href")).toBe("/?q=kind%3A5905");
+    expect(within(kinds).getByTestId("article-kind-7000")).toHaveTextContent("7000");
+  });
+
+  it("reads a spec's front matter as its details: id gone, status, kinds named, tags listed", async () => {
+    const TSM = "Trust Service Machines (TSM)\n===\n\n`tsm`\n\n`draft`\n\n`kind` `37570` \"TSM Service Announcement\"\n\n`tag` `B` \"price in millisats\"\n\n---\n\nNostr needs a standard.";
+    await open({ ...spec(30817, [["k", "37570"]], TSM), tags: [["d", "tsm"], ["title", "Trust Service Machines (TSM )"], ["k", "37570"]] });
+
+    const body = screen.getByTestId("article-body");
+    expect(body.querySelector("h1")).toBeNull();
+    expect(body.textContent).not.toContain("tsm-trust");
+    expect(body.textContent).not.toContain("kind");
+    expect(body.textContent).toContain("Nostr needs a standard.");
+    expect(screen.getByTestId("article-status")).toHaveTextContent("draft");
+    expect(within(screen.getByTestId("article-kinds")).getByTestId("article-kind-37570")).toHaveTextContent("TSM Service Announcement");
+    expect(screen.getByTestId("article-tags")).toHaveTextContent("B");
+    expect(screen.getByTestId("article-tags")).toHaveTextContent("price in millisats");
   });
 
   it("a wiki mirror of a NIP gets the same treatment", async () => {
@@ -106,7 +127,10 @@ describe("reading a spec", () => {
 
     const code = [...screen.getByTestId("article-body").querySelectorAll("code")].find((c) => /npub1/.test(c.textContent ?? ""));
     expect(code).toBeTruthy();
-    expect(screen.getByTestId("article-body").className).toMatch(/prose-code:break-all|prose-code:\[overflow-wrap:anywhere\]/);
+    // The wrap and tint live in a stylesheet rule scoped to inline code only
+    // (`.article-prose :where(code):not(:where(pre *))`), so a fenced block
+    // never gets striped; the class hook and the backtick reset are the seam.
+    expect(screen.getByTestId("article-body").className).toMatch(/\barticle-prose\b/);
     expect(screen.getByTestId("article-body").className).toMatch(/prose-code:before:content-none/);
   });
 });

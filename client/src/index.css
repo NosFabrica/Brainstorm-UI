@@ -675,3 +675,17 @@ input:-webkit-autofill {
 @media (prefers-reduced-motion: reduce) {
   .np-rise, .np-drop { animation: none; }
 }
+
+/* The article reader's code. Inline code — a `nostr:` scheme, an example URI —
+   wears a quiet tint and wraps, so a long identifier never pushes the page
+   sideways on a phone. Code inside a block is left to the block: tinting each
+   line of a <pre> made every fenced example look striped. */
+@layer components {
+  .article-prose :where(code):not(:where(pre *)) {
+    @apply rounded bg-slate-100 px-1 py-0.5 font-normal text-slate-800 dark:bg-slate-800 dark:text-slate-100;
+    overflow-wrap: anywhere;
+  }
+  .article-prose :where(pre) {
+    @apply rounded-xl;
+  }
+}

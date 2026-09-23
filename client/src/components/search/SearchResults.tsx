@@ -118,6 +118,9 @@ const MORE_TABS: { key: SearchTab; label: string }[] = [
   { key: "apps", label: "Apps" },
   { key: "shop", label: "Shop" },
   { key: "repos", label: "Repos" },
+  // Protocol specs (kind 30817), by the name people search for. They stay in
+  // Articles too, labelled Spec — this is where people look.
+  { key: "nips", label: "NIPs" },
   { key: "events", label: "Events" },
   { key: "music", label: "Music" },
   { key: "live", label: "Live" },
@@ -581,7 +584,8 @@ export function SearchResults({
   // put the page named "List of comedians" 26th under a month of news; best
   // match had it first, the other comedian lists behind it (relay probe,
   // 2026-09-07). A wordless browse still asks newest — there is nothing to match.
-  const articlesByRelevance = tab === "articles" && !!splitFilters(query).text;
+  // Specs are evergreen too.
+  const articlesByRelevance = (tab === "articles" || tab === "nips") && !!splitFilters(query).text;
   const effectiveQuery =
     !userSorted && tab !== "everything" && tab !== "people" && !articlesByRelevance
       ? `${safeQuery} sort:recent`.trim()

@@ -28,7 +28,58 @@ describe("prepareArticleBody", () => {
 
   it("leaves a body alone when its heading is its own, and when there is no status line", () => {
     const own = "# Why Bitcoin\n\nA short case.";
-    expect(prepareArticleBody(own, "Something else")).toEqual({ body: own, status: [] });
+    expect(prepareArticleBody(own, "Something else")).toMatchObject({ body: own, status: [], kinds: [], tags: [] });
     expect(prepareArticleBody("`draft` is a word in a sentence.", "T").status).toEqual([]);
+  });
+});
+
+/**
+ * A spec's front matter, the way authors actually write it (Trust Service
+ * Machines, kind 30817, 2026-03): an underlined title, then the spec's own id,
+ * its status, and `kind`/`tag` lines that name what it defines — all as
+ * backticked tokens, then a rule. That is the spec's details, not its prose.
+ */
+const TSM = [
+  "Trust Service Machines (TSM)",
+  "===",
+  "",
+  "`tsm-trust-service-machines`",
+  "",
+  "`draft`",
+  "",
+  "`kind` `37570` \"TSM Service Announcement\"",
+  "",
+  "`kind` `37571` \"TSM Output Standard\"",
+  "",
+  "`tag` `n` \"nip reference\"",
+  "",
+  "`tag` `B` \"price in millisats\"",
+  "",
+  "---",
+  "",
+  "Nostr needs an interoperable standard for requesting web-of-trust computation.",
+].join("\n");
+
+describe("prepareArticleBody — a spec's details", () => {
+  it("reads an underlined title as the title, even with a stray space in the tag", () => {
+    const { body } = prepareArticleBody(TSM, "Trust Service Machines (TSM )", { identifier: "tsm-trust-service-machines" });
+    expect(body.startsWith("Nostr needs")).toBe(true);
+  });
+
+  it("lifts the id, the status, and the kinds and tags it defines, out of the prose", () => {
+    const { body, status, kinds, tags } = prepareArticleBody(TSM, "Trust Service Machines (TSM )", { identifier: "tsm-trust-service-machines" });
+
+    expect(status).toEqual(["draft"]);
+    expect(kinds).toEqual([{ kind: "37570", label: "TSM Service Announcement" }, { kind: "37571", label: "TSM Output Standard" }]);
+    expect(tags).toEqual([{ name: "n", label: "nip reference" }, { name: "B", label: "price in millisats" }]);
+    expect(body).not.toContain("tsm-trust-service-machines");
+    expect(body).not.toContain("`kind`");
+    expect(body).not.toMatch(/^---/m); // the rule that closed the front matter goes with it
+  });
+
+  it("only a known status word is a status — an unknown backticked token stays in the prose", () => {
+    const { status, body } = prepareArticleBody("# T\n\n`hello-world`\n\nProse.", "T");
+    expect(status).toEqual([]);
+    expect(body).toContain("`hello-world`");
   });
 });
