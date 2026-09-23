@@ -665,7 +665,10 @@ export function buildFilters(text: string, opts: BuildOptions): Filter[] {
       }
     }
   }
-  if (scoped.length) {
+  // Comments are all a scope can answer, so a tab (or an Everything section) that holds no
+  // comments asks nothing for it — otherwise People, Articles, Happening and Media would each
+  // fill with the same comments.
+  if (scoped.length && (!kinds || kinds.includes(COMMENT_KIND))) {
     filters.push({ ...base, kinds: [COMMENT_KIND], "#I": scoped, limit });
     filters.push({ ...base, kinds: [COMMENT_KIND], "#i": scoped, limit: side });
   }

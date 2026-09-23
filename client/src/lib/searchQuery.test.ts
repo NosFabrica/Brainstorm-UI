@@ -226,6 +226,14 @@ describe("buildFilters — one REQ, filters ORed", () => {
     expect(filters[0]["#I"]).toEqual(["isbn:9780593330005"]);
   });
 
+  it("a NIP-73 scope asks nothing of a tab that holds no comments", () => {
+    expect(buildFilters("site:amethyst.social", { limit, kinds: [0] })).toEqual([]);
+    expect(buildFilters("site:amethyst.social", { limit, kinds: [30023] })).toEqual([]);
+    const notes = buildFilters("site:amethyst.social", { limit, kinds: [1, 11, 1111] });
+    expect(notes.length).toBeGreaterThan(0);
+    expect(notes.every((f) => f.kinds?.[0] === 1111)).toBe(true);
+  });
+
   it("the words, the window and the tab ride every filter of the union", () => {
     const filters = buildFilters("gm #nostr since:2026-01-02", { limit, kinds: [1] });
     for (const f of filters) {
