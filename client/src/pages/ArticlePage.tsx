@@ -15,6 +15,8 @@ import { apiClient } from "@/services/api";
 import { npubFromPubkey } from "@/lib/shareId";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { wikiToMarkdown } from "@/lib/wiki";
+import { prepareArticleBody } from "@/lib/articleBody";
+import { Chip } from "@/components/ui/chip";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { EventThread } from "@/components/share/EventThread";
@@ -150,6 +152,13 @@ export default function ArticlePage() {
   const sourceApp = ev ? sourceAppFor(ev) : null;
   const tag = (k: string) => ev?.tags.find((t) => t[0] === k)?.[1];
   const title = tag("title") || "Untitled article";
+  // The page shows the title above the byline; a spec's `# Title` and its
+  // `draft` `optional` status line leave the body and read as themselves.
+  const prepared = useMemo(
+    () => prepareArticleBody(ev ? (ev.kind === 30818 ? wikiToMarkdown(ev.content || "") : ev.content || "") : "", title),
+    [ev, title],
+  );
+  const coveredKinds = ev?.kind === 30817 ? [...new Set(ev.tags.filter((t) => t[0] === "k" && t[1]).map((t) => t[1]))] : [];
   const summary = tag("summary") || "";
   // A wiki page mirrored from elsewhere names its source in an "s" tag
   // (GitCitadel: the Wikipedia URL). Attribution is owed, and one line does it.
@@ -218,6 +227,24 @@ export default function ArticlePage() {
               {title}
             </h1>
             {summary && <p className="mt-2 text-lg text-slate-500 dark:text-slate-400 leading-snug">{summary}</p>}
+            {(prepared.status.length > 0 || coveredKinds.length > 0) && (
+              <div className="mt-3 flex flex-wrap items-center gap-1.5">
+                {prepared.status.length > 0 && (
+                  <span className="flex flex-wrap gap-1.5" data-testid="article-status">
+                    {prepared.status.map((s) => (
+                      <Chip key={s} tone="slate" size="sm">{s}</Chip>
+                    ))}
+                  </span>
+                )}
+                {coveredKinds.length > 0 && (
+                  <span className="flex flex-wrap gap-1.5 font-mono text-[11px]" data-testid="article-kinds">
+                    {coveredKinds.map((k) => (
+                      <Chip key={k} tone="slate" size="sm">kind {k}</Chip>
+                    ))}
+                  </span>
+                )}
+              </div>
+            )}
             {sourceUrl && sourceName && (
               <p className="mt-2 text-xs text-slate-500 dark:text-slate-400" data-testid="article-source">
                 Mirrored from{" "}
@@ -275,9 +302,11 @@ export default function ArticlePage() {
             </div>
 
             {/* Full article body — Brainstorm is the reading destination. */}
-            <div className="mt-6 prose prose-slate dark:prose-invert max-w-none prose-headings:font-bold prose-a:text-brand-link prose-img:rounded-xl" data-testid="article-body">
+            {/* Inline code wears no decorative backticks (the typography plugin's
+                default) and wraps — a spec's example URIs used to push the page sideways. */}
+            <div className="mt-6 prose prose-slate dark:prose-invert max-w-none prose-headings:font-bold prose-a:text-brand-link prose-img:rounded-xl prose-code:before:content-none prose-code:after:content-none prose-code:break-all prose-code:rounded prose-code:bg-slate-100 prose-code:px-1 prose-code:py-0.5 prose-code:font-normal dark:prose-code:bg-slate-800 prose-pre:overflow-x-auto" data-testid="article-body">
               <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={mdComponents}>
-                {ev.kind === 30818 ? wikiToMarkdown(ev.content || "") : ev.content || ""}
+                {prepared.body}
               </ReactMarkdown>
             </div>
 

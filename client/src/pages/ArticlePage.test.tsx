@@ -1,17 +1,23 @@
 // @vitest-environment jsdom
 /**
- * The article reader's way out to the app that published the piece. A recipe
- * from zap.cooking gets an explicit "Open in Zap.cooking" beside the ⋯ menu —
- * the primary hand-off to where the recipe has its timings and servings —
- * while an ordinary article gets nothing new: Brainstorm is the destination,
- * and other clients stay behind the menu.
+ * The article reader, two ways in.
  *
- * The page had no test until now, so the mocks are the page's whole world:
- * the relays, the author's profile, the trust score, and the heavy siblings
- * (thread, header, more-from-author) that would otherwise reach the network.
+ * A recipe from zap.cooking gets an explicit "Open in Zap.cooking" beside the
+ * ⋯ menu — the primary hand-off to where the recipe has its timings and
+ * servings — while an ordinary article gets nothing new: Brainstorm is the
+ * destination, and other clients stay behind the menu.
+ *
+ * A spec (Benjamin, 2026-09-23, reading NIP-21 on the page: the title appeared
+ * twice, `` `draft` `optional` `` showed as raw backticks, and the example
+ * URIs ran off the side of the screen) shows its title once, its status as
+ * chips, the kinds it covers, and inline code that wraps without decoration.
+ *
+ * The page had no test until now; the mocks are its whole world: the relays,
+ * the author's profile, the trust score, and the heavy siblings (thread,
+ * header, more-from-author) that would otherwise reach the network.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AccountManager } from "applesauce-accounts";
 import { AccountsProvider, EventStoreProvider } from "applesauce-react/providers";
@@ -19,17 +25,17 @@ import { nip19 } from "nostr-tools";
 import { eventStore } from "@/lib/eventStore";
 import type { AccountMetadata } from "@/accounts/metadata";
 
-const COOK = "9".repeat(64);
-const recipeEvent = vi.fn((): Record<string, unknown> | null => null);
+const AUTHOR = "9".repeat(64);
+const served = vi.fn((): Record<string, unknown> | null => null);
 
 vi.mock("@/services/nostr", () => ({
   fetchAddressableEvents: async (ptrs: { kind: number; pubkey: string; identifier: string }[]) => {
     const map = new Map<string, unknown>();
-    const ev = recipeEvent();
+    const ev = served();
     if (ev) map.set(`${ptrs[0].kind}:${ptrs[0].pubkey}:${ptrs[0].identifier}`, ev);
     return map;
   },
-  fetchProfile: async () => ({ name: "SkyLords" }),
+  fetchProfile: async () => ({ name: "hzrd149" }),
 }));
 vi.mock("@/services/api", () => ({ apiClient: { getHouseInfluence: async () => null } }));
 vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => false }));
@@ -42,15 +48,20 @@ vi.mock("@/components/share/EntityMenu", () => ({ EntityMenu: () => <button type
 
 import ArticlePage from "./ArticlePage";
 
-const article = (tags: string[][]) => ({
+const NIP21 = "# NIP-21\n\n## `nostr:` URI scheme\n\n`draft` `optional`\n\nThis NIP standardizes a URI scheme.\n\n- `nostr:npub1sn0wdenkukak0d9dfczzeacvhkrgz92ak56egt7vdgzn8pv2wfqqhrjdv9`";
+
+/** An addressable event as the relay would hand it back. */
+const event = (kind: number, identifier: string, title: string, tags: string[][], content: string) => ({
   id: "2".repeat(64),
-  kind: 30023,
-  pubkey: COOK,
-  created_at: 1_790_000_000,
-  content: "# Gırık\n\nHandmade dough, chicken and rice.",
+  kind,
+  pubkey: AUTHOR,
+  created_at: 1_727_798_308,
+  content,
   sig: "s".repeat(128),
-  tags: [["d", "girik"], ["title", "Gırık"], ...tags],
+  tags: [["d", identifier], ["title", title], ...tags],
 });
+const article = (tags: string[][]) => event(30023, "girik", "Gırık", tags, "# Gırık\n\nHandmade dough, chicken and rice.");
+const spec = (kind: number, tags: string[][]) => event(kind, "nip-21", "NIP-21", [["summary", "Nostr - URI scheme"], ...tags], NIP21);
 
 /** The page's providers, with nobody signed in: the store the app mounts, an empty account manager, a query client. */
 const renderPage = () =>
@@ -64,9 +75,10 @@ const renderPage = () =>
     </QueryClientProvider>,
   );
 
-const open = async (ev: ReturnType<typeof article>) => {
-  recipeEvent.mockReturnValue(ev);
-  const naddr = nip19.naddrEncode({ kind: 30023, pubkey: COOK, identifier: "girik" });
+const open = async (ev: ReturnType<typeof event>) => {
+  served.mockReturnValue(ev);
+  const identifier = ev.tags.find((t) => t[0] === "d")![1];
+  const naddr = nip19.naddrEncode({ kind: ev.kind, pubkey: AUTHOR, identifier });
   window.history.pushState({}, "", `/a/${naddr}`);
   renderPage();
   await waitFor(() => expect(screen.getByTestId("article-body")).toBeInTheDocument());
@@ -91,5 +103,47 @@ describe("the article reader", () => {
 
     expect(screen.queryByTestId("article-source-app")).toBeNull();
     expect(screen.getByTestId("article-menu")).toBeInTheDocument();
+  });
+});
+
+describe("reading a spec", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("shows the title once, and the status as chips instead of raw backticks", async () => {
+    await open(spec(30817, [["k", "1"]]));
+
+    const body = screen.getByTestId("article-body");
+    expect(body.querySelector("h1")).toBeNull(); // the page's own title is above the byline
+    const status = screen.getByTestId("article-status");
+    expect(status).toHaveTextContent("draft");
+    expect(status).toHaveTextContent("optional");
+    expect(body.textContent).not.toContain("`draft`");
+    expect(body.textContent).not.toMatch(/`nostr:`/); // inline code without backtick decoration
+  });
+
+  it("names the kinds a spec covers", async () => {
+    await open(spec(30817, [["k", "5905", "DVM Job Request"], ["k", "7000"]]));
+
+    const kinds = screen.getByTestId("article-kinds");
+    expect(within(kinds).getByText(/5905/)).toBeInTheDocument();
+    expect(within(kinds).getByText(/7000/)).toBeInTheDocument();
+  });
+
+  it("a wiki mirror of a NIP gets the same treatment", async () => {
+    await open(spec(30818, []));
+
+    expect(screen.getByTestId("article-body").querySelector("h1")).toBeNull();
+    expect(screen.getByTestId("article-status")).toHaveTextContent("draft");
+    expect(screen.queryByTestId("article-kinds")).toBeNull();
+  });
+
+  it("lets long inline code wrap instead of pushing the page sideways", async () => {
+    await open(spec(30817, []));
+
+    const body = screen.getByTestId("article-body");
+    const code = [...body.querySelectorAll("code")].find((c) => /npub1/.test(c.textContent ?? ""));
+    expect(code).toBeTruthy();
+    expect(body.className).toMatch(/prose-code:break-all|prose-code:\[overflow-wrap:anywhere\]/);
+    expect(body.className).toMatch(/prose-code:before:content-none/);
   });
 });
