@@ -519,8 +519,10 @@ function ComposedResultsBody({
           <ArticlesBento clusters={coveredArticles} scoreOf={scoreOf} />
           {articleRows.length > 0 && (
             <div className={`${coveredArticles.length > 0 ? "mt-2 " : ""}divide-y divide-slate-100 dark:divide-slate-800/60`}>
+              {/* The section says "Articles" for the rows, so an essay needs no
+                  label — a spec (30817) rides here too and must not pass for one. */}
               {articleRows.map((c) => (
-                <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} showType={false} />
+                <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} showType={c.primary.event.kind === 30817} />
               ))}
             </div>
           )}

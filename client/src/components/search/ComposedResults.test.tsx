@@ -371,6 +371,24 @@ describe("ComposedResults — media-rich sections", () => {
     expect(within(articles).getByTestId("article-tile-fa")).toBeInTheDocument();
   });
 
+  // Article rows on Everything hide their type — the section says "Articles".
+  // A spec (kind 30817) rides in that section and must not pass for an essay.
+  it("a spec in the Articles section says Spec; an essay still says nothing", async () => {
+    render(<ComposedResults query="scheduler dvm" pov="nosfabrica" onTabChange={vi.fn()} />);
+    const pk = "7".repeat(64);
+    sectionCall("articles").emit({
+      hits: [
+        { event: ev("s1", 30817, pk, "# Scheduler DVM", [["d", "s1"], ["title", "Scheduler DVM"], ["k", "5905"]]), author: author(pk, "russell"), rank: null },
+        { event: ev("e1", 30023, pk, "Body", [["d", "e1"], ["title", "Building a DVM"]]), author: author(pk, "russell"), rank: null },
+      ],
+      eose: true,
+      timeMs: 100,
+    });
+    const section = await screen.findByTestId("serp-section-articles");
+    expect(within(within(section).getByTestId("serp-row-s1")).getByTestId("serp-type")).toHaveTextContent("Spec");
+    expect(within(within(section).getByTestId("serp-row-e1")).queryByTestId("serp-type")).toBeNull();
+  });
+
   // Benjamin: "when Latest is showing there should always be 3" — a strip of
   // two reads as an accident. Pictured news leads; when that runs short the
   // strip fills to three with unpictured news, then with pictured notes.
