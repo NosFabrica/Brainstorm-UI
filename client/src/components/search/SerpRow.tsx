@@ -8,6 +8,7 @@
  * a div-with-navigate, so the external anchors inside stay legal HTML.
  */
 import { useCallback, useEffect, useState } from "react";
+import { sourceAppFor } from "@/lib/sourceApp";
 import { Link, useLocation } from "wouter";
 import type { NostrEvent } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -81,6 +82,14 @@ function quotedIn(text: string): { id: string; uri: string }[] {
     }
   }
   return out;
+}
+
+/**
+ * What this result calls itself, when the app that published it has a better
+ * word than the kind's: a kind-30023 on zap.cooking is a "Recipe".
+ */
+export function typeLabelFor(event: { kind: number; tags: string[][]; pubkey: string; id: string; content: string; created_at: number }): string {
+  return sourceAppFor(event)?.noun ?? kindTypeLabel(event.kind);
 }
 
 /** What kind of thing a result is — the Google-style micro label. */
@@ -508,7 +517,7 @@ export function SerpRow({
   return (
     <div {...rowProps}>
       <div className="min-w-0 flex-1">
-        <AuthorLine author={author} score={score} created_at={event.created_at} type={showType ? kindTypeLabel(event.kind) : undefined} feed={isFeedAccount(author)} />
+        <AuthorLine author={author} score={score} created_at={event.created_at} type={showType ? typeLabelFor(event) : undefined} feed={isFeedAccount(author)} />
         {title && (
           <div className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors [&>p]:font-semibold [&>p]:text-sm">
             <Snippet text={title} query={query} lines={2} />

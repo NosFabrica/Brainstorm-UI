@@ -268,6 +268,14 @@ describe("SerpRow", () => {
     expect(screen.getByTestId("serp-type")).toHaveTextContent("Note");
   });
 
+  // A recipe on zap.cooking is a kind-30023 with a tag; the row says Recipe, not Article.
+  it("a recipe's row says Recipe, not Article", () => {
+    const recipe = { ...note("# Gırık\n\nHandmade dough, chicken and rice.", [["d", "girik"], ["title", "Gırık"], ["t", "zapcooking"]]), kind: 30023 } as NostrEvent;
+    render(<SerpRow event={recipe} author={author} score={0.7} query="girik" />);
+    expect(screen.getByTestId("serp-type")).toHaveTextContent("Recipe");
+    expect(screen.getByTestId("serp-type")).not.toHaveTextContent("Article");
+  });
+
   // Benjamin, over Shosho's "GTAing with nostr:npub1de6l09… is Live!
   // https://i.nostr.build/….png": the person and the event should show
   // professionally, never as a raw id. The headline names the person and

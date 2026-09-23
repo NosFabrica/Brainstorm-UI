@@ -9,10 +9,13 @@ import { naddrForEvent } from "@/lib/articleLinks";
 import { articleBrief } from "@/lib/wiki";
 import articleDefault from "@/assets/article-default.webp";
 import specCover from "@/assets/nostr-implementation-decentralized-network-specs-cover.webp";
+import recipeCover from "@/assets/cooking-recipe-easy-recipe-steps-cover.webp";
 
-/** What the NIP cover shows — for search engines and screen readers alike. */
+/** What the default covers show — for search engines and screen readers alike. */
 export const SPEC_COVER_ALT = "Nostr Implementation — decentralized network specs";
+export const RECIPE_COVER_ALT = "Cooking Recipe — easy recipe steps";
 import type { MinimalEvent } from "@/lib/noteRefs";
+import { sourceAppFor } from "@/lib/sourceApp";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -67,10 +70,10 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
   // Fall back to the branded Brainstorm cover when an article has no image or
   // its image URL fails to load (dead host, hotlink block, etc.).
   const [imgBroken, setImgBroken] = useState(false);
-  // A spec wears the NIP cover, not the article one.
-  const fallbackCover = isSpec ? specCover : articleDefault;
+  // A spec wears the NIP cover, a recipe the recipe cover, the rest the article one.
+  const fallbackCover = isSpec ? specCover : sourceAppFor(event)?.noun === "Recipe" ? recipeCover : articleDefault;
   const coverSrc = !image || imgBroken ? fallbackCover : image;
-  const coverAlt = coverSrc === specCover ? SPEC_COVER_ALT : "";
+  const coverAlt = coverSrc === specCover ? SPEC_COVER_ALT : coverSrc === recipeCover ? RECIPE_COVER_ALT : "";
   const name = author?.display_name || author?.name || "Unknown";
   const naddr = naddrForEvent(event);
   const href = naddr ? `/a/${naddr}` : undefined;
@@ -110,7 +113,7 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
 
         <div className="min-w-0 flex-1 p-3">
           <p className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-brand-primary">
-            <FileText className="h-3 w-3" /> {isWiki ? "Wiki" : isSpec ? "Spec" : "Article"}
+            <FileText className="h-3 w-3" /> {isWiki ? "Wiki" : isSpec ? "Spec" : sourceAppFor(event)?.noun ?? "Article"}
           </p>
           <p className="text-sm font-bold text-slate-900 dark:text-slate-100 line-clamp-2 mt-0.5">{title}</p>
           {summary && <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1">{summary}</p>}
@@ -152,7 +155,7 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
                 className="inline-flex items-center gap-1 rounded-lg bg-brand-primary hover:bg-brand-primary-hover px-3 py-1.5 text-xs font-semibold text-white transition-colors"
                 data-testid="article-read"
               >
-                Read {isSpec ? "spec" : isWiki ? "wiki" : "article"} <ArrowRight className="h-3.5 w-3.5" />
+                Read {isSpec ? "spec" : isWiki ? "wiki" : (sourceAppFor(event)?.noun ?? "article").toLowerCase()} <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>
           )}

@@ -7,12 +7,13 @@ import rehypeSanitize from "rehype-sanitize";
 import { VideoEmbed, videoEmbedFor } from "@/components/share/VideoEmbed";
 import { LinkChip } from "@/components/share/LinkPreview";
 import { nip19 } from "nostr-tools";
-import { ArrowRight, BadgeCheck, Loader2, FileText } from "lucide-react";
+import { ArrowRight, BadgeCheck, ExternalLink, Loader2, FileText } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { fetchAddressableEvents, fetchProfile } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 import { npubFromPubkey } from "@/lib/shareId";
+import { sourceAppFor } from "@/lib/sourceApp";
 import { wikiToMarkdown } from "@/lib/wiki";
 import { prepareArticleBody } from "@/lib/articleBody";
 import { Chip } from "@/components/ui/chip";
@@ -147,6 +148,8 @@ export default function ArticlePage() {
   });
 
   const ev = articleQuery.data;
+  // Where this piece lives, when an app we know published it (a zap.cooking recipe).
+  const sourceApp = ev ? sourceAppFor(ev) : null;
   const tag = (k: string) => ev?.tags.find((t) => t[0] === k)?.[1];
   const title = tag("title") || "Untitled article";
   // The page shows the title above the byline; a spec's `# Title` and its
@@ -306,13 +309,30 @@ export default function ArticlePage() {
                   <span className="text-xs text-slate-400 dark:text-slate-500">{publishedAgo(ev)}</span>
                 </div>
               </Link>
-              {ptr && (
-                <EntityMenu
-                  entity={{ kind: "article", eventKind: ev.kind, bech32: naddr, uri: `nostr:${naddr}` }}
-                  copies={[{ id: "naddr", label: "Copy naddr", value: naddr, hint: "The article's address, for Nostr apps" }]}
-                  triggerTestId="article-menu"
-                />
-              )}
+              <div className="flex shrink-0 items-center gap-2">
+                {/* The app that published this piece — a recipe's home on
+                    zap.cooking — is the primary way out, named. Other clients
+                    stay behind the ⋯: Brainstorm is the destination. */}
+                {sourceApp && (
+                  <a
+                    href={sourceApp.url}
+                    target="_blank"
+                    rel="noopener"
+                    className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs font-semibold text-slate-800 dark:text-slate-100 transition-colors hover:border-brand-accent/40"
+                    title={`Opens ${sourceApp.host} in a new tab`}
+                    data-testid="article-source-app"
+                  >
+                    <img src={sourceApp.icon} alt="" className="h-3.5 w-3.5 rounded-sm" /> Open in {sourceApp.name} <ExternalLink className="h-3 w-3 text-slate-400" />
+                  </a>
+                )}
+                {ptr && (
+                  <EntityMenu
+                    entity={{ kind: "article", eventKind: ev.kind, bech32: naddr, uri: `nostr:${naddr}` }}
+                    copies={[{ id: "naddr", label: "Copy naddr", value: naddr, hint: "The article's address, for Nostr apps" }]}
+                    triggerTestId="article-menu"
+                  />
+                )}
+              </div>
             </div>
 
             {/* Full article body — Brainstorm is the reading destination. */}

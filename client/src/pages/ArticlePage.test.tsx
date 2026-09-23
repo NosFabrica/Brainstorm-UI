@@ -1,12 +1,20 @@
 // @vitest-environment jsdom
 /**
- * How the reader shows a spec. Benjamin (2026-09-23), reading NIP-21 on the
- * page: the title appeared twice, `` `draft` `optional` `` showed as raw
- * backticks, and the example URIs ran off the side of the screen. The reader
- * shows the title once, the status as chips, the kinds a spec covers, and
- * inline code that wraps and wears no decorative backticks.
+ * The article reader, two ways in.
  *
- * The page had no test until now; the mocks are its whole world.
+ * A recipe from zap.cooking gets an explicit "Open in Zap.cooking" beside the
+ * ⋯ menu — the primary hand-off to where the recipe has its timings and
+ * servings — while an ordinary article gets nothing new: Brainstorm is the
+ * destination, and other clients stay behind the menu.
+ *
+ * A spec (Benjamin, 2026-09-23, reading NIP-21 on the page: the title appeared
+ * twice, `` `draft` `optional` `` showed as raw backticks, and the example
+ * URIs ran off the side of the screen) shows its title once, its status as
+ * chips, the kinds it covers, and inline code that wraps without decoration.
+ *
+ * The page had no test until now; the mocks are its whole world: the relays,
+ * the author's profile, the trust score, and the heavy siblings (thread,
+ * header, more-from-author) that would otherwise reach the network.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
@@ -42,16 +50,20 @@ import ArticlePage from "./ArticlePage";
 
 const NIP21 = "# NIP-21\n\n## `nostr:` URI scheme\n\n`draft` `optional`\n\nThis NIP standardizes a URI scheme.\n\n- `nostr:npub1sn0wdenkukak0d9dfczzeacvhkrgz92ak56egt7vdgzn8pv2wfqqhrjdv9`";
 
-const spec = (kind: number, tags: string[][], content = NIP21) => ({
+/** An addressable event as the relay would hand it back. */
+const event = (kind: number, identifier: string, title: string, tags: string[][], content: string) => ({
   id: "2".repeat(64),
   kind,
   pubkey: AUTHOR,
   created_at: 1_727_798_308,
   content,
   sig: "s".repeat(128),
-  tags: [["d", "nip-21"], ["title", "NIP-21"], ["summary", "Nostr - URI scheme"], ...tags],
+  tags: [["d", identifier], ["title", title], ...tags],
 });
+const article = (tags: string[][]) => event(30023, "girik", "Gırık", tags, "# Gırık\n\nHandmade dough, chicken and rice.");
+const spec = (kind: number, tags: string[][]) => event(kind, "nip-21", "NIP-21", [["summary", "Nostr - URI scheme"], ...tags], NIP21);
 
+/** The page's providers, with nobody signed in: the store the app mounts, an empty account manager, a query client. */
 const renderPage = () =>
   render(
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })}>
@@ -63,12 +75,36 @@ const renderPage = () =>
     </QueryClientProvider>,
   );
 
-const open = async (ev: ReturnType<typeof spec>) => {
+const open = async (ev: ReturnType<typeof event>) => {
   served.mockReturnValue(ev);
-  window.history.pushState({}, "", `/a/${nip19.naddrEncode({ kind: ev.kind, pubkey: AUTHOR, identifier: "nip-21" })}`);
+  const identifier = ev.tags.find((t) => t[0] === "d")![1];
+  const naddr = nip19.naddrEncode({ kind: ev.kind, pubkey: AUTHOR, identifier });
+  window.history.pushState({}, "", `/a/${naddr}`);
   renderPage();
   await waitFor(() => expect(screen.getByTestId("article-body")).toBeInTheDocument());
+  return naddr;
 };
+
+describe("the article reader", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("offers a recipe's own home — Open in Zap.cooking — beside the menu", async () => {
+    const naddr = await open(article([["t", "zapcooking"], ["t", "zapcooking-girik"]]));
+
+    const link = screen.getByTestId("article-source-app");
+    expect(link).toHaveTextContent(/^Open in Zap\.cooking$/);
+    expect(link.getAttribute("href")).toBe(`https://zap.cooking/recipe/${naddr}`);
+    expect(link.getAttribute("target")).toBe("_blank");
+    expect(screen.getByTestId("article-menu")).toBeInTheDocument();
+  });
+
+  it("offers an ordinary article nothing extra", async () => {
+    await open(article([["t", "bitcoin"]]));
+
+    expect(screen.queryByTestId("article-source-app")).toBeNull();
+    expect(screen.getByTestId("article-menu")).toBeInTheDocument();
+  });
+});
 
 describe("reading a spec", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -105,7 +141,7 @@ describe("reading a spec", () => {
 
   it("reads a spec's front matter as its details: id gone, status, kinds named, tags listed", async () => {
     const TSM = "Trust Service Machines (TSM)\n===\n\n`tsm`\n\n`draft`\n\n`kind` `37570` \"TSM Service Announcement\"\n\n`tag` `B` \"price in millisats\"\n\n---\n\nNostr needs a standard.";
-    await open({ ...spec(30817, [["k", "37570"]], TSM), tags: [["d", "tsm"], ["title", "Trust Service Machines (TSM )"], ["k", "37570"]] });
+    await open(event(30817, "tsm", "Trust Service Machines (TSM )", [["k", "37570"]], TSM));
 
     const body = screen.getByTestId("article-body");
     expect(body.querySelector("h1")).toBeNull();
@@ -129,7 +165,8 @@ describe("reading a spec", () => {
   it("lets long inline code wrap instead of pushing the page sideways", async () => {
     await open(spec(30817, []));
 
-    const code = [...screen.getByTestId("article-body").querySelectorAll("code")].find((c) => /npub1/.test(c.textContent ?? ""));
+    const body = screen.getByTestId("article-body");
+    const code = [...body.querySelectorAll("code")].find((c) => /npub1/.test(c.textContent ?? ""));
     expect(code).toBeTruthy();
     // The wrap and tint live in a stylesheet rule scoped to inline code only
     // (`.article-prose :where(code):not(:where(pre *))`), so a fenced block

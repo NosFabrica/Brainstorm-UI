@@ -22,6 +22,7 @@ import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useProfileMap } from "@/hooks/useProfileMap";
 import { eventStore } from "@/lib/eventStore";
 import { fetchProfileMap } from "@/services/nostr";
+import { sourceAppFor } from "@/lib/sourceApp";
 import { brandForHost } from "@/lib/brands";
 import { profileHrefOf, wavlakeSongHref } from "@/lib/upNext";
 import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitItemLabel, gitLabelsOf, type GitState } from "@/lib/gitStatus";
@@ -139,6 +140,7 @@ function CardShell({
   openInUrl,
   openInLabel,
   openInHost,
+  openInIcon,
   openInTestId,
   openInPlacement = "corner",
   openInSlotTestId,
@@ -153,6 +155,9 @@ function CardShell({
   /** When set, the link wears the destination's favicon (GitHub, gitworkshop…)
    *  instead of the generic external-link glyph — the affiliated look. */
   openInHost?: string;
+  /** The destination's icon by URL, for apps whose `/favicon.ico` is not an
+   *  icon (single-page apps answer HTML there); wins over `openInHost`. */
+  openInIcon?: string;
   openInTestId?: string;
   /** Where the external link sits: the top corner (default) or the footer's
    *  right end, app-store style. Either way it lives OUTSIDE the card's own
@@ -197,7 +202,13 @@ function CardShell({
             }
             data-testid={openInTestId}
           >
-            {openInHost ? <Favicon host={openInHost} className={iconOnly ? "h-3.5 w-3.5 shrink-0 rounded-sm" : "h-3 w-3 shrink-0 rounded-sm"} /> : <ExternalLink className={iconOnly ? "h-3 w-3 text-slate-500" : "h-2.5 w-2.5"} />}
+            {openInIcon ? (
+              <img src={openInIcon} alt="" className={iconOnly ? "h-3.5 w-3.5 shrink-0 rounded-sm" : "h-3 w-3 shrink-0 rounded-sm"} data-testid="favicon" />
+            ) : openInHost ? (
+              <Favicon host={openInHost} className={iconOnly ? "h-3.5 w-3.5 shrink-0 rounded-sm" : "h-3 w-3 shrink-0 rounded-sm"} />
+            ) : (
+              <ExternalLink className={iconOnly ? "h-3 w-3 text-slate-500" : "h-2.5 w-2.5"} />
+            )}
             {!iconOnly && <> {openInLabel ?? "Open in…"}</>}
           </a>
         </span>
@@ -1290,13 +1301,21 @@ export function ListingCard({
 }) {
   const l = parseListing(event);
   if (!l) return null;
+  // The app that sold it, by name, when we know it; else the seller's own link.
+  const app = sourceAppFor(event);
   const host = l.shopUrl ? hostOf(l.shopUrl) ?? undefined : undefined;
+  const open = app
+    ? { url: app.url, label: `Open in ${app.name}`, host: app.host, icon: app.icon }
+    : l.shopUrl
+      ? { url: l.shopUrl, label: "Visit shop", host, icon: undefined }
+      : null;
   return (
     <CardShell
       event={event}
-      openInUrl={l.shopUrl ?? undefined}
-      openInLabel="Visit shop"
-      openInHost={host}
+      openInUrl={open?.url}
+      openInLabel={open?.label}
+      openInHost={open?.host}
+      openInIcon={open?.icon}
       openInPlacement="corner-icon"
       openInTestId={`listing-open-${event.id}`}
       fill
@@ -1322,7 +1341,7 @@ export function ListingCard({
           </span>
         )}
       </div>
-      <p className={`mt-2.5 line-clamp-2 text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100 ${l.shopUrl ? "pr-2" : ""}`}>{group?.title ?? l.title}</p>
+      <p className={`mt-2.5 line-clamp-2 text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100 ${open ? "pr-2" : ""}`}>{group?.title ?? l.title}</p>
       {(l.location || l.summary) && (
         <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">{l.location ?? l.summary}</p>
       )}

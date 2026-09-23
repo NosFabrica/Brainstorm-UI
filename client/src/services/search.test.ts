@@ -129,6 +129,24 @@ describe("searchStream", () => {
   });
 
   /**
+   * Recipes are ordinary long-form articles with zap.cooking's tag on them, so
+   * a Recipes vertical is not a kind of its own — it is the article kind narrowed
+   * by tag on the relay (probed on the search relay, 2026-09-22: the tag alone
+   * returns the newest recipes; tag plus words returns "chili, but only recipes").
+   */
+  it("the Recipes tab asks the relay for articles tagged as recipes, words and all", async () => {
+    controllable();
+
+    searchStream("chili", { tab: "recipes", pov: "nosfabrica" }, () => {});
+    await tick();
+
+    const filter = reqMock.mock.calls[0][0] as { kinds?: number[]; "#t"?: string[]; search: string };
+    expect(filter.kinds).toEqual([30023]);
+    expect(filter["#t"]).toEqual(expect.arrayContaining(["zapcooking", "nostrcooking"]));
+    expect(filter.search).toMatch(/^chili observer:/);
+  });
+
+  /**
    * On the NIPs tab a kind is what a spec COVERS, not what it is: `kind:5905`
    * asks for the specs that define kind 5905, through the `k` tag they carry
    * (probed on the search relay, 2026-09-23: `#k` narrows specs server-side;
