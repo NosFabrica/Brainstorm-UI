@@ -8,6 +8,7 @@
  */
 import { describe, expect, it, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
+import { nip19 } from "nostr-tools";
 
 const specsMock = vi.fn(() => Promise.resolve([] as { id: string; kind: number; pubkey: string; tags: string[][]; content: string; created_at: number }[]));
 vi.mock("@/services/search", () => ({ fetchSpecsForKind: (kind: number) => specsMock(kind) }));
@@ -35,14 +36,39 @@ describe("DesignationHero", () => {
     expect(screen.getByTestId("designation-activate").getAttribute("href")).toBe("/activate");
   });
 
-  it("links the spec that defines the kind, when the relay has it", async () => {
-    specsMock.mockResolvedValueOnce([{ id: "s".repeat(64), kind: 30817, pubkey: "b".repeat(64), tags: [["d", "trusted-assertions"], ["title", "Trusted Assertions"]], content: "#", created_at: 1 }]);
-    render(<DesignationHero event={event([["30382:rank", TA, "wss://scores.brainstorm.world"]])} />);
+  // Four specs on the relay cover kind 10040 and the page linked whichever
+  // came back first — a fork, "Trusted Assertions (Sovereign Version)"
+  // (Benjamin, 2026-09-23: "is this the right spec?"). The right ones are
+  // pinned by author: NIP-85 by Vitor Pamplona for the signals, and
+  // Brainstorm's own Trusted Lists by David when lists are designated.
+  it("links NIP-85 for the signals, and Trusted Lists when lists are designated", () => {
+    const VITOR = "460c25e682fda7832b52d1f22d3d22b3176d972f60dcdc3212ed8c92ef85065c";
+    const DAVID = "e5272de914bd301755c439b88e6959a43c9d2664831f093c51e9c799a16a102f";
+    const { unmount } = render(<DesignationHero event={event([["30382:rank", TA, "wss://scores.brainstorm.world"]])} />);
+    const spec = screen.getByTestId("designation-spec");
+    expect(spec).toHaveTextContent("Trusted Assertions (NIP-85)");
+    expect(spec.getAttribute("href")).toBe(`/a/${nip19.naddrEncode({ kind: 30817, pubkey: VITOR, identifier: "trusted-assertions" })}`);
+    expect(screen.queryByTestId("designation-lists-spec")).toBeNull();
+    expect(specsMock).not.toHaveBeenCalled();
+    unmount();
 
-    const link = await screen.findByTestId("designation-spec");
-    expect(link).toHaveTextContent("Trusted Assertions");
-    expect(link.getAttribute("href")).toMatch(/^\/a\/naddr1/);
-    expect(specsMock).toHaveBeenCalledWith(10040);
+    render(<DesignationHero event={event([["30382:rank", TA, "wss://scores.brainstorm.world"], ["30392", TA, "wss://scores.brainstorm.world"]])} />);
+    const lists = screen.getByTestId("designation-lists-spec");
+    expect(lists).toHaveTextContent("Trusted Lists");
+    expect(lists.getAttribute("href")).toBe(`/a/${nip19.naddrEncode({ kind: 30817, pubkey: DAVID, identifier: "trusted-lists" })}`);
+  });
+
+  // The card's glyph was a generic shield that meant nothing (Benjamin,
+  // 2026-09-23: "I don't want to represent Brainstorm where it isn't true").
+  // The Brainstorm mark where every designated provider is ours; no glyph
+  // otherwise.
+  it("wears the Brainstorm mark only when every provider is ours", () => {
+    const { unmount } = render(<DesignationHero event={event([["30382:rank", TA, "wss://scores.brainstorm.world"]])} />);
+    expect(screen.getByTestId("designation-mark")).toBeInTheDocument();
+    unmount();
+    render(<DesignationHero event={event([["30382:rank", TA, "wss://scores.brainstorm.world"], ["30382:followers", "b".repeat(64), "wss://nip85.example.com"]])} />);
+    expect(screen.queryByTestId("designation-mark")).toBeNull();
+    expect(screen.getByTestId("designation-hero").querySelector("svg.lucide-shield-check")).toBeNull();
   });
 
   it("a designation of someone else's provider does not claim Brainstorm", () => {

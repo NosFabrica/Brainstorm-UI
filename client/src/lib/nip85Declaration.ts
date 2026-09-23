@@ -100,3 +100,14 @@ export function describeDesignation(event: { tags: string[][] }): DesignationDes
         : `Trusts a provider for ${named.join(", ")}`;
   return { signals, lists, providers: provs, summary };
 }
+
+/**
+ * The specs a designation points its reader at, pinned by author. Four specs
+ * on the search relay cover kind 10040, one of them a fork; "the first one
+ * the relay returns" linked the fork. NIP-85 is Vitor Pamplona's; Trusted
+ * Lists is Brainstorm's own, by David.
+ */
+export const CANONICAL_SPECS = {
+  assertions: { kind: 30817, pubkey: "460c25e682fda7832b52d1f22d3d22b3176d972f60dcdc3212ed8c92ef85065c", identifier: "trusted-assertions", title: "Trusted Assertions (NIP-85)" },
+  lists: { kind: 30817, pubkey: "e5272de914bd301755c439b88e6959a43c9d2664831f093c51e9c799a16a102f", identifier: "trusted-lists", title: "Trusted Lists" },
+} as const;
