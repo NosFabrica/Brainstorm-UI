@@ -348,11 +348,13 @@ export function searchStream(
     const observer = await resolveObserver(params);
     if (cancelled) return;
 
-    const kinds = kindsForTab(params.tab);
     // from:/to:/#tag/since:/until: become NIP-01 filter fields (the relay
     // never sees those prefixes — verified by probing); the relay's own
     // extensions (sort:/include:spam/filter:rank:/observer:) stay in `search`.
     const lifted = liftQuery(query);
+    // A typed kind: (or spec:) narrows whatever tab it is on; on Everything it
+    // simply sets the filter. Agents filter by kind this way — no chip needed.
+    const kinds = lifted.kinds ?? kindsForTab(params.tab);
     // A NIP-53 stream is published by the streaming platform's key with the
     // streamer as its `p` host, so a person's live streams are the ones they
     // HOST, not the ones their key authored (probed 2026-09-09: mar's own key

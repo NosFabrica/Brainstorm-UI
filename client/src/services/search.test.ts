@@ -116,6 +116,17 @@ async function tick() {
 beforeEach(() => vi.clearAllMocks());
 
 describe("searchStream", () => {
+  it("a typed kind narrows the tab it is on — spec: on Articles asks for specs alone", async () => {
+    controllable();
+
+    searchStream("dvm spec:", { tab: "articles", pov: "nosfabrica" }, () => {});
+    await tick();
+
+    const filter = reqMock.mock.calls[0][0] as { kinds?: number[]; search: string };
+    expect(filter.kinds).toEqual([30817]);
+    expect(filter.search).toMatch(/^dvm observer:/);
+  });
+
   it("streams people hits incrementally, with the house observer on the wire", async () => {
     const { subject } = controllable();
     const snaps: SearchSnapshot[] = [];
