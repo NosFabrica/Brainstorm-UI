@@ -1922,9 +1922,11 @@ describe("kindsForTab", () => {
   // Vitor's split: "Code & git" mixed content types (and probing showed its
   // snippet kind was ~90% JSON junk). Apps = Zap Store listings; Repos = the
   // genuinely git-shaped kinds. Kind 1337 leaves the tabs entirely.
-  it("splits the old code tab into Apps and Repos, junk kind dropped", () => {
+  it("splits the old code tab into Apps, Repos, Issues and PRs, junk kind dropped", () => {
     expect(kindsForTab("apps")).toEqual([32267]);
-    expect(kindsForTab("repos")).toEqual([30617, 1617, 1618, 1621]);
+    expect(kindsForTab("repos")).toEqual([30617]);
+    expect(kindsForTab("issues")).toEqual([1621]);
+    expect(kindsForTab("prs")).toEqual([1617, 1618]);
     expect("code" in TAB_KINDS).toBe(false);
     expect(Object.values(TAB_KINDS).flat()).not.toContain(1337);
   });

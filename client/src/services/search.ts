@@ -37,6 +37,8 @@ export type SearchTab =
   | "apps"
   | "shop"
   | "repos"
+  | "issues"
+  | "prs"
   | "events"
   | "live"
   | "music"
@@ -66,7 +68,11 @@ export const TAB_KINDS: Record<Exclude<SearchTab, "everything">, number[]> = {
   // game state and ad-skip data, so the UI keeps only hits with a title and
   // audio — see lib/trackEvent.
   music: [31337],
-  repos: [30617, 1617, 1618, 1621],
+  // NIP-34 git, one vertical per thing people look for: repo announcements,
+  // issues, and patches with pull requests (both are code up for review).
+  repos: [30617],
+  issues: [1621],
+  prs: [1617, 1618],
   // Benjamin: "filter by events also". NIP-52 calendar events are their own
   // vertical (the tab does the calendar work — the relay only knows
   // created_at); Live keeps the NIP-53 streams. Kind 31924 calendars (event

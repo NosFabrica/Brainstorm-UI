@@ -547,10 +547,10 @@ export function RepoCard({
   /** For a fork shown under its original: the original's name. */
   forkOf?: string;
 }) {
-  // The Repos tab is a mix: 30617 repo announcements, plus patches (1617) and
-  // issues (1621/1618) that target a repo. A repo is the default thing here
-  // and wears no chip; a patch or issue says what it is and names the repo it
-  // belongs to (from its a-tag) — the context that makes a lone "fix: …"
+  // One card for NIP-34: repo announcements (30617, the Repos tab), issues
+  // (1621, the Issues tab), patches and pull requests (1617/1618, the PRs
+  // tab). A repo wears no chip; a patch or issue says what it is and names the
+  // repo it belongs to (from its a-tag) — the context that makes a lone "fix: …"
   // card mean something.
   const isRepo = event.kind === 30617;
   const typeLabel = isRepo ? null : gitItemLabel(event.kind);

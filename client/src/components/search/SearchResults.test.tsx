@@ -332,7 +332,7 @@ describe("SearchResults", () => {
     const menu = screen.getByRole("menu");
     const items = [...menu.querySelectorAll('[data-testid^="search-tab-"]')].map((el) => el.getAttribute("data-testid"));
     expect(items[0]).toBe("search-tab-articles");
-    for (const t of ["apps", "repos", "events", "live", "lists"]) expect(within(menu).getByTestId(`search-tab-${t}`)).toBeInTheDocument();
+    for (const t of ["apps", "repos", "issues", "prs", "events", "live", "lists"]) expect(within(menu).getByTestId(`search-tab-${t}`)).toBeInTheDocument();
 
     fireEvent.click(within(menu).getByTestId("search-tab-apps"));
     expect(screen.queryByRole("menu")).toBeNull();
@@ -1432,21 +1432,20 @@ describe("SearchResults", () => {
 
   // What became of it: the newest status event per issue or patch, as a chip,
   // and a State strip to narrow the tab to open issues or merged patches.
-  it("issues and patches wear their state, and the State strip narrows to one", async () => {
-    setUrlTab("repos");
-    const issue = ev("i1", 1621, "1".repeat(64), "crashes on start", [["a", "30617:" + "9".repeat(64) + ":armada"], ["subject", "crashes on start"]]);
+  it("patches and PRs wear their state, and the State strip narrows to one", async () => {
+    setUrlTab("prs");
+    const closed = ev("i1", 1618, "1".repeat(64), "rewrite everything", [["a", "30617:" + "9".repeat(64) + ":armada"], ["subject", "rewrite everything"]]);
     const merged = ev("p1", 1617, "2".repeat(64), "fix: startup crash", [["a", "30617:" + "9".repeat(64) + ":armada"], ["subject", "fix: startup crash"]]);
     const fresh = ev("p2", 1617, "3".repeat(64), "feat: dark mode", [["a", "30617:" + "9".repeat(64) + ":armada"], ["subject", "feat: dark mode"]]);
-    const repo = ev("r1", 30617, "9".repeat(64), "", [["d", "armada"], ["name", "armada"]]);
-    gitStatusesMock.mockResolvedValue(new Map([[issue.id, { kind: 1632, at: 200 }], [merged.id, { kind: 1631, at: 150 }]]));
+    gitStatusesMock.mockResolvedValue(new Map([[closed.id, { kind: 1632, at: 200 }], [merged.id, { kind: 1631, at: 150 }]]));
     render(<SearchResults query="armada" pov="nosfabrica" />);
-    emit({ hits: [repo, issue, merged, fresh].map((e) => ({ event: e, author: author(e.pubkey, "dev"), rank: null })), eose: true, timeMs: 200 });
+    expect(mainStreamCalls()[0][1]).toMatchObject({ tab: "prs" });
+    emit({ hits: [closed, merged, fresh].map((e) => ({ event: e, author: author(e.pubkey, "dev"), rank: null })), eose: true, timeMs: 200 });
 
     expect(await screen.findByTestId("git-state-i1")).toHaveTextContent("Closed");
     expect(screen.getByTestId("git-state-p1")).toHaveTextContent("Merged");
     expect(screen.getByTestId("git-state-p2")).toHaveTextContent("Open"); // no status event yet
-    expect(screen.queryByTestId("git-state-r1")).toBeNull(); // a repo has no state
-    expect(gitStatusesMock).toHaveBeenCalledWith(expect.arrayContaining([issue.id, merged.id, fresh.id]));
+    expect(gitStatusesMock).toHaveBeenCalledWith(expect.arrayContaining([closed.id, merged.id, fresh.id]));
 
     const strip = screen.getByTestId("repo-state-facets");
     expect(within(strip).getByTestId("repo-state-merged")).toHaveTextContent("Merged");
@@ -1455,13 +1454,25 @@ describe("SearchResults", () => {
     fireEvent.click(within(strip).getByTestId("repo-state-merged"));
     expect(screen.getByTestId("repo-card-p1")).toBeInTheDocument();
     expect(screen.queryByTestId("repo-card-i1")).toBeNull();
-    expect(screen.queryByTestId("repo-card-r1")).toBeNull();
+    expect(screen.queryByTestId("repo-card-p2")).toBeNull();
     fireEvent.click(within(strip).getByTestId("repo-state-all"));
-    expect(screen.getByTestId("repo-card-r1")).toBeInTheDocument();
+    expect(screen.getByTestId("repo-card-p2")).toBeInTheDocument();
+  });
+
+  it("the Repos tab is repo announcements alone — no state strip, no status fetch", async () => {
+    setUrlTab("repos");
+    const repo = ev("r1", 30617, "9".repeat(64), "", [["d", "armada"], ["name", "armada"]]);
+    render(<SearchResults query="armada" pov="nosfabrica" />);
+    expect(mainStreamCalls()[0][1]).toMatchObject({ tab: "repos" });
+    emit({ hits: [{ event: repo, author: author(repo.pubkey, "dev"), rank: null }], eose: true, timeMs: 200 });
+    await screen.findByTestId("repo-card-r1");
+    expect(screen.queryByTestId("git-state-r1")).toBeNull();
+    expect(screen.queryByTestId("repo-state-facets")).toBeNull();
+    expect(gitStatusesMock).not.toHaveBeenCalled();
   });
 
   it("issues wear their labels; the strip offers only labels more than one maintainer uses, and narrows by them", async () => {
-    setUrlTab("repos");
+    setUrlTab("issues");
     // Probed 2026-09-05: "qa", "conflict-pair", "nonlinear"… were one test
     // harness's private vocabulary — 15 items, one author — and led the strip.
     // A label is a shared convention when two authors reach for it.
@@ -1492,7 +1503,7 @@ describe("SearchResults", () => {
   });
 
   it("when every item on the page is one maintainer's, their labels are the strip", async () => {
-    setUrlTab("repos");
+    setUrlTab("issues");
     const a = ev("i1", 1621, "1".repeat(64), "groups: kick", [["a", "30617:" + "9".repeat(64) + ":relay29"], ["subject", "groups: kick"], ["t", "nip29"]]);
     const b = ev("i2", 1621, "1".repeat(64), "groups: join", [["a", "30617:" + "9".repeat(64) + ":relay29"], ["subject", "groups: join"], ["t", "nip29"], ["t", "groups"]]);
     render(<SearchResults query="nip29" pov="nosfabrica" />);
@@ -1504,7 +1515,7 @@ describe("SearchResults", () => {
   });
 
   it("issues show how much conversation they have, and people's issues come before agents' — marked", async () => {
-    setUrlTab("repos");
+    setUrlTab("issues");
     const byAgent = ev("i1", 1621, "1".repeat(64), "add ngit pr edit API", [["a", "30617:" + "9".repeat(64) + ":ngit"], ["subject", "add ngit pr edit API"], ["buzz-origin-agent", "PM"]]);
     const byPerson = ev("i2", 1621, "2".repeat(64), "crash on start", [["a", "30617:" + "9".repeat(64) + ":ngit"], ["subject", "crash on start"]]);
     const byBot = ev("i3", 1621, "3".repeat(64), "add tests", [["a", "30617:" + "9".repeat(64) + ":ngit"], ["subject", "add tests"]]);
@@ -1535,7 +1546,7 @@ describe("SearchResults", () => {
   // NIP-34's newer kind 1618 is a pull request — most agent-filed work rides
   // it. It is a git item like a patch: typed, stated, counted.
   it("a pull request (kind 1618) is typed PR and carries its state", async () => {
-    setUrlTab("repos");
+    setUrlTab("prs");
     const pr = ev("pr1", 1618, "1".repeat(64), "Prove warm coverage", [["a", "30617:" + "9".repeat(64) + ":gitworkshop"], ["subject", "Prove warm coverage"]]);
     gitStatusesMock.mockResolvedValue(new Map([[pr.id, { kind: 1631, at: 9 }]]));
     render(<SearchResults query="gitworkshop" pov="nosfabrica" />);
@@ -1607,6 +1618,34 @@ describe("SearchResults", () => {
     expect(screen.getByTestId("repo-card-s4")).toBeInTheDocument();
     expect(screen.getByTestId("repo-card-s5")).toBeInTheDocument();
     expect(screen.queryByTestId("cluster-expand-s3")).toBeNull();
+  });
+
+  it("one maintainer gets three cards on the Issues tab too; the rest fold behind '+N more from them'", async () => {
+    setUrlTab("issues");
+    const harness = "5".repeat(64);
+    const issue = (id: string, pk: string) => ev(id, 1621, pk, id, [["a", "30617:" + "9".repeat(64) + ":ngit"], ["subject", id]]);
+    const hits = [issue("h1", harness), issue("o1", "6".repeat(64)), issue("h2", harness), issue("h3", harness), issue("h4", harness)];
+    render(<SearchResults query="ngit" pov="nosfabrica" />);
+    emit({ hits: hits.map((e) => ({ event: e, author: author(e.pubkey, e.pubkey === harness ? "Harness" : "Dan"), rank: null })), eose: true, timeMs: 200 });
+    await screen.findByTestId("repo-card-h1");
+    expect(screen.getByTestId("repo-card-o1")).toBeInTheDocument();
+    expect(screen.queryByTestId("repo-card-h4")).toBeNull();
+    expect(screen.getByTestId("cluster-expand-h3")).toHaveTextContent("+1 more from Harness");
+  });
+
+  it("each streamed page asks for the statuses and comments of its new items only, and keeps the earlier answers", async () => {
+    setUrlTab("prs");
+    const pr = (id: string) => ev(id, 1618, "1".repeat(64), id, [["a", "30617:" + "9".repeat(64) + ":ngit"], ["subject", id]]);
+    const [a, b] = [pr("pa"), pr("pb")];
+    gitStatusesMock.mockImplementation((ids) => Promise.resolve(new Map(ids.map((id) => [id, { kind: 1631, at: 9 }]))));
+    render(<SearchResults query="ngit" pov="nosfabrica" />);
+    emit({ hits: [{ event: a, author: author(a.pubkey, "dev"), rank: null }], eose: false, timeMs: 100 });
+    expect(await screen.findByTestId("git-state-pa")).toHaveTextContent("Merged");
+    emit({ hits: [a, b].map((e) => ({ event: e, author: author(e.pubkey, "dev"), rank: null })), eose: true, timeMs: 200 });
+    expect(await screen.findByTestId("git-state-pb")).toHaveTextContent("Merged");
+    expect(screen.getByTestId("git-state-pa")).toHaveTextContent("Merged");
+    expect(gitStatusesMock.mock.calls.map((c) => c[0])).toEqual([[a.id], [b.id]]);
+    expect(gitCommentsMock.mock.calls.map((c) => c[0])).toEqual([[a.id], [b.id]]);
   });
 
   it("a page that is all one maintainer's does not fold — there is no one else to make room for", async () => {

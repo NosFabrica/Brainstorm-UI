@@ -64,7 +64,10 @@ const NOTE_KINDS = new Set(TAB_KINDS.notes);
 const ARTICLE_KINDS = new Set(TAB_KINDS.articles);
 const MEDIA_KINDS = new Set(TAB_KINDS.media);
 const APP_KINDS = new Set(TAB_KINDS.apps);
-const REPO_KINDS = new Set(TAB_KINDS.repos);
+// Repos, Issues and PRs all draw a RepoCard; the latter two carry a state.
+const REPO_KINDS = new Set([...TAB_KINDS.repos, ...TAB_KINDS.issues, ...TAB_KINDS.prs]);
+const isGitItemTab = (tab: SearchTab) => tab === "issues" || tab === "prs";
+const isGitTab = (tab: SearchTab) => tab === "repos" || isGitItemTab(tab);
 
 /** One row of the flat list: a hit, and — when it leads a fold — how many it
  *  hides, the chip's words, and (for an opened fork) whose fork it is. */
@@ -143,6 +146,8 @@ const MORE_TABS: { key: SearchTab; label: string }[] = [
   // which keeps showing them labelled Recipe — this is where people look.
   { key: "recipes", label: "Recipes" },
   { key: "repos", label: "Repos" },
+  { key: "issues", label: "Issues" },
+  { key: "prs", label: "PRs" },
   // Protocol specs (kind 30817), by the name people search for. They stay in
   // Articles too, labelled Spec — this is where people look.
   { key: "nips", label: "NIPs" },
@@ -916,7 +921,7 @@ export function SearchResults({
   const [shopCategory, setShopCategory] = useState<string | null>(null);
   const [articleType, setArticleType] = useState<ArticleType | null>(null);
   const [recipeTopic, setRecipeTopic] = useState<string | null>(null);
-  // Repos tab: what became of each issue and patch — one request per page,
+  // Issues and PRs tabs: what became of each issue and patch — one request per page,
   // keyed by item id (NIP-34 status events, newest wins; none means open).
   const [repoState, setRepoState] = useState<GitState | null>(null);
   const [gitStatuses, setGitStatuses] = useState<Map<string, { kind: number; at: number }>>(new Map());
@@ -946,26 +951,33 @@ export function SearchResults({
   }, [eventAddrKey]);
   const rsvpsOf = (e: NostrEvent) => eventRsvps.get(`${e.kind}:${e.pubkey}:${e.tags.find((t) => t[0] === "d")?.[1] ?? ""}`);
   const gitItemIds = useMemo(
-    () => (tab === "repos" ? hits.filter((h) => isGitItem(h.event.kind)).map((h) => h.event.id) : []),
+    () => (isGitItemTab(tab) ? hits.filter((h) => isGitItem(h.event.kind)).map((h) => h.event.id) : []),
     [hits, tab],
   );
   const gitIdsKey = gitItemIds.join(",");
+  // Each streamed snapshot or "more" page asks only after the ids it adds —
+  // not the whole growing list again. A generation drops answers that land
+  // after the page emptied (a new tab), so they can't refill it.
+  const gitFetched = useRef({ gen: 0, ids: new Set<string>() });
   useEffect(() => {
+    const seen = gitFetched.current;
     if (!gitIdsKey) {
+      seen.gen += 1;
+      seen.ids = new Set();
       setGitStatuses(new Map());
+      setGitComments(new Map());
       return;
     }
-    let alive = true;
-    const ids = gitIdsKey.split(",");
+    const ids = gitIdsKey.split(",").filter((id) => !seen.ids.has(id));
+    if (ids.length === 0) return;
+    for (const id of ids) seen.ids.add(id);
+    const gen = seen.gen;
     void fetchGitStatuses(ids).then((m) => {
-      if (alive) setGitStatuses(m);
+      if (gitFetched.current.gen === gen && m.size) setGitStatuses((prev) => new Map([...prev, ...m]));
     });
     void fetchGitCommentCounts(ids).then((m) => {
-      if (alive) setGitComments(m);
+      if (gitFetched.current.gen === gen && m.size) setGitComments((prev) => new Map([...prev, ...m]));
     });
-    return () => {
-      alive = false;
-    };
   }, [gitIdsKey]);
   const stateOf = (e: NostrEvent): GitState | null => (isGitItem(e.kind) ? gitStateOf(gitStatuses.get(e.id)?.kind, e.kind) : null);
   const [repoLabel, setRepoLabel] = useState<string | null>(null);
@@ -975,7 +987,7 @@ export function SearchResults({
   // "nonlinear" led the strip — stays on their cards. On a one-author page
   // every label is theirs anyway, so all count.
   const repoLabelFacets = useMemo(() => {
-    if (tab !== "repos") return [] as [string, number][];
+    if (!isGitItemTab(tab)) return [] as [string, number][];
     const counts = new Map<string, number>();
     const authorsOf = new Map<string, Set<string>>();
     const authors = new Set<string>();
@@ -993,7 +1005,7 @@ export function SearchResults({
       .slice(0, 8);
   }, [hits, tab]);
   const repoStateFacets = useMemo(() => {
-    if (tab !== "repos") return [] as [GitState, number][];
+    if (!isGitItemTab(tab)) return [] as [GitState, number][];
     const counts = new Map<GitState, number>();
     for (const h of hits) {
       const st = stateOf(h.event);
@@ -1009,6 +1021,10 @@ export function SearchResults({
     setShopCategory(null);
     setArticleType(null);
     setRecipeTopic(null);
+    // Issues' states aren't PRs' (resolved vs merged), and a new query may
+    // carry none of the picked label: either would strand an empty page.
+    setRepoState(null);
+    setRepoLabel(null);
   }, [tab, query]);
   // The listings' own categories, counted — the Shop's facets.
   const shopFacets = useMemo(() => {
@@ -1079,14 +1095,13 @@ export function SearchResults({
     if (tab === "recipes" && recipeTopic) {
       shown = shown.filter((h) => recipeTopics(h.event).includes(recipeTopic));
     }
-    if (tab === "repos" && repoState) {
-      // A state names issues and patches; repo announcements have none.
+    if (isGitItemTab(tab) && repoState) {
       shown = shown.filter((h) => stateOf(h.event) === repoState);
     }
-    if (tab === "repos" && repoLabel) {
+    if (isGitItemTab(tab) && repoLabel) {
       shown = shown.filter((h) => gitLabelsOf(h.event).includes(repoLabel));
     }
-    if (tab === "repos") {
+    if (isGitItemTab(tab)) {
       // People's issues before agents' — the partition Latest uses for feeds.
       shown = peopleBeforeAgents(shown, (h) => ({ event: h.event, author: h.author }));
     }
@@ -1124,8 +1139,8 @@ export function SearchResults({
       shown = hits.filter((h) => titled(h.event) && itemCount(h.event) > 0);
       shown = [...shown.filter((h) => isPeoplePack(h.event)), ...shown.filter((h) => !isPeoplePack(h.event))];
     }
-    if (tab === "repos") {
-      // One codebase, one card: forks fold behind the most trusted
+    if (isGitTab(tab)) {
+      // Repos, Issues and PRs. One codebase, one card: forks fold behind the most trusted
       // maintainer's announcement and open on a tap, each naming its parent.
       // And one maintainer, three cards: Google's host-diversity rule. Probed
       // 2026-09-05, one company's 23 bare repos filled the first screens; the
@@ -1437,7 +1452,7 @@ export function SearchResults({
               )}
             </div>
           )}
-          {tab === "repos" && (repoStateFacets.length > 0 || repoLabelFacets.length > 0) && (
+          {isGitItemTab(tab) && (repoStateFacets.length > 0 || repoLabelFacets.length > 0) && (
             <FacetRow className="mb-2" testId="repo-state-facets">
               <button
                 type="button"
@@ -1670,7 +1685,7 @@ export function SearchResults({
                 ? "grid grid-cols-2 gap-2.5 sm:grid-cols-3"
                 : tab === "live"
                   ? "grid grid-cols-2 gap-x-3 gap-y-5 sm:grid-cols-3"
-                  : tab === "apps" || tab === "repos"
+                  : tab === "apps" || isGitTab(tab)
                   ? "grid grid-cols-1 gap-2.5 lg:grid-cols-2"
                   : "space-y-2 sm:space-y-3"
             }
@@ -1703,7 +1718,7 @@ export function SearchResults({
                     {chipLabel ?? `+${collapsedCount} more like this`}
                   </button>
                 ) : null;
-              // Grid tabs (Apps, Repos) stretch every cell so a row of cards
+              // Grid tabs (Apps, Repos, Issues, PRs) stretch every cell so a row of cards
               // shares one height; list tabs are unaffected by h-full.
               const day = eventDayHeaders.get(event.id);
               const wrap = (card: React.ReactNode) => (
