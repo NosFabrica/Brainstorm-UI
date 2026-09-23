@@ -246,6 +246,22 @@ export function personAssist(query: string): PersonAssist | null {
   };
 }
 
+// Every prefix the grammar reads, at the start of a word — including the ones still being typed.
+const OPERATOR_WORD =
+  /^(?:from|to|since|until|kind|spec|sort|include|filter|observer|trust|reach|site|isbn|geo|isan|doi|podcast|label|group):/i;
+
+/**
+ * What the people typeahead may look up: the box's words, or null when it holds anything but
+ * words. A prefix being typed (`doi:`, `sort:rec`, `from:` before a name) is not a name, and a
+ * finished filter turns the lookup into another question — `doi:10.1000` asks for comments on
+ * that DOI, and their authors are not people called "doi". `from:ja` is [personAssist]'s.
+ */
+export function typeaheadWords(query: string): string | null {
+  if (tokenize(query).some((seg) => seg.type !== "text")) return null;
+  const words = query.trim();
+  return words.split(/\s+/).some((w) => OPERATOR_WORD.test(w)) ? null : words;
+}
+
 /** The panel's state, read back out of the query. */
 export function readFilters(query: string): SearchFilterState {
   const q = parseQuery(query);

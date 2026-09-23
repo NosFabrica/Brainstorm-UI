@@ -55,7 +55,7 @@ import { suggestProfileHits, suggestProfiles, type SearchHit } from "@/services/
 import { BackToTop } from "@/components/search/BackToTop";
 import { SearchResults } from "@/components/search/SearchResults";
 import { PerspectiveToggle } from "@/components/search/PerspectiveToggle";
-import { personAssist, queryWords, scopeOf, splitFilters, type PersonAssist, scopedPlaceholder, seeAllLabel } from "@/lib/searchSyntax";
+import { personAssist, queryWords, scopeOf, splitFilters, type PersonAssist, scopedPlaceholder, seeAllLabel, typeaheadWords } from "@/lib/searchSyntax";
 import { SearchField } from "@/components/search/SearchField";
 import type { SearchFieldHandle } from "@/lib/searchFieldDom";
 import { useProfileMap } from "@/hooks/useProfileMap";
@@ -319,7 +319,9 @@ export default function Landing() {
       setShowSuggestions(true);
       return;
     }
-    if (q.length < 2 || isLikelyNpub(q) || isHexPubkey(q) || isNip05Handle(q)) {
+    // Filters and half-typed prefixes are not names: `doi:` must not list people called "doi".
+    // A person scope is the box's own frame, not a filter being typed; the words beside it are.
+    if (q.length < 2 || typeaheadWords(scopeOf(value)?.rest ?? value) === null || isLikelyNpub(q) || isHexPubkey(q) || isNip05Handle(q)) {
       typedSinceSearchRef.current = false;
       setSuggestions([]);
       setShowSuggestions(false);

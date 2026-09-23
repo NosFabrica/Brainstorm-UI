@@ -422,6 +422,20 @@ describe("typing in the home search", () => {
     expect(dropdownShowing()).toBe(false);
   });
 
+  // `doi:` listed people called "doi"; `doi:10.1000` listed whoever had commented on it.
+  it("asks for nobody while a filter is typed, and still does for a from: name", () => {
+    render(<Landing />);
+    for (const q of ["doi:", "doi:10.1000", "sort:rec", "label:en", "from:", "observer:ja", "jack kind:20"]) {
+      typeSlowly(q);
+      act(() => { vi.advanceTimersByTime(400); });
+    }
+    expect(suggestMock).not.toHaveBeenCalled();
+    expect(dropdownShowing()).toBe(false);
+    typeSlowly("from:ja");
+    act(() => { vi.advanceTimersByTime(400); });
+    expect(suggestMock.mock.calls.at(-1)?.[0]).toBe("ja");
+  });
+
   it("searches right away on Enter, without waiting for the pause", () => {
     render(<Landing />);
     typeInBox("vitor");
