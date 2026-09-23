@@ -87,6 +87,15 @@ describe("prepareArticleBody — a spec's details", () => {
     expect(body).toBe("# NIP-XX\n\n## AI Agent Messages\n\nThis NIP defines a protocol.");
   });
 
+  // The same NIP as the relay holds it: underlined headings. The dashes under
+  // the subtitle are its underline, not the rule that closes the front matter.
+  it("reads underlined headings among the front matter, dashes and all", () => {
+    const real = "NIP-XX\n======\n\nAI Agent Messages\n-----------------\n\n`draft` `optional`\n\nThis NIP defines a protocol.";
+    const { status, body } = prepareArticleBody(real, "AI Agent Communication");
+    expect(status).toEqual(["draft", "optional"]);
+    expect(body).toBe("NIP-XX\n======\n\nAI Agent Messages\n-----------------\n\nThis NIP defines a protocol.");
+  });
+
   it("only a known status word is a status — an unknown backticked token stays in the prose", () => {
     const { status, body } = prepareArticleBody("# T\n\n`hello-world`\n\nProse.", "T");
     expect(status).toEqual([]);
