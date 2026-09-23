@@ -190,7 +190,19 @@ function Marked({ text, query }: { text: string; query: string }) {
 /** The row's media square: a poster/image that HIDES itself if the URL is
  *  dead (expired signed thumbs must not render as broken glass), or a
  *  metadata-only <video> first frame when only the video itself exists. */
-function RowThumb({ event, author, score }: { event: NostrEvent; author: SearchResult | null; score?: number | null }) {
+/** What the row's media square shows — one decision, shared by the square and
+ *  the snippet (which leaves out the chip for the picture shown beside it). */
+function rowThumbMedia(event: NostrEvent): { url: string | null; poster: string | null; isVideo: boolean } {
+  const url = mediaUrlOf(event);
+  const isImage = !!url && IMAGE_RE.test(url);
+  return {
+    url,
+    poster: isImage ? url : (mediaPosterOf(event) ?? null),
+    isVideo: !!url && !isImage && isVideoUrl(event, url),
+  };
+}
+
+function RowThumb({ event, author, score, onFail }: { event: NostrEvent; author: SearchResult | null; score?: number | null; onFail?: () => void }) {
   const speed = useConnectionSpeed();
   const [failed, setFailed] = useState(false);
   const openLightbox = useLightbox();
@@ -199,10 +211,7 @@ function RowThumb({ event, author, score }: { event: NostrEvent; author: SearchR
     author: author ? { name: getDisplayLabel(author), npub: author.npub, picture: author.picture, score01: score ?? author.wotRank ?? null } : null,
     postHref: eventPath(event),
   };
-  const url = mediaUrlOf(event);
-  const isImage = !!url && IMAGE_RE.test(url);
-  const poster = isImage ? url : (mediaPosterOf(event) ?? null);
-  const isVideo = !!url && !isImage && isVideoUrl(event, url);
+  const { url, poster, isVideo } = rowThumbMedia(event);
   // Google's news rows run ~92px; a 64px square undersold every picture.
   const cls = "h-20 w-24 shrink-0 rounded-xl object-cover bg-slate-100 dark:bg-slate-800";
   // The thumbnail IS the media: a tap opens it full view (a clip plays), not
@@ -218,7 +227,10 @@ function RowThumb({ event, author, score }: { event: NostrEvent; author: SearchR
         src={poster}
         alt=""
         loading="lazy"
-        onError={() => setFailed(true)}
+        onError={() => {
+          setFailed(true);
+          onFail?.();
+        }}
         onClick={openMedia}
         className={`${cls} cursor-zoom-in`}
         data-testid="serp-thumb"
@@ -407,6 +419,8 @@ export function SerpRow({
   const open = useCallback(() => setLocation(eventPath(event)), [event, setLocation]);
   // Dead news thumbs (expired signed URLs) vanish rather than render broken.
   const [newsThumbFailed, setNewsThumbFailed] = useState(false);
+  // A dead row thumbnail gives its picture's chip back to the text.
+  const [thumbFailed, setThumbFailed] = useState(false);
 
   const title = tagVal(event, "title") ?? tagVal(event, "name");
   const news = !title && event.content ? parseNewsShape(event.content, { imageSplitsHeadline: isFeedAccount(author) }) : null;
@@ -528,8 +542,10 @@ export function SerpRow({
   const cardLink = primaryLink(parseNoteContent(body));
   // The picture on the right is this URL; a chip for it in the text is the
   // same picture's address, said again.
-  const mediaUrl = mediaUrlOf(event);
-  const thumbUrl = mediaUrl && (IMAGE_RE.test(mediaUrl) || isVideoUrl(event, mediaUrl)) ? mediaUrl : null;
+  const thumb = rowThumbMedia(event);
+  const thumbUrl = !thumbFailed && (thumb.poster === thumb.url || thumb.isVideo) ? thumb.url : null;
+  // What the row actually shows — text past the clip isn't on screen.
+  const shown = clipAtToken(body, 300);
   return (
     <div {...rowProps}>
       <div className="min-w-0 flex-1">
@@ -546,14 +562,14 @@ export function SerpRow({
         )}
         {body && (
           <div className={title ? "mt-1" : "mt-1.5"}>
-            <Snippet text={clipAtToken(body, 300)} query={query} lines={title ? 2 : 3} hide={thumbUrl} />
+            <Snippet text={shown} query={query} lines={title ? 2 : 3} hide={thumbUrl} />
             {/* X's "Translate post" for text in another language — on-device, quiet. */}
             <TranslateLine text={body.slice(0, 1000)} />
           </div>
         )}
         {cardLink && (
           <div onClick={(e) => e.stopPropagation()}>
-            <LinkPreviewCard url={cardLink} showImage={!mediaUrl} context={[title, body].filter(Boolean).join("\n")} />
+            <LinkPreviewCard url={cardLink} showImage={!thumb.url} context={[title, shown].filter(Boolean).join("\n")} />
           </div>
         )}
         {quotedIn(body).slice(0, 1).map((q) => (
@@ -563,7 +579,7 @@ export function SerpRow({
         ))}
         {engagement && <EngagementLine zaps={engagement.zaps} replies={engagement.replies} testId="serp-engagement" />}
       </div>
-      <RowThumb event={event} author={author} score={score} />
+      <RowThumb event={event} author={author} score={score} onFail={() => setThumbFailed(true)} />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isEchoed } from "./echoedText";
+import { echoContext, isEchoed } from "./echoedText";
 
 // Real RSS-bot rows: the note is headline + lede + link, and the link's Open
 // Graph title/description are that headline and lede again.
@@ -35,5 +35,21 @@ describe("isEchoed", () => {
 
   it("a note that only shares a word or two with the page is not an echo", () => {
     expect(isEchoed("Liverpool F.C. — Professional football club", "Watching the Liverpool game tonight")).toBe(false);
+  });
+
+  it("a site suffix stripped to one word is not a headline — 'Tesla' doesn't echo a recall story", () => {
+    expect(isEchoed("Tesla - Recall hits 2M cars", "Selling my Tesla, anyone interested?")).toBe(false);
+    expect(isEchoed("Nostr - a protocol", "I use nostr daily")).toBe(false);
+  });
+
+  it("the same words in another order are not the same sentence", () => {
+    const chatty = "One camera is old, the other better; new iPhone has a camera than one the old has";
+    expect(isEchoed("The new iPhone has a better camera than the old one", chatty)).toBe(false);
+  });
+
+  it("a prepared context gives the same answers", () => {
+    const ctx = echoContext(g1);
+    expect(isEchoed("Justiça solta homem que matou amiga para 'expulsar demônios' na Serra | G1", ctx)).toBe(true);
+    expect(isEchoed("Presidente dos EUA afirmou estar nove em nove", ctx)).toBe(false);
   });
 });

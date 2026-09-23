@@ -241,12 +241,10 @@ describe("the plain-link card", () => {
     expect(card).not.toHaveTextContent("diz Trump");
   });
 
-  it("shrinks to a source line when the note already says it all", async () => {
+  it("draws nothing when the note already says it all and shows its own picture — the chip names the link", async () => {
     unfurlMock.mockResolvedValue({ kind: "page", title: "Story headline here | Outlet", description: "Story headline here", image: "https://img.test/og.jpg", siteName: "Outlet" });
     render(<LinkPreviewCard url="https://news.test/story" showImage={false} context="Story headline here" />);
-    const line = await screen.findByTestId("link-card-source");
-    expect(line).toHaveAttribute("href", "https://news.test/story");
-    expect(line).toHaveTextContent("Outlet");
+    await screen.findByTestId("link-card-echoed");
     expect(screen.queryByTestId("link-card")).toBeNull();
   });
 

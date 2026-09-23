@@ -65,7 +65,8 @@ export function parseNewsShape(raw: string, opts: { imageSplitsHeadline?: boolea
   }
 
   const rest = content.slice(at + articleUrl.length);
-  const imageUrl = urls.find((u) => u !== articleUrl && isImage(u)) ?? null;
+  // The article link is never an image, so the first image is the thumbnail.
+  const imageUrl = firstImage ?? null;
   // Web URLs leave the summary (the headline carries the link); nostr:
   // mention tokens STAY — the renderer turns them into the person's
   // name + picture, which is the whole point of a mention.

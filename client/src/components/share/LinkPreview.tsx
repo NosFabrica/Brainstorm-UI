@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ExternalLink, Globe } from "lucide-react";
 import { WavlakeTrackCard } from "@/components/share/WavlakeTrackCard";
 import { FountainCard } from "@/components/share/FountainCard";
@@ -9,7 +9,7 @@ import { useLightbox } from "@/components/share/Lightbox";
 import { FeedVideo } from "@/components/share/FeedVideo";
 import { useNearViewport } from "@/hooks/useNearViewport";
 import { useConnectionSpeed } from "@/lib/connection";
-import { isEchoed } from "@/lib/echoedText";
+import { echoContext, isEchoed } from "@/lib/echoedText";
 
 /**
  * Link previews for a note's links. A browser can't read another site's Open
@@ -161,6 +161,8 @@ function isJustTheSiteName(title: string, host: string): boolean {
 function UnfurledCard({ url, host, showImage, context }: { url: string; host: string; showImage: boolean; context?: string }) {
   const openLightbox = useLightbox();
   const [fetched, setMeta] = useState<Unfurled | null>(null);
+  // The note's text, tokenized once rather than per check per render.
+  const echoCtx = useMemo(() => echoContext(context), [context]);
   const [imgFailed, setImgFailed] = useState(false);
   // Nothing is drawn until there is an answer, so a zero-height marker is
   // what gets observed. Only ask for the links a reader actually scrolls to.
@@ -236,12 +238,13 @@ function UnfurledCard({ url, host, showImage, context }: { url: string; host: st
     </span>
   );
   // Only what the note hasn't already said.
-  const newTitle = title && !isEchoed(title, context) ? title : null;
-  const newDescription = meta.description && !isEchoed(meta.description, context) ? meta.description : null;
+  const newTitle = title && !isEchoed(title, echoCtx) ? title : null;
+  const newDescription = meta.description && !isEchoed(meta.description, echoCtx) ? meta.description : null;
 
   if (!newTitle && !newDescription) {
     // The words are all on screen already. With a picture, the card is the
-    // picture and where it leads; without one, a quiet line to the source.
+    // picture and where it leads; without one, nothing — the inline chip
+    // already names the link.
     if (image) {
       return (
         <a
@@ -268,19 +271,7 @@ function UnfurledCard({ url, host, showImage, context }: { url: string; host: st
         </a>
       );
     }
-    return (
-      <a
-        href={url}
-        target="_blank"
-        rel="noopener"
-        onClick={(e) => e.stopPropagation()}
-        className="mt-1.5 inline-flex max-w-full items-center gap-1 rounded-md py-0.5 no-underline hover:underline"
-        data-testid="link-card-source"
-      >
-        {source}
-        <ExternalLink className="h-3 w-3 shrink-0 text-slate-400" />
-      </a>
-    );
+    return <span ref={ref} aria-hidden className="block h-0" data-testid="link-card-echoed" />;
   }
 
   return (
