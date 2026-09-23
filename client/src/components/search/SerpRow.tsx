@@ -345,20 +345,24 @@ function AuthorLine({
           <DefaultAvatarImg />
         </AvatarFallback>
       </Avatar>
-      <span className="truncate text-xs font-medium text-slate-600 dark:text-slate-300">
-        {author ? getDisplayLabel(author) : "Unknown"}
-      </span>
-      <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">· {ago(created_at)}</span>
-      {type && (
-        <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500" data-testid="serp-type">
-          · {type}
+      {/* Name (12px) and the 11px meta share one baseline — centring boxes of
+          two font sizes leaves the meta riding high. */}
+      <div className="flex min-w-0 items-baseline gap-1.5 leading-4">
+        <span className="truncate text-xs font-medium text-slate-600 dark:text-slate-300">
+          {author ? getDisplayLabel(author) : "Unknown"}
         </span>
-      )}
-      {feed && (
-        <span className="inline-flex shrink-0 items-center gap-0.5 text-[11px] text-slate-400 dark:text-slate-500" title="An automated feed account" data-testid="serp-feed">
-          · <Rss className="h-3 w-3" /> feed
-        </span>
-      )}
+        <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">· {ago(created_at)}</span>
+        {type && (
+          <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500" data-testid="serp-type">
+            · {type}
+          </span>
+        )}
+        {feed && (
+          <span className="inline-flex shrink-0 items-center gap-0.5 text-[11px] text-slate-400 dark:text-slate-500" title="An automated feed account" data-testid="serp-feed">
+            · <Rss className="h-3 w-3" /> feed
+          </span>
+        )}
+      </div>
     </div>
   );
 }
@@ -424,7 +428,7 @@ export function SerpRow({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 min-w-0" data-testid="news-source">
             <AuthorLine author={author} score={score} created_at={event.created_at} />
-            <span className="hidden sm:inline-flex items-center gap-1 min-w-0 text-[11px] text-slate-400 dark:text-slate-500">
+            <span className="hidden sm:inline-flex items-center gap-1 min-w-0 text-[11px] leading-4 text-slate-400 dark:text-slate-500">
               ·
               <Favicon host={news.domain} className="h-3 w-3 rounded-sm shrink-0 object-contain" />
               <span className="truncate">{news.domain}</span>
@@ -453,7 +457,7 @@ export function SerpRow({
               the story lives. */}
           <div className="flex items-center gap-1.5 min-w-0" data-testid="news-source">
             <AuthorLine author={author} score={score} created_at={event.created_at} type="News" />
-            <span className="hidden sm:inline-flex items-center gap-1 min-w-0 text-[11px] text-slate-400 dark:text-slate-500">
+            <span className="hidden sm:inline-flex items-center gap-1 min-w-0 text-[11px] leading-4 text-slate-400 dark:text-slate-500">
               ·
               <Favicon host={news.domain} className="h-3 w-3 rounded-sm shrink-0 object-contain" />
               <span className="truncate">{news.domain}</span>
