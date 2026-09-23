@@ -26,6 +26,10 @@ Five canonical triage roles, each mapped to its default label string (`needs-tri
 
 Single-context layout — [`CONTEXT.md`](CONTEXT.md) + [`docs/adr/`](docs/adr/) at the repo root. Both exist; extend them rather than starting a parallel glossary. See `docs/agents/domain.md`.
 
+### Shipping to staging
+
+PR → merge into `staging` → deploy staging from brainstorm-k8s. By default create the PR and walk the user through the rest. See `docs/agents/staging-deploy.md`.
+
 ## Design system (use the primitives)
 
 New UI **must** use the shared primitives instead of hand-rolling styles — this is what keeps theming/spacing consistent and stops dark-mode drift. Do **not** write `bg-<color>-50 dark:bg-<color>-500/10 …` tinted pills or `rounded-2xl border bg-white dark:bg-slate-900 shadow-sm` cards by hand.
@@ -42,7 +46,8 @@ Anchored to the designer's brand-guidelines p17 "UI Foundations" sheet. Full gui
 ## Deploying to staging
 
 - `staging` is the default branch and what the staging env runs; `main` is prod.
-- Branch off `staging`, PR into `staging`. Only merge work that is ready to ship — promotion takes everything; gate unfinished work behind a `VITE_FEATURE_*` flag.
+- Branch off `staging`, PR into `staging`.
+- Asked to ship a change: follow `docs/agents/staging-deploy.md` (PR → merge into `staging` → deploy via brainstorm-k8s). Default is to create the PR, then walk the user through merge and deploy, confirming before each.
 - Prod: `staging` → `main` as a merge commit, never squash. Core team's call.
 - Hotfix: branch off `main`, PR into `main`, then merge `main` back into `staging`.
 - Never create temp/join branches for staging or ask for `ui.image.tag` to be repinned; it stays `staging`.
