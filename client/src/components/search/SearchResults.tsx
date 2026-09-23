@@ -79,6 +79,13 @@ const LIVE_KINDS = new Set(TAB_KINDS.live);
 const EVENT_KINDS = new Set(TAB_KINDS.events);
 const MUSIC_KINDS = new Set(TAB_KINDS.music);
 const SHOP_KINDS = new Set(TAB_KINDS.shop);
+
+/** What kind of article a hit is — the Articles tab's type chips narrow by this. */
+type ArticleType = "article" | "spec" | "wiki";
+const ARTICLE_TYPE_LABEL: Record<ArticleType, string> = { article: "Articles", spec: "Specs", wiki: "Wiki" };
+function articleTypeOf(kind: number): ArticleType {
+  return kind === 30817 ? "spec" : kind === 30818 ? "wiki" : "article";
+}
 const LIST_KINDS = new Set(TAB_KINDS.lists);
 
 /** ShareNoteCard's profile map, built from the hits' hydrated authors. */
@@ -828,6 +835,7 @@ export function SearchResults({
   const [appPlatform, setAppPlatform] = useState<string | null>(null);
   const [appCategory, setAppCategory] = useState<string | null>(null);
   const [shopCategory, setShopCategory] = useState<string | null>(null);
+  const [articleType, setArticleType] = useState<ArticleType | null>(null);
   // Repos tab: what became of each issue and patch — one request per page,
   // keyed by item id (NIP-34 status events, newest wins; none means open).
   const [repoState, setRepoState] = useState<GitState | null>(null);
@@ -919,6 +927,7 @@ export function SearchResults({
     setAppPlatform(null);
     setAppCategory(null);
     setShopCategory(null);
+    setArticleType(null);
   }, [tab, query]);
   // The listings' own categories, counted — the Shop's facets.
   const shopFacets = useMemo(() => {
@@ -926,6 +935,15 @@ export function SearchResults({
     const counts = new Map<string, number>();
     for (const h of hits) for (const c of parseListing(h.event)?.categories ?? []) counts.set(c, (counts.get(c) ?? 0) + 1);
     return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  }, [tab, hits]);
+  // The kinds of article among the hits, in a fixed order. Chips only when
+  // there is more than one kind to tell apart — a search for honey sees none
+  // (the team: surface a way to narrow to specs only when specs were matched).
+  const articleFacets = useMemo<ArticleType[]>(() => {
+    if (tab !== "articles") return [];
+    const present = new Set(hits.map((h) => articleTypeOf(h.event.kind)));
+    const types = (["article", "spec", "wiki"] as ArticleType[]).filter((t) => present.has(t));
+    return types.length > 1 ? types : [];
   }, [tab, hits]);
   const appFacets = useMemo(() => {
     if (tab !== "apps") return [];
@@ -964,6 +982,9 @@ export function SearchResults({
     }
     if (tab === "shop" && shopCategory) {
       shown = shown.filter((h) => (parseListing(h.event)?.categories ?? []).includes(shopCategory));
+    }
+    if (tab === "articles" && articleType) {
+      shown = shown.filter((h) => articleTypeOf(h.event.kind) === articleType);
     }
     if (tab === "repos" && repoState) {
       // A state names issues and patches; repo announcements have none.
@@ -1115,6 +1136,7 @@ export function SearchResults({
   const narrowed =
     activeFilters > 0 ||
     !!shopCategory ||
+    !!articleType ||
     !!appPlatform ||
     !!appCategory ||
     !!repoState ||
@@ -1374,6 +1396,37 @@ export function SearchResults({
                 <FacetChip key={st} pressed={effectiveShelf === st} onClick={() => setLiveShelf(st)} count={liveCounts[st]} testId={`live-facet-${st === "replay" ? "replays" : st}`}>
                   {st === "live" ? "Live" : st === "upcoming" ? "Upcoming" : "Replays"}
                 </FacetChip>
+              ))}
+            </FacetRow>
+          )}
+          {tab === "articles" && articleFacets.length > 0 && (
+            <FacetRow className="mb-2" testId="article-facets">
+              <button
+                type="button"
+                onClick={() => setArticleType(null)}
+                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  articleType === null
+                    ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                    : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
+                }`}
+                data-testid="article-facet-all"
+              >
+                All
+              </button>
+              {articleFacets.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setArticleType((cur) => (cur === t ? null : t))}
+                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                    articleType === t
+                      ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                      : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
+                  }`}
+                  data-testid={`article-facet-${t}`}
+                >
+                  {ARTICLE_TYPE_LABEL[t]}
+                </button>
               ))}
             </FacetRow>
           )}

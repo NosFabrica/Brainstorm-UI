@@ -28,6 +28,18 @@ describe("EmbeddedArticleCard", () => {
     expect(card).not.toHaveTextContent("Article");
   });
 
+  // A spec (kind 30817) reads like an article and says what it is — and which kinds it covers.
+  it("a spec calls itself a Spec and names the kinds it covers", () => {
+    const spec = page(30817, "# Scheduler DVM", [["d", "scheduler-dvm"], ["title", "Scheduler DVM"], ["summary", "Schedule signed events for later."], ["k", "5905", "DVM Job Request"], ["k", "7000"]]);
+    render(<EmbeddedArticleCard event={spec} author={{ name: "nogringo" }} />);
+    const card = screen.getByTestId("embedded-article");
+    expect(card).toHaveTextContent("Spec");
+    expect(card).not.toHaveTextContent("Article");
+    expect(card).toHaveTextContent("Schedule signed events for later.");
+    expect(screen.getByTestId("article-kinds")).toHaveTextContent("5905");
+    expect(screen.getByTestId("article-kinds")).toHaveTextContent("7000");
+  });
+
   it("a long-form article keeps its own summary and its name", () => {
     const article = page(30023, "# Why\n\nBody **bold**.", [["d", "why"], ["title", "Why Bitcoin"], ["summary", "A short case for sound money."]]);
     render(<EmbeddedArticleCard event={article} author={{ name: "Max" }} />);

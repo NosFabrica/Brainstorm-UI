@@ -91,6 +91,7 @@ export function kindTypeLabel(kind: number): string {
     case 1111: return "Comment";
     case 30023: case 30024: case 30040: case 30041: return "Article";
     case 30818: return "Wiki";
+    case 30817: return "Spec";
     case 20: return "Photo";
     case 21: case 22: case 34235: case 34236: return "Video";
     case 1063: return "File";

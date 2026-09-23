@@ -116,6 +116,17 @@ async function tick() {
 beforeEach(() => vi.clearAllMocks());
 
 describe("searchStream", () => {
+  it("a typed kind narrows the tab it is on — spec: on Articles asks for specs alone", async () => {
+    controllable();
+
+    searchStream("dvm spec:", { tab: "articles", pov: "nosfabrica" }, () => {});
+    await tick();
+
+    const filter = reqMock.mock.calls[0][0] as { kinds?: number[]; search: string };
+    expect(filter.kinds).toEqual([30817]);
+    expect(filter.search).toMatch(/^dvm observer:/);
+  });
+
   it("streams people hits incrementally, with the house observer on the wire", async () => {
     const { subject } = controllable();
     const snaps: SearchSnapshot[] = [];
@@ -216,6 +227,27 @@ describe("searchStream — grouped", () => {
     expect(filters[1].search).toBe(`bitcoin observer:${HOUSE}`);
     expect(filters[1].limit).toBe(8);
   });
+
+  /**
+   * Everything is one request with a filter per section, each routed by kind.
+   * A typed kind must narrow each section, not replace its kinds — or Latest,
+   * Happening and Media all ask for specs and every section fills with them
+   * (seen live, 2026-09-22). A section left with no kinds asks nothing and
+   * finishes empty.
+   */
+  it("on Everything, a typed kind narrows each section, and empties the ones it doesn't fit", async () => {
+    controllable();
+    const notes: SearchSnapshot[] = [];
+
+    searchStream("dvm spec:", { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" }, (s) => notes.push(s));
+    searchStream("dvm spec:", { tab: "articles", pov: "nosfabrica", limit: 5, group: "search-everything" }, () => {});
+    await settle();
+
+    const filters = reqMock.mock.calls[0][0] as { kinds?: number[] }[];
+    expect(filters.map((f) => f.kinds)).toEqual([[30817]]); // Articles alone asked
+    expect(notes.at(-1)).toMatchObject({ hits: [], eose: true });
+  });
+
 
   it("gives each member only the events its filter asked for, and settles them together", async () => {
     const { subject } = controllable();
@@ -1687,6 +1719,12 @@ describe("kindsForTab", () => {
     expect(kindsForTab("people")).toEqual([0]);
     expect(kindsForTab("notes")).toEqual(TAB_KINDS.notes);
     expect(kindsForTab("everything")).toBeUndefined();
+  });
+
+  // Option A for NIPs in search: a spec (kind 30817, Markdown, addressable —
+  // what the search relay already indexes) is read like an article.
+  it("Articles asks for specs too", () => {
+    expect(kindsForTab("articles")).toContain(30817);
   });
 
   // Vitor's split: "Code & git" mixed content types (and probing showed its

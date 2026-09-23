@@ -668,6 +668,41 @@ describe("SearchResults", () => {
     expect(await screen.findByText("The State of Mining")).toBeInTheDocument();
   });
 
+  /**
+   * The team, on NIPs in search: show a way to narrow to specs only when a
+   * search actually matched some ("not for honey"), and no new kind filter in
+   * the tab row. So: the Shop tab's chips, inside Articles, only when the
+   * results mix more than one kind of article.
+   */
+  it("Articles offers type chips only when the results mix types, and Specs narrows to the specs", async () => {
+    setUrlTab("articles");
+    render(<SearchResults query="dvm" pov="nosfabrica" />);
+    const pk = "d".repeat(64);
+    const hit = (id: string, kind: number, title: string) => ({ event: ev(id, kind, pk, "body", [["d", id], ["title", title]]), author: author(pk, "russell"), rank: null });
+    emit({ hits: [hit("a1", 30023, "Building a DVM"), hit("s1", 30817, "Scheduler DVM"), hit("a2", 30023, "DVMs explained")], eose: true, timeMs: 200 });
+    await screen.findByText("Scheduler DVM");
+
+    const facets = screen.getByTestId("article-facets");
+    expect(within(facets).getByTestId("article-facet-spec")).toHaveTextContent("Specs");
+    expect(within(facets).getByTestId("article-facet-article")).toHaveTextContent("Articles");
+    expect(within(facets).queryByTestId("article-facet-wiki")).toBeNull(); // no wiki page in these results
+    expect(within(facets).getByTestId("article-facet-spec")).not.toHaveTextContent(/\d/);
+
+    fireEvent.click(within(facets).getByTestId("article-facet-spec"));
+    expect(screen.getByText("Scheduler DVM")).toBeInTheDocument();
+    expect(screen.queryByText("Building a DVM")).toBeNull();
+    expect(screen.getByTestId("text-search-stats")).toHaveTextContent("1 of 3 match");
+  });
+
+  it("a query that finds only articles shows no type chips", async () => {
+    setUrlTab("articles");
+    render(<SearchResults query="honey" pov="nosfabrica" />);
+    const pk = "d".repeat(64);
+    emit({ hits: [{ event: ev("h1", 30023, pk, "body", [["d", "h1"], ["title", "Raw honey"]]), author: author(pk, "bee"), rank: null }], eose: true, timeMs: 200 });
+    await screen.findByText("Raw honey");
+    expect(screen.queryByTestId("article-facets")).toBeNull();
+  });
+
   it("renders a live event with its status pill and title", async () => {
     setUrlTab("live");
     render(<SearchResults query="conf" pov="nosfabrica" />);
