@@ -6,6 +6,7 @@
  * back, so stale results structurally cannot flash).
  */
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { RECIPE_TAGS } from "@/lib/sourceApp";
 import { Link, useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
@@ -79,6 +80,11 @@ const LIVE_KINDS = new Set(TAB_KINDS.live);
 const EVENT_KINDS = new Set(TAB_KINDS.events);
 const MUSIC_KINDS = new Set(TAB_KINDS.music);
 const SHOP_KINDS = new Set(TAB_KINDS.shop);
+/** A recipe's topics: its `t` tags minus zap.cooking's own markers and their `<marker>-<slug>` copies. */
+function recipeTopics(e: NostrEvent): string[] {
+  const housekeeping = new RegExp(`^(${RECIPE_TAGS.join("|")})(-|$)`, "i");
+  return [...new Set(e.tags.filter((t) => t[0] === "t" && t[1]).map((t) => t[1].trim().toLowerCase()))].filter((t) => t && !housekeeping.test(t));
+}
 const LIST_KINDS = new Set(TAB_KINDS.lists);
 
 /** ShareNoteCard's profile map, built from the hits' hydrated authors. */
@@ -110,6 +116,9 @@ const PRIMARY_TABS: { key: SearchTab; label: string }[] = [
 const MORE_TABS: { key: SearchTab; label: string }[] = [
   { key: "apps", label: "Apps" },
   { key: "shop", label: "Shop" },
+  // Long-form articles wearing zap.cooking's tag: the same kind as Articles,
+  // which keeps showing them labelled Recipe — this is where people look.
+  { key: "recipes", label: "Recipes" },
   { key: "repos", label: "Repos" },
   { key: "events", label: "Events" },
   { key: "music", label: "Music" },
@@ -574,7 +583,8 @@ export function SearchResults({
   // put the page named "List of comedians" 26th under a month of news; best
   // match had it first, the other comedian lists behind it (relay probe,
   // 2026-09-07). A wordless browse still asks newest — there is nothing to match.
-  const articlesByRelevance = tab === "articles" && !!splitFilters(query).text;
+  // Recipes are articles by kind and by nature — evergreen too.
+  const articlesByRelevance = (tab === "articles" || tab === "recipes") && !!splitFilters(query).text;
   const effectiveQuery =
     !userSorted && tab !== "everything" && tab !== "people" && !articlesByRelevance
       ? `${safeQuery} sort:recent`.trim()
@@ -828,6 +838,7 @@ export function SearchResults({
   const [appPlatform, setAppPlatform] = useState<string | null>(null);
   const [appCategory, setAppCategory] = useState<string | null>(null);
   const [shopCategory, setShopCategory] = useState<string | null>(null);
+  const [recipeTopic, setRecipeTopic] = useState<string | null>(null);
   // Repos tab: what became of each issue and patch — one request per page,
   // keyed by item id (NIP-34 status events, newest wins; none means open).
   const [repoState, setRepoState] = useState<GitState | null>(null);
@@ -919,6 +930,7 @@ export function SearchResults({
     setAppPlatform(null);
     setAppCategory(null);
     setShopCategory(null);
+    setRecipeTopic(null);
   }, [tab, query]);
   // The listings' own categories, counted — the Shop's facets.
   const shopFacets = useMemo(() => {
@@ -926,6 +938,15 @@ export function SearchResults({
     const counts = new Map<string, number>();
     for (const h of hits) for (const c of parseListing(h.event)?.categories ?? []) counts.set(c, (counts.get(c) ?? 0) + 1);
     return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  }, [tab, hits]);
+  // The recipes' own topics — chicken, soup — counted. zap.cooking's
+  // housekeeping tags (the recipe marker and its `zapcooking-<slug>` copies)
+  // name the app and the dish, not a topic, and stay out.
+  const recipeFacets = useMemo(() => {
+    if (tab !== "recipes") return [];
+    const counts = new Map<string, number>();
+    for (const h of hits) for (const t of recipeTopics(h.event)) counts.set(t, (counts.get(t) ?? 0) + 1);
+    return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 10);
   }, [tab, hits]);
   const appFacets = useMemo(() => {
     if (tab !== "apps") return [];
@@ -964,6 +985,9 @@ export function SearchResults({
     }
     if (tab === "shop" && shopCategory) {
       shown = shown.filter((h) => (parseListing(h.event)?.categories ?? []).includes(shopCategory));
+    }
+    if (tab === "recipes" && recipeTopic) {
+      shown = shown.filter((h) => recipeTopics(h.event).includes(recipeTopic));
     }
     if (tab === "repos" && repoState) {
       // A state names issues and patches; repo announcements have none.
@@ -1115,6 +1139,7 @@ export function SearchResults({
   const narrowed =
     activeFilters > 0 ||
     !!shopCategory ||
+    !!recipeTopic ||
     !!appPlatform ||
     !!appCategory ||
     !!repoState ||
@@ -1374,6 +1399,37 @@ export function SearchResults({
                 <FacetChip key={st} pressed={effectiveShelf === st} onClick={() => setLiveShelf(st)} count={liveCounts[st]} testId={`live-facet-${st === "replay" ? "replays" : st}`}>
                   {st === "live" ? "Live" : st === "upcoming" ? "Upcoming" : "Replays"}
                 </FacetChip>
+              ))}
+            </FacetRow>
+          )}
+          {tab === "recipes" && recipeFacets.length > 0 && (
+            <FacetRow className="mb-2" testId="recipe-facets">
+              <button
+                type="button"
+                onClick={() => setRecipeTopic(null)}
+                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  recipeTopic === null
+                    ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                    : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
+                }`}
+                data-testid="recipe-facet-all"
+              >
+                All
+              </button>
+              {recipeFacets.map(([topic]) => (
+                <button
+                  key={topic}
+                  type="button"
+                  onClick={() => setRecipeTopic((cur) => (cur === topic ? null : topic))}
+                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                    recipeTopic === topic
+                      ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                      : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
+                  }`}
+                  data-testid={`recipe-facet-${topic}`}
+                >
+                  {topic}
+                </button>
               ))}
             </FacetRow>
           )}

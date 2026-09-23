@@ -340,6 +340,54 @@ describe("SearchResults", () => {
     expect(new URLSearchParams(window.location.search).get("t")).toBe("apps");
   });
 
+  /**
+   * Benjamin, on seeing "Brisket Burnt Ends Hatch Chili" under Articles: recipes
+   * deserve their own place. Under More ▾, by the five-tab rule — and choosing
+   * it asks the relay for recipes, not articles that happen to mention food.
+   */
+  it("Recipes lives under More, and choosing it searches recipes", () => {
+    render(<SearchResults query="chili" pov="nosfabrica" />);
+    expect(screen.queryByTestId("search-tab-recipes")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    const menu = screen.getByRole("menu");
+    fireEvent.click(within(menu).getByTestId("search-tab-recipes"));
+
+    expect(mainStreamCalls().at(-1)![1]).toMatchObject({ tab: "recipes" });
+    expect(screen.getByTestId("search-tab-more")).toHaveTextContent("Recipes");
+    expect(new URLSearchParams(window.location.search).get("t")).toBe("recipes");
+  });
+
+  /**
+   * The Recipes tab's topics are the recipes' own tags — chicken, soup — as the
+   * same quiet chips the Shop tab has, with zap.cooking's housekeeping tags
+   * (the recipe marker and its `zapcooking-<slug>` copies) kept out: they name
+   * the app and the dish, not a topic. One tap narrows; only then a count.
+   */
+  it("the Recipes tab offers the recipes' own topics as chips, housekeeping tags left out", async () => {
+    setUrlTab("recipes");
+    render(<SearchResults query="" pov="nosfabrica" />);
+    const cook = "9".repeat(64);
+    const recipe = (id: string, title: string, topics: string[]) => ({
+      event: ev(id, 30023, cook, `# ${title}`, [["d", id], ["title", title], ["t", "zapcooking"], ["t", `zapcooking-${id}`], ...topics.map((t) => ["t", t])]),
+      author: author(cook, "SkyLords"),
+      rank: null,
+    });
+    emit({ hits: [recipe("r1", "Chicken soup", ["chicken", "soup"]), recipe("r2", "Vanilla cake", ["dessert"])], eose: true, timeMs: 120 });
+
+    await screen.findByText("Chicken soup");
+    const facets = screen.getByTestId("recipe-facets");
+    expect(within(facets).getByTestId("recipe-facet-chicken")).toHaveTextContent("chicken");
+    expect(within(facets).getByTestId("recipe-facet-chicken")).not.toHaveTextContent(/\d/);
+    expect(within(facets).queryByTestId("recipe-facet-zapcooking")).toBeNull();
+    expect(within(facets).queryByTestId("recipe-facet-zapcooking-r1")).toBeNull();
+
+    fireEvent.click(within(facets).getByTestId("recipe-facet-dessert"));
+    expect(screen.getByText("Vanilla cake")).toBeInTheDocument();
+    expect(screen.queryByText("Chicken soup")).toBeNull();
+    expect(screen.getByTestId("text-search-stats")).toHaveTextContent("1 of 2 match");
+  });
+
   it("a deep link to a folded vertical opens with that vertical named in the More slot", () => {
     setUrlTab("lists");
     render(<SearchResults query="jack" pov="nosfabrica" />);
@@ -2362,6 +2410,17 @@ describe("the Articles tab orders worded searches by best match", () => {
       render(<SearchResults query="list of comedians" pov="nosfabrica" />);
       await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(0));
       expect(String(mainStreamCalls().at(-1)![0])).toBe("list of comedians");
+      cleanup();
+      render(<SearchResults query="" pov="nosfabrica" />);
+      await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(1));
+      expect(String(mainStreamCalls().at(-1)![0])).toBe("sort:recent");
+    });
+
+    it("Recipes sort like Articles — best match with words, newest on a browse", async () => {
+      setUrlTab("recipes");
+      render(<SearchResults query="chili" pov="nosfabrica" />);
+      await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(0));
+      expect(String(mainStreamCalls().at(-1)![0])).toBe("chili");
       cleanup();
       render(<SearchResults query="" pov="nosfabrica" />);
       await vi.waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(1));
