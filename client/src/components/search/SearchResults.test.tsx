@@ -315,12 +315,13 @@ describe("SearchResults", () => {
   // Benjamin: the nine-tab strip was "distracting and takes up a lot of
   // space". Google's shape: five tabs in view, the rest behind More ▾, and
   // the chosen overflow tab takes the More slot so you can see where you are.
-  it("shows five verticals and folds Apps, Repos, Live and Lists behind More", () => {
+  // Benjamin (2026-09-23): Shop earns the row — Media, then Shop — and
+  // Articles is the first thing behind More.
+  it("shows five verticals — Media then Shop — and folds Articles first behind More", () => {
     render(<SearchResults query="jack" pov="nosfabrica" />);
-    for (const t of ["everything", "people", "notes", "articles", "media"]) {
-      expect(screen.getByTestId(`search-tab-${t}`)).toBeInTheDocument();
-    }
-    for (const t of ["apps", "repos", "events", "live", "lists"]) expect(screen.queryByTestId(`search-tab-${t}`)).toBeNull();
+    const row = ["everything", "people", "notes", "media", "shop"].map((t) => screen.getByTestId(`search-tab-${t}`));
+    expect(row.map((el) => el.textContent)).toEqual(["Everything", "People", "Notes", "Media", "Shop"]);
+    for (const t of ["articles", "apps", "repos", "events", "live", "lists"]) expect(screen.queryByTestId(`search-tab-${t}`)).toBeNull();
     expect(screen.queryByTestId("search-tab-code")).toBeNull();
 
     const more = screen.getByTestId("search-tab-more");
@@ -329,6 +330,8 @@ describe("SearchResults", () => {
     fireEvent.click(more);
     expect(more.getAttribute("aria-expanded")).toBe("true");
     const menu = screen.getByRole("menu");
+    const items = [...menu.querySelectorAll('[data-testid^="search-tab-"]')].map((el) => el.getAttribute("data-testid"));
+    expect(items[0]).toBe("search-tab-articles");
     for (const t of ["apps", "repos", "events", "live", "lists"]) expect(within(menu).getByTestId(`search-tab-${t}`)).toBeInTheDocument();
 
     fireEvent.click(within(menu).getByTestId("search-tab-apps"));
@@ -2318,8 +2321,8 @@ describe("notes on the search page name who they mention", () => {
     const onTabChange = vi.fn();
     render(<SearchResults query="bitcoin" pov="nosfabrica" onTabChange={onTabChange} />);
     expect(onTabChange).toHaveBeenCalledWith("notes");
-    fireEvent.click(screen.getByTestId("search-tab-articles"));
-    expect(onTabChange).toHaveBeenLastCalledWith("articles");
+    fireEvent.click(screen.getByTestId("search-tab-media"));
+    expect(onTabChange).toHaveBeenLastCalledWith("media");
   });
 
 });
