@@ -50,6 +50,19 @@ vi.mock("@/services/nostr", () => ({
   fetchEventsByIds: async () => [],
   fetchAddressableEvents: async () => new Map(),
 }));
+// The faces the box's pills draw. The real one asks the search relay under `include:spam` and
+// the person's own write relays at once; here it answers from the same map as everything else.
+vi.mock("@/services/searchFaces", () => ({
+  fetchPillProfiles: async (pks: string[]) =>
+    new Map(
+      pks
+        .filter((pk) => knownProfiles.has(pk))
+        .map((pk) => {
+          const p = knownProfiles.get(pk)!;
+          return [pk, { pubkey: pk, npub: "", displayName: p.display_name, name: p.name, picture: p.picture, wotRank: null, wotFollowers: null }];
+        }),
+    ),
+}));
 vi.mock("@/services/api", () => ({ apiClient: new Proxy({}, { get: () => async () => null }) }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.85 }));
@@ -94,8 +107,9 @@ describe("browsing a vertical with filters, signed out", () => {
     // The browse re-ran for the same tab with the token on the wire.
     await waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(before));
     expect((mainStreamCalls().at(-1)![1] as { tab?: string }).tab).toBe("notes");
-    // The words stay empty: browsing, not searching for a token.
-    expect(screen.getByTestId("form-home-search").querySelector("input")).toHaveValue("");
+    // The words stay empty: browsing, not searching for a token — and the panel's token
+    // rides the URL's `f`, never the box.
+    expect(boxValue()).toBe("");
   });
 
   it("a shared browse link restores its filter", async () => {
@@ -121,6 +135,18 @@ describe("browsing a vertical with filters, signed out", () => {
 // Benjamin, over the panel's related topics (#texas, #restaurants…): "nothing
 // happens when users click on these". They are in-app links to /?q=…, which
 // change the URL without a popstate; the results must follow the URL anyway.
+/**
+ * Type into the box. It is a contenteditable now (the grammar's tokens draw as pills there),
+ * so a value set plus an `input` is one keystroke — `fireEvent.change` means nothing to it.
+ */
+function typeInBox(text: string): HTMLElement & { value: string } {
+  const box = screen.getByTestId("input-home-search") as HTMLElement & { value: string };
+  box.value = text;
+  fireEvent.input(box);
+  return box;
+}
+const boxValue = () => (screen.getByTestId("input-home-search") as HTMLElement & { value: string }).value;
+
 describe("an in-app link to another search", () => {
   beforeEach(() => {
     cleanup();
@@ -135,7 +161,7 @@ describe("an in-app link to another search", () => {
     // What a wouter <Link href="/?q=liverpool"> does.
     window.history.pushState({}, "", "/?q=liverpool");
     await waitFor(() => expect(mainStreamCalls().some(([q]) => q === "liverpool")).toBe(true));
-    expect((screen.getByTestId("input-home-search") as HTMLInputElement).value).toBe("liverpool");
+    expect(boxValue()).toBe("liverpool");
   });
 });
 
@@ -158,7 +184,8 @@ describe("a search scoped to a person shows them in the box, never the raw key",
     render(<Landing />);
     const chip = await screen.findByTestId("search-scope-chip");
     await waitFor(() => expect(chip).toHaveTextContent("Joe Martin"));
-    expect((screen.getByTestId("input-home-search") as HTMLInputElement).value).toBe("");
+    // The VALUE is the grammar — the key is in it. What is DRAWN is the person.
+    expect(boxValue()).toBe(`from:${npub}`);
     expect(screen.getByTestId("form-home-search")).not.toHaveTextContent("npub1");
     // The Music tab adds its own newest-first order after the scope.
     await waitFor(() => expect(mainStreamCalls().some(([q]) => String(q).startsWith(`from:${npub}`))).toBe(true));
@@ -167,32 +194,37 @@ describe("a search scoped to a person shows them in the box, never the raw key",
   it("words typed beside the chip search within that person's posts", async () => {
     render(<Landing />);
     await screen.findByTestId("search-scope-chip");
-    const input = screen.getByTestId("input-home-search") as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "alone in " } });
-    expect(input.value).toBe("alone in "); // the space survives — the words are typed, not re-derived
-    fireEvent.change(input, { target: { value: "alone in valentine" } });
+    typeInBox(`from:${npub} alone in `);
+    expect(boxValue()).toBe(`from:${npub} alone in `); // the trailing space survives
+    typeInBox(`from:${npub} alone in valentine`);
     fireEvent.submit(screen.getByTestId("form-home-search"));
     await waitFor(() => expect(mainStreamCalls().some(([q]) => String(q).startsWith(`from:${npub} alone in valentine`))).toBe(true));
     expect(new URLSearchParams(window.location.search).get("q")).toBe(`from:${npub} alone in valentine`);
-    expect(input.value).toBe("alone in valentine");
+    expect(boxValue()).toBe(`from:${npub} alone in valentine`);
     expect(screen.getByTestId("search-scope-chip")).toHaveTextContent("Joe Martin");
+    // Still the person, never the key.
+    expect(screen.getByTestId("form-home-search")).not.toHaveTextContent("npub1");
   });
 
   it("Enter in the box runs the scoped words, without relying on the form's implicit submit", async () => {
     render(<Landing />);
     await screen.findByTestId("search-scope-chip");
-    const input = screen.getByTestId("input-home-search") as HTMLInputElement;
-    fireEvent.change(input, { target: { value: "checkmate" } });
-    fireEvent.keyDown(input, { key: "Enter" });
+    const box = typeInBox(`from:${npub} checkmate`);
+    // A soft keyboard's action key and a desktop Return both arrive as an inserted break.
+    fireEvent.keyDown(box, { key: "Enter" });
+    fireEvent(box, new InputEvent("beforeinput", { inputType: "insertLineBreak", bubbles: true, cancelable: true }));
     await waitFor(() => expect(mainStreamCalls().some(([q]) => String(q).startsWith(`from:${npub} checkmate`))).toBe(true));
     expect(new URLSearchParams(window.location.search).get("q")).toBe(`from:${npub} checkmate`);
   });
 
   it("the chip's X drops the scope and leaves an empty box", async () => {
     render(<Landing />);
-    fireEvent.click(await screen.findByTestId("search-scope-remove"));
-    expect(screen.queryByTestId("search-scope-chip")).toBeNull();
-    expect((screen.getByTestId("input-home-search") as HTMLInputElement).value).toBe("");
+    // The pill re-paints in place when the profile lands, so the × is re-made — take it
+    // after the name has settled, not before.
+    await waitFor(() => expect(screen.getByTestId("search-scope-chip")).toHaveTextContent("Joe Martin"));
+    fireEvent.mouseDown(screen.getByTestId("search-scope-remove"));
+    await waitFor(() => expect(screen.queryByTestId("search-scope-chip")).toBeNull());
+    expect(boxValue()).toBe("");
     expect(new URLSearchParams(window.location.search).get("q")).toBeNull();
   });
 
@@ -241,7 +273,7 @@ describe("the scoped box names the tab and the person, and is ready to type", ()
     suggestMock.mockResolvedValue([{ pubkey: GAL, npub: nip19.npubEncode(GAL), name: "Guitar Gal", wotRank: null, wotFollowers: null }]);
     render(<Landing />);
     await screen.findByTestId("search-scope-chip");
-    fireEvent.change(screen.getByTestId("input-home-search"), { target: { value: "guitar" } });
+    typeInBox(`from:${npub} guitar`);
     const footer = await screen.findByTestId("home-suggestion-see-all", {}, { timeout: 3000 });
     await waitFor(() => expect(footer).toHaveTextContent('See all results for "guitar" from Joe Martin'));
     expect(footer).not.toHaveTextContent("npub1");
@@ -279,10 +311,48 @@ describe("the search band as the page scrolls", () => {
   });
 });
 
+// One hashtag and nothing else is a topic; anything more is a search carrying a tag filter.
+// `handleSearch` had its own copy of the rule that squashed the whole query into one slug, so
+// the combined grammar was unreachable from this box however well the parser understood it.
+describe("a # query that is more than one tag", () => {
+  beforeEach(() => {
+    cleanup();
+    allStreams = [];
+    streamMock.mockClear();
+    window.history.replaceState({}, "", "/");
+  });
+
+  it("searches rather than leaving for a squashed topic page", async () => {
+    render(<Landing />);
+    typeInBox("#nostr bitcoin");
+    fireEvent.submit(screen.getByTestId("form-home-search"));
+    // `mainStreamCalls` filters `#`-leading queries as knowledge-panel probes, which is what
+    // this query looks like to it — so read every stream the page opened.
+    await waitFor(() => expect(streamMock.mock.calls.some(([q]) => q === "#nostr bitcoin")).toBe(true));
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("one tag alone is still the topic page", async () => {
+    render(<Landing />);
+    typeInBox("#nostr");
+    fireEvent.submit(screen.getByTestId("form-home-search"));
+    await waitFor(() => expect(window.location.pathname).toBe("/t/nostr"));
+  });
+
+  // A filter is not a search anybody would want offered back to them in a list.
+  it("a wordless filter query stays out of recent searches", async () => {
+    render(<Landing />);
+    typeInBox("since:2026-01-02");
+    fireEvent.submit(screen.getByTestId("form-home-search"));
+    await waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(0));
+    expect(getRecentItems().some((r) => r.type === "query" && r.q.includes("since:"))).toBe(false);
+  });
+});
+
 describe("typing in the home search", () => {
-  const typeSlowly = (input: HTMLElement, word: string) => {
+  const typeSlowly = (word: string) => {
     for (let i = 1; i <= word.length; i++) {
-      fireEvent.change(input, { target: { value: word.slice(0, i) } });
+      typeInBox(word.slice(0, i));
       act(() => { vi.advanceTimersByTime(200); });
     }
   };
@@ -303,7 +373,7 @@ describe("typing in the home search", () => {
 
   it("asks for suggestions once, for the whole word, when typing pauses", () => {
     render(<Landing />);
-    typeSlowly(screen.getByTestId("input-home-search"), "vitor");
+    typeSlowly("vitor");
     act(() => { vi.advanceTimersByTime(400); });
     expect(suggestMock).toHaveBeenCalledTimes(1);
     expect(suggestMock.mock.calls[0][0]).toBe("vitor");
@@ -311,17 +381,16 @@ describe("typing in the home search", () => {
 
   it("cancels a suggestion request that's under way when the next key lands", () => {
     render(<Landing />);
-    const input = screen.getByTestId("input-home-search");
-    fireEvent.change(input, { target: { value: "vito" } });
+    typeInBox("vito");
     act(() => { vi.advanceTimersByTime(400); });
     expect(signalOf(0)?.aborted).toBe(false);
-    fireEvent.change(input, { target: { value: "vitor" } });
+    typeInBox("vitor");
     expect(signalOf(0)?.aborted).toBe(true);
   });
 
   it("cancels it when the page goes away", () => {
     const { unmount } = render(<Landing />);
-    fireEvent.change(screen.getByTestId("input-home-search"), { target: { value: "vitor" } });
+    typeInBox("vitor");
     act(() => { vi.advanceTimersByTime(400); });
     unmount();
     expect(signalOf(0)?.aborted).toBe(true);
@@ -332,8 +401,7 @@ describe("typing in the home search", () => {
 
   it("sends nothing when the dropdown is closed during the pause, and it stays closed", () => {
     render(<Landing />);
-    const input = screen.getByTestId("input-home-search");
-    fireEvent.change(input, { target: { value: "vitor" } });
+    const input = typeInBox("vitor");
     fireEvent.keyDown(input, { key: "Escape" });
     act(() => { vi.advanceTimersByTime(400); });
     expect(suggestMock).not.toHaveBeenCalled();
@@ -346,8 +414,7 @@ describe("typing in the home search", () => {
         resolve([{ pubkey: "c".repeat(64), npub: "npub1partial", name: "partial" }]));
     }));
     render(<Landing />);
-    const input = screen.getByTestId("input-home-search");
-    fireEvent.change(input, { target: { value: "vitor" } });
+    const input = typeInBox("vitor");
     act(() => { vi.advanceTimersByTime(400); });
     fireEvent.keyDown(input, { key: "Escape" });
     await act(async () => {});
@@ -357,7 +424,7 @@ describe("typing in the home search", () => {
 
   it("searches right away on Enter, without waiting for the pause", () => {
     render(<Landing />);
-    fireEvent.change(screen.getByTestId("input-home-search"), { target: { value: "vitor" } });
+    typeInBox("vitor");
     act(() => { fireEvent.submit(screen.getByTestId("form-home-search")); });
     expect(mainStreamCalls().some(([q]) => q === "vitor")).toBe(true);
   });
