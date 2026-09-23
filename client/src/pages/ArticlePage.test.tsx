@@ -137,7 +137,7 @@ describe("reading a spec", () => {
 
   it("reads a spec's front matter as its details: id gone, status, kinds named, tags listed", async () => {
     const TSM = "Trust Service Machines (TSM)\n===\n\n`tsm`\n\n`draft`\n\n`kind` `37570` \"TSM Service Announcement\"\n\n`tag` `B` \"price in millisats\"\n\n---\n\nNostr needs a standard.";
-    await open({ ...spec(30817, [["k", "37570"]], TSM), tags: [["d", "tsm"], ["title", "Trust Service Machines (TSM )"], ["k", "37570"]] });
+    await open(event(30817, "tsm", "Trust Service Machines (TSM )", [["k", "37570"]], TSM));
 
     const body = screen.getByTestId("article-body");
     expect(body.querySelector("h1")).toBeNull();
