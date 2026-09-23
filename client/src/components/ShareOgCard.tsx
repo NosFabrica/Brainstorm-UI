@@ -1,7 +1,7 @@
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { getScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { getTierGranularity } from "@/hooks/useTierGranularity";
-import { BadgeCheck } from "lucide-react";
+import { Nip05Handle } from "@/components/Nip05Check";
 import { initialsFor } from "@/lib/profileDefaults";
 import { shareTierFor } from "@/components/share/TrustScoreBadge";
 
@@ -16,11 +16,14 @@ export function ShareOgCard({
   displayName,
   picture,
   nip05,
+  pubkey,
   score01,
 }: {
   displayName: string;
   picture?: string;
   nip05?: string;
+  /** Whose card this is — the handle's check is confirmed against it. */
+  pubkey?: string;
   /** House Web-of-Trust score, 0–1. Renders the tier pill when present. */
   score01?: number | null;
 }) {
@@ -52,11 +55,12 @@ export function ShareOgCard({
           </Avatar>
           <div className="min-w-0">
             <div className="text-[6.5cqw] font-bold leading-tight truncate text-slate-900" style={{ fontFamily: "var(--font-display)" }}>{displayName}</div>
-            {nip05 && (
-              <div className="flex items-center gap-1 text-[3.4cqw] text-brand-link font-medium mt-[0.6cqw]">
-                <BadgeCheck className="h-[3.4cqw] w-[3.4cqw]" /> {nip05.replace(/^_@/, "")}
-              </div>
-            )}
+            <Nip05Handle
+              nip05={nip05}
+              pubkey={pubkey}
+              className="flex items-center gap-1 text-[3.4cqw] text-brand-link font-medium mt-[0.6cqw]"
+              iconClassName="h-[3.4cqw] w-[3.4cqw]"
+            />
             {tier && (
               <div
                 className="inline-flex items-center gap-[1.6cqw] rounded-full px-[3cqw] py-[1.1cqw] mt-[2.2cqw]"

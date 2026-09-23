@@ -5,6 +5,7 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
+import { useNip05 } from "@/hooks/useNip05";
 import { naddrForEvent } from "@/lib/articleLinks";
 import { articleBrief } from "@/lib/wiki";
 import articleDefault from "@/assets/article-default.webp";
@@ -47,6 +48,7 @@ export function EmbeddedArticleCard({ event, author , trustScore01 }: { trustSco
   const [imgBroken, setImgBroken] = useState(false);
   const coverSrc = !image || imgBroken ? articleDefault : image;
   const name = author?.display_name || author?.name || "Unknown";
+  const nip05Verified = useNip05(author?.nip05, event.pubkey) === "verified";
   const naddr = naddrForEvent(event);
   const href = naddr ? `/a/${naddr}` : undefined;
   const [, navigate] = useLocation();
@@ -90,7 +92,7 @@ export function EmbeddedArticleCard({ event, author , trustScore01 }: { trustSco
               <AvatarFallback className="overflow-hidden rounded-full"><DefaultAvatarImg /></AvatarFallback>
             </Avatar>
             <span className="font-medium text-slate-600 dark:text-slate-300 truncate">{name}</span>
-            {author?.nip05 && <BadgeCheck className="h-3 w-3 text-sky-500 shrink-0" />}
+            {nip05Verified && <BadgeCheck className="h-3 w-3 text-sky-500 shrink-0" />}
             {event.created_at ? <span className="text-slate-400 dark:text-slate-500 ml-auto shrink-0">{ago(event.created_at)}</span> : null}
           </div>
 

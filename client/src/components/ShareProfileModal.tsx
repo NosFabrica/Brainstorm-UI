@@ -1,5 +1,6 @@
 import { useLocation } from "wouter";
 import { ArrowRight, ImagePlus } from "lucide-react";
+import { nip19 } from "nostr-tools";
 import { ShareOgCard } from "@/components/ShareOgCard";
 import { ShareModal } from "@/components/share/ShareModal";
 
@@ -32,8 +33,14 @@ interface ShareProfileModalProps {
  * is the `/p/` one, and that is a different thing from the link people share.
  * `useShareUrl` is the one place that decides.
  */
-export function ShareProfileModal({ open, onOpenChange, displayName, picture, nip05, shareUrl, score01, invite = false, onOwnPage = false }: ShareProfileModalProps) {
+export function ShareProfileModal({ open, onOpenChange, npub, displayName, picture, nip05, shareUrl, score01, invite = false, onOwnPage = false }: ShareProfileModalProps) {
   const [, navigate] = useLocation();
+  // The OG card only checks the handle against this key (lib/nip05).
+  let pubkey: string | undefined;
+  try {
+    const d = nip19.decode(npub);
+    if (d.type === "npub") pubkey = d.data;
+  } catch { /* no key, no check */ }
   return (
     <ShareModal
       open={open}
@@ -54,7 +61,7 @@ export function ShareProfileModal({ open, onOpenChange, displayName, picture, ni
           className="block rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden shadow-sm hover:border-brand-primary/25 hover:shadow-md transition-all"
           data-testid="share-open-page-card"
         >
-          <ShareOgCard displayName={displayName} picture={picture} nip05={nip05} score01={score01} />
+          <ShareOgCard displayName={displayName} picture={picture} nip05={nip05} pubkey={pubkey} score01={score01} />
         </a>
       }
       extra={
