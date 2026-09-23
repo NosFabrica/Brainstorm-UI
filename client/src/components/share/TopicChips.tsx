@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { useShareNav } from "@/components/share/ShareNavContext";
 
 const CHIP_CLS = "shrink-0 whitespace-nowrap rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 text-xs font-semibold text-brand-link";
@@ -9,9 +9,11 @@ const GAP_PX = 6; // gap-1.5
  * skills row from the person's most-used tags. Kept to a SINGLE line by showing
  * only the chips that FULLY fit (measured against the available width); any that
  * wouldn't fit are dropped entirely — never clipped or greyed mid-word. Tapping a
- * chip opens the hashtag-explore flow.
+ * chip opens the hashtag-explore flow. A `trailing` affordance — the quiet
+ * "+ Tag" — sits after the chips, outside the measured space; with no topics
+ * it stands alone, without the label.
  */
-export function TopicChips({ topics }: { topics: string[] }) {
+export function TopicChips({ topics, trailing }: { topics: string[]; trailing?: ReactNode }) {
   const requestNav = useShareNav();
   const areaRef = useRef<HTMLDivElement>(null);
   const ghostRef = useRef<HTMLDivElement>(null);
@@ -37,7 +39,14 @@ export function TopicChips({ topics }: { topics: string[] }) {
     return () => ro.disconnect();
   }, [topics]);
 
-  if (!topics.length) return null;
+  if (!topics.length && !trailing) return null;
+  if (!topics.length) {
+    return (
+      <div className="mt-2.5 flex items-center gap-1.5" data-testid="share-topics">
+        {trailing}
+      </div>
+    );
+  }
 
   return (
     <div className="mt-2.5 flex items-center gap-1.5 overflow-hidden" data-testid="share-topics">
@@ -63,6 +72,7 @@ export function TopicChips({ topics }: { topics: string[] }) {
           ))}
         </div>
       </div>
+      {trailing && <div className="shrink-0">{trailing}</div>}
     </div>
   );
 }

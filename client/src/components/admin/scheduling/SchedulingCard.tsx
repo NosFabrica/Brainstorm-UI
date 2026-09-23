@@ -7,6 +7,7 @@ import {
   Trash2,
   Users2,
   Loader2,
+  Receipt,
   ChevronLeft,
   ChevronRight,
   Search,
@@ -38,10 +39,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { PolicyFormDialog } from "./PolicyFormDialog";
+import { isPublicPolicy, paidSchedulingIds } from "./paidPolicies";
 import { UserResultRow } from "./UserResultRow";
 import { UserTierPicker } from "./UserTierPicker";
 import { AssignUsersDialog } from "./AssignUsersDialog";
 import { usePolicyMembers, type PolicyMember } from "./usePolicyMembers";
+import { Chip } from "@/components/ui/chip";
 
 const POLICIES_KEY = ["/api/admin/scheduling"];
 const STATS_KEY = ["/api/admin/scheduling/stats"];
@@ -282,6 +285,8 @@ function PolicyUsersInline({
                       schedulingName={policy.name}
                       policies={policies}
                       onChanged={refetchUsers}
+                      displayName={m.name}
+                      picture={m.picture}
                     />
                     <button
                       type="button"
@@ -383,6 +388,18 @@ export function SchedulingCard({ active }: { active: boolean }) {
     enabled: active,
   });
   const policies = data ?? [];
+
+  // Which policies a PAID billing plan grants — badge them so admins can tell
+  // "subscribers pay for this cadence" from ordinary policies. Best-effort:
+  // if the billing endpoint isn't live, nothing is badged and nothing breaks.
+  const mappingsQuery = useQuery({
+    queryKey: ["/api/admin/billing/plans"],
+    queryFn: () => apiClient.getAdminBillingPlanMappings(),
+    enabled: active,
+    staleTime: 5 * 60_000,
+    retry: 1,
+  });
+  const paidPolicyIds = paidSchedulingIds(mappingsQuery.data ?? []);
 
   const [dialog, setDialog] = useState<DialogState | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -558,9 +575,40 @@ export function SchedulingCard({ active }: { active: boolean }) {
                             {p.name}
                           </span>
                           {p.is_default && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider bg-brand-accent/10 text-brand-deep border border-brand-accent/20">
+                            <Chip size="sm" tone="accent">
                               Default
-                            </span>
+                            </Chip>
+                          )}
+                          {isPublicPolicy(p) && (
+                            <Chip
+                              size="sm"
+                              tone="sky"
+                              title="A plan mapped to this policy can be sold on the pricing page"
+                              data-testid={`policy-public-${p.id}`}
+                            >
+                              Public
+                            </Chip>
+                          )}
+                          {paidPolicyIds.has(p.id) && !isPublicPolicy(p) && (
+                            <Chip
+                              size="sm"
+                              tone="amber"
+                              title="A plan grants this policy, but it is not public — that plan is dropped from the pricing page"
+                              data-testid={`policy-not-public-${p.id}`}
+                            >
+                              Not public
+                            </Chip>
+                          )}
+                          {paidPolicyIds.has(p.id) && (
+                            <Chip
+                              size="sm"
+                              tone="emerald"
+                              icon={Receipt}
+                              title="Granted by a paid billing plan — subscribers pay for this cadence"
+                              data-testid={`policy-paid-${p.id}`}
+                            >
+                              Paid
+                            </Chip>
                           )}
                         </div>
                       </td>

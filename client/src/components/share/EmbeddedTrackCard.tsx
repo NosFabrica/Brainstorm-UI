@@ -2,17 +2,21 @@ import { type MouseEvent } from "react";
 import { useLocation } from "wouter";
 import { Play, Pause, Loader2, AlertCircle } from "lucide-react";
 import { FlashIcon } from "@/components/FlashIcon";
+import { Favicon } from "@/components/share/LinkPreview";
 import { useTrackPlayer, useTrackDuration, toggleTrack, seekTrack, formatTime } from "@/lib/audioPlayer";
 import audioDefault from "@/assets/audio-default.webp";
 
-/** A small "now playing" equalizer — bars bounce while playing, freeze on pause. */
-function Equalizer({ playing }: { playing: boolean }) {
+/**
+ * The "now playing" equalizer — bars bounce while playing, freeze on pause.
+ * It lives on the cover art, Spotify's playing mark, in white over the dark wash.
+ */
+export function Equalizer({ playing, className = "h-3.5 w-3.5", bar = "bg-brand-primary" }: { playing: boolean; className?: string; bar?: string }) {
   return (
-    <span className="flex h-3.5 w-3.5 shrink-0 items-end gap-[2px]" aria-hidden="true" data-testid="track-eq">
-      {[0, 1, 2].map((i) => (
+    <span className={`flex shrink-0 items-end gap-[2px] ${className}`} aria-hidden="true" data-testid="track-eq">
+      {[0, 1, 2, 3].map((i) => (
         <span
           key={i}
-          className={`w-[2px] flex-1 origin-bottom rounded-full bg-brand-primary ${playing ? "eq-bar" : ""}`}
+          className={`w-[3px] flex-1 origin-bottom rounded-full ${bar} ${playing ? "eq-bar" : ""}`}
           style={{ height: "100%", animationDelay: `${i * 0.18}s`, ...(playing ? {} : { transform: "scaleY(0.4)" }) }}
         />
       ))}
@@ -38,7 +42,12 @@ export function EmbeddedTrackCard({
   href,
   onZap,
   sourceLabel,
+  sourceHost,
   onOpen,
+  pageUrl,
+  artistHref,
+  artistPubkey,
+  flat = false,
   durationSec,
 }: {
   id: string;
@@ -51,8 +60,17 @@ export function EmbeddedTrackCard({
   onZap?: () => void;
   /** Small provider tag shown in the rail (e.g. "Wavlake"). */
   sourceLabel?: string;
+  /** The provider's host, for its own mark beside the name (e.g. "wavlake.com"). A badge, never a link. */
+  sourceHost?: string;
   /** Overrides the internal /e navigation for the row-open (e.g. open externally). */
   onOpen?: () => void;
+  /** The track's page on its source site, for the app's now-playing bar to link. */
+  pageUrl?: string;
+  /** The artist's profile, for the bar's name to link; their Nostr key, for "more from this artist". */
+  artistHref?: string;
+  artistPubkey?: string;
+  /** No frame of its own — a row in a list that draws hairlines between rows. */
+  flat?: boolean;
   /** Known total duration (skips the metadata probe when provided). */
   durationSec?: number;
 }) {
@@ -77,16 +95,22 @@ export function EmbeddedTrackCard({
   return (
     <div
       onClick={onRowClick}
-      className={`group flex items-center gap-3 rounded-xl border bg-white dark:bg-slate-900 p-2.5 transition-colors ${
-        player.isActive ? "border-brand-link/30 ring-1 ring-brand-link/10" : "border-slate-200 dark:border-slate-800"
-      } ${href ? "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700" : ""}`}
+      className={
+        flat
+          ? `group flex items-center gap-3 rounded-lg px-1 py-2 transition-colors ${player.isActive ? "bg-brand-link/[0.04]" : ""} ${
+              href ? "cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900/60" : ""
+            }`
+          : `group flex items-center gap-3 rounded-xl border bg-white dark:bg-slate-900 p-2.5 transition-colors ${
+              player.isActive ? "border-brand-link/30 ring-1 ring-brand-link/10" : "border-slate-200 dark:border-slate-800"
+            } ${href ? "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700" : ""}`
+      }
       data-testid="embedded-track"
     >
       {/* Cover = play / pause control */}
       <button
         type="button"
         disabled={!playable}
-        onClick={(e) => { e.stopPropagation(); if (audio) toggleTrack(id, audio); }}
+        onClick={(e) => { e.stopPropagation(); if (audio) toggleTrack(id, audio, { title, artist, cover, href: href ?? pageUrl, artistHref, artistPubkey }); }}
         className="relative h-12 w-12 shrink-0 overflow-hidden rounded-lg group/cover disabled:cursor-default"
         aria-label={player.isPlaying ? "Pause" : "Play"}
         data-testid="track-play"
@@ -99,8 +123,17 @@ export function EmbeddedTrackCard({
           className="h-full w-full bg-brand-deep/10 object-cover"
         />
         {playable && (
-          <span className="absolute inset-0 flex items-center justify-center bg-black/25 transition-colors group-hover/cover:bg-black/40">
-            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white text-brand-link shadow-md ring-1 ring-black/5 transition-transform group-hover/cover:scale-105">
+          <span className={`absolute inset-0 flex items-center justify-center transition-colors ${player.isActive ? "bg-black/45" : "bg-black/25 group-hover/cover:bg-black/40"}`}>
+            {/* The active track's mark is the moving bars on its art; the
+                control comes back under the pointer. Idle covers offer Play. */}
+            {player.isActive && !player.isLoading && !player.isError && (
+              <Equalizer playing={player.isPlaying} className="h-5 w-5 group-hover/cover:hidden" bar="bg-white" />
+            )}
+            <span
+              className={`h-7 w-7 items-center justify-center rounded-full bg-white text-brand-link shadow-md ring-1 ring-black/5 transition-transform group-hover/cover:scale-105 ${
+                player.isActive && !player.isLoading && !player.isError ? "hidden group-hover/cover:flex" : "flex"
+              }`}
+            >
               {player.isError ? (
                 <AlertCircle className="h-4 w-4 text-red-500" />
               ) : player.isLoading ? (
@@ -116,10 +149,7 @@ export function EmbeddedTrackCard({
       </button>
 
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-1.5">
-          {player.isActive && <Equalizer playing={player.isPlaying} />}
-          <p className={`truncate text-sm font-semibold ${player.isActive ? "text-brand-link" : "text-slate-900 dark:text-slate-100"}`}>{title}</p>
-        </div>
+        <p className={`truncate text-sm font-semibold ${player.isActive ? "text-brand-link" : "text-slate-900 dark:text-slate-100"}`}>{title}</p>
         {artist && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{artist}</p>}
 
         {player.isActive && (
@@ -151,7 +181,12 @@ export function EmbeddedTrackCard({
       {/* Right rail: source tag, genre chip, total time (idle), zap. */}
       <div className="flex shrink-0 items-center gap-2">
         {sourceLabel && (
-          <span className="hidden rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 sm:inline">{sourceLabel}</span>
+          // The source's own mark, the way the app brands zap.stream and GitHub:
+          // the mark at every width, the name from sm up. A badge, not a door.
+          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500 dark:text-slate-400" title={sourceLabel} data-testid="track-source">
+            {sourceHost && <Favicon host={sourceHost} className="h-3 w-3 rounded-sm" />}
+            <span className="hidden sm:inline">{sourceLabel}</span>
+          </span>
         )}
         {genre && (
           <span className={`hidden rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400 transition-opacity sm:inline ${revealCls}`}>

@@ -1,70 +1,86 @@
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { Suspense, useEffect, useLayoutEffect, useRef } from "react";
 import { Switch, Route, Redirect, useLocation, useParams } from "wouter";
 import { AccountsProvider, EventStoreProvider } from "applesauce-react/providers";
 import { accountManager } from "@/accounts";
 import { eventStore } from "@/services/nostr";
 import { stopAllMedia } from "@/lib/audioPlayer";
+import { installSoloPlayback } from "@/lib/playback";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { DemoScoreDisplaySwitcher } from "@/components/score/DemoScoreDisplaySwitcher";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { LightboxProvider } from "@/components/share/Lightbox";
+import { trackHistoryEntry } from "@/lib/historyState";
 import { AutoScoreReturning } from "@/components/AutoScoreReturning";
 import { AutoActivateBrainstorm } from "@/components/AutoActivateBrainstorm";
 import { AutoPublishAssistant } from "@/components/AutoPublishAssistant";
 import NotFound from "@/pages/not-found";
+import ShortLinkPage from "@/pages/ShortLinkPage";
+import { SHORT_LINK_ROUTE } from "@/lib/shortLink";
 import Landing from "@/pages/landing";
-import DashboardPage from "@/pages/DashboardPage";
-import AlertsPage from "@/pages/AlertsPage";
-import ReadingPage from "@/pages/ReadingPage";
-import InsightsPage from "@/pages/InsightsPage";
-import SupportPage from "@/pages/SupportPage";
-import { SettingsRoute } from "@/pages/SettingsPage";
-import WhatIsWotPage from "@/pages/WhatIsWotPage";
-import OnboardingPage from "@/pages/OnboardingPage";
-import NetworkPage from "@/pages/NetworkPage";
-import ProfilePage from "@/pages/ProfilePage";
 import SharePage from "@/pages/SharePage";
-import ConnectionListPage from "@/pages/ConnectionListPage";
-import HopsPathPage from "@/pages/HopsPathPage";
-import ArticlePage from "@/pages/ArticlePage";
-import EventPage from "@/pages/EventPage";
-import WelcomePage from "@/pages/WelcomePage";
-import OnboardingWizard from "@/pages/OnboardingWizard";
-import HeroLab from "@/pages/HeroLab";
-import ActivatePage from "@/pages/ActivatePage";
 import { ScoringStatusBar } from "@/components/ScoringStatusBar";
-import FaqPage from "@/pages/FaqPage";
-import HowSearchWorksPage from "@/pages/HowSearchWorksPage";
-import PersonalizationPage from "@/pages/PersonalizationPage";
-import AboutPage from "@/pages/AboutPage";
-import DevelopersPage from "@/pages/DevelopersPage";
-import DeveloperNip50Page from "@/pages/DeveloperNip50Page";
-import DeveloperOpenRankingPage from "@/pages/DeveloperOpenRankingPage";
-import DeveloperTrustedAssertionsPage from "@/pages/DeveloperTrustedAssertionsPage";
-import NostrPage from "@/pages/NostrPage";
-import HashtagPage from "@/pages/HashtagPage";
-import TagPage from "@/pages/TagPage";
-import TagIndexPage from "@/pages/TagIndexPage";
-import MyTagsPage from "@/pages/MyTagsPage";
-import HowTagsWorkPage from "@/pages/HowTagsWorkPage";
-import PrivacyPage from "@/pages/PrivacyPage";
-import TermsPage from "@/pages/TermsPage";
-import AdminPage from "@/pages/AdminPage";
-import UserPanelPage from "@/pages/UserPanelPage";
-import LoginPage from "@/pages/LoginPage";
+import { AdminRoute } from "@/pages/AdminRoute";
+import { lazyWithReload } from "@/lib/lazyWithReload";
+import { RouteFallback } from "@/components/RouteFallback";
 import { FEATURES } from "@/config/featureFlags";
 import { PovAutoDefault } from "@/components/PovBadge";
 import { MobileTabBar } from "@/components/MobileTabBar";
+import { NowPlayingBar } from "@/components/search/NowPlayingBar";
 import { CommandPalette } from "@/components/CommandPalette";
 import { MobileSearchOverlay } from "@/components/MobileSearchOverlay";
 import { UnlockModal } from "@/components/UnlockModal";
 import { CrossTabIdentity } from "@/components/CrossTabIdentity";
 import { SignerApprovalModal } from "@/components/SignerApprovalModal";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
+import { RequireAuth } from "@/components/RequireAuth";
+import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { isAdminPubkey } from "@/config/adminAccess";
-import type { ComponentType } from "react";
+
+// Every route but the search home, a shared profile, the 404 and the admin
+// guard is its own download.
+const AboutPage = lazyWithReload(() => import("@/pages/AboutPage"));
+const ActivateBrainstormPage = lazyWithReload(() => import("@/pages/ActivateBrainstormPage"));
+const ActivatePage = lazyWithReload(() => import("@/pages/ActivatePage"));
+const AlertsPage = lazyWithReload(() => import("@/pages/AlertsPage"));
+const ArticlePage = lazyWithReload(() => import("@/pages/ArticlePage"));
+const BillingReturnPage = lazyWithReload(() => import("@/pages/BillingReturnPage"));
+const ConnectionListPage = lazyWithReload(() => import("@/pages/ConnectionListPage"));
+const DashboardPage = lazyWithReload(() => import("@/pages/DashboardPage"));
+const DeveloperNip50Page = lazyWithReload(() => import("@/pages/DeveloperNip50Page"));
+const DeveloperOpenRankingPage = lazyWithReload(() => import("@/pages/DeveloperOpenRankingPage"));
+const DeveloperTrustedAssertionsPage = lazyWithReload(() => import("@/pages/DeveloperTrustedAssertionsPage"));
+const DevelopersPage = lazyWithReload(() => import("@/pages/DevelopersPage"));
+const EventPage = lazyWithReload(() => import("@/pages/EventPage"));
+const FaqPage = lazyWithReload(() => import("@/pages/FaqPage"));
+const FinishSetupPage = lazyWithReload(() => import("@/pages/FinishSetupPage"));
+const HashtagPage = lazyWithReload(() => import("@/pages/HashtagPage"));
+const HeroLab = lazyWithReload(() => import("@/pages/HeroLab"));
+const HopsPathPage = lazyWithReload(() => import("@/pages/HopsPathPage"));
+const HowSearchWorksPage = lazyWithReload(() => import("@/pages/HowSearchWorksPage"));
+const HowTagsWorkPage = lazyWithReload(() => import("@/pages/HowTagsWorkPage"));
+const InsightsPage = lazyWithReload(() => import("@/pages/InsightsPage"));
+const LoginPage = lazyWithReload(() => import("@/pages/LoginPage"));
+const MyTagsPage = lazyWithReload(() => import("@/pages/MyTagsPage"));
+const NetworkPage = lazyWithReload(() => import("@/pages/NetworkPage"));
+const NostrPage = lazyWithReload(() => import("@/pages/NostrPage"));
+const OnboardingPage = lazyWithReload(() => import("@/pages/OnboardingPage"));
+const PersonalizationPage = lazyWithReload(() => import("@/pages/PersonalizationPage"));
+const PricingPage = lazyWithReload(() => import("@/pages/PricingPage"));
+const PrivacyPage = lazyWithReload(() => import("@/pages/PrivacyPage"));
+const ProfilePage = lazyWithReload(() => import("@/pages/ProfilePage"));
+const ReadingPage = lazyWithReload(() => import("@/pages/ReadingPage"));
+const RoadmapPage = lazyWithReload(() => import("@/pages/RoadmapPage"));
+const SellingPage = lazyWithReload(() => import("@/pages/SellingPage"));
+const SupportPage = lazyWithReload(() => import("@/pages/SupportPage"));
+const SettingsRoute = lazyWithReload(() => import("@/pages/SettingsPage").then((m) => ({ default: m.SettingsRoute })));
+const TagIndexPage = lazyWithReload(() => import("@/pages/TagIndexPage"));
+const TagPage = lazyWithReload(() => import("@/pages/TagPage"));
+const TermsPage = lazyWithReload(() => import("@/pages/TermsPage"));
+const UserPanelPage = lazyWithReload(() => import("@/pages/UserPanelPage"));
+const WelcomePage = lazyWithReload(() => import("@/pages/WelcomePage"));
+const WhatIsWotPage = lazyWithReload(() => import("@/pages/WhatIsWotPage"));
 
 /**
  * Land every route change at the top of the page.
@@ -81,6 +97,13 @@ import type { ComponentType } from "react";
  *  3. Depending on the surface, the scroller is `window`, `documentElement` or
  *     `body` (notably in an iOS standalone PWA), so reset all three.
  */
+/** Stamps every history entry with its in-app depth, for `useGoBack`. */
+function TrackHistoryDepth() {
+  const [location] = useLocation();
+  useEffect(() => { trackHistoryEntry(); }, [location]);
+  return null;
+}
+
 function ScrollToTop() {
   const [location] = useLocation();
 
@@ -109,10 +132,10 @@ function ScrollToTop() {
   return null;
 }
 
-// Stop inline media when the route changes — the shared audio track and any
-// playing <video>. A Picture-in-Picture video is deliberately EXEMPT: it keeps
-// playing across the app like a YouTube mini-player until the user closes it.
-// Audio keeps its position so returning resumes. Skips the first render.
+// Stop inline VIDEO when the route changes. A Picture-in-Picture video is
+// deliberately EXEMPT: it keeps playing across the app like a YouTube
+// mini-player until the user closes it. Music is exempt too: it has the
+// app-wide NowPlayingBar, whose X is how a song stops. Skips the first render.
 function StopMediaOnNavigate() {
   const [location] = useLocation();
   const first = useRef(true);
@@ -120,6 +143,14 @@ function StopMediaOnNavigate() {
     if (first.current) { first.current = false; return; }
     stopAllMedia();
   }, [location]);
+  return null;
+}
+
+// One sound at a time: whatever starts sounding — the music bar, a stream,
+// a clip the reader unmutes, an embed — takes the floor and the rest pause.
+// One document listener covers every media element (lib/playback).
+function SoloPlayback() {
+  useEffect(() => installSoloPlayback(), []);
   return null;
 }
 
@@ -132,28 +163,6 @@ function SearchRedirect() {
   return <Redirect to={`/${search}`} replace />;
 }
 
-// Account-only pages are hidden from anonymous visitors: no preview, just a
-// clean redirect to the dedicated sign-in page (carrying ?next=<requested path>
-// so users return after signing in). Public pages (/, /p/:id,
-// /faq, /what-is-wot, /how-search-works, /personalization, /about, /nostr) render for everyone.
-function RequireAuth({ component: Component }: { component: ComponentType }) {
-  const [location] = useLocation();
-  // Identity is known synchronously on the first render — accounts bootstrap at
-  // module load precisely so this guard never bounces a signed-in user.
-  const signedIn = useActiveAccountDisplay();
-  if (!signedIn) {
-    const next =
-      location && location.startsWith("/") && location !== "/login"
-        ? `?next=${encodeURIComponent(location)}`
-        : "";
-    // `replace`, not push: pushing leaves the gated URL in history, so pressing
-    // Back returns to it, RequireAuth fires again and shoves you forward to
-    // /login — a trap you can't reverse out of. Replacing means Back skips
-    // straight past to wherever you actually came from.
-    return <Redirect to={`/login${next}`} replace />;
-  }
-  return <Component />;
-}
 
 /**
  * `/profile/:npub` — the old analytics view, now admin-only.
@@ -188,31 +197,16 @@ function ProfileRoute() {
   return <ProfilePage />;
 }
 
-/**
- * `/admin` — the operator console, for operators.
- *
- * `RequireAuth` asks only whether anyone is signed in, so any key that pasted its
- * way in could open this. The API refuses the data, but the page still discloses
- * what the console *tracks* — its panels, its metrics, which subsystems exist —
- * and that is not something to hand to every signed-in user.
- *
- * The claim is the Session's, minted with the token rather than looked up, so an
- * identity this browser doesn't hold can never satisfy it. It survives a deferred
- * session — the token stays on the Account until re-auth — so an admin whose
- * session lapsed still reaches their console and is told to sign in again there,
- * rather than being bounced out of it.
- */
-function AdminRoute() {
-  const user = useActiveAccountDisplay();
-  if (!user?.isAdmin) return <Redirect to="/dashboard" replace />;
-  return <AdminPage />;
-}
-
 function Router() {
+  const [location] = useLocation();
   return (
     <>
+      <TrackHistoryDepth />
       <ScrollToTop />
       <StopMediaOnNavigate />
+      <SoloPlayback />
+      <ErrorBoundary resetKey={location}>
+      <Suspense fallback={<RouteFallback />}>
       <Switch>
         <Route path="/" component={Landing} />
         <Route path="/login" component={LoginPage} />
@@ -225,7 +219,10 @@ function Router() {
         <Route path="/search" component={SearchRedirect} />
         {/* Deprecated for users — see ProfileRoute. /p/:id is THE profile page. */}
         <Route path="/profile/:npub">{() => <RequireAuth component={ProfileRoute} />}</Route>
+        {/* Short share links resolve here, then continue to /p/. */}
+        <Route path={SHORT_LINK_ROUTE} component={ShortLinkPage} />
         <Route path="/p/:id/hops" component={HopsPathPage} />
+        <Route path="/p/:id/selling" component={SellingPage} />
         <Route path="/p/:id/:type" component={ConnectionListPage} />
         <Route path="/p/:id" component={SharePage} />
         <Route path="/a/:id" component={ArticlePage} />
@@ -240,7 +237,8 @@ function Router() {
         <Route path="/tags/:author/:slug" component={TagPage} />
         <Route path="/hero-lab" component={HeroLab} />
         <Route path="/welcome" component={WelcomePage} />
-        <Route path="/setup">{() => <RequireAuth component={OnboardingWizard} />}</Route>
+        <Route path="/setup/activate">{() => <RequireAuth component={ActivateBrainstormPage} />}</Route>
+        <Route path="/setup">{() => <RequireAuth component={FinishSetupPage} />}</Route>
         <Route path="/activate" component={ActivatePage} />
         <Route path="/settings">{() => <RequireAuth component={SettingsRoute} />}</Route>
         <Route path="/network">{() => <RequireAuth component={NetworkPage} />}</Route>
@@ -249,6 +247,13 @@ function Router() {
         <Route path="/how-tags-work" component={HowTagsWorkPage} />
         <Route path="/personalization" component={PersonalizationPage} />
         <Route path="/about" component={AboutPage} />
+        <Route path="/pricing" component={PricingPage} />
+        {/* Flash's registered redirect target — a bare path on purpose
+            (redirect_uri matching is exact, query string included). */}
+        <Route path="/billing/return" component={BillingReturnPage} />
+        {/* The alias receipts and support links point at. */}
+        <Route path="/billing">{() => <Redirect to="/settings?tab=billing" replace />}</Route>
+        <Route path="/roadmap" component={RoadmapPage} />
         <Route path="/developers" component={DevelopersPage} />
         <Route path="/developers/nip-50" component={DeveloperNip50Page} />
         <Route path="/developers/open-ranking" component={DeveloperOpenRankingPage} />
@@ -261,6 +266,8 @@ function Router() {
         <Route path="/admin">{() => <RequireAuth component={AdminRoute} />}</Route>
         <Route component={NotFound} />
       </Switch>
+      </Suspense>
+      </ErrorBoundary>
     </>
   );
 }
@@ -278,6 +285,7 @@ function App() {
             <CrossTabIdentity />
             <PovAutoDefault />
             <MobileTabBar />
+            <NowPlayingBar />
             <CommandPalette />
             <MobileSearchOverlay />
             <ScoringStatusBar />

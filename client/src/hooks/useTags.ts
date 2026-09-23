@@ -33,6 +33,7 @@ import {
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useActivePerspective } from "@/hooks/useActivePerspective";
 import type { TrustObserver } from "@/services/tags";
+import { useConnectionSpeed } from "@/lib/connection";
 
 /**
  * React Query bindings for decentralized tagging. Thin on purpose — the relay
@@ -135,11 +136,14 @@ export function usePickerTags(enabled = true) {
  *
  * The catalogue only starts loading once there are 2 characters to match, so
  * merely opening a page with a search box doesn't pay for a full relay walk.
+ * Callers pass "" while their dropdown is closed, so leftover text doesn't keep it live.
  * After that first fetch it's cached for half an hour and every later keystroke
  * filters in memory — no relay traffic per character.
  */
 export function useTagMatches(query: string, max = 3): TagSummary[] {
-  const enabled = query.trim().length >= 2;
+  // The catalogue is megabytes; a poor connection does without tag suggestions.
+  const speed = useConnectionSpeed();
+  const enabled = query.trim().length >= 2 && speed === "normal";
   const { data } = useTagIndex(enabled);
   return useMemo(() => (enabled ? matchTags(data ?? [], query, max) : []), [enabled, data, query, max]);
 }
@@ -494,6 +498,43 @@ export interface ApplyTagVariables extends Omit<ApplyTagArgs, "targetPubkey"> {
 }
 
 /**
+ * Offer a tag the viewer just applied in the picker and search right away.
+ *
+ * Inserts only when the catalogue lacks it — counts on tags already listed wait
+ * for the next refetch. No refetch here: the catalogue walks the whole hub, and
+ * our own events already reach the next one via the event store.
+ */
+function addToCatalogues(
+  queryClient: ReturnType<typeof useQueryClient>,
+  viewerPubkey: string,
+  args: ApplyTagVariables,
+): void {
+  const minted = "name" in args.tag ? args.tag : null;
+  const ref = minted ? null : (args.tag as { authorPubkey: string; slug: string });
+  const authorPubkey = minted ? viewerPubkey : ref!.authorPubkey;
+  const tagKey = minted ? predictedTagKey(minted.name, viewerPubkey) : `${ref!.authorPubkey}|${ref!.slug}`;
+  const entry: TagSummary = {
+    key: tagKey,
+    authorPubkey,
+    slug: tagKey.slice(tagKey.indexOf("|") + 1),
+    name: args.displayName || (minted ? minted.name : ref!.slug),
+    description: minted?.description,
+    people: 1,
+    vouches: 1,
+    sharesName: 1,
+    // Unknown for someone else's tag until the refetch checks its creator.
+    unverified: authorPubkey !== viewerPubkey,
+  };
+
+  queryClient.setQueriesData<TagSummary[]>({ queryKey: [...tagIndexKey, viewerPubkey] }, (old) =>
+    old && !old.some((t) => t.key === tagKey) ? [...old, entry] : old,
+  );
+  queryClient.setQueriesData<PickerTag[]>({ queryKey: ["tag-picker-options", viewerPubkey] }, (old) =>
+    old && !old.some((t) => t.key === tagKey) ? [...old, { ...entry, band: "profile" }] : old,
+  );
+}
+
+/**
  * Apply a tag, showing it immediately.
  *
  * The optimistic chip is keyed exactly as the refetched one will be
@@ -588,6 +629,8 @@ export function useApplyTag(targetPubkey: string | undefined) {
                 // own act, which the "someone tagged you" module filters out.
                 addedAt: Math.floor(Date.now() / 1000),
                 myStance: stance,
+                // Still on its way to the relays; the chip says so until they answer.
+                pending: true,
               },
             ];
 
@@ -615,8 +658,15 @@ export function useApplyTag(targetPubkey: string | undefined) {
 
     // Relays need a moment to serve back what we just published; refetching
     // instantly tends to return the pre-publish state and clobber the
-    // optimistic chip. Settle first, then reconcile.
-    onSuccess: () => {
+    // optimistic chip. Settle first, then reconcile — but the chip stops
+    // saying "publishing" the moment a relay has it.
+    onSuccess: (_result, args) => {
+      queryClient.setQueryData<ProfileTagsResult>(key, (old) =>
+        old ? { ...old, tags: old.tags.map((t) => (t.pending ? { ...t, pending: false } : t)) } : old,
+      );
+      if (viewerPubkey && (args.polarity ?? 1) === 1) {
+        addToCatalogues(queryClient, viewerPubkey, args);
+      }
       setTimeout(() => {
         queryClient.invalidateQueries({ queryKey: key });
       }, 2500);

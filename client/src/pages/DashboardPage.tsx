@@ -7,7 +7,7 @@ import { ladderFor, type Bucket } from "@/lib/trustLadder";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
 import { PresetBadge } from "@/components/PresetBadge";
-import amethystLogoImg from "../assets/amethyst-logo.png";
+import amethystLogoImg from "@/assets/amethyst-logo.webp";
 import nostriaHeroImg from "../assets/nostria-hero.png";
 import nostriaManifestoImg from "../assets/nostria-manifesto-overlay.png";
 import nostriaTeaserImg from "../assets/nostria-teaser.png";
@@ -27,6 +27,7 @@ import { NetworkArticlesModule } from "@/components/dashboard/NetworkArticlesMod
 import { ClientShelf } from "@/components/dashboard/ClientShelf";
 import { NetworkThreadModule } from "@/components/dashboard/NetworkThreadModule";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
+import { useShareUrl } from "@/hooks/useShareUrl";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -132,7 +133,6 @@ import {
   ActivateBrainstormPanel,
   needsActivationPrompt,
 } from "@/components/ActivateBrainstormPanel";
-import { ActivateBrainstormInterstitial } from "@/components/ActivateBrainstormInterstitial";
 
 import protocolDevImg from "@/assets/stock_images/protocol_dev.jpg";
 import bitcoinImg from "@/assets/stock_images/bitcoin_network.jpg";
@@ -209,6 +209,7 @@ export default function DashboardPage() {
   // "Your network is live — invite friends" card: shown once, the first time the
   // user's scores go ready (publishDone). Persisted per-account so it never nags.
   const [inviteShareOpen, setInviteShareOpen] = useState(false);
+  const inviteShareUrl = useShareUrl({ npub: user?.npub ?? "", enabled: inviteShareOpen });
   const [inviteCardSeen, setInviteCardSeen] = useState<boolean>(() => readInviteCardSeen(user?.pubkey));
 
   // Lazy initialisers run once, and switching accounts in-app does not remount
@@ -405,22 +406,6 @@ export default function DashboardPage() {
   // Note: ta_pubkey needs no waiting — the backend creates it during login
   // itself (authChallenge verify), so for any session-holder the first
   // /user/history response already carries it. Signing is always performable.
-
-  // The full-page activation takeover. "Maybe later" is deliberately
-  // component state, not storage: it reveals the dashboard for THIS visit
-  // only, and navigating away and back re-raises the takeover.
-  const [activationGateDismissed, setActivationGateDismissed] = useState(false);
-  // Brief first-paint hold for accounts that LOOK un-activated (local flag),
-  // so the takeover doesn't rug-pull a fully rendered dashboard once the
-  // relay check settles ~1–3s in. Activated accounts skip the hold via the
-  // flag; the cap lets the dashboard through if relays are slow (the
-  // takeover then swaps in late, which is the lesser evil).
-  const [activationHoldExpired, setActivationHoldExpired] = useState(false);
-  useEffect(() => {
-    if (trustServiceProvider.isFetched) return;
-    const t = setTimeout(() => setActivationHoldExpired(true), 4000);
-    return () => clearTimeout(t);
-  }, [trustServiceProvider.isFetched]);
 
   const grapeRankRaw = grapeRankQuery.data?.data;
   const grapeRank = grapeRankRaw && typeof grapeRankRaw === "object" ? grapeRankRaw : null;
@@ -852,50 +837,11 @@ export default function DashboardPage() {
     />
   );
 
-  // Zero-follow accounts are exempt from the takeover: their critical path is
-  // the follow-picker (scores can't exist without follows), and stacking two
-  // mandatory-feeling flows helps neither. They keep the inline panel below.
-  // `followsChecking` counts as zero-follow-maybe — no takeover until the
-  // relay verification says they really have a network.
-  const showActivationGate = showActivatePrompt && !activationGateDismissed && !hasNoFollowing && !followsChecking;
-  const holdForActivationCheck =
-    !trustServiceProvider.isFetched &&
-    !activationHoldExpired &&
-    !nip85Activated &&
-    !nip85CreatedInApp &&
-    !activationGateDismissed &&
-    !hasNoFollowing &&
-    !followsChecking;
-
-  if (showActivationGate || holdForActivationCheck) {
-    return (
-      <TooltipProvider>
-        <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans selection:bg-brand-primary/[0.3] flex flex-col relative overflow-hidden" data-testid="page-dashboard">
-          <PageBackground />
-
-          <AppHeader user={user} onLogout={handleLogout} calcDone={calcDone} active="dashboard" />
-
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 relative z-10 w-full flex-1 flex flex-col">
-            {showActivationGate ? (
-              <ActivateBrainstormInterstitial
-                scoresReady={calcDone}
-                onActivate={() => setNip85ModalOpen(true)}
-                onDismiss={() => setActivationGateDismissed(true)}
-              />
-            ) : (
-              <div className="flex-1 flex items-center justify-center" data-testid="activation-check-hold">
-                <Loader2 className="h-6 w-6 animate-spin text-brand-primary/50" />
-              </div>
-            )}
-          </div>
-
-          {activateModal}
-
-          <Footer minimal />
-        </div>
-      </TooltipProvider>
-    );
-  }
+  // The full-page activation takeover (ActivateBrainstormInterstitial) and its
+  // first-paint hold used to live here — a signer user with follows but no
+  // kind-10040 met a spinner, then a wall. The finish-setup flow replaced
+  // them: the header banner + setup card carry the nudge, and the dashboard
+  // always renders.
 
   return (
     <TooltipProvider>
@@ -1053,11 +999,11 @@ export default function DashboardPage() {
                           </div>
                         </div>
                         <div className="flex flex-wrap items-center gap-2">
-                          <a href="https://amethyst.social/#" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm hover:border-brand-accent hover:shadow-md transition-all group/client" data-testid="link-compatible-amethyst">
+                          <a href="https://amethyst.social/#" target="_blank" rel="noopener" className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm hover:border-brand-accent hover:shadow-md transition-all group/client" data-testid="link-compatible-amethyst">
                             <img src={amethystLogoImg} alt="Amethyst" className="w-5 h-5 rounded-md" />
                             <span className="text-[10px] font-semibold text-slate-700 dark:text-slate-200 group-hover/client:text-brand-deep transition-colors">Amethyst</span>
                           </a>
-                          <a href="https://www.nostria.app/" target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm hover:border-orange-300 hover:shadow-md transition-all group/client" data-testid="link-compatible-nostria">
+                          <a href="https://www.nostria.app/" target="_blank" rel="noopener" className="flex items-center gap-1.5 px-2 py-1.5 rounded-lg bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800/80 shadow-sm hover:border-orange-300 hover:shadow-md transition-all group/client" data-testid="link-compatible-nostria">
                             <img src={nostriaIconImg} alt="Nostria" className="w-5 h-5 rounded-md bg-white object-contain" />
                             <span className="text-[10px] font-semibold text-slate-700 dark:text-slate-200 group-hover/client:text-orange-700 transition-colors">Nostria</span>
                           </a>
@@ -1173,7 +1119,7 @@ export default function DashboardPage() {
                 other apps. Full-width, above everything, and deliberately not
                 waiting on any calculation state; see needsActivationPrompt. */}
             {showActivatePrompt && (
-              <ActivateBrainstormPanel onActivate={() => setNip85ModalOpen(true)} />
+              <ActivateBrainstormPanel onActivate={() => navigate("/setup/activate")} />
             )}
 
             <AlertDialog open={recalcConfirmOpen} onOpenChange={setRecalcConfirmOpen}>
@@ -1315,7 +1261,7 @@ export default function DashboardPage() {
                 displayName={user.displayName || "You"}
                 picture={user.picture}
                 nip05={user.nip05}
-                canonicalUrl={typeof window !== "undefined" ? `${window.location.origin}/p/${user.npub}` : ""}
+                shareUrl={inviteShareUrl}
                 // No trust pill on an invite: the score is self-referential (your own POV
                 // ≈ 100) and meaningless for a brand-new account — the invite is about
                 // "join & start connected to you", not a score flex.
@@ -1343,11 +1289,16 @@ export default function DashboardPage() {
 
           {/* Legacy consent card — superseded by ActivateBrainstormPanel above,
               which prompts without waiting for publishDone; it never renders
-              alongside the panel. Two cohorts still land here: in-app accounts
-              that explicitly DECLINED the consent card (needsActivationPrompt
-              skips createdInApp entirely; the post-cooldown re-ask lives here)
-              and accounts whose relay check couldn't settle. */}
-          {publishDone && !isRecalculating && !nip85Activated && !nip85Dismissed && (!nip85CreatedInApp || hasDeclinedNip85(user?.pubkey)) && !showActivatePrompt && (
+              alongside the panel (!showActivatePrompt). Two cohorts still land
+              here: in-app accounts that explicitly DECLINED the consent card
+              (needsActivationPrompt skips createdInApp entirely; the
+              post-cooldown re-ask lives here) and accounts whose relay check
+              couldn't settle. `showOnboarding` keeps the signature available
+              DURING the first calculation (~7 min): signing needs only
+              ta_pubkey, which exists from login — black-box testing showed
+              users lost in exactly that gap when the card waited for
+              publishDone. */}
+          {(publishDone || showOnboarding) && !isRecalculating && !nip85Activated && !nip85Dismissed && (!nip85CreatedInApp || hasDeclinedNip85(user?.pubkey)) && !showActivatePrompt && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}

@@ -43,11 +43,9 @@ export function needsActivationPrompt(opts: {
 
 /**
  * Full-width dashboard banner prompting the user to activate their Brainstorm
- * account (sign the kind-10040). This is the follow-up reminder that remains
- * in place after the full-page ActivateBrainstormInterstitial is dismissed
- * with "maybe later" (and the only prompt for zero-follow accounts, whose
- * critical path is the follow-picker, not activation). Uses the design
- * system's `accent` surface. No dismissal by design — it self-hides on
+ * account (sign the kind-10040) — the dashboard's on-page echo of the header's
+ * finish-setup banner, pointing into the same /setup/activate flow. Uses the
+ * design system's `accent` surface. No dismissal by design — it self-hides on
  * activation.
  */
 export function ActivateBrainstormPanel({ onActivate }: { onActivate: () => void }) {

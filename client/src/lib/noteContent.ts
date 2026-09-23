@@ -58,8 +58,39 @@ export function toPlayableStreamUrl(url: string): string {
 // #hashtags. Everything else is text. The lookbehind keeps us from matching a
 // bech32 entity glued to the end of a word (e.g. "footnote1…"); a decode guard
 // in parseNoteContent rejects anything that isn't a real entity.
-const TOKEN_REGEX =
-  /(https?:\/\/[^\s]+)|(?<![a-z0-9/])((?:nostr:)?(?:npub|nprofile|nevent|note|naddr)1[02-9ac-hj-np-z]+)|(#[\p{L}\p{N}_]+)/giu;
+// Inline markdown some crossposters (Stacker News, blogs) put in kind-1 notes:
+// `![alt](url)` and `[text](url)`. One level of parens is allowed inside the
+// URL so Wikipedia addresses survive.
+const MD_LINK = String.raw`(!?)\[([^\]\n]{0,300})\]\((https?:\/\/(?:[^\s()]|\([^\s()]*\))+)\)`;
+const MD_LINK_RE = new RegExp(MD_LINK, "gi");
+
+const TOKEN_REGEX = new RegExp(
+  MD_LINK +
+    String.raw`|(https?:\/\/[^\s]+|data:image\/[a-z0-9.+-]+;base64,[A-Za-z0-9+/=]+)|(?<![a-z0-9/])((?:nostr:)?(?:npub|nprofile|nevent|note|naddr)1[02-9ac-hj-np-z]+)|(#[\p{L}\p{N}_]+)`,
+  "giu",
+);
+
+// `![](url)`, or a link labelled with an image filename (Stacker News uploads
+// write `[122.jpg](https://m.stacker.news/…)`).
+const IMAGE_LABEL = /\.(?:jpe?g|png|gif|webp|avif)$/i;
+function markdownIsImage(bang: string, label: string): boolean {
+  return !!bang || IMAGE_LABEL.test(label.trim());
+}
+
+/**
+ * Markdown links and images reduced to their URLs, for plain-text surfaces.
+ * URLs the markdown marked as images are added to `images`, since an
+ * extensionless CDN address can't be recognised any other way.
+ */
+export function unwrapMarkdownLinks(text: string, images?: Set<string>): string {
+  return text.replace(MD_LINK_RE, (_whole, bang: string, label: string, url: string) => {
+    if (markdownIsImage(bang, label)) {
+      images?.add(url);
+      return url;
+    }
+    return !label || label === url ? url : `${label} ${url}`;
+  });
+}
 
 // A nostr bech32 entity embedded anywhere inside a normal web URL's path, e.g.
 // `https://relayop.xyz/articles/naddr1…` or `https://njump.me/nevent1…`.
@@ -98,6 +129,8 @@ export function prettyUrlLabel(raw: string): string {
 }
 
 function classifyUrl(url: string): NoteToken {
+  // Inline base64 images render as images — never as a wall of base64 text.
+  if (url.startsWith("data:image/")) return { type: "image", value: url };
   if (IMAGE_EXT.test(url)) return { type: "image", value: url };
   if (VIDEO_EXT.test(url)) return { type: "video", value: url };
   if (AUDIO_EXT.test(url)) return { type: "audio", value: url };
@@ -109,6 +142,28 @@ function classifyUrl(url: string): NoteToken {
   return { type: "url", value: url };
 }
 
+/**
+ * The link a note's preview card is for: its last plain web link. Feeds and
+ * search rows both ask here, so one note never cards two different links.
+ */
+export function primaryLink(tokens: NoteToken[]): string | null {
+  for (let i = tokens.length - 1; i >= 0; i--) {
+    const t = tokens[i];
+    if (t.type === "url") return trimProse(t.value);
+  }
+  return null;
+}
+
+/** Sheds prose punctuation; keeps a closing paren the URL itself opened (Wikipedia). */
+function trimProse(url: string): string {
+  let out = url.replace(/[,;!?]+$/, "");
+  const count = (re: RegExp) => out.match(re)?.length ?? 0;
+  while (out.endsWith(")") && count(/\(/g) < count(/\)/g)) {
+    out = out.slice(0, -1).replace(/[,;!?]+$/, "");
+  }
+  return out;
+}
+
 export function parseNoteContent(content: string): NoteToken[] {
   const text = content || "";
   const tokens: NoteToken[] = [];
@@ -118,8 +173,17 @@ export function parseNoteContent(content: string): NoteToken[] {
     if (idx > lastIndex) {
       tokens.push({ type: "text", value: text.slice(lastIndex, idx) });
     }
-    const [whole, url, mention, hashtag] = match;
-    if (url) {
+    const [whole, bang, label, mdUrl, url, mention, hashtag] = match;
+    if (mdUrl) {
+      const token = classifyUrl(mdUrl);
+      if (markdownIsImage(bang, label)) {
+        // The author said image; trust that over a missing extension.
+        tokens.push(token.type === "url" ? { type: "image", value: mdUrl } : token);
+      } else {
+        if (label && label !== mdUrl) tokens.push({ type: "text", value: `${label} ` });
+        tokens.push(token);
+      }
+    } else if (url) {
       tokens.push(classifyUrl(url));
     } else if (mention) {
       const bech = mention.replace(/^nostr:/, "");
@@ -242,7 +306,7 @@ export function extractNoteTitle(content: string, tags: string[][] = []): string
       l
         .replace(/https?:\/\/\S+/g, "")
         .replace(/nostr:[a-z0-9]+/gi, "")
-        .replace(/[📊✨🎙️📻🎧]/gu, "")
+        .replace(/(?:🎙️|[📊✨🎙📻🎧])/gu, "")
         .trim(),
     )
     .find((l) => l.length > 1);
@@ -252,7 +316,7 @@ export function extractNoteTitle(content: string, tags: string[][] = []): string
 
 /** Strip media/mention noise to a short plain-text preview (for OG description). */
 export function plainTextPreview(content: string, maxLen = 140): string {
-  const text = (content || "")
+  const text = unwrapMarkdownLinks(content || "")
     .replace(/https?:\/\/\S+/g, "")
     .replace(/nostr:[a-z0-9]+/gi, "")
     .replace(/\s+/g, " ")

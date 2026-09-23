@@ -438,7 +438,10 @@ export function NetworkAlertsModule({ observer, enabled, onEmptyChange }: {
   function toggleCollapsed() {
     setCollapsed((c) => {
       const next = !c;
-      try { next ? localStorage.setItem(COLLAPSE_KEY, "1") : localStorage.removeItem(COLLAPSE_KEY); } catch {}
+      try {
+        if (next) localStorage.setItem(COLLAPSE_KEY, "1");
+        else localStorage.removeItem(COLLAPSE_KEY);
+      } catch {}
       return next;
     });
   }

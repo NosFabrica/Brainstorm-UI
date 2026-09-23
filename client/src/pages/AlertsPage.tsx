@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useLocation, useSearch } from "wouter";
+import { useGoBack } from "@/hooks/useGoBack";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ShieldAlert, ShieldCheck, Loader2, Search, Eye, EyeOff } from "lucide-react";
 import { AppHeader } from "@/components/AppHeader";
@@ -40,6 +41,7 @@ type ProfileLite = { name?: string; display_name?: string; picture?: string; nip
  */
 export default function AlertsPage() {
   const [, navigate] = useLocation();
+  const goBack = useGoBack();
   const user = useActiveAccountDisplay();
   const observer = user?.pubkey ?? "";
 
@@ -151,7 +153,7 @@ export default function AlertsPage() {
       <main className="max-w-3xl mx-auto w-full px-4 sm:px-6 py-8 flex-1">
         <button
           type="button"
-          onClick={() => { if (typeof window !== "undefined" && window.history.length > 1) window.history.back(); else navigate("/dashboard"); }}
+          onClick={() => goBack("/dashboard")}
           className="mb-6 inline-flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 hover:text-brand-deep dark:hover:text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
           data-testid="alerts-back"
         >

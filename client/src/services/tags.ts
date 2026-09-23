@@ -13,8 +13,10 @@
  * `services/api.ts`: `/p/:id` is anon-viewable and `authenticatedFetch` wipes
  * auth storage and hard-redirects on 401 (.agents/memory/anon-public-data-fetch.md).
  */
-import { pool, fetchEventsByFilter, loadOutboxRelayListFromDb, publishToRelays } from "./nostr";
+import { pool, fetchEventsByFilter, publishToRelays } from "./nostr";
+import { dedupeRelays, outboxRelays, readRelaysFor, relayHintFor, tagWithHint } from "@/lib/relayRouting";
 import { PROFILE_RELAYS } from "@/lib/relays";
+import { eventStore } from "@/lib/eventStore";
 import { resolveHouseObserver, resolveTrustSource } from "./trustSource";
 import {
   applyProfileTagging,
@@ -105,6 +107,8 @@ export interface ProfileTag extends TagIdentity {
   sharesName: number;
   /** The viewer's own stance, shown regardless of whether the POV counts them. */
   myStance?: "apply" | "dispute";
+  /** Shown before the relays have taken it — the viewer's own act, still publishing. */
+  pending?: boolean;
   /**
    * Unix seconds of the newest assertion APPLYING this tag. Powers "what's new
    * since I last looked" on the dashboard; 0 when nothing applies it (a tag
@@ -143,11 +147,47 @@ const TAG_ELEMENT_KIND = 39999;
 // ─── Relay I/O ───────────────────────────────────────────────────────────────
 
 /**
- * Tag reads: the hub ∪ the user's read relays. Kept separate from the trust
+ * Tag reads: the hub ∪ the viewer's read relays. Kept separate from the trust
  * reader below — the house's TA-signed artifacts are not on the hub.
+ *
+ * The viewer's half used to be documentation only: this asked `tagRelays()` and
+ * nothing else, so the kit's routing rule ("reads query these ∪ the user's read
+ * relays") was true of the publish path and false of the read path. A tagging
+ * that reached the hub was found; one that only reached the relays the viewer
+ * actually reads was not.
+ *
+ * It is the READ half of their list, per that rule. For the ordinary relay list
+ * — unmarked `r` tags, which are both — that also covers everything they write,
+ * so their own taggings come back. A list that marks its relays write-only is
+ * the one case where it doesn't, and following the rule beats guessing at it.
+ *
+ * Every tag read in this module funnels through here, so this is the one place
+ * the union has to happen.
  */
-function fetchTagEvents(filter: Record<string, unknown>): Promise<NostrEvent[]> {
-  return fetchEventsByFilter(filter, tagRelays()) as Promise<NostrEvent[]>;
+async function fetchRelayTagEvents(filter: Record<string, unknown>): Promise<NostrEvent[]> {
+  const viewer = activeAccount()?.pubkey;
+  const relays = viewer ? await readRelaysFor(viewer, tagRelays()) : tagRelays();
+  return fetchEventsByFilter(filter, relays) as Promise<NostrEvent[]>;
+}
+
+/**
+ * What the store already holds — notably our own publishes, so a read never
+ * trails our own write while the relays catch up. `limit` is dropped — it caps
+ * the relay page, not what we already hold.
+ */
+function localTagEvents(filter: Record<string, unknown>): NostrEvent[] {
+  const { limit: _limit, ...rest } = filter;
+  return eventStore.getByFilters(rest as never) as NostrEvent[];
+}
+
+function withLocal(relay: NostrEvent[], filter: Record<string, unknown>): NostrEvent[] {
+  const byId = new Map(relay.map((ev) => [ev.id, ev]));
+  for (const ev of localTagEvents(filter)) byId.set(ev.id, ev);
+  return Array.from(byId.values());
+}
+
+async function fetchTagEvents(filter: Record<string, unknown>): Promise<NostrEvent[]> {
+  return withLocal(await fetchRelayTagEvents(filter), filter);
 }
 
 /**
@@ -175,7 +215,8 @@ async function fetchAllTagEvents(
   for (let round = 0; round < maxRounds; round++) {
     let batch: NostrEvent[];
     try {
-      batch = await fetchTagEvents({ ...filter, limit: pageSize, ...(until ? { until } : {}) });
+      // Relay-only: local events would skew `oldest` and the stop conditions.
+      batch = await fetchRelayTagEvents({ ...filter, limit: pageSize, ...(until ? { until } : {}) });
     } catch {
       break; // keep whatever we already have rather than losing the page
     }
@@ -191,7 +232,7 @@ async function fetchAllTagEvents(
     if (next === until) break; // relay isn't advancing; stop rather than loop
     until = next;
   }
-  return Array.from(seen.values());
+  return withLocal(Array.from(seen.values()), filter);
 }
 
 /**
@@ -223,21 +264,29 @@ function makeTrustFetcher(relay: string) {
 
 /**
  * Publish to (tag hub ∪ the author's own write relays), per the kit's routing
- * rule. We can't use `publishToRelays()` from nostr.ts here: it ignores its
- * `relays` argument and always resolves the author's outbox seeded with
- * PROFILE_RELAYS, so a tag event would never reach the hub. Seeding
- * `loadOutboxRelayListFromDb` with the tag relays gives exactly the union we want.
+ * rule — and to NOTHING else.
+ *
+ * Deliberately not `publishRelaysFor`, which floors every publish with
+ * `PROFILE_RELAYS`. That floor is right for an ordinary note and wrong here: it
+ * would scatter tag assertions across five general relays that no tag reader
+ * queries, and it would override a user who narrowed their set through
+ * `setTagRelays`. The hub is the fallback this surface has; it needs no other.
+ *
+ * (The subject's inbox is not in the union either, and that is also on purpose:
+ * a tag assertion is a claim ABOUT someone — see `NOT_ADDRESSED_TO_P_TAGS`.)
  */
 async function publishTagEvent(
   signed: Record<string, unknown>,
 ): Promise<{ accepted: number; total: number }> {
-  const relays = loadOutboxRelayListFromDb(signed.pubkey as string, tagRelays());
+  const author = signed.pubkey as string;
+  const relays = dedupeRelays([...(await outboxRelays(author, [])), ...tagRelays()]);
   const responses = await pool.publish(relays, signed as never);
   const accepted = responses.filter((r) => r.ok).length;
   const total = responses.length || relays.length;
   if (!accepted) {
     throw new Error(responses.find((r) => !r.ok)?.message || "No relay accepted the event");
   }
+  eventStore.add(signed as never);
   return { accepted, total };
 }
 
@@ -1221,7 +1270,8 @@ export async function fetchTagIndex(
   >();
 
   for (const a of assertions) {
-    if (!trust.predicate(a.asserter)) continue;
+    // The viewer's own taggings count for the viewer, as `mine` does on profiles.
+    if (!trust.predicate(a.asserter) && a.asserter !== viewerPubkey) continue;
     if (!counted.has(a.tagKey)) {
       counted.set(a.tagKey, {
         authorPubkey: a.tagAuthor,
@@ -1547,6 +1597,9 @@ export async function publishTagComment(
   if (!text) throw new Error("Write something first.");
 
   const coord = tagCoordinate({ authorPubkey, slug });
+  // Where the tag's author writes — the `A`/`a` coordinate is resolvable from
+  // the hint alone, without the reader guessing at a relay set.
+  const hint = relayHintFor(authorPubkey);
   const unsigned = {
     kind: COMMENT_KIND,
     pubkey: user.pubkey,
@@ -1556,18 +1609,19 @@ export async function publishTagComment(
     // top-level comment. `K`/`k` carry the kind being commented on, `P`/`p` its
     // author — both required by NIP-22 for clients that filter by them.
     tags: [
-      ["A", coord],
+      tagWithHint("A", coord, hint),
       ["K", String(TAG_ELEMENT_KIND)],
-      ["P", authorPubkey],
-      ["a", coord],
+      tagWithHint("P", authorPubkey, hint),
+      tagWithHint("a", coord, hint),
       ["k", String(TAG_ELEMENT_KIND)],
-      ["p", authorPubkey],
+      tagWithHint("p", authorPubkey, hint),
     ],
   };
 
   const signed = await signAs(requireActiveAccount(), unsigned as never);
-  // The app's normal publish path (author's outbox ∪ PROFILE_RELAYS), NOT the
-  // tag-hub one — see fetchCommentEvents above for why.
+  // The app's normal publish path — the author's outbox, the tag author's inbox
+  // (they are `p`-tagged, so the comment reaches them), and our defaults. NOT
+  // the tag-hub one: see fetchCommentEvents above for why.
   const result = await publishToRelays(signed);
   if (!result.success) throw new Error(result.error || "No relay accepted the comment");
 }
@@ -1818,6 +1872,8 @@ export async function pinTag({
       tagEventId,
       viewerPubkey: user.pubkey,
       taPubkeys: Z_HANDLE_PUBKEYS,
+      // The pin's `e` and `a` both name the tag author's event.
+      relayHint: relayHintFor(authorPubkey),
     }),
     pubkey: user.pubkey,
     created_at: Math.floor(Date.now() / 1000),
@@ -1853,7 +1909,8 @@ export async function unpinTag(pinEventId: string): Promise<void> {
     kind: DELETION_KIND,
     pubkey: user.pubkey,
     created_at: Math.floor(Date.now() / 1000),
-    tags: [["e", pinEventId]],
+    // The pin is the viewer's own event, so the hint is where they write.
+    tags: [tagWithHint("e", pinEventId, relayHintFor(user.pubkey))],
     content: "",
   };
   const signed = await signAs(requireActiveAccount(), unsigned as never);

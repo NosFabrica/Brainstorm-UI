@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useNewJoiners } from "@/hooks/useNewJoiners";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
+import { useShareUrl } from "@/hooks/useShareUrl";
 import { nip19 } from "nostr-tools";
 import type { NewJoiner } from "@/services/inviteAcceptance";
 import { accountKey } from "@/lib/accountStorage";
@@ -50,7 +51,18 @@ export function WelcomeBackCard() {
 
   const doWelcome = async (people: NewJoiner[]) => {
     setWelcomed((prev) => [...prev, ...people.filter((p) => !prev.some((w) => w.pubkey === p.pubkey))]);
-    await welcomeBack(people.map((p) => p.pubkey));
+    const sent = await welcomeBack(people.map((p) => p.pubkey));
+    if (!sent) {
+      // The follow never went out — take the optimistic tick back rather than
+      // congratulate the user on something that didn't happen.
+      setWelcomed((prev) => prev.filter((w) => !people.some((p) => p.pubkey === w.pubkey)));
+      toast({
+        variant: "destructive",
+        title: "That follow didn't go out",
+        description: "We couldn't reach your relays. Try again in a moment.",
+      });
+      return;
+    }
     toast({
       title: people.length > 1 ? `Welcomed ${people.length} people back` : `Welcomed ${people[0].name || "them"} back`,
       description: "Refreshing your scores…",
@@ -168,9 +180,9 @@ function InviteCta() {
     }
   });
   const [open, setOpen] = useState(false);
+  const inviteUrl = useShareUrl({ npub, enabled: open });
 
   if (!npub || dismissed) return null;
-  const inviteUrl = typeof window !== "undefined" ? `${window.location.origin}/p/${npub}` : "";
 
   const handleDismiss = () => {
     try {
@@ -210,7 +222,7 @@ function InviteCta() {
         displayName={displayName}
         picture={user?.picture}
         nip05={user?.nip05}
-        canonicalUrl={inviteUrl}
+        shareUrl={inviteUrl}
       />
     </div>
   );

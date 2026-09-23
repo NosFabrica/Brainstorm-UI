@@ -10,6 +10,7 @@ import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/h
 import { shareTierFor } from "@/components/share/TrustScoreBadge";
 import { VerificationCoin, useTierRing , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { NoteContent } from "@/components/share/NoteContent";
+import { TranslateLine } from "@/components/share/TranslateLine";
 import { parseNoteContent } from "@/lib/noteContent";
 import { EmbeddedNoteCard } from "@/components/share/EmbeddedNoteCard";
 import { NoteTagRow } from "@/components/share/NoteTagChips";
@@ -116,6 +117,20 @@ export function ShareNoteCard({
   const [granularity] = useTierGranularity();
   const [expanded, setExpanded] = useState(false);
   const [, navigate] = useLocation();
+  // A repost renders the note it points at, not this event — so it needs none
+  // of what follows. Every hook still runs for it (the card is rendered unkeyed
+  // on the featured / single-event pages, so one instance can flip between a
+  // repost and a plain note), but with inputs that make each a no-op rather
+  // than parsing content and fetching a score nothing will read.
+  const isRepost = event.kind === 6 || event.kind === 16;
+  const hasMedia = useMemo(
+    () => !isRepost && parseNoteContent(event.content || "").some((t) => t.type === "image" || t.type === "video" || t.type === "audio"),
+    [event.content, isRepost],
+  );
+  const authorNpub = useMemo(() => { try { return npubFromPubkey(event.pubkey); } catch { return ""; } }, [event.pubkey]);
+  // Same fallback as EmbeddedNoteCard: callers that fetched a score pass it,
+  // the rest (more-from-author, tagged notes) ride the shared house cache.
+  const authorFallbackOf = useAuthorScores(isRepost || authorScore != null ? [] : [event.pubkey]);
   const onCardClick = openOnCardClick(href, navigate);
   const clickable = href ? "cursor-pointer" : "";
   const a = analyzeNote(event);
@@ -133,8 +148,7 @@ export function ShareNoteCard({
     }
   }
 
-  // Repost (kind 6/16)
-  if (event.kind === 6 || event.kind === 16) {
+  if (isRepost) {
     const inner = a.repostEvent ?? (a.repostId ? eventsById.get(a.repostId) : undefined);
     return (
       <div data-testid="note-repost" onClick={onCardClick} className={clickable}>
@@ -159,22 +173,14 @@ export function ShareNoteCard({
   // Notes with media (video/image/audio) always render expanded — collapsing a
   // post behind "Show more" would cut off its video/image. Only long text-only
   // notes get the height clamp.
-  const hasMedia = useMemo(
-    () => parseNoteContent(event.content || "").some((t) => t.type === "image" || t.type === "video" || t.type === "audio"),
-    [event.content],
-  );
   const isLong = !hasMedia && (event.content?.length ?? 0) > LONG_NOTE_CHARS;
   const collapsed = isLong && !expanded && !forceExpanded;
 
-  const authorNpub = useMemo(() => { try { return npubFromPubkey(event.pubkey); } catch { return ""; } }, [event.pubkey]);
   const authorProfile = profiles.get(event.pubkey);
   const authorName = authorProfile?.display_name || authorProfile?.name || (authorNpub ? `${authorNpub.slice(0, 10)}…` : "Someone");
   const authorHandle = authorProfile?.nip05
     ? authorProfile.nip05.replace(/^_@/, "@")
     : authorNpub ? `@${authorNpub.slice(0, 12)}…` : "";
-  // Same fallback as EmbeddedNoteCard: callers that fetched a score pass it,
-  // the rest (more-from-author, tagged notes) ride the shared house cache.
-  const authorFallbackOf = useAuthorScores(authorScore == null ? [event.pubkey] : []);
   const effectiveAuthorScore = authorScore ?? authorFallbackOf(event.pubkey);
   const authorTier = typeof effectiveAuthorScore === "number" ? shareTierFor(effectiveAuthorScore, granularity) : null;
   // Through the hook, not an inline boxShadow — the old style drew in EVERY
@@ -239,7 +245,9 @@ export function ShareNoteCard({
       )}
 
       <div className={collapsed ? "relative max-h-32 overflow-hidden" : undefined}>
-        <NoteContent content={event.content} compact profiles={profiles} linkCard imageOpensThread={!!href} tags={event.tags} authorName={profiles.get(event.pubkey)?.display_name || profiles.get(event.pubkey)?.name} />
+        <NoteContent content={event.content} compact profiles={profiles} linkCard imageOpensThread={!!href} tags={event.tags} embeddedIds={new Set(quoted.map((q) => q.id))} authorName={profiles.get(event.pubkey)?.display_name || profiles.get(event.pubkey)?.name} />
+        {/* X's "Translate post" for notes in another language — on-device, quiet. */}
+        {event.content?.trim() && <TranslateLine text={event.content} />}
         {collapsed && (
           <div className="absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-white dark:from-slate-900 to-transparent" />
         )}

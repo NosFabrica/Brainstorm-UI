@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef, useMemo, useCallback, startTransition, memo } from "react";
+import { scopedSearchHref } from "@/lib/searchSyntax";
 import { AppHeader } from "@/components/AppHeader";
 import { GlossBackground } from "@/components/GlossBackground";
 import { useTrustPresetSync } from "@/hooks/useTrustPresetSync";
 import { AdminBadge } from "@/components/AdminBadge";
+import { useGoBack } from "@/hooks/useGoBack";
 import { useLocation, useRoute } from "wouter";
 import { nip19 } from "nostr-tools";
 import { ProfileRecentPosts } from "@/components/profile/ProfileRecentPosts";
@@ -46,6 +48,7 @@ import {
 } from "lucide-react";
 import { isFlaggedByReporters } from "@/lib/trustFlags";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
+import { useShareUrl } from "@/hooks/useShareUrl";
 import { ZapModal } from "@/components/ZapModal";
 import { FlashIcon } from "@/components/FlashIcon";
 import { WotStrengthCard } from "@/components/WotStrengthCard";
@@ -948,6 +951,7 @@ const ExpandedPanel = memo(function ExpandedPanel(props: ExpandedPanelProps) {
 export default function ProfilePage() {
   const tierRing = useTierRing();
   const [location, navigate] = useLocation();
+  const goBack = useGoBack();
   const [, params] = useRoute("/profile/:npub");
   const npubParam = params?.npub || "";
 
@@ -982,7 +986,6 @@ export default function ProfilePage() {
 
   const [fromGroup, setFromGroup] = useState<string | null>(null);
   const [fromAdmin, setFromAdmin] = useState<string | null>(null);
-  const [fromSearch, setFromSearch] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
   const [reportReason, setReportReason] = useState("spam");
   const [followHovered, setFollowHovered] = useState(false);
@@ -1074,7 +1077,6 @@ export default function ProfilePage() {
     const adminFrom = urlParams.get("from");
     const adminPubkey = urlParams.get("pubkey");
     setFromAdmin(adminFrom === "admin" ? (adminPubkey || "1") : null);
-    setFromSearch(urlParams.get("fromSearch") === "1");
   }, [location, npubParam]);
 
   const { preset: trustPreset } = useTrustPresetSync(!!user);
@@ -1444,7 +1446,7 @@ export default function ProfilePage() {
         urlRegex.lastIndex = 0;
         const display = part.replace(/^https?:\/\//, '').replace(/\/$/, '');
         return (
-          <a key={i} href={part} target="_blank" rel="noopener noreferrer" className="text-brand-primary underline underline-offset-2 decoration-brand-primary/25 break-all" data-testid={`link-about-url-${i}`}>
+          <a key={i} href={part} target="_blank" rel="noopener" className="text-brand-primary underline underline-offset-2 decoration-brand-primary/25 break-all" data-testid={`link-about-url-${i}`}>
             {display}
           </a>
         );
@@ -1864,10 +1866,9 @@ export default function ProfilePage() {
       params.set("from", "admin");
       if (fromAdmin !== "1") params.set("pubkey", fromAdmin);
     }
-    if (fromSearch) params.set("fromSearch", "1");
     const qs = params.toString();
     navigate(`/profile/${targetNpub}${qs ? `?${qs}` : ""}`);
-  }, [navigate, fromGroup, fromAdmin, fromSearch]);
+  }, [navigate, fromGroup, fromAdmin]);
 
   const handleSetSort = useCallback((k: string, v: SortMode) => {
     setSectionSort(prev => ({ ...prev, [k]: v }));
@@ -1973,6 +1974,8 @@ export default function ProfilePage() {
     try { return nip19.npubEncode(npubParam); } catch { return npubParam; }
   }, [npubParam]);
 
+  const profileShareUrl = useShareUrl({ npub: displayNpub, enabled: shareOpen });
+
   // Fetch the NosFabrica ("house") perspective influence (0..1) for the viewed
   // profile on mount, so the dual-meter widget renders regardless of entry point
   // (Search, Network, deep link, etc). Uses an unauthenticated overview request
@@ -1995,6 +1998,8 @@ export default function ProfilePage() {
   // NOT "how others see you": every viewer with their own web of trust computes a
   // different number, so there is no single score to promise.
   const isOwnProfile = !!user?.pubkey && !!hexPubkey && user.pubkey === hexPubkey;
+  const searchPostsName = displayNostrProfile?.display_name || displayNostrProfile?.name;
+  const searchPostsLabel = isOwnProfile ? "Search your posts" : searchPostsName ? `Search ${searchPostsName}'s posts` : "Search their posts";
   const houseInfluence01 = useMemo(() => {
     const r = seed?.wotRankNosfabrica ?? nosfabricaRankQuery.data;
     if (typeof r !== "number" || !Number.isFinite(r)) return null;
@@ -2067,7 +2072,7 @@ export default function ProfilePage() {
         displayName={displayNostrProfile?.display_name || displayNostrProfile?.name || displayNpub.slice(0, 18) + "…"}
         picture={displayNostrProfile?.picture}
         nip05={displayNostrProfile?.nip05}
-        canonicalUrl={typeof window !== "undefined" && displayNpub ? `${window.location.origin}/p/${displayNpub}` : ""}
+        shareUrl={profileShareUrl}
         score01={typeof nosfabricaRankQuery.data === "number" ? nosfabricaRankQuery.data : null}
       />
 
@@ -2085,16 +2090,6 @@ export default function ProfilePage() {
       <main className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 py-12 w-full">
         <div className="flex items-center gap-2 mb-6">
           {(() => {
-            const goBack = (fallback: string) => {
-              // Prefer real browser history so "back" returns to wherever you came
-              // from — the dashboard, search, or a chained profile — instead of a
-              // hardcoded destination. Fall back only on a cold deep-link.
-              if (typeof window !== "undefined" && window.history.length > 1) {
-                window.history.back();
-              } else {
-                navigate(fallback);
-              }
-            };
             if (fromAdmin) {
               const fallback = `/admin?tab=users${fromAdmin !== "1" ? `&highlight=${fromAdmin}` : ""}`;
               return (
@@ -2133,7 +2128,7 @@ export default function ProfilePage() {
                 data-testid="button-back-to-search"
               >
                 <ArrowLeft className="h-4 w-4" />
-                {fromSearch ? "Back to Search" : "Back"}
+                Back
               </Button>
             );
           })()}
@@ -2409,6 +2404,16 @@ export default function ProfilePage() {
                       })()}
                       <button
                         type="button"
+                        onClick={() => hexPubkey && navigate(scopedSearchHref(hexPubkey, "everything"))}
+                        className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+                        aria-label={searchPostsLabel}
+                        title={searchPostsLabel}
+                        data-testid="button-search-posts"
+                      >
+                        <SearchIcon className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => navigate(`/p/${displayNpub}`)}
                         className="inline-flex items-center justify-center gap-1.5 h-8 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
                         data-testid="link-public-page"
@@ -2498,6 +2503,16 @@ export default function ProfilePage() {
                     </>
                   ) : (
                     <>
+                      <button
+                        type="button"
+                        onClick={() => hexPubkey && navigate(scopedSearchHref(hexPubkey, "everything"))}
+                        className="inline-flex items-center justify-center h-8 w-8 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-900 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
+                        aria-label={searchPostsLabel}
+                        title={searchPostsLabel}
+                        data-testid="button-search-posts"
+                      >
+                        <SearchIcon className="h-4 w-4" />
+                      </button>
                       <button
                         type="button"
                         onClick={() => navigate(`/p/${displayNpub}`)}

@@ -11,7 +11,7 @@ fast-path against the websocket relay query and takes the first valid kind 0.
 **Why:** There is **no Express backend** in this project — `npm run dev` runs
 Vite only and production is a static file server (spaFallbackPlugin in
 vite.config.ts). So every Nostr fetch happens directly from the browser; CORS
-matters, and relays alone left the post-login avatar slow/empty. (The replit.md
+matters, and relays alone left the post-login avatar slow/empty. (The ARCHITECTURE.md
 mentions of an "Express proxy" / "HTTP fallback" are aspirational, not real —
 git history has no prior HTTP profile fetch implementation.)
 

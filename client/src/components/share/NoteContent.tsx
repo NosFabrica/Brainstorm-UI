@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
-import { parseNoteContent, extractImageUrls, extractNoteTitle, toPlayableStreamUrl } from "@/lib/noteContent";
+import { parseNoteContent, primaryLink, extractImageUrls, extractNoteTitle, toPlayableStreamUrl } from "@/lib/noteContent";
 import { decodeNostrEntity } from "@/lib/noteRefs";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { LinkChip, LinkPreviewCard } from "@/components/share/LinkPreview";
@@ -10,6 +10,8 @@ import { FeedVideo } from "@/components/share/FeedVideo";
 import { LiveVideoPlayer } from "@/components/share/LiveVideoPlayer";
 import { WavlakeTrackCard } from "@/components/share/WavlakeTrackCard";
 import { wavlakeTrackId } from "@/lib/wavlake";
+import { FountainCard } from "@/components/share/FountainCard";
+import { fountainRef } from "@/lib/fountain";
 import { useLightbox } from "@/components/share/Lightbox";
 
 /** Human-readable track name from a raw audio URL. Falls back to "Audio" for
@@ -68,10 +70,14 @@ export function NoteContent({
   imageOpensThread = false,
   tags = [],
   authorName,
+  embeddedIds,
 }: {
   content: string;
   compact?: boolean;
   profiles?: Map<string, ProfileLite>;
+  /** Quoted events the card renders in full below — their inline stub would
+   *  say "↳ quoted note" above the quote itself, so it leaves the prose. */
+  embeddedIds?: ReadonlySet<string>;
   /** Render a rich preview card for the primary link below the body. */
   linkCard?: boolean;
   /** In a clickable feed card: render images as cropped thumbnails whose click
@@ -92,8 +98,7 @@ export function NoteContent({
   const [, navigate] = useLocation();
   // The note's primary link gets a rich preview card below the body (not in
   // compact/embedded contexts). Inline URLs stay as compact favicon chips.
-  const urlTokens = tokens.filter((t) => t.type === "url") as { value: string }[];
-  const primaryUrl = urlTokens.length ? urlTokens[urlTokens.length - 1].value : null;
+  const primaryUrl = primaryLink(tokens);
   // All image URLs in this note — the set the lightbox carousels through.
   const imageUrls = tokens.filter((t) => t.type === "image").map((t) => (t as { value: string }).value);
   return (
@@ -104,6 +109,7 @@ export function NoteContent({
             return <span key={i}>{token.value}</span>;
           case "url":
             if (wavlakeTrackId(token.value)) return <WavlakeTrackCard key={i} url={token.value} />;
+            if (fountainRef(token.value)) return <FountainCard key={i} url={token.value} />;
             if (videoEmbedFor(token.value)) return <VideoEmbed key={i} url={token.value} />;
             return <LinkChip key={i} url={token.value} />;
           case "audio":
@@ -123,13 +129,14 @@ export function NoteContent({
             return imageOpensThread ? (
               // Clickable feed card: a tidy cropped thumbnail; the click bubbles
               // up to the card and opens the thread (full image + zoom live there).
-              <img
+              // A fixed box, so the card is its final height before the
+              // image lands and the rows below it never move.
+              <div
                 key={i}
-                src={token.value}
-                alt=""
-                loading="lazy"
-                className="mt-2 w-full max-h-72 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 object-cover"
-              />
+                className="mt-2 aspect-[16/10] w-full max-h-72 overflow-hidden rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900"
+              >
+                <img src={token.value} alt="" loading="lazy" className="h-full w-full object-cover" />
+              </div>
             ) : (
               <img
                 key={i}
@@ -171,7 +178,9 @@ export function NoteContent({
               );
             }
             if (id) {
-              // Links to the on-site event page; also embedded as a card below.
+              // Embedded as a card below? Then the card IS the quote.
+              if (embeddedIds?.has(id)) return null;
+              // Links to the on-site event page.
               return (
                 <button key={i} type="button" onClick={() => navigate(`/e/${token.bech32}`)} className="text-brand-link font-medium hover:underline">
                   ↳ quoted note
@@ -195,7 +204,7 @@ export function NoteContent({
             return null;
         }
       })}
-      {primaryUrl && linkCard && !wavlakeTrackId(primaryUrl) && !videoEmbedFor(primaryUrl) && <LinkPreviewCard url={primaryUrl} />}
+      {primaryUrl && linkCard && !wavlakeTrackId(primaryUrl) && !videoEmbedFor(primaryUrl) && !fountainRef(primaryUrl) && <LinkPreviewCard url={primaryUrl} showImage={!tokens.some((t) => t.type === "image" || t.type === "video")} />}
     </div>
   );
 }

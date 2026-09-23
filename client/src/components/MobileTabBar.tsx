@@ -1,15 +1,19 @@
-import { useEffect } from "react";
+import { Suspense, lazy, useEffect, useState } from "react";
+import { registerBottomChrome } from "@/lib/bottomChrome";
 import { useLocation } from "wouter";
 import { Search, Home, Users, LogIn } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Drawer, DrawerContent, DrawerTitle } from "@/components/ui/drawer";
-import { AccountMenuBody, useAccountMenu } from "@/components/AccountMenuBody";
 import { useActiveAccountDisplay } from "@/hooks/useActiveAccountDisplay";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { logout } from "@/accounts/login-flow";
 import type { AccountDisplay } from "@/accounts/display";
-import { useAccountSheetOpen, openAccountSheet, closeAccountSheet, setAccountSheet } from "@/lib/accountSheetStore";
+import { useAccountSheetOpen, openAccountSheet } from "@/lib/accountSheetStore";
 import { cn } from "@/lib/utils";
+import { OverlaySpinner } from "@/components/OverlaySpinner";
+
+const MobileAccountSheetBody = lazy(() =>
+  import("@/components/MobileAccountSheetBody").then((m) => ({ default: m.MobileAccountSheetBody })),
+);
 
 /**
  * Mobile bottom navigation — the thumb-level home base on phones, replacing the
@@ -34,14 +38,8 @@ export function MobileTabBar() {
   // offset by, and it self-zeroes on desktop where this component renders nothing.
   useEffect(() => {
     if (!isMobile) return;
-    const prev = document.body.style.paddingBottom;
-    const inset = "calc(4rem + env(safe-area-inset-bottom))";
-    document.body.style.paddingBottom = inset;
-    document.documentElement.style.setProperty("--bs-bottom-chrome", inset);
-    return () => {
-      document.body.style.paddingBottom = prev;
-      document.documentElement.style.removeProperty("--bs-bottom-chrome");
-    };
+    // The ledger (lib/bottomChrome) sums this with the now-playing bar's height.
+    return registerBottomChrome("tabbar", "calc(4rem + env(safe-area-inset-bottom))");
   }, [isMobile]);
 
   if (!isMobile) return null;
@@ -151,31 +149,14 @@ function YouTab({ user, active, onClick }: { user: AccountDisplay; active: boole
 
 function MobileAccountSheet({ user, onLogout }: { user: AccountDisplay; onLogout: () => void }) {
   const open = useAccountSheetOpen();
-  const isAdmin = user.isAdmin;
-  const { onNavigate, onInvite, onRequestLogout, onRequestRemove, modals } = useAccountMenu(user, onLogout, closeAccountSheet);
-
+  const [asked, setAsked] = useState(open);
+  useEffect(() => {
+    if (open) setAsked(true);
+  }, [open]);
+  if (!asked) return null;
   return (
-    <>
-      <Drawer open={open} onOpenChange={setAccountSheet}>
-        <DrawerContent className="border-brand-accent/20 dark:border-white/10 bg-white/90 dark:bg-slate-950/95 backdrop-blur-xl">
-          <DrawerTitle className="sr-only">Your account</DrawerTitle>
-          {/* Brand-tint wash to match the desktop menu's frosted surface. */}
-          <div className="pointer-events-none absolute inset-0 rounded-t-[10px] bg-gradient-to-br from-brand-deep/[0.05] to-brand-accent/[0.07]" />
-          <div className="relative max-h-[80vh] overflow-y-auto pb-[env(safe-area-inset-bottom)]">
-            <AccountMenuBody
-              user={user}
-              isAdmin={isAdmin}
-              active={undefined}
-              onNavigate={onNavigate}
-              onInvite={onInvite}
-              onRequestLogout={onRequestLogout}
-              onRequestRemove={onRequestRemove}
-              close={closeAccountSheet}
-            />
-          </div>
-        </DrawerContent>
-      </Drawer>
-      {modals}
-    </>
+    <Suspense fallback={open ? <OverlaySpinner /> : null}>
+      <MobileAccountSheetBody user={user} onLogout={onLogout} />
+    </Suspense>
   );
 }

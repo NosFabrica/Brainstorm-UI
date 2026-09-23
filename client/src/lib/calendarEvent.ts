@@ -1,5 +1,6 @@
-// NIP-52 calendar events (kind 31922 date-based / 31923 time-based): parsing,
-// display formatting, and an "Add to calendar" Google link (no login needed).
+// NIP-52 calendar events (kind 31922 date-based / 31923 time-based): parsing
+// and display formatting. Going to one is a NIP-52 RSVP (services/rsvp), not
+// a calendar-vendor link.
 
 import type { MinimalEvent } from "@/lib/noteRefs";
 
@@ -54,6 +55,16 @@ export function formatEventDate(startSec: number, isDateOnly: boolean): string {
 
 export const isUpcoming = (startSec: number): boolean => startSec >= Math.floor(Date.now() / 1000);
 
+/** When the event is over: its `end`, else the end of its day for a
+ *  date-only event, else its start. An all-day event today is still on. */
+export function eventEndSec(e: Pick<CalendarEvent, "startSec" | "endSec" | "isDateOnly">): number {
+  if (e.endSec && e.endSec > e.startSec) return e.endSec;
+  return e.isDateOnly ? e.startSec + 86_400 : e.startSec;
+}
+
+export const isOver = (e: Pick<CalendarEvent, "startSec" | "endSec" | "isDateOnly">, now: number = Math.floor(Date.now() / 1000)): boolean =>
+  e.startSec > 0 && eventEndSec(e) <= now;
+
 /** A calendar "date tile" — short month + day-of-month (e.g. { month: "JUN", day: "9" }). */
 export function eventDateTile(startSec: number): { month: string; day: string } {
   const d = new Date(startSec * 1000);
@@ -82,13 +93,34 @@ export function relativeEventTime(startSec: number): string {
   return diff >= 0 ? `In ${phrase}` : `${phrase} ago`;
 }
 
-/** A Google Calendar "add event" URL — opens a prefilled event, no auth needed. */
-export function googleCalendarUrl(e: CalendarEvent): string {
-  const fmt = (sec: number) => new Date(sec * 1000).toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-  const start = fmt(e.startSec);
-  const end = fmt(e.endSec && e.endSec > e.startSec ? e.endSec : e.startSec + 3600);
-  const params = new URLSearchParams({ action: "TEMPLATE", text: e.title, dates: `${start}/${end}` });
-  if (e.summary) params.set("details", e.summary);
-  if (e.location) params.set("location", e.location);
-  return `https://calendar.google.com/calendar/render?${params.toString()}`;
+/** The clock time an event starts — "7:00 PM" — or "All day" for a date-only event. */
+export function formatEventTime(startSec: number, isDateOnly: boolean): string {
+  if (!startSec) return "";
+  if (isDateOnly) return "All day";
+  return new Date(startSec * 1000).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
+const COUNTRY = /^(usa|u\.s\.a\.|united states( of america)?|us|uk|united kingdom|england|scotland|wales|canada|germany|deutschland|france|spain|españa|italy|italia|netherlands|nederland|switzerland|schweiz|austria|österreich|australia|mexico|méxico|brazil|brasil|portugal|slovakia|slovensko|czechia|czech republic|česko|poland|polska|ireland|belgium|sweden|norway|denmark|finland|japan|argentina|el salvador|south africa|india|nigeria)$/i;
+const STREET = /^\d|\b(st|street|ave|avenue|rd|road|blvd|boulevard|dr|drive|ln|lane|way|hwy|highway|pl|place|sq|square)\.?$/i;
+
+/**
+ * The venue and the town, the way Luma names a place — not the postal
+ * address. "235 Robert Parker Coffin Road, Long Grove, IL, USA" → "Long
+ * Grove, IL"; "Juniata Brewing Company, 1102 Susquehanna Ave, Huntingdon, PA
+ * 16652" → "Juniata Brewing Company, Huntingdon". Streets, postcodes and
+ * countries go; what is left is the venue (when there is more after it) and
+ * the town.
+ */
+export function shortPlace(location: string | undefined | null): string {
+  if (!location) return "";
+  const parts: string[] = [];
+  for (const raw of location.split(/,\s*/)) {
+    let part = raw.trim().replace(/\s+\d{4,}(?:-\d+)?$/, "").trim(); // "PA 16652" → "PA"
+    if (!part || /^\d+$/.test(part) || COUNTRY.test(part) || STREET.test(part)) continue;
+    if (parts[parts.length - 1]?.toLowerCase() === part.toLowerCase()) continue;
+    parts.push(part);
+  }
+  if (parts.length === 0) return location.split(/,\s*/)[0]?.trim() ?? location;
+  if (parts.length >= 3) return `${parts[0]}, ${parts[1]}`;
+  return parts.join(", ");
 }

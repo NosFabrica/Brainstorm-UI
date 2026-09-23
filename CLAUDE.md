@@ -1,5 +1,17 @@
 # Brainstorm-UI
 
+Production web UI of the Brainstorm/Tapestry estate. The map of the estate's
+repos and deployments is
+[ECOSYSTEM.md](https://github.com/NosFabrica/protocols/blob/main/ECOSYSTEM.md)
+in `NosFabrica/protocols`.
+
+## Orientation
+
+- **Architecture overview** — [ARCHITECTURE.md](ARCHITECTURE.md): the routing model (anonymous search-first vs. authenticated), `RequireAuth`/`optionalAuthFetch` data paths, the staging/production API switcher, known backend gaps. Read it before structural work.
+- **Domain model** — [CONTEXT.md](CONTEXT.md) for the vocabulary, [docs/adr/](docs/adr/) for recorded decisions.
+- **Wire formats this UI consumes** — kind-30382 Trusted Assertions and kind-10040 designation are specified in [NosFabrica/protocols](https://github.com/NosFabrica/protocols) ([trusted-assertions.md](https://github.com/NosFabrica/protocols/blob/main/specs/trusted-assertions.md); GrapeRank semantics in [graperank.md](https://github.com/NosFabrica/protocols/blob/main/specs/graperank.md)).
+- **R&D counterpart** — [nous-clawds4/tapestry](https://github.com/nous-clawds4/tapestry), where protocols are piloted before adoption here.
+
 ## Agent skills
 
 ### Issue tracker
@@ -12,7 +24,7 @@ Five canonical triage roles, each mapped to its default label string (`needs-tri
 
 ### Domain docs
 
-Single-context layout — one `CONTEXT.md` + `docs/adr/` at the repo root (created lazily by `/domain-modeling`). See `docs/agents/domain.md`.
+Single-context layout — [`CONTEXT.md`](CONTEXT.md) + [`docs/adr/`](docs/adr/) at the repo root. Both exist; extend them rather than starting a parallel glossary. See `docs/agents/domain.md`.
 
 ## Design system (use the primitives)
 
@@ -29,8 +41,11 @@ Anchored to the designer's brand-guidelines p17 "UI Foundations" sheet. Full gui
 
 ## Deploying to staging
 
-CI builds an image per branch of this repo; staging pins one of those tags
-(`ui.image.tag` in brainstorm-k8s). The branch/PR/pin workflow — including
-whether to join the current staging branch or start a new cycle — is
-documented in
+- `staging` is the default branch and what the staging env runs; `main` is prod.
+- Branch off `staging`, PR into `staging`. Only merge work that is ready to ship — promotion takes everything; gate unfinished work behind a `VITE_FEATURE_*` flag.
+- Prod: `staging` → `main` as a merge commit, never squash. Core team's call.
+- Hotfix: branch off `main`, PR into `main`, then merge `main` back into `staging`.
+- Never create temp/join branches for staging or ask for `ui.image.tag` to be repinned; it stays `staging`.
+
+Deploy mechanics:
 [brainstorm-k8s `docs/staging-workflow.md`](https://github.com/NosFabrica/brainstorm-k8s/blob/master/docs/staging-workflow.md).

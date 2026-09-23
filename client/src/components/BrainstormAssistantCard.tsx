@@ -421,7 +421,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                       <a
                         href={w.href}
                         target="_blank"
-                        rel="noopener noreferrer"
+                        rel="noopener"
                         className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-brand-deep hover:text-brand-link transition-colors group/site focus:outline-none focus:ring-2 focus:ring-brand-accent/40 rounded"
                         data-testid={`link-assistant-website-${variant}`}
                       >
@@ -497,7 +497,7 @@ export function BrainstormAssistantCard({ variant, prominence = "default", onDis
                 <a
                   href={njumpUrl}
                   target="_blank"
-                  rel="noopener noreferrer"
+                  rel="noopener"
                   className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400 hover:text-brand-deep transition-colors py-2 px-1 -mx-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
                   data-testid={`link-assistant-view-event-${variant}`}
                   title="Open the published event on njump"

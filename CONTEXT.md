@@ -80,6 +80,16 @@ by a refresh token. Not the same as being signed in — the app can know its Act
 Account while holding no valid Session.
 _Avoid_: token, login, auth
 
+### Trust signals
+
+**Endorsement**:
+Something the network said about an app or a person, attached to it where it
+appears — a review, a zap, a follow, membership in a curated set. Nostr has no
+star rating; who is speaking is the rating, so Endorsements are ordered by the
+User's own follows first, then verified accounts, then everyone else, and the
+UI says which ("people you follow", "verified accounts").
+_Avoid_: rating, stars, likes, social proof
+
 ### Not to be confused
 
 **Perspective**:
@@ -87,3 +97,26 @@ Whose trust scores the User is looking at — the house's or their own. Orthogon
 to the Active Account: Perspective changes what you see, Active Account changes
 who you are. Each Account keeps its own.
 _Avoid_: POV, view, observer, lens
+
+## Playback
+
+- **The floor** — the app plays one sound at a time. Whatever starts sounding
+  takes the floor and whatever held it pauses (`lib/playback.ts`). The music
+  bar is one voice; a live stream, a replay, a note's clip once unmuted, an
+  embedded player are the others. Muted playback (a clip autoplaying as it
+  scrolls into view) makes no sound and takes nothing.
+- **Best-effort embeds** — an embedded player is an iframe: the music always
+  yields to it; it yields to the music only where its provider listens
+  (YouTube, Vimeo).
+
+
+## Connection speed
+
+How constrained the device says its network is — read from the browser
+(`lib/connection.ts`), never chosen by the User, and always one of three:
+**Normal**, **Slow**, **Very slow**. Slow trims what loads on its own — the
+tag catalogue, the next page of results, link previews, video metadata. Very
+slow also drops remote avatars for initials. A browser that says nothing
+(every iOS browser) is Normal, so it behaves as it always has.
+_Not to be confused with_ the Network page and network reach, which are about
+a person's graph, not their radio.

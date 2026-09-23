@@ -8,12 +8,11 @@ import { useTierGranularity } from "@/hooks/useTierGranularity";
 import type { Granularity } from "@/lib/trustLadder";
 
 /**
- * Walkthrough control for "How people's verification is shown" — the same job
- * the payments DemoSubscriptionSwitcher does for subscription states: let the
- * whole room watch every page react while someone flips the option, instead of
+ * Walkthrough control for "How people's verification is shown": let the whole
+ * room watch every page react while someone flips the option, instead of
  * detouring through Settings between each look.
  *
- * Unlike the payments switcher there is no mock seam here — the display mode
+ * There is no mock seam here — the display mode
  * is a real, shipping viewer setting, and this panel writes the SAME store the
  * Settings control writes (the change is instant on every surface because the
  * store broadcasts). So it can't be gated by a feature flag that "turns real"

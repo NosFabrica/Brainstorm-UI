@@ -10,6 +10,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Observable } from "rxjs";
+import { finalizeEvent, generateSecretKey, getPublicKey } from "nostr-tools/pure";
 
 const publishToRelays = vi.fn(async () => ({ success: true }));
 const signAs = vi.fn(async (_account: unknown, template: Record<string, unknown>) => ({
@@ -21,15 +22,36 @@ const activeAccount = vi.fn();
 const submitFollowList = vi.fn(async () => undefined);
 /** What the relays answer with, per kind. */
 const relayHas = new Map<number, unknown[]>();
+/** Events that live ONLY on one named relay, keyed `url|kind` — the recovery target. */
+const relayOnlyHas = new Map<string, unknown[]>();
+/** Relays that refuse the connection outright. */
+const deadRelays = new Set<string>();
 /** The outbox warm — tests make it "reveal" the real list by seeding relayHas. */
 const fetchOutboxRelayList = vi.fn(async () => undefined as unknown);
 /** Whether the active key was minted in this app (createdInApp). */
 const createdInApp = vi.fn(() => false);
 
+/** The user's write relays, as the app resolves them. Tests can widen it. */
+const relayList: string[] = ["wss://one"];
+
 vi.mock("./nostr", () => ({
   publishToRelays: (...args: unknown[]) => publishToRelays(...(args as [])),
-  loadOutboxRelayListFromDb: () => ["wss://one"],
   fetchOutboxRelayList: (...args: unknown[]) => fetchOutboxRelayList(...(args as [])),
+}));
+
+/**
+ * Write relays are resolved through `lib/relayRouting` now, not through
+ * `services/nostr`, so the seam these tests steer with lives here. Both shapes
+ * answer with `relayList` verbatim: the real ones normalize (`wss://one` ->
+ * `wss://one/`) and add the bootstrap set, and `deadRelays` and the pool mock
+ * match on the exact strings a test wrote.
+ */
+vi.mock("@/lib/relayRouting", () => ({
+  outboxRelays: async () => [...relayList],
+  outboxRelaysFromDb: () => [...relayList],
+  relayHintFor: () => undefined,
+  tagWithHint: (name: string, value: string, hint?: string) =>
+    hint ? [name, value, hint] : [name, value],
 }));
 
 vi.mock("@/accounts/display", () => ({
@@ -38,19 +60,72 @@ vi.mock("@/accounts/display", () => ({
 
 // The relay reads go through `lib/relayRequest` now, which reaches the pool
 // directly rather than through `services/nostr`.
+const poolRequest = vi.fn((relays: string[], filter: { kinds: number[] }) =>
+  new Observable((subscriber) => {
+    const timer = setTimeout(() => {
+      if (relays.some((r) => deadRelays.has(r))) {
+        subscriber.error(new Error("connection refused"));
+        return;
+      }
+      const kind = filter.kinds[0];
+      const events = [
+        ...(relayHas.get(kind) ?? []),
+        ...relays.flatMap((r) => relayOnlyHas.get(`${r}|${kind}`) ?? []),
+      ];
+      for (const event of events) subscriber.next(event);
+      subscriber.complete();
+    }, 0);
+    return () => clearTimeout(timer);
+  }),
+);
+/**
+ * `pool.req` is the message stream: OPEN, then the events, then EOSE — or ERROR
+ * for a relay that can't be reached. That per-relay frame is the only place the
+ * difference between "answered with nothing" and "never answered" exists, and
+ * `requestNewestWithReach` reads it (#72).
+ */
+const poolReq = vi.fn((relays: string[], filter: { kinds: number[] }) =>
+  new Observable((subscriber) => {
+    const timer = setTimeout(() => {
+      const kind = filter.kinds[0];
+      for (const relay of relays) {
+        subscriber.next({ type: "OPEN", from: relay });
+        if (deadRelays.has(relay)) {
+          subscriber.next({ type: "ERROR", from: relay, error: new Error("connection refused") });
+          continue;
+        }
+        const events = [...(relayHas.get(kind) ?? []), ...(relayOnlyHas.get(`${relay}|${kind}`) ?? [])];
+        for (const event of events) subscriber.next({ type: "EVENT", from: relay, id: "sub", event });
+        subscriber.next({ type: "EOSE", from: relay });
+      }
+      subscriber.complete();
+    }, 0);
+    return () => clearTimeout(timer);
+  }),
+);
 vi.mock("@/lib/relayPool", () => ({
   pool: {
-    request: (_relays: unknown, filter: { kinds: number[] }) =>
-      new Observable((subscriber) => {
-        const timer = setTimeout(() => {
-          for (const event of relayHas.get(filter.kinds[0]) ?? []) subscriber.next(event);
-          subscriber.complete();
-        }, 0);
-        return () => clearTimeout(timer);
-      }),
+    request: (...args: unknown[]) => poolRequest(...(args as [string[], { kinds: number[] }])),
+    req: (...args: unknown[]) => poolReq(...(args as [string[], { kinds: number[] }])),
   },
 }));
-vi.mock("@/lib/eventStore", () => ({ eventStore: { add: (e: unknown) => e } }));
+const storeAdd = vi.fn((e: unknown) => e);
+// `getReplaceable` is what NIP-65 routing reads to find the author's write
+// relays; these cases never seed one, so routing falls back to the defaults.
+vi.mock("@/lib/eventStore", () => ({
+  eventStore: { add: (e: unknown) => storeAdd(e), getReplaceable: () => undefined },
+}));
+// Routing may go to the relays for a kind-10002. These cases are about the
+// follow/mute logic, not about discovery, so the lookup answers "nothing".
+vi.mock("@/lib/loaders", () => ({
+  addressLoader: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }),
+  idLoader: () => ({ subscribe: () => ({ unsubscribe: () => {} }) }),
+  loadReplaceable: async () => undefined,
+}));
+// The real module drags in deployment config; the recovery path only needs the shape check.
+vi.mock("@/config/tagging", () => ({
+  isRelayUrl: (url: string) => /^wss?:\/\/[^\s/$.?#][^\s]*$/i.test(url.trim()),
+}));
 
 vi.mock("@/accounts/signing", () => ({
   activeAccount: () => activeAccount(),
@@ -88,6 +163,10 @@ beforeEach(async () => {
   vi.resetModules();
   localStorage.clear();
   relayHas.clear();
+  relayOnlyHas.clear();
+  deadRelays.clear();
+  relayList.length = 0;
+  relayList.push("wss://one");
   activeAccount.mockReturnValue({ pubkey: ME });
   publishToRelays.mockResolvedValue({ success: true });
   createdInApp.mockReturnValue(false);
@@ -218,12 +297,52 @@ describe("unfollowing", () => {
  * in this app, or an explicit user confirmation, may create a first list.
  */
 describe("creating a first follow list", () => {
-  it("refuses for an imported key when nothing was found anywhere", async () => {
+  it("refuses for an imported key when no relay answered at all", async () => {
+    deadRelays.add("wss://one");
+
     const res = await social.followPubkeys([THEM]);
 
     expect(res.success).toBe(false);
     expect(res.needsBaseConfirmation).toBe(true);
     expect(signAs).not.toHaveBeenCalled();
+  });
+
+  /**
+   * Issue #72: the refusal above is right only while "no list exists" and "no
+   * relay answered" look alike. When the relays DO answer and none of them has
+   * a list for this key, that is proof, not silence — the first list is safe to
+   * create, and asking would strand a new user on a dialog they can't answer.
+   */
+  it("creates the first list when the relays answered and none has one", async () => {
+    const res = await social.followPubkeys([THEM]);
+
+    expect(res.needsBaseConfirmation).toBeUndefined();
+    expect(res.success).toBe(true);
+    expect(signedPubkeys()).toEqual([THEM]);
+  });
+
+  it("still asks when more relays stayed silent than answered", async () => {
+    // Two of three unreachable: what the one answer didn't see is exactly what
+    // a from-scratch publish would wipe.
+    relayList.push("wss://two", "wss://three");
+    deadRelays.add("wss://two");
+    deadRelays.add("wss://three");
+
+    const res = await social.followPubkeys([THEM]);
+
+    expect(res.needsBaseConfirmation).toBe(true);
+    expect(signAs).not.toHaveBeenCalled();
+  });
+
+  it("merges onto a list only the answering relay holds, rather than replacing it", async () => {
+    relayList.push("wss://two");
+    deadRelays.add("wss://two");
+    relayOnlyHas.set("wss://one|3", [listEvent(3, [OTHER])]);
+
+    const res = await social.followPubkeys([THEM]);
+
+    expect(res.success).toBe(true);
+    expect(signedPubkeys()).toEqual([OTHER, THEM]);
   });
 
   it("warms the outbox list and retries before giving up", async () => {
@@ -260,7 +379,9 @@ describe("creating a first follow list", () => {
   });
 
   it("applies the same guard to a single follow", async () => {
+    deadRelays.add("wss://one");
     const refused = await social.followUser(THEM, null);
+    deadRelays.clear();
     expect(refused.success).toBe(false);
     expect(refused.needsBaseConfirmation).toBe(true);
     expect(signAs).not.toHaveBeenCalled();
@@ -268,6 +389,16 @@ describe("creating a first follow list", () => {
     const confirmed = await social.followUser(THEM, null, { allowFromScratch: true });
     expect(confirmed.success).toBe(true);
     expect(signedPubkeys()).toEqual([THEM]);
+  });
+
+  it("merges onto a recovered base handed in as cachedBase, even with quiet relays", async () => {
+    // The relays answer nothing and the floor write may have failed — the
+    // explicitly-passed base alone must be enough to avoid the dialog loop.
+    const res = await social.followPubkeys([THEM], { cachedBase: listEvent(3, [OTHER]) as never });
+
+    expect(res.success).toBe(true);
+    expect(res.needsBaseConfirmation).toBeUndefined();
+    expect(signedPubkeys()).toEqual([OTHER, THEM]);
   });
 
   it("a known floor still beats everything — refusal, not a dialog", async () => {
@@ -303,6 +434,127 @@ describe("following several at once", () => {
     await social.followPubkeys([THEM, "d".repeat(64)]);
 
     expect(signedPubkeys()).toEqual([OTHER, THEM, "d".repeat(64)]);
+  });
+});
+
+/**
+ * Recovery from a user-named relay — the one path where events enter the app
+ * from a relay the user typed rather than one we ship. Nothing may be kept
+ * unless it cryptographically proves to be the Account's own list, which is why
+ * these events are signed for real instead of carrying the file's fake sigs.
+ */
+describe("recovering a follow list from a named relay", () => {
+  const MY_RELAY = "wss://my.relay";
+  const sk = generateSecretKey();
+  const PK = getPublicKey(sk);
+
+  const signList = (kind: number, pubkeys: string[], key = sk, created_at = 100) =>
+    finalizeEvent(
+      { kind, created_at, tags: pubkeys.map((pk) => ["p", pk]), content: "" },
+      key,
+    );
+
+  /** The fire-and-forget backend ingest needs a tick to land before asserting. */
+  const settle = () => new Promise((r) => setTimeout(r, 0));
+
+  it("recovers a verified list: floor + store + backend ingest, and no publish", async () => {
+    relayOnlyHas.set(`${MY_RELAY}|3`, [signList(3, [OTHER, THEM])]);
+
+    const res = await social.recoverFollowListFromRelay(PK, MY_RELAY);
+
+    expect(res).toMatchObject({ found: true, follows: 2 });
+    const { loadKnownFollowList } = await import("@/lib/followStore");
+    expect(loadKnownFollowList(PK)?.count).toBe(2);
+    expect(storeAdd).toHaveBeenCalledWith(expect.objectContaining({ kind: 3 }));
+    await settle();
+    expect(submitFollowList).toHaveBeenCalledTimes(1);
+    // API submit only — recovery never publishes; the merge that follows does.
+    expect(publishToRelays).not.toHaveBeenCalled();
+    expect(signAs).not.toHaveBeenCalled();
+  });
+
+  it("normalizes the typed URL before asking the pool", async () => {
+    relayOnlyHas.set(`${MY_RELAY}|3`, [signList(3, [OTHER])]);
+
+    const res = await social.recoverFollowListFromRelay(PK, `  ${MY_RELAY}/  `);
+
+    expect(res).toMatchObject({ found: true, follows: 1 });
+  });
+
+  it("rejects a forged copy and keeps nothing", async () => {
+    relayOnlyHas.set(`${MY_RELAY}|3`, [{ ...signList(3, [OTHER]), sig: "f".repeat(128) }]);
+
+    const res = await social.recoverFollowListFromRelay(PK, MY_RELAY);
+
+    expect(res).toMatchObject({ found: false, error: expect.stringContaining("invalid copy") });
+    const { loadKnownFollowList } = await import("@/lib/followStore");
+    expect(loadKnownFollowList(PK)).toBeNull();
+    expect(storeAdd).not.toHaveBeenCalled();
+    await settle();
+    expect(submitFollowList).not.toHaveBeenCalled();
+  });
+
+  it("rejects a validly-signed list that belongs to someone else", async () => {
+    // The `authors` filter is a request; a hostile relay answers with whatever
+    // it likes. A stranger's real signature must not count as ours.
+    relayOnlyHas.set(`${MY_RELAY}|3`, [signList(3, [OTHER], generateSecretKey())]);
+
+    const res = await social.recoverFollowListFromRelay(PK, MY_RELAY);
+
+    expect(res).toMatchObject({ found: false, error: expect.stringContaining("invalid copy") });
+    expect(storeAdd).not.toHaveBeenCalled();
+  });
+
+  it("reads an answering-but-empty relay as not-found, with no error", async () => {
+    const res = await social.recoverFollowListFromRelay(PK, MY_RELAY);
+
+    expect(res).toEqual({ found: false });
+  });
+
+  it("reads a refused connection as an error, distinct from not-found", async () => {
+    deadRelays.add(MY_RELAY);
+
+    const res = await social.recoverFollowListFromRelay(PK, MY_RELAY);
+
+    expect(res).toMatchObject({ found: false, error: expect.stringContaining("reach") });
+  });
+
+  it("refuses a non-relay URL without touching the network", async () => {
+    const res = await social.recoverFollowListFromRelay(PK, "https://not-a.relay");
+
+    expect(res).toMatchObject({ found: false, error: expect.stringContaining("wss://") });
+    expect(poolRequest).not.toHaveBeenCalled();
+  });
+
+  it("treats a signed empty list as found — proof the from-scratch shape is safe", async () => {
+    relayOnlyHas.set(`${MY_RELAY}|3`, [signList(3, [])]);
+
+    const res = await social.recoverFollowListFromRelay(PK, MY_RELAY);
+
+    expect(res).toMatchObject({ found: true, follows: 0 });
+  });
+
+  it("keeps a verified kind-10002 riding along, so the merge finds the real write relays", async () => {
+    relayOnlyHas.set(`${MY_RELAY}|3`, [signList(3, [OTHER])]);
+    relayOnlyHas.set(`${MY_RELAY}|10002`, [
+      finalizeEvent({ kind: 10002, created_at: 100, tags: [["r", "wss://mine"]], content: "" }, sk),
+    ]);
+
+    await social.recoverFollowListFromRelay(PK, MY_RELAY);
+
+    expect(storeAdd).toHaveBeenCalledWith(expect.objectContaining({ kind: 10002 }));
+  });
+
+  it("drops a forged kind-10002 even when the kind-3 is genuine", async () => {
+    relayOnlyHas.set(`${MY_RELAY}|3`, [signList(3, [OTHER])]);
+    relayOnlyHas.set(`${MY_RELAY}|10002`, [
+      finalizeEvent({ kind: 10002, created_at: 100, tags: [["r", "wss://evil"]], content: "" }, generateSecretKey()),
+    ]);
+
+    const res = await social.recoverFollowListFromRelay(PK, MY_RELAY);
+
+    expect(res).toMatchObject({ found: true });
+    expect(storeAdd).not.toHaveBeenCalledWith(expect.objectContaining({ kind: 10002 }));
   });
 });
 

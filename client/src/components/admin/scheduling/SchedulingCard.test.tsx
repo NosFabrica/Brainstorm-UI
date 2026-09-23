@@ -52,6 +52,19 @@ describe("SchedulingCard", () => {
     expect(badges[0].closest("tr")).toHaveTextContent("Weekly");
   });
 
+  it("says which policies may be sold, and warns where a paid one may not", async () => {
+    vi.spyOn(apiClient, "getSchedulingPolicies").mockResolvedValue([
+      { ...WEEKLY, is_public: true },
+      { ...DAILY, is_public: false },
+    ]);
+
+    renderWithProviders(<SchedulingCard active />);
+
+    await screen.findByText("Weekly");
+    expect(screen.getByTestId(`policy-public-${WEEKLY.id}`)).toBeInTheDocument();
+    expect(screen.queryByTestId(`policy-public-${DAILY.id}`)).toBeNull();
+  });
+
   it("renders the schedule interval human-readable", async () => {
     vi.spyOn(apiClient, "getSchedulingPolicies").mockResolvedValue([WEEKLY, DAILY]);
 

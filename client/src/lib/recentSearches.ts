@@ -112,6 +112,16 @@ export function pushRecentProfile(p: RecentProfileInput): RecentItem[] {
   });
 }
 
+/** Profiles this device has opened from search — the transparent, on-device
+ *  personalization signal ("Visited" hints, People-strip pinning). */
+export function visitedPubkeys(): Set<string> {
+  const out = new Set<string>();
+  for (const item of getRecentItems()) {
+    if (item.type === "profile" && item.pubkey) out.add(item.pubkey.toLowerCase());
+  }
+  return out;
+}
+
 export function removeRecentItem(item: RecentItem): RecentItem[] {
   const key = recentKey(item);
   return write(getRecentItems().filter((e) => recentKey(e) !== key));

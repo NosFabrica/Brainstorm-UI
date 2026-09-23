@@ -63,9 +63,30 @@ export function npubFromPubkey(pubkey: string): string {
  * otherwise a bare `npub`. Returns "" if encoding fails.
  */
 export function nostrUriFor(pubkey: string, relays: string[] = []): string {
+  const id = profileIdentifier(pubkey, relays.slice(0, 4));
+  return id ? `nostr:${id}` : "";
+}
+
+/**
+ * `nprofile` when there are relay hints to carry, `npub` otherwise. "" if the
+ * pubkey won't encode. Shared by the `nostr:` URI and the on-site path so the
+ * two can't drift.
+ */
+export function profileIdentifier(pubkey: string, relays: string[] = []): string {
   try {
-    if (relays.length) return `nostr:${nip19.nprofileEncode({ pubkey, relays: relays.slice(0, 4) })}`;
-    return `nostr:${nip19.npubEncode(pubkey)}`;
+    if (relays.length) return nip19.nprofileEncode({ pubkey, relays });
+    return nip19.npubEncode(pubkey);
+  } catch {
+    return "";
+  }
+}
+
+/** A bare nprofile carrying up to four of the person's relays — the form a
+ *  power user copies to hand another client both the key and where the
+ *  events live. "" when the key does not encode. */
+export function nprofileFor(pubkey: string, relays: string[] = []): string {
+  try {
+    return nip19.nprofileEncode({ pubkey, relays: relays.slice(0, 4) });
   } catch {
     return "";
   }
@@ -93,7 +114,35 @@ export function neventFor(id: string, relays: string[] = [], author?: string): s
   }
 }
 
-/** On-site `/e/<nevent>` path for an event (falls back to the bare id). */
-export function eventPath(event: { id: string; pubkey?: string }, relays: string[] = []): string {
+/** Addressable kinds that read on the article reader: long-form (NIP-23)
+ *  and wiki pages (NIP-54). Opened as a bare event they rendered as a note,
+ *  markup and all. */
+const READER_KINDS = new Set([30023, 30818]);
+
+/** On-site path for an event: `/a/<naddr>` for an article or wiki page we
+ *  know by kind and name, else `/e/<nevent>` (falls back to the bare id). */
+export function eventPath(event: { id: string; pubkey?: string; kind?: number; tags?: string[][] }, relays: string[] = []): string {
+  if (event.kind !== undefined && READER_KINDS.has(event.kind) && event.pubkey && event.tags) {
+    const identifier = event.tags.find((t) => t[0] === "d")?.[1];
+    if (identifier !== undefined) {
+      try {
+        return `/a/${nip19.naddrEncode({ kind: event.kind, pubkey: event.pubkey, identifier, relays: relays.slice(0, 4) })}`;
+      } catch {
+        /* fall through to the event link */
+      }
+    }
+  }
   return `/e/${neventFor(event.id, relays, event.pubkey)}`;
+}
+
+/**
+ * On-site profile path for a resolved short link.
+ *
+ * Carries every hint the link stored — the server keeps up to MAX_RELAYS, and
+ * truncating here would silently drop the tail, defeating the reason the hints
+ * ride along at all. "" if the pubkey won't encode.
+ */
+export function profilePath(pubkey: string, relays: string[] = []): string {
+  const id = profileIdentifier(pubkey, relays);
+  return id ? `/p/${id}` : "";
 }

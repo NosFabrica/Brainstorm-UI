@@ -10,8 +10,8 @@
     "dev": "vite",
     "build": "vite build",
     "check": "tsc",
-    "test": "vitest run",
-    "test:watch": "vitest"
+    "test": "LC_ALL=en-US vitest run",
+    "test:watch": "LC_ALL=en-US vitest"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
@@ -95,6 +95,7 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.4.20",
+    "fake-indexeddb": "^6.2.5",
     "jsdom": "^29.1.1",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.17",

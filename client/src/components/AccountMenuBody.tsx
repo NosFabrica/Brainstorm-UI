@@ -17,10 +17,15 @@ import {
   ChevronRight,
   BadgeCheck,
   Tag as TagIcon,
+  CalendarClock,
+  Gauge,
 } from "lucide-react";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { PovToggle } from "@/components/score/TrustScorePov";
 import { ShareProfileModal } from "@/components/ShareProfileModal";
+import { useShareUrl } from "@/hooks/useShareUrl";
+import { useSubscription } from "@/hooks/useSubscription";
+import { useBillingPlans } from "@/hooks/useBillingPlans";
 import { AccountSwitcher } from "@/components/AccountSwitcherPane";
 import { copyToClipboard } from "@/lib/clipboard";
 import { useToast } from "@/hooks/use-toast";
@@ -84,7 +89,7 @@ export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close
     retry: false,
   });
 
-  const inviteUrl = typeof window !== "undefined" && user?.npub ? `${window.location.origin}/p/${user.npub}` : "";
+  const inviteUrl = useShareUrl({ npub: user?.npub ?? "", enabled: inviteOpen });
 
   const onNavigate = (path: string) => { close(); navigate(path); };
   const onInvite = () => { close(); setInviteOpen(true); };
@@ -109,7 +114,7 @@ export function useAccountMenu(user: AccountDisplay, onLogout: () => void, close
         displayName={user.displayName || "You"}
         picture={user.picture}
         nip05={user.nip05}
-        canonicalUrl={inviteUrl}
+        shareUrl={inviteUrl}
         score01={typeof houseScoreQuery.data === "number" ? houseScoreQuery.data : null}
       />
 
@@ -209,6 +214,9 @@ export function AccountMenuBody({
   close,
 }: AccountMenuBodyProps) {
   const { toast } = useToast();
+  // Pitch only to someone we KNOW is free: a read that's out or failed isn't "no plan".
+  const { isFree } = useSubscription();
+  const { billingAvailable, solePurchasableName } = useBillingPlans();
   const [pane, setPane] = useState<"menu" | "switcher">("menu");
   // Unread support replies light the Support row's dot. Cheap: the query is
   // shared with /support and only fires while the menu is open.
@@ -382,12 +390,39 @@ export function AccountMenuBody({
 
       <MenuDivider />
 
-      {/* Grouped actions — Settings sits under Help & FAQ. */}
+      {/* Ordered by whose interest each row serves, theirs first. A menu that
+          opens with our asks (invite, upgrade) reads as serving us — fatal in a
+          trust product. So: the user's own state first, then the one offer,
+          then growth, then utilities.
+
+          1. Insights — the thing you CHECK, and the most-opened row here. Also
+             the only always-on door to the account page: the dashboard link is
+             11px and gated behind NIP-85 activation.
+          2. Get Priority — directly under Insights on purpose: Insights shows
+             the fact (your schedule, your staleness), this row is the response.
+             Fact-then-offer, the same adjacency the whole branch uses. Hidden
+             for payers — no "Billing" twin either; payers read their plan on
+             Insights and change it in Settings → Billing.
+          3. Invite friends — the growth loop, and stronger AFTER someone has
+             engaged with their own standing than as a cold opener.
+          4. Settings, then Help — utilities live at the bottom by convention,
+             ordered by frequency. */}
       <div className="p-1.5">
+        <MenuRow icon={Gauge} label="Insights" onClick={() => onNavigate("/insights")} testId="dropdown-insights" />
+        {isFree && billingAvailable !== false && (
+          // NOT a lightning bolt. On a Nostr client ⚡ means zaps and Lightning,
+          // and plans are billed by card — the icon implied a payment rail we
+          // haven't wired. A calendar-clock says what a plan actually is: a
+          // recalculation schedule.
+          //
+          // The label names the policy only when exactly one thing is on sale;
+          // with several, naming one would be picking a favourite in a menu row.
+          <MenuRow icon={CalendarClock} label={solePurchasableName ? `Get ${solePurchasableName}` : "See plans"} onClick={() => onNavigate("/pricing")} testId="dropdown-get-priority" />
+        )}
         <MenuRow icon={UserPlus} label="Invite friends" onClick={onInvite} testId="dropdown-invite" />
-        <MenuRow icon={LifeBuoy} label="Support" onClick={() => onNavigate("/support")} testId="dropdown-support" dot={supportUnread > 0} />
-        <MenuRow icon={HelpCircle} label="Help & FAQ" onClick={() => onNavigate("/faq")} testId="dropdown-faq" />
         <MenuRow icon={SettingsIcon} label="Settings" onClick={() => onNavigate("/settings")} testId="dropdown-settings" />
+        <MenuRow icon={HelpCircle} label="Help & FAQ" onClick={() => onNavigate("/faq")} testId="dropdown-faq" />
+        <MenuRow icon={LifeBuoy} label="Support" onClick={() => onNavigate("/support")} testId="dropdown-support" dot={supportUnread > 0} />
       </div>
 
       {/* Appearance — compact full-width segmented row */}

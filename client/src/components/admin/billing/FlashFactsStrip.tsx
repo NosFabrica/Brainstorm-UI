@@ -1,0 +1,119 @@
+import { useQuery } from "@tanstack/react-query";
+import { Loader2 } from "lucide-react";
+import { Chip } from "@/components/ui/chip";
+import { formatAmount, formatBillingDate, formatBillingInterval } from "@/lib/plans";
+import { statusTone } from "./DivergenceRows";
+import { describeCycles, readFlashSubscription, type FlashSubscriptionRecord } from "./flashRecord";
+import { statusLabel } from "./billingEventCopy";
+
+/** Shared with the record dialog, so a row that already asked Flash feeds the dialog. */
+export const flashRecordKey = (id: string) => ["/api/admin/billing/flash-record", id] as const;
+
+/**
+ * Flash's facts about one signup, on the row itself: status, plan and price,
+ * since when, how many cycles, and how it ends. Two short lines, right-aligned
+ * beside the lead on a desk and wrapping under it on a phone.
+ *
+ * One Flash read per signup, cached for the tab's life — the same key the
+ * record dialog uses, so opening it costs nothing more. Absent or unreachable,
+ * the strip is simply not there: the row's lead and handle never depend on it.
+ */
+/**
+ * Flash's record for one subscription, read once and cached for five minutes
+ * (the same read the record dialog makes). `preferId` picks the row that IS
+ * ours when Flash lists several for a ref; otherwise the first. `record` is
+ * null while pending, on error, and when Flash lists nothing.
+ */
+export function useFlashSubscriptionRecord(
+  id: string,
+  read: (id: string) => Promise<unknown>,
+  preferId?: string | null,
+): { pending: boolean; record: FlashSubscriptionRecord | null; rows: number } {
+  const query = useQuery({
+    queryKey: flashRecordKey(id),
+    queryFn: async () => (await read(id)) ?? null,
+    staleTime: 5 * 60_000,
+    retry: false,
+    enabled: !!id,
+  });
+  if (query.isPending) return { pending: true, record: null, rows: 0 };
+  if (query.isError) return { pending: false, record: null, rows: 0 };
+  return { pending: false, record: recordFromBody(query.data, preferId), rows: rowsOf(query.data).length };
+}
+
+function rowsOf(body: unknown): unknown[] {
+  const b = body as { subscriptions?: unknown[] } | null | undefined;
+  return Array.isArray(b?.subscriptions) ? b.subscriptions : [];
+}
+
+/** The record in a `/flash` body — the row that IS ours when Flash lists several for a ref, else the first; null when it lists nothing. */
+export function recordFromBody(body: unknown, preferId?: string | null): FlashSubscriptionRecord | null {
+  const parsed = rowsOf(body).map(readFlashSubscription);
+  if (!parsed.length) return null;
+  return (preferId ? parsed.find((r) => r.id === preferId) : undefined) ?? parsed[0];
+}
+
+export function FlashFactsStrip({
+  id,
+  read,
+  testId,
+}: {
+  id: string;
+  read: (id: string) => Promise<unknown>;
+  testId: string;
+}) {
+  const query = useQuery({
+    queryKey: flashRecordKey(id),
+    // react-query refuses `undefined` as data; a mocked or empty answer is null.
+    queryFn: async () => (await read(id)) ?? null,
+    staleTime: 5 * 60_000,
+    retry: false,
+  });
+
+  if (query.isPending) {
+    return (
+      <span className="inline-flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500" aria-label="Asking Flash">
+        <Loader2 className="h-3 w-3 animate-spin" />
+      </span>
+    );
+  }
+  const body = query.data as { subscriptions?: unknown[] } | null | undefined;
+  const rows = Array.isArray(body?.subscriptions) ? body.subscriptions : [];
+  if (query.isError || rows.length === 0) return null;
+
+  const r = readFlashSubscription(rows[0]);
+  const price = r.amountMinor !== null && r.currency ? formatAmount(r.amountMinor, r.currency) : null;
+  const interval = formatBillingInterval(r.billingInterval);
+  const plan = [r.planName, price ? `${price}${interval ? ` ${interval}` : ""}` : null].filter(Boolean).join(" · ");
+  const cycles = describeCycles(r);
+  const ending = r.cancelEffectiveDate
+    ? `Ends ${formatBillingDate(r.cancelEffectiveDate)}`
+    : r.canceledAt
+      ? `Cancelled ${formatBillingDate(r.canceledAt)}`
+      : r.nextBillingDate
+        ? `Next bill ${formatBillingDate(r.nextBillingDate)}`
+        : null;
+  const line2 = [
+    r.createdAt ? `Since ${formatBillingDate(r.createdAt)}` : null,
+    cycles,
+    ending,
+    rows.length > 1 ? `+${rows.length - 1} more ${rows.length === 2 ? "row" : "rows"} in Flash` : null,
+  ].filter(Boolean);
+
+  return (
+    <span
+      className="flex min-w-0 flex-col items-start gap-0.5 text-xs leading-tight sm:items-end sm:text-right"
+      data-testid={testId}
+    >
+      <span className="flex flex-wrap items-center gap-1.5 text-slate-700 dark:text-slate-200">
+        <Chip tone={statusTone(r.status)} size="sm">
+          {statusLabel(r.status)}
+        </Chip>
+        {plan && <span className="font-medium">{plan}</span>}
+      </span>
+      {line2.length > 0 && (
+        <span className="text-[11px] text-slate-500 dark:text-slate-400">{line2.join(" · ")}</span>
+      )}
+    </span>
+  );
+}

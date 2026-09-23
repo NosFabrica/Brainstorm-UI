@@ -38,6 +38,8 @@ let account: StubAccount;
 let apiClient: typeof import("./api").apiClient;
 let isAuthRedirecting: typeof import("./api").isAuthRedirecting;
 let resumeSession: typeof import("./api").resumeSession;
+let getServerStatus: typeof import("@/lib/serverStatus").getServerStatus;
+let __resetServerStatus: typeof import("@/lib/serverStatus").__resetServerStatus;
 
 beforeEach(async () => {
   vi.clearAllMocks();
@@ -48,6 +50,8 @@ beforeEach(async () => {
   heldAccounts.length = 0;
   heldAccounts.push(account);
   ({ apiClient, isAuthRedirecting, resumeSession } = await import("./api"));
+  ({ getServerStatus, __resetServerStatus } = await import("@/lib/serverStatus"));
+  __resetServerStatus();
 });
 
 afterEach(() => {
@@ -228,5 +232,34 @@ describe("a 401 that beats the extension into the page", () => {
     const { EXTENSION_COLD_BOOT_WAIT_MS, EXTENSION_WAIT_MS } = await import("@/accounts/login");
     expect(EXTENSION_COLD_BOOT_WAIT_MS).toBeGreaterThan(EXTENSION_WAIT_MS);
     expect(waitForExtension).toHaveBeenCalledWith(EXTENSION_COLD_BOOT_WAIT_MS);
+  });
+});
+
+// Every method fetches for itself and several swallow their errors into
+// friendly strings, so the one place that sees all of them is the module's
+// own `fetch`. Through it, the server-status store hears transport failures
+// (2026-09-09: the sorry page) — and nothing else.
+describe("the API's health, seen at the fetch seam", () => {
+  it("two gateway errors on different routes mark the API down; a 404 is not a transport failure", async () => {
+    const fetchMock = stubFetch(
+      new Response("", { status: 503 }),
+      new Response("", { status: 503 }),
+      new Response("", { status: 503 }), // the confirming probe
+    );
+    await apiClient.getUserByPubkey("a".repeat(64)).catch(() => {});
+    await apiClient.getUserOverview("a".repeat(64)).catch(() => {});
+    await new Promise((r) => setTimeout(r, 20));
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(String(fetchMock.mock.calls[2][0])).toContain("/.well-known/nostr.json");
+    expect(getServerStatus().api).toBe("down");
+  });
+
+  it("a 404 on two routes is two missing things, not a server down", async () => {
+    const fetchMock = stubFetch(new Response("", { status: 404 }), new Response("", { status: 404 }));
+    await apiClient.getUserByPubkey("a".repeat(64)).catch(() => {});
+    await apiClient.getUserOverview("a".repeat(64)).catch(() => {});
+    await new Promise((r) => setTimeout(r, 20));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(getServerStatus().api).toBe("ok");
   });
 });

@@ -13,8 +13,9 @@
 import { nip19, getPublicKey, generateSecretKey } from "nostr-tools";
 import { ExtensionMissingError } from "applesauce-signers";
 
-import { cacheProfile, fetchProfile, publishProfile, publishRelayList } from "@/services/nostr";
-import { PROFILE_RELAYS } from "@/lib/relays";
+import { announceRelayList, cacheProfile, fetchProfile, publishProfile } from "@/services/nostr";
+import { loadRelayList } from "@/lib/relayRouting";
+import { clearHydratedStore } from "@/services/storeHydration";
 import { sessions, SessionTransportError } from "@/accounts/session";
 import { LocalAccount } from "@/accounts/local-account";
 import { activeAccount } from "@/accounts/signing";
@@ -104,13 +105,13 @@ async function completeLogin(account: BrainstormAccount, token: string): Promise
   // new-user follow picker.
   void (async () => {
     try {
+      // The relay list FIRST, and unconditionally. Every read and every publish
+      // this session makes is routed by it, and nothing else loads it as a
+      // matter of course — so without this the whole app falls back to the
+      // hardcoded relay set and the user's own relays are never asked.
+      await loadRelayList(pubkey).catch(() => null);
       const { fetchContactList } = await import("@/services/socialActions");
-      let ev = await fetchContactList(pubkey);
-      if (!ev) {
-        const { fetchOutboxRelayList } = await import("@/services/nostr");
-        await fetchOutboxRelayList(pubkey).catch(() => undefined);
-        ev = await fetchContactList(pubkey);
-      }
+      const ev = await fetchContactList(pubkey);
       if (ev) recordFollowList(pubkey, ev as any);
     } catch { /* the dashboard's relay verification is the fallback */ }
   })();
@@ -309,6 +310,9 @@ export function logout() {
   // rather than a list kept here. What it keeps on this device stays: it is still
   // listed, and signing back in should find its follows and prefs where it left them.
   if (prevPubkey) clearSessionScopedStorage(prevPubkey);
+  // The cached events go too: which profiles someone looked at is a browsing
+  // trail, and it should not outlive the session on a shared device.
+  clearHydratedStore();
   // Not per-Account: this one says "somebody has scored on this browser", which is
   // what the public pages render, so it must not survive into an anonymous visit.
   try { localStorage.removeItem("brainstorm_calc_completed"); } catch { /* ignore */ }
@@ -330,7 +334,10 @@ export async function runInitialSetup(
   if (profile.about) content.about = profile.about;
   if (profile.picture) content.picture = profile.picture;
   try { await publishProfile(content); } catch {}
-  try { await publishRelayList(PROFILE_RELAYS); } catch {}
+  // `announceRelayList`, not `publishRelayList`: this runs for any account
+  // finishing signup, and a replaceable kind-10002 carrying our defaults would
+  // overwrite a list an existing key already has elsewhere.
+  try { await announceRelayList(); } catch {}
 
   // NOTE: we intentionally do NOT publish a seed follow list or trigger scoring
   // here. New users choose who to follow in the post-signup "Build your network"

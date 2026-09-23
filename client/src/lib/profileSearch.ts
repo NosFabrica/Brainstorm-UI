@@ -1,6 +1,7 @@
 import { nip19 } from "nostr-tools";
 import { apiClient } from "@/services/api";
 import type { ActivePerspective } from "@/hooks/useActivePerspective";
+import type { ConnectionSpeed } from "@/lib/connection";
 
 export type SearchPov = ActivePerspective;
 
@@ -23,6 +24,8 @@ export interface SearchResult {
   wotRankNosfabrica?: number | null;
   /** Logged-in user's ("mywot") perspective rank, 0..1, when present. */
   wotRankMywot?: number | null;
+  /** NIP-24: the profile declares itself automated. */
+  bot?: boolean;
 }
 
 export function meiliHitToSearchResult(hit: Record<string, unknown>): SearchResult | null {
@@ -198,13 +201,14 @@ export async function searchByText(
   pov: SearchPov,
   _userPubkey?: string,
   maxHits?: number,
+  signal?: AbortSignal,
 ): Promise<{ results: SearchResult[]; total: number; timeMs: number }> {
   const start = performance.now();
   // Map the app-wide POV vocabulary onto the `/search/byText` `ownPubkey` flag:
   // "mywot" runs from the logged-in user's own (authenticated) perspective,
   // anything else runs from NosFabrica's perspective without authentication.
   const ownPubkey = pov === "mywot";
-  const data = await apiClient.searchByText(query, true, ownPubkey, 15000, maxHits);
+  const data = await apiClient.searchByText(query, true, ownPubkey, 15000, maxHits, signal);
   const hits = data?.data?.results ?? [];
   const total = data?.data?.numResults ?? hits.length;
   const results: SearchResult[] = [];
@@ -225,6 +229,15 @@ export async function searchByText(
 
 export function getDisplayLabel(result: SearchResult): string {
   return result.displayName || result.name || result.npub.slice(0, 12) + "...";
+}
+
+/** How long typing must pause before a search box asks for suggestions. */
+const TYPEAHEAD_PAUSE_MS = 350;
+const TYPEAHEAD_PAUSE_SLOW_MS = 700;
+
+/** The pause this connection deserves — a poor one asks once the typing really stops. */
+export function typeaheadPause(speed: ConnectionSpeed): number {
+  return speed === "normal" ? TYPEAHEAD_PAUSE_MS : TYPEAHEAD_PAUSE_SLOW_MS;
 }
 
 export const isLikelyNpub = (value: string) =>

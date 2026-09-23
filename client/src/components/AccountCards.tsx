@@ -2,7 +2,6 @@ import { useState } from "react";
 
 import { BackupReminder } from "@/components/BackupReminder";
 import { DeferredSessionCard } from "@/components/DeferredSession";
-import { PostSignupCard } from "@/components/PostSignupCard";
 import { useActiveAccount } from "applesauce-react/hooks";
 
 import { useDeferredSession } from "@/hooks/useDeferredSession";
@@ -25,10 +24,8 @@ function AccountCardsFor() {
     return <DeferredSessionCard onDismiss={() => setUnlockDismissed(true)} />;
   }
 
-  return (
-    <>
-      <BackupReminder />
-      <PostSignupCard />
-    </>
-  );
+  // The post-signup setup card used to render here too — the header's
+  // FinishSetupBanner and the /setup checklist replaced every nudge it made,
+  // so nothing setup-shaped sits under the search bar anymore.
+  return <BackupReminder />;
 }

@@ -14,6 +14,7 @@ vi.mock("@/hooks/useActiveAccountDisplay", () => ({
 }));
 vi.mock("@/services/socialActions", () => ({
   followPubkeys: (...a: unknown[]) => followPubkeys(...(a as [string[]])),
+  recoverFollowListFromRelay: vi.fn(async () => ({ found: false })),
 }));
 vi.mock("@/services/trustAnchor", () => ({
   triggerScoringAndAnchor: vi.fn(async () => {}),

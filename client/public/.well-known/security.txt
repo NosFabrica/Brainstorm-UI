@@ -1,0 +1,55 @@
+# ---------------------------------------------------------------------
+# Brainstorm - official domain inventory
+#
+# Brainstorm is an open-source Web-of-Trust protocol and search engine
+# built on nostr. Every hostname below is operated by the same team.
+# They run a small number of shared open-source codebases at different
+# release stages, which is why they resemble one another. This file is
+# published identically on all of them as an ownership attestation.
+#
+# Product UI - github.com/NosFabrica/Brainstorm-UI
+#   brainstorm.world
+#   brainstorm.nosfabrica.com
+#   brainstorm-staging.nosfabrica.com
+#
+# R&D UI - github.com/nous-clawds4/tapestry
+#   tapestry.brainstorm.world
+#   staging.brainstorm.world
+#   tags.brainstorm.world
+#   communities.brainstorm.world
+#   magic-carpet.brainstorm.world
+#   curate.brainstorm.world
+#
+# Backend APIs - github.com/NosFabrica/brainstorm_server
+#   api.brainstorm.world
+#   search.brainstorm.world
+#   brainstormserver.nosfabrica.com
+#   brainstormserver-staging.nosfabrica.com
+#
+# nostr relays - strfry, github.com/hoytech/strfry
+#   scores.brainstorm.world
+#   nip85.brainstorm.world
+#   dcosl.brainstorm.world
+#   nip85.nosfabrica.com
+#   nip85-staging.nosfabrica.com
+#
+# The brainstorm.world and nosfabrica.com domains are both ours, so any
+# host under either of them is operated by us. The list above is a
+# current inventory, not an exhaustive claim. A site that resembles
+# Brainstorm on any OTHER domain is not affiliated with us.
+#
+# NOTE FOR REPUTATION VENDORS
+#   brainstorm.world was registered by us on 2024-07-12 (WHOIS creation
+#   date). It had a previous, unrelated registrant, and any capture of
+#   this domain dated before 2024-07-12 shows their content - not ours.
+#   At least one vendor verdict currently in circulation is based on a
+#   2023 crawl of the prior owner's ad-parking page. If you are
+#   reassessing this domain, please re-crawl rather than relying on a
+#   cached judgement, and compare against brainstorm.nosfabrica.com,
+#   which serves the identical application from the same address.
+# ---------------------------------------------------------------------
+
+Contact: https://github.com/NosFabrica/Brainstorm-UI/security/advisories/new
+Expires: 2027-08-11T00:00:00.000Z
+Preferred-Languages: en
+Policy: https://github.com/NosFabrica/Brainstorm-UI/blob/main/SECURITY.md

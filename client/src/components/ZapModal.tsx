@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { QRCodeSVG } from "qrcode.react";
 import {
   Dialog,
   DialogContent,
@@ -11,12 +10,15 @@ import { Copy, Check, ExternalLink, Loader2, AlertTriangle, ArrowRight, Wallet, 
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { FlashIcon } from "@/components/FlashIcon";
 import { copyToClipboard } from "@/lib/clipboard";
+import { useCopied } from "@/hooks/useCopied";
 import { initialsFor } from "@/lib/profileDefaults";
+import { condenseLightning } from "@/lib/profileFacts";
 import { useActiveAccount } from "applesauce-react/hooks";
 import { signAs } from "@/accounts/signing";
 import { isUnlockCancelled } from "@/accounts/local-signer";
 import { signEventWithEphemeralKey, getVerifiedProfileLud16 } from "@/services/nostr";
 import { PROFILE_RELAYS } from "@/lib/relays";
+import { inboxRelays, relayHintFor } from "@/lib/relayRouting";
 import {
   acceptsZaps,
   canAttributeZap,
@@ -32,6 +34,7 @@ import {
   LnurlError,
   type LnurlPayParams,
 } from "@/lib/zap";
+import { LazyQRCode } from "@/components/LazyQRCode";
 
 interface ZapModalProps {
   open: boolean;
@@ -57,6 +60,9 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
   // The lightning address read from the recipient's CRYPTOGRAPHICALLY VERIFIED
   // kind-0 — the only address we resolve/pay (never the unverified prop).
   const [verifiedLud16, setVerifiedLud16] = useState<string | null>(null);
+  // Some people open this dialog for the address, not an invoice: a copy
+  // glyph beside the verified address, once it is verified.
+  const recipientCopy = useCopied();
 
   // Whoever is signed in signs the zap request; with nobody, it goes out anonymously.
   const account = useActiveAccount();
@@ -116,11 +122,20 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
     setErrorMsg(null);
     try {
       const amountMsat = satsToMsat(amountNum);
-      const relays = Array.from(new Set(PROFILE_RELAYS));
+      // NIP-57: this list is where the WALLET publishes the zap receipt, so it
+      // has to be where the RECIPIENT reads — their kind-10002 read relays over
+      // our defaults. Sending our five back meant the receipt landed somewhere
+      // the person being zapped may never look, and the zap never showed up on
+      // their profile in their own client.
+      const relays = await inboxRelays([recipientPubkey], PROFILE_RELAYS);
+      // The `p` hint is where the recipient WRITES — where a reader of the
+      // receipt goes to find them — which is not the same as the `relays` tag
+      // above, where the wallet should publish the receipt TO.
+      const recipientHint = relayHintFor(recipientPubkey);
       const commentText = comment.trim() || undefined;
       const anonZap = () =>
         signEventWithEphemeralKey(
-          buildZapRequest({ recipientPubkey, amountMsat, lnurl: params.lnurlUrl, relays, comment: commentText, anon: true }),
+          buildZapRequest({ recipientPubkey, amountMsat, lnurl: params.lnurlUrl, relays, comment: commentText, anon: true, relayHint: recipientHint }),
         );
       let signedZapRequest: Record<string, unknown> | undefined;
       if (recipientSupportsZaps) {
@@ -128,7 +143,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
           try {
             signedZapRequest = await signAs(
               account,
-              buildZapRequest({ recipientPubkey, amountMsat, lnurl: params.lnurlUrl, relays, comment: commentText }),
+              buildZapRequest({ recipientPubkey, amountMsat, lnurl: params.lnurlUrl, relays, comment: commentText, relayHint: recipientHint }),
             );
           } catch (e) {
             // They declined to unlock: abandon the zap rather than quietly sending
@@ -187,18 +202,34 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
           </DialogHeader>
         </div>
 
-        <div className="px-5 sm:px-6 pb-5 sm:pb-6">
+        <div className="min-w-0 px-5 sm:px-6 pb-5 sm:pb-6">
           {/* Recipient */}
           <div className="flex items-center gap-2.5 mb-4">
             <Avatar className="h-9 w-9 rounded-full border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0">
               {picture ? <AvatarImage src={picture} alt={displayName} className="object-cover" /> : null}
               <AvatarFallback className="rounded-full bg-brand-primary/15 text-brand-primary text-xs font-bold">{initialsFor(displayName)}</AvatarFallback>
             </Avatar>
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <p className="text-sm font-semibold text-slate-900 dark:text-slate-100 truncate">{displayName}</p>
-              <p className="text-xs text-slate-400 dark:text-slate-500 truncate font-mono inline-flex items-center gap-1 max-w-full">
+              {/* Condensed, with the whole address on the title and in the copy.
+                  `min-w-0` on the truncating span: an unbreakable 63-character
+                  address otherwise widens the dialog's grid column and pushes
+                  the inputs past its border. */}
+              <p className="flex w-full min-w-0 items-center gap-1 font-mono text-xs text-slate-400 dark:text-slate-500">
                 {isVerified && <ShieldCheck className="h-3 w-3 text-emerald-500 shrink-0" />}
-                <span className="truncate">{displayAddr}</span>
+                <span className="min-w-0 truncate" title={displayAddr} data-testid="zap-recipient-address">{condenseLightning(displayAddr)}</span>
+                {isVerified && (
+                  <button
+                    type="button"
+                    onClick={() => void recipientCopy.copy(displayAddr)}
+                    title={recipientCopy.copied ? "Copied" : "Copy lightning address"}
+                    aria-label="Copy lightning address"
+                    className="shrink-0 p-0.5 rounded text-slate-400 dark:text-slate-500 hover:text-brand-primary transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
+                    data-testid="zap-copy-recipient"
+                  >
+                    {recipientCopy.copied ? <Check className="h-3 w-3 text-emerald-500" /> : <Copy className="h-3 w-3" />}
+                  </button>
+                )}
               </p>
             </div>
           </div>
@@ -278,7 +309,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
                 <>
                   <div className="flex justify-center">
                     <div className="rounded-xl border border-slate-200 bg-white p-3" data-testid="zap-qr">
-                      <QRCodeSVG value={invoice} size={188} bgColor="#ffffff" fgColor="#0A0E18" level="M" />
+                      <LazyQRCode value={invoice} size={188} bgColor="#ffffff" fgColor="#0A0E18" level="M" />
                     </div>
                   </div>
                   <p className="text-center text-xs text-slate-500 dark:text-slate-400">Scan with a Lightning wallet to pay.</p>
@@ -327,7 +358,7 @@ export function ZapModal({ open, onOpenChange, recipientPubkey, lud16, displayNa
             <div className="space-y-3" data-testid="zap-fallback">
               <div className="flex justify-center">
                 <div className="rounded-xl border border-slate-200 bg-white p-3">
-                  <QRCodeSVG value={lightningUriForAddress(displayAddr)} size={188} bgColor="#ffffff" fgColor="#0A0E18" level="M" />
+                  <LazyQRCode value={lightningUriForAddress(displayAddr)} size={188} bgColor="#ffffff" fgColor="#0A0E18" level="M" />
                 </div>
               </div>
               <p className="text-center text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
