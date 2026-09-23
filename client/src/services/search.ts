@@ -26,6 +26,7 @@ import { liftQuery } from "@/lib/searchSyntax";
 import { resolveHouseObserver } from "@/services/trustSource";
 import { wantProfile } from "@/services/authorProfileQueue";
 import type { SearchResult } from "@/lib/profileSearch";
+import { RECIPE_TAGS } from "@/lib/sourceApp";
 
 export type SearchTab =
   | "everything"
@@ -40,7 +41,8 @@ export type SearchTab =
   | "live"
   | "music"
   | "releases"
-  | "lists";
+  | "lists"
+  | "recipes";
 
 /** One truth for tab → kinds, extracted from the SearchOverTrust app. */
 export const TAB_KINDS: Record<Exclude<SearchTab, "everything">, number[]> = {
@@ -71,11 +73,29 @@ export const TAB_KINDS: Record<Exclude<SearchTab, "everything">, number[]> = {
   releases: [30063],
   // 30000 = NIP-51 follow sets — Brainstorm's own pinned-tag exports live here.
   lists: [30000, 10003, 10015, 30001, 30003, 30015, 30267, 39701],
+  // Recipes are long-form articles wearing zap.cooking's tag — the same kind as
+  // Articles, narrowed by tag (TAB_TAGS). They stay in Articles too, labelled.
+  recipes: [30023],
+};
+
+/**
+ * The verticals that are a kind narrowed by tag. The relay filters `#t`
+ * alongside `search` and `kinds` (probed 2026-09-22), so this is a real
+ * vertical, not a client-side sieve.
+ */
+const TAB_TAGS: Partial<Record<SearchTab, readonly string[]>> = {
+  recipes: RECIPE_TAGS,
 };
 
 /** Everything is deliberately unconstrained — the relay blends and ranks. */
 export function kindsForTab(tab: SearchTab): number[] | undefined {
   return tab === "everything" ? undefined : TAB_KINDS[tab];
+}
+
+/** The `#t` a vertical is defined by, if any — a typed `#tag` in the query wins over it. */
+export function tagsForTab(tab: SearchTab): string[] | undefined {
+  const tags = TAB_TAGS[tab];
+  return tags ? [...tags] : undefined;
 }
 
 export interface SearchHit {
@@ -380,7 +400,7 @@ export function searchStream(
       ...(kinds ? { kinds } : {}),
       ...(lifted.authors && !byHost ? { authors: lifted.authors } : {}),
       ...(p && p.length ? { "#p": p } : {}),
-      ...(lifted["#t"] ? { "#t": lifted["#t"] } : {}),
+      ...(lifted["#t"] ? { "#t": lifted["#t"] } : tagsForTab(params.tab) ? { "#t": tagsForTab(params.tab) } : {}),
       ...(params.since !== undefined ? { since: params.since } : lifted.since !== undefined ? { since: lifted.since } : {}),
       ...(lifted.until !== undefined ? { until: lifted.until } : {}),
       search: withObserver(lifted.search, observer),

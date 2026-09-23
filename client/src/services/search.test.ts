@@ -127,6 +127,24 @@ describe("searchStream", () => {
     expect(filter.search).toMatch(/^dvm observer:/);
   });
 
+  /**
+   * Recipes are ordinary long-form articles with zap.cooking's tag on them, so
+   * a Recipes vertical is not a kind of its own — it is the article kind narrowed
+   * by tag on the relay (probed on the search relay, 2026-09-22: the tag alone
+   * returns the newest recipes; tag plus words returns "chili, but only recipes").
+   */
+  it("the Recipes tab asks the relay for articles tagged as recipes, words and all", async () => {
+    controllable();
+
+    searchStream("chili", { tab: "recipes", pov: "nosfabrica" }, () => {});
+    await tick();
+
+    const filter = reqMock.mock.calls[0][0] as { kinds?: number[]; "#t"?: string[]; search: string };
+    expect(filter.kinds).toEqual([30023]);
+    expect(filter["#t"]).toEqual(expect.arrayContaining(["zapcooking", "nostrcooking"]));
+    expect(filter.search).toMatch(/^chili observer:/);
+  });
+
   it("streams people hits incrementally, with the house observer on the wire", async () => {
     const { subject } = controllable();
     const snaps: SearchSnapshot[] = [];
