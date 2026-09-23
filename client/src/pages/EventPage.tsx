@@ -20,6 +20,9 @@ import { RepoHero } from "@/components/share/RepoHero";
 import { GitItemHero } from "@/components/share/GitItemHero";
 import { isGitItem } from "@/lib/gitStatus";
 import { FollowSetHero } from "@/components/share/FollowSetHero";
+import { DesignationHero } from "@/components/share/DesignationHero";
+import { StructuralHero } from "@/components/share/StructuralHero";
+import { contentShape } from "@/lib/contentShape";
 import { AudioHero } from "@/components/share/AudioHero";
 import { ListingHero } from "@/components/share/ListingHero";
 import { ListingRelated } from "@/components/share/ListingRelated";
@@ -154,8 +157,8 @@ export default function EventPage() {
     ? note.tags.find((t) => t[0] === "p" && (t[3] || "").toLowerCase() === "host")?.[1] || note.tags.find((t) => t[0] === "p")?.[1]
     : undefined;
   const authorPk = liveHost || note?.pubkey || ptr?.author || "";
-  // Long-form (30023) and wiki pages (30818) both read on the article reader.
-  const isArticle = note?.kind === 30023 || note?.kind === 30818;
+  // Long-form (30023), wiki pages (30818) and specs (30817) all read on the article reader.
+  const isArticle = note?.kind === 30023 || note?.kind === 30818 || note?.kind === 30817;
   const mediaUrls = useMemo(() => (note && !NOTE_KINDS.has(note.kind) ? eventMediaUrls(note) : []), [note]);
 
   // Long-form events belong on the article reader — hand off to /a.
@@ -374,6 +377,8 @@ export default function EventPage() {
                 <RepoHero event={note} />
               ) : note.kind === 30000 ? (
                 <FollowSetHero event={note} />
+              ) : note.kind === 10040 ? (
+                <DesignationHero event={note} />
               ) : note.kind === 31337 ? (
                 <AudioHero event={note} />
               ) : note.kind === 30402 ? (
@@ -384,6 +389,9 @@ export default function EventPage() {
                 <VideoHero event={note} />
               ) : NOTE_KINDS.has(note.kind) ? (
                 <ShareNoteCard event={note} profiles={profiles} eventsById={eventsById} addrByCoord={addrByCoord} forceExpanded />
+              ) : mediaUrls.length === 0 && (!note.content?.trim() || contentShape(note.content).kind !== "text") ? (
+                // No content to read — none, or ciphertext, or JSON: a structural event, its meaning in its tags.
+                <StructuralHero event={note} />
               ) : (
                 <div data-testid="event-media">
                   {mediaUrls.map((u, i) =>

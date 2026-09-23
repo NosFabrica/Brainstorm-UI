@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { __resetNip05Cache, parseNip05, peekNip05, verifyNip05 } from "./nip05";
+import { __resetNip05, __resetNip05Cache, parseNip05, peekNip05, resolveNip05, verifyNip05 } from "./nip05";
 
 const HZRD = "266815e0c9210dfa324c6cba3573b14bee49da4209a9456f9484e5106cd408a5";
 const COPYCAT = "e48465b08afc" + "0".repeat(52);
@@ -110,5 +110,68 @@ describe("verifyNip05", () => {
     }
     expect(await all).toEqual(Array(15).fill("invalid"));
     expect(peak).toBe(6);
+  });
+});
+
+const PK = "75d737c3472471029c44876b330d2284288a42779b591a2ed4daa1c6c07efaf7";
+const ok = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+
+describe("resolveNip05", () => {
+  beforeEach(() => __resetNip05());
+
+  it("asks the domain's well-known for the name, and answers the pubkey", async () => {
+    const fetchMock = vi.fn(async () => ok({ names: { whitenoise: PK } }));
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await resolveNip05("whitenoise@primal.net")).toBe(PK);
+    expect(fetchMock.mock.calls[0][0]).toBe("https://primal.net/.well-known/nostr.json?name=whitenoise");
+    expect((fetchMock.mock.calls[0][1] as { signal?: AbortSignal })?.signal).toBeInstanceOf(AbortSignal);
+  });
+
+  it("normalises the handle: case, and a bare domain is its `_` name", async () => {
+    const fetchMock = vi.fn(async () => ok({ names: { alice: PK, _: PK } }));
+    vi.stubGlobal("fetch", fetchMock);
+    expect(await resolveNip05("Alice@Primal.net")).toBe(PK);
+    expect(fetchMock.mock.calls[0][0]).toBe("https://primal.net/.well-known/nostr.json?name=alice");
+    expect(await resolveNip05("primal.net")).toBe(PK);
+    expect(fetchMock.mock.calls[1][0]).toBe("https://primal.net/.well-known/nostr.json?name=_");
+  });
+
+  it("answers null, never throws: non-2xx, a dead network, bad JSON, a missing name, a bad key", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("", { status: 404 })));
+    expect(await resolveNip05("a@x.org")).toBeNull();
+    __resetNip05();
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("blocked"); }));
+    expect(await resolveNip05("a@x.org")).toBeNull();
+    __resetNip05();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("<html>", { status: 200 })));
+    expect(await resolveNip05("a@x.org")).toBeNull();
+    __resetNip05();
+    vi.stubGlobal("fetch", vi.fn(async () => ok({ names: { someone: PK } })));
+    expect(await resolveNip05("a@x.org")).toBeNull();
+    __resetNip05();
+    vi.stubGlobal("fetch", vi.fn(async () => ok({ names: { a: "not-a-key" } })));
+    expect(await resolveNip05("a@x.org")).toBeNull();
+  });
+
+  it("asks once per handle for the session", async () => {
+    const fetchMock = vi.fn(async () => ok({ names: { alice: PK } }));
+    vi.stubGlobal("fetch", fetchMock);
+    await Promise.all([resolveNip05("alice@primal.net"), resolveNip05("ALICE@primal.net")]);
+    expect(await resolveNip05("alice@primal.net")).toBe(PK);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+  it("a typed handle doesn't wait behind background badge checks", async () => {
+    const release: Array<() => void> = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string) => {
+      if (String(url).includes("primal.net")) return ok({ names: { alice: PK } });
+      await new Promise<void>((r) => release.push(r));
+      return ok({ names: {} });
+    }));
+    const background = Array.from({ length: 8 }, (_, i) => verifyNip05(`_@d${i}.example.com`, PK));
+    expect(await resolveNip05("alice@primal.net")).toBe(PK);
+    while (release.length) release.shift()!();
+    await new Promise((r) => setTimeout(r, 0));
+    while (release.length) release.shift()!();
+    await Promise.all(background);
   });
 });

@@ -11,7 +11,7 @@ import { Link, useLocation } from "wouter";
 import { nip19 } from "nostr-tools";
 import type { NostrEvent } from "nostr-tools";
 import { ChevronDown, Radar, Radio, SlidersHorizontal } from "lucide-react";
-import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, readFilters, sinceForPreset, splitFilters, type DatePreset, type SearchFilterPatch, scopeOf } from "@/lib/searchSyntax";
+import { BROWSE_UNAVAILABLE_SORTS, activeFilterCount, applyFilters, browseSafeQuery, datePreset, liftQuery, readFilters, sinceForPreset, splitFilters, type DatePreset, type SearchFilterPatch, scopeOf } from "@/lib/searchSyntax";
 import { clientFilterHits, countBelowLine } from "@/lib/clientFilters";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
 import { eventStore } from "@/lib/eventStore";
@@ -80,6 +80,14 @@ const LIVE_KINDS = new Set(TAB_KINDS.live);
 const EVENT_KINDS = new Set(TAB_KINDS.events);
 const MUSIC_KINDS = new Set(TAB_KINDS.music);
 const SHOP_KINDS = new Set(TAB_KINDS.shop);
+
+/** What kind of article a hit is — the Articles tab's type chips narrow by this. */
+type ArticleType = "article" | "spec" | "wiki";
+const ARTICLE_TYPE_LABEL: Record<ArticleType, string> = { article: "Articles", spec: "Specs", wiki: "Wiki" };
+function articleTypeOf(kind: number): ArticleType {
+  return kind === 30817 ? "spec" : kind === 30818 ? "wiki" : "article";
+}
+
 /**
  * A recipe's topics. zap.cooking writes each chosen category twice — plain
  * and as `zapcooking-<word>` — beside the recipe marker itself and a
@@ -117,21 +125,26 @@ function profilesOf(hits: SearchHit[]) {
   return map;
 }
 
-/** Google's row: five verticals in view, the long tail behind More ▾. */
+/** Google's row: five verticals in view, the long tail behind More ▾.
+ *  Benjamin (2026-09-23): Shop earns the row — Media, then Shop — and
+ *  Articles is the first thing behind More. */
 const PRIMARY_TABS: { key: SearchTab; label: string }[] = [
   { key: "everything", label: "Everything" },
   { key: "people", label: "People" },
   { key: "notes", label: "Notes" },
-  { key: "articles", label: "Articles" },
   { key: "media", label: "Media" },
+  { key: "shop", label: "Shop" },
 ];
 const MORE_TABS: { key: SearchTab; label: string }[] = [
+  { key: "articles", label: "Articles" },
   { key: "apps", label: "Apps" },
-  { key: "shop", label: "Shop" },
   // Long-form articles wearing zap.cooking's tag: the same kind as Articles,
   // which keeps showing them labelled Recipe — this is where people look.
   { key: "recipes", label: "Recipes" },
   { key: "repos", label: "Repos" },
+  // Protocol specs (kind 30817), by the name people search for. They stay in
+  // Articles too, labelled Spec — this is where people look.
+  { key: "nips", label: "NIPs" },
   { key: "events", label: "Events" },
   { key: "music", label: "Music" },
   { key: "live", label: "Live" },
@@ -595,8 +608,10 @@ export function SearchResults({
   // put the page named "List of comedians" 26th under a month of news; best
   // match had it first, the other comedian lists behind it (relay probe,
   // 2026-09-07). A wordless browse still asks newest — there is nothing to match.
-  // Recipes are articles by kind and by nature — evergreen too.
-  const articlesByRelevance = (tab === "articles" || tab === "recipes") && !!splitFilters(query).text;
+  // Recipes and specs are articles by kind and by nature — evergreen too.
+  const articlesByRelevance = (tab === "articles" || tab === "recipes" || tab === "nips") && !!splitFilters(query).text;
+  // The kinds the box asked for (`kind:30078`) — a spec card leads with them.
+  const searchedKinds = useMemo(() => (liftQuery(query).kinds ?? []).map(String), [query]);
   const effectiveQuery =
     !userSorted && tab !== "everything" && tab !== "people" && !articlesByRelevance
       ? `${safeQuery} sort:recent`.trim()
@@ -854,6 +869,7 @@ export function SearchResults({
   const [appPlatform, setAppPlatform] = useState<string | null>(null);
   const [appCategory, setAppCategory] = useState<string | null>(null);
   const [shopCategory, setShopCategory] = useState<string | null>(null);
+  const [articleType, setArticleType] = useState<ArticleType | null>(null);
   const [recipeTopic, setRecipeTopic] = useState<string | null>(null);
   // Repos tab: what became of each issue and patch — one request per page,
   // keyed by item id (NIP-34 status events, newest wins; none means open).
@@ -946,6 +962,7 @@ export function SearchResults({
     setAppPlatform(null);
     setAppCategory(null);
     setShopCategory(null);
+    setArticleType(null);
     setRecipeTopic(null);
   }, [tab, query]);
   // The listings' own categories, counted — the Shop's facets.
@@ -954,6 +971,15 @@ export function SearchResults({
     const counts = new Map<string, number>();
     for (const h of hits) for (const c of parseListing(h.event)?.categories ?? []) counts.set(c, (counts.get(c) ?? 0) + 1);
     return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+  }, [tab, hits]);
+  // The kinds of article among the hits, in a fixed order. Chips only when
+  // there is more than one kind to tell apart — a search for honey sees none
+  // (the team: surface a way to narrow to specs only when specs were matched).
+  const articleFacets = useMemo<ArticleType[]>(() => {
+    if (tab !== "articles") return [];
+    const present = new Set(hits.map((h) => articleTypeOf(h.event.kind)));
+    const types = (["article", "spec", "wiki"] as ArticleType[]).filter((t) => present.has(t));
+    return types.length > 1 ? types : [];
   }, [tab, hits]);
   // The recipes' own topics — chicken, soup — counted. zap.cooking's
   // housekeeping tags (the recipe marker and its `zapcooking-<slug>` copies)
@@ -1001,6 +1027,9 @@ export function SearchResults({
     }
     if (tab === "shop" && shopCategory) {
       shown = shown.filter((h) => (parseListing(h.event)?.categories ?? []).includes(shopCategory));
+    }
+    if (tab === "articles" && articleType) {
+      shown = shown.filter((h) => articleTypeOf(h.event.kind) === articleType);
     }
     if (tab === "recipes" && recipeTopic) {
       shown = shown.filter((h) => recipeTopics(h.event).includes(recipeTopic));
@@ -1155,6 +1184,7 @@ export function SearchResults({
   const narrowed =
     activeFilters > 0 ||
     !!shopCategory ||
+    !!articleType ||
     !!recipeTopic ||
     !!appPlatform ||
     !!appCategory ||
@@ -1418,6 +1448,37 @@ export function SearchResults({
               ))}
             </FacetRow>
           )}
+          {tab === "articles" && articleFacets.length > 0 && (
+            <FacetRow className="mb-2" testId="article-facets">
+              <button
+                type="button"
+                onClick={() => setArticleType(null)}
+                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  articleType === null
+                    ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                    : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
+                }`}
+                data-testid="article-facet-all"
+              >
+                All
+              </button>
+              {articleFacets.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setArticleType((cur) => (cur === t ? null : t))}
+                  className={`shrink-0 rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                    articleType === t
+                      ? "border-brand-primary bg-brand-primary/10 text-brand-deep dark:text-brand-link"
+                      : "border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:border-brand-accent/40"
+                  }`}
+                  data-testid={`article-facet-${t}`}
+                >
+                  {ARTICLE_TYPE_LABEL[t]}
+                </button>
+              ))}
+            </FacetRow>
+          )}
           {tab === "recipes" && recipeFacets.length > 0 && (
             <FacetRow className="mb-2" testId="recipe-facets">
               <button
@@ -1623,6 +1684,7 @@ export function SearchResults({
               if (ARTICLE_KINDS.has(event.kind)) {
                 return wrap(
                   <EmbeddedArticleCard
+                    leadKinds={searchedKinds}
                     event={event as MinimalEvent}
                     author={profiles.get(event.pubkey)}
                     trustScore01={scoreOf(event.pubkey) ?? null}

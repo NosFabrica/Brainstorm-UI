@@ -6,7 +6,9 @@
  *
  * One fetch per `name@domain`, remembered: a search for a popular handle
  * returns dozens of copycats claiming the same identifier, and they all share
- * the one answer.
+ * the one answer. The same reader resolves a typed handle in the search box
+ * and a Primal link's `<name>@primal.net` (resolveNip05) — answering null
+ * instead of throwing: a link that cannot resolve is a link, not an error.
  */
 
 export type Nip05Status =
@@ -65,12 +67,12 @@ async function limited<T>(task: () => Promise<T>): Promise<T> {
   }
 }
 
-async function fetchNames(name: string, domain: string): Promise<Names> {
+async function fetchNames(name: string, domain: string, timeoutMs: number): Promise<Names> {
   const res = await fetch(`https://${domain}/.well-known/nostr.json?name=${encodeURIComponent(name)}`, {
     // NIP-05: fetchers MUST ignore redirects — a redirect is an answer from
     // someone other than the domain being vouched for.
     redirect: "error",
-    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    signal: AbortSignal.timeout(timeoutMs),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const body = (await res.json()) as { names?: unknown } | null;
@@ -78,12 +80,17 @@ async function fetchNames(name: string, domain: string): Promise<Names> {
   return names && typeof names === "object" ? (names as Record<string, unknown>) : {};
 }
 
-function entryFor(name: string, domain: string): Entry {
+/**
+ * `urgent` is someone waiting on this answer (a typed handle, a clicked link):
+ * it skips the queue that background badge checks wait in.
+ */
+function entryFor(name: string, domain: string, { timeoutMs = FETCH_TIMEOUT_MS, urgent = false } = {}): Entry {
   const key = `${name}@${domain}`;
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < hit.ttl) return hit;
   const entry: Entry = { at: Date.now(), ttl: OK_TTL_MS, names: Promise.resolve(null) };
-  entry.names = limited(() => fetchNames(name, domain)).then(
+  const run = () => fetchNames(name, domain, timeoutMs);
+  entry.names = (urgent ? run() : limited(run)).then(
     (names) => (entry.settled = names),
     () => {
       entry.ttl = FAIL_TTL_MS;
@@ -124,6 +131,18 @@ export async function verifyNip05(nip05: string | undefined | null, pubkey: stri
 }
 
 /**
+ * A NIP-05 handle to the pubkey its domain names (lowercase hex), or null when
+ * it's malformed, unlisted, or the domain can't be read. Never throws.
+ */
+export async function resolveNip05(handle: string, timeoutMs = FETCH_TIMEOUT_MS): Promise<string | null> {
+  const parsed = parseNip05(handle);
+  if (!parsed) return null;
+  const names = await entryFor(parsed.name, parsed.domain, { timeoutMs, urgent: true }).names;
+  const pk = names ? mappedKey(names, parsed.name) : undefined;
+  return pk && HEX64.test(pk) ? pk : null;
+}
+
+/**
  * The answer already in hand, without waiting — so a card that remounts
  * (scrolling back, a re-rendered results list) paints its verdict at once
  * instead of flashing the unchecked handle. Undefined when not yet known.
@@ -140,3 +159,4 @@ export function peekNip05(nip05: string | undefined | null, pubkey: string | und
 export function __resetNip05Cache() {
   cache.clear();
 }
+export const __resetNip05 = __resetNip05Cache;

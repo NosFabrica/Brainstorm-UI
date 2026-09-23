@@ -315,12 +315,13 @@ describe("SearchResults", () => {
   // Benjamin: the nine-tab strip was "distracting and takes up a lot of
   // space". Google's shape: five tabs in view, the rest behind More ▾, and
   // the chosen overflow tab takes the More slot so you can see where you are.
-  it("shows five verticals and folds Apps, Repos, Live and Lists behind More", () => {
+  // Benjamin (2026-09-23): Shop earns the row — Media, then Shop — and
+  // Articles is the first thing behind More.
+  it("shows five verticals — Media then Shop — and folds Articles first behind More", () => {
     render(<SearchResults query="jack" pov="nosfabrica" />);
-    for (const t of ["everything", "people", "notes", "articles", "media"]) {
-      expect(screen.getByTestId(`search-tab-${t}`)).toBeInTheDocument();
-    }
-    for (const t of ["apps", "repos", "events", "live", "lists"]) expect(screen.queryByTestId(`search-tab-${t}`)).toBeNull();
+    const row = ["everything", "people", "notes", "media", "shop"].map((t) => screen.getByTestId(`search-tab-${t}`));
+    expect(row.map((el) => el.textContent)).toEqual(["Everything", "People", "Notes", "Media", "Shop"]);
+    for (const t of ["articles", "apps", "repos", "events", "live", "lists"]) expect(screen.queryByTestId(`search-tab-${t}`)).toBeNull();
     expect(screen.queryByTestId("search-tab-code")).toBeNull();
 
     const more = screen.getByTestId("search-tab-more");
@@ -329,6 +330,8 @@ describe("SearchResults", () => {
     fireEvent.click(more);
     expect(more.getAttribute("aria-expanded")).toBe("true");
     const menu = screen.getByRole("menu");
+    const items = [...menu.querySelectorAll('[data-testid^="search-tab-"]')].map((el) => el.getAttribute("data-testid"));
+    expect(items[0]).toBe("search-tab-articles");
     for (const t of ["apps", "repos", "events", "live", "lists"]) expect(within(menu).getByTestId(`search-tab-${t}`)).toBeInTheDocument();
 
     fireEvent.click(within(menu).getByTestId("search-tab-apps"));
@@ -397,6 +400,17 @@ describe("SearchResults", () => {
     expect(screen.getByText("Vanilla cake")).toBeInTheDocument();
     expect(screen.queryByText("Chicken soup")).toBeNull();
     expect(screen.getByTestId("text-search-stats")).toHaveTextContent("1 of 2 match");
+  });
+
+  it("NIPs lives under More, and choosing it searches specs alone", () => {
+    render(<SearchResults query="nip-21" pov="nosfabrica" />);
+    expect(screen.queryByTestId("search-tab-nips")).toBeNull();
+
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    fireEvent.click(within(screen.getByRole("menu")).getByTestId("search-tab-nips"));
+
+    expect(mainStreamCalls().at(-1)![1]).toMatchObject({ tab: "nips" });
+    expect(screen.getByTestId("search-tab-more")).toHaveTextContent("NIPs");
   });
 
   it("a deep link to a folded vertical opens with that vertical named in the More slot", () => {
@@ -725,6 +739,41 @@ describe("SearchResults", () => {
     ]);
     emit({ hits: [{ event: article, author: author(article.pubkey, "dave"), rank: null }], eose: true, timeMs: 300 });
     expect(await screen.findByText("The State of Mining")).toBeInTheDocument();
+  });
+
+  /**
+   * The team, on NIPs in search: show a way to narrow to specs only when a
+   * search actually matched some ("not for honey"), and no new kind filter in
+   * the tab row. So: the Shop tab's chips, inside Articles, only when the
+   * results mix more than one kind of article.
+   */
+  it("Articles offers type chips only when the results mix types, and Specs narrows to the specs", async () => {
+    setUrlTab("articles");
+    render(<SearchResults query="dvm" pov="nosfabrica" />);
+    const pk = "d".repeat(64);
+    const hit = (id: string, kind: number, title: string) => ({ event: ev(id, kind, pk, "body", [["d", id], ["title", title]]), author: author(pk, "russell"), rank: null });
+    emit({ hits: [hit("a1", 30023, "Building a DVM"), hit("s1", 30817, "Scheduler DVM"), hit("a2", 30023, "DVMs explained")], eose: true, timeMs: 200 });
+    await screen.findByText("Scheduler DVM");
+
+    const facets = screen.getByTestId("article-facets");
+    expect(within(facets).getByTestId("article-facet-spec")).toHaveTextContent("Specs");
+    expect(within(facets).getByTestId("article-facet-article")).toHaveTextContent("Articles");
+    expect(within(facets).queryByTestId("article-facet-wiki")).toBeNull(); // no wiki page in these results
+    expect(within(facets).getByTestId("article-facet-spec")).not.toHaveTextContent(/\d/);
+
+    fireEvent.click(within(facets).getByTestId("article-facet-spec"));
+    expect(screen.getByText("Scheduler DVM")).toBeInTheDocument();
+    expect(screen.queryByText("Building a DVM")).toBeNull();
+    expect(screen.getByTestId("text-search-stats")).toHaveTextContent("1 of 3 match");
+  });
+
+  it("a query that finds only articles shows no type chips", async () => {
+    setUrlTab("articles");
+    render(<SearchResults query="honey" pov="nosfabrica" />);
+    const pk = "d".repeat(64);
+    emit({ hits: [{ event: ev("h1", 30023, pk, "body", [["d", "h1"], ["title", "Raw honey"]]), author: author(pk, "bee"), rank: null }], eose: true, timeMs: 200 });
+    await screen.findByText("Raw honey");
+    expect(screen.queryByTestId("article-facets")).toBeNull();
   });
 
   it("renders a live event with its status pill and title", async () => {
@@ -2405,8 +2454,8 @@ describe("notes on the search page name who they mention", () => {
     const onTabChange = vi.fn();
     render(<SearchResults query="bitcoin" pov="nosfabrica" onTabChange={onTabChange} />);
     expect(onTabChange).toHaveBeenCalledWith("notes");
-    fireEvent.click(screen.getByTestId("search-tab-articles"));
-    expect(onTabChange).toHaveBeenLastCalledWith("articles");
+    fireEvent.click(screen.getByTestId("search-tab-media"));
+    expect(onTabChange).toHaveBeenLastCalledWith("media");
   });
 
 });
