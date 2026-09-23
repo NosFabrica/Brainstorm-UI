@@ -163,7 +163,7 @@ export default function ArticlePage() {
   const coveredKinds = useMemo(() => {
     if (ev?.kind !== 30817) return [] as { kind: string; label?: string }[];
     const byKind = new Map<string, string | undefined>();
-    for (const t of ev.tags) if (t[0] === "k" && t[1]) byKind.set(t[1], t[2] || undefined);
+    for (const t of ev.tags) if (t[0] === "k" && /^\d+$/.test(t[1] ?? "")) byKind.set(t[1], t[2] || undefined); // "nip" is not a kind
     for (const k of prepared.kinds) byKind.set(k.kind, k.label ?? byKind.get(k.kind));
     // In order, however the author tagged them.
     return [...byKind.entries()].map(([kind, label]) => ({ kind, label })).sort((a, b) => Number(a.kind) - Number(b.kind));

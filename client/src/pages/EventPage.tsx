@@ -20,6 +20,8 @@ import { RepoHero } from "@/components/share/RepoHero";
 import { GitItemHero } from "@/components/share/GitItemHero";
 import { isGitItem } from "@/lib/gitStatus";
 import { FollowSetHero } from "@/components/share/FollowSetHero";
+import { DesignationHero } from "@/components/share/DesignationHero";
+import { StructuralHero } from "@/components/share/StructuralHero";
 import { AudioHero } from "@/components/share/AudioHero";
 import { ListingHero } from "@/components/share/ListingHero";
 import { ListingRelated } from "@/components/share/ListingRelated";
@@ -373,6 +375,8 @@ export default function EventPage() {
                 <RepoHero event={note} />
               ) : note.kind === 30000 ? (
                 <FollowSetHero event={note} />
+              ) : note.kind === 10040 ? (
+                <DesignationHero event={note} />
               ) : note.kind === 31337 ? (
                 <AudioHero event={note} />
               ) : note.kind === 30402 ? (
@@ -383,6 +387,9 @@ export default function EventPage() {
                 <VideoHero event={note} />
               ) : NOTE_KINDS.has(note.kind) ? (
                 <ShareNoteCard event={note} profiles={profiles} eventsById={eventsById} addrByCoord={addrByCoord} forceExpanded />
+              ) : mediaUrls.length === 0 && !note.content?.trim() ? (
+                // Nothing to show as content: a structural event, its meaning in its tags.
+                <StructuralHero event={note} />
               ) : (
                 <div data-testid="event-media">
                   {mediaUrls.map((u, i) =>

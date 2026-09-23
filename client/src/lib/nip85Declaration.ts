@@ -56,3 +56,47 @@ export function declaresLists(event: { tags: string[][] } | null | undefined, { 
   if (!event || !key || !relay) return false;
   return LIST_KINDS.every((kind) => event.tags.some((t) => t[0] === kind && t[1] === key && sameRelay(t[2], relay)));
 }
+
+/** What a 10040 says, read for people — a row's line, a page's card. */
+export interface DesignationDescription {
+  /** The assertion signals designated, in the order the spec lists them. */
+  signals: string[];
+  /** Whether any Trusted List kind is designated. */
+  lists: boolean;
+  providers: { pubkey: string; relay: string; brainstorm: boolean }[];
+  /** One line: "Activated Brainstorm trust signals · Rank, Followers". */
+  summary: string;
+}
+
+const SIGNAL_LABEL: Record<string, string> = { "30382:rank": "Rank", "30382:followers": "Followers" };
+const LIST_KIND_SET = new Set<string>(LIST_KINDS);
+const isBrainstormRelay = (relay: string) => /(^|\.)brainstorm\.world\/?$/.test(relay.replace(/^wss?:\/\//, ""));
+
+/**
+ * A 10040 has no content — it is its rows: `[<what>, <provider pubkey>,
+ * <relay>]`. Every one on the search relay is a Brainstorm activation, and
+ * rendered as a blank "Post"; this is what it says instead.
+ */
+export function describeDesignation(event: { tags: string[][] }): DesignationDescription {
+  const signals: string[] = [];
+  let lists = false;
+  const providers = new Map<string, { pubkey: string; relay: string; brainstorm: boolean }>();
+  for (const [what, pubkey, relay = ""] of event.tags) {
+    if (!pubkey) continue;
+    const label = SIGNAL_LABEL[what];
+    if (label && !signals.includes(label)) signals.push(label);
+    else if (LIST_KIND_SET.has(what)) lists = true;
+    else if (!label) continue;
+    const key = `${pubkey}@${relay}`;
+    if (!providers.has(key)) providers.set(key, { pubkey, relay, brainstorm: isBrainstormRelay(relay) });
+  }
+  const named = [...signals, ...(lists ? ["Trusted Lists"] : [])];
+  const provs = [...providers.values()];
+  const summary =
+    provs.length === 0
+      ? "No trust provider designated"
+      : provs.every((p) => p.brainstorm)
+        ? `Activated Brainstorm trust signals · ${named.join(", ")}`
+        : `Trusts a provider for ${named.join(", ")}`;
+  return { signals, lists, providers: provs, summary };
+}
