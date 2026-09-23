@@ -53,8 +53,8 @@ prefers the runtime value and falls back to the build-time one.
 
 This repo uses a long-lived `staging` branch (the default branch) for the
 staging environment; `main` is production. Branch off `staging` and open PRs
-into it. Merging to `staging` means the change is on its way to prod, so keep
-unfinished work unmerged or behind a `VITE_FEATURE_*` flag.
+into it. The step-by-step flow (PR → merge → deploy) is in
+[docs/agents/staging-deploy.md](docs/agents/staging-deploy.md).
 
 The core team promotes `staging` to `main` with a merge commit (never a
 squash). Hotfixes branch off `main`, merge there, and are then merged back
