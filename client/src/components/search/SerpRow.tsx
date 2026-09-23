@@ -243,13 +243,15 @@ function RowThumb({ event, author, score }: { event: NostrEvent; author: SearchR
   return null;
 }
 
-/** Snippet where bare URLs become clickable domain chips. */
-export function Snippet({ text, query, lines = 3 }: { text: string; query: string; lines?: 2 | 3 }) {
+/** Snippet where bare URLs become clickable domain chips. `hide` is a URL
+ *  the row already shows another way (its thumbnail), so no chip for it. */
+export function Snippet({ text, query, lines = 3, hide }: { text: string; query: string; lines?: 2 | 3; hide?: string | null }) {
   const parts = unwrapMarkdownLinks(text).split(TOKEN_SPLIT_RE);
   return (
     <p className={`text-[13px] leading-snug text-slate-700 dark:text-slate-200 break-words ${lines === 2 ? "line-clamp-2" : "line-clamp-3"}`}>
       {parts.map((part, i) => {
         if (/^https?:\/\//i.test(part)) {
+          if (hide && part === hide) return null;
           // Chips are real external links — clicks belong to them, not the row.
           return (
             <span key={i} onClick={(e) => e.stopPropagation()}>
@@ -407,7 +409,7 @@ export function SerpRow({
   const [newsThumbFailed, setNewsThumbFailed] = useState(false);
 
   const title = tagVal(event, "title") ?? tagVal(event, "name");
-  const news = !title && event.content ? parseNewsShape(event.content) : null;
+  const news = !title && event.content ? parseNewsShape(event.content, { imageSplitsHeadline: isFeedAccount(author) }) : null;
 
   const rowProps = {
     role: "link" as const,
@@ -524,6 +526,10 @@ export function SerpRow({
   const shapeLine = shape?.kind === "encrypted" ? "Encrypted — only its owner can read it" : shape?.kind === "json" ? `Structured data · ${shape.fields} ${shape.fields === 1 ? "field" : "fields"}` : null;
   // Same link a feed would card for this note, so the two never disagree.
   const cardLink = primaryLink(parseNoteContent(body));
+  // The picture on the right is this URL; a chip for it in the text is the
+  // same picture's address, said again.
+  const mediaUrl = mediaUrlOf(event);
+  const thumbUrl = mediaUrl && (IMAGE_RE.test(mediaUrl) || isVideoUrl(event, mediaUrl)) ? mediaUrl : null;
   return (
     <div {...rowProps}>
       <div className="min-w-0 flex-1">
@@ -540,14 +546,14 @@ export function SerpRow({
         )}
         {body && (
           <div className="mt-0.5">
-            <Snippet text={clipAtToken(body, 300)} query={query} lines={title ? 2 : 3} />
+            <Snippet text={clipAtToken(body, 300)} query={query} lines={title ? 2 : 3} hide={thumbUrl} />
             {/* X's "Translate post" for text in another language — on-device, quiet. */}
             <TranslateLine text={body.slice(0, 1000)} />
           </div>
         )}
         {cardLink && (
           <div onClick={(e) => e.stopPropagation()}>
-            <LinkPreviewCard url={cardLink} showImage={!mediaUrlOf(event)} />
+            <LinkPreviewCard url={cardLink} showImage={!mediaUrl} context={[title, body].filter(Boolean).join("\n")} />
           </div>
         )}
         {quotedIn(body).slice(0, 1).map((q) => (

@@ -166,6 +166,15 @@ describe("SerpRow — link metadata", () => {
     expect(unfurlMock).not.toHaveBeenCalledWith("https://a.example/first");
   });
 
+  it("a post's picture is the thumbnail, not also a chip; its echoed headline is not carded twice", async () => {
+    unfurlMock.mockResolvedValue({ kind: "page", title: "Serra: homem solto | G1", description: null, image: null, siteName: "G1" });
+    render(<SerpRow event={note("Serra: homem solto https://s2-g1.glbimg.com/a.jpg https://g1.globo.com/es/noticia.ghtml")} author={author} score={0.7} query="" />);
+    expect(await screen.findByTestId("link-card-source")).toHaveAttribute("href", "https://g1.globo.com/es/noticia.ghtml");
+    expect(screen.getByTestId("serp-thumb")).toHaveAttribute("src", "https://s2-g1.glbimg.com/a.jpg");
+    expect(screen.getAllByTestId("link-chip").map((c) => c.getAttribute("href"))).toEqual(["https://g1.globo.com/es/noticia.ghtml"]);
+    expect(screen.queryByTestId("link-card")).toBeNull();
+  });
+
   it("no answer, no card — the domain chip stands alone", async () => {
     unfurlMock.mockResolvedValue(null);
     render(<SerpRow event={note("Great read https://example.org/post")} author={author} score={0.7} query="liverpool" />);

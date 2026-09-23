@@ -72,3 +72,21 @@ describe("parseNewsShape", () => {
     expect(shape?.url).toBe("https://news.test/a");
   });
 });
+
+describe("parseNewsShape — feed bots' headline <image> lede <article>", () => {
+  const img = `https://s2-g1.glbimg.com/${"x".repeat(180)}/internal_photos/bs/2026/a.jpg`;
+  const lede = "Bryan Fernando Gimenez Souza, de 26 anos, recebeu uma medida cautelar e não pode deixar o estado. A decisão foi tomada nesta quarta-feira pela Justiça.";
+  const post = `Justiça solta homem que matou amiga para 'expulsar demônios' na Serra ${img} ${lede} https://g1.globo.com/es/noticia.ghtml`;
+
+  it("the picture ends the headline for a feed account", () => {
+    const n = parseNewsShape(post, { imageSplitsHeadline: true });
+    expect(n?.headline).toBe("Justiça solta homem que matou amiga para 'expulsar demônios' na Serra");
+    expect(n?.description).toBe(lede);
+    expect(n?.imageUrl).toBe(img);
+    expect(n?.url).toBe("https://g1.globo.com/es/noticia.ghtml");
+  });
+
+  it("a person's text-picture-text-link is still a post", () => {
+    expect(parseNewsShape(post)).toBeNull();
+  });
+});

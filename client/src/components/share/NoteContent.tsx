@@ -203,7 +203,7 @@ export function NoteContent({
             return null;
         }
       })}
-      {primaryUrl && linkCard && primaryIsPlainLink && !wavlakeTrackId(primaryUrl) && !videoEmbedFor(primaryUrl) && !fountainRef(primaryUrl) && <LinkPreviewCard url={primaryUrl} showImage={!tokens.some((t) => t.type === "image" || t.type === "video")} />}
+      {primaryUrl && linkCard && primaryIsPlainLink && !wavlakeTrackId(primaryUrl) && !videoEmbedFor(primaryUrl) && !fountainRef(primaryUrl) && <LinkPreviewCard url={primaryUrl} showImage={!tokens.some((t) => t.type === "image" || t.type === "video")} context={content} />}
     </div>
   );
 }
