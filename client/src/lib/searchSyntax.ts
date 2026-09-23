@@ -151,6 +151,16 @@ export interface LiftedQuery {
   "#t"?: string[];
   since?: number;
   until?: number;
+  /** `kind:N` tokens, and `spec:` as the word for kind 30817 — typed by agents
+   *  and power users; no chip exposes them. */
+  kinds?: number[];
+}
+
+/** The kind a typed token names, if it is one: `kind:30817`, or the alias `spec:`. */
+function kindToken(token: string): number | null {
+  if (/^spec:$/i.test(token)) return 30817;
+  const m = token.match(/^kind:(\d{1,6})$/i);
+  return m ? Number(m[1]) : null;
 }
 
 function keyToHex(raw: string): string | null {
@@ -210,6 +220,11 @@ export function liftQuery(query: string): LiftedQuery {
     }
     if (/^#[\w-]+$/.test(token)) {
       (out["#t"] ??= []).push(token.slice(1).toLowerCase());
+      continue;
+    }
+    const kind = kindToken(token);
+    if (kind !== null) {
+      (out.kinds ??= []).push(kind);
       continue;
     }
     rest.push(token);

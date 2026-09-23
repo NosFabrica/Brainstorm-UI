@@ -114,10 +114,10 @@ export function neventFor(id: string, relays: string[] = [], author?: string): s
   }
 }
 
-/** Addressable kinds that read on the article reader: long-form (NIP-23)
- *  and wiki pages (NIP-54). Opened as a bare event they rendered as a note,
- *  markup and all. */
-const READER_KINDS = new Set([30023, 30818]);
+/** Addressable kinds that read on the article reader: long-form (NIP-23),
+ *  wiki pages (NIP-54) and specs (30817). Opened as a bare event they
+ *  rendered as a note, markup and all. */
+const READER_KINDS = new Set([30023, 30818, 30817]);
 
 /** On-site path for an event: `/a/<naddr>` for an article or wiki page we
  *  know by kind and name, else `/e/<nevent>` (falls back to the bare id). */

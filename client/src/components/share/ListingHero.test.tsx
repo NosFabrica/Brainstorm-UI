@@ -65,6 +65,23 @@ describe("ListingHero", () => {
     expect(screen.queryByText(/Buy now|Add to cart|Checkout/i)).toBeNull();
   });
 
+  /**
+   * Conduit's listings carry no shop link — the Merchant Portal stamps only a
+   * client tag — so until now they had no way out at all. When we know the app
+   * by name, the button says so and opens the product there, referral included;
+   * still never a checkout of ours.
+   */
+  it("a Conduit listing opens in Conduit, by name, with our referral", () => {
+    render(<ListingHero event={listing([["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"]])} />);
+
+    const shop = screen.getByTestId("listing-hero-shop");
+    expect(shop).toHaveTextContent(/^Open in Conduit$/);
+    expect(shop.getAttribute("href")).toMatch(/^https:\/\/shop\.conduit\.market\/products\/naddr1[a-z0-9]+\?ref=brainstorm$/);
+    expect(shop.getAttribute("target")).toBe("_blank");
+    expect(shop).toHaveAttribute("title", expect.stringContaining("shop.conduit.market"));
+    expect(screen.queryByText(/Buy now|Add to cart|Checkout/i)).toBeNull();
+  });
+
   it("a listing with no shop link offers only the message, and a sold one says so", () => {
     render(<ListingHero event={listing([["status", "sold"]])} />);
     expect(screen.queryByTestId("listing-hero-shop")).toBeNull();

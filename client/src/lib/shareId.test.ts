@@ -14,6 +14,11 @@ const PK = "a".repeat(64);
 const ID = "e".repeat(64);
 
 describe("eventPath", () => {
+  it("a spec (kind 30817) opens on the article reader, by address", () => {
+    const path = eventPath({ id: ID, pubkey: PK, kind: 30817, tags: [["d", "scheduler-dvm"], ["title", "Scheduler DVM"]] });
+    expect(path).toMatch(/^\/a\/naddr1/);
+  });
+
   it("a wiki page opens on the article reader, addressed by kind, author and name", () => {
     const path = eventPath({ id: ID, pubkey: PK, kind: 30818, tags: [["d", "list-of-comedians"], ["title", "List of comedians"]] });
     expect(path.startsWith("/a/naddr1")).toBe(true);
