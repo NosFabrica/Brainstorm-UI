@@ -81,14 +81,18 @@ export function EmbeddedArticleCard({ event, author , trustScore01 }: { trustSco
       onClick={onCardClick}
     >
       <div className="flex flex-col sm:flex-row">
+        {/* One shape for every card — 16:9, the shape covers are — so the
+            same cover never crops differently from card to card, and a
+            banner shows edge to edge. Dimensions declared: no jump on load. */}
         <img
           src={coverSrc}
           alt={coverAlt}
+          width={1280}
+          height={720}
           loading="lazy"
+          decoding="async"
           onError={() => setImgBroken(true)}
-          // The NIP cover's title sits at its foot; in the narrow desktop
-          // column the crop keeps the device, not half a word.
-          className={`h-40 w-full object-cover sm:h-auto sm:w-32 sm:self-stretch shrink-0 bg-slate-100 dark:bg-slate-800 ${coverSrc === specCover ? "sm:object-top" : ""}`}
+          className="aspect-video w-full object-cover shrink-0 bg-slate-100 dark:bg-slate-800 sm:m-3 sm:w-44 sm:self-start sm:rounded-lg"
         />
 
         <div className="min-w-0 flex-1 p-3">
