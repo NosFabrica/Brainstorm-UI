@@ -38,6 +38,25 @@ describe("EmbeddedArticleCard", () => {
   });
 
   // A recipe on zap.cooking is a kind-30023 with a tag; calling it an article is wrong.
+  // A recipe wore the generic Brainstorm article cover (Benjamin, 2026-09-23).
+  // Without a picture of its own it wears the recipe cover — the file named
+  // for what it shows, the alt text saying it — like specs wear theirs.
+  it("a recipe without a picture wears the recipe cover, named for search engines", () => {
+    const recipe = page(30023, "# Gırık", [["d", "girik"], ["title", "Gırık"], ["t", "zapcooking"]]);
+    render(<EmbeddedArticleCard event={recipe} author={{ name: "Joe" }} />);
+    const img = screen.getByTestId("embedded-article").querySelector("img")!;
+    expect(img.getAttribute("src")).toMatch(/cooking-recipe-easy-recipe-steps-cover/);
+    expect(img.getAttribute("alt")).toBe("Cooking Recipe — easy recipe steps");
+  });
+
+  it("a recipe with its own picture keeps it", () => {
+    const recipe = page(30023, "# Gırık", [["d", "girik"], ["title", "Gırık"], ["t", "zapcooking"], ["image", "https://img.example/girik.jpg"]]);
+    render(<EmbeddedArticleCard event={recipe} author={{ name: "Joe" }} />);
+    const img = screen.getByTestId("embedded-article").querySelector("img")!;
+    expect(img.getAttribute("src")).toBe("https://img.example/girik.jpg");
+    expect(img.getAttribute("alt")).toBe("");
+  });
+
   it("a zap.cooking recipe calls itself a Recipe", () => {
     const recipe = page(30023, "# Gırık", [["d", "girik"], ["title", "Gırık"], ["summary", "Handmade dough, chicken and rice."], ["t", "zapcooking"], ["t", "zapcooking-girik"]]);
     render(<EmbeddedArticleCard event={recipe} author={{ name: "SkyLords" }} />);

@@ -8,6 +8,10 @@ import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { naddrForEvent } from "@/lib/articleLinks";
 import { articleBrief } from "@/lib/wiki";
 import articleDefault from "@/assets/article-default.webp";
+import recipeCover from "@/assets/cooking-recipe-easy-recipe-steps-cover.webp";
+
+/** What the recipe cover shows — for search engines and screen readers alike. */
+export const RECIPE_COVER_ALT = "Cooking Recipe — easy recipe steps";
 import type { MinimalEvent } from "@/lib/noteRefs";
 import { sourceAppFor } from "@/lib/sourceApp";
 
@@ -46,7 +50,10 @@ export function EmbeddedArticleCard({ event, author , trustScore01 }: { trustSco
   // Fall back to the branded Brainstorm cover when an article has no image or
   // its image URL fails to load (dead host, hotlink block, etc.).
   const [imgBroken, setImgBroken] = useState(false);
-  const coverSrc = !image || imgBroken ? articleDefault : image;
+  // A recipe wears the recipe cover, not the article one.
+  const fallbackCover = sourceAppFor(event)?.noun === "Recipe" ? recipeCover : articleDefault;
+  const coverSrc = !image || imgBroken ? fallbackCover : image;
+  const coverAlt = coverSrc === recipeCover ? RECIPE_COVER_ALT : "";
   const name = author?.display_name || author?.name || "Unknown";
   const naddr = naddrForEvent(event);
   const href = naddr ? `/a/${naddr}` : undefined;
@@ -72,7 +79,7 @@ export function EmbeddedArticleCard({ event, author , trustScore01 }: { trustSco
       <div className="flex flex-col sm:flex-row">
         <img
           src={coverSrc}
-          alt=""
+          alt={coverAlt}
           loading="lazy"
           onError={() => setImgBroken(true)}
           className="h-40 w-full object-cover sm:h-auto sm:w-32 sm:self-stretch shrink-0 bg-slate-100 dark:bg-slate-800"
