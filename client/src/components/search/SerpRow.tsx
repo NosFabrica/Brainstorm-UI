@@ -29,6 +29,7 @@ import { wavlakeTrackId } from "@/lib/wavlake";
 import { WavlakeTrackCard } from "@/components/share/WavlakeTrackCard";
 import { eventPath } from "@/lib/shareId";
 import { wikiPlainText } from "@/lib/wiki";
+import { describeDesignation } from "@/lib/nip85Declaration";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
 import { useConnectionSpeed, videoPreload } from "@/lib/connection";
@@ -107,7 +108,10 @@ export function kindTypeLabel(kind: number): string {
     case 1337: return "Code";
     case 30000: return "Follow set";
     case 10003: case 10015: case 30001: case 30003: case 30015: case 30267: case 39701: return "List";
-    default: return "Post";
+    case 10040: return "Trust designation";
+    // Never "Post" for a kind we don't know — a typed `kind:` finds
+    // structural events, and the number is the honest name.
+    default: return `Kind ${kind}`;
   }
 }
 
@@ -464,7 +468,12 @@ export function SerpRow({
   }
 
   // A wiki page is AsciiDoc; the row shows its words, not "[[comedian]]".
-  const body = (event.kind === 30818 ? wikiPlainText(event.content) : event.content) || tagVal(event, "summary") || tagVal(event, "description") || "";
+  // A designation is its rows, read for people; anything else with no
+  // content gets the author's own NIP-31 `alt` line, when they wrote one.
+  const body =
+    event.kind === 10040
+      ? describeDesignation(event).summary
+      : (event.kind === 30818 ? wikiPlainText(event.content) : event.content) || tagVal(event, "summary") || tagVal(event, "description") || tagVal(event, "alt") || "";
   // Same link a feed would card for this note, so the two never disagree.
   const cardLink = primaryLink(parseNoteContent(body));
   return (

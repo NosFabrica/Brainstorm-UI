@@ -85,6 +85,29 @@ describe("SerpRow — link metadata", () => {
   // Google shows a link's title and description, not its bare domain. Ours
   // can too, once the link-preview service answers — the row renders the
   // card for the same link a feed would, and stays a chip when there is no answer.
+  // `kind:10040` on Everything listed people who activated Brainstorm as blank
+  // "Post" rows (Benjamin, 2026-09-23). A designation has no content — it is
+  // its rows — and the row says what they designate.
+  it("a trust designation says what it designates, not 'Post'", () => {
+    const ev = { ...note(""), kind: 10040, tags: [["30382:rank", "b".repeat(64), "wss://scores.brainstorm.world"], ["30382:followers", "b".repeat(64), "wss://scores.brainstorm.world"]] };
+    render(<SerpRow event={ev} author={author} score={0.7} query="" />);
+    const row = screen.getByTestId(`serp-row-${ev.id}`);
+    expect(row).toHaveTextContent("Trust designation");
+    expect(row).not.toHaveTextContent("Post");
+    expect(row).toHaveTextContent("Activated Brainstorm trust signals · Rank, Followers");
+  });
+
+  // A kind the row has no treatment for is named by number, never "Post";
+  // NIP-31's `alt` tag is the author's own line for exactly this reader.
+  it("an unknown kind is named by its number, with the author's alt line when there is one", () => {
+    const ev = { ...note(""), kind: 30078, tags: [["d", "settings"], ["alt", "Nostr Mail settings"]] };
+    render(<SerpRow event={ev} author={author} score={0.7} query="" />);
+    const row = screen.getByTestId(`serp-row-${ev.id}`);
+    expect(row).toHaveTextContent("Kind 30078");
+    expect(row).not.toHaveTextContent("Post");
+    expect(row).toHaveTextContent("Nostr Mail settings");
+  });
+
   it("turns a plain link into a metadata card when the proxy knows it", async () => {
     unfurlMock.mockResolvedValue({ title: "Liverpool F.C.", description: "Professional football club based in Liverpool.", image: "https://img/lfc.jpg", siteName: "Wikipedia" });
     // A short lead — a long one plus a link IS the news shape, which has its own card.
