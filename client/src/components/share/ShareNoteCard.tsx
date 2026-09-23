@@ -88,6 +88,7 @@ export function ShareNoteCard({
   addrByCoord,
   href,
   forceExpanded = false,
+  reading = false,
   showAuthor = false,
   authorScore,
   tags,
@@ -100,6 +101,8 @@ export function ShareNoteCard({
   href?: string;
   /** Show the full note with no "Show more" (used on the /e single-post view). */
   forceExpanded?: boolean;
+  /** Set the body for reading — the /e single-post view (see NoteContent). */
+  reading?: boolean;
   /** Show a clickable author header (avatar + name) — for multi-author feeds
    *  like the hashtag/topic page, where the poster isn't otherwise implied. */
   showAuthor?: boolean;
@@ -245,7 +248,7 @@ export function ShareNoteCard({
       )}
 
       <div className={collapsed ? "relative max-h-32 overflow-hidden" : undefined}>
-        <NoteContent content={event.content} compact profiles={profiles} linkCard imageOpensThread={!!href} tags={event.tags} embeddedIds={new Set(quoted.map((q) => q.id))} authorName={profiles.get(event.pubkey)?.display_name || profiles.get(event.pubkey)?.name} />
+        <NoteContent content={event.content} compact={!reading} reading={reading} profiles={profiles} linkCard imageOpensThread={!!href} tags={event.tags} embeddedIds={new Set(quoted.map((q) => q.id))} authorName={profiles.get(event.pubkey)?.display_name || profiles.get(event.pubkey)?.name} />
         {/* X's "Translate post" for notes in another language — on-device, quiet. */}
         {event.content?.trim() && <TranslateLine text={event.content} />}
         {collapsed && (

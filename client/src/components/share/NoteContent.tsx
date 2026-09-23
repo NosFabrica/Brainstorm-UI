@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
-import { parseNoteContent, primaryLink, extractImageUrls, extractNoteTitle, toPlayableStreamUrl } from "@/lib/noteContent";
+import { parseNoteContent, primaryLink, extractImageUrls, extractNoteTitle, toPlayableStreamUrl, prettyUrlLabel, type NoteToken } from "@/lib/noteContent";
+import { toNoteBlocks, parseInlineMarkdown, type InlineSpan } from "@/lib/noteBlocks";
 import { decodeNostrEntity } from "@/lib/noteRefs";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { LinkChip, LinkPreviewCard } from "@/components/share/LinkPreview";
@@ -60,6 +61,36 @@ function NoteLiveVideo({ url }: { url: string }) {
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string };
 
+/** Inline emphasis spans as elements (reading mode). */
+function renderSpans(spans: InlineSpan[], key: string): ReactNode[] {
+  return spans.map((s, i) => {
+    const k = `${key}.${i}`;
+    if (s.type === "text") return s.value;
+    if (s.type === "code") {
+      return <code key={k} className="rounded bg-slate-100 dark:bg-slate-800 px-1 py-0.5 font-mono text-[0.85em] text-slate-800 dark:text-slate-100 [overflow-wrap:anywhere]">{s.value}</code>;
+    }
+    return s.type === "strong"
+      ? <strong key={k} className="font-semibold text-slate-900 dark:text-white">{renderSpans(s.children, k)}</strong>
+      : <em key={k}>{renderSpans(s.children, k)}</em>;
+  });
+}
+
+/** A plain web link in running prose: underlined text, not a favicon chip —
+ *  chips every few words break the line's rhythm (reading mode). */
+function ReadingLink({ url }: { url: string }) {
+  return (
+    <a
+      href={url}
+      target="_blank"
+      rel="noopener"
+      className="font-medium text-brand-link underline decoration-brand-link/30 underline-offset-[3px] hover:decoration-brand-link [overflow-wrap:anywhere]"
+      data-testid="reading-link"
+    >
+      {prettyUrlLabel(url)}
+    </a>
+  );
+}
+
 /**
  * Renders parsed kind-1 note content: text, links, inline images/video,
  * `nostr:` mentions (resolved to @DisplayName when a profile map is provided),
@@ -69,6 +100,7 @@ type ProfileLite = { name?: string; display_name?: string; picture?: string };
 export function NoteContent({
   content,
   compact = false,
+  reading = false,
   profiles,
   linkCard = false,
   imageOpensThread = false,
@@ -78,6 +110,10 @@ export function NoteContent({
 }: {
   content: string;
   compact?: boolean;
+  /** The note's own page: reader-sized type, real paragraphs and light
+   *  markdown (headings, lists, quotes, code, emphasis). Feeds keep the
+   *  compact pre-wrapped run. */
+  reading?: boolean;
   profiles?: Map<string, ProfileLite>;
   /** Quoted events the card renders in full below — their inline stub would
    *  say "↳ quoted note" above the quote itself, so it leaves the prose. */
@@ -110,18 +146,16 @@ export function NoteContent({
   const primaryIsPlainLink = !primaryRef || (primaryEntity.status === "done" && primaryEntity.entity === null);
   // All image URLs in this note — the set the lightbox carousels through.
   const imageUrls = tokens.filter((t) => t.type === "image").map((t) => (t as { value: string }).value);
-  return (
-    <div className="text-[15px] leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap break-words">
-      {tokens.map((token, i) => {
+  const renderToken = (token: NoteToken, i: number | string): ReactNode => {
         switch (token.type) {
           case "text":
-            return <span key={i}>{token.value}</span>;
+            return reading ? <span key={i}>{renderSpans(parseInlineMarkdown(token.value), String(i))}</span> : <span key={i}>{token.value}</span>;
           case "url":
             if (wavlakeTrackId(token.value)) return <WavlakeTrackCard key={i} url={token.value} />;
             if (fountainRef(token.value)) return <FountainCard key={i} url={token.value} />;
             if (videoEmbedFor(token.value)) return <VideoEmbed key={i} url={token.value} />;
             if (primalRef(token.value)) return <ClientLink key={i} url={token.value} />;
-            return <LinkChip key={i} url={token.value} />;
+            return reading ? <ReadingLink key={i} url={token.value} /> : <LinkChip key={i} url={token.value} />;
           case "audio":
             return (
               <div key={i} className="mt-2">
@@ -202,8 +236,51 @@ export function NoteContent({
           default:
             return null;
         }
-      })}
-      {primaryUrl && linkCard && primaryIsPlainLink && !wavlakeTrackId(primaryUrl) && !videoEmbedFor(primaryUrl) && !fountainRef(primaryUrl) && <LinkPreviewCard url={primaryUrl} showImage={!tokens.some((t) => t.type === "image" || t.type === "video")} context={content} />}
+  };
+  const linkCardNode = primaryUrl && linkCard && primaryIsPlainLink && !wavlakeTrackId(primaryUrl) && !videoEmbedFor(primaryUrl) && !fountainRef(primaryUrl)
+    ? <LinkPreviewCard url={primaryUrl} showImage={!tokens.some((t) => t.type === "image" || t.type === "video")} context={content} />
+    : null;
+
+  if (reading) {
+    const inline = (ts: NoteToken[], key: string) => ts.map((t, j) => renderToken(t, `${key}.${j}`));
+    return (
+      <div className="note-reading max-w-[68ch] text-[17px] sm:text-[18px] leading-[1.65] tracking-[-0.005em] text-slate-800 dark:text-slate-100 break-words" data-testid="note-reading">
+        {toNoteBlocks(tokens).map((b, i) => {
+          const k = String(i);
+          switch (b.type) {
+            case "p":
+              return <div key={k} className="whitespace-pre-wrap">{inline(b.tokens, k)}</div>;
+            case "h": {
+              const size = b.level === 1 ? "text-[1.35em]" : b.level === 2 ? "text-[1.2em]" : "text-[1.05em]";
+              const Tag = (["h2", "h3", "h4"] as const)[b.level - 1];
+              return <Tag key={k} className={`${size} font-bold leading-snug tracking-tight text-slate-900 dark:text-white`} style={{ fontFamily: "var(--font-display)" }}>{inline(b.tokens, k)}</Tag>;
+            }
+            case "ul":
+            case "ol": {
+              const List = b.type;
+              return (
+                <List key={k} start={b.type === "ol" ? b.start : undefined} className={`${b.type === "ul" ? "list-disc" : "list-decimal"} space-y-1.5 pl-6 marker:text-slate-400 dark:marker:text-slate-500`}>
+                  {b.items.map((item, j) => <li key={j} className="whitespace-pre-wrap pl-1">{inline(item, `${k}.${j}`)}</li>)}
+                </List>
+              );
+            }
+            case "quote":
+              return <blockquote key={k} className="whitespace-pre-wrap border-l-[3px] border-slate-300 dark:border-slate-600 pl-4 italic text-slate-600 dark:text-slate-300">{inline(b.tokens, k)}</blockquote>;
+            case "code":
+              return <pre key={k} className="overflow-x-auto rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 font-mono text-[0.8em] leading-relaxed text-slate-800 dark:text-slate-100"><code>{b.text}</code></pre>;
+            case "hr":
+              return <hr key={k} className="mx-auto w-16 border-slate-200 dark:border-slate-700" />;
+          }
+        })}
+        {linkCardNode}
+      </div>
+    );
+  }
+
+  return (
+    <div className="text-[15px] leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap break-words">
+      {tokens.map((token, i) => renderToken(token, i))}
+      {linkCardNode}
     </div>
   );
 }

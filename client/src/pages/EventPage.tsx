@@ -331,7 +331,7 @@ export default function EventPage() {
 
             {/* Author header — and the ⋯, on the object it acts on (X puts it
                 on the post, not the page). */}
-            <div className="flex items-center justify-between gap-3 mb-4">
+            <div className="flex items-center justify-between gap-3 mb-5">
               <Link href={authorNpub ? `/p/${authorNpub}` : "#"} className="flex items-center gap-2.5 min-w-0 hover:opacity-80">
                 <span className="relative shrink-0">
                   <Avatar className={`h-12 w-12 rounded-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 ${tierRing(score01) ?? ""}`}>
@@ -342,13 +342,13 @@ export default function EventPage() {
                     <VerificationCoin score01={score01} pov="global" size={22} className={tierRing(score01) && coinReplaced ? "sr-only" : "absolute -bottom-1 -right-1 ring-2 ring-white dark:ring-slate-900 rounded-full"} />
                   )}
                 </span>
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm font-bold text-slate-900 dark:text-slate-100 truncate">{authorName}</span>
-                    <TierWordChip score01={score01} />
+                <div className="min-w-0 space-y-0.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-[15px] font-bold leading-tight text-slate-900 dark:text-slate-100 truncate">{authorName}</span>
                     <Nip05Check nip05={profile.nip05} pubkey={note.pubkey} className="h-4 w-4 text-sky-500 shrink-0" />
+                    <TierWordChip score01={score01} />
                   </div>
-                  <span className="text-xs text-slate-400 dark:text-slate-500">{ago(note.created_at)}</span>
+                  <span className="block text-[13px] text-slate-500 dark:text-slate-400">{ago(note.created_at)}</span>
                 </div>
               </Link>
               {ptr && nevent && (
@@ -366,7 +366,7 @@ export default function EventPage() {
             </div>
 
             {/* The event — notes via the rich card; media kinds render their media. */}
-            <div className={`rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 sm:p-5 shadow-sm ${replyRefs(note).parentId || replyRefs(note).rootId ? "ring-1 ring-brand-primary/15" : ""}`} data-testid="event-note">
+            <div className={`rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 ${NOTE_KINDS.has(note.kind) ? "p-5 sm:p-7" : "p-4 sm:p-5"} shadow-sm ${replyRefs(note).parentId || replyRefs(note).rootId ? "ring-1 ring-brand-primary/15" : ""}`} data-testid="event-note">
               {isGitItem(note.kind) ? (
                 <GitItemHero event={note} author={{ name: profile.name, displayName: profile.display_name, bot: (profile as { bot?: boolean }).bot === true }} />
               ) : note.kind === 30311 ? (
@@ -390,7 +390,7 @@ export default function EventPage() {
               ) : VIDEO_EVENT_KINDS.has(note.kind) ? (
                 <VideoHero event={note} />
               ) : NOTE_KINDS.has(note.kind) ? (
-                <ShareNoteCard event={note} profiles={profiles} eventsById={eventsById} addrByCoord={addrByCoord} forceExpanded />
+                <ShareNoteCard event={note} profiles={profiles} eventsById={eventsById} addrByCoord={addrByCoord} forceExpanded reading />
               ) : mediaUrls.length === 0 && (!note.content?.trim() || contentShape(note.content).kind !== "text") ? (
                 // No content to read — none, or ciphertext, or JSON: a structural event, its meaning in its tags.
                 <StructuralHero event={note} />
@@ -412,7 +412,7 @@ export default function EventPage() {
                   )}
                   {note.content?.trim() && (
                     <div className="mt-1">
-                      <NoteContent content={note.content} profiles={profiles} linkCard tags={note.tags} authorName={profile.display_name || profile.name} />
+                      <NoteContent content={note.content} reading profiles={profiles} linkCard tags={note.tags} authorName={profile.display_name || profile.name} />
                     </div>
                   )}
                 </div>
