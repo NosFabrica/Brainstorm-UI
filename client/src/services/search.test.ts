@@ -145,6 +145,26 @@ describe("searchStream", () => {
     expect(filter.search).toMatch(/^chili observer:/);
   });
 
+  /**
+   * On the NIPs tab a kind is what a spec COVERS, not what it is: `kind:5905`
+   * asks for the specs that define kind 5905, through the `k` tag they carry
+   * (probed on the search relay, 2026-09-23: `#k` narrows specs server-side;
+   * the relay holds no kind-5905 events at all, so the events meaning would
+   * always be empty there). Intersecting the tab's kinds with the typed one
+   * left the tab asking nothing.
+   */
+  it("on NIPs, a typed kind asks for the specs that cover it", async () => {
+    controllable();
+
+    searchStream("kind:5905", { tab: "nips", pov: "nosfabrica" }, () => {});
+    await tick();
+
+    const filter = reqMock.mock.calls[0][0] as { kinds?: number[]; "#k"?: string[]; search: string };
+    expect(filter.kinds).toEqual([30817]);
+    expect(filter["#k"]).toEqual(["5905"]);
+    expect(filter.search).toMatch(/^observer:/);
+  });
+
   it("streams people hits incrementally, with the house observer on the wire", async () => {
     const { subject } = controllable();
     const snaps: SearchSnapshot[] = [];

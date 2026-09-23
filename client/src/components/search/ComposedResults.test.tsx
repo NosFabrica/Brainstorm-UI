@@ -652,6 +652,43 @@ describe("ComposedResults", () => {
     expect(sectionCall("people").params.limit).toBeLessThanOrEqual(10);
   });
 
+  // Everything is its sections, each routed by kind — so `kind:32267` typed
+  // by an agent, or reached from a spec's chip, was dealt to eight sections
+  // none of which carry it, and every one finished empty: "Nothing found",
+  // with two thousand apps on the relay (Benjamin, 2026-09-23, from the
+  // AI Agent Communication spec). A typed kind no section carries gets a
+  // section of its own, asking for exactly that.
+  it("a typed kind no section carries gets a section of its own", async () => {
+    window.history.replaceState({}, "", "/?q=kind%3A32267");
+    render(<ComposedResults query="kind:32267" pov="nosfabrica" onTabChange={vi.fn()} />);
+
+    const byKind = sectionCall("everything");
+    expect(byKind.params.kinds).toEqual([32267]);
+    for (const c of calls) if (c !== byKind) c.emit({ hits: [], eose: true, timeMs: 1 });
+    byKind.emit({ hits: [hitOf(ev("a1", 32267, "a".repeat(64), "", [["name", "Primal"]]), "zapstore")], eose: true, timeMs: 200 });
+
+    const section = await screen.findByTestId("serp-section-kind");
+    expect(section).toHaveTextContent("Kind 32267");
+    expect(section).toHaveTextContent("zapstore");
+    expect(screen.queryByTestId("composed-empty")).toBeNull();
+  });
+
+  // The search relay indexes the kinds it is configured for; most kinds a
+  // spec defines (25801, 5905) are not among them. An empty there is the
+  // corpus, not the words — say which.
+  it("says the kind is not indexed when the relay holds none of it", async () => {
+    window.history.replaceState({}, "", "/?q=kind%3A25801");
+    render(<ComposedResults query="kind:25801" pov="nosfabrica" onTabChange={vi.fn()} />);
+    for (const c of calls) c.emit({ hits: [], eose: true, timeMs: 1 });
+
+    expect(await screen.findByTestId("composed-empty")).toHaveTextContent("Nothing indexed for kind 25801");
+  });
+
+  it("a typed kind a section already carries asks nothing extra", () => {
+    render(<ComposedResults query="dvm spec:" pov="nosfabrica" onTabChange={vi.fn()} />);
+    expect(calls.find((c) => c.params.tab === "everything")).toBeUndefined();
+  });
+
   // The home feed: NO query at all → the composed page becomes "what's
   // happening on Nostr right now", every content section fresh-first.
   it("streams the whole network when the query is empty (the home feed)", async () => {

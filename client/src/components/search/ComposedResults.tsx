@@ -39,7 +39,7 @@ import { isFeedAccount } from "@/lib/feedAccount";
 import type { HitCluster } from "@/lib/searchCollapse";
 import { filterEventsByWhen } from "@/lib/eventFilters";
 import { clientFilterHits, countBelowLine } from "@/lib/clientFilters";
-import { applyFilters, readFilters, splitFilters } from "@/lib/searchSyntax";
+import { applyFilters, liftQuery, readFilters, splitFilters } from "@/lib/searchSyntax";
 import { useNetworkReach } from "@/hooks/useNetworkReach";
 import { visitedPubkeys } from "@/lib/recentSearches";
 import { useWheelScrollX } from "@/hooks/useWheelScrollX";
@@ -286,6 +286,16 @@ function ComposedResultsBody({
   // Shop: things for sale that match the words — best match, since "cashmere"
   // should find cashmere. Sold, hidden and priceless are gated (lib/listing).
   const shop = useSectionStream(query, "shop", pov, userPubkey, EVERYTHING_SECTIONS.shop.limit, { group: EVERYTHING, seed: seeds.shop, since: sinceFor("shop") });
+  // A typed kind (an agent's `kind:32267`, a spec page's chip) that none of
+  // the sections carry would be dealt to all of them and answered by none.
+  // It gets a section of its own, asking for exactly that; the eight
+  // sections ask nothing for it, so this is the page's only REQ then.
+  const unplacedKinds = useMemo(() => {
+    const typed = liftQuery(query).kinds ?? [];
+    const placed = new Set((Object.keys(EVERYTHING_SECTIONS) as SeedTab[]).flatMap((tab) => TAB_KINDS[tab]));
+    return typed.filter((k) => !placed.has(k));
+  }, [query]);
+  const byKind = useSectionStream(query, "everything", pov, userPubkey, 20, { kinds: unplacedKinds, enabled: unplacedKinds.length > 0 });
 
   useEffect(() => {
     if (!onSections) return;
@@ -345,6 +355,7 @@ function ComposedResultsBody({
   const mediaF = dropNonMediaFiles(filtered(media));
   const musicF = filtered(music);
   const shopF = filtered(shop);
+  const byKindF = unplacedKinds.length > 0 ? filtered(byKind) : null;
   // Two per seller at most, four in all — one shop's forty mugs are not the row.
   const shopRow = useMemo(() => {
     const perSeller = new Map<string, number>();
@@ -429,7 +440,7 @@ function ComposedResultsBody({
     [happeningF],
   );
 
-  const sections = [peopleF, latestF, articlesF, happeningF, mediaF, musicF, shopF];
+  const sections = [peopleF, latestF, articlesF, happeningF, mediaF, musicF, shopF, ...(byKindF ? [byKindF] : [])];
   const anyContent = sections.some((s) => (s?.hits.length ?? 0) > 0) || listenWavlake.length > 0 || personMedia.length > 0;
   const allSettled = sections.every((s) => s?.eose || s?.error);
   // EVERY section collapses near-duplicates — live verification found the
@@ -473,7 +484,10 @@ function ComposedResultsBody({
     <div data-testid="composed-results">
       {!anyContent && allSettled && (
         <p className="py-6 text-sm text-slate-500 dark:text-slate-400" data-testid="composed-empty">
-          Nothing found — try different words, or a specific tab.
+          {unplacedKinds.length > 0
+            ? // The relay indexes the kinds it is configured for; an empty here is the corpus, not the words.
+              `Nothing indexed for kind ${unplacedKinds.join(", ")} yet.`
+            : "Nothing found — try different words, or a specific tab."}
         </p>
       )}
 
@@ -536,6 +550,12 @@ function ComposedResultsBody({
               <ListingCard key={h.event.id} event={h.event} author={h.author} score={scoreOf(h.event.pubkey)} />
             ))}
           </div>
+        </Section>
+      )}
+
+      {(byKindF?.hits.length ?? 0) > 0 && (
+        <Section id="kind" kicker={`Kind ${unplacedKinds.join(", ")}`} onTabChange={onTabChange} className={FADE}>
+          <div className="divide-y divide-slate-100 dark:divide-slate-800/60">{clustersOf(byKindF)}</div>
         </Section>
       )}
 

@@ -43,7 +43,8 @@ export function EmbeddedArticleCard({ event, author , trustScore01 }: { trustSco
   const isWiki = event.kind === 30818;
   // A spec (kind 30817) says which event kinds it covers in `k` tags.
   const isSpec = event.kind === 30817;
-  const coveredKinds = isSpec ? [...new Set(event.tags.filter((t) => t[0] === "k" && t[1]).map((t) => t[1]))] : [];
+  // Each is the NIPs tab's filter: the specs that cover that kind. In order.
+  const coveredKinds = isSpec ? [...new Set(event.tags.filter((t) => t[0] === "k" && t[1]).map((t) => t[1]))].sort((a, b) => Number(a) - Number(b)) : [];
   const summary = articleBrief(event);
   const image = tagVal(event, "image");
   // Fall back to the branded Brainstorm cover when an article has no image or
@@ -90,7 +91,14 @@ export function EmbeddedArticleCard({ event, author , trustScore01 }: { trustSco
           {coveredKinds.length > 0 && (
             <p className="mt-1 flex flex-wrap gap-1 font-mono text-[10px] text-slate-400 dark:text-slate-500" data-testid="article-kinds">
               {coveredKinds.map((k) => (
-                <span key={k} className="rounded bg-slate-100 px-1 py-0.5 dark:bg-slate-800">kind {k}</span>
+                <Link
+                  key={k}
+                  href={`/?t=nips&q=${encodeURIComponent(`kind:${k}`)}`}
+                  title={`Specs that cover kind ${k}`}
+                  className="rounded bg-slate-100 px-1 py-0.5 transition-colors hover:text-brand-deep dark:bg-slate-800 dark:hover:text-brand-link"
+                >
+                  kind {k}
+                </Link>
               ))}
             </p>
           )}

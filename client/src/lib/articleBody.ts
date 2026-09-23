@@ -59,8 +59,9 @@ export function prepareArticleBody(markdown: string, title: string, opts: { iden
   }
   skipBlank();
 
-  // The front matter: token lines at the top of the reading (a subtitle
-  // heading may sit among them), closed by a rule or by the first prose line.
+  // The front matter: token lines at the top of the reading (a heading may
+  // sit among them — a subtitle, or an unnumbered NIP's own `# NIP-XX`),
+  // closed by a rule or by the first prose line.
   const status: string[] = [];
   const kinds: SpecKind[] = [];
   const tags: SpecTag[] = [];
@@ -69,7 +70,7 @@ export function prepareArticleBody(markdown: string, title: string, opts: { iden
   for (; j < lines.length; j++) {
     const line = lines[j];
     if (line.trim() === "") { kept.push(line); continue; }
-    if (/^#{2,6}\s/.test(line)) { kept.push(line); continue; }
+    if (/^#{1,6}\s/.test(line)) { kept.push(line); continue; }
     if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { j++; break; } // the rule closes the front matter, and goes with it
     if (!TOKEN_LINE.test(line)) break;
     const t = tokens(line);
@@ -82,10 +83,12 @@ export function prepareArticleBody(markdown: string, title: string, opts: { iden
   }
   // Only the lines the loop consumed leave the body; what it broke on stays.
   const consumedUpTo = j;
-  const body = [...kept, ...lines.slice(consumedUpTo)];
-  // Trim the blank run the front matter left behind.
+  // The lifted lines leave doubled blanks among the kept ones — collapse
+  // those, up to the seam with the untouched rest.
+  const body = [...kept, ...lines.slice(consumedUpTo)].filter(
+    (line, idx, all) => !(idx > 0 && idx <= kept.length && line.trim() === "" && all[idx - 1].trim() === ""),
+  );
   while (body.length && body[0].trim() === "") body.shift();
-  while (body.length && kept.length && body[kept.length - 1]?.trim() === "" && body[kept.length]?.trim() === "") body.splice(kept.length - 1, 1);
 
   return { body: body.join("\n"), status, kinds, tags };
 }

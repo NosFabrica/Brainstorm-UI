@@ -165,7 +165,8 @@ export default function ArticlePage() {
     const byKind = new Map<string, string | undefined>();
     for (const t of ev.tags) if (t[0] === "k" && t[1]) byKind.set(t[1], t[2] || undefined);
     for (const k of prepared.kinds) byKind.set(k.kind, k.label ?? byKind.get(k.kind));
-    return [...byKind.entries()].map(([kind, label]) => ({ kind, label }));
+    // In order, however the author tagged them.
+    return [...byKind.entries()].map(([kind, label]) => ({ kind, label })).sort((a, b) => Number(a.kind) - Number(b.kind));
   }, [ev, prepared.kinds]);
   const summary = tag("summary") || "";
   // A wiki page mirrored from elsewhere names its source in an "s" tag
@@ -254,8 +255,8 @@ export default function ArticlePage() {
                     {coveredKinds.map(({ kind, label }) => (
                       <Link
                         key={kind}
-                        href={`/?q=${encodeURIComponent(`kind:${kind}`)}`}
-                        title={`Search for kind ${kind} events`}
+                        href={`/?t=nips&q=${encodeURIComponent(`kind:${kind}`)}`}
+                        title={`Specs that cover kind ${kind}`}
                         className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-700 transition-colors hover:border-brand-accent/40 hover:text-brand-deep dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:text-brand-link"
                         data-testid={`article-kind-${kind}`}
                       >

@@ -166,6 +166,12 @@ export interface SearchParams {
    * page joins; a "more" page opens its own REQ as before.
    */
   group?: SearchGroup;
+  /**
+   * Exactly these kinds, in place of the tab's — Everything's section for a
+   * typed kind that none of its sections carry. Not intersected with the
+   * query's own `kind:` tokens; it IS them.
+   */
+  kinds?: number[];
 }
 
 const DEFAULT_LIMIT = 100;
@@ -381,8 +387,12 @@ export function searchStream(
     // kind narrows each section rather than replacing its kinds — otherwise
     // Latest, Happening and Media would all ask for specs and fill with them.
     // Agents filter by kind this way; no chip needed.
-    const tabKinds = kindsForTab(params.tab);
-    const kinds = lifted.kinds ? (tabKinds ? tabKinds.filter((k) => lifted.kinds!.includes(k)) : lifted.kinds) : tabKinds;
+    // On the NIPs tab a kind is what a spec COVERS (its `k` tags), not what
+    // it is — `kind:5905` is the specs that define kind 5905. The relay
+    // narrows by `#k` (probed 2026-09-23).
+    const tabKinds = params.kinds ?? kindsForTab(params.tab);
+    const coveredKinds = params.tab === "nips" ? lifted.kinds : undefined;
+    const kinds = lifted.kinds && !coveredKinds && !params.kinds ? (tabKinds ? tabKinds.filter((k) => lifted.kinds!.includes(k)) : lifted.kinds) : tabKinds;
     // A section the typed kind doesn't fit asks nothing and is simply done.
     if (kinds && kinds.length === 0) {
       emit({ hits: [], eose: true, timeMs: 0, exhausted: true });
@@ -402,6 +412,7 @@ export function searchStream(
       !hosts || event.tags.some((t) => t[0] === "p" && hosts.has(t[1]) && (!t[3] || t[3].toLowerCase() === "host"));
     const filter: import("nostr-tools").Filter = {
       ...(kinds ? { kinds } : {}),
+      ...(coveredKinds ? { "#k": coveredKinds.map(String) } : {}),
       ...(lifted.authors && !byHost ? { authors: lifted.authors } : {}),
       ...(p && p.length ? { "#p": p } : {}),
       ...(lifted["#t"] ? { "#t": lifted["#t"] } : tagsForTab(params.tab) ? { "#t": tagsForTab(params.tab) } : {}),

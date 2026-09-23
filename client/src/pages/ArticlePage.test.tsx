@@ -123,16 +123,20 @@ describe("reading a spec", () => {
 
   // A kind number alone tells a reader nothing (Benjamin: "kind 37570 — how
   // can we enhance this?"). Each kind wears the name its author gave it and
-  // is a search for events of that kind.
-  it("names the kinds a spec covers, and each one is a search for that kind", async () => {
-    await open(spec(30817, [["k", "5905", "DVM Job Request"], ["k", "7000"]]));
+  // opens the NIPs tab on the specs that cover it — the search relay holds
+  // no events of most spec kinds (probed 2026-09-23), so "events of this
+  // kind" landed on an empty page; the specs always answer, this one among
+  // them. Kinds read in order, however the author tagged them.
+  it("names the kinds a spec covers, in order, and each one opens the specs that cover it", async () => {
+    await open(spec(30817, [["k", "7000"], ["k", "5905", "DVM Job Request"]]));
 
     const kinds = screen.getByTestId("article-kinds");
     const job = within(kinds).getByTestId("article-kind-5905");
     expect(job).toHaveTextContent("5905");
     expect(job).toHaveTextContent("DVM Job Request");
-    expect(job.getAttribute("href")).toBe("/?q=kind%3A5905");
+    expect(job.getAttribute("href")).toBe("/?t=nips&q=kind%3A5905");
     expect(within(kinds).getByTestId("article-kind-7000")).toHaveTextContent("7000");
+    expect([...kinds.querySelectorAll("a")].map((a) => a.textContent)).toEqual(["5905DVM Job Request", "7000"]);
   });
 
   it("reads a spec's front matter as its details: id gone, status, kinds named, tags listed", async () => {
