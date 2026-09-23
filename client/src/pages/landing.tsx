@@ -6,6 +6,7 @@ import { usePrefersReducedMotion } from "@/hooks/usePrefersReducedMotion";
 import { getRecentItems, pushRecentQuery, pushRecentProfile, removeRecentItem, clearRecentSearches, recentKey, type RecentItem } from "@/lib/recentSearches";
 import { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo, type FormEvent } from "react";
 import { nip19 } from "nostr-tools";
+import { resolveNip05 } from "@/lib/nip05";
 import {
   Search,
   ArrowRight,
@@ -90,26 +91,6 @@ const PLACEHOLDER_EXAMPLES = [
 // marks a "returning" visitor, who gets the calm static placeholder instead
 // of the rotating hints. First-party + functional → no consent banner needed.
 const SEEN_SEARCH_HINTS_KEY = "brainstorm_seen_search_hints";
-
-async function resolveNip05(handle: string): Promise<string> {
-  const trimmed = handle.trim();
-  let name: string;
-  let domain: string;
-  if (trimmed.includes("@")) {
-    [name, domain] = trimmed.split("@");
-  } else {
-    name = "_";
-    domain = trimmed;
-  }
-  const resp = await fetch(`https://${domain}/.well-known/nostr.json?name=${encodeURIComponent(name)}`, {
-    signal: AbortSignal.timeout(8000),
-  });
-  if (!resp.ok) throw new Error("Could not resolve handle");
-  const data = await resp.json();
-  const pubkey = data?.names?.[name] || data?.names?.[name.toLowerCase()];
-  if (!pubkey || !/^[0-9a-f]{64}$/i.test(pubkey)) throw new Error("Handle not found");
-  return pubkey;
-}
 
 export default function Landing() {
   const tierRing = useTierRing();
@@ -633,11 +614,10 @@ export default function Landing() {
       try {
         const hexPubkey = await resolveNip05(q);
         if (searchAbortRef.current !== searchId) return;
-        const npub = nip19.npubEncode(hexPubkey);
-        leave(profileDest(npub));
-        return;
-      } catch {
-        if (searchAbortRef.current !== searchId) return;
+        if (hexPubkey) {
+          leave(profileDest(nip19.npubEncode(hexPubkey)));
+          return;
+        }
         // Unresolvable handle falls through to a plain text search below.
       } finally {
         if (searchAbortRef.current === searchId) setIsSearching(false);
