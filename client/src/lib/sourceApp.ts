@@ -63,9 +63,10 @@ function publishedInConduit(event: MinimalEvent): boolean {
  * `nostrcooking`) and filters by exactly those two words itself. The
  * `zapcooking-<slug>` tags beside them are its categories, not the signal.
  */
-const RECIPE_TAGS = new Set(["zapcooking", "nostrcooking"]);
+export const RECIPE_TAGS: readonly string[] = ["zapcooking", "nostrcooking"];
+const recipeTagSet = new Set(RECIPE_TAGS);
 function publishedOnZapCooking(event: MinimalEvent): boolean {
-  return event.tags.some((t) => t[0] === "t" && RECIPE_TAGS.has((t[1] ?? "").trim().replace(/^#/, "").toLowerCase()));
+  return event.tags.some((t) => t[0] === "t" && recipeTagSet.has((t[1] ?? "").trim().replace(/^#/, "").toLowerCase()));
 }
 
 /** An address with no identifier is not a page on anyone's site. */
