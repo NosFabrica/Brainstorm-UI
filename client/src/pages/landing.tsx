@@ -23,6 +23,7 @@ import {
   Package,
   FolderGit2,
   ListChecks,
+  ShoppingBag,
 } from "lucide-react";
 import { GlossBackground } from "@/components/GlossBackground";
 import { Wordmark } from "@/components/Wordmark";
@@ -1252,8 +1253,8 @@ export default function Landing() {
                   {[
                     { tab: "people", label: "People", icon: Users },
                     { tab: "notes", label: "Notes", icon: MessageSquare },
-                    { tab: "articles", label: "Articles", icon: Newspaper },
                     { tab: "media", label: "Media", icon: ImageIcon },
+                    { tab: "shop", label: "Shop", icon: ShoppingBag },
                     { tab: "apps", label: "Apps", icon: Package },
                     { tab: "repos", label: "Repos", icon: FolderGit2 },
                     { tab: "events", label: "Events", icon: CalendarDays },
