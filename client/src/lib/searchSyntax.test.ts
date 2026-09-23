@@ -7,7 +7,7 @@
  */
 import { describe, expect, it } from "vitest";
 import { nip19 } from "nostr-tools";
-import { activeFilterCount, applyFilters, browseSafeQuery, datePreset, liftQuery, personAssist, personScope, readFilters, scopeOf, scopedPlaceholder, scopedSearchHref, seeAllLabel, sinceForPreset, splitFilters } from "./searchSyntax";
+import { activeFilterCount, applyFilters, browseSafeQuery, datePreset, liftQuery, personAssist, personScope, readFilters, scopeOf, scopedPlaceholder, scopedSearchHref, seeAllLabel, sinceForPreset, splitFilters, typeaheadWords } from "./searchSyntax";
 
 // The relay knows no hops and has no verification of its own, so those two
 // controls are done on the CLIENT — but they still speak grammar:
@@ -182,9 +182,14 @@ describe("personAssist — the from:/to: people picker trigger", () => {
   it("offers to complete a name fragment being typed after from: or to:", () => {
     const assist = personAssist("bugs from:ja");
     expect(assist).toMatchObject({ prefix: "from", fragment: "ja" });
-    expect(assist!.complete("npub1jack")).toBe("bugs from:npub1jack");
+    expect(assist!.complete("npub1jack")).toBe("bugs from:npub1jack ");
 
-    expect(personAssist("to:mar")!.complete("npub1maria")).toBe("to:npub1maria");
+    expect(personAssist("to:mar")!.complete("npub1maria")).toBe("to:npub1maria ");
+
+    // observer: is a person too — whose web of trust ranks the results.
+    const observer = personAssist("bitcoin observer:vi");
+    expect(observer).toMatchObject({ prefix: "observer", fragment: "vi" });
+    expect(observer!.complete("npub1vitor")).toBe("bitcoin observer:npub1vitor ");
   });
 
   it("stays quiet when there's nothing to help with", () => {
@@ -194,6 +199,28 @@ describe("personAssist — the from:/to: people picker trigger", () => {
     // Already a key — the page wrote it; no second offer.
     expect(personAssist("from:npub1abcdef")).toBeNull();
     expect(personAssist(`from:${"a".repeat(64)}`)).toBeNull();
+    expect(personAssist("observer:")).toBeNull();
+    expect(personAssist("observer:npub1abcdef")).toBeNull();
+    expect(personAssist(`observer:${"a".repeat(64)}`)).toBeNull();
+  });
+});
+
+// Typing `doi:` listed people called "doi"; `doi:10.1000` listed whoever commented on it.
+describe("typeaheadWords — what the people typeahead may look up", () => {
+  it("is the words, when the box holds nothing but words", () => {
+    expect(typeaheadWords("jack")).toBe("jack");
+    expect(typeaheadWords(" jack dorsey ")).toBe("jack dorsey");
+    expect(typeaheadWords("https://example.com")).toBe("https://example.com");
+  });
+
+  it.each([
+    "from:", "to:", "since:", "until:", "kind:", "kind:2", "spec:", "sort:", "sort:rec", "include:", "include:spam",
+    "filter:", "filter:rank:gte:", "filter:rank:gte:50", "observer:", "observer:ja", "trust:", "trust:ver",
+    "reach:", "reach:fol", "site:", "site:exa", "isbn:", "isbn:978", "geo:", "geo:u4p", "isan:", "doi:", "doi:10.1000",
+    "podcast:guid:", "podcast:item:guid:", "podcast:publisher:", "label:", "label:en", "group:", "group:gen",
+    "DOI:10.1000", "jack doi:", "doi: jack", "jack kind:20", "#nostr jack",
+  ])("is null for %s — no name there", (q) => {
+    expect(typeaheadWords(q)).toBeNull();
   });
 });
 

@@ -45,6 +45,15 @@ describe("typing in the header search", () => {
     expect(searchMock.mock.calls[0][0]).toBe("vitor");
   });
 
+  it("asks nobody while a filter prefix is typed — `doi:` is not a name", () => {
+    render(<HeaderSearchBox />);
+    typeSlowly("doi:10.1000");
+    typeSlowly("sort:rec");
+    act(() => { vi.advanceTimersByTime(400); });
+    expect(searchMock).not.toHaveBeenCalled();
+    expect(screen.queryByTestId("header-search-suggestions")).toBeNull();
+  });
+
   it("cancels a request that's under way when the next key lands", () => {
     render(<HeaderSearchBox />);
     fireEvent.change(input(), { target: { value: "vito" } });

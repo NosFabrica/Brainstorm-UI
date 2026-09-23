@@ -133,6 +133,7 @@ export function SearchField({
       onEnter: (value) => {
         // A day the keyboard is on is what Enter means while the grid is up.
         if (takeEnterRef.current()) return;
+        handle.settle();
         latest.current.onEnter(value);
       },
       onRemoveToken: (next) => latest.current.onRemoveToken?.(next),
