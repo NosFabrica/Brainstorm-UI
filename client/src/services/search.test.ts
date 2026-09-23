@@ -64,6 +64,7 @@ import {
   fetchPersonVouches,
   fetchVouchReplies,
   fetchNipPage,
+  fetchSpecsForKind,
   fetchPersonSets,
   fetchReleases,
   fetchRepoActivity,
@@ -1061,6 +1062,32 @@ describe("author hydration on a slow relay", () => {
     const open = openLookups(calls);
     expect(open).toHaveLength(4);
     expect(open.at(-1)!.filter.authors).toEqual([author(5), author(6)]);
+  });
+});
+
+describe("fetchSpecsForKind", () => {
+  // A structural event's page names the spec that defines its kind — the
+  // relay narrows specs by the `k` tags they carry (probed 2026-09-23).
+  it("asks for the specs whose k tags name the kind, and resolves them", async () => {
+    const { subject } = controllable();
+    const pending = fetchSpecsForKind(10040);
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as Record<string, unknown>;
+    expect(filter.kinds).toEqual([30817]);
+    expect(filter["#k"]).toEqual(["10040"]);
+    expect(filter.search).toBe("include:spam");
+
+    subject.next(frame({ id: "s1", kind: 30817, pubkey: "b".repeat(64), tags: [["d", "trusted-assertions"], ["title", "Trusted Assertions"], ["k", "10040"]], content: "# TA", created_at: 1, sig: "s" } as NostrEvent));
+    subject.next(EOSE);
+    expect((await pending).map((e) => e.id)).toEqual(["s1"]);
+  });
+
+  it("resolves empty when no spec covers the kind", async () => {
+    const { subject } = controllable();
+    const pending = fetchSpecsForKind(99999);
+    await tick();
+    subject.next(EOSE);
+    expect(await pending).toEqual([]);
   });
 });
 

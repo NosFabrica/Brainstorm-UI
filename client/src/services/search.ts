@@ -1196,6 +1196,31 @@ export function fetchRepoCounts(address: string, timeoutMs = 5000): Promise<Repo
 }
 
 /**
+ * The specs (kind 30817) that define a kind — the `k` tags they carry name
+ * it, and the relay narrows by them (probed 2026-09-23). A structural
+ * event's page says what its kind is by pointing here.
+ */
+export function fetchSpecsForKind(kind: number, timeoutMs = 5000): Promise<NostrEvent[]> {
+  return new Promise((resolve) => {
+    const relay = searchRelay();
+    if (!relay) return resolve([]);
+    const found: NostrEvent[] = [];
+    const sub = relay
+      .req({ kinds: [30817], "#k": [String(kind)], search: "include:spam", limit: 5 })
+      .subscribe((msg: { type: string; event?: NostrEvent }) => {
+        if (msg.type === "EVENT" && msg.event) found.push(msg.event);
+        else if (msg.type === "EOSE" || msg.type === "CLOSED") finish();
+      });
+    const timer = setTimeout(finish, timeoutMs);
+    function finish() {
+      clearTimeout(timer);
+      sub.unsubscribe();
+      resolve(found);
+    }
+  });
+}
+
+/**
  * The wiki page for a NIP (kind 30818, d = "nip-46"). Several authors
  * publish competing versions — probed live, a real 10KB spec sits next to
  * 7-character stubs — so the most substantial page wins.
