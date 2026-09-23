@@ -13,7 +13,7 @@ import { Link, useLocation } from "wouter";
 import type { NostrEvent } from "nostr-tools";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
-import { Rss } from "lucide-react";
+import { Braces, Lock, Rss } from "lucide-react";
 import { useTierRing } from "@/components/score/VerificationCoin";
 import { isFeedAccount } from "@/lib/feedAccount";
 import { nip19 } from "nostr-tools";
@@ -31,6 +31,7 @@ import { WavlakeTrackCard } from "@/components/share/WavlakeTrackCard";
 import { eventPath } from "@/lib/shareId";
 import { wikiPlainText } from "@/lib/wiki";
 import { describeDesignation } from "@/lib/nip85Declaration";
+import { contentShape } from "@/lib/contentShape";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { isVideoUrl, mediaPosterOf, mediaUrlOf, tagVal } from "@/components/search/cards";
 import { useConnectionSpeed, videoPreload } from "@/lib/connection";
@@ -118,6 +119,29 @@ export function kindTypeLabel(kind: number): string {
     case 30000: return "Follow set";
     case 10003: case 10015: case 30001: case 30003: case 30015: case 30267: case 39701: return "List";
     case 10040: return "Trust designation";
+    // The common NIP kinds a typed `kind:` finds, in words. The number
+    // stays beside them where kinds are the subject (Everything's section).
+    case 3: return "Follow list";
+    case 4: return "Encrypted DM";
+    case 5: return "Deletion";
+    case 6: case 16: return "Repost";
+    case 7: return "Reaction";
+    case 8: return "Badge award";
+    case 14: return "Direct message";
+    case 1059: return "Gift wrap";
+    case 1984: return "Report";
+    case 1985: return "Label";
+    case 9734: return "Zap request";
+    case 9735: return "Zap receipt";
+    case 10000: return "Mute list";
+    case 10002: return "Relay list";
+    case 10050: return "DM relays";
+    case 13194: return "Wallet info";
+    case 30008: return "Profile badges";
+    case 30009: return "Badge";
+    case 30078: return "App data";
+    case 30315: return "Status";
+    case 31990: return "App handler";
     // Never "Post" for a kind we don't know — a typed `kind:` finds
     // structural events, and the number is the honest name.
     default: return `Kind ${kind}`;
@@ -479,10 +503,15 @@ export function SerpRow({
   // A wiki page is AsciiDoc; the row shows its words, not "[[comedian]]".
   // A designation is its rows, read for people; anything else with no
   // content gets the author's own NIP-31 `alt` line, when they wrote one.
-  const body =
-    event.kind === 10040
+  // Ciphertext and JSON are not for reading: the row says what they are.
+  const shape = event.kind === 10040 || event.kind === 30818 ? null : contentShape(event.content);
+  const opaque = shape?.kind === "encrypted" || shape?.kind === "json";
+  const body = opaque
+    ? tagVal(event, "alt") || ""
+    : event.kind === 10040
       ? describeDesignation(event).summary
       : (event.kind === 30818 ? wikiPlainText(event.content) : event.content) || tagVal(event, "summary") || tagVal(event, "description") || tagVal(event, "alt") || "";
+  const shapeLine = shape?.kind === "encrypted" ? "Encrypted — only its owner can read it" : shape?.kind === "json" ? `Structured data · ${shape.fields} ${shape.fields === 1 ? "field" : "fields"}` : null;
   // Same link a feed would card for this note, so the two never disagree.
   const cardLink = primaryLink(parseNoteContent(body));
   return (
@@ -493,6 +522,11 @@ export function SerpRow({
           <div className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors [&>p]:font-semibold [&>p]:text-sm">
             <Snippet text={title} query={query} lines={2} />
           </div>
+        )}
+        {shapeLine && (
+          <p className="mt-0.5 inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500" data-testid="serp-content-shape">
+            {shape?.kind === "encrypted" ? <Lock className="h-3 w-3" /> : <Braces className="h-3 w-3" />} {shapeLine}
+          </p>
         )}
         {body && (
           <div className="mt-0.5">

@@ -670,14 +670,21 @@ describe("ComposedResults", () => {
     byKind.emit({ hits: [hitOf(ev("a1", 32267, "a".repeat(64), "", [["name", "Primal"]]), "zapstore")], eose: true, timeMs: 200 });
 
     const section = await screen.findByTestId("serp-section-kind");
-    expect(section).toHaveTextContent("Kind 32267");
+    expect(section).toHaveTextContent("App · kind 32267");
     expect(section).toHaveTextContent("zapstore");
     expect(screen.queryByTestId("composed-empty")).toBeNull();
   });
 
-  // The section says what the kind IS, once, by the spec that defines it.
-  it("the kind section names the spec that defines the kind", async () => {
-    specsForKindMock.mockResolvedValueOnce([ev("s1", 30817, "b".repeat(64), "#", [["d", "zapstore-apps"], ["title", "App metadata"]])]);
+  // Several specs cover most kinds — a capability profile lists forty — so
+  // "defined in <the first one back>" was a guess ("Nostr mail settings" for
+  // kind 30078). The section names the kind in words with its number, and
+  // links the specs that cover it, the first two by name.
+  it("the kind section names the kind and the specs that cover it", async () => {
+    specsForKindMock.mockResolvedValueOnce([
+      ev("s1", 30817, "b".repeat(64), "#", [["d", "zapstore-apps"], ["title", "App metadata"]]),
+      ev("s2", 30817, "c".repeat(64), "#", [["d", "noornote"], ["title", "NoorNote"]]),
+      ev("s3", 30817, "d".repeat(64), "#", [["d", "x"], ["title", "X"]]),
+    ]);
     window.history.replaceState({}, "", "/?q=kind%3A32267");
     render(<ComposedResults query="kind:32267" pov="nosfabrica" onTabChange={vi.fn()} />);
     const byKind = sectionCall("everything");
@@ -685,8 +692,9 @@ describe("ComposedResults", () => {
     byKind.emit({ hits: [hitOf(ev("a1", 32267, "a".repeat(64), "", [["name", "Primal"]]), "zapstore")], eose: true, timeMs: 200 });
 
     const link = await screen.findByTestId("serp-kind-spec");
-    expect(link).toHaveTextContent("App metadata");
-    expect(link.getAttribute("href")).toMatch(/^\/a\/naddr1/);
+    expect(link).toHaveTextContent("App metadata, NoorNote +1");
+    expect(link.getAttribute("href")).toBe("/?t=nips&q=kind%3A32267");
+    expect(screen.getByTestId("serp-section-kind")).toHaveTextContent("App · kind 32267");
     expect(specsForKindMock).toHaveBeenCalledWith(32267);
   });
 
