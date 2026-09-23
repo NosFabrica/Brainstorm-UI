@@ -26,6 +26,7 @@ vi.mock("@/services/search", async (importOriginal) => {
   return {
     ...actual,
     fetchEventRsvps: (addresses: string[]) => eventRsvpsMock(addresses),
+    fetchSpecsForKind: (kind: number) => specsForKindMock(kind),
     searchStream: (query: string, params: SearchParams, onSnapshot: (s: SearchSnapshot) => void) => {
       const call: StreamCall = {
         query,
@@ -42,6 +43,7 @@ vi.mock("@/services/search", async (importOriginal) => {
     suggestProfiles: () => Promise.resolve([]),
   };
 });
+const specsForKindMock = vi.fn<(kind: number) => Promise<NostrEvent[]>>(() => Promise.resolve([]));
 const scoreOfMock = vi.fn<(pk: string) => number | null | undefined>(() => 0.8);
 const eventRsvpsMock = vi.fn<(addresses: string[]) => Promise<Map<string, { going: number; faces: string[] }>>>(() => Promise.resolve(new Map()));
 vi.mock("@/hooks/useAuthorScores", () => ({
@@ -671,6 +673,21 @@ describe("ComposedResults", () => {
     expect(section).toHaveTextContent("Kind 32267");
     expect(section).toHaveTextContent("zapstore");
     expect(screen.queryByTestId("composed-empty")).toBeNull();
+  });
+
+  // The section says what the kind IS, once, by the spec that defines it.
+  it("the kind section names the spec that defines the kind", async () => {
+    specsForKindMock.mockResolvedValueOnce([ev("s1", 30817, "b".repeat(64), "#", [["d", "zapstore-apps"], ["title", "App metadata"]])]);
+    window.history.replaceState({}, "", "/?q=kind%3A32267");
+    render(<ComposedResults query="kind:32267" pov="nosfabrica" onTabChange={vi.fn()} />);
+    const byKind = sectionCall("everything");
+    for (const c of calls) if (c !== byKind) c.emit({ hits: [], eose: true, timeMs: 1 });
+    byKind.emit({ hits: [hitOf(ev("a1", 32267, "a".repeat(64), "", [["name", "Primal"]]), "zapstore")], eose: true, timeMs: 200 });
+
+    const link = await screen.findByTestId("serp-kind-spec");
+    expect(link).toHaveTextContent("App metadata");
+    expect(link.getAttribute("href")).toMatch(/^\/a\/naddr1/);
+    expect(specsForKindMock).toHaveBeenCalledWith(32267);
   });
 
   // The search relay indexes the kinds it is configured for; most kinds a
