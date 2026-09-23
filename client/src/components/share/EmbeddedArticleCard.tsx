@@ -110,7 +110,7 @@ export function EmbeddedArticleCard({ event, author , trustScore01 }: { trustSco
                 className="inline-flex items-center gap-1 rounded-lg bg-brand-primary hover:bg-brand-primary-hover px-3 py-1.5 text-xs font-semibold text-white transition-colors"
                 data-testid="article-read"
               >
-                Read article <ArrowRight className="h-3.5 w-3.5" />
+                Read {(sourceAppFor(event)?.noun ?? "article").toLowerCase()} <ArrowRight className="h-3.5 w-3.5" />
               </Link>
             </div>
           )}

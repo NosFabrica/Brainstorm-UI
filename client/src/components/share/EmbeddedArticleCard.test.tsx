@@ -49,6 +49,13 @@ describe("EmbeddedArticleCard", () => {
     expect(img.getAttribute("alt")).toBe("Cooking Recipe — easy recipe steps");
   });
 
+  // "Read article" under a RECIPE label contradicts itself.
+  it("a recipe's button says Read recipe", () => {
+    const recipe = page(30023, "# Gırık", [["d", "girik"], ["title", "Gırık"], ["t", "zapcooking"]]);
+    render(<EmbeddedArticleCard event={recipe} author={{ name: "Joe" }} />);
+    expect(screen.getByTestId("article-read")).toHaveTextContent(/^Read recipe$/);
+  });
+
   it("a recipe with its own picture keeps it", () => {
     const recipe = page(30023, "# Gırık", [["d", "girik"], ["title", "Gırık"], ["t", "zapcooking"], ["image", "https://img.example/girik.jpg"]]);
     render(<EmbeddedArticleCard event={recipe} author={{ name: "Joe" }} />);
