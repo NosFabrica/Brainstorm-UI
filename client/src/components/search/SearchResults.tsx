@@ -125,17 +125,19 @@ function profilesOf(hits: SearchHit[]) {
   return map;
 }
 
-/** Google's row: five verticals in view, the long tail behind More ▾. */
+/** Google's row: five verticals in view, the long tail behind More ▾.
+ *  Benjamin (2026-09-23): Shop earns the row — Media, then Shop — and
+ *  Articles is the first thing behind More. */
 const PRIMARY_TABS: { key: SearchTab; label: string }[] = [
   { key: "everything", label: "Everything" },
   { key: "people", label: "People" },
   { key: "notes", label: "Notes" },
-  { key: "articles", label: "Articles" },
   { key: "media", label: "Media" },
+  { key: "shop", label: "Shop" },
 ];
 const MORE_TABS: { key: SearchTab; label: string }[] = [
+  { key: "articles", label: "Articles" },
   { key: "apps", label: "Apps" },
-  { key: "shop", label: "Shop" },
   // Long-form articles wearing zap.cooking's tag: the same kind as Articles,
   // which keeps showing them labelled Recipe — this is where people look.
   { key: "recipes", label: "Recipes" },
