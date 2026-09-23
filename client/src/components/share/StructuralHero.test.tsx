@@ -30,6 +30,9 @@ describe("StructuralHero", () => {
     expect(rows[0]).toHaveTextContent("d");
     expect(rows[0]).toHaveTextContent("nostrmail/settings");
     expect(rows[1]).toHaveTextContent("wss://relay.example");
+    // A row with fewer values spans the width — "metadata" never wraps mid-word
+    // because another row had three cells.
+    expect(rows[0].querySelectorAll("td")[0].getAttribute("colspan")).toBe("2");
     expect(hero).not.toHaveTextContent("Post");
   });
 

@@ -22,6 +22,8 @@ export function StructuralHero({ event }: { event: StructuralEvent }) {
   const shape = contentShape(event.content);
   const alt = event.tags.find((t) => t[0] === "alt" && t[1]?.trim())?.[1];
   const tags = event.tags.filter((t) => t[0] !== "alt");
+  // Rows share columns; a shorter row's last value spans the rest of the width.
+  const widest = Math.max(1, ...tags.map((t) => t.length - 1));
   const [rawOpen, setRawOpen] = useState(false);
 
   return (
@@ -76,8 +78,8 @@ export function StructuralHero({ event }: { event: StructuralEvent }) {
               {tags.map((t, i) => (
                 <tr key={i} data-testid="structural-tag">
                   <th scope="row" className="w-24 px-3 py-1.5 align-top font-mono font-semibold text-slate-500 dark:text-slate-400">{t[0]}</th>
-                  {t.slice(1).map((v, j) => (
-                    <td key={j} className="px-3 py-1.5 align-top font-mono text-slate-700 dark:text-slate-200 break-all">{v}</td>
+                  {t.slice(1).map((v, j, vals) => (
+                    <td key={j} colSpan={j === vals.length - 1 ? widest - vals.length + 1 : 1} className="px-3 py-1.5 align-top font-mono text-slate-700 dark:text-slate-200 [overflow-wrap:anywhere]">{v}</td>
                   ))}
                 </tr>
               ))}
