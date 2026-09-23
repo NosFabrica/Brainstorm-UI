@@ -442,7 +442,7 @@ export function SerpRow({
             </AuthorLine>
           </div>
           {/* The poster's words — the headline was only ever the note's text. */}
-          <div className="mt-1 [&>p]:text-slate-700 dark:[&>p]:text-slate-200">
+          <div className="mt-1.5 [&>p]:text-slate-700 dark:[&>p]:text-slate-200">
             <Snippet text={[news.headline, news.description].filter(Boolean).join(" ")} query={query} lines={2} />
           </div>
           <div onClick={(e) => e.stopPropagation()}>
@@ -476,7 +476,7 @@ export function SerpRow({
             target="_blank"
             rel="noopener"
             onClick={(e) => e.stopPropagation()}
-            className="mt-1 block text-[15px] font-semibold leading-snug text-slate-900 dark:text-slate-100 hover:text-brand-primary hover:underline transition-colors break-words line-clamp-2"
+            className="mt-1.5 block text-[15px] font-semibold leading-snug text-slate-900 dark:text-slate-100 hover:text-brand-primary hover:underline transition-colors break-words line-clamp-2"
             data-testid="news-headline"
           >
             <Headline text={news.headline} query={query} />
@@ -535,17 +535,17 @@ export function SerpRow({
       <div className="min-w-0 flex-1">
         <AuthorLine author={author} score={score} created_at={event.created_at} type={showType ? typeLabelFor(event) : undefined} feed={isFeedAccount(author)} />
         {title && (
-          <div className="mt-0.5 text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors [&>p]:font-semibold [&>p]:text-sm">
+          <div className="mt-1.5 text-sm font-semibold text-slate-900 dark:text-slate-100 group-hover:text-brand-primary transition-colors [&>p]:font-semibold [&>p]:text-sm">
             <Snippet text={title} query={query} lines={2} />
           </div>
         )}
         {shapeLine && (
-          <p className="mt-0.5 inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500" data-testid="serp-content-shape">
+          <p className="mt-1.5 inline-flex items-center gap-1 text-xs text-slate-400 dark:text-slate-500" data-testid="serp-content-shape">
             {shape?.kind === "encrypted" ? <Lock className="h-3 w-3" /> : <Braces className="h-3 w-3" />} {shapeLine}
           </p>
         )}
         {body && (
-          <div className="mt-0.5">
+          <div className={title ? "mt-1" : "mt-1.5"}>
             <Snippet text={clipAtToken(body, 300)} query={query} lines={title ? 2 : 3} hide={thumbUrl} />
             {/* X's "Translate post" for text in another language — on-device, quiet. */}
             <TranslateLine text={body.slice(0, 1000)} />
