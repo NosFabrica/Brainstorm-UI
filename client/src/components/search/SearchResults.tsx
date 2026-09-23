@@ -1326,7 +1326,7 @@ export function SearchResults({
               aria-expanded={filtersOpen}
               aria-label="Filters"
               onClick={() => setFiltersOpen((v) => !v)}
-              className={tabClass(filtersOpen) + " inline-flex items-center gap-1 !px-2 sm:!pl-1.5 sm:!pr-2.5"}
+              className={tabClass(filtersOpen) + " inline-flex items-center gap-1 !px-2 sm:-ml-1.5 sm:!pl-1.5 sm:!pr-2.5"}
               data-testid="search-filters-toggle"
             >
               <SlidersHorizontal className="h-3.5 w-3.5 sm:h-3 sm:w-3" />
