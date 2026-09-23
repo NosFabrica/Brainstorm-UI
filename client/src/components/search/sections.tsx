@@ -32,18 +32,23 @@ export function useSectionStream(
     group,
     seed,
     provisionalSeed,
-  }: { since?: number; group?: SearchGroup; seed?: SearchHit[]; provisionalSeed?: boolean } = {},
+    kinds,
+    enabled = true,
+  }: { since?: number; group?: SearchGroup; seed?: SearchHit[]; provisionalSeed?: boolean; kinds?: number[]; enabled?: boolean } = {},
 ): SearchSnapshot | null {
   const [snapshot, setSnapshot] = useState<SearchSnapshot | null>(null);
   // A section restarts when the relay comes back from an outage (lib/serverStatus).
   const { recovery } = useServerStatus();
+  const kindsKey = kinds?.join(",");
   useEffect(() => {
     setSnapshot(null);
-    return searchStream(query, { tab, pov, userPubkey, limit, since, group, seed, provisionalSeed }, setSnapshot);
+    // A section that has nothing to ask for this query stays silent (null).
+    if (!enabled) return;
+    return searchStream(query, { tab, pov, userPubkey, limit, since, group, seed, provisionalSeed, kinds }, setSnapshot);
     // `seed` is taken once per query (lib/headStart) — re-running on its
-    // identity would restart the section with nothing.
+    // identity would restart the section with nothing; `kinds` goes by value.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [query, tab, pov, userPubkey, limit, since, group, provisionalSeed, recovery]);
+  }, [query, tab, pov, userPubkey, limit, since, group, provisionalSeed, recovery, kindsKey, enabled]);
   return snapshot;
 }
 
@@ -88,7 +93,8 @@ export function Section({
 }: {
   id: string;
   kicker: string;
-  tab: SearchTab;
+  /** The tab that has the rest — a section with no tab of its own has no "See all". */
+  tab?: SearchTab;
   onTabChange: (t: SearchTab) => void;
   children: React.ReactNode;
   testIdPrefix?: string;
@@ -100,14 +106,14 @@ export function Section({
         <SectionHeader variant="title" kicker={kicker} className="flex-1" />
         {/* Quiet until hovered: the title carries the section, the link
             only has to be findable. */}
-        <button
+        {tab && <button
           type="button"
           onClick={() => onTabChange(tab)}
           className="shrink-0 text-xs font-medium text-slate-500 dark:text-slate-400 hover:text-brand-link hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
           data-testid={`${testIdPrefix === "serp-section" ? "serp-more" : `${testIdPrefix}-more`}-${id}`}
         >
           See all
-        </button>
+        </button>}
       </div>
       {children}
     </section>
