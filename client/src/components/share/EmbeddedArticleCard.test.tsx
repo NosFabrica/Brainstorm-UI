@@ -36,4 +36,13 @@ describe("EmbeddedArticleCard", () => {
     expect(card).not.toHaveTextContent("Body");
     expect(card).toHaveTextContent("Article");
   });
+
+  // A recipe on zap.cooking is a kind-30023 with a tag; calling it an article is wrong.
+  it("a zap.cooking recipe calls itself a Recipe", () => {
+    const recipe = page(30023, "# Gırık", [["d", "girik"], ["title", "Gırık"], ["summary", "Handmade dough, chicken and rice."], ["t", "zapcooking"], ["t", "zapcooking-girik"]]);
+    render(<EmbeddedArticleCard event={recipe} author={{ name: "SkyLords" }} />);
+    const card = screen.getByTestId("embedded-article");
+    expect(card).toHaveTextContent("Recipe");
+    expect(card).not.toHaveTextContent("Article");
+  });
 });
