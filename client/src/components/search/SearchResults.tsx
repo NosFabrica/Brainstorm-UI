@@ -80,11 +80,22 @@ const LIVE_KINDS = new Set(TAB_KINDS.live);
 const EVENT_KINDS = new Set(TAB_KINDS.events);
 const MUSIC_KINDS = new Set(TAB_KINDS.music);
 const SHOP_KINDS = new Set(TAB_KINDS.shop);
-/** A recipe's topics: its `t` tags minus zap.cooking's own markers and their `<marker>-<slug>` copies. */
+/**
+ * A recipe's topics. zap.cooking writes each chosen category twice — plain
+ * and as `zapcooking-<word>` — beside the recipe marker itself and a
+ * `zapcooking-<slug>` copy of the dish (the `d` tag). The words are topics
+ * whichever way they are spelled; the marker and the dish's slug are not, and
+ * neither is a bare number, which is a serving count or a step.
+ */
 function recipeTopics(e: NostrEvent): string[] {
-  const housekeeping = new RegExp(`^(${RECIPE_TAGS.join("|")})(-|$)`, "i");
-  // A bare number is a serving count or a step, not a topic.
-  return [...new Set(e.tags.filter((t) => t[0] === "t" && t[1]).map((t) => t[1].trim().toLowerCase()))].filter((t) => t && !housekeeping.test(t) && !/^\d+$/.test(t));
+  const marker = new RegExp(`^(${RECIPE_TAGS.join("|")})(-|$)`, "i");
+  const slug = (e.tags.find((t) => t[0] === "d")?.[1] ?? "").trim().toLowerCase();
+  const words = e.tags
+    .filter((t) => t[0] === "t" && t[1])
+    .map((t) => t[1].trim().replace(/^#/, "").toLowerCase())
+    .map((t) => (marker.test(t) ? t.replace(marker, "") : t))
+    .filter((t) => t && t !== slug && !/^\d+$/.test(t));
+  return [...new Set(words)];
 }
 const LIST_KINDS = new Set(TAB_KINDS.lists);
 

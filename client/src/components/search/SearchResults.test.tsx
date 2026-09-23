@@ -375,7 +375,9 @@ describe("SearchResults", () => {
     });
     // The relay can narrow by tag but not exclude by one: zap.cooking's own
     // newsletter wears the recipe tag, marked zapreads. The tab leaves it out.
-    emit({ hits: [recipe("r1", "Chicken soup", ["chicken", "soup"]), recipe("r2", "Vanilla cake", ["dessert", "3"]), recipe("n1", "Zap Cooking Newsletter", ["zapreads", "newsletter"])], eose: true, timeMs: 120 });
+    // zap.cooking writes each chosen category as `zapcooking-<word>` beside a
+    // `zapcooking-<slug>` copy of the dish itself: the words are topics, the slug is not.
+    emit({ hits: [recipe("r1", "Chicken soup", ["chicken", "zapcooking-soup"]), recipe("r2", "Vanilla cake", ["zapcooking-dessert", "#fakeaway", "3"]), recipe("n1", "Zap Cooking Newsletter", ["zapreads", "newsletter"])], eose: true, timeMs: 120 });
 
     await screen.findByText("Chicken soup");
     expect(screen.queryByText("Zap Cooking Newsletter")).toBeNull();
@@ -385,6 +387,10 @@ describe("SearchResults", () => {
     expect(within(facets).getByTestId("recipe-facet-chicken")).not.toHaveTextContent(/\d/);
     expect(within(facets).queryByTestId("recipe-facet-zapcooking")).toBeNull();
     expect(within(facets).queryByTestId("recipe-facet-zapcooking-r1")).toBeNull();
+    expect(within(facets).queryByTestId("recipe-facet-r1")).toBeNull(); // the dish's own slug is not a topic
+    expect(within(facets).getByTestId("recipe-facet-soup")).toHaveTextContent("soup"); // zapcooking-soup, promoted
+    expect(within(facets).queryByTestId("recipe-facet-zapcooking-soup")).toBeNull();
+    expect(within(facets).getByTestId("recipe-facet-fakeaway")).toHaveTextContent("fakeaway"); // a typed # is not part of the word
     expect(within(facets).queryByTestId("recipe-facet-3")).toBeNull(); // a serving count is not a topic
 
     fireEvent.click(within(facets).getByTestId("recipe-facet-dessert"));
