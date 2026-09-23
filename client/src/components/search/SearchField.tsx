@@ -49,8 +49,11 @@ export function SearchField({
 }: {
   value: string;
   onChange: (next: string) => void;
-  /** Enter, with no popup of ours open. */
-  onEnter: () => void;
+  /**
+   * Enter, with no popup of ours open. Carries the box's value, because a soft keyboard's
+   * action key edits and submits in one event and React has not re-rendered in between.
+   */
+  onEnter: (value: string) => void;
   /** Keys no popup of ours took. Return true to consume. */
   onKeyDown?: (e: KeyboardEvent) => boolean;
   /** True while one of our popups owns the space under the box (and the arrow keys). */
@@ -127,10 +130,10 @@ export function SearchField({
     if (!el) return;
     const handle = mountSearchField(el, {
       onEdit: (next) => latest.current.onChange(next),
-      onEnter: () => {
+      onEnter: (value) => {
         // A day the keyboard is on is what Enter means while the grid is up.
         if (takeEnterRef.current()) return;
-        latest.current.onEnter();
+        latest.current.onEnter(value);
       },
       onRemoveToken: (next) => latest.current.onRemoveToken?.(next),
       onToken: setToken,

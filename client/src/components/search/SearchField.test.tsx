@@ -168,6 +168,16 @@ describe("pills over the value", () => {
     expect(box().value).toBe("gm");
   });
 
+  // A soft keyboard's action key commits text and submits in ONE event, so React has not
+  // re-rendered when Enter fires. Without the value riding along, the page searches for
+  // whatever was in the box before the last keystroke — on a fresh box, nothing at all.
+  it("Enter carries the value the same event just typed", () => {
+    const { onEnter } = mount({ value: "" });
+    fireEvent(box(), new InputEvent("beforeinput", { inputType: "insertText", data: "gm\n", bubbles: true, cancelable: true }));
+    expect(box().value).toBe("gm");
+    expect(onEnter).toHaveBeenCalledWith("gm");
+  });
+
   it("a paste lands as plain text, not as markup", () => {
     const { onChange } = mount({ value: "" });
     const e = new Event("paste", { bubbles: true, cancelable: true }) as Event & { clipboardData: unknown };
@@ -194,6 +204,28 @@ describe("the calendar under since:/until:", () => {
     fireEvent.click(screen.getAllByTestId("search-field-quick")[1]); // Last 7 days
     await waitFor(() => expect(onChange).toHaveBeenCalled());
     expect(String(onChange.mock.lastCall?.[0])).toMatch(/^since:\d{4}-\d{2}-\d{2} $/);
+  });
+
+  // The caret has to land PAST the space after a picked token. Resting on its last character
+  // is a token still being typed, so `drawable` holds it as text and the pill never appears.
+  it("a day picked mid-query pills at once, with words already behind it", async () => {
+    const { onChange } = mount({ value: "since: gm" });
+    // Put the caret right after `since:`, where somebody typing it would have left it — the
+    // grid opens on the token the caret is IN, and `gm` sits behind it.
+    const node = box().firstChild as Text;
+    const range = document.createRange();
+    range.setStart(node, 6);
+    range.collapse(true);
+    const sel = document.getSelection()!;
+    sel.removeAllRanges();
+    sel.addRange(range);
+    fireEvent.click(box());
+    await screen.findByTestId("search-field-picker");
+    fireEvent.click(screen.getAllByTestId("search-field-day")[0]);
+    await waitFor(() => expect(onChange).toHaveBeenCalled());
+    const next = String(onChange.mock.lastCall?.[0]);
+    expect(next).toMatch(/^since:\d{4}-\d{2}-\d{2} gm$/);
+    expect(box().querySelectorAll('[data-type="date"]')).toHaveLength(1);
   });
 
   it("closes once the day is whole, and says so to the page", async () => {

@@ -311,6 +311,44 @@ describe("the search band as the page scrolls", () => {
   });
 });
 
+// One hashtag and nothing else is a topic; anything more is a search carrying a tag filter.
+// `handleSearch` had its own copy of the rule that squashed the whole query into one slug, so
+// the combined grammar was unreachable from this box however well the parser understood it.
+describe("a # query that is more than one tag", () => {
+  beforeEach(() => {
+    cleanup();
+    allStreams = [];
+    streamMock.mockClear();
+    window.history.replaceState({}, "", "/");
+  });
+
+  it("searches rather than leaving for a squashed topic page", async () => {
+    render(<Landing />);
+    typeInBox("#nostr bitcoin");
+    fireEvent.submit(screen.getByTestId("form-home-search"));
+    // `mainStreamCalls` filters `#`-leading queries as knowledge-panel probes, which is what
+    // this query looks like to it — so read every stream the page opened.
+    await waitFor(() => expect(streamMock.mock.calls.some(([q]) => q === "#nostr bitcoin")).toBe(true));
+    expect(window.location.pathname).toBe("/");
+  });
+
+  it("one tag alone is still the topic page", async () => {
+    render(<Landing />);
+    typeInBox("#nostr");
+    fireEvent.submit(screen.getByTestId("form-home-search"));
+    await waitFor(() => expect(window.location.pathname).toBe("/t/nostr"));
+  });
+
+  // A filter is not a search anybody would want offered back to them in a list.
+  it("a wordless filter query stays out of recent searches", async () => {
+    render(<Landing />);
+    typeInBox("since:2026-01-02");
+    fireEvent.submit(screen.getByTestId("form-home-search"));
+    await waitFor(() => expect(mainStreamCalls().length).toBeGreaterThan(0));
+    expect(getRecentItems().some((r) => r.type === "query" && r.q.includes("since:"))).toBe(false);
+  });
+});
+
 describe("typing in the home search", () => {
   const typeSlowly = (word: string) => {
     for (let i = 1; i <= word.length; i++) {

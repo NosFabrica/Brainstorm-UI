@@ -33,8 +33,13 @@ export interface PersonFace {
 export interface SearchFieldHandlers {
   /** The value changed because somebody typed, pasted, dropped or picked. */
   onEdit: (value: string) => void;
-  /** Enter, however it arrived — including a soft keyboard's action key. */
-  onEnter: () => void;
+  /**
+   * Enter, however it arrived — including a soft keyboard's action key, which arrives as an
+   * inserted line break and can carry text with it. The value is passed because that case
+   * EDITS and submits in one event: React has not re-rendered yet, so a handler reading its
+   * own `query` state would search for what was in the box before the last keystroke.
+   */
+  onEnter: (value: string) => void;
   /**
    * A pill's × took a token out. Separate from [onEdit] because dropping a filter is a
    * decision, not a keystroke: the page re-runs the search on it rather than waiting for Enter.
@@ -565,13 +570,19 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
     render(text.slice(0, from) + insert + text.slice(to), caret, typingAt);
   }
 
-  /** Splice a finished token over the partial the caret is in; the caret lands past the trailing space. */
+  /**
+   * Splice a finished token over the partial the caret is in. The caret lands PAST the space
+   * after it, whether this wrote that space or the text already had one: a caret resting on a
+   * token's last character is a token still being typed, so `drawable` holds it as text and
+   * the pill somebody just picked never appears.
+   */
   function replaceToken(ctx: { start: number; end: number }, tok: string): void {
     const text = readValue();
-    const tail = text.slice(ctx.end).startsWith(" ") ? "" : " ";
+    const spaced = text.slice(ctx.end).startsWith(" ");
+    const tail = spaced ? "" : " ";
     const { start, end } = ctx;
     setToken(null);
-    replaceRange(start, end, tok + tail, start + tok.length + tail.length);
+    replaceRange(start, end, tok + tail, start + tok.length + (spaced ? 1 : tail.length));
     el.focus();
     handlers.onEdit(readValue());
   }
@@ -653,7 +664,7 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
     // A bare newline leaves nothing to insert and is only the submit.
     if (rest) insertPlain(e, rest);
     else e.preventDefault();
-    handlers.onEnter();
+    handlers.onEnter(readValue());
   };
 
   /** A caret move finishes a hashtag, a date or a scope without editing: a pill forms once the caret leaves. */

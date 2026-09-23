@@ -56,7 +56,7 @@ import { suggestProfileHits, suggestProfiles, type SearchHit } from "@/services/
 import { BackToTop } from "@/components/search/BackToTop";
 import { SearchResults } from "@/components/search/SearchResults";
 import { PerspectiveToggle } from "@/components/search/PerspectiveToggle";
-import { personAssist, scopeOf, splitFilters, type PersonAssist, scopedPlaceholder, seeAllLabel } from "@/lib/searchSyntax";
+import { personAssist, queryWords, scopeOf, splitFilters, type PersonAssist, scopedPlaceholder, seeAllLabel } from "@/lib/searchSyntax";
 import { SearchField } from "@/components/search/SearchField";
 import type { SearchFieldHandle } from "@/lib/searchFieldDom";
 import { useProfileMap } from "@/hooks/useProfileMap";
@@ -544,7 +544,10 @@ export default function Landing() {
     // Remember this query for the "Recent" list (de-duped, most-recent-first).
     // A search scoped to a person (from:npub…) is a step from their profile,
     // not words anyone typed — and a key is nothing to show in a list.
-    if (!scopeOf(q)) setRecent(pushRecentQuery(q));
+    // A scope is a step from somebody's profile, not words anyone typed, and a query with no
+    // WORDS is a filter — `since:2026-09-16` on its own is what choosing a date preset while
+    // browsing writes, and it is nothing to offer back in a list of recent searches.
+    if (!scopeOf(q) && queryWords(q)) setRecent(pushRecentQuery(q));
     // Running a full search cancels any pending/in-flight suggestion request and
     // closes the dropdown so it can't reopen on top of the results list.
     window.clearTimeout(suggestTimerRef.current);
@@ -585,14 +588,15 @@ export default function Landing() {
       return;
     }
 
-    // A #hashtag query → the trust-ranked CONTENT feed for that tag (not a
-    // profile search). Everything else falls through to profile search.
-    if (q.startsWith("#")) {
-      const tag = q.slice(1).toLowerCase().replace(/[^a-z0-9_]/g, "");
-      if (tag) {
-        leave(`/t/${encodeURIComponent(tag)}`);
-        return;
-      }
+    // A #hashtag query → the trust-ranked CONTENT feed for that tag (not a profile search).
+    // `parseTopicQuery`, not a rule of its own: ONE hashtag and nothing else is a topic, and
+    // anything more is a search carrying a tag filter, which the box's grammar handles. The
+    // inline copy this replaces squashed the whole query into one slug, so `#nostr bitcoin`
+    // left for /t/nostrbitcoin and the combined grammar was unreachable from here.
+    const topic = parseTopicQuery(q);
+    if (topic.isTopic && topic.tag) {
+      leave(topicPath(topic.tag));
+      return;
     }
 
     // Direct identifiers resolve to a profile — logged-out visitors get the public
@@ -999,7 +1003,7 @@ export default function Landing() {
                   }}
                   onBlur={() => setFocused(false)}
                   onPointerDown={() => setEngaged(true)}
-                  onEnter={() => {
+                  onEnter={(typed) => {
                     // Only open a single profile when the user explicitly arrow-keyed
                     // to a suggestion. Plain typing + Enter (even with the mouse
                     // resting over the dropdown) always runs a full text search.
@@ -1012,7 +1016,9 @@ export default function Landing() {
                       return;
                     }
                     cancelSuggest();
-                    void handleSearch();
+                    // `typed`, not the `query` state: a soft keyboard's action key commits
+                    // text and submits in one event, and React has not re-rendered yet.
+                    void handleSearch(typed);
                   }}
                   onKeyDown={(e) => {
                     setEngaged(true);

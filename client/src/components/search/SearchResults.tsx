@@ -325,6 +325,15 @@ function FiltersPanel({
 
 
   const showDates = customDates || preset === "custom";
+  // The menu is coarse, but the grammar takes any 0..100 — a hand-typed `filter:rank:gte:33`
+  // would otherwise read as "No floor" while the Filters badge counted it, which is the panel
+  // disagreeing with the search it is describing. The typed value joins the menu, in order.
+  const floors = useMemo(() => {
+    const typed = state.rankFloor;
+    if (typed == null || RANK_FLOORS.some((o) => o.value === typed)) return RANK_FLOORS;
+    return [...RANK_FLOORS, { value: typed, label: `Rank ${typed}+` }]
+      .sort((a, b) => (a.value ?? -1) - (b.value ?? -1));
+  }, [state.rankFloor]);
   const segment = (on: boolean) =>
     `h-8 px-2.5 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/30 ${
       on ? "bg-brand-primary text-white" : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
@@ -478,7 +487,7 @@ function FiltersPanel({
           }}
           data-testid="filter-rank-floor"
         >
-          {RANK_FLOORS.map((o) => (
+          {floors.map((o) => (
             <option key={o.label} value={o.value ?? ""}>{o.label}</option>
           ))}
         </select>

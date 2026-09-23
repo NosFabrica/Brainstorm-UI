@@ -2273,6 +2273,17 @@ describe("SearchResults", () => {
       expect(rewrite).toHaveBeenLastCalledWith("bitcoin");
     });
 
+    // The menu is coarse; the grammar takes any 0..100. A typed floor the menu has no step
+    // for must still SHOW, or the panel says "No floor" while the badge counts one.
+    it("a hand-typed floor joins the menu rather than reading as none", () => {
+      render(<SearchResults query="bitcoin filter:rank:gte:33" pov="nosfabrica" onQueryRewrite={vi.fn()} />);
+      fireEvent.click(screen.getByTestId("search-filters-toggle"));
+      const floor = screen.getByTestId("filter-rank-floor") as HTMLSelectElement;
+      expect(floor.value).toBe("33");
+      expect([...floor.options].map((o) => o.value)).toEqual(["", "25", "33", "50", "75", "90"]);
+      expect(screen.getByTestId("filters-active-count")).toHaveTextContent("1");
+    });
+
     it("switching the spam waiver back on drops the floor", () => {
       const rewrite = vi.fn();
       render(<SearchResults query="bitcoin filter:rank:gte:50" pov="nosfabrica" onQueryRewrite={rewrite} />);
