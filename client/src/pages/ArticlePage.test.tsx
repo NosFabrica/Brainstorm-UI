@@ -92,7 +92,7 @@ describe("reading a spec", () => {
   // kind" landed on an empty page; the specs always answer, this one among
   // them. Kinds read in order, however the author tagged them.
   it("names the kinds a spec covers, in order, and each one opens the specs that cover it", async () => {
-    await open(spec(30817, [["k", "7000"], ["k", "5905", "DVM Job Request"]]));
+    await open(spec(30817, [["k", "7000"], ["k", "5905", "DVM Job Request"], ["k", "nip"]])); // "nip" is not a kind
 
     const kinds = screen.getByTestId("article-kinds");
     const job = within(kinds).getByTestId("article-kind-5905");

@@ -40,6 +40,26 @@ describe("EmbeddedArticleCard", () => {
     expect(screen.getByTestId("article-kinds")).toHaveTextContent("7000");
   });
 
+  // Specs wore the generic Brainstorm article cover (Benjamin, 2026-09-23:
+  // "when showing Specs in search lets use this image — name it for SEO").
+  // A spec with no image of its own gets the NIP cover, named and described
+  // for what it is.
+  it("a spec without an image wears the NIP cover, named for search engines", () => {
+    const spec = page(30817, "# Trusted Assertions", [["d", "trusted-assertions"], ["title", "Trusted Assertions"], ["k", "10040"]]);
+    render(<EmbeddedArticleCard event={spec} author={{ name: "Russell" }} />);
+    const img = screen.getByTestId("embedded-article").querySelector("img")!;
+    expect(img.getAttribute("src")).toMatch(/nostr-implementation-possibilities-spec-cover/);
+    expect(img.getAttribute("alt")).toBe("Nostr Implementation Possibilities — formal specifications for the decentralized network");
+  });
+
+  // A `k` tag that is not a number ("nip", seen on Trusted Assertions
+  // (Sovereign Version)) is not a kind — no chip, no broken search.
+  it("only numeric k tags are kinds", () => {
+    const spec = page(30817, "# TA", [["d", "ta"], ["title", "TA"], ["k", "10040"], ["k", "nip"]]);
+    render(<EmbeddedArticleCard event={spec} author={{ name: "ManiMe" }} />);
+    expect([...screen.getByTestId("article-kinds").querySelectorAll("a")].map((a) => a.textContent)).toEqual(["kind 10040"]);
+  });
+
   // The kind chips are the NIPs tab's filter — no chip row on the tab itself
   // (the team's "too busy"; Benjamin 2026-09-23). Each opens the specs that
   // cover that kind, in numeric order.

@@ -8,6 +8,10 @@ import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { naddrForEvent } from "@/lib/articleLinks";
 import { articleBrief } from "@/lib/wiki";
 import articleDefault from "@/assets/article-default.webp";
+import specCover from "@/assets/nostr-implementation-possibilities-spec-cover.webp";
+
+/** What the NIP cover shows — for search engines and screen readers alike. */
+export const SPEC_COVER_ALT = "Nostr Implementation Possibilities — formal specifications for the decentralized network";
 import type { MinimalEvent } from "@/lib/noteRefs";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
@@ -43,13 +47,16 @@ export function EmbeddedArticleCard({ event, author , trustScore01 }: { trustSco
   // A spec (kind 30817) says which event kinds it covers in `k` tags.
   const isSpec = event.kind === 30817;
   // Each is the NIPs tab's filter: the specs that cover that kind. In order.
-  const coveredKinds = isSpec ? [...new Set(event.tags.filter((t) => t[0] === "k" && t[1]).map((t) => t[1]))].sort((a, b) => Number(a) - Number(b)) : [];
+  const coveredKinds = isSpec ? [...new Set(event.tags.filter((t) => t[0] === "k" && /^\d+$/.test(t[1] ?? "")).map((t) => t[1]))].sort((a, b) => Number(a) - Number(b)) : [];
   const summary = articleBrief(event);
   const image = tagVal(event, "image");
   // Fall back to the branded Brainstorm cover when an article has no image or
   // its image URL fails to load (dead host, hotlink block, etc.).
   const [imgBroken, setImgBroken] = useState(false);
-  const coverSrc = !image || imgBroken ? articleDefault : image;
+  // A spec wears the NIP cover, not the article one.
+  const fallbackCover = isSpec ? specCover : articleDefault;
+  const coverSrc = !image || imgBroken ? fallbackCover : image;
+  const coverAlt = coverSrc === specCover ? SPEC_COVER_ALT : "";
   const name = author?.display_name || author?.name || "Unknown";
   const naddr = naddrForEvent(event);
   const href = naddr ? `/a/${naddr}` : undefined;
@@ -75,7 +82,7 @@ export function EmbeddedArticleCard({ event, author , trustScore01 }: { trustSco
       <div className="flex flex-col sm:flex-row">
         <img
           src={coverSrc}
-          alt=""
+          alt={coverAlt}
           loading="lazy"
           onError={() => setImgBroken(true)}
           className="h-40 w-full object-cover sm:h-auto sm:w-32 sm:self-stretch shrink-0 bg-slate-100 dark:bg-slate-800"
