@@ -129,7 +129,7 @@ export function PerspectiveToggle({
 
   if (compact) {
     return (
-      <div className="inline-flex items-center gap-0.5" data-testid="text-home-hint">
+      <div className="inline-flex items-center gap-2" data-testid="text-home-hint">
         {pill}
         {learnMore}
       </div>
