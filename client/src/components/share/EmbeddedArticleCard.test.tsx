@@ -40,6 +40,17 @@ describe("EmbeddedArticleCard", () => {
     expect(screen.getByTestId("article-kinds")).toHaveTextContent("7000");
   });
 
+  // The kind chips are the NIPs tab's filter — no chip row on the tab itself
+  // (the team's "too busy"; Benjamin 2026-09-23). Each opens the specs that
+  // cover that kind, in numeric order.
+  it("a spec's kind chips open the specs that cover that kind", () => {
+    const spec = page(30817, "# Scheduler DVM", [["d", "scheduler-dvm"], ["title", "Scheduler DVM"], ["k", "7000"], ["k", "5905"]]);
+    render(<EmbeddedArticleCard event={spec} author={{ name: "nogringo" }} />);
+    const links = [...screen.getByTestId("article-kinds").querySelectorAll("a")];
+    expect(links.map((a) => a.textContent)).toEqual(["kind 5905", "kind 7000"]);
+    expect(links[0].getAttribute("href")).toBe("/?t=nips&q=kind%3A5905");
+  });
+
   it("a long-form article keeps its own summary and its name", () => {
     const article = page(30023, "# Why\n\nBody **bold**.", [["d", "why"], ["title", "Why Bitcoin"], ["summary", "A short case for sound money."]]);
     render(<EmbeddedArticleCard event={article} author={{ name: "Max" }} />);
