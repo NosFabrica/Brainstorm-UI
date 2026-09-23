@@ -1689,6 +1689,12 @@ describe("kindsForTab", () => {
     expect(kindsForTab("everything")).toBeUndefined();
   });
 
+  // Option A for NIPs in search: a spec (kind 30817, Markdown, addressable —
+  // what the search relay already indexes) is read like an article.
+  it("Articles asks for specs too", () => {
+    expect(kindsForTab("articles")).toContain(30817);
+  });
+
   // Vitor's split: "Code & git" mixed content types (and probing showed its
   // snippet kind was ~90% JSON junk). Apps = Zap Store listings; Repos = the
   // genuinely git-shaped kinds. Kind 1337 leaves the tabs entirely.

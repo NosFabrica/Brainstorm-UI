@@ -204,6 +204,12 @@ describe("SerpRow", () => {
     expect(screen.queryByText(/https:\/\/example\.com\/thing/)).toBeNull();
   });
 
+  it("a spec's row says Spec", () => {
+    const spec = { ...note("# Scheduler DVM\n\nSchedule signed events…", [["d", "scheduler-dvm"], ["title", "Scheduler DVM"], ["k", "5905"]]), kind: 30817 } as NostrEvent;
+    render(<SerpRow event={spec} author={author} score={0.7} query="dvm" />);
+    expect(screen.getByTestId("serp-type")).toHaveTextContent("Spec");
+  });
+
   it("labels each row with what kind of thing it is", () => {
     render(<SerpRow event={note("plain words about liverpool")} author={author} score={0.7} query="liverpool" />);
     expect(screen.getByTestId("serp-type")).toHaveTextContent("Note");
