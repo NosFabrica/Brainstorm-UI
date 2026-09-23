@@ -7,7 +7,7 @@
  * to clickable domain chips. The row body opens the in-app event page —
  * a div-with-navigate, so the external anchors inside stay legal HTML.
  */
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { Link, useLocation } from "wouter";
 import type { NostrEvent } from "nostr-tools";
@@ -328,6 +328,7 @@ function AuthorLine({
   created_at,
   type,
   feed = false,
+  children,
 }: {
   author: SearchResult | null;
   score?: number | null;
@@ -335,6 +336,8 @@ function AuthorLine({
   type?: string;
   /** An automated feed account — said quietly, so a reader knows the voice. */
   feed?: boolean;
+  /** Trailing meta (a news row's outlet) — rides the same baseline. */
+  children?: ReactNode;
 }) {
   const tierRing = useTierRing();
   return (
@@ -345,20 +348,25 @@ function AuthorLine({
           <DefaultAvatarImg />
         </AvatarFallback>
       </Avatar>
-      <span className="truncate text-xs font-medium text-slate-600 dark:text-slate-300">
-        {author ? getDisplayLabel(author) : "Unknown"}
-      </span>
-      <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">· {ago(created_at)}</span>
-      {type && (
-        <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500" data-testid="serp-type">
-          · {type}
+      {/* Name (12px) and the 11px meta share one baseline — centring boxes of
+          two font sizes leaves the meta riding high. */}
+      <div className="flex min-w-0 items-baseline gap-1.5 leading-4">
+        <span className="truncate text-xs font-medium text-slate-600 dark:text-slate-300">
+          {author ? getDisplayLabel(author) : "Unknown"}
         </span>
-      )}
-      {feed && (
-        <span className="inline-flex shrink-0 items-center gap-0.5 text-[11px] text-slate-400 dark:text-slate-500" title="An automated feed account" data-testid="serp-feed">
-          · <Rss className="h-3 w-3" /> feed
-        </span>
-      )}
+        <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500">· {ago(created_at)}</span>
+        {type && (
+          <span className="shrink-0 text-[11px] text-slate-400 dark:text-slate-500" data-testid="serp-type">
+            · {type}
+          </span>
+        )}
+        {feed && (
+          <span className="inline-flex shrink-0 items-center gap-0.5 text-[11px] text-slate-400 dark:text-slate-500" title="An automated feed account" data-testid="serp-feed">
+            · <Rss className="h-3 w-3" /> feed
+          </span>
+        )}
+        {children}
+      </div>
     </div>
   );
 }
@@ -422,13 +430,14 @@ export function SerpRow({
     return (
       <div {...rowProps}>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 min-w-0" data-testid="news-source">
-            <AuthorLine author={author} score={score} created_at={event.created_at} />
-            <span className="hidden sm:inline-flex items-center gap-1 min-w-0 text-[11px] text-slate-400 dark:text-slate-500">
-              ·
-              <Favicon host={news.domain} className="h-3 w-3 rounded-sm shrink-0 object-contain" />
-              <span className="truncate">{news.domain}</span>
-            </span>
+          <div className="min-w-0" data-testid="news-source">
+            <AuthorLine author={author} score={score} created_at={event.created_at}>
+              <span className="hidden sm:inline-flex items-center gap-1 min-w-0 text-[11px] text-slate-400 dark:text-slate-500">
+                ·
+                <Favicon host={news.domain} className="h-3 w-3 rounded-sm shrink-0 object-contain" />
+                <span className="truncate">{news.domain}</span>
+              </span>
+            </AuthorLine>
           </div>
           {/* The poster's words — the headline was only ever the note's text. */}
           <div className="mt-1 [&>p]:text-slate-700 dark:[&>p]:text-slate-200">
@@ -451,13 +460,14 @@ export function SerpRow({
           {/* Source line — the outlet, Google-News style. The poster's
               identity (and tier ring) still leads; the domain says where
               the story lives. */}
-          <div className="flex items-center gap-1.5 min-w-0" data-testid="news-source">
-            <AuthorLine author={author} score={score} created_at={event.created_at} type="News" />
-            <span className="hidden sm:inline-flex items-center gap-1 min-w-0 text-[11px] text-slate-400 dark:text-slate-500">
-              ·
-              <Favicon host={news.domain} className="h-3 w-3 rounded-sm shrink-0 object-contain" />
-              <span className="truncate">{news.domain}</span>
-            </span>
+          <div className="min-w-0" data-testid="news-source">
+            <AuthorLine author={author} score={score} created_at={event.created_at} type="News">
+              <span className="hidden sm:inline-flex items-center gap-1 min-w-0 text-[11px] text-slate-400 dark:text-slate-500">
+                ·
+                <Favicon host={news.domain} className="h-3 w-3 rounded-sm shrink-0 object-contain" />
+                <span className="truncate">{news.domain}</span>
+              </span>
+            </AuthorLine>
           </div>
           <a
             href={news.url}
