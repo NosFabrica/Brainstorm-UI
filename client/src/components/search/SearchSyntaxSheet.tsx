@@ -122,6 +122,15 @@ export function SearchSyntaxSheet({ open, onOpenChange }: { open: boolean; onOpe
           />
 
           <Section
+            title="Kinds"
+            intro={<>The raw event kinds, for when a tab is not the cut you want. They narrow whatever tab you are on rather than replacing it, so <code className="font-mono text-[12px]">kind:</code> on Articles asks for that kind among articles.</>}
+            rows={[
+              { token: "kind:", em: "30023", what: "Only events of that kind — drawn by name where this app has a word for it." },
+              { token: "spec:", what: <>The NIP definitions themselves (kind 30817) — the word for the kind, since nobody remembers the number.</> },
+            ]}
+          />
+
+          <Section
             title="Ranking and order"
             intro={<>These reach the relay as typed. The <b>Filters</b> button writes all but <code className="font-mono text-[12px]">observer:</code>.</>}
             rows={[

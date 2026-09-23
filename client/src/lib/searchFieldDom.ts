@@ -11,7 +11,7 @@
  * fighting the browser over the caret, the IME and the undo stack, so this module owns the
  * nodes and the component owns everything around them — the popups, the chrome, the state.
  */
-import { drawable, groupAt, dateAt, scopeIds, SCOPE_NOUNS, type Segment } from "@/lib/searchQuery";
+import { drawable, groupAt, dateAt, kindNoun, scopeIds, SCOPE_NOUNS, type Segment } from "@/lib/searchQuery";
 import { dayLabel } from "@/lib/searchCalendar";
 import { tone } from "@/lib/tones";
 import { DEFAULT_AVATAR_SRC } from "@/lib/profileDefaults";
@@ -445,15 +445,24 @@ export function mountSearchField(el: HTMLElement, handlers: SearchFieldHandlers)
           `<span class="${KEY_CLASS}">rank ≥</span><span class="${VALUE_CLASS}">${seg.value}</span>` + x;
         span.title = `${seg.raw} — drop results whose author ranks below ${seg.value} of 100`;
         return span;
-      case "kind":
+      case "kind": {
         // Typed by agents and power users to narrow a tab. It draws like the rest of the
         // grammar — there is no chip for it anywhere else, and a filter nobody can see is a
         // filter nobody can take off.
         span.className = pillClass("slate");
-        span.innerHTML =
-          `<span class="${KEY_CLASS}">kind</span><span class="${VALUE_CLASS}">${seg.value}</span>` + x;
-        span.title = `${seg.raw} — only events of kind ${seg.value}`;
+        const noun = kindNoun(seg.value);
+        const named = noun !== String(seg.value);
+        // `spec:` keeps the word it was typed as, and needs no prefix — "specs" is already
+        // the whole of what it says. Anything else reads `kind: articles`, or `kind: 31999`
+        // where the protocol has a number and this app has no word for it.
+        span.innerHTML = /^spec:/i.test(seg.raw)
+          ? `<span class="${VALUE_CLASS}">${esc(noun)}</span>` + x
+          : `<span class="${KEY_CLASS}">kind:</span><span class="${VALUE_CLASS}">${esc(noun)}</span>` + x;
+        span.title = named
+          ? `${seg.raw} — only ${noun} (kind ${seg.value})`
+          : `${seg.raw} — only events of kind ${seg.value}`;
         return span;
+      }
       case "verified":
         span.className = pillClass("emerald");
         span.innerHTML = `<span>verified only</span>` + x;

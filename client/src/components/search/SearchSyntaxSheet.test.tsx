@@ -27,6 +27,7 @@ describe("the syntax sheet", () => {
       "sort:recent", "sort:rank", "sort:followers", "sort:text",
       "observer:", "include:spam", "filter:rank:gte:",
       "trust:verified", "reach:follows",
+      "kind:", "spec:",
       '"exact phrase"', "-word",
     ]) {
       expect(text).toContain(token);
@@ -44,6 +45,14 @@ describe("the syntax sheet", () => {
     );
     expect(scopes.scopes).toHaveLength(5);
     expect(scopes.terms).toBe("");
+  });
+
+  it("names the kinds it documents, rather than printing their numbers alone", () => {
+    const text = sheetText();
+    expect(text).toContain("30023");
+    // `spec:` is in the sheet as the WORD, because that is how it is typed.
+    expect(parseQuery("spec:").kinds).toEqual([30817]);
+    expect(parseQuery("kind:30023").kinds).toEqual([30023]);
   });
 
   it("says which two tokens never reach the relay", () => {

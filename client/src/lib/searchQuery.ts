@@ -461,6 +461,49 @@ export function scopeIds(field: string, value: string): string[] {
 /** The kind a NIP definition is published as — what `spec:` is the word for. */
 export const SPEC_KIND = 30817;
 
+/**
+ * What a kind number is, in words. A `kind:` pill says "articles" where it can, the way a
+ * `group:` pill says a room's name over its id: a bare 30023 is a fact about the protocol, not
+ * an answer to "what did I just filter to".
+ *
+ * Deliberately a short, explicit list rather than an inversion of `TAB_KINDS` — that map is
+ * many-to-many (30023 is Articles AND Recipes, 30817 is Articles AND NIPs), so inverting it
+ * would have to pick one arbitrarily. A kind with no entry draws as its number, which is what
+ * somebody typing a rare kind already knows it by.
+ */
+export const KIND_NOUNS: Record<number, string> = {
+  0: "profiles",
+  1: "notes",
+  3: "follow lists",
+  6: "reposts",
+  7: "reactions",
+  20: "pictures",
+  1063: "files",
+  1111: "comments",
+  1617: "patches",
+  1618: "pull requests",
+  1621: "issues",
+  1985: "labels",
+  9735: "zaps",
+  10002: "relay lists",
+  10040: "trust providers",
+  30000: "follow sets",
+  30023: "articles",
+  30063: "releases",
+  30311: "live streams",
+  30382: "trusted assertions",
+  30402: "shop listings",
+  30617: "repos",
+  [SPEC_KIND]: "specs",
+  31337: "tracks",
+  31923: "calendar events",
+  32267: "apps",
+  39000: "groups",
+};
+
+/** What a `kind:` pill draws: the word for it, or the number where there is no word. */
+export const kindNoun = (kind: number): string => KIND_NOUNS[kind] ?? String(kind);
+
 /** What a scope pill says it is, in words rather than a prefix. */
 export const SCOPE_NOUNS: Record<string, string> = {
   site: "web page",

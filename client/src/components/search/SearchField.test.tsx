@@ -123,6 +123,23 @@ describe("pills over the value", () => {
     expect(pill.title).toContain("book");
   });
 
+  // A bare 30023 is a fact about the protocol, not an answer to "what did I just filter to" —
+  // so the pill says the word where this app has one, the way a group pill says a room's name
+  // over its id.
+  it("a kind pill says what the kind IS, and spec: keeps the word it was typed as", () => {
+    mount({ value: "kind:30023 spec: kind:31999" });
+    const pills = [...box().querySelectorAll('[data-type="kind"]')] as HTMLElement[];
+    expect(pills.map((p) => p.textContent?.replace("×", "").trim())).toEqual([
+      "kind:articles",
+      "specs",
+      "kind:31999",
+    ]);
+    expect(pills[0].title).toBe("kind:30023 — only articles (kind 30023)");
+    expect(pills[1].title).toBe("spec: — only specs (kind 30817)");
+    // No word for it here, so the number stands and the hover says no more than it can.
+    expect(pills[2].title).toBe("kind:31999 — only events of kind 31999");
+  });
+
   it("the ranking tokens pill too, where the relay's own field leaves them as bare text", () => {
     mount({ value: "sort:recent include:spam filter:rank:gte:50" });
     expect([...box().querySelectorAll("[data-token]")].map((p) => (p as HTMLElement).dataset.type))
