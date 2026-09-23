@@ -71,6 +71,9 @@ export function prepareArticleBody(markdown: string, title: string, opts: { iden
     const line = lines[j];
     if (line.trim() === "") { kept.push(line); continue; }
     if (/^#{1,6}\s/.test(line)) { kept.push(line); continue; }
+    // An underlined heading: the text, then its `===` or `---`. The dashes are
+    // its underline, not the rule — both lines stay.
+    if (!TOKEN_LINE.test(line) && /^\s*(=+|-+)\s*$/.test(lines[j + 1] ?? "")) { kept.push(line, lines[j + 1]); j++; continue; }
     if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { j++; break; } // the rule closes the front matter, and goes with it
     if (!TOKEN_LINE.test(line)) break;
     const t = tokens(line);
