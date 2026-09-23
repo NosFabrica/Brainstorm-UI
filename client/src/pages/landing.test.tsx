@@ -442,6 +442,6 @@ describe("the Browse row under the box", () => {
     fireEvent.focus(input);
     const chips = await screen.findByTestId("browse-chips");
     const order = [...chips.querySelectorAll('[data-testid^="browse-"]')].map((el) => el.getAttribute("data-testid"));
-    expect(order).toEqual(["browse-people", "browse-notes", "browse-media", "browse-shop", "browse-apps", "browse-repos", "browse-events", "browse-live", "browse-lists"]);
+    expect(order).toEqual(["browse-people", "browse-notes", "browse-media", "browse-shop", "browse-apps", "browse-events", "browse-live", "browse-lists"]);
   });
 });
