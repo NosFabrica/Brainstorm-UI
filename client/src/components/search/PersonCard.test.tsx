@@ -48,4 +48,12 @@ describe("PersonCard nip05", () => {
     expect(screen.getByTestId("text-nip05-1").querySelector("svg")).toBeNull();
     await waitFor(() => expect(screen.queryByTestId("text-nip05-1")).toBeNull());
   });
+
+  it("a remounted card paints the cached verdict at once — no unchecked flash", async () => {
+    const first = render(<PersonCard result={person(HZRD)} idx={2} pov="nosfabrica" onOpen={() => {}} />);
+    await waitFor(() => expect(screen.getByTestId("text-nip05-2")).toHaveAttribute("data-nip05-status", "verified"));
+    first.unmount();
+    render(<PersonCard result={person(HZRD)} idx={2} pov="nosfabrica" onOpen={() => {}} />);
+    expect(screen.getByTestId("text-nip05-2")).toHaveAttribute("data-nip05-status", "verified");
+  });
 });
