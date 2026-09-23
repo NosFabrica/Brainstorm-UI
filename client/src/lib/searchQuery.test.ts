@@ -142,6 +142,26 @@ describe("drawable — a token pills once the caret leaves it", () => {
   it("a key pills immediately — nobody edits the middle of an npub", () => {
     expect(drawable(`from:${npub}`, 5 + npub.length).map((s) => s.type)).toEqual(["key"]);
   });
+
+  // A scope's value may not END in sentence punctuation, so `site:example.` tokenizes as
+  // `site:example` plus a stranded `.`. Against the token alone the caret has already left it,
+  // and the pill used to snap shut around half the url the moment a period was typed — the
+  // period, and everything after it, landing outside the sealed pill. The window is the word.
+  // Adjacent text segments are drawn as one run, so what matters is that NO pill is drawn.
+  const drawn = (text: string, at: number) =>
+    drawable(text, at).filter((s) => s.type !== "text").map((s) => s.type);
+
+  it("a scope keeps its period: the caret has not left the word, only the token", () => {
+    expect(drawn("site:example.", 13)).toEqual([]);
+    expect(drawn("site:example.com/page?", 22)).toEqual([]);
+    expect(drawn("doi:10.", 7)).toEqual([]);
+    expect(drawn("site:example.com ", 17)).toEqual(["scope"]);
+  });
+
+  it("the word ends at the space: a finished scope pills while the next one is typed", () => {
+    expect(drawn("site:example.com/page. ", 23)).toEqual(["scope"]);
+    expect(drawn("#nostr. isbn:97", 15)).toEqual(["tag"]);
+  });
 });
 
 describe("the canonical spellings a tag filter has to ask for", () => {
