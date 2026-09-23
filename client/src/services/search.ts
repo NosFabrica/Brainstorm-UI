@@ -352,9 +352,18 @@ export function searchStream(
     // never sees those prefixes — verified by probing); the relay's own
     // extensions (sort:/include:spam/filter:rank:/observer:) stay in `search`.
     const lifted = liftQuery(query);
-    // A typed kind: (or spec:) narrows whatever tab it is on; on Everything it
-    // simply sets the filter. Agents filter by kind this way — no chip needed.
-    const kinds = lifted.kinds ?? kindsForTab(params.tab);
+    // A typed kind: (or spec:) narrows whatever tab it is on. Everything is
+    // one request with a filter per section, each routed by kind, so the typed
+    // kind narrows each section rather than replacing its kinds — otherwise
+    // Latest, Happening and Media would all ask for specs and fill with them.
+    // Agents filter by kind this way; no chip needed.
+    const tabKinds = kindsForTab(params.tab);
+    const kinds = lifted.kinds ? (tabKinds ? tabKinds.filter((k) => lifted.kinds!.includes(k)) : lifted.kinds) : tabKinds;
+    // A section the typed kind doesn't fit asks nothing and is simply done.
+    if (kinds && kinds.length === 0) {
+      emit({ hits: [], eose: true, timeMs: 0, exhausted: true });
+      return;
+    }
     // A NIP-53 stream is published by the streaming platform's key with the
     // streamer as its `p` host, so a person's live streams are the ones they
     // HOST, not the ones their key authored (probed 2026-09-09: mar's own key

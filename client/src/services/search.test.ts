@@ -228,6 +228,27 @@ describe("searchStream — grouped", () => {
     expect(filters[1].limit).toBe(8);
   });
 
+  /**
+   * Everything is one request with a filter per section, each routed by kind.
+   * A typed kind must narrow each section, not replace its kinds — or Latest,
+   * Happening and Media all ask for specs and every section fills with them
+   * (seen live, 2026-09-22). A section left with no kinds asks nothing and
+   * finishes empty.
+   */
+  it("on Everything, a typed kind narrows each section, and empties the ones it doesn't fit", async () => {
+    controllable();
+    const notes: SearchSnapshot[] = [];
+
+    searchStream("dvm spec:", { tab: "notes", pov: "nosfabrica", limit: 10, group: "search-everything" }, (s) => notes.push(s));
+    searchStream("dvm spec:", { tab: "articles", pov: "nosfabrica", limit: 5, group: "search-everything" }, () => {});
+    await settle();
+
+    const filters = reqMock.mock.calls[0][0] as { kinds?: number[] }[];
+    expect(filters.map((f) => f.kinds)).toEqual([[30817]]); // Articles alone asked
+    expect(notes.at(-1)).toMatchObject({ hits: [], eose: true });
+  });
+
+
   it("gives each member only the events its filter asked for, and settles them together", async () => {
     const { subject } = controllable();
     const notes: SearchSnapshot[] = [];
