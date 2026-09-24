@@ -16,8 +16,8 @@
  * the author's profile, the trust score, and the heavy siblings (thread,
  * header, more-from-author) that would otherwise reach the network.
  */
-import { beforeEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { AccountManager } from "applesauce-accounts";
 import { AccountsProvider, EventStoreProvider } from "applesauce-react/providers";
@@ -26,12 +26,12 @@ import { eventStore } from "@/lib/eventStore";
 import type { AccountMetadata } from "@/accounts/metadata";
 
 const AUTHOR = "9".repeat(64);
-const served = vi.fn((): Record<string, unknown> | null => null);
+const served = vi.fn((): Record<string, unknown> | null | Promise<Record<string, unknown> | null> => null);
 
 vi.mock("@/services/nostr", () => ({
   fetchAddressableEvents: async (ptrs: { kind: number; pubkey: string; identifier: string }[]) => {
     const map = new Map<string, unknown>();
-    const ev = served();
+    const ev = await served();
     if (ev) map.set(`${ptrs[0].kind}:${ptrs[0].pubkey}:${ptrs[0].identifier}`, ev);
     return map;
   },
@@ -255,5 +255,42 @@ describe("one route for every event: the id decides", () => {
     window.history.pushState({}, "", `/e/${nip19.naddrEncode({ kind: 30402, pubkey: AUTHOR, identifier: "gone" })}`);
     renderPage();
     expect(await screen.findByText("We couldn’t find this post on the relays.")).toBeInTheDocument();
+  });
+});
+
+// Brainstorm spun for a second or two on an article it already held (Vitor,
+// 2026-09-24): the page waited on every relay before showing anything. A held
+// copy shows at once; the relays are still asked, and a newer version takes
+// its place when it lands.
+describe("a copy the device already holds", () => {
+  const realVerify = eventStore.verifyEvent;
+  beforeAll(() => { eventStore.verifyEvent = undefined; });
+  afterAll(() => { eventStore.verifyEvent = realVerify; });
+  beforeEach(() => vi.clearAllMocks());
+
+  const version = (id: string, created_at: number, content: string) =>
+    ({ ...event(30023, "held", "Held", [], content), id: id.repeat(64), created_at });
+
+  it("shows at once, and gives way to a newer version when one arrives", async () => {
+    eventStore.add(version("a", 1_700_000_000, "The version on the device.") as any);
+    served.mockReturnValue(new Promise(() => {})); // the relays never finish
+    window.history.pushState({}, "", `/e/${nip19.naddrEncode({ kind: 30023, pubkey: AUTHOR, identifier: "held" })}`);
+    renderPage();
+
+    expect(await screen.findByTestId("article-body")).toHaveTextContent("The version on the device.");
+
+    act(() => { eventStore.add(version("b", 1_700_000_100, "The author's edit, just in.") as any); });
+    await waitFor(() => expect(screen.getByTestId("article-body")).toHaveTextContent("The author's edit, just in."));
+  });
+
+  it("does not fall back to an older version the relays hand back", async () => {
+    eventStore.add(version("c", 1_800_000_000, "Newest, already here.") as any);
+    served.mockReturnValue(version("d", 1_600_000_000, "An old copy from a stale relay."));
+    window.history.pushState({}, "", `/e/${nip19.naddrEncode({ kind: 30023, pubkey: AUTHOR, identifier: "held" })}`);
+    renderPage();
+
+    expect(await screen.findByTestId("article-body")).toHaveTextContent("Newest, already here.");
+    await waitFor(() => expect(served).toHaveBeenCalled());
+    expect(screen.getByTestId("article-body")).toHaveTextContent("Newest, already here.");
   });
 });
