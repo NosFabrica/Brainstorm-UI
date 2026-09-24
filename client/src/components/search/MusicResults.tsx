@@ -8,6 +8,11 @@
  * matches, else the best song), Songs as rows from both sources, Artists as
  * faces with their trust rings, Albums as Wavlake tiles. One Play starts the
  * whole queue; a slim bar at the bottom says what is playing.
+ *
+ * A third source (the team, 2026-09-24): the V4V Songs and V4V Musicians
+ * lists from Podcast Index, under the Music icon — while browsing, their
+ * own shelves after the native tracks; with words, the matches join Songs
+ * and Artists after Wavlake's, each row naming its source.
  */
 import { scopeOf } from "@/lib/searchSyntax";
 import { useEffect, useMemo, useState } from "react";
@@ -18,7 +23,8 @@ import { parseTrack, type Track } from "@/lib/trackEvent";
 import { WAVLAKE_GENRES, type WavlakeAlbum, type WavlakeArtist, type WavlakeSong } from "@/lib/wavlake";
 import { useWavlakeTrending } from "@/hooks/useWavlakeTrending";
 import { playFrom, setPlaylist, toggleTrack, useTrackPlayer } from "@/lib/audioPlayer";
-import { TrackCard, WavlakeSongCard } from "@/components/search/cards";
+import { PodcastIndexSongCard, TrackCard, WavlakeSongCard } from "@/components/search/cards";
+import { CATEGORY_ICON, type PodcastMusician, type PodcastSong } from "@/lib/dlists";
 import { FacetChip, FacetRow } from "@/components/search/sections";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -27,7 +33,7 @@ import { useTierRing } from "@/components/score/VerificationCoin";
 import { getDisplayLabel, type SearchResult } from "@/lib/profileSearch";
 import { compactCount } from "@/lib/compactCount";
 import { nameMatchScore } from "@/lib/nameMatch";
-import { profileHrefOf, wavlakeArtistHref, wavlakeSongHref } from "@/lib/upNext";
+import { podcastIndexHref, profileHrefOf, wavlakeArtistHref, wavlakeSongHref } from "@/lib/upNext";
 import { eventPath } from "@/lib/shareId";
 import audioDefault from "@/assets/audio-default.webp";
 
@@ -46,10 +52,13 @@ export function MusicResults({
   wavlake,
   scoreOf,
   onOpenProfile,
+  podcastIndex,
 }: {
   hits: SearchHit[];
   query: string;
   wavlake: { artists: WavlakeArtist[]; albums: WavlakeAlbum[]; songs: WavlakeSong[]; loading: boolean };
+  /** The V4V lists, already narrowed by the words. */
+  podcastIndex: { songs: PodcastSong[]; musicians: PodcastMusician[]; loading: boolean };
   scoreOf: (pubkey: string) => number | null | undefined;
   onOpenProfile: (result: SearchResult) => void;
 }) {
@@ -79,8 +88,9 @@ export function MusicResults({
   const queue = useMemo(() => {
     const native = shownTracks.map((t) => ({ id: t.track.id, src: t.track.audio, title: t.track.title, artist: t.track.artist ?? (t.hit.author ? getDisplayLabel(t.hit.author) : undefined), cover: t.track.cover, href: eventPath(t.hit.event), artistHref: t.hit.author ? `/p/${t.hit.author.npub}` : undefined, artistPubkey: t.hit.event.pubkey }));
     const remote = (browsing ? trending.songs : wavlake.songs).map((s) => ({ id: s.id, src: s.audio, title: s.title, artist: s.artist, cover: s.cover, href: wavlakeSongHref(s), artistHref: profileHrefOf(s.artistNpub) }));
-    return browsing ? [...remote, ...native] : [...native, ...remote];
-  }, [browsing, shownTracks, trending.songs, wavlake.songs]);
+    const pi = podcastIndex.songs.map((s) => ({ id: s.id, src: s.audio, title: s.title, artist: s.artist || undefined, cover: s.cover, href: podcastIndexHref(s.artist || s.title) }));
+    return browsing ? [...remote, ...native, ...pi] : [...native, ...remote, ...pi];
+  }, [browsing, shownTracks, trending.songs, wavlake.songs, podcastIndex.songs]);
   useEffect(() => {
     setPlaylist(queue);
   }, [queue]);
@@ -132,7 +142,7 @@ export function MusicResults({
     return null;
   }, [browsing, query, wavlake.artists, wavlake.songs, authors, shownTracks, scoreOf]);
 
-  const songCount = shownTracks.length + (browsing ? 0 : wavlake.songs.length);
+  const songCount = shownTracks.length + (browsing ? 0 : wavlake.songs.length + podcastIndex.songs.length);
 
   return (
     <div data-testid="music-results">
@@ -169,12 +179,30 @@ export function MusicResults({
               </Rows>
             </MusicSection>
           )}
+          {podcastIndex.songs.length > 0 && (
+            <MusicSection title="V4V Songs" hint="Podcast Index" icon={CATEGORY_ICON.music} testId="music-podcastindex-songs" action={<PlayAll onClick={() => playFrom(podcastIndex.songs[0].id)} />}>
+              <Rows>
+                {podcastIndex.songs.map((song) => (
+                  <PodcastIndexSongCard key={song.id} song={song} flat />
+                ))}
+              </Rows>
+            </MusicSection>
+          )}
+          {podcastIndex.musicians.length > 0 && (
+            <MusicSection title="V4V Musicians" hint="Podcast Index" icon={CATEGORY_ICON.music} testId="music-podcastindex-musicians">
+              <FacetRow testId="music-podcastindex-musicians-strip" className="gap-4 pb-2">
+                {podcastIndex.musicians.map((m) => (
+                  <ArtistFace key={m.id} name={m.name} image={m.artwork} score={null} sub="Podcast Index" href={podcastIndexHref(m.name)} testId={`music-artist-podcastindex-${m.id}`} />
+                ))}
+              </FacetRow>
+            </MusicSection>
+          )}
         </>
       ) : (
         <>
           {top && <TopResult {...top} onOpenProfile={onOpenProfile} />}
           {songCount > 0 && (
-            <MusicSection title="Songs" count={songCount} testId="music-songs" action={<PlayAll onClick={() => playFrom(queue[0]?.id)} />}>
+            <MusicSection title="Songs" count={songCount} icon={CATEGORY_ICON.music} testId="music-songs" action={<PlayAll onClick={() => playFrom(queue[0]?.id)} />}>
               <Rows>
                 {shownTracks.map((t) => (
                   <TrackCard key={t.hit.event.id} event={t.hit.event} author={t.hit.author} score={scoreOf(t.hit.event.pubkey)} flat />
@@ -182,17 +210,23 @@ export function MusicResults({
                 {wavlake.songs.map((song) => (
                   <WavlakeSongCard key={song.id} song={song} flat />
                 ))}
+                {podcastIndex.songs.map((song) => (
+                  <PodcastIndexSongCard key={song.id} song={song} flat />
+                ))}
               </Rows>
             </MusicSection>
           )}
-          {(authors.length > 0 || wavlake.artists.length > 0) && (
-            <MusicSection title="Artists" testId="music-artists">
+          {(authors.length > 0 || wavlake.artists.length > 0 || podcastIndex.musicians.length > 0) && (
+            <MusicSection title="Artists" icon={CATEGORY_ICON.music} testId="music-artists">
               <FacetRow testId="music-artists-strip" className="gap-4 pb-2">
                 {authors.map((a) => (
                   <ArtistFace key={a.author.pubkey} name={getDisplayLabel(a.author)} image={a.author.picture} score={scoreOf(a.author.pubkey) ?? null} sub={`${a.count} ${a.count === 1 ? "song" : "songs"}`} onClick={() => onOpenProfile(a.author)} testId={`music-artist-${a.author.pubkey.slice(0, 8)}`} />
                 ))}
                 {wavlake.artists.map((a) => (
                   <ArtistFace key={a.id} name={a.name} image={a.artworkUrl} score={null} sub="Wavlake" href={wavlakeArtistHref(a)} testId={`music-artist-wavlake-${a.id}`} />
+                ))}
+                {podcastIndex.musicians.map((m) => (
+                  <ArtistFace key={m.id} name={m.name} image={m.artwork} score={null} sub="Podcast Index" href={podcastIndexHref(m.name)} testId={`music-artist-podcastindex-${m.id}`} />
                 ))}
               </FacetRow>
             </MusicSection>
@@ -216,11 +250,11 @@ export function MusicResults({
   );
 }
 
-function MusicSection({ title, hint, count, action, testId, children }: { title: string; hint?: string; count?: number; action?: React.ReactNode; testId: string; children: React.ReactNode }) {
+function MusicSection({ title, hint, count, icon, action, testId, children }: { title: string; hint?: string; count?: number; icon?: React.ComponentType<{ className?: string }>; action?: React.ReactNode; testId: string; children: React.ReactNode }) {
   return (
     <section className="mt-5 first:mt-0" data-testid={testId}>
       <div className="mb-2 flex items-center gap-2">
-        <SectionHeader variant="title" kicker={title} className="shrink-0" />
+        <SectionHeader variant="title" kicker={title} icon={icon} className="shrink-0" />
         {count != null && <span className="text-sm text-slate-400 dark:text-slate-500">{count}</span>}
         {hint && <span className="truncate text-xs text-slate-400 dark:text-slate-500">{hint}</span>}
         <span className="flex-1" />

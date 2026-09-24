@@ -1,6 +1,7 @@
 import { parseTrack } from "@/lib/trackEvent";
 import { formatListingPrice, parseListing } from "@/lib/listing";
 import type { WavlakeSong } from "@/lib/wavlake";
+import type { PodcastSong } from "@/lib/dlists";
 import { useEffect, useState } from "react";
 /**
  * Typed result cards for the verticals with no existing precedent —
@@ -24,7 +25,7 @@ import { eventStore } from "@/lib/eventStore";
 import { fetchProfileMap } from "@/services/nostr";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { brandForHost } from "@/lib/brands";
-import { profileHrefOf, wavlakeSongHref } from "@/lib/upNext";
+import { podcastIndexHref, profileHrefOf, wavlakeSongHref } from "@/lib/upNext";
 import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitItemLabel, gitLabelsOf, type GitState } from "@/lib/gitStatus";
 import { compactCount } from "@/lib/compactCount";
 import { ago } from "@/lib/ago";
@@ -1271,6 +1272,32 @@ export function WavlakeSongCard({ song, flat }: { song: WavlakeSong; flat?: bool
         onOpen={() => navigate(here)}
         pageUrl={here}
         artistHref={profileHrefOf(song.artistNpub)}
+        flat={flat}
+      />
+    </div>
+  );
+}
+
+/**
+ * A song from the V4V Songs list (Podcast Index) — the same row as a native
+ * track, the source named, the title opening the artist's music here.
+ */
+export function PodcastIndexSongCard({ song, flat }: { song: PodcastSong; flat?: boolean }) {
+  const [, navigate] = useLocation();
+  const here = podcastIndexHref(song.artist || song.title);
+  return (
+    <div data-testid={`podcastindex-song-${song.id}`}>
+      <EmbeddedTrackCard
+        id={song.id}
+        title={song.title}
+        artist={song.artist || undefined}
+        cover={song.cover}
+        audio={song.audio}
+        durationSec={song.durationSec}
+        sourceLabel="Podcast Index"
+        sourceHost="podcastindex.org"
+        onOpen={() => navigate(here)}
+        pageUrl={here}
         flat={flat}
       />
     </div>

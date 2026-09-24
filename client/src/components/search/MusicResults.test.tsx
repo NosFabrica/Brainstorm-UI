@@ -1,0 +1,98 @@
+// @vitest-environment jsdom
+/**
+ * The Music tab with its third source: the team's V4V Songs and V4V
+ * Musicians lists from Podcast Index (2026-09-24), beside native tracks and
+ * Wavlake, under the Music icon. Songs are rows that play and join the
+ * queue; musicians are faces that open their music here.
+ */
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { fireEvent, render, screen, within } from "@testing-library/react";
+import type { PodcastMusician, PodcastSong } from "@/lib/dlists";
+import type { SearchHit } from "@/services/search";
+
+vi.mock("@/lib/wavlake", async (original) => ({ ...(await original<Record<string, unknown>>()), fetchWavlakeTrending: async () => [] }));
+vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => null }));
+
+import { MusicResults } from "./MusicResults";
+import { peekNext, playerSnapshot, setPlaylist } from "@/lib/audioPlayer";
+
+const song = (n: number, title: string): PodcastSong => ({
+  id: `podcastindex:${String(n).padEnd(64, "0")}`, eventId: String(n).padEnd(64, "0"), title, artist: "Torcon 7",
+  audio: `https://mp3s.podcastindex.org/${n}.mp3`, cover: "https://feeds.podcastindex.org/torcon7cover.jpg", durationSec: 316,
+  url: "https://podcastindex.org/podcast/4148683#4", source: "podcastindex",
+});
+const torcon: PodcastMusician = { id: `podcastindex:${"9".repeat(64)}`, name: "Torcon 7", artwork: "https://feeds.podcastindex.org/torcon7cover.jpg", url: "https://podcastindex.org/podcast/4148683", source: "podcastindex" };
+const NOVA = "d".repeat(64);
+const nativeHit: SearchHit = {
+  event: { id: "t1".padEnd(64, "0"), kind: 31337, pubkey: NOVA, created_at: 1_727_000_000, sig: "", content: "", tags: [["d", "old-carbon"], ["title", "Old Carbon"], ["artist", "NOVA"], ["media", "https://renaissancemachine.ai/music/old-carbon.mp3"], ["duration", "214"]] },
+  author: null,
+  rank: null,
+};
+const noWavlake = { artists: [], albums: [], songs: [], loading: false };
+const open = (props: Partial<Parameters<typeof MusicResults>[0]> = {}) =>
+  render(<MusicResults hits={[]} query="" wavlake={noWavlake} podcastIndex={{ songs: [], musicians: [], loading: false }} scoreOf={() => null} onOpenProfile={vi.fn()} {...props} />);
+
+beforeEach(() => {
+  vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
+  vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
+  setPlaylist([]);
+});
+afterEach(() => vi.restoreAllMocks());
+
+describe("MusicResults — the V4V lists while browsing", () => {
+  it("lists the V4V songs as playable rows that name Podcast Index as their source", () => {
+    open({ podcastIndex: { songs: [song(1, "Step Into the Light")], musicians: [], loading: false } });
+    const section = screen.getByTestId("music-podcastindex-songs");
+    expect(section).toHaveTextContent("V4V Songs");
+    expect(section).toHaveTextContent("Podcast Index");
+    const row = within(section).getByTestId(`podcastindex-song-${song(1, "").id}`);
+    expect(row).toHaveTextContent("Step Into the Light");
+    expect(row).toHaveTextContent("Torcon 7");
+    expect(within(row).getByTestId("track-source")).toHaveAttribute("title", "Podcast Index");
+    expect(within(row).getByTestId("track-play")).toHaveAttribute("aria-label", "Play");
+  });
+
+  it("shows the V4V musicians as faces that open their music here", () => {
+    open({ podcastIndex: { songs: [], musicians: [torcon], loading: false } });
+    const section = screen.getByTestId("music-podcastindex-musicians");
+    expect(section).toHaveTextContent("V4V Musicians");
+    const face = within(section).getByTestId(`music-artist-podcastindex-${torcon.id}`);
+    expect(face).toHaveTextContent("Torcon 7");
+    expect(face).toHaveTextContent("Podcast Index");
+    expect(face).toHaveAttribute("href", "/?q=Torcon%207&t=music");
+  });
+
+  it("wears the Music icon on its sections", () => {
+    open({ podcastIndex: { songs: [song(1, "Step Into the Light")], musicians: [torcon], loading: false } });
+    expect(screen.getByTestId("music-podcastindex-songs").querySelector("svg.lucide-music")).not.toBeNull();
+    expect(screen.getByTestId("music-podcastindex-musicians").querySelector("svg.lucide-music")).not.toBeNull();
+  });
+
+  it("the songs join the play queue after the native tracks, and Play starts one", () => {
+    const [a, b] = [song(1, "Step Into the Light"), song(2, "Kingsfall")];
+    open({ hits: [nativeHit], podcastIndex: { songs: [a, b], musicians: [], loading: false } });
+    expect(peekNext(nativeHit.event.id)?.id).toBe(a.id);
+    expect(peekNext(a.id)?.id).toBe(b.id);
+    fireEvent.click(within(screen.getByTestId(`podcastindex-song-${a.id}`)).getByTestId("track-play"));
+    expect(playerSnapshot().currentId).toBe(a.id);
+  });
+
+  it("nothing from the lists is nothing on the page", () => {
+    open();
+    expect(screen.queryByTestId("music-podcastindex-songs")).toBeNull();
+    expect(screen.queryByTestId("music-podcastindex-musicians")).toBeNull();
+  });
+});
+
+describe("MusicResults — the V4V lists with words", () => {
+  it("the matching songs sit in Songs after Wavlake's, the musicians in Artists", () => {
+    const wavlakeSong = { id: "wavlake:w1", title: "Gold", artist: "Torcon 7", audio: "https://wavlake.example/w1.mp3", source: "wavlake" as const };
+    open({ query: "torcon", wavlake: { ...noWavlake, songs: [wavlakeSong as never] }, podcastIndex: { songs: [song(1, "Step Into the Light")], musicians: [torcon], loading: false } });
+    const songs = screen.getByTestId("music-songs");
+    const order = [...songs.querySelectorAll('[data-testid^="wavlake-song-"], [data-testid^="podcastindex-song-"]')].map((el) => el.getAttribute("data-testid"));
+    expect(order).toEqual(["wavlake-song-wavlake:w1", `podcastindex-song-${song(1, "").id}`]);
+    expect(songs).toHaveTextContent("2");
+    expect(within(screen.getByTestId("music-artists")).getByTestId(`music-artist-podcastindex-${torcon.id}`)).toBeInTheDocument();
+    expect(screen.getByTestId("music-songs").querySelector("svg.lucide-music")).not.toBeNull();
+  });
+});
