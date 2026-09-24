@@ -76,6 +76,10 @@ const author = (pubkey: string, name: string) => ({
 });
 // Wavlake as the second music source: nothing unless a test says otherwise.
 const wavlakeSearchMock = vi.fn<(term: string) => Promise<import("@/lib/wavlake").WavlakeSong[]>>(() => Promise.resolve([]));
+// The V4V lists from Podcast Index (the team, 2026-09-24): the Listen row's third source, with words.
+const podcastIndexMock = vi.fn(async () => ({ songs: [] as unknown[], musicians: [] as unknown[] }));
+vi.mock("@/services/dlists", () => ({ fetchPodcastIndexMusic: () => podcastIndexMock() }));
+
 vi.mock("@/lib/wavlake", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/wavlake")>()),
   searchWavlakeTracks: (term: string) => wavlakeSearchMock(term),
@@ -871,6 +875,21 @@ describe("ComposedResults", () => {
     expect(within(card).getByTestId("track-play")).toBeInTheDocument();
     fireEvent.click(within(section).getByTestId("serp-more-listen"));
     expect(onTabChange).toHaveBeenCalledWith("music");
+  });
+
+  it("the Listen row carries up to three value-for-value songs that answer the words, after Wavlake's", async () => {
+    wavlakeSearchMock.mockResolvedValue([
+      { id: "wavlake:04cead49", title: "Two Ships", artist: "Ainsley Costello", audio: "https://cdn/two-ships.mp3", durationSec: 217, url: "https://wavlake.com/track/04cead49", source: "wavlake", artistNpub: "" },
+    ]);
+    const pi = (n: number, title: string) => ({ id: `podcastindex:${n}`, eventId: String(n), title, artist: "Ainsley Costello", audio: `https://cdn/${n}.mp3`, source: "podcastindex" });
+    podcastIndexMock.mockResolvedValue({ songs: [pi(1, "Cherry on Top"), pi(2, "Lover's Curse"), pi(3, "Dear Silence"), pi(4, "Fourth"), { ...pi(5, "Unrelated"), artist: "Someone Else" }], musicians: [] });
+    render(<ComposedResults query="Ainsley Costello" pov="nosfabrica" onTabChange={vi.fn()} />);
+    sectionCall("music").emit({ hits: [], eose: true, timeMs: 80 });
+    const section = await screen.findByTestId("serp-section-listen");
+    await within(section).findByTestId("podcastindex-song-podcastindex:1");
+    const order = [...section.querySelectorAll('[data-testid^="wavlake-song-"], [data-testid^="podcastindex-song-"]')].map((el) => el.getAttribute("data-testid"));
+    expect(order).toEqual(["wavlake-song-wavlake:04cead49", "podcastindex-song-podcastindex:1", "podcastindex-song-podcastindex:2", "podcastindex-song-podcastindex:3"]);
+    expect(within(section).getByTestId("podcastindex-song-podcastindex:1")).toHaveTextContent("Podcast Index");
   });
 
   it("shows no Listen row when nothing on the relay is a song", async () => {
