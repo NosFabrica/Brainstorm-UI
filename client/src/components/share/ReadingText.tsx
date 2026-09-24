@@ -23,7 +23,7 @@ import { toNoteBlocks, parseInlineMarkdown, type InlineSpan, type NestedList } f
 import { decodeNostrEntity } from "@/lib/noteRefs";
 import { READER_KINDS } from "@/lib/shareId";
 import { nip19 } from "nostr-tools";
-import { htmlToText, looksLikeHtml } from "@/lib/htmlText";
+import { normalizeMarkup } from "@/lib/htmlText";
 import { MentionChip } from "@/components/share/MentionChip";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { GH_REF_RE, splitProse } from "@/components/share/NotesInline";
@@ -142,15 +142,21 @@ function addressKind(bech32: string): number | null {
   }
 }
 
-/** A link for an address with no reader here (a track, a listing…), or null
- *  for articles, wiki pages and specs, which open on /a/. It goes where the
- *  author linked (a fanfares.io unlock page) and njump only when they wrote
- *  a bare entity. */
+/** What an address names, for its link: "📄 article", "↗ track". */
+export function addressLabel(bech32: string): string {
+  const kind = addressKind(bech32);
+  if (kind === null || READER_KINDS.has(kind)) return "📄 article";
+  const label = kindTypeLabel(kind);
+  return `↗ ${label.startsWith("Kind ") ? "linked post" : label.toLowerCase()}`;
+}
+
+/** The author's own link around a non-article address (a fanfares.io unlock
+ *  page) — kept, not swapped for ours. Null otherwise: a bare address, or an
+ *  article's, opens on /e/, which renders every kind. */
 export function addressLink(bech32: string, key: string | number, url?: string): ReactNode | null {
   const kind = addressKind(bech32);
-  if (kind === null || READER_KINDS.has(kind)) return null;
-  const label = kindTypeLabel(kind);
-  return <ReadingLink key={key} url={url ?? `https://njump.me/${bech32}`} label={`↗ ${label.startsWith("Kind ") ? "linked post" : label.toLowerCase()}`} />;
+  if (!url || kind === null || READER_KINDS.has(kind)) return null;
+  return <ReadingLink key={key} url={url} label={addressLabel(bech32)} />;
 }
 
 export function ReadingText({
@@ -160,6 +166,9 @@ export function ReadingText({
   size = "body",
   headline = size === "post",
   renderToken,
+  media = false,
+  embed,
+  normalized = false,
   after,
   className = "",
   testId,
@@ -174,6 +183,14 @@ export function ReadingText({
   headline?: boolean;
   /** Richer rendering for non-text tokens; text runs still go through here. */
   renderToken?: (token: NoteToken, key: string) => ReactNode;
+  /** Show pictures and videos in place (an article body), not as links (a
+   *  description under a hero that shows its own media). */
+  media?: boolean;
+  /** A caller's own rendering for some tokens (the article reader's video
+   *  embeds and link chips); `undefined` leaves the token to the default. */
+  embed?: (token: NoteToken, key: string) => ReactNode | undefined;
+  /** `text` is already cleaned (normalizeMarkup): don't clean it twice. */
+  normalized?: boolean;
   /** Rendered inside the column after the text (a link card). */
   after?: ReactNode;
   className?: string;
@@ -183,7 +200,7 @@ export function ReadingText({
   const [, navigate] = useLocation();
   // Parsed once per text, not per render: the event page re-renders as its
   // author, trust and reference queries land.
-  const plain = useMemo(() => (given ? undefined : text && looksLikeHtml(text) ? htmlToText(text) : text || ""), [given, text]);
+  const plain = useMemo(() => (given ? undefined : normalized ? text || "" : normalizeMarkup(text || "")), [given, text, normalized]);
   const tokens = useMemo(() => given ?? parseNoteContent(plain ?? ""), [given, plain]);
   const blocks = useMemo(() => toNoteBlocks(tokens, { headline, source: source ?? plain }), [tokens, headline, source, plain]);
   // Inline emphasis per text run, kept with the blocks it belongs to.
@@ -198,9 +215,13 @@ export function ReadingText({
 
   const quiet = (t: NoteToken, key: string): ReactNode => {
     switch (t.type) {
-      case "url":
       case "image":
+        if (media) return <img key={key} src={t.value} alt="" loading="lazy" className="my-3 block max-h-[34rem] w-full rounded-xl border border-slate-200 dark:border-slate-800 object-contain" />;
+        return <ReadingLink key={key} url={t.value} />;
       case "video":
+        if (media) return <video key={key} src={t.value} controls playsInline preload="metadata" className="my-3 block w-full rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-900" />;
+        return <ReadingLink key={key} url={t.value} />;
+      case "url":
       case "audio":
       case "live":
         return <ReadingLink key={key} url={t.value} />;
@@ -218,8 +239,8 @@ export function ReadingText({
         const other = address ? addressLink(t.bech32, key, t.url) : null;
         if (other) return other;
         return (
-          <button key={key} type="button" onClick={() => navigate(`/${address ? "a" : "e"}/${t.bech32}`)} className="font-medium text-brand-link hover:underline">
-            {address ? "📄 article" : "↳ quoted note"}
+          <button key={key} type="button" onClick={() => navigate(`/e/${t.bech32}`)} className="font-medium text-brand-link hover:underline">
+            {address ? addressLabel(t.bech32) : "↳ quoted note"}
           </button>
         );
       }
@@ -231,7 +252,9 @@ export function ReadingText({
     ts.map((t, j) => {
       const k = `${key}.${j}`;
       if (t.type === "text") return <span key={k}>{renderSpans(spansOf(t), k, !renderToken)}</span>;
-      return renderToken ? renderToken(t, k) : quiet(t, k);
+      if (renderToken) return renderToken(t, k);
+      const own = embed?.(t, k);
+      return own === undefined ? quiet(t, k) : own;
     });
   const [h1, h2, h3] = HEADING[size];
   const list = (b: NestedList, k: string, nested?: (NestedList | undefined)[], inner = false): ReactNode => {
@@ -272,6 +295,29 @@ export function ReadingText({
             const fit = cols ? { fontSize: `clamp(7px, calc((100cqw - 2rem) / ${(cols * 0.6).toFixed(1)}), 0.8em)` } : undefined;
             return <pre key={k} dir="ltr" style={fit} className="overflow-x-auto rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 font-mono text-[0.8em] leading-relaxed text-slate-800 dark:text-slate-100"><code>{b.text}</code></pre>;
           }
+          case "table":
+            return (
+              <div key={k} className="overflow-x-auto" dir="auto">
+                <table className="w-full border-collapse text-[0.9em] leading-snug">
+                  <thead>
+                    <tr>
+                      {b.head.map((c, j) => (
+                        <th key={j} style={{ textAlign: b.align[j] }} className="border-b-2 border-slate-200 dark:border-slate-700 px-3 py-2 text-start font-semibold text-slate-900 dark:text-white">{inline(c, `${k}.h${j}`)}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {b.rows.map((r, ri) => (
+                      <tr key={ri} className="border-b border-slate-100 dark:border-slate-800">
+                        {b.head.map((_, j) => (
+                          <td key={j} style={{ textAlign: b.align[j] }} className="px-3 py-2 align-top">{r[j] ? inline(r[j], `${k}.${ri}.${j}`) : null}</td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            );
           case "caption":
             return <p key={k} dir="auto" className="note-caption whitespace-pre-wrap text-[0.8em] leading-snug text-slate-500 dark:text-slate-400">{inline(b.tokens, k)}</p>;
           case "hr":
