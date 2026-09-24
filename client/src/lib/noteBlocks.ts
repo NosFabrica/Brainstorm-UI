@@ -6,6 +6,11 @@
  * — `#`/`##`/`###` headings, `-`/`*`/`1.` lists, `>` quotes, ``` fences and
  * `---` rules — nothing that would misfire on ordinary chat text.
  *
+ * Then a prose pass for text that never used markdown at all — RSS bridges
+ * posting whole news articles are the common case: one paragraph per line,
+ * the headline on top, a photo with its caption and credit, and short
+ * unpunctuated lines as section heads. See `refineProse`.
+ *
  * Inline emphasis (`**bold**`, `*italic*`, `` `code` ``) is a separate pass
  * over text runs: see `parseInlineMarkdown`.
  */
@@ -17,6 +22,7 @@ export type NoteBlock =
   | { type: "ul" | "ol"; items: NoteToken[][]; start?: number }
   | { type: "quote"; tokens: NoteToken[] }
   | { type: "code"; text: string }
+  | { type: "caption"; tokens: NoteToken[] }
   | { type: "hr" };
 
 type Line = NoteToken[];
@@ -27,6 +33,10 @@ const ORDERED = /^[ \t]*(\d{1,3})[.)][ \t]+/;
 const QUOTE = /^>(?:[ \t]+|$)/;
 const RULE = /^[ \t]*(?:-{3,}|\*{3,}|_{3,})[ \t]*$/;
 const FENCE = /^[ \t]*```/;
+/** A line this long is prose, not a verse or a list someone typed by hand. */
+const PROSE_LINE = 100;
+/** Ends like a sentence (or a clause), closing quotes/brackets allowed. */
+const ENDS_SENTENCE = /[.!?…:;,]["”'’»)\]]*\s*$/;
 
 /** The token stream cut at every newline inside text runs. */
 function splitLines(tokens: NoteToken[]): Line[] {
@@ -92,7 +102,11 @@ export function toNoteBlocks(tokens: NoteToken[]): NoteBlock[] {
   let list: { type: "ul" | "ol"; items: Line[]; start?: number } | null = null;
 
   const flush = () => {
-    if (para.length) blocks.push({ type: "p", tokens: joinLines(para) });
+    // Lines of prose each end a paragraph: a bridge that writes one
+    // paragraph per line never leaves the blank line between them.
+    if (para.length > 1 && para.some((l) => textLength(l) >= PROSE_LINE)) {
+      for (const l of para) blocks.push({ type: "p", tokens: tidy(l) });
+    } else if (para.length) blocks.push({ type: "p", tokens: joinLines(para) });
     if (quote.length) blocks.push({ type: "quote", tokens: joinLines(quote) });
     if (list) blocks.push(list.type === "ol" && list.start !== undefined && list.start !== 1 ? list : { type: list.type, items: list.items });
     para = [];
@@ -162,7 +176,75 @@ export function toNoteBlocks(tokens: NoteToken[]): NoteBlock[] {
     para.push(line);
   }
   flush();
-  return blocks;
+  return refineProse(blocks, textLength(tokens));
+}
+
+function textLength(ts: NoteToken[]): number {
+  return ts.reduce((n, t) => n + (t.type === "text" ? t.value.trim().length : 0), 0);
+}
+
+/** A prose line's text runs with the typing noise out: edge space trimmed,
+ *  doubled spaces single. */
+function tidy(line: Line): Line {
+  const out = line.map((t) => (t.type === "text" ? { ...t, value: t.value.replace(/[ \t]{2,}/g, " ") } : t));
+  const first = out[0];
+  if (first?.type === "text") out[0] = { ...first, value: first.value.trimStart() };
+  const last = out[out.length - 1];
+  if (last?.type === "text") out[out.length - 1] = { ...last, value: last.value.trimEnd() };
+  return out.filter((t) => t.type !== "text" || t.value);
+}
+
+/** The block's text when it is one line of nothing but text. */
+function soleLine(b: NoteBlock | undefined): string | null {
+  if (!b || b.type !== "p" || !b.tokens.every((t) => t.type === "text")) return null;
+  const s = b.tokens.map((t) => (t as { value: string }).value).join("").trim();
+  return s && !s.includes("\n") ? s : null;
+}
+
+function isImageOnly(b: NoteBlock | undefined): boolean {
+  return !!b && b.type === "p" && b.tokens.some((t) => t.type === "image") &&
+    b.tokens.every((t) => t.type === "image" || (t.type === "text" && !t.value.trim()));
+}
+
+/**
+ * Structure for unmarked prose, read from the shape of lines alone. Only
+ * short, unpunctuated single lines are ever promoted, and only where the
+ * surroundings agree — a headline needs a long note under it, a caption
+ * needs a picture above it, a section head needs a paragraph after it — so
+ * a chatty note never grows headings.
+ */
+export function refineProse(blocks: NoteBlock[], totalLength: number): NoteBlock[] {
+  const out: NoteBlock[] = [];
+  let captions = 0;
+  blocks.forEach((b, i) => {
+    const s = soleLine(b);
+    const tokens = b.type === "p" ? b.tokens : [];
+    const prev = out[out.length - 1];
+    const afterPicture = isImageOnly(prev) || (prev?.type === "caption" && captions < 2);
+    if (s !== null && !ENDS_SENTENCE.test(s)) {
+      if (i === 0 && totalLength > 600 && s.length <= 140 && blocks.length >= 3) {
+        out.push({ type: "h", level: 1, tokens });
+        return;
+      }
+      if (afterPicture && s.length <= 220) {
+        captions++;
+        out.push({ type: "caption", tokens });
+        return;
+      }
+      const next = blocks[i + 1];
+      if (
+        s.length <= 70 && /^[\p{L}'"“‘]/u.test(s) &&
+        prev?.type === "p" && !isImageOnly(prev) &&
+        next?.type === "p" && textLength(next.tokens) >= PROSE_LINE
+      ) {
+        out.push({ type: "h", level: 3, tokens });
+        return;
+      }
+    }
+    if (!afterPicture) captions = 0;
+    out.push(b);
+  });
+  return out;
 }
 
 export type InlineSpan =

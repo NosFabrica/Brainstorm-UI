@@ -699,7 +699,8 @@ input:-webkit-autofill {
   .note-reading > :is(h2, h3, h4):not(:first-child) {
     margin-top: 1.4em;
   }
-  .note-reading > :is(h2, h3, h4) + * {
+  .note-reading > :is(h2, h3, h4) + *,
+  .note-reading > .note-caption {
     margin-top: 0.5em;
   }
 }

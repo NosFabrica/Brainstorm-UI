@@ -38,6 +38,41 @@ describe("toNoteBlocks", () => {
   });
 });
 
+describe("prose pass (unmarked articles, e.g. RSS bridges)", () => {
+  const para = (n: number) => "Lorem ipsum dolor sit amet, consectetur adipiscing elit. ".repeat(n).trim();
+  const article = [
+    "Headline without a full stop",
+    "",
+    "https://cdn.example/photo.jpg",
+    "",
+    "     Caption of the photo, no period",
+    "Photo credit",
+    para(5),
+    para(2),
+    "Section head",
+    para(5),
+    "Short line.",
+  ].join("\n");
+
+  it("gives each prose line its own paragraph and reads headline, caption and section head", () => {
+    const b = toNoteBlocks(parseNoteContent(article));
+    expect(b.map((x) => (x.type === "h" ? `h${x.level}` : x.type))).toEqual(["h1", "p", "caption", "caption", "p", "p", "h3", "p", "p"]);
+    // Leading indent and doubled spaces don't survive into the caption.
+    expect(texts((b[2] as { tokens: never[] }).tokens)).toBe("Caption of the photo, no period");
+  });
+
+  it("leaves short chatty notes alone", () => {
+    const b = blocks("gm\nwhat are we building today\nsomething fun");
+    expect(b).toHaveLength(1);
+    expect(b[0].type).toBe("p");
+  });
+
+  it("does not promote a sentence to a section head", () => {
+    const b = blocks([para(2), "This one ends properly.", para(2)].join("\n"));
+    expect(b.every((x) => x.type === "p")).toBe(true);
+  });
+});
+
 describe("parseInlineMarkdown", () => {
   it("parses strong, em and code", () => {
     expect(parseInlineMarkdown("a **b** *c* `d`")).toEqual([
