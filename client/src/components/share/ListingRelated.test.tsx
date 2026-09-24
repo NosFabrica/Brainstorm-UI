@@ -6,7 +6,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
-import type { NostrEvent } from "nostr-tools";
+import { nip19, type NostrEvent } from "nostr-tools";
 
 const recentMock = vi.fn<(pubkey: string, kinds: number[], limit: number) => Promise<NostrEvent[]>>();
 const profileMapMock = vi.fn<(pks: string[]) => Promise<Map<string, Record<string, unknown>>>>();
@@ -72,6 +72,25 @@ describe("ListingRelated", () => {
     const row = await screen.findByTestId("listing-more-from-seller");
     expect(row).toHaveTextContent("Tallow cream");
     expect(row).not.toHaveTextContent("Hidden copy");
+  });
+
+  // Four is a teaser; the seller's page has everything. The heading says how
+  // many and leads there — only when there is more than the row shows.
+  it("the row's heading leads to everything the seller has, counted, when there is more than four", async () => {
+    recentMock.mockResolvedValue([SELF, ...["a", "b", "c", "d", "e", "f"].map((d, i) => listing(SELLER, d, `Product ${d}`, 2000 + i))]);
+    render(<ListingRelated event={SELF} sellerName="Born To Be Free" />);
+    const row = await screen.findByTestId("listing-more-from-seller");
+    expect(within(row).getAllByTestId(/^listing-card-/)).toHaveLength(4);
+    const all = within(row).getByTestId("listing-seller-all");
+    expect(all).toHaveTextContent("See all 6");
+    expect(all.getAttribute("href")).toBe(`/p/${nip19.npubEncode(SELLER)}/selling`);
+  });
+
+  it("four or fewer products need no door — the row is everything", async () => {
+    recentMock.mockResolvedValue([SELF, listing(SELLER, "a", "Product a", 2000), listing(SELLER, "b", "Product b", 2001)]);
+    render(<ListingRelated event={SELF} sellerName="Born To Be Free" />);
+    const row = await screen.findByTestId("listing-more-from-seller");
+    expect(within(row).queryByTestId("listing-seller-all")).toBeNull();
   });
 
   it("offers similar listings from other sellers, named, asked for by this listing's categories", async () => {

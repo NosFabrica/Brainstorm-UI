@@ -26,6 +26,8 @@ const sellable = (evs: NostrEvent[]) =>
  */
 export function ListingRelated({ event, sellerName }: { event: ListingLike; sellerName?: string }) {
   const [mine, setMine] = useState<ProductCard<NostrEvent>[]>([]);
+  // Everything the seller has, counted, for the row's door to their page.
+  const [mineTotal, setMineTotal] = useState(0);
   const [options, setOptions] = useState<{ id: string; pubkey: string; label: string }[]>([]);
   const [similar, setSimilar] = useState<NostrEvent[]>([]);
   const [sellers, setSellers] = useState<Map<string, SearchResult>>(new Map());
@@ -48,7 +50,9 @@ export function ListingRelated({ event, sellerName }: { event: ListingLike; sell
           .filter((m) => !isThis(m))
           .map((m) => ({ id: m.id, pubkey: m.pubkey, label: splitVariantTitle(m.title).option ?? m.title })),
       );
-      setMine(products.filter((p) => p !== own).slice(0, 4));
+      const others = products.filter((p) => p !== own);
+      setMineTotal(others.length);
+      setMine(others.slice(0, 4));
     });
     // The listing's categories as the seller wrote them AND lower-cased — the
     // relay's tag filter is exact, marketplaces are not. App identifiers
@@ -100,7 +104,15 @@ export function ListingRelated({ event, sellerName }: { event: ListingLike; sell
       )}
       {mine.length > 0 && (
         <section data-testid="listing-more-from-seller">
-          <h2 className="mb-3 text-sm font-bold text-slate-900 dark:text-slate-100">More for sale from {sellerName || "this seller"}</h2>
+          <div className="mb-3 flex items-baseline gap-3">
+            <h2 className="text-sm font-bold text-slate-900 dark:text-slate-100">More for sale from {sellerName || "this seller"}</h2>
+            {/* Four is a teaser; the seller's page has everything. */}
+            {mineTotal > mine.length && (
+              <Link href={`/p/${nip19.npubEncode(event.pubkey)}/selling`} className="ml-auto shrink-0 text-xs font-semibold text-brand-link hover:underline" data-testid="listing-seller-all">
+                See all {mineTotal} →
+              </Link>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {mine.map(({ event: ev, group }) => (
               <ListingCard key={group.id} event={ev} author={null} showAuthor={false} group={{ title: group.title, options: group.options.length }} />
