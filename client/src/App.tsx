@@ -73,6 +73,7 @@ const ProfilePage = lazyWithReload(() => import("@/pages/ProfilePage"));
 const ReadingPage = lazyWithReload(() => import("@/pages/ReadingPage"));
 const RoadmapPage = lazyWithReload(() => import("@/pages/RoadmapPage"));
 const SellingPage = lazyWithReload(() => import("@/pages/SellingPage"));
+const SupportPage = lazyWithReload(() => import("@/pages/SupportPage"));
 const SettingsRoute = lazyWithReload(() => import("@/pages/SettingsPage").then((m) => ({ default: m.SettingsRoute })));
 const TagIndexPage = lazyWithReload(() => import("@/pages/TagIndexPage"));
 const TagPage = lazyWithReload(() => import("@/pages/TagPage"));
@@ -214,6 +215,7 @@ function Router() {
         <Route path="/alerts">{() => <RequireAuth component={AlertsPage} />}</Route>
         <Route path="/reading">{() => <RequireAuth component={ReadingPage} />}</Route>
         <Route path="/insights">{() => <RequireAuth component={InsightsPage} />}</Route>
+        <Route path="/support">{() => <RequireAuth component={SupportPage} />}</Route>
         <Route path="/search" component={SearchRedirect} />
         {/* Deprecated for users — see ProfileRoute. /p/:id is THE profile page. */}
         <Route path="/profile/:npub">{() => <RequireAuth component={ProfileRoute} />}</Route>
