@@ -7,6 +7,7 @@
  */
 import { useEffect, useState } from "react";
 import { KindPill } from "@/components/ui/kind-pill";
+import { ViaRelay } from "@/components/ui/via-relay";
 import { noteTitle } from "@/lib/noteTitle";
 import { fetchUnfurl } from "@/services/unfurl";
 import { isVideoFileUrl, youtubeThumbnail } from "@/lib/linkThumb";
@@ -358,6 +359,7 @@ function ArticleAuthor({ hit, score, light = false }: { hit: SearchHit; score?: 
       <span className="truncate">{hit.author ? getDisplayLabel(hit.author) : "Unknown"}</span>
       <span className="shrink-0 opacity-80">· {ago(hit.event.created_at)}</span>
       <KindPill event={hit.event} />
+      <ViaRelay event={hit.event} />
     </span>
   );
 }

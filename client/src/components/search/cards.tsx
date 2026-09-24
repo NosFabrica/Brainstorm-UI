@@ -27,6 +27,7 @@ import { brandForHost } from "@/lib/brands";
 import { profileHrefOf, wavlakeSongHref } from "@/lib/upNext";
 import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitLabelsOf, type GitState } from "@/lib/gitStatus";
 import { KindPill } from "@/components/ui/kind-pill";
+import { ViaRelay } from "@/components/ui/via-relay";
 import { kindTypeLabel } from "@/lib/kindLabel";
 import { compactCount } from "@/lib/compactCount";
 import { ago } from "@/lib/ago";
@@ -332,7 +333,7 @@ export function MediaCard({ event, author, score }: { event: NostrEvent; author:
       className="relative w-full cursor-pointer rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/70 dark:bg-slate-900/70 hover:bg-white dark:hover:bg-slate-900 hover:border-slate-200 dark:hover:border-slate-800 hover:shadow-sm transition-all duration-150 p-3 sm:p-4 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40"
       data-testid={`media-card-${event.id}`}
     >
-      <AuthorRow author={author} score={score} created_at={event.created_at} trailing={<KindPill event={event} mixed={false} />} />
+      <AuthorRow author={author} score={score} created_at={event.created_at} trailing={<><KindPill event={event} mixed={false} /><ViaRelay event={event} /></>} />
       {caption && (
         <p className="mt-1.5 text-sm text-slate-700 dark:text-slate-200 break-words line-clamp-2">
           {caption.split(/(nostr:n(?:pub|profile)1[02-9ac-hj-np-z]+)/gi).map((part, i) =>
@@ -1224,7 +1225,7 @@ export function ListCard({
             </div>
           ) : (
             <div className="mt-1.5">
-              <AuthorRow author={author} score={score} created_at={event.created_at} trailing={<KindPill event={event} mixed={false} />} />
+              <AuthorRow author={author} score={score} created_at={event.created_at} trailing={<><KindPill event={event} mixed={false} /><ViaRelay event={event} /></>} />
             </div>
           )}
         </div>
@@ -1367,7 +1368,7 @@ export function ListingCard({
       )}
       {showAuthor && (
         <div className="mt-2">
-          <AuthorRow author={author} score={score} created_at={event.created_at} trailing={<KindPill event={event} mixed={false} />} />
+          <AuthorRow author={author} score={score} created_at={event.created_at} trailing={<><KindPill event={event} mixed={false} /><ViaRelay event={event} /></>} />
         </div>
       )}
     </CardShell>

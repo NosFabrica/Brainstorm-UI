@@ -1,6 +1,7 @@
 import { Chip, type ChipProps } from "@/components/ui/chip";
 import { kindLabel, type KindEvent } from "@/lib/kindLabel";
 import { technicalView } from "@/lib/technicalView";
+import { nipForKind } from "@/lib/kindNip";
 
 // KindPill — the pill that says what a thing is: Spec, Article, Listing, App …
 // on every content card, row and tile (the team, 2026-09-24: a spec from Nostr
@@ -25,9 +26,15 @@ export function KindPill({ event, label, mixed = true, tone = "slate", size = "s
   if (!everywhere && !(mixed && event?.kind === 30817)) return null;
   const text = label ?? (event && event.kind !== 0 ? kindLabel(event) : undefined);
   if (!text) return null;
+  // The technical view nerds it out, quietly: the number rides the word, and
+  // hovering names the NIP that defines the kind — for the kinds fiatjaf's
+  // repo defines; a hub spec's kind gets none, and none is invented.
+  const nerd = everywhere && event;
+  const nip = nerd ? nipForKind(event.kind) : undefined;
   return (
-    <Chip tone={tone} size={size} className={`shrink-0 ${className ?? ""}`} data-testid="kind-pill" {...rest}>
+    <Chip tone={tone} size={size} className={`shrink-0 ${className ?? ""}`} data-testid="kind-pill" title={nerd ? `kind ${event.kind}${nip ? ` · ${nip}` : ""}` : undefined} {...rest}>
       {text}
+      {nerd && <span className="font-mono font-normal opacity-70"> · {event.kind}</span>}
     </Chip>
   );
 }

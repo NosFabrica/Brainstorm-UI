@@ -13,6 +13,7 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { stubVisibleIntersectionObserver } from "@/test/visibleIntersectionObserver";
 import type { NostrEvent } from "nostr-tools";
 import { SerpRow } from "./SerpRow";
+import { addSeenRelay } from "applesauce-core/helpers/relays";
 
 vi.mock("@/hooks/useAuthorScores", () => ({
   useAuthorScores: () => () => 0.7,
@@ -133,6 +134,24 @@ describe("SerpRow — link metadata", () => {
       render(<SerpRow event={ev} author={author} score={0.7} query="" />);
       expect(screen.getByTestId(`serp-row-${ev.id}`)).toHaveTextContent(label);
     }
+  });
+
+  // The technical view's most useful line: which relay served this event —
+  // for anyone asking "why can't others see my post". applesauce records
+  // the relays an event was seen on; the byline names the first, quietly.
+  it("with the technical view on, the byline says which relay served the event", () => {
+    setTechnicalView(true);
+    const ev = note("served");
+    addSeenRelay(ev, "wss://nos.lol/");
+    render(<SerpRow event={ev} author={author} score={0.7} query="" />);
+    expect(screen.getByTestId("via-relay")).toHaveTextContent(/^via nos\.lol$/);
+  });
+
+  it("off, no relay is named", () => {
+    const ev = note("served");
+    addSeenRelay(ev, "wss://nos.lol/");
+    render(<SerpRow event={ev} author={author} score={0.7} query="" />);
+    expect(screen.queryByTestId("via-relay")).toBeNull();
   });
 
   // A kind the row has no treatment for is named by number, never "Post";

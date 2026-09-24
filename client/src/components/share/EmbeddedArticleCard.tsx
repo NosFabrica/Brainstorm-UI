@@ -19,6 +19,7 @@ import type { MinimalEvent } from "@/lib/noteRefs";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { specKindTags } from "@/lib/kindLabel";
 import { KindPill } from "@/components/ui/kind-pill";
+import { ViaRelay } from "@/components/ui/via-relay";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -152,6 +153,7 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
             <span className="font-medium text-slate-600 dark:text-slate-300 truncate">{name}</span>
             {nip05Verified && <BadgeCheck className="h-3 w-3 text-sky-500 shrink-0" />}
             {event.created_at ? <span className="text-slate-400 dark:text-slate-500 ml-auto shrink-0">{ago(event.created_at)}</span> : null}
+            <ViaRelay event={event} />
           </div>
 
           {/* Read the full article on Brainstorm's on-site reader. */}

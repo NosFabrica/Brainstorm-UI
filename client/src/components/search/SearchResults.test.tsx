@@ -1357,7 +1357,7 @@ describe("SearchResults", () => {
     const listing = ev("kl1", 30402, "5".repeat(64), "A mug", [["d", "kl1"], ["title", "Handmade mug"], ["price", "20", "USD"], ["status", "active"]]);
     emit({ hits: [{ event: listing, author: author(listing.pubkey, "potter"), rank: null }], eose: true, timeMs: 100 });
     const card = await screen.findByTestId("listing-card-kl1");
-    expect(within(card).getByTestId("kind-pill")).toHaveTextContent(/^Listing$/);
+    expect(within(card).getByTestId("kind-pill")).toHaveTextContent(/^Listing · 30402$/);
     setTechnicalView(false);
   });
 

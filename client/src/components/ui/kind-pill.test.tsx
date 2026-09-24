@@ -58,7 +58,26 @@ describe("KindPill", () => {
   it("shows everywhere once the reader turned that on", () => {
     setTechnicalView(true);
     render(<KindPill event={ev(30402)} mixed={false} />);
-    expect(screen.getByTestId("kind-pill")).toHaveTextContent(/^Listing$/);
+    expect(screen.getByTestId("kind-pill")).toHaveTextContent(/^Listing · 30402$/);
+  });
+
+  // The technical view nerds it out, quietly: the kind's number rides the
+  // word, and hovering names the NIP that defines the kind — for kinds
+  // fiatjaf's repo defines. A Nostr Hub spec's kind has none, and none is invented.
+  it("with the technical view on, carries the kind's number and names its NIP on hover", () => {
+    setTechnicalView(true);
+    render(<><KindPill event={ev(30402)} mixed={false} /><KindPill event={ev(30817)} /></>);
+    const [listing, spec] = screen.getAllByTestId("kind-pill");
+    expect(listing).toHaveTextContent(/^Listing · 30402$/);
+    expect(listing.getAttribute("title")).toBe("kind 30402 · NIP-99");
+    expect(spec).toHaveTextContent(/^Spec · 30817$/);
+    expect(spec.getAttribute("title")).toBe("kind 30817");
+  });
+
+  it("off, a spec's pill is the word alone", () => {
+    render(<KindPill event={ev(30817)} />);
+    expect(screen.getByTestId("kind-pill")).toHaveTextContent(/^Spec$/);
+    expect(screen.getByTestId("kind-pill").getAttribute("title")).toBeNull();
   });
 
   it("shows nothing signed out, even on a device that holds the flag", () => {
