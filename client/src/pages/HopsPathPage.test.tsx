@@ -56,15 +56,19 @@ describe("the Connection page", () => {
     pathCount = 1;
     open();
     await screen.findByTestId("hops-path");
-    expect(screen.getByTestId("hops-summary")).toHaveTextContent("This is the only connection this direct");
+    expect(screen.getByTestId("hops-degree")).not.toHaveTextContent("ways");
+    expect(screen.queryByTestId("hops-checked")).toBeNull();
     expect(screen.queryByTestId("hops-next")).toBeNull();
-    expect(screen.queryByTestId("hops-group-verified")).toBeNull();
+    expect(screen.queryByTestId("hops-risk-flagged")).toBeNull();
   });
 
-  it("samples a few paths and says honestly how many it checked", async () => {
+  it("samples a few paths and says honestly how many it checked — quietly, under the card", async () => {
     served = [[ME, C1, T], [ME, C2, T], [ME, C3, T], [ME, C1, T]];
+    flags = { [C1]: true };
     open();
-    await waitFor(() => expect(screen.getByTestId("hops-summary")).toHaveTextContent(/We checked 3 of the 19 connections/));
+    await waitFor(() => expect(screen.getByTestId("hops-checked")).toHaveTextContent("Checked 3 of 19 paths"));
+    expect(screen.getByTestId("hops-degree")).toHaveTextContent("through 1 person, 19 different ways");
+    expect(screen.getByTestId("hops-risk-flagged")).toHaveTextContent("1 of the 3 paths we checked runs through a flagged account");
     expect(getShortestPath).toHaveBeenCalledWith({ from: ME, to: T });
   });
 
@@ -73,25 +77,25 @@ describe("the Connection page", () => {
     pathCount = 3;
     extra = { paths: [[ME, C1, T], [ME, C2, T], [ME, C3, T]] };
     open();
-    await waitFor(() => expect(screen.getByTestId("hops-summary")).toHaveTextContent(/All 3 connections/));
+    await waitFor(() => expect(screen.getByTestId("hops-checked")).toHaveTextContent("Checked all 3 paths"));
     expect(getShortestPath).toHaveBeenCalledTimes(1);
   });
 
-  it("counts the groups, leads with the safest path, and says where you are", async () => {
+  it("names the risky paths, leads with the safest, and says where you are — nothing about the clean ones", async () => {
     served = [[ME, C1, T], [ME, C2, T], [ME, C3, T]];
     pathCount = 3;
     flags = { [C1]: true };
     scores = { ...clean, [C3]: 0.01 };
     open();
-    await waitFor(() => expect(screen.getByTestId("hops-group-flagged")).toHaveTextContent("1 flagged"));
-    expect(screen.getByTestId("hops-group-verified")).toHaveTextContent("1 verified");
-    expect(screen.getByTestId("hops-group-unverified")).toHaveTextContent("1 unverified");
+    await waitFor(() => expect(screen.getByTestId("hops-risk-flagged")).toHaveTextContent("1 of the 3 paths runs through a flagged account"));
+    expect(screen.getByTestId("hops-risk-unverified")).toHaveTextContent("1 of the 3 paths runs through an unverified account");
+    expect(screen.queryByTestId("hops-group-verified")).toBeNull();
     // The safest path leads: its connector is C2.
     expect(within(screen.getByTestId("hops-node-1")).getByRole("link", { name: /.+/ }).getAttribute("href")).toBe(`/p/${nip19.npubEncode(C2)}`);
-    expect(screen.getByTestId("hops-next")).toHaveTextContent("Next path · 1 of 3");
+    expect(screen.getByTestId("hops-next")).toHaveTextContent("Path 1 of 3");
   });
 
-  it("tapping a group narrows the page to it: the button presses, its path shows, and Next has nowhere to go", async () => {
+  it("\"Show it\" narrows the page to that path: the link presses, the path shows, and the stepper goes away", async () => {
     served = [[ME, C1, T], [ME, C2, T], [ME, C3, T]];
     pathCount = 3;
     flags = { [C1]: true };
@@ -100,8 +104,8 @@ describe("the Connection page", () => {
     fireEvent.click(screen.getByTestId("hops-group-flagged"));
     expect(screen.getByTestId("hops-group-flagged")).toHaveAttribute("aria-pressed", "true");
     expect(within(screen.getByTestId("hops-node-1")).getByRole("link", { name: /.+/ }).getAttribute("href")).toBe(`/p/${nip19.npubEncode(C1)}`);
-    expect(screen.getByTestId("hops-next")).toHaveTextContent("Next path · 1 of 1");
-    expect(screen.getByTestId("hops-next")).toBeDisabled();
+    expect(screen.getByTestId("hops-group-flagged")).toHaveTextContent("Show all");
+    expect(screen.queryByTestId("hops-next")).toBeNull();
   });
 
   it("stepping wraps around, and tapping the pressed group again widens back to every path", async () => {
@@ -109,19 +113,19 @@ describe("the Connection page", () => {
     pathCount = 3;
     flags = { [C1]: true };
     open();
-    await waitFor(() => expect(screen.getByTestId("hops-next")).toHaveTextContent("1 of 3"));
+    await waitFor(() => expect(screen.getByTestId("hops-next")).toHaveTextContent("Path 1 of 3"));
     fireEvent.click(screen.getByTestId("hops-next"));
-    expect(screen.getByTestId("hops-next")).toHaveTextContent("Next path · 2 of 3");
+    expect(screen.getByTestId("hops-next")).toHaveTextContent("Path 2 of 3");
     fireEvent.click(screen.getByTestId("hops-next"));
-    expect(screen.getByTestId("hops-next")).toHaveTextContent("Next path · 3 of 3");
+    expect(screen.getByTestId("hops-next")).toHaveTextContent("Path 3 of 3");
     // The flagged path is last in the safest-first order.
     expect(within(screen.getByTestId("hops-node-1")).getByRole("link", { name: /.+/ }).getAttribute("href")).toBe(`/p/${nip19.npubEncode(C1)}`);
     fireEvent.click(screen.getByTestId("hops-next"));
-    expect(screen.getByTestId("hops-next")).toHaveTextContent("Next path · 1 of 3");
+    expect(screen.getByTestId("hops-next")).toHaveTextContent("Path 1 of 3");
     fireEvent.click(screen.getByTestId("hops-group-flagged"));
     fireEvent.click(screen.getByTestId("hops-group-flagged"));
     expect(screen.getByTestId("hops-group-flagged")).toHaveAttribute("aria-pressed", "false");
-    expect(screen.getByTestId("hops-next")).toHaveTextContent("Next path · 1 of 3");
+    expect(screen.getByTestId("hops-next")).toHaveTextContent("Path 1 of 3");
   });
 
   it("marks the connectors on the shown path — Flagged, Unverified — and never the target", async () => {
@@ -162,14 +166,14 @@ describe("the Connection page", () => {
     scores = {};
     const { rerender } = open();
     await screen.findByTestId("hops-path");
-    expect(screen.getByTestId("hops-summary")).toHaveTextContent("Checking who's on these paths");
+    expect(screen.getByTestId("hops-checked")).toHaveTextContent("Checking who's on these paths");
     expect(screen.queryByTestId("hops-next")).toBeNull();
     scores = { ...clean };
     flags = { [C1]: true };
     rerender(<HopsPathPage />);
-    await waitFor(() => expect(screen.getByTestId("hops-group-flagged")).toHaveTextContent("1 flagged"));
-    expect(screen.getByTestId("hops-group-verified")).toHaveTextContent("1 verified");
-    expect(screen.getByTestId("hops-next")).toHaveTextContent("Next path · 1 of 2");
+    await waitFor(() => expect(screen.getByTestId("hops-risk-flagged")).toHaveTextContent("1 of the 2 paths runs through a flagged account"));
+    expect(screen.queryByTestId("hops-risk-unverified")).toBeNull();
+    expect(screen.getByTestId("hops-next")).toHaveTextContent("Path 1 of 2");
   });
 
   it("a tapped group belongs to that connection — a new target opens on every path again", async () => {
@@ -183,10 +187,10 @@ describe("the Connection page", () => {
     open();
     await waitFor(() => expect(screen.getByTestId("hops-group-flagged")).toBeInTheDocument());
     fireEvent.click(screen.getByTestId("hops-group-flagged"));
-    expect(screen.getByTestId("hops-next")).toHaveTextContent("1 of 1");
+    expect(screen.queryByTestId("hops-next")).toBeNull();
     served = [[ME, C1, T2], [ME, C2, T2], [ME, C3, T2]];
     window.history.pushState({}, "", `/p/${nip19.npubEncode(T2)}/hops`);
-    await waitFor(() => expect(screen.getByTestId("hops-next")).toHaveTextContent("Next path · 1 of 3"));
+    await waitFor(() => expect(screen.getByTestId("hops-next")).toHaveTextContent("Path 1 of 3"));
     expect(screen.getByTestId("hops-group-flagged")).toHaveAttribute("aria-pressed", "false");
   });
 });

@@ -1,99 +1,111 @@
 /**
- * The Connection page's line about the set of paths, and the controls: how
- * many paths were checked, how many are verified, unverified or flagged —
- * each count a button that narrows the page to that group — and a Next
- * button that steps through the group in order and says where you are.
- * A visitor who taps nothing sees the safest path and one button.
+ * The Connection page's quiet pieces around the path card. Quiet by default,
+ * loud only for risk (Benjamin, 2026-09-24: "a more subtle, cleaner way"):
+ *
+ * - `PathRiskLine` — one line above the card per kind of risk, only when a
+ *   checked path runs through a flagged or unverified account, with a "Show
+ *   it" link that narrows the page to those paths.
+ * - `PathStepper` — "Path 2 of 7 · Next" in the card's corner, only when
+ *   there is more than one path to step through.
+ * - `PathFootnote` — "Checked 7 of 130 paths." under the card, muted: the
+ *   honest count of what was judged, out of the reader's way.
+ *
+ * A visitor to a clean connection sees the sentence, the card and the
+ * stepper, nothing else.
  */
-import { ChevronRight, Loader2 } from "lucide-react";
-import { Chip } from "@/components/ui/chip";
-import type { PathGroups, PathRisk } from "@/lib/hopsPaths";
+import { ChevronRight, Loader2, ShieldAlert } from "lucide-react";
+import { Alert } from "@/components/ui/alert";
+import type { PathRisk } from "@/lib/hopsPaths";
 
 export type PathGroupKey = Exclude<PathRisk, "checking">;
 
-const GROUPS: { key: PathGroupKey; word: string; tone: "slate" | "warning" | "danger" }[] = [
-  { key: "verified", word: "verified", tone: "slate" },
-  { key: "unverified", word: "unverified", tone: "warning" },
-  { key: "flagged", word: "flagged", tone: "danger" },
-];
+export function PathRiskLine({
+  kind,
+  count,
+  checked,
+  complete,
+  pressed,
+  onToggle,
+}: {
+  kind: "flagged" | "unverified";
+  count: number;
+  /** Distinct paths judged so far. */
+  checked: number;
+  /** Every path is in hand, so "the N paths" needs no "we checked". */
+  complete: boolean;
+  pressed: boolean;
+  onToggle: () => void;
+}) {
+  if (count === 0) return null;
+  const one = count === 1;
+  const account = kind === "flagged" ? (one ? "a flagged account" : "flagged accounts") : (one ? "an unverified account" : "unverified accounts");
+  return (
+    <Alert
+      variant={kind === "flagged" ? "destructive" : "warning"}
+      className="mt-4 py-2.5 pl-3 pr-3 text-sm [&>svg]:left-3 [&>svg]:top-3 [&>svg~*]:pl-6"
+      data-testid={`hops-risk-${kind}`}
+    >
+      <ShieldAlert className="h-4 w-4" />
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <span>
+          <span className="font-semibold">{count}</span> of the {checked} paths{complete ? "" : " we checked"} {one ? "runs" : "run"} through {account}
+        </span>
+        <button
+          type="button"
+          aria-pressed={pressed}
+          onClick={onToggle}
+          className="font-semibold underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-current/40 rounded"
+          data-testid={`hops-group-${kind}`}
+        >
+          {pressed ? "Show all" : one ? "Show it" : "Show them"}
+        </button>
+      </div>
+    </Alert>
+  );
+}
 
-export function PathSummary({
+export function PathStepper({ position, total, onNext }: { position: number; total: number; onNext: () => void }) {
+  if (total <= 1) return null;
+  return (
+    <button
+      type="button"
+      onClick={onNext}
+      className="inline-flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 rounded"
+      title="Show the next path"
+      data-testid="hops-next"
+    >
+      <span className="tabular-nums">Path {position} of {total}</span>
+      <span aria-hidden>·</span>
+      <span className="font-semibold text-brand-link">Next</span>
+      <ChevronRight className="h-3.5 w-3.5 text-brand-link" />
+    </button>
+  );
+}
+
+export function PathFootnote({
   pathCount,
   pathCountCapped,
   checked,
   complete,
   checking,
-  groups,
-  selected,
-  onSelect,
-  position,
-  total,
-  onNext,
-  busy,
 }: {
   pathCount: number;
   pathCountCapped: boolean;
   checked: number;
   complete: boolean;
-  /** Signals still landing — the counts are not yet worth saying. */
   checking: boolean;
-  groups: PathGroups;
-  selected: PathGroupKey | null;
-  onSelect: (group: PathGroupKey | null) => void;
-  /** 1-based, within the current list. */
-  position: number;
-  total: number;
-  onNext: () => void;
-  busy: boolean;
 }) {
+  if (pathCount <= 1) return null;
   const countWord = `${pathCount.toLocaleString()}${pathCountCapped ? "+" : ""}`;
   return (
-    <div className="mt-5" data-testid="hops-summary">
-      <p className="text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">
-        {pathCount <= 1 ? (
-          <>This is the only connection this direct:</>
-        ) : checking ? (
-          <span className="inline-flex items-center gap-1.5"><Loader2 className="h-3.5 w-3.5 animate-spin" /> Checking who's on these paths…</span>
-        ) : complete ? (
-          <>All <span className="font-semibold text-slate-900 dark:text-slate-100">{countWord}</span> connections this direct:</>
-        ) : (
-          <>We checked <span className="font-semibold text-slate-900 dark:text-slate-100">{checked}</span> of the <span className="font-semibold text-slate-900 dark:text-slate-100">{countWord}</span> connections this direct:</>
-        )}
-      </p>
-      {pathCount > 1 && !checking && (
-        <div className="mt-2 flex flex-wrap items-center gap-2">
-          {GROUPS.filter((g) => groups[g.key].length > 0).map((g) => {
-            const pressed = selected === g.key;
-            return (
-              <button
-                key={g.key}
-                type="button"
-                aria-pressed={pressed}
-                onClick={() => onSelect(pressed ? null : g.key)}
-                className={`rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-accent/40 ${pressed ? "ring-2 ring-brand-accent/60" : ""}`}
-                data-testid={`hops-group-${g.key}`}
-                title={pressed ? "Show every path" : `Show only the ${g.word} paths`}
-              >
-                <Chip tone={g.tone} size="md">{groups[g.key].length} {g.word}</Chip>
-              </button>
-            );
-          })}
-        </div>
+    <p className="mt-2 px-1 text-xs text-slate-400 dark:text-slate-500 tabular-nums" data-testid="hops-checked">
+      {checking ? (
+        <span className="inline-flex items-center gap-1.5"><Loader2 className="h-3 w-3 animate-spin" /> Checking who's on these paths…</span>
+      ) : complete ? (
+        <>Checked all {countWord} paths.</>
+      ) : (
+        <>Checked {checked} of {countWord} paths.</>
       )}
-      {pathCount > 1 && !checking && (
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <button
-            type="button"
-            onClick={onNext}
-            disabled={total <= 1}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-3.5 h-10 text-sm font-semibold text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-            data-testid="hops-next"
-          >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />}
-            Next path · {position} of {total}
-          </button>
-        </div>
-      )}
-    </div>
+    </p>
   );
 }

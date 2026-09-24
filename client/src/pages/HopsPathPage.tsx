@@ -26,7 +26,7 @@ import { usePathSet } from "@/hooks/usePathSet";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { useAuthorFlags } from "@/hooks/useAuthorFlags";
 import { classifyPath, groupPaths, nodeRisk, orderedPaths } from "@/lib/hopsPaths";
-import { PathSummary, type PathGroupKey } from "@/components/hops/PathSummary";
+import { PathFootnote, PathRiskLine, PathStepper, type PathGroupKey } from "@/components/hops/PathSummary";
 import { Chip } from "@/components/ui/chip";
 
 function shortNpub(npub: string): string {
@@ -95,6 +95,10 @@ export default function HopsPathPage() {
   // Nothing judged yet → the probe path, unmarked, while the signals land.
   const shown: string[] = list.length ? list[pick.pos % list.length] : (set.paths[0] ?? []);
   const checked = groups.verified.length + groups.unverified.length + groups.flagged.length;
+  // "…through 1 person, 130 different ways." — the count rides on the sentence.
+  const ways = d && d.pathCount > 1
+    ? <>, <span className="font-semibold">{d.pathCount.toLocaleString()}{d.pathCountCapped ? "+" : ""}</span> different ways.</>
+    : ".";
 
   const subjectQuery = useQuery({
     queryKey: ["share-profile", toPubkey],
@@ -246,38 +250,46 @@ export default function HopsPathPage() {
           </p>
         ) : (
           <>
-            <p className="mt-3 text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed">
+            <p className="mt-3 text-[15px] text-slate-600 dark:text-slate-300 leading-relaxed" data-testid="hops-degree">
               <span className="font-semibold text-slate-900 dark:text-slate-100">{ordinal(d.hops)} degree</span> —{" "}
               {d.hops === 1 ? (
                 originPov === "personalized" ? <>you follow {subjectName} directly.</> : <>Brainstorm follows {subjectName} directly.</>
               ) : originPov === "personalized" ? (
-                <>you're connected to {subjectName} through <span className="font-semibold">{d.hops - 1}</span> {d.hops - 1 === 1 ? "person" : "people"}.</>
+                <>you're connected to {subjectName} through <span className="font-semibold">{d.hops - 1}</span> {d.hops - 1 === 1 ? "person" : "people"}{ways}</>
               ) : (
-                <>Brainstorm reaches {subjectName} through <span className="font-semibold">{d.hops - 1}</span> {d.hops - 1 === 1 ? "person" : "people"}.</>
+                <>Brainstorm reaches {subjectName} through <span className="font-semibold">{d.hops - 1}</span> {d.hops - 1 === 1 ? "person" : "people"}{ways}</>
               )}
             </p>
 
-            <PathSummary
-              pathCount={d.pathCount}
-              pathCountCapped={d.pathCountCapped}
-              checked={checked}
-              complete={set.complete}
-              checking={list.length === 0}
-              groups={groups}
-              selected={pick.group}
-              onSelect={(group) => setPicked({ of: connection, group, pos: 0 })}
-              position={list.length ? (pick.pos % list.length) + 1 : 1}
-              total={list.length}
-              onNext={() => setPicked({ of: connection, group: pick.group, pos: pick.pos + 1 })}
-              busy={set.sampling}
-            />
+            {/* Loud only for risk: a line per kind, and only when there is one. */}
+            {(["flagged", "unverified"] as const).map((kind) => (
+              <PathRiskLine
+                key={kind}
+                kind={kind}
+                count={groups[kind].length}
+                checked={checked}
+                complete={set.complete}
+                pressed={pick.group === kind}
+                onToggle={() => setPicked({ of: connection, group: pick.group === kind ? null : kind, pos: 0 })}
+              />
+            ))}
 
             {/* The path — each node links to their profile. The weak-link explanation
                 lives INSIDE the weak-link card (progressive disclosure), not up here. */}
             {/* The route — one connected timeline. A rail threads through the avatars
                 so it reads as a single path (you → them), not a stack of cards. Uniform
                 across mobile / desktop / PWA — no breakpoint reflow. */}
-            <ol className="mt-4 rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-3 sm:p-4 shadow-sm" data-testid="hops-path">
+            <div className="mt-4 rounded-2xl border border-slate-100 dark:border-slate-800/60 bg-white dark:bg-slate-900 p-3 sm:p-4 shadow-sm">
+              {list.length > 1 && (
+                <div className="flex justify-end mb-1 -mt-1">
+                  <PathStepper
+                    position={(pick.pos % list.length) + 1}
+                    total={list.length}
+                    onNext={() => setPicked({ of: connection, group: pick.group, pos: pick.pos + 1 })}
+                  />
+                </div>
+              )}
+            <ol data-testid="hops-path">
               {shown.map((pk, i) => {
                 const p = profs?.get(pk);
                 const npub = npubFromPubkey(pk);
@@ -415,6 +427,14 @@ export default function HopsPathPage() {
                 );
               })}
             </ol>
+            </div>
+            <PathFootnote
+              pathCount={d.pathCount}
+              pathCountCapped={d.pathCountCapped}
+              checked={checked}
+              complete={set.complete}
+              checking={list.length === 0}
+            />
 
           </>
         )}
