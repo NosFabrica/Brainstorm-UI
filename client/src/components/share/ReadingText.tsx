@@ -167,6 +167,7 @@ export function ReadingText({
   headline = size === "post",
   renderToken,
   media = false,
+  embed,
   normalized = false,
   after,
   className = "",
@@ -185,6 +186,9 @@ export function ReadingText({
   /** Show pictures and videos in place (an article body), not as links (a
    *  description under a hero that shows its own media). */
   media?: boolean;
+  /** A caller's own rendering for some tokens (the article reader's video
+   *  embeds and link chips); `undefined` leaves the token to the default. */
+  embed?: (token: NoteToken, key: string) => ReactNode | undefined;
   /** `text` is already cleaned (normalizeMarkup): don't clean it twice. */
   normalized?: boolean;
   /** Rendered inside the column after the text (a link card). */
@@ -248,7 +252,9 @@ export function ReadingText({
     ts.map((t, j) => {
       const k = `${key}.${j}`;
       if (t.type === "text") return <span key={k}>{renderSpans(spansOf(t), k, !renderToken)}</span>;
-      return renderToken ? renderToken(t, k) : quiet(t, k);
+      if (renderToken) return renderToken(t, k);
+      const own = embed?.(t, k);
+      return own === undefined ? quiet(t, k) : own;
     });
   const [h1, h2, h3] = HEADING[size];
   const list = (b: NestedList, k: string, nested?: (NestedList | undefined)[], inner = false): ReactNode => {

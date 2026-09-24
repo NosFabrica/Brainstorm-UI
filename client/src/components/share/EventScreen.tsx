@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
+import { naddrForEvent } from "@/lib/articleLinks";
 import { Smartphone, Loader2, MessageSquare, ArrowRight, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
@@ -146,12 +147,8 @@ export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; 
   // The kind decides, before any of the event layout's own queries run.
   if (note && READER_KINDS.has(note.kind)) {
     const d = note.tags.find((t) => t[0] === "d")?.[1] ?? "";
-    let naddr = "";
-    try {
-      naddr = nip19.naddrEncode({ identifier: d, pubkey: note.pubkey, kind: note.kind, relays: relayHints.slice(0, 4) });
-    } catch {
-      /* an address that won't encode: the event layout still shows it */
-    }
+    // An address that won't encode: the event layout still shows it.
+    const naddr = naddrForEvent(note, relayHints);
     if (naddr) return <ArticleScreen ev={note as ArticleEvent} naddr={naddr} ptr={{ kind: note.kind, pubkey: note.pubkey, identifier: d, relays: relayHints }} />;
   }
   return <EventView ptr={ptr} note={note} loading={eventQuery.isLoading} />;
@@ -268,6 +265,9 @@ function EventView({ ptr, note, loading }: { ptr: EventPointer | null; note: Min
   // client. The URL may have carried a bare id or a note1 — a real nevent
   // is what to copy and what the web apps want.
   const nevent = ptr ? neventFor(ptr.id, relayHints, authorPk || undefined) : "";
+  // An addressable event (a listing, a track) also has its address: the
+  // link that follows its author's edits, not this one version.
+  const naddr = note && note.kind >= 30000 && note.kind < 40000 ? naddrForEvent(note, relayHints) : null;
 
   // When the thread's anon signup gate is showing, suppress the page's own
   // (now-duplicate) "Who can you trust online?" funnel.
@@ -363,6 +363,7 @@ function EventView({ ptr, note, loading }: { ptr: EventPointer | null; note: Min
                 <EntityMenu
                   entity={{ kind: "event", eventKind: note.kind, bech32: nevent, uri: openInApp }}
                   copies={[
+                    ...(naddr ? [{ id: "naddr", label: "Copy naddr", value: naddr, hint: "Its address: always the latest version" }] : []),
                     { id: "nevent", label: "Copy nevent", value: nevent, hint: "The note's id plus where to find it" },
                     { id: "event-id", label: "Copy event ID", value: ptr.id, hint: "The raw 64-character id" },
                     // The event as fetched from the relay (sig included) — the cast to MinimalEvent is type-only.

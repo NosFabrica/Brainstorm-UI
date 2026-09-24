@@ -192,6 +192,11 @@ describe("the kind and the content decide, not the route", () => {
     expect(body.querySelectorAll(".note-reading > div")).toHaveLength(3);
   });
 
+  it("a plain-text article still plays its YouTube link in place", async () => {
+    await open(event(30023, "yt", "Plain", [], "Watch this first, it explains the whole thing better than I can.\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ\nThen come back and read the rest of the post."));
+    expect(screen.getByTestId("article-body").querySelector('[data-testid="video-embed"]')).not.toBeNull();
+  });
+
   it("an HTML article reads as text instead of disappearing", async () => {
     await open(event(30023, "html", "HTML", [], "<div style='text-align: justify;'>\n<p>Sudoroso, no sabía si dar cuenta.</p><p>Second <b>part</b>.</p></div>"));
     const body = screen.getByTestId("article-body");

@@ -149,3 +149,41 @@ describe("audit of #97 (linear on hostile input)", () => {
     expect(out).not.toContain("hidden");
   });
 });
+
+describe("final audit of #97", () => {
+  it("HTML written inside code spans stays as written", () => {
+    const text = "Comments start with `<!--` in HTML.\nThis line should survive.\n\nAnd so should **this** one </b>.";
+    expect(normalizeMarkup(text)).toContain("This line should survive.");
+    expect(normalizeMarkup(text)).toContain("`<!--`");
+    expect(normalizeMarkup("Use `<ul>` to open and `</ul>` to close, <b>really</b>.")).toBe("Use `<ul>` to open and `</ul>` to close, **really**.");
+  });
+
+  it("a backtick inside a comment is still comment", () => {
+    expect(normalizeMarkup("Keep <!-- a ` tick --> this `code` here</b>")).toBe("Keep  this `code` here**");
+  });
+
+  it("an unclosed comment leaves the text as written", () => {
+    expect(normalizeMarkup("Before <!-- never closed\n\nAfter <b>x</b>")).toContain("After **x**");
+  });
+
+  it("a link around other tags converts, and a badge link is its picture", () => {
+    expect(normalizeMarkup('See <a href="https://x.com/y"><code>abc</code></a>.')).toBe("See [`abc`](https://x.com/y).");
+    expect(normalizeMarkup('Go <a href="https://x.com/y"><b>here</b></a> now')).toBe("Go [**here**](https://x.com/y) now");
+    expect(normalizeMarkup('<a href="https://ci.io"><img src="https://ci.io/badge.svg"></a> ok')).toContain("https://ci.io/badge.svg");
+    expect(normalizeMarkup('<a href="https://ci.io"><img src="https://ci.io/badge.svg"></a> ok')).not.toContain("<a");
+  });
+
+  it("a table keeps its cells' pictures, links and superscripts", () => {
+    const md = normalizeMarkup('<table><tr><th>Before</th><th>Link</th><th>Area</th></tr><tr><td><img src="https://i.com/a.png"></td><td><a href="https://l.com">link</a></td><td>10<sup>6</sup> m<sup>2</sup><sup class="reference"><a href="#n1">[1]</a></sup></td></tr></table>');
+    expect(md).toContain("https://i.com/a.png");
+    expect(md).toContain("[link](https://l.com)");
+    expect(md).toContain("10^6 m^2");
+    expect(md).not.toContain("[1]");
+  });
+
+  it("only a broken wiki template is cut from a cell", () => {
+    const md = normalizeMarkup("<table><tr><th>A</th></tr><tr><td>Use {{name}} as placeholder</td></tr><tr><td>Snow<ref>{{cite web |url=x</ref></td></tr></table>");
+    expect(md).toContain("Use {{name}} as placeholder");
+    expect(md).toMatch(/\| Snow \|/);
+  });
+});

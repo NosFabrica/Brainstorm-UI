@@ -15,11 +15,12 @@ import type { MinimalEvent } from "@/lib/noteRefs";
 export const AMETHYST_PLAY_URL =
   "https://play.google.com/store/apps/details?id=com.vitorpamplona.amethyst";
 
-/** Encode an article event's `naddr` (kind:pubkey:dTag). Returns null on failure. */
-export function naddrForEvent(event: MinimalEvent): string | null {
+/** Encode an addressable event's `naddr` (kind:pubkey:dTag), with up to four
+ *  relay hints. Returns null on failure. */
+export function naddrForEvent(event: MinimalEvent, relays: string[] = []): string | null {
   try {
     const identifier = event.tags.find((t) => t[0] === "d")?.[1] ?? "";
-    return nip19.naddrEncode({ kind: event.kind, pubkey: event.pubkey, identifier });
+    return nip19.naddrEncode({ kind: event.kind, pubkey: event.pubkey, identifier, relays: relays.slice(0, 4) });
   } catch {
     return null;
   }

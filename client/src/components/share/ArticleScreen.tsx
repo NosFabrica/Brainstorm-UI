@@ -1,4 +1,5 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, type ReactNode } from "react";
+import type { NoteToken } from "@/lib/noteContent";
 import { Link, useLocation } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import ReactMarkdown, { type Components } from "react-markdown";
@@ -16,7 +17,7 @@ import { npubFromPubkey } from "@/lib/shareId";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { wikiToMarkdown } from "@/lib/wiki";
 import { prepareArticleBody } from "@/lib/articleBody";
-import { normalizeMarkup, looksLikeHtml } from "@/lib/htmlText";
+import { htmlToText, looksLikeHtml, stripStrayHtml } from "@/lib/htmlText";
 import { ReadingText } from "@/components/share/ReadingText";
 import { Chip } from "@/components/ui/chip";
 import { initialsFor } from "@/lib/profileDefaults";
@@ -83,6 +84,16 @@ const mdComponents: Components = {
     return <a href={url || undefined} target="_blank" rel="noopener" className="font-medium text-brand-link underline decoration-brand-link/40 underline-offset-2 hover:decoration-brand-link">{children}</a>;
   },
 };
+
+/** The markdown reader's embeds, for an article read as text: a YouTube or
+ *  Vimeo link plays in place, a video file preloads by connection, a bare
+ *  link is a chip. Everything else renders as ReadingText's own. */
+function articleEmbed(t: NoteToken, key: string): ReactNode | undefined {
+  if (t.type !== "url" && t.type !== "video") return undefined;
+  if (videoEmbedFor(t.value)) return <VideoEmbed key={key} url={t.value} />;
+  if (t.type === "video") return <ArticleVideo key={key} url={t.value} />;
+  return <LinkChip key={key} url={t.value} />;
+}
 
 /** Written in markdown, not plain text: enough of its syntax to count. */
 export function isMarkdown(text: string): boolean {
@@ -182,8 +193,8 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
   // not be read again as markdown, so it goes to the reading renderer.
   const fromHtml = useMemo(() => looksLikeHtml(source), [source]);
   const prepared = useMemo(
-    () => prepareArticleBody(normalizeMarkup(source), title, { identifier: tag("d") }),
-    [source, title], // eslint-disable-line react-hooks/exhaustive-deps
+    () => prepareArticleBody(fromHtml ? htmlToText(source) : stripStrayHtml(source), title, { identifier: tag("d") }),
+    [source, fromHtml, title], // eslint-disable-line react-hooks/exhaustive-deps
   );
   // The kinds a spec covers: the `k` tags and the front matter, one list, each
   // wearing the name its author gave it — a number alone tells a reader nothing.
@@ -349,7 +360,7 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
               ) : (
                 // Plain text: markdown would fold its single line breaks into
                 // one paragraph; the reading renderer keeps them.
-                <ReadingText text={prepared.body} normalized size="post" headline={false} media className="not-prose" />
+                <ReadingText text={prepared.body} normalized size="post" headline={false} media embed={articleEmbed} className="not-prose" />
               )}
             </div>
 

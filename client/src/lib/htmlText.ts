@@ -65,9 +65,30 @@ function withoutPre(text: string): string {
  *  mirror's `<ref>{{cite web`) dropped, pipes escaped for the markdown row. */
 function cellText(cell: Element): string {
   const c = cell.cloneNode(true) as Element;
-  c.querySelectorAll("a.footnote-ref, sup, ref").forEach((n) => n.remove());
+  c.querySelectorAll("a.footnote-ref, ref").forEach((n) => n.remove());
+  // A footnote mark ([1], a link to a note) goes; a real superscript (m²) stays.
+  c.querySelectorAll("sup").forEach((n) => {
+    const t = (n.textContent || "").trim();
+    if (/reference|footnote/i.test(n.className) || n.querySelector("a") || /^\[.*\]$/.test(t)) n.remove();
+    else n.replaceWith(`^${t}`);
+  });
   c.querySelectorAll("br").forEach((n) => n.replaceWith(" "));
-  return (c.textContent || "").replace(/\{\{[\s\S]*$/, "").replace(/\s+/g, " ").trim().replace(/\|/g, "\\|");
+  // A picture stays in its cell; a link keeps where it goes.
+  c.querySelectorAll("img").forEach((n) => {
+    const src = n.getAttribute("src") || "";
+    n.replaceWith(/^https?:\/\//i.test(src) ? ` ${src} ` : "");
+  });
+  c.querySelectorAll("a[href]").forEach((n) => {
+    const href = n.getAttribute("href") || "";
+    const t = (n.textContent || "").trim();
+    if (/^https?:\/\//i.test(href)) n.replaceWith(t && t !== href ? `[${t}](${href})` : href);
+  });
+  return (c.textContent || "")
+    // A broken wiki template (`{{cite web …`, `{{!}}`) to the cell's end.
+    .replace(/\{\{\s*(?:cite|!|efn|refn|sfn|citation)\b[\s\S]*$/i, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\|/g, "\\|");
 }
 
 /** An HTML table as a GFM table (with its caption as a bold line above) —
@@ -166,20 +187,45 @@ function walk(node: Node, inPre: boolean, depth = 0): string {
   }
 }
 
-/** Comments out, in one pass: an unclosed "<!--" runs to the end, as in HTML. */
-function stripComments(text: string): string {
+/**
+ * Comments out and code spans masked, in one left-to-right pass: whichever
+ * starts first wins, so a `<!--` inside a code span is code and a backtick
+ * inside a comment is comment. A code span closes on its own line; an
+ * unclosed comment is left as written. Masked spans come back via `unmask`.
+ */
+function maskCode(text: string, spans: string[]): string {
+  const lastClose = text.lastIndexOf("-->");
+  const next = /<!--|`+/g;
   let out = "";
   let at = 0;
-  for (;;) {
-    const open = text.indexOf("<!--", at);
-    if (open < 0) return out + text.slice(at);
-    out += text.slice(at, open);
-    const close = text.indexOf("-->", open + 4);
-    if (close < 0) return out;
-    at = close + 3;
+  for (let m = next.exec(text); m; m = next.exec(text)) {
+    if (m[0] === "<!--") {
+      const close = m.index < lastClose ? text.indexOf("-->", m.index + 4) : -1;
+      if (close < 0) continue;
+      out += text.slice(at, m.index);
+      at = next.lastIndex = close + 3;
+      continue;
+    }
+    // The closing run: the same number of backticks, on this line.
+    const eol = text.indexOf("\n", next.lastIndex);
+    const end = eol < 0 ? text.length : eol;
+    const run = new RegExp(`(?<!\`)${m[0]}(?!\`)`, "g");
+    run.lastIndex = next.lastIndex;
+    const close = run.exec(text);
+    if (!close || close.index >= end) continue;
+    out += text.slice(at, m.index) + `\uE000${spans.length}\uE001`;
+    spans.push(text.slice(m.index, run.lastIndex));
+    at = next.lastIndex = run.lastIndex;
   }
+  return out + text.slice(at);
 }
-// Wrappers whose content is the point: the tag goes, the text stays.
+
+function unmask(text: string, spans: string[]): string {
+  return spans.length ? text.replace(/\uE000(\d+)\uE001/g, (_, i: string) => spans[+i] ?? "") : text;
+}
+
+/** Inline wrappers, unwrapped before links so a link around one converts. */
+const INLINE_WRAP = /<\/?(?:span|font|small|big|u|ins|abbr|sub|del|s|strike|mark)\b[^>]*>/gi;
 const UNWRAP = /<\/?(?:details|div|span|center|picture|source|font|small|big|u|ins|abbr|section|article|header|footer|main|figure|figcaption|sub|sup|del|s|strike|mark|dl|dt|dd|colgroup|col|tbody|thead|tfoot)\b[^>]*>/gi;
 /** Real HTML in markdown, not prose that names a tag ("use the <br> tag"):
  *  a comment, a <details>, a picture, or an element that is closed. */
@@ -249,14 +295,19 @@ function inlineTags(text: string): string {
       const row = line.trimStart().startsWith("|");
       return line
         .replace(/<br\s*\/?>/gi, row ? " " : "\n")
+        // A link around a picture (a README badge) is the picture.
+        .replace(/<a\b[^>]*>\s*(<img\b[^>]*>)\s*<\/a>/gi, "$1")
         .replace(/<img\b[^>]*\bsrc=["']?(https?:\/\/[^"'\s>]+)["']?[^>]*>/gi, row ? " $1 " : "\n$1\n")
         .replace(/<img\b[^>]*>/gi, "")
-        .replace(/<a\b[^>]*\bhref=["']?(https?:\/\/[^"'\s>]+)["']?[^>]*>([^<]{0,500}?)<\/a>/gi, (_, u: string, t: string) => (t.trim() && t.trim() !== u ? `[${t.trim()}](${u})` : u))
-        .replace(/<a\b[^>]*>([^<]{0,500}?)<\/a>/gi, "$1")
         .replace(/<(code|kbd)\b[^>]*>([^<]{0,500}?)<\/\1>/gi, "`$2`")
         .replace(/<hr\s*\/?>/gi, row ? "" : "\n\n---\n\n")
         .replace(/<\/?(?:strong|b)\b[^>]*>/gi, "**")
-        .replace(/<\/?(?:em|i)\b[^>]*>/gi, "*");
+        .replace(/<\/?(?:em|i)\b[^>]*>/gi, "*")
+        .replace(/<sup\b[^>]*>([^<]{0,50})<\/sup>/gi, "^$1")
+        .replace(INLINE_WRAP, "")
+        // Links last, so what they wrap (code, bold, a span) is already text.
+        .replace(/<a\b[^>]*\bhref=["']?(https?:\/\/[^"'\s>]+)["']?[^>]*>([^<]{0,500}?)<\/a>/gi, (_, u: string, t: string) => (t.trim() && t.trim() !== u ? `[${t.trim()}](${u})` : u))
+        .replace(/<\/?a\b[^>]*>/gi, "");
     })
     .join("\n")
     .replace(/<summary\b[^>]*>([\s\S]{0,500}?)<\/summary>/gi, (_, t: string) => `\n\n**${t.trim()}**\n\n`)
@@ -282,13 +333,10 @@ export function stripStrayHtml(text: string): string {
   return splitMarkdownCode(text)
     .map((part, i) => {
       if (i % 2 === 1) return part;
-      let t = stripComments(part);
+      const spans: string[] = [];
+      let t = maskCode(part, spans);
       if (parsing) t = replaceBlocks(t, (html) => `\n\n${htmlToText(html)}\n\n`);
-      return t
-        .split(/(`[^`\n]*`)/)
-        .map((piece, k) => (k % 2 === 1 ? piece : inlineTags(piece)))
-        .join("")
-        .replace(/\n{3,}/g, "\n\n");
+      return unmask(inlineTags(t).replace(/\n{3,}/g, "\n\n"), spans);
     })
     .join("\n")
     .replace(/^\n/, text.startsWith("\n") ? "\n" : "");
