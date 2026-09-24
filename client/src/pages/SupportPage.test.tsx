@@ -1,20 +1,26 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
+import { fakeSupport } from "@/test/fakeSupportServer";
 import { adminCloseTicket, adminReply, createTicket, fetchSupport, fetchThread } from "@/services/support";
 import SupportPage from "./SupportPage";
 
-// Peripheral chrome only — the support seam underneath is the REAL mock store,
-// so these tests exercise the same path the browser does.
+// Peripheral chrome only — the support seam underneath is real, talking to an
+// in-memory server that answers in the real wire shapes.
+vi.mock("@/services/api/core", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  adminJson: (path: string, _fallback: string, init?: RequestInit) => fakeSupport.handle(path, init),
+}));
 vi.mock("@/components/AppHeader", () => ({ AppHeader: () => null }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({
   useActiveAccountDisplay: () => ({ pubkey: "a".repeat(64), npub: "npub1lira", displayName: "Lira" }),
 }));
 vi.mock("@/accounts/login-flow", () => ({ logout: vi.fn() }));
 
-describe("SupportPage (through the real mock seam)", () => {
+describe("SupportPage (through the real seam)", () => {
   beforeEach(() => {
     localStorage.clear();
+    fakeSupport.reset();
     // The selected ticket syncs to the URL — reset it between tests.
     window.history.replaceState({}, "", "/support");
   });
@@ -78,7 +84,7 @@ describe("SupportPage (through the real mock seam)", () => {
 
     // Opening the thread is what "seeing it" means.
     fireEvent.click(screen.getByTestId(`ticket-${t.id}`));
-    await screen.findByTestId("support-thread");
+    await screen.findByTestId("message-support");
     fireEvent.click(screen.getByTestId("thread-back"));
 
     await screen.findByTestId(`ticket-${t.id}`);
@@ -117,10 +123,8 @@ describe("SupportPage (through the real mock seam)", () => {
   it("cards lead with the date rail, and sort flips oldest-first", async () => {
     const first = await createTicket({ subject: "First filed", body: "x", category: "other" });
     // Backdate the first ticket so the order is unambiguous.
-    const raw = JSON.parse(localStorage.getItem("brainstorm_mock_support")!);
-    raw.tickets[0].createdAt = "2026-08-20T09:00:00.000Z";
-    raw.tickets[0].lastMessageAt = "2026-08-20T09:00:00.000Z";
-    localStorage.setItem("brainstorm_mock_support", JSON.stringify(raw));
+    fakeSupport.tickets[0].created_at = "2026-08-20T09:00:00";
+    fakeSupport.tickets[0].last_message_at = "2026-08-20T09:00:00";
     await createTicket({ subject: "Second filed", body: "y", category: "other" });
 
     renderWithProviders(<SupportPage />);
@@ -157,7 +161,7 @@ describe("SupportPage (through the real mock seam)", () => {
   });
 
   it("shows the teaser — and no way to file — when the server says not entitled", async () => {
-    localStorage.setItem("brainstorm_mock_support_allowed", "false");
+    fakeSupport.allowed = false;
     renderWithProviders(<SupportPage />);
 
     await screen.findByTestId("support-teaser");
@@ -195,7 +199,7 @@ describe("SupportPage (through the real mock seam)", () => {
     renderWithProviders(<SupportPage />);
 
     await screen.findByTestId("support-thread");
-    expect(screen.getByText("Linked ticket")).toBeInTheDocument();
+    expect(await screen.findByText("Linked ticket")).toBeInTheDocument();
     // Back to the list clears the URL param.
     fireEvent.click(screen.getByTestId("thread-back"));
     expect(window.location.search).not.toContain("ticket=");
@@ -258,9 +262,7 @@ describe("SupportPage (through the real mock seam)", () => {
 
   it("renders an unknown status neutrally — the set is open", async () => {
     const t = await createTicket({ subject: "Weird", body: "?", category: "other" });
-    const raw = JSON.parse(localStorage.getItem("brainstorm_mock_support")!);
-    raw.tickets[0].status = "escalated_to_mars";
-    localStorage.setItem("brainstorm_mock_support", JSON.stringify(raw));
+    fakeSupport.tickets[0].status = "escalated_to_mars";
 
     renderWithProviders(<SupportPage />);
     const row = await screen.findByTestId(`ticket-${t.id}`);

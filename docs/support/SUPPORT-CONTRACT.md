@@ -1,5 +1,9 @@
 # Priority support — UI ↔ server contract (proposal)
 
+> **Historical.** The server shipped (`brainstorm_server` `feat/priority-support`)
+> with its own names and shapes; its `/docs` is the contract now, and
+> `client/src/services/support.ts` maps it onto the UI's types. The mock is gone.
+
 For Enes. The UI (branch `feat/priority-support`, off main) is built and
 tested against a browser-local mock of this contract; the full loop — user
 files a ticket at `/support`, admin replies from `/admin?tab=support`,
@@ -125,6 +129,5 @@ POST /admin/support/tickets/{id}/close      { message? }
 
 ## UI reference
 
-`client/src/services/support.ts` (the seam — mock today, your endpoints
-tomorrow), `client/src/pages/SupportPage.tsx`,
+`client/src/services/support.ts` (the seam), `client/src/pages/SupportPage.tsx`,
 `client/src/components/admin/support/AdminSupportCards.tsx`.

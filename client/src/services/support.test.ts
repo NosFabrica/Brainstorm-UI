@@ -1,7 +1,10 @@
 // @vitest-environment jsdom
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { CALLER, fakeSupport } from "@/test/fakeSupportServer";
 import {
   adminCloseTicket,
+  adminFetchThread,
+  adminListTickets,
   adminReply,
   adminSetCategory,
   createTicket,
@@ -11,9 +14,13 @@ import {
   resolveTicket,
 } from "./support";
 
-/** Mock mode throughout (VITE_FEATURE_SUPPORT_API unset in tests). */
-describe("priority support seam (mock mode)", () => {
-  beforeEach(() => localStorage.clear());
+vi.mock("@/services/api/core", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  adminJson: (path: string, _fallback: string, init?: RequestInit) => fakeSupport.handle(path, init),
+}));
+
+describe("priority support seam (against the fake server)", () => {
+  beforeEach(() => fakeSupport.reset());
 
   it("a paid user files a ticket and finds it in their list", async () => {
     const before = await fetchSupport();
@@ -49,7 +56,6 @@ describe("priority support seam (mock mode)", () => {
     ]);
   });
 
-  // The admin seam writes to the same store, so the whole loop demos locally.
   it("a support reply reaches the user's thread and marks the ticket answered", async () => {
     const t = await createTicket({ subject: "Billing", body: "Charged twice?", category: "other" });
 
@@ -134,8 +140,7 @@ describe("priority support seam (mock mode)", () => {
 
     const thread = await fetchThread(t.id);
     expect(thread.requester.notifyEmail).toBe("ben@practicepilot.ai");
-    // Mock tickets are browser-local (no pubkey); server rows carry one.
-    expect(thread.requester.pubkey).toBeNull();
+    expect(thread.requester.pubkey).toBe(CALLER);
 
     const plain = await createTicket({ subject: "No email", body: "y", category: "other" });
     expect((await fetchThread(plain.id)).requester.notifyEmail).toBeNull();
@@ -166,12 +171,32 @@ describe("priority support seam (mock mode)", () => {
     expect(thread.events.at(-1)).toMatchObject({ type: "recategorized", by: "support" });
   });
 
-  // The server decides entitlement; the mock rehearses a free user via the
-  // same kind of localStorage override billing uses for its empty-plans state.
-  it("lets QA rehearse the free-user teaser with an override", async () => {
-    localStorage.setItem("brainstorm_mock_support_allowed", "false");
+  it("passes the server's no-entitlement answer straight through", async () => {
+    fakeSupport.allowed = false;
     const state = await fetchSupport();
     expect(state.allowed).toBe(false);
-    expect(state.tickets).toEqual([]);
+    await expect(createTicket({ subject: "x", body: "y", category: "other" })).rejects.toThrow(
+      "Support isn't included in your plan.",
+    );
+  });
+
+  // The server's columns are naive UTC; read as local they'd drift by the offset.
+  it("reads the server's naive timestamps as UTC", async () => {
+    const t = fakeSupport.seed({ subject: "Clock", created_at: "2026-08-20T09:00:00.123456" });
+    t.last_message_at = t.created_at;
+    const { tickets } = await fetchSupport();
+    expect(tickets[0].createdAt).toBe("2026-08-20T09:00:00.123Z");
+  });
+
+  // The user endpoint only serves the caller's own tickets; the queue is everyone's.
+  it("the admin reads any requester's thread; the user side can't", async () => {
+    const other = "b".repeat(64);
+    const t = fakeSupport.seed({ subject: "Someone else's", pubkey: other, notify_email: "o@example.com" });
+
+    await expect(fetchThread(String(t.id))).rejects.toThrow("No such ticket.");
+    const thread = await adminFetchThread(String(t.id));
+    expect(thread.requester).toEqual({ pubkey: other, notifyEmail: "o@example.com" });
+    const [row] = await adminListTickets();
+    expect(row).toMatchObject({ id: String(t.id), pubkey: other, notifyEmail: "o@example.com" });
   });
 });

@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { renderWithProviders } from "@/test/utils";
+import { CALLER, fakeSupport } from "@/test/fakeSupportServer";
 import { createTicket, fetchThread } from "@/services/support";
 import { AdminSupportCards } from "./AdminSupportCards";
 
@@ -10,24 +11,25 @@ vi.mock("@/services/nostr", () => ({
   fetchProfileMap: (pubkeys: string[]) => fetchProfileMap(pubkeys),
 }));
 
+vi.mock("@/services/api/core", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  adminJson: (path: string, _fallback: string, init?: RequestInit) => fakeSupport.handle(path, init),
+}));
+
 const PK = "c".repeat(64);
 
-/** The store shape the real server produces: a ticket attributed to a pubkey. */
+/** A ticket from another user, as the queue sees it. */
 function seedTicketWithPubkey(subject: string, pubkey: string, lastMessageAt = new Date().toISOString()) {
-  const raw = JSON.parse(localStorage.getItem("brainstorm_mock_support") ?? '{"tickets":[]}');
-  const id = `tkt_seed_${raw.tickets.length}`;
-  raw.tickets.push({
-    id, subject, category: "scores", status: "open",
-    createdAt: lastMessageAt, lastMessageAt, pubkey,
-    messages: [{ id: `${id}_m`, author: "user", body: "seeded", createdAt: lastMessageAt }],
-  });
-  localStorage.setItem("brainstorm_mock_support", JSON.stringify(raw));
-  return id;
+  const naive = lastMessageAt.replace("Z", "");
+  return String(
+    fakeSupport.seed({ subject, pubkey, category: "scores", created_at: naive, last_message_at: naive }).id,
+  );
 }
 
-describe("AdminSupportCards (same mock store as the user page)", () => {
+describe("AdminSupportCards (against the fake server)", () => {
   beforeEach(() => {
     localStorage.clear();
+    fakeSupport.reset();
     // The open thread syncs to the URL — reset it so tests don't inherit one.
     window.history.replaceState({}, "", "/");
   });
@@ -42,7 +44,7 @@ describe("AdminSupportCards (same mock store as the user page)", () => {
     const userMsg = await screen.findByTestId("admin-message-user");
     expect(userMsg.textContent).toContain("No alerts since Friday.");
 
-    // Reply as support → status answered, and the reply lands in the shared store.
+    // Reply as support → status answered, and the reply reaches the user's thread.
     fireEvent.change(screen.getByTestId("admin-reply-input"), { target: { value: "Fix ships today." } });
     fireEvent.click(screen.getByTestId("admin-reply-send"));
     await waitFor(() => expect(screen.getByTestId("admin-thread-status").textContent).toBe("answered"));
@@ -120,7 +122,7 @@ describe("AdminSupportCards (same mock store as the user page)", () => {
     await screen.findByTestId(`admin-unread-${t.id}`);
 
     fireEvent.click(screen.getByTestId(`admin-ticket-${t.id}`));
-    await screen.findByTestId("admin-support-thread");
+    await screen.findByTestId("admin-message-user");
     fireEvent.click(screen.getByTestId("admin-thread-back"));
 
     await screen.findByTestId(`admin-ticket-${t.id}`);
@@ -152,7 +154,8 @@ describe("AdminSupportCards (same mock store as the user page)", () => {
     fireEvent.click(await screen.findByTestId(`admin-ticket-${withEmail.id}`));
 
     const who = await screen.findByTestId("admin-thread-requester");
-    expect(who.textContent).toContain("this browser (demo)"); // mock has no pubkey
+    expect(who.textContent).toContain("npub1");
+    expect(screen.getByTestId(`requester-${CALLER.slice(0, 8)}`)).toBeInTheDocument();
     const email = screen.getByTestId("admin-thread-email");
     expect(email.textContent).toContain("user@example.com");
     expect(email.getAttribute("href")).toBe("mailto:user@example.com");

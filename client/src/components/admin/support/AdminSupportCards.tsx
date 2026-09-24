@@ -42,8 +42,8 @@ import {
   adminListTickets,
   adminReply,
   adminSetCategory,
+  adminFetchThread,
   categoryLabel,
-  fetchThread,
   type AdminSupportTicket,
 } from "@/services/support";
 import type { Tone } from "@/lib/tones";
@@ -78,8 +78,7 @@ function fmtTimeOnly(iso: string): string {
   return Number.isFinite(d.getTime()) ? d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }) : "";
 }
 
-function requesterLabel(pubkey: string | null): string {
-  if (!pubkey) return "this browser (demo)";
+function requesterLabel(pubkey: string): string {
   try {
     const npub = npubFromPubkey(pubkey);
     return `${npub.slice(0, 12)}…${npub.slice(-4)}`;
@@ -98,12 +97,11 @@ function RequesterCell({
   profile,
   onFilter,
 }: {
-  pubkey: string | null;
+  pubkey: string;
   profile?: ProfileBits;
   onFilter?: (query: string) => void;
 }) {
   const label = requesterLabel(pubkey);
-  if (!pubkey) return <span className="font-mono text-xs">{label}</span>;
   return (
     <span
       className="flex items-center gap-2 min-w-0 cursor-pointer hover:opacity-80"
@@ -219,7 +217,7 @@ export function filterAndSort(
     if (categoryFilter !== "all" && t.category !== categoryFilter) return false;
     if (cutoff !== null && new Date(t.lastMessageAt).getTime() < cutoff) return false;
     if (!q) return true;
-    const name = (t.pubkey && profiles.get(t.pubkey)?.name?.toLowerCase()) || "";
+    const name = profiles.get(t.pubkey)?.name?.toLowerCase() || "";
     return (
       t.subject.toLowerCase().includes(q) ||
       requesterLabel(t.pubkey).toLowerCase().includes(q) ||
@@ -247,8 +245,6 @@ export function filterAndSort(
 
 /**
  * The admin side of priority support: every ticket, the thread, reply + close.
- * Same seam as the user page, so in mock mode this demos the full loop against
- * the browser-local store before the server exists.
  */
 export function AdminSupportCards({ active }: { active: boolean }) {
   // The open thread lives in the URL — paste a link in team chat and a
@@ -492,14 +488,14 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
 
   const threadQuery = useQuery({
     queryKey: [...ADMIN_SUPPORT_KEY, id],
-    queryFn: () => fetchThread(id),
+    queryFn: () => adminFetchThread(id),
   });
   const ticket = threadQuery.data?.ticket;
   const messages = threadQuery.data?.messages ?? [];
   const events = threadQuery.data?.events ?? [];
   const diagnostics = threadQuery.data?.diagnostics ?? null;
   const requester = threadQuery.data?.requester ?? null;
-  const requesterProfiles = useProfileBits(requester?.pubkey ? [requester.pubkey] : []);
+  const requesterProfiles = useProfileBits(requester ? [requester.pubkey] : []);
   const closed = ticket?.status === "closed";
 
   const timeline = [
@@ -517,7 +513,7 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
     Promise.all([
       qc.invalidateQueries({ queryKey: [...ADMIN_SUPPORT_KEY, id] }),
       qc.invalidateQueries({ queryKey: ADMIN_SUPPORT_KEY, exact: true }),
-      // The user-side queries share the store in mock mode — keep them honest too.
+      // An admin on their own ticket sees it from the user side too.
       qc.invalidateQueries({ queryKey: ["/user/support"] }),
     ]);
 
@@ -649,7 +645,7 @@ function AdminThread({ id, onBack }: { id: string; onBack: () => void }) {
                 <span className="text-[11px] font-semibold uppercase tracking-wide text-slate-400 dark:text-slate-500">From</span>
                 <RequesterCell
                   pubkey={requester.pubkey}
-                  profile={requester.pubkey ? requesterProfiles.get(requester.pubkey) : undefined}
+                  profile={requesterProfiles.get(requester.pubkey)}
                 />
               </span>
               <span className="flex items-center gap-1.5">
