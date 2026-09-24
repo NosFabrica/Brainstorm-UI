@@ -67,7 +67,7 @@ export const RECIPE_TAGS: readonly string[] = ["zapcooking", "nostrcooking"];
 const recipeTagSet = new Set(RECIPE_TAGS);
 /** zap.cooking's mark for its long-form pieces (newsletter, food stories), which wear the recipe tag too. */
 const ARTICLE_TAG = "zapreads";
-function publishedOnZapCooking(event: MinimalEvent): boolean {
+export function publishedOnZapCooking(event: MinimalEvent): boolean {
   const tags = event.tags.filter((t) => t[0] === "t").map((t) => (t[1] ?? "").trim().replace(/^#/, "").toLowerCase());
   return tags.some((t) => recipeTagSet.has(t)) && !tags.includes(ARTICLE_TAG);
 }
