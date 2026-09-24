@@ -1,5 +1,5 @@
 import { useMemo, useState, useEffect, useRef } from "react";
-import { useRoute, useSearch, useLocation, Link } from "wouter";
+import { useRoute, useSearch, useLocation, Link, Redirect } from "wouter";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { MessageSquare, Image as ImageIcon, FileText, ArrowRight, Wifi, Video as VideoIcon, Headphones, Radio, AlertTriangle, ShieldCheck, CalendarDays, Copy, Check, SlidersHorizontal, UserPlus, FileQuestion, PenLine, Search } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -806,6 +806,8 @@ export default function SharePage() {
   // and React throws.
 
   if (!decoded) {
+    // An event's id pasted after /p/ (a note, nevent or naddr) opens the event.
+    if (/^(?:nostr:)?(?:note|nevent|naddr)1/i.test(rawId)) return <Redirect to={`/e/${rawId.replace(/^nostr:/i, "")}`} replace />;
     return <ShareShell><NotFoundCard rawId={rawId} /></ShareShell>;
   }
 

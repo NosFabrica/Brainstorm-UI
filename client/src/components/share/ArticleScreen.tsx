@@ -146,8 +146,8 @@ export function ArticleShell({ title, children }: { title: string; children: Rea
 }
 
 /**
- * An article, wiki page or spec, read in full — reached from `/a/` (the
- * address's latest version) or `/e/` (one exact version).
+ * An article, wiki page or spec, read in full — from an `naddr` (the
+ * address's latest version) or a `nevent` (one exact version).
  */
 export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: string; ptr: AddressPointer }) {
   const tierRing = useTierRing();

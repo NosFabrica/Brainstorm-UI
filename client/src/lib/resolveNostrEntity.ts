@@ -4,7 +4,7 @@ import { nip19 } from "nostr-tools";
  * "Paste anything" resolver — the njump front door. Given a raw string (a bech32
  * entity, a `nostr:` URI, a bare hex pubkey, or even a URL that embeds an entity
  * like `https://njump.me/nevent1…`), figure out which on-site landing page should
- * render it: a profile (`/p`), a note/event (`/e`), or a long-form article (`/a`).
+ * render it: a profile (`/p`), or any event (`/e`: a note, nevent or naddr).
  */
 
 const BECH32_RE = /(?:npub|nprofile|nevent|note|naddr)1[02-9ac-hj-np-z]+/i;
@@ -37,7 +37,7 @@ export function resolveEntityToPath(input: string): { path: string; kind: Resolv
     const d = nip19.decode(ent);
     if (d.type === "npub" || d.type === "nprofile") return { path: `/p/${ent}`, kind: "profile" };
     if (d.type === "note" || d.type === "nevent") return { path: `/e/${ent}`, kind: "note" };
-    if (d.type === "naddr") return { path: `/a/${ent}`, kind: "article" };
+    if (d.type === "naddr") return { path: `/e/${ent}`, kind: "article" };
   } catch {
     /* not a valid entity */
   }

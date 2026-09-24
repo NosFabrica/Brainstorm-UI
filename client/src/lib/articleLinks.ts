@@ -6,7 +6,7 @@ import type { MinimalEvent } from "@/lib/noteRefs";
  *
  * Reading strategy (decided with the team — Brainstorm is the destination, we do
  * NOT send readers to njump): the primary "Read article" goes to our own
- * on-site reader at `/a/:naddr`. Handing an article to ANOTHER client is
+ * on-site reader at `/e/:naddr`. Handing an article to ANOTHER client is
  * lib/openInApp's job (the ⋯ menu and the reader's not-found state), which
  * offers only clients verified to render the kind — the old
  * `openArticleInApp` here opened Nostria's homepage on a desktop.

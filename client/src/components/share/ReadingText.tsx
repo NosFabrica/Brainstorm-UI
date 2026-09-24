@@ -152,7 +152,7 @@ export function addressLabel(bech32: string): string {
 
 /** The author's own link around a non-article address (a fanfares.io unlock
  *  page) — kept, not swapped for ours. Null otherwise: a bare address, or an
- *  article's, opens on /a/, which renders every kind. */
+ *  article's, opens on /e/, which renders every kind. */
 export function addressLink(bech32: string, key: string | number, url?: string): ReactNode | null {
   const kind = addressKind(bech32);
   if (!url || kind === null || READER_KINDS.has(kind)) return null;
@@ -235,7 +235,7 @@ export function ReadingText({
         const other = address ? addressLink(t.bech32, key, t.url) : null;
         if (other) return other;
         return (
-          <button key={key} type="button" onClick={() => navigate(`/${address ? "a" : "e"}/${t.bech32}`)} className="font-medium text-brand-link hover:underline">
+          <button key={key} type="button" onClick={() => navigate(`/e/${t.bech32}`)} className="font-medium text-brand-link hover:underline">
             {address ? addressLabel(t.bech32) : "↳ quoted note"}
           </button>
         );

@@ -44,7 +44,6 @@ const AboutPage = lazyWithReload(() => import("@/pages/AboutPage"));
 const ActivateBrainstormPage = lazyWithReload(() => import("@/pages/ActivateBrainstormPage"));
 const ActivatePage = lazyWithReload(() => import("@/pages/ActivatePage"));
 const AlertsPage = lazyWithReload(() => import("@/pages/AlertsPage"));
-const ArticlePage = lazyWithReload(() => import("@/pages/ArticlePage"));
 const BillingReturnPage = lazyWithReload(() => import("@/pages/BillingReturnPage"));
 const ConnectionListPage = lazyWithReload(() => import("@/pages/ConnectionListPage"));
 const DashboardPage = lazyWithReload(() => import("@/pages/DashboardPage"));
@@ -53,6 +52,7 @@ const DeveloperOpenRankingPage = lazyWithReload(() => import("@/pages/DeveloperO
 const DeveloperTrustedAssertionsPage = lazyWithReload(() => import("@/pages/DeveloperTrustedAssertionsPage"));
 const DevelopersPage = lazyWithReload(() => import("@/pages/DevelopersPage"));
 const EventPage = lazyWithReload(() => import("@/pages/EventPage"));
+const AddressRedirect = lazyWithReload(() => import("@/pages/EventPage").then((m) => ({ default: m.AddressRedirect })));
 const FaqPage = lazyWithReload(() => import("@/pages/FaqPage"));
 const FinishSetupPage = lazyWithReload(() => import("@/pages/FinishSetupPage"));
 const HashtagPage = lazyWithReload(() => import("@/pages/HashtagPage"));
@@ -223,8 +223,10 @@ function Router() {
         <Route path="/p/:id/selling" component={SellingPage} />
         <Route path="/p/:id/:type" component={ConnectionListPage} />
         <Route path="/p/:id" component={SharePage} />
-        <Route path="/a/:id" component={ArticlePage} />
-      <Route path="/e/:id" component={EventPage} />
+        {/* One page for every event: the id (note, nevent, naddr) says which
+            version, the kind how it reads. /a/ links already out there keep working. */}
+        <Route path="/a/:id" component={AddressRedirect} />
+        <Route path="/e/:id" component={EventPage} />
         <Route path="/t/:tag" component={HashtagPage} />
         {/* Public tag pages. The index must precede the per-tag route. */}
         <Route path="/tags" component={TagIndexPage} />

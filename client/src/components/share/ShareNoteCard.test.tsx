@@ -86,7 +86,7 @@ describe("ShareNoteCard", () => {
       expect(embedded).toHaveTextContent("We're back");
       expect(embedded).toHaveTextContent("White Noise");
       expect(screen.queryAllByTestId("link-chip")).toHaveLength(0);
-      expect(screen.getByTestId("article-read").getAttribute("href")).toBe(`/a/${nip19.naddrEncode({ kind: 30023, pubkey: AUTHOR, identifier: "were-back" })}`);
+      expect(screen.getByTestId("article-read").getAttribute("href")).toBe(`/e/${nip19.naddrEncode({ kind: 30023, pubkey: AUTHOR, identifier: "were-back" })}`);
       expect(unfurlMock).not.toHaveBeenCalled();
     });
 

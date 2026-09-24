@@ -176,10 +176,10 @@ export function NoteContent({
             if (address) {
               const other = reading ? addressLink(token.bech32, i, token.url) : null;
               if (other) return other;
-              // Links to its on-site page (/a/ renders every kind); an article
+              // Links to its on-site page (/e/ renders every kind); an article
               // is also embedded as a card below.
               return (
-                <button key={i} type="button" onClick={() => navigate(`/a/${token.bech32}`)} className="text-brand-link font-medium hover:underline">
+                <button key={i} type="button" onClick={() => navigate(`/e/${token.bech32}`)} className="text-brand-link font-medium hover:underline">
                   {addressLabel(token.bech32)}
                 </button>
               );

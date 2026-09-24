@@ -122,9 +122,9 @@ function eventMediaUrls(ev: MinimalEvent): string[] {
  * tier (our differentiator), and funnels anonymous readers into signup.
  */
 /**
- * An event's page, whichever route found it. `/e/` hands over a pointer (this
- * exact event, by id); `/a/` hands over the event it resolved from an address
- * (the latest version). What renders is decided by the event's kind: articles,
+ * An event's page, however it was named. A `note`/`nevent` hands over a
+ * pointer (this exact event, by id); an `naddr` hands over the event it
+ * resolved from the address (the latest version). What renders is decided by the event's kind: articles,
  * wiki pages and specs read on the article layout, everything else here.
  */
 export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; event?: MinimalEvent }) {
@@ -178,9 +178,6 @@ function EventView({ ptr, note, loading }: { ptr: EventPointer | null; note: Min
     ? note.tags.find((t) => t[0] === "p" && (t[3] || "").toLowerCase() === "host")?.[1] || note.tags.find((t) => t[0] === "p")?.[1]
     : undefined;
   const authorPk = liveHost || note?.pubkey || ptr?.author || "";
-  // Long-form (30023), wiki pages (30818) and specs (30817) read on the
-  // article layout — this exact version, on this URL: no redirect to /a/,
-  // which would load the address's latest version instead.
   const mediaUrls = useMemo(() => (note && !NOTE_KINDS.has(note.kind) ? eventMediaUrls(note) : []), [note]);
 
   const profileQuery = useQuery({
