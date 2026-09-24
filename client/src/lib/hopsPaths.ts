@@ -93,3 +93,36 @@ export function groupPaths(paths: string[][], classify: (path: string[]) => Path
 export function orderedPaths(g: PathGroups): string[][] {
   return [...g.verified, ...g.unverified, ...g.flagged];
 }
+
+export interface SampleResult {
+  paths: string[][];
+  /** Extra calls made beyond the head. */
+  calls: number;
+  /** Every path is in hand — the server sent the list, or sampling found them all. */
+  complete: boolean;
+}
+
+/**
+ * The server hands back one random shortest path per call. Until it returns
+ * the list it already computes (`head.paths`), sample: waves of a few calls,
+ * de-duplicated, stopping once every path is in hand or the budget is spent.
+ * A wave never asks for more than are left; a failed sample is dropped.
+ */
+export async function samplePaths(
+  head: ShortestPath,
+  fetchOne: () => Promise<ShortestPath>,
+  { maxCalls = 7, wave = 3 }: { maxCalls?: number; wave?: number } = {},
+): Promise<SampleResult> {
+  if (head.paths?.length) return { paths: dedupePaths(head.paths), calls: 0, complete: true };
+  let paths = dedupePaths([head.path]);
+  let calls = 0;
+  const budget = maxCalls - 1; // the head was one call
+  while (paths.length < head.pathCount && calls < budget) {
+    const size = Math.min(wave, budget - calls, head.pathCount - paths.length);
+    const settled = await Promise.allSettled(Array.from({ length: size }, () => fetchOne()));
+    calls += size;
+    const found = settled.flatMap((r) => (r.status === "fulfilled" && r.value?.path?.length ? [r.value.path] : []));
+    paths = dedupePaths([...paths, ...found]);
+  }
+  return { paths, calls, complete: paths.length >= head.pathCount };
+}

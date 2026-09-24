@@ -6,7 +6,7 @@
  * flagged or unverified account so a reader can spot a bad actor inside
  * their trust network; Benjamin: keep it simple to understand.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { classifyPath, dedupePaths, groupPaths, orderedPaths, pathKey } from "./hopsPaths";
 
 const ME = "a".repeat(64);
@@ -67,5 +67,53 @@ describe("groupPaths and orderedPaths", () => {
     expect(g.verified).toEqual([[ME, ME, T]]);
     expect(g.checking).toEqual([]);
     expect(orderedPaths(g)).toEqual([[ME, ME, T], [ME, C3, T], [ME, C2, C3, T], [ME, C1, T]]);
+  });
+});
+
+/**
+ * The server hands back one random shortest path per call. Until it returns
+ * the list it already computes, the page samples: a few calls, de-duplicated,
+ * stopping early when there is nothing more to learn.
+ */
+import { samplePaths } from "./hopsPaths";
+
+const head = (path: string[], pathCount: number, extra: Partial<import("@/services/api/users").ShortestPath> = {}) =>
+  ({ from: ME, to: T, reachable: true, hops: path.length - 1, path, pathCount, pathCountCapped: false, maxHops: 6, ...extra });
+
+describe("samplePaths", () => {
+  it("asks nothing more when there is only one path", async () => {
+    const fetchOne = vi.fn();
+    expect(await samplePaths(head([ME, C1, T], 1), fetchOne)).toEqual({ paths: [[ME, C1, T]], calls: 0, complete: true });
+    expect(fetchOne).not.toHaveBeenCalled();
+  });
+
+  it("takes the server's list when it sends one, de-duplicated, and asks nothing more", async () => {
+    const fetchOne = vi.fn();
+    const h = head([ME, C1, T], 19, { paths: [[ME, C1, T], [ME, C2, T], [ME, C1, T]] });
+    expect(await samplePaths(h, fetchOne)).toEqual({ paths: [[ME, C1, T], [ME, C2, T]], calls: 0, complete: true });
+    expect(fetchOne).not.toHaveBeenCalled();
+  });
+
+  it("stops once every path is in hand — a wave never asks for more than are left", async () => {
+    const answers = [[ME, C2, T], [ME, C3, T]];
+    const fetchOne = vi.fn(async () => head(answers[fetchOne.mock.calls.length - 1] ?? [ME, C1, T], 3));
+    const r = await samplePaths(head([ME, C1, T], 3), fetchOne);
+    expect(r.paths).toEqual([[ME, C1, T], [ME, C2, T], [ME, C3, T]]);
+    expect(r.complete).toBe(true);
+    expect(fetchOne).toHaveBeenCalledTimes(2); // 3 paths, 1 in hand: at most 2 more
+  });
+
+  it("gives up after the budget when the server keeps repeating itself, and says so", async () => {
+    const fetchOne = vi.fn(async () => head([ME, C1, T], 19));
+    const r = await samplePaths(head([ME, C1, T], 19), fetchOne, { maxCalls: 7, wave: 3 });
+    expect(r).toEqual({ paths: [[ME, C1, T]], calls: 6, complete: false });
+  });
+
+  it("drops a sample that failed and keeps the rest", async () => {
+    let n = 0;
+    const fetchOne = vi.fn(async () => { n++; if (n === 2) throw new Error("relay hiccup"); return head(n === 1 ? [ME, C2, T] : [ME, C3, T], 3); });
+    const r = await samplePaths(head([ME, C1, T], 3), fetchOne);
+    expect(r.paths).toEqual([[ME, C1, T], [ME, C2, T], [ME, C3, T]]);
+    expect(r.complete).toBe(true);
   });
 });
