@@ -5,10 +5,11 @@
  * in the URL so Back, reload and a shared link keep them.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { SearchSnapshot } from "@/services/search";
 import { nip19 } from "nostr-tools";
-import { getRecentItems } from "@/lib/recentSearches";
+import { getRecentItems, pushRecentProfile } from "@/lib/recentSearches";
+import { scopedSearchHref } from "@/lib/searchSyntax";
 
 const streamMock = vi.fn();
 // People the typeahead offers; a test that needs a dropdown seeds one.
@@ -69,6 +70,9 @@ vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => 0.85 })
 vi.mock("@/hooks/useAppEndorsements", () => ({ useAppEndorsements: () => null }));
 vi.mock("@/hooks/useMyFollows", () => ({ useMyFollows: () => ({ follows: new Set<string>(), ready: true, signedIn: false }) }));
 vi.mock("@/hooks/usePersonEndorsements", () => ({ usePersonEndorsements: () => null }));
+// What each suggested person publishes — a test that wants chips seeds this.
+const contentMock = vi.fn((_pks: string[]) => new Map<string, unknown>());
+vi.mock("@/hooks/usePersonContent", () => ({ usePersonContent: (pks: string[]) => contentMock(pks) }));
 vi.mock("@/hooks/useAuthorFlags", () => ({ useAuthorFlags: () => () => false }));
 vi.mock("@/hooks/useNetworkReach", () => ({ useNetworkReach: () => ({ direct: new Set(), friends: new Set(), ready: true }) }));
 vi.mock("@/hooks/useActivePerspective", () => ({ useActivePerspective: () => ["nosfabrica", () => {}] }));
@@ -460,5 +464,58 @@ describe("the Browse row under the box", () => {
     const chips = await screen.findByTestId("browse-chips");
     const order = [...chips.querySelectorAll('[data-testid^="browse-"]')].map((el) => el.getAttribute("data-testid"));
     expect(order).toEqual(["browse-people", "browse-notes", "browse-media", "browse-shop", "browse-apps", "browse-events", "browse-live", "browse-lists"]);
+  });
+});
+
+// Benjamin (2026-09-24): finding Staci's shop took four steps — search, open
+// the profile, find the magnifier, pick Shop. The row itself now says what she
+// publishes, and one tap lands on it.
+describe("what a suggested person publishes", () => {
+  const STACI = "5".repeat(64);
+  const STACI_NPUB = nip19.npubEncode(STACI);
+  const shop = { key: "shop", label: "Shop", tab: "shop", liveNow: false };
+  beforeEach(() => {
+    cleanup();
+    allStreams = [];
+    streamMock.mockClear();
+    suggestMock.mockReset();
+    suggestMock.mockResolvedValue([]);
+    contentMock.mockReset();
+    contentMock.mockImplementation((pks: string[]) => new Map(pks.map((pk) => [pk, pk === STACI ? { chips: [shop] } : undefined])));
+    window.history.replaceState({}, "", "/");
+  });
+
+  it("a suggested person wears chips for what they publish, linking to their scoped search", async () => {
+    suggestMock.mockResolvedValue([{ pubkey: STACI, npub: STACI_NPUB, name: "Staci", wotRank: null, wotFollowers: null }]);
+    render(<Landing />);
+    typeInBox("staci");
+    const row = await screen.findByTestId("home-suggestion-0", {}, { timeout: 3000 });
+    expect(contentMock).toHaveBeenLastCalledWith(expect.arrayContaining([STACI]));
+    const chip = within(row).getByTestId("person-content-chip-shop");
+    expect(chip.getAttribute("href")).toBe(scopedSearchHref(STACI, "shop"));
+    expect(chip).toHaveAttribute("aria-label", "Staci's shop");
+    // A link never sits inside a button; the row is an option the input drives.
+    expect(chip.closest("button")).toBeNull();
+    expect(row).toHaveAttribute("role", "option");
+
+    fireEvent.click(chip);
+    // The page runs the scoped search on the Shop tab (it adds its own newest-first order).
+    await waitFor(() => expect(mainStreamCalls().some(([q, p]) => String(q).startsWith(`from:${STACI_NPUB}`) && (p as { tab?: string }).tab === "shop")).toBe(true));
+    expect(new URLSearchParams(window.location.search).get("t")).toBe("shop");
+    expect(screen.queryByTestId("home-suggestion-0")).toBeNull();
+  });
+
+  it("a recent person wears the chips too, beside their row's button", async () => {
+    pushRecentProfile({ pubkey: STACI, npub: STACI_NPUB, label: "Staci" });
+    render(<Landing />);
+    const box = screen.getByTestId("input-home-search");
+    fireEvent.pointerDown(box);
+    fireEvent.focus(box);
+    const row = await screen.findByTestId("home-recent-0");
+    const chip = within(row).getByTestId("person-content-chip-shop");
+    expect(chip.getAttribute("href")).toBe(scopedSearchHref(STACI, "shop"));
+    expect(chip).toHaveAttribute("aria-label", "Staci's shop");
+    expect(chip.closest("button")).toBeNull();
+    expect(contentMock).toHaveBeenLastCalledWith(expect.arrayContaining([STACI]));
   });
 });

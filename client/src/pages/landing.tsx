@@ -62,6 +62,8 @@ import { useProfileMap } from "@/hooks/useProfileMap";
 import { parseTopicQuery, topicPath } from "@/lib/topicQuery";
 import { TopicSuggestionRow } from "@/components/search/TopicSuggestionRow";
 import { TagSuggestionRow, tagSuggestionPath } from "@/components/search/TagSuggestionRow";
+import { PersonContentChips } from "@/components/search/PersonContentChips";
+import { usePersonContent } from "@/hooks/usePersonContent";
 import { useTagMatches } from "@/hooks/useTags";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
 import { npubFromPubkey } from "@/lib/shareId";
@@ -125,6 +127,11 @@ export default function Landing() {
   // Per-browser recent searches, shown under an empty, focused box (returning
   // visitors only — a first-timer has none). `focused` gates that panel.
   const [recent, setRecent] = useState<RecentItem[]>(() => getRecentItems());
+  // What each suggested or recent person publishes — chips on their row,
+  // one tap to their shop, recipes, streams. One ask per person per session.
+  const personContent = usePersonContent(
+    useMemo(() => [...suggestions.map((s) => s.pubkey), ...recent.flatMap((r) => (r.type === "profile" ? [r.pubkey] : []))], [suggestions, recent]),
+  );
   const [focused, setFocused] = useState(false);
   // Benjamin: "when users refresh to the home screen, don't have the search
   // history dropdown [showing]" — the box autofocuses on load, and focus
@@ -1148,13 +1155,14 @@ export default function Landing() {
                       const handle = s.nip05 ? s.nip05.replace(/^_@/, "") : null;
                       const rank = s.wotRank ?? suggestScoreOf(s.pubkey) ?? null;
                       return (
-                        <button
+                        // A div, not a button: the chips inside are links, and the
+                        // input keeps focus anyway (aria-activedescendant above).
+                        <div
                           key={s.pubkey}
                           id={`home-suggestion-opt-${i}`}
-                          type="button"
                           role="option"
                           aria-selected={i === activeSuggestion}
-                          className={`w-full flex items-center gap-3 px-3 sm:px-4 py-2.5 text-left transition-colors ${i === activeSuggestion ? "bg-brand-primary/10 dark:bg-brand-primary/15" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
+                          className={`group w-full flex items-center gap-3 px-3 sm:px-4 py-2.5 text-left transition-colors cursor-pointer ${i === activeSuggestion ? "bg-brand-primary/10 dark:bg-brand-primary/15" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
                           onMouseEnter={() => { kbdNavRef.current = false; setActiveSuggestion(i); handlePrefetchEnter(s); }}
                           onMouseLeave={() => handlePrefetchLeave(s)}
                           onClick={() => pickSuggestion(s)}
@@ -1177,6 +1185,16 @@ export default function Landing() {
                               </p>
                             )}
                           </div>
+                          {/* What they publish, one tap to it. Desktop reveals on
+                              hover or the arrowed row; phones always show it. */}
+                          <PersonContentChips
+                            pubkey={s.pubkey}
+                            name={getDisplayLabel(s)}
+                            content={personContent.get(s.pubkey)}
+                            onNavigate={() => setShowSuggestions(false)}
+                            linkTabIndex={-1}
+                            className="sm:opacity-0 sm:group-hover:opacity-100 sm:group-aria-selected:opacity-100 sm:group-focus-within:opacity-100"
+                          />
                           {/* Same coin as the results list below and every people
                               list — it follows the viewer's display mode where
                               this pill couldn't, and fixes the pill's scale bug:
@@ -1189,7 +1207,7 @@ export default function Landing() {
                               className={tierRing(rank) && coinReplaced ? "sr-only" : "shrink-0"}
                             />
                           )}
-                        </button>
+                        </div>
                       );
                     })}
                     </div>
@@ -1316,6 +1334,16 @@ export default function Landing() {
                             <Clock className="h-4 w-4 text-slate-400 dark:text-slate-500 shrink-0" />
                             <span className="text-sm text-slate-700 dark:text-slate-200 truncate">{item.q}</span>
                           </button>
+                        )}
+                        {item.type === "profile" && (
+                          <PersonContentChips
+                            pubkey={item.pubkey}
+                            name={item.label}
+                            content={personContent.get(item.pubkey)}
+                            onNavigate={() => setFocused(false)}
+                            linkTabIndex={-1}
+                            className="sm:opacity-0 sm:group-hover/recent:opacity-100 sm:group-focus-within/recent:opacity-100"
+                          />
                         )}
                         <button
                           type="button"
