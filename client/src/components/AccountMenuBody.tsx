@@ -10,6 +10,7 @@ import {
   UserCircle,
   UserPlus,
   HelpCircle,
+  LifeBuoy,
   Settings as SettingsIcon,
   Shield,
   LogOut,
@@ -32,6 +33,8 @@ import { removalLosesKey } from "@/accounts/picker";
 import type { BrainstormAccount } from "@/accounts/metadata";
 import type { AccountDisplay } from "@/accounts/display";
 import { apiClient } from "@/services/api";
+import { SUPPORT_QUERY_KEY, fetchSupport } from "@/services/support";
+import { unreadCount } from "@/lib/supportSeen";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -215,6 +218,15 @@ export function AccountMenuBody({
   const { isFree } = useSubscription();
   const { billingAvailable, solePurchasableName } = useBillingPlans();
   const [pane, setPane] = useState<"menu" | "switcher">("menu");
+  // Unread support replies light the Support row's dot. Cheap: the query is
+  // shared with /support and only fires while the menu is open.
+  const supportQuery = useQuery({
+    queryKey: SUPPORT_QUERY_KEY,
+    queryFn: fetchSupport,
+    staleTime: 30_000,
+    retry: false,
+  });
+  const supportUnread = unreadCount("user", supportQuery.data?.tickets ?? []);
   // The identity line's handle — checked against its domain by Nip05Handle.
   const rawNip05 = user.nip05?.trim();
   // Same gate every other PovToggle uses: you need a finished calculation
@@ -409,6 +421,7 @@ export function AccountMenuBody({
         <MenuRow icon={UserPlus} label="Invite friends" onClick={onInvite} testId="dropdown-invite" />
         <MenuRow icon={SettingsIcon} label="Settings" onClick={() => onNavigate("/settings")} testId="dropdown-settings" />
         <MenuRow icon={HelpCircle} label="Help & FAQ" onClick={() => onNavigate("/faq")} testId="dropdown-faq" />
+        <MenuRow icon={LifeBuoy} label="Support" onClick={() => onNavigate("/support")} testId="dropdown-support" dot={supportUnread > 0} />
       </div>
 
       {/* Appearance — compact full-width segmented row */}
@@ -454,12 +467,15 @@ function MenuRow({
   onClick,
   tone = "default",
   testId,
+  dot = false,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   onClick: () => void;
   tone?: "default" | "danger";
   testId?: string;
+  /** Attention dot after the label — e.g. an unread support reply. */
+  dot?: boolean;
 }) {
   const toneCls =
     tone === "danger"
@@ -474,6 +490,7 @@ function MenuRow({
     >
       <Icon className="h-4 w-4 shrink-0" />
       <span>{label}</span>
+      {dot && <span className="ml-auto h-2 w-2 shrink-0 rounded-full bg-brand-accent" aria-label="New activity" data-testid={testId ? `${testId}-dot` : undefined} />}
     </button>
   );
 }
