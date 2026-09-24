@@ -21,12 +21,15 @@ export function EventRow({
   going = 0,
   showHost = true,
   testIdPrefix = "event-row",
+  showKind = false,
 }: {
   hit: SearchHit;
   score?: number | null;
   going?: number;
   showHost?: boolean;
   testIdPrefix?: string;
+  /** Say the kind — only where events and streams share a list (Happening). */
+  showKind?: boolean;
 }) {
   const { event, author } = hit;
   const cal = parseCalendarEvent(event);
@@ -66,7 +69,7 @@ export function EventRow({
         ) : null}
       </span>
       {/* Happening mixes calendar events with streams: the row says which. */}
-      <KindPill event={event} />
+      {showKind && <KindPill event={event} />}
       {cal.image && <img src={cal.image} alt="" loading="lazy" className="h-12 w-12 shrink-0 rounded-lg bg-slate-100 dark:bg-slate-800 object-cover" data-testid={`cover-${testIdPrefix}-${event.id}`} />}
     </Link>
   );

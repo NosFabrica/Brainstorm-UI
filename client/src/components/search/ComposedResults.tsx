@@ -604,7 +604,7 @@ function ComposedResultsBody({
                 query={query}
                 renderRow={
                   c.primary.event.kind === 31922 || c.primary.event.kind === 31923
-                    ? (h) => <EventRow hit={h} score={scoreOf(h.event.pubkey)} going={happeningRsvps.get(calendarAddr(h.event))?.going ?? 0} />
+                    ? (h) => <EventRow hit={h} score={scoreOf(h.event.pubkey)} going={happeningRsvps.get(calendarAddr(h.event))?.going ?? 0} showKind />
                     : undefined
                 }
               />
