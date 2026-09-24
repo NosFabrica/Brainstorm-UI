@@ -80,6 +80,7 @@ vi.mock("@/services/nostr", () => ({
 const scoreOfMock = vi.fn<(pk: string) => number | null | undefined>(() => 0.85);
 // Event cards carry the RSVP button, which reads the active account; these
 // tests are signed out — the button is the sign-in door and never publishes.
+vi.mock("@/hooks/usePersonContent", () => ({ usePersonContent: () => new Map() }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
 vi.mock("@/hooks/useAuthorScores", () => ({
   useAuthorScores: () => (pk: string) => scoreOfMock(pk),

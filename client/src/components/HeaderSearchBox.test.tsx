@@ -8,6 +8,8 @@ vi.mock("@/lib/profileSearch", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/profileSearch")>()),
   searchByText: (...args: unknown[]) => searchMock(...args),
 }));
+const contentMock = vi.fn((_pks: string[]) => new Map<string, unknown>());
+vi.mock("@/hooks/usePersonContent", () => ({ usePersonContent: (pks: string[]) => contentMock(pks) }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
 vi.mock("@/hooks/useActivePerspective", () => ({ useActivePerspective: () => ["nosfabrica", () => {}] }));
 vi.mock("@/hooks/useHasMywot", () => ({ useHasMywot: () => ({ hasMywot: false }) }));
@@ -15,6 +17,8 @@ vi.mock("@/hooks/useIsSearchObserver", () => ({ useIsSearchObserver: () => ({ is
 vi.mock("@/hooks/useTags", () => ({ useTagMatches: () => [] }));
 
 import { HeaderSearchBox } from "./HeaderSearchBox";
+import { nip19 } from "nostr-tools";
+import { scopedSearchHref } from "@/lib/searchSyntax";
 
 const input = () => screen.getByTestId("header-search-input");
 const signalOf = (call: number) => searchMock.mock.calls[call][4] as AbortSignal | undefined;
@@ -95,5 +99,40 @@ describe("typing in the header search", () => {
     fireEvent.change(input(), { target: { value: "vitor" } });
     fireEvent.submit(input().closest("form")!);
     expect(window.location.search).toBe("?q=vitor");
+  });
+});
+
+describe("what a suggested person publishes", () => {
+  const STACI = "5".repeat(64);
+  const STACI_NPUB = nip19.npubEncode(STACI);
+  const shop = { key: "shop", label: "Shop", tab: "shop", liveNow: false };
+  beforeEach(() => {
+    contentMock.mockReset();
+    contentMock.mockImplementation((pks: string[]) => new Map(pks.map((pk) => [pk, pk === STACI ? { chips: [shop] } : undefined])));
+    searchMock.mockResolvedValue({ results: [{ pubkey: STACI, npub: STACI_NPUB, name: "Staci" }], total: 1, timeMs: 1 });
+  });
+
+  it("a suggested person wears chips linking to their scoped search, on a row that is not a button", async () => {
+    render(<HeaderSearchBox />);
+    fireEvent.change(input(), { target: { value: "staci" } });
+    act(() => { vi.advanceTimersByTime(400); });
+    await act(async () => {});
+    const row = screen.getByTestId("header-search-opt-0");
+    expect(row.tagName).toBe("DIV");
+    expect(row).toHaveAttribute("role", "option");
+    const chip = screen.getByTestId("person-content-chip-shop");
+    expect(chip.getAttribute("href")).toBe(scopedSearchHref(STACI, "shop"));
+    expect(chip).toHaveAttribute("aria-label", "Staci's shop");
+    expect(chip.closest("button")).toBeNull();
+  });
+
+  it("a chip tap closes the list and lands on the scoped tab", async () => {
+    render(<HeaderSearchBox />);
+    fireEvent.change(input(), { target: { value: "staci" } });
+    act(() => { vi.advanceTimersByTime(400); });
+    await act(async () => {});
+    fireEvent.click(screen.getByTestId("person-content-chip-shop"));
+    expect(screen.queryByTestId("header-search-suggestions")).toBeNull();
+    expect(window.location.search).toMatch(/&t=shop$/);
   });
 });

@@ -8,11 +8,15 @@ vi.mock("@/lib/profileSearch", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/profileSearch")>()),
   searchByText: (...args: unknown[]) => searchMock(...args),
 }));
+const contentMock = vi.fn((_pks: string[]) => new Map<string, unknown>());
+vi.mock("@/hooks/usePersonContent", () => ({ usePersonContent: (pks: string[]) => contentMock(pks) }));
 vi.mock("@/hooks/useActiveAccountDisplay", () => ({ useActiveAccountDisplay: () => null }));
 vi.mock("@/hooks/useActivePerspective", () => ({ useActivePerspective: () => ["nosfabrica", () => {}] }));
 vi.mock("@/hooks/useTags", () => ({ useTagMatches: () => [] }));
 
 import { MobileSearchOverlay, openMobileSearch } from "./MobileSearchOverlay";
+import { nip19 } from "nostr-tools";
+import { scopedSearchHref } from "@/lib/searchSyntax";
 
 const input = () => screen.getByTestId("mobile-search-input");
 const signalOf = (call: number) => searchMock.mock.calls[call][4] as AbortSignal | undefined;
@@ -78,5 +82,46 @@ describe("typing in the mobile search sheet", () => {
     fireEvent.change(input(), { target: { value: "vitor" } });
     fireEvent.keyDown(input(), { key: "Enter" });
     expect(window.location.search).toBe("?q=vitor");
+  });
+});
+
+describe("what a result publishes", () => {
+  const STACI = "5".repeat(64);
+  const STACI_NPUB = nip19.npubEncode(STACI);
+  const shop = { key: "shop", label: "Shop", tab: "shop", liveNow: false };
+  beforeEach(() => {
+    contentMock.mockReset();
+    contentMock.mockImplementation((pks: string[]) => new Map(pks.map((pk) => [pk, pk === STACI ? { chips: [shop] } : undefined])));
+    searchMock.mockResolvedValue({ results: [{ pubkey: STACI, npub: STACI_NPUB, name: "Staci" }], total: 1, timeMs: 1 });
+  });
+  const typeStaci = async () => {
+    renderOpen();
+    fireEvent.change(input(), { target: { value: "staci" } });
+    act(() => { vi.advanceTimersByTime(400); });
+    await act(async () => {});
+  };
+
+  it("a result wears chips, and a link never sits inside a button", async () => {
+    await typeStaci();
+    const row = screen.getByTestId("mobile-search-result");
+    expect(row).toHaveAttribute("role", "button");
+    expect(row.tagName).not.toBe("BUTTON");
+    const chip = screen.getByTestId("person-content-chip-shop");
+    expect(chip.getAttribute("href")).toBe(scopedSearchHref(STACI, "shop"));
+    expect(chip).toHaveAttribute("aria-label", "Staci's shop");
+    expect(chip.closest("button")).toBeNull();
+  });
+
+  it("Enter on the row still opens the person", async () => {
+    await typeStaci();
+    fireEvent.keyDown(screen.getByTestId("mobile-search-result"), { key: "Enter" });
+    expect(window.location.pathname).toBe(`/p/${STACI_NPUB}`);
+  });
+
+  it("a chip tap closes the sheet and opens the scoped search", async () => {
+    await typeStaci();
+    fireEvent.click(screen.getByTestId("person-content-chip-shop"));
+    expect(screen.queryByTestId("mobile-search-input")).toBeNull();
+    expect(window.location.search).toMatch(/&t=shop$/);
   });
 });

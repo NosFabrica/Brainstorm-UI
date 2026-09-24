@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useLocation } from "wouter";
 import { Search, Loader2, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
@@ -16,6 +16,8 @@ import { useTagMatches } from "@/hooks/useTags";
 import type { TagSummary } from "@/services/tags";import { useHasMywot } from "@/hooks/useHasMywot";
 import { useIsSearchObserver } from "@/hooks/useIsSearchObserver";
 import { typeaheadWords } from "@/lib/searchSyntax";
+import { PersonContentChips } from "@/components/search/PersonContentChips";
+import { usePersonContent } from "@/hooks/usePersonContent";
 
 /**
  * Desktop header search with live, debounced typeahead (mirrors the landing box,
@@ -46,6 +48,8 @@ export function HeaderSearchBox({
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [active, setActive] = useState(-1);
+  // What each suggested person publishes — chips on their row, one tap to it.
+  const personContent = usePersonContent(useMemo(() => suggestions.map((r) => r.pubkey), [suggestions]));
   const timer = useRef<number>();
   const reqId = useRef(0);
   const request = useRef<AbortController | null>(null);
@@ -222,14 +226,14 @@ export function HeaderSearchBox({
               </div>
             )}
             {suggestions.map((r, i) => (
-              <button
+              // A div, not a button: the chips inside are links, and the input keeps focus anyway.
+              <div
                 key={r.pubkey}
-                type="button"
                 role="option"
                 aria-selected={i === active}
                 onMouseEnter={() => setActive(i)}
                 onClick={() => goProfile(r)}
-                className={`flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors ${i === active ? "bg-slate-50 dark:bg-slate-800" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
+                className={`group flex w-full cursor-pointer items-center gap-3 px-3 py-2.5 text-left transition-colors ${i === active ? "bg-slate-50 dark:bg-slate-800" : "hover:bg-slate-50 dark:hover:bg-slate-800"}`}
                 data-testid={`header-search-opt-${i}`}
               >
                 <Avatar className={`h-8 w-8 shrink-0 border border-slate-200 dark:border-slate-800 ${tierRing(r.wotRank) ?? ""}`}>
@@ -240,6 +244,14 @@ export function HeaderSearchBox({
                   <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">{nameOf(r)}</p>
                   {r.nip05 && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{r.nip05}</p>}
                 </div>
+                <PersonContentChips
+                  pubkey={r.pubkey}
+                  name={nameOf(r)}
+                  content={personContent.get(r.pubkey)}
+                  onNavigate={() => setOpen(false)}
+                  linkTabIndex={-1}
+                  className="sm:opacity-0 sm:group-hover:opacity-100 sm:group-aria-selected:opacity-100 sm:group-focus-within:opacity-100"
+                />
                 {/* Same coin as the results page, the profile hero and every
                     people list. It also fixes a scale bug this pill had: it
                     printed `wotRank` raw, which is 0..1, so a 93 would have read
@@ -252,7 +264,7 @@ export function HeaderSearchBox({
                     className={tierRing(r.wotRank) && coinReplaced ? "sr-only" : "shrink-0"}
                   />
                 )}
-              </button>
+              </div>
             ))}
             </>
           )}
