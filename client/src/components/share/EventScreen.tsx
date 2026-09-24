@@ -4,7 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import { naddrForEvent } from "@/lib/articleLinks";
 import { isBlankEvent } from "@/lib/blankEvent";
-import { Smartphone, Loader2, MessageSquare, ArrowRight, X, Trash2 } from "lucide-react";
+import { DeletedStub } from "@/components/share/DeletedStub";
+import { Smartphone, Loader2, MessageSquare, ArrowRight, X } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { fetchEventsByIds, fetchAddressableEvents, fetchProfile, fetchProfileMap } from "@/services/nostr";
@@ -163,10 +164,11 @@ function DeletedEvent() {
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans">
       <PublicPageHeader />
       <main className="max-w-2xl mx-auto px-4 sm:px-6 py-8">
-        <div className="text-center py-20" data-testid="event-deleted">
-          <Trash2 className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto" />
-          <p className="mt-3 text-slate-600 dark:text-slate-300 font-medium">This post was deleted by its author.</p>
-          <Link href="/" className="mt-3 inline-block text-sm font-semibold text-brand-link hover:underline">Go to Brainstorm →</Link>
+        <div className="py-10" data-testid="event-deleted">
+          <DeletedStub />
+          <p className="mt-4 text-center">
+            <Link href="/" className="text-sm font-semibold text-brand-link hover:underline">Go to Brainstorm →</Link>
+          </p>
         </div>
       </main>
     </div>

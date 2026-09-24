@@ -9,6 +9,8 @@ import { useNip05 } from "@/hooks/useNip05";
 import { npubFromPubkey } from "@/lib/shareId";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
 import { analyzeNote, type MinimalEvent } from "@/lib/noteRefs";
+import { isBlankEvent } from "@/lib/blankEvent";
+import { DeletedStub } from "@/components/share/DeletedStub";
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string; nip05?: string };
 
@@ -48,6 +50,8 @@ export function EmbeddedNoteCard({
   showReplyContext?: boolean;
 }) {
   const tierRing = useTierRing();
+  // Deleted by overwriting: a quiet stub in the quote's place, nothing to click.
+  const blank = isBlankEvent(event);
   const coinReplaced = useCoinReplacedByRing();
   // Callers that fetched a POV-aware score pass it; everyone else (thread
   // ancestors, more-from-author, quoted embeds) gets the shared house cache,
@@ -76,6 +80,7 @@ export function EmbeddedNoteCard({
       }
     : undefined;
 
+  if (blank) return <DeletedStub who={author?.display_name || author?.name} className="mt-2" testId="embedded-deleted" />;
   return (
     <div
       className={`mt-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/70 p-3 ${href ? "cursor-pointer hover:border-slate-300 dark:hover:border-slate-700" : ""}`}

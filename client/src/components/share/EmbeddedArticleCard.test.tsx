@@ -17,6 +17,19 @@ function page(kind: number, content: string, tags: string[][]): MinimalEvent {
 }
 
 describe("EmbeddedArticleCard", () => {
+  // Zap Cooking's recipes deleted by overwriting (2026-09-24) rendered as
+  // cards titled "[Deleted]" with the placeholder cover. A quiet stub in the
+  // same frame says what happened and asks for nothing.
+  it("an article deleted by overwriting is a quiet stub naming who deleted it — no title, no cover, nothing to click", () => {
+    render(<EmbeddedArticleCard event={page(30023, "", [["d", "cheese-foam-tea"], ["deleted", "true"], ["title", "[Deleted]"]])} author={{ name: "zapcooking", display_name: "Zap Cooking" }} />);
+    const stub = screen.getByTestId("embedded-deleted");
+    expect(stub).toHaveTextContent("Zap Cooking deleted this post.");
+    expect(screen.queryByTestId("embedded-article")).toBeNull();
+    expect(screen.queryByText("[Deleted]")).toBeNull();
+    expect(stub.querySelector("img")).toBeNull();
+    expect(stub.querySelector("a, button")).toBeNull();
+  });
+
   it("a wiki page without a summary shows its words as the brief and calls itself a Wiki", () => {
     const wiki = page(30818, "A [[comedian]] is one who entertains through [[comedy]].\n\n== Comedians\n=== A\n* [[Celya AB]] (born 1995)", [["d", "list-of-comedians"], ["title", "List of comedians"]]);
     render(<EmbeddedArticleCard event={wiki} author={{ name: "GitCitadel" }} />);
