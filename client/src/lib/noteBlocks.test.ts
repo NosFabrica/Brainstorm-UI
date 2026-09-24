@@ -56,9 +56,9 @@ describe("prose pass (unmarked articles, e.g. RSS bridges)", () => {
 
   it("gives each prose line its own paragraph and reads headline, caption and section head", () => {
     const b = toNoteBlocks(parseNoteContent(article));
-    expect(b.map((x) => (x.type === "h" ? `h${x.level}` : x.type))).toEqual(["h1", "p", "caption", "caption", "p", "p", "h3", "p", "p"]);
-    // Leading indent and doubled spaces don't survive into the caption.
-    expect(texts((b[2] as { tokens: never[] }).tokens)).toBe("Caption of the photo, no period");
+    expect(b.map((x) => (x.type === "h" ? `h${x.level}` : x.type))).toEqual(["h1", "p", "caption", "p", "p", "h3", "p", "p"]);
+    // Caption and credit read as one caption; the indent doesn't survive.
+    expect(texts((b[2] as { tokens: never[] }).tokens).trim()).toBe("Caption of the photo, no period\nPhoto credit");
   });
 
   it("leaves short chatty notes alone", () => {
@@ -70,6 +70,40 @@ describe("prose pass (unmarked articles, e.g. RSS bridges)", () => {
   it("does not promote a sentence to a section head", () => {
     const b = blocks([para(2), "This one ends properly.", para(2)].join("\n"));
     expect(b.every((x) => x.type === "p")).toBe(true);
+  });
+});
+
+describe("layouts that are not prose (from real events)", () => {
+  it("keeps whitespace art as one preformatted block, untouched", () => {
+    const art = ["   ) ( (   (", "  (  ) () @@  )  (( (", "( ( ( ()( /---\\   (()( (", " __<__\\__(___)_))_((_(____))__"].join("\n");
+    const b = blocks(art);
+    expect(b).toEqual([{ type: "code", text: art }]);
+  });
+
+  it("takes a pasted git log / diff to the end as code, blank context lines included", () => {
+    const log = ["commit 57b3c5bda648016747553f49b6107fd6c7d90235", "Author: A <a@b>", "", "diff --git a/x b/x", "@@ -1,3 +1,2 @@", " Global", "-\t\tDebug|x86", " ", "+\tRelease"].join("\n");
+    const b = blocks(log);
+    expect(b.map((x) => x.type)).toEqual(["code"]);
+    expect((b[0] as { text: string }).text).toContain("-\t\tDebug|x86");
+  });
+
+  it("ends a list at an unindented line instead of swallowing the rest", () => {
+    const b = blocks("- Calso: twitter\n- Zetti:\nProduziert von Zetti\nTimestamps:");
+    expect(b.map((x) => x.type)).toEqual(["ul", "p"]);
+    expect((b[0] as { items: unknown[] }).items).toHaveLength(2);
+  });
+
+  it("keeps a run of short lines together between prose paragraphs", () => {
+    const long = "A long line of prose that goes on well past the hundred character mark, as descriptions often do, yes.";
+    const b = blocks([long + " More.", "(00:00) Intro", "(02:43) Part two", "(05:45) Part three", long].join("\n"));
+    expect(b.map((x) => x.type)).toEqual(["p", "p", "p"]);
+    expect(texts((b[1] as { tokens: never[] }).tokens)).toBe("(00:00) Intro\n(02:43) Part two\n(05:45) Part three");
+  });
+
+  it("reads an emoji-marked short line as a section head in a long text", () => {
+    const para = "Mornings are workshops and mentor sessions, afternoons are open build time with teachers floating. ";
+    const b = blocks([para.repeat(3), "", "🧠 Why this exists", "", para.repeat(3)].join("\n"));
+    expect(b.map((x) => (x.type === "h" ? `h${x.level}` : x.type))).toEqual(["p", "h3", "p"]);
   });
 });
 
@@ -86,7 +120,7 @@ describe("parseInlineMarkdown", () => {
   });
 
   it("leaves snake_case, arithmetic and lone markers alone", () => {
-    for (const s of ["snake_case_name", "2 * 3 * 4", "** nope **", "file_name.txt and other_file"]) {
+    for (const s of ["snake_case_name", "2 * 3 * 4", "** nope **", "file_name.txt and other_file", "__<_____\\__\\__(___)_))_((_(____))__"]) {
       expect(parseInlineMarkdown(s)).toEqual([{ type: "text", value: s }]);
     }
   });

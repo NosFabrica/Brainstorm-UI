@@ -23,6 +23,7 @@ import { repoLineageOf } from "@/lib/gitStatus";
 import { Favicon } from "@/components/share/LinkPreview";
 import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitItemLabel, gitStateOf, peopleBeforeAgents } from "@/lib/gitStatus";
 import { MessageSquare } from "lucide-react";
+import { ReadingText } from "@/components/share/ReadingText";
 
 // Structural minimum (EventPage hands heroes MinimalEvent, which has no sig).
 type RepoEvent = {
@@ -75,6 +76,7 @@ export function RepoHero({ event }: { event: RepoEvent }) {
   const d = tagVal(event, "d");
   const name = tagVal(event, "name") ?? d ?? "Unnamed repo";
   const description = tagVal(event, "description");
+  const longDescription = !!description && (description.length > 200 || description.includes("\n"));
   const clone = tagVal(event, "clone");
   const web = tagVal(event, "web");
   const source = tagVal(event, "source");
@@ -202,7 +204,7 @@ export function RepoHero({ event }: { event: RepoEvent }) {
               </span>
             </Link>
           )}
-          {description && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 break-words">{description}</p>}
+          {description && !longDescription && <p className="mt-1 text-sm text-slate-600 dark:text-slate-300 break-words">{description}</p>}
           {/* Where it came from and where it went. */}
           {(forkedFrom || forks.length > 0) && (
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
@@ -231,6 +233,10 @@ export function RepoHero({ event }: { event: RepoEvent }) {
           </div>
         )}
       </div>
+
+      {/* A README-length description is prose, not a tagline — it reads
+          below the identity, not squeezed beside the glyph. */}
+      {longDescription && <ReadingText text={description!} className="mt-3" testId="repo-hero-description" />}
 
       {/* Is it alive, and who is behind it — the numbers the card already has,
           one strip, the app page's anatomy. */}

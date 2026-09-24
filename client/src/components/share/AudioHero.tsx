@@ -2,6 +2,7 @@ import { Music as MusicIcon, Play, Pause, Loader2, AlertCircle } from "lucide-re
 import { useTrackPlayer, useTrackDuration, toggleTrack, seekTrack, formatTime, audioUrlFromEvent } from "@/lib/audioPlayer";
 import audioDefault from "@/assets/audio-default.webp";
 import type { MinimalEvent } from "@/lib/noteRefs";
+import { ReadingText } from "@/components/share/ReadingText";
 
 const tagVal = (ev: MinimalEvent, k: string) => ev.tags.find((t) => t[0] === k)?.[1];
 
@@ -107,7 +108,9 @@ export function AudioHero({ event }: { event: MinimalEvent }) {
       </div>
 
       {description && description !== title && (
-        <p className="mt-4 whitespace-pre-line break-words border-t border-slate-100 dark:border-slate-800/60 pt-4 text-sm leading-relaxed text-slate-600 dark:text-slate-300">{description}</p>
+        <div className="mt-4 border-t border-slate-100 dark:border-slate-800/60 pt-4">
+          <ReadingText text={description} />
+        </div>
       )}
     </div>
   );

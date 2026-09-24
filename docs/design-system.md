@@ -85,6 +85,18 @@ backup nag, the plan you are on). Reach for `accent` rather than spelling out a
 <Card accent={isMine}>…</Card>
 ```
 
+## ReadingText — `components/share/ReadingText.tsx`
+Any body of network prose shown in full on an event page — a note, a listing's
+description, a calendar event's About, a video summary. Owns the reading type
+(`post` for the event itself, `body` for a description under a hero title),
+paragraphs, light markdown, HTML-to-text, and the prose pass that finds
+headlines, captions and section heads in unmarked text (`lib/noteBlocks.ts`).
+Don't hand-roll `whitespace-pre-line text-sm leading-relaxed` for these.
+```tsx
+<ReadingText text={listing.description} className="mt-4" />
+<ReadingText tokens={tokens} size="post" renderToken={rich} />   // NoteContent
+```
+
 ## Also use the existing themed primitives
 - `ui/badge.tsx` — brand/success/warning variants (rounded-full).
 - `ui/alert.tsx` — info / success / warning / destructive (matches p17 Alerts).

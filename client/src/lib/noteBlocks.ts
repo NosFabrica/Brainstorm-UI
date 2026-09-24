@@ -94,7 +94,13 @@ function joinLines(lines: Line[]): NoteToken[] {
   return out;
 }
 
-export function toNoteBlocks(tokens: NoteToken[]): NoteBlock[] {
+export type NoteBlockOptions = {
+  /** Read a short first line of a long text as its headline. Off where the
+   *  surface already has a title (a listing, a calendar event). */
+  headline?: boolean;
+};
+
+export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): NoteBlock[] {
   const lines = splitLines(tokens);
   const blocks: NoteBlock[] = [];
   let para: Line[] = [];
@@ -103,9 +109,21 @@ export function toNoteBlocks(tokens: NoteToken[]): NoteBlock[] {
 
   const flush = () => {
     // Lines of prose each end a paragraph: a bridge that writes one
-    // paragraph per line never leaves the blank line between them.
+    // paragraph per line never leaves the blank line between them. Runs of
+    // short lines between them (a timestamp list, a sign-off) stay together.
     if (para.length > 1 && para.some((l) => textLength(l) >= PROSE_LINE)) {
-      for (const l of para) blocks.push({ type: "p", tokens: tidy(l) });
+      let run: Line[] = [];
+      const endRun = () => {
+        if (run.length) blocks.push({ type: "p", tokens: run.length === 1 ? tidy(run[0]) : joinLines(run) });
+        run = [];
+      };
+      for (const l of para) {
+        if (textLength(l) >= PROSE_LINE) {
+          endRun();
+          blocks.push({ type: "p", tokens: tidy(l) });
+        } else run.push(l);
+      }
+      endRun();
     } else if (para.length) blocks.push({ type: "p", tokens: joinLines(para) });
     if (quote.length) blocks.push({ type: "quote", tokens: joinLines(quote) });
     if (list) blocks.push(list.type === "ol" && list.start !== undefined && list.start !== 1 ? list : { type: list.type, items: list.items });
@@ -121,6 +139,23 @@ export function toNoteBlocks(tokens: NoteToken[]): NoteBlock[] {
     if (isBlank(line)) {
       flush();
       continue;
+    }
+
+    // A block laid out with spaces — ASCII art, a table, a pasted diff —
+    // keeps its layout: monospaced, unwrapped, nothing read as markdown.
+    if (i === 0 || isBlank(lines[i - 1])) {
+      const group: string[] = [];
+      for (let j = i; j < lines.length && !isBlank(lines[j]); j++) group.push(rawText(lines[j]));
+      const pre = preformatted(group);
+      if (pre) {
+        flush();
+        // A diff or a git log runs to the end: its blank context lines would
+        // otherwise cut it into pieces read as prose.
+        const end = pre === "diff" ? lines.length : i + group.length;
+        blocks.push({ type: "code", text: lines.slice(i, end).map(rawText).join("\n").replace(/\s+$/, "") });
+        i = end - 1;
+        continue;
+      }
     }
 
     // ``` fence — everything up to the closing fence (or the end) verbatim.
@@ -166,17 +201,37 @@ export function toNoteBlocks(tokens: NoteToken[]): NoteBlock[] {
       continue;
     }
 
-    // A plain line right under a list item continues that item (soft wrap).
-    if (list) {
+    // An indented line under a list item continues it; anything else ends
+    // the list — notes don't soft-wrap list items, they just stop listing.
+    if (list && /^[ \t]+\S/.test(lead)) {
       const last = list.items[list.items.length - 1];
-      last.push({ type: "text", value: "\n" }, ...line);
+      last.push({ type: "text", value: "\n" }, ...stripLead(line, lead.length - lead.trimStart().length));
       continue;
     }
-    if (quote.length) flush();
+    if (list || quote.length) flush();
     para.push(line);
   }
   flush();
-  return refineProse(blocks, textLength(tokens));
+  return refineProse(blocks, textLength(tokens), opts.headline ?? true);
+}
+
+const DIFF_START = /^(?:diff --git |@@ -\d+(?:,\d+)? \+\d+|commit [0-9a-f]{7,40}\b)/;
+const GAP = /\S(?: {3,}|\t)\S/;
+
+/** How a group of lines is laid out, if by hand: "diff" for a pasted diff or
+ *  git log, "art" for spacing that carries meaning (art, tables). */
+function preformatted(group: string[]): "diff" | "art" | null {
+  if (group.some((l) => DIFF_START.test(l))) return "diff";
+  const lines = group.filter((l) => l.trim());
+  if (lines.length < 3) return null;
+  const share = (test: (l: string) => boolean) => lines.filter(test).length / lines.length;
+  if (share((l) => GAP.test(l.trim())) >= 0.3) return "art";
+  // Mostly punctuation: box drawing, ASCII shapes.
+  const symbolic = (l: string) => {
+    const t = l.replace(/\s/g, "");
+    return t.length > 4 && t.replace(/[\p{L}\p{N}]/gu, "").length / t.length > 0.5;
+  };
+  return share(symbolic) >= 0.4 ? "art" : null;
 }
 
 function textLength(ts: NoteToken[]): number {
@@ -201,6 +256,13 @@ function soleLine(b: NoteBlock | undefined): string | null {
   return s && !s.includes("\n") ? s : null;
 }
 
+/** Up to two short unpunctuated lines — a caption and its credit. */
+function captionLines(b: NoteBlock | undefined): boolean {
+  if (!b || b.type !== "p" || !b.tokens.every((t) => t.type === "text")) return false;
+  const lines = b.tokens.map((t) => (t as { value: string }).value).join("").trim().split("\n").map((l) => l.trim());
+  return lines.length <= 2 && lines.every((l) => l && l.length <= 220 && !ENDS_SENTENCE.test(l));
+}
+
 function isImageOnly(b: NoteBlock | undefined): boolean {
   return !!b && b.type === "p" && b.tokens.some((t) => t.type === "image") &&
     b.tokens.every((t) => t.type === "image" || (t.type === "text" && !t.value.trim()));
@@ -213,29 +275,35 @@ function isImageOnly(b: NoteBlock | undefined): boolean {
  * needs a picture above it, a section head needs a paragraph after it — so
  * a chatty note never grows headings.
  */
-export function refineProse(blocks: NoteBlock[], totalLength: number): NoteBlock[] {
+export function refineProse(blocks: NoteBlock[], totalLength: number, headline = true): NoteBlock[] {
   const out: NoteBlock[] = [];
+  const long = totalLength > 600;
   let captions = 0;
   blocks.forEach((b, i) => {
     const s = soleLine(b);
     const tokens = b.type === "p" ? b.tokens : [];
     const prev = out[out.length - 1];
     const afterPicture = isImageOnly(prev) || (prev?.type === "caption" && captions < 2);
+    if (afterPicture && captionLines(b)) {
+      captions++;
+      const trimmed = tokens.map((t) => (t.type === "text" ? { ...t, value: t.value.replace(/^[ \t]+|[ \t]+$/gm, "").replace(/[ \t]{2,}/g, " ") } : t));
+      out.push({ type: "caption", tokens: trimmed });
+      return;
+    }
     if (s !== null && !ENDS_SENTENCE.test(s)) {
-      if (i === 0 && totalLength > 600 && s.length <= 140 && blocks.length >= 3) {
+      if (headline && i === 0 && long && s.length <= 140 && blocks.length >= 3) {
         out.push({ type: "h", level: 1, tokens });
         return;
       }
-      if (afterPicture && s.length <= 220) {
-        captions++;
-        out.push({ type: "caption", tokens });
-        return;
-      }
       const next = blocks[i + 1];
+      // A section head: short, starts like a word or an emoji marker, sits
+      // between blocks of text — and only in a long text, so a chatty note
+      // ("lol" / "that's wild" / a paragraph) never grows headings.
+      const starts = /^[\p{L}'"“‘]/u.test(s) || (s.length <= 50 && /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator})/u.test(s));
       if (
-        s.length <= 70 && /^[\p{L}'"“‘]/u.test(s) &&
-        prev?.type === "p" && !isImageOnly(prev) &&
-        next?.type === "p" && textLength(next.tokens) >= PROSE_LINE
+        long && s.length <= 70 && starts &&
+        (prev?.type === "p" || prev?.type === "ul" || prev?.type === "ol" || prev?.type === "quote") && !isImageOnly(prev) &&
+        ((next?.type === "p" && textLength(next.tokens) >= 60) || next?.type === "ul" || next?.type === "ol")
       ) {
         out.push({ type: "h", level: 3, tokens });
         return;
@@ -254,8 +322,18 @@ export type InlineSpan =
 
 // `code`, **strong** / __strong__, *em* / _em_. Emphasis must hug its text
 // and not sit inside a word, so `snake_case`, `2 * 3` and `**` alone stay text.
-const INLINE_RE =
-  /`([^`\n]+)`|(\*\*|__)(?=\S)([^\n]+?)(?<=\S)\2(?![\p{L}\p{N}])|(?<![\p{L}\p{N}*_])([*_])(?=[^\s*_])([^\n]*?[^\s*_])\4(?![\p{L}\p{N}*_])/gu;
+const INLINE_RE = new RegExp(
+  [
+    "`(?<code>[^`\\n]+)`",
+    // **strong** hugs its text; __strong__ only around a word, so ASCII
+    // art's ____ runs and snake__case stay text.
+    "\\*\\*(?=\\S)(?<strong>[^\\n]+?)(?<=\\S)\\*\\*(?![\\p{L}\\p{N}])",
+    "(?<![\\p{L}\\p{N}_])__(?=[\\p{L}\\p{N}])(?<ustrong>[^\\n]+?)(?<=[\\p{L}\\p{N}])__(?![\\p{L}\\p{N}_])",
+    "(?<![\\p{L}\\p{N}*])\\*(?=[^\\s*])(?<em>[^\\n*]*?[^\\s*])\\*(?![\\p{L}\\p{N}*])",
+    "(?<![\\p{L}\\p{N}_])_(?=[\\p{L}\\p{N}])(?<uem>[^\\n_]*?[\\p{L}\\p{N}])_(?![\\p{L}\\p{N}_])",
+  ].join("|"),
+  "gu",
+);
 
 /** Inline emphasis in one text run. Unmatched markers stay literal. */
 export function parseInlineMarkdown(text: string): InlineSpan[] {
@@ -264,11 +342,13 @@ export function parseInlineMarkdown(text: string): InlineSpan[] {
   for (const m of text.matchAll(INLINE_RE)) {
     const idx = m.index ?? 0;
     if (idx > last) out.push({ type: "text", value: text.slice(last, idx) });
-    const [whole, code, , strong, , em] = m;
-    if (code !== undefined) out.push({ type: "code", value: code });
+    const g = m.groups!;
+    const strong = g.strong ?? g.ustrong;
+    const em = g.em ?? g.uem;
+    if (g.code !== undefined) out.push({ type: "code", value: g.code });
     else if (strong !== undefined) out.push({ type: "strong", children: parseInlineMarkdown(strong) });
-    else out.push({ type: "em", children: parseInlineMarkdown(em) });
-    last = idx + whole.length;
+    else out.push({ type: "em", children: parseInlineMarkdown(em!) });
+    last = idx + m[0].length;
   }
   if (last < text.length) out.push({ type: "text", value: text.slice(last) });
   return out;

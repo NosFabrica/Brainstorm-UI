@@ -5,7 +5,7 @@
  * shop page. No checkout of ours: payment happens where the seller sells.
  */
 import { describe, expect, it } from "vitest";
-import { render, screen, fireEvent } from "@testing-library/react";
+import { render, screen, within, fireEvent } from "@testing-library/react";
 import { ListingHero } from "./ListingHero";
 
 const SELLER = "9".repeat(64);
@@ -45,8 +45,8 @@ describe("ListingHero", () => {
     expect(screen.getByTestId("listing-hero-shipping")).toHaveTextContent("Italia");
     expect(screen.getByTestId("listing-hero-shipping")).toHaveTextContent("500 sats");
     expect(screen.getByTestId("listing-hero-shipping")).toHaveTextContent("Europa");
-    // The description's link is a link (rendered as the site's chip, like every note).
-    const links = screen.getAllByTestId("link-chip");
+    // The description's link is a link (underlined in the prose, as on every event page).
+    const links = screen.getAllByTestId("reading-link");
     expect(links.some((a) => a.getAttribute("href") === "https://barattolo.app/faq")).toBe(true);
     expect(hero).toHaveTextContent("abbigliamento");
   });
@@ -89,13 +89,14 @@ describe("ListingHero", () => {
     expect(screen.getByTestId("listing-hero-message")).toBeInTheDocument();
   });
 
-  it("a markdown description reads as words — no heading hashes, no emphasis marks", () => {
+  it("a markdown description is formatted — no heading hashes, no emphasis marks, real lists", () => {
     render(<ListingHero event={listing([["image", "https://img/1.jpg"]], "## Nostr Pop Run\n\nDownload **here** the _SVG_ file.\n- stickers\n- shirts")} />);
     const desc = screen.getByTestId("listing-hero-description");
     expect(desc).toHaveTextContent("Nostr Pop Run");
     expect(desc).not.toHaveTextContent(/##|\*\*|_SVG_/);
     expect(desc).toHaveTextContent("Download here the SVG file.");
-    expect(desc).toHaveTextContent("• stickers");
+    expect(within(desc).getByRole("heading")).toHaveTextContent("Nostr Pop Run");
+    expect(within(desc).getAllByRole("listitem").map((li) => li.textContent)).toEqual(["stickers", "shirts"]);
   });
 
   it("a listing with no price still shows its title, photo and story — with 'Price on request' instead of a badge", () => {

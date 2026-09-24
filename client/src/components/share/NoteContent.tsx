@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import { useLocation } from "wouter";
-import { parseNoteContent, primaryLink, extractImageUrls, extractNoteTitle, toPlayableStreamUrl, prettyUrlLabel, type NoteToken } from "@/lib/noteContent";
-import { toNoteBlocks, parseInlineMarkdown, type InlineSpan } from "@/lib/noteBlocks";
+import { parseNoteContent, primaryLink, extractImageUrls, extractNoteTitle, toPlayableStreamUrl, type NoteToken } from "@/lib/noteContent";
+import { ReadingText, ReadingLink } from "@/components/share/ReadingText";
 import { decodeNostrEntity } from "@/lib/noteRefs";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { LinkChip, LinkPreviewCard } from "@/components/share/LinkPreview";
@@ -61,35 +61,6 @@ function NoteLiveVideo({ url }: { url: string }) {
 
 type ProfileLite = { name?: string; display_name?: string; picture?: string };
 
-/** Inline emphasis spans as elements (reading mode). */
-function renderSpans(spans: InlineSpan[], key: string): ReactNode[] {
-  return spans.map((s, i) => {
-    const k = `${key}.${i}`;
-    if (s.type === "text") return s.value;
-    if (s.type === "code") {
-      return <code key={k} className="rounded bg-slate-100 dark:bg-slate-800 px-1 py-0.5 font-mono text-[0.85em] text-slate-800 dark:text-slate-100 [overflow-wrap:anywhere]">{s.value}</code>;
-    }
-    return s.type === "strong"
-      ? <strong key={k} className="font-semibold text-slate-900 dark:text-white">{renderSpans(s.children, k)}</strong>
-      : <em key={k}>{renderSpans(s.children, k)}</em>;
-  });
-}
-
-/** A plain web link in running prose: underlined text, not a favicon chip —
- *  chips every few words break the line's rhythm (reading mode). */
-function ReadingLink({ url }: { url: string }) {
-  return (
-    <a
-      href={url}
-      target="_blank"
-      rel="noopener"
-      className="font-medium text-brand-link underline decoration-brand-link/30 underline-offset-[3px] hover:decoration-brand-link [overflow-wrap:anywhere]"
-      data-testid="reading-link"
-    >
-      {prettyUrlLabel(url)}
-    </a>
-  );
-}
 
 /**
  * Renders parsed kind-1 note content: text, links, inline images/video,
@@ -149,7 +120,7 @@ export function NoteContent({
   const renderToken = (token: NoteToken, i: number | string): ReactNode => {
         switch (token.type) {
           case "text":
-            return reading ? <span key={i}>{renderSpans(parseInlineMarkdown(token.value), String(i))}</span> : <span key={i}>{token.value}</span>;
+            return <span key={i}>{token.value}</span>;
           case "url":
             if (wavlakeTrackId(token.value)) return <WavlakeTrackCard key={i} url={token.value} />;
             if (fountainRef(token.value)) return <FountainCard key={i} url={token.value} />;
@@ -242,41 +213,7 @@ export function NoteContent({
     : null;
 
   if (reading) {
-    const inline = (ts: NoteToken[], key: string) => ts.map((t, j) => renderToken(t, `${key}.${j}`));
-    return (
-      <div className="note-reading max-w-[68ch] text-[17px] sm:text-[18px] leading-[1.65] tracking-[-0.005em] text-slate-800 dark:text-slate-100 break-words" data-testid="note-reading">
-        {toNoteBlocks(tokens).map((b, i) => {
-          const k = String(i);
-          switch (b.type) {
-            case "p":
-              return <div key={k} className="whitespace-pre-wrap">{inline(b.tokens, k)}</div>;
-            case "h": {
-              const size = b.level === 1 ? "text-[1.35em]" : b.level === 2 ? "text-[1.2em]" : "text-[1.05em]";
-              const Tag = (["h2", "h3", "h4"] as const)[b.level - 1];
-              return <Tag key={k} className={`${size} font-bold leading-snug tracking-tight text-slate-900 dark:text-white`} style={{ fontFamily: "var(--font-display)" }}>{inline(b.tokens, k)}</Tag>;
-            }
-            case "ul":
-            case "ol": {
-              const List = b.type;
-              return (
-                <List key={k} start={b.type === "ol" ? b.start : undefined} className={`${b.type === "ul" ? "list-disc" : "list-decimal"} space-y-1.5 pl-6 marker:text-slate-400 dark:marker:text-slate-500`}>
-                  {b.items.map((item, j) => <li key={j} className="whitespace-pre-wrap pl-1">{inline(item, `${k}.${j}`)}</li>)}
-                </List>
-              );
-            }
-            case "quote":
-              return <blockquote key={k} className="whitespace-pre-wrap border-l-[3px] border-slate-300 dark:border-slate-600 pl-4 italic text-slate-600 dark:text-slate-300">{inline(b.tokens, k)}</blockquote>;
-            case "code":
-              return <pre key={k} className="overflow-x-auto rounded-xl bg-slate-100 dark:bg-slate-800 px-4 py-3 font-mono text-[0.8em] leading-relaxed text-slate-800 dark:text-slate-100"><code>{b.text}</code></pre>;
-            case "caption":
-              return <p key={k} className="note-caption whitespace-pre-wrap text-[0.8em] leading-snug text-slate-500 dark:text-slate-400">{inline(b.tokens, k)}</p>;
-            case "hr":
-              return <hr key={k} className="mx-auto w-16 border-slate-200 dark:border-slate-700" />;
-          }
-        })}
-        {linkCardNode}
-      </div>
-    );
+    return <ReadingText tokens={tokens} size="post" renderToken={renderToken} after={linkCardNode} testId="note-reading" />;
   }
 
   return (

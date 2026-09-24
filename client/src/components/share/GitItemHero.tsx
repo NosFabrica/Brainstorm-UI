@@ -8,6 +8,7 @@ import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitLabelsOf, gitRepoNameOf
 import { gitItemTitleOf, parsePatch } from "@/lib/gitPatch";
 import { eventPath } from "@/lib/shareId";
 import { MarkdownBody } from "./MarkdownBody";
+import { ReadingText } from "@/components/share/ReadingText";
 
 type GitItem = { id: string; kind: number; pubkey: string; content: string; tags: string[][]; created_at: number };
 
@@ -147,9 +148,7 @@ export function GitItemHero({ event, author }: { event: GitItem; author?: AgentA
             </div>
           )}
           {patch.message && (
-            <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700 dark:text-slate-200" data-testid="git-patch-message">
-              {patch.message}
-            </p>
+            <ReadingText text={patch.message} headline={false} className="mt-2" testId="git-patch-message" />
           )}
           {patch.diff && (
             <div className="mt-3">

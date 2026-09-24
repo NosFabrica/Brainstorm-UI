@@ -158,7 +158,11 @@ export function ShareNoteCard({
         <p className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1.5">
           <Repeat2 className="h-3.5 w-3.5 text-emerald-600" /> Reposted
         </p>
-        {inner ? (
+        {inner && reading && inner.kind === 1 ? (
+          // On the repost's own page the reposted note IS the content — set
+          // it for reading, not shrunk into a quote card.
+          <ShareNoteCard event={inner} profiles={profiles} eventsById={eventsById} addrByCoord={addrByCoord} forceExpanded reading showAuthor />
+        ) : inner ? (
           <EmbeddedNoteCard event={inner} author={profiles.get(inner.pubkey)} profiles={profiles} href={eventPath(inner)} />
         ) : (
           <p className="text-sm text-slate-400 dark:text-slate-500">Reposted a note</p>
