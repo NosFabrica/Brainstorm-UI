@@ -1552,7 +1552,7 @@ describe("SearchResults", () => {
     render(<SearchResults query="gitworkshop" pov="nosfabrica" />);
     emit({ hits: [{ event: pr, author: author(pr.pubkey, "dev"), rank: null }], eose: true, timeMs: 200 });
     const card = await screen.findByTestId("repo-card-pr1");
-    expect(card).toHaveTextContent("PR");
+    expect(card).toHaveTextContent("Pull request");
     expect(within(card).getByTestId("git-state-pr1")).toHaveTextContent("Merged");
     expect(gitStatusesMock).toHaveBeenCalledWith([pr.id]);
   });

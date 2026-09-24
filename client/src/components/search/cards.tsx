@@ -25,7 +25,8 @@ import { fetchProfileMap } from "@/services/nostr";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { brandForHost } from "@/lib/brands";
 import { profileHrefOf, wavlakeSongHref } from "@/lib/upNext";
-import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitItemLabel, gitLabelsOf, type GitState } from "@/lib/gitStatus";
+import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitLabelsOf, type GitState } from "@/lib/gitStatus";
+import { kindTypeLabel } from "@/lib/kindLabel";
 import { compactCount } from "@/lib/compactCount";
 import { ago } from "@/lib/ago";
 import { gitItemSummaryOf, gitItemTitleOf } from "@/lib/gitPatch";
@@ -553,7 +554,7 @@ export function RepoCard({
   // repo it belongs to (from its a-tag) — the context that makes a lone "fix: …"
   // card mean something.
   const isRepo = event.kind === 30617;
-  const typeLabel = isRepo ? null : gitItemLabel(event.kind);
+  const typeLabel = isRepo ? null : kindTypeLabel(event.kind);
   const typeTone: "info" | "warning" = event.kind === 1617 || event.kind === 1618 ? "info" : "warning";
   // A repo is named by its announcement; an issue, patch or PR by the one
   // title rule — a patch without a subject tag is titled from its own text.
