@@ -48,25 +48,32 @@ export function dedupePaths(paths: string[][]): string[][] {
   return out;
 }
 
-export function classifyPath(path: string[], { flaggedOf, scoreOf, verifiedLine = DEFAULT_VERIFIED_LINE }: RiskSignals): PathVerdict {
+/** One account's standing as a connector — the same rule the path verdict is built from. */
+export function nodeRisk(pk: string, { flaggedOf, scoreOf, verifiedLine = DEFAULT_VERIFIED_LINE }: RiskSignals): PathRisk {
+  const flagged = flaggedOf(pk);
+  const score = scoreOf(pk);
+  // A flag decides, whatever else is still loading.
+  if (flagged === true) return "flagged";
+  if (score === null || (typeof score === "number" && score < verifiedLine)) return "unverified";
+  // Both signals come from one batch: a landed score means the flag has
+  // landed too. Only an absent score is "still checking".
+  return score === undefined ? "checking" : "verified";
+}
+
+export function classifyPath(path: string[], signals: RiskSignals): PathVerdict {
   let risk: PathRisk = "verified";
   let riskyIndex = -1;
   let riskyCount = 0;
   for (let i = 1; i < path.length - 1; i++) {
-    const flagged = flaggedOf(path[i]);
-    const score = scoreOf(path[i]);
-    // A flagged connector decides the path, whatever else is still loading.
-    const risky = flagged === true || score === null || (typeof score === "number" && score < verifiedLine);
-    if (risky) {
+    const r = nodeRisk(path[i], signals);
+    if (r === "flagged" || r === "unverified") {
       riskyCount++;
       if (riskyIndex === -1) riskyIndex = i;
-      if (flagged === true) risk = "flagged";
+      if (r === "flagged") risk = "flagged";
       else if (risk !== "flagged") risk = "unverified";
-      continue;
+    } else if (r === "checking" && risk === "verified") {
+      risk = "checking";
     }
-    // Both signals come from one batch: a landed score means the flag has
-    // landed too. Only an absent score is "still checking".
-    if (score === undefined && risk === "verified") risk = "checking";
   }
   return { risk, riskyIndex, riskyCount };
 }
