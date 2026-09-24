@@ -43,8 +43,8 @@ describe("MusicResults — the V4V lists while browsing", () => {
   it("lists the V4V songs as playable rows that name Podcast Index as their source", () => {
     open({ podcastIndex: { songs: [song(1, "Step Into the Light")], musicians: [], loading: false } });
     const section = screen.getByTestId("music-podcastindex-songs");
-    expect(section).toHaveTextContent("V4V Songs");
-    expect(section).toHaveTextContent("Podcast Index");
+    expect(section).toHaveTextContent("Value-for-value songs");
+    expect(section).toHaveTextContent("from Podcast Index");
     const row = within(section).getByTestId(`podcastindex-song-${song(1, "").id}`);
     expect(row).toHaveTextContent("Step Into the Light");
     expect(row).toHaveTextContent("Torcon 7");
@@ -55,7 +55,7 @@ describe("MusicResults — the V4V lists while browsing", () => {
   it("shows the V4V musicians as faces that open their music here", () => {
     open({ podcastIndex: { songs: [], musicians: [torcon], loading: false } });
     const section = screen.getByTestId("music-podcastindex-musicians");
-    expect(section).toHaveTextContent("V4V Musicians");
+    expect(section).toHaveTextContent("Value-for-value musicians");
     const face = within(section).getByTestId(`music-artist-podcastindex-${torcon.id}`);
     expect(face).toHaveTextContent("Torcon 7");
     expect(face).toHaveTextContent("Podcast Index");
@@ -77,16 +77,33 @@ describe("MusicResults — the V4V lists while browsing", () => {
     expect(playerSnapshot().currentId).toBe(a.id);
   });
 
-  it("browsing shows a shelf of songs, says how many there are, and Show more brings the rest", () => {
-    // Live (2026-09-24): the list holds 436 songs — a shelf, not a wall.
-    const songs = Array.from({ length: 30 }, (_, i) => song(i + 1, `Song ${i + 1}`));
+  it("browsing shows a shelf of one song per musician, says how many there are, and Show all brings the rest in list order", () => {
+    // Live (2026-09-24): the list holds 436 songs and the top of it was one artist's album — a shelf, one per musician, not a wall.
+    const songs = Array.from({ length: 30 }, (_, i) => ({ ...song(i + 1, `Song ${i + 1}`), artist: ["Torcon 7", "Able Kirby", "Stereon"][i % 3] }));
     open({ podcastIndex: { songs, musicians: [], loading: false } });
     const section = screen.getByTestId("music-podcastindex-songs");
-    expect(section.querySelectorAll('[data-testid^="podcastindex-song-"]')).toHaveLength(12);
+    const shelf = [...section.querySelectorAll('[data-testid^="podcastindex-song-"]')].map((el) => el.textContent);
+    expect(shelf).toHaveLength(3);
+    expect(shelf[0]).toContain("Song 1");
+    expect(shelf[1]).toContain("Song 2");
+    expect(shelf[2]).toContain("Song 3");
     expect(section).toHaveTextContent("30");
     fireEvent.click(within(section).getByTestId("music-podcastindex-more"));
     expect(section.querySelectorAll('[data-testid^="podcastindex-song-"]')).toHaveLength(30);
     expect(within(section).queryByTestId("music-podcastindex-more")).toBeNull();
+  });
+
+  it("says in one sentence why the shelves exist, behind an info mark", () => {
+    open({ podcastIndex: { songs: [song(1, "Step Into the Light")], musicians: [torcon], loading: false } });
+    const marks = screen.getAllByTestId("music-v4v-why");
+    expect(marks).toHaveLength(2);
+    expect(marks[0]).toHaveAttribute("aria-label", "Value-for-value: listeners pay these artists directly, no label and no platform between them.");
+  });
+
+  it("the front runs curated before raw: musicians, then songs, then New on Nostr", () => {
+    open({ hits: [nativeHit], podcastIndex: { songs: [song(1, "Step Into the Light")], musicians: [torcon], loading: false } });
+    const order = [...screen.getByTestId("music-results").querySelectorAll("section[data-testid]")].map((el) => el.getAttribute("data-testid"));
+    expect(order).toEqual(["music-trending", "music-podcastindex-musicians", "music-podcastindex-songs", "music-new"]);
   });
 
   it("nothing from the lists is nothing on the page", () => {

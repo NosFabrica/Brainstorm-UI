@@ -17,7 +17,8 @@
 import { scopeOf } from "@/lib/searchSyntax";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
-import { Loader2, Pause, Play } from "lucide-react";
+import { Info, Loader2, Pause, Play } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import type { SearchHit } from "@/services/search";
 import { parseTrack, type Track } from "@/lib/trackEvent";
 import { WAVLAKE_GENRES, type WavlakeAlbum, type WavlakeArtist, type WavlakeSong } from "@/lib/wavlake";
@@ -42,6 +43,8 @@ type NativeTrack = { hit: SearchHit; track: Track };
 const normalise = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 /** How many V4V songs the browsing shelf shows before "Show more". */
 const PI_SHELF = 12;
+/** Why the value-for-value shelves exist, in one sentence — behind an info mark. */
+const V4V_WHY = "Value-for-value: listeners pay these artists directly, no label and no platform between them.";
 const GENRE_LABEL: Record<string, string> = { "hip-hop": "Hip-hop" };
 const genreLabel = (g: string) => GENRE_LABEL[g] ?? g.charAt(0).toUpperCase() + g.slice(1);
 /** Every genre a track claims — `t` and `genre` tags, lower-cased, `#` dropped. */
@@ -77,7 +80,21 @@ export function MusicResults({
   // the list holds hundreds (436 on 2026-09-24), a shelf and not a wall.
   const [allPiSongs, setAllPiSongs] = useState(false);
   useEffect(() => setAllPiSongs(false), [query]);
-  const piShelf = browsing && !allPiSongs ? podcastIndex.songs.slice(0, PI_SHELF) : podcastIndex.songs;
+  // One song per musician on the shelf (live, the top was one artist's album);
+  // "Show all" is the list in its own order.
+  const piShelf = useMemo(() => {
+    if (!browsing || allPiSongs) return podcastIndex.songs;
+    const seen = new Set<string>();
+    const shelf: PodcastSong[] = [];
+    for (const song of podcastIndex.songs) {
+      const key = normalise(song.artist || song.title);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      shelf.push(song);
+      if (shelf.length === PI_SHELF) break;
+    }
+    return shelf;
+  }, [browsing, allPiSongs, podcastIndex.songs]);
   const trending = useWavlakeTrending(genre, browsing);
 
   // With words, the chips are the results' own genres — only ones two or more
@@ -177,17 +194,17 @@ export function MusicResults({
               </TileGrid>
             </MusicSection>
           )}
-          {shownTracks.length > 0 && (
-            <MusicSection title="New on Nostr" testId="music-new" action={<PlayAll onClick={() => playFrom(shownTracks[0].track.id)} />}>
-              <Rows>
-                {shownTracks.map((t) => (
-                  <TrackCard key={t.hit.event.id} event={t.hit.event} author={t.hit.author} score={scoreOf(t.hit.event.pubkey)} flat />
+          {podcastIndex.musicians.length > 0 && (
+            <MusicSection title="Value-for-value musicians" hint="from Podcast Index" why={V4V_WHY} icon={CATEGORY_ICON.music} testId="music-podcastindex-musicians">
+              <FacetRow testId="music-podcastindex-musicians-strip" className="gap-4 pb-2">
+                {podcastIndex.musicians.map((m) => (
+                  <ArtistFace key={m.id} name={m.name} image={m.artwork} score={null} sub="Podcast Index" href={podcastIndexHref(m.name)} testId={`music-artist-podcastindex-${m.id}`} />
                 ))}
-              </Rows>
+              </FacetRow>
             </MusicSection>
           )}
           {podcastIndex.songs.length > 0 && (
-            <MusicSection title="V4V Songs" count={podcastIndex.songs.length} hint="Podcast Index" icon={CATEGORY_ICON.music} testId="music-podcastindex-songs" action={<PlayAll onClick={() => playFrom(podcastIndex.songs[0].id)} />}>
+            <MusicSection title="Value-for-value songs" count={podcastIndex.songs.length} hint="from Podcast Index" why={V4V_WHY} icon={CATEGORY_ICON.music} testId="music-podcastindex-songs" action={<PlayAll onClick={() => playFrom(podcastIndex.songs[0].id)} />}>
               <Rows>
                 {piShelf.map((song) => (
                   <PodcastIndexSongCard key={song.id} song={song} flat />
@@ -205,13 +222,13 @@ export function MusicResults({
               )}
             </MusicSection>
           )}
-          {podcastIndex.musicians.length > 0 && (
-            <MusicSection title="V4V Musicians" hint="Podcast Index" icon={CATEGORY_ICON.music} testId="music-podcastindex-musicians">
-              <FacetRow testId="music-podcastindex-musicians-strip" className="gap-4 pb-2">
-                {podcastIndex.musicians.map((m) => (
-                  <ArtistFace key={m.id} name={m.name} image={m.artwork} score={null} sub="Podcast Index" href={podcastIndexHref(m.name)} testId={`music-artist-podcastindex-${m.id}`} />
+          {shownTracks.length > 0 && (
+            <MusicSection title="New on Nostr" testId="music-new" action={<PlayAll onClick={() => playFrom(shownTracks[0].track.id)} />}>
+              <Rows>
+                {shownTracks.map((t) => (
+                  <TrackCard key={t.hit.event.id} event={t.hit.event} author={t.hit.author} score={scoreOf(t.hit.event.pubkey)} flat />
                 ))}
-              </FacetRow>
+              </Rows>
             </MusicSection>
           )}
         </>
@@ -267,13 +284,14 @@ export function MusicResults({
   );
 }
 
-function MusicSection({ title, hint, count, icon, action, testId, children }: { title: string; hint?: string; count?: number; icon?: React.ComponentType<{ className?: string }>; action?: React.ReactNode; testId: string; children: React.ReactNode }) {
+function MusicSection({ title, hint, why, count, icon, action, testId, children }: { title: string; hint?: string; /** One sentence behind an info mark. */ why?: string; count?: number; icon?: React.ComponentType<{ className?: string }>; action?: React.ReactNode; testId: string; children: React.ReactNode }) {
   return (
     <section className="mt-5 first:mt-0" data-testid={testId}>
       <div className="mb-2 flex items-center gap-2">
         <SectionHeader variant="title" kicker={title} icon={icon} className="shrink-0" />
         {count != null && <span className="text-sm text-slate-400 dark:text-slate-500">{count}</span>}
         {hint && <span className="truncate text-xs text-slate-400 dark:text-slate-500">{hint}</span>}
+        {why && <WhyMark text={why} />}
         <span className="flex-1" />
         {action}
       </div>
@@ -283,6 +301,22 @@ function MusicSection({ title, hint, count, icon, action, testId, children }: { 
 }
 
 /** Spotify's one big button: start the list from the top. */
+/** An info mark that says, on hover or a tap, why a shelf exists. */
+function WhyMark({ text }: { text: string }) {
+  return (
+    <TooltipProvider delayDuration={150}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button type="button" aria-label={text} className="inline-flex shrink-0 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors" data-testid="music-v4v-why">
+            <Info className="h-3.5 w-3.5" />
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-[260px] text-xs leading-snug">{text}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 function PlayAll({ onClick }: { onClick: () => void }) {
   return (
     <button
