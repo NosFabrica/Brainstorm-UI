@@ -53,6 +53,8 @@ import { isSellable, parseListing } from "@/lib/listing";
 import { fetchRecentByKinds } from "@/services/nostr";
 import { useWavlakeSearch } from "@/hooks/useWavlakeSongs";
 import { useArtistCatalogue } from "@/hooks/useArtistCatalogue";
+import { usePodcastIndexMusic } from "@/hooks/usePodcastIndexMusic";
+import { filterPodcastIndex } from "@/lib/dlists";
 import { MusicResults } from "@/components/search/MusicResults";
 import { FacetChip, FacetRow } from "@/components/search/sections";
 import { KnowledgePanel, type PanelSections } from "@/components/search/KnowledgePanel";
@@ -841,6 +843,11 @@ export function SearchResults({
   const scope = scopeOf(query);
   const scopedTo = scope?.pubkey ?? null;
   const wavlakeWords = useWavlakeSearch(query, tab === "music" && !scope);
+  // The V4V lists from Podcast Index (the team, 2026-09-24): the Music tab's
+  // third source, asked of the tag hub on the tab, never for one person's
+  // catalogue — the lists are not per person. The words narrow them here.
+  const podcastIndexAll = usePodcastIndexMusic(tab === "music" && !scope);
+  const podcastIndex = useMemo(() => ({ ...filterPodcastIndex(query, podcastIndexAll), loading: podcastIndexAll.loading }), [query, podcastIndexAll]);
   const catalogue = useArtistCatalogue(tab === "music" ? scopedTo : null);
   const wavlake = useMemo(() => {
     if (!scope) return wavlakeWords;
@@ -852,9 +859,14 @@ export function SearchResults({
   const searching =
     personMedia.length === 0 &&
     (!snapshot || (!snapshot.eose && !snapshot.error && hits.length === 0 && (tab !== "music" || wavlake.loading)) || (tab === "media" && !mediaSettled && hits.length === 0));
-  const noResults = !!snapshot?.eose && mediaSettled && hits.length === 0 && personMedia.length === 0 && (tab !== "music" || (!wavlake.loading && wavlake.songs.length === 0));
+  const noResults =
+    !!snapshot?.eose &&
+    mediaSettled &&
+    hits.length === 0 &&
+    personMedia.length === 0 &&
+    (tab !== "music" || (!wavlake.loading && wavlake.songs.length === 0 && !podcastIndex.loading && podcastIndex.songs.length === 0 && podcastIndex.musicians.length === 0));
   // What the count line counts, when it shows: every source the tab shows.
-  const extraCount = (tab === "music" ? wavlake.songs.length : 0) + (tab === "media" ? personMedia.filter((h) => !hits.some((x) => x.event.id === h.event.id)).length : 0);
+  const extraCount = (tab === "music" ? wavlake.songs.length + podcastIndex.songs.length : 0) + (tab === "media" ? personMedia.filter((h) => !hits.some((x) => x.event.id === h.event.id)).length : 0);
   const peopleIdx = useRef(0);
   peopleIdx.current = 0;
 
@@ -1679,7 +1691,7 @@ export function SearchResults({
             </div>
           )}
           {tab === "music" ? (
-            <MusicResults hits={displayHits.map((d) => d.hit)} query={query} wavlake={wavlake} scoreOf={scoreOf} onOpenProfile={openProfile} />
+            <MusicResults hits={displayHits.map((d) => d.hit)} query={query} wavlake={wavlake} podcastIndex={podcastIndex} scoreOf={scoreOf} onOpenProfile={openProfile} />
           ) : (
           <div
             className={

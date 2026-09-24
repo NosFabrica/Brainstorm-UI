@@ -7,7 +7,7 @@
  */
 import { nip19 } from "nostr-tools";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 import type { SearchSnapshot } from "@/services/search";
 
@@ -66,6 +66,8 @@ const profileMapMock = new Map<string, { name?: string; picture?: string }>();
 const recentByKindsMock = vi.fn<(pubkey: string, kinds: number[], limit: number) => Promise<NostrEvent[]>>(() => Promise.resolve([]));
 // Events the notes on the page quote — a test that wants a quote resolved seeds one.
 const refEventsMock = vi.fn<(ids: string[]) => Promise<NostrEvent[]>>(() => Promise.resolve([]));
+// The tag hub's answer for the Music tab's V4V lists (kind-9999 items by `#z`); nothing unless a test says so.
+const dlistFetchMock = vi.fn((_filter: Record<string, unknown>, _relays?: string[]) => Promise.resolve([] as NostrEvent[]));
 vi.mock("@/services/nostr", () => ({
   // The person panel asks for the person's tracks and streams; nobody here has any.
   fetchRecentByKinds: (pubkey: string, kinds: number[], limit: number) => recentByKindsMock(pubkey, kinds, limit),
@@ -73,6 +75,7 @@ vi.mock("@/services/nostr", () => ({
   fetchProfileMap: vi.fn(() => Promise.resolve(profileMapMock)),
   fetchEventsByIds: (ids: string[]) => refEventsMock(ids),
   fetchAddressableEvents: () => Promise.resolve(new Map()),
+  fetchEventsByFilter: (filter: Record<string, unknown>, relays?: string[]) => dlistFetchMock(filter, relays),
 }));
 
 // The relay expresses rank as ORDER only — per-author scores come from the
@@ -2689,5 +2692,55 @@ describe("when the search relay is down", () => {
     serverStatusMock.mockReturnValue({ api: "ok", search: "ok", recovery: 1, checking: false, nextProbeAt: null });
     rerender(<SearchResults query="nostr" pov="nosfabrica" />);
     expect(allStreams.filter((c) => !isPanelProbe(c.query, c.params)).length).toBe(before + 1);
+  });
+});
+
+describe("the Music tab's V4V lists from Podcast Index", () => {
+  // The team (2026-09-24): the V4V Songs and V4V Musicians D-lists feed the
+  // music category. Their items live on the tag hub, not the search relay.
+  const AUTHOR = "77599c5c4a7ba08456679d812a414037f4b01c975fb4f577187df11d189f80d3";
+  const SONGS = `39998:${AUTHOR}:b504f5a8-949f-4d31-ad14-8afcebde2b34`;
+  const MUSICIANS = `39998:${AUTHOR}:c7e2e5f1-2258-4d9d-92ed-d29b9837a82a`;
+  const songItem = ev("s1", 9999, AUTHOR, "", [["z", SONGS], ["t", "https://podcastindex.org/podcast/4148683#4"], ["title", "Step Into the Light"], ["artist", "Torcon 7"], ["url", "https://mp3s.podcastindex.org/Step_Into_The_Light.mp3"], ["duration", "316"], ["artwork", "https://feeds.podcastindex.org/torcon7cover.jpg"]]);
+  const musicianItem = ev("m1", 9999, AUTHOR, "", [["z", MUSICIANS], ["t", "a94f5cc9"], ["name", "Torcon 7"], ["feedId", "4148683"], ["feedGuid", "a94f5cc9"], ["artwork", "https://feeds.podcastindex.org/torcon7cover.jpg"]]);
+
+  beforeEach(async () => {
+    dlistFetchMock.mockReset();
+    dlistFetchMock.mockResolvedValue([]);
+    (await import("@/services/dlists")).__resetPodcastIndexCache();
+  });
+
+  it("browsing the Music tab shows the lists even when the relay has no native tracks", async () => {
+    setUrlTab("music");
+    dlistFetchMock.mockResolvedValue([songItem, musicianItem]);
+    render(<SearchResults query="" pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 150 });
+    const songs = await screen.findByTestId("music-podcastindex-songs");
+    expect(songs).toHaveTextContent("Step Into the Light");
+    expect(screen.getByTestId("music-podcastindex-musicians")).toHaveTextContent("Torcon 7");
+    expect(screen.queryByTestId("container-no-results")).toBeNull();
+    expect(dlistFetchMock).toHaveBeenCalledWith(expect.objectContaining({ kinds: [9999], "#z": [SONGS, MUSICIANS] }), expect.anything());
+  });
+
+  it("a search scoped to one person never asks the hub — the lists are not per person", async () => {
+    setUrlTab("music");
+    render(<SearchResults query={`from:${nip19.npubEncode("b".repeat(64))}`} pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 150 });
+    await new Promise((r) => setTimeout(r, 30));
+    expect(dlistFetchMock).not.toHaveBeenCalled();
+  });
+
+  it("with words, the lists narrow to what answers them", async () => {
+    setUrlTab("music");
+    dlistFetchMock.mockResolvedValue([songItem, musicianItem]);
+    const { rerender } = render(<SearchResults query="jazz" pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 150 });
+    await waitFor(() => expect(dlistFetchMock).toHaveBeenCalled());
+    await new Promise((r) => setTimeout(r, 30));
+    expect(screen.queryByTestId(/^podcastindex-song-/)).toBeNull();
+    rerender(<SearchResults query="torcon" pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 150 });
+    await screen.findByTestId(/^podcastindex-song-/);
+    expect(within(screen.getByTestId("music-artists")).getByTestId(/^music-artist-podcastindex-/)).toBeInTheDocument();
   });
 });
