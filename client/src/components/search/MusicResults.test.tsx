@@ -9,6 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, within } from "@testing-library/react";
 import type { PodcastMusician, PodcastSong } from "@/lib/dlists";
 import type { SearchHit } from "@/services/search";
+import { nip19 } from "nostr-tools";
 
 vi.mock("@/lib/wavlake", async (original) => ({ ...(await original<Record<string, unknown>>()), fetchWavlakeTrending: async () => [] }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => null }));
@@ -134,5 +135,22 @@ describe("MusicResults — the V4V lists with words", () => {
     expect(songs).toHaveTextContent("2");
     expect(within(screen.getByTestId("music-artists")).getByTestId(`music-artist-podcastindex-${torcon.id}`)).toBeInTheDocument();
     expect(screen.getByTestId("music-songs").querySelector("svg.lucide-music")).not.toBeNull();
+  });
+
+  it("a musician who is also on Nostr is one face — the Nostr one, noting Podcast Index — and their songs point at that person", () => {
+    const TORCON_PK = "7".repeat(64);
+    const torconNostr = { pubkey: TORCON_PK, npub: nip19.npubEncode(TORCON_PK), name: "Torcon 7", display_name: "Torcon 7", picture: "" };
+    const hit: SearchHit = {
+      event: { id: "t7".padEnd(64, "0"), kind: 31337, pubkey: TORCON_PK, created_at: 1_727_000_000, sig: "", content: "", tags: [["d", "gold"], ["title", "Gold"], ["media", "https://example/gold.mp3"]] },
+      author: torconNostr as never,
+      rank: null,
+    };
+    open({ query: "torcon", hits: [hit], podcastIndex: { songs: [song(1, "Step Into the Light")], musicians: [torcon], loading: false } });
+    const artists = screen.getByTestId("music-artists");
+    expect(artists.querySelectorAll('[data-testid^="music-artist-podcastindex-"]')).toHaveLength(0);
+    const face = within(artists).getByTestId(`music-artist-${TORCON_PK.slice(0, 8)}`);
+    expect(face).toHaveTextContent("also on Podcast Index");
+    const row = screen.getByTestId(`podcastindex-song-${song(1, "").id}`);
+    expect(within(row).getByRole("link", { name: /Torcon 7/ })).toHaveAttribute("href", `/p/${torconNostr.npub}`);
   });
 });

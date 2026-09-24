@@ -1282,9 +1282,9 @@ export function WavlakeSongCard({ song, flat }: { song: WavlakeSong; flat?: bool
  * A song from the V4V Songs list (Podcast Index) — the same row as a native
  * track, the source named, the title opening the artist's music here.
  */
-export function PodcastIndexSongCard({ song, flat }: { song: PodcastSong; flat?: boolean }) {
+export function PodcastIndexSongCard({ song, flat, artistHref }: { song: PodcastSong; flat?: boolean; /** The artist's Nostr profile, when the musician is also on Nostr. */ artistHref?: string }) {
   const [, navigate] = useLocation();
-  const here = podcastIndexHref(song.artist || song.title);
+  const here = artistHref ?? podcastIndexHref(song.artist || song.title);
   return (
     <div data-testid={`podcastindex-song-${song.id}`}>
       <EmbeddedTrackCard
@@ -1299,6 +1299,7 @@ export function PodcastIndexSongCard({ song, flat }: { song: PodcastSong; flat?:
         onOpen={() => navigate(here)}
         pageUrl={here}
         supportUrl={song.url}
+        artistHref={artistHref}
         flat={flat}
       />
     </div>

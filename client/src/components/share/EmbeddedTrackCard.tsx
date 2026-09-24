@@ -1,5 +1,5 @@
 import { type MouseEvent } from "react";
-import { useLocation } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Play, Pause, Loader2, AlertCircle, HeartHandshake } from "lucide-react";
 import { FlashIcon } from "@/components/FlashIcon";
 import { Favicon } from "@/components/share/LinkPreview";
@@ -153,7 +153,12 @@ export function EmbeddedTrackCard({
 
       <div className="min-w-0 flex-1">
         <p className={`truncate text-sm font-semibold ${player.isActive ? "text-brand-link" : "text-slate-900 dark:text-slate-100"}`}>{title}</p>
-        {artist && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{artist}</p>}
+        {artist && (
+          <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+            {/* The artist's own page when they have one here — the row and the face agree. */}
+            {artistHref ? <Link href={artistHref} className="hover:text-brand-link hover:underline" onClick={(e) => e.stopPropagation()}>{artist}</Link> : artist}
+          </p>
+        )}
 
         {player.isActive && (
           <div className="mt-2 flex items-center gap-2" data-noopen>

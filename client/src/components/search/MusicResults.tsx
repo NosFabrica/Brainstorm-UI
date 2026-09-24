@@ -131,6 +131,26 @@ export function MusicResults({
     return [...byPk.values()].sort((a, b) => b.count - a.count);
   }, [tracks]);
 
+  // A value-for-value musician who is also on Nostr — the same name, exactly
+  // and only once, among the tracks' authors here — is that person: one face,
+  // the Nostr one, and their Podcast Index songs point at the profile. A `p`
+  // tag on the list item will make the match exact; this is the interim.
+  const nostrByName = useMemo(() => {
+    const seen = new Map<string, SearchResult | null>();
+    for (const a of authors) {
+      const key = normalise(getDisplayLabel(a.author));
+      seen.set(key, seen.has(key) ? null : a.author);
+    }
+    return seen;
+  }, [authors]);
+  const nostrFor = (name: string): SearchResult | null => nostrByName.get(normalise(name)) ?? null;
+  const alsoOnPodcastIndex = useMemo(() => new Set(podcastIndex.musicians.map((m) => nostrByName.get(normalise(m.name))?.pubkey).filter((pk): pk is string => !!pk)), [podcastIndex.musicians, nostrByName]);
+  const unmatchedMusicians = podcastIndex.musicians.filter((m) => !nostrFor(m.name));
+  const piArtistHref = (song: PodcastSong): string | undefined => {
+    const person = nostrFor(song.artist);
+    return person ? `/p/${person.npub}` : undefined;
+  };
+
   // Top result: the artist when a NAME answers to the words (by words, never
   // inside one — "nova" is not Freddy Donovan), the person on Nostr before the
   // catalogue at equal strength; else the best song.
@@ -197,7 +217,7 @@ export function MusicResults({
           {podcastIndex.musicians.length > 0 && (
             <MusicSection title="Value-for-value musicians" hint="from Podcast Index" why={V4V_WHY} icon={CATEGORY_ICON.music} testId="music-podcastindex-musicians">
               <FacetRow testId="music-podcastindex-musicians-strip" className="gap-4 pb-2">
-                {podcastIndex.musicians.map((m) => (
+                {unmatchedMusicians.map((m) => (
                   <div key={m.id} className="flex shrink-0 flex-col items-center">
                     <ArtistFace name={m.name} image={m.artwork} score={null} sub="Podcast Index" href={podcastIndexHref(m.name)} testId={`music-artist-podcastindex-${m.id}`} />
                     {m.url && (
@@ -214,7 +234,7 @@ export function MusicResults({
             <MusicSection title="Value-for-value songs" count={podcastIndex.songs.length} hint="from Podcast Index" why={V4V_WHY} icon={CATEGORY_ICON.music} testId="music-podcastindex-songs" action={<PlayAll onClick={() => playFrom(podcastIndex.songs[0].id)} />}>
               <Rows>
                 {piShelf.map((song) => (
-                  <PodcastIndexSongCard key={song.id} song={song} flat />
+                  <PodcastIndexSongCard key={song.id} song={song} artistHref={piArtistHref(song)} flat />
                 ))}
               </Rows>
               {piShelf.length < podcastIndex.songs.length && (
@@ -252,21 +272,21 @@ export function MusicResults({
                   <WavlakeSongCard key={song.id} song={song} flat />
                 ))}
                 {podcastIndex.songs.map((song) => (
-                  <PodcastIndexSongCard key={song.id} song={song} flat />
+                  <PodcastIndexSongCard key={song.id} song={song} artistHref={piArtistHref(song)} flat />
                 ))}
               </Rows>
             </MusicSection>
           )}
-          {(authors.length > 0 || wavlake.artists.length > 0 || podcastIndex.musicians.length > 0) && (
+          {(authors.length > 0 || wavlake.artists.length > 0 || unmatchedMusicians.length > 0) && (
             <MusicSection title="Artists" icon={CATEGORY_ICON.music} testId="music-artists">
               <FacetRow testId="music-artists-strip" className="gap-4 pb-2">
                 {authors.map((a) => (
-                  <ArtistFace key={a.author.pubkey} name={getDisplayLabel(a.author)} image={a.author.picture} score={scoreOf(a.author.pubkey) ?? null} sub={`${a.count} ${a.count === 1 ? "song" : "songs"}`} onClick={() => onOpenProfile(a.author)} testId={`music-artist-${a.author.pubkey.slice(0, 8)}`} />
+                  <ArtistFace key={a.author.pubkey} name={getDisplayLabel(a.author)} image={a.author.picture} score={scoreOf(a.author.pubkey) ?? null} sub={alsoOnPodcastIndex.has(a.author.pubkey) ? "also on Podcast Index" : `${a.count} ${a.count === 1 ? "song" : "songs"}`} onClick={() => onOpenProfile(a.author)} testId={`music-artist-${a.author.pubkey.slice(0, 8)}`} />
                 ))}
                 {wavlake.artists.map((a) => (
                   <ArtistFace key={a.id} name={a.name} image={a.artworkUrl} score={null} sub="Wavlake" href={wavlakeArtistHref(a)} testId={`music-artist-wavlake-${a.id}`} />
                 ))}
-                {podcastIndex.musicians.map((m) => (
+                {unmatchedMusicians.map((m) => (
                   <ArtistFace key={m.id} name={m.name} image={m.artwork} score={null} sub="Podcast Index" href={podcastIndexHref(m.name)} testId={`music-artist-podcastindex-${m.id}`} />
                 ))}
               </FacetRow>
