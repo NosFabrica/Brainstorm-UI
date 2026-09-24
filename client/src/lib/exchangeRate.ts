@@ -72,6 +72,12 @@ const formatFiat = (amount: number, fiat: Fiat): string => {
   const digits = fiat === "JPY" || Number.isInteger(Math.round(amount * 100) / 100) ? 0 : 2;
   return new Intl.NumberFormat("en-US", { style: "currency", currency: fiat, minimumFractionDigits: digits, maximumFractionDigits: digits }).format(amount);
 };
+/** A few sats round to "$0", which reads as free. Under the smallest coin, say so. */
+const formatFiatApprox = (amount: number, fiat: Fiat): string => {
+  const smallest = fiat === "JPY" ? 1 : 0.01;
+  if (amount > 0 && amount < smallest) return `under ${formatFiat(smallest, fiat)}`;
+  return formatFiat(amount, fiat);
+};
 const formatSats = (sats: number): string => `${new Intl.NumberFormat("en-US").format(Math.round(sats))} sats`;
 
 /**
@@ -90,7 +96,7 @@ export function secondPriceLine(price: ListingPrice, rates: BtcRates | null, tar
   } else {
     const amount = priceInCurrency(price, rates, target);
     if (amount === null) return null;
-    text = formatFiat(amount, target);
+    text = formatFiatApprox(amount, target);
   }
   return `≈ ${text}${price.frequency ? ` / ${price.frequency}` : ""}`;
 }

@@ -48,6 +48,11 @@ describe("secondPriceLine — the native price with the other one underneath", (
     expect(secondPriceLine({ amount: 0.0021, currency: "BTC" }, rates, "GBP")).toBe("≈ £168");
   });
 
+  it("a few sats are less than a cent, not nothing", () => {
+    expect(secondPriceLine({ amount: 3, currency: "SATS" }, rates, "USD")).toBe("≈ under $0.01");
+    expect(secondPriceLine({ amount: 3, currency: "SATS" }, rates, "JPY")).toBe("≈ under ¥1");
+  });
+
   it("a fiat price in another money shows the viewer's money", () => {
     expect(secondPriceLine({ amount: 12, currency: "USD" }, rates, "EUR")).toBe("≈ €10.80");
     expect(secondPriceLine({ amount: 9, currency: "EUR" }, rates, "JPY")).toBe("≈ ¥1,500");
