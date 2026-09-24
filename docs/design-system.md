@@ -54,6 +54,17 @@ Tinted pill for tags, status badges, counts (p17 "Tags & Badges").
 <Chip tone="success" size="sm">Saved</Chip>
 ```
 
+### KindPill — `components/ui/kind-pill.tsx`
+The Chip that says what a content item *is* — Spec, Article, Listing, App, Event, Stream, Track… —
+on every content card, row, tile and reader page, fed by the one registry in `lib/kindLabel.ts`.
+Always slate: a kind is a label, not a status, and colour is kept for trust and interaction. Never a
+link, never on a person, and absent only where a section holds one kind (Latest, the home feed).
+A NIP number is never derived or invented — specs from Nostr Hub have none; the kind's word is the label.
+```tsx
+<KindPill event={hit.event} />
+<KindPill label="News" />   // where the content's shape is the label
+```
+
 ## StatTile — `components/ui/stat-tile.tsx`
 Metric tile (p15: icon + value + label).
 ```tsx
