@@ -27,6 +27,7 @@ import { playFrom, setPlaylist, toggleTrack, useTrackPlayer } from "@/lib/audioP
 import { PodcastIndexSongCard, TrackCard, WavlakeSongCard } from "@/components/search/cards";
 import { CATEGORY_ICON, filterTaggedPeople, type PodcastMusician, type PodcastSong } from "@/lib/dlists";
 import { FacetChip, FacetRow } from "@/components/search/sections";
+import { useWheelScrollX } from "@/hooks/useWheelScrollX";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { DefaultAvatarImg } from "@/components/share/DefaultAvatarImg";
@@ -83,6 +84,7 @@ export function MusicResults({
   // the list holds hundreds (436 on 2026-09-24), a shelf and not a wall.
   const [allPiSongs, setAllPiSongs] = useState(false);
   useEffect(() => setAllPiSongs(false), [query]);
+
   // One song per musician on the shelf (live, the top was one artist's album);
   // "Show all" is the list in its own order.
   const piShelf = useMemo(() => {
@@ -99,6 +101,19 @@ export function MusicResults({
     return shelf;
   }, [browsing, allPiSongs, podcastIndex.songs]);
   const trending = useWavlakeTrending(genre, browsing);
+  // Wavlake's chart as one rail, one tile per artist (live, four of eight were
+  // one artist); "Show all" is the whole chart as a grid.
+  const [allTrending, setAllTrending] = useState(false);
+  useEffect(() => setAllTrending(false), [query, genre]);
+  const trendingRail = useMemo(() => {
+    const seen = new Set<string>();
+    return trending.songs.filter((s) => {
+      const key = normalise(s.artist);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }, [trending.songs]);
 
   // With words, the chips are the results' own genres — only ones two or more
   // tracks share, so a one-off tag never becomes a button.
@@ -198,32 +213,27 @@ export function MusicResults({
 
   const songCount = shownTracks.length + (browsing ? 0 : wavlake.songs.length + podcastIndex.songs.length);
 
+  // The genre chips re-ask Wavlake's chart while browsing, and narrow the
+  // results with words — the same chips, in the shelf they belong to.
+  const genreChips = (
+    <FacetRow testId="music-genres">
+      <FacetChip pressed={genre === null} onClick={() => setGenre(null)} testId="music-genre-all">
+        All
+      </FacetChip>
+      {genreFacets.map((g) => (
+        <FacetChip key={g.key} pressed={genre === g.key} onClick={() => setGenre((cur) => (cur === g.key ? null : g.key))} testId={`music-genre-${g.key}`}>
+          {genreLabel(g.key)}
+        </FacetChip>
+      ))}
+    </FacetRow>
+  );
+
   return (
     <div data-testid="music-results">
-      {genreFacets.length > 0 && (
-        <FacetRow className="mb-3" testId="music-genres">
-          <FacetChip pressed={genre === null} onClick={() => setGenre(null)} testId="music-genre-all">
-            All
-          </FacetChip>
-          {genreFacets.map((g) => (
-            <FacetChip key={g.key} pressed={genre === g.key} onClick={() => setGenre((cur) => (cur === g.key ? null : g.key))} testId={`music-genre-${g.key}`}>
-              {genreLabel(g.key)}
-            </FacetChip>
-          ))}
-        </FacetRow>
-      )}
+      {!browsing && genreFacets.length > 0 && genreChips}
 
       {browsing ? (
         <>
-          {(trending.loading || trending.songs.length > 0) && (
-            <MusicSection title="Trending on Wavlake" hint={genre ? `${genreLabel(genre)} · by sats` : "by sats this week"} testId="music-trending">
-              <TileGrid>
-                {trending.loading && trending.songs.length === 0
-                  ? Array.from({ length: 8 }).map((_, i) => <TileSkeleton key={i} />)
-                  : trending.songs.map((song) => <SongTile key={song.id} song={song} />)}
-              </TileGrid>
-            </MusicSection>
-          )}
           {tagged.people.length > 0 && (
             <MusicSection title="Musicians on Nostr" hint="tagged by the network" icon={CATEGORY_ICON.music} testId="music-tagged-musicians">
               <FacetRow testId="music-tagged-musicians-strip" className="gap-4 pb-2">
@@ -231,6 +241,36 @@ export function MusicResults({
                   <ArtistFace key={p.pubkey} name={getDisplayLabel(p)} image={p.picture} score={scoreOf(p.pubkey) ?? null} sub="Musician" onClick={() => onOpenProfile(p)} testId={`music-artist-${p.pubkey.slice(0, 8)}`} />
                 ))}
               </FacetRow>
+            </MusicSection>
+          )}
+          {podcastIndex.songs.length > 0 && (
+            <MusicSection
+              title="Value-for-value songs"
+              count={podcastIndex.songs.length}
+              hint="from Podcast Index"
+              why={V4V_WHY}
+              icon={CATEGORY_ICON.music}
+              testId="music-podcastindex-songs"
+              action={
+                <>
+                  {!allPiSongs && piShelf.length < podcastIndex.songs.length && <ShowAll count={podcastIndex.songs.length} onClick={() => setAllPiSongs(true)} testId="music-podcastindex-more" />}
+                  <PlayAll onClick={() => playFrom(podcastIndex.songs[0].id)} />
+                </>
+              }
+            >
+              {allPiSongs ? (
+                <Rows>
+                  {podcastIndex.songs.map((song) => (
+                    <PodcastIndexSongCard key={song.id} song={song} artistHref={piArtistHref(song)} flat />
+                  ))}
+                </Rows>
+              ) : (
+                <TileRail testId="music-podcastindex-songs-rail">
+                  {piShelf.map((song) => (
+                    <SongTile key={song.id} song={{ id: song.id, title: song.title, artist: song.artist, cover: song.cover, audio: song.audio, href: piArtistHref(song) ?? podcastIndexHref(song.artist || song.title) }} />
+                  ))}
+                </TileRail>
+              )}
             </MusicSection>
           )}
           {podcastIndex.musicians.length > 0 && (
@@ -249,22 +289,24 @@ export function MusicResults({
               </FacetRow>
             </MusicSection>
           )}
-          {podcastIndex.songs.length > 0 && (
-            <MusicSection title="Value-for-value songs" count={podcastIndex.songs.length} hint="from Podcast Index" why={V4V_WHY} icon={CATEGORY_ICON.music} testId="music-podcastindex-songs" action={<PlayAll onClick={() => playFrom(podcastIndex.songs[0].id)} />}>
-              <Rows>
-                {piShelf.map((song) => (
-                  <PodcastIndexSongCard key={song.id} song={song} artistHref={piArtistHref(song)} flat />
-                ))}
-              </Rows>
-              {piShelf.length < podcastIndex.songs.length && (
-                <button
-                  type="button"
-                  onClick={() => setAllPiSongs(true)}
-                  className="mt-2 text-sm font-medium text-brand-link hover:underline"
-                  data-testid="music-podcastindex-more"
-                >
-                  Show all {podcastIndex.songs.length}
-                </button>
+          {(trending.loading || trending.songs.length > 0) && (
+            <MusicSection
+              title="Trending on Wavlake"
+              hint={genre ? `${genreLabel(genre)} · by sats` : "by sats this week"}
+              testId="music-trending"
+              action={!allTrending && trendingRail.length < trending.songs.length ? <ShowAll count={trending.songs.length} onClick={() => setAllTrending(true)} testId="music-trending-more" /> : undefined}
+            >
+              {genreFacets.length > 0 && <div className="mb-3">{genreChips}</div>}
+              {allTrending ? (
+                <TileGrid>
+                  {trending.songs.map((song) => <SongTile key={song.id} song={wavlakeTile(song)} />)}
+                </TileGrid>
+              ) : (
+                <TileRail testId="music-trending-rail">
+                  {trending.loading && trending.songs.length === 0
+                    ? Array.from({ length: 6 }).map((_, i) => <TileSkeleton key={i} />)
+                    : trendingRail.map((song) => <SongTile key={song.id} song={wavlakeTile(song)} />)}
+                </TileRail>
               )}
             </MusicSection>
           )}
@@ -336,10 +378,10 @@ export function MusicResults({
 function MusicSection({ title, hint, why, count, icon, action, testId, children }: { title: string; hint?: string; /** One sentence behind an info mark. */ why?: string; count?: number; icon?: React.ComponentType<{ className?: string }>; action?: React.ReactNode; testId: string; children: React.ReactNode }) {
   return (
     <section className="mt-5 first:mt-0" data-testid={testId}>
-      <div className="mb-2 flex items-center gap-2">
-        <SectionHeader variant="title" kicker={title} icon={icon} className="shrink-0" />
+      <div className="mb-2 flex items-center gap-2 overflow-hidden">
+        <SectionHeader variant="title" kicker={title} icon={icon} className="min-w-0 shrink [&>h2]:truncate" />
         {count != null && <span className="text-sm text-slate-400 dark:text-slate-500">{count}</span>}
-        {hint && <span className="truncate text-xs text-slate-400 dark:text-slate-500">{hint}</span>}
+        {hint && <span className="hidden truncate text-xs text-slate-400 dark:text-slate-500 sm:inline">{hint}</span>}
         {why && <WhyMark text={why} />}
         <span className="flex-1" />
         {action}
@@ -371,11 +413,12 @@ function PlayAll({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex h-8 items-center gap-1.5 rounded-full bg-brand-primary pl-2.5 pr-3 text-xs font-semibold text-white shadow-sm transition-transform hover:scale-[1.03]"
+      className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full bg-brand-primary px-2.5 text-xs font-semibold text-white shadow-sm transition-transform hover:scale-[1.03] sm:pr-3"
+      aria-label="Play all"
       data-testid="music-play-all"
     >
       <Play className="h-3.5 w-3.5 fill-current" />
-      Play
+      <span className="hidden sm:inline">Play</span>
     </button>
   );
 }
@@ -413,7 +456,29 @@ function TileSkeleton() {
 }
 
 /** A cover tile: the art is the play button, the title opens the song's page. */
-function SongTile({ song }: { song: WavlakeSong }) {
+/** What a cover tile needs, from any source. */
+type TileSong = { id: string; title: string; artist?: string; cover?: string; audio: string; href: string; sats?: number };
+const wavlakeTile = (song: WavlakeSong): TileSong => ({ id: song.id, title: song.title, artist: song.artist, cover: song.cover, audio: song.audio, href: wavlakeSongHref(song), sats: song.sats });
+
+/** One shelf as a row that scrolls sideways — a streaming home's rail — the tiles a fixed width. */
+function TileRail({ testId, children }: { testId: string; children: React.ReactNode }) {
+  const ref = useWheelScrollX();
+  return (
+    <div ref={ref} className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [mask-image:linear-gradient(to_right,black_calc(100%_-_1.5rem),transparent)] [&>*]:w-36 [&>*]:shrink-0 sm:[&>*]:w-40" data-testid={testId}>
+      {children}
+    </div>
+  );
+}
+
+function ShowAll({ count, onClick, testId }: { count: number; onClick: () => void; testId: string }) {
+  return (
+    <button type="button" onClick={onClick} className="shrink-0 whitespace-nowrap text-xs font-semibold text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100" data-testid={testId}>
+      Show all {count}
+    </button>
+  );
+}
+
+function SongTile({ song }: { song: TileSong }) {
   const player = useTrackPlayer(song.id);
   return (
     <div className="group min-w-0" data-testid={`music-tile-${song.id}`}>
@@ -421,16 +486,16 @@ function SongTile({ song }: { song: WavlakeSong }) {
         <Cover src={song.cover} />
         <button
           type="button"
-          onClick={() => toggleTrack(song.id, song.audio)}
+          onClick={() => toggleTrack(song.id, song.audio, { title: song.title, artist: song.artist, cover: song.cover, href: song.href })}
           className={`absolute bottom-2 right-2 flex h-9 w-9 items-center justify-center rounded-full bg-white text-brand-link shadow-md ring-1 ring-black/5 transition-all ${player.isActive ? "opacity-100" : "opacity-0 translate-y-1 group-hover:translate-y-0 group-hover:opacity-100 focus-visible:opacity-100"}`}
           aria-label={player.isPlaying ? "Pause" : "Play"}
         >
           {player.isLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : player.isPlaying ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 translate-x-[1px] fill-current" />}
         </button>
       </div>
-      <Link href={wavlakeSongHref(song)} className="mt-2 block">
+      <Link href={song.href} className="mt-2 block">
         <p className={`truncate text-sm font-medium ${player.isActive ? "text-brand-link" : "text-slate-900 dark:text-slate-100"}`}>{song.title}</p>
-        <p className="truncate text-xs text-slate-500 dark:text-slate-400">{song.artist}</p>
+        {song.artist && <p className="truncate text-xs text-slate-500 dark:text-slate-400">{song.artist}</p>}
       </Link>
       {song.sats != null && song.sats > 0 && (
         <p className="mt-0.5 text-[11px] tabular-nums text-slate-400 dark:text-slate-500">{compactCount(song.sats)} sats</p>

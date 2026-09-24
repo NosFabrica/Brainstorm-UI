@@ -140,6 +140,8 @@ const PRIMARY_TABS: { key: SearchTab; label: string }[] = [
   { key: "people", label: "People" },
   { key: "notes", label: "Notes" },
   { key: "media", label: "Media" },
+  // Benjamin (2026-09-24): music is a destination, not something behind More.
+  { key: "music", label: "Music" },
   { key: "shop", label: "Shop" },
 ];
 const MORE_TABS: { key: SearchTab; label: string }[] = [
@@ -155,7 +157,6 @@ const MORE_TABS: { key: SearchTab; label: string }[] = [
   // Articles too, labelled Spec — this is where people look.
   { key: "nips", label: "NIPs" },
   { key: "events", label: "Events" },
-  { key: "music", label: "Music" },
   { key: "live", label: "Live" },
   { key: "lists", label: "Lists" },
 ];

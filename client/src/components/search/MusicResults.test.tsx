@@ -11,7 +11,8 @@ import type { PodcastMusician, PodcastSong } from "@/lib/dlists";
 import type { SearchHit } from "@/services/search";
 import { nip19 } from "nostr-tools";
 
-vi.mock("@/lib/wavlake", async (original) => ({ ...(await original<Record<string, unknown>>()), fetchWavlakeTrending: async () => [] }));
+const trendingMock = vi.fn(async () => [] as unknown[]);
+vi.mock("@/lib/wavlake", async (original) => ({ ...(await original<Record<string, unknown>>()), fetchWavlakeTrending: () => trendingMock() }));
 vi.mock("@/hooks/useAuthorScores", () => ({ useAuthorScores: () => () => null }));
 
 import { MusicResults } from "./MusicResults";
@@ -34,6 +35,7 @@ const open = (props: Partial<Parameters<typeof MusicResults>[0]> = {}) =>
   render(<MusicResults hits={[]} query="" wavlake={noWavlake} podcastIndex={{ songs: [], musicians: [], loading: false }} tagged={{ people: [], loading: false }} scoreOf={() => null} onOpenProfile={vi.fn()} {...props} />);
 
 beforeEach(() => {
+  trendingMock.mockResolvedValue([]);
   vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
   vi.spyOn(HTMLMediaElement.prototype, "pause").mockImplementation(() => {});
   setPlaylist([]);
@@ -41,16 +43,15 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe("MusicResults — the V4V lists while browsing", () => {
-  it("lists the V4V songs as playable rows that name Podcast Index as their source", () => {
+  it("lists the V4V songs as cover tiles that play; Show all lays them out as rows that name Podcast Index as their source", () => {
     open({ podcastIndex: { songs: [song(1, "Step Into the Light")], musicians: [], loading: false } });
     const section = screen.getByTestId("music-podcastindex-songs");
     expect(section).toHaveTextContent("Value-for-value songs");
     expect(section).toHaveTextContent("from Podcast Index");
-    const row = within(section).getByTestId(`podcastindex-song-${song(1, "").id}`);
-    expect(row).toHaveTextContent("Step Into the Light");
-    expect(row).toHaveTextContent("Torcon 7");
-    expect(within(row).getByTestId("track-source")).toHaveAttribute("title", "Podcast Index");
-    expect(within(row).getByTestId("track-play")).toHaveAttribute("aria-label", "Play");
+    const tile = within(section).getByTestId(`music-tile-${song(1, "").id}`);
+    expect(tile).toHaveTextContent("Step Into the Light");
+    expect(tile).toHaveTextContent("Torcon 7");
+    expect(within(tile).getByRole("button", { name: "Play" })).toBeInTheDocument();
   });
 
   it("shows the V4V musicians as faces that open their music here", () => {
@@ -74,7 +75,7 @@ describe("MusicResults — the V4V lists while browsing", () => {
     open({ hits: [nativeHit], podcastIndex: { songs: [a, b], musicians: [], loading: false } });
     expect(peekNext(nativeHit.event.id)?.id).toBe(a.id);
     expect(peekNext(a.id)?.id).toBe(b.id);
-    fireEvent.click(within(screen.getByTestId(`podcastindex-song-${a.id}`)).getByTestId("track-play"));
+    fireEvent.click(within(screen.getByTestId(`music-tile-${a.id}`)).getByRole("button", { name: "Play" }));
     expect(playerSnapshot().currentId).toBe(a.id);
   });
 
@@ -83,7 +84,7 @@ describe("MusicResults — the V4V lists while browsing", () => {
     const songs = Array.from({ length: 30 }, (_, i) => ({ ...song(i + 1, `Song ${i + 1}`), artist: ["Torcon 7", "Able Kirby", "Stereon"][i % 3] }));
     open({ podcastIndex: { songs, musicians: [], loading: false } });
     const section = screen.getByTestId("music-podcastindex-songs");
-    const shelf = [...section.querySelectorAll('[data-testid^="podcastindex-song-"]')].map((el) => el.textContent);
+    const shelf = [...section.querySelectorAll('[data-testid^="music-tile-"]')].map((el) => el.textContent);
     expect(shelf).toHaveLength(3);
     expect(shelf[0]).toContain("Song 1");
     expect(shelf[1]).toContain("Song 2");
@@ -101,14 +102,47 @@ describe("MusicResults — the V4V lists while browsing", () => {
     expect(marks[0]).toHaveAttribute("aria-label", "Value-for-value: listeners pay these artists directly, no label and no platform between them.");
   });
 
-  it("the front runs curated before raw: musicians, then songs, then New on Nostr", () => {
-    open({ hits: [nativeHit], podcastIndex: { songs: [song(1, "Step Into the Light")], musicians: [torcon], loading: false } });
+  it("the front runs trust first: the network's musicians, then value-for-value songs and musicians, then Wavlake's chart, then New on Nostr", () => {
+    // Benjamin (2026-09-24): a music home like Spotify's — rails, and Brainstorm's own signal above a third-party chart.
+    const JOE = "1".repeat(64);
+    open({ hits: [nativeHit], podcastIndex: { songs: [song(1, "Step Into the Light")], musicians: [torcon], loading: false }, tagged: { people: [{ pubkey: JOE, npub: nip19.npubEncode(JOE), name: "Joe Martin" }], loading: false } });
     const order = [...screen.getByTestId("music-results").querySelectorAll("section[data-testid]")].map((el) => el.getAttribute("data-testid"));
-    expect(order).toEqual(["music-trending", "music-podcastindex-musicians", "music-podcastindex-songs", "music-new"]);
+    expect(order).toEqual(["music-tagged-musicians", "music-podcastindex-songs", "music-podcastindex-musicians", "music-trending", "music-new"]);
+  });
+
+  it("value-for-value songs are a rail of cover tiles that play, one per musician; Show all lays the whole list out as rows", () => {
+    const songs = Array.from({ length: 6 }, (_, i) => ({ ...song(i + 1, `Song ${i + 1}`), artist: ["Torcon 7", "Able Kirby"][i % 2] }));
+    open({ podcastIndex: { songs, musicians: [], loading: false } });
+    const section = screen.getByTestId("music-podcastindex-songs");
+    const rail = within(section).getByTestId("music-podcastindex-songs-rail");
+    const tiles = rail.querySelectorAll('[data-testid^="music-tile-podcastindex:"]');
+    expect(tiles).toHaveLength(2);
+    expect(section.querySelectorAll('[data-testid^="podcastindex-song-"]')).toHaveLength(0);
+    fireEvent.click(within(tiles[0] as HTMLElement).getByRole("button", { name: "Play" }));
+    expect(playerSnapshot().currentId).toBe(songs[0].id);
+    fireEvent.click(within(section).getByTestId("music-podcastindex-more"));
+    expect(section.querySelectorAll('[data-testid^="podcastindex-song-"]')).toHaveLength(6);
+  });
+
+  it("the genre chips belong to Wavlake's chart, inside its shelf, and the chart is one row with one tile per artist", async () => {
+    trendingMock.mockResolvedValue([
+      { id: "wavlake:a", title: "A", artist: "DJ Lexo", audio: "https://w/a.mp3", source: "wavlake" },
+      { id: "wavlake:b", title: "B", artist: "DJ Lexo", audio: "https://w/b.mp3", source: "wavlake" },
+      { id: "wavlake:c", title: "C", artist: "HYDRA", audio: "https://w/c.mp3", source: "wavlake" },
+    ]);
+    open();
+    const trending = await screen.findByTestId("music-trending");
+    await within(trending).findByTestId("music-tile-wavlake:a");
+    expect(within(trending).getByTestId("music-genres")).toBeInTheDocument();
+    expect(screen.getAllByTestId("music-genres")).toHaveLength(1);
+    const tiles = [...trending.querySelectorAll('[data-testid^="music-tile-"]')].map((el) => el.getAttribute("data-testid"));
+    expect(tiles).toEqual(["music-tile-wavlake:a", "music-tile-wavlake:c"]);
+    expect(within(trending).getByTestId("music-trending-rail")).toBeInTheDocument();
   });
 
   it("keeps the promise visible: Support the artist on a song's row and on a musician's face, opening their Podcast Index page", () => {
-    open({ podcastIndex: { songs: [song(1, "Step Into the Light")], musicians: [torcon], loading: false } });
+    open({ podcastIndex: { songs: [song(1, "Step Into the Light"), song(2, "Kingsfall")], musicians: [torcon], loading: false } });
+    fireEvent.click(screen.getByTestId("music-podcastindex-more"));
     const row = screen.getByTestId(`podcastindex-song-${song(1, "").id}`);
     const support = within(row).getByRole("link", { name: "Support the artist" });
     expect(support).toHaveAttribute("href", "https://podcastindex.org/podcast/4148683#4");

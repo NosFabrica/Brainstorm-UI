@@ -319,6 +319,17 @@ describe("SearchResults", () => {
   // Benjamin: the nine-tab strip was "distracting and takes up a lot of
   // space". Google's shape: five tabs in view, the rest behind More ▾, and
   // the chosen overflow tab takes the More slot so you can see where you are.
+  // Benjamin (2026-09-24): music is a destination, not something behind More.
+  it("Music sits on the tab row itself, between Media and Shop, and not behind More", () => {
+    setUrlTab(null);
+    render(<SearchResults query="liverpool" pov="nosfabrica" />);
+    const row = [...document.querySelectorAll('[data-testid="search-tabs"] [data-testid^="search-tab-"]')].map((el) => el.getAttribute("data-testid"));
+    expect(row.slice(0, 6)).toEqual(["search-tab-everything", "search-tab-people", "search-tab-notes", "search-tab-media", "search-tab-music", "search-tab-shop"]);
+    fireEvent.click(screen.getByTestId("search-tab-more"));
+    const menu = screen.getByRole("menu");
+    expect(within(menu).queryByTestId("search-tab-music")).toBeNull();
+  });
+
   // Benjamin (2026-09-23): Shop earns the row — Media, then Shop — and
   // Articles is the first thing behind More.
   it("shows five verticals — Media then Shop — and folds Articles first behind More", () => {
