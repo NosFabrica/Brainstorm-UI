@@ -36,6 +36,10 @@ vi.mock("@/services/nostr", () => ({
     return map;
   },
   fetchProfile: async () => ({ name: "hzrd149" }),
+  // What the event layout (a non-article at an address) asks for; nothing here.
+  fetchRecentByKinds: async () => [],
+  fetchEventsByIds: async () => [],
+  fetchProfileMap: async () => new Map(),
 }));
 vi.mock("@/services/api", () => ({ apiClient: { getHouseInfluence: async () => null } }));
 vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => false }));
@@ -46,7 +50,7 @@ vi.mock("@/components/share/MoreFromAuthor", () => ({ MoreFromAuthor: () => null
 vi.mock("@/components/share/ShareButton", () => ({ ShareButton: () => null }));
 vi.mock("@/components/share/EntityMenu", () => ({ EntityMenu: () => <button type="button" data-testid="article-menu">⋯</button> }));
 
-import ArticlePage from "./ArticlePage";
+import EventPage, { AddressRedirect } from "./EventPage";
 
 const NIP21 = "# NIP-21\n\n## `nostr:` URI scheme\n\n`draft` `optional`\n\nThis NIP standardizes a URI scheme.\n\n- `nostr:npub1sn0wdenkukak0d9dfczzeacvhkrgz92ak56egt7vdgzn8pv2wfqqhrjdv9`";
 
@@ -69,7 +73,7 @@ const renderPage = () =>
     <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })}>
       <EventStoreProvider eventStore={eventStore}>
         <AccountsProvider manager={new AccountManager<AccountMetadata>() as any}>
-          <ArticlePage />
+          <EventPage />
         </AccountsProvider>
       </EventStoreProvider>
     </QueryClientProvider>,
@@ -79,7 +83,7 @@ const open = async (ev: ReturnType<typeof event>) => {
   served.mockReturnValue(ev);
   const identifier = ev.tags.find((t) => t[0] === "d")![1];
   const naddr = nip19.naddrEncode({ kind: ev.kind, pubkey: AUTHOR, identifier });
-  window.history.pushState({}, "", `/a/${naddr}`);
+  window.history.pushState({}, "", `/e/${naddr}`);
   renderPage();
   await waitFor(() => expect(screen.getByTestId("article-body")).toBeInTheDocument());
   return naddr;
@@ -173,5 +177,83 @@ describe("reading a spec", () => {
     // never gets striped; the class hook and the backtick reset are the seam.
     expect(screen.getByTestId("article-body").className).toMatch(/\barticle-prose\b/);
     expect(screen.getByTestId("article-body").className).toMatch(/prose-code:before:content-none/);
+  });
+});
+
+// The kind decides how an event reads, not the route that found it, and the
+// content decides its format (real shapes from kind-30023 events on relays:
+// ~4% of long-form separates paragraphs with single line breaks, ~1% is HTML).
+describe("the kind and the content decide, not the route", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("a plain-text article keeps its single-line-break paragraphs", async () => {
+    await open(event(30023, "plain", "Plain", [], [1, 2, 3].map((n) => `Paragraph ${n} runs on the way an article's paragraphs do, past a hundred characters, with no blank line after it.`).join("\n")));
+    const body = screen.getByTestId("article-body");
+    expect(body.querySelectorAll(".note-reading > div")).toHaveLength(3);
+  });
+
+  it("a plain-text article still plays its YouTube link in place", async () => {
+    await open(event(30023, "yt", "Plain", [], "Watch this first, it explains the whole thing better than I can.\nhttps://www.youtube.com/watch?v=dQw4w9WgXcQ\nThen come back and read the rest of the post."));
+    expect(screen.getByTestId("article-body").querySelector('[data-testid="video-embed"]')).not.toBeNull();
+  });
+
+  it("an HTML article reads as text instead of disappearing", async () => {
+    await open(event(30023, "html", "HTML", [], "<div style='text-align: justify;'>\n<p>Sudoroso, no sabía si dar cuenta.</p><p>Second <b>part</b>.</p></div>"));
+    const body = screen.getByTestId("article-body");
+    expect(body).toHaveTextContent("Sudoroso, no sabía si dar cuenta.");
+    expect(body.querySelector("strong")).toHaveTextContent("part");
+    expect(body.textContent).not.toContain("<p>");
+  });
+
+  it("an address that is not an article renders on its kind's layout", async () => {
+    served.mockReturnValue(event(30402, "vpn", "Obscura VPN", [["image", "https://img/vpn.png"]], "A VPN that cannot log you."));
+    const naddr = nip19.naddrEncode({ kind: 30402, pubkey: AUTHOR, identifier: "vpn" });
+    window.history.pushState({}, "", `/e/${naddr}`);
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId("listing-hero-title")).toHaveTextContent("Obscura VPN"));
+    expect(screen.queryByTestId("article-body")).toBeNull();
+  });
+});
+
+describe("audit of #97 (articles)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("an HTML article's decoded <div> and 2*3*4 stay as written", async () => {
+    await open(event(30023, "html2", "HTML", [], "<h2>Intro</h2><h2>Usage</h2><p>Wrap it in &lt;div&gt; tags, 2*3*4.</p>"));
+    expect(screen.getByTestId("article-body")).toHaveTextContent("Wrap it in <div> tags, 2*3*4.");
+  });
+});
+
+describe("one route for every event: the id decides", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("an naddr on /e/ reads the address's latest version", async () => {
+    const naddr = await open(article([["t", "bitcoin"]]));
+    expect(window.location.pathname).toBe(`/e/${naddr}`);
+    expect(screen.getByTestId("article-body")).toHaveTextContent("Handmade dough");
+  });
+
+  it("an old /a/ link lands on /e/, query and fragment kept", async () => {
+    served.mockReturnValue(article([]));
+    const naddr = nip19.naddrEncode({ kind: 30023, pubkey: AUTHOR, identifier: "girik" });
+    window.history.pushState({}, "", `/a/${naddr}?ref=x#part`);
+    render(<AddressRedirect />);
+    await waitFor(() => expect(window.location.pathname).toBe(`/e/${naddr}`));
+    expect(window.location.search).toBe("?ref=x");
+    expect(window.location.hash).toBe("#part");
+  });
+
+  it("a profile's id on /e/ goes to /p/", async () => {
+    const npub = nip19.npubEncode(AUTHOR);
+    window.history.pushState({}, "", `/e/${npub}`);
+    renderPage();
+    await waitFor(() => expect(window.location.pathname).toBe(`/p/${npub}`));
+  });
+
+  it("an naddr that isn't on the relays says so, by kind", async () => {
+    served.mockReturnValue(null);
+    window.history.pushState({}, "", `/e/${nip19.naddrEncode({ kind: 30402, pubkey: AUTHOR, identifier: "gone" })}`);
+    renderPage();
+    expect(await screen.findByText("We couldn’t find this post on the relays.")).toBeInTheDocument();
   });
 });

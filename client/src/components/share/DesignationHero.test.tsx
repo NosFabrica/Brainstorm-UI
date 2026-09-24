@@ -50,7 +50,7 @@ describe("DesignationHero", () => {
     const { unmount } = render(<DesignationHero event={event([["30382:rank", TA, "wss://scores.brainstorm.world"]])} />);
     const spec = screen.getByTestId("designation-spec");
     expect(spec).toHaveTextContent("Trusted Assertions (NIP-85)");
-    expect(spec.getAttribute("href")).toBe(`/a/${nip19.naddrEncode({ kind: 30817, pubkey: VITOR, identifier: "trusted-assertions" })}`);
+    expect(spec.getAttribute("href")).toBe(`/e/${nip19.naddrEncode({ kind: 30817, pubkey: VITOR, identifier: "trusted-assertions" })}`);
     expect(screen.queryByTestId("designation-lists-spec")).toBeNull();
     expect(specsMock).not.toHaveBeenCalled();
     unmount();
@@ -58,7 +58,7 @@ describe("DesignationHero", () => {
     render(<DesignationHero event={event([["30382:rank", TA, "wss://scores.brainstorm.world"], ["30392", TA, "wss://scores.brainstorm.world"]])} />);
     const lists = screen.getByTestId("designation-lists-spec");
     expect(lists).toHaveTextContent("Trusted Lists");
-    expect(lists.getAttribute("href")).toBe(`/a/${nip19.naddrEncode({ kind: 30817, pubkey: DAVID, identifier: "trusted-lists" })}`);
+    expect(lists.getAttribute("href")).toBe(`/e/${nip19.naddrEncode({ kind: 30817, pubkey: DAVID, identifier: "trusted-lists" })}`);
   });
 
   // scores.brainstorm.world is a wss:// relay — nothing to open there. What

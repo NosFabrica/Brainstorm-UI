@@ -78,7 +78,7 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
   const name = author?.display_name || author?.name || "Unknown";
   const nip05Verified = useNip05(author?.nip05, event.pubkey) === "verified";
   const naddr = naddrForEvent(event);
-  const href = naddr ? `/a/${naddr}` : undefined;
+  const href = naddr ? `/e/${naddr}` : undefined;
   const [, navigate] = useLocation();
 
   // Whole card is clickable (matches EmbeddedNoteCard). Clicks on the inner
@@ -153,7 +153,7 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
           {naddr && (
             <div className="mt-2.5">
               <Link
-                href={`/a/${naddr}`}
+                href={`/e/${naddr}`}
                 className="inline-flex items-center gap-1 rounded-lg bg-brand-primary hover:bg-brand-primary-hover px-3 py-1.5 text-xs font-semibold text-white transition-colors"
                 data-testid="article-read"
               >

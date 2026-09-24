@@ -119,14 +119,15 @@ export function neventFor(id: string, relays: string[] = [], author?: string): s
  *  rendered as a note, markup and all. */
 export const READER_KINDS = new Set([30023, 30818, 30817]);
 
-/** On-site path for an event: `/a/<naddr>` for an article or wiki page we
- *  know by kind and name, else `/e/<nevent>` (falls back to the bare id). */
+/** On-site path for an event: `/e/<naddr>` (its latest version) for an
+ *  article or wiki page we know by kind and name, else `/e/<nevent>` (falls
+ *  back to the bare id). */
 export function eventPath(event: { id: string; pubkey?: string; kind?: number; tags?: string[][] }, relays: string[] = []): string {
   if (event.kind !== undefined && READER_KINDS.has(event.kind) && event.pubkey && event.tags) {
     const identifier = event.tags.find((t) => t[0] === "d")?.[1];
     if (identifier !== undefined) {
       try {
-        return `/a/${nip19.naddrEncode({ kind: event.kind, pubkey: event.pubkey, identifier, relays: relays.slice(0, 4) })}`;
+        return `/e/${nip19.naddrEncode({ kind: event.kind, pubkey: event.pubkey, identifier, relays: relays.slice(0, 4) })}`;
       } catch {
         /* fall through to the event link */
       }

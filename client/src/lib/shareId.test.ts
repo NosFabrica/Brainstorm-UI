@@ -16,19 +16,19 @@ const ID = "e".repeat(64);
 describe("eventPath", () => {
   it("a spec (kind 30817) opens on the article reader, by address", () => {
     const path = eventPath({ id: ID, pubkey: PK, kind: 30817, tags: [["d", "scheduler-dvm"], ["title", "Scheduler DVM"]] });
-    expect(path).toMatch(/^\/a\/naddr1/);
+    expect(path).toMatch(/^\/e\/naddr1/);
   });
 
   it("a wiki page opens on the article reader, addressed by kind, author and name", () => {
     const path = eventPath({ id: ID, pubkey: PK, kind: 30818, tags: [["d", "list-of-comedians"], ["title", "List of comedians"]] });
-    expect(path.startsWith("/a/naddr1")).toBe(true);
+    expect(path.startsWith("/e/naddr1")).toBe(true);
     const decoded = nip19.decode(path.slice(3));
     expect(decoded.type).toBe("naddr");
     expect(decoded.data).toMatchObject({ kind: 30818, pubkey: PK, identifier: "list-of-comedians" });
   });
 
   it("a long-form article goes there too; a note and an id-only event stay on /e", () => {
-    expect(eventPath({ id: ID, pubkey: PK, kind: 30023, tags: [["d", "why-bitcoin"]] }).startsWith("/a/naddr1")).toBe(true);
+    expect(eventPath({ id: ID, pubkey: PK, kind: 30023, tags: [["d", "why-bitcoin"]] }).startsWith("/e/naddr1")).toBe(true);
     expect(eventPath({ id: ID, pubkey: PK, kind: 1, tags: [] }).startsWith("/e/nevent1")).toBe(true);
     expect(eventPath({ id: ID, pubkey: PK }).startsWith("/e/nevent1")).toBe(true);
   });

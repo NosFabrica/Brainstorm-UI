@@ -26,7 +26,11 @@ export type NoteBlock =
    *  scales it to fit rather than scroll. */
   | { type: "code"; text: string; art?: boolean }
   | { type: "caption"; tokens: NoteToken[] }
+  /** A GFM table: header cells, body rows, per-column alignment. */
+  | { type: "table"; head: NoteToken[][]; rows: NoteToken[][][]; align: TableAlign[] }
   | { type: "hr" };
+
+export type TableAlign = "left" | "center" | "right" | undefined;
 
 export type NestedList = { type: "ul" | "ol"; items: NoteToken[][]; start?: number };
 
@@ -37,6 +41,10 @@ const BULLET = /^[ \t]*[-*+•][ \t]+/;
 const ORDERED = /^[ \t]*(\d{1,3})[.)][ \t]+/;
 const QUOTE = /^>(?:[ \t]+|$)/;
 const RULE = /^[ \t]*(?:-{3,}|\*{3,}|_{3,})[ \t]*$/;
+/** A table's separator row: | --- | :--: | ---: | */
+const TABLE_SEP = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/;
+/** An underline that makes the line above a heading (=== only: --- stays a rule). */
+const SETEXT = /^[ \t]*={3,}[ \t]*$/;
 // A fence opens on ``` plus at most a language word, and closes on a bare
 // ``` — "```npm install```" on one line is inline code, not a fence.
 const FENCE = /^[ \t]*```[\w+#.-]*[ \t]*$/;
@@ -146,7 +154,13 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
       }
       endRun();
     } else if (para.length) blocks.push({ type: "p", tokens: joinLines(para) });
-    if (quote.length) blocks.push({ type: "quote", tokens: joinLines(quote) });
+    if (quote.length) {
+      // "> " spacer lines leave one blank line, not a tall gap.
+      let kept = quote.filter((l, k) => !(isBlank(l) && k > 0 && isBlank(quote[k - 1])));
+      while (kept.length && isBlank(kept[0])) kept = kept.slice(1);
+      while (kept.length && isBlank(kept[kept.length - 1])) kept = kept.slice(0, -1);
+      blocks.push({ type: "quote", tokens: joinLines(kept) });
+    }
     if (list) {
       const { type, items, start, nested } = list; // indent is parse-only
       blocks.push({ type, items, ...(type === "ol" && start !== undefined && start !== 1 ? { start } : {}), ...(nested ? { nested } : {}) });
@@ -174,6 +188,36 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
       while (j < lines.length && !FENCE_CLOSE.test(raw(j))) body.push(raw(j++));
       blocks.push({ type: "code", text: body.join("\n") });
       i = j;
+      continue;
+    }
+
+    // A GFM table: a row of cells, then its separator row.
+    if (i + 1 < lines.length && raw(i).includes("|") && TABLE_SEP.test(raw(i + 1)) && raw(i + 1).includes("|")) {
+      const head = tableCells(line);
+      // One column counts when the row is written as one (| a |).
+      if (head.length >= 2 || (head.length === 1 && raw(i).trimStart().startsWith("|"))) {
+        flush();
+        const align = raw(i + 1).trim().replace(/^\||\|$/g, "").split("|").map((c): TableAlign => {
+          const t = c.trim();
+          return t.startsWith(":") && t.endsWith(":") ? "center" : t.endsWith(":") ? "right" : t.startsWith(":") ? "left" : undefined;
+        });
+        const rows: NoteToken[][][] = [];
+        let j = i + 2;
+        while (j < lines.length && !isBlank(lines[j]) && raw(j).includes("|")) rows.push(tableCells(lines[j++]));
+        blocks.push({ type: "table", head, rows, align });
+        i = j - 1;
+        continue;
+      }
+    }
+
+    // "Title" over "=====": a heading, as markdown writes one without a #.
+    if (
+      text !== null && i + 1 < lines.length && SETEXT.test(raw(i + 1)) && text.trim() &&
+      !para.length && !list && !quote.length && !HEADING.test(text) && !BULLET.test(text) && !ORDERED.test(text) && !QUOTE.test(text)
+    ) {
+      flush();
+      blocks.push({ type: "h", level: 1, tokens: tidy(line) });
+      i++;
       continue;
     }
 
@@ -319,6 +363,28 @@ function preformatted(group: string[]): "diff" | "art" | null {
     return t.length > 4 && t.replace(/[\p{L}\p{M}\p{N}]/gu, "").length / t.length > 0.5;
   };
   return share(symbolic) >= 0.4 ? "art" : null;
+}
+
+/** A table row's cells: text split on unescaped pipes, the edge pipes
+ *  dropped, each cell trimmed. Links and mentions stay whole in their cell. */
+function tableCells(line: Line): NoteToken[][] {
+  const cells: NoteToken[][] = [[]];
+  for (const t of line) {
+    if (t.type !== "text") {
+      cells[cells.length - 1].push(t);
+      continue;
+    }
+    t.value.split(/(?<!\\)\|/).forEach((part, k) => {
+      if (k > 0) cells.push([]);
+      const v = part.replace(/\\\|/g, "|");
+      if (v) cells[cells.length - 1].push({ type: "text", value: v });
+    });
+  }
+  const trimmed = cells.map((c) => tidy(c));
+  const empty = (c: NoteToken[]) => c.length === 0;
+  if (trimmed.length && empty(trimmed[0])) trimmed.shift();
+  if (trimmed.length && empty(trimmed[trimmed.length - 1])) trimmed.pop();
+  return trimmed;
 }
 
 function textLength(ts: NoteToken[]): number {
