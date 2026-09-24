@@ -21,8 +21,15 @@ describe("ReadingText (descriptions)", () => {
     const url = "https://fanfares.io/naddr/naddr1qvzqqqr6dypzquvszen0yle0j556up2ewzsdrjaua5eajk9nr5vw2d46xr3k69qpqyvhwumn8ghj7enpdenxzun9wvhxummnw3erztnrdaksqfpsxq6rgcekvc6j6wpsxqmz6dr9xvez6wtz89sj6vf4x93xyerpxfjx2ve4sy5msr";
     render(<ReadingText text={`Unlock it on ${url}`} />);
     const link = screen.getByTestId("reading-link");
-    expect(link).toHaveTextContent("🎵 track");
-    expect(link.getAttribute("href")).toMatch(/^https:\/\/njump\.me\/naddr1/);
+    expect(link).toHaveTextContent("↗ track");
+    // Where the author linked (the unlock page), not njump.
+    expect(link.getAttribute("href")).toBe(url);
+  });
+
+  it("keeps a sentence's closing punctuation out of the link", () => {
+    const { container } = render(<ReadingText text="(see https://example.com/docs)." />);
+    expect(screen.getByTestId("reading-link").getAttribute("href")).toBe("https://example.com/docs");
+    expect(container).toHaveTextContent("(see example.com/docs).");
   });
 
   it("labels GitHub PRs and opaque blob URLs briefly", () => {

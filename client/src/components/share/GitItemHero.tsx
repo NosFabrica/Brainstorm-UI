@@ -8,7 +8,6 @@ import { GIT_STATE_LABEL, GIT_STATE_TONE, gitAgentOf, gitLabelsOf, gitRepoNameOf
 import { gitItemTitleOf, parsePatch } from "@/lib/gitPatch";
 import { eventPath } from "@/lib/shareId";
 import { MarkdownBody } from "./MarkdownBody";
-import { ReadingText } from "@/components/share/ReadingText";
 
 type GitItem = { id: string; kind: number; pubkey: string; content: string; tags: string[][]; created_at: number };
 
@@ -148,7 +147,11 @@ export function GitItemHero({ event, author }: { event: GitItem; author?: AgentA
             </div>
           )}
           {patch.message && (
-            <ReadingText text={patch.message} headline={false} className="mt-2" testId="git-patch-message" />
+            // A commit message is literal: "#42" is an issue, "deploy.sh" a
+            // file — the reading renderer would make them a hashtag and a link.
+            <p className="mt-2 max-w-[68ch] whitespace-pre-wrap break-words text-[15px] sm:text-base leading-[1.65] text-slate-700 dark:text-slate-200" data-testid="git-patch-message">
+              {patch.message}
+            </p>
           )}
           {patch.diff && (
             <div className="mt-3">

@@ -9,11 +9,22 @@
 
 const TAG = /<\/?(?:p|br|div|ul|ol|li|h[1-6]|pre|code|strong|em|b|i|a|blockquote|span)\b[^>]*>/gi;
 
-/** Enough real tags that this is HTML, not prose that mentions a `<p>`. */
+const BLOCK_OPEN = /<(p|div|ul|ol|li|h[1-6]|pre|blockquote)\b[^>]*>/gi;
+
+/**
+ * Enough real markup that this is HTML, not prose or markdown that talks
+ * about tags: tags inside `code` or fences don't count, and at least one
+ * block element must be opened and closed.
+ */
 export function looksLikeHtml(text: string): boolean {
   if (typeof DOMParser === "undefined") return false;
-  const tags = text.match(TAG);
-  return !!tags && tags.length >= 3 && tags.some((t) => t.startsWith("</"));
+  const bare = text.replace(/```[\s\S]*?```/g, "").replace(/`[^`\n]*`/g, "");
+  const tags = bare.match(TAG);
+  if (!tags || tags.length < 3) return false;
+  for (const m of bare.matchAll(BLOCK_OPEN)) {
+    if (new RegExp(`</${m[1]}\\s*>`, "i").test(bare)) return true;
+  }
+  return false;
 }
 
 function walk(node: Node, inPre: boolean, depth = 0): string {

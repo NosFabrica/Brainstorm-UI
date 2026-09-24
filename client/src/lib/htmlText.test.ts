@@ -8,6 +8,8 @@ describe("htmlToText", () => {
 
   it("detects HTML, not prose that mentions a tag", () => {
     expect(looksLikeHtml(html)).toBe(true);
+    // Markdown about tags, in code spans: not HTML.
+    expect(looksLikeHtml("Fix layout\n\n- wrap the list in a `<div>`\n- close the `</div>` properly\n- use `<span>` for icons")).toBe(false);
     expect(looksLikeHtml("Use a <p> tag for paragraphs.")).toBe(false);
   });
 

@@ -170,7 +170,7 @@ export function NoteContent({
           case "mention": {
             const { pubkey, id, address } = decodeNostrEntity(token.bech32);
             if (address) {
-              const other = reading ? addressLink(token.bech32, i) : null;
+              const other = reading ? addressLink(token.bech32, i, token.url) : null;
               if (other) return other;
               // Links to the on-site article page; also embedded as a card below.
               return (

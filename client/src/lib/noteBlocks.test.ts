@@ -82,7 +82,7 @@ describe("layouts that are not prose (from real events)", () => {
   });
 
   it("takes a pasted git log / diff to the end as code, blank context lines included", () => {
-    const log = ["commit 57b3c5bda648016747553f49b6107fd6c7d90235", "Author: A <a@b>", "", "diff --git a/x b/x", "@@ -1,3 +1,2 @@", " Global", "-\t\tDebug|x86", " ", "+\tRelease"].join("\n");
+    const log = ["commit 57b3c5bda648016747553f49b6107fd6c7d90235", "Author: A <a@b>", "", "diff --git a/x b/x", "@@ -1,3 +1,3 @@", " Global", "-\t\tDebug|x86", " ", "+\tRelease"].join("\n");
     const b = blocks(log);
     expect(b.map((x) => x.type)).toEqual(["code"]);
     expect((b[0] as { text: string }).text).toContain("-\t\tDebug|x86");
@@ -181,6 +181,33 @@ describe("review regressions", () => {
   });
 });
 
+describe("final audit regressions", () => {
+  it("a reply and a list typed after a pasted git log stay prose", () => {
+    const b = blocks("commit 57b3c5bda648016747553f49b6107fd6c7d90235\nAuthor: A <a@b>\n\n    fix\n\n@bob can you look at this please\n- also this list");
+    expect(b.map((x) => x.type)).toEqual(["code", "p", "ul"]);
+    expect((b[0] as { text: string }).text).toContain("    fix");
+  });
+
+  it("a hunk runs exactly as far as its header counts, blank context lines included", () => {
+    const b = blocks("diff --git a/x b/x\n@@ -1,3 +1,3 @@\n a\n\n-b\n+c\n- list item after the hunk");
+    expect(b.map((x) => x.type)).toEqual(["code", "ul"]);
+  });
+
+  it("an indented item nests under the item above it", () => {
+    const b = blocks("1. Install\n2. Enable\n  - on boot\n3. Done");
+    expect(b).toHaveLength(1);
+    const l = b[0] as { type: string; items: unknown[]; nested?: ({ items: unknown[] } | undefined)[] };
+    expect(l.type).toBe("ol");
+    expect(l.items).toHaveLength(3);
+    expect(l.nested?.[1]?.items).toHaveLength(1);
+  });
+
+  it("vocalized Arabic verse is text, not art", () => {
+    const v = "بِسْمِ ٱللَّٰهِ ٱلرَّحْمَٰنِ ٱلرَّحِيمِ";
+    expect(blocks([v, v, v].join("\n"))[0].type).toBe("p");
+  });
+});
+
 describe("parseInlineMarkdown", () => {
   it("parses strong, em and code", () => {
     expect(parseInlineMarkdown("a **b** *c* `d`")).toEqual([
@@ -194,7 +221,7 @@ describe("parseInlineMarkdown", () => {
   });
 
   it("leaves snake_case, arithmetic and lone markers alone", () => {
-    for (const s of ["snake_case_name", "2 * 3 * 4", "** nope **", "file_name.txt and other_file", "__<_____\\__\\__(___)_))_((_(____))__"]) {
+    for (const s of ["snake_case_name", "2 * 3 * 4", "** nope **", "file_name.txt and other_file", "call __init__ and __main__ here", "__<_____\\__\\__(___)_))_((_(____))__"]) {
       expect(parseInlineMarkdown(s)).toEqual([{ type: "text", value: s }]);
     }
   });
@@ -221,7 +248,7 @@ describe("fuzz", () => {
     switch (b.type) {
       case "code": return b.text;
       case "hr": return "";
-      case "ul": case "ol": return b.items.map(t).join("\n");
+      case "ul": case "ol": return [...b.items.map(t), ...(b.nested ?? []).flatMap((n) => (n ? n.items.map(t) : []))].join("\n");
       default: return t(b.tokens);
     }
   };

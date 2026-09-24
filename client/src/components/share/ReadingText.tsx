@@ -18,8 +18,8 @@
  */
 import { useMemo, type ReactNode } from "react";
 import { useLocation } from "wouter";
-import { parseNoteContent, prettyUrlLabel, type NoteToken } from "@/lib/noteContent";
-import { toNoteBlocks, parseInlineMarkdown, type InlineSpan } from "@/lib/noteBlocks";
+import { parseNoteContent, prettyUrlLabel, trimProse, type NoteToken } from "@/lib/noteContent";
+import { toNoteBlocks, parseInlineMarkdown, type InlineSpan, type NestedList } from "@/lib/noteBlocks";
 import { decodeNostrEntity } from "@/lib/noteRefs";
 import { READER_KINDS } from "@/lib/shareId";
 import { nip19 } from "nostr-tools";
@@ -27,6 +27,7 @@ import { htmlToText, looksLikeHtml } from "@/lib/htmlText";
 import { MentionChip } from "@/components/share/MentionChip";
 import { useShareNav } from "@/components/share/ShareNavContext";
 import { GH_REF_RE, splitProse } from "@/components/share/NotesInline";
+import { kindTypeLabel } from "@/components/search/SerpRow";
 
 export type ReadingSize = "post" | "body";
 
@@ -41,9 +42,22 @@ const HEADING: Record<ReadingSize, [string, string, string]> = {
   body: ["text-[1.15em]", "text-[1.07em]", "text-[1em]"],
 };
 
+// splitProse results by text: a re-render (the event page re-renders as its
+// queries land) finds its runs already split. Bounded, oldest out first.
+const proseCache = new Map<string, ReturnType<typeof splitProse>>();
+function splitProseCached(text: string) {
+  let parts = proseCache.get(text);
+  if (!parts) {
+    parts = splitProse(text);
+    if (proseCache.size >= 500) proseCache.delete(proseCache.keys().next().value!);
+    proseCache.set(text, parts);
+  }
+  return parts;
+}
+
 /** Plain text with its bare domains linked and @handles given weight. */
 function renderProse(text: string, key: string): ReactNode[] {
-  return splitProse(text).map((p, i) =>
+  return splitProseCached(text).map((p, i) =>
     p.type === "domain" ? <ReadingLink key={`${key}~${i}`} url={p.url} label={p.value} />
     : p.type === "handle" ? <span key={`${key}~${i}`} dir="auto" className="font-medium text-slate-900 dark:text-slate-100">{p.value}</span>
     : p.value,
@@ -83,28 +97,41 @@ export function readingLinkLabel(url: string): string {
   return prettyUrlLabel(url);
 }
 
+/** trimProse, plus the sentence stops it keeps (". : ' \"") — alternately,
+ *  so "(… /docs)." sheds both the full stop and the paren. */
+function trimSentence(url: string): string {
+  let prev = "";
+  let out = url;
+  while (out !== prev) {
+    prev = out;
+    out = trimProse(out.replace(/[.:'"”’]+$/, ""));
+  }
+  return out;
+}
+
 /** A plain web link in running prose: underlined text, not a favicon chip —
  *  chips every few words break the line's rhythm. */
 export function ReadingLink({ url, label }: { url: string; label?: string }) {
+  // "(see https://x.y/docs)." — the ")." is the sentence's, not the link's.
+  const href = label ? url : trimSentence(url);
+  const tail = url.slice(href.length);
   return (
+    <>
     <a
-      href={url}
+      href={href}
       target="_blank"
       rel="noopener"
       dir="auto"
       className="font-medium text-brand-link underline decoration-brand-link/30 underline-offset-[3px] hover:decoration-brand-link [overflow-wrap:anywhere]"
       data-testid="reading-link"
     >
-      {label ?? readingLinkLabel(url)}
+      {label ?? readingLinkLabel(href)}
     </a>
+    {tail}
+    </>
   );
 }
 
-/** What an addressable event is, for a link that names it. */
-const ADDRESS_LABEL: Record<number, string> = {
-  31337: "🎵 track", 30402: "🛍 listing", 31922: "📅 event", 31923: "📅 event", 30311: "🔴 live stream",
-  32267: "📱 app", 30617: "📁 repository", 34235: "🎬 video", 34236: "🎬 video", 30000: "👥 list",
-};
 
 function addressKind(bech32: string): number | null {
   try {
@@ -116,11 +143,14 @@ function addressKind(bech32: string): number | null {
 }
 
 /** A link for an address with no reader here (a track, a listing…), or null
- *  for articles, wiki pages and specs, which open on /a/. */
-export function addressLink(bech32: string, key: string | number): ReactNode | null {
+ *  for articles, wiki pages and specs, which open on /a/. It goes where the
+ *  author linked (a fanfares.io unlock page) and njump only when they wrote
+ *  a bare entity. */
+export function addressLink(bech32: string, key: string | number, url?: string): ReactNode | null {
   const kind = addressKind(bech32);
   if (kind === null || READER_KINDS.has(kind)) return null;
-  return <ReadingLink key={key} url={`https://njump.me/${bech32}`} label={ADDRESS_LABEL[kind] ?? "↗ linked post"} />;
+  const label = kindTypeLabel(kind);
+  return <ReadingLink key={key} url={url ? trimSentence(url) : `https://njump.me/${bech32}`} label={`↗ ${label.startsWith("Kind ") ? "linked post" : label.toLowerCase()}`} />;
 }
 
 export function ReadingText({
@@ -156,6 +186,15 @@ export function ReadingText({
   const plain = useMemo(() => (given ? undefined : text && looksLikeHtml(text) ? htmlToText(text) : text || ""), [given, text]);
   const tokens = useMemo(() => given ?? parseNoteContent(plain ?? ""), [given, plain]);
   const blocks = useMemo(() => toNoteBlocks(tokens, { headline, source: source ?? plain }), [tokens, headline, source, plain]);
+  // Inline emphasis per text run, kept with the blocks it belongs to.
+  const spansOf = useMemo(() => {
+    const cache = new WeakMap<NoteToken, InlineSpan[]>();
+    return (t: NoteToken & { type: "text" }) => {
+      let s = cache.get(t);
+      if (!s) cache.set(t, (s = parseInlineMarkdown(t.value)));
+      return s;
+    };
+  }, [blocks]);
 
   const quiet = (t: NoteToken, key: string): ReactNode => {
     switch (t.type) {
@@ -176,7 +215,7 @@ export function ReadingText({
         if (pubkey) return <MentionChip key={key} uri={`nostr:${t.bech32}`} />;
         // Only articles, wiki pages and specs have a reader here; any other
         // address (a track, a listing) opens where every client can show it.
-        const other = address ? addressLink(t.bech32, key) : null;
+        const other = address ? addressLink(t.bech32, key, t.url) : null;
         if (other) return other;
         return (
           <button key={key} type="button" onClick={() => navigate(`/${address ? "a" : "e"}/${t.bech32}`)} className="font-medium text-brand-link hover:underline">
@@ -191,10 +230,23 @@ export function ReadingText({
   const inline = (ts: NoteToken[], key: string) =>
     ts.map((t, j) => {
       const k = `${key}.${j}`;
-      if (t.type === "text") return <span key={k}>{renderSpans(parseInlineMarkdown(t.value), k, !renderToken)}</span>;
+      if (t.type === "text") return <span key={k}>{renderSpans(spansOf(t), k, !renderToken)}</span>;
       return renderToken ? renderToken(t, k) : quiet(t, k);
     });
   const [h1, h2, h3] = HEADING[size];
+  const list = (b: NestedList, k: string, nested?: (NestedList | undefined)[], inner = false): ReactNode => {
+    const List = b.type;
+    return (
+      <List key={k} dir="auto" start={b.type === "ol" ? b.start : undefined} className={`${b.type === "ul" ? (inner ? "list-[circle]" : "list-disc") : "list-decimal"} space-y-1.5 ps-6 marker:text-slate-400 dark:marker:text-slate-500`}>
+        {b.items.map((item, j) => (
+          <li key={j} className="whitespace-pre-wrap ps-1">
+            {inline(item, `${k}.${j}`)}
+            {nested?.[j] && <div className="mt-1.5 whitespace-normal">{list(nested[j]!, `${k}.${j}.n`, undefined, true)}</div>}
+          </li>
+        ))}
+      </List>
+    );
+  };
 
   return (
     <div className={`note-reading w-full max-w-[68ch] break-words [container-type:inline-size] ${SIZE[size]} ${className}`} data-testid={testId}>
@@ -208,14 +260,8 @@ export function ReadingText({
             return <Tag key={k} dir="auto" className={`${[h1, h2, h3][b.level - 1]} font-bold leading-snug tracking-tight text-slate-900 dark:text-white`} style={{ fontFamily: "var(--font-display)" }}>{inline(b.tokens, k)}</Tag>;
           }
           case "ul":
-          case "ol": {
-            const List = b.type;
-            return (
-              <List key={k} dir="auto" start={b.type === "ol" ? b.start : undefined} className={`${b.type === "ul" ? "list-disc" : "list-decimal"} space-y-1.5 ps-6 marker:text-slate-400 dark:marker:text-slate-500`}>
-                {b.items.map((item, j) => <li key={j} className="whitespace-pre-wrap ps-1">{inline(item, `${k}.${j}`)}</li>)}
-              </List>
-            );
-          }
+          case "ol":
+            return list(b, k, b.nested);
           case "quote":
             return <blockquote key={k} dir="auto" className="whitespace-pre-wrap border-s-[3px] border-slate-300 dark:border-slate-600 ps-4 italic text-slate-600 dark:text-slate-300">{inline(b.tokens, k)}</blockquote>;
           case "code": {

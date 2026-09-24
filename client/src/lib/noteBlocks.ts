@@ -19,13 +19,16 @@ import type { NoteToken } from "@/lib/noteContent";
 export type NoteBlock =
   | { type: "p"; tokens: NoteToken[] }
   | { type: "h"; level: 1 | 2 | 3; tokens: NoteToken[] }
-  | { type: "ul" | "ol"; items: NoteToken[][]; start?: number }
+  /** `nested[i]`: a list indented under item i (one level deep). */
+  | { type: "ul" | "ol"; items: NoteToken[][]; start?: number; nested?: (NestedList | undefined)[] }
   | { type: "quote"; tokens: NoteToken[] }
   /** `art`: laid out by hand with spaces (ASCII art, a table) — the reader
    *  scales it to fit rather than scroll. */
   | { type: "code"; text: string; art?: boolean }
   | { type: "caption"; tokens: NoteToken[] }
   | { type: "hr" };
+
+export type NestedList = { type: "ul" | "ol"; items: NoteToken[][]; start?: number };
 
 type Line = NoteToken[];
 
@@ -121,7 +124,7 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
   const blocks: NoteBlock[] = [];
   let para: Line[] = [];
   let quote: Line[] = [];
-  let list: { type: "ul" | "ol"; items: Line[]; start?: number } | null = null;
+  let list: { type: "ul" | "ol"; items: Line[]; start?: number; nested?: (NestedList | undefined)[] } | null = null;
 
   const flush = () => {
     // Lines of prose each end a paragraph: a bridge that writes one
@@ -142,7 +145,10 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
       endRun();
     } else if (para.length) blocks.push({ type: "p", tokens: joinLines(para) });
     if (quote.length) blocks.push({ type: "quote", tokens: joinLines(quote) });
-    if (list) blocks.push(list.type === "ol" && list.start !== undefined && list.start !== 1 ? list : { type: list.type, items: list.items });
+    if (list) {
+      const { type, items, start, nested } = list;
+      blocks.push({ type, items, ...(type === "ol" && start !== undefined && start !== 1 ? { start } : {}), ...(nested ? { nested } : {}) });
+    }
     para = [];
     quote = [];
     list = null;
@@ -179,8 +185,11 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
         flush();
         let end = i + group.length;
         // A diff runs on through its blank context lines, for as long as the
-        // lines still look like a diff or a git log.
-        if (pre === "diff") while (end < lines.length && (isBlank(lines[end]) || DIFF_LINE.test(raw(end)))) end++;
+        // lines are still the log or the diff — see diffEnd.
+        if (pre === "diff") {
+          const k = group.findIndex((l) => DIFF_START.test(l));
+          end = Math.max(end, diffEnd(i + k, lines.length, raw));
+        }
         const text = Array.from({ length: end - i }, (_, k) => raw(i + k)).join("\n").replace(/\s+$/, "");
         blocks.push(pre === "art" ? { type: "code", text, art: true } : { type: "code", text });
         i = end - 1;
@@ -210,6 +219,15 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
 
     const b = BULLET.exec(lead);
     const o = b ? null : ORDERED.exec(lead);
+    // An indented item under an open list nests under its last item.
+    if ((b || o) && list && /^[ \t]{2,}/.test(lead)) {
+      const at = list.items.length - 1;
+      const nested = (list.nested ??= []);
+      const kind = b ? "ul" : "ol";
+      const sub = (nested[at] ??= { type: kind, items: [], ...(o && Number(o[1]) !== 1 ? { start: Number(o[1]) } : {}) });
+      sub.items.push(stripLead(line, (b ?? o)![0].length));
+      continue;
+    }
     if (b || o) {
       const kind = b ? "ul" : "ol";
       if (!list || list.type !== kind) {
@@ -237,8 +255,48 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
 // Unmistakable starts only: a `diff --git` header, a hunk header, or a full
 // `commit <sha>` line (a sentence that begins "commit 1a2b3c broke…" is prose).
 const DIFF_START = /^(?:diff --git |@@ -\d+(?:,\d+)? \+\d+(?:,\d+)? @@|commit [0-9a-f]{7,40}$)/;
-/** Lines a diff or a git log is made of. */
-const DIFF_LINE = /^(?:[ +\-@\\]|diff |index |commit |Author:|AuthorDate:|Commit:|CommitDate:|Date:|Merge:|new file|deleted file|similarity |rename |old mode|new mode|Binary files)/;
+/** Header lines of a git log or diff, and a log's indented message. */
+const DIFF_HEADER = /^(?:diff --git |index |--- |\+\+\+ |new file|deleted file|similarity |rename |old mode|new mode|Binary files|commit [0-9a-f]{7,40}$|Author:|AuthorDate:|Commit:|CommitDate:|Date:|Merge:| {4})/;
+const HUNK = /^@@ -\d+(?:,(\d+))? \+\d+(?:,(\d+))? @@/;
+
+/**
+ * Where a pasted diff or git log ends, starting at its first line. Inside a
+ * hunk the header's line counts say exactly how far it runs (blank context
+ * lines included); between hunks only headers, a log's indented message and
+ * blank lines leading to more of them belong — so a reply or a list typed
+ * after the paste stays prose.
+ */
+function diffEnd(from: number, n: number, raw: (i: number) => string): number {
+  let oldLeft = 0;
+  let newLeft = 0;
+  const belongs = (l: string) => HUNK.test(l) || DIFF_HEADER.test(l);
+  let j = from;
+  for (; j < n; j++) {
+    const l = raw(j);
+    if (oldLeft > 0 || newLeft > 0) {
+      const c = l[0];
+      if (!l.trim() || c === " ") { oldLeft--; newLeft--; continue; }
+      if (c === "-") { oldLeft--; continue; }
+      if (c === "+") { newLeft--; continue; }
+      if (c === "\\") continue;
+    }
+    const h = HUNK.exec(l);
+    if (h) {
+      oldLeft = h[1] === undefined ? 1 : Number(h[1]);
+      newLeft = h[2] === undefined ? 1 : Number(h[2]);
+      continue;
+    }
+    if (l.startsWith("\\ No newline")) continue;
+    if (DIFF_HEADER.test(l)) continue;
+    if (!l.trim()) {
+      let k = j + 1;
+      while (k < n && !raw(k).trim()) k++;
+      if (k < n && belongs(raw(k))) { j = k - 1; continue; }
+    }
+    break;
+  }
+  return j;
+}
 const GAP = /\S(?: {3,}|\t)\S/;
 
 /** How a group of lines is laid out, if by hand: "diff" for a pasted diff or
@@ -253,7 +311,8 @@ function preformatted(group: string[]): "diff" | "art" | null {
   const symbolic = (l: string) => {
     // Emoji are words here, not drawing: a line of 🎉🔥 is a reaction.
     const t = l.replace(/[\s\p{Extended_Pictographic}\p{Emoji_Modifier}\p{Regional_Indicator}\u200d\ufe0f]/gu, "");
-    return t.length > 4 && t.replace(/[\p{L}\p{N}]/gu, "").length / t.length > 0.5;
+    // Combining marks belong to their letters (vocalized Arabic, Hebrew, Devanagari).
+    return t.length > 4 && t.replace(/[\p{L}\p{M}\p{N}]/gu, "").length / t.length > 0.5;
   };
   return share(symbolic) >= 0.4 ? "art" : null;
 }
@@ -368,6 +427,12 @@ export function parseInlineMarkdown(text: string): InlineSpan[] {
     const idx = m.index ?? 0;
     if (idx > last) out.push({ type: "text", value: text.slice(last, idx) });
     const g = m.groups!;
+    // __init__, __main__: a Python name, not bold.
+    if (g.ustrong !== undefined && /^[a-z0-9_]+$/.test(g.ustrong)) {
+      out.push({ type: "text", value: m[0] });
+      last = idx + m[0].length;
+      continue;
+    }
     const strong = g.strong ?? g.ustrong;
     const em = g.em ?? g.uem;
     if (g.code !== undefined) out.push({ type: "code", value: g.code });
@@ -376,5 +441,11 @@ export function parseInlineMarkdown(text: string): InlineSpan[] {
     last = idx + m[0].length;
   }
   if (last < text.length) out.push({ type: "text", value: text.slice(last) });
-  return out;
+  // Text left literal (a skipped __name__) joins its neighbours.
+  return out.reduce<InlineSpan[]>((acc, s) => {
+    const prev = acc[acc.length - 1];
+    if (s.type === "text" && prev?.type === "text") acc[acc.length - 1] = { type: "text", value: prev.value + s.value };
+    else acc.push(s);
+    return acc;
+  }, []);
 }

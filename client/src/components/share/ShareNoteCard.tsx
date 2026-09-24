@@ -3,7 +3,7 @@ import { useScoreDisplayMode } from "@/hooks/useScoreDisplayMode";
 import { useTierGranularity } from "@/hooks/useTierGranularity";
 import { TierTile } from "@/components/score/TierTile";
 import { useAuthorScores } from "@/hooks/useAuthorScores";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { Repeat2, MessageSquare } from "lucide-react";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { HoverCard, HoverCardTrigger, HoverCardContent } from "@/components/ui/hover-card";
@@ -161,7 +161,13 @@ export function ShareNoteCard({
         {inner && reading && inner.kind === 1 ? (
           // On the repost's own page the reposted note IS the content — set
           // it for reading, not shrunk into a quote card.
-          <ShareNoteCard event={inner} profiles={profiles} eventsById={eventsById} addrByCoord={addrByCoord} forceExpanded reading showAuthor />
+          <>
+            <ShareNoteCard event={inner} profiles={profiles} eventsById={eventsById} addrByCoord={addrByCoord} forceExpanded reading showAuthor />
+            {/* Its replies live on its own page. */}
+            <Link href={eventPath(inner)} className="mt-3 inline-block text-sm font-semibold text-brand-link hover:underline" data-testid="repost-open-original">
+              Open the original note and its replies →
+            </Link>
+          </>
         ) : inner ? (
           <EmbeddedNoteCard event={inner} author={profiles.get(inner.pubkey)} profiles={profiles} href={eventPath(inner)} />
         ) : (
