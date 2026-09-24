@@ -309,6 +309,12 @@ export function playNext(): boolean {
   return true;
 }
 
+/** The track before `id` in the registered playlist — what Previous would play. */
+export function peekPrev(id: string | null): PlaylistTrack | null {
+  const idx = playlist.findIndex((t) => t.id === id);
+  return idx > 0 ? playlist[idx - 1] : null;
+}
+
 /** Back to the previous track in the registered playlist, if there is one. */
 export function playPrev(): boolean {
   const idx = playlist.findIndex((t) => t.id === currentId);
