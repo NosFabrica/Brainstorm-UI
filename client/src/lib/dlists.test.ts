@@ -51,6 +51,13 @@ describe("a V4V Songs item", () => {
     });
   });
 
+  it("a song whose t tag is no page still has a page — the feed's — and an email address is no artist", () => {
+    // Live (2026-09-24): eight of twelve shelf rows had no Support link, and one row's artist was info@100percentretro.com.
+    expect(parseDListSong(withTag(songEv, "t", "a94f5cc9-8c58-55fc-91fe-a324087a655b"))?.url).toBe("https://podcastindex.org/podcast/4148683");
+    expect(parseDListSong(without(withTag(songEv, "t", "x"), "feedId"))?.url).toBeUndefined();
+    expect(parseDListSong(withTag(songEv, "artist", "info@100percentretro.com"))?.artist).toBe("");
+  });
+
   it("without a title or a playable url it is not a song; nor is another kind wearing the tags; a bad duration is no duration", () => {
     expect(parseDListSong(without(songEv, "title"))).toBeNull();
     expect(parseDListSong(without(songEv, "url"))).toBeNull();

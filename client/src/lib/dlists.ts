@@ -108,30 +108,33 @@ export interface PodcastMusician {
   source: "podcastindex";
 }
 
+/** A feed named by its owner's email address is not a musician's name, nor a song's artist. */
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const feedPage = (feedId: string | undefined): string | undefined => (feedId ? `https://podcastindex.org/podcast/${feedId}` : undefined);
+
 export function parseDListSong(ev: EventLike): PodcastSong | null {
   if (ev.kind !== DLIST_ITEM_KIND) return null;
   const title = tagOf(ev, "title");
   const audio = tagOf(ev, "url");
   if (!title || !isHttp(audio)) return null;
   const duration = Number(tagOf(ev, "duration"));
+  // The song's page on podcastindex.org when the `t` tag is one; else the feed's page — where the value splits live either way.
   const page = tagOf(ev, "t");
+  const artist = tagOf(ev, "artist") ?? "";
   return {
     id: `podcastindex:${ev.id}`,
     eventId: ev.id,
     title,
-    artist: tagOf(ev, "artist") ?? "",
+    artist: EMAIL.test(artist) ? "" : artist,
     audio,
     cover: tagOf(ev, "artwork"),
     durationSec: Number.isFinite(duration) && duration > 0 ? duration : undefined,
     feedId: tagOf(ev, "feedId"),
     feedGuid: tagOf(ev, "feedGuid"),
-    url: isHttp(page) ? page : undefined,
+    url: isHttp(page) ? page : feedPage(tagOf(ev, "feedId")),
     source: "podcastindex",
   };
 }
-
-/** A feed named by its owner's email address is not a musician's name. */
-const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function parseDListMusician(ev: EventLike): PodcastMusician | null {
   if (ev.kind !== DLIST_ITEM_KIND) return null;
@@ -145,7 +148,7 @@ export function parseDListMusician(ev: EventLike): PodcastMusician | null {
     feedId,
     feedGuid: tagOf(ev, "feedGuid"),
     artwork: tagOf(ev, "artwork"),
-    url: feedId ? `https://podcastindex.org/podcast/${feedId}` : undefined,
+    url: feedPage(feedId),
     source: "podcastindex",
   };
 }
