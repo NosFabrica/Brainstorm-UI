@@ -1005,10 +1005,16 @@ export async function fetchAddressableEvents(
   const kinds = Array.from(new Set(valid.map((c) => c.kind)));
   const authors = Array.from(new Set(valid.map((c) => c.pubkey)));
   const identifiers = Array.from(new Set(valid.map((c) => c.identifier)));
+  // Done the moment every wanted address has a copy — the page does not wait
+  // for the remaining relays to say "nothing else" (an article took 5.5s
+  // behind an author's dead relay, 2026-09-24). A newer version on a slower
+  // relay reaches the store on later reads; the reader has the article now.
+  const wantedKey = (event: NostrEvent) => `${event.kind}:${event.pubkey}:${event.tags.find((tag) => tag[0] === "d")?.[1] ?? ""}`;
   const events = await requestAll(
     targetRelays.length ? targetRelays : PROFILE_RELAYS,
     { kinds, authors, "#d": identifiers },
     timeoutMs,
+    { enough: (collected) => { const seen = new Set<string>(); for (const e of collected.values()) seen.add(wantedKey(e)); return [...wanted].every((k) => seen.has(k)); } },
   );
   // The filter is a cross-product of the requested kinds, authors and d-tags, so
   // it matches coordinates nobody asked for; `wanted` is what narrows it back.
