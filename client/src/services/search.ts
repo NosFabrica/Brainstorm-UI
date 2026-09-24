@@ -1368,7 +1368,10 @@ export function fetchSimilarListings(
     const wanted = new Set(categories.map((c) => c.toLowerCase()));
     const byAddress = new Map<string, NostrEvent>();
     const sub = relay
-      .req({ kinds: [30402], "#t": categories, search: "include:spam", limit: 40 })
+      // Deep on purpose: the seller's own listings are dropped below, and one
+      // prolific seller can own the first forty in a category (Staci's 67 in
+      // "Health & Beauty", 2026-09-24, left nothing similar at 40; 200 found 53).
+      .req({ kinds: [30402], "#t": categories, search: "include:spam", limit: 200 })
       .subscribe((msg: { type: string; event?: NostrEvent }) => {
         if (msg.type === "EVENT" && msg.event) {
           const ev = msg.event;

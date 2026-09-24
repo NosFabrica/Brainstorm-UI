@@ -1734,6 +1734,21 @@ describe("fetchSimilarListings", () => {
     expect(similar.map((e) => e.tags.find((t) => t[0] === "d")?.[1])).toEqual(["stein", "cup"]);
     expect(similar[0].created_at).toBe(2);
   });
+  // Staci's soap (2026-09-24): the relay's first 40 in "Health & Beauty" were
+  // all hers, so dropping the seller left nothing similar — while the relay
+  // held 53 from other sellers just past that window.
+  it("asks deep enough that one prolific seller cannot fill the window and leave nothing similar", async () => {
+    const { subject } = controllable();
+    const me = "a".repeat(64);
+    const pending = fetchSimilarListings(["soap"], `30402:${me}:soap-1`, { excludePubkey: me });
+    await tick();
+    const filter = reqMock.mock.calls[0][0] as { limit: number };
+    expect(filter.limit).toBeGreaterThanOrEqual(150);
+    for (let i = 0; i < 40; i++) subject.next(frame(listing(me, `mine-${i}`, ["soap"], i)));
+    subject.next(frame(listing("c".repeat(64), "bar", ["soap"], 50)));
+    subject.next(EOSE);
+    expect((await pending).map((e) => e.pubkey)).toEqual(["c".repeat(64)]);
+  });
 });
 
 describe("fetchCommentsByAddress", () => {
