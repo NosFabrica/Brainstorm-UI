@@ -109,6 +109,29 @@ describe("samplePaths", () => {
     expect(r).toEqual({ paths: [[ME, C1, T]], calls: 6, complete: false });
   });
 
+  it("chases a small set until every path is seen, well past the old seven calls", async () => {
+    // Benjamin (2026-09-24), on "We checked 5 of the 9": what's up with the other 4?
+    const answers = ["2", "3", "4", "5", "6", "7", "8", "9"].map((c) => [ME, c.repeat(64), T]);
+    const fetchOne = vi.fn(async () => head(answers[fetchOne.mock.calls.length - 1], 9));
+    const r = await samplePaths(head([ME, C1, T], 9), fetchOne);
+    expect(r.paths).toHaveLength(9);
+    expect(r).toMatchObject({ calls: 8, complete: true });
+  });
+
+  it("keeps drawing on a small set until the budget is spent — a server that repeats itself cannot stop it early", async () => {
+    const fetchOne = vi.fn(async () => head([ME, C1, T], 9));
+    const r = await samplePaths(head([ME, C1, T], 9), fetchOne);
+    expect(r).toEqual({ paths: [[ME, C1, T]], calls: 35, complete: false });
+  });
+
+  it("keeps the short budget for a large set — a hundred-odd paths are never chased", async () => {
+    let n = 1;
+    const fetchOne = vi.fn(async () => head([ME, String(n++).padStart(64, "0"), T], 119));
+    const r = await samplePaths(head([ME, C1, T], 119), fetchOne);
+    expect(r).toMatchObject({ calls: 6, complete: false });
+    expect(r.paths).toHaveLength(7);
+  });
+
   it("drops a sample that failed and keeps the rest", async () => {
     let n = 0;
     const fetchOne = vi.fn(async () => { n++; if (n === 2) throw new Error("relay hiccup"); return head(n === 1 ? [ME, C2, T] : [ME, C3, T], 3); });

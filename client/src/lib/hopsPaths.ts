@@ -109,16 +109,32 @@ export interface SampleResult {
   complete: boolean;
 }
 
+/** A set small enough that seeing the whole of it is worth chasing. */
+const SMALL_SET = 10;
+
+/**
+ * How many calls a set is worth, the head included. A small set is chased —
+ * four draws per path, capped — because "5 of the 9" leaves a reader asking
+ * about the other four; nine paths are seen whole about nine times in ten.
+ * A large set keeps the short budget: no number of random draws would see
+ * a hundred paths, and the copy says so honestly.
+ */
+export function sampleBudget(pathCount: number): number {
+  return pathCount <= SMALL_SET ? Math.min(36, 4 * pathCount) : 7;
+}
+
 /**
  * The server hands back one random shortest path per call. Until it returns
  * the list it already computes (`head.paths`), sample: waves of a few calls,
  * de-duplicated, stopping once every path is in hand or the budget is spent.
+ * Never earlier: with two of nine paths left, a wave of three finds nothing
+ * new half the time, and a "nothing new, stop" rule left the page at 7 of 9.
  * A wave never asks for more than are left; a failed sample is dropped.
  */
 export async function samplePaths(
   head: ShortestPath,
   fetchOne: () => Promise<ShortestPath>,
-  { maxCalls = 7, wave = 3 }: { maxCalls?: number; wave?: number } = {},
+  { maxCalls = sampleBudget(head.pathCount), wave = 3 }: { maxCalls?: number; wave?: number } = {},
 ): Promise<SampleResult> {
   if (head.paths?.length) return { paths: dedupePaths(head.paths), calls: 0, complete: true };
   let paths = dedupePaths([head.path]);
