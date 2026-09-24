@@ -26,6 +26,7 @@ import { eventStore } from "@/lib/eventStore";
 import type { AccountMetadata } from "@/accounts/metadata";
 
 const AUTHOR = "9".repeat(64);
+const eventsByIds = vi.fn(async (..._args: unknown[]) => [] as unknown[]);
 const served = vi.fn((): Record<string, unknown> | null | Promise<Record<string, unknown> | null> => null);
 
 vi.mock("@/services/nostr", () => ({
@@ -36,9 +37,10 @@ vi.mock("@/services/nostr", () => ({
     return map;
   },
   fetchProfile: async () => ({ name: "hzrd149" }),
+  refreshProfileEvent: async () => null,
   // What the event layout (a non-article at an address) asks for; nothing here.
   fetchRecentByKinds: async () => [],
-  fetchEventsByIds: async () => [],
+  fetchEventsByIds: (...args: unknown[]) => eventsByIds(...args),
   fetchProfileMap: async () => new Map(),
 }));
 vi.mock("@/services/api", () => ({ apiClient: { getHouseInfluence: async () => null } }));
@@ -294,3 +296,20 @@ describe("a copy the device already holds", () => {
     expect(screen.getByTestId("article-body")).toHaveTextContent("Newest, already here.");
   });
 });
+
+describe("an event by id the device already holds", () => {
+  const realVerify = eventStore.verifyEvent;
+  beforeAll(() => { eventStore.verifyEvent = undefined; });
+  afterAll(() => { eventStore.verifyEvent = realVerify; });
+
+  it("renders from the store without asking the relays", async () => {
+    const note = { id: "4".repeat(64), kind: 1, pubkey: AUTHOR, created_at: 1_700_000_000, content: "A note the device already has.", sig: "s".repeat(128), tags: [] };
+    eventStore.add(note as any);
+    eventsByIds.mockClear();
+    window.history.pushState({}, "", `/e/${nip19.noteEncode(note.id)}`);
+    renderPage();
+    expect(await screen.findByText("A note the device already has.")).toBeInTheDocument();
+    expect(eventsByIds.mock.calls.some((call) => (call[0] as string[]).includes(note.id))).toBe(false);
+  });
+});
+

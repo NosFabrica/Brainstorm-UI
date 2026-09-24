@@ -9,6 +9,7 @@ import { CONTENT_RELAYS, PROFILE_RELAYS } from "@/lib/relays";
 import { requestAll, requestAllByRelay, requestNewest, requestOne } from "@/lib/relayRequest";
 import { publishUntilEnough } from "@/lib/publishQuorum";
 import { addressLoader, loadReplaceable } from "@/lib/loaders";
+import { profileContentOf } from "@/lib/profileContent";
 import {
   dedupeRelays,
   inboxRelays,
@@ -554,17 +555,40 @@ async function fetchProfileFromRelays(
   timeoutMs: number,
   extraRelays: string[] = [],
 ): Promise<ProfileContent | undefined> {
-  const event = await fetchProfileEvent(pubkey, timeoutMs, extraRelays);
-  if (!event) return undefined;
-  if (isValidProfile(event as any)) {
-    return getProfileContent(event as any);
-  }
-  if (typeof event.content === "string") {
-    try {
-      return JSON.parse(event.content) as ProfileContent;
-    } catch {}
-  }
-  return undefined;
+  return profileContentOf(await fetchProfileEvent(pubkey, timeoutMs, extraRelays));
+}
+
+/**
+ * Ask the relays for someone's kind-0 even when a copy is held — the half of
+ * "show what we have, then update" that `fetchProfileEvent` skips, since it
+ * answers from the store and stops. Every copy lands in the store as it
+ * arrives, which is how a page following the store (useHeldReplaceable) shows
+ * the first answer and then any newer one.
+ *
+ * The author's known outbox, the default set and the `nprofile`'s own hints
+ * are asked at once; only if none has a profile is their relay list looked up
+ * and asked as well. Resolves with the newest copy seen, or null.
+ */
+export async function refreshProfileEvent(
+  pubkey: string,
+  { relayHints = [], timeoutMs = 6000 }: { relayHints?: string[]; timeoutMs?: number } = {},
+): Promise<NostrEvent | null> {
+  if (!/^[0-9a-f]{64}$/i.test(pubkey)) return null;
+  warmRelayLists([pubkey]);
+  const filter = { kinds: [0], authors: [pubkey] };
+  const newest = (events: NostrEvent[]) => events.reduce<NostrEvent | undefined>((a, b) => newerOf(a, b), undefined);
+  const known = dedupeRelays([...outboxRelaysFromDb(pubkey, PROFILE_RELAYS), ...relayHints]);
+  const found = newest(await requestAll(known, filter, timeoutMs));
+  if (found) return found;
+  const routed = (await outboxRelays(pubkey, PROFILE_RELAYS).catch(() => [] as string[])).filter((r) => !known.includes(r));
+  return (routed.length ? newest(await requestAll(routed, filter, timeoutMs)) : undefined) ?? null;
+}
+
+/** NIP-01: newer wins, and on a tie the lexicographically lower id wins. */
+function newerOf(a: NostrEvent | undefined, b: NostrEvent | undefined): NostrEvent | undefined {
+  if (!a || !b) return a ?? b;
+  if (a.created_at !== b.created_at) return a.created_at > b.created_at ? a : b;
+  return a.id < b.id ? a : b;
 }
 
 /**
@@ -602,35 +626,6 @@ export async function fetchProfile(pubkey: string, timeoutMs = 10000): Promise<P
   // Relay-only. Kind-0 metadata is read from the author's outbox relays (merged
   // with PROFILE_RELAYS) — no external HTTP gateways (nostr.band / nostrhttp).
   return fetchProfileFromRelays(pubkey, timeoutMs);
-}
-
-/**
- * Fetch a kind-0 profile for the public share page, from relays only — including
- * any `nprofile` relay hints, so a profile not yet on the default relay set can
- * still be resolved.
- */
-export async function fetchProfileForShare(
-  pubkey: string,
-  opts: { relayHints?: string[]; timeoutMs?: number } = {},
-): Promise<ProfileContent | undefined> {
-  return fetchProfileFromRelays(pubkey, opts.timeoutMs ?? 10000, opts.relayHints ?? []);
-}
-
-/**
- * NIP-39 external identity claims from a kind-0 event — the `i` tags, e.g.
- * `["i", "github:alice", "<proof>"]`. Returns the raw `platform:identity`
- * claim strings (parsed for display by `lib/externalIdentity`). Reuses the
- * cached kind-0 event, so it piggybacks on the share-page profile fetch.
- */
-export async function fetchExternalIdentities(
-  pubkey: string,
-  opts: { relayHints?: string[]; timeoutMs?: number } = {},
-): Promise<string[]> {
-  const event = await fetchProfileEvent(pubkey, opts.timeoutMs ?? 10000, opts.relayHints ?? []);
-  if (!event) return [];
-  return (event.tags || [])
-    .filter((t) => t[0] === "i" && typeof t[1] === "string" && t[1].includes(":"))
-    .map((t) => t[1] as string);
 }
 
 /**
@@ -986,30 +981,6 @@ export async function fetchAddressableEvents(
   const coordKey = (c: { kind: number; pubkey: string; identifier: string }) =>
     `${c.kind}:${c.pubkey}:${c.identifier}`;
   const wanted = new Set(valid.map(coordKey));
-  // Addressable events live where their AUTHOR writes — an `naddr` that names no
-  // relay is otherwise a coin flip against the default set. Their outbox relays
-  // join whatever the caller and the pointer already named.
-  //
-  // Planned rather than unioned, for the connection budget alone: a page like
-  // `useNoteRefs` resolves every coordinate a note references, and twenty
-  // authors at four relays each is eighty sockets opened at once for one render.
-  const authorRelays = await planOutboxReads(
-    Array.from(new Set(valid.map((c) => c.pubkey))),
-    [],
-  )
-    .then((plan) => plan.relays)
-    .catch(() => [] as string[]);
-  const targetRelays = dedupeRelays(
-    [...relays, ...authorRelays, ...valid.flatMap((c) => c.relays ?? [])],
-  );
-  const kinds = Array.from(new Set(valid.map((c) => c.kind)));
-  const authors = Array.from(new Set(valid.map((c) => c.pubkey)));
-  const identifiers = Array.from(new Set(valid.map((c) => c.identifier)));
-  const events = await requestAll(
-    targetRelays.length ? targetRelays : PROFILE_RELAYS,
-    { kinds, authors, "#d": identifiers },
-    timeoutMs,
-  );
   // The filter is a cross-product of the requested kinds, authors and d-tags, so
   // it matches coordinates nobody asked for; `wanted` is what narrows it back.
   const keep = (event: NostrEvent) => {
@@ -1019,7 +990,37 @@ export async function fetchAddressableEvents(
     const existing = result.get(key);
     if (!existing || (event.created_at || 0) > (existing.created_at || 0)) result.set(key, event);
   };
-  for (const event of events) keep(event);
+  // What the store already holds is an answer too — the relays below can only
+  // replace it with something newer. It is also why a held copy never sends
+  // this on to the search relay as "missing".
+  for (const c of valid) {
+    const held = eventStore.getReplaceable(c.kind, c.pubkey, c.identifier);
+    if (held) keep(held);
+  }
+
+  const kinds = Array.from(new Set(valid.map((c) => c.kind)));
+  const authors = Array.from(new Set(valid.map((c) => c.pubkey)));
+  const identifiers = Array.from(new Set(valid.map((c) => c.identifier)));
+  const filter = { kinds, authors, "#d": identifiers };
+
+  // The caller's relays and the pointers' own hints are asked at once. The
+  // author's outbox — where an `naddr` that names no relay most likely lives —
+  // is asked as soon as it is known, rather than holding up the rest: a
+  // relay-list lookup used to sit in front of every read.
+  //
+  // Planned rather than unioned, for the connection budget alone: a page like
+  // `useNoteRefs` resolves every coordinate a note references, and twenty
+  // authors at four relays each is eighty sockets opened at once for one render.
+  const direct = dedupeRelays([...relays, ...valid.flatMap((c) => c.relays ?? [])]);
+  const asked = direct.length ? direct : PROFILE_RELAYS;
+  const [events, routed] = await Promise.all([
+    requestAll(asked, filter, timeoutMs),
+    planOutboxReads(authors, [])
+      .then((plan) => dedupeRelays(plan.relays).filter((relay) => !asked.includes(relay)))
+      .catch(() => [] as string[])
+      .then((extra) => (extra.length ? requestAll(extra, filter, timeoutMs) : [])),
+  ]);
+  for (const event of [...events, ...routed]) keep(event);
 
   // Last resort, as fetchEventsByIds does: the SEARCH relay, whose corpus is
   // wider than the content relays'. GitCitadel's wiki articles (kind 30818)

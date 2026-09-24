@@ -5,9 +5,9 @@
  * settings, not two ideas:
  *
  * - **Profiles (kind 0).** Names and avatars, so a reload does not ask the
- *   relay for sixty kind-0s it already had. Two ages: a young copy answers on
- *   its own, an older one is still shown while the relay is asked as well, and
- *   past a week it is not shown at all.
+ *   relay for sixty kind-0s it already had. A young copy answers on its own;
+ *   an older one — however old — is still shown while the relay is asked as
+ *   well. Any name beats a spinner, and the relay's answer replaces it.
  * - **Routing (kinds 3, 10002, 10040).** Where reads and publishes GO. This is
  *   the half that has to be here BEFORE a signature: routing is needed the
  *   moment an event is published, and a lookup at that moment is dead air
@@ -38,10 +38,12 @@ const STORE = "events";
 /** Kind 0's own database, before profiles and routing shared one. */
 const LEGACY_PROFILE_DB = "brainstorm-profiles";
 
-/** How long a held profile answers without the relay being asked as well. */
+/**
+ * How long a held profile answers without the relay being asked as well. There
+ * is no second age: an older copy is shown for as long as the device keeps it
+ * (MAX_CACHED bounds that), and asked after every time.
+ */
 export const PROFILE_FRESH_MS = 60 * 60 * 1000;
-/** How long it answers at all. */
-export const PROFILE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 /**
  * Routing gets one age, not two. A stale name is worth showing while the relay
@@ -62,7 +64,7 @@ const CACHED = new Set(CACHED_KINDS);
 /** NIP-65, restated so this module needs no import from the routing one. */
 const RELAY_LIST_KIND = 10002;
 
-const ageLimit = (kind: number) => (kind === 0 ? PROFILE_TTL_MS : ROUTING_TTL_MS);
+const ageLimit = (kind: number) => (kind === 0 ? Infinity : ROUTING_TTL_MS);
 const freshLimit = (kind: number) => (kind === 0 ? PROFILE_FRESH_MS : ROUTING_TTL_MS);
 
 export interface CachedRow {
@@ -243,7 +245,7 @@ async function liveRows(addrs: string[]): Promise<CachedRow[]> {
   }
 }
 
-/** The profiles held for these pubkeys, with their age — expired ones left out. */
+/** The profiles held for these pubkeys, with their age — however old. */
 export async function readProfileRows(pubkeys: string[]): Promise<Map<string, CachedRow>> {
   const held = new Map<string, CachedRow>();
   for (const row of await liveRows(pubkeys.map((pk) => `0:${pk}:`))) held.set(row.pubkey, row);

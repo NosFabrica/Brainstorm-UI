@@ -41,7 +41,7 @@ vi.mock("@/services/vouches", () => ({
 }));
 const knownProfiles = new Map<string, NostrEvent>();
 vi.mock("@/lib/eventStore", () => ({
-  eventStore: { getReplaceable: (_k: number, pubkey: string) => knownProfiles.get(pubkey), getEvent: () => undefined, add: (e: NostrEvent) => e },
+  eventStore: { getReplaceable: (_k: number, pubkey: string) => knownProfiles.get(pubkey), getEvent: () => undefined, add: (e: NostrEvent) => e, insert$: { subscribe: () => ({ unsubscribe: () => {} }) } },
 }));
 
 import { TrustReviews } from "./TrustReviews";

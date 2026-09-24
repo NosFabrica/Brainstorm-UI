@@ -22,16 +22,16 @@ const PARENT_ID = "f".repeat(64);
 const NAMES: Record<string, string> = { [AUTHOR]: "alice", [QUOTER]: "quoter", [CAROL]: "carol", [DAVE]: "dave" };
 
 const profileMapMock = vi.fn(async (pks: string[]) => new Map(pks.filter((pk) => NAMES[pk]).map((pk) => [pk, { name: NAMES[pk] }])));
-const eventsByIdsMock = vi.fn(async (ids: string[]) =>
+const eventsByIdsMock = vi.fn(async (ids: string[], _relays?: string[]) =>
   ids.includes(QUOTED_ID)
     ? [{ id: QUOTED_ID, kind: 1, pubkey: QUOTER, content: `hello nostr:${nip19.npubEncode(DAVE)}`, tags: [], created_at: 1 }]
     : [],
 );
-const addrMock = vi.fn(async () => new Map());
+const addrMock = vi.fn(async (_addrs?: { relays?: string[] }[], _relays?: string[]) => new Map());
 vi.mock("@/services/nostr", () => ({
   fetchProfileMap: (pks: string[]) => profileMapMock(pks),
-  fetchEventsByIds: (ids: string[]) => eventsByIdsMock(ids),
-  fetchAddressableEvents: () => addrMock(),
+  fetchEventsByIds: (ids: string[], relays?: string[]) => eventsByIdsMock(ids, relays),
+  fetchAddressableEvents: (addrs: { relays?: string[] }[], relays?: string[]) => addrMock(addrs, relays),
 }));
 
 import { useNoteRefs } from "./useNoteRefs";
@@ -76,5 +76,22 @@ describe("useNoteRefs", () => {
     const { result } = renderHook(() => useNoteRefs([], { extraPubkeys: [DAVE] }), { wrapper });
     await waitFor(() => expect(result.current.profiles.get(DAVE)?.name).toBe("dave"));
     expect(profileMapMock).toHaveBeenCalledTimes(1);
+  });
+
+  // A reference's relay hint is where its author said the event lives; it is
+  // asked beside the default relays (Vitor, 2026-09-24).
+  it("asks the relays an nevent and an naddr name", async () => {
+    const naddr = nip19.naddrEncode({ kind: 30023, pubkey: CAROL, identifier: "post", relays: ["wss://article.example/"] });
+    const hinted: MinimalEvent = {
+      ...note,
+      id: "2".repeat(64),
+      content: `nostr:${nip19.neventEncode({ id: QUOTED_ID, relays: ["wss://note.example/"] })} nostr:${naddr}`,
+      tags: [],
+    };
+    renderHook(() => useNoteRefs([hinted]), { wrapper });
+    await waitFor(() => expect(eventsByIdsMock).toHaveBeenCalled());
+    expect(eventsByIdsMock.mock.calls[0][1]).toContain("wss://note.example/");
+    await waitFor(() => expect(addrMock).toHaveBeenCalled());
+    expect(addrMock.mock.calls[0][0]?.[0].relays).toEqual(["wss://article.example/"]);
   });
 });

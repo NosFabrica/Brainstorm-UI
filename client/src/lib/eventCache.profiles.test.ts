@@ -21,7 +21,6 @@ import {
   __resetEventCache,
   MAX_CACHED,
   PROFILE_FRESH_MS,
-  PROFILE_TTL_MS,
 } from "./eventCache";
 import { eventStore } from "./eventStore";
 
@@ -65,10 +64,13 @@ describe("profiles in the shared cache", () => {
     vi.useRealTimers();
   });
 
-  it("forgets a profile that has sat far too long", async () => {
+  // A copy is shown however old it is (Vitor, 2026-09-24): any name beats a
+  // spinner, and the relay is asked after it all the same.
+  it("still shows a profile learned long ago", async () => {
     await writeEvents([profile("a")]);
-    vi.setSystemTime(Date.now() + PROFILE_TTL_MS + 1);
-    expect(await readProfileRows(["a"])).toEqual(new Map());
+    vi.setSystemTime(Date.now() + 365 * 24 * 60 * 60 * 1000);
+    expect((await readProfileRows(["a"])).has("a")).toBe(true);
+    expect(await readProfiles(["a"])).toEqual(new Map()); // …but never answers alone
     vi.useRealTimers();
   });
 
