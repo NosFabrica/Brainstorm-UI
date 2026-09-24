@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { ExternalLink, MapPin, MessageCircle, ShoppingBag, Truck } from "lucide-react";
 import { Chip } from "@/components/ui/chip";
-import { NotesInline } from "@/components/share/NotesInline";
 import { Favicon } from "@/components/share/LinkPreview";
-import { formatListingPrice, isSellable, parseListing, plainMarkdown } from "@/lib/listing";
+import { formatListingPrice, isSellable, parseListing } from "@/lib/listing";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { nostrUriFor } from "@/lib/shareId";
 import type { MinimalEvent } from "@/lib/noteRefs";
+import { ReadingText } from "@/components/share/ReadingText";
 
 /**
  * A kind-30402 listing on its event page: the photos, the price as the seller
@@ -150,9 +150,7 @@ export function ListingHero({ event }: { event: MinimalEvent }) {
       )}
 
       {(l.description || l.summary) && (
-        <p className="mt-4 whitespace-pre-line break-words text-sm leading-relaxed text-slate-600 dark:text-slate-300" data-testid="listing-hero-description">
-          <NotesInline text={plainMarkdown(l.description || (l.summary as string))} />
-        </p>
+        <ReadingText text={l.description || (l.summary as string)} className="mt-4" testId="listing-hero-description" />
       )}
     </div>
   );

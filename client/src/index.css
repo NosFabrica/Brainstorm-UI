@@ -689,3 +689,18 @@ input:-webkit-autofill {
     @apply rounded-xl;
   }
 }
+
+/* A note on its own page, set for reading (NoteContent `reading`): blocks sit
+   a paragraph apart, headings take a little more air above than below. */
+@layer components {
+  .note-reading > * + * {
+    margin-top: 0.85em;
+  }
+  .note-reading > :is(h2, h3, h4):not(:first-child) {
+    margin-top: 1.4em;
+  }
+  .note-reading > :is(h2, h3, h4) + *,
+  .note-reading > .note-caption {
+    margin-top: 0.5em;
+  }
+}

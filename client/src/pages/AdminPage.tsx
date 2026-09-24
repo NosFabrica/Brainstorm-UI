@@ -12,6 +12,9 @@ import { NostrHealthCard } from "@/components/admin/NostrHealthCard";
 import { ScrollableTable } from "@/components/admin/ScrollableTable";
 import { SchedulingCard } from "@/components/admin/scheduling/SchedulingCard";
 import { SchedulingStatsPanel } from "@/components/admin/scheduling/SchedulingStatsPanel";
+import { AdminSupportCards } from "@/components/admin/support/AdminSupportCards";
+import { ADMIN_SUPPORT_QUERY_KEY, adminListTickets } from "@/services/support";
+import { unreadCount } from "@/lib/supportSeen";
 import { AdminBillingCards } from "@/components/admin/billing/AdminBillingCards";
 import { PlanMappingsCard } from "@/components/admin/billing/PlanMappingsCard";
 import { UserTierPicker } from "@/components/admin/scheduling/UserTierPicker";
@@ -94,6 +97,7 @@ import {
   Maximize2,
   Sparkles,
   CalendarClock,
+  LifeBuoy,
   Receipt,
   ListChecks,
 } from "lucide-react";
@@ -1916,6 +1920,18 @@ export default function AdminPage() {
     refetchOnWindowFocus: "always",
   });
 
+  // Tickets where the user spoke last and hasn't been seen — the Support
+  // tab's dot. Shares the tab's query key, so opening the tab dedupes it.
+  const adminSupportQuery = useQuery({
+    queryKey: ADMIN_SUPPORT_QUERY_KEY,
+    queryFn: adminListTickets,
+    enabled: !!user?.isAdmin,
+    staleTime: 60_000,
+    refetchInterval: 60_000,
+    retry: false,
+  });
+  const supportUnread = unreadCount("admin", adminSupportQuery.data ?? []);
+
   const schedulingPoliciesQuery = useQuery<SchedulingItem[]>({
     queryKey: ["/api/admin/scheduling"],
     queryFn: () => apiClient.getSchedulingPolicies(),
@@ -2635,6 +2651,7 @@ export default function AdminPage() {
     { key: "overview", label: "Overview", icon: BarChart3 },
     { key: "activity", label: "Activity", icon: Activity },
     { key: "scheduling", label: "Scheduling", icon: CalendarClock },
+    { key: "support", label: "Support", icon: LifeBuoy },
     // Gated on nothing. A fresh instance has billing enabled and zero plan
     // mappings, which is exactly when an admin needs this tab to create the
     // first one — gating on plans existing would be a bootstrap deadlock, and
@@ -2783,6 +2800,13 @@ export default function AdminPage() {
                   >
                     <Icon className="h-4 w-4" />
                     {tab.label}
+                    {tab.key === "support" && supportUnread > 0 && (
+                      <span
+                        className={`h-2 w-2 rounded-full ${active ? "bg-white" : "bg-brand-accent"}`}
+                        aria-label={`${supportUnread} tickets awaiting reply`}
+                        data-testid="tab-support-dot"
+                      />
+                    )}
                   </button>
                 );
               })}
@@ -4288,6 +4312,20 @@ export default function AdminPage() {
             </Dialog>
 
             </>
+          )}
+
+          {activeTab === "support" && (
+            <div className="grid grid-cols-1 gap-6" data-testid="panel-support">
+              <div className="rounded-2xl border border-border bg-card text-card-foreground shadow-sm dark:shadow-none overflow-hidden" data-testid="card-support-tickets">
+                <div className="px-5 py-4 border-b border-brand-accent/10">
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>Priority Support</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Tickets from paid users — reply here; the in-app thread is the source of truth</p>
+                </div>
+                <div className="px-5 py-4">
+                  <AdminSupportCards active={activeTab === "support"} />
+                </div>
+              </div>
+            </div>
           )}
 
           {activeTab === "scheduling" && (

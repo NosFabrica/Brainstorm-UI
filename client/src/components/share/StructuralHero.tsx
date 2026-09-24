@@ -11,6 +11,7 @@ import { Braces, ChevronDown, ChevronRight, Lock } from "lucide-react";
 import { useSpecsForKind } from "@/hooks/useSpecsForKind";
 import { contentShape } from "@/lib/contentShape";
 import { kindTypeLabel } from "@/components/search/SerpRow";
+import { ReadingText } from "@/components/share/ReadingText";
 
 type StructuralEvent = { id: string; kind: number; pubkey: string; tags: string[][]; content: string; created_at: number };
 
@@ -68,7 +69,7 @@ export function StructuralHero({ event }: { event: StructuralEvent }) {
         </pre>
       )}
       {shape.kind === "text" && (
-        <p className="mt-3 whitespace-pre-wrap break-words text-sm text-slate-700 dark:text-slate-200">{event.content}</p>
+        <ReadingText text={event.content} className="mt-3" />
       )}
 
       {tags.length > 0 && (

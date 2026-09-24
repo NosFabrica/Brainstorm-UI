@@ -4,7 +4,6 @@ import { nip19 } from "nostr-tools";
 import { Calendar, CalendarPlus, MapPin, ExternalLink, PlayCircle, ChevronDown } from "lucide-react";
 import { parseCalendarEvent, formatEventDate, formatEventTime, isUpcoming, relativeEventTime } from "@/lib/calendarEvent";
 import { RsvpButton } from "@/components/share/RsvpButton";
-import { NotesInline } from "@/components/share/NotesInline";
 import { useLightbox } from "@/components/share/Lightbox";
 import { LinkPreviewCard } from "@/components/share/LinkPreview";
 import { EventDateTile } from "@/components/share/EventDateTile";
@@ -19,6 +18,7 @@ import { CALENDAR_LABEL, detectCalendarPlatform, googleCalendarUrl, outlookCalen
 import { eventPath } from "@/lib/shareId";
 import eventDefault from "@/assets/event-default.webp";
 import type { MinimalEvent } from "@/lib/noteRefs";
+import { ReadingText } from "@/components/share/ReadingText";
 
 type Profile = { name?: string; display_name?: string; picture?: string };
 
@@ -234,9 +234,7 @@ export function EventHero({ event }: { event: MinimalEvent }) {
       {e.summary && e.summary !== e.title && (
         <div className="mt-5 border-t border-slate-100 dark:border-slate-800/60 pt-4" data-testid="event-hero-description">
           <h2 className="mb-2 text-sm font-bold text-slate-900 dark:text-slate-100">About</h2>
-          <div className="whitespace-pre-line break-words text-sm leading-relaxed text-slate-600 dark:text-slate-300 [&_a]:align-baseline">
-            <NotesInline text={e.summary} />
-          </div>
+          <ReadingText text={e.summary} />
           {firstLink && (
             <div className="mt-3">
               <LinkPreviewCard url={firstLink} />
