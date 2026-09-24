@@ -34,6 +34,8 @@ import type { Tone } from "@/lib/tones";
 
 const SUPPORT_KEY = ["/user/support"];
 const SUPPORT_EMAIL = "support@nosfabrica.com";
+// The server stores the address, but nothing sends mail yet.
+const EMAIL_NOTIFICATIONS_LIVE = false;
 const SUBJECT_MAX = 120;
 const BODY_MAX = 4000;
 
@@ -643,15 +645,25 @@ function NewTicketDialog({
             )}
           </div>
           <div>
-            <input
-              value={email}
-              onChange={(e) => { setEmail(e.target.value); setEmailError(null); }}
-              placeholder="Email for reply notifications (optional)"
-              inputMode="email"
-              className={inputCls}
-              data-testid="ticket-email"
-            />
-            {emailError ? (
+            <div className="flex items-center gap-2">
+              <input
+                value={email}
+                onChange={(e) => { setEmail(e.target.value); setEmailError(null); }}
+                placeholder="Email for reply notifications (optional)"
+                inputMode="email"
+                disabled={!EMAIL_NOTIFICATIONS_LIVE}
+                className={`${inputCls} disabled:cursor-not-allowed disabled:opacity-60`}
+                data-testid="ticket-email"
+              />
+              {!EMAIL_NOTIFICATIONS_LIVE && (
+                <Chip tone="slate" size="sm" className="shrink-0" data-testid="ticket-email-soon">Coming soon</Chip>
+              )}
+            </div>
+            {!EMAIL_NOTIFICATIONS_LIVE ? (
+              <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+                Replies land here in the app. Email heads-ups are on the way.
+              </p>
+            ) : emailError ? (
               <p className="mt-1 text-xs text-red-600 dark:text-red-400" data-testid="ticket-email-error">
                 {emailError}
               </p>

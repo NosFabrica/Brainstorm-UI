@@ -243,21 +243,20 @@ describe("SupportPage (through the real seam)", () => {
     await screen.findByTestId("ticket-event-reopened");
   });
 
-  it("rejects a malformed notification email, accepts an empty one", async () => {
+  // Nothing sends mail yet, so the field says so instead of taking an address.
+  it("holds the notification email back as coming soon", async () => {
     renderWithProviders(<SupportPage />);
     fireEvent.click(await screen.findByTestId("button-first-ticket"));
-    fireEvent.change(screen.getByTestId("ticket-subject"), { target: { value: "Email check" } });
+
+    expect(screen.getByTestId("ticket-email")).toBeDisabled();
+    expect(screen.getByTestId("ticket-email-soon").textContent).toBe("Coming soon");
+
+    fireEvent.change(screen.getByTestId("ticket-subject"), { target: { value: "No email" } });
     fireEvent.change(screen.getByTestId("ticket-body"), { target: { value: "Body." } });
     fireEvent.click(screen.getByTestId("category-other"));
-    fireEvent.change(screen.getByTestId("ticket-email"), { target: { value: "not-an-email" } });
-    fireEvent.click(screen.getByTestId("ticket-submit"));
-
-    await screen.findByTestId("ticket-email-error");
-    expect(screen.queryByTestId("support-thread")).toBeNull();
-
-    fireEvent.change(screen.getByTestId("ticket-email"), { target: { value: "" } });
     fireEvent.click(screen.getByTestId("ticket-submit"));
     await screen.findByTestId("support-thread");
+    expect(fakeSupport.tickets[0].notify_email).toBeNull();
   });
 
   it("renders an unknown status neutrally — the set is open", async () => {
