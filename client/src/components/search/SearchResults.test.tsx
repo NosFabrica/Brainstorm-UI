@@ -68,6 +68,7 @@ const recentByKindsMock = vi.fn<(pubkey: string, kinds: number[], limit: number)
 const refEventsMock = vi.fn<(ids: string[]) => Promise<NostrEvent[]>>(() => Promise.resolve([]));
 // The tag hub's answer for the Music tab's V4V lists (kind-9999 items by `#z`); nothing unless a test says so.
 const dlistFetchMock = vi.fn((_filter: Record<string, unknown>, _relays?: string[]) => Promise.resolve([] as NostrEvent[]));
+vi.mock("@/services/musicTags", () => ({ fetchTaggedMusicians: async () => [] }));
 vi.mock("@/services/nostr", () => ({
   // The person panel asks for the person's tracks and streams; nobody here has any.
   fetchRecentByKinds: (pubkey: string, kinds: number[], limit: number) => recentByKindsMock(pubkey, kinds, limit),

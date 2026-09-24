@@ -31,7 +31,7 @@ const nativeHit: SearchHit = {
 };
 const noWavlake = { artists: [], albums: [], songs: [], loading: false };
 const open = (props: Partial<Parameters<typeof MusicResults>[0]> = {}) =>
-  render(<MusicResults hits={[]} query="" wavlake={noWavlake} podcastIndex={{ songs: [], musicians: [], loading: false }} scoreOf={() => null} onOpenProfile={vi.fn()} {...props} />);
+  render(<MusicResults hits={[]} query="" wavlake={noWavlake} podcastIndex={{ songs: [], musicians: [], loading: false }} tagged={{ people: [], loading: false }} scoreOf={() => null} onOpenProfile={vi.fn()} {...props} />);
 
 beforeEach(() => {
   vi.spyOn(HTMLMediaElement.prototype, "play").mockResolvedValue(undefined);
@@ -152,5 +152,44 @@ describe("MusicResults — the V4V lists with words", () => {
     expect(face).toHaveTextContent("also on Podcast Index");
     const row = screen.getByTestId(`podcastindex-song-${song(1, "").id}`);
     expect(within(row).getByRole("link", { name: /Torcon 7/ })).toHaveAttribute("href", `/p/${torconNostr.npub}`);
+  });
+});
+
+describe("MusicResults — the musicians the network tagged", () => {
+  // The team (2026-09-24): search finds music through the tagging lists too —
+  // the people the network tagged Musician, most of whom publish no tracks.
+  const JOE = "1".repeat(64);
+  const joe = { pubkey: JOE, npub: nip19.npubEncode(JOE), name: "joemartin", displayName: "Joe Martin", picture: "https://img/joe.jpg" };
+  const nova = { pubkey: "2".repeat(64), npub: nip19.npubEncode("2".repeat(64)), name: "NOVA" };
+
+  it("browsing shows them as a shelf of faces with their trust rings, under the Music icon, each opening the profile", () => {
+    const onOpenProfile = vi.fn();
+    open({ tagged: { people: [joe, nova], loading: false }, scoreOf: () => 0.4, onOpenProfile });
+    const shelf = screen.getByTestId("music-tagged-musicians");
+    expect(shelf).toHaveTextContent("Musicians on Nostr");
+    expect(shelf.querySelector("svg.lucide-music")).not.toBeNull();
+    fireEvent.click(within(shelf).getByTestId(`music-artist-${JOE.slice(0, 8)}`));
+    expect(onOpenProfile).toHaveBeenCalledWith(joe);
+    expect(within(shelf).getByTestId(`music-artist-${"2".repeat(8)}`)).toHaveTextContent("NOVA");
+  });
+
+  it("with words, the tagged musicians whose name answers join Artists — once, even when they also have tracks here", () => {
+    const hit: SearchHit = {
+      event: { id: "j1".padEnd(64, "0"), kind: 31337, pubkey: JOE, created_at: 1_727_000_000, sig: "", content: "", tags: [["d", "hmdh"], ["title", "Hand Me Down Heart"], ["media", "https://example/hmdh.mp3"]] },
+      author: joe as never,
+      rank: null,
+    };
+    open({ query: "joe martin", hits: [hit], tagged: { people: [joe, nova], loading: false } });
+    const artists = screen.getByTestId("music-artists");
+    expect(artists.querySelectorAll(`[data-testid="music-artist-${JOE.slice(0, 8)}"]`)).toHaveLength(1);
+    expect(within(artists).queryByTestId(`music-artist-${"2".repeat(8)}`)).toBeNull();
+    expect(screen.queryByTestId("music-tagged-musicians")).toBeNull();
+  });
+
+  it("the word \"musician\" lists everyone the network tagged", () => {
+    open({ query: "musician", tagged: { people: [joe, nova], loading: false } });
+    const artists = screen.getByTestId("music-artists");
+    expect(within(artists).getByTestId(`music-artist-${JOE.slice(0, 8)}`)).toBeInTheDocument();
+    expect(within(artists).getByTestId(`music-artist-${"2".repeat(8)}`)).toBeInTheDocument();
   });
 });

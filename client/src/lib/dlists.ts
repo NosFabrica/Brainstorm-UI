@@ -33,7 +33,15 @@ export interface DListEntry {
 
 type EventLike = { id: string; pubkey: string; kind: number; created_at: number; content: string; tags: string[][] };
 
-const config = raw as { author: string; lists: { d: string; name: string; category: DListCategory; shape: DListShape }[] };
+const config = raw as {
+  author: string;
+  lists: { d: string; name: string; category: DListCategory; shape: DListShape }[];
+  tags?: { author: string; slug: string; name: string; category: DListCategory }[];
+};
+
+/** The tagging-hub tags whose trusted carriers a category lists as people: the "Musician" tag for music. */
+export interface CategoryTag { author: string; slug: string; name: string; category: DListCategory }
+export const CATEGORY_TAGS: CategoryTag[] = config.tags ?? [];
 
 export const DLIST_REGISTRY: DListEntry[] = config.lists.map((l) => ({
   coordinate: `${DLIST_HEADER_KIND}:${config.author}:${l.d}`,
@@ -189,4 +197,20 @@ export function filterPodcastIndex(query: string, hits: PodcastIndexMusic): Podc
     songs: hits.songs.filter((s) => has(`${s.title} ${s.artist}`.toLowerCase())),
     musicians: hits.musicians.filter((m) => has(m.name.toLowerCase())),
   };
+}
+
+/**
+ * The tagged musicians the words keep: none with no words; everyone when
+ * the words are a music tag's own name ("musician" finds the musicians);
+ * else every word must appear in the person's name.
+ */
+export function filterTaggedPeople<T extends { name?: string; displayName?: string }>(query: string, people: T[]): T[] {
+  const text = (scopeOf(query)?.rest ?? query).trim().toLowerCase();
+  if (!text) return [];
+  if (CATEGORY_TAGS.some((t) => t.name.toLowerCase() === text || t.slug.toLowerCase() === text || `${t.name.toLowerCase()}s` === text)) return people;
+  const words = text.split(/\s+/).filter(Boolean);
+  return people.filter((p) => {
+    const hay = `${p.displayName ?? ""} ${p.name ?? ""}`.toLowerCase();
+    return words.every((w) => hay.includes(w));
+  });
 }

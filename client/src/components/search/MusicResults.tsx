@@ -25,7 +25,7 @@ import { WAVLAKE_GENRES, type WavlakeAlbum, type WavlakeArtist, type WavlakeSong
 import { useWavlakeTrending } from "@/hooks/useWavlakeTrending";
 import { playFrom, setPlaylist, toggleTrack, useTrackPlayer } from "@/lib/audioPlayer";
 import { PodcastIndexSongCard, TrackCard, WavlakeSongCard } from "@/components/search/cards";
-import { CATEGORY_ICON, type PodcastMusician, type PodcastSong } from "@/lib/dlists";
+import { CATEGORY_ICON, filterTaggedPeople, type PodcastMusician, type PodcastSong } from "@/lib/dlists";
 import { FacetChip, FacetRow } from "@/components/search/sections";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -58,12 +58,15 @@ export function MusicResults({
   scoreOf,
   onOpenProfile,
   podcastIndex,
+  tagged,
 }: {
   hits: SearchHit[];
   query: string;
   wavlake: { artists: WavlakeArtist[]; albums: WavlakeAlbum[]; songs: WavlakeSong[]; loading: boolean };
   /** The V4V lists, already narrowed by the words. */
   podcastIndex: { songs: PodcastSong[]; musicians: PodcastMusician[]; loading: boolean };
+  /** The people the network tagged Musician — the tagging list; narrowed by the words here. */
+  tagged: { people: SearchResult[]; loading: boolean };
   scoreOf: (pubkey: string) => number | null | undefined;
   onOpenProfile: (result: SearchResult) => void;
 }) {
@@ -130,6 +133,13 @@ export function MusicResults({
     }
     return [...byPk.values()].sort((a, b) => b.count - a.count);
   }, [tracks]);
+
+  // The network's tagged musicians the words keep — "musician" keeps them all —
+  // less the ones already here as a track's author: one face per person.
+  const taggedMatches = useMemo(() => {
+    const here = new Set(authors.map((a) => a.author.pubkey));
+    return filterTaggedPeople(query, tagged.people).filter((p) => !here.has(p.pubkey));
+  }, [query, tagged.people, authors]);
 
   // A value-for-value musician who is also on Nostr — the same name, exactly
   // and only once, among the tracks' authors here — is that person: one face,
@@ -214,6 +224,15 @@ export function MusicResults({
               </TileGrid>
             </MusicSection>
           )}
+          {tagged.people.length > 0 && (
+            <MusicSection title="Musicians on Nostr" hint="tagged by the network" icon={CATEGORY_ICON.music} testId="music-tagged-musicians">
+              <FacetRow testId="music-tagged-musicians-strip" className="gap-4 pb-2">
+                {tagged.people.map((p) => (
+                  <ArtistFace key={p.pubkey} name={getDisplayLabel(p)} image={p.picture} score={scoreOf(p.pubkey) ?? null} sub="Musician" onClick={() => onOpenProfile(p)} testId={`music-artist-${p.pubkey.slice(0, 8)}`} />
+                ))}
+              </FacetRow>
+            </MusicSection>
+          )}
           {podcastIndex.musicians.length > 0 && (
             <MusicSection title="Value-for-value musicians" hint="from Podcast Index" why={V4V_WHY} icon={CATEGORY_ICON.music} testId="music-podcastindex-musicians">
               <FacetRow testId="music-podcastindex-musicians-strip" className="gap-4 pb-2">
@@ -277,11 +296,14 @@ export function MusicResults({
               </Rows>
             </MusicSection>
           )}
-          {(authors.length > 0 || wavlake.artists.length > 0 || unmatchedMusicians.length > 0) && (
+          {(authors.length > 0 || taggedMatches.length > 0 || wavlake.artists.length > 0 || unmatchedMusicians.length > 0) && (
             <MusicSection title="Artists" icon={CATEGORY_ICON.music} testId="music-artists">
               <FacetRow testId="music-artists-strip" className="gap-4 pb-2">
                 {authors.map((a) => (
                   <ArtistFace key={a.author.pubkey} name={getDisplayLabel(a.author)} image={a.author.picture} score={scoreOf(a.author.pubkey) ?? null} sub={alsoOnPodcastIndex.has(a.author.pubkey) ? "also on Podcast Index" : `${a.count} ${a.count === 1 ? "song" : "songs"}`} onClick={() => onOpenProfile(a.author)} testId={`music-artist-${a.author.pubkey.slice(0, 8)}`} />
+                ))}
+                {taggedMatches.map((p) => (
+                  <ArtistFace key={p.pubkey} name={getDisplayLabel(p)} image={p.picture} score={scoreOf(p.pubkey) ?? null} sub="Musician" onClick={() => onOpenProfile(p)} testId={`music-artist-${p.pubkey.slice(0, 8)}`} />
                 ))}
                 {wavlake.artists.map((a) => (
                   <ArtistFace key={a.id} name={a.name} image={a.artworkUrl} score={null} sub="Wavlake" href={wavlakeArtistHref(a)} testId={`music-artist-wavlake-${a.id}`} />

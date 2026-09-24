@@ -54,7 +54,8 @@ import { fetchRecentByKinds } from "@/services/nostr";
 import { useWavlakeSearch } from "@/hooks/useWavlakeSongs";
 import { useArtistCatalogue } from "@/hooks/useArtistCatalogue";
 import { usePodcastIndexMusic } from "@/hooks/usePodcastIndexMusic";
-import { filterPodcastIndex } from "@/lib/dlists";
+import { useTaggedMusicians } from "@/hooks/useTaggedMusicians";
+import { filterPodcastIndex, filterTaggedPeople } from "@/lib/dlists";
 import { MusicResults } from "@/components/search/MusicResults";
 import { FacetChip, FacetRow } from "@/components/search/sections";
 import { KnowledgePanel, type PanelSections } from "@/components/search/KnowledgePanel";
@@ -848,6 +849,8 @@ export function SearchResults({
   // catalogue — the lists are not per person. The words narrow them here.
   const podcastIndexAll = usePodcastIndexMusic(tab === "music" && !scope);
   const podcastIndex = useMemo(() => ({ ...filterPodcastIndex(query, podcastIndexAll), loading: podcastIndexAll.loading }), [query, podcastIndexAll]);
+  // The people the network tagged Musician — the tagging list; the tab narrows them by the words.
+  const tagged = useTaggedMusicians(tab === "music" && !scope);
   const catalogue = useArtistCatalogue(tab === "music" ? scopedTo : null);
   const wavlake = useMemo(() => {
     if (!scope) return wavlakeWords;
@@ -864,7 +867,7 @@ export function SearchResults({
     mediaSettled &&
     hits.length === 0 &&
     personMedia.length === 0 &&
-    (tab !== "music" || (!wavlake.loading && wavlake.songs.length === 0 && !podcastIndex.loading && podcastIndex.songs.length === 0 && podcastIndex.musicians.length === 0));
+    (tab !== "music" || (!wavlake.loading && wavlake.songs.length === 0 && !podcastIndex.loading && podcastIndex.songs.length === 0 && podcastIndex.musicians.length === 0 && !tagged.loading && filterTaggedPeople(query, tagged.people).length === 0 && (query.trim() !== "" || tagged.people.length === 0)));
   // What the count line counts, when it shows: every source the tab shows.
   const extraCount = (tab === "music" ? wavlake.songs.length + podcastIndex.songs.length : 0) + (tab === "media" ? personMedia.filter((h) => !hits.some((x) => x.event.id === h.event.id)).length : 0);
   const peopleIdx = useRef(0);
@@ -1691,7 +1694,7 @@ export function SearchResults({
             </div>
           )}
           {tab === "music" ? (
-            <MusicResults hits={displayHits.map((d) => d.hit)} query={query} wavlake={wavlake} podcastIndex={podcastIndex} scoreOf={scoreOf} onOpenProfile={openProfile} />
+            <MusicResults hits={displayHits.map((d) => d.hit)} query={query} wavlake={wavlake} podcastIndex={podcastIndex} tagged={tagged} scoreOf={scoreOf} onOpenProfile={openProfile} />
           ) : (
           <div
             className={
