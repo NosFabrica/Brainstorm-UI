@@ -1,0 +1,71 @@
+/**
+ * The Connection page's policy for a set of follow-paths, with no React and
+ * no fetch in it: which paths are the same, what a path's risk is, how the
+ * groups order, and how far to sample when the server hands back one random
+ * path at a time. The team (2026-09-24): surface paths that run through a
+ * flagged or unverified account so a reader can spot a bad actor inside
+ * their trust network; Benjamin: keep it simple to understand.
+ */
+import { describe, expect, it } from "vitest";
+import { classifyPath, dedupePaths, groupPaths, orderedPaths, pathKey } from "./hopsPaths";
+
+const ME = "a".repeat(64);
+const T = "f".repeat(64);
+const C1 = "1".repeat(64);
+const C2 = "2".repeat(64);
+const C3 = "3".repeat(64);
+
+/** Signals as the hooks hand them: `undefined` not landed, `null` unrated. */
+const signals = (scores: Record<string, number | null | undefined>, flags: Record<string, boolean | undefined> = {}) => ({
+  scoreOf: (pk: string) => scores[pk],
+  flaggedOf: (pk: string) => flags[pk],
+});
+const clean = { [ME]: 0.9, [C1]: 0.3, [C2]: 0.05, [C3]: 0.2, [T]: 0.4 };
+
+describe("dedupePaths", () => {
+  it("keeps one of each path, in the order first seen", () => {
+    expect(dedupePaths([[ME, C1, T], [ME, C2, T], [ME, C1, T]])).toEqual([[ME, C1, T], [ME, C2, T]]);
+    expect(pathKey([ME, C1, T])).toBe(`${ME},${C1},${T}`);
+  });
+});
+
+describe("classifyPath", () => {
+  it("a path whose connectors are all known, unflagged and over the line is verified", () => {
+    expect(classifyPath([ME, C1, C3, T], signals(clean))).toEqual({ risk: "verified", riskyIndex: -1, riskyCount: 0 });
+    // A direct follow has no connector to judge.
+    expect(classifyPath([ME, T], signals(clean))).toEqual({ risk: "verified", riskyIndex: -1, riskyCount: 0 });
+  });
+
+  it("a connector under the verified line, or unrated, makes the path unverified", () => {
+    expect(classifyPath([ME, C1, C2, T], signals({ ...clean, [C2]: 0.01 }))).toEqual({ risk: "unverified", riskyIndex: 2, riskyCount: 1 });
+    expect(classifyPath([ME, C1, C2, T], signals({ ...clean, [C1]: null, [C2]: 0.0 }))).toEqual({ risk: "unverified", riskyIndex: 1, riskyCount: 2 });
+  });
+
+  it("a flagged connector makes the path flagged — decisive even while another node is still loading; the first risky node in walk order is the one to point at", () => {
+    expect(classifyPath([ME, C1, C2, T], signals({ ...clean, [C1]: undefined }, { [C2]: true }))).toEqual({ risk: "flagged", riskyIndex: 2, riskyCount: 1 });
+    expect(classifyPath([ME, C1, C2, T], signals({ ...clean, [C1]: 0.001 }, { [C2]: true }))).toEqual({ risk: "flagged", riskyIndex: 1, riskyCount: 2 });
+  });
+
+  it("is still checking while a connector's signal has not landed and nothing is flagged", () => {
+    expect(classifyPath([ME, C1, C2, T], signals({ ...clean, [C2]: undefined })).risk).toBe("checking");
+    // A landed score with no flag word is a landed verdict: both come from one batch.
+    expect(classifyPath([ME, C1, C2, T], signals(clean, { [C1]: undefined, [C2]: undefined })).risk).toBe("verified");
+  });
+
+  it("never judges the origin or the target", () => {
+    expect(classifyPath([ME, C1, T], signals({ ...clean, [T]: null }, { [ME]: true })).risk).toBe("verified");
+  });
+});
+
+describe("groupPaths and orderedPaths", () => {
+  it("buckets by risk, orders a bucket by how many risky nodes then first seen, and lays the groups out verified → unverified → flagged", () => {
+    const s = signals({ ...clean, [C2]: 0.01, [C3]: 0.005 }, { [C1]: true });
+    const paths = [[ME, C1, T], [ME, C2, C3, T], [ME, C3, T], [ME, ME, T]];
+    const g = groupPaths(paths, (p) => classifyPath(p, s));
+    expect(g.flagged).toEqual([[ME, C1, T]]);
+    expect(g.unverified).toEqual([[ME, C3, T], [ME, C2, C3, T]]); // one risky node before two
+    expect(g.verified).toEqual([[ME, ME, T]]);
+    expect(g.checking).toEqual([]);
+    expect(orderedPaths(g)).toEqual([[ME, ME, T], [ME, C3, T], [ME, C2, C3, T], [ME, C1, T]]);
+  });
+});
