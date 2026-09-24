@@ -26,7 +26,11 @@ export type NoteBlock =
    *  scales it to fit rather than scroll. */
   | { type: "code"; text: string; art?: boolean }
   | { type: "caption"; tokens: NoteToken[] }
+  /** A GFM table: header cells, body rows, per-column alignment. */
+  | { type: "table"; head: NoteToken[][]; rows: NoteToken[][][]; align: TableAlign[] }
   | { type: "hr" };
+
+export type TableAlign = "left" | "center" | "right" | undefined;
 
 export type NestedList = { type: "ul" | "ol"; items: NoteToken[][]; start?: number };
 
@@ -37,6 +41,10 @@ const BULLET = /^[ \t]*[-*+•][ \t]+/;
 const ORDERED = /^[ \t]*(\d{1,3})[.)][ \t]+/;
 const QUOTE = /^>(?:[ \t]+|$)/;
 const RULE = /^[ \t]*(?:-{3,}|\*{3,}|_{3,})[ \t]*$/;
+/** A table's separator row: | --- | :--: | ---: | */
+const TABLE_SEP = /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$/;
+/** An underline that makes the line above a heading (=== only: --- stays a rule). */
+const SETEXT = /^[ \t]*={3,}[ \t]*$/;
 // A fence opens on ``` plus at most a language word, and closes on a bare
 // ``` — "```npm install```" on one line is inline code, not a fence.
 const FENCE = /^[ \t]*```[\w+#.-]*[ \t]*$/;
@@ -146,7 +154,11 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
       }
       endRun();
     } else if (para.length) blocks.push({ type: "p", tokens: joinLines(para) });
-    if (quote.length) blocks.push({ type: "quote", tokens: joinLines(quote) });
+    if (quote.length) {
+      // "> " spacer lines leave one blank line, not a tall gap.
+      const kept = quote.filter((l, k) => !(isBlank(l) && (k === 0 || isBlank(quote[k - 1]) || k === quote.length - 1)));
+      blocks.push({ type: "quote", tokens: joinLines(kept) });
+    }
     if (list) {
       const { type, items, start, nested } = list; // indent is parse-only
       blocks.push({ type, items, ...(type === "ol" && start !== undefined && start !== 1 ? { start } : {}), ...(nested ? { nested } : {}) });
@@ -174,6 +186,32 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
       while (j < lines.length && !FENCE_CLOSE.test(raw(j))) body.push(raw(j++));
       blocks.push({ type: "code", text: body.join("\n") });
       i = j;
+      continue;
+    }
+
+    // A GFM table: a row of cells, then its separator row.
+    if (i + 1 < lines.length && raw(i).includes("|") && TABLE_SEP.test(raw(i + 1)) && raw(i + 1).includes("|")) {
+      const head = tableCells(line);
+      if (head.length >= 2) {
+        flush();
+        const align = raw(i + 1).trim().replace(/^\||\|$/g, "").split("|").map((c): TableAlign => {
+          const t = c.trim();
+          return t.startsWith(":") && t.endsWith(":") ? "center" : t.endsWith(":") ? "right" : t.startsWith(":") ? "left" : undefined;
+        });
+        const rows: NoteToken[][][] = [];
+        let j = i + 2;
+        while (j < lines.length && !isBlank(lines[j]) && raw(j).includes("|")) rows.push(tableCells(lines[j++]));
+        blocks.push({ type: "table", head, rows, align });
+        i = j - 1;
+        continue;
+      }
+    }
+
+    // "Title" over "=====": a heading, as markdown writes one without a #.
+    if (text !== null && i + 1 < lines.length && SETEXT.test(raw(i + 1)) && text.trim() && !para.length) {
+      flush();
+      blocks.push({ type: "h", level: 1, tokens: tidy(line) });
+      i++;
       continue;
     }
 
@@ -321,6 +359,28 @@ function preformatted(group: string[]): "diff" | "art" | null {
   return share(symbolic) >= 0.4 ? "art" : null;
 }
 
+/** A table row's cells: text split on unescaped pipes, the edge pipes
+ *  dropped, each cell trimmed. Links and mentions stay whole in their cell. */
+function tableCells(line: Line): NoteToken[][] {
+  const cells: NoteToken[][] = [[]];
+  for (const t of line) {
+    if (t.type !== "text") {
+      cells[cells.length - 1].push(t);
+      continue;
+    }
+    t.value.split(/(?<!\\)\|/).forEach((part, k) => {
+      if (k > 0) cells.push([]);
+      const v = part.replace(/\\\|/g, "|");
+      if (v) cells[cells.length - 1].push({ type: "text", value: v });
+    });
+  }
+  const trimmed = cells.map((c) => tidy(c));
+  const empty = (c: NoteToken[]) => c.length === 0;
+  if (trimmed.length && empty(trimmed[0])) trimmed.shift();
+  if (trimmed.length && empty(trimmed[trimmed.length - 1])) trimmed.pop();
+  return trimmed;
+}
+
 function textLength(ts: NoteToken[]): number {
   return ts.reduce((n, t) => n + (t.type === "text" ? t.value.trim().length : 0), 0);
 }
@@ -413,6 +473,9 @@ export type InlineSpan =
 const INLINE_RE = new RegExp(
   [
     "(?<tick>`{1,3})(?<code>[^`\\n]+)\\k<tick>",
+    // A backslash escape (\_ \*) is the character; one ending a line is
+    // markdown's line break, already a line break here.
+    "\\\\(?<esc>[\\\\`*_{}\\[\\]()#+\\-.!|>~])|\\\\(?<hard>$)",
     // **strong** hugs its text; __strong__ only around a word, so ASCII
     // art's ____ runs and snake__case stay text.
     "\\*\\*(?=\\S)(?<strong>[^\\n]{1,300}?)(?<=\\S)\\*\\*(?![\\p{L}\\p{N}])",
@@ -442,7 +505,9 @@ export function parseInlineMarkdown(text: string): InlineSpan[] {
     }
     const strong = g.strong ?? g.ustrong;
     const em = g.em ?? g.uem;
-    if (g.code !== undefined) out.push({ type: "code", value: g.code });
+    if (g.esc !== undefined) out.push({ type: "text", value: g.esc });
+    else if (g.hard !== undefined) { /* the break itself is the newline */ }
+    else if (g.code !== undefined) out.push({ type: "code", value: g.code });
     else if (strong !== undefined) out.push({ type: "strong", children: parseInlineMarkdown(strong) });
     else out.push({ type: "em", children: parseInlineMarkdown(em!) });
     last = idx + m[0].length;

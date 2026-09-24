@@ -12,10 +12,14 @@ import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { VerificationCoin, useTierRing, TierWordChip , useCoinReplacedByRing } from "@/components/score/VerificationCoin";
 import { fetchAddressableEvents, fetchProfile } from "@/services/nostr";
 import { apiClient } from "@/services/api";
-import { npubFromPubkey } from "@/lib/shareId";
+import { npubFromPubkey, READER_KINDS } from "@/lib/shareId";
+import { EventScreen } from "@/pages/EventPage";
+import type { MinimalEvent } from "@/lib/noteRefs";
 import { sourceAppFor } from "@/lib/sourceApp";
 import { wikiToMarkdown } from "@/lib/wiki";
 import { prepareArticleBody } from "@/lib/articleBody";
+import { normalizeMarkup } from "@/lib/htmlText";
+import { ReadingText } from "@/components/share/ReadingText";
 import { Chip } from "@/components/ui/chip";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
@@ -84,6 +88,16 @@ const mdComponents: Components = {
   },
 };
 
+/** Written in markdown, not plain text: enough of its syntax to count. */
+export function isMarkdown(text: string): boolean {
+  const lines = text.split("\n");
+  let n = lines.filter((l) => /^\s{0,3}(?:#{1,6} |[-*+] |\d+\. |> |```|\|.*\|)/.test(l) || /^\s*(?:={3,}|-{3,})\s*$/.test(l)).length;
+  n += (text.match(/\[[^\]\n]+\]\([^)\s]+\)|\*\*[^*\n]+\*\*|__[^_\n]+__|`[^`\n]+`/g) ?? []).length;
+  // Markdown's quieter marks: "\" line breaks, \_ escapes, <https://…> links.
+  n += (text.match(/\\\n|\\[_*`#[\]()!]|<https?:\/\/[^>\s]+>/g) ?? []).length;
+  return n >= 2;
+}
+
 type AddressPointer = { kind: number; pubkey: string; identifier: string; relays?: string[] };
 
 function decodeNaddr(raw: string): AddressPointer | null {
@@ -114,12 +128,13 @@ function publishedAgo(ev: { tags: string[][]; created_at: number }): string {
  * then funnels readers into a nostr app to read the rest.
  */
 export default function ArticlePage() {
-  const tierRing = useTierRing();
-  const coinReplaced = useCoinReplacedByRing();
   const [, params] = useRoute("/a/:id");
   const naddr = (params?.id || "").replace(/^nostr:/, "");
   const ptr = useMemo(() => decodeNaddr(naddr), [naddr]);
 
+  // The address's latest version. `/a/` is only how it was found: the kind
+  // decides how it reads — an article here, a listing or a track on the
+  // event layout.
   const articleQuery = useQuery({
     queryKey: ["article", naddr],
     queryFn: async () => {
@@ -131,6 +146,64 @@ export default function ArticlePage() {
     staleTime: 5 * 60_000,
     retry: false,
   });
+  const ev = articleQuery.data as ArticleEvent | null | undefined;
+  if (ev && ptr && !READER_KINDS.has(ev.kind)) {
+    return <EventScreen event={ev as unknown as MinimalEvent} ptr={{ id: ev.id, author: ev.pubkey, relays: ptr.relays }} />;
+  }
+  if (ev && ptr) return <ArticleScreen ev={ev} naddr={naddr} ptr={ptr} />;
+  return (
+    <ArticleShell title="Brainstorm">
+      {!ptr ? (
+        <div className="text-center py-20">
+          <FileText className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto" />
+          <p className="mt-3 text-slate-600 dark:text-slate-300 font-medium">That article link isn’t valid.</p>
+          <Link href="/" className="mt-3 inline-block text-sm font-semibold text-brand-link hover:underline">Go to Brainstorm →</Link>
+        </div>
+      ) : articleQuery.isLoading ? (
+        <div className="flex items-center justify-center py-24 text-slate-400 dark:text-slate-500">
+          <Loader2 className="h-6 w-6 animate-spin" />
+        </div>
+      ) : (
+        <div className="text-center py-20">
+          <FileText className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto" />
+          <p className="mt-3 text-slate-600 dark:text-slate-300 font-medium">We couldn’t find this article on the relays.</p>
+          {/* The naddr says which kind it is, so only clients that render it are offered. */}
+          <OpenElsewhere entity={{ kind: "article", eventKind: ptr.kind, bech32: naddr, uri: `nostr:${naddr}` }} className="mt-5" />
+        </div>
+      )}
+    </ArticleShell>
+  );
+}
+
+export type ArticleEvent = { id: string; kind: number; pubkey: string; created_at: number; content: string; tags: string[][]; sig?: string };
+
+/** The article layout's page: header, column, footer. */
+function ArticleShell({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 dark:from-slate-950 to-white dark:to-slate-900">
+      <PublicPageHeader
+        maxWidthClass="max-w-3xl"
+        actions={<ShareButton url={typeof window !== "undefined" ? window.location.href : ""} title={title} />}
+      />
+      <main className="mx-auto max-w-3xl px-4 sm:px-6 py-6 sm:py-10">
+        {children}
+        <div className="mt-10 text-center">
+          <p className="text-xs text-slate-400 dark:text-slate-500">
+            Read on <Link href="/" className="font-semibold text-brand-deep hover:underline">Brainstorm</Link> — trust, made visible.
+          </p>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+/**
+ * An article, wiki page or spec, read in full — reached from `/a/` (the
+ * address's latest version) or `/e/` (one exact version).
+ */
+export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: string; ptr: AddressPointer }) {
+  const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
 
   const profileQuery = useQuery({
     queryKey: ["article-author", ptr?.pubkey],
@@ -148,15 +221,16 @@ export default function ArticlePage() {
     retry: false,
   });
 
-  const ev = articleQuery.data;
   // Where this piece lives, when an app we know published it (a zap.cooking recipe).
   const sourceApp = ev ? sourceAppFor(ev) : null;
   const tag = (k: string) => ev?.tags.find((t) => t[0] === k)?.[1];
   const title = tag("title") || "Untitled article";
   // The page shows the title above the byline; a spec's `# Title` and its
   // `draft` `optional` status line leave the body and read as themselves.
+  // Whatever the text came in: AsciiDoc (wiki) as markdown, HTML converted,
+  // stray HTML in markdown cleaned.
   const prepared = useMemo(
-    () => prepareArticleBody(ev ? (ev.kind === 30818 ? wikiToMarkdown(ev.content || "") : ev.content || "") : "", title, { identifier: tag("d") }),
+    () => prepareArticleBody(ev ? normalizeMarkup(ev.kind === 30818 ? wikiToMarkdown(ev.content || "") : ev.content || "") : "", title, { identifier: tag("d") }),
     [ev, title], // eslint-disable-line react-hooks/exhaustive-deps
   );
   // The kinds a spec covers: the `k` tags and the front matter, one list, each
@@ -203,31 +277,7 @@ export default function ArticlePage() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-slate-50 dark:from-slate-950 to-white dark:to-slate-900">
-      <PublicPageHeader
-        maxWidthClass="max-w-3xl"
-        actions={<ShareButton url={typeof window !== "undefined" ? window.location.href : ""} title={`${title} — Brainstorm`} />}
-      />
-
-      <main className="mx-auto max-w-3xl px-4 sm:px-6 py-6 sm:py-10">
-        {!ptr ? (
-          <div className="text-center py-20">
-            <FileText className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto" />
-            <p className="mt-3 text-slate-600 dark:text-slate-300 font-medium">That article link isn’t valid.</p>
-            <Link href="/" className="mt-3 inline-block text-sm font-semibold text-brand-link hover:underline">Go to Brainstorm →</Link>
-          </div>
-        ) : articleQuery.isLoading ? (
-          <div className="flex items-center justify-center py-24 text-slate-400 dark:text-slate-500">
-            <Loader2 className="h-6 w-6 animate-spin" />
-          </div>
-        ) : !ev ? (
-          <div className="text-center py-20">
-            <FileText className="h-10 w-10 text-slate-300 dark:text-slate-600 mx-auto" />
-            <p className="mt-3 text-slate-600 dark:text-slate-300 font-medium">We couldn’t find this article on the relays.</p>
-            {/* The naddr says which kind it is, so only clients that render it are offered. */}
-            <OpenElsewhere entity={{ kind: "article", eventKind: ptr.kind, bech32: naddr, uri: `nostr:${naddr}` }} className="mt-5" />
-          </div>
-        ) : (
+    <ArticleShell title={`${title} — Brainstorm`}>
           <ShareNavProvider>
           <article>
             {image && (
@@ -340,9 +390,15 @@ export default function ArticlePage() {
             {/* Inline code wears no decorative backticks (the typography plugin's
                 default) and wraps — a spec's example URIs used to push the page sideways. */}
             <div className="article-prose mt-6 prose prose-slate dark:prose-invert max-w-none prose-headings:font-bold prose-a:text-brand-link prose-img:rounded-xl prose-code:before:content-none prose-code:after:content-none prose-pre:overflow-x-auto" data-testid="article-body">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={mdComponents}>
-                {prepared.body}
-              </ReactMarkdown>
+              {isMarkdown(prepared.body) ? (
+                <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeSanitize]} components={mdComponents}>
+                  {prepared.body}
+                </ReactMarkdown>
+              ) : (
+                // Plain text: markdown would fold its single line breaks into
+                // one paragraph; the reading renderer keeps them.
+                <ReadingText text={prepared.body} size="post" headline={false} media className="not-prose" />
+              )}
             </div>
 
             {/* Comments — teaser-gated for anon, trust-filterable for members (same as /e). */}
@@ -379,14 +435,6 @@ export default function ArticlePage() {
             )}
           </article>
           </ShareNavProvider>
-        )}
-
-        <div className="mt-10 text-center">
-          <p className="text-xs text-slate-400 dark:text-slate-500">
-            Read on <Link href="/" className="font-semibold text-brand-deep hover:underline">Brainstorm</Link> — trust, made visible.
-          </p>
-        </div>
-      </main>
-    </div>
+    </ArticleShell>
   );
 }

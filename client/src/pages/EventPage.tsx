@@ -1,5 +1,5 @@
-import { useMemo, useEffect, useState } from "react";
-import { useRoute, useLocation, Link } from "wouter";
+import { useMemo, useState } from "react";
+import { useRoute, Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { nip19 } from "nostr-tools";
 import { Smartphone, Loader2, MessageSquare, ArrowRight, X } from "lucide-react";
@@ -36,7 +36,8 @@ import { useLightbox } from "@/components/share/Lightbox";
 import { EntityMenu } from "@/components/share/EntityMenu";
 import { ShareButton } from "@/components/share/ShareButton";
 import { MoreFromAuthor } from "@/components/share/MoreFromAuthor";
-import { neventFor, npubFromPubkey, nostrUriForEvent } from "@/lib/shareId";
+import { neventFor, npubFromPubkey, nostrUriForEvent, READER_KINDS } from "@/lib/shareId";
+import { ArticleScreen, type ArticleEvent } from "@/pages/ArticlePage";
 import { initialsFor } from "@/lib/profileDefaults";
 import { useShareMeta } from "@/hooks/useShareMeta";
 import { BrainLogo } from "@/components/BrainLogo";
@@ -48,7 +49,7 @@ import { Nip05Check } from "@/components/Nip05Check";
 
 
 type ProfileLite = { display_name?: string; name?: string; picture?: string; nip05?: string };
-type EventPointer = { id: string; relays?: string[]; author?: string };
+export type EventPointer = { id: string; relays?: string[]; author?: string };
 
 /** Addressable kinds (30000–39999) are commented on by coordinate, not id —
  *  a listing's questions tag `30402:<seller>:<d>`, never the event id. */
@@ -121,12 +122,23 @@ function eventMediaUrls(ev: MinimalEvent): string[] {
  * tier (our differentiator), and funnels anonymous readers into signup.
  */
 export default function EventPage() {
-  const speed = useConnectionSpeed();
-  const tierRing = useTierRing();
-  const coinReplaced = useCoinReplacedByRing();
   const [, params] = useRoute("/e/:id");
   const raw = (params?.id || "").replace(/^nostr:/, "");
   const ptr = useMemo(() => decodeEventId(raw), [raw]);
+  return <EventScreen ptr={ptr} />;
+}
+
+/**
+ * An event's page, whichever route found it. `/e/` hands over a pointer (this
+ * exact event, by id); `/a/` hands over the event it resolved from an address
+ * (the latest version). What renders is decided by the event's kind: articles,
+ * wiki pages and specs read on the article layout, everything else here.
+ */
+export function EventScreen({ ptr: given, event }: { ptr?: EventPointer | null; event?: MinimalEvent }) {
+  const speed = useConnectionSpeed();
+  const tierRing = useTierRing();
+  const coinReplaced = useCoinReplacedByRing();
+  const ptr: EventPointer | null = event ? { id: event.id, author: event.pubkey, relays: given?.relays } : given ?? null;
   const relayHints = ptr?.relays || [];
   const loggedIn = useHasSession();
   // Tagging needs a SIGNER, not a session: a session token is backend auth and
@@ -137,7 +149,6 @@ export default function EventPage() {
   // `hasLocalSecretKey() || window.nostr`, which quietly excluded every remote
   // signer; this includes them.
   const canTagNote = !!useActiveAccountDisplay()?.pubkey;
-  const [, navigate] = useLocation();
 
   const eventQuery = useQuery({
     queryKey: ["event", ptr?.id],
@@ -146,32 +157,22 @@ export default function EventPage() {
       const evs = await fetchEventsByIds([ptr.id], Array.from(new Set([...relayHints, ...PROFILE_RELAYS])));
       return (evs[0] as MinimalEvent) ?? null;
     },
-    enabled: !!ptr?.id,
+    enabled: !!ptr?.id && !event,
     staleTime: 5 * 60_000,
     retry: false,
   });
-  const note = eventQuery.data as MinimalEvent | null | undefined;
+  const note = (event ?? eventQuery.data) as MinimalEvent | null | undefined;
   // Live events (kind 30311) are authored by the streaming platform — the WoT
   // row should be the streamer (the `p`-tagged host), not the platform.
   const liveHost = note?.kind === 30311
     ? note.tags.find((t) => t[0] === "p" && (t[3] || "").toLowerCase() === "host")?.[1] || note.tags.find((t) => t[0] === "p")?.[1]
     : undefined;
   const authorPk = liveHost || note?.pubkey || ptr?.author || "";
-  // Long-form (30023), wiki pages (30818) and specs (30817) all read on the article reader.
-  const isArticle = note?.kind === 30023 || note?.kind === 30818 || note?.kind === 30817;
+  // Long-form (30023), wiki pages (30818) and specs (30817) read on the
+  // article layout — this exact version, on this URL: no redirect to /a/,
+  // which would load the address's latest version instead.
+  const isArticle = !!note && READER_KINDS.has(note.kind);
   const mediaUrls = useMemo(() => (note && !NOTE_KINDS.has(note.kind) ? eventMediaUrls(note) : []), [note]);
-
-  // Long-form events belong on the article reader — hand off to /a.
-  useEffect(() => {
-    if (!note || !isArticle) return;
-    try {
-      const d = note.tags.find((t) => t[0] === "d")?.[1] || "";
-      const naddr = nip19.naddrEncode({ identifier: d, pubkey: note.pubkey, kind: note.kind, relays: relayHints.slice(0, 4) });
-      navigate(`/a/${naddr}`, { replace: true });
-    } catch {
-      /* ignore */
-    }
-  }, [note, isArticle, relayHints, navigate]);
 
   const profileQuery = useQuery({
     queryKey: ["event-author", authorPk],
@@ -280,6 +281,12 @@ export default function EventPage() {
   // chain has nothing to ask.
   const [setupDismissed, setSetupDismissed] = useState(false);
   const showSetupNudge = useBackupNeed() !== null && !setupDismissed;
+
+  if (note && isArticle) {
+    const d = note.tags.find((t) => t[0] === "d")?.[1] ?? "";
+    const naddr = nip19.naddrEncode({ identifier: d, pubkey: note.pubkey, kind: note.kind, relays: relayHints.slice(0, 4) });
+    return <ArticleScreen ev={note as ArticleEvent} naddr={naddr} ptr={{ kind: note.kind, pubkey: note.pubkey, identifier: d, relays: relayHints }} />;
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950">

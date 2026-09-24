@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { htmlToText, looksLikeHtml } from "@/lib/htmlText";
+import { htmlToText, looksLikeHtml, normalizeMarkup, stripStrayHtml } from "@/lib/htmlText";
 
 describe("htmlToText", () => {
   // Shape of a real kind-30402 listing description (a mod shared as HTML).
@@ -27,5 +27,26 @@ describe("htmlToText", () => {
 
   it("drops scripts and non-web links", () => {
     expect(htmlToText('<p>Hi<script>alert(1)</script> <a href="javascript:alert(1)">there</a></p>')).toBe("Hi there");
+  });
+});
+
+describe("markdown with stray HTML (a bridged GitHub comment)", () => {
+  const comment = "**@bot** (2026-03-26):\n\n<!-- auto-generated comment -->\n\n> [!WARNING]\n> ## Rate limit exceeded\n\n<details>\n<summary>⏳ How to resolve this issue?</summary>\n\n- wait\n- then push `<details>` again\n\n</details>";
+
+  it("stays markdown: comments go, wrappers unwrap, a summary is a bold line, code is untouched", () => {
+    expect(looksLikeHtml(comment)).toBe(false);
+    const out = normalizeMarkup(comment);
+    expect(out.replace(/`[^`]*`/g, "")).not.toMatch(/<!--|<\/?details>|<summary>/);
+    expect(out).toContain("**⏳ How to resolve this issue?**");
+    expect(out).toContain("- wait\n- then push `<details>` again");
+  });
+
+  it("keeps pictures as their URLs and links as markdown links", () => {
+    expect(stripStrayHtml('See <a href="https://x.y/a">docs</a><br><img src="https://i.x/p.png" width=40>')).toBe("See [docs](https://x.y/a)\n\nhttps://i.x/p.png\n");
+  });
+
+  it("leaves text with no tags exactly as it is", () => {
+    const t = "a < b and c > d, <3";
+    expect(normalizeMarkup(t)).toBe(t);
   });
 });

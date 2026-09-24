@@ -36,6 +36,10 @@ vi.mock("@/services/nostr", () => ({
     return map;
   },
   fetchProfile: async () => ({ name: "hzrd149" }),
+  // What the event layout (a non-article at an address) asks for; nothing here.
+  fetchRecentByKinds: async () => [],
+  fetchEventsByIds: async () => [],
+  fetchProfileMap: async () => new Map(),
 }));
 vi.mock("@/services/api", () => ({ apiClient: { getHouseInfluence: async () => null } }));
 vi.mock("@/hooks/useHasSession", () => ({ useHasSession: () => false }));
@@ -173,5 +177,35 @@ describe("reading a spec", () => {
     // never gets striped; the class hook and the backtick reset are the seam.
     expect(screen.getByTestId("article-body").className).toMatch(/\barticle-prose\b/);
     expect(screen.getByTestId("article-body").className).toMatch(/prose-code:before:content-none/);
+  });
+});
+
+// The kind decides how an event reads, not the route that found it, and the
+// content decides its format (real shapes from kind-30023 events on relays:
+// ~4% of long-form separates paragraphs with single line breaks, ~1% is HTML).
+describe("the kind and the content decide, not the route", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it("a plain-text article keeps its single-line-break paragraphs", async () => {
+    await open(event(30023, "plain", "Plain", [], [1, 2, 3].map((n) => `Paragraph ${n} runs on the way an article's paragraphs do, past a hundred characters, with no blank line after it.`).join("\n")));
+    const body = screen.getByTestId("article-body");
+    expect(body.querySelectorAll(".note-reading > div")).toHaveLength(3);
+  });
+
+  it("an HTML article reads as text instead of disappearing", async () => {
+    await open(event(30023, "html", "HTML", [], "<div style='text-align: justify;'>\n<p>Sudoroso, no sabía si dar cuenta.</p><p>Second <b>part</b>.</p></div>"));
+    const body = screen.getByTestId("article-body");
+    expect(body).toHaveTextContent("Sudoroso, no sabía si dar cuenta.");
+    expect(body.querySelector("strong")).toHaveTextContent("part");
+    expect(body.textContent).not.toContain("<p>");
+  });
+
+  it("an address that is not an article renders on its kind's layout", async () => {
+    served.mockReturnValue(event(30402, "vpn", "Obscura VPN", [["image", "https://img/vpn.png"]], "A VPN that cannot log you."));
+    const naddr = nip19.naddrEncode({ kind: 30402, pubkey: AUTHOR, identifier: "vpn" });
+    window.history.pushState({}, "", `/a/${naddr}`);
+    renderPage();
+    await waitFor(() => expect(screen.getByTestId("listing-hero-title")).toHaveTextContent("Obscura VPN"));
+    expect(screen.queryByTestId("article-body")).toBeNull();
   });
 });
