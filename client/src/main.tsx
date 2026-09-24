@@ -1,9 +1,14 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
 import { ThemeProvider } from "./lib/theme";
+import { installErrorBuffer } from "./lib/errorBuffer";
 import { startStoreHydration } from "./services/storeHydration";
 import { resolveHouseObserver } from "./services/trustSource";
 import "./index.css";
+
+// From the first moment: support-ticket diagnostics can carry what the
+// console said, but only if someone was listening when it broke.
+installErrorBuffer();
 
 // Before the first render, not in an effect: by the time effects run, the
 // queries this exists to satisfy have already gone to the relays. Restores the
