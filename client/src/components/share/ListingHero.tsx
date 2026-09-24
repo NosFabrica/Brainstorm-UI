@@ -14,9 +14,9 @@ import { ReadingText } from "@/components/share/ReadingText";
  * wrote it, where it is, how it ships, the description with its links live —
  * and two ways to act. "Message seller" opens the seller in the reader's own
  * Nostr app, where their keys and conversations already live; the second
- * button goes to the listing's own page — by the app's name ("Open in
- * Conduit") when we know which app sold it, or "Visit shop" on whatever link
- * the seller published. There is no checkout of ours: payment happens where
+ * button goes to the listing's own page — "Buy on Conduit" when we know which
+ * marketplace sold it, or "Visit <host>" on whatever link the seller
+ * published. There is no checkout of ours: payment happens where
  * the seller sells.
  */
 export function ListingHero({ event, sellerWebsite }: { event: MinimalEvent; /** The seller's own website, from their profile — the way in when the listing names no shop and no app we know. */ sellerWebsite?: string | null }) {
@@ -134,7 +134,7 @@ export function ListingHero({ event, sellerWebsite }: { event: MinimalEvent; /**
             data-testid="listing-hero-shop"
             title={`Opens ${app.host} in a new tab`}
           >
-            <img src={app.icon} alt="" className="h-3.5 w-3.5 rounded-sm" /> Open in {app.name} <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+            <img src={app.icon} alt="" className="h-3.5 w-3.5 rounded-sm" /> Buy on {app.name} <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
           </a>
         ) : l.shopUrl && shopHost ? (
           <a
@@ -145,7 +145,7 @@ export function ListingHero({ event, sellerWebsite }: { event: MinimalEvent; /**
             data-testid="listing-hero-shop"
             title={`Opens ${shopHost} in a new tab`}
           >
-            <Favicon host={shopHost} className="h-3.5 w-3.5" /> Visit shop <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+            <Favicon host={shopHost} className="h-3.5 w-3.5" /> Visit {shopHost} <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
           </a>
         ) : websiteHost ? (
           // No shop on the listing and no marketplace we know (The Bitcoin

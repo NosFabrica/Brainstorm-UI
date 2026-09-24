@@ -1303,13 +1303,14 @@ export function ListingCard({
 }) {
   const l = parseListing(event);
   if (!l) return null;
-  // The app that sold it, by name, when we know it; else the seller's own link.
+  // The verb says where a tap lands: "Buy on Conduit" when we know the
+  // marketplace by name, "Visit <host>" on a seller's own link.
   const app = sourceAppFor(event, { sellerListings });
   const host = l.shopUrl ? hostOf(l.shopUrl) ?? undefined : undefined;
   const open = app
-    ? { url: app.url, label: `Open in ${app.name}`, host: app.host, icon: app.icon }
+    ? { url: app.url, label: `Buy on ${app.name}`, host: app.host, icon: app.icon }
     : l.shopUrl
-      ? { url: l.shopUrl, label: "Visit shop", host, icon: undefined }
+      ? { url: l.shopUrl, label: host ? `Visit ${host}` : "Visit shop", host, icon: undefined }
       : null;
   return (
     <CardShell

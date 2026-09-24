@@ -67,8 +67,8 @@ describe("ListingHero", () => {
     expect(message.getAttribute("href")).toMatch(/^nostr:(npub1|nprofile1)/);
     expect(message).toHaveTextContent(/Message seller/);
     const shop = screen.getByTestId("listing-hero-shop");
-    // One label for every marketplace; the favicon and a tooltip say which.
-    expect(shop).toHaveTextContent(/^Visit shop$/);
+    // A seller's own link is named by its host; a marketplace we know says "Buy on".
+    expect(shop).toHaveTextContent(/^Visit barattolo.app$/);
     expect(shop).toHaveAttribute("title", expect.stringContaining("barattolo.app"));
     expect(shop.getAttribute("href")).toBe("https://barattolo.app/l/maglia-1");
     expect(shop.getAttribute("target")).toBe("_blank");
@@ -85,7 +85,7 @@ describe("ListingHero", () => {
     render(<ListingHero event={listing([["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant", "wss://relay.conduit.market"]])} />);
 
     const shop = screen.getByTestId("listing-hero-shop");
-    expect(shop).toHaveTextContent(/^Open in Conduit$/);
+    expect(shop).toHaveTextContent(/^Buy on Conduit$/);
     expect(shop.getAttribute("href")).toMatch(/^https:\/\/shop\.conduit\.market\/products\/naddr1[a-z0-9]+\?ref=brainstorm$/);
     expect(shop.getAttribute("target")).toBe("_blank");
     expect(shop).toHaveAttribute("title", expect.stringContaining("shop.conduit.market"));
@@ -98,7 +98,7 @@ describe("ListingHero", () => {
     recentMock.mockResolvedValue([{ ...twin, id: "2".repeat(64), tags: [["d", "maglia-conduit"], ["title", "Maglia in kashmir donna"], ["client", "Conduit Merchant Portal", "31990:f8ae:conduit-merchant"]] }]);
     render(<ListingHero event={listing([["t", "Fashion"]])} />);
     const shop = await screen.findByTestId("listing-hero-shop");
-    expect(shop).toHaveTextContent(/^Open in Conduit$/);
+    expect(shop).toHaveTextContent(/^Buy on Conduit$/);
     expect(shop.getAttribute("href")).toMatch(/^https:\/\/shop\.conduit\.market\/products\/naddr1[a-z0-9]+\?ref=brainstorm$/);
     expect(recentMock).toHaveBeenCalledWith(SELLER, [30402], expect.any(Number));
   });

@@ -14,7 +14,7 @@ import { naddrForEvent } from "@/lib/articleLinks";
  * (both probed on the relays and opened live, 2026-09-22).
  */
 export interface SourceApp {
-  /** As written in the button: "Open in Conduit". */
+  /** As written in the button: "Buy on Conduit", "Open in Zap.cooking". */
   name: "Conduit" | "Zap.cooking";
   host: string;
   /** The item's page in that app, ready to open. */

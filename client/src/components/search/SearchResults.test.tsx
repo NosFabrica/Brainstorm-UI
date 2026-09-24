@@ -1275,8 +1275,9 @@ describe("SearchResults", () => {
     // Over a photo the corner is the shop's favicon alone in a small pill;
     // the words wait on hover. Text over busy photography was unreadable.
     expect(open.textContent?.trim()).toBe("");
-    expect(open.getAttribute("title")).toBe("Visit shop");
-    expect(open.getAttribute("aria-label")).toBe("Visit shop");
+    // The verb says where you land: a seller's site by its host, a marketplace by "Buy on".
+    expect(open.getAttribute("title")).toBe("Visit barattolo.app");
+    expect(open.getAttribute("aria-label")).toBe("Visit barattolo.app");
     expect(within(open).getByTestId("favicon")).toBeInTheDocument();
     expect(screen.getByTestId("listing-card-l2")).toBeInTheDocument();
     expect(screen.queryByTestId("listing-card-sold")).toBeNull();
@@ -1317,8 +1318,8 @@ describe("SearchResults", () => {
 
     const open = within(await screen.findByTestId("listing-card-c1")).getByTestId("listing-open-c1");
     expect(open.getAttribute("href")).toMatch(/^https:\/\/shop\.conduit\.market\/products\/naddr1[a-z0-9]+\?ref=brainstorm$/);
-    expect(open.getAttribute("title")).toBe("Open in Conduit");
-    expect(open.getAttribute("aria-label")).toBe("Open in Conduit");
+    expect(open.getAttribute("title")).toBe("Buy on Conduit");
+    expect(open.getAttribute("aria-label")).toBe("Buy on Conduit");
     expect(open.textContent?.trim()).toBe("");
     expect(within(open).getByTestId("favicon")).toHaveAttribute("src", "https://shop.conduit.market/favicon.svg");
   });
