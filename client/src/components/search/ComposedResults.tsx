@@ -547,7 +547,7 @@ function ComposedResultsBody({
               {/* The section says "Articles" for the rows, so an essay needs no
                   label — a spec (30817) rides here too and must not pass for one. */}
               {articleRows.map((c) => (
-                <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} showType={c.primary.event.kind === 30817} />
+                <ClusterRows key={c.primary.event.id} cluster={c} scoreOf={scoreOf} query={query} />
               ))}
             </div>
           )}

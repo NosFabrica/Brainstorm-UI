@@ -373,9 +373,10 @@ describe("ComposedResults — media-rich sections", () => {
     expect(within(articles).getByTestId("article-tile-fa")).toBeInTheDocument();
   });
 
-  // Article rows on Everything hide their type — the section says "Articles".
-  // A spec (kind 30817) rides in that section and must not pass for an essay.
-  it("a spec in the Articles section says Spec; an essay still says nothing", async () => {
+  // Every Articles row says what it is — a spec (kind 30817) rides in that
+  // section and must not pass for an essay, and an essay says Article too
+  // (the team, 2026-09-24: the kind pill is on every card, not only the odd one).
+  it("every Articles row says what it is: Spec, Article", async () => {
     render(<ComposedResults query="scheduler dvm" pov="nosfabrica" onTabChange={vi.fn()} />);
     const pk = "7".repeat(64);
     sectionCall("articles").emit({
@@ -388,7 +389,7 @@ describe("ComposedResults — media-rich sections", () => {
     });
     const section = await screen.findByTestId("serp-section-articles");
     expect(within(within(section).getByTestId("serp-row-s1")).getByTestId("kind-pill")).toHaveTextContent("Spec");
-    expect(within(within(section).getByTestId("serp-row-e1")).queryByTestId("kind-pill")).toBeNull();
+    expect(within(within(section).getByTestId("serp-row-e1")).getByTestId("kind-pill")).toHaveTextContent("Article");
   });
 
   // Benjamin: "when Latest is showing there should always be 3" — a strip of
@@ -794,6 +795,9 @@ describe("ComposedResults", () => {
     const section = await screen.findByTestId("serp-section-happening");
     const rows = [...section.querySelectorAll('[data-testid^="event-row-"], [data-testid^="serp-row-"]')].map((r) => r.getAttribute("data-testid"));
     expect(rows).toEqual(["event-row-soon", "event-row-far", "serp-row-stream"]);
+    // Events and streams share the section, so each row says which it is.
+    expect(within(within(section).getByTestId("event-row-soon")).getByTestId("kind-pill")).toHaveTextContent("Event");
+    expect(within(within(section).getByTestId("serp-row-stream")).getByTestId("kind-pill")).toHaveTextContent("Stream");
     // Luma's row: the time and the town, the host, the cover, who is going.
     const soon = screen.getByTestId("event-row-soon");
     expect(soon).toHaveTextContent(/\d{1,2}:\d{2}|All day/);
