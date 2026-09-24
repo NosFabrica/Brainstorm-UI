@@ -69,7 +69,7 @@ describe("EmbeddedArticleCard", () => {
     const spec = page(30817, "# NoorNote", [["d", "noornote"], ["title", "NoorNote"], ...kinds]);
     render(<EmbeddedArticleCard event={spec} author={{ name: "alp" }} leadKinds={["30078"]} />);
     const row = screen.getByTestId("article-kinds");
-    expect([...row.querySelectorAll("a")].map((a) => a.textContent)).toEqual(["kind 30078", "kind 0", "kind 1", "kind 3", "kind 4", "kind 5"]);
+    expect([...row.querySelectorAll("a")].map((a) => a.textContent)).toEqual(["30078", "0", "1", "3", "4", "5"]);
     expect(screen.getByTestId("article-kinds-more")).toHaveTextContent("+7 more");
   });
 
@@ -104,17 +104,19 @@ describe("EmbeddedArticleCard", () => {
   it("only numeric k tags are kinds", () => {
     const spec = page(30817, "# TA", [["d", "ta"], ["title", "TA"], ["k", "10040"], ["k", "nip"]]);
     render(<EmbeddedArticleCard event={spec} author={{ name: "ManiMe" }} />);
-    expect([...screen.getByTestId("article-kinds").querySelectorAll("a")].map((a) => a.textContent)).toEqual(["kind 10040"]);
+    expect([...screen.getByTestId("article-kinds").querySelectorAll("a")].map((a) => a.textContent)).toEqual(["10040"]);
   });
 
   // The kind chips are the NIPs tab's filter — no chip row on the tab itself
   // (the team's "too busy"; Benjamin 2026-09-23). Each opens the specs that
   // cover that kind, in numeric order.
   it("a spec's kind chips open the specs that cover that kind", () => {
-    const spec = page(30817, "# Scheduler DVM", [["d", "scheduler-dvm"], ["title", "Scheduler DVM"], ["k", "7000"], ["k", "5905"]]);
+    // The team (2026-09-24): with no NIP number to lean on, the kind's own
+    // name — the one its author put on the k tag — is what a chip shows.
+    const spec = page(30817, "# Scheduler DVM", [["d", "scheduler-dvm"], ["title", "Scheduler DVM"], ["k", "7000"], ["k", "5905", "DVM Job Request"]]);
     render(<EmbeddedArticleCard event={spec} author={{ name: "nogringo" }} />);
     const links = [...screen.getByTestId("article-kinds").querySelectorAll("a")];
-    expect(links.map((a) => a.textContent)).toEqual(["kind 5905", "kind 7000"]);
+    expect(links.map((a) => a.textContent)).toEqual(["5905 · DVM Job Request", "7000"]);
     expect(links[0].getAttribute("href")).toBe("/?t=nips&q=kind%3A5905");
   });
 
