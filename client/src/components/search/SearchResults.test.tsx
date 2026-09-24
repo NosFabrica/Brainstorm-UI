@@ -2497,6 +2497,37 @@ describe("SearchResults", () => {
     expect(screen.getByTestId("knowledge-panel-profile").getAttribute("href")).toBe("/p/npub1panel");
   });
 
+  // Benjamin (2026-09-24): Handled's profile shows two songs and `from:Handled`
+  // finds them, but "handled" on the Music tab said Nothing found — the relay
+  // holds no track events for them and Wavlake's word search knows no
+  // "handled". The Media tab already leads with a named person's own media;
+  // the Music tab now leads with a named person's own music.
+  it("on the Music tab, words that name a person find that person's music, as their profile does", async () => {
+    setUrlTab("music");
+    const handled = { pubkey: "c".repeat(64), npub: nip19.npubEncode("c".repeat(64)), name: "Handled", picture: "https://img/handled.jpg", wotRank: 0.8, wotFollowers: 36 };
+    catalogueMock.mockImplementation((pk) =>
+      pk === handled.pubkey
+        ? {
+            artist: { id: "wl-handled", name: "Handled", artworkUrl: "https://img/handled.jpg", artistNpub: handled.npub },
+            songs: [
+              { id: "wavlake:paper-thin", title: "Paper Thin", artist: "Handled", audio: "https://cdn/paper-thin.mp3", durationSec: 297, url: "https://wavlake.com/track/paper-thin", source: "wavlake", artistNpub: handled.npub },
+              { id: "wavlake:need-you-whole", title: "Need You Whole", artist: "Handled", audio: "https://cdn/nyw.mp3", durationSec: 219, url: "https://wavlake.com/track/nyw", source: "wavlake", artistNpub: handled.npub },
+            ],
+            loading: false,
+          }
+        : { artist: null, songs: [], loading: false },
+    );
+    suggestMock.mockResolvedValue([handled]);
+    render(<SearchResults query="handled" pov="nosfabrica" />);
+    emit({ hits: [], eose: true, timeMs: 50 });
+    await screen.findByTestId("search-knowledge-panel");
+    const songs = await screen.findByTestId("music-songs");
+    expect(within(songs).getByTestId("wavlake-song-wavlake:paper-thin")).toHaveTextContent("Paper Thin");
+    expect(within(songs).getByTestId("wavlake-song-wavlake:need-you-whole")).toBeInTheDocument();
+    expect(screen.getByTestId("music-top-result")).toHaveTextContent("Handled");
+    expect(screen.queryByTestId("container-no-results")).toBeNull();
+  });
+
   it("keeps quiet when the top person is only a weak match", async () => {
     setUrlTab("notes");
     suggestMock.mockResolvedValueOnce([

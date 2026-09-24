@@ -623,17 +623,19 @@ export function SearchResults({
   const [personMedia, setPersonMedia] = useState<SearchHit[]>([]);
   useEffect(() => {
     setPersonMedia([]);
-    // The Media tab and the composed Everything page both lead with it.
+    // The Media tab and the composed Everything page both lead with it; the
+    // Music tab leads with the person's own tracks the same way.
     const everything = tab === "everything" && !/(^|\s)sort:/i.test(query);
-    if ((tab !== "media" && !everything) || !panelPerson) return;
+    const music = tab === "music" && !scopeOf(query);
+    if ((tab !== "media" && !everything && !music) || !panelPerson) return;
     let cancelled = false;
     const who = panelPerson;
-    fetchRecentByKinds(who.pubkey, [1, 20, 21, 22, 34235, 34236], 40)
+    fetchRecentByKinds(who.pubkey, music ? [31337] : [1, 20, 21, 22, 34235, 34236], 40)
       .then((events) => {
         if (cancelled) return;
         setPersonMedia(
           events
-            .filter((e) => mediaUrlOf(e as NostrEvent) !== null)
+            .filter((e) => music || mediaUrlOf(e as NostrEvent) !== null)
             .map((e) => ({ event: e as NostrEvent, author: who, rank: null })),
         );
       })
@@ -783,11 +785,16 @@ export function SearchResults({
     // articles wear the recipe tag too. One source of truth says which is
     // which, here, so the count line, the chips and the cards agree.
     if (tab === "recipes") return base.filter((h) => sourceAppFor(h.event)?.noun === "Recipe");
+    // A named person's own tracks join the Music tab's hits, once each.
+    if (tab === "music") {
+      const seen = new Set(base.map((h) => h.event.id));
+      return [...base, ...personMedia.filter((h) => !seen.has(h.event.id))];
+    }
     if (tab !== "media" || !mediaNotes) return base;
     const seen = new Set(base.map((h) => h.event.id));
     const visual = mediaNotes.hits.filter((h) => !seen.has(h.event.id) && mediaUrlOf(h.event) !== null);
     return [...base, ...visual];
-  }, [snapshot, mediaNotes, tab]);
+  }, [snapshot, mediaNotes, tab, personMedia]);
   // The person's own media is its own group above the list; the list drops its duplicates.
   const personMediaIds = useMemo(() => new Set(personMedia.map((h) => h.event.id)), [personMedia]);
   // The relay only ORDERS by rank — per-card scores come from the shared
@@ -852,13 +859,30 @@ export function SearchResults({
   const podcastIndex = useMemo(() => ({ ...filterPodcastIndex(query, podcastIndexAll), loading: podcastIndexAll.loading }), [query, podcastIndexAll]);
   // The people the network tagged Musician — the tagging list; the tab narrows them by the words.
   const tagged = useTaggedMusicians(tab === "music" && !scope);
-  const catalogue = useArtistCatalogue(tab === "music" ? scopedTo : null);
+  // Words that name a person find that person's music, as their profile does
+  // (Benjamin, 2026-09-24: "handled" said Nothing found while Handled's
+  // profile played two songs — the relay holds no track events for them and
+  // Wavlake's word search knows no "handled"). The Media tab leads with a
+  // named person's own media; the Music tab leads with their own music: the
+  // catalogue the scoped view reads, joined to whatever the words found.
+  const musicPerson = tab === "music" && !scope ? panelPerson : null;
+  const catalogue = useArtistCatalogue(tab === "music" ? (scopedTo ?? musicPerson?.pubkey ?? null) : null, { name: scopedTo ? undefined : musicPerson ? getDisplayLabel(musicPerson) : undefined });
   const wavlake = useMemo(() => {
-    if (!scope) return wavlakeWords;
+    if (!scope) {
+      if (!musicPerson) return wavlakeWords;
+      const seenSongs = new Set(wavlakeWords.songs.map((s) => s.id));
+      const seenArtists = new Set(wavlakeWords.artists.map((a) => a.id));
+      return {
+        artists: catalogue.artist && !seenArtists.has(catalogue.artist.id) ? [catalogue.artist, ...wavlakeWords.artists] : wavlakeWords.artists,
+        albums: wavlakeWords.albums,
+        songs: [...catalogue.songs.filter((s) => !seenSongs.has(s.id)), ...wavlakeWords.songs],
+        loading: wavlakeWords.loading || catalogue.loading,
+      };
+    }
     const words = scope.rest.toLowerCase().split(/\s+/).filter(Boolean);
     const songs = words.length === 0 ? catalogue.songs : catalogue.songs.filter((s) => words.every((w) => s.title.toLowerCase().includes(w)));
     return { artists: catalogue.artist ? [catalogue.artist] : [], albums: [], songs, loading: catalogue.loading };
-  }, [scope, wavlakeWords, catalogue]);
+  }, [scope, wavlakeWords, catalogue, musicPerson]);
   const mediaSettled = tab !== "media" || !!mediaNotes?.eose || !!mediaNotes?.error;
   const searching =
     personMedia.length === 0 &&
