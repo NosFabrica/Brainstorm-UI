@@ -198,7 +198,14 @@ export function MusicResults({
             <MusicSection title="Value-for-value musicians" hint="from Podcast Index" why={V4V_WHY} icon={CATEGORY_ICON.music} testId="music-podcastindex-musicians">
               <FacetRow testId="music-podcastindex-musicians-strip" className="gap-4 pb-2">
                 {podcastIndex.musicians.map((m) => (
-                  <ArtistFace key={m.id} name={m.name} image={m.artwork} score={null} sub="Podcast Index" href={podcastIndexHref(m.name)} testId={`music-artist-podcastindex-${m.id}`} />
+                  <div key={m.id} className="flex shrink-0 flex-col items-center">
+                    <ArtistFace name={m.name} image={m.artwork} score={null} sub="Podcast Index" href={podcastIndexHref(m.name)} testId={`music-artist-podcastindex-${m.id}`} />
+                    {m.url && (
+                      <a href={m.url} target="_blank" rel="noopener" className="mt-0.5 text-[11px] font-medium text-brand-link hover:underline" data-testid={`music-podcastindex-support-${m.id}`}>
+                        Support the artist
+                      </a>
+                    )}
+                  </div>
                 ))}
               </FacetRow>
             </MusicSection>

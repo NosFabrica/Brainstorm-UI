@@ -1,6 +1,6 @@
 import { type MouseEvent } from "react";
 import { useLocation } from "wouter";
-import { Play, Pause, Loader2, AlertCircle } from "lucide-react";
+import { Play, Pause, Loader2, AlertCircle, HeartHandshake } from "lucide-react";
 import { FlashIcon } from "@/components/FlashIcon";
 import { Favicon } from "@/components/share/LinkPreview";
 import { useTrackPlayer, useTrackDuration, toggleTrack, seekTrack, formatTime } from "@/lib/audioPlayer";
@@ -45,6 +45,7 @@ export function EmbeddedTrackCard({
   sourceHost,
   onOpen,
   pageUrl,
+  supportUrl,
   artistHref,
   artistPubkey,
   flat = false,
@@ -66,6 +67,8 @@ export function EmbeddedTrackCard({
   onOpen?: () => void;
   /** The track's page on its source site, for the app's now-playing bar to link. */
   pageUrl?: string;
+  /** Where a listener pays the artist directly (value-for-value) — a link beside the source badge. */
+  supportUrl?: string;
   /** The artist's profile, for the bar's name to link; their Nostr key, for "more from this artist". */
   artistHref?: string;
   artistPubkey?: string;
@@ -180,6 +183,21 @@ export function EmbeddedTrackCard({
 
       {/* Right rail: source tag, genre chip, total time (idle), zap. */}
       <div className="flex shrink-0 items-center gap-2">
+        {supportUrl && (
+          <a
+            href={supportUrl}
+            target="_blank"
+            rel="noopener"
+            aria-label="Support the artist"
+            title="Support the artist"
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold text-brand-link hover:bg-brand-primary/5 dark:hover:bg-brand-primary/15 transition-colors"
+            data-testid="track-support"
+          >
+            <HeartHandshake className="h-3 w-3" />
+            <span className="hidden sm:inline">Support</span>
+          </a>
+        )}
         {sourceLabel && (
           // The source's own mark, the way the app brands zap.stream and GitHub:
           // the mark at every width, the name from sm up. A badge, not a door.

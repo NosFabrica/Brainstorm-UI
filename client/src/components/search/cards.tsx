@@ -1298,6 +1298,7 @@ export function PodcastIndexSongCard({ song, flat }: { song: PodcastSong; flat?:
         sourceHost="podcastindex.org"
         onOpen={() => navigate(here)}
         pageUrl={here}
+        supportUrl={song.url}
         flat={flat}
       />
     </div>

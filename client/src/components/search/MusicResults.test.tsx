@@ -106,6 +106,17 @@ describe("MusicResults — the V4V lists while browsing", () => {
     expect(order).toEqual(["music-trending", "music-podcastindex-musicians", "music-podcastindex-songs", "music-new"]);
   });
 
+  it("keeps the promise visible: Support the artist on a song's row and on a musician's face, opening their Podcast Index page", () => {
+    open({ podcastIndex: { songs: [song(1, "Step Into the Light")], musicians: [torcon], loading: false } });
+    const row = screen.getByTestId(`podcastindex-song-${song(1, "").id}`);
+    const support = within(row).getByRole("link", { name: "Support the artist" });
+    expect(support).toHaveAttribute("href", "https://podcastindex.org/podcast/4148683#4");
+    expect(support).toHaveAttribute("target", "_blank");
+    const face = screen.getByTestId(`music-podcastindex-support-${torcon.id}`);
+    expect(face).toHaveTextContent("Support the artist");
+    expect(face).toHaveAttribute("href", "https://podcastindex.org/podcast/4148683");
+  });
+
   it("nothing from the lists is nothing on the page", () => {
     open();
     expect(screen.queryByTestId("music-podcastindex-songs")).toBeNull();
