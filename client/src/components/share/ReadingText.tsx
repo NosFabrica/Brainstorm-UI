@@ -113,7 +113,7 @@ function trimSentence(url: string): string {
  *  chips every few words break the line's rhythm. */
 export function ReadingLink({ url, label }: { url: string; label?: string }) {
   // "(see https://x.y/docs)." — the ")." is the sentence's, not the link's.
-  const href = label ? url : trimSentence(url);
+  const href = trimSentence(url);
   const tail = url.slice(href.length);
   return (
     <>
@@ -150,7 +150,7 @@ export function addressLink(bech32: string, key: string | number, url?: string):
   const kind = addressKind(bech32);
   if (kind === null || READER_KINDS.has(kind)) return null;
   const label = kindTypeLabel(kind);
-  return <ReadingLink key={key} url={url ? trimSentence(url) : `https://njump.me/${bech32}`} label={`↗ ${label.startsWith("Kind ") ? "linked post" : label.toLowerCase()}`} />;
+  return <ReadingLink key={key} url={url ?? `https://njump.me/${bech32}`} label={`↗ ${label.startsWith("Kind ") ? "linked post" : label.toLowerCase()}`} />;
 }
 
 export function ReadingText({

@@ -26,6 +26,12 @@ describe("ReadingText (descriptions)", () => {
     expect(link.getAttribute("href")).toBe(url);
   });
 
+  it("keeps the punctuation after a labelled address link", () => {
+    const naddr = "naddr1qvzqqqr6dypzquvszen0yle0j556up2ewzsdrjaua5eajk9nr5vw2d46xr3k69qpqyvhwumn8ghj7enpdenxzun9wvhxummnw3erztnrdaksqfpsxq6rgcekvc6j6wpsxqmz6dr9xvez6wtz89sj6vf4x93xyerpxfjx2ve4sy5msr";
+    const { container } = render(<ReadingText text={`Unlock it (https://fanfares.io/naddr/${naddr}).`} />);
+    expect(container).toHaveTextContent("Unlock it (↗ track).");
+  });
+
   it("keeps a sentence's closing punctuation out of the link", () => {
     const { container } = render(<ReadingText text="(see https://example.com/docs)." />);
     expect(screen.getByTestId("reading-link").getAttribute("href")).toBe("https://example.com/docs");

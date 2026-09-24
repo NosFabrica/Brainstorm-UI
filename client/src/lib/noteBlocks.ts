@@ -124,7 +124,9 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
   const blocks: NoteBlock[] = [];
   let para: Line[] = [];
   let quote: Line[] = [];
-  let list: { type: "ul" | "ol"; items: Line[]; start?: number; nested?: (NestedList | undefined)[] } | null = null;
+  // `indent`: the list's own indent, so only lines indented past it nest.
+  let list: { type: "ul" | "ol"; items: Line[]; start?: number; nested?: (NestedList | undefined)[]; indent: number } | null = null;
+  const indentOf = (s: string) => s.length - s.replace(/^[ \t]+/, "").length;
 
   const flush = () => {
     // Lines of prose each end a paragraph: a bridge that writes one
@@ -146,7 +148,7 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
     } else if (para.length) blocks.push({ type: "p", tokens: joinLines(para) });
     if (quote.length) blocks.push({ type: "quote", tokens: joinLines(quote) });
     if (list) {
-      const { type, items, start, nested } = list;
+      const { type, items, start, nested } = list; // indent is parse-only
       blocks.push({ type, items, ...(type === "ol" && start !== undefined && start !== 1 ? { start } : {}), ...(nested ? { nested } : {}) });
     }
     para = [];
@@ -220,7 +222,7 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
     const b = BULLET.exec(lead);
     const o = b ? null : ORDERED.exec(lead);
     // An indented item under an open list nests under its last item.
-    if ((b || o) && list && /^[ \t]{2,}/.test(lead)) {
+    if ((b || o) && list && indentOf(lead) >= list.indent + 2) {
       const at = list.items.length - 1;
       const nested = (list.nested ??= []);
       const kind = b ? "ul" : "ol";
@@ -232,7 +234,7 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
       const kind = b ? "ul" : "ol";
       if (!list || list.type !== kind) {
         flush();
-        list = { type: kind, items: [], start: o ? Number(o[1]) : undefined };
+        list = { type: kind, items: [], start: o ? Number(o[1]) : undefined, indent: indentOf(lead) };
       }
       list.items.push(stripLead(line, (b ?? o)![0].length));
       continue;
@@ -240,8 +242,10 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
 
     // An indented line under a list item continues it; anything else ends
     // the list — notes don't soft-wrap list items, they just stop listing.
-    if (list && /^[ \t]+\S/.test(lead)) {
-      const last = list.items[list.items.length - 1];
+    if (list && indentOf(lead) > list.indent && lead.trim()) {
+      // Under a sub-item, it belongs to that sub-item.
+      const sub = list.nested?.[list.items.length - 1];
+      const last = sub ? sub.items[sub.items.length - 1] : list.items[list.items.length - 1];
       last.push({ type: "text", value: "\n" }, ...stripLead(line, lead.length - lead.trimStart().length));
       continue;
     }
@@ -419,6 +423,9 @@ const INLINE_RE = new RegExp(
   "gu",
 );
 
+/** Python's special names — written with double underscores, never bold. */
+const DUNDERS = new Set(["init", "main", "name", "proto", "dict", "str", "repr", "call", "len", "class", "file", "doc", "all", "eq", "ne", "lt", "gt", "hash", "iter", "next", "enter", "exit", "getattr", "setattr", "getitem", "setitem", "new", "del", "slots", "module", "package", "builtins", "future", "version", "author", "annotations", "dirname", "filename"]);
+
 /** Inline emphasis in one text run. Unmatched markers stay literal. */
 export function parseInlineMarkdown(text: string): InlineSpan[] {
   const out: InlineSpan[] = [];
@@ -428,7 +435,7 @@ export function parseInlineMarkdown(text: string): InlineSpan[] {
     if (idx > last) out.push({ type: "text", value: text.slice(last, idx) });
     const g = m.groups!;
     // __init__, __main__: a Python name, not bold.
-    if (g.ustrong !== undefined && /^[a-z0-9_]+$/.test(g.ustrong)) {
+    if (g.ustrong !== undefined && DUNDERS.has(g.ustrong)) {
       out.push({ type: "text", value: m[0] });
       last = idx + m[0].length;
       continue;

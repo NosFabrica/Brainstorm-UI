@@ -182,6 +182,23 @@ describe("review regressions", () => {
 });
 
 describe("final audit regressions", () => {
+  it("a list indented as a whole stays one level", () => {
+    const b = blocks("  - apples\n  - pears\n  - plums");
+    expect((b[0] as { items: unknown[]; nested?: unknown }).items).toHaveLength(3);
+    expect((b[0] as { nested?: unknown }).nested).toBeUndefined();
+  });
+
+  it("a line under a sub-item belongs to that sub-item", () => {
+    const b = blocks("- Setup\n  - install deps\n    (needs node 20)");
+    const l = b[0] as { items: { value?: string }[][]; nested?: { items: { value?: string }[][] }[] };
+    expect(l.items[0].map((t) => t.value).join("")).toBe("Setup");
+    expect(l.nested?.[0].items[0].map((t) => t.value).join("")).toBe("install deps\n(needs node 20)");
+  });
+
+  it("__word__ is still bold; only Python's names are exempt", () => {
+    expect(parseInlineMarkdown("this is __really__ important")[1]).toEqual({ type: "strong", children: [{ type: "text", value: "really" }] });
+  });
+
   it("a reply and a list typed after a pasted git log stay prose", () => {
     const b = blocks("commit 57b3c5bda648016747553f49b6107fd6c7d90235\nAuthor: A <a@b>\n\n    fix\n\n@bob can you look at this please\n- also this list");
     expect(b.map((x) => x.type)).toEqual(["code", "p", "ul"]);
