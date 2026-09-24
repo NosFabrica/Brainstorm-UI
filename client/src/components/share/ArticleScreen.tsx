@@ -15,7 +15,7 @@ import { fetchProfile } from "@/services/nostr";
 import { apiClient } from "@/services/api";
 import { npubFromPubkey } from "@/lib/shareId";
 import { sourceAppFor } from "@/lib/sourceApp";
-import { wikiToMarkdown } from "@/lib/wiki";
+import { articleSummary, wikiToMarkdown } from "@/lib/wiki";
 import { prepareArticleBody } from "@/lib/articleBody";
 import { htmlToText, looksLikeHtml, stripStrayHtml } from "@/lib/htmlText";
 import { ReadingText } from "@/components/share/ReadingText";
@@ -206,7 +206,8 @@ export function ArticleScreen({ ev, naddr, ptr }: { ev: ArticleEvent; naddr: str
     // In order, however the author tagged them.
     return [...byKind.entries()].map(([kind, label]) => ({ kind, label })).sort((a, b) => Number(a.kind) - Number(b.kind));
   }, [ev, prepared.kinds]);
-  const summary = tag("summary") || "";
+  // The author's summary, never a publisher's placeholder ("No description available").
+  const summary = ev ? articleSummary(ev) : "";
   // A wiki page mirrored from elsewhere names its source in an "s" tag
   // (GitCitadel: the Wikipedia URL). Attribution is owed, and one line does it.
   const sourceUrl = ev?.kind === 30818 && /^https?:\/\//.test(tag("s") || "") ? tag("s")! : "";
