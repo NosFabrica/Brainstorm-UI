@@ -47,6 +47,11 @@ describe("EmbeddedArticleCard", () => {
     expect(within(screen.getByTestId("embedded-article")).getByTestId("kind-pill")).toHaveTextContent(/^Spec$/);
   });
 
+  it("stays unlabelled on a surface that holds one kind — the Recipes or NIPs tab", () => {
+    render(<EmbeddedArticleCard event={page(30817, "# TA", [["d", "ta"], ["title", "TA"]])} author={{ name: "Russell" }} mixed={false} />);
+    expect(screen.queryByTestId("kind-pill")).toBeNull();
+  });
+
   // Specs wore the generic Brainstorm article cover (Benjamin, 2026-09-23:
   // "when showing Specs in search lets use this image — name it for SEO").
   // A spec with no image of its own gets the NIP cover, named and described

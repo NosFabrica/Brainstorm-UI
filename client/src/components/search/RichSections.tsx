@@ -295,9 +295,10 @@ function MediaTile({ hit, score, onGone }: { hit: SearchHit; score?: number | nu
         data-testid="media-tile-caption"
       >
         {caption && <p className="line-clamp-2 text-[12px] leading-snug text-slate-700 dark:text-slate-200">{caption}</p>}
-        <p className="mt-0.5 flex items-center gap-1.5 min-w-0 text-[11px] text-slate-400 dark:text-slate-500">
+        <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 min-w-0 text-[11px] text-slate-400 dark:text-slate-500">
           <span className="min-w-0 truncate">{hit.author ? getDisplayLabel(hit.author) : "Unknown"} · {ago(e.created_at)}</span>
-          <KindPill event={e} />
+          {/* The picture says what it is; the pill only when asked for everywhere. */}
+          <KindPill event={e} mixed={false} />
         </p>
       </div>
     </div>
@@ -347,7 +348,7 @@ function articleShape(e: NostrEvent) {
 function ArticleAuthor({ hit, score, light = false }: { hit: SearchHit; score?: number | null; light?: boolean }) {
   const tierRing = useTierRing();
   return (
-    <span className={`flex items-center gap-1.5 min-w-0 text-[11px] ${light ? "text-white/85" : "text-slate-500 dark:text-slate-400"}`}>
+    <span className={`flex flex-wrap items-center gap-x-1.5 gap-y-1 min-w-0 text-[11px] ${light ? "text-white/85" : "text-slate-500 dark:text-slate-400"}`}>
       <Avatar className={`h-4 w-4 shrink-0 border border-white/60 ${tierRing(score ?? null, false, "sm", true) ?? ""}`}>
         {hit.author?.picture ? <AvatarImage src={hit.author.picture} alt="" className="object-cover" /> : null}
         <AvatarFallback className="overflow-hidden">

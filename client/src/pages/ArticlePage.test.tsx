@@ -116,9 +116,11 @@ describe("what the reader says a page is", () => {
     expect(screen.getByTestId("kind-pill")).toHaveTextContent(/^Spec$/);
   });
 
-  it("a recipe reads as a recipe", async () => {
+  // Benjamin (2026-09-24): only a spec. An essay, a wiki page or a recipe
+  // looks like what it is; the word above the title would be noise.
+  it("says nothing above a recipe or an essay", async () => {
     await open(article([["t", "zapcooking"]]));
-    expect(screen.getByTestId("kind-pill")).toHaveTextContent(/^Recipe$/);
+    expect(screen.queryByTestId("kind-pill")).toBeNull();
   });
 });
 

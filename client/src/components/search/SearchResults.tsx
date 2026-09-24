@@ -1762,6 +1762,7 @@ export function SearchResults({
                 return wrap(
                   <EmbeddedArticleCard
                     leadKinds={searchedKinds}
+                    mixed={tab === "articles"}
                     event={event as MinimalEvent}
                     author={profiles.get(event.pubkey)}
                     trustScore01={scoreOf(event.pubkey) ?? null}

@@ -6,6 +6,7 @@
  * own suite covers the wire; these tests cover what a searcher sees.
  */
 import { nip19 } from "nostr-tools";
+import { setKindLabelsEverywhere } from "@/lib/kindLabelsPref";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
@@ -575,7 +576,7 @@ describe("SearchResults", () => {
       expect(within(facets).getByTestId("event-facet-past")).toHaveTextContent("Past 1");
       // The card reads as an event: the start time, the title, who hosts, where.
       const tonight = screen.getByTestId("event-card-e-tonight");
-      expect(within(tonight).getByTestId("kind-pill")).toHaveTextContent(/^Event$/);
+      expect(within(tonight).queryByTestId("kind-pill")).toBeNull(); // the Events tab says it
       expect(within(tonight).getByTestId("event-time-e-tonight")).toHaveTextContent(/\d{1,2}:\d{2}/);
       expect(tonight).toHaveTextContent("Bitcoin Liverpool Meetup");
       expect(tonight).toHaveTextContent("Liverpool, UK");
@@ -823,7 +824,7 @@ describe("SearchResults", () => {
     // Live first, most watched first.
     expect(tiles()).toEqual(["live-tile-l1", "live-tile-l2"]);
     const l1 = screen.getByTestId("live-tile-l1");
-    expect(within(l1).getByTestId("kind-pill")).toHaveTextContent(/^Stream$/);
+    expect(within(l1).queryByTestId("kind-pill")).toBeNull(); // the Live tab says it
     expect(within(l1).getByTestId("live-status-l1")).toHaveTextContent(/LIVE/);
     expect(within(l1).getByTestId("live-status-l1")).toHaveTextContent("23");
     expect(within(l1).getByTestId("live-onair-l1")).toHaveTextContent("2h 15m");
@@ -955,7 +956,7 @@ describe("SearchResults", () => {
     emit({ hits: [{ event: track, author: author(nova, "NOVA"), rank: null }, { event: junk, author: null, rank: null }], eose: true, timeMs: 150 });
 
     const card = await screen.findByTestId("track-card-t1");
-    expect(within(card).getByTestId("kind-pill")).toHaveTextContent(/^Track$/);
+    expect(within(card).queryByTestId("kind-pill")).toBeNull(); // the Music tab says it
     expect(card).toHaveTextContent("Old Carbon");
     expect(card).toHaveTextContent("NOVA");
     // The cover is the play button — the same inline player the profile page uses.
@@ -1267,7 +1268,7 @@ describe("SearchResults", () => {
     });
 
     const card = await screen.findByTestId("listing-card-l1");
-    expect(within(card).getByTestId("kind-pill")).toHaveTextContent(/^Listing$/);
+    expect(within(card).queryByTestId("kind-pill")).toBeNull(); // the Shop tab says it
     expect(card).toHaveTextContent("Maglia in kashmir donna");
     expect(card).toHaveTextContent("23,550 sats");
     expect(card).toHaveTextContent("Gubbio (PG)");
@@ -1344,6 +1345,20 @@ describe("SearchResults", () => {
     expect(screen.getByTestId("cluster-expand-m1")).toHaveTextContent("+2 more like this");
   });
 
+  // Benjamin (2026-09-24): the kind pill on every card is for the team and
+  // technical readers, not the default. The label earns its place only where
+  // kinds mix; Settings › Advanced turns it on everywhere, on this device.
+  it("with kind labels everywhere on, a single-kind tab's cards say what they are", async () => {
+    setKindLabelsEverywhere(true);
+    setUrlTab("shop");
+    render(<SearchResults query="mug" pov="nosfabrica" />);
+    const listing = ev("kl1", 30402, "5".repeat(64), "A mug", [["d", "kl1"], ["title", "Handmade mug"], ["price", "20", "USD"], ["status", "active"]]);
+    emit({ hits: [{ event: listing, author: author(listing.pubkey, "potter"), rank: null }], eose: true, timeMs: 100 });
+    const card = await screen.findByTestId("listing-card-kl1");
+    expect(within(card).getByTestId("kind-pill")).toHaveTextContent(/^Listing$/);
+    setKindLabelsEverywhere(false);
+  });
+
   it("renders a git repo with name and description", async () => {
     setUrlTab("code");
     render(<SearchResults query="relay" pov="nosfabrica" />);
@@ -1356,9 +1371,9 @@ describe("SearchResults", () => {
     expect(await screen.findByText("vespa-relay")).toBeInTheDocument();
     expect(screen.getByText("Search relay over Vespa")).toBeInTheDocument();
     const card = screen.getByTestId("repo-card-r1");
-    // Every card says what it is (the team, 2026-09-24) — a repo too, in the
-    // same pill an issue or a pull request wears.
-    expect(within(card).getByTestId("kind-pill")).toHaveTextContent(/^Repo$/);
+    // On the Repos tab a repo is the default thing — no "Repo" pill on 45 of
+    // 100 cards (probed 2026-09-05); issues and pull requests announce themselves.
+    expect(within(card).queryByTestId("kind-pill")).toBeNull();
     expect(card).toHaveTextContent("Maintained by");
   });
 
@@ -1825,8 +1840,8 @@ describe("SearchResults", () => {
     // The chips sit in the text column, beside the icon — under the name, not under the icon's height.
     const chips = within(card).getByTestId("app-platforms-bare");
     expect(chips.parentElement).toContainElement(within(card).getByText("PlayOnDlna"));
-    // And the card says what it is, beside the name.
-    expect(within(card).getByTestId("kind-pill")).toHaveTextContent(/^App$/);
+    // The Apps tab says what these are; no pill on every card.
+    expect(within(card).queryByTestId("kind-pill")).toBeNull();
   });
 
   it("the Apps strip is one row: platforms, then categories, without counts", async () => {
@@ -1870,7 +1885,7 @@ describe("SearchResults", () => {
     // …and the people-pack outranks the bookmark list despite arriving after.
     const cards = screen.getAllByTestId(/^list-card-/);
     expect(cards[0].getAttribute("data-testid")).toBe("list-card-fs1");
-    expect(within(cards[0] as HTMLElement).getByTestId("kind-pill")).toHaveTextContent(/^Follow set$/);
+    expect(within(cards[0] as HTMLElement).queryByTestId("kind-pill")).toBeNull(); // the Lists tab says it
     expect(cards[1].getAttribute("data-testid")).toBe("list-card-bm1");
   });
 
@@ -1989,7 +2004,7 @@ describe("SearchResults", () => {
     const other = ev("bl1", 21, "9".repeat(64), "another clip", [["d", "bl1"], ["title", "another clip"], ["imeta", "url https://blossom.primal.net/xyz.mp4", "m video/mp4"]]);
     emit({ hits: [{ event: divine, author: author(divine.pubkey, "dancer"), rank: null }, { event: other, author: author(other.pubkey, "someone"), rank: null }], eose: true, timeMs: 200 });
     const card = await screen.findByTestId("media-card-dv1");
-    expect(within(card).getByTestId("kind-pill")).toHaveTextContent(/^Video$/);
+    expect(within(card).queryByTestId("kind-pill")).toBeNull(); // the picture says what it is
     const mark = within(card).getByRole("img", { name: "Divine" });
     expect(mark.tagName.toLowerCase()).toBe("svg");
     expect(card).not.toHaveTextContent("media.divine.video");

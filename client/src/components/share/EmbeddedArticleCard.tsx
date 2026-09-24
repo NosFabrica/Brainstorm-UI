@@ -44,12 +44,14 @@ function ago(ts?: number): string {
 /** How many of a spec's kinds a card shows; the spec page has them all. */
 const KIND_CHIPS_SHOWN = 6;
 
-export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [] }: {
+export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [], mixed = true }: {
   trustScore01?: number | null;
   event: MinimalEvent;
   author?: ProfileLite;
   /** The kinds the search asked for — shown first, so a reader sees why the card matched. */
   leadKinds?: string[];
+  /** Whether the surface mixes kinds. The Recipes and NIPs tabs hold one and say so; the pill stays away there. */
+  mixed?: boolean;
 }) {
   const tierRing = useTierRing();
   // Callers that fetched a score pass it (dashboard/reading cards); the
@@ -118,7 +120,7 @@ export function EmbeddedArticleCard({ event, author, trustScore01, leadKinds = [
         />
 
         <div className="min-w-0 flex-1 p-3">
-          <KindPill event={event} />
+          <KindPill event={event} mixed={mixed} />
           <p className="text-sm font-bold text-slate-900 dark:text-slate-100 line-clamp-2 mt-0.5">{title}</p>
           {summary && <p className="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1">{summary}</p>}
           {coveredKinds.length > 0 && (

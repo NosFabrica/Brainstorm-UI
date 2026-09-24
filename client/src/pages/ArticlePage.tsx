@@ -234,8 +234,9 @@ export default function ArticlePage() {
             {image && (
               <img src={image} alt="" className="w-full max-h-80 object-cover rounded-2xl border border-slate-200 dark:border-slate-800" />
             )}
-            {/* What this is — the same pill every card wears — before the title. */}
-            <KindPill event={ev} className="mt-5" />
+            {/* A spec says so before its title (Benjamin, 2026-09-24: only a spec —
+                an essay, a wiki page or a recipe looks like what it is). */}
+            <KindPill event={ev} mixed={ev.kind === 30817} className="mt-5" />
             <h1 className="mt-2 text-3xl sm:text-4xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100" style={{ fontFamily: "var(--font-display)" }}>
               {title}
             </h1>

@@ -578,12 +578,12 @@ describe("ComposedResults — media-rich sections", () => {
     const grid = await screen.findByTestId("serp-media-grid");
     expect(grid.className).toMatch(/grid/);
     const photo = screen.getByTestId(`media-tile-${"1".repeat(64)}`);
-    expect(within(photo).getByTestId("kind-pill")).toHaveTextContent(/^Photo$/);
+    expect(within(photo).queryByTestId("kind-pill")).toBeNull(); // the picture says what it is
     expect(photo.querySelector("img")?.getAttribute("src")).toBe("https://cdn.example/anfield.jpg");
     expect(photo).toHaveTextContent("Sports Central");
     expect(photo.querySelector('[data-testid="media-tile-play"]')).toBeNull();
     const video = screen.getByTestId(`media-tile-${"2".repeat(64)}`);
-    expect(within(video).getByTestId("kind-pill")).toHaveTextContent(/^Video$/);
+    expect(within(video).queryByTestId("kind-pill")).toBeNull();
     expect(video.querySelector("img")?.getAttribute("src")).toBe("https://cdn.example/goal-poster.jpg");
     expect(video.querySelector('[data-testid="media-tile-play"]')).not.toBeNull();
     // Benjamin: a tap on the picture or the play badge opens THE MEDIA, full

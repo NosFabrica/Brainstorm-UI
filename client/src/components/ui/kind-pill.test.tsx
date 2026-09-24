@@ -6,9 +6,12 @@
  * are looking at. One quiet slate chip, never for a person: the avatar
  * already says that.
  */
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { KindPill } from "./kind-pill";
+import { setKindLabelsEverywhere } from "@/lib/kindLabelsPref";
+
+beforeEach(() => localStorage.clear());
 
 const ev = (kind: number, tags: string[][] = []) => ({ id: "1".repeat(64), kind, pubkey: "a".repeat(64), tags, content: "", created_at: 1 });
 
@@ -23,6 +26,22 @@ describe("KindPill", () => {
   it("takes a word of its own where the content's shape is the label — a news-shaped note", () => {
     render(<KindPill label="News" />);
     expect(screen.getByTestId("kind-pill")).toHaveTextContent(/^News$/);
+  });
+
+  // Benjamin (2026-09-24): on a tab where every card is a listing, "Listing"
+  // forty times says nothing — the label earns its place only where kinds
+  // mix. A surface that holds one kind says so, and the pill stays away…
+  it("stays away from a surface that holds one kind", () => {
+    render(<KindPill event={ev(30402)} mixed={false} />);
+    expect(screen.queryByTestId("kind-pill")).toBeNull();
+  });
+
+  // …unless the reader asked for labels everywhere (Settings › Advanced), the
+  // team's and technical readers' view.
+  it("shows everywhere once the reader turned that on", () => {
+    setKindLabelsEverywhere(true);
+    render(<KindPill event={ev(30402)} mixed={false} />);
+    expect(screen.getByTestId("kind-pill")).toHaveTextContent(/^Listing$/);
   });
 
   it("never labels a person", () => {
