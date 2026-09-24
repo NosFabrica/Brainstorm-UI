@@ -106,6 +106,22 @@ describe("the article reader", () => {
   });
 });
 
+describe("what the reader says a page is", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  // The team (2026-09-24): a spec from Nostr Hub has no NIP number; the page
+  // says what it is in the same pill every card wears, above the title.
+  it("names the kind above the title: Spec, Recipe", async () => {
+    await open(spec(30817, []));
+    expect(screen.getByTestId("kind-pill")).toHaveTextContent(/^Spec$/);
+  });
+
+  it("a recipe reads as a recipe", async () => {
+    await open(article([["t", "zapcooking"]]));
+    expect(screen.getByTestId("kind-pill")).toHaveTextContent(/^Recipe$/);
+  });
+});
+
 describe("reading a spec", () => {
   beforeEach(() => vi.clearAllMocks());
 
