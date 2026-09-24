@@ -6,7 +6,7 @@
  * once — a profile from disk however old — then each newer copy the store
  * receives. Never an older one.
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { NostrEvent } from "nostr-tools";
 import { eventStore } from "@/lib/eventStore";
@@ -84,6 +84,42 @@ describe("useHeldReplaceable", () => {
     __useCacheStore(device([{ addr: `0:${pk}:`, pubkey: pk, kind: 0, event: old, at: Date.now() - 365 * 24 * 3600_000 }]));
     const { result } = renderHook(() => useHeldReplaceable(0, pk));
     await waitFor(() => expect(result.current?.content).toContain("held for a year"));
+  });
+});
+
+describe("switching what it follows", () => {
+  it("shows the new coordinate's held copy on the very render that switches", () => {
+    eventStore.add(article("one", 10));
+    eventStore.add(article("two", 20));
+    const seen: (string | undefined)[] = [];
+    const { rerender } = renderHook(
+      ({ d }) => {
+        const held = useHeldReplaceable(30023, AUTHOR, d);
+        seen.push(held?.content);
+        return held;
+      },
+      { initialProps: { d: "one" } },
+    );
+    seen.length = 0;
+    rerender({ d: "two" });
+    // Every render after the switch — the first included — has the copy.
+    expect(seen.length).toBeGreaterThan(0);
+    expect(seen.every((content) => content === "v20")).toBe(true);
+  });
+});
+
+describe("the device's copies", () => {
+  it("are read once, into the store, however many hooks show the person", async () => {
+    const pk = "9".repeat(64);
+    const rows = [{ addr: `0:${pk}:`, pubkey: pk, kind: 0, event: profile(pk, 60, "read once"), at: 0 }];
+    const store = device(rows);
+    const get = vi.spyOn(store, "get");
+    __useCacheStore(store);
+    const first = renderHook(() => useHeldReplaceable(0, pk));
+    await waitFor(() => expect(first.result.current?.content).toContain("read once"));
+    const second = renderHook(() => useHeldReplaceable(0, pk));
+    expect(second.result.current?.content).toContain("read once"); // from memory, first render
+    expect(get).toHaveBeenCalledTimes(1);
   });
 });
 

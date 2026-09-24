@@ -4,6 +4,7 @@ import type { NostrEvent } from "nostr-tools";
 import type { ProfileContent } from "applesauce-core/helpers/profile";
 import { fetchProfileMap, refreshProfileEvent } from "@/services/nostr";
 import { profileContentOf } from "@/lib/profileContent";
+import { eventStore } from "@/lib/eventStore";
 import { newerEvent, useHeldReplaceable, useHeldReplaceables } from "@/hooks/useHeldEvents";
 
 /**
@@ -34,6 +35,29 @@ export function useLiveProfile(
 
 const NO_PROFILES: Map<string, ProfileContent> = new Map();
 
+/** How long one ask for a person's profile covers every list that shows them. */
+const ASKED_FOR_MS = 5 * 60_000;
+const askedAt = new Map<string, number>();
+
+/**
+ * The people in this list not already asked for in the last few minutes.
+ * A results page mounts dozens of lists over largely the same people; one ask
+ * is enough, because what it finds lands in the store every list follows.
+ * Only an ask that FOUND something covers the next list: someone still not in
+ * the store is asked again, as they always were.
+ */
+function notAskedRecently(pubkeys: string[]): string[] {
+  const now = Date.now();
+  const due = pubkeys.filter((pk) => (askedAt.get(pk) ?? 0) + ASKED_FOR_MS <= now || !eventStore.getReplaceable(0, pk));
+  due.forEach((pk) => askedAt.set(pk, now));
+  return due;
+}
+
+/** Test seam. */
+export function __resetAskedProfiles(): void {
+  askedAt.clear();
+}
+
 /**
  * Names and avatars for a list of people — the ones a note mentions, a
  * thread's repliers, a face pile. Every held copy renders at once, however
@@ -44,6 +68,8 @@ const NO_PROFILES: Map<string, ProfileContent> = new Map();
  *
  * The queue decides who is re-asked: a copy learned within the hour was just
  * fetched, and a page of notes is too many people to re-ask on every render.
+ * Each person is asked about once per few minutes however many lists show
+ * them (notAskedRecently).
  */
 export function useLiveProfiles(pubkeys: string[]): Map<string, ProfileContent> {
   const unique = useMemo(() => Array.from(new Set(pubkeys.filter((pk) => /^[0-9a-f]{64}$/i.test(pk)))).sort(), [pubkeys]);
@@ -51,14 +77,17 @@ export function useLiveProfiles(pubkeys: string[]): Map<string, ProfileContent> 
   const coords = useMemo(() => unique.map((pubkey) => ({ kind: 0, pubkey })), [key]); // eslint-disable-line react-hooks/exhaustive-deps
   const held = useHeldReplaceables(coords);
 
+  // Only a copy the store refused ever needs this map; it accumulates rather
+  // than resetting, so a growing list never blanks a name it already had.
   const [fetched, setFetched] = useState<Map<string, ProfileContent>>(NO_PROFILES);
   useEffect(() => {
-    setFetched(NO_PROFILES);
     if (!key) return;
+    const due = notAskedRecently(key.split(","));
+    if (!due.length) return;
     let alive = true;
-    fetchProfileMap(key.split(","))
+    fetchProfileMap(due)
       .then((map) => {
-        if (alive) setFetched(map);
+        if (alive && map.size) setFetched((current) => new Map([...current, ...map]));
       })
       .catch(() => {});
     return () => {

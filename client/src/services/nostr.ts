@@ -566,8 +566,9 @@ async function fetchProfileFromRelays(
  * the first answer and then any newer one.
  *
  * The author's known outbox, the default set and the `nprofile`'s own hints
- * are asked at once; only if none has a profile is their relay list looked up
- * and asked as well. Resolves with the newest copy seen, or null.
+ * are asked at once; the rest of their outbox joins as soon as their relay
+ * list is known — an edit published only to their own relays is exactly the
+ * update this exists to find. Resolves with the newest copy seen, or null.
  */
 export async function refreshProfileEvent(
   pubkey: string,
@@ -578,10 +579,14 @@ export async function refreshProfileEvent(
   const filter = { kinds: [0], authors: [pubkey] };
   const newest = (events: NostrEvent[]) => events.reduce<NostrEvent | undefined>((a, b) => newerOf(a, b), undefined);
   const known = dedupeRelays([...outboxRelaysFromDb(pubkey, PROFILE_RELAYS), ...relayHints]);
-  const found = newest(await requestAll(known, filter, timeoutMs));
-  if (found) return found;
-  const routed = (await outboxRelays(pubkey, PROFILE_RELAYS).catch(() => [] as string[])).filter((r) => !known.includes(r));
-  return (routed.length ? newest(await requestAll(routed, filter, timeoutMs)) : undefined) ?? null;
+  const [direct, routed] = await Promise.all([
+    requestAll(known, filter, timeoutMs),
+    outboxRelays(pubkey, PROFILE_RELAYS)
+      .catch(() => [] as string[])
+      .then((relays) => relays.filter((r) => !known.includes(r)))
+      .then((extra) => (extra.length ? requestAll(extra, filter, timeoutMs) : [])),
+  ]);
+  return newest([...direct, ...routed]) ?? null;
 }
 
 /** NIP-01: newer wins, and on a tie the lexicographically lower id wins. */

@@ -66,9 +66,9 @@ export function useNoteRefs(
 
   // Keyed by coordinate AND hints: an identifier may hold a comma, so the
   // pointers themselves ride along in a memo rather than being re-parsed.
-  const addrsKey = JSON.stringify(refs.addrs.map((a) => [addrCoord(a), (a.relays ?? []).slice(0, MAX_REF_HINTS)]).sort());
+  const addrsKey = JSON.stringify(refs.addrs.map((a) => [addrCoord(a), a.relays ?? []]).sort());
   const addrs = useMemo<AddressRef[]>(
-    () => refs.addrs.map((a) => ({ ...a, relays: a.relays?.slice(0, MAX_REF_HINTS) })),
+    () => capHints(refs.addrs),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [addrsKey],
   );
@@ -109,6 +109,17 @@ export function useNoteRefs(
   const profiles = useLiveProfiles(pubkeys) as Map<string, ProfileLite>;
 
   return { profiles, eventsById, addrByCoord };
+}
+
+/**
+ * The references' own relay hints, within one budget for the whole read:
+ * `fetchAddressableEvents` unions every pointer's relays into one REQ, so a
+ * per-pointer cap would still let twenty quoted articles open a hundred
+ * sockets. The first MAX_REF_HINTS distinct relays named are kept.
+ */
+export function capHints(addrs: AddressRef[]): AddressRef[] {
+  const allowed = new Set(Array.from(new Set(addrs.flatMap((a) => a.relays ?? []))).slice(0, MAX_REF_HINTS));
+  return addrs.map((a) => (a.relays?.length ? { ...a, relays: a.relays.filter((relay) => allowed.has(relay)) } : a));
 }
 
 /** Per coordinate, the newer of the held copy and the fetched one. */

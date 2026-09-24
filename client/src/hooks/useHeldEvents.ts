@@ -42,41 +42,48 @@ const NONE: Map<string, NostrEvent> = new Map();
 export function useHeldReplaceables(coords: Coordinate[]): Map<string, NostrEvent> {
   const keys = useMemo(() => Array.from(new Set(coords.map(coordKey))).sort(), [coords]);
   const keysId = keys.join("\n");
-  const [held, setHeld] = useState<Map<string, NostrEvent>>(() => readStore(keys));
+  // Tagged with the keys it answers for. On the render where the keys change
+  // (another profile, another article) the state still holds the old ones, so
+  // that render reads the store directly instead: a held copy never flashes
+  // "not found" for a frame before the effect catches up.
+  const [state, setState] = useState(() => ({ id: keysId, held: readStore(keys) }));
+  const fresh = useMemo(() => (state.id === keysId ? null : readStore(keys)), [state.id, keysId, keys]);
+  const held = fresh ?? state.held;
 
   useEffect(() => {
     if (!keys.length) {
-      setHeld(NONE);
+      setState({ id: keysId, held: NONE });
       return;
     }
     let alive = true;
     const wanted = new Set(keys);
+    const kinds = new Set(keys.map((k) => Number(k.split(":")[0])));
+    const authors = new Set(keys.map((k) => k.split(":")[1]));
     const take = (events: NostrEvent[]) => {
-      if (!alive) return;
-      setHeld((current) => {
+      // Filtered before any state update: the store inserts hundreds of events
+      // a second while a feed loads, and every hook instance hears all of them.
+      const mine = events.filter((e) => kinds.has(e.kind) && authors.has(e.pubkey) && wanted.has(coordOf(e)));
+      if (!alive || !mine.length) return;
+      setState((current) => {
+        const base = current.id === keysId ? current.held : readStore(keys);
         let next: Map<string, NostrEvent> | null = null;
-        for (const event of events) {
+        for (const event of mine) {
           const key = coordOf(event);
-          if (!wanted.has(key)) continue;
-          const had = (next ?? current).get(key);
+          const had = (next ?? base).get(key);
           if (newerEvent(event, had) === had) continue;
-          next ??= new Map(current);
+          next ??= new Map(base);
           next.set(key, event);
         }
-        return next ?? current;
+        return next ? { id: keysId, held: next } : current.id === keysId ? current : { id: keysId, held: base };
       });
     };
 
-    setHeld(readStore(keys));
+    setState((current) => (current.id === keysId ? current : { id: keysId, held: readStore(keys) }));
     const sub = eventStore.insert$.subscribe((event) => take([event]));
 
-    // Profiles the memory store doesn't have may still be on the device.
-    const profiles = keys.filter((k) => k.startsWith("0:") && !eventStore.getReplaceable(0, k.split(":")[1]));
-    if (profiles.length) {
-      readProfileRows(profiles.map((k) => k.split(":")[1]))
-        .then((rows) => take([...rows.values()].map((row) => row.event)))
-        .catch(() => {});
-    }
+    // Profiles the memory store doesn't have may still be on the device; they
+    // arrive through the store, like any other copy.
+    loadFromDevice(keys.filter((k) => k.startsWith("0:")).map((k) => k.split(":")[1]));
     return () => {
       alive = false;
       sub.unsubscribe();
@@ -92,6 +99,42 @@ export function useHeldReplaceables(coords: Coordinate[]): Map<string, NostrEven
 export function useHeldReplaceable(kind: number, pubkey: string | undefined, identifier?: string): NostrEvent | undefined {
   const coords = useMemo(() => (pubkey ? [{ kind, pubkey, identifier }] : []), [kind, pubkey, identifier]);
   return useHeldReplaceables(coords).get(coordKey({ kind, pubkey: pubkey ?? "", identifier }));
+}
+
+/** Pubkeys whose device copy has been looked for this session. */
+const deviceChecked = new Set<string>();
+
+/**
+ * Put the device's copy of these profiles into the memory store, however old.
+ *
+ * Into the STORE, not one hook's state: a page mounts dozens of these hooks
+ * over the same people, and once a copy is in memory every one of them — and
+ * every later mount — has it without another IndexedDB read. Each pubkey is
+ * looked for once a session: a copy the device lacks now can only arrive
+ * through the store, and the store is where the device's copies are written
+ * from. The store verifies the signature on the way in, as the author queue's
+ * copies are.
+ */
+function loadFromDevice(pubkeys: string[]): void {
+  const todo = pubkeys.filter((pk) => !deviceChecked.has(pk) && !eventStore.getReplaceable(0, pk));
+  if (!todo.length) return;
+  todo.forEach((pk) => deviceChecked.add(pk));
+  readProfileRows(todo)
+    .then((rows) => {
+      for (const row of rows.values()) {
+        try {
+          eventStore.add(row.event);
+        } catch {
+          /* a bad row is simply not shown */
+        }
+      }
+    })
+    .catch(() => {});
+}
+
+/** Test seam. */
+export function __resetDeviceChecks(): void {
+  deviceChecked.clear();
 }
 
 function readStore(keys: string[]): Map<string, NostrEvent> {

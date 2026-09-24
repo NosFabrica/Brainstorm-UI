@@ -83,4 +83,15 @@ describe("useLiveProfiles", () => {
     });
     await waitFor(() => expect(result.current.get(pk)?.name).toBe("carol (edited)"));
   });
+
+  it("asks once for someone every list on the page shows", async () => {
+    const pk = "4".repeat(64);
+    eventStore.add(kind0(pk, 100, "dave"));
+    renderHook(() => useLiveProfiles([pk]), { wrapper });
+    await waitFor(() => expect(profileMapMock).toHaveBeenCalledTimes(1));
+    renderHook(() => useLiveProfiles([pk]), { wrapper });
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(profileMapMock).toHaveBeenCalledTimes(1);
+  });
 });
+

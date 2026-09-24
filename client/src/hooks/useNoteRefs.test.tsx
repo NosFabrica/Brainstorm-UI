@@ -95,3 +95,18 @@ describe("useNoteRefs", () => {
     expect(addrMock.mock.calls[0][0]?.[0].relays).toEqual(["wss://article.example/"]);
   });
 });
+
+describe("capHints", () => {
+  it("keeps one budget of relay hints across every reference, not one each", async () => {
+    const { capHints, MAX_REF_HINTS } = await import("./useNoteRefs");
+    const addrs = Array.from({ length: 10 }, (_, i) => ({
+      kind: 30023,
+      pubkey: AUTHOR,
+      identifier: `post-${i}`,
+      relays: [`wss://r${i}a.example/`, `wss://r${i}b.example/`],
+    }));
+    const capped = capHints(addrs);
+    expect(new Set(capped.flatMap((a) => a.relays ?? [])).size).toBe(MAX_REF_HINTS);
+    expect(capped[0].relays).toEqual(["wss://r0a.example/", "wss://r0b.example/"]); // the first named are kept
+  });
+});

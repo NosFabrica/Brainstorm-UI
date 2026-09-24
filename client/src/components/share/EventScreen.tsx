@@ -10,7 +10,7 @@ import { fetchEventsByIds, fetchAddressableEvents } from "@/services/nostr";
 import { eventStore } from "@/lib/eventStore";
 import { useHeldReplaceables } from "@/hooks/useHeldEvents";
 import { useLiveProfile, useLiveProfiles } from "@/hooks/useLiveProfile";
-import { MAX_REF_HINTS, mergeNewest } from "@/hooks/useNoteRefs";
+import { MAX_REF_HINTS, capHints, mergeNewest } from "@/hooks/useNoteRefs";
 import { PROFILE_RELAYS } from "@/lib/relays";
 import { NoteTagChips } from "@/components/share/NoteTagChips";
 import { useBackupNeed } from "@/hooks/useBackupNeed";
@@ -207,7 +207,7 @@ function EventView({ ptr, note, loading }: { ptr: EventPointer | null; note: Min
   });
   const addrEventsQuery = useQuery({
     queryKey: ["event-addrs", ptr?.id, refs.addrs.map(addrCoord)],
-    queryFn: () => fetchAddressableEvents(refs.addrs, Array.from(new Set([...relayHints, ...PROFILE_RELAYS]))),
+    queryFn: () => fetchAddressableEvents(capHints(refs.addrs), Array.from(new Set([...relayHints, ...PROFILE_RELAYS]))),
     enabled: refs.addrs.length > 0,
     staleTime: 5 * 60_000,
     retry: false,
