@@ -1,5 +1,5 @@
 import { parseTrack } from "@/lib/trackEvent";
-import { formatListingPrice, parseListing } from "@/lib/listing";
+import { formatListingPrice, listingCardLine, parseListing } from "@/lib/listing";
 import { secondPriceLine, viewerCurrency, type BtcRates } from "@/lib/exchangeRate";
 import type { WavlakeSong } from "@/lib/wavlake";
 import { useEffect, useState } from "react";
@@ -1353,8 +1353,8 @@ export function ListingCard({
         )}
       </div>
       <p className={`mt-2.5 line-clamp-2 text-sm font-semibold leading-snug text-slate-900 dark:text-slate-100 ${open ? "pr-2" : ""}`}>{group?.title ?? l.title}</p>
-      {(l.location || l.summary) && (
-        <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">{l.location ?? l.summary}</p>
+      {listingCardLine(l) && (
+        <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400" data-testid={`listing-meta-${event.id}`}>{listingCardLine(l)}</p>
       )}
       {showAuthor && (
         <div className="mt-2">

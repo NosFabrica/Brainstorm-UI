@@ -1260,7 +1260,7 @@ describe("SearchResults", () => {
       ({ event: ev(id, 30402, seller, `${title} — come nuova`, [["d", id], ["title", title], ...tags]), author: author(seller, "Barattolo"), rank: null });
     emit({
       hits: [
-        listing("l1", "Maglia in kashmir donna", [["price", "23550", "sats"], ["image", "https://img/1.jpg"], ["location", "Gubbio (PG)"], ["t", "abbigliamento"], ["t", "kashmir"], ["r", "https://barattolo.app/l/l1"]]),
+        listing("l1", "Maglia in kashmir donna", [["price", "23550", "sats"], ["image", "https://img/1.jpg"], ["location", "Gubbio (PG)"], ["shipping_option", "Italia", "500", "sats"], ["t", "abbigliamento"], ["t", "kashmir"], ["r", "https://barattolo.app/l/l1"]]),
         listing("l2", "Maglia mezza stagione", [["price", "14100", "sats"], ["image", "https://img/2.jpg"], ["t", "abbigliamento"]]),
         listing("sold", "Maglia venduta", [["price", "9000", "sats"], ["status", "sold"], ["t", "abbigliamento"]]),
         listing("nop", "Regalo senza prezzo", [["image", "https://img/3.jpg"]]),
@@ -1270,6 +1270,8 @@ describe("SearchResults", () => {
     });
 
     const card = await screen.findByTestId("listing-card-l1");
+    // One quiet line under the title: where it is, what shipping costs.
+    expect(within(card).getByTestId("listing-meta-l1")).toHaveTextContent("Gubbio (PG) · 500 sats shipping");
     expect(card).toHaveTextContent("Maglia in kashmir donna");
     expect(card).toHaveTextContent("23,550 sats");
     expect(card).toHaveTextContent("Gubbio (PG)");
