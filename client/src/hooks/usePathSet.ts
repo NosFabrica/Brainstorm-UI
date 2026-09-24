@@ -12,8 +12,6 @@ import { apiClient } from "@/services/api";
 import type { ShortestPath } from "@/services/api/users";
 import { dedupePaths, samplePaths } from "@/lib/hopsPaths";
 
-/** How many paths a server that returns the list may send. */
-export const MAX_PATHS = 50;
 
 export interface PathSet {
   head: ShortestPath | undefined;
@@ -29,7 +27,10 @@ export interface PathSet {
 }
 
 export function usePathSet(from: string, to: string, { enabled, nonce }: { enabled: boolean; nonce: number }): PathSet {
-  const ask = () => apiClient.getShortestPath({ from, to, maxPaths: MAX_PATHS });
+  // No `maxPaths`: on today's server it caps `pathCount` as well as the list,
+  // and "50+" would be a lie about a 119-path connection. When the server
+  // returns `paths` under a bound of its own, the probe carries the list.
+  const ask = () => apiClient.getShortestPath({ from, to });
   const probe = useQuery({
     queryKey: ["shortestPath", from, to, nonce],
     queryFn: ask,

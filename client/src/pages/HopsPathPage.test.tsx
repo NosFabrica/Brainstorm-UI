@@ -61,11 +61,11 @@ describe("the Connection page", () => {
     expect(screen.queryByTestId("hops-group-verified")).toBeNull();
   });
 
-  it("samples a few paths and says honestly how many it checked, asking the server for its list", async () => {
+  it("samples a few paths and says honestly how many it checked", async () => {
     served = [[ME, C1, T], [ME, C2, T], [ME, C3, T], [ME, C1, T]];
     open();
     await waitFor(() => expect(screen.getByTestId("hops-summary")).toHaveTextContent(/We checked 3 of the 19 connections/));
-    expect(getShortestPath).toHaveBeenCalledWith({ from: ME, to: T, maxPaths: 50 });
+    expect(getShortestPath).toHaveBeenCalledWith({ from: ME, to: T });
   });
 
   it("takes the server's list when it sends one, and says it saw them all", async () => {

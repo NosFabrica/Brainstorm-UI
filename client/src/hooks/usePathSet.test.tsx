@@ -31,7 +31,7 @@ describe("usePathSet", () => {
     expect(result.current.paths).toEqual([[ME, C1, T], [ME, C2, T]]);
     expect(result.current.checked).toBe(2);
     expect(result.current.complete).toBe(false); // 3 exist, 2 found
-    expect(getShortestPath).toHaveBeenCalledWith({ from: ME, to: T, maxPaths: 50 });
+    expect(getShortestPath).toHaveBeenCalledWith({ from: ME, to: T });
   });
 
   it("a new nonce asks afresh; disabled asks nothing", async () => {
