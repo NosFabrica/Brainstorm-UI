@@ -8,7 +8,9 @@
  *   relay for sixty kind-0s it already had. A young copy answers on its own;
  *   an older one — however old — is still shown while the relay is asked as
  *   well. Any name beats a spinner, and the relay's answer replaces it.
- * - **Routing (kinds 3, 10002, 10040).** Where reads and publishes GO. This is
+ * - **Routing (kinds 3, 10002, 10040).** Where reads and publishes GO. Kept,
+ *   like profiles, until evicted: a young copy answers alone, an older one
+ *   answers while the relays are asked after it. This is
  *   the half that has to be here BEFORE a signature: routing is needed the
  *   moment an event is published, and a lookup at that moment is dead air
  *   before the signer prompt — or a race the publish loses quietly, landing on
@@ -46,10 +48,12 @@ const LEGACY_PROFILE_DB = "brainstorm-profiles";
 export const PROFILE_FRESH_MS = 60 * 60 * 1000;
 
 /**
- * Routing gets one age, not two. A stale name is worth showing while the relay
- * is asked; a stale relay list is not worth routing by, so it simply expires.
+ * How long a held routing event answers without the relays being asked as
+ * well. Past it the copy still answers — an hours-old relay list routes far
+ * better than the default set a miss falls back to — and is refreshed behind
+ * it (`refreshStale`).
  */
-const ROUTING_TTL_MS = 30 * 60 * 1000;
+const ROUTING_FRESH_MS = 30 * 60 * 1000;
 
 /** How long writes are gathered before they go to the device. */
 const WRITE_BATCH_MS = 2000;
@@ -64,8 +68,7 @@ const CACHED = new Set(CACHED_KINDS);
 /** NIP-65, restated so this module needs no import from the routing one. */
 const RELAY_LIST_KIND = 10002;
 
-const ageLimit = (kind: number) => (kind === 0 ? Infinity : ROUTING_TTL_MS);
-const freshLimit = (kind: number) => (kind === 0 ? PROFILE_FRESH_MS : ROUTING_TTL_MS);
+const freshLimit = (kind: number) => (kind === 0 ? PROFILE_FRESH_MS : ROUTING_FRESH_MS);
 
 export interface CachedRow {
   /** `kind:pubkey:d` — one row per replaceable coordinate. */
@@ -233,13 +236,12 @@ function trustworthy(row: CachedRow | undefined): row is CachedRow {
   }
 }
 
-/** The rows held for these coordinates, with their age — expired ones left out. */
+/** The rows held for these coordinates, with their age — however old; eviction is the only expiry. */
 async function liveRows(addrs: string[]): Promise<CachedRow[]> {
   const s = device();
   if (!s || addrs.length === 0) return [];
   try {
-    const now = Date.now();
-    return (await s.get(addrs)).filter((row) => trustworthy(row) && row.at >= now - ageLimit(row.kind));
+    return (await s.get(addrs)).filter((row) => trustworthy(row));
   } catch {
     return []; // the device has nothing to say — ask the relay
   }
@@ -253,9 +255,13 @@ export async function readProfileRows(pubkeys: string[]): Promise<Map<string, Ca
 }
 
 /**
- * Held events young enough to answer ON THEIR OWN, for applesauce's
- * `cacheRequest`: that hook REMOVES the pointers it answers from the loading
- * sequence, so an older copy must fall through to the relays instead.
+ * Held events, for applesauce's `cacheRequest` — every one, however old.
+ *
+ * That hook REMOVES the pointers it answers from the loading sequence, so a
+ * copy past its freshness window would otherwise pin that author to it: the
+ * relays would never be asked again. Those are answered AND refreshed behind
+ * the answer (`refreshStale`), which is what bounds staleness now — not
+ * withholding the copy and making the reader wait on the relays for it.
  */
 export async function cachedEventsForFilters(
   filters: { kinds?: number[]; authors?: string[]; "#d"?: string[] }[],
@@ -272,6 +278,7 @@ export async function cachedEventsForFilters(
   }
 
   const now = Date.now();
+  const stale: CachedRow[] = [];
   const byAuthor = new Map<string, CachedRow[]>();
   for (const row of rows) {
     const bucket = byAuthor.get(row.pubkey);
@@ -283,18 +290,56 @@ export async function cachedEventsForFilters(
   for (const filter of filters) {
     for (const pubkey of filter.authors ?? []) {
       for (const row of byAuthor.get(pubkey) ?? []) {
-        if (row.at < now - freshLimit(row.kind)) continue;
         if (filter.kinds && !filter.kinds.includes(row.kind)) continue;
         if (filter["#d"]) {
           const d = row.event.tags.find((tag) => tag[0] === "d")?.[1] ?? "";
           if (!filter["#d"].includes(d)) continue;
         }
         if (!trustworthy(row)) continue;
+        if (out.has(row.event.id)) continue;
         out.set(row.event.id, row.event);
+        if (row.at < now - freshLimit(row.kind)) stale.push(row);
       }
     }
   }
+  if (stale.length) void refreshStale(stale);
   return [...out.values()];
+}
+
+/** When each coordinate was last sent to the relays for a refresh. */
+const refreshedAt = new Map<string, number>();
+
+/**
+ * Ask the relays after copies that answered past their freshness window.
+ *
+ * Once per coordinate per window: a page asks for the same people many times
+ * over, and one refresh covers every one of those reads. Whatever comes back
+ * lands in the store — and so on the device — for the next read. Routed by
+ * the author's relay list where the store has one, as `revalidate` is: a
+ * kind-10040 that lives only on their own relays is not refreshed by asking
+ * the default set. Their relay list itself is looked up where relay lists are
+ * indexed (the loader's lookup relays).
+ */
+async function refreshStale(rows: CachedRow[]): Promise<void> {
+  const now = Date.now();
+  const due = rows.filter((row) => (refreshedAt.get(row.addr) ?? 0) < now - freshLimit(row.kind));
+  if (!due.length) return;
+  due.forEach((row) => refreshedAt.set(row.addr, now));
+  // Imported here for the reason `revalidate` gives: a static import back
+  // into `lib/loaders` closes a cycle at module init.
+  const { loadReplaceable } = await import("./loaders");
+  await Promise.all(
+    due.map((row) => {
+      const list = row.kind === RELAY_LIST_KIND ? undefined : eventStore.getReplaceable(RELAY_LIST_KIND, row.pubkey);
+      const write = list ? parseRelayList(list as NostrEvent).write : [];
+      return loadReplaceable(row.kind, row.pubkey, {
+        identifier: row.event.tags.find((tag) => tag[0] === "d")?.[1],
+        relays: write.length ? write : undefined,
+        fromRelays: true,
+        timeoutMs: 8000,
+      }).catch(() => undefined);
+    }),
+  );
 }
 
 /** Hold these events for next time, newest copy winning, oldest evicted. */
@@ -502,6 +547,7 @@ export function __useCacheStore(fake: CacheStore | null | undefined): void {
 
 /** Test seam. */
 export function __resetEventCache(): void {
+  refreshedAt.clear();
   hydration = null;
   hydratingFor = null;
   stopWriting?.();

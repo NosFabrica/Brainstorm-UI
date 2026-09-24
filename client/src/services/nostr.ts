@@ -187,9 +187,20 @@ export async function fetchOutboxRelayList(pubkey: string, timeoutMs = 10000): P
  * the hardcoded set and an activation published only to the user's own relays
  * reads as "never activated".
  */
-export async function fetchTrustProviderList(pubkey: string, timeoutMs = 10000): Promise<NostrEvent | undefined> {
+export async function fetchTrustProviderList(
+  pubkey: string,
+  timeoutMs = 10000,
+  { fromRelays = false }: { fromRelays?: boolean } = {},
+): Promise<NostrEvent | undefined> {
   try {
     const writeRelays = await outboxRelays(pubkey, PROFILE_RELAYS);
+    // A read that is about to be merged into and published back must be the
+    // newest any relay has — not the device's copy, which is kept until
+    // evicted, and not merely the first relay to answer. Publishing over an
+    // older copy would drop whatever the user declared elsewhere since.
+    if (fromRelays) {
+      return await requestNewest(writeRelays, { kinds: [10040], authors: [pubkey], limit: 5 }, timeoutMs);
+    }
 
     return await loadReplaceable(10040, pubkey, { relays: writeRelays, timeoutMs });
   } catch {}

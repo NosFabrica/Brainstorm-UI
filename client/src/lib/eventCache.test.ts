@@ -19,6 +19,7 @@ const snapshot: { event?: unknown } = {};
 vi.mock("./eventStore", () => ({
   eventStore: {
     add: (e: NostrEvent) => storeAdd(e),
+    getReplaceable: () => undefined,
     insert$: { subscribe: () => ({ unsubscribe() {} }) },
   },
 }));
@@ -266,7 +267,8 @@ describe("what goes to disk", () => {
 /**
  * What the address loader is answered with. The sequence stops at its first
  * hit, so anything served here is something the relays are NOT asked about —
- * which is the win, and the reason for both the expiry and the signature check.
+ * which is the win, and the reason for both the refresh of stale copies and
+ * the signature check.
  */
 describe("answering the loader from disk", () => {
   const ask = (filter: Record<string, unknown>) => cache.cachedEventsForFilters([filter as never]);
@@ -305,19 +307,45 @@ describe("answering the loader from disk", () => {
   });
 
   /**
-   * Staleness has to be bounded: a hit means the relays are never consulted.
+   * Staleness has to be bounded: a hit means the loader never asks the relays.
+   * Routing is kept until evicted (Vitor, 2026-09-24), so a stale copy still
+   * answers — an old relay list routes better than the default set — and the
+   * bound is a refresh sent to the relays behind it.
    *
    * Only the clock is moved, not the timers — fake-indexeddb schedules its own
    * work on real ones, and faking those deadlocks every read.
    */
-  it("stops answering once the entry is stale", async () => {
+  it("answers with a fresh entry and asks nobody", async () => {
     await cache.writeEvents([signed(10002)]);
     expect(await ask({ kinds: [10002], authors: [ME] })).toHaveLength(1);
+    await Promise.resolve();
+    expect(loadReplaceableMock).not.toHaveBeenCalled();
+  });
 
+  it("still answers once the entry is stale, and refreshes it from the relays", async () => {
+    await cache.writeEvents([signed(10002)]);
     const later = Date.now() + 31 * 60_000;
     const clock = vi.spyOn(Date, "now").mockReturnValue(later);
     try {
-      expect(await ask({ kinds: [10002], authors: [ME] })).toEqual([]);
+      expect(await ask({ kinds: [10002], authors: [ME] })).toHaveLength(1);
+      await vi.waitFor(() => expect(loadReplaceableMock).toHaveBeenCalledTimes(1));
+      expect(loadReplaceableMock.mock.calls[0].slice(0, 2)).toEqual([10002, ME]);
+      expect(loadReplaceableMock.mock.calls[0][2]).toMatchObject({ fromRelays: true });
+
+      // One refresh covers every read inside the window.
+      await ask({ kinds: [10002], authors: [ME] });
+      await new Promise((resolve) => setTimeout(resolve, 10));
+      expect(loadReplaceableMock).toHaveBeenCalledTimes(1);
+    } finally {
+      clock.mockRestore();
+    }
+  });
+
+  it("keeps a routing entry however old it is", async () => {
+    await cache.writeEvents([signed(10002)]);
+    const clock = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 365 * 24 * 3600_000);
+    try {
+      expect(await ask({ kinds: [10002], authors: [ME] })).toHaveLength(1);
     } finally {
       clock.mockRestore();
     }

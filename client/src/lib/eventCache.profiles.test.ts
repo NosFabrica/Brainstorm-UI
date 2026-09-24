@@ -24,6 +24,9 @@ import {
 } from "./eventCache";
 import { eventStore } from "./eventStore";
 
+// A stale copy is refreshed from the relays behind the answer; no relays here.
+vi.mock("./loaders", () => ({ loadReplaceable: async () => undefined }));
+
 const profile = (pubkey: string, created_at = 1): NostrEvent =>
   ({ id: `id-${pubkey}`, kind: 0, pubkey, tags: [], content: JSON.stringify({ name: pubkey }), created_at, sig: "s" }) as NostrEvent;
 
@@ -54,13 +57,13 @@ describe("profiles in the shared cache", () => {
     expect((await readProfiles(["a"])).get("a")?.created_at).toBe(200);
   });
 
-  it("stops answering alone once a copy is old enough to have changed", async () => {
+  // Past the freshness window a copy still answers — the relays are asked
+  // after it (eventCache.test.ts pins the refresh), so a changed name can't stick.
+  it("still answers once a copy is old enough to have changed", async () => {
     await writeEvents([profile("a")]);
     vi.setSystemTime(Date.now() + PROFILE_FRESH_MS + 1);
-    // Still held, so it can be shown…
     expect((await readProfileRows(["a"])).has("a")).toBe(true);
-    // …but no longer an answer on its own, or a changed name would stick.
-    expect(await readProfiles(["a"])).toEqual(new Map());
+    expect((await readProfiles(["a"])).has("a")).toBe(true);
     vi.useRealTimers();
   });
 
@@ -70,7 +73,6 @@ describe("profiles in the shared cache", () => {
     await writeEvents([profile("a")]);
     vi.setSystemTime(Date.now() + 365 * 24 * 60 * 60 * 1000);
     expect((await readProfileRows(["a"])).has("a")).toBe(true);
-    expect(await readProfiles(["a"])).toEqual(new Map()); // …but never answers alone
     vi.useRealTimers();
   });
 

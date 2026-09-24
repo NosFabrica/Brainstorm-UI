@@ -143,6 +143,10 @@ describe("publishBrainstormTrustAnchor — the user-initiated publish", () => {
     expect(res).toEqual({ status: "success" });
     expect(signNip85).toHaveBeenCalledWith(TA, "wss://nip85.example", { lists: LISTS, existing: theirs });
     expect(recordTrustListsDeclared).toHaveBeenCalledWith(ME, LISTS);
+    // What is merged into is read from the relays, never a held copy: the
+    // device keeps a 10040 until evicted, and publishing over an old one would
+    // drop rows the user declared elsewhere since.
+    expect(fetchTrustProviderList).toHaveBeenCalledWith(ME, 10000, { fromRelays: true });
   });
 
   /**
