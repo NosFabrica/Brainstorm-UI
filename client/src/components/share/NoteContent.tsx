@@ -106,8 +106,8 @@ export function NoteContent({
   const tokens = useMemo(() => parseNoteContent(text), [text]);
   // Shared metadata for a rich audio/podcast player: the note's own image as
   // artwork and its title/first-line as the track name (falling back per-URL).
-  const audioCover = extractImageUrls(content, tags)[0];
-  const audioTitle = extractNoteTitle(content, tags);
+  const audioCover = extractImageUrls(text, tags)[0];
+  const audioTitle = extractNoteTitle(text, tags);
   const requestNav = useShareNav();
   const openLightbox = useLightbox();
   const [, navigate] = useLocation();
@@ -219,7 +219,7 @@ export function NoteContent({
         }
   };
   const linkCardNode = primaryUrl && linkCard && primaryIsPlainLink && !wavlakeTrackId(primaryUrl) && !videoEmbedFor(primaryUrl) && !fountainRef(primaryUrl)
-    ? <LinkPreviewCard url={primaryUrl} showImage={!tokens.some((t) => t.type === "image" || t.type === "video")} context={content} />
+    ? <LinkPreviewCard url={primaryUrl} showImage={!tokens.some((t) => t.type === "image" || t.type === "video")} context={text} />
     : null;
 
   if (reading) {

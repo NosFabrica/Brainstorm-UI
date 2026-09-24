@@ -42,7 +42,7 @@ const ORDERED = /^[ \t]*(\d{1,3})[.)][ \t]+/;
 const QUOTE = /^>(?:[ \t]+|$)/;
 const RULE = /^[ \t]*(?:-{3,}|\*{3,}|_{3,})[ \t]*$/;
 /** A table's separator row: | --- | :--: | ---: | */
-const TABLE_SEP = /^\s*\|?\s*:?-{3,}:?\s*(?:\|\s*:?-{3,}:?\s*)*\|?\s*$/;
+const TABLE_SEP = /^\s*\|?\s*:?-+:?\s*(?:\|\s*:?-+:?\s*)*\|?\s*$/;
 /** An underline that makes the line above a heading (=== only: --- stays a rule). */
 const SETEXT = /^[ \t]*={3,}[ \t]*$/;
 // A fence opens on ``` plus at most a language word, and closes on a bare
@@ -156,7 +156,9 @@ export function toNoteBlocks(tokens: NoteToken[], opts: NoteBlockOptions = {}): 
     } else if (para.length) blocks.push({ type: "p", tokens: joinLines(para) });
     if (quote.length) {
       // "> " spacer lines leave one blank line, not a tall gap.
-      const kept = quote.filter((l, k) => !(isBlank(l) && (k === 0 || isBlank(quote[k - 1]) || k === quote.length - 1)));
+      let kept = quote.filter((l, k) => !(isBlank(l) && k > 0 && isBlank(quote[k - 1])));
+      while (kept.length && isBlank(kept[0])) kept = kept.slice(1);
+      while (kept.length && isBlank(kept[kept.length - 1])) kept = kept.slice(0, -1);
       blocks.push({ type: "quote", tokens: joinLines(kept) });
     }
     if (list) {
@@ -473,9 +475,6 @@ export type InlineSpan =
 const INLINE_RE = new RegExp(
   [
     "(?<tick>`{1,3})(?<code>[^`\\n]+)\\k<tick>",
-    // A backslash escape (\_ \*) is the character; one ending a line is
-    // markdown's line break, already a line break here.
-    "\\\\(?<esc>[\\\\`*_{}\\[\\]()#+\\-.!|>~])|\\\\(?<hard>$)",
     // **strong** hugs its text; __strong__ only around a word, so ASCII
     // art's ____ runs and snake__case stay text.
     "\\*\\*(?=\\S)(?<strong>[^\\n]{1,300}?)(?<=\\S)\\*\\*(?![\\p{L}\\p{N}])",
@@ -505,9 +504,7 @@ export function parseInlineMarkdown(text: string): InlineSpan[] {
     }
     const strong = g.strong ?? g.ustrong;
     const em = g.em ?? g.uem;
-    if (g.esc !== undefined) out.push({ type: "text", value: g.esc });
-    else if (g.hard !== undefined) { /* the break itself is the newline */ }
-    else if (g.code !== undefined) out.push({ type: "code", value: g.code });
+    if (g.code !== undefined) out.push({ type: "code", value: g.code });
     else if (strong !== undefined) out.push({ type: "strong", children: parseInlineMarkdown(strong) });
     else out.push({ type: "em", children: parseInlineMarkdown(em!) });
     last = idx + m[0].length;

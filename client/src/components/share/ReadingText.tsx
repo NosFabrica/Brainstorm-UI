@@ -167,6 +167,7 @@ export function ReadingText({
   headline = size === "post",
   renderToken,
   media = false,
+  normalized = false,
   after,
   className = "",
   testId,
@@ -184,6 +185,8 @@ export function ReadingText({
   /** Show pictures and videos in place (an article body), not as links (a
    *  description under a hero that shows its own media). */
   media?: boolean;
+  /** `text` is already cleaned (normalizeMarkup): don't clean it twice. */
+  normalized?: boolean;
   /** Rendered inside the column after the text (a link card). */
   after?: ReactNode;
   className?: string;
@@ -193,7 +196,7 @@ export function ReadingText({
   const [, navigate] = useLocation();
   // Parsed once per text, not per render: the event page re-renders as its
   // author, trust and reference queries land.
-  const plain = useMemo(() => (given ? undefined : normalizeMarkup(text || "")), [given, text]);
+  const plain = useMemo(() => (given ? undefined : normalized ? text || "" : normalizeMarkup(text || "")), [given, text, normalized]);
   const tokens = useMemo(() => given ?? parseNoteContent(plain ?? ""), [given, plain]);
   const blocks = useMemo(() => toNoteBlocks(tokens, { headline, source: source ?? plain }), [tokens, headline, source, plain]);
   // Inline emphasis per text run, kept with the blocks it belongs to.

@@ -246,6 +246,21 @@ describe("markdown notes (real: a test note, bridged GitHub comments)", () => {
   });
 });
 
+describe("refactor review regressions", () => {
+  it("backslashes in a note are the author's: ¯\\_(ツ)_/¯ stays whole", () => {
+    expect(parseInlineMarkdown("¯\\_(ツ)_/¯ and C:\\dir\\")).toEqual([{ type: "text", value: "¯\\_(ツ)_/¯ and C:\\dir\\" }]);
+  });
+
+  it("a short separator row still makes a table", () => {
+    expect(blocks("| a | b |\n|:--|--:|\n| 1 | 2 |")[0]).toMatchObject({ type: "table", align: ["left", "right"] });
+  });
+
+  it("a quote's trailing spacer lines are dropped", () => {
+    const b = blocks("> a\n>\n>");
+    expect(texts((b[0] as { tokens: never[] }).tokens)).toBe("a");
+  });
+});
+
 describe("parseInlineMarkdown", () => {
   it("parses strong, em and code", () => {
     expect(parseInlineMarkdown("a **b** *c* `d`")).toEqual([

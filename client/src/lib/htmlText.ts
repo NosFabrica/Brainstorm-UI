@@ -23,12 +23,43 @@ export function looksLikeHtml(text: string): boolean {
   // it as HTML would fold its line structure away. stripStrayHtml takes it.
   const mdLines = bare.replace(/<[^>]*>/g, "").split("\n").filter((l) => /^\s{0,3}(?:#{1,6} |[-*+] |\d+\. |> |\|)/.test(l)).length;
   if (mdLines >= 3) return false;
+  // HTML the whole way through, not markdown with a few tags in it: most of
+  // its lines are markup (or it is one long line of it).
+  const lines = bare.split("\n").map((l) => l.trim()).filter(Boolean);
+  const tagLines = lines.filter((l) => l.startsWith("<")).length;
+  // Opening with a block element (a marketplace's "<p>…") counts too:
+  // escaped code inside a <pre> is lines of text that are still HTML.
+  const opensWithBlock = /^\s*<(?:p|div|h[1-6]|ul|ol|pre|blockquote|table)\b/i.test(bare);
+  if (lines.length > 1 && !opensWithBlock && tagLines / lines.length < 0.5) return false;
   const tags = bare.match(TAG);
   if (!tags || tags.length < 3) return false;
   for (const m of bare.matchAll(BLOCK_OPEN)) {
     if (new RegExp(`</${m[1]}\\s*>`, "i").test(bare)) return true;
   }
   return false;
+}
+
+/** A cell's words: footnote markers and citation fragments (a Wikipedia
+ *  mirror's `<ref>{{cite web`) dropped, pipes escaped for the markdown row. */
+function cellText(cell: Element): string {
+  const c = cell.cloneNode(true) as Element;
+  c.querySelectorAll("a.footnote-ref, sup, ref").forEach((n) => n.remove());
+  c.querySelectorAll("br").forEach((n) => n.replaceWith(" "));
+  return (c.textContent || "").replace(/\{\{[\s\S]*$/, "").replace(/\s+/g, " ").trim().replace(/\|/g, "\\|");
+}
+
+/** An HTML table as a GFM table (with its caption as a bold line above) —
+ *  both readers draw GFM tables; neither draws raw HTML. */
+function tableToMarkdown(table: Element): string {
+  const rows = Array.from(table.querySelectorAll("tr")).map((tr) =>
+    Array.from(tr.children).filter((c) => /^t[dh]$/i.test(c.tagName)).map(cellText),
+  ).filter((r) => r.length);
+  if (!rows.length) return "";
+  const width = Math.max(...rows.map((r) => r.length));
+  const row = (r: string[]) => `| ${[...r, ...Array(width - r.length).fill("")].join(" | ")} |`;
+  const caption = table.querySelector("caption")?.textContent?.replace(/\s+/g, " ").trim();
+  const [head, ...body] = rows;
+  return `\n\n${caption ? `**${caption}**\n\n` : ""}${row(head)}\n|${" --- |".repeat(width)}\n${body.map(row).join("\n")}\n\n`;
 }
 
 function walk(node: Node, inPre: boolean, depth = 0): string {
@@ -44,6 +75,8 @@ function walk(node: Node, inPre: boolean, depth = 0): string {
     case "script":
     case "style":
       return "";
+    case "table":
+      return tableToMarkdown(el);
     case "br":
       return "\n";
     case "img": {
@@ -120,13 +153,29 @@ export function stripStrayHtml(text: string): string {
     .map((part, i) => {
       if (i % 2 === 1) return part; // code: untouched
       return part
+        .replace(/<pre\b[^>]*>([\s\S]*?)<\/pre>/gi, (_, inner: string) => {
+          // A <pre> is code: its text, entities decoded, fenced.
+          const text = typeof DOMParser === "undefined" ? inner : new DOMParser().parseFromString(`<pre>${inner}</pre>`, "text/html").body.textContent || "";
+          return `\n\n\`\`\`\n${text.replace(/^\n|\n$/g, "")}\n\`\`\`\n\n`;
+        })
+        .replace(/<table\b[\s\S]*?<\/table>/gi, (t) =>
+          typeof DOMParser === "undefined" ? t : tableToMarkdown(new DOMParser().parseFromString(t, "text/html").querySelector("table")!),
+        )
         .replace(COMMENT, "")
         .replace(/<summary\b[^>]*>([\s\S]*?)<\/summary>/gi, (_, t: string) => `\n\n**${t.trim()}**\n\n`)
         .replace(/<br\s*\/?>/gi, "\n")
         .replace(/<img\b[^>]*\bsrc=["']?(https?:\/\/[^"'\s>]+)["']?[^>]*>/gi, "\n$1\n")
-        .replace(/<a\b[^>]*\bhref=["'](https?:\/\/[^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_, u: string, t: string) => (t.trim() && t.trim() !== u ? `[${t.trim()}](${u})` : u))
-        .replace(/<\/?(?:strong|b)>/gi, "**")
-        .replace(/<\/?(?:em|i)>/gi, "*")
+        .replace(/<img\b[^>]*>/gi, "")
+        .replace(/<a\b[^>]*\bhref=["']?(https?:\/\/[^"'\s>]+)["']?[^>]*>([\s\S]*?)<\/a>/gi, (_, u: string, t: string) => (t.trim() && t.trim() !== u ? `[${t.trim()}](${u})` : u))
+        .replace(/<a\b[^>]*>([\s\S]*?)<\/a>/gi, "$1")
+        .replace(/<h([1-6])\b[^>]*>([\s\S]*?)<\/h\1>/gi, (_, _l: string, t: string) => `\n\n## ${t.trim()}\n\n`)
+        .replace(/<kbd\b[^>]*>([\s\S]*?)<\/kbd>/gi, "`$1`")
+        .replace(/<\/?(?:strong|b)\b[^>]*>/gi, "**")
+        .replace(/<\/?(?:em|i)\b[^>]*>/gi, "*")
+        .replace(/<\/?p\b[^>]*>/gi, "\n\n")
+        .replace(/<\/tr>/gi, "\n")
+        .replace(/<t[dh]\b[^>]*>/gi, " ")
+        .replace(/<\/?(?:table|thead|tbody|tfoot|tr|td|th|colgroup|col)\b[^>]*>/gi, "")
         .replace(UNWRAP, "")
         .replace(/\n{3,}/g, "\n\n");
     })
